@@ -1,0 +1,7 @@
+﻿services:
+  truemain:
+    image: truemain
+    build:
+      context: .
+      dockerfile: TrueMain/Dockerfile
+
