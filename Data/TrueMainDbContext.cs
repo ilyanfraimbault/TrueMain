@@ -11,8 +11,6 @@ public class TrueMainDbContext : DbContext
 
     public DbSet<Player> Players => Set<Player>();
     public DbSet<MatchParticipant> MatchParticipants => Set<MatchParticipant>();
-    public DbSet<ParticipantItemEvent> ParticipantItemEvents => Set<ParticipantItemEvent>();
-    public DbSet<ParticipantSkillEvent> ParticipantSkillEvents => Set<ParticipantSkillEvent>();
     public DbSet<ParticipantPerkSelection> ParticipantPerkSelections => Set<ParticipantPerkSelection>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -160,87 +158,16 @@ public class TrueMainDbContext : DbContext
                 .IsRequired();
             entity.Property(e => e.Summoner2Id)
                 .IsRequired();
+
+            entity.Property(e => e.ItemEvents)
+                .HasColumnType("jsonb")
+                .IsRequired();
+
+            entity.Property(e => e.SkillEvents)
+                .HasColumnType("jsonb")
+                .IsRequired();
         });
 
-        modelBuilder.Entity<ParticipantItemEvent>(entity =>
-        {
-            entity.ToTable("participant_item_events");
-
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Id)
-                .ValueGeneratedOnAdd();
-
-            entity.Property(e => e.MatchParticipantId)
-                .IsRequired();
-
-            entity.Property(e => e.MatchId)
-                .IsRequired()
-                .HasMaxLength(32);
-
-            entity.Property(e => e.ParticipantId)
-                .IsRequired();
-
-            entity.Property(e => e.Puuid)
-                .IsRequired()
-                .HasMaxLength(128);
-
-            entity.Property(e => e.TimestampMs)
-                .IsRequired();
-
-            entity.Property(e => e.EventType)
-                .IsRequired()
-                .HasMaxLength(32);
-
-            entity.Property(e => e.ItemId)
-                .IsRequired();
-
-            entity.Property(e => e.BeforeId);
-
-            entity.Property(e => e.AfterId);
-
-            entity.HasOne(e => e.MatchParticipant)
-                .WithMany(p => p.ItemEvents)
-                .HasForeignKey(e => e.MatchParticipantId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<ParticipantSkillEvent>(entity =>
-        {
-            entity.ToTable("participant_skill_events");
-
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Id)
-                .ValueGeneratedOnAdd();
-
-            entity.Property(e => e.MatchParticipantId)
-                .IsRequired();
-
-            entity.Property(e => e.MatchId)
-                .IsRequired()
-                .HasMaxLength(32);
-
-            entity.Property(e => e.ParticipantId)
-                .IsRequired();
-
-            entity.Property(e => e.Puuid)
-                .IsRequired()
-                .HasMaxLength(128);
-
-            entity.Property(e => e.TimestampMs)
-                .IsRequired();
-
-            entity.Property(e => e.SkillSlot)
-                .IsRequired();
-
-            entity.Property(e => e.LevelUpType)
-                .IsRequired()
-                .HasMaxLength(32);
-
-            entity.HasOne(e => e.MatchParticipant)
-                .WithMany(p => p.SkillEvents)
-                .HasForeignKey(e => e.MatchParticipantId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
 
         modelBuilder.Entity<ParticipantPerkSelection>(entity =>
         {

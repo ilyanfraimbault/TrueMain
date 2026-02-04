@@ -72,7 +72,23 @@ public class MatchParticipant
 
     public int Summoner2Id { get; set; }
 
-    public ICollection<ParticipantItemEvent> ItemEvents { get; set; } = new List<ParticipantItemEvent>();
+    public List<ItemEvent> ItemEvents { get; set; } = new();
 
-    public ICollection<ParticipantSkillEvent> SkillEvents { get; set; } = new List<ParticipantSkillEvent>();
+    public List<SkillEvent> SkillEvents { get; set; } = new();
+}
+
+public class ItemEvent
+{
+    public int TimestampMs { get; set; }
+    public string EventType { get; set; } = string.Empty;
+    public int ItemId { get; set; }
+    public int? BeforeId { get; set; }
+    public int? AfterId { get; set; }
+}
+
+public class SkillEvent
+{
+    public int TimestampMs { get; set; }
+    public int SkillSlot { get; set; }
+    public string LevelUpType { get; set; } = string.Empty;
 }
