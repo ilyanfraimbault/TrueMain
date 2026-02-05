@@ -9,7 +9,8 @@ public class TrueMainDbContext : DbContext
     {
     }
 
-    public DbSet<Player> Players => Set<Player>();
+    public DbSet<RiotAccount> RiotAccounts => Set<RiotAccount>();
+    public DbSet<Persona> Personas => Set<Persona>();
     public DbSet<MatchParticipant> MatchParticipants => Set<MatchParticipant>();
     public DbSet<ParticipantPerkSelection> ParticipantPerkSelections => Set<ParticipantPerkSelection>();
 
@@ -17,13 +18,17 @@ public class TrueMainDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        modelBuilder.Entity<Player>(entity =>
+        modelBuilder.Entity<RiotAccount>(entity =>
         {
-            entity.ToTable("players");
+            entity.ToTable("riot_accounts");
 
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id)
                 .ValueGeneratedOnAdd();
+
+            entity.Property(e => e.Puuid)
+                .IsRequired()
+                .HasMaxLength(128);
 
             entity.Property(e => e.GameName)
                 .IsRequired()
@@ -33,24 +38,61 @@ public class TrueMainDbContext : DbContext
                 .IsRequired()
                 .HasMaxLength(8);
 
-            entity.Property(e => e.Region)
+            entity.Property(e => e.PlatformId)
                 .IsRequired()
                 .HasMaxLength(8);
 
-            entity.Property(e => e.Puuid)
-                .IsRequired()
+            entity.Property(e => e.PersonaId);
+
+            entity.Property(e => e.SummonerId)
                 .HasMaxLength(128);
+
+            entity.Property(e => e.ProfileIconId)
+                .IsRequired();
+
+            entity.Property(e => e.SummonerLevel)
+                .IsRequired();
 
             entity.Property(e => e.CreatedAtUtc)
                 .IsRequired()
                 .ValueGeneratedOnAdd()
                 .HasDefaultValueSql("now()");
 
+            entity.Property(e => e.UpdatedAtUtc)
+                .IsRequired()
+                .ValueGeneratedOnAdd()
+                .HasDefaultValueSql("now()");
+
+            entity.Property(e => e.LastProfileSyncAtUtc);
+
             entity.HasIndex(e => e.Puuid)
                 .IsUnique();
 
-            entity.HasIndex(e => new { e.GameName, e.TagLine, e.Region })
+            entity.HasIndex(e => e.PersonaId);
+
+            entity.HasIndex(e => new { e.GameName, e.TagLine, e.PlatformId })
                 .IsUnique();
+
+            entity.HasOne(e => e.Persona)
+                .WithMany(p => p.RiotAccounts)
+                .HasForeignKey(e => e.PersonaId);
+        });
+
+        modelBuilder.Entity<Persona>(entity =>
+        {
+            entity.ToTable("personas");
+
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id)
+                .ValueGeneratedOnAdd();
+
+            entity.Property(e => e.DisplayName)
+                .HasMaxLength(64);
+
+            entity.Property(e => e.CreatedAtUtc)
+                .IsRequired()
+                .ValueGeneratedOnAdd()
+                .HasDefaultValueSql("now()");
         });
 
         modelBuilder.Entity<MatchParticipant>(entity =>

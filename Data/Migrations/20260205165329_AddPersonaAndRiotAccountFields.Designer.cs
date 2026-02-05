@@ -5,6 +5,7 @@ using Data;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -13,9 +14,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Data.Migrations
 {
     [DbContext(typeof(TrueMainDbContext))]
-    partial class TrueMainDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260205165329_AddPersonaAndRiotAccountFields")]
+    partial class AddPersonaAndRiotAccountFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -240,7 +243,8 @@ namespace Data.Migrations
                     b.Property<string>("PlatformId")
                         .IsRequired()
                         .HasMaxLength(8)
-                        .HasColumnType("character varying(8)");
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("Region");
 
                     b.Property<int>("ProfileIconId")
                         .HasColumnType("integer");
@@ -277,7 +281,7 @@ namespace Data.Migrations
                     b.HasIndex("GameName", "TagLine", "PlatformId")
                         .IsUnique();
 
-                    b.ToTable("riot_accounts", (string)null);
+                    b.ToTable("players", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.RiotAccount", b =>
