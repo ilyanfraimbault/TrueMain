@@ -128,12 +128,22 @@ public class TrueMainDbContext : DbContext
                 .ValueGeneratedOnAdd()
                 .HasDefaultValueSql("now()");
 
+            entity.Property(e => e.Score)
+                .IsRequired();
+
+            entity.Property(e => e.Status)
+                .IsRequired();
+
+            entity.Property(e => e.ScoredAtUtc);
+
             entity.HasIndex(e => new { e.PlatformId, e.Puuid, e.ChampionId })
                 .IsUnique();
 
             entity.HasIndex(e => e.PlatformId);
 
             entity.HasIndex(e => e.ChampionId);
+
+            entity.HasIndex(e => new { e.PlatformId, e.Status, e.Score });
         });
 
         modelBuilder.Entity<MatchParticipant>(entity =>

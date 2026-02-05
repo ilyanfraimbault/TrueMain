@@ -17,4 +17,10 @@ public class MainCandidate
     public DateTime LastPlayTimeUtc { get; set; }
 
     public DateTime DiscoveredAtUtc { get; set; }
+
+    public double Score { get; set; }
+
+    public MainCandidateStatus Status { get; set; } = MainCandidateStatus.New;
+
+    public DateTime? ScoredAtUtc { get; set; }
 }

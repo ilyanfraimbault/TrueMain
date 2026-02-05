@@ -9,6 +9,7 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Services.Configure<RiotOptions>(builder.Configuration.GetSection("Riot"));
 builder.Services.Configure<SeedOptions>(builder.Configuration.GetSection("Seed"));
 builder.Services.Configure<DiscoveryOptions>(builder.Configuration.GetSection("Discovery"));
+builder.Services.Configure<ScoringOptions>(builder.Configuration.GetSection("Scoring"));
 
 builder.Services.AddHttpClient<IRiotMatchClient, RiotMatchClient>();
 builder.Services.AddHttpClient<IRiotPlatformClient, RiotPlatformClient>();
