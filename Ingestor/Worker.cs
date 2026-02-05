@@ -11,237 +11,289 @@ namespace Ingestor;
 
 public class Worker(
     ILogger<Worker> logger,
-    IRiotMatchClient riotMatchClient,
+    IRiotPlatformClient riotPlatformClient,
     IDbContextFactory<TrueMainDbContext> dbContextFactory,
-    IOptions<RiotOptions> riotOptions,
-    IOptions<SeedOptions> seedOptions,
+    IOptions<DiscoveryOptions> discoveryOptions,
     IHostApplicationLifetime applicationLifetime) : BackgroundService
 {
+    private const string RankedSoloQueue = "RANKED_SOLO_5x5";
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var options = riotOptions.Value;
-        var seeds = seedOptions.Value.MatchIds;
+        var options = discoveryOptions.Value;
 
-        if (seeds.Count == 0)
+        if (options.Platforms.Count == 0)
         {
-            logger.LogWarning("No seed match IDs configured (Seed:MatchIds).");
+            logger.LogWarning("No platforms configured (Discovery:Platforms).");
             applicationLifetime.StopApplication();
             return;
         }
 
-        foreach (var matchId in seeds)
+        do
         {
-            stoppingToken.ThrowIfCancellationRequested();
-            await IngestMatchAsync(matchId, options.RegionalRoute, stoppingToken);
-        }
+            await RunDiscoveryAsync(options, stoppingToken);
+
+            if (options.RunOnce)
+            {
+                break;
+            }
+
+            var delayMinutes = options.IntervalMinutes is > 0 ? options.IntervalMinutes.Value : 60;
+            logger.LogInformation("Discovery completed. Waiting {DelayMinutes} minutes before next run.", delayMinutes);
+            await Task.Delay(TimeSpan.FromMinutes(delayMinutes), stoppingToken);
+        } while (!stoppingToken.IsCancellationRequested);
 
         applicationLifetime.StopApplication();
     }
 
-    private async Task IngestMatchAsync(string matchId, RegionalRoute region, CancellationToken ct)
+    private async Task RunDiscoveryAsync(DiscoveryOptions options, CancellationToken ct)
     {
-        logger.LogInformation("Ingesting match {MatchId} ({Region}).", matchId, region);
-
-        var match = await riotMatchClient.GetMatchAsync(matchId, region, ct);
-        var timeline = await riotMatchClient.GetTimelineAsync(matchId, region, ct);
-
-        var effectiveMatchId = string.IsNullOrWhiteSpace(match.Metadata.MatchId) ? matchId : match.Metadata.MatchId;
-        var participants = MapParticipants(match, effectiveMatchId);
-        var perkSelections = MapPerkSelections(match, effectiveMatchId);
-
-        ApplyTimelineEvents(participants, timeline);
-
-        await using var db = await dbContextFactory.CreateDbContextAsync(ct);
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
-
-        var existingParticipants = await db.MatchParticipants
-            .Where(p => p.MatchId == effectiveMatchId)
-            .ToListAsync(ct);
-
-        var existingByParticipantId = existingParticipants.ToDictionary(p => p.ParticipantId);
-
-        foreach (var participant in participants)
+        foreach (var platformString in options.Platforms.Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            if (existingByParticipantId.TryGetValue(participant.ParticipantId, out var existing))
+            ct.ThrowIfCancellationRequested();
+
+            if (!TryParsePlatform(platformString, out var platform))
             {
-                participant.Id = existing.Id;
-                db.Entry(existing).CurrentValues.SetValues(participant);
-                existing.ItemEvents = participant.ItemEvents;
-                existing.SkillEvents = participant.SkillEvents;
+                logger.LogWarning("Skipping unknown platform '{Platform}'.", platformString);
+                continue;
             }
-            else
+
+            var summary = new PlatformSummary(platformString.ToUpperInvariant());
+
+            await using var db = await dbContextFactory.CreateDbContextAsync(ct);
+
+            var ladderEntries = await FetchLadderEntriesAsync(platform, options, ct);
+            if (ladderEntries.Count == 0)
             {
-                db.MatchParticipants.Add(participant);
+                logger.LogInformation("No ladder entries for platform {Platform}.", platform);
+                continue;
             }
-        }
 
-        await db.ParticipantPerkSelections
-            .Where(p => p.MatchId == effectiveMatchId)
-            .ExecuteDeleteAsync(ct);
+            var boundedSummoners = ladderEntries
+                .DistinctBy(entry => entry.Key, StringComparer.OrdinalIgnoreCase)
+                .Take(Math.Max(0, options.MaxAccountsPerPlatformPerRun))
+                .ToList();
 
-        db.ParticipantPerkSelections.AddRange(perkSelections);
-
-        await db.SaveChangesAsync(ct);
-        await transaction.CommitAsync(ct);
-
-        logger.LogInformation("Ingestion complete for match {MatchId}.", effectiveMatchId);
-    }
-
-    private static List<MatchParticipant> MapParticipants(RiotMatchDto match, string matchId)
-    {
-        var participants = new List<MatchParticipant>(match.Info.Participants.Count);
-
-        foreach (var p in match.Info.Participants)
-        {
-            var primaryStyle = p.Perks.Styles.FirstOrDefault(s =>
-                string.Equals(s.Description, "primaryStyle", StringComparison.OrdinalIgnoreCase));
-            var subStyle = p.Perks.Styles.FirstOrDefault(s =>
-                string.Equals(s.Description, "subStyle", StringComparison.OrdinalIgnoreCase));
-
-            participants.Add(new MatchParticipant
+            foreach (var entry in boundedSummoners)
             {
-                MatchId = matchId,
-                ParticipantId = p.ParticipantId,
-                Puuid = p.Puuid,
-                SummonerName = p.SummonerName,
-                SummonerLevel = p.SummonerLevel,
-                ChampionId = p.ChampionId,
-                TeamId = p.TeamId,
-                TeamPosition = p.TeamPosition ?? string.Empty,
-                IndividualPosition = p.IndividualPosition ?? string.Empty,
-                Lane = p.Lane ?? string.Empty,
-                Role = p.Role ?? string.Empty,
-                Win = p.Win,
-                Kills = p.Kills,
-                Deaths = p.Deaths,
-                Assists = p.Assists,
-                GoldEarned = p.GoldEarned,
-                TotalMinionsKilled = p.TotalMinionsKilled,
-                NeutralMinionsKilled = p.NeutralMinionsKilled,
-                ChampLevel = p.ChampLevel,
-                Item0 = p.Item0,
-                Item1 = p.Item1,
-                Item2 = p.Item2,
-                Item3 = p.Item3,
-                Item4 = p.Item4,
-                Item5 = p.Item5,
-                Item6 = p.Item6,
-                TrinketItemId = p.Item6,
-                PerksDefense = p.Perks.StatPerks.Defense,
-                PerksFlex = p.Perks.StatPerks.Flex,
-                PerksOffense = p.Perks.StatPerks.Offense,
-                PrimaryStyleId = primaryStyle?.Style ?? 0,
-                SubStyleId = subStyle?.Style ?? 0,
-                Summoner1Id = p.Summoner1Id,
-                Summoner2Id = p.Summoner2Id,
-                ItemEvents = new List<ItemEvent>(),
-                SkillEvents = new List<SkillEvent>()
-            });
-        }
+                ct.ThrowIfCancellationRequested();
 
-        return participants;
-    }
-
-    private static List<ParticipantPerkSelection> MapPerkSelections(RiotMatchDto match, string matchId)
-    {
-        var selections = new List<ParticipantPerkSelection>();
-
-        foreach (var participant in match.Info.Participants)
-        {
-            foreach (var style in participant.Perks.Styles)
-            {
-                for (var i = 0; i < style.Selections.Count; i++)
-                {
-                    var selection = style.Selections[i];
-                    selections.Add(new ParticipantPerkSelection
-                    {
-                        MatchId = matchId,
-                        ParticipantId = participant.ParticipantId,
-                        StyleId = style.Style,
-                        StyleDescription = style.Description ?? string.Empty,
-                        SelectionIndex = i,
-                        PerkId = selection.Perk
-                    });
-                }
-            }
-        }
-
-        return selections;
-    }
-
-    private static void ApplyTimelineEvents(List<MatchParticipant> participants, RiotTimelineDto timeline)
-    {
-        var itemEventsByParticipant = new Dictionary<int, List<ItemEvent>>();
-        var skillEventsByParticipant = new Dictionary<int, List<SkillEvent>>();
-
-        foreach (var frame in timeline.Info.Frames)
-        {
-            foreach (var evt in frame.Events)
-            {
-                if (evt.ParticipantId is null)
+                var summoner = await ResolveSummonerAsync(platform, entry, ct);
+                if (string.IsNullOrWhiteSpace(summoner.Puuid))
                 {
                     continue;
                 }
 
-                var participantId = evt.ParticipantId.Value;
+                var puuid = summoner.Puuid;
+                var nowUtc = DateTime.UtcNow;
 
-                if (evt.Type.StartsWith("ITEM_", StringComparison.OrdinalIgnoreCase) && evt.ItemId.HasValue)
+                await UpsertRiotAccountAsync(db, platform, summoner, nowUtc, ct);
+
+                var masteries = await riotPlatformClient.GetChampionMasteriesAsync(platform, puuid, ct);
+                var topMasteries = masteries
+                    .OrderByDescending(m => m.ChampionPoints)
+                    .Take(Math.Max(0, options.TopChampionsPerAccount))
+                    .ToList();
+
+                summary.AccountsProcessed++;
+
+                if (topMasteries.Count == 0)
                 {
-                    if (!itemEventsByParticipant.TryGetValue(participantId, out var itemEvents))
-                    {
-                        itemEvents = new List<ItemEvent>();
-                        itemEventsByParticipant[participantId] = itemEvents;
-                    }
-
-                    itemEvents.Add(new ItemEvent
-                    {
-                        TimestampMs = ToTimestamp(evt.Timestamp),
-                        EventType = evt.Type,
-                        ItemId = evt.ItemId.Value,
-                        BeforeId = evt.BeforeId,
-                        AfterId = evt.AfterId
-                    });
+                    continue;
                 }
 
-                if (string.Equals(evt.Type, "SKILL_LEVEL_UP", StringComparison.OrdinalIgnoreCase) && evt.SkillSlot.HasValue)
+                var championIds = topMasteries.Select(m => m.ChampionId).ToList();
+                var existingCandidates = await db.MainCandidates
+                    .Where(c => c.PlatformId == summary.PlatformId && c.Puuid == puuid && championIds.Contains(c.ChampionId))
+                    .ToListAsync(ct);
+
+                var existingByChampion = existingCandidates.ToDictionary(c => c.ChampionId);
+
+                for (var i = 0; i < topMasteries.Count; i++)
                 {
-                    if (!skillEventsByParticipant.TryGetValue(participantId, out var skillEvents))
+                    var mastery = topMasteries[i];
+                    var lastPlayUtc = ToUtcDateTime(mastery.LastPlayTime);
+                    if (lastPlayUtc is null)
                     {
-                        skillEvents = new List<SkillEvent>();
-                        skillEventsByParticipant[participantId] = skillEvents;
+                        continue;
                     }
 
-                    skillEvents.Add(new SkillEvent
+                    if (options.MaxLastPlayDays > 0 &&
+                        nowUtc - lastPlayUtc.Value > TimeSpan.FromDays(options.MaxLastPlayDays))
                     {
-                        TimestampMs = ToTimestamp(evt.Timestamp),
-                        SkillSlot = evt.SkillSlot.Value,
-                        LevelUpType = evt.LevelUpType ?? string.Empty
-                    });
+                        continue;
+                    }
+
+                    var rank = i + 1;
+
+                    if (existingByChampion.TryGetValue(mastery.ChampionId, out var candidate))
+                    {
+                        candidate.ChampionRankInMasteryTop = rank;
+                        candidate.ChampionPoints = mastery.ChampionPoints;
+                        candidate.LastPlayTimeUtc = lastPlayUtc.Value;
+                        candidate.DiscoveredAtUtc = nowUtc;
+                        summary.CandidatesUpdated++;
+                    }
+                    else
+                    {
+                        db.MainCandidates.Add(new MainCandidate
+                        {
+                            PlatformId = summary.PlatformId,
+                            Puuid = puuid,
+                            ChampionId = mastery.ChampionId,
+                            ChampionRankInMasteryTop = rank,
+                            ChampionPoints = mastery.ChampionPoints,
+                            LastPlayTimeUtc = lastPlayUtc.Value,
+                            DiscoveredAtUtc = nowUtc
+                        });
+                        summary.CandidatesInserted++;
+                    }
                 }
-            }
-        }
 
-        foreach (var participant in participants)
-        {
-            if (itemEventsByParticipant.TryGetValue(participant.ParticipantId, out var itemEvents))
-            {
-                participant.ItemEvents = itemEvents;
+                await db.SaveChangesAsync(ct);
             }
 
-            if (skillEventsByParticipant.TryGetValue(participant.ParticipantId, out var skillEvents))
-            {
-                participant.SkillEvents = skillEvents;
-            }
+            logger.LogInformation(
+                "Discovery summary for {Platform}: accounts={AccountsProcessed}, candidatesInserted={Inserted}, candidatesUpdated={Updated}.",
+                summary.PlatformId,
+                summary.AccountsProcessed,
+                summary.CandidatesInserted,
+                summary.CandidatesUpdated);
         }
     }
 
-    private static int ToTimestamp(long timestamp)
+    private async Task<List<LadderEntry>> FetchLadderEntriesAsync(PlatformRoute platform, DiscoveryOptions options, CancellationToken ct)
     {
-        if (timestamp <= 0)
+        var tierScope = options.TierScope.Select(t => t.Trim().ToUpperInvariant()).ToHashSet();
+        var result = new List<LadderEntry>();
+
+        if (tierScope.Contains("CHALLENGER"))
+        {
+            var challenger = await riotPlatformClient.GetChallengerLeagueAsync(platform, RankedSoloQueue, ct);
+            result.AddRange(challenger.Entries
+                .Select(ToLadderEntry)
+                .Where(entry => entry is not null)!);
+        }
+
+        if (tierScope.Contains("GM") || tierScope.Contains("GRANDMASTER"))
+        {
+            var gm = await riotPlatformClient.GetGrandmasterLeagueAsync(platform, RankedSoloQueue, ct);
+            result.AddRange(gm.Entries
+                .Select(ToLadderEntry)
+                .Where(entry => entry is not null)!);
+        }
+
+        if (tierScope.Contains("MASTER"))
+        {
+            var master = await riotPlatformClient.GetMasterLeagueAsync(platform, RankedSoloQueue, ct);
+            result.AddRange(master.Entries
+                .Select(ToLadderEntry)
+                .Where(entry => entry is not null)!);
+        }
+
+        return result;
+    }
+
+    private static LadderEntry? ToLadderEntry(RiotLeagueEntryDto entry)
+    {
+        if (!string.IsNullOrWhiteSpace(entry.SummonerId))
+        {
+            return new LadderEntry(entry.SummonerId, entry.Puuid);
+        }
+
+        if (!string.IsNullOrWhiteSpace(entry.Puuid))
+        {
+            return new LadderEntry(null, entry.Puuid);
+        }
+
+        return null;
+    }
+
+    private async Task<RiotSummonerDto> ResolveSummonerAsync(PlatformRoute platform, LadderEntry entry, CancellationToken ct)
+    {
+        if (!string.IsNullOrWhiteSpace(entry.SummonerId))
+        {
+            return await riotPlatformClient.GetSummonerAsync(platform, entry.SummonerId, ct);
+        }
+
+        if (!string.IsNullOrWhiteSpace(entry.Puuid))
+        {
+            return await riotPlatformClient.GetSummonerByPuuidAsync(platform, entry.Puuid, ct);
+        }
+
+        return new RiotSummonerDto();
+    }
+
+    private static async Task UpsertRiotAccountAsync(
+        TrueMainDbContext db,
+        PlatformRoute platform,
+        RiotSummonerDto summoner,
+        DateTime nowUtc,
+        CancellationToken ct)
+    {
+        var existing = await db.RiotAccounts.FirstOrDefaultAsync(a => a.Puuid == summoner.Puuid, ct);
+        var platformId = platform.ToString();
+
+        if (existing is null)
+        {
+            db.RiotAccounts.Add(new RiotAccount
+            {
+                Puuid = summoner.Puuid,
+                GameName = summoner.Name ?? string.Empty,
+                TagLine = null,
+                PlatformId = platformId,
+                SummonerId = summoner.Id,
+                ProfileIconId = summoner.ProfileIconId,
+                SummonerLevel = ToIntSafe(summoner.SummonerLevel),
+                UpdatedAtUtc = nowUtc,
+                LastProfileSyncAtUtc = nowUtc
+            });
+            return;
+        }
+
+        existing.GameName = summoner.Name ?? string.Empty;
+        existing.TagLine = null;
+        existing.PlatformId = platformId;
+        existing.SummonerId = summoner.Id;
+        existing.ProfileIconId = summoner.ProfileIconId;
+        existing.SummonerLevel = ToIntSafe(summoner.SummonerLevel);
+        existing.UpdatedAtUtc = nowUtc;
+        existing.LastProfileSyncAtUtc = nowUtc;
+    }
+
+    private static bool TryParsePlatform(string platform, out PlatformRoute route)
+        => Enum.TryParse(platform.Trim(), ignoreCase: true, out route);
+
+    private static DateTime? ToUtcDateTime(long lastPlayTimeMs)
+    {
+        if (lastPlayTimeMs <= 0)
+        {
+            return null;
+        }
+
+        return DateTimeOffset.FromUnixTimeMilliseconds(lastPlayTimeMs).UtcDateTime;
+    }
+
+    private static int ToIntSafe(long value)
+    {
+        if (value <= 0)
         {
             return 0;
         }
 
-        return timestamp > int.MaxValue ? int.MaxValue : (int)timestamp;
+        return value > int.MaxValue ? int.MaxValue : (int)value;
+    }
+
+    private sealed class PlatformSummary(string platformId)
+    {
+        public string PlatformId { get; } = platformId;
+        public int AccountsProcessed { get; set; }
+        public int CandidatesInserted { get; set; }
+        public int CandidatesUpdated { get; set; }
+    }
+
+    private sealed record LadderEntry(string? SummonerId, string? Puuid)
+    {
+        public string Key => SummonerId ?? Puuid ?? string.Empty;
     }
 }

@@ -28,6 +28,28 @@ public static class RiotRouting
             _ => throw new ArgumentOutOfRangeException(nameof(platform), platform, "Unsupported platform route.")
         };
 
+    public static string ToPlatformHost(PlatformRoute platform) =>
+        platform switch
+        {
+            PlatformRoute.BR1 => "br1",
+            PlatformRoute.EUN1 => "eun1",
+            PlatformRoute.EUW1 => "euw1",
+            PlatformRoute.JP1 => "jp1",
+            PlatformRoute.KR => "kr",
+            PlatformRoute.LA1 => "la1",
+            PlatformRoute.LA2 => "la2",
+            PlatformRoute.NA1 => "na1",
+            PlatformRoute.OC1 => "oc1",
+            PlatformRoute.PH2 => "ph2",
+            PlatformRoute.RU => "ru",
+            PlatformRoute.SG2 => "sg2",
+            PlatformRoute.TH2 => "th2",
+            PlatformRoute.TR1 => "tr1",
+            PlatformRoute.TW2 => "tw2",
+            PlatformRoute.VN2 => "vn2",
+            _ => throw new ArgumentOutOfRangeException(nameof(platform), platform, "Unsupported platform route.")
+        };
+
     public static string ToRegionalHost(RegionalRoute region) =>
         region switch
         {

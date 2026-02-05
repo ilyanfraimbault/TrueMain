@@ -13,6 +13,7 @@ public class TrueMainDbContext : DbContext
     public DbSet<Persona> Personas => Set<Persona>();
     public DbSet<MatchParticipant> MatchParticipants => Set<MatchParticipant>();
     public DbSet<ParticipantPerkSelection> ParticipantPerkSelections => Set<ParticipantPerkSelection>();
+    public DbSet<MainCandidate> MainCandidates => Set<MainCandidate>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -35,7 +36,6 @@ public class TrueMainDbContext : DbContext
                 .HasMaxLength(32);
 
             entity.Property(e => e.TagLine)
-                .IsRequired()
                 .HasMaxLength(8);
 
             entity.Property(e => e.PlatformId)
@@ -93,6 +93,47 @@ public class TrueMainDbContext : DbContext
                 .IsRequired()
                 .ValueGeneratedOnAdd()
                 .HasDefaultValueSql("now()");
+        });
+
+        modelBuilder.Entity<MainCandidate>(entity =>
+        {
+            entity.ToTable("main_candidates");
+
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id)
+                .ValueGeneratedOnAdd();
+
+            entity.Property(e => e.PlatformId)
+                .IsRequired()
+                .HasMaxLength(8);
+
+            entity.Property(e => e.Puuid)
+                .IsRequired()
+                .HasMaxLength(128);
+
+            entity.Property(e => e.ChampionId)
+                .IsRequired();
+
+            entity.Property(e => e.ChampionRankInMasteryTop)
+                .IsRequired();
+
+            entity.Property(e => e.ChampionPoints)
+                .IsRequired();
+
+            entity.Property(e => e.LastPlayTimeUtc)
+                .IsRequired();
+
+            entity.Property(e => e.DiscoveredAtUtc)
+                .IsRequired()
+                .ValueGeneratedOnAdd()
+                .HasDefaultValueSql("now()");
+
+            entity.HasIndex(e => new { e.PlatformId, e.Puuid, e.ChampionId })
+                .IsUnique();
+
+            entity.HasIndex(e => e.PlatformId);
+
+            entity.HasIndex(e => e.ChampionId);
         });
 
         modelBuilder.Entity<MatchParticipant>(entity =>

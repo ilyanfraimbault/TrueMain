@@ -8,7 +8,7 @@ public class RiotAccount
 
     public string GameName { get; set; } = string.Empty;
 
-    public string TagLine { get; set; } = string.Empty;
+    public string? TagLine { get; set; }
 
     public string PlatformId { get; set; } = string.Empty;
 
