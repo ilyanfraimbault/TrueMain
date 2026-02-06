@@ -1,25 +1,22 @@
-using Data;
 using Data.Entities;
+using Data.Repositories;
 using Ingestor.Options;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
 
 public class ScoringProcess(
     ILogger<ScoringProcess> logger,
-    IDbContextFactory<TrueMainDbContext> dbContextFactory,
+    IDataSessionFactory sessionFactory,
     IOptions<ScoringOptions> scoringOptions)
 {
     public async Task RunAsync(CancellationToken ct)
     {
         var scoring = scoringOptions.Value;
-        await using var db = await dbContextFactory.CreateDbContextAsync(ct);
+        await using var session = await sessionFactory.CreateAsync(ct);
         var nowUtc = DateTime.UtcNow;
 
-        var candidates = await db.MainCandidates
-            .Where(c => c.Status == MainCandidateStatus.New)
-            .ToListAsync(ct);
+        var candidates = await session.MainCandidates.GetByStatusAsync(MainCandidateStatus.New, ct);
 
         if (candidates.Count == 0)
         {
@@ -34,8 +31,7 @@ public class ScoringProcess(
             candidate.ScoredAtUtc = nowUtc;
         }
 
-        LogPendingChanges(logger, db, "Scoring", "Score");
-        await db.SaveChangesAsync(ct);
+        await session.SaveChangesAsync(ct);
 
         var grouped = candidates
             .GroupBy(c => c.PlatformId, StringComparer.OrdinalIgnoreCase)
@@ -43,19 +39,15 @@ public class ScoringProcess(
 
         foreach (var group in grouped)
         {
-            var queued = await db.MainCandidates
-                .Where(c => c.PlatformId == group.Key && c.Status == MainCandidateStatus.Scored)
-                .OrderByDescending(c => c.Score)
-                .Take(Math.Max(0, scoring.TopNPerPlatform))
-                .ToListAsync(ct);
+            var queued = await session.MainCandidates
+                .GetScoredByPlatformAsync(group.Key, scoring.TopNPerPlatform, ct);
 
             foreach (var candidate in queued)
             {
                 candidate.Status = MainCandidateStatus.Queued;
             }
 
-            LogPendingChanges(logger, db, "Scoring", $"Queue {group.Key}");
-            await db.SaveChangesAsync(ct);
+            await session.SaveChangesAsync(ct);
 
             logger.LogInformation(
                 "Scoring summary for {Platform}: scored={Scored}, queued={Queued}.",
@@ -78,7 +70,22 @@ public class ScoringProcess(
 
         var pointsScore = Clamp(Math.Log10(candidate.ChampionPoints + 1) / 6, 0, 1);
 
-        return 100 * (0.5 * recencyScore + 0.3 * rankScore + 0.2 * pointsScore);
+        var recencyWeight = scoring.RecencyWeight;
+        var rankWeight = scoring.RankWeight;
+        var pointsWeight = scoring.PointsWeight;
+
+        var weightSum = recencyWeight + rankWeight + pointsWeight;
+        if (weightSum <= 0)
+        {
+            recencyWeight = 0.65;
+            rankWeight = 0.20;
+            pointsWeight = 0.15;
+            weightSum = 1.0;
+        }
+
+        return 100 * ((recencyWeight / weightSum) * recencyScore
+                      + (rankWeight / weightSum) * rankScore
+                      + (pointsWeight / weightSum) * pointsScore);
     }
 
     private static double Clamp(double value, double min, double max)
@@ -91,43 +98,4 @@ public class ScoringProcess(
         return value > max ? max : value;
     }
 
-    private static void LogPendingChanges(
-        ILogger logger,
-        TrueMainDbContext db,
-        string stage,
-        string detail)
-    {
-        var added = 0;
-        var modified = 0;
-        var deleted = 0;
-
-        foreach (var entry in db.ChangeTracker.Entries())
-        {
-            switch (entry.State)
-            {
-                case EntityState.Added:
-                    added++;
-                    break;
-                case EntityState.Modified:
-                    modified++;
-                    break;
-                case EntityState.Deleted:
-                    deleted++;
-                    break;
-            }
-        }
-
-        if (added == 0 && modified == 0 && deleted == 0)
-        {
-            return;
-        }
-
-        logger.LogDebug(
-            "{Stage} DB changes ({Detail}): added={Added}, modified={Modified}, deleted={Deleted}.",
-            stage,
-            detail,
-            added,
-            modified,
-            deleted);
-    }
 }

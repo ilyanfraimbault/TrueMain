@@ -6,11 +6,7 @@ namespace Ingestor;
 
 public class Worker(
     ILogger<Worker> logger,
-    DiscoveryProcess discoveryProcess,
-    ScoringProcess scoringProcess,
-    MatchIngestionProcess matchIngestionProcess,
-    MainAnalysisProcess mainAnalysisProcess,
-    AccountRefreshProcess accountRefreshProcess,
+    IServiceScopeFactory scopeFactory,
     IOptions<JobOptions> jobOptions,
     IHostApplicationLifetime applicationLifetime) : BackgroundService
 {
@@ -21,6 +17,13 @@ public class Worker(
 
         do
         {
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var discoveryProcess = scope.ServiceProvider.GetRequiredService<DiscoveryProcess>();
+            var scoringProcess = scope.ServiceProvider.GetRequiredService<ScoringProcess>();
+            var matchIngestionProcess = scope.ServiceProvider.GetRequiredService<MatchIngestionProcess>();
+            var mainAnalysisProcess = scope.ServiceProvider.GetRequiredService<MainAnalysisProcess>();
+            var accountRefreshProcess = scope.ServiceProvider.GetRequiredService<AccountRefreshProcess>();
+
             switch (mode)
             {
                 case JobMode.DiscoveryOnly:

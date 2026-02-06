@@ -1,14 +1,13 @@
-using Data;
 using Data.Entities;
+using Data.Repositories;
 using Ingestor.Options;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
 
 public class MainAnalysisProcess(
     ILogger<MainAnalysisProcess> logger,
-    IDbContextFactory<TrueMainDbContext> dbContextFactory,
+    IDataSessionFactory sessionFactory,
     IOptions<MainAnalysisOptions> analysisOptions)
 {
     public async Task RunAsync(CancellationToken ct)
@@ -23,28 +22,10 @@ public class MainAnalysisProcess(
             ? nowUtc.AddHours(-options.RecomputeAfterHours)
             : DateTime.MinValue;
 
-        await using var db = await dbContextFactory.CreateDbContextAsync(ct);
+        await using var session = await sessionFactory.CreateAsync(ct);
 
-        var accountQuery =
-            from account in db.RiotAccounts
-            join candidate in db.MainCandidates
-                on new { account.PlatformId, account.Puuid } equals new { candidate.PlatformId, candidate.Puuid }
-            where candidate.Status == MainCandidateStatus.Validated
-            select account;
-
-        if (options.RecomputeAfterHours > 0)
-        {
-            accountQuery = accountQuery
-                .Where(a => a.LastMainCalcAtUtc == null || a.LastMainCalcAtUtc < cutoff);
-        }
-
-        var accounts = await accountQuery
-            .Distinct()
-            .OrderBy(a => a.LastMainCalcAtUtc == null ? 0 : 1)
-            .ThenBy(a => a.LastMainCalcAtUtc)
-            .Take(batchSize)
-            .Select(a => new AccountKey(a.PlatformId, a.Puuid))
-            .ToListAsync(ct);
+        var accounts = await session.RiotAccounts
+            .GetAccountsForMainAnalysisAsync(cutoff, batchSize, ct);
 
         if (accounts.Count == 0)
         {
@@ -60,20 +41,11 @@ public class MainAnalysisProcess(
         {
             ct.ThrowIfCancellationRequested();
 
-            await using var accountDb = await dbContextFactory.CreateDbContextAsync(ct);
-            await using var transaction = await accountDb.Database.BeginTransactionAsync(ct);
+            await using var accountSession = await sessionFactory.CreateAsync(ct);
+            await using var transaction = await accountSession.BeginTransactionAsync(ct);
 
-            var participantRows = await (
-                    from participant in accountDb.MatchParticipants
-                    join match in accountDb.Matches on participant.MatchId equals match.Id
-                    where participant.Puuid == account.Puuid &&
-                          match.PlatformId == account.PlatformId &&
-                          match.QueueId == queueId
-                    orderby match.GameStartTimeUtc descending
-                    select new ParticipantRow(participant.ChampionId, participant.TeamPosition)
-                )
-                .Take(matchesToConsider)
-                .ToListAsync(ct);
+            var participantRows = await accountSession.MatchParticipants
+                .GetRecentParticipantsAsync(account.PlatformId, account.Puuid, queueId, matchesToConsider, ct);
 
             var validParticipants = participantRows
                 .Where(p => IsValidTeamPosition(p.TeamPosition))
@@ -82,9 +54,8 @@ public class MainAnalysisProcess(
 
             var totalMatches = validParticipants.Count;
 
-            var existingStats = await accountDb.MainChampionStats
-                .Where(s => s.PlatformId == account.PlatformId && s.Puuid == account.Puuid)
-                .ToListAsync(ct);
+            var existingStats = await accountSession.MainChampionStats
+                .GetByAccountAsync(account.PlatformId, account.Puuid, ct);
 
             var statsByChampion = existingStats.ToDictionary(s => s.ChampionId);
             var newStats = new List<MainChampionStat>();
@@ -132,14 +103,20 @@ public class MainAnalysisProcess(
             }
 
             var newChampionIds = newStats.Select(s => s.ChampionId).ToHashSet();
+            var newStatsByChampion = newStats.ToDictionary(s => s.ChampionId);
             foreach (var existing in existingStats)
             {
                 if (!newChampionIds.Contains(existing.ChampionId))
                 {
-                    accountDb.MainChampionStats.Remove(existing);
+                    accountSession.MainChampionStats.Remove(existing);
                     totalStatsRemoved++;
                 }
             }
+
+            var demoteToScored = existingStats
+                .Where(s => s.IsMain)
+                .Any(s => !newStatsByChampion.TryGetValue(s.ChampionId, out var stat)
+                          || stat.PlayRate < options.CriticalPlayRateThreshold);
 
             foreach (var stat in newStats)
             {
@@ -155,21 +132,35 @@ public class MainAnalysisProcess(
                 }
                 else
                 {
-                    accountDb.MainChampionStats.Add(stat);
+                    accountSession.MainChampionStats.Add(stat);
                 }
 
                 totalStatsUpserted++;
             }
 
-            var accountEntity = await accountDb.RiotAccounts
-                .FirstOrDefaultAsync(a => a.PlatformId == account.PlatformId && a.Puuid == account.Puuid, ct);
+            var accountEntity = await accountSession.RiotAccounts
+                .GetByKeyAsync(account.PlatformId, account.Puuid, ct);
 
             if (accountEntity is not null)
             {
                 accountEntity.LastMainCalcAtUtc = nowUtc;
             }
 
-            await accountDb.SaveChangesAsync(ct);
+            if (demoteToScored)
+            {
+                var updated = await accountSession.MainCandidates
+                    .SetStatusForAccountAsync(account.PlatformId, account.Puuid, MainCandidateStatus.Validated, MainCandidateStatus.Scored, ct);
+
+                if (updated > 0)
+                {
+                    logger.LogInformation(
+                        "Demoted candidates for {Platform}/{Puuid} to Scored due to critical play rate.",
+                        account.PlatformId,
+                        account.Puuid);
+                }
+            }
+
+            await accountSession.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
 
             processed++;
@@ -197,7 +188,4 @@ public class MainAnalysisProcess(
     private static string NormalizePosition(string position)
         => position.Trim().ToUpperInvariant();
 
-    private sealed record AccountKey(string PlatformId, string Puuid);
-
-    private sealed record ParticipantRow(int ChampionId, string TeamPosition);
 }

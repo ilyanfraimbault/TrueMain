@@ -69,6 +69,12 @@ public class TrueMainDbContext : DbContext
 
             entity.Property(e => e.LastMainCalcAtUtc);
 
+            entity.Property(e => e.LastMatchIngestAtUtc);
+
+            entity.Property(e => e.MatchIngestStatus)
+                .IsRequired()
+                .HasDefaultValue(MatchIngestStatus.Idle);
+
             entity.HasIndex(e => e.Puuid)
                 .IsUnique();
 

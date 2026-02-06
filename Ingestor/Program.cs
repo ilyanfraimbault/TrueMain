@@ -1,4 +1,5 @@
 using Data;
+using Data.Repositories;
 using Ingestor;
 using Ingestor.Options;
 using Ingestor.Processes;
@@ -21,11 +22,11 @@ builder.Services.AddHttpClient<IRiotMatchClient, RiotMatchClient>();
 builder.Services.AddHttpClient<IRiotPlatformClient, RiotPlatformClient>();
 builder.Services.AddHttpClient<IRiotAccountClient, RiotAccountClient>();
 
-builder.Services.AddSingleton<DiscoveryProcess>();
-builder.Services.AddSingleton<ScoringProcess>();
-builder.Services.AddSingleton<MatchIngestionProcess>();
-builder.Services.AddSingleton<MainAnalysisProcess>();
-builder.Services.AddSingleton<AccountRefreshProcess>();
+builder.Services.AddScoped<DiscoveryProcess>();
+builder.Services.AddScoped<ScoringProcess>();
+builder.Services.AddScoped<MatchIngestionProcess>();
+builder.Services.AddScoped<MainAnalysisProcess>();
+builder.Services.AddScoped<AccountRefreshProcess>();
 
 builder.Services.AddDbContextFactory<TrueMainDbContext>(options =>
 {
@@ -43,6 +44,8 @@ builder.Services.AddDbContextFactory<TrueMainDbContext>(options =>
 
     options.UseNpgsql(dataSource);
 });
+
+builder.Services.AddSingleton<IDataSessionFactory, DataSessionFactory>();
 
 builder.Services.AddHostedService<Worker>();
 

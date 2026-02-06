@@ -1,8 +1,7 @@
 using Core;
-using Data;
+using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Riot;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
@@ -10,7 +9,7 @@ namespace Ingestor.Processes;
 public class AccountRefreshProcess(
     ILogger<AccountRefreshProcess> logger,
     IRiotAccountClient riotAccountClient,
-    IDbContextFactory<TrueMainDbContext> dbContextFactory,
+    IDataSessionFactory sessionFactory,
     IOptions<AccountRefreshOptions> refreshOptions)
 {
     public async Task RunAsync(CancellationToken ct)
@@ -18,17 +17,9 @@ public class AccountRefreshProcess(
         var options = refreshOptions.Value;
         var batchSize = Math.Max(1, options.BatchSize);
 
-        await using var db = await dbContextFactory.CreateDbContextAsync(ct);
+        await using var session = await sessionFactory.CreateAsync(ct);
 
-        var accounts = await db.RiotAccounts
-            .OrderBy(a =>
-                (a.GameName == null || a.GameName == string.Empty ||
-                 a.TagLine == null || a.TagLine == string.Empty)
-                    ? 0
-                    : 1)
-            .ThenBy(a => a.UpdatedAtUtc)
-            .Take(batchSize)
-            .ToListAsync(ct);
+        var accounts = await session.RiotAccounts.GetAccountsForRefreshAsync(batchSize, ct);
 
         if (accounts.Count == 0)
         {
@@ -81,8 +72,7 @@ public class AccountRefreshProcess(
             }
         }
 
-        LogPendingChanges(logger, db, "AccountRefresh");
-        await db.SaveChangesAsync(ct);
+        await session.SaveChangesAsync(ct);
 
         logger.LogInformation(
             "Account refresh summary: selected={Selected}, updated={Updated}, skipped={Skipped}, failed={Failed}.",
@@ -95,38 +85,4 @@ public class AccountRefreshProcess(
     private static bool TryParsePlatform(string platform, out PlatformRoute route)
         => Enum.TryParse(platform.Trim(), ignoreCase: true, out route);
 
-    private static void LogPendingChanges(ILogger logger, TrueMainDbContext db, string stage)
-    {
-        var added = 0;
-        var modified = 0;
-        var deleted = 0;
-
-        foreach (var entry in db.ChangeTracker.Entries())
-        {
-            switch (entry.State)
-            {
-                case EntityState.Added:
-                    added++;
-                    break;
-                case EntityState.Modified:
-                    modified++;
-                    break;
-                case EntityState.Deleted:
-                    deleted++;
-                    break;
-            }
-        }
-
-        if (added == 0 && modified == 0 && deleted == 0)
-        {
-            return;
-        }
-
-        logger.LogDebug(
-            "{Stage} DB changes: added={Added}, modified={Modified}, deleted={Deleted}.",
-            stage,
-            added,
-            modified,
-            deleted);
-    }
 }

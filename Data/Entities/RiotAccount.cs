@@ -29,4 +29,8 @@ public class RiotAccount
     public DateTime? LastProfileSyncAtUtc { get; set; }
 
     public DateTime? LastMainCalcAtUtc { get; set; }
+
+    public DateTime? LastMatchIngestAtUtc { get; set; }
+
+    public MatchIngestStatus MatchIngestStatus { get; set; } = MatchIngestStatus.Idle;
 }

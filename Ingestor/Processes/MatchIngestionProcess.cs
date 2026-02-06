@@ -1,21 +1,17 @@
 using Core;
-using Data;
 using Data.Entities;
+using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Riot;
 using Ingestor.Riot.Dto;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Options;
-using Npgsql;
-using NpgsqlTypes;
 
 namespace Ingestor.Processes;
 
 public class MatchIngestionProcess(
     ILogger<MatchIngestionProcess> logger,
     IRiotMatchClient riotMatchClient,
-    IDbContextFactory<TrueMainDbContext> dbContextFactory,
+    IDataSessionFactory sessionFactory,
     IOptions<MatchIngestionOptions> matchOptions)
 {
     public async Task RunAsync(CancellationToken ct)
@@ -61,14 +57,8 @@ public class MatchIngestionProcess(
                     .Distinct(StringComparer.Ordinal)
                     .ToList();
 
-                await using var db = await dbContextFactory.CreateDbContextAsync(ct);
-
-                var existingMatchIds = await db.Matches
-                    .Where(m => matchIds.Contains(m.Id))
-                    .Select(m => m.Id)
-                    .ToListAsync(ct);
-
-                var existingSet = existingMatchIds.ToHashSet(StringComparer.Ordinal);
+                await using var session = await sessionFactory.CreateAsync(ct);
+                var existingSet = await session.Matches.GetExistingMatchIdsAsync(matchIds, ct);
                 var newMatchIds = matchIds.Where(id => !existingSet.Contains(id)).ToList();
 
                 var inserted = 0;
@@ -77,21 +67,21 @@ public class MatchIngestionProcess(
                 foreach (var matchId in newMatchIds)
                 {
                     var matchDto = await riotMatchClient.GetMatchAsync(matchId, region, ct);
-                    await UpsertMatchSnapshotAsync(db, matchDto, platformId, ct);
+                    await UpsertMatchSnapshotAsync(session, matchDto, platformId, ct);
                     inserted++;
                 }
 
-                LogPendingChanges(logger, db, "MatchSnapshot", account.PlatformId, account.Puuid);
-                await db.SaveChangesAsync(ct);
+                await session.SaveChangesAsync(ct);
 
                 var timelineUpdated = 0;
                 foreach (var matchId in newMatchIds)
                 {
                     var timelineDto = await riotMatchClient.GetTimelineAsync(matchId, region, ct);
-                    await ApplyTimelineAsync(logger, db, matchId, timelineDto, ct);
+                    await ApplyTimelineAsync(session, matchId, timelineDto, ct);
                     timelineUpdated++;
                 }
 
+                await session.SaveChangesAsync(ct);
                 await ValidateAccountAsync(account, ct);
 
                 if (!summaryByPlatform.TryGetValue(platformId, out var summary))
@@ -131,48 +121,17 @@ public class MatchIngestionProcess(
 
     private async Task<List<AccountKey>> ClaimAccountsAsync(List<string> platforms, int batchSize, CancellationToken ct)
     {
-        await using var db = await dbContextFactory.CreateDbContextAsync(ct);
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        await using var session = await sessionFactory.CreateAsync(ct);
+        await using var transaction = await session.BeginTransactionAsync(ct);
 
-        var accounts = new List<AccountKey>();
-
-        var connection = db.Database.GetDbConnection();
-
-        await using (var command = connection.CreateCommand())
-        {
-            command.CommandText = """
-                SELECT DISTINCT ON ("PlatformId", "Puuid") "PlatformId", "Puuid"
-                FROM main_candidates
-                WHERE "Status" = @status
-                  AND "PlatformId" = ANY(@platforms)
-                ORDER BY "PlatformId", "Puuid", "Score" DESC
-                LIMIT @batch;
-                """;
-
-            command.Transaction = (transaction as IDbContextTransaction)?.GetDbTransaction();
-
-            command.Parameters.Add(new NpgsqlParameter("status", (int)MainCandidateStatus.Queued));
-            command.Parameters.Add(new NpgsqlParameter("platforms", NpgsqlDbType.Array | NpgsqlDbType.Text)
-            {
-                Value = platforms.ToArray()
-            });
-            command.Parameters.Add(new NpgsqlParameter("batch", batchSize));
-
-            await using var reader = await command.ExecuteReaderAsync(ct);
-            while (await reader.ReadAsync(ct))
-            {
-                accounts.Add(new AccountKey(reader.GetString(0), reader.GetString(1)));
-            }
-        }
+        var accounts = await session.RiotAccounts
+            .ClaimAccountsForMatchIngestAsync(platforms, batchSize, ct);
 
         var claimed = new List<AccountKey>();
         foreach (var account in accounts)
         {
-            var updated = await db.MainCandidates
-                .Where(c => c.Status == MainCandidateStatus.Queued &&
-                            c.PlatformId == account.PlatformId &&
-                            c.Puuid == account.Puuid)
-                .ExecuteUpdateAsync(s => s.SetProperty(c => c.Status, MainCandidateStatus.Processing), ct);
+            var updated = await session.MainCandidates
+                .SetStatusForAccountAsync(account.PlatformId, account.Puuid, MainCandidateStatus.Queued, MainCandidateStatus.Processing, ct);
 
             if (updated > 0)
             {
@@ -181,24 +140,23 @@ public class MatchIngestionProcess(
                     updated,
                     account.PlatformId,
                     account.Puuid);
-                claimed.Add(account);
             }
+
+            claimed.Add(account);
         }
 
+        await session.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
         return claimed;
     }
 
     private async Task ValidateAccountAsync(AccountKey account, CancellationToken ct)
     {
-        await using var db = await dbContextFactory.CreateDbContextAsync(ct);
+        await using var session = await sessionFactory.CreateAsync(ct);
         var nowUtc = DateTime.UtcNow;
 
-        var updated = await db.MainCandidates
-            .Where(c => c.PlatformId == account.PlatformId && c.Puuid == account.Puuid)
-            .ExecuteUpdateAsync(s => s
-                .SetProperty(c => c.Status, MainCandidateStatus.Validated)
-                .SetProperty(c => c.ValidatedAtUtc, nowUtc), ct);
+        var updated = await session.MainCandidates
+            .SetStatusForAccountAsync(account.PlatformId, account.Puuid, MainCandidateStatus.Processing, MainCandidateStatus.Validated, ct);
 
         if (updated > 0)
         {
@@ -208,15 +166,17 @@ public class MatchIngestionProcess(
                 account.PlatformId,
                 account.Puuid);
         }
+
+        await session.RiotAccounts.UpdateLastMatchIngestAtAsync(account.PlatformId, account.Puuid, nowUtc, ct);
+        await session.RiotAccounts.SetMatchIngestStatusAsync(account.PlatformId, account.Puuid, MatchIngestStatus.Idle, ct);
+        await session.SaveChangesAsync(ct);
     }
 
     private async Task RevertToQueuedAsync(AccountKey account, CancellationToken ct)
     {
-        await using var db = await dbContextFactory.CreateDbContextAsync(ct);
-        var updated = await db.MainCandidates
-            .Where(c => c.PlatformId == account.PlatformId && c.Puuid == account.Puuid)
-            .ExecuteUpdateAsync(s => s
-                .SetProperty(c => c.Status, MainCandidateStatus.Queued), ct);
+        await using var session = await sessionFactory.CreateAsync(ct);
+        var updated = await session.MainCandidates
+            .SetStatusForAccountAsync(account.PlatformId, account.Puuid, MainCandidateStatus.Processing, MainCandidateStatus.Queued, ct);
 
         if (updated > 0)
         {
@@ -226,24 +186,21 @@ public class MatchIngestionProcess(
                 account.PlatformId,
                 account.Puuid);
         }
+
+        await session.RiotAccounts.SetMatchIngestStatusAsync(account.PlatformId, account.Puuid, MatchIngestStatus.Idle, ct);
+        await session.SaveChangesAsync(ct);
     }
 
     private static bool TryParsePlatform(string platform, out PlatformRoute route)
         => Enum.TryParse(platform.Trim(), ignoreCase: true, out route);
 
-    private static async Task UpsertMatchSnapshotAsync(TrueMainDbContext db, RiotMatchDto matchDto, string platformId, CancellationToken ct)
+    private static Task UpsertMatchSnapshotAsync(IDataSession session, RiotMatchDto matchDto, string platformId, CancellationToken ct)
     {
         var matchId = matchDto.Metadata.MatchId;
 
-        var existingMatch = await db.Matches.FirstOrDefaultAsync(m => m.Id == matchId, ct);
-        if (existingMatch is not null)
-        {
-            return;
-        }
-
         var gameStartUtc = ToUtcDateTime(matchDto.Info.GameStartTimestamp);
 
-        db.Matches.Add(new Match
+        session.Matches.Add(new Match
         {
             Id = matchId,
             PlatformId = platformId,
@@ -260,12 +217,10 @@ public class MatchIngestionProcess(
         var participants = MapParticipants(matchDto, matchId);
         var perkSelections = MapPerkSelections(matchDto, matchId);
 
-        foreach (var participant in participants)
-        {
-            db.MatchParticipants.Add(participant);
-        }
+        session.MatchParticipants.AddRange(participants);
+        session.MatchParticipants.AddPerkSelections(perkSelections);
 
-        db.ParticipantPerkSelections.AddRange(perkSelections);
+        return Task.CompletedTask;
     }
 
     private static List<MatchParticipant> MapParticipants(RiotMatchDto match, string matchId)
@@ -357,15 +312,12 @@ public class MatchIngestionProcess(
     }
 
     private static async Task ApplyTimelineAsync(
-        ILogger logger,
-        TrueMainDbContext db,
+        IDataSession session,
         string matchId,
         MatchTimelineDto timeline,
         CancellationToken ct)
     {
-        var participants = await db.MatchParticipants
-            .Where(p => p.MatchId == matchId)
-            .ToListAsync(ct);
+        var participants = await session.MatchParticipants.GetByMatchIdAsync(matchId, ct);
 
         if (participants.Count == 0)
         {
@@ -430,8 +382,7 @@ public class MatchIngestionProcess(
                 : new List<SkillEvent>();
         }
 
-        LogPendingChanges(logger, db, "MatchTimeline", null, null, matchId);
-        await db.SaveChangesAsync(ct);
+        await session.SaveChangesAsync(ct);
     }
 
     private static DateTime? ToUtcDateTime(long timestampMs)
@@ -454,50 +405,6 @@ public class MatchIngestionProcess(
         return value > int.MaxValue ? int.MaxValue : (int)value;
     }
 
-    private static void LogPendingChanges(
-        ILogger logger,
-        TrueMainDbContext db,
-        string stage,
-        string? platformId,
-        string? puuid,
-        string? matchId = null)
-    {
-        var added = 0;
-        var modified = 0;
-        var deleted = 0;
-
-        foreach (var entry in db.ChangeTracker.Entries())
-        {
-            switch (entry.State)
-            {
-                case EntityState.Added:
-                    added++;
-                    break;
-                case EntityState.Modified:
-                    modified++;
-                    break;
-                case EntityState.Deleted:
-                    deleted++;
-                    break;
-            }
-        }
-
-        if (added == 0 && modified == 0 && deleted == 0)
-        {
-            return;
-        }
-
-        logger.LogDebug(
-            "{Stage} DB changes for {Platform}/{Puuid} match={MatchId}: added={Added}, modified={Modified}, deleted={Deleted}.",
-            stage,
-            platformId ?? "-",
-            puuid ?? "-",
-            matchId ?? "-",
-            added,
-            modified,
-            deleted);
-    }
-
     private sealed class PlatformSummary
     {
         public int AccountsProcessed { get; set; }
@@ -506,5 +413,4 @@ public class MatchIngestionProcess(
         public int TimelinesUpdated { get; set; }
     }
 
-    private sealed record AccountKey(string PlatformId, string Puuid);
 }

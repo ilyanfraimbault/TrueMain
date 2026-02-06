@@ -1,10 +1,9 @@
 using Core;
-using Data;
 using Data.Entities;
+using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Riot;
 using Ingestor.Riot.Dto;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
@@ -12,7 +11,7 @@ namespace Ingestor.Processes;
 public class DiscoveryProcess(
     ILogger<DiscoveryProcess> logger,
     IRiotPlatformClient riotPlatformClient,
-    IDbContextFactory<TrueMainDbContext> dbContextFactory,
+    IDataSessionFactory sessionFactory,
     IOptions<DiscoveryOptions> discoveryOptions)
 {
     private const string RankedSoloQueue = "RANKED_SOLO_5x5";
@@ -39,7 +38,7 @@ public class DiscoveryProcess(
 
             var summary = new PlatformSummary(platformString.ToUpperInvariant());
 
-            await using var db = await dbContextFactory.CreateDbContextAsync(ct);
+            await using var session = await sessionFactory.CreateAsync(ct);
 
             var ladderEntries = await FetchLadderEntriesAsync(platform, options, ct);
             if (ladderEntries.Count == 0)
@@ -66,7 +65,7 @@ public class DiscoveryProcess(
                 var puuid = summoner.Puuid;
                 var nowUtc = DateTime.UtcNow;
 
-                await UpsertRiotAccountAsync(db, platform, summoner, nowUtc, ct);
+                await UpsertRiotAccountAsync(session, platform, summoner, nowUtc, ct);
 
                 var masteries = await riotPlatformClient.GetChampionMasteriesAsync(platform, puuid, ct);
                 var topMasteries = masteries
@@ -82,9 +81,8 @@ public class DiscoveryProcess(
                 }
 
                 var championIds = topMasteries.Select(m => m.ChampionId).ToList();
-                var existingCandidates = await db.MainCandidates
-                    .Where(c => c.PlatformId == summary.PlatformId && c.Puuid == puuid && championIds.Contains(c.ChampionId))
-                    .ToListAsync(ct);
+                var existingCandidates = await session.MainCandidates
+                    .GetByPlatformPuuidAndChampionsAsync(summary.PlatformId, puuid, championIds, ct);
 
                 var existingByChampion = existingCandidates.ToDictionary(c => c.ChampionId);
 
@@ -115,7 +113,7 @@ public class DiscoveryProcess(
                     }
                     else
                     {
-                        db.MainCandidates.Add(new MainCandidate
+                        session.MainCandidates.Add(new MainCandidate
                         {
                             PlatformId = summary.PlatformId,
                             Puuid = puuid,
@@ -129,8 +127,7 @@ public class DiscoveryProcess(
                     }
                 }
 
-                LogPendingChanges(logger, db, "Discovery", summary.PlatformId, puuid);
-                await db.SaveChangesAsync(ct);
+                await session.SaveChangesAsync(ct);
             }
 
             logger.LogInformation(
@@ -205,18 +202,18 @@ public class DiscoveryProcess(
     }
 
     private static async Task UpsertRiotAccountAsync(
-        TrueMainDbContext db,
+        IDataSession session,
         PlatformRoute platform,
         RiotSummonerDto summoner,
         DateTime nowUtc,
         CancellationToken ct)
     {
-        var existing = await db.RiotAccounts.FirstOrDefaultAsync(a => a.Puuid == summoner.Puuid, ct);
+        var existing = await session.RiotAccounts.GetByPuuidAsync(summoner.Puuid, ct);
         var platformId = platform.ToString();
 
         if (existing is null)
         {
-            db.RiotAccounts.Add(new RiotAccount
+            session.RiotAccounts.Add(new RiotAccount
             {
                 Puuid = summoner.Puuid,
                 GameName = summoner.Name ?? string.Empty,
@@ -264,47 +261,6 @@ public class DiscoveryProcess(
         return value > int.MaxValue ? int.MaxValue : (int)value;
     }
 
-    private static void LogPendingChanges(
-        ILogger logger,
-        TrueMainDbContext db,
-        string stage,
-        string platformId,
-        string puuid)
-    {
-        var added = 0;
-        var modified = 0;
-        var deleted = 0;
-
-        foreach (var entry in db.ChangeTracker.Entries())
-        {
-            switch (entry.State)
-            {
-                case EntityState.Added:
-                    added++;
-                    break;
-                case EntityState.Modified:
-                    modified++;
-                    break;
-                case EntityState.Deleted:
-                    deleted++;
-                    break;
-            }
-        }
-
-        if (added == 0 && modified == 0 && deleted == 0)
-        {
-            return;
-        }
-
-        logger.LogDebug(
-            "{Stage} DB changes for {Platform}/{Puuid}: added={Added}, modified={Modified}, deleted={Deleted}.",
-            stage,
-            platformId,
-            puuid,
-            added,
-            modified,
-            deleted);
-    }
 
     private sealed class PlatformSummary(string platformId)
     {

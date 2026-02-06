@@ -7,4 +7,10 @@ public class ScoringOptions
     public int MaxLastPlayDays { get; set; } = 10;
 
     public int TopChampionsPerAccount { get; set; } = 10;
+
+    public double RecencyWeight { get; set; } = 0.65;
+
+    public double RankWeight { get; set; } = 0.20;
+
+    public double PointsWeight { get; set; } = 0.15;
 }

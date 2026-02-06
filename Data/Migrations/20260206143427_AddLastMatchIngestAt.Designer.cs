@@ -5,6 +5,7 @@ using Data;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -13,9 +14,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Data.Migrations
 {
     [DbContext(typeof(TrueMainDbContext))]
-    partial class TrueMainDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260206143427_AddLastMatchIngestAt")]
+    partial class AddLastMatchIngestAt
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -405,11 +408,6 @@ namespace Data.Migrations
 
                     b.Property<DateTime?>("LastProfileSyncAtUtc")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("MatchIngestStatus")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0);
 
                     b.Property<Guid?>("PersonaId")
                         .HasColumnType("uuid");
