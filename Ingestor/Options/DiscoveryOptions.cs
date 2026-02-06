@@ -11,8 +11,4 @@ public class DiscoveryOptions
     public int MaxLastPlayDays { get; set; } = 10;
 
     public int MaxAccountsPerPlatformPerRun { get; set; } = 500;
-
-    public bool RunOnce { get; set; } = true;
-
-    public int? IntervalMinutes { get; set; }
 }

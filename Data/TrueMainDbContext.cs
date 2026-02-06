@@ -15,6 +15,7 @@ public class TrueMainDbContext : DbContext
     public DbSet<ParticipantPerkSelection> ParticipantPerkSelections => Set<ParticipantPerkSelection>();
     public DbSet<MainCandidate> MainCandidates => Set<MainCandidate>();
     public DbSet<Match> Matches => Set<Match>();
+    public DbSet<MainChampionStat> MainChampionStats => Set<MainChampionStat>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -65,6 +66,8 @@ public class TrueMainDbContext : DbContext
                 .HasDefaultValueSql("now()");
 
             entity.Property(e => e.LastProfileSyncAtUtc);
+
+            entity.Property(e => e.LastMainCalcAtUtc);
 
             entity.HasIndex(e => e.Puuid)
                 .IsUnique();
@@ -313,6 +316,56 @@ public class TrueMainDbContext : DbContext
             entity.Property(e => e.SkillEvents)
                 .HasColumnType("jsonb")
                 .IsRequired();
+        });
+
+        modelBuilder.Entity<MainChampionStat>(entity =>
+        {
+            entity.ToTable("main_champion_stats");
+
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id)
+                .ValueGeneratedOnAdd();
+
+            entity.Property(e => e.PlatformId)
+                .IsRequired()
+                .HasMaxLength(8);
+
+            entity.Property(e => e.Puuid)
+                .IsRequired()
+                .HasMaxLength(128);
+
+            entity.Property(e => e.ChampionId)
+                .IsRequired();
+
+            entity.Property(e => e.TotalMatches)
+                .IsRequired();
+
+            entity.Property(e => e.ChampionMatches)
+                .IsRequired();
+
+            entity.Property(e => e.PlayRate)
+                .IsRequired();
+
+            entity.Property(e => e.IsMain)
+                .IsRequired();
+
+            entity.Property(e => e.PrimaryPosition)
+                .IsRequired()
+                .HasMaxLength(32);
+
+            entity.Property(e => e.PositionBreakdown)
+                .HasColumnType("jsonb")
+                .IsRequired();
+
+            entity.Property(e => e.CalculatedAtUtc)
+                .IsRequired();
+
+            entity.HasIndex(e => new { e.PlatformId, e.Puuid, e.ChampionId })
+                .IsUnique();
+
+            entity.HasIndex(e => new { e.PlatformId, e.Puuid });
+
+            entity.HasIndex(e => new { e.IsMain, e.PlayRate });
         });
 
 

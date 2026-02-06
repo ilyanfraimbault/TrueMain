@@ -9,15 +9,15 @@ public class Worker(
     DiscoveryProcess discoveryProcess,
     ScoringProcess scoringProcess,
     MatchIngestionProcess matchIngestionProcess,
+    MainAnalysisProcess mainAnalysisProcess,
     AccountRefreshProcess accountRefreshProcess,
-    IOptions<DiscoveryOptions> discoveryOptions,
     IOptions<JobOptions> jobOptions,
     IHostApplicationLifetime applicationLifetime) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var options = discoveryOptions.Value;
-        var mode = NormalizeMode(jobOptions.Value.Mode);
+        var options = jobOptions.Value;
+        var mode = NormalizeMode(options.Mode);
 
         do
         {
@@ -32,6 +32,9 @@ public class Worker(
                 case JobMode.MatchIngestionOnly:
                     await matchIngestionProcess.RunAsync(stoppingToken);
                     break;
+                case JobMode.MainAnalysisOnly:
+                    await mainAnalysisProcess.RunAsync(stoppingToken);
+                    break;
                 case JobMode.AccountRefreshOnly:
                     await accountRefreshProcess.RunAsync(stoppingToken);
                     break;
@@ -39,6 +42,7 @@ public class Worker(
                     await discoveryProcess.RunAsync(stoppingToken);
                     await scoringProcess.RunAsync(stoppingToken);
                     await matchIngestionProcess.RunAsync(stoppingToken);
+                    await mainAnalysisProcess.RunAsync(stoppingToken);
                     await accountRefreshProcess.RunAsync(stoppingToken);
                     break;
             }
@@ -68,6 +72,7 @@ public class Worker(
             "discoveryonly" => JobMode.DiscoveryOnly,
             "scoringonly" => JobMode.ScoringOnly,
             "matchingestiononly" => JobMode.MatchIngestionOnly,
+            "mainanalysisonly" => JobMode.MainAnalysisOnly,
             "accountrefreshonly" => JobMode.AccountRefreshOnly,
             "full" => JobMode.Full,
             _ => JobMode.Full
@@ -80,6 +85,7 @@ public class Worker(
         DiscoveryOnly,
         ScoringOnly,
         MatchIngestionOnly,
+        MainAnalysisOnly,
         AccountRefreshOnly
     }
 }

@@ -27,4 +27,6 @@ public class RiotAccount
     public DateTime UpdatedAtUtc { get; set; }
 
     public DateTime? LastProfileSyncAtUtc { get; set; }
+
+    public DateTime? LastMainCalcAtUtc { get; set; }
 }
