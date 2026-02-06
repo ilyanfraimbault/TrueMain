@@ -4,6 +4,7 @@ using Ingestor;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Riot;
+using Ingestor.Services;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
@@ -27,6 +28,7 @@ builder.Services.AddScoped<ScoringProcess>();
 builder.Services.AddScoped<MatchIngestionProcess>();
 builder.Services.AddScoped<MainAnalysisProcess>();
 builder.Services.AddScoped<AccountRefreshProcess>();
+builder.Services.AddSingleton<ProcessRunRecorder>();
 
 builder.Services.AddDbContextFactory<TrueMainDbContext>(options =>
 {

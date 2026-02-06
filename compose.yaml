@@ -2,21 +2,54 @@ services:
   postgres:
     image: postgres:17.2
     container_name: truemain-postgres
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: truemain
-      POSTGRES_PASSWORD: truemain
-      POSTGRES_DB: truemain
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5432:5432"
     volumes:
       - truemain_db_data:/var/lib/postgresql/data
 
+  api:
+    build:
+      context: .
+      dockerfile: Api/Dockerfile
+    container_name: truemain-api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+
+  ingestor:
+    build:
+      context: .
+      dockerfile: Ingestor/Dockerfile
+    container_name: truemain-ingestor
+    restart: unless-stopped
+    environment:
+      DOTNET_ENVIRONMENT: Production
+      ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      Riot__ApiKey: ${RIOT_API_KEY}
+      Job__Mode: ${JOB_MODE:-Full}
+      Job__RunOnce: ${JOB_RUN_ONCE:-false}
+      Job__IntervalMinutes: ${JOB_INTERVAL_MINUTES:-10}
+    depends_on:
+      - postgres
+
   pgadmin:
     image: dpage/pgadmin4:9.11
     container_name: truemain-pgadmin
+    restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@truemain.dev
-      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
     ports:
       - "5050:80"
     volumes:

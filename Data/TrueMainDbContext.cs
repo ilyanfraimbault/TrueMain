@@ -16,6 +16,7 @@ public class TrueMainDbContext : DbContext
     public DbSet<MainCandidate> MainCandidates => Set<MainCandidate>();
     public DbSet<Match> Matches => Set<Match>();
     public DbSet<MainChampionStat> MainChampionStats => Set<MainChampionStat>();
+    public DbSet<ProcessRun> ProcessRuns => Set<ProcessRun>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -372,6 +373,41 @@ public class TrueMainDbContext : DbContext
             entity.HasIndex(e => new { e.PlatformId, e.Puuid });
 
             entity.HasIndex(e => new { e.IsMain, e.PlayRate });
+        });
+
+        modelBuilder.Entity<ProcessRun>(entity =>
+        {
+            entity.ToTable("process_runs");
+
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id)
+                .ValueGeneratedOnAdd();
+
+            entity.Property(e => e.ProcessName)
+                .IsRequired()
+                .HasMaxLength(64);
+
+            entity.Property(e => e.StartedAtUtc)
+                .IsRequired();
+
+            entity.Property(e => e.FinishedAtUtc)
+                .IsRequired();
+
+            entity.Property(e => e.DurationMs)
+                .IsRequired();
+
+            entity.Property(e => e.Status)
+                .IsRequired();
+
+            entity.Property(e => e.Error);
+
+            entity.Property(e => e.Host)
+                .HasMaxLength(128);
+
+            entity.Property(e => e.Summary)
+                .HasColumnType("jsonb");
+
+            entity.HasIndex(e => new { e.ProcessName, e.StartedAtUtc });
         });
 
 

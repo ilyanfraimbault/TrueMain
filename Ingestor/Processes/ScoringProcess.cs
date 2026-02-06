@@ -1,6 +1,7 @@
 using Data.Entities;
 using Data.Repositories;
 using Ingestor.Options;
+using Ingestor.Services;
 using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
@@ -8,52 +9,77 @@ namespace Ingestor.Processes;
 public class ScoringProcess(
     ILogger<ScoringProcess> logger,
     IDataSessionFactory sessionFactory,
+    ProcessRunRecorder runRecorder,
     IOptions<ScoringOptions> scoringOptions)
 {
     public async Task RunAsync(CancellationToken ct)
     {
         var scoring = scoringOptions.Value;
-        await using var session = await sessionFactory.CreateAsync(ct);
-        var nowUtc = DateTime.UtcNow;
+        var startedAt = DateTime.UtcNow;
 
-        var candidates = await session.MainCandidates.GetByStatusAsync(MainCandidateStatus.New, ct);
-
-        if (candidates.Count == 0)
+        try
         {
-            logger.LogInformation("No new candidates to score.");
-            return;
-        }
+            await using var session = await sessionFactory.CreateAsync(ct);
+            var nowUtc = DateTime.UtcNow;
 
-        foreach (var candidate in candidates)
-        {
-            candidate.Score = ComputeScore(candidate, scoring, nowUtc);
-            candidate.Status = MainCandidateStatus.Scored;
-            candidate.ScoredAtUtc = nowUtc;
-        }
+            var candidates = await session.MainCandidates.GetByStatusAsync(MainCandidateStatus.New, ct);
 
-        await session.SaveChangesAsync(ct);
-
-        var grouped = candidates
-            .GroupBy(c => c.PlatformId, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        foreach (var group in grouped)
-        {
-            var queued = await session.MainCandidates
-                .GetScoredByPlatformAsync(group.Key, scoring.TopNPerPlatform, ct);
-
-            foreach (var candidate in queued)
+            if (candidates.Count == 0)
             {
-                candidate.Status = MainCandidateStatus.Queued;
+                logger.LogInformation("No new candidates to score.");
+                return;
+            }
+
+            foreach (var candidate in candidates)
+            {
+                candidate.Score = ComputeScore(candidate, scoring, nowUtc);
+                candidate.Status = MainCandidateStatus.Scored;
+                candidate.ScoredAtUtc = nowUtc;
             }
 
             await session.SaveChangesAsync(ct);
 
-            logger.LogInformation(
-                "Scoring summary for {Platform}: scored={Scored}, queued={Queued}.",
-                group.Key,
-                group.Count(),
-                queued.Count);
+            var grouped = candidates
+                .GroupBy(c => c.PlatformId, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var platformSummaries = new List<object>();
+
+            foreach (var group in grouped)
+            {
+                var queued = await session.MainCandidates
+                    .GetScoredByPlatformAsync(group.Key, scoring.TopNPerPlatform, ct);
+
+                foreach (var candidate in queued)
+                {
+                    candidate.Status = MainCandidateStatus.Queued;
+                }
+
+                await session.SaveChangesAsync(ct);
+
+                platformSummaries.Add(new
+                {
+                    platform = group.Key,
+                    scored = group.Count(),
+                    queued = queued.Count
+                });
+
+                logger.LogInformation(
+                    "Scoring summary for {Platform}: scored={Scored}, queued={Queued}.",
+                    group.Key,
+                    group.Count(),
+                    queued.Count);
+            }
+
+            var finishedAt = DateTime.UtcNow;
+            await runRecorder.RecordAsync("Scoring", startedAt, finishedAt, ProcessRunStatus.Success,
+                new { platforms = platformSummaries }, null, ct);
+        }
+        catch (Exception ex)
+        {
+            var finishedAt = DateTime.UtcNow;
+            await runRecorder.RecordAsync("Scoring", startedAt, finishedAt, ProcessRunStatus.Failed, null, ex.Message, ct);
+            throw;
         }
     }
 

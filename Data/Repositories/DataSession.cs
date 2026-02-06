@@ -14,6 +14,7 @@ public sealed class DataSession : IDataSession
         RiotAccounts = new RiotAccountRepository(_db);
         Matches = new MatchRepository(_db);
         MatchParticipants = new MatchParticipantRepository(_db);
+        ProcessRuns = new ProcessRunRepository(_db);
     }
 
     public IMainCandidateRepository MainCandidates { get; }
@@ -21,6 +22,7 @@ public sealed class DataSession : IDataSession
     public IRiotAccountRepository RiotAccounts { get; }
     public IMatchRepository Matches { get; }
     public IMatchParticipantRepository MatchParticipants { get; }
+    public IProcessRunRepository ProcessRuns { get; }
 
     public Task<int> SaveChangesAsync(CancellationToken ct)
         => _db.SaveChangesAsync(ct);

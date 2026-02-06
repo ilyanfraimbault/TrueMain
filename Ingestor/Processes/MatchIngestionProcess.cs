@@ -4,6 +4,7 @@ using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Riot;
 using Ingestor.Riot.Dto;
+using Ingestor.Services;
 using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
@@ -12,14 +13,25 @@ public class MatchIngestionProcess(
     ILogger<MatchIngestionProcess> logger,
     IRiotMatchClient riotMatchClient,
     IDataSessionFactory sessionFactory,
+    ProcessRunRecorder runRecorder,
     IOptions<MatchIngestionOptions> matchOptions)
 {
     public async Task RunAsync(CancellationToken ct)
     {
+        var startedAt = DateTime.UtcNow;
         var options = matchOptions.Value;
         if (options.Platforms.Count == 0)
         {
             logger.LogWarning("No platforms configured (MatchIngestion:Platforms).");
+            var finishedAt = DateTime.UtcNow;
+            await runRecorder.RecordAsync(
+                "MatchIngestion",
+                startedAt,
+                finishedAt,
+                ProcessRunStatus.Success,
+                new { reason = "No platforms configured." },
+                null,
+                ct);
             return;
         }
 
@@ -29,93 +41,163 @@ public class MatchIngestionProcess(
             .ToList();
 
         var claimedAccounts = await ClaimAccountsAsync(platforms, options.BatchSize, ct);
-        if (claimedAccounts.Count == 0)
+        var summaryByPlatform = platforms
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(p => p.ToUpperInvariant(), _ => new PlatformSummary());
+
+        var totalAccounts = 0;
+        var totalInserted = 0;
+        var totalSkipped = 0;
+        var totalTimelines = 0;
+        var totalErrors = 0;
+
+        try
         {
-            logger.LogInformation("No queued accounts to ingest.");
-            return;
-        }
-
-        var summaryByPlatform = platforms.ToDictionary(p => p.ToUpperInvariant(), _ => new PlatformSummary());
-
-        foreach (var account in claimedAccounts)
-        {
-            ct.ThrowIfCancellationRequested();
-
-            try
+            if (claimedAccounts.Count == 0)
             {
-                var platformId = account.PlatformId.ToUpperInvariant();
-                if (!TryParsePlatform(platformId, out var platform))
+                logger.LogInformation("No queued accounts to ingest.");
+            }
+            else
+            {
+                foreach (var account in claimedAccounts)
                 {
-                    logger.LogWarning("Unknown platform {Platform}. Reverting queued status.", platformId);
-                    await RevertToQueuedAsync(account, ct);
+                    ct.ThrowIfCancellationRequested();
+
+                    try
+                    {
+                        var platformId = account.PlatformId.ToUpperInvariant();
+                        if (!TryParsePlatform(platformId, out var platform))
+                        {
+                            logger.LogWarning("Unknown platform {Platform}. Reverting queued status.", platformId);
+                            await RevertToQueuedAsync(account, ct);
+                            totalErrors++;
+                            continue;
+                        }
+
+                        var region = RiotRouting.FromPlatform(platform);
+                        var matchIds = (await riotMatchClient.GetMatchIdsAsync(account.Puuid, region, options.MatchesPerAccount, ct))
+                            .Where(id => !string.IsNullOrWhiteSpace(id))
+                            .Distinct(StringComparer.Ordinal)
+                            .ToList();
+
+                        await using var session = await sessionFactory.CreateAsync(ct);
+                        var existingSet = await session.Matches.GetExistingMatchIdsAsync(matchIds, ct);
+                        var newMatchIds = matchIds.Where(id => !existingSet.Contains(id)).ToList();
+
+                        var inserted = 0;
+                        var skipped = matchIds.Count - newMatchIds.Count;
+
+                        foreach (var matchId in newMatchIds)
+                        {
+                            var matchDto = await riotMatchClient.GetMatchAsync(matchId, region, ct);
+                            await UpsertMatchSnapshotAsync(session, matchDto, platformId, ct);
+                            inserted++;
+                        }
+
+                        await session.SaveChangesAsync(ct);
+
+                        var timelineUpdated = 0;
+                        foreach (var matchId in newMatchIds)
+                        {
+                            var timelineDto = await riotMatchClient.GetTimelineAsync(matchId, region, ct);
+                            await ApplyTimelineAsync(session, matchId, timelineDto, ct);
+                            timelineUpdated++;
+                        }
+
+                        await session.SaveChangesAsync(ct);
+                        await ValidateAccountAsync(account, ct);
+
+                        logger.LogInformation(
+                            "Match ingestion for {Platform}/{Puuid}: inserted={Inserted}, skipped={Skipped}, timelinesUpdated={Timelines}.",
+                            platformId,
+                            account.Puuid,
+                            inserted,
+                            skipped,
+                            timelineUpdated);
+
+                        if (!summaryByPlatform.TryGetValue(platformId, out var summary))
+                        {
+                            summary = new PlatformSummary();
+                            summaryByPlatform[platformId] = summary;
+                        }
+
+                        summary.AccountsProcessed++;
+                        summary.MatchesInserted += inserted;
+                        summary.MatchesSkipped += skipped;
+                        summary.TimelinesUpdated += timelineUpdated;
+
+                        totalAccounts++;
+                        totalInserted += inserted;
+                        totalSkipped += skipped;
+                        totalTimelines += timelineUpdated;
+                    }
+                    catch (Exception ex)
+                    {
+                        totalErrors++;
+                        logger.LogError(ex, "Match ingestion failed for {Platform}/{Puuid}. Reverting to queued.", account.PlatformId, account.Puuid);
+                        await RevertToQueuedAsync(account, ct);
+                    }
+                }
+            }
+
+            foreach (var (platformId, summary) in summaryByPlatform)
+            {
+                if (summary.AccountsProcessed == 0)
+                {
                     continue;
                 }
 
-                var region = RiotRouting.FromPlatform(platform);
-                var matchIds = (await riotMatchClient.GetMatchIdsAsync(account.Puuid, region, options.MatchesPerAccount, ct))
-                    .Where(id => !string.IsNullOrWhiteSpace(id))
-                    .Distinct(StringComparer.Ordinal)
-                    .ToList();
-
-                await using var session = await sessionFactory.CreateAsync(ct);
-                var existingSet = await session.Matches.GetExistingMatchIdsAsync(matchIds, ct);
-                var newMatchIds = matchIds.Where(id => !existingSet.Contains(id)).ToList();
-
-                var inserted = 0;
-                var skipped = matchIds.Count - newMatchIds.Count;
-
-                foreach (var matchId in newMatchIds)
-                {
-                    var matchDto = await riotMatchClient.GetMatchAsync(matchId, region, ct);
-                    await UpsertMatchSnapshotAsync(session, matchDto, platformId, ct);
-                    inserted++;
-                }
-
-                await session.SaveChangesAsync(ct);
-
-                var timelineUpdated = 0;
-                foreach (var matchId in newMatchIds)
-                {
-                    var timelineDto = await riotMatchClient.GetTimelineAsync(matchId, region, ct);
-                    await ApplyTimelineAsync(session, matchId, timelineDto, ct);
-                    timelineUpdated++;
-                }
-
-                await session.SaveChangesAsync(ct);
-                await ValidateAccountAsync(account, ct);
-
-                if (!summaryByPlatform.TryGetValue(platformId, out var summary))
-                {
-                    summary = new PlatformSummary();
-                    summaryByPlatform[platformId] = summary;
-                }
-
-                summary.AccountsProcessed++;
-                summary.MatchesInserted += inserted;
-                summary.MatchesSkipped += skipped;
-                summary.TimelinesUpdated += timelineUpdated;
+                logger.LogInformation(
+                    "Match ingestion summary for {Platform}: accounts={Accounts}, matchesInserted={Inserted}, matchesSkipped={Skipped}, timelinesUpdated={Timelines}.",
+                    platformId,
+                    summary.AccountsProcessed,
+                    summary.MatchesInserted,
+                    summary.MatchesSkipped,
+                    summary.TimelinesUpdated);
             }
-            catch (Exception ex)
+
+            var finishedAt = DateTime.UtcNow;
+            var summaryPayload = new
             {
-                logger.LogError(ex, "Match ingestion failed for {Platform}/{Puuid}. Reverting to queued.", account.PlatformId, account.Puuid);
-                await RevertToQueuedAsync(account, ct);
-            }
+                accountsProcessed = totalAccounts,
+                matchesInserted = totalInserted,
+                matchesSkipped = totalSkipped,
+                timelinesUpdated = totalTimelines,
+                errors = totalErrors,
+                byPlatform = summaryByPlatform
+                    .Where(kvp => kvp.Value.AccountsProcessed > 0)
+                    .Select(kvp => new
+                    {
+                        platform = kvp.Key,
+                        accountsProcessed = kvp.Value.AccountsProcessed,
+                        matchesInserted = kvp.Value.MatchesInserted,
+                        matchesSkipped = kvp.Value.MatchesSkipped,
+                        timelinesUpdated = kvp.Value.TimelinesUpdated
+                    })
+                    .ToList()
+            };
+
+            await runRecorder.RecordAsync(
+                "MatchIngestion",
+                startedAt,
+                finishedAt,
+                ProcessRunStatus.Success,
+                summaryPayload,
+                null,
+                ct);
         }
-
-        foreach (var (platformId, summary) in summaryByPlatform)
+        catch (Exception ex)
         {
-            if (summary.AccountsProcessed == 0)
-            {
-                continue;
-            }
-
-            logger.LogInformation(
-                "Match ingestion summary for {Platform}: accounts={Accounts}, matchesInserted={Inserted}, matchesSkipped={Skipped}, timelinesUpdated={Timelines}.",
-                platformId,
-                summary.AccountsProcessed,
-                summary.MatchesInserted,
-                summary.MatchesSkipped,
-                summary.TimelinesUpdated);
+            var finishedAt = DateTime.UtcNow;
+            await runRecorder.RecordAsync(
+                "MatchIngestion",
+                startedAt,
+                finishedAt,
+                ProcessRunStatus.Failed,
+                null,
+                ex.Message,
+                ct);
+            throw;
         }
     }
 
