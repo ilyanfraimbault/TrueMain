@@ -19,6 +19,27 @@ public class RiotMatchMetadataDto
 
 public class RiotMatchInfoDto
 {
+    [JsonPropertyName("queueId")]
+    public int QueueId { get; set; }
+
+    [JsonPropertyName("mapId")]
+    public int MapId { get; set; }
+
+    [JsonPropertyName("gameMode")]
+    public string GameMode { get; set; } = string.Empty;
+
+    [JsonPropertyName("gameType")]
+    public string GameType { get; set; } = string.Empty;
+
+    [JsonPropertyName("gameStartTimestamp")]
+    public long GameStartTimestamp { get; set; }
+
+    [JsonPropertyName("gameDuration")]
+    public long GameDuration { get; set; }
+
+    [JsonPropertyName("gameVersion")]
+    public string GameVersion { get; set; } = string.Empty;
+
     [JsonPropertyName("participants")]
     public List<RiotParticipantDto> Participants { get; set; } = new();
 }

@@ -5,6 +5,7 @@ using Data;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -13,9 +14,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Data.Migrations
 {
     [DbContext(typeof(TrueMainDbContext))]
-    partial class TrueMainDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260205220607_AddMainCandidateProcessingAndValidatedAt")]
+    partial class AddMainCandidateProcessingAndValidatedAt
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -89,34 +92,16 @@ namespace Data.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("now()");
-
                     b.Property<int>("GameDurationSeconds")
                         .HasColumnType("integer");
 
-                    b.Property<string>("GameMode")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
                     b.Property<DateTime>("GameStartTimeUtc")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("GameType")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
 
                     b.Property<string>("GameVersion")
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
-
-                    b.Property<int>("MapId")
-                        .HasColumnType("integer");
 
                     b.Property<string>("PlatformId")
                         .IsRequired()
@@ -265,8 +250,6 @@ namespace Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("MatchId");
-
                     b.ToTable("match_participants", (string)null);
                 });
 
@@ -390,17 +373,6 @@ namespace Data.Migrations
                     b.ToTable("riot_accounts", (string)null);
                 });
 
-            modelBuilder.Entity("Data.Entities.MatchParticipant", b =>
-                {
-                    b.HasOne("Data.Entities.Match", "Match")
-                        .WithMany("Participants")
-                        .HasForeignKey("MatchId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Match");
-                });
-
             modelBuilder.Entity("Data.Entities.RiotAccount", b =>
                 {
                     b.HasOne("Data.Entities.Persona", "Persona")
@@ -408,11 +380,6 @@ namespace Data.Migrations
                         .HasForeignKey("PersonaId");
 
                     b.Navigation("Persona");
-                });
-
-            modelBuilder.Entity("Data.Entities.Match", b =>
-                {
-                    b.Navigation("Participants");
                 });
 
             modelBuilder.Entity("Data.Entities.Persona", b =>

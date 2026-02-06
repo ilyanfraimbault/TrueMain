@@ -6,6 +6,8 @@ public class MatchParticipant
 
     public string MatchId { get; set; } = string.Empty;
 
+    public Match? Match { get; set; }
+
     public int ParticipantId { get; set; }
 
     public string Puuid { get; set; } = string.Empty;

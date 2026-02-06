@@ -14,6 +14,7 @@ public class TrueMainDbContext : DbContext
     public DbSet<MatchParticipant> MatchParticipants => Set<MatchParticipant>();
     public DbSet<ParticipantPerkSelection> ParticipantPerkSelections => Set<ParticipantPerkSelection>();
     public DbSet<MainCandidate> MainCandidates => Set<MainCandidate>();
+    public DbSet<Match> Matches => Set<Match>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -136,6 +137,8 @@ public class TrueMainDbContext : DbContext
 
             entity.Property(e => e.ScoredAtUtc);
 
+            entity.Property(e => e.ValidatedAtUtc);
+
             entity.HasIndex(e => new { e.PlatformId, e.Puuid, e.ChampionId })
                 .IsUnique();
 
@@ -144,6 +147,57 @@ public class TrueMainDbContext : DbContext
             entity.HasIndex(e => e.ChampionId);
 
             entity.HasIndex(e => new { e.PlatformId, e.Status, e.Score });
+        });
+
+        modelBuilder.Entity<Match>(entity =>
+        {
+            entity.ToTable("matches");
+
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Id)
+                .IsRequired()
+                .HasMaxLength(32);
+
+            entity.Property(e => e.PlatformId)
+                .IsRequired()
+                .HasMaxLength(8);
+
+            entity.Property(e => e.QueueId)
+                .IsRequired();
+
+            entity.Property(e => e.MapId)
+                .IsRequired();
+
+            entity.Property(e => e.GameMode)
+                .IsRequired()
+                .HasMaxLength(32);
+
+            entity.Property(e => e.GameType)
+                .IsRequired()
+                .HasMaxLength(32);
+
+            entity.Property(e => e.GameStartTimeUtc)
+                .IsRequired();
+
+            entity.Property(e => e.GameDurationSeconds)
+                .IsRequired();
+
+            entity.Property(e => e.GameVersion)
+                .IsRequired()
+                .HasMaxLength(32);
+
+            entity.Property(e => e.CreatedAtUtc)
+                .IsRequired()
+                .ValueGeneratedOnAdd()
+                .HasDefaultValueSql("now()");
+
+            entity.HasIndex(e => e.PlatformId);
+
+            entity.HasMany(e => e.Participants)
+                .WithOne(e => e.Match)
+                .HasForeignKey(e => e.MatchId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<MatchParticipant>(entity =>

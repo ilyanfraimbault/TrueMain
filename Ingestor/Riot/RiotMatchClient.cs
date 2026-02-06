@@ -42,10 +42,18 @@ public class RiotMatchClient : IRiotMatchClient
         return GetAsync<RiotMatchDto>(uri, ct);
     }
 
-    public Task<RiotTimelineDto> GetTimelineAsync(string matchId, RegionalRoute region, CancellationToken ct)
+    public async Task<MatchTimelineDto> GetTimelineAsync(string matchId, RegionalRoute region, CancellationToken ct)
     {
         var uri = BuildRegionalUri(region, $"/lol/match/v5/matches/{matchId}/timeline");
-        return GetAsync<RiotTimelineDto>(uri, ct);
+        var riotTimeline = await GetAsync<RiotTimelineDto>(uri, ct);
+        return MapTimeline(riotTimeline);
+    }
+
+    public Task<List<string>> GetMatchIdsAsync(string puuid, RegionalRoute region, int count, CancellationToken ct)
+    {
+        var safeCount = Math.Max(1, count);
+        var uri = BuildRegionalUri(region, $"/lol/match/v5/matches/by-puuid/{puuid}/ids?count={safeCount}");
+        return GetAsync<List<string>>(uri, ct);
     }
 
     private async Task<T> GetAsync<T>(Uri uri, CancellationToken ct)
@@ -120,5 +128,45 @@ public class RiotMatchClient : IRiotMatchClient
     {
         var host = RiotRouting.ToRegionalHost(region);
         return new Uri($"https://{host}.api.riotgames.com{path}");
+    }
+
+    private static MatchTimelineDto MapTimeline(RiotTimelineDto timeline)
+    {
+        var events = new List<MatchTimelineEventDto>();
+
+        foreach (var frame in timeline.Info.Frames)
+        {
+            foreach (var evt in frame.Events)
+            {
+                if (evt.ParticipantId is null)
+                {
+                    continue;
+                }
+
+                events.Add(new MatchTimelineEventDto
+                {
+                    ParticipantId = evt.ParticipantId.Value,
+                    TimestampMs = ToTimestamp(evt.Timestamp),
+                    Type = evt.Type,
+                    ItemId = evt.ItemId,
+                    BeforeId = evt.BeforeId,
+                    AfterId = evt.AfterId,
+                    SkillSlot = evt.SkillSlot,
+                    LevelUpType = evt.LevelUpType
+                });
+            }
+        }
+
+        return new MatchTimelineDto { Events = events };
+    }
+
+    private static int ToTimestamp(long timestamp)
+    {
+        if (timestamp <= 0)
+        {
+            return 0;
+        }
+
+        return timestamp > int.MaxValue ? int.MaxValue : (int)timestamp;
     }
 }

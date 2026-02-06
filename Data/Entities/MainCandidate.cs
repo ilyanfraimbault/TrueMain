@@ -23,4 +23,6 @@ public class MainCandidate
     public MainCandidateStatus Status { get; set; } = MainCandidateStatus.New;
 
     public DateTime? ScoredAtUtc { get; set; }
+
+    public DateTime? ValidatedAtUtc { get; set; }
 }

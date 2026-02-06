@@ -1,40 +1,42 @@
-using Core;
-using Data;
-using Data.Entities;
 using Ingestor.Options;
-using Ingestor.Riot;
-using Ingestor.Riot.Dto;
-using Microsoft.EntityFrameworkCore;
+using Ingestor.Processes;
 using Microsoft.Extensions.Options;
 
 namespace Ingestor;
 
 public class Worker(
     ILogger<Worker> logger,
-    IRiotPlatformClient riotPlatformClient,
-    IDbContextFactory<TrueMainDbContext> dbContextFactory,
+    DiscoveryProcess discoveryProcess,
+    ScoringProcess scoringProcess,
+    MatchIngestionProcess matchIngestionProcess,
     IOptions<DiscoveryOptions> discoveryOptions,
-    IOptions<ScoringOptions> scoringOptions,
+    IOptions<JobOptions> jobOptions,
     IHostApplicationLifetime applicationLifetime) : BackgroundService
 {
-    private const string RankedSoloQueue = "RANKED_SOLO_5x5";
-
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var options = discoveryOptions.Value;
-        var scoring = scoringOptions.Value;
-
-        if (options.Platforms.Count == 0)
-        {
-            logger.LogWarning("No platforms configured (Discovery:Platforms).");
-            applicationLifetime.StopApplication();
-            return;
-        }
+        var mode = NormalizeMode(jobOptions.Value.Mode);
 
         do
         {
-            await RunDiscoveryAsync(options, stoppingToken);
-            await RunScoringAsync(scoring, stoppingToken);
+            switch (mode)
+            {
+                case JobMode.DiscoveryOnly:
+                    await discoveryProcess.RunAsync(stoppingToken);
+                    break;
+                case JobMode.ScoringOnly:
+                    await scoringProcess.RunAsync(stoppingToken);
+                    break;
+                case JobMode.MatchIngestionOnly:
+                    await matchIngestionProcess.RunAsync(stoppingToken);
+                    break;
+                default:
+                    await discoveryProcess.RunAsync(stoppingToken);
+                    await scoringProcess.RunAsync(stoppingToken);
+                    await matchIngestionProcess.RunAsync(stoppingToken);
+                    break;
+            }
 
             if (options.RunOnce)
             {
@@ -42,338 +44,35 @@ public class Worker(
             }
 
             var delayMinutes = options.IntervalMinutes is > 0 ? options.IntervalMinutes.Value : 60;
-            logger.LogInformation("Discovery completed. Waiting {DelayMinutes} minutes before next run.", delayMinutes);
+            logger.LogInformation("Run completed. Waiting {DelayMinutes} minutes before next run.", delayMinutes);
             await Task.Delay(TimeSpan.FromMinutes(delayMinutes), stoppingToken);
         } while (!stoppingToken.IsCancellationRequested);
 
         applicationLifetime.StopApplication();
     }
 
-    private async Task RunDiscoveryAsync(DiscoveryOptions options, CancellationToken ct)
+    private static JobMode NormalizeMode(string? mode)
     {
-        foreach (var platformString in options.Platforms.Distinct(StringComparer.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(mode))
         {
-            ct.ThrowIfCancellationRequested();
-
-            if (!TryParsePlatform(platformString, out var platform))
-            {
-                logger.LogWarning("Skipping unknown platform '{Platform}'.", platformString);
-                continue;
-            }
-
-            var summary = new PlatformSummary(platformString.ToUpperInvariant());
-
-            await using var db = await dbContextFactory.CreateDbContextAsync(ct);
-
-            var ladderEntries = await FetchLadderEntriesAsync(platform, options, ct);
-            if (ladderEntries.Count == 0)
-            {
-                logger.LogInformation("No ladder entries for platform {Platform}.", platform);
-                continue;
-            }
-
-            var boundedSummoners = ladderEntries
-                .DistinctBy(entry => entry.Key, StringComparer.OrdinalIgnoreCase)
-                .Take(Math.Max(0, options.MaxAccountsPerPlatformPerRun))
-                .ToList();
-
-            foreach (var entry in boundedSummoners)
-            {
-                ct.ThrowIfCancellationRequested();
-
-                var summoner = await ResolveSummonerAsync(platform, entry, ct);
-                if (string.IsNullOrWhiteSpace(summoner.Puuid))
-                {
-                    continue;
-                }
-
-                var puuid = summoner.Puuid;
-                var nowUtc = DateTime.UtcNow;
-
-                await UpsertRiotAccountAsync(db, platform, summoner, nowUtc, ct);
-
-                var masteries = await riotPlatformClient.GetChampionMasteriesAsync(platform, puuid, ct);
-                var topMasteries = masteries
-                    .OrderByDescending(m => m.ChampionPoints)
-                    .Take(Math.Max(0, options.TopChampionsPerAccount))
-                    .ToList();
-
-                summary.AccountsProcessed++;
-
-                if (topMasteries.Count == 0)
-                {
-                    continue;
-                }
-
-                var championIds = topMasteries.Select(m => m.ChampionId).ToList();
-                var existingCandidates = await db.MainCandidates
-                    .Where(c => c.PlatformId == summary.PlatformId && c.Puuid == puuid && championIds.Contains(c.ChampionId))
-                    .ToListAsync(ct);
-
-                var existingByChampion = existingCandidates.ToDictionary(c => c.ChampionId);
-
-                for (var i = 0; i < topMasteries.Count; i++)
-                {
-                    var mastery = topMasteries[i];
-                    var lastPlayUtc = ToUtcDateTime(mastery.LastPlayTime);
-                    if (lastPlayUtc is null)
-                    {
-                        continue;
-                    }
-
-                    if (options.MaxLastPlayDays > 0 &&
-                        nowUtc - lastPlayUtc.Value > TimeSpan.FromDays(options.MaxLastPlayDays))
-                    {
-                        continue;
-                    }
-
-                    var rank = i + 1;
-
-                    if (existingByChampion.TryGetValue(mastery.ChampionId, out var candidate))
-                    {
-                        candidate.ChampionRankInMasteryTop = rank;
-                        candidate.ChampionPoints = mastery.ChampionPoints;
-                        candidate.LastPlayTimeUtc = lastPlayUtc.Value;
-                        candidate.DiscoveredAtUtc = nowUtc;
-                        summary.CandidatesUpdated++;
-                    }
-                    else
-                    {
-                        db.MainCandidates.Add(new MainCandidate
-                        {
-                            PlatformId = summary.PlatformId,
-                            Puuid = puuid,
-                            ChampionId = mastery.ChampionId,
-                            ChampionRankInMasteryTop = rank,
-                            ChampionPoints = mastery.ChampionPoints,
-                            LastPlayTimeUtc = lastPlayUtc.Value,
-                            DiscoveredAtUtc = nowUtc
-                        });
-                        summary.CandidatesInserted++;
-                    }
-                }
-
-                await db.SaveChangesAsync(ct);
-            }
-
-            logger.LogInformation(
-                "Discovery summary for {Platform}: accounts={AccountsProcessed}, candidatesInserted={Inserted}, candidatesUpdated={Updated}.",
-                summary.PlatformId,
-                summary.AccountsProcessed,
-                summary.CandidatesInserted,
-                summary.CandidatesUpdated);
+            return JobMode.Full;
         }
+
+        return mode.Trim().ToLowerInvariant() switch
+        {
+            "discoveryonly" => JobMode.DiscoveryOnly,
+            "scoringonly" => JobMode.ScoringOnly,
+            "matchingestiononly" => JobMode.MatchIngestionOnly,
+            "full" => JobMode.Full,
+            _ => JobMode.Full
+        };
     }
 
-    private async Task RunScoringAsync(ScoringOptions scoring, CancellationToken ct)
+    private enum JobMode
     {
-        await using var db = await dbContextFactory.CreateDbContextAsync(ct);
-        var nowUtc = DateTime.UtcNow;
-
-        var candidates = await db.MainCandidates
-            .Where(c => c.Status == MainCandidateStatus.New)
-            .ToListAsync(ct);
-
-        if (candidates.Count == 0)
-        {
-            logger.LogInformation("No new candidates to score.");
-            return;
-        }
-
-        foreach (var candidate in candidates)
-        {
-            candidate.Score = ComputeScore(candidate, scoring, nowUtc);
-            candidate.Status = MainCandidateStatus.Scored;
-            candidate.ScoredAtUtc = nowUtc;
-        }
-
-        await db.SaveChangesAsync(ct);
-
-        var grouped = candidates
-            .GroupBy(c => c.PlatformId, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        foreach (var group in grouped)
-        {
-            var queued = await db.MainCandidates
-                .Where(c => c.PlatformId == group.Key && c.Status == MainCandidateStatus.Scored)
-                .OrderByDescending(c => c.Score)
-                .Take(Math.Max(0, scoring.TopNPerPlatform))
-                .ToListAsync(ct);
-
-            foreach (var candidate in queued)
-            {
-                candidate.Status = MainCandidateStatus.Queued;
-            }
-
-            await db.SaveChangesAsync(ct);
-
-            logger.LogInformation(
-                "Scoring summary for {Platform}: scored={Scored}, queued={Queued}.",
-                group.Key,
-                group.Count(),
-                queued.Count);
-        }
-    }
-
-    private static double ComputeScore(MainCandidate candidate, ScoringOptions scoring, DateTime nowUtc)
-    {
-        var maxLastPlayDays = scoring.MaxLastPlayDays <= 0 ? 1 : scoring.MaxLastPlayDays;
-        var topN = scoring.TopChampionsPerAccount <= 0 ? 10 : scoring.TopChampionsPerAccount;
-
-        var recencyDays = Math.Max(0, (nowUtc - candidate.LastPlayTimeUtc).TotalDays);
-        var recencyScore = Clamp(1 - recencyDays / maxLastPlayDays, 0, 1);
-
-        var rankScore = (topN + 1 - candidate.ChampionRankInMasteryTop) / (double)topN;
-        rankScore = Clamp(rankScore, 0, 1);
-
-        var pointsScore = Clamp(Math.Log10(candidate.ChampionPoints + 1) / 6, 0, 1);
-
-        return 100 * (0.5 * recencyScore + 0.3 * rankScore + 0.2 * pointsScore);
-    }
-
-    private static double Clamp(double value, double min, double max)
-    {
-        if (value < min)
-        {
-            return min;
-        }
-
-        return value > max ? max : value;
-    }
-
-    private async Task<List<LadderEntry>> FetchLadderEntriesAsync(PlatformRoute platform, DiscoveryOptions options, CancellationToken ct)
-    {
-        var tierScope = options.TierScope.Select(t => t.Trim().ToUpperInvariant()).ToHashSet();
-        var result = new List<LadderEntry>();
-
-        if (tierScope.Contains("CHALLENGER"))
-        {
-            var challenger = await riotPlatformClient.GetChallengerLeagueAsync(platform, RankedSoloQueue, ct);
-            result.AddRange(challenger.Entries
-                .Select(ToLadderEntry)
-                .Where(entry => entry is not null)!);
-        }
-
-        if (tierScope.Contains("GM") || tierScope.Contains("GRANDMASTER"))
-        {
-            var gm = await riotPlatformClient.GetGrandmasterLeagueAsync(platform, RankedSoloQueue, ct);
-            result.AddRange(gm.Entries
-                .Select(ToLadderEntry)
-                .Where(entry => entry is not null)!);
-        }
-
-        if (tierScope.Contains("MASTER"))
-        {
-            var master = await riotPlatformClient.GetMasterLeagueAsync(platform, RankedSoloQueue, ct);
-            result.AddRange(master.Entries
-                .Select(ToLadderEntry)
-                .Where(entry => entry is not null)!);
-        }
-
-        return result;
-    }
-
-    private static LadderEntry? ToLadderEntry(RiotLeagueEntryDto entry)
-    {
-        if (!string.IsNullOrWhiteSpace(entry.SummonerId))
-        {
-            return new LadderEntry(entry.SummonerId, entry.Puuid);
-        }
-
-        if (!string.IsNullOrWhiteSpace(entry.Puuid))
-        {
-            return new LadderEntry(null, entry.Puuid);
-        }
-
-        return null;
-    }
-
-    private async Task<RiotSummonerDto> ResolveSummonerAsync(PlatformRoute platform, LadderEntry entry, CancellationToken ct)
-    {
-        if (!string.IsNullOrWhiteSpace(entry.SummonerId))
-        {
-            return await riotPlatformClient.GetSummonerAsync(platform, entry.SummonerId, ct);
-        }
-
-        if (!string.IsNullOrWhiteSpace(entry.Puuid))
-        {
-            return await riotPlatformClient.GetSummonerByPuuidAsync(platform, entry.Puuid, ct);
-        }
-
-        return new RiotSummonerDto();
-    }
-
-    private static async Task UpsertRiotAccountAsync(
-        TrueMainDbContext db,
-        PlatformRoute platform,
-        RiotSummonerDto summoner,
-        DateTime nowUtc,
-        CancellationToken ct)
-    {
-        var existing = await db.RiotAccounts.FirstOrDefaultAsync(a => a.Puuid == summoner.Puuid, ct);
-        var platformId = platform.ToString();
-
-        if (existing is null)
-        {
-            db.RiotAccounts.Add(new RiotAccount
-            {
-                Puuid = summoner.Puuid,
-                GameName = summoner.Name ?? string.Empty,
-                TagLine = null,
-                PlatformId = platformId,
-                SummonerId = summoner.Id,
-                ProfileIconId = summoner.ProfileIconId,
-                SummonerLevel = ToIntSafe(summoner.SummonerLevel),
-                UpdatedAtUtc = nowUtc,
-                LastProfileSyncAtUtc = nowUtc
-            });
-            return;
-        }
-
-        existing.GameName = summoner.Name ?? string.Empty;
-        existing.TagLine = null;
-        existing.PlatformId = platformId;
-        existing.SummonerId = summoner.Id;
-        existing.ProfileIconId = summoner.ProfileIconId;
-        existing.SummonerLevel = ToIntSafe(summoner.SummonerLevel);
-        existing.UpdatedAtUtc = nowUtc;
-        existing.LastProfileSyncAtUtc = nowUtc;
-    }
-
-    private static bool TryParsePlatform(string platform, out PlatformRoute route)
-        => Enum.TryParse(platform.Trim(), ignoreCase: true, out route);
-
-    private static DateTime? ToUtcDateTime(long lastPlayTimeMs)
-    {
-        if (lastPlayTimeMs <= 0)
-        {
-            return null;
-        }
-
-        return DateTimeOffset.FromUnixTimeMilliseconds(lastPlayTimeMs).UtcDateTime;
-    }
-
-    private static int ToIntSafe(long value)
-    {
-        if (value <= 0)
-        {
-            return 0;
-        }
-
-        return value > int.MaxValue ? int.MaxValue : (int)value;
-    }
-
-    private sealed class PlatformSummary(string platformId)
-    {
-        public string PlatformId { get; } = platformId;
-        public int AccountsProcessed { get; set; }
-        public int CandidatesInserted { get; set; }
-        public int CandidatesUpdated { get; set; }
-    }
-
-    private sealed record LadderEntry(string? SummonerId, string? Puuid)
-    {
-        public string Key => SummonerId ?? Puuid ?? string.Empty;
+        Full,
+        DiscoveryOnly,
+        ScoringOnly,
+        MatchIngestionOnly
     }
 }
