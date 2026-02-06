@@ -129,6 +129,7 @@ public class DiscoveryProcess(
                     }
                 }
 
+                LogPendingChanges(logger, db, "Discovery", summary.PlatformId, puuid);
                 await db.SaveChangesAsync(ct);
             }
 
@@ -261,6 +262,48 @@ public class DiscoveryProcess(
         }
 
         return value > int.MaxValue ? int.MaxValue : (int)value;
+    }
+
+    private static void LogPendingChanges(
+        ILogger logger,
+        TrueMainDbContext db,
+        string stage,
+        string platformId,
+        string puuid)
+    {
+        var added = 0;
+        var modified = 0;
+        var deleted = 0;
+
+        foreach (var entry in db.ChangeTracker.Entries())
+        {
+            switch (entry.State)
+            {
+                case EntityState.Added:
+                    added++;
+                    break;
+                case EntityState.Modified:
+                    modified++;
+                    break;
+                case EntityState.Deleted:
+                    deleted++;
+                    break;
+            }
+        }
+
+        if (added == 0 && modified == 0 && deleted == 0)
+        {
+            return;
+        }
+
+        logger.LogDebug(
+            "{Stage} DB changes for {Platform}/{Puuid}: added={Added}, modified={Modified}, deleted={Deleted}.",
+            stage,
+            platformId,
+            puuid,
+            added,
+            modified,
+            deleted);
     }
 
     private sealed class PlatformSummary(string platformId)

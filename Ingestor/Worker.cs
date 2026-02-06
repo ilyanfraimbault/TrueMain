@@ -9,6 +9,7 @@ public class Worker(
     DiscoveryProcess discoveryProcess,
     ScoringProcess scoringProcess,
     MatchIngestionProcess matchIngestionProcess,
+    AccountRefreshProcess accountRefreshProcess,
     IOptions<DiscoveryOptions> discoveryOptions,
     IOptions<JobOptions> jobOptions,
     IHostApplicationLifetime applicationLifetime) : BackgroundService
@@ -30,6 +31,9 @@ public class Worker(
                     break;
                 case JobMode.MatchIngestionOnly:
                     await matchIngestionProcess.RunAsync(stoppingToken);
+                    break;
+                case JobMode.AccountRefreshOnly:
+                    await accountRefreshProcess.RunAsync(stoppingToken);
                     break;
                 default:
                     await discoveryProcess.RunAsync(stoppingToken);
@@ -63,6 +67,7 @@ public class Worker(
             "discoveryonly" => JobMode.DiscoveryOnly,
             "scoringonly" => JobMode.ScoringOnly,
             "matchingestiononly" => JobMode.MatchIngestionOnly,
+            "accountrefreshonly" => JobMode.AccountRefreshOnly,
             "full" => JobMode.Full,
             _ => JobMode.Full
         };
@@ -73,6 +78,7 @@ public class Worker(
         Full,
         DiscoveryOnly,
         ScoringOnly,
-        MatchIngestionOnly
+        MatchIngestionOnly,
+        AccountRefreshOnly
     }
 }

@@ -81,13 +81,14 @@ public class MatchIngestionProcess(
                     inserted++;
                 }
 
+                LogPendingChanges(logger, db, "MatchSnapshot", account.PlatformId, account.Puuid);
                 await db.SaveChangesAsync(ct);
 
                 var timelineUpdated = 0;
                 foreach (var matchId in newMatchIds)
                 {
                     var timelineDto = await riotMatchClient.GetTimelineAsync(matchId, region, ct);
-                    await ApplyTimelineAsync(db, matchId, timelineDto, ct);
+                    await ApplyTimelineAsync(logger, db, matchId, timelineDto, ct);
                     timelineUpdated++;
                 }
 
@@ -175,6 +176,11 @@ public class MatchIngestionProcess(
 
             if (updated > 0)
             {
+                logger.LogDebug(
+                    "Claimed {Count} candidates for {Platform}/{Puuid}.",
+                    updated,
+                    account.PlatformId,
+                    account.Puuid);
                 claimed.Add(account);
             }
         }
@@ -188,20 +194,38 @@ public class MatchIngestionProcess(
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
         var nowUtc = DateTime.UtcNow;
 
-        await db.MainCandidates
+        var updated = await db.MainCandidates
             .Where(c => c.PlatformId == account.PlatformId && c.Puuid == account.Puuid)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(c => c.Status, MainCandidateStatus.Validated)
                 .SetProperty(c => c.ValidatedAtUtc, nowUtc), ct);
+
+        if (updated > 0)
+        {
+            logger.LogDebug(
+                "Validated {Count} candidates for {Platform}/{Puuid}.",
+                updated,
+                account.PlatformId,
+                account.Puuid);
+        }
     }
 
     private async Task RevertToQueuedAsync(AccountKey account, CancellationToken ct)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
-        await db.MainCandidates
+        var updated = await db.MainCandidates
             .Where(c => c.PlatformId == account.PlatformId && c.Puuid == account.Puuid)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(c => c.Status, MainCandidateStatus.Queued), ct);
+
+        if (updated > 0)
+        {
+            logger.LogDebug(
+                "Reverted {Count} candidates to Queued for {Platform}/{Puuid}.",
+                updated,
+                account.PlatformId,
+                account.Puuid);
+        }
     }
 
     private static bool TryParsePlatform(string platform, out PlatformRoute route)
@@ -333,6 +357,7 @@ public class MatchIngestionProcess(
     }
 
     private static async Task ApplyTimelineAsync(
+        ILogger logger,
         TrueMainDbContext db,
         string matchId,
         MatchTimelineDto timeline,
@@ -405,6 +430,7 @@ public class MatchIngestionProcess(
                 : new List<SkillEvent>();
         }
 
+        LogPendingChanges(logger, db, "MatchTimeline", null, null, matchId);
         await db.SaveChangesAsync(ct);
     }
 
@@ -426,6 +452,50 @@ public class MatchIngestionProcess(
         }
 
         return value > int.MaxValue ? int.MaxValue : (int)value;
+    }
+
+    private static void LogPendingChanges(
+        ILogger logger,
+        TrueMainDbContext db,
+        string stage,
+        string? platformId,
+        string? puuid,
+        string? matchId = null)
+    {
+        var added = 0;
+        var modified = 0;
+        var deleted = 0;
+
+        foreach (var entry in db.ChangeTracker.Entries())
+        {
+            switch (entry.State)
+            {
+                case EntityState.Added:
+                    added++;
+                    break;
+                case EntityState.Modified:
+                    modified++;
+                    break;
+                case EntityState.Deleted:
+                    deleted++;
+                    break;
+            }
+        }
+
+        if (added == 0 && modified == 0 && deleted == 0)
+        {
+            return;
+        }
+
+        logger.LogDebug(
+            "{Stage} DB changes for {Platform}/{Puuid} match={MatchId}: added={Added}, modified={Modified}, deleted={Deleted}.",
+            stage,
+            platformId ?? "-",
+            puuid ?? "-",
+            matchId ?? "-",
+            added,
+            modified,
+            deleted);
     }
 
     private sealed class PlatformSummary
