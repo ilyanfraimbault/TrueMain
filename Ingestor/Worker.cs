@@ -39,6 +39,7 @@ public class Worker(
                     await discoveryProcess.RunAsync(stoppingToken);
                     await scoringProcess.RunAsync(stoppingToken);
                     await matchIngestionProcess.RunAsync(stoppingToken);
+                    await accountRefreshProcess.RunAsync(stoppingToken);
                     break;
             }
 
