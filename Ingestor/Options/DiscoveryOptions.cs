@@ -10,5 +10,7 @@ public class DiscoveryOptions
 
     public int MaxLastPlayDays { get; set; } = 10;
 
-    public int MaxAccountsPerPlatformPerRun { get; set; } = 500;
+    public int MaxAccountsPerPlatformPerRun { get; set; } = 350;
+
+    public int NewAccountsTarget { get; set; } = 50;
 }

@@ -58,6 +58,9 @@ public class DiscoveryProcess(
                     .Take(Math.Max(0, options.MaxAccountsPerPlatformPerRun))
                     .ToList();
 
+                var newAccountsTarget = Math.Max(0, options.NewAccountsTarget);
+                var newAccountsDiscovered = 0;
+
                 foreach (var entry in boundedSummoners)
                 {
                     ct.ThrowIfCancellationRequested();
@@ -71,7 +74,12 @@ public class DiscoveryProcess(
                     var puuid = summoner.Puuid;
                     var nowUtc = DateTime.UtcNow;
 
-                    await UpsertRiotAccountAsync(session, platform, summoner, nowUtc, ct);
+                    var isNewAccount = await UpsertRiotAccountAsync(session, platform, summoner, nowUtc, ct);
+                    if (isNewAccount)
+                    {
+                        newAccountsDiscovered++;
+                        summary.NewAccountsDiscovered++;
+                    }
 
                     var masteries = await riotPlatformClient.GetChampionMasteriesAsync(platform, puuid, ct);
                     var topMasteries = masteries
@@ -134,14 +142,24 @@ public class DiscoveryProcess(
                     }
 
                     await session.SaveChangesAsync(ct);
+
+                    if (newAccountsTarget > 0 && newAccountsDiscovered >= newAccountsTarget)
+                    {
+                        logger.LogInformation(
+                            "Discovery reached new accounts target ({Target}) for platform {Platform}. Stopping early.",
+                            newAccountsTarget,
+                            summary.PlatformId);
+                        break;
+                    }
                 }
 
                 summaries.Add(summary);
 
                 logger.LogInformation(
-                    "Discovery summary for {Platform}: accounts={AccountsProcessed}, candidatesInserted={Inserted}, candidatesUpdated={Updated}.",
+                    "Discovery summary for {Platform}: accounts={AccountsProcessed}, newAccounts={NewAccounts}, candidatesInserted={Inserted}, candidatesUpdated={Updated}.",
                     summary.PlatformId,
                     summary.AccountsProcessed,
+                    summary.NewAccountsDiscovered,
                     summary.CandidatesInserted,
                     summary.CandidatesUpdated);
             }
@@ -153,6 +171,7 @@ public class DiscoveryProcess(
                 {
                     platform = s.PlatformId,
                     accountsProcessed = s.AccountsProcessed,
+                    newAccounts = s.NewAccountsDiscovered,
                     candidatesInserted = s.CandidatesInserted,
                     candidatesUpdated = s.CandidatesUpdated
                 })
@@ -229,7 +248,7 @@ public class DiscoveryProcess(
         return new RiotSummonerDto();
     }
 
-    private static async Task UpsertRiotAccountAsync(
+    private static async Task<bool> UpsertRiotAccountAsync(
         IDataSession session,
         PlatformRoute platform,
         RiotSummonerDto summoner,
@@ -253,7 +272,7 @@ public class DiscoveryProcess(
                 UpdatedAtUtc = nowUtc,
                 LastProfileSyncAtUtc = nowUtc
             });
-            return;
+            return true;
         }
 
         existing.GameName = summoner.Name ?? string.Empty;
@@ -264,6 +283,7 @@ public class DiscoveryProcess(
         existing.SummonerLevel = ToIntSafe(summoner.SummonerLevel);
         existing.UpdatedAtUtc = nowUtc;
         existing.LastProfileSyncAtUtc = nowUtc;
+        return false;
     }
 
     private static bool TryParsePlatform(string platform, out PlatformRoute route)
@@ -294,6 +314,7 @@ public class DiscoveryProcess(
     {
         public string PlatformId { get; } = platformId;
         public int AccountsProcessed { get; set; }
+        public int NewAccountsDiscovered { get; set; }
         public int CandidatesInserted { get; set; }
         public int CandidatesUpdated { get; set; }
     }

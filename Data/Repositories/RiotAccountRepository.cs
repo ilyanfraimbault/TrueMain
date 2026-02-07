@@ -11,6 +11,9 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
     public Task<RiotAccount?> GetByKeyAsync(string platformId, string puuid, CancellationToken ct)
         => db.RiotAccounts.FirstOrDefaultAsync(a => a.PlatformId == platformId && a.Puuid == puuid, ct);
 
+    public Task<bool> ExistsByPuuidAsync(string puuid, CancellationToken ct)
+        => db.RiotAccounts.AnyAsync(a => a.Puuid == puuid, ct);
+
     public Task<List<RiotAccount>> GetAccountsForRefreshAsync(int batchSize, CancellationToken ct)
     {
         return db.RiotAccounts

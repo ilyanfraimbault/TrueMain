@@ -6,6 +6,7 @@ public interface IRiotAccountRepository
 {
     Task<RiotAccount?> GetByPuuidAsync(string puuid, CancellationToken ct);
     Task<RiotAccount?> GetByKeyAsync(string platformId, string puuid, CancellationToken ct);
+    Task<bool> ExistsByPuuidAsync(string puuid, CancellationToken ct);
     Task<List<RiotAccount>> GetAccountsForRefreshAsync(int batchSize, CancellationToken ct);
     Task<List<AccountKey>> GetAccountsForMainAnalysisAsync(DateTime cutoff, int batchSize, CancellationToken ct);
 
