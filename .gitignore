@@ -9,3 +9,5 @@ riderModule.iml
 *.sln.iml
 
 .env
+
+.codex/
