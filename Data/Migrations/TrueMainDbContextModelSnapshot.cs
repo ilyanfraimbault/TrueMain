@@ -182,9 +182,17 @@ namespace Data.Migrations
                     b.Property<int>("QueueId")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("TimelineIngested")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.HasKey("Id");
 
                     b.HasIndex("PlatformId");
+
+                    b.HasIndex("TimelineIngested")
+                        .HasDatabaseName("IX_matches_timeline_ingested");
 
                     b.ToTable("matches", (string)null);
                 });
@@ -447,6 +455,9 @@ namespace Data.Migrations
                     b.Property<DateTime?>("LastProfileSyncAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime?>("MatchIngestClaimedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<int>("MatchIngestStatus")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
@@ -493,6 +504,9 @@ namespace Data.Migrations
 
                     b.HasIndex("GameName", "TagLine", "PlatformId")
                         .IsUnique();
+
+                    b.HasIndex("MatchIngestStatus", "MatchIngestClaimedAtUtc", "LastMatchIngestAtUtc")
+                        .HasDatabaseName("IX_riot_accounts_ingest_claim_lease");
 
                     b.ToTable("riot_accounts", (string)null);
                 });

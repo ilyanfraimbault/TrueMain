@@ -2,22 +2,23 @@ using Core;
 using Data.Entities;
 using Data.Repositories;
 using Ingestor.Options;
+using Ingestor.Processes.Components.Discovery;
 using Ingestor.Riot;
-using Ingestor.Riot.Dto;
 using Ingestor.Services;
 using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
 
-public class DiscoveryProcess(
+public sealed class DiscoveryProcess(
     ILogger<DiscoveryProcess> logger,
     IRiotPlatformClient riotPlatformClient,
     IDataSessionFactory sessionFactory,
-    ProcessRunRecorder runRecorder,
+    IProcessRunRecorder runRecorder,
+    ILadderDiscoveryService ladderDiscoveryService,
+    IAccountUpsertService accountUpsertService,
+    ICandidateUpsertService candidateUpsertService,
     IOptions<DiscoveryOptions> discoveryOptions)
 {
-    private const string RankedSoloQueue = "RANKED_SOLO_5x5";
-
     public async Task RunAsync(CancellationToken ct)
     {
         var options = discoveryOptions.Value;
@@ -27,6 +28,7 @@ public class DiscoveryProcess(
         if (options.Platforms.Count == 0)
         {
             logger.LogWarning("No platforms configured (Discovery:Platforms).");
+            await RecordNoOpAsync(startedAt, "No platforms configured.", ct);
             return;
         }
 
@@ -42,262 +44,127 @@ public class DiscoveryProcess(
                     continue;
                 }
 
-                var summary = new PlatformSummary(platformString.ToUpperInvariant());
-
-                await using var session = await sessionFactory.CreateAsync(ct);
-                var saveBatchSize = Math.Max(1, options.SaveBatchSize);
-                var pendingChanges = 0;
-
-                var ladderEntries = await FetchLadderEntriesAsync(platform, options, ct);
-                if (ladderEntries.Count == 0)
-                {
-                    logger.LogInformation("No ladder entries for platform {Platform}.", platform);
-                    continue;
-                }
-
-                var boundedSummoners = ladderEntries
-                    .DistinctBy(entry => entry.Key, StringComparer.OrdinalIgnoreCase)
-                    .Take(Math.Max(0, options.MaxAccountsPerPlatformPerRun))
-                    .ToList();
-
-                var newAccountsTarget = Math.Max(0, options.NewAccountsTarget);
-                var newAccountsDiscovered = 0;
-
-                foreach (var entry in boundedSummoners)
-                {
-                    ct.ThrowIfCancellationRequested();
-
-                    var summoner = await ResolveSummonerAsync(platform, entry, ct);
-                    if (string.IsNullOrWhiteSpace(summoner.Puuid))
-                    {
-                        continue;
-                    }
-
-                    var puuid = summoner.Puuid;
-                    var nowUtc = DateTime.UtcNow;
-
-                    var isNewAccount = await UpsertRiotAccountAsync(session, platform, summoner, nowUtc, ct);
-                    if (isNewAccount)
-                    {
-                        newAccountsDiscovered++;
-                        summary.NewAccountsDiscovered++;
-                    }
-
-                    var masteries = await riotPlatformClient.GetChampionMasteriesAsync(platform, puuid, ct);
-                    var topMasteries = masteries
-                        .OrderByDescending(m => m.ChampionPoints)
-                        .Take(Math.Max(0, options.TopChampionsPerAccount))
-                        .ToList();
-
-                    summary.AccountsProcessed++;
-
-                    if (topMasteries.Count == 0)
-                    {
-                        continue;
-                    }
-
-                    var championIds = topMasteries.Select(m => m.ChampionId).ToList();
-                    var existingCandidates = await session.MainCandidates
-                        .GetByPlatformPuuidAndChampionsAsync(summary.PlatformId, puuid, championIds, ct);
-
-                    var existingByChampion = existingCandidates.ToDictionary(c => c.ChampionId);
-
-                    for (var i = 0; i < topMasteries.Count; i++)
-                    {
-                        var mastery = topMasteries[i];
-                        var lastPlayUtc = RiotDataHelpers.ToUtcDateTime(mastery.LastPlayTime);
-                        if (lastPlayUtc is null)
-                        {
-                            continue;
-                        }
-
-                        if (options.MaxLastPlayDays > 0 &&
-                            nowUtc - lastPlayUtc.Value > TimeSpan.FromDays(options.MaxLastPlayDays))
-                        {
-                            continue;
-                        }
-
-                        var rank = i + 1;
-
-                        if (existingByChampion.TryGetValue(mastery.ChampionId, out var candidate))
-                        {
-                            candidate.ChampionRankInMasteryTop = rank;
-                            candidate.ChampionPoints = mastery.ChampionPoints;
-                            candidate.LastPlayTimeUtc = lastPlayUtc.Value;
-                            candidate.DiscoveredAtUtc = nowUtc;
-                            summary.CandidatesUpdated++;
-                        }
-                        else
-                        {
-                            session.MainCandidates.Add(new MainCandidate
-                            {
-                                PlatformId = summary.PlatformId,
-                                Puuid = puuid,
-                                ChampionId = mastery.ChampionId,
-                                ChampionRankInMasteryTop = rank,
-                                ChampionPoints = mastery.ChampionPoints,
-                                LastPlayTimeUtc = lastPlayUtc.Value,
-                                DiscoveredAtUtc = nowUtc
-                            });
-                            summary.CandidatesInserted++;
-                        }
-                    }
-
-                    pendingChanges++;
-                    if (pendingChanges >= saveBatchSize)
-                    {
-                        await session.SaveChangesAsync(ct);
-                        pendingChanges = 0;
-                    }
-
-                    if (newAccountsTarget > 0 && newAccountsDiscovered >= newAccountsTarget)
-                    {
-                        logger.LogInformation(
-                            "Discovery reached new accounts target ({Target}) for platform {Platform}. Stopping early.",
-                            newAccountsTarget,
-                            summary.PlatformId);
-                        break;
-                    }
-                }
-
-                if (pendingChanges > 0)
-                {
-                    await session.SaveChangesAsync(ct);
-                }
-
-                summaries.Add(summary);
+                var platformSummary = await ProcessPlatformAsync(platform, options, ct);
+                summaries.Add(platformSummary);
 
                 logger.LogInformation(
                     "Discovery summary for {Platform}: accounts={AccountsProcessed}, newAccounts={NewAccounts}, candidatesInserted={Inserted}, candidatesUpdated={Updated}.",
-                    summary.PlatformId,
-                    summary.AccountsProcessed,
-                    summary.NewAccountsDiscovered,
-                    summary.CandidatesInserted,
-                    summary.CandidatesUpdated);
+                    platformSummary.PlatformId,
+                    platformSummary.AccountsProcessed,
+                    platformSummary.NewAccountsDiscovered,
+                    platformSummary.CandidatesInserted,
+                    platformSummary.CandidatesUpdated);
             }
 
-            var finishedAt = DateTime.UtcNow;
-            var summaryPayload = new
-            {
-                platforms = summaries.Select(s => new
+            await runRecorder.RecordAsync(
+                "Discovery",
+                startedAt,
+                DateTime.UtcNow,
+                ProcessRunStatus.Success,
+                new
                 {
-                    platform = s.PlatformId,
-                    accountsProcessed = s.AccountsProcessed,
-                    newAccounts = s.NewAccountsDiscovered,
-                    candidatesInserted = s.CandidatesInserted,
-                    candidatesUpdated = s.CandidatesUpdated
-                })
-            };
-            await runRecorder.RecordAsync("Discovery", startedAt, finishedAt, ProcessRunStatus.Success, summaryPayload, null, ct);
+                    platforms = summaries.Select(summary => new
+                    {
+                        platform = summary.PlatformId,
+                        accountsProcessed = summary.AccountsProcessed,
+                        newAccounts = summary.NewAccountsDiscovered,
+                        candidatesInserted = summary.CandidatesInserted,
+                        candidatesUpdated = summary.CandidatesUpdated
+                    })
+                },
+                null,
+                ct);
         }
         catch (Exception ex)
         {
-            var finishedAt = DateTime.UtcNow;
-            await runRecorder.RecordAsync("Discovery", startedAt, finishedAt, ProcessRunStatus.Failed, null, ex.Message, ct);
+            await runRecorder.RecordAsync("Discovery", startedAt, DateTime.UtcNow, ProcessRunStatus.Failed, null, ex.Message, ct);
             throw;
         }
     }
 
-    private async Task<List<LadderEntry>> FetchLadderEntriesAsync(PlatformRoute platform, DiscoveryOptions options, CancellationToken ct)
-    {
-        var tierScope = options.TierScope.Select(t => t.Trim().ToUpperInvariant()).ToHashSet();
-        var result = new List<LadderEntry>();
-
-        if (tierScope.Contains("CHALLENGER"))
-        {
-            var challenger = await riotPlatformClient.GetChallengerLeagueAsync(platform, RankedSoloQueue, ct);
-            result.AddRange(challenger.Entries
-                .Select(ToLadderEntry)
-                .Where(entry => entry is not null)!);
-        }
-
-        if (tierScope.Contains("GM") || tierScope.Contains("GRANDMASTER"))
-        {
-            var gm = await riotPlatformClient.GetGrandmasterLeagueAsync(platform, RankedSoloQueue, ct);
-            result.AddRange(gm.Entries
-                .Select(ToLadderEntry)
-                .Where(entry => entry is not null)!);
-        }
-
-        if (tierScope.Contains("MASTER"))
-        {
-            var master = await riotPlatformClient.GetMasterLeagueAsync(platform, RankedSoloQueue, ct);
-            result.AddRange(master.Entries
-                .Select(ToLadderEntry)
-                .Where(entry => entry is not null)!);
-        }
-
-        return result;
-    }
-
-    private static LadderEntry? ToLadderEntry(RiotLeagueEntryDto entry)
-    {
-        if (!string.IsNullOrWhiteSpace(entry.SummonerId))
-        {
-            return new LadderEntry(entry.SummonerId, entry.Puuid);
-        }
-
-        if (!string.IsNullOrWhiteSpace(entry.Puuid))
-        {
-            return new LadderEntry(null, entry.Puuid);
-        }
-
-        return null;
-    }
-
-    private async Task<RiotSummonerDto> ResolveSummonerAsync(PlatformRoute platform, LadderEntry entry, CancellationToken ct)
-    {
-        if (!string.IsNullOrWhiteSpace(entry.SummonerId))
-        {
-            return await riotPlatformClient.GetSummonerAsync(platform, entry.SummonerId, ct);
-        }
-
-        if (!string.IsNullOrWhiteSpace(entry.Puuid))
-        {
-            return await riotPlatformClient.GetSummonerByPuuidAsync(platform, entry.Puuid, ct);
-        }
-
-        return new RiotSummonerDto();
-    }
-
-    private static async Task<bool> UpsertRiotAccountAsync(
-        IDataSession session,
+    private async Task<PlatformSummary> ProcessPlatformAsync(
         PlatformRoute platform,
-        RiotSummonerDto summoner,
-        DateTime nowUtc,
+        DiscoveryOptions options,
         CancellationToken ct)
     {
-        var existing = await session.RiotAccounts.GetByPuuidAsync(summoner.Puuid, ct);
         var platformId = platform.ToString();
+        var summary = new PlatformSummary(platformId);
+        var summoners = await ladderDiscoveryService.DiscoverSummonersAsync(platform, options, ct);
 
-        if (existing is null)
+        if (summoners.Count == 0)
         {
-            session.RiotAccounts.Add(new RiotAccount
-            {
-                Puuid = summoner.Puuid,
-                GameName = summoner.Name ?? string.Empty,
-                TagLine = null,
-                PlatformId = platformId,
-                SummonerId = summoner.Id,
-                ProfileIconId = summoner.ProfileIconId,
-                SummonerLevel = RiotDataHelpers.ToIntSafe(summoner.SummonerLevel),
-                UpdatedAtUtc = nowUtc,
-                LastProfileSyncAtUtc = nowUtc
-            });
-            return true;
+            logger.LogInformation("No ladder entries for platform {Platform}.", platformId);
+            return summary;
         }
 
-        existing.GameName = summoner.Name ?? string.Empty;
-        existing.TagLine = null;
-        existing.PlatformId = platformId;
-        existing.SummonerId = summoner.Id;
-        existing.ProfileIconId = summoner.ProfileIconId;
-        existing.SummonerLevel = RiotDataHelpers.ToIntSafe(summoner.SummonerLevel);
-        existing.UpdatedAtUtc = nowUtc;
-        existing.LastProfileSyncAtUtc = nowUtc;
-        return false;
+        await using var session = await sessionFactory.CreateAsync(ct);
+        var saveBatchSize = Math.Max(1, options.SaveBatchSize);
+        var newAccountsTarget = Math.Max(0, options.NewAccountsTarget);
+
+        var pendingChanges = 0;
+        var discoveredAccounts = 0;
+
+        foreach (var summoner in summoners)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var nowUtc = DateTime.UtcNow;
+            if (await accountUpsertService.UpsertAsync(session, platform, summoner, nowUtc, ct))
+            {
+                discoveredAccounts++;
+                summary.NewAccountsDiscovered++;
+            }
+
+            var masteries = await riotPlatformClient.GetChampionMasteriesAsync(platform, summoner.Puuid, ct);
+            var candidateResult = await candidateUpsertService.UpsertAsync(
+                session,
+                platformId,
+                summoner.Puuid,
+                masteries,
+                options,
+                nowUtc,
+                ct);
+
+            summary.AccountsProcessed++;
+            summary.CandidatesInserted += candidateResult.Inserted;
+            summary.CandidatesUpdated += candidateResult.Updated;
+
+            pendingChanges++;
+            if (pendingChanges >= saveBatchSize)
+            {
+                await session.SaveChangesAsync(ct);
+                pendingChanges = 0;
+            }
+
+            if (newAccountsTarget > 0 && discoveredAccounts >= newAccountsTarget)
+            {
+                logger.LogInformation(
+                    "Discovery reached new accounts target ({Target}) for platform {Platform}. Stopping early.",
+                    newAccountsTarget,
+                    platformId);
+                break;
+            }
+        }
+
+        if (pendingChanges > 0)
+        {
+            await session.SaveChangesAsync(ct);
+        }
+
+        return summary;
     }
 
+    private async Task RecordNoOpAsync(DateTime startedAtUtc, string reason, CancellationToken ct)
+    {
+        await runRecorder.RecordAsync(
+            "Discovery",
+            startedAtUtc,
+            DateTime.UtcNow,
+            ProcessRunStatus.Success,
+            new { reason, selected = 0 },
+            null,
+            ct);
+    }
 
     private sealed class PlatformSummary(string platformId)
     {
@@ -306,10 +173,5 @@ public class DiscoveryProcess(
         public int NewAccountsDiscovered { get; set; }
         public int CandidatesInserted { get; set; }
         public int CandidatesUpdated { get; set; }
-    }
-
-    private sealed record LadderEntry(string? SummonerId, string? Puuid)
-    {
-        public string Key => SummonerId ?? Puuid ?? string.Empty;
     }
 }

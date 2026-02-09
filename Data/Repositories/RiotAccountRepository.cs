@@ -11,6 +11,36 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
     public Task<RiotAccount?> GetByKeyAsync(string platformId, string puuid, CancellationToken ct)
         => db.RiotAccounts.FirstOrDefaultAsync(a => a.PlatformId == platformId && a.Puuid == puuid, ct);
 
+    public async Task<Dictionary<AccountKey, RiotAccount>> GetByKeysAsync(
+        IReadOnlyCollection<AccountKey> accounts,
+        CancellationToken ct)
+    {
+        var result = new Dictionary<AccountKey, RiotAccount>();
+        if (accounts.Count == 0)
+        {
+            return result;
+        }
+
+        foreach (var grouping in accounts
+                     .Distinct()
+                     .GroupBy(a => a.PlatformId, StringComparer.OrdinalIgnoreCase))
+        {
+            var platformId = grouping.Key;
+            var puuids = grouping.Select(a => a.Puuid).Distinct(StringComparer.Ordinal).ToList();
+
+            var riotAccounts = await db.RiotAccounts
+                .Where(a => a.PlatformId == platformId && puuids.Contains(a.Puuid))
+                .ToListAsync(ct);
+
+            foreach (var account in riotAccounts)
+            {
+                result[new AccountKey(account.PlatformId, account.Puuid)] = account;
+            }
+        }
+
+        return result;
+    }
+
     public Task<bool> ExistsByPuuidAsync(string puuid, CancellationToken ct)
         => db.RiotAccounts.AnyAsync(a => a.Puuid == puuid, ct);
 
@@ -18,8 +48,7 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
     {
         return db.RiotAccounts
             .OrderBy(a =>
-                (a.GameName == null || a.GameName == string.Empty ||
-                 a.TagLine == null || a.TagLine == string.Empty)
+                (string.IsNullOrEmpty(a.GameName) || string.IsNullOrEmpty(a.TagLine))
                     ? 0
                     : 1)
             .ThenBy(a => a.UpdatedAtUtc)
@@ -50,43 +79,88 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
             .ToListAsync(ct);
     }
 
-    public async Task<List<AccountKey>> ClaimAccountsForMatchIngestAsync(List<string> platforms, int batchSize, CancellationToken ct)
+    public async Task<List<AccountKey>> ClaimAccountsForMatchIngestAtomicallyAsync(
+        IReadOnlyCollection<string> platforms,
+        int batchSize,
+        DateTime nowUtc,
+        TimeSpan lease,
+        CancellationToken ct)
     {
-        var queued = db.MainCandidates
-            .Where(c => c.Status == MainCandidateStatus.Queued && platforms.Contains(c.PlatformId))
-            .Select(c => new { c.PlatformId, c.Puuid })
-            .Distinct();
+        var normalizedPlatforms = platforms
+            .Where(platform => !string.IsNullOrWhiteSpace(platform))
+            .Select(platform => platform.Trim().ToUpperInvariant())
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
 
-        var mains = db.MainChampionStats
-            .Where(s => s.IsMain && platforms.Contains(s.PlatformId))
-            .Select(s => new { s.PlatformId, s.Puuid })
-            .Distinct();
+        if (normalizedPlatforms.Length == 0)
+        {
+            return [];
+        }
 
-        var combined = queued.Union(mains);
+        var safeBatchSize = Math.Max(1, batchSize);
+        var safeLease = lease > TimeSpan.Zero ? lease : TimeSpan.FromMinutes(30);
+        var leaseCutoff = nowUtc - safeLease;
 
-        var selection = await (
-                from account in combined
-                join ra in db.RiotAccounts
-                    on new { account.PlatformId, account.Puuid } equals new { ra.PlatformId, ra.Puuid }
-                where ra.MatchIngestStatus == MatchIngestStatus.Idle
-                orderby ra.LastMatchIngestAtUtc == null ? 0 : 1,
-                    ra.LastMatchIngestAtUtc
-                select new { account, ra }
+        var queuedAccounts = db.MainCandidates
+            .AsNoTracking()
+            .Where(candidate =>
+                candidate.Status == MainCandidateStatus.Queued &&
+                normalizedPlatforms.Contains(candidate.PlatformId))
+            .Select(candidate => new { candidate.PlatformId, candidate.Puuid });
+
+        var mainAccounts = db.MainChampionStats
+            .AsNoTracking()
+            .Where(stat =>
+                stat.IsMain &&
+                normalizedPlatforms.Contains(stat.PlatformId))
+            .Select(stat => new { stat.PlatformId, stat.Puuid });
+
+        var candidateAccounts = queuedAccounts.Union(mainAccounts);
+
+        var claimableCandidates = await (
+                from candidate in candidateAccounts
+                join account in db.RiotAccounts.AsNoTracking()
+                    on new { candidate.PlatformId, candidate.Puuid }
+                    equals new { account.PlatformId, account.Puuid }
+                where account.MatchIngestStatus == MatchIngestStatus.Idle
+                      || (account.MatchIngestStatus == MatchIngestStatus.Processing
+                          && account.MatchIngestClaimedAtUtc != null
+                          && account.MatchIngestClaimedAtUtc < leaseCutoff)
+                orderby account.LastMatchIngestAtUtc == null ? 0 : 1,
+                    account.LastMatchIngestAtUtc
+                select new AccountKey(candidate.PlatformId, candidate.Puuid)
             )
-            .Take(Math.Max(1, batchSize))
+            .Take(Math.Max(safeBatchSize * 4, safeBatchSize))
             .ToListAsync(ct);
 
-        foreach (var entry in selection)
+        var claimed = new List<AccountKey>();
+        foreach (var candidate in claimableCandidates)
         {
-            if (entry.ra.MatchIngestStatus == MatchIngestStatus.Idle)
+            if (claimed.Count >= safeBatchSize)
             {
-                entry.ra.MatchIngestStatus = MatchIngestStatus.Processing;
+                break;
+            }
+
+            var updated = await db.RiotAccounts
+                .Where(account => account.PlatformId == candidate.PlatformId && account.Puuid == candidate.Puuid)
+                .Where(account =>
+                    account.MatchIngestStatus == MatchIngestStatus.Idle
+                    || (account.MatchIngestStatus == MatchIngestStatus.Processing
+                        && account.MatchIngestClaimedAtUtc != null
+                        && account.MatchIngestClaimedAtUtc < leaseCutoff))
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(account => account.MatchIngestStatus, MatchIngestStatus.Processing)
+                        .SetProperty(account => account.MatchIngestClaimedAtUtc, nowUtc),
+                    ct);
+
+            if (updated > 0)
+            {
+                claimed.Add(candidate);
             }
         }
 
-        return selection
-            .Select(s => new AccountKey(s.account.PlatformId, s.account.Puuid))
-            .ToList();
+        return claimed;
     }
 
     public async Task<int> SetMatchIngestStatusAsync(string platformId, string puuid, MatchIngestStatus status, CancellationToken ct)
@@ -100,6 +174,11 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
         }
 
         account.MatchIngestStatus = status;
+        if (status == MatchIngestStatus.Idle)
+        {
+            account.MatchIngestClaimedAtUtc = null;
+        }
+
         return 1;
     }
 
@@ -108,10 +187,12 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
         var account = await db.RiotAccounts
             .FirstOrDefaultAsync(a => a.PlatformId == platformId && a.Puuid == puuid, ct);
 
-        if (account is not null)
+        if (account is null)
         {
-            account.LastMatchIngestAtUtc = atUtc;
+            return;
         }
+
+        account.LastMatchIngestAtUtc = atUtc;
     }
 
     public void Add(RiotAccount account)

@@ -78,7 +78,7 @@ public class Worker(
             "mainanalysisonly" => JobMode.MainAnalysisOnly,
             "accountrefreshonly" => JobMode.AccountRefreshOnly,
             "full" => JobMode.Full,
-            _ => JobMode.Full
+            _ => throw new InvalidOperationException($"Unsupported job mode '{mode}'.")
         };
     }
 

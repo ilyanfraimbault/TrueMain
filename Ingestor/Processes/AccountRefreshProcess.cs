@@ -12,7 +12,7 @@ public class AccountRefreshProcess(
     ILogger<AccountRefreshProcess> logger,
     IRiotAccountClient riotAccountClient,
     IDataSessionFactory sessionFactory,
-    ProcessRunRecorder runRecorder,
+    IProcessRunRecorder runRecorder,
     IOptions<AccountRefreshOptions> refreshOptions)
 {
     public async Task RunAsync(CancellationToken ct)
@@ -30,6 +30,15 @@ public class AccountRefreshProcess(
             if (accounts.Count == 0)
             {
                 logger.LogInformation("No riot accounts found for refresh.");
+                var finishedAtNoOp = DateTime.UtcNow;
+                await runRecorder.RecordAsync(
+                    "AccountRefresh",
+                    startedAt,
+                    finishedAtNoOp,
+                    ProcessRunStatus.Success,
+                    new { reason = "No riot accounts found for refresh.", selected = 0 },
+                    null,
+                    ct);
                 return;
             }
 

@@ -9,7 +9,7 @@ namespace Ingestor.Processes;
 public class ScoringProcess(
     ILogger<ScoringProcess> logger,
     IDataSessionFactory sessionFactory,
-    ProcessRunRecorder runRecorder,
+    IProcessRunRecorder runRecorder,
     IOptions<ScoringOptions> scoringOptions)
 {
     /// <summary>
@@ -60,6 +60,15 @@ public class ScoringProcess(
             if (totalScored == 0)
             {
                 logger.LogInformation("No new candidates to score.");
+                var finishedAtNoOp = DateTime.UtcNow;
+                await runRecorder.RecordAsync(
+                    "Scoring",
+                    startedAt,
+                    finishedAtNoOp,
+                    ProcessRunStatus.Success,
+                    new { reason = "No new candidates to score.", selected = 0 },
+                    null,
+                    ct);
                 return;
             }
 

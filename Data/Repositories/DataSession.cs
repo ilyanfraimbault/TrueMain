@@ -5,16 +5,19 @@ namespace Data.Repositories;
 public sealed class DataSession : IDataSession
 {
     private readonly TrueMainDbContext _db;
+    private readonly IDataRepositoryFactory _repositoryFactory;
 
-    public DataSession(TrueMainDbContext db)
+    public DataSession(TrueMainDbContext db, IDataRepositoryFactory repositoryFactory)
     {
         _db = db;
-        MainCandidates = new MainCandidateRepository(_db);
-        MainChampionStats = new MainChampionStatRepository(_db);
-        RiotAccounts = new RiotAccountRepository(_db);
-        Matches = new MatchRepository(_db);
-        MatchParticipants = new MatchParticipantRepository(_db);
-        ProcessRuns = new ProcessRunRepository(_db);
+        _repositoryFactory = repositoryFactory;
+
+        MainCandidates = _repositoryFactory.CreateMainCandidateRepository(_db);
+        MainChampionStats = _repositoryFactory.CreateMainChampionStatRepository(_db);
+        RiotAccounts = _repositoryFactory.CreateRiotAccountRepository(_db);
+        Matches = _repositoryFactory.CreateMatchRepository(_db);
+        MatchParticipants = _repositoryFactory.CreateMatchParticipantRepository(_db);
+        ProcessRuns = _repositoryFactory.CreateProcessRunRepository(_db);
     }
 
     public IMainCandidateRepository MainCandidates { get; }

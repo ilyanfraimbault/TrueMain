@@ -4,7 +4,7 @@ using Data.Repositories;
 
 namespace Ingestor.Services;
 
-public sealed class ProcessRunRecorder(IDataSessionFactory sessionFactory)
+public sealed class ProcessRunRecorder(IDataSessionFactory sessionFactory) : IProcessRunRecorder
 {
     public async Task RecordAsync(
         string processName,

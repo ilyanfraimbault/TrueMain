@@ -66,6 +66,7 @@ services:
       MatchIngestion__BatchSize: ${MATCH_INGESTION_BATCH_SIZE:-50}
       MatchIngestion__MatchesPerAccount: ${MATCH_INGESTION_MATCHES_PER_ACCOUNT:-20}
       MatchIngestion__SaveBatchSizeMatches: ${MATCH_INGESTION_SAVE_BATCH_SIZE_MATCHES:-10}
+      MatchIngestion__ClaimLeaseMinutes: ${MATCH_INGESTION_CLAIM_LEASE_MINUTES:-30}
       MatchIngestion__Platforms__0: ${MATCH_INGESTION_PLATFORMS_0:-KR}
       MatchIngestion__Platforms__1: ${MATCH_INGESTION_PLATFORMS_1:-EUW1}
       MatchIngestion__Platforms__2: ${MATCH_INGESTION_PLATFORMS_2:-NA1}

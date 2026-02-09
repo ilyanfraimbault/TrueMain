@@ -22,5 +22,7 @@ public class Match
 
     public DateTime CreatedAtUtc { get; set; }
 
+    public bool TimelineIngested { get; set; }
+
     public ICollection<MatchParticipant> Participants { get; set; } = new List<MatchParticipant>();
 }

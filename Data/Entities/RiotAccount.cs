@@ -33,4 +33,6 @@ public class RiotAccount
     public DateTime? LastMatchIngestAtUtc { get; set; }
 
     public MatchIngestStatus MatchIngestStatus { get; set; } = MatchIngestStatus.Idle;
+
+    public DateTime? MatchIngestClaimedAtUtc { get; set; }
 }
