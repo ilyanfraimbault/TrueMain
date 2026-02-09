@@ -66,7 +66,7 @@ public class MatchIngestionProcess(
                     try
                     {
                         var platformId = account.PlatformId.ToUpperInvariant();
-                        if (!TryParsePlatform(platformId, out var platform))
+                        if (!RiotDataHelpers.TryParsePlatform(platformId, out var platform))
                         {
                             logger.LogWarning("Unknown platform {Platform}. Reverting queued status.", platformId);
                             await RevertToQueuedAsync(account, ct);
@@ -115,31 +115,32 @@ public class MatchIngestionProcess(
 
                     await session.SaveChangesAsync(ct);
                 }
-                        await ValidateAccountAsync(account, ct);
 
-                        logger.LogInformation(
-                            "Match ingestion for {Platform}/{Puuid}: inserted={Inserted}, skipped={Skipped}, timelinesUpdated={Timelines}.",
-                            platformId,
-                            account.Puuid,
-                            inserted,
-                            skipped,
-                            timelineUpdated);
+                await ValidateAccountAsync(account, ct);
 
-                        if (!summaryByPlatform.TryGetValue(platformId, out var summary))
-                        {
-                            summary = new PlatformSummary();
-                            summaryByPlatform[platformId] = summary;
-                        }
+                logger.LogInformation(
+                    "Match ingestion for {Platform}/{Puuid}: inserted={Inserted}, skipped={Skipped}, timelinesUpdated={Timelines}.",
+                    platformId,
+                    account.Puuid,
+                    inserted,
+                    skipped,
+                    timelineUpdated);
 
-                        summary.AccountsProcessed++;
-                        summary.MatchesInserted += inserted;
-                        summary.MatchesSkipped += skipped;
-                        summary.TimelinesUpdated += timelineUpdated;
+                if (!summaryByPlatform.TryGetValue(platformId, out var summary))
+                {
+                    summary = new PlatformSummary();
+                    summaryByPlatform[platformId] = summary;
+                }
 
-                        totalAccounts++;
-                        totalInserted += inserted;
-                        totalSkipped += skipped;
-                        totalTimelines += timelineUpdated;
+                summary.AccountsProcessed++;
+                summary.MatchesInserted += inserted;
+                summary.MatchesSkipped += skipped;
+                summary.TimelinesUpdated += timelineUpdated;
+
+                totalAccounts++;
+                totalInserted += inserted;
+                totalSkipped += skipped;
+                totalTimelines += timelineUpdated;
                     }
                     catch (Exception ex)
                     {
@@ -283,14 +284,11 @@ public class MatchIngestionProcess(
         await session.SaveChangesAsync(ct);
     }
 
-    private static bool TryParsePlatform(string platform, out PlatformRoute route)
-        => Enum.TryParse(platform.Trim(), ignoreCase: true, out route);
-
     private static Task UpsertMatchSnapshotAsync(IDataSession session, RiotMatchDto matchDto, string platformId, CancellationToken ct)
     {
         var matchId = matchDto.Metadata.MatchId;
 
-        var gameStartUtc = ToUtcDateTime(matchDto.Info.GameStartTimestamp);
+        var gameStartUtc = RiotDataHelpers.ToUtcDateTime(matchDto.Info.GameStartTimestamp);
 
         session.Matches.Add(new Match
         {
@@ -301,7 +299,7 @@ public class MatchIngestionProcess(
             GameMode = matchDto.Info.GameMode,
             GameType = matchDto.Info.GameType,
             GameStartTimeUtc = gameStartUtc ?? DateTime.UtcNow,
-            GameDurationSeconds = ToIntSafe(matchDto.Info.GameDuration),
+            GameDurationSeconds = RiotDataHelpers.ToIntSafe(matchDto.Info.GameDuration),
             GameVersion = matchDto.Info.GameVersion,
             CreatedAtUtc = DateTime.UtcNow
         });
@@ -473,26 +471,6 @@ public class MatchIngestionProcess(
                 ? skillEvents
                 : new List<SkillEvent>();
         }
-    }
-
-    private static DateTime? ToUtcDateTime(long timestampMs)
-    {
-        if (timestampMs <= 0)
-        {
-            return null;
-        }
-
-        return DateTimeOffset.FromUnixTimeMilliseconds(timestampMs).UtcDateTime;
-    }
-
-    private static int ToIntSafe(long value)
-    {
-        if (value <= 0)
-        {
-            return 0;
-        }
-
-        return value > int.MaxValue ? int.MaxValue : (int)value;
     }
 
     private sealed class PlatformSummary
