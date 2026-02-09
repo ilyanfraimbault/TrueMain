@@ -16,6 +16,7 @@ public class MainAnalysisProcess(
     {
         var options = analysisOptions.Value;
         var batchSize = Math.Max(1, options.BatchSize);
+        var processingBatchSize = Math.Max(1, options.ProcessingBatchSize);
         var matchesToConsider = Math.Max(1, options.MatchesToConsider);
         var queueId = options.QueueId;
         var nowUtc = DateTime.UtcNow;
@@ -44,134 +45,145 @@ public class MainAnalysisProcess(
             var totalStatsRemoved = 0;
             var demotedAccounts = 0;
 
-            foreach (var account in accounts)
+            for (var i = 0; i < accounts.Count; i += processingBatchSize)
             {
-                ct.ThrowIfCancellationRequested();
+                var batch = accounts.Skip(i).Take(processingBatchSize).ToList();
 
-                await using var accountSession = await sessionFactory.CreateAsync(ct);
-                await using var transaction = await accountSession.BeginTransactionAsync(ct);
+                await using var batchSession = await sessionFactory.CreateAsync(ct);
+                await using var transaction = await batchSession.BeginTransactionAsync(ct);
 
-                var participantRows = await accountSession.MatchParticipants
-                    .GetRecentParticipantsAsync(account.PlatformId, account.Puuid, queueId, matchesToConsider, ct);
-
-                var validParticipants = participantRows
-                    .Where(p => IsValidTeamPosition(p.TeamPosition))
-                    .Select(p => new ParticipantRow(p.ChampionId, NormalizePosition(p.TeamPosition)))
-                    .ToList();
-
-                var totalMatches = validParticipants.Count;
-
-                var existingStats = await accountSession.MainChampionStats
-                    .GetByAccountAsync(account.PlatformId, account.Puuid, ct);
-
-                var statsByChampion = existingStats.ToDictionary(s => s.ChampionId);
-                var newStats = new List<MainChampionStat>();
-
-                if (totalMatches > 0)
+                foreach (var account in batch)
                 {
-                    foreach (var group in validParticipants.GroupBy(p => p.ChampionId))
+                    ct.ThrowIfCancellationRequested();
+
+                    var participantRows = await batchSession.MatchParticipants
+                        .GetRecentParticipantsAsync(account.PlatformId, account.Puuid, queueId, matchesToConsider, ct);
+
+                    var validParticipants = participantRows
+                        .Where(p => IsValidTeamPosition(p.TeamPosition))
+                        .Select(p => new ParticipantRow(p.ChampionId, NormalizePosition(p.TeamPosition)))
+                        .ToList();
+
+                    var totalMatches = validParticipants.Count;
+
+                    var existingStats = await batchSession.MainChampionStats
+                        .GetByAccountAsync(account.PlatformId, account.Puuid, ct);
+
+                    var statsByChampion = existingStats.ToDictionary(s => s.ChampionId);
+                    var newStats = new List<MainChampionStat>();
+
+                    if (totalMatches > 0)
                     {
-                        var championMatches = group.Count();
-                        var playRate = (double)championMatches / totalMatches;
-
-                        var positions = group
-                            .GroupBy(p => p.TeamPosition)
-                            .Select(g =>
-                            {
-                                var games = g.Count();
-                                return new PositionStat
-                                {
-                                    Position = g.Key,
-                                    Games = games,
-                                    Rate = championMatches == 0 ? 0 : (double)games / championMatches
-                                };
-                            })
-                            .OrderByDescending(p => p.Games)
-                            .ToList();
-
-                        var primaryPosition = positions.Count > 0 ? positions[0].Position : string.Empty;
-                        var isMain = totalMatches >= options.MinMatchesToEvaluate &&
-                                     playRate >= options.PlayRateThreshold;
-
-                        newStats.Add(new MainChampionStat
+                        foreach (var group in validParticipants.GroupBy(p => p.ChampionId))
                         {
-                            PlatformId = account.PlatformId,
-                            Puuid = account.Puuid,
-                            ChampionId = group.Key,
-                            TotalMatches = totalMatches,
-                            ChampionMatches = championMatches,
-                            PlayRate = playRate,
-                            IsMain = isMain,
-                            PrimaryPosition = primaryPosition,
-                            PositionBreakdown = positions,
-                            CalculatedAtUtc = nowUtc
-                        });
-                    }
-                }
+                            var championMatches = group.Count();
+                            var playRate = (double)championMatches / totalMatches;
 
-                var newChampionIds = newStats.Select(s => s.ChampionId).ToHashSet();
-                var newStatsByChampion = newStats.ToDictionary(s => s.ChampionId);
-                foreach (var existing in existingStats)
-                {
-                    if (!newChampionIds.Contains(existing.ChampionId))
+                            var positions = group
+                                .GroupBy(p => p.TeamPosition)
+                                .Select(g =>
+                                {
+                                    var games = g.Count();
+                                    return new PositionStat
+                                    {
+                                        Position = g.Key,
+                                        Games = games,
+                                        Rate = championMatches == 0 ? 0 : (double)games / championMatches
+                                    };
+                                })
+                                .OrderByDescending(p => p.Games)
+                                .ToList();
+
+                            var primaryPosition = positions.Count > 0 ? positions[0].Position : string.Empty;
+                            var isMain = totalMatches >= options.MinMatchesToEvaluate &&
+                                         playRate >= options.PlayRateThreshold;
+
+                            newStats.Add(new MainChampionStat
+                            {
+                                PlatformId = account.PlatformId,
+                                Puuid = account.Puuid,
+                                ChampionId = group.Key,
+                                TotalMatches = totalMatches,
+                                ChampionMatches = championMatches,
+                                PlayRate = playRate,
+                                IsMain = isMain,
+                                PrimaryPosition = primaryPosition,
+                                PositionBreakdown = positions,
+                                CalculatedAtUtc = nowUtc
+                            });
+                        }
+                    }
+
+                    var newChampionIds = newStats.Select(s => s.ChampionId).ToHashSet();
+                    var newStatsByChampion = newStats.ToDictionary(s => s.ChampionId);
+                    foreach (var existing in existingStats)
                     {
-                        accountSession.MainChampionStats.Remove(existing);
-                        totalStatsRemoved++;
+                        if (!newChampionIds.Contains(existing.ChampionId))
+                        {
+                            batchSession.MainChampionStats.Remove(existing);
+                            totalStatsRemoved++;
+                        }
                     }
-                }
 
-                var demoteToScored = existingStats
-                    .Where(s => s.IsMain)
-                    .Any(s => !newStatsByChampion.TryGetValue(s.ChampionId, out var stat)
-                              || stat.PlayRate < options.CriticalPlayRateThreshold);
+                    var demoteToScored = existingStats
+                        .Where(s => s.IsMain)
+                        .Any(s => !newStatsByChampion.TryGetValue(s.ChampionId, out var stat)
+                                  || stat.PlayRate < options.CriticalPlayRateThreshold);
 
-                foreach (var stat in newStats)
-                {
-                    if (statsByChampion.TryGetValue(stat.ChampionId, out var existing))
+                    foreach (var stat in newStats)
                     {
-                        existing.TotalMatches = stat.TotalMatches;
-                        existing.ChampionMatches = stat.ChampionMatches;
-                        existing.PlayRate = stat.PlayRate;
-                        existing.IsMain = stat.IsMain;
-                        existing.PrimaryPosition = stat.PrimaryPosition;
-                        existing.PositionBreakdown = stat.PositionBreakdown;
-                        existing.CalculatedAtUtc = stat.CalculatedAtUtc;
+                        if (statsByChampion.TryGetValue(stat.ChampionId, out var existing))
+                        {
+                            existing.TotalMatches = stat.TotalMatches;
+                            existing.ChampionMatches = stat.ChampionMatches;
+                            existing.PlayRate = stat.PlayRate;
+                            existing.IsMain = stat.IsMain;
+                            existing.PrimaryPosition = stat.PrimaryPosition;
+                            existing.PositionBreakdown = stat.PositionBreakdown;
+                            existing.CalculatedAtUtc = stat.CalculatedAtUtc;
+                        }
+                        else
+                        {
+                            batchSession.MainChampionStats.Add(stat);
+                        }
+
+                        totalStatsUpserted++;
                     }
-                    else
+
+                    var accountEntity = await batchSession.RiotAccounts
+                        .GetByKeyAsync(account.PlatformId, account.Puuid, ct);
+
+                    if (accountEntity is not null)
                     {
-                        accountSession.MainChampionStats.Add(stat);
+                        accountEntity.LastMainCalcAtUtc = nowUtc;
                     }
 
-                    totalStatsUpserted++;
-                }
-
-                var accountEntity = await accountSession.RiotAccounts
-                    .GetByKeyAsync(account.PlatformId, account.Puuid, ct);
-
-                if (accountEntity is not null)
-                {
-                    accountEntity.LastMainCalcAtUtc = nowUtc;
-                }
-
-                if (demoteToScored)
-                {
-                    var updated = await accountSession.MainCandidates
-                        .SetStatusForAccountAsync(account.PlatformId, account.Puuid, MainCandidateStatus.Validated, MainCandidateStatus.Scored, ct);
-
-                    if (updated > 0)
+                    if (demoteToScored)
                     {
-                        demotedAccounts++;
-                        logger.LogInformation(
-                            "Demoted candidates for {Platform}/{Puuid} to Scored due to critical play rate.",
-                            account.PlatformId,
-                            account.Puuid);
+                        var updated = await batchSession.MainCandidates
+                            .SetStatusForAccountAsync(account.PlatformId, account.Puuid, MainCandidateStatus.Validated, MainCandidateStatus.Scored, ct);
+
+                        if (updated > 0)
+                        {
+                            demotedAccounts++;
+                            logger.LogInformation(
+                                "Demoted candidates for {Platform}/{Puuid} to Scored due to critical play rate.",
+                                account.PlatformId,
+                                account.Puuid);
+                        }
                     }
+
+                    processed++;
                 }
 
-                await accountSession.SaveChangesAsync(ct);
+                await batchSession.SaveChangesAsync(ct);
                 await transaction.CommitAsync(ct);
 
-                processed++;
+                logger.LogDebug(
+                    "Processed batch {BatchStart}-{BatchEnd}/{Total} accounts.",
+                    i + 1,
+                    Math.Min(i + processingBatchSize, accounts.Count),
+                    accounts.Count);
             }
 
             logger.LogInformation(
