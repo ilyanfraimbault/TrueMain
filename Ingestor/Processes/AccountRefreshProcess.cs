@@ -42,7 +42,7 @@ public class AccountRefreshProcess(
             {
                 ct.ThrowIfCancellationRequested();
 
-                if (!TryParsePlatform(account.PlatformId, out var platform))
+                if (!RiotDataHelpers.TryParsePlatform(account.PlatformId, out var platform))
                 {
                     skipped++;
                     logger.LogWarning(
@@ -98,8 +98,5 @@ public class AccountRefreshProcess(
             throw;
         }
     }
-
-    private static bool TryParsePlatform(string platform, out PlatformRoute route)
-        => Enum.TryParse(platform.Trim(), ignoreCase: true, out route);
 
 }

@@ -36,7 +36,7 @@ public class DiscoveryProcess(
             {
                 ct.ThrowIfCancellationRequested();
 
-                if (!TryParsePlatform(platformString, out var platform))
+                if (!RiotDataHelpers.TryParsePlatform(platformString, out var platform))
                 {
                     logger.LogWarning("Skipping unknown platform '{Platform}'.", platformString);
                     continue;
@@ -105,7 +105,7 @@ public class DiscoveryProcess(
                     for (var i = 0; i < topMasteries.Count; i++)
                     {
                         var mastery = topMasteries[i];
-                        var lastPlayUtc = ToUtcDateTime(mastery.LastPlayTime);
+                        var lastPlayUtc = RiotDataHelpers.ToUtcDateTime(mastery.LastPlayTime);
                         if (lastPlayUtc is null)
                         {
                             continue;
@@ -280,7 +280,7 @@ public class DiscoveryProcess(
                 PlatformId = platformId,
                 SummonerId = summoner.Id,
                 ProfileIconId = summoner.ProfileIconId,
-                SummonerLevel = ToIntSafe(summoner.SummonerLevel),
+                SummonerLevel = RiotDataHelpers.ToIntSafe(summoner.SummonerLevel),
                 UpdatedAtUtc = nowUtc,
                 LastProfileSyncAtUtc = nowUtc
             });
@@ -292,33 +292,10 @@ public class DiscoveryProcess(
         existing.PlatformId = platformId;
         existing.SummonerId = summoner.Id;
         existing.ProfileIconId = summoner.ProfileIconId;
-        existing.SummonerLevel = ToIntSafe(summoner.SummonerLevel);
+        existing.SummonerLevel = RiotDataHelpers.ToIntSafe(summoner.SummonerLevel);
         existing.UpdatedAtUtc = nowUtc;
         existing.LastProfileSyncAtUtc = nowUtc;
         return false;
-    }
-
-    private static bool TryParsePlatform(string platform, out PlatformRoute route)
-        => Enum.TryParse(platform.Trim(), ignoreCase: true, out route);
-
-    private static DateTime? ToUtcDateTime(long lastPlayTimeMs)
-    {
-        if (lastPlayTimeMs <= 0)
-        {
-            return null;
-        }
-
-        return DateTimeOffset.FromUnixTimeMilliseconds(lastPlayTimeMs).UtcDateTime;
-    }
-
-    private static int ToIntSafe(long value)
-    {
-        if (value <= 0)
-        {
-            return 0;
-        }
-
-        return value > int.MaxValue ? int.MaxValue : (int)value;
     }
 
 
