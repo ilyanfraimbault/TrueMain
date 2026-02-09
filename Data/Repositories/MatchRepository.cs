@@ -13,6 +13,7 @@ public sealed class MatchRepository(TrueMainDbContext db) : IMatchRepository
         }
 
         var ids = await db.Matches
+            .AsNoTracking()
             .Where(m => matchIds.Contains(m.Id))
             .Select(m => m.Id)
             .ToListAsync(ct);

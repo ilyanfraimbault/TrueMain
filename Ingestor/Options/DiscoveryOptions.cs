@@ -13,4 +13,6 @@ public class DiscoveryOptions
     public int MaxAccountsPerPlatformPerRun { get; set; } = 350;
 
     public int NewAccountsTarget { get; set; } = 50;
+
+    public int SaveBatchSize { get; set; } = 50;
 }

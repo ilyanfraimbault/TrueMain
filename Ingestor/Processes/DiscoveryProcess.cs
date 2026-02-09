@@ -45,6 +45,8 @@ public class DiscoveryProcess(
                 var summary = new PlatformSummary(platformString.ToUpperInvariant());
 
                 await using var session = await sessionFactory.CreateAsync(ct);
+                var saveBatchSize = Math.Max(1, options.SaveBatchSize);
+                var pendingChanges = 0;
 
                 var ladderEntries = await FetchLadderEntriesAsync(platform, options, ct);
                 if (ladderEntries.Count == 0)
@@ -141,7 +143,12 @@ public class DiscoveryProcess(
                         }
                     }
 
-                    await session.SaveChangesAsync(ct);
+                    pendingChanges++;
+                    if (pendingChanges >= saveBatchSize)
+                    {
+                        await session.SaveChangesAsync(ct);
+                        pendingChanges = 0;
+                    }
 
                     if (newAccountsTarget > 0 && newAccountsDiscovered >= newAccountsTarget)
                     {
@@ -151,6 +158,11 @@ public class DiscoveryProcess(
                             summary.PlatformId);
                         break;
                     }
+                }
+
+                if (pendingChanges > 0)
+                {
+                    await session.SaveChangesAsync(ct);
                 }
 
                 summaries.Add(summary);

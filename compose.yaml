@@ -47,9 +47,11 @@ services:
       Discovery__MaxLastPlayDays: ${DISCOVERY_MAX_LAST_PLAY_DAYS:-10}
       Discovery__MaxAccountsPerPlatformPerRun: ${DISCOVERY_MAX_ACCOUNTS_PER_PLATFORM:-500}
       Discovery__NewAccountsTarget: ${DISCOVERY_NEW_ACCOUNTS_TARGET:-50}
+      Discovery__SaveBatchSize: ${DISCOVERY_SAVE_BATCH_SIZE:-50}
       Scoring__TopNPerPlatform: ${SCORING_TOPN_PER_PLATFORM:-200}
       Scoring__MaxLastPlayDays: ${SCORING_MAX_LAST_PLAY_DAYS:-10}
       Scoring__TopChampionsPerAccount: ${SCORING_TOP_CHAMPIONS:-10}
+      Scoring__BatchSize: ${SCORING_BATCH_SIZE:-5000}
       Scoring__RecencyWeight: ${SCORING_RECENCY_WEIGHT:-0.65}
       Scoring__RankWeight: ${SCORING_RANK_WEIGHT:-0.2}
       Scoring__PointsWeight: ${SCORING_POINTS_WEIGHT:-0.15}
@@ -63,6 +65,7 @@ services:
       MainAnalysis__RecomputeAfterHours: ${MAIN_ANALYSIS_RECOMPUTE_AFTER_HOURS:-24}
       MatchIngestion__BatchSize: ${MATCH_INGESTION_BATCH_SIZE:-50}
       MatchIngestion__MatchesPerAccount: ${MATCH_INGESTION_MATCHES_PER_ACCOUNT:-20}
+      MatchIngestion__SaveBatchSizeMatches: ${MATCH_INGESTION_SAVE_BATCH_SIZE_MATCHES:-10}
       MatchIngestion__Platforms__0: ${MATCH_INGESTION_PLATFORMS_0:-KR}
       MatchIngestion__Platforms__1: ${MATCH_INGESTION_PLATFORMS_1:-EUW1}
       MatchIngestion__Platforms__2: ${MATCH_INGESTION_PLATFORMS_2:-NA1}

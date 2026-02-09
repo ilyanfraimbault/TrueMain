@@ -30,8 +30,8 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
     public Task<List<AccountKey>> GetAccountsForMainAnalysisAsync(DateTime cutoff, int batchSize, CancellationToken ct)
     {
         var accounts =
-            from account in db.RiotAccounts
-            join candidate in db.MainCandidates
+            from account in db.RiotAccounts.AsNoTracking()
+            join candidate in db.MainCandidates.AsNoTracking()
                 on new { account.PlatformId, account.Puuid } equals new { candidate.PlatformId, candidate.Puuid }
             where candidate.Status == MainCandidateStatus.Validated
             select account;

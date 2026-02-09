@@ -11,8 +11,8 @@ public sealed class MatchParticipantRepository(TrueMainDbContext db) : IMatchPar
     public Task<List<ParticipantRow>> GetRecentParticipantsAsync(string platformId, string puuid, int queueId, int take, CancellationToken ct)
     {
         return (
-                from participant in db.MatchParticipants
-                join match in db.Matches on participant.MatchId equals match.Id
+                from participant in db.MatchParticipants.AsNoTracking()
+                join match in db.Matches.AsNoTracking() on participant.MatchId equals match.Id
                 where participant.Puuid == puuid &&
                       match.PlatformId == platformId &&
                       match.QueueId == queueId

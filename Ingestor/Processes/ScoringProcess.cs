@@ -21,34 +21,47 @@ public class ScoringProcess(
         {
             await using var session = await sessionFactory.CreateAsync(ct);
             var nowUtc = DateTime.UtcNow;
+            var batchSize = Math.Max(1, scoring.BatchSize);
 
-            var candidates = await session.MainCandidates.GetByStatusAsync(MainCandidateStatus.New, ct);
+            var totalScored = 0;
+            var platformsTouched = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var scoredByPlatform = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
-            if (candidates.Count == 0)
+            while (true)
+            {
+                var batch = await session.MainCandidates.GetNewBatchAsync(batchSize, ct);
+                if (batch.Count == 0)
+                {
+                    break;
+                }
+
+                foreach (var candidate in batch)
+                {
+                    candidate.Score = ComputeScore(candidate, scoring, nowUtc);
+                    candidate.Status = MainCandidateStatus.Scored;
+                    candidate.ScoredAtUtc = nowUtc;
+                    platformsTouched.Add(candidate.PlatformId);
+                    scoredByPlatform[candidate.PlatformId] = scoredByPlatform.TryGetValue(candidate.PlatformId, out var count)
+                        ? count + 1
+                        : 1;
+                }
+
+                totalScored += batch.Count;
+                await session.SaveChangesAsync(ct);
+            }
+
+            if (totalScored == 0)
             {
                 logger.LogInformation("No new candidates to score.");
                 return;
             }
 
-            foreach (var candidate in candidates)
-            {
-                candidate.Score = ComputeScore(candidate, scoring, nowUtc);
-                candidate.Status = MainCandidateStatus.Scored;
-                candidate.ScoredAtUtc = nowUtc;
-            }
-
-            await session.SaveChangesAsync(ct);
-
-            var grouped = candidates
-                .GroupBy(c => c.PlatformId, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
             var platformSummaries = new List<object>();
 
-            foreach (var group in grouped)
+            foreach (var platformId in platformsTouched)
             {
                 var queued = await session.MainCandidates
-                    .GetScoredByPlatformAsync(group.Key, scoring.TopNPerPlatform, ct);
+                    .GetScoredByPlatformAsync(platformId, scoring.TopNPerPlatform, ct);
 
                 foreach (var candidate in queued)
                 {
@@ -59,15 +72,15 @@ public class ScoringProcess(
 
                 platformSummaries.Add(new
                 {
-                    platform = group.Key,
-                    scored = group.Count(),
+                    platform = platformId,
+                    scored = scoredByPlatform.TryGetValue(platformId, out var scoredCount) ? scoredCount : 0,
                     queued = queued.Count
                 });
 
                 logger.LogInformation(
                     "Scoring summary for {Platform}: scored={Scored}, queued={Queued}.",
-                    group.Key,
-                    group.Count(),
+                    platformId,
+                    scoredByPlatform.TryGetValue(platformId, out var scored) ? scored : 0,
                     queued.Count);
             }
 

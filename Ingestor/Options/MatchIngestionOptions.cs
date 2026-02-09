@@ -6,5 +6,7 @@ public class MatchIngestionOptions
 
     public int MatchesPerAccount { get; set; } = 20;
 
+    public int SaveBatchSizeMatches { get; set; } = 10;
+
     public List<string> Platforms { get; set; } = new() { "KR", "EUW1", "NA1" };
 }

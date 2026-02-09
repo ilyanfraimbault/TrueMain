@@ -8,6 +8,7 @@ public sealed class MainCandidateRepository(TrueMainDbContext db) : IMainCandida
     public Task<List<AccountKey>> GetQueuedAccountsAsync(List<string> platforms, CancellationToken ct)
     {
         return db.MainCandidates
+            .AsNoTracking()
             .Where(c => c.Status == MainCandidateStatus.Queued && platforms.Contains(c.PlatformId))
             .GroupBy(c => new { c.PlatformId, c.Puuid })
             .Select(g => new AccountKey(g.Key.PlatformId, g.Key.Puuid))
@@ -23,6 +24,13 @@ public sealed class MainCandidateRepository(TrueMainDbContext db) : IMainCandida
 
     public Task<List<MainCandidate>> GetByStatusAsync(MainCandidateStatus status, CancellationToken ct)
         => db.MainCandidates.Where(c => c.Status == status).ToListAsync(ct);
+
+    public Task<List<MainCandidate>> GetNewBatchAsync(int batchSize, CancellationToken ct)
+        => db.MainCandidates
+            .Where(c => c.Status == MainCandidateStatus.New)
+            .OrderBy(c => c.Id)
+            .Take(Math.Max(1, batchSize))
+            .ToListAsync(ct);
 
     public Task<List<MainCandidate>> GetByPlatformPuuidAndChampionsAsync(string platformId, string puuid, List<int> championIds, CancellationToken ct)
         => db.MainCandidates

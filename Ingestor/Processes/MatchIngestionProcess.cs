@@ -80,31 +80,41 @@ public class MatchIngestionProcess(
                             .Distinct(StringComparer.Ordinal)
                             .ToList();
 
-                        await using var session = await sessionFactory.CreateAsync(ct);
-                        var existingSet = await session.Matches.GetExistingMatchIdsAsync(matchIds, ct);
-                        var newMatchIds = matchIds.Where(id => !existingSet.Contains(id)).ToList();
+                await using var session = await sessionFactory.CreateAsync(ct);
+                var existingSet = await session.Matches.GetExistingMatchIdsAsync(matchIds, ct);
+                var newMatchIds = matchIds.Where(id => !existingSet.Contains(id)).ToList();
 
-                        var inserted = 0;
-                        var skipped = matchIds.Count - newMatchIds.Count;
+                var inserted = 0;
+                var skipped = matchIds.Count - newMatchIds.Count;
 
-                        foreach (var matchId in newMatchIds)
-                        {
-                            var matchDto = await riotMatchClient.GetMatchAsync(matchId, region, ct);
-                            await UpsertMatchSnapshotAsync(session, matchDto, platformId, ct);
-                            inserted++;
-                        }
+                var saveBatchSize = Math.Max(1, options.SaveBatchSizeMatches);
 
-                        await session.SaveChangesAsync(ct);
+                for (var i = 0; i < newMatchIds.Count; i += saveBatchSize)
+                {
+                    var batch = newMatchIds.Skip(i).Take(saveBatchSize).ToList();
+                    foreach (var matchId in batch)
+                    {
+                        var matchDto = await riotMatchClient.GetMatchAsync(matchId, region, ct);
+                        await UpsertMatchSnapshotAsync(session, matchDto, platformId, ct);
+                        inserted++;
+                    }
 
-                        var timelineUpdated = 0;
-                        foreach (var matchId in newMatchIds)
-                        {
-                            var timelineDto = await riotMatchClient.GetTimelineAsync(matchId, region, ct);
-                            await ApplyTimelineAsync(session, matchId, timelineDto, ct);
-                            timelineUpdated++;
-                        }
+                    await session.SaveChangesAsync(ct);
+                }
 
-                        await session.SaveChangesAsync(ct);
+                var timelineUpdated = 0;
+                for (var i = 0; i < newMatchIds.Count; i += saveBatchSize)
+                {
+                    var batch = newMatchIds.Skip(i).Take(saveBatchSize).ToList();
+                    foreach (var matchId in batch)
+                    {
+                        var timelineDto = await riotMatchClient.GetTimelineAsync(matchId, region, ct);
+                        await ApplyTimelineAsync(session, matchId, timelineDto, ct);
+                        timelineUpdated++;
+                    }
+
+                    await session.SaveChangesAsync(ct);
+                }
                         await ValidateAccountAsync(account, ct);
 
                         logger.LogInformation(
@@ -463,8 +473,6 @@ public class MatchIngestionProcess(
                 ? skillEvents
                 : new List<SkillEvent>();
         }
-
-        await session.SaveChangesAsync(ct);
     }
 
     private static DateTime? ToUtcDateTime(long timestampMs)

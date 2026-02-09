@@ -8,6 +8,8 @@ public class ScoringOptions
 
     public int TopChampionsPerAccount { get; set; } = 10;
 
+    public int BatchSize { get; set; } = 5000;
+
     public double RecencyWeight { get; set; } = 0.65;
 
     public double RankWeight { get; set; } = 0.20;
