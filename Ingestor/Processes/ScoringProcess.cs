@@ -12,6 +12,13 @@ public class ScoringProcess(
     ProcessRunRecorder runRecorder,
     IOptions<ScoringOptions> scoringOptions)
 {
+    /// <summary>
+    /// Normalization factor for champion points logarithmic score.
+    /// Based on Log10 of champion points, normalized so that approximately 1 million points equals a score of 1.0.
+    /// Since Log10(1,000,000) ≈ 6, we divide by 6 to normalize the score to the [0, 1] range.
+    /// </summary>
+    private const double ChampionPointsLogNormalizer = 6.0;
+
     public async Task RunAsync(CancellationToken ct)
     {
         var scoring = scoringOptions.Value;
@@ -107,7 +114,7 @@ public class ScoringProcess(
         var rankScore = (topN + 1 - candidate.ChampionRankInMasteryTop) / (double)topN;
         rankScore = Clamp(rankScore, 0, 1);
 
-        var pointsScore = Clamp(Math.Log10(candidate.ChampionPoints + 1) / 6, 0, 1);
+        var pointsScore = Clamp(Math.Log10(candidate.ChampionPoints + 1) / ChampionPointsLogNormalizer, 0, 1);
 
         var recencyWeight = scoring.RecencyWeight;
         var rankWeight = scoring.RankWeight;
