@@ -1,8 +1,10 @@
+using Data;
 using Data.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Npgsql;
 
 namespace TrueMain.IntegrationTests;
 
@@ -71,6 +73,8 @@ public sealed class PerkSelectionCatalogIntegrationTests : IClassFixture<Postgre
             PerkId = 8005,
             StyleDescription = "primaryStyle"
         });
+
+        await AssertParticipantPerkSelectionsSchemaAsync();
     }
 
     [Fact]
@@ -78,26 +82,26 @@ public sealed class PerkSelectionCatalogIntegrationTests : IClassFixture<Postgre
     {
         await _fixture.ResetDatabaseAsync();
 
-        var keys = new[]
-        {
-            new PerkCatalogKey(8000, 0, 8005, "primaryStyle"),
-            new PerkCatalogKey(8400, 0, 8429, "subStyle")
-        };
+        PerkCatalogKey[] keys =
+        [
+            new(8000, 0, 8005, "primaryStyle"),
+            new(8400, 0, 8429, "subStyle")
+        ];
 
-        var task1 = ResolveCatalogAsync(keys);
-        var task2 = ResolveCatalogAsync(keys);
+        Task<Dictionary<PerkCatalogKey, int>> task1 = ResolveCatalogAsync(keys);
+        Task<Dictionary<PerkCatalogKey, int>> task2 = ResolveCatalogAsync(keys);
 
         await Task.WhenAll(task1, task2);
-        var map1 = await task1;
-        var map2 = await task2;
+        Dictionary<PerkCatalogKey, int> map1 = await task1;
+        Dictionary<PerkCatalogKey, int> map2 = await task2;
 
         map1.Should().HaveCount(2);
         map2.Should().HaveCount(2);
         map1[keys[0]].Should().Be(map2[keys[0]]);
         map1[keys[1]].Should().Be(map2[keys[1]]);
 
-        await using var verifyDb = _fixture.CreateDbContext();
-        var catalogCount = await verifyDb.PerkSelectionCatalogs.CountAsync();
+        await using TrueMainDbContext verifyDb = _fixture.CreateDbContext();
+        int catalogCount = await verifyDb.PerkSelectionCatalogs.CountAsync();
         catalogCount.Should().Be(2);
     }
 
@@ -106,5 +110,34 @@ public sealed class PerkSelectionCatalogIntegrationTests : IClassFixture<Postgre
         await using var db = _fixture.CreateDbContext();
         var repository = new MatchParticipantRepository(db);
         return await repository.GetOrCreatePerkCatalogIdsAsync(keys, CancellationToken.None);
+    }
+
+    private async Task AssertParticipantPerkSelectionsSchemaAsync()
+    {
+        await using var connection = new NpgsqlConnection(_fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        await using var command = new NpgsqlCommand(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'participant_perk_selections'
+            ORDER BY ordinal_position;
+            """,
+            connection);
+
+        await using var reader = await command.ExecuteReaderAsync();
+        var columns = new List<string>();
+        while (await reader.ReadAsync())
+        {
+            columns.Add(reader.GetString(0));
+        }
+
+        columns.Should().Contain("PerkSelectionCatalogId");
+        columns.Should().NotContain("StyleId");
+        columns.Should().NotContain("SelectionIndex");
+        columns.Should().NotContain("PerkId");
+        columns.Should().NotContain("StyleDescription");
     }
 }
