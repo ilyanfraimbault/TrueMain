@@ -37,7 +37,7 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
             foreach (var matchId in batch)
             {
                 var matchDto = await riotMatchClient.GetMatchAsync(matchId, region, ct);
-                AddMatchSnapshot(session, matchDto, platformId);
+                await AddMatchSnapshotAsync(session, matchDto, platformId, ct);
                 inserted++;
             }
 
@@ -47,7 +47,11 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
         return new SnapshotIngestionResult(allMatchIds, newMatchIds, inserted, skipped);
     }
 
-    private static void AddMatchSnapshot(IDataSession session, RiotMatchDto matchDto, string platformId)
+    private static async Task AddMatchSnapshotAsync(
+        IDataSession session,
+        RiotMatchDto matchDto,
+        string platformId,
+        CancellationToken ct)
     {
         var matchId = matchDto.Metadata.MatchId;
         var gameStartUtc = RiotDataHelpers.ToUtcDateTime(matchDto.Info.GameStartTimestamp);
@@ -68,7 +72,22 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
         });
 
         session.MatchParticipants.AddRange(MapParticipants(matchDto, matchId));
-        session.MatchParticipants.AddPerkSelections(MapPerkSelections(matchDto, matchId));
+
+        var mappedSelections = BuildPerkSelectionRows(matchDto)
+            .Select(selection => new MappedPerkSelection(matchId, selection.ParticipantId, selection.Key))
+            .ToList();
+        var catalogIdsByKey = await session.MatchParticipants.GetOrCreatePerkCatalogIdsAsync(
+            mappedSelections.Select(selection => selection.Key).ToArray(),
+            ct);
+
+        var perkSelections = mappedSelections.Select(selection => new ParticipantPerkSelection
+        {
+            MatchId = selection.MatchId,
+            ParticipantId = selection.ParticipantId,
+            PerkSelectionCatalogId = catalogIdsByKey[selection.Key]
+        });
+
+        session.MatchParticipants.AddPerkSelections(perkSelections);
     }
 
     private static List<MatchParticipant> MapParticipants(RiotMatchDto match, string matchId)
@@ -126,9 +145,9 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
         return participants;
     }
 
-    private static List<ParticipantPerkSelection> MapPerkSelections(RiotMatchDto match, string matchId)
+    internal static List<(int ParticipantId, PerkCatalogKey Key)> BuildPerkSelectionRows(RiotMatchDto match)
     {
-        var selections = new List<ParticipantPerkSelection>();
+        var selections = new List<(int ParticipantId, PerkCatalogKey Key)>();
         var seen = new HashSet<(int ParticipantId, int StyleId, int SelectionIndex)>();
 
         foreach (var participant in match.Info.Participants)
@@ -144,19 +163,19 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
                         continue;
                     }
 
-                    selections.Add(new ParticipantPerkSelection
-                    {
-                        MatchId = matchId,
-                        ParticipantId = participant.ParticipantId,
-                        StyleId = style.Style,
-                        StyleDescription = style.Description ?? string.Empty,
-                        SelectionIndex = index,
-                        PerkId = selection.Perk
-                    });
+                    selections.Add((
+                        participant.ParticipantId,
+                        new PerkCatalogKey(
+                            style.Style,
+                            index,
+                            selection.Perk,
+                            style.Description ?? string.Empty)));
                 }
             }
         }
 
         return selections;
     }
+
+    private sealed record MappedPerkSelection(string MatchId, int ParticipantId, PerkCatalogKey Key);
 }

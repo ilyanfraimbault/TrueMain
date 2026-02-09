@@ -21,20 +21,15 @@ public sealed class ParticipantPerkSelectionConfiguration : IEntityTypeConfigura
         entity.Property(e => e.ParticipantId)
             .IsRequired();
 
-        entity.Property(e => e.StyleId)
+        entity.Property(e => e.PerkSelectionCatalogId)
             .IsRequired();
 
-        entity.Property(e => e.StyleDescription)
-            .IsRequired()
-            .HasMaxLength(16);
+        entity.HasOne<PerkSelectionCatalog>()
+            .WithMany()
+            .HasForeignKey(e => e.PerkSelectionCatalogId)
+            .OnDelete(DeleteBehavior.Restrict);
 
-        entity.Property(e => e.SelectionIndex)
-            .IsRequired();
-
-        entity.Property(e => e.PerkId)
-            .IsRequired();
-
-        entity.HasIndex(e => new { e.MatchId, e.ParticipantId, e.StyleId, e.SelectionIndex })
+        entity.HasIndex(e => new { e.MatchId, e.ParticipantId, e.PerkSelectionCatalogId })
             .IsUnique();
     }
 }

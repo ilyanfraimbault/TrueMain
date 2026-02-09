@@ -8,11 +8,5 @@ public class ParticipantPerkSelection
 
     public int ParticipantId { get; set; }
 
-    public int StyleId { get; set; }
-
-    public string StyleDescription { get; set; } = string.Empty;
-
-    public int SelectionIndex { get; set; }
-
-    public int PerkId { get; set; }
+    public int PerkSelectionCatalogId { get; set; }
 }
