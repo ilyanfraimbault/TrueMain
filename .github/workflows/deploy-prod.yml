@@ -168,12 +168,14 @@ jobs:
             set -a
             . /opt/truemain/.env.prod
             set +a
+            CONNECTION_STRING="Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
             docker run --rm \
               --network "${COMPOSE_PROJECT_NAME}_truemain_internal" \
+              -e "ConnectionStrings__TrueMain=${CONNECTION_STRING}" \
               -v /opt/truemain:/opt/truemain \
               mcr.microsoft.com/dotnet/runtime-deps:10.0 \
               "$BUNDLE_PATH" \
-              --connection "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+              --connection "${CONNECTION_STRING}"
             docker compose --env-file /opt/truemain/.env.prod -f /opt/truemain/compose.prod.yaml \
               exec -T postgres psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c 'SELECT COUNT(*) FROM "__EFMigrationsHistory";'
             export TRUEMAIN_API_TAG=${{ needs.build-and-push.outputs.image_tag }}
