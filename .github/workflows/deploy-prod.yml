@@ -3,13 +3,17 @@ name: Deploy Production
 on:
   push:
     branches: ["master"]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
 
 permissions:
   contents: read
   packages: write
 
 env:
-  REGISTRY: ghcr.io
   IMAGE_API: ghcr.io/${{ github.repository_owner }}/truemain-api
   IMAGE_INGESTOR: ghcr.io/${{ github.repository_owner }}/truemain-ingestor
 
@@ -72,9 +76,7 @@ jobs:
           context: .
           file: Api/Dockerfile
           push: true
-          tags: |
-            ${{ env.IMAGE_API }}:${{ steps.meta.outputs.image_tag }}
-            ${{ env.IMAGE_API }}:latest
+          tags: ${{ env.IMAGE_API }}:${{ steps.meta.outputs.image_tag }}
 
       - name: Build and push Ingestor
         uses: docker/build-push-action@v6
@@ -82,9 +84,7 @@ jobs:
           context: .
           file: Ingestor/Dockerfile
           push: true
-          tags: |
-            ${{ env.IMAGE_INGESTOR }}:${{ steps.meta.outputs.image_tag }}
-            ${{ env.IMAGE_INGESTOR }}:latest
+          tags: ${{ env.IMAGE_INGESTOR }}:${{ steps.meta.outputs.image_tag }}
 
   deploy:
     runs-on: ubuntu-latest
@@ -92,6 +92,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Verify VPS SSH reachability
+        run: |
+          timeout 15 bash -c "cat < /dev/null > /dev/tcp/${{ secrets.VPS_HOST }}/${{ secrets.VPS_PORT || 22 }}"
 
       - name: Download EF migration bundle
         uses: actions/download-artifact@v4
@@ -106,6 +110,8 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
+          timeout: 60s
+          command_timeout: 2m
           source: compose.prod.yaml
           target: /opt/truemain
 
@@ -116,17 +122,23 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
+          timeout: 60s
+          command_timeout: 2m
           source: artifacts/efbundle
           target: /opt/truemain
 
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
+          script_stop: true
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
+          timeout: 60s
+          command_timeout: 20m
           script: |
+            set -euo pipefail
             cd /opt/truemain
             export COMPOSE_PROJECT_NAME=truemain
             export TRUEMAIN_API_IMAGE=ghcr.io/${{ github.repository_owner }}/truemain-api
@@ -134,9 +146,11 @@ jobs:
             export TRUEMAIN_API_TAG=${{ needs.build-and-push.outputs.image_tag }}
             export TRUEMAIN_INGESTOR_TAG=${{ needs.build-and-push.outputs.image_tag }}
 
-            if [ -n "${{ secrets.GHCR_PAT }}" ]; then
-              echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
+            if [ -z "${{ secrets.GHCR_USERNAME }}" ] || [ -z "${{ secrets.GHCR_PAT }}" ]; then
+              echo "Missing required secrets GHCR_USERNAME/GHCR_PAT"
+              exit 1
             fi
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
 
             if [ -f /opt/truemain/efbundle ]; then
               BUNDLE_PATH="/opt/truemain/efbundle"
@@ -160,7 +174,10 @@ jobs:
               mcr.microsoft.com/dotnet/runtime-deps:10.0 \
               "$BUNDLE_PATH" \
               --connection "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+            docker compose --env-file /opt/truemain/.env.prod -f /opt/truemain/compose.prod.yaml \
+              exec -T postgres psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c 'SELECT COUNT(*) FROM "__EFMigrationsHistory";'
             export TRUEMAIN_API_TAG=${{ needs.build-and-push.outputs.image_tag }}
             export TRUEMAIN_INGESTOR_TAG=${{ needs.build-and-push.outputs.image_tag }}
             docker compose --env-file /opt/truemain/.env.prod -f /opt/truemain/compose.prod.yaml up -d api ingestor --remove-orphans
+            docker compose --env-file /opt/truemain/.env.prod -f /opt/truemain/compose.prod.yaml ps
             docker image prune -f

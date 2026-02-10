@@ -19,7 +19,7 @@ services:
       - truemain_internal
 
   api:
-    image: ${TRUEMAIN_API_IMAGE:-ghcr.io/ilyanfraimbault/truemain-api}:${TRUEMAIN_API_TAG:-latest}
+    image: ${TRUEMAIN_API_IMAGE:?TRUEMAIN_API_IMAGE is required}:${TRUEMAIN_API_TAG:?TRUEMAIN_API_TAG is required}
     container_name: truemain-api
     restart: unless-stopped
     environment:
@@ -29,13 +29,19 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     ports:
       - "${API_PUBLIC_PORT:-8080}:8080"
     networks:
       - truemain_internal
 
   ingestor:
-    image: ${TRUEMAIN_INGESTOR_IMAGE:-ghcr.io/ilyanfraimbault/truemain-ingestor}:${TRUEMAIN_INGESTOR_TAG:-latest}
+    image: ${TRUEMAIN_INGESTOR_IMAGE:?TRUEMAIN_INGESTOR_IMAGE is required}:${TRUEMAIN_INGESTOR_TAG:?TRUEMAIN_INGESTOR_TAG is required}
     container_name: truemain-ingestor
     restart: unless-stopped
     environment:
