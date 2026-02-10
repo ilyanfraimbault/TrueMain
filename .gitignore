@@ -8,3 +8,6 @@ riderModule.iml
 *.DotSettings.user
 *.sln.iml
 
+.env
+
+.codex/
