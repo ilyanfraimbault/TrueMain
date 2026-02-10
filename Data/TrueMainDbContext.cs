@@ -9,46 +9,19 @@ public class TrueMainDbContext : DbContext
     {
     }
 
-    public DbSet<Player> Players => Set<Player>();
+    public DbSet<RiotAccount> RiotAccounts => Set<RiotAccount>();
+    public DbSet<Persona> Personas => Set<Persona>();
+    public DbSet<MatchParticipant> MatchParticipants => Set<MatchParticipant>();
+    public DbSet<ParticipantPerkSelection> ParticipantPerkSelections => Set<ParticipantPerkSelection>();
+    public DbSet<PerkSelectionCatalog> PerkSelectionCatalogs => Set<PerkSelectionCatalog>();
+    public DbSet<MainCandidate> MainCandidates => Set<MainCandidate>();
+    public DbSet<Match> Matches => Set<Match>();
+    public DbSet<MainChampionStat> MainChampionStats => Set<MainChampionStat>();
+    public DbSet<ProcessRun> ProcessRuns => Set<ProcessRun>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-
-        modelBuilder.Entity<Player>(entity =>
-        {
-            entity.ToTable("players");
-
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Id)
-                .ValueGeneratedOnAdd();
-
-            entity.Property(e => e.GameName)
-                .IsRequired()
-                .HasMaxLength(32);
-
-            entity.Property(e => e.TagLine)
-                .IsRequired()
-                .HasMaxLength(8);
-
-            entity.Property(e => e.Region)
-                .IsRequired()
-                .HasMaxLength(8);
-
-            entity.Property(e => e.Puuid)
-                .IsRequired()
-                .HasMaxLength(128);
-
-            entity.Property(e => e.CreatedAtUtc)
-                .IsRequired()
-                .ValueGeneratedOnAdd()
-                .HasDefaultValueSql("now()");
-
-            entity.HasIndex(e => e.Puuid)
-                .IsUnique();
-
-            entity.HasIndex(e => new { e.GameName, e.TagLine, e.Region })
-                .IsUnique();
-        });
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(TrueMainDbContext).Assembly);
     }
 }

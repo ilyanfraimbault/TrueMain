@@ -1,23 +1,18 @@
-﻿FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
-USER $APP_UID
+﻿FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+COPY ["Api/Api.csproj", "Api/"]
+COPY ["Core/Core.csproj", "Core/"]
+COPY ["Data/Data.csproj", "Data/"]
+RUN dotnet restore "Api/Api.csproj"
+
+COPY . .
+WORKDIR /src/Api
+RUN dotnet publish "Api.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 EXPOSE 8080
-EXPOSE 8081
-
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
-ARG BUILD_CONFIGURATION=Release
-WORKDIR /src
-COPY ["TrueMain/TrueMain.csproj", "TrueMain/"]
-RUN dotnet restore "TrueMain/TrueMain.csproj"
-COPY . .
-WORKDIR "/src/TrueMain"
-RUN dotnet build "./TrueMain.csproj" -c $BUILD_CONFIGURATION -o /app/build
-
-FROM build AS publish
-ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./TrueMain.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
-
-FROM base AS final
-WORKDIR /app
-COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "TrueMain.dll"]
+ENV ASPNETCORE_URLS=http://+:8080
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "Api.dll"]

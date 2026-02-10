@@ -1,0 +1,11 @@
+namespace Data.Repositories;
+
+public interface IDataRepositoryFactory
+{
+    IMainCandidateRepository CreateMainCandidateRepository(TrueMainDbContext dbContext);
+    IMainChampionStatRepository CreateMainChampionStatRepository(TrueMainDbContext dbContext);
+    IRiotAccountRepository CreateRiotAccountRepository(TrueMainDbContext dbContext);
+    IMatchRepository CreateMatchRepository(TrueMainDbContext dbContext);
+    IMatchParticipantRepository CreateMatchParticipantRepository(TrueMainDbContext dbContext);
+    IProcessRunRepository CreateProcessRunRepository(TrueMainDbContext dbContext);
+}
