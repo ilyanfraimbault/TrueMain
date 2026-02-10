@@ -40,6 +40,8 @@ jobs:
         run: dotnet tool install --global dotnet-ef
 
       - name: Build EF migration bundle
+        env:
+          ConnectionStrings__TrueMain: Host=localhost;Port=5432;Database=truemain;Username=truemain;Password=truemain
         run: |
           mkdir -p artifacts
           ~/.dotnet/tools/dotnet-ef migrations bundle \
