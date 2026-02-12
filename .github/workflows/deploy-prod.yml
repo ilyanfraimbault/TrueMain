@@ -24,8 +24,10 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
-      - name: Restore .NET dependencies
-        run: dotnet restore TrueMain.sln
+      - name: Restore .NET dependencies for EF bundle
+        run: |
+          dotnet restore Api/Api.csproj --runtime linux-x64
+          dotnet restore Data/Data.csproj --runtime linux-x64
 
       - name: Install dotnet-ef
         run: dotnet tool install --global dotnet-ef
