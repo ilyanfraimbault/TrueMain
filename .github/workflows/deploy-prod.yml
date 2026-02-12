@@ -9,22 +9,15 @@ permissions:
   packages: write
 
 env:
-  REGISTRY: ghcr.io
   IMAGE_API: ghcr.io/${{ github.repository_owner }}/truemain-api
   IMAGE_INGESTOR: ghcr.io/${{ github.repository_owner }}/truemain-ingestor
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    outputs:
-      image_tag: ${{ steps.meta.outputs.image_tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set tag
-        id: meta
-        run: echo "image_tag=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
@@ -66,7 +59,6 @@ jobs:
           file: Api/Dockerfile
           push: true
           tags: |
-            ${{ env.IMAGE_API }}:${{ steps.meta.outputs.image_tag }}
             ${{ env.IMAGE_API }}:latest
 
       - name: Build and push Ingestor
@@ -76,7 +68,6 @@ jobs:
           file: Ingestor/Dockerfile
           push: true
           tags: |
-            ${{ env.IMAGE_INGESTOR }}:${{ steps.meta.outputs.image_tag }}
             ${{ env.IMAGE_INGESTOR }}:latest
 
   deploy:
@@ -120,20 +111,53 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
           script: |
+            set -euo pipefail
+            mkdir -p /opt/truemain
             cd /opt/truemain
             export COMPOSE_PROJECT_NAME=truemain
-            export TRUEMAIN_API_IMAGE=ghcr.io/${{ github.repository_owner }}/truemain-api
-            export TRUEMAIN_INGESTOR_IMAGE=ghcr.io/${{ github.repository_owner }}/truemain-ingestor
-            export TRUEMAIN_API_TAG=${{ needs.build-and-push.outputs.image_tag }}
-            export TRUEMAIN_INGESTOR_TAG=${{ needs.build-and-push.outputs.image_tag }}
 
             if [ -n "${{ secrets.GHCR_PAT }}" ]; then
               echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
             fi
 
-            chmod +x /opt/truemain/efbundle
+            if [ ! -f /opt/truemain/.env.prod ]; then
+              echo "/opt/truemain/.env.prod is missing"
+              exit 1
+            fi
+
+            if [ -f /opt/truemain/efbundle ]; then
+              EFBUNDLE_PATH=/opt/truemain/efbundle
+            elif [ -f /opt/truemain/artifacts/efbundle ]; then
+              EFBUNDLE_PATH=/opt/truemain/artifacts/efbundle
+            else
+              echo "EF bundle is missing"
+              exit 1
+            fi
+
+            chmod +x "$EFBUNDLE_PATH"
             docker compose --env-file /opt/truemain/.env.prod -f /opt/truemain/compose.prod.yaml pull
             docker compose --env-file /opt/truemain/.env.prod -f /opt/truemain/compose.prod.yaml up -d postgres
+
+            POSTGRES_CONTAINER="$(docker compose --env-file /opt/truemain/.env.prod -f /opt/truemain/compose.prod.yaml ps -q postgres)"
+            if [ -z "$POSTGRES_CONTAINER" ]; then
+              echo "Could not resolve postgres container id"
+              exit 1
+            fi
+
+            for i in $(seq 1 30); do
+              STATUS="$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' "$POSTGRES_CONTAINER" 2>/dev/null || true)"
+              if [ "$STATUS" = "healthy" ]; then
+                break
+              fi
+              sleep 2
+            done
+
+            STATUS="$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' "$POSTGRES_CONTAINER" 2>/dev/null || true)"
+            if [ "$STATUS" != "healthy" ]; then
+              echo "Postgres is not healthy (status=$STATUS)"
+              exit 1
+            fi
+
             set -a
             . /opt/truemain/.env.prod
             set +a
@@ -141,7 +165,7 @@ jobs:
               --network "${COMPOSE_PROJECT_NAME}_truemain_internal" \
               -v /opt/truemain:/opt/truemain \
               mcr.microsoft.com/dotnet/runtime-deps:10.0 \
-              /opt/truemain/efbundle \
+              "$EFBUNDLE_PATH" \
               --connection "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
             docker compose --env-file /opt/truemain/.env.prod -f /opt/truemain/compose.prod.yaml up -d api ingestor --remove-orphans
             docker image prune -f
