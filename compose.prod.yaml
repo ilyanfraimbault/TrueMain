@@ -19,7 +19,7 @@ services:
       - truemain_internal
 
   api:
-    image: ${TRUEMAIN_API_IMAGE:?TRUEMAIN_API_IMAGE is required}:${TRUEMAIN_API_TAG:?TRUEMAIN_API_TAG is required}
+    image: ghcr.io/ilyanfraimbault/truemain-api:latest
     container_name: truemain-api
     restart: unless-stopped
     environment:
@@ -29,61 +29,19 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 20s
     ports:
-      - "${API_PUBLIC_PORT:-8080}:8080"
+      - "8080:8080"
     networks:
       - truemain_internal
 
   ingestor:
-    image: ${TRUEMAIN_INGESTOR_IMAGE:?TRUEMAIN_INGESTOR_IMAGE is required}:${TRUEMAIN_INGESTOR_TAG:?TRUEMAIN_INGESTOR_TAG is required}
+    image: ghcr.io/ilyanfraimbault/truemain-ingestor:latest
     container_name: truemain-ingestor
     restart: unless-stopped
     environment:
       DOTNET_ENVIRONMENT: Production
       ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
       Riot__ApiKey: ${RIOT_API_KEY}
-      Discovery__Platforms__0: ${DISCOVERY_PLATFORMS_0:-KR}
-      Discovery__Platforms__1: ${DISCOVERY_PLATFORMS_1:-EUW1}
-      Discovery__Platforms__2: ${DISCOVERY_PLATFORMS_2:-NA1}
-      Discovery__TierScope__0: ${DISCOVERY_TIER_0:-Master}
-      Discovery__TierScope__1: ${DISCOVERY_TIER_1:-GM}
-      Discovery__TierScope__2: ${DISCOVERY_TIER_2:-Challenger}
-      Discovery__TopChampionsPerAccount: ${DISCOVERY_TOP_CHAMPIONS:-10}
-      Discovery__MaxLastPlayDays: ${DISCOVERY_MAX_LAST_PLAY_DAYS:-10}
-      Discovery__MaxAccountsPerPlatformPerRun: ${DISCOVERY_MAX_ACCOUNTS_PER_PLATFORM:-500}
-      Discovery__NewAccountsTarget: ${DISCOVERY_NEW_ACCOUNTS_TARGET:-50}
-      Discovery__SaveBatchSize: ${DISCOVERY_SAVE_BATCH_SIZE:-50}
-      Scoring__TopNPerPlatform: ${SCORING_TOPN_PER_PLATFORM:-200}
-      Scoring__MaxLastPlayDays: ${SCORING_MAX_LAST_PLAY_DAYS:-10}
-      Scoring__TopChampionsPerAccount: ${SCORING_TOP_CHAMPIONS:-10}
-      Scoring__BatchSize: ${SCORING_BATCH_SIZE:-5000}
-      Scoring__RecencyWeight: ${SCORING_RECENCY_WEIGHT:-0.65}
-      Scoring__RankWeight: ${SCORING_RANK_WEIGHT:-0.2}
-      Scoring__PointsWeight: ${SCORING_POINTS_WEIGHT:-0.15}
-      AccountRefresh__BatchSize: ${ACCOUNT_REFRESH_BATCH_SIZE:-200}
-      MainAnalysis__BatchSize: ${MAIN_ANALYSIS_BATCH_SIZE:-10000}
-      MainAnalysis__MatchesToConsider: ${MAIN_ANALYSIS_MATCHES_TO_CONSIDER:-50}
-      MainAnalysis__QueueId: ${MAIN_ANALYSIS_QUEUE_ID:-420}
-      MainAnalysis__PlayRateThreshold: ${MAIN_ANALYSIS_PLAYRATE_THRESHOLD:-0.2}
-      MainAnalysis__CriticalPlayRateThreshold: ${MAIN_ANALYSIS_CRITICAL_PLAYRATE_THRESHOLD:-0.1}
-      MainAnalysis__MinMatchesToEvaluate: ${MAIN_ANALYSIS_MIN_MATCHES_TO_EVALUATE:-20}
-      MainAnalysis__RecomputeAfterHours: ${MAIN_ANALYSIS_RECOMPUTE_AFTER_HOURS:-24}
-      MatchIngestion__BatchSize: ${MATCH_INGESTION_BATCH_SIZE:-50}
-      MatchIngestion__MatchesPerAccount: ${MATCH_INGESTION_MATCHES_PER_ACCOUNT:-20}
-      MatchIngestion__SaveBatchSizeMatches: ${MATCH_INGESTION_SAVE_BATCH_SIZE_MATCHES:-10}
-      MatchIngestion__ClaimLeaseMinutes: ${MATCH_INGESTION_CLAIM_LEASE_MINUTES:-30}
-      MatchIngestion__Platforms__0: ${MATCH_INGESTION_PLATFORMS_0:-KR}
-      MatchIngestion__Platforms__1: ${MATCH_INGESTION_PLATFORMS_1:-EUW1}
-      MatchIngestion__Platforms__2: ${MATCH_INGESTION_PLATFORMS_2:-NA1}
-      Job__Mode: ${JOB_MODE:-Full}
-      Job__RunOnce: ${JOB_RUN_ONCE:-false}
-      Job__IntervalMinutes: ${JOB_INTERVAL_MINUTES:-10}
     depends_on:
       postgres:
         condition: service_healthy

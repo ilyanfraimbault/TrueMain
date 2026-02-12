@@ -9,5 +9,9 @@ riderModule.iml
 *.sln.iml
 
 .env
+.env.prod
+.env.*
+!.env.example
+!.env.prod.example
 
 .codex/

@@ -3,11 +3,6 @@ name: Deploy Production
 on:
   push:
     branches: ["master"]
-  workflow_dispatch:
-
-concurrency:
-  group: deploy-production
-  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -20,32 +15,19 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    outputs:
-      image_tag: ${{ steps.meta.outputs.image_tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set tag
-        id: meta
-        run: echo "image_tag=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
 
-      - name: Restore .NET dependencies (linux-x64)
-        run: |
-          dotnet restore Api/Api.csproj --runtime linux-x64
-          dotnet restore Data/Data.csproj --runtime linux-x64
-
       - name: Install dotnet-ef
         run: dotnet tool install --global dotnet-ef
 
       - name: Build EF migration bundle
-        env:
-          ConnectionStrings__TrueMain: Host=localhost;Port=5432;Database=truemain;Username=truemain;Password=truemain
         run: |
           mkdir -p artifacts
           ~/.dotnet/tools/dotnet-ef migrations bundle \
@@ -76,7 +58,8 @@ jobs:
           context: .
           file: Api/Dockerfile
           push: true
-          tags: ${{ env.IMAGE_API }}:${{ steps.meta.outputs.image_tag }}
+          tags: |
+            ${{ env.IMAGE_API }}:latest
 
       - name: Build and push Ingestor
         uses: docker/build-push-action@v6
@@ -84,7 +67,8 @@ jobs:
           context: .
           file: Ingestor/Dockerfile
           push: true
-          tags: ${{ env.IMAGE_INGESTOR }}:${{ steps.meta.outputs.image_tag }}
+          tags: |
+            ${{ env.IMAGE_INGESTOR }}:latest
 
   deploy:
     runs-on: ubuntu-latest
@@ -92,10 +76,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Verify VPS SSH reachability
-        run: |
-          timeout 15 bash -c "cat < /dev/null > /dev/tcp/${{ secrets.VPS_HOST }}/${{ secrets.VPS_PORT || 22 }}"
 
       - name: Download EF migration bundle
         uses: actions/download-artifact@v4
@@ -110,8 +90,6 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
-          timeout: 60s
-          command_timeout: 2m
           source: compose.prod.yaml
           target: /opt/truemain
 
@@ -122,64 +100,72 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
-          timeout: 60s
-          command_timeout: 2m
           source: artifacts/efbundle
           target: /opt/truemain
 
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
-          script_stop: true
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
-          timeout: 60s
-          command_timeout: 20m
           script: |
             set -euo pipefail
+            mkdir -p /opt/truemain
             cd /opt/truemain
             export COMPOSE_PROJECT_NAME=truemain
-            export TRUEMAIN_API_IMAGE=ghcr.io/${{ github.repository_owner }}/truemain-api
-            export TRUEMAIN_INGESTOR_IMAGE=ghcr.io/${{ github.repository_owner }}/truemain-ingestor
-            export TRUEMAIN_API_TAG=${{ needs.build-and-push.outputs.image_tag }}
-            export TRUEMAIN_INGESTOR_TAG=${{ needs.build-and-push.outputs.image_tag }}
 
-            if [ -z "${{ secrets.GHCR_USERNAME }}" ] || [ -z "${{ secrets.GHCR_PAT }}" ]; then
-              echo "Missing required secrets GHCR_USERNAME/GHCR_PAT"
+            if [ -n "${{ secrets.GHCR_PAT }}" ]; then
+              echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
+            fi
+
+            if [ ! -f /opt/truemain/.env.prod ]; then
+              echo "/opt/truemain/.env.prod is missing"
               exit 1
             fi
-            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
 
             if [ -f /opt/truemain/efbundle ]; then
-              BUNDLE_PATH="/opt/truemain/efbundle"
+              EFBUNDLE_PATH=/opt/truemain/efbundle
             elif [ -f /opt/truemain/artifacts/efbundle ]; then
-              BUNDLE_PATH="/opt/truemain/artifacts/efbundle"
+              EFBUNDLE_PATH=/opt/truemain/artifacts/efbundle
             else
-              echo "EF bundle not found in /opt/truemain"
-              ls -la /opt/truemain
-              ls -la /opt/truemain/artifacts || true
+              echo "EF bundle is missing"
               exit 1
             fi
-            chmod +x "$BUNDLE_PATH"
+
+            chmod +x "$EFBUNDLE_PATH"
             docker compose --env-file /opt/truemain/.env.prod -f /opt/truemain/compose.prod.yaml pull
             docker compose --env-file /opt/truemain/.env.prod -f /opt/truemain/compose.prod.yaml up -d postgres
+
+            POSTGRES_CONTAINER="$(docker compose --env-file /opt/truemain/.env.prod -f /opt/truemain/compose.prod.yaml ps -q postgres)"
+            if [ -z "$POSTGRES_CONTAINER" ]; then
+              echo "Could not resolve postgres container id"
+              exit 1
+            fi
+
+            for i in $(seq 1 30); do
+              STATUS="$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' "$POSTGRES_CONTAINER" 2>/dev/null || true)"
+              if [ "$STATUS" = "healthy" ]; then
+                break
+              fi
+              sleep 2
+            done
+
+            STATUS="$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' "$POSTGRES_CONTAINER" 2>/dev/null || true)"
+            if [ "$STATUS" != "healthy" ]; then
+              echo "Postgres is not healthy (status=$STATUS)"
+              exit 1
+            fi
+
             set -a
             . /opt/truemain/.env.prod
             set +a
-            CONNECTION_STRING="Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
             docker run --rm \
               --network "${COMPOSE_PROJECT_NAME}_truemain_internal" \
-              -e "ConnectionStrings__TrueMain=${CONNECTION_STRING}" \
               -v /opt/truemain:/opt/truemain \
               mcr.microsoft.com/dotnet/runtime-deps:10.0 \
-              "$BUNDLE_PATH" \
-              --connection "${CONNECTION_STRING}"
-            docker compose --env-file /opt/truemain/.env.prod -f /opt/truemain/compose.prod.yaml \
-              exec -T postgres psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c 'SELECT COUNT(*) FROM "__EFMigrationsHistory";'
-            export TRUEMAIN_API_TAG=${{ needs.build-and-push.outputs.image_tag }}
-            export TRUEMAIN_INGESTOR_TAG=${{ needs.build-and-push.outputs.image_tag }}
+              "$EFBUNDLE_PATH" \
+              --connection "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
             docker compose --env-file /opt/truemain/.env.prod -f /opt/truemain/compose.prod.yaml up -d api ingestor --remove-orphans
-            docker compose --env-file /opt/truemain/.env.prod -f /opt/truemain/compose.prod.yaml ps
             docker image prune -f
