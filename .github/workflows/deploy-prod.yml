@@ -168,11 +168,13 @@ jobs:
             set -a
             . /opt/truemain/.env.prod
             set +a
+            DB_CONNECTION="Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
             docker run --rm \
               --network "${COMPOSE_PROJECT_NAME}_truemain_internal" \
               -v /opt/truemain:/opt/truemain \
+              -e ConnectionStrings__TrueMain="$DB_CONNECTION" \
               mcr.microsoft.com/dotnet/runtime-deps:10.0 \
               "$EFBUNDLE_PATH" \
-              --connection "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+              --connection "$DB_CONNECTION"
             docker compose --env-file /opt/truemain/.env.prod -f /opt/truemain/compose.prod.yaml up -d api ingestor --remove-orphans
             docker image prune -f
