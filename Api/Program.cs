@@ -7,6 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 
 builder.Services.AddControllers();
+builder.Services.AddHealthChecks();
 builder.Services.AddDbContext<TrueMainDbContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("TrueMain");
@@ -38,6 +39,7 @@ app.UseHttpsRedirection();
 
 app.UseAuthorization();
 
+app.MapHealthChecks("/health");
 app.MapControllers();
 
 app.Run();
