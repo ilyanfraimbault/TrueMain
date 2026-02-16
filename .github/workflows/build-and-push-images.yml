@@ -36,6 +36,8 @@ jobs:
           context: .
           file: Api/Dockerfile
           push: true
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
           tags: |
             ${{ env.IMAGE_API }}:latest
 
@@ -45,5 +47,7 @@ jobs:
           context: .
           file: Ingestor/Dockerfile
           push: true
+          cache-from: type=gha,scope=ingestor
+          cache-to: type=gha,mode=max,scope=ingestor
           tags: |
             ${{ env.IMAGE_INGESTOR }}:latest
