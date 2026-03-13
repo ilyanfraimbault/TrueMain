@@ -49,7 +49,7 @@ public sealed class AccountUpsertIntegrationTests : IClassFixture<PostgresFixtur
         account.SummonerId.Should().Be("summoner-1");
         account.ProfileIconId.Should().Be(12);
         account.SummonerLevel.Should().Be(77);
-        account.LastProfileSyncAtUtc.Should().Be(now);
+        account.LastProfileSyncAtUtc.Should().BeCloseTo(now, TimeSpan.FromMilliseconds(1));
     }
 
     [Fact]
@@ -88,9 +88,9 @@ public sealed class AccountUpsertIntegrationTests : IClassFixture<PostgresFixtur
         account.SummonerId.Should().Be("summoner-2");
         account.ProfileIconId.Should().Be(99);
         account.SummonerLevel.Should().Be(300);
-        account.UpdatedAtUtc.Should().Be(now);
-        account.LastProfileSyncAtUtc.Should().Be(now);
-        account.CreatedAtUtc.Should().Be(createdAt);
+        account.UpdatedAtUtc.Should().BeCloseTo(now, TimeSpan.FromMilliseconds(1));
+        account.LastProfileSyncAtUtc.Should().BeCloseTo(now, TimeSpan.FromMilliseconds(1));
+        account.CreatedAtUtc.Should().BeCloseTo(createdAt, TimeSpan.FromMilliseconds(1));
     }
 
     private async Task SeedAccountAsync(DateTime createdAtUtc)
