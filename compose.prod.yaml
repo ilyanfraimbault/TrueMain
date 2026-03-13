@@ -34,6 +34,22 @@ services:
     networks:
       - truemain_internal
 
+  web:
+    image: ghcr.io/ilyanfraimbault/truemain-web:latest
+    container_name: truemain-web
+    restart: unless-stopped
+    environment:
+      NITRO_HOST: 0.0.0.0
+      NITRO_PORT: 3000
+      NUXT_PUBLIC_API_BASE_URL: ${NUXT_PUBLIC_API_BASE_URL:-http://localhost:8080}
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "3000:3000"
+    networks:
+      - truemain_internal
+
   ingestor:
     image: ghcr.io/ilyanfraimbault/truemain-ingestor:latest
     container_name: truemain-ingestor
