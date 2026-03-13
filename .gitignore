@@ -15,3 +15,5 @@ riderModule.iml
 !.env.prod.example
 
 .codex/
+_bmad*
+.agents/
