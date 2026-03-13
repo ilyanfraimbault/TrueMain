@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - develop
+      - master
+
+jobs:
+  backend:
+    name: Backend Build and Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore solution
+        run: dotnet restore TrueMain.sln
+
+      - name: Build solution
+        run: dotnet build TrueMain.sln --configuration Release --no-restore
+
+      - name: Test solution
+        run: dotnet test TrueMain.sln --configuration Release --no-build --verbosity normal
+
+  frontend:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: truemain-web
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: truemain-web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Nuxt app
+        run: npm run build
+
+  compose-config:
+    name: Compose Config Validation
+    runs-on: ubuntu-latest
+
+    env:
+      POSTGRES_USER: truemain
+      POSTGRES_PASSWORD: truemain
+      POSTGRES_DB: truemain
+      RIOT_API_KEY: RGAPI-REPLACE_ME
+      PGADMIN_DEFAULT_EMAIL: admin@truemain.dev
+      PGADMIN_DEFAULT_PASSWORD: admin
+      NUXT_PUBLIC_API_BASE_URL: http://localhost:8080
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate development compose file
+        run: docker compose -f compose.yaml config
+
+      - name: Validate production compose file
+        run: docker compose -f compose.prod.yaml config
+
+  docker-build:
+    name: Docker Build Sanity
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Api/Dockerfile
+          push: false
+
+      - name: Build Ingestor image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Ingestor/Dockerfile
+          push: false
+
+      - name: Build Web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: truemain-web/Dockerfile
+          push: false
