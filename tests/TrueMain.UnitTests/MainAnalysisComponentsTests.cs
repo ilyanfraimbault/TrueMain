@@ -79,6 +79,34 @@ public sealed class MainAnalysisComponentsTests
     }
 
     [Fact]
+    public void MainStatsCalculator_DoesNotSetOtp_WhenChampionIsNotMainEvenIfOtpThresholdIsLower()
+    {
+        var calculator = new MainStatsCalculator();
+        var options = new MainAnalysisOptions
+        {
+            MinMatchesToEvaluate = 5,
+            PlayRateThreshold = 0.8,
+            OtpPlayRateThreshold = 0.5
+        };
+
+        var participants = new List<ParticipantRow>
+        {
+            new(1, "TOP"),
+            new(1, "TOP"),
+            new(1, "MID"),
+            new(2, "MID"),
+            new(2, "MID")
+        };
+
+        var result = calculator.Calculate("KR", "puuid-1", participants, options, DateTime.UtcNow);
+
+        var champion1 = result.Single(stat => stat.ChampionId == 1);
+        champion1.PlayRate.Should().BeApproximately(0.6, 0.0001);
+        champion1.IsMain.Should().BeFalse();
+        champion1.IsOtp.Should().BeFalse();
+    }
+
+    [Fact]
     public void MainDemotionPolicy_DemotesWhenExistingMainFallsBelowCriticalThreshold()
     {
         var policy = new MainDemotionPolicy();

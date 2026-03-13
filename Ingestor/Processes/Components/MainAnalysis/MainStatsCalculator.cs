@@ -59,7 +59,7 @@ public sealed class MainStatsCalculator : IMainStatsCalculator
 
         var primaryPosition = positions.Count > 0 ? positions[0].Position : string.Empty;
         var isMain = eligibleForClassification && playRate >= options.PlayRateThreshold;
-        var isOtp = eligibleForClassification && playRate >= options.OtpPlayRateThreshold;
+        var isOtp = isMain && playRate >= options.OtpPlayRateThreshold;
 
         return new MainChampionStat
         {

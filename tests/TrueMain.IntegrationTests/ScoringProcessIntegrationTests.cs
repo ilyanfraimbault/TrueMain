@@ -54,6 +54,40 @@ public sealed class ScoringProcessIntegrationTests : IClassFixture<PostgresFixtu
         candidates.Single(candidate => candidate.Status == MainCandidateStatus.Queued).ChampionId.Should().Be(22);
     }
 
+    [Fact]
+    public async Task RunAsync_ShouldQueueHighestScoreEvenAcrossMultipleScoringBatches()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedCandidatesAsync();
+
+        var process = new ScoringProcess(
+            NullLogger<ScoringProcess>.Instance,
+            _fixture.CreateSessionFactory(),
+            new FakeProcessRunRecorder(),
+            Options.Create(new ScoringOptions
+            {
+                BatchSize = 1,
+                TopNPerPlatform = 1,
+                TopChampionsPerAccount = 10,
+                MaxLastPlayDays = 10,
+                RecencyWeight = 0.65,
+                RankWeight = 0.20,
+                PointsWeight = 0.15
+            }));
+
+        await process.RunAsync(CancellationToken.None);
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        var queuedCandidate = verifyDb.MainCandidates
+            .Single(c => c.PlatformId == "KR" && c.Puuid == "puuid-score-1" && c.Status == MainCandidateStatus.Queued);
+
+        queuedCandidate.ChampionId.Should().Be(22);
+        queuedCandidate.Score.Should().BeGreaterThan(
+            verifyDb.MainCandidates
+                .Single(c => c.PlatformId == "KR" && c.Puuid == "puuid-score-1" && c.Status == MainCandidateStatus.Scored)
+                .Score);
+    }
+
     private async Task SeedCandidatesAsync()
     {
         await using var db = _fixture.CreateDbContext();
