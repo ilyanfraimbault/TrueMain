@@ -14,4 +14,10 @@ riderModule.iml
 !.env.example
 !.env.prod.example
 
+**/node_modules/
+**/.nuxt/
+**/.output/
+
 .codex/
+_bmad*
+.agents/
