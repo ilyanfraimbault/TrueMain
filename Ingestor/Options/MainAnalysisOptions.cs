@@ -13,6 +13,7 @@ public class MainAnalysisOptions
     public int MatchesToConsider { get; set; } = 50;
     public int QueueId { get; set; } = 420;
     public double PlayRateThreshold { get; set; } = 0.2;
+    public double OtpPlayRateThreshold { get; set; } = 0.85;
     public double CriticalPlayRateThreshold { get; set; } = 0.1;
     public int MinMatchesToEvaluate { get; set; } = 20;
     public int RecomputeAfterHours { get; set; } = 24;

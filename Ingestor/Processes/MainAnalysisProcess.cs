@@ -209,6 +209,7 @@ public sealed class MainAnalysisProcess(
                 existing.ChampionMatches = stat.ChampionMatches;
                 existing.PlayRate = stat.PlayRate;
                 existing.IsMain = stat.IsMain;
+                existing.IsOtp = stat.IsOtp;
                 existing.PrimaryPosition = stat.PrimaryPosition;
                 existing.PositionBreakdown = stat.PositionBreakdown;
                 existing.CalculatedAtUtc = stat.CalculatedAtUtc;

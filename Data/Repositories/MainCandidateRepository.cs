@@ -40,9 +40,10 @@ public sealed class MainCandidateRepository(TrueMainDbContext db) : IMainCandida
     public Task<List<MainCandidate>> GetScoredByPlatformAsync(string platformId, int take, CancellationToken ct)
         => db.MainCandidates
             .Where(c => c.PlatformId == platformId && c.Status == MainCandidateStatus.Scored)
-            .OrderBy(c => c.ScoredAtUtc == null ? 0 : 1)
+            .OrderByDescending(c => c.Score)
+            .ThenBy(c => c.ScoredAtUtc == null ? 0 : 1)
             .ThenBy(c => c.ScoredAtUtc)
-            .ThenByDescending(c => c.Score)
+            .ThenBy(c => c.Id)
             .Take(Math.Max(0, take))
             .ToListAsync(ct);
 
