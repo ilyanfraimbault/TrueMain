@@ -1,0 +1,101 @@
+using Data.Entities;
+using FluentAssertions;
+using Ingestor.Options;
+using Ingestor.Processes;
+using Ingestor.Services;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+
+namespace TrueMain.IntegrationTests;
+
+public sealed class ScoringProcessIntegrationTests : IClassFixture<PostgresFixture>
+{
+    private readonly PostgresFixture _fixture;
+
+    public ScoringProcessIntegrationTests(PostgresFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldScoreCandidatesAndQueueTopEntriesPerPlatform()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedCandidatesAsync();
+
+        var process = new ScoringProcess(
+            NullLogger<ScoringProcess>.Instance,
+            _fixture.CreateSessionFactory(),
+            new FakeProcessRunRecorder(),
+            Options.Create(new ScoringOptions
+            {
+                BatchSize = 10,
+                TopNPerPlatform = 1,
+                TopChampionsPerAccount = 10,
+                MaxLastPlayDays = 10,
+                RecencyWeight = 0.65,
+                RankWeight = 0.20,
+                PointsWeight = 0.15
+            }));
+
+        await process.RunAsync(CancellationToken.None);
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        var candidates = verifyDb.MainCandidates
+            .Where(c => c.PlatformId == "KR" && c.Puuid == "puuid-score-1")
+            .OrderBy(c => c.ChampionId)
+            .ToList();
+
+        candidates.Should().HaveCount(2);
+        candidates.Should().OnlyContain(candidate => candidate.Score > 0);
+        candidates.Should().OnlyContain(candidate => candidate.ScoredAtUtc != null);
+        candidates.Count(candidate => candidate.Status == MainCandidateStatus.Queued).Should().Be(1);
+        candidates.Count(candidate => candidate.Status == MainCandidateStatus.Scored).Should().Be(1);
+        candidates.Single(candidate => candidate.Status == MainCandidateStatus.Queued).ChampionId.Should().Be(22);
+    }
+
+    private async Task SeedCandidatesAsync()
+    {
+        await using var db = _fixture.CreateDbContext();
+        var now = DateTime.UtcNow;
+
+        db.MainCandidates.AddRange(
+            new MainCandidate
+            {
+                PlatformId = "KR",
+                Puuid = "puuid-score-1",
+                ChampionId = 22,
+                ChampionRankInMasteryTop = 1,
+                ChampionPoints = 750_000,
+                LastPlayTimeUtc = now.AddDays(-1),
+                DiscoveredAtUtc = now.AddHours(-1),
+                Status = MainCandidateStatus.New
+            },
+            new MainCandidate
+            {
+                PlatformId = "KR",
+                Puuid = "puuid-score-1",
+                ChampionId = 51,
+                ChampionRankInMasteryTop = 5,
+                ChampionPoints = 80_000,
+                LastPlayTimeUtc = now.AddDays(-8),
+                DiscoveredAtUtc = now.AddHours(-1),
+                Status = MainCandidateStatus.New
+            });
+
+        await db.SaveChangesAsync();
+    }
+
+    private sealed class FakeProcessRunRecorder : IProcessRunRecorder
+    {
+        public Task RecordAsync(
+            string processName,
+            DateTime startedAtUtc,
+            DateTime finishedAtUtc,
+            ProcessRunStatus status,
+            object? summary,
+            string? error,
+            CancellationToken ct)
+            => Task.CompletedTask;
+    }
+}
