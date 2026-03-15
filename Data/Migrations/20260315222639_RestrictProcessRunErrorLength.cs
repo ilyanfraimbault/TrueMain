@@ -10,6 +10,13 @@ namespace Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.Sql("""
+                UPDATE process_runs
+                SET "Error" = left("Error", 2048)
+                WHERE "Error" IS NOT NULL
+                  AND length("Error") > 2048;
+                """);
+
             migrationBuilder.AlterColumn<string>(
                 name: "Error",
                 table: "process_runs",
