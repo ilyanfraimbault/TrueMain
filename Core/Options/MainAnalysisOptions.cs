@@ -1,4 +1,4 @@
-namespace Ingestor.Options;
+namespace Core.Options;
 
 public class MainAnalysisOptions
 {

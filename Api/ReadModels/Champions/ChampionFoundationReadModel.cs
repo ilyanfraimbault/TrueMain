@@ -21,7 +21,7 @@ public sealed class ChampionSummaryReadModel
 
     public string PrimaryPosition { get; init; } = string.Empty;
 
-    public string LatestGameVersion { get; init; } = string.Empty;
+    public string LatestPatchVersion { get; init; } = string.Empty;
 
     public DateTime LastUpdatedAtUtc { get; init; }
 }

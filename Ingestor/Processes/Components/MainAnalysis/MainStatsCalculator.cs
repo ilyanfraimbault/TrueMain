@@ -1,6 +1,6 @@
+using Core.Options;
 using Data.Entities;
 using Data.Repositories;
-using Ingestor.Options;
 
 namespace Ingestor.Processes.Components.MainAnalysis;
 

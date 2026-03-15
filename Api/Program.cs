@@ -1,3 +1,4 @@
+using Core.Options;
 using TrueMain.Services.Champions;
 using Data;
 using Microsoft.EntityFrameworkCore;
@@ -9,6 +10,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddHealthChecks();
+builder.Services.AddOptions<MainAnalysisOptions>()
+    .Bind(builder.Configuration.GetSection("MainAnalysis"))
+    .Validate(options => options.QueueId > 0, "MainAnalysis:QueueId must be greater than 0.")
+    .ValidateOnStart();
 builder.Services.AddScoped<IChampionFoundationQueryService, ChampionFoundationQueryService>();
 builder.Services.AddDbContext<TrueMainDbContext>(options =>
 {

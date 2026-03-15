@@ -1,6 +1,6 @@
+using Core.Options;
 using Data.Entities;
 using Data.Repositories;
-using Ingestor.Options;
 using Ingestor.Processes.Components.MainAnalysis;
 using Ingestor.Services;
 using Microsoft.Extensions.Options;

@@ -1,3 +1,5 @@
+using Core.Options;
+
 namespace Ingestor.Options;
 
 public static class OptionsConfigurationExtensions

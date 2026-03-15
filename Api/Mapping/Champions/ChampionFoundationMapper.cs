@@ -17,7 +17,7 @@ public static class ChampionFoundationMapper
                 SpecialistCount = readModel.Summary.SpecialistCount,
                 OtpCount = readModel.Summary.OtpCount,
                 PrimaryPosition = readModel.Summary.PrimaryPosition,
-                LatestGameVersion = readModel.Summary.LatestGameVersion,
+                LatestPatchVersion = readModel.Summary.LatestPatchVersion,
                 LastUpdatedAtUtc = readModel.Summary.LastUpdatedAtUtc
             },
             HowToPlay = new ChampionHowToPlayFoundationResponse
