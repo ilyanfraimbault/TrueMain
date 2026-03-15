@@ -57,11 +57,9 @@ public sealed class ChampionFoundationQueryService(
         }
 
         var latestPatchVersion = NormalizePatchVersion(latestGameVersion);
-        var latestPatchPattern = $"{latestPatchVersion}.%";
-
         var baseSamples = await specialistMatches
             .Where(entry => entry.GameVersion == latestPatchVersion
-                || entry.GameVersion.StartsWith(latestPatchPattern))
+                || entry.GameVersion.StartsWith($"{latestPatchVersion}."))
             .Select(entry => entry.BaseSample)
             .ToListAsync(ct);
 

@@ -23,6 +23,7 @@ public class Worker(
             var matchIngestionProcess = scope.ServiceProvider.GetRequiredService<MatchIngestionProcess>();
             var mainAnalysisProcess = scope.ServiceProvider.GetRequiredService<MainAnalysisProcess>();
             var accountRefreshProcess = scope.ServiceProvider.GetRequiredService<AccountRefreshProcess>();
+            var rawDataRetentionProcess = scope.ServiceProvider.GetRequiredService<RawDataRetentionProcess>();
 
             switch (mode)
             {
@@ -41,12 +42,16 @@ public class Worker(
                 case JobMode.AccountRefreshOnly:
                     await accountRefreshProcess.RunAsync(stoppingToken);
                     break;
+                case JobMode.RetentionOnly:
+                    await rawDataRetentionProcess.RunAsync(stoppingToken);
+                    break;
                 default:
                     await discoveryProcess.RunAsync(stoppingToken);
                     await scoringProcess.RunAsync(stoppingToken);
                     await matchIngestionProcess.RunAsync(stoppingToken);
                     await mainAnalysisProcess.RunAsync(stoppingToken);
                     await accountRefreshProcess.RunAsync(stoppingToken);
+                    await rawDataRetentionProcess.RunAsync(stoppingToken);
                     break;
             }
 
@@ -77,6 +82,7 @@ public class Worker(
             "matchingestiononly" => JobMode.MatchIngestionOnly,
             "mainanalysisonly" => JobMode.MainAnalysisOnly,
             "accountrefreshonly" => JobMode.AccountRefreshOnly,
+            "retentiononly" => JobMode.RetentionOnly,
             "full" => JobMode.Full,
             _ => throw new InvalidOperationException($"Unsupported job mode '{mode}'.")
         };
@@ -89,6 +95,7 @@ public class Worker(
         ScoringOnly,
         MatchIngestionOnly,
         MainAnalysisOnly,
-        AccountRefreshOnly
+        AccountRefreshOnly,
+        RetentionOnly
     }
 }

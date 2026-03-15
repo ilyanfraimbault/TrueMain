@@ -11,7 +11,8 @@ public static class OptionsConfigurationExtensions
         "ScoringOnly",
         "MatchIngestionOnly",
         "MainAnalysisOnly",
-        "AccountRefreshOnly"
+        "AccountRefreshOnly",
+        "RetentionOnly"
     };
 
     public static IServiceCollection AddValidatedOptions(this IServiceCollection services, IConfiguration configuration)
@@ -72,6 +73,11 @@ public static class OptionsConfigurationExtensions
         services.AddOptions<AccountRefreshOptions>()
             .Bind(configuration.GetSection("AccountRefresh"))
             .Validate(options => options.BatchSize > 0, "AccountRefresh:BatchSize must be greater than 0.")
+            .ValidateOnStart();
+
+        services.AddOptions<RawDataRetentionOptions>()
+            .Bind(configuration.GetSection("RawDataRetention"))
+            .Validate(options => options.RetainedPatchCount > 0, "RawDataRetention:RetainedPatchCount must be greater than 0.")
             .ValidateOnStart();
 
         services.AddOptions<JobOptions>()
