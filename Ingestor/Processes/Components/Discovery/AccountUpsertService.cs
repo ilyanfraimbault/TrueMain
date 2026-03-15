@@ -22,7 +22,7 @@ public sealed class AccountUpsertService : IAccountUpsertService
             session.RiotAccounts.Add(new RiotAccount
             {
                 Puuid = summoner.Puuid,
-                GameName = summoner.Name ?? string.Empty,
+                GameName = summoner.Name,
                 TagLine = null,
                 PlatformId = platformId,
                 SummonerId = summoner.Id,
@@ -34,7 +34,7 @@ public sealed class AccountUpsertService : IAccountUpsertService
             return true;
         }
 
-        existing.GameName = summoner.Name ?? string.Empty;
+        existing.GameName = summoner.Name;
         existing.TagLine = null;
         existing.PlatformId = platformId;
         existing.SummonerId = summoner.Id;

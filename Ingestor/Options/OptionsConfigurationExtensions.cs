@@ -1,6 +1,3 @@
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-
 namespace Ingestor.Options;
 
 public static class OptionsConfigurationExtensions

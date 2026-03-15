@@ -1,6 +1,5 @@
 using Data.Entities;
 using Data.Repositories;
-using FluentAssertions;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Services;

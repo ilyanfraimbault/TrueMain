@@ -30,7 +30,8 @@ public sealed class ProcessRunConfiguration : IEntityTypeConfiguration<ProcessRu
         entity.Property(e => e.Status)
             .IsRequired();
 
-        entity.Property(e => e.Error);
+        entity.Property(e => e.Error)
+            .HasMaxLength(2048);
 
         entity.Property(e => e.Host)
             .HasMaxLength(128);

@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using TrueMain.Contracts.Champions;
-using Data;
 using Data.Entities;
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
@@ -272,7 +271,7 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
         };
     }
 
-    private sealed class ApiWebApplicationFactory(PostgresFixture fixture) : WebApplicationFactory<global::Program>
+    private sealed class ApiWebApplicationFactory(PostgresFixture fixture) : WebApplicationFactory<Program>
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {

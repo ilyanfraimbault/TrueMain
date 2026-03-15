@@ -1,5 +1,3 @@
-using Core;
-
 namespace Ingestor.Options;
 
 public class RiotOptions
