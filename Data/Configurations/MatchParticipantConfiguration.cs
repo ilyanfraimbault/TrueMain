@@ -25,6 +25,8 @@ public sealed class MatchParticipantConfiguration : IEntityTypeConfiguration<Mat
             .IsRequired()
             .HasMaxLength(128);
 
+        entity.Property(e => e.RiotAccountId);
+
         entity.Property(e => e.SummonerName)
             .IsRequired()
             .HasMaxLength(32);
@@ -119,5 +121,11 @@ public sealed class MatchParticipantConfiguration : IEntityTypeConfiguration<Mat
         entity.Property(e => e.SkillEvents)
             .HasColumnType("jsonb")
             .IsRequired();
+
+        entity.HasIndex(e => e.RiotAccountId);
+
+        entity.HasOne(e => e.RiotAccount)
+            .WithMany()
+            .HasForeignKey(e => e.RiotAccountId);
     }
 }
