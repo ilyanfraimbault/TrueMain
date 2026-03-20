@@ -12,6 +12,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddHealthChecks();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 builder.Services.AddOptions<MainAnalysisOptions>()
     .Bind(builder.Configuration.GetSection("MainAnalysis"))
     .Validate(options => options.QueueId > 0, "MainAnalysis:QueueId must be greater than 0.")
@@ -19,6 +21,7 @@ builder.Services.AddOptions<MainAnalysisOptions>()
 builder.Services.AddOptions<OpsOptions>()
     .Bind(builder.Configuration.GetSection("Ops"));
 builder.Services.AddScoped<IChampionFoundationQueryService, ChampionFoundationQueryService>();
+builder.Services.AddScoped<IChampionBuildTreeQueryService, ChampionBuildTreeQueryService>();
 builder.Services.AddScoped<IPipelineHealthQueryService, PipelineHealthQueryService>();
 builder.Services.AddDbContext<TrueMainDbContext>(options =>
 {
@@ -45,6 +48,8 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
 
 app.UseHttpsRedirection();
