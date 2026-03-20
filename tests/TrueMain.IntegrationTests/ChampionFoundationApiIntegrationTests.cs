@@ -136,6 +136,31 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
     }
 
     [Fact]
+    public async Task GetFoundationAsync_ShouldChooseTheFirstCorrelatedPatternWithABuildForCoreBlocks()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedChampionFoundationWithEmptyTopPatternAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var payload = await client.GetFromJsonAsync<ChampionFoundationResponse>("/champions/110");
+
+        payload.Should().NotBeNull();
+        payload!.HowToPlay.CoreSummonerSpells.Should().NotBeNull();
+        payload.HowToPlay.CoreSummonerSpells!.Spell1Id.Should().Be(4);
+        payload.HowToPlay.CoreSummonerSpells.Spell2Id.Should().Be(7);
+        payload.HowToPlay.CoreSkillOrder.Should().NotBeNull();
+        payload.HowToPlay.CoreSkillOrder!.Sequence.Should().Equal("Q", "W", "E");
+        payload.HowToPlay.CoreItemSet.Should().NotBeNull();
+        payload.HowToPlay.CoreItemSet!.ItemIds.Should().Equal(3153, 3006, 3091);
+        payload.HowToPlay.CoreItemSet.Games.Should().Be(5);
+    }
+
+    [Fact]
     public async Task GetFoundationAsync_ShouldReturnNotFound_WhenChampionDataDoesNotExist()
     {
         await _fixture.ResetDatabaseAsync();
@@ -212,6 +237,25 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
             BuildAggregate(account1Id, 81, "16.5", "KR", 420, "BOTTOM", 4, 7, "Q-W-E", [3153, 3006, 3091], 3, 2, now.AddMinutes(-10)),
             BuildAggregate(account2Id, 81, "16.5", "KR", 420, "BOTTOM", 4, 7, "Q-W-E", [3153, 3006, 3091], 3, 2, now.AddMinutes(-9)),
             BuildAggregate(account3Id, 81, "16.5", "KR", 420, "BOTTOM", 14, 4, "Q-E-W", [6672, 3006, 3031], 5, 4, now.AddMinutes(-8)));
+
+        await db.SaveChangesAsync();
+    }
+
+    private async Task SeedChampionFoundationWithEmptyTopPatternAsync()
+    {
+        var now = DateTime.UtcNow;
+        var account1Id = Guid.Parse("abababab-abab-abab-abab-abababababab");
+        var account2Id = Guid.Parse("cdcdcdcd-cdcd-cdcd-cdcd-cdcdcdcdcdcd");
+
+        await using var db = _fixture.CreateDbContext();
+
+        db.RiotAccounts.AddRange(
+            BuildAccount(account1Id, "KR", "empty-build-puuid-1", "empty-build-one", now),
+            BuildAccount(account2Id, "KR", "empty-build-puuid-2", "empty-build-two", now));
+
+        db.ChampionPatternAggregates.AddRange(
+            BuildAggregate(account1Id, 110, "16.5", "KR", 420, "MIDDLE", 14, 4, "Q-E-W", [], 6, 4, now.AddMinutes(-12)),
+            BuildAggregate(account2Id, 110, "16.5", "KR", 420, "MIDDLE", 4, 7, "Q-W-E", [3153, 3006, 3091], 5, 3, now.AddMinutes(-10)));
 
         await db.SaveChangesAsync();
     }

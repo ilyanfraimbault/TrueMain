@@ -114,7 +114,8 @@ public sealed class ChampionFoundationQueryService(
             .ThenBy(pattern => string.Join("-", pattern.ItemIds), StringComparer.Ordinal)
             .ToList();
 
-        var corePattern = correlatedPatterns.FirstOrDefault();
+        var corePattern = correlatedPatterns.FirstOrDefault(pattern => pattern.ItemIds.Count > 0)
+            ?? correlatedPatterns.FirstOrDefault();
 
         var summonerOptions = rows
             .GroupBy(row => NormalizeSummonerPair(row.SummonerSpell1Id, row.SummonerSpell2Id))

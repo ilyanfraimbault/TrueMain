@@ -52,7 +52,7 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
             foreach (var matchId in batch)
             {
                 var matchDto = await riotMatchClient.GetMatchAsync(matchId, region, ct);
-                await AddMatchSnapshotAsync(session, matchDto, platformId, puuid, trackedAccount?.Id, ct);
+                await AddMatchSnapshotAsync(session, matchDto, platformId, ct);
                 inserted++;
             }
 
@@ -66,12 +66,16 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
         IDataSession session,
         RiotMatchDto matchDto,
         string platformId,
-        string trackedPuuid,
-        Guid? trackedRiotAccountId,
         CancellationToken ct)
     {
         var matchId = matchDto.Metadata.MatchId;
         var gameStartUtc = RiotDataHelpers.ToUtcDateTime(matchDto.Info.GameStartTimestamp);
+        var participantAccounts = await session.RiotAccounts.GetByKeysAsync(
+            matchDto.Info.Participants
+                .Select(participant => new AccountKey(platformId, participant.Puuid))
+                .Distinct()
+                .ToArray(),
+            ct);
 
         session.Matches.Add(new Match
         {
@@ -88,7 +92,7 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
             TimelineIngested = false
         });
 
-        session.MatchParticipants.AddRange(MapParticipants(matchDto, matchId, trackedPuuid, trackedRiotAccountId));
+        session.MatchParticipants.AddRange(MapParticipants(matchDto, matchId, platformId, participantAccounts));
 
         var mappedSelections = BuildPerkSelectionRows(matchDto)
             .Select(selection => new MappedPerkSelection(matchId, selection.ParticipantId, selection.Key))
@@ -150,8 +154,8 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
     private static List<MatchParticipant> MapParticipants(
         RiotMatchDto match,
         string matchId,
-        string trackedPuuid,
-        Guid? trackedRiotAccountId)
+        string platformId,
+        IReadOnlyDictionary<AccountKey, RiotAccount> participantAccounts)
     {
         var participants = new List<MatchParticipant>(match.Info.Participants.Count);
 
@@ -167,8 +171,8 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
                 MatchId = matchId,
                 ParticipantId = participant.ParticipantId,
                 Puuid = participant.Puuid,
-                RiotAccountId = string.Equals(participant.Puuid, trackedPuuid, StringComparison.Ordinal)
-                    ? trackedRiotAccountId
+                RiotAccountId = participantAccounts.TryGetValue(new AccountKey(platformId, participant.Puuid), out var riotAccount)
+                    ? riotAccount.Id
                     : null,
                 SummonerName = participant.SummonerName,
                 SummonerLevel = participant.SummonerLevel,

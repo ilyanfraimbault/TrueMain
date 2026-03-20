@@ -138,6 +138,20 @@ public sealed class ChampionPatternNormalizationTests
     }
 
     [Fact]
+    public void BuildStarterItems_ShouldIgnoreASecondShopBatchAfterALargeGap()
+    {
+        var starterItems = ChampionPatternNormalization.BuildStarterItems(
+        [
+            new ItemEvent { TimestampMs = 1_000, ItemId = 1055, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 2_000, ItemId = 2003, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 50_000, ItemId = 3070, EventType = "ITEM_PURCHASED" }
+        ],
+            ItemMetadataById);
+
+        starterItems.Should().Equal(1055, 2003);
+    }
+
+    [Fact]
     public void BuildOrderedFinalBuild_ShouldKeepOnlyFinalCompletedItemsInCompletionOrder()
     {
         var buildItems = ChampionPatternNormalization.BuildOrderedFinalBuild(

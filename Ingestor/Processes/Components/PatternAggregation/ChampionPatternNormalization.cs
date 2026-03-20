@@ -22,6 +22,7 @@ internal static class ChampionPatternNormalization
     };
 
     private const int StarterPurchaseWindowMs = 120_000;
+    private const int StarterBatchGapMs = 15_000;
     private const int StarterMaxTotalCost = 500;
     private const int MaxBuildItems = 7;
 
@@ -82,9 +83,7 @@ internal static class ChampionPatternNormalization
             .OrderBy(itemEvent => itemEvent.TimestampMs)
             .ToArray();
 
-        var earlyEvents = orderedEvents
-            .Where(itemEvent => itemEvent.TimestampMs <= StarterPurchaseWindowMs)
-            .ToArray();
+        var earlyEvents = ExtractStarterBatchEvents(orderedEvents);
 
         if (earlyEvents.Length == 0)
         {
@@ -292,6 +291,37 @@ internal static class ChampionPatternNormalization
     private static bool IsEligibleFinalBuildItem(ItemMetadata metadata)
         => metadata is { InStore: true, IsFinalItem: true, IsConsumable: false }
            && (!metadata.IsBootsItem || metadata.IsFinalBoots);
+
+    private static ItemEvent[] ExtractStarterBatchEvents(IReadOnlyList<ItemEvent> orderedEvents)
+    {
+        var batch = new List<ItemEvent>();
+        int? previousTimestampMs = null;
+
+        foreach (var itemEvent in orderedEvents)
+        {
+            if (itemEvent.TimestampMs > StarterPurchaseWindowMs)
+            {
+                break;
+            }
+
+            if (batch.Count == 0)
+            {
+                batch.Add(itemEvent);
+                previousTimestampMs = itemEvent.TimestampMs;
+                continue;
+            }
+
+            if (previousTimestampMs.HasValue && itemEvent.TimestampMs - previousTimestampMs.Value > StarterBatchGapMs)
+            {
+                break;
+            }
+
+            batch.Add(itemEvent);
+            previousTimestampMs = itemEvent.TimestampMs;
+        }
+
+        return batch.ToArray();
+    }
 
     private static bool ShouldIgnoreStarterItem(int itemId)
         => IgnoredStarterItemIds.Contains(itemId);
