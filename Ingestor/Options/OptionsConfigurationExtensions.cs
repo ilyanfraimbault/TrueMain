@@ -11,6 +11,7 @@ public static class OptionsConfigurationExtensions
         "ScoringOnly",
         "MatchIngestionOnly",
         "MainAnalysisOnly",
+        "PatternAggregationOnly",
         "AccountRefreshOnly",
         "RetentionOnly"
     };

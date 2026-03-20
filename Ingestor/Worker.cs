@@ -22,6 +22,7 @@ public class Worker(
             var scoringProcess = scope.ServiceProvider.GetRequiredService<ScoringProcess>();
             var matchIngestionProcess = scope.ServiceProvider.GetRequiredService<MatchIngestionProcess>();
             var mainAnalysisProcess = scope.ServiceProvider.GetRequiredService<MainAnalysisProcess>();
+            var championPatternAggregationProcess = scope.ServiceProvider.GetRequiredService<ChampionPatternAggregationProcess>();
             var accountRefreshProcess = scope.ServiceProvider.GetRequiredService<AccountRefreshProcess>();
             var rawDataRetentionProcess = scope.ServiceProvider.GetRequiredService<RawDataRetentionProcess>();
 
@@ -39,6 +40,9 @@ public class Worker(
                 case JobMode.MainAnalysisOnly:
                     await mainAnalysisProcess.RunAsync(stoppingToken);
                     break;
+                case JobMode.PatternAggregationOnly:
+                    await championPatternAggregationProcess.RunAsync(stoppingToken);
+                    break;
                 case JobMode.AccountRefreshOnly:
                     await accountRefreshProcess.RunAsync(stoppingToken);
                     break;
@@ -50,6 +54,7 @@ public class Worker(
                     await scoringProcess.RunAsync(stoppingToken);
                     await matchIngestionProcess.RunAsync(stoppingToken);
                     await mainAnalysisProcess.RunAsync(stoppingToken);
+                    await championPatternAggregationProcess.RunAsync(stoppingToken);
                     await accountRefreshProcess.RunAsync(stoppingToken);
                     await rawDataRetentionProcess.RunAsync(stoppingToken);
                     break;
@@ -81,6 +86,7 @@ public class Worker(
             "scoringonly" => JobMode.ScoringOnly,
             "matchingestiononly" => JobMode.MatchIngestionOnly,
             "mainanalysisonly" => JobMode.MainAnalysisOnly,
+            "patternaggregationonly" => JobMode.PatternAggregationOnly,
             "accountrefreshonly" => JobMode.AccountRefreshOnly,
             "retentiononly" => JobMode.RetentionOnly,
             "full" => JobMode.Full,
@@ -95,6 +101,7 @@ public class Worker(
         ScoringOnly,
         MatchIngestionOnly,
         MainAnalysisOnly,
+        PatternAggregationOnly,
         AccountRefreshOnly,
         RetentionOnly
     }
