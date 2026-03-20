@@ -1,4 +1,5 @@
 using Core;
+using Data.Entities;
 using FluentAssertions;
 using Ingestor.Processes.Components.MatchIngestion;
 using Ingestor.Riot;
@@ -107,6 +108,147 @@ public sealed class MatchSnapshotWriterIntegrationTests : IClassFixture<Postgres
         await using var verifyDb = _fixture.CreateDbContext();
         verifyDb.Matches.Should().ContainSingle();
         verifyDb.MatchParticipants.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task IngestSnapshotsAsync_ShouldBackfillTrackedRiotAccountIdForExistingMatches()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var service = new MatchSnapshotWriter(new FakeRiotMatchClient());
+        var now = DateTime.UtcNow;
+
+        await using (var seedDb = _fixture.CreateDbContext())
+        {
+            seedDb.RiotAccounts.AddRange(
+                new RiotAccount
+                {
+                    Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                    PlatformId = "KR",
+                    Puuid = "puuid-1",
+                    GameName = "player-one",
+                    SummonerId = "player-one-summoner",
+                    ProfileIconId = 1,
+                    SummonerLevel = 100,
+                    LastProfileSyncAtUtc = now,
+                    CreatedAtUtc = now.AddDays(-10),
+                    UpdatedAtUtc = now.AddDays(-1)
+                },
+                new RiotAccount
+                {
+                    Id = Guid.Parse("22222222-2222-2222-2222-222222222222"),
+                    PlatformId = "KR",
+                    Puuid = "puuid-2",
+                    GameName = "player-two",
+                    SummonerId = "player-two-summoner",
+                    ProfileIconId = 1,
+                    SummonerLevel = 100,
+                    LastProfileSyncAtUtc = now,
+                    CreatedAtUtc = now.AddDays(-10),
+                    UpdatedAtUtc = now.AddDays(-1)
+                });
+            await seedDb.SaveChangesAsync();
+        }
+
+        await using (var firstSession = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None))
+        {
+            var first = await service.IngestSnapshotsAsync(
+                firstSession,
+                "KR",
+                "puuid-1",
+                RegionalRoute.Asia,
+                matchesPerAccount: 10,
+                saveBatchSize: 10,
+                CancellationToken.None);
+
+            first.Inserted.Should().Be(1);
+        }
+
+        await using (var secondSession = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None))
+        {
+            var second = await service.IngestSnapshotsAsync(
+                secondSession,
+                "KR",
+                "puuid-2",
+                RegionalRoute.Asia,
+                matchesPerAccount: 10,
+                saveBatchSize: 10,
+                CancellationToken.None);
+
+            second.Inserted.Should().Be(0);
+            second.Skipped.Should().Be(1);
+        }
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        var participants = verifyDb.MatchParticipants
+            .Where(participant => participant.MatchId == "KR_100")
+            .OrderBy(participant => participant.ParticipantId)
+            .ToList();
+
+        participants[0].RiotAccountId.Should().Be(Guid.Parse("11111111-1111-1111-1111-111111111111"));
+        participants[1].RiotAccountId.Should().Be(Guid.Parse("22222222-2222-2222-2222-222222222222"));
+    }
+
+    [Fact]
+    public async Task IngestSnapshotsAsync_ShouldAssignKnownRiotAccountIdsForAllKnownParticipantsInANewMatch()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var service = new MatchSnapshotWriter(new FakeRiotMatchClient());
+        var now = DateTime.UtcNow;
+
+        await using (var seedDb = _fixture.CreateDbContext())
+        {
+            seedDb.RiotAccounts.AddRange(
+                new RiotAccount
+                {
+                    Id = Guid.Parse("33333333-3333-3333-3333-333333333333"),
+                    PlatformId = "KR",
+                    Puuid = "puuid-1",
+                    GameName = "player-one",
+                    SummonerId = "player-one-summoner",
+                    ProfileIconId = 1,
+                    SummonerLevel = 100,
+                    LastProfileSyncAtUtc = now,
+                    CreatedAtUtc = now.AddDays(-10),
+                    UpdatedAtUtc = now.AddDays(-1)
+                },
+                new RiotAccount
+                {
+                    Id = Guid.Parse("44444444-4444-4444-4444-444444444444"),
+                    PlatformId = "KR",
+                    Puuid = "puuid-2",
+                    GameName = "player-two",
+                    SummonerId = "player-two-summoner",
+                    ProfileIconId = 1,
+                    SummonerLevel = 100,
+                    LastProfileSyncAtUtc = now,
+                    CreatedAtUtc = now.AddDays(-10),
+                    UpdatedAtUtc = now.AddDays(-1)
+                });
+            await seedDb.SaveChangesAsync();
+        }
+
+        await using (var session = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None))
+        {
+            var result = await service.IngestSnapshotsAsync(
+                session,
+                "KR",
+                "puuid-1",
+                RegionalRoute.Asia,
+                matchesPerAccount: 10,
+                saveBatchSize: 10,
+                CancellationToken.None);
+
+            result.Inserted.Should().Be(1);
+        }
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        var participants = verifyDb.MatchParticipants
+            .Where(participant => participant.MatchId == "KR_100")
+            .OrderBy(participant => participant.ParticipantId)
+            .ToList();
+
+        participants[0].RiotAccountId.Should().Be(Guid.Parse("33333333-3333-3333-3333-333333333333"));
+        participants[1].RiotAccountId.Should().Be(Guid.Parse("44444444-4444-4444-4444-444444444444"));
     }
 
     private sealed class FakeRiotMatchClient : IRiotMatchClient

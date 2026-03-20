@@ -17,6 +17,7 @@ public class TrueMainDbContext : DbContext
     public DbSet<MainCandidate> MainCandidates => Set<MainCandidate>();
     public DbSet<Match> Matches => Set<Match>();
     public DbSet<MainChampionStat> MainChampionStats => Set<MainChampionStat>();
+    public DbSet<ChampionPatternAggregate> ChampionPatternAggregates => Set<ChampionPatternAggregate>();
     public DbSet<ProcessRun> ProcessRuns => Set<ProcessRun>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

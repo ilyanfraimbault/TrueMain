@@ -14,9 +14,8 @@ public static class ChampionFoundationMapper
                 ChampionId = readModel.Summary.ChampionId,
                 Games = readModel.Summary.Games,
                 WinRate = readModel.Summary.WinRate,
-                SpecialistCount = readModel.Summary.SpecialistCount,
-                OtpCount = readModel.Summary.OtpCount,
-                PrimaryPosition = readModel.Summary.PrimaryPosition,
+                TrueMainCount = readModel.Summary.TrueMainCount,
+                Position = readModel.Summary.Position,
                 LatestPatchVersion = readModel.Summary.LatestPatchVersion,
                 LastUpdatedAtUtc = readModel.Summary.LastUpdatedAtUtc
             },

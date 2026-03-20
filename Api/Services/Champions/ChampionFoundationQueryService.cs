@@ -1,8 +1,9 @@
 using Core.Options;
-using TrueMain.ReadModels.Champions;
 using Data;
-using Microsoft.Extensions.Options;
+using Data.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using TrueMain.ReadModels.Champions;
 
 namespace TrueMain.Services.Champions;
 
@@ -12,179 +13,119 @@ public sealed class ChampionFoundationQueryService(
 {
     public async Task<ChampionFoundationReadModel?> GetAsync(int championId, CancellationToken ct)
     {
-        var specialistMatches = from participant in db.MatchParticipants.AsNoTracking()
-            join match in db.Matches.AsNoTracking() on participant.MatchId equals match.Id
-            join stat in db.MainChampionStats.AsNoTracking()
-                on new { match.PlatformId, participant.Puuid, participant.ChampionId }
-                equals new { stat.PlatformId, stat.Puuid, stat.ChampionId }
-            where participant.ChampionId == championId
-                && stat.IsMain
-                && match.QueueId == options.Value.QueueId
-            select new
-            {
-                match.GameVersion,
-                match.GameStartTimeUtc,
-                BaseSample = new SpecialistParticipantBaseSample
-                {
-                    ParticipantRecordId = participant.Id,
-                    PlatformId = match.PlatformId,
-                    Puuid = participant.Puuid,
-                    Win = participant.Win,
-                    Summoner1Id = participant.Summoner1Id,
-                    Summoner2Id = participant.Summoner2Id,
-                    Item0 = participant.Item0,
-                    Item1 = participant.Item1,
-                    Item2 = participant.Item2,
-                    Item3 = participant.Item3,
-                    Item4 = participant.Item4,
-                    Item5 = participant.Item5,
-                    GameVersion = match.GameVersion,
-                    GameStartTimeUtc = match.GameStartTimeUtc,
-                    PrimaryPosition = stat.PrimaryPosition,
-                    IsOtp = stat.IsOtp,
-                    CalculatedAtUtc = stat.CalculatedAtUtc
-                }
-            };
-
-        var latestGameVersion = await specialistMatches
-            .OrderByDescending(entry => entry.GameStartTimeUtc)
-            .Select(entry => entry.GameVersion)
-            .FirstOrDefaultAsync(ct);
-
-        if (string.IsNullOrWhiteSpace(latestGameVersion))
-        {
-            return null;
-        }
-
-        var latestPatchVersion = NormalizePatchVersion(latestGameVersion);
-        var baseSamples = await specialistMatches
-            .Where(entry => entry.GameVersion == latestPatchVersion
-                || entry.GameVersion.StartsWith($"{latestPatchVersion}."))
-            .Select(entry => entry.BaseSample)
+        var aggregateRows = await db.ChampionPatternAggregates
+            .AsNoTracking()
+            .Where(aggregate => aggregate.ChampionId == championId && aggregate.QueueId == options.Value.QueueId)
             .ToListAsync(ct);
 
-        if (baseSamples.Count == 0)
+        if (aggregateRows.Count == 0)
         {
             return null;
         }
 
-        var participantIds = baseSamples.Select(sample => sample.ParticipantRecordId).ToArray();
-        var skillSequences = await db.Database
-            .SqlQuery<ParticipantSkillSequenceProjection>($"""
-                SELECT
-                    mp."Id" AS "ParticipantRecordId",
-                    COALESCE(
-                        (
-                            SELECT string_agg(
-                                CASE (entry.elem->>'SkillSlot')::int
-                                    WHEN 1 THEN 'Q'
-                                    WHEN 2 THEN 'W'
-                                    WHEN 3 THEN 'E'
-                                    WHEN 4 THEN 'R'
-                                    ELSE entry.elem->>'SkillSlot'
-                                END,
-                                '-' ORDER BY (entry.elem->>'TimestampMs')::int)
-                            FROM (
-                                SELECT elem
-                                FROM jsonb_array_elements(to_jsonb(mp."SkillEvents")) AS elem
-                                WHERE elem->>'LevelUpType' ILIKE 'NORMAL'
-                                ORDER BY (elem->>'TimestampMs')::int
-                                LIMIT 3
-                            ) AS entry
-                        ),
-                        ''
-                    ) AS "SequenceKey"
-                FROM match_participants AS mp
-                WHERE mp."Id" = ANY ({participantIds})
-                """)
-            .ToDictionaryAsync(
-                entry => entry.ParticipantRecordId,
-                entry => string.IsNullOrWhiteSpace(entry.SequenceKey)
-                    ? Array.Empty<string>()
-                    : entry.SequenceKey.Split('-', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
-                ct);
+        var latestPatchVersion = aggregateRows
+            .Select(aggregate => aggregate.GameVersion)
+            .Distinct(StringComparer.Ordinal)
+            .OrderByDescending(ParsePatchVersion)
+            .FirstOrDefault();
 
-        var samples = baseSamples.Select(sample => new SpecialistParticipantSample
+        if (string.IsNullOrWhiteSpace(latestPatchVersion))
         {
-            PlatformId = sample.PlatformId,
-            Puuid = sample.Puuid,
-            Win = sample.Win,
-            Summoner1Id = sample.Summoner1Id,
-            Summoner2Id = sample.Summoner2Id,
-            SkillSequence = skillSequences.GetValueOrDefault(sample.ParticipantRecordId, Array.Empty<string>()),
-            Item0 = sample.Item0,
-            Item1 = sample.Item1,
-            Item2 = sample.Item2,
-            Item3 = sample.Item3,
-            Item4 = sample.Item4,
-            Item5 = sample.Item5,
-            GameVersion = sample.GameVersion,
-            GameStartTimeUtc = sample.GameStartTimeUtc,
-            PrimaryPosition = sample.PrimaryPosition,
-            IsOtp = sample.IsOtp,
-            CalculatedAtUtc = sample.CalculatedAtUtc
-        }).ToList();
+            return null;
+        }
 
-        var summary = BuildSummary(championId, samples);
-        var howToPlay = BuildHowToPlay(samples);
+        var patchRows = aggregateRows
+            .Where(aggregate => string.Equals(aggregate.GameVersion, latestPatchVersion, StringComparison.Ordinal))
+            .ToList();
+
+        if (patchRows.Count == 0)
+        {
+            return null;
+        }
 
         return new ChampionFoundationReadModel
         {
-            Summary = summary,
-            HowToPlay = howToPlay
+            Summary = BuildSummary(championId, latestPatchVersion, patchRows),
+            HowToPlay = BuildHowToPlay(patchRows)
         };
     }
 
-    private static ChampionSummaryReadModel BuildSummary(int championId, IReadOnlyCollection<SpecialistParticipantSample> samples)
+    private static ChampionSummaryReadModel BuildSummary(
+        int championId,
+        string latestPatchVersion,
+        IReadOnlyCollection<ChampionPatternAggregate> rows)
     {
-        var totalGames = samples.Count;
-        var specialistCount = samples
-            .Select(sample => (sample.PlatformId, sample.Puuid))
+        var totalGames = rows.Sum(row => row.Games);
+        var totalWins = rows.Sum(row => row.Wins);
+        var trueMainCount = rows
+            .Select(row => row.RiotAccountId)
             .Distinct()
             .Count();
-        var otpCount = samples
-            .Where(sample => sample.IsOtp)
-            .Select(sample => (sample.PlatformId, sample.Puuid))
-            .Distinct()
-            .Count();
-        var primaryPosition = samples
-            .Where(sample => !string.IsNullOrWhiteSpace(sample.PrimaryPosition))
-            .GroupBy(sample => sample.PrimaryPosition)
-            .OrderByDescending(group => group.Count())
-            .ThenBy(group => group.Key)
-            .Select(group => group.Key)
-            .FirstOrDefault() ?? string.Empty;
-        var latestPatchVersion = samples
-            .OrderByDescending(sample => sample.GameStartTimeUtc)
-            .Select(sample => NormalizePatchVersion(sample.GameVersion))
+        var position = rows
+            .Where(row => !string.IsNullOrWhiteSpace(row.Position))
+            .GroupBy(row => row.Position)
+            .Select(group => new
+            {
+                Position = group.Key,
+                Games = group.Sum(row => row.Games)
+            })
+            .OrderByDescending(group => group.Games)
+            .ThenBy(group => group.Position, StringComparer.Ordinal)
+            .Select(group => group.Position)
             .FirstOrDefault() ?? string.Empty;
 
         return new ChampionSummaryReadModel
         {
             ChampionId = championId,
             Games = totalGames,
-            WinRate = ComputeRate(samples.Count(sample => sample.Win), totalGames),
-            SpecialistCount = specialistCount,
-            OtpCount = otpCount,
-            PrimaryPosition = primaryPosition,
+            WinRate = ComputeRate(totalWins, totalGames),
+            TrueMainCount = trueMainCount,
+            Position = position,
             LatestPatchVersion = latestPatchVersion,
-            LastUpdatedAtUtc = samples.Max(sample => sample.CalculatedAtUtc)
+            LastUpdatedAtUtc = rows.Max(row => row.AggregatedAtUtc)
         };
     }
 
-    private static ChampionHowToPlayFoundationReadModel BuildHowToPlay(IReadOnlyCollection<SpecialistParticipantSample> samples)
+    private static ChampionHowToPlayFoundationReadModel BuildHowToPlay(IReadOnlyCollection<ChampionPatternAggregate> rows)
     {
-        var sampleSize = samples.Count;
+        var sampleSize = rows.Sum(row => row.Games);
+        var correlatedPatterns = rows
+            .GroupBy(BuildCorrelatedPatternKey)
+            .Select(group =>
+            {
+                var first = group.First();
+                var summonerPair = NormalizeSummonerPair(first.SummonerSpell1Id, first.SummonerSpell2Id);
+                var games = group.Sum(row => row.Games);
+                return new CorrelatedPatternReadModel
+                {
+                    Spell1Id = summonerPair.spell1Id,
+                    Spell2Id = summonerPair.spell2Id,
+                    SkillOrderSequence = SplitSequence(first.SkillOrderKey),
+                    ItemIds = BuildItemSet(first),
+                    Games = games,
+                    Wins = group.Sum(row => row.Wins)
+                };
+            })
+            .OrderByDescending(pattern => pattern.Games)
+            .ThenByDescending(pattern => ComputeRate(pattern.Wins, pattern.Games))
+            .ThenBy(pattern => pattern.Spell1Id)
+            .ThenBy(pattern => pattern.Spell2Id)
+            .ThenBy(pattern => string.Join("-", pattern.SkillOrderSequence), StringComparer.Ordinal)
+            .ThenBy(pattern => string.Join("-", pattern.ItemIds), StringComparer.Ordinal)
+            .ToList();
 
-        var summonerOptions = samples
-            .GroupBy(sample => NormalizeSummonerPair(sample.Summoner1Id, sample.Summoner2Id))
+        var corePattern = correlatedPatterns.FirstOrDefault(pattern => pattern.ItemIds.Count > 0)
+            ?? correlatedPatterns.FirstOrDefault();
+
+        var summonerOptions = rows
+            .GroupBy(row => NormalizeSummonerPair(row.SummonerSpell1Id, row.SummonerSpell2Id))
             .Select(group => new SummonerSpellOptionReadModel
             {
                 Spell1Id = group.Key.spell1Id,
                 Spell2Id = group.Key.spell2Id,
-                Games = group.Count(),
-                PlayRate = ComputeRate(group.Count(), sampleSize),
-                WinRate = ComputeRate(group.Count(sample => sample.Win), group.Count())
+                Games = group.Sum(row => row.Games),
+                PlayRate = ComputeRate(group.Sum(row => row.Games), sampleSize),
+                WinRate = ComputeRate(group.Sum(row => row.Wins), group.Sum(row => row.Games))
             })
             .OrderByDescending(option => option.Games)
             .ThenByDescending(option => option.WinRate)
@@ -193,82 +134,123 @@ public sealed class ChampionFoundationQueryService(
             .Take(3)
             .ToList();
 
-        var skillOrderOptions = samples
-            .Select(sample => new
+        var skillOrderOptions = rows
+            .Where(row => !string.IsNullOrWhiteSpace(row.SkillOrderKey))
+            .GroupBy(row => row.SkillOrderKey)
+            .Select(group => new SkillOrderOptionReadModel
             {
-                sample.Win,
-                Sequence = sample.SkillSequence
-            })
-            .Where(entry => entry.Sequence.Count > 0)
-            .GroupBy(entry => string.Join("-", entry.Sequence))
-            .Select(group =>
-            {
-                var sequence = group.First().Sequence;
-                return new SkillOrderOptionReadModel
-                {
-                    Sequence = sequence,
-                    Games = group.Count(),
-                    PlayRate = ComputeRate(group.Count(), sampleSize),
-                    WinRate = ComputeRate(group.Count(entry => entry.Win), group.Count())
-                };
+                Sequence = SplitSequence(group.Key),
+                Games = group.Sum(row => row.Games),
+                PlayRate = ComputeRate(group.Sum(row => row.Games), sampleSize),
+                WinRate = ComputeRate(group.Sum(row => row.Wins), group.Sum(row => row.Games))
             })
             .OrderByDescending(option => option.Games)
             .ThenByDescending(option => option.WinRate)
-            .ThenBy(option => string.Join("-", option.Sequence))
+            .ThenBy(option => string.Join("-", option.Sequence), StringComparer.Ordinal)
             .Take(3)
             .ToList();
 
-        var itemSetOptions = samples
-            .Select(sample => new
+        var itemSetOptions = rows
+            .Select(row => new
             {
-                sample.Win,
-                ItemSet = BuildItemSet(sample)
+                row.Games,
+                row.Wins,
+                ItemSet = BuildItemSet(row)
             })
             .Where(entry => entry.ItemSet.Count > 0)
             .GroupBy(entry => string.Join("-", entry.ItemSet))
             .Select(group =>
             {
                 var itemSet = group.First().ItemSet;
+                var games = group.Sum(entry => entry.Games);
                 return new ItemSetOptionReadModel
                 {
                     ItemIds = itemSet,
-                    Games = group.Count(),
-                    PlayRate = ComputeRate(group.Count(), sampleSize),
-                    WinRate = ComputeRate(group.Count(entry => entry.Win), group.Count())
+                    Games = games,
+                    PlayRate = ComputeRate(games, sampleSize),
+                    WinRate = ComputeRate(group.Sum(entry => entry.Wins), games)
                 };
             })
             .OrderByDescending(option => option.Games)
             .ThenByDescending(option => option.WinRate)
-            .ThenBy(option => string.Join("-", option.ItemIds))
+            .ThenBy(option => string.Join("-", option.ItemIds), StringComparer.Ordinal)
             .Take(3)
             .ToList();
 
         return new ChampionHowToPlayFoundationReadModel
         {
             SampleSize = sampleSize,
-            CoreSummonerSpells = summonerOptions.FirstOrDefault(),
-            CoreSkillOrder = skillOrderOptions.FirstOrDefault(),
-            CoreItemSet = itemSetOptions.FirstOrDefault(),
+            CoreSummonerSpells = corePattern is null
+                ? null
+                : new SummonerSpellOptionReadModel
+                {
+                    Spell1Id = corePattern.Spell1Id,
+                    Spell2Id = corePattern.Spell2Id,
+                    Games = corePattern.Games,
+                    PlayRate = ComputeRate(corePattern.Games, sampleSize),
+                    WinRate = ComputeRate(corePattern.Wins, corePattern.Games)
+                },
+            CoreSkillOrder = corePattern is null || corePattern.SkillOrderSequence.Count == 0
+                ? null
+                : new SkillOrderOptionReadModel
+                {
+                    Sequence = corePattern.SkillOrderSequence,
+                    Games = corePattern.Games,
+                    PlayRate = ComputeRate(corePattern.Games, sampleSize),
+                    WinRate = ComputeRate(corePattern.Wins, corePattern.Games)
+                },
+            CoreItemSet = corePattern is null || corePattern.ItemIds.Count == 0
+                ? null
+                : new ItemSetOptionReadModel
+                {
+                    ItemIds = corePattern.ItemIds,
+                    Games = corePattern.Games,
+                    PlayRate = ComputeRate(corePattern.Games, sampleSize),
+                    WinRate = ComputeRate(corePattern.Wins, corePattern.Games)
+                },
             SummonerSpellOptions = summonerOptions,
             SkillOrderOptions = skillOrderOptions,
             ItemSetOptions = itemSetOptions
         };
     }
 
-    private static double ComputeRate(int numerator, int denominator)
-        => denominator == 0 ? 0 : (double)numerator / denominator;
+    private static IReadOnlyList<string> SplitSequence(string sequenceKey)
+        => string.IsNullOrWhiteSpace(sequenceKey)
+            ? []
+            : sequenceKey.Split('-', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-    private static string NormalizePatchVersion(string gameVersion)
+    private static IReadOnlyList<int> BuildItemSet(ChampionPatternAggregate aggregate)
+        => new[]
+        {
+            aggregate.BuildItem0,
+            aggregate.BuildItem1,
+            aggregate.BuildItem2,
+            aggregate.BuildItem3,
+            aggregate.BuildItem4,
+            aggregate.BuildItem5,
+            aggregate.BuildItem6
+        }
+        .Where(itemId => itemId > 0)
+        .ToList();
+
+    private static string BuildCorrelatedPatternKey(ChampionPatternAggregate aggregate)
+    {
+        var summonerPair = NormalizeSummonerPair(aggregate.SummonerSpell1Id, aggregate.SummonerSpell2Id);
+        var itemSet = string.Join("-", BuildItemSet(aggregate));
+        return $"{summonerPair.spell1Id}:{summonerPair.spell2Id}|{aggregate.SkillOrderKey}|{itemSet}";
+    }
+
+    private static (int Major, int Minor) ParsePatchVersion(string gameVersion)
     {
         if (string.IsNullOrWhiteSpace(gameVersion))
         {
-            return string.Empty;
+            return (0, 0);
         }
 
         var segments = gameVersion.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return segments.Length >= 2
-            ? $"{segments[0]}.{segments[1]}"
-            : gameVersion;
+        var major = segments.Length > 0 && int.TryParse(segments[0], out var parsedMajor) ? parsedMajor : 0;
+        var minor = segments.Length > 1 && int.TryParse(segments[1], out var parsedMinor) ? parsedMinor : 0;
+        return (major, minor);
     }
 
     private static (int spell1Id, int spell2Id) NormalizeSummonerPair(int summoner1Id, int summoner2Id)
@@ -276,89 +258,21 @@ public sealed class ChampionFoundationQueryService(
             ? (summoner1Id, summoner2Id)
             : (summoner2Id, summoner1Id);
 
-    private static IReadOnlyList<int> BuildItemSet(SpecialistParticipantSample sample)
-        => new[] { sample.Item0, sample.Item1, sample.Item2, sample.Item3, sample.Item4, sample.Item5 }
-            .Where(itemId => itemId > 0)
-            .ToList();
+    private static double ComputeRate(int numerator, int denominator)
+        => denominator == 0 ? 0 : (double)numerator / denominator;
 
-    private sealed class SpecialistParticipantBaseSample
+    private sealed class CorrelatedPatternReadModel
     {
-        public Guid ParticipantRecordId { get; init; }
+        public int Spell1Id { get; init; }
 
-        public string PlatformId { get; init; } = string.Empty;
+        public int Spell2Id { get; init; }
 
-        public string Puuid { get; init; } = string.Empty;
+        public IReadOnlyList<string> SkillOrderSequence { get; init; } = [];
 
-        public bool Win { get; init; }
+        public IReadOnlyList<int> ItemIds { get; init; } = [];
 
-        public int Summoner1Id { get; init; }
+        public int Games { get; init; }
 
-        public int Summoner2Id { get; init; }
-
-        public int Item0 { get; init; }
-
-        public int Item1 { get; init; }
-
-        public int Item2 { get; init; }
-
-        public int Item3 { get; init; }
-
-        public int Item4 { get; init; }
-
-        public int Item5 { get; init; }
-
-        public string GameVersion { get; init; } = string.Empty;
-
-        public DateTime GameStartTimeUtc { get; init; }
-
-        public string PrimaryPosition { get; init; } = string.Empty;
-
-        public bool IsOtp { get; init; }
-
-        public DateTime CalculatedAtUtc { get; init; }
-    }
-
-    private sealed class SpecialistParticipantSample
-    {
-        public string PlatformId { get; init; } = string.Empty;
-
-        public string Puuid { get; init; } = string.Empty;
-
-        public bool Win { get; init; }
-
-        public int Summoner1Id { get; init; }
-
-        public int Summoner2Id { get; init; }
-
-        public IReadOnlyList<string> SkillSequence { get; init; } = [];
-
-        public int Item0 { get; init; }
-
-        public int Item1 { get; init; }
-
-        public int Item2 { get; init; }
-
-        public int Item3 { get; init; }
-
-        public int Item4 { get; init; }
-
-        public int Item5 { get; init; }
-
-        public string GameVersion { get; init; } = string.Empty;
-
-        public DateTime GameStartTimeUtc { get; init; }
-
-        public string PrimaryPosition { get; init; } = string.Empty;
-
-        public bool IsOtp { get; init; }
-
-        public DateTime CalculatedAtUtc { get; init; }
-    }
-
-    private sealed class ParticipantSkillSequenceProjection
-    {
-        public Guid ParticipantRecordId { get; set; }
-
-        public string SequenceKey { get; set; } = string.Empty;
+        public int Wins { get; init; }
     }
 }
