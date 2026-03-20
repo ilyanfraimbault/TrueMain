@@ -15,11 +15,9 @@ public sealed class ChampionSummaryResponse
 
     public double WinRate { get; init; }
 
-    public int SpecialistCount { get; init; }
+    public int TrueMainCount { get; init; }
 
-    public int OtpCount { get; init; }
-
-    public string PrimaryPosition { get; init; } = string.Empty;
+    public string Position { get; init; } = string.Empty;
 
     public string LatestPatchVersion { get; init; } = string.Empty;
 
