@@ -119,20 +119,21 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
         int batchSize,
         CancellationToken ct)
     {
+        if (existingMatchIds.Count == 0)
+        {
+            return;
+        }
+
+        var participantsToUpdate = (await session.MatchParticipants.GetByMatchIdsAsync(existingMatchIds, ct))
+            .Where(participant =>
+                participant.RiotAccountId == null &&
+                string.Equals(participant.Puuid, trackedPuuid, StringComparison.Ordinal))
+            .ToList();
+
         var pendingUpdates = 0;
 
-        foreach (var matchId in existingMatchIds)
+        foreach (var trackedParticipant in participantsToUpdate)
         {
-            var trackedParticipant = (await session.MatchParticipants.GetByMatchIdAsync(matchId, ct))
-                .FirstOrDefault(participant =>
-                    participant.RiotAccountId == null &&
-                    string.Equals(participant.Puuid, trackedPuuid, StringComparison.Ordinal));
-
-            if (trackedParticipant is null)
-            {
-                continue;
-            }
-
             trackedParticipant.RiotAccountId = trackedRiotAccountId;
             pendingUpdates++;
 

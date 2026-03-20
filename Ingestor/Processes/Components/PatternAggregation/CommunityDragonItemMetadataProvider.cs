@@ -13,13 +13,13 @@ public sealed class CommunityDragonItemMetadataProvider(
     public Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemsAsync(string gameVersion, CancellationToken ct)
     {
         var patch = ChampionPatternNormalization.NormalizePatchVersion(gameVersion);
-        var lazyTask = _cache.GetOrAdd(patch, static (normalizedPatch, state) =>
+        var lazyTask = _cache.GetOrAdd(patch, static (normalizedPatch, provider) =>
             new Lazy<Task<IReadOnlyDictionary<int, ItemMetadata>>>(
-                () => state.Provider.LoadPatchItemsAsync(normalizedPatch, state.CancellationToken),
+                () => provider.LoadPatchItemsAsync(normalizedPatch, CancellationToken.None),
                 LazyThreadSafetyMode.ExecutionAndPublication),
-            (Provider: this, CancellationToken: ct));
+            this);
 
-        return lazyTask.Value;
+        return lazyTask.Value.WaitAsync(ct);
     }
 
     private async Task<IReadOnlyDictionary<int, ItemMetadata>> LoadPatchItemsAsync(string patch, CancellationToken ct)

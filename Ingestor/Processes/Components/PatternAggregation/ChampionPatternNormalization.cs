@@ -171,7 +171,6 @@ internal static class ChampionPatternNormalization
         IReadOnlyCollection<int> finalInventoryItemIds)
     {
         var trackedItemIds = finalInventoryItemIds.ToHashSet();
-        var ownedFinalItems = new HashSet<int>();
         var completionTimes = new Dictionary<int, int>();
 
         foreach (var itemEvent in itemEvents.OrderBy(itemEvent => itemEvent.TimestampMs))
@@ -179,15 +178,15 @@ internal static class ChampionPatternNormalization
             switch (itemEvent.EventType.ToUpperInvariant())
             {
                 case "ITEM_PURCHASED":
-                    AddTrackedItem(itemEvent.ItemId, itemEvent.TimestampMs, trackedItemIds, ownedFinalItems, completionTimes);
+                    AddTrackedItem(itemEvent.ItemId, itemEvent.TimestampMs, trackedItemIds, completionTimes);
                     break;
                 case "ITEM_SOLD":
                 case "ITEM_DESTROYED":
-                    RemoveTrackedItem(itemEvent.ItemId, trackedItemIds, ownedFinalItems, completionTimes);
+                    RemoveTrackedItem(itemEvent.ItemId, trackedItemIds, completionTimes);
                     break;
                 case "ITEM_UNDO":
-                    RemoveTrackedItem(itemEvent.BeforeId ?? itemEvent.ItemId, trackedItemIds, ownedFinalItems, completionTimes);
-                    AddTrackedItem(itemEvent.AfterId, itemEvent.TimestampMs, trackedItemIds, ownedFinalItems, completionTimes);
+                    RemoveTrackedItem(itemEvent.BeforeId ?? itemEvent.ItemId, trackedItemIds, completionTimes);
+                    AddTrackedItem(itemEvent.AfterId, itemEvent.TimestampMs, trackedItemIds, completionTimes);
                     break;
             }
         }
@@ -199,7 +198,6 @@ internal static class ChampionPatternNormalization
         int? itemId,
         int timestampMs,
         IReadOnlySet<int> trackedItemIds,
-        ISet<int> ownedFinalItems,
         IDictionary<int, int> completionTimes)
     {
         if (itemId is not > 0 || !trackedItemIds.Contains(itemId.Value))
@@ -207,14 +205,12 @@ internal static class ChampionPatternNormalization
             return;
         }
 
-        ownedFinalItems.Add(itemId.Value);
         completionTimes[itemId.Value] = timestampMs;
     }
 
     private static void RemoveTrackedItem(
         int? itemId,
         IReadOnlySet<int> trackedItemIds,
-        ISet<int> ownedFinalItems,
         IDictionary<int, int> completionTimes)
     {
         if (itemId is not > 0 || !trackedItemIds.Contains(itemId.Value))
@@ -222,7 +218,6 @@ internal static class ChampionPatternNormalization
             return;
         }
 
-        ownedFinalItems.Remove(itemId.Value);
         completionTimes.Remove(itemId.Value);
     }
 

@@ -26,40 +26,16 @@ public sealed class ChampionPatternAggregationProcess(
         {
             await using var db = await dbContextFactory.CreateDbContextAsync(ct);
 
-            var scopeQualificationRows = await (
-                from participant in db.MatchParticipants.AsNoTracking()
-                join match in db.Matches.AsNoTracking() on participant.MatchId equals match.Id
-                join stat in db.MainChampionStats.AsNoTracking()
-                    on new { match.PlatformId, participant.Puuid, participant.ChampionId }
-                    equals new { stat.PlatformId, stat.Puuid, stat.ChampionId } into matchingStats
-                where match.QueueId == queueId
-                    && match.TimelineIngested
-                from stat in matchingStats.DefaultIfEmpty()
-                select new
-                {
-                    NormalizedScope = new AggregateScopeKey(
-                        participant.ChampionId,
-                        ChampionPatternNormalization.NormalizePatchVersion(match.GameVersion),
-                        match.PlatformId,
-                        match.QueueId),
-                    ExactScope = new AggregateScopeKey(
-                        participant.ChampionId,
-                        match.GameVersion,
-                        match.PlatformId,
-                        match.QueueId),
-                    HasSupportingStat = stat != null,
-                    IsQualified = stat != null && stat.IsMain
-                })
-                .ToListAsync(ct);
-
-            var cleanupScopes = scopeQualificationRows
-                .Where(row => !row.HasSupportingStat || !row.IsQualified)
-                .Select(row => row.NormalizedScope)
-                .Concat(scopeQualificationRows
-                    .Where(row => !string.Equals(row.NormalizedScope.GameVersion, row.ExactScope.GameVersion, StringComparison.Ordinal))
-                    .Select(row => row.ExactScope))
+            var existingAggregateScopes = await db.ChampionPatternAggregates
+                .AsNoTracking()
+                .Where(aggregate => aggregate.QueueId == queueId)
+                .Select(aggregate => new AggregateScopeKey(
+                    aggregate.ChampionId,
+                    aggregate.GameVersion,
+                    aggregate.PlatformId,
+                    aggregate.QueueId))
                 .Distinct()
-                .ToList();
+                .ToListAsync(ct);
 
             var sourceRows = await (
                 from participant in db.MatchParticipants.AsNoTracking()
@@ -76,7 +52,6 @@ public sealed class ChampionPatternAggregationProcess(
                     MatchId = match.Id,
                     ChampionId = participant.ChampionId,
                     GameVersion = ChampionPatternNormalization.NormalizePatchVersion(match.GameVersion),
-                    ExactGameVersion = match.GameVersion,
                     PlatformId = match.PlatformId,
                     QueueId = match.QueueId,
                     GameStartTimeUtc = match.GameStartTimeUtc,
@@ -110,10 +85,7 @@ public sealed class ChampionPatternAggregationProcess(
                 .Distinct()
                 .ToList();
 
-            cleanupScopes = cleanupScopes
-                .Concat(rebuildScopes)
-                .Distinct()
-                .ToList();
+            var cleanupScopes = existingAggregateScopes;
 
             if (sourceRows.Count == 0 && cleanupScopes.Count == 0)
             {
@@ -364,7 +336,6 @@ public sealed class ChampionPatternAggregationProcess(
         public string MatchId { get; init; } = string.Empty;
         public int ChampionId { get; init; }
         public string GameVersion { get; init; } = string.Empty;
-        public string ExactGameVersion { get; init; } = string.Empty;
         public string PlatformId { get; init; } = string.Empty;
         public int QueueId { get; init; }
         public DateTime GameStartTimeUtc { get; init; }
