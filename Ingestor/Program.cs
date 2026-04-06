@@ -33,6 +33,9 @@ builder.Services.AddScoped<IAccountValidationService, AccountValidationService>(
 builder.Services.AddScoped<IMainStatsCalculator, MainStatsCalculator>();
 builder.Services.AddScoped<IMainDemotionPolicy, MainDemotionPolicy>();
 builder.Services.AddHttpClient<IItemMetadataProvider, CommunityDragonItemMetadataProvider>();
+builder.Services.AddScoped<ChampionPatternSourceRowReader>();
+builder.Services.AddScoped<ChampionPatternAggregateBuilder>();
+builder.Services.AddScoped<ChampionPatternAggregatePersister>();
 
 builder.Services.AddScoped<DiscoveryProcess>();
 builder.Services.AddScoped<ScoringProcess>();
