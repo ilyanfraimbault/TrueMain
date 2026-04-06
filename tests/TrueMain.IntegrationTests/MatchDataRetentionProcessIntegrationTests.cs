@@ -12,11 +12,11 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace TrueMain.IntegrationTests;
 
-public sealed class RawDataRetentionProcessIntegrationTests : IClassFixture<PostgresFixture>
+public sealed class MatchDataRetentionProcessIntegrationTests : IClassFixture<PostgresFixture>
 {
     private readonly PostgresFixture _fixture;
 
-    public RawDataRetentionProcessIntegrationTests(PostgresFixture fixture)
+    public MatchDataRetentionProcessIntegrationTests(PostgresFixture fixture)
     {
         _fixture = fixture;
     }
@@ -27,11 +27,11 @@ public sealed class RawDataRetentionProcessIntegrationTests : IClassFixture<Post
         await _fixture.ResetDatabaseAsync();
         await SeedRetentionDataAsync();
 
-        var process = new RawDataRetentionProcess(
-            NullLogger<RawDataRetentionProcess>.Instance,
+        var process = new MatchDataRetentionProcess(
+            NullLogger<MatchDataRetentionProcess>.Instance,
             new TestDbContextFactory(_fixture),
             new ProcessRunRecorder(_fixture.CreateSessionFactory()),
-            Options.Create(new RawDataRetentionOptions
+            Options.Create(new MatchDataRetentionOptions
             {
                 RetainedPatchCount = 1
             }),
@@ -51,7 +51,7 @@ public sealed class RawDataRetentionProcessIntegrationTests : IClassFixture<Post
 
         remainingMatchIds.Should().BeEquivalentTo(["RET_2", "RET_4", "RET_5"]);
         (await db.MatchParticipants.AsNoTracking().CountAsync()).Should().Be(3);
-        (await db.ProcessRuns.AsNoTracking().AnyAsync(run => run.ProcessName == "RawDataRetention")).Should().BeTrue();
+        (await db.ProcessRuns.AsNoTracking().AnyAsync(run => run.ProcessName == "MatchDataRetention")).Should().BeTrue();
     }
 
     private async Task SeedRetentionDataAsync()

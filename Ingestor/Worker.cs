@@ -24,7 +24,7 @@ public class Worker(
             var mainAnalysisProcess = scope.ServiceProvider.GetRequiredService<MainAnalysisProcess>();
             var championPatternAggregationProcess = scope.ServiceProvider.GetRequiredService<ChampionPatternAggregationProcess>();
             var accountRefreshProcess = scope.ServiceProvider.GetRequiredService<AccountRefreshProcess>();
-            var rawDataRetentionProcess = scope.ServiceProvider.GetRequiredService<RawDataRetentionProcess>();
+            var matchDataRetentionProcess = scope.ServiceProvider.GetRequiredService<MatchDataRetentionProcess>();
 
             switch (mode)
             {
@@ -46,8 +46,8 @@ public class Worker(
                 case JobMode.AccountRefreshOnly:
                     await accountRefreshProcess.RunAsync(stoppingToken);
                     break;
-                case JobMode.RetentionOnly:
-                    await rawDataRetentionProcess.RunAsync(stoppingToken);
+                case JobMode.MatchDataRetentionOnly:
+                    await matchDataRetentionProcess.RunAsync(stoppingToken);
                     break;
                 default:
                     await discoveryProcess.RunAsync(stoppingToken);
@@ -56,7 +56,7 @@ public class Worker(
                     await mainAnalysisProcess.RunAsync(stoppingToken);
                     await championPatternAggregationProcess.RunAsync(stoppingToken);
                     await accountRefreshProcess.RunAsync(stoppingToken);
-                    await rawDataRetentionProcess.RunAsync(stoppingToken);
+                    await matchDataRetentionProcess.RunAsync(stoppingToken);
                     break;
             }
 
@@ -88,7 +88,8 @@ public class Worker(
             "mainanalysisonly" => JobMode.MainAnalysisOnly,
             "patternaggregationonly" => JobMode.PatternAggregationOnly,
             "accountrefreshonly" => JobMode.AccountRefreshOnly,
-            "retentiononly" => JobMode.RetentionOnly,
+            "matchdataretentiononly" => JobMode.MatchDataRetentionOnly,
+            "retentiononly" => JobMode.MatchDataRetentionOnly,
             "full" => JobMode.Full,
             _ => throw new InvalidOperationException($"Unsupported job mode '{mode}'.")
         };
@@ -103,6 +104,6 @@ public class Worker(
         MainAnalysisOnly,
         PatternAggregationOnly,
         AccountRefreshOnly,
-        RetentionOnly
+        MatchDataRetentionOnly
     }
 }

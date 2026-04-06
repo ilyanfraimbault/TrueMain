@@ -1,6 +1,6 @@
 namespace Ingestor.Options;
 
-public class RawDataRetentionOptions
+public class MatchDataRetentionOptions
 {
     public int RetainedPatchCount { get; set; } = 2;
 }

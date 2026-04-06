@@ -13,6 +13,7 @@ public static class OptionsConfigurationExtensions
         "MainAnalysisOnly",
         "PatternAggregationOnly",
         "AccountRefreshOnly",
+        "MatchDataRetentionOnly",
         "RetentionOnly"
     };
 
@@ -76,9 +77,9 @@ public static class OptionsConfigurationExtensions
             .Validate(options => options.BatchSize > 0, "AccountRefresh:BatchSize must be greater than 0.")
             .ValidateOnStart();
 
-        services.AddOptions<RawDataRetentionOptions>()
-            .Bind(configuration.GetSection("RawDataRetention"))
-            .Validate(options => options.RetainedPatchCount > 0, "RawDataRetention:RetainedPatchCount must be greater than 0.")
+        services.AddOptions<MatchDataRetentionOptions>()
+            .Bind(configuration.GetSection("MatchDataRetention"))
+            .Validate(options => options.RetainedPatchCount > 0, "MatchDataRetention:RetainedPatchCount must be greater than 0.")
             .ValidateOnStart();
 
         services.AddOptions<JobOptions>()

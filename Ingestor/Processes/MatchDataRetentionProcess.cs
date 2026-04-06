@@ -8,13 +8,15 @@ using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
 
-public sealed class RawDataRetentionProcess(
-    ILogger<RawDataRetentionProcess> logger,
+public sealed class MatchDataRetentionProcess(
+    ILogger<MatchDataRetentionProcess> logger,
     IDbContextFactory<TrueMainDbContext> dbContextFactory,
     IProcessRunRecorder runRecorder,
-    IOptions<RawDataRetentionOptions> retentionOptions,
+    IOptions<MatchDataRetentionOptions> retentionOptions,
     IOptions<MainAnalysisOptions> mainAnalysisOptions)
 {
+    private const string ProcessName = "MatchDataRetention";
+
     public async Task RunAsync(CancellationToken ct)
     {
         var startedAt = DateTime.UtcNow;
@@ -50,7 +52,7 @@ public sealed class RawDataRetentionProcess(
             if (retainedPatchesByPlatform.Count == 0)
             {
                 await runRecorder.RecordAsync(
-                    "RawDataRetention",
+                    ProcessName,
                     startedAt,
                     DateTime.UtcNow,
                     ProcessRunStatus.Success,
@@ -88,7 +90,7 @@ public sealed class RawDataRetentionProcess(
             if (deletableMatchIds.Count == 0)
             {
                 await runRecorder.RecordAsync(
-                    "RawDataRetention",
+                    ProcessName,
                     startedAt,
                     DateTime.UtcNow,
                     ProcessRunStatus.Success,
@@ -121,7 +123,7 @@ public sealed class RawDataRetentionProcess(
                 .ExecuteDeleteAsync(ct);
 
             logger.LogInformation(
-                "Raw data retention removed {DeletedMatches} matches and {DeletedParticipants} participants while keeping patches {RetainedPatches}.",
+                "Match data retention removed {DeletedMatches} matches and {DeletedParticipants} participants while keeping patches {RetainedPatches}.",
                 deletedMatches,
                 deletedParticipants,
                 string.Join(
@@ -131,7 +133,7 @@ public sealed class RawDataRetentionProcess(
                         .Select(entry => $"{entry.Key}=[{string.Join("|", entry.Value.Order())}]")));
 
             await runRecorder.RecordAsync(
-                "RawDataRetention",
+                ProcessName,
                 startedAt,
                 DateTime.UtcNow,
                 ProcessRunStatus.Success,
@@ -156,7 +158,7 @@ public sealed class RawDataRetentionProcess(
         catch (Exception ex)
         {
             await runRecorder.RecordAsync(
-                "RawDataRetention",
+                ProcessName,
                 startedAt,
                 DateTime.UtcNow,
                 ProcessRunStatus.Failed,

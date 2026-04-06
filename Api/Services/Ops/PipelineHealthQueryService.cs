@@ -18,7 +18,7 @@ public sealed class PipelineHealthQueryService(
         "MatchIngestion",
         "MainAnalysis",
         "AccountRefresh",
-        "RawDataRetention"
+        "MatchDataRetention"
     ];
 
     public async Task<PipelineHealthReadModel> GetAsync(CancellationToken ct)

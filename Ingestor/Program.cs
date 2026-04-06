@@ -40,7 +40,7 @@ builder.Services.AddScoped<MatchIngestionProcess>();
 builder.Services.AddScoped<MainAnalysisProcess>();
 builder.Services.AddScoped<ChampionPatternAggregationProcess>();
 builder.Services.AddScoped<AccountRefreshProcess>();
-builder.Services.AddScoped<RawDataRetentionProcess>();
+builder.Services.AddScoped<MatchDataRetentionProcess>();
 builder.Services.AddSingleton<IProcessRunRecorder, ProcessRunRecorder>();
 
 builder.Services.AddDbContextFactory<TrueMainDbContext>(options =>
