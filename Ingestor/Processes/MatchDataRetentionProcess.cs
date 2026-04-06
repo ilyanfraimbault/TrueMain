@@ -22,151 +22,145 @@ public sealed class MatchDataRetentionProcess(
         var startedAt = DateTime.UtcNow;
         try
         {
-            await using var db = await dbContextFactory.CreateDbContextAsync(ct);
-            var retainedPatchCount = Math.Max(1, retentionOptions.Value.RetainedPatchCount);
-            var queueId = mainAnalysisOptions.Value.QueueId;
-
-            var observedMatches = await db.Matches
-                .AsNoTracking()
-                .Where(match => match.QueueId == queueId)
-                .OrderByDescending(match => match.GameStartTimeUtc)
-                .Select(match => new
-                {
-                    match.PlatformId,
-                    match.GameVersion
-                })
-                .ToListAsync(ct);
-
-            var retainedPatchesByPlatform = observedMatches
-                .GroupBy(match => match.PlatformId)
-                .ToDictionary(
-                    group => group.Key,
-                    group => group
-                        .Select(match => NormalizePatchVersion(match.GameVersion))
-                        .Where(patch => !string.IsNullOrWhiteSpace(patch))
-                        .Distinct()
-                        .Take(retainedPatchCount)
-                        .ToHashSet(StringComparer.Ordinal),
-                    StringComparer.Ordinal);
-
-            if (retainedPatchesByPlatform.Count == 0)
+            var retentionPlan = await LoadRetentionPlanAsync(ct);
+            if (retentionPlan.RetainedPatchesByPlatform.Count == 0)
             {
-                await runRecorder.RecordAsync(
+                await runRecorder.RecordNoOpAsync(
                     ProcessName,
                     startedAt,
-                    DateTime.UtcNow,
-                    ProcessRunStatus.Success,
-                    new
-                    {
-                        retainedPatchCount,
-                        queueId,
-                        deletedMatches = 0,
-                        deletedParticipants = 0,
-                        retainedPatchesByPlatform = Array.Empty<object>()
-                    },
-                    null,
+                    BuildRetentionPayload(retentionPlan, 0, 0),
                     ct);
                 return;
             }
 
-            var rawMatches = await db.Matches
-                .AsNoTracking()
-                .Select(match => new
-                {
-                    match.Id,
-                    match.PlatformId,
-                    match.QueueId,
-                    match.GameVersion
-                })
-                .ToListAsync(ct);
-
-            var deletableMatchIds = rawMatches
-                .Where(match => match.QueueId == queueId
-                    && retainedPatchesByPlatform.TryGetValue(match.PlatformId, out var retainedPatches)
-                    && !retainedPatches.Contains(NormalizePatchVersion(match.GameVersion)))
-                .Select(match => match.Id)
-                .ToList();
-
-            if (deletableMatchIds.Count == 0)
+            if (retentionPlan.DeletableMatchIds.Count == 0)
             {
-                await runRecorder.RecordAsync(
-                    ProcessName,
-                    startedAt,
-                    DateTime.UtcNow,
-                    ProcessRunStatus.Success,
-                    new
-                    {
-                        retainedPatchCount,
-                        queueId,
-                        deletedMatches = 0,
-                        deletedParticipants = 0,
-                        retainedPatchesByPlatform = retainedPatchesByPlatform
-                            .OrderBy(entry => entry.Key)
-                            .Select(entry => new
-                            {
-                                platformId = entry.Key,
-                                patches = entry.Value.Order().ToArray()
-                            })
-                            .ToArray()
-                    },
-                    null,
-                    ct);
+                await runRecorder.RecordSuccessAsync(ProcessName, startedAt, BuildRetentionPayload(retentionPlan, 0, 0), ct);
                 return;
             }
 
-            var deletedParticipants = await db.MatchParticipants
-                .Where(participant => deletableMatchIds.Contains(participant.MatchId))
-                .ExecuteDeleteAsync(ct);
-
-            var deletedMatches = await db.Matches
-                .Where(match => deletableMatchIds.Contains(match.Id))
-                .ExecuteDeleteAsync(ct);
-
+            var deletionResult = await DeleteExpiredMatchDataAsync(retentionPlan.DeletableMatchIds, ct);
             logger.LogInformation(
                 "Match data retention removed {DeletedMatches} matches and {DeletedParticipants} participants while keeping patches {RetainedPatches}.",
-                deletedMatches,
-                deletedParticipants,
+                deletionResult.DeletedMatches,
+                deletionResult.DeletedParticipants,
                 string.Join(
                     ", ",
-                    retainedPatchesByPlatform
+                    retentionPlan.RetainedPatchesByPlatform
                         .OrderBy(entry => entry.Key)
                         .Select(entry => $"{entry.Key}=[{string.Join("|", entry.Value.Order())}]")));
 
-            await runRecorder.RecordAsync(
+            await runRecorder.RecordSuccessAsync(
                 ProcessName,
                 startedAt,
-                DateTime.UtcNow,
-                ProcessRunStatus.Success,
-                new
-                {
-                    retainedPatchCount,
-                    queueId,
-                    deletedMatches,
-                    deletedParticipants,
-                    retainedPatchesByPlatform = retainedPatchesByPlatform
-                        .OrderBy(entry => entry.Key)
-                        .Select(entry => new
-                        {
-                            platformId = entry.Key,
-                            patches = entry.Value.Order().ToArray()
-                        })
-                        .ToArray()
-                },
-                null,
+                BuildRetentionPayload(retentionPlan, deletionResult.DeletedMatches, deletionResult.DeletedParticipants),
                 ct);
         }
         catch (Exception ex)
         {
-            await runRecorder.RecordAsync(
-                ProcessName,
-                startedAt,
-                DateTime.UtcNow,
-                ProcessRunStatus.Failed,
-                null,
-                ex.Message,
-                ct);
+            await runRecorder.RecordFailureAsync(ProcessName, startedAt, ex, ct);
             throw;
         }
+    }
+
+    private async Task<RetentionPlan> LoadRetentionPlanAsync(CancellationToken ct)
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync(ct);
+        var retainedPatchCount = Math.Max(1, retentionOptions.Value.RetainedPatchCount);
+        var queueId = mainAnalysisOptions.Value.QueueId;
+        var observedMatches = await LoadObservedPatchesAsync(db, queueId, ct);
+        var retainedPatchesByPlatform = ComputeRetainedPatchesByPlatform(observedMatches, retainedPatchCount);
+        var deletableMatchIds = retainedPatchesByPlatform.Count == 0
+            ? []
+            : await FindDeletableMatchIdsAsync(db, queueId, retainedPatchesByPlatform, ct);
+
+        return new RetentionPlan(retainedPatchCount, queueId, retainedPatchesByPlatform, deletableMatchIds);
+    }
+
+    private static Task<List<ObservedMatch>> LoadObservedPatchesAsync(
+        TrueMainDbContext db,
+        int queueId,
+        CancellationToken ct)
+    {
+        return db.Matches
+            .AsNoTracking()
+            .Where(match => match.QueueId == queueId)
+            .OrderByDescending(match => match.GameStartTimeUtc)
+            .Select(match => new ObservedMatch(match.PlatformId, match.GameVersion))
+            .ToListAsync(ct);
+    }
+
+    private static Dictionary<string, HashSet<string>> ComputeRetainedPatchesByPlatform(
+        IReadOnlyCollection<ObservedMatch> observedMatches,
+        int retainedPatchCount)
+    {
+        return observedMatches
+            .GroupBy(match => match.PlatformId)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .Select(match => NormalizePatchVersion(match.GameVersion))
+                    .Where(patch => !string.IsNullOrWhiteSpace(patch))
+                    .Distinct()
+                    .Take(retainedPatchCount)
+                    .ToHashSet(StringComparer.Ordinal),
+                StringComparer.Ordinal);
+    }
+
+    private static async Task<List<string>> FindDeletableMatchIdsAsync(
+        TrueMainDbContext db,
+        int queueId,
+        IReadOnlyDictionary<string, HashSet<string>> retainedPatchesByPlatform,
+        CancellationToken ct)
+    {
+        var rawMatches = await db.Matches
+            .AsNoTracking()
+            .Select(match => new MatchIdentity(match.Id, match.PlatformId, match.QueueId, match.GameVersion))
+            .ToListAsync(ct);
+
+        return rawMatches
+            .Where(match => match.QueueId == queueId
+                && retainedPatchesByPlatform.TryGetValue(match.PlatformId, out var retainedPatches)
+                && !retainedPatches.Contains(NormalizePatchVersion(match.GameVersion)))
+            .Select(match => match.Id)
+            .ToList();
+    }
+
+    private async Task<DeletionResult> DeleteExpiredMatchDataAsync(
+        IReadOnlyCollection<string> deletableMatchIds,
+        CancellationToken ct)
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync(ct);
+        var deletedParticipants = await db.MatchParticipants
+            .Where(participant => deletableMatchIds.Contains(participant.MatchId))
+            .ExecuteDeleteAsync(ct);
+        var deletedMatches = await db.Matches
+            .Where(match => deletableMatchIds.Contains(match.Id))
+            .ExecuteDeleteAsync(ct);
+
+        return new DeletionResult(deletedMatches, deletedParticipants);
+    }
+
+    private static object BuildRetentionPayload(
+        RetentionPlan retentionPlan,
+        int deletedMatches,
+        int deletedParticipants)
+    {
+        return new
+        {
+            retainedPatchCount = retentionPlan.RetainedPatchCount,
+            queueId = retentionPlan.QueueId,
+            deletedMatches,
+            deletedParticipants,
+            retainedPatchesByPlatform = retentionPlan.RetainedPatchesByPlatform
+                .OrderBy(entry => entry.Key)
+                .Select(entry => new
+                {
+                    platformId = entry.Key,
+                    patches = entry.Value.Order().ToArray()
+                })
+                .ToArray()
+        };
     }
 
     private static string NormalizePatchVersion(string gameVersion)
@@ -181,4 +175,16 @@ public sealed class MatchDataRetentionProcess(
             ? $"{segments[0]}.{segments[1]}"
             : gameVersion;
     }
+
+    private sealed record ObservedMatch(string PlatformId, string GameVersion);
+
+    private sealed record MatchIdentity(string Id, string PlatformId, int QueueId, string GameVersion);
+
+    private sealed record DeletionResult(int DeletedMatches, int DeletedParticipants);
+
+    private sealed record RetentionPlan(
+        int RetainedPatchCount,
+        int QueueId,
+        IReadOnlyDictionary<string, HashSet<string>> RetainedPatchesByPlatform,
+        IReadOnlyList<string> DeletableMatchIds);
 }

@@ -15,97 +15,144 @@ public class AccountRefreshProcess(
     IProcessRunRecorder runRecorder,
     IOptions<AccountRefreshOptions> refreshOptions)
 {
+    private const string ProcessName = "AccountRefresh";
+
     public async Task RunAsync(CancellationToken ct)
     {
-        var options = refreshOptions.Value;
-        var batchSize = Math.Max(1, options.BatchSize);
         var startedAt = DateTime.UtcNow;
 
         try
         {
-            await using var session = await sessionFactory.CreateAsync(ct);
-
-            var accounts = await session.RiotAccounts.GetAccountsForRefreshAsync(batchSize, ct);
-
+            var accounts = await LoadAccountsForRefreshAsync(ct);
             if (accounts.Count == 0)
             {
                 logger.LogInformation("No riot accounts found for refresh.");
-                var finishedAtNoOp = DateTime.UtcNow;
-                await runRecorder.RecordAsync(
-                    "AccountRefresh",
+                await runRecorder.RecordNoOpAsync(
+                    ProcessName,
                     startedAt,
-                    finishedAtNoOp,
-                    ProcessRunStatus.Success,
                     new { reason = "No riot accounts found for refresh.", selected = 0 },
-                    null,
                     ct);
                 return;
             }
 
-            var nowUtc = DateTime.UtcNow;
-            var updated = 0;
-            var skipped = 0;
-            var failed = 0;
-
-            foreach (var account in accounts)
-            {
-                ct.ThrowIfCancellationRequested();
-
-                if (!RiotDataHelpers.TryParsePlatform(account.PlatformId, out var platform))
-                {
-                    skipped++;
-                    logger.LogWarning(
-                        "Skipping riot account {Puuid}: invalid platform {PlatformId}.",
-                        account.Puuid,
-                        account.PlatformId);
-                    continue;
-                }
-
-                try
-                {
-                    var region = RiotRouting.FromPlatform(platform);
-                    var profile = await riotAccountClient.GetAccountByPuuidAsync(account.Puuid, region, ct);
-
-                    if (!string.IsNullOrWhiteSpace(profile.GameName))
-                    {
-                        account.GameName = profile.GameName;
-                    }
-
-                    account.TagLine = string.IsNullOrWhiteSpace(profile.TagLine) ? null : profile.TagLine;
-                    account.UpdatedAtUtc = nowUtc;
-                    account.LastProfileSyncAtUtc = nowUtc;
-                    updated++;
-                }
-                catch (Exception ex)
-                {
-                    failed++;
-                    logger.LogWarning(
-                        ex,
-                        "Failed to refresh riot account {Platform}/{Puuid}.",
-                        account.PlatformId,
-                        account.Puuid);
-                }
-            }
-
-            await session.SaveChangesAsync(ct);
-
+            var summary = await RefreshAccountsAsync(accounts, ct);
             logger.LogInformation(
                 "Account refresh summary: selected={Selected}, updated={Updated}, skipped={Skipped}, failed={Failed}.",
-                accounts.Count,
-                updated,
-                skipped,
-                failed);
+                summary.Selected,
+                summary.Updated,
+                summary.Skipped,
+                summary.Failed);
 
-            var finishedAt = DateTime.UtcNow;
-            await runRecorder.RecordAsync("AccountRefresh", startedAt, finishedAt, ProcessRunStatus.Success,
-                new { selected = accounts.Count, updated, skipped, failed }, null, ct);
+            await runRecorder.RecordSuccessAsync(ProcessName, startedAt, BuildSuccessPayload(summary), ct);
         }
         catch (Exception ex)
         {
-            var finishedAt = DateTime.UtcNow;
-            await runRecorder.RecordAsync("AccountRefresh", startedAt, finishedAt, ProcessRunStatus.Failed, null, ex.Message, ct);
+            await runRecorder.RecordFailureAsync(ProcessName, startedAt, ex, ct);
             throw;
         }
     }
 
+    private async Task<IReadOnlyList<AccountKey>> LoadAccountsForRefreshAsync(CancellationToken ct)
+    {
+        await using var session = await sessionFactory.CreateAsync(ct);
+        var batchSize = Math.Max(1, refreshOptions.Value.BatchSize);
+        var accounts = await session.RiotAccounts.GetAccountsForRefreshAsync(batchSize, ct);
+        return accounts
+            .Select(account => new AccountKey(account.PlatformId, account.Puuid))
+            .ToList();
+    }
+
+    private async Task<RefreshSummary> RefreshAccountsAsync(
+        IReadOnlyList<AccountKey> accounts,
+        CancellationToken ct)
+    {
+        await using var session = await sessionFactory.CreateAsync(ct);
+        var accountsByKey = await session.RiotAccounts.GetByKeysAsync(accounts, ct);
+        var nowUtc = DateTime.UtcNow;
+        var summary = new RefreshSummary { Selected = accounts.Count };
+
+        foreach (var account in accounts)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (!accountsByKey.TryGetValue(account, out var accountEntity))
+            {
+                summary.Failed++;
+                continue;
+            }
+
+            var outcome = await RefreshSingleAccountAsync(accountEntity, nowUtc, ct);
+            summary.Updated += outcome.Updated;
+            summary.Skipped += outcome.Skipped;
+            summary.Failed += outcome.Failed;
+        }
+
+        await session.SaveChangesAsync(ct);
+        return summary;
+    }
+
+    private async Task<RefreshOutcome> RefreshSingleAccountAsync(
+        RiotAccount account,
+        DateTime nowUtc,
+        CancellationToken ct)
+    {
+        if (!RiotDataHelpers.TryParsePlatform(account.PlatformId, out var platform))
+        {
+            logger.LogWarning(
+                "Skipping riot account {Puuid}: invalid platform {PlatformId}.",
+                account.Puuid,
+                account.PlatformId);
+            return RefreshOutcome.SkippedAccount;
+        }
+
+        try
+        {
+            var region = RiotRouting.FromPlatform(platform);
+            var profile = await riotAccountClient.GetAccountByPuuidAsync(account.Puuid, region, ct);
+
+            if (!string.IsNullOrWhiteSpace(profile.GameName))
+            {
+                account.GameName = profile.GameName;
+            }
+
+            account.TagLine = string.IsNullOrWhiteSpace(profile.TagLine) ? null : profile.TagLine;
+            account.UpdatedAtUtc = nowUtc;
+            account.LastProfileSyncAtUtc = nowUtc;
+            return RefreshOutcome.UpdatedAccount;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(
+                ex,
+                "Failed to refresh riot account {Platform}/{Puuid}.",
+                account.PlatformId,
+                account.Puuid);
+            return RefreshOutcome.FailedAccount;
+        }
+    }
+
+    private static object BuildSuccessPayload(RefreshSummary summary)
+    {
+        return new
+        {
+            selected = summary.Selected,
+            updated = summary.Updated,
+            skipped = summary.Skipped,
+            failed = summary.Failed
+        };
+    }
+
+    private sealed class RefreshSummary
+    {
+        public int Selected { get; set; }
+        public int Updated { get; set; }
+        public int Skipped { get; set; }
+        public int Failed { get; set; }
+    }
+
+    private sealed record RefreshOutcome(int Updated, int Skipped, int Failed)
+    {
+        public static RefreshOutcome UpdatedAccount => new(1, 0, 0);
+        public static RefreshOutcome SkippedAccount => new(0, 1, 0);
+        public static RefreshOutcome FailedAccount => new(0, 0, 1);
+    }
 }

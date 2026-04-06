@@ -104,10 +104,13 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
     private ChampionPatternAggregationProcess CreateProcess()
         => new(
             NullLogger<ChampionPatternAggregationProcess>.Instance,
-            new TestDbContextFactory(_fixture),
             new FakeProcessRunRecorder(),
             Options.Create(new MainAnalysisOptions { QueueId = 420 }),
-            new FakeItemMetadataProvider());
+            new ChampionPatternSourceRowReader(new TestDbContextFactory(_fixture)),
+            new ChampionPatternAggregateBuilder(
+                NullLogger<ChampionPatternAggregateBuilder>.Instance,
+                new FakeItemMetadataProvider()),
+            new ChampionPatternAggregatePersister(new TestDbContextFactory(_fixture)));
 
     private async Task SeedChampionPatternDataAsync()
     {

@@ -19,67 +19,67 @@ public sealed class DiscoveryProcess(
     ICandidateUpsertService candidateUpsertService,
     IOptions<DiscoveryOptions> discoveryOptions)
 {
+    private const string ProcessName = "Discovery";
+
     public async Task RunAsync(CancellationToken ct)
     {
         var options = discoveryOptions.Value;
         var startedAt = DateTime.UtcNow;
-        var summaries = new List<PlatformSummary>();
 
-        if (options.Platforms.Count == 0)
+        if (!HasConfiguredPlatforms(options))
         {
             logger.LogWarning("No platforms configured (Discovery:Platforms).");
-            await RecordNoOpAsync(startedAt, "No platforms configured.", ct);
+            await runRecorder.RecordNoOpAsync(
+                ProcessName,
+                startedAt,
+                new { reason = "No platforms configured.", selected = 0 },
+                ct);
             return;
         }
 
         try
         {
-            foreach (var platformString in options.Platforms.Distinct(StringComparer.OrdinalIgnoreCase))
-            {
-                ct.ThrowIfCancellationRequested();
-
-                if (!RiotDataHelpers.TryParsePlatform(platformString, out var platform))
-                {
-                    logger.LogWarning("Skipping unknown platform '{Platform}'.", platformString);
-                    continue;
-                }
-
-                var platformSummary = await ProcessPlatformAsync(platform, options, ct);
-                summaries.Add(platformSummary);
-
-                logger.LogInformation(
-                    "Discovery summary for {Platform}: accounts={AccountsProcessed}, newAccounts={NewAccounts}, candidatesInserted={Inserted}, candidatesUpdated={Updated}.",
-                    platformSummary.PlatformId,
-                    platformSummary.AccountsProcessed,
-                    platformSummary.NewAccountsDiscovered,
-                    platformSummary.CandidatesInserted,
-                    platformSummary.CandidatesUpdated);
-            }
-
-            await runRecorder.RecordAsync(
-                "Discovery",
-                startedAt,
-                DateTime.UtcNow,
-                ProcessRunStatus.Success,
-                new
-                {
-                    platforms = summaries.Select(summary => new
-                    {
-                        platform = summary.PlatformId,
-                        accountsProcessed = summary.AccountsProcessed,
-                        newAccounts = summary.NewAccountsDiscovered,
-                        candidatesInserted = summary.CandidatesInserted,
-                        candidatesUpdated = summary.CandidatesUpdated
-                    })
-                },
-                null,
-                ct);
+            var summaries = await DiscoverAcrossPlatformsAsync(options, ct);
+            await runRecorder.RecordSuccessAsync(ProcessName, startedAt, BuildSuccessPayload(summaries), ct);
         }
         catch (Exception ex)
         {
-            await runRecorder.RecordAsync("Discovery", startedAt, DateTime.UtcNow, ProcessRunStatus.Failed, null, ex.Message, ct);
+            await runRecorder.RecordFailureAsync(ProcessName, startedAt, ex, ct);
             throw;
         }
+    }
+
+    private static bool HasConfiguredPlatforms(DiscoveryOptions options)
+    {
+        return options.Platforms.Count > 0;
+    }
+
+    private async Task<List<PlatformSummary>> DiscoverAcrossPlatformsAsync(
+        DiscoveryOptions options,
+        CancellationToken ct)
+    {
+        var summaries = new List<PlatformSummary>();
+
+        foreach (var platformString in GetConfiguredPlatforms(options))
+        {
+            ct.ThrowIfCancellationRequested();
+            if (!RiotDataHelpers.TryParsePlatform(platformString, out var platform))
+            {
+                logger.LogWarning("Skipping unknown platform '{Platform}'.", platformString);
+                continue;
+            }
+
+            var platformSummary = await ProcessPlatformAsync(platform, options, ct);
+            summaries.Add(platformSummary);
+            LogPlatformSummary(platformSummary);
+        }
+
+        return summaries;
+    }
+
+    private static IEnumerable<string> GetConfiguredPlatforms(DiscoveryOptions options)
+    {
+        return options.Platforms.Distinct(StringComparer.OrdinalIgnoreCase);
     }
 
     private async Task<PlatformSummary> ProcessPlatformAsync(
@@ -154,16 +154,30 @@ public sealed class DiscoveryProcess(
         return summary;
     }
 
-    private async Task RecordNoOpAsync(DateTime startedAtUtc, string reason, CancellationToken ct)
+    private void LogPlatformSummary(PlatformSummary platformSummary)
     {
-        await runRecorder.RecordAsync(
-            "Discovery",
-            startedAtUtc,
-            DateTime.UtcNow,
-            ProcessRunStatus.Success,
-            new { reason, selected = 0 },
-            null,
-            ct);
+        logger.LogInformation(
+            "Discovery summary for {Platform}: accounts={AccountsProcessed}, newAccounts={NewAccounts}, candidatesInserted={Inserted}, candidatesUpdated={Updated}.",
+            platformSummary.PlatformId,
+            platformSummary.AccountsProcessed,
+            platformSummary.NewAccountsDiscovered,
+            platformSummary.CandidatesInserted,
+            platformSummary.CandidatesUpdated);
+    }
+
+    private static object BuildSuccessPayload(IEnumerable<PlatformSummary> summaries)
+    {
+        return new
+        {
+            platforms = summaries.Select(summary => new
+            {
+                platform = summary.PlatformId,
+                accountsProcessed = summary.AccountsProcessed,
+                newAccounts = summary.NewAccountsDiscovered,
+                candidatesInserted = summary.CandidatesInserted,
+                candidatesUpdated = summary.CandidatesUpdated
+            })
+        };
     }
 
     private sealed class PlatformSummary(string platformId)
