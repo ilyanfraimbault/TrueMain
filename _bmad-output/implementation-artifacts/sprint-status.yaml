@@ -1,0 +1,81 @@
+# generated: 2026-03-13
+# project: TrueMain
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: /Users/ilyanfraimbault/Documents/Repos/TrueMain/_bmad-output/implementation-artifacts
+#
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-03-13
+project: TrueMain
+project_key: NOKEY
+tracking_system: file-system
+story_location: /Users/ilyanfraimbault/Documents/Repos/TrueMain/_bmad-output/implementation-artifacts
+
+development_status:
+  epic-1: done
+  1-1-bootstrap-the-mvp-runtime-boundaries: done
+  1-2-persist-riot-raw-data-for-champion-analysis: done
+  1-3-classify-truemain-specialists-from-ingested-data: done
+  1-4-build-champion-read-models-and-core-api-foundations: done
+  1-4a-materialize-correlated-champion-pattern-aggregates: done
+  1-4c-materialize-starter-items-and-ordered-build-path-in-champion-pattern-aggregates: done
+  1-4b-rebuild-champion-foundation-api-on-persisted-aggregates: done
+  1-4d-build-aggregate-backed-champion-build-probability-tree: done
+  1-5-observe-data-freshness-and-enforce-patch-retention: done
+  epic-1-retrospective: optional
+
+  epic-2: backlog
+  2-1-navigate-to-champion-pages: backlog
+  2-2-view-champion-summary-and-core-build: backlog
+  2-3-understand-build-branches-and-play-configuration: backlog
+  2-4-serve-a-complete-champion-how-to-play-experience: backlog
+  epic-2-retrospective: optional
+
+  epic-3: backlog
+  3-1-list-and-rank-truemain-specialists-for-a-champion: backlog
+  3-2-sort-filter-and-navigate-through-specialist-results: backlog
+  3-3-view-a-champion-by-player-expert-page: backlog
+  3-4-compare-consensus-guidance-with-an-individual-expert: backlog
+  epic-3-retrospective: optional
+
+  epic-4: backlog
+  4-1-show-recent-specialist-matches-on-champion-surfaces: backlog
+  4-2-show-recent-matches-for-an-individual-expert-on-a-champion: backlog
+  4-3-view-a-player-profile-with-main-champions-and-recent-activity: backlog
+  4-4-navigate-between-player-profiles-and-expert-analysis: backlog
+  epic-4-retrospective: optional
+
+  epic-5: backlog
+  5-1-view-champion-matchup-insights: backlog
+  5-2-view-champion-trends-across-patch-and-time: backlog
+  5-3-expose-extended-champion-api-blocks-for-matchups-and-trends: backlog
+  5-4-prepare-the-product-for-context-aware-analysis-evolution: backlog
+  epic-5-retrospective: optional
