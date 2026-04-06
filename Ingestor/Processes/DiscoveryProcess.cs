@@ -25,8 +25,9 @@ public sealed class DiscoveryProcess(
     {
         var options = discoveryOptions.Value;
         var startedAt = DateTime.UtcNow;
+        var platforms = NormalizePlatforms(options);
 
-        if (!HasConfiguredPlatforms(options))
+        if (platforms.Count == 0)
         {
             logger.LogWarning("No platforms configured (Discovery:Platforms).");
             await runRecorder.RecordNoOpAsync(
@@ -39,7 +40,7 @@ public sealed class DiscoveryProcess(
 
         try
         {
-            var summaries = await DiscoverAcrossPlatformsAsync(options, ct);
+            var summaries = await DiscoverAcrossPlatformsAsync(platforms, options, ct);
             await runRecorder.RecordSuccessAsync(ProcessName, startedAt, BuildSuccessPayload(summaries), ct);
         }
         catch (Exception ex)
@@ -49,18 +50,23 @@ public sealed class DiscoveryProcess(
         }
     }
 
-    private static bool HasConfiguredPlatforms(DiscoveryOptions options)
+    private static List<string> NormalizePlatforms(DiscoveryOptions options)
     {
-        return options.Platforms.Count > 0;
+        return options.Platforms
+            .Where(platform => !string.IsNullOrWhiteSpace(platform))
+            .Select(platform => platform.Trim().ToUpperInvariant())
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
     }
 
     private async Task<List<PlatformSummary>> DiscoverAcrossPlatformsAsync(
+        IReadOnlyCollection<string> platforms,
         DiscoveryOptions options,
         CancellationToken ct)
     {
         var summaries = new List<PlatformSummary>();
 
-        foreach (var platformString in GetConfiguredPlatforms(options))
+        foreach (var platformString in platforms)
         {
             ct.ThrowIfCancellationRequested();
             if (!RiotDataHelpers.TryParsePlatform(platformString, out var platform))
@@ -75,11 +81,6 @@ public sealed class DiscoveryProcess(
         }
 
         return summaries;
-    }
-
-    private static IEnumerable<string> GetConfiguredPlatforms(DiscoveryOptions options)
-    {
-        return options.Platforms.Distinct(StringComparer.OrdinalIgnoreCase);
     }
 
     private async Task<PlatformSummary> ProcessPlatformAsync(

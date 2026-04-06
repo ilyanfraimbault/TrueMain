@@ -27,7 +27,8 @@ public class ScoringProcess(
 
         try
         {
-            var scoringResult = await ScoreCandidatesAsync(scoring, ct);
+            await using var session = await sessionFactory.CreateAsync(ct);
+            var scoringResult = await ScoreCandidatesAsync(session, scoring, ct);
             if (scoringResult.TotalScored == 0)
             {
                 logger.LogInformation("No new candidates to score.");
@@ -39,7 +40,7 @@ public class ScoringProcess(
                 return;
             }
 
-            var platformSummaries = await PromoteTopCandidatesAsync(scoring, scoringResult.ScoredByPlatform, ct);
+            var platformSummaries = await PromoteTopCandidatesAsync(session, scoring, scoringResult.ScoredByPlatform, ct);
             await runRecorder.RecordSuccessAsync(ProcessName, startedAt, BuildSuccessPayload(platformSummaries), ct);
         }
         catch (Exception ex)
@@ -49,9 +50,11 @@ public class ScoringProcess(
         }
     }
 
-    private async Task<ScoringResult> ScoreCandidatesAsync(ScoringOptions scoring, CancellationToken ct)
+    private async Task<ScoringResult> ScoreCandidatesAsync(
+        IDataSession session,
+        ScoringOptions scoring,
+        CancellationToken ct)
     {
-        await using var session = await sessionFactory.CreateAsync(ct);
         var nowUtc = DateTime.UtcNow;
         var batchSize = Math.Max(1, scoring.BatchSize);
         var result = new ScoringResult();
@@ -100,11 +103,11 @@ public class ScoringProcess(
     }
 
     private async Task<List<object>> PromoteTopCandidatesAsync(
+        IDataSession session,
         ScoringOptions scoring,
         IReadOnlyDictionary<string, int> scoredByPlatform,
         CancellationToken ct)
     {
-        await using var session = await sessionFactory.CreateAsync(ct);
         var platformSummaries = new List<object>();
 
         foreach (var platformId in scoredByPlatform.Keys.Order(StringComparer.OrdinalIgnoreCase))

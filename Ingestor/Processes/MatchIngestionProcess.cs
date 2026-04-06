@@ -24,8 +24,9 @@ public sealed class MatchIngestionProcess(
     {
         var startedAt = DateTime.UtcNow;
         var options = matchOptions.Value;
+        var platforms = NormalizePlatforms(options);
 
-        if (!HasConfiguredPlatforms(options))
+        if (platforms.Count == 0)
         {
             logger.LogWarning("No platforms configured (MatchIngestion:Platforms).");
             await runRecorder.RecordNoOpAsync(
@@ -38,7 +39,6 @@ public sealed class MatchIngestionProcess(
 
         try
         {
-            var platforms = NormalizePlatforms(options);
             var claimedAccounts = await ClaimAccountsAsync(platforms, options, ct);
             var summary = await IngestClaimedAccountsAsync(claimedAccounts, platforms, options, ct);
             LogPlatformSummaries(summary.ByPlatform);
@@ -49,11 +49,6 @@ public sealed class MatchIngestionProcess(
             await runRecorder.RecordFailureAsync(ProcessName, startedAt, ex, ct);
             throw;
         }
-    }
-
-    private static bool HasConfiguredPlatforms(MatchIngestionOptions options)
-    {
-        return options.Platforms.Count > 0;
     }
 
     private static List<string> NormalizePlatforms(MatchIngestionOptions options)
