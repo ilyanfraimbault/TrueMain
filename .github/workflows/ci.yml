@@ -78,6 +78,9 @@ jobs:
       - name: Validate production compose file
         run: docker compose -f compose.prod.yaml config
 
+      - name: Validate QA compose file
+        run: docker compose -f compose.qa.yaml config
+
   docker-build:
     name: Docker Build Sanity
     runs-on: ubuntu-latest

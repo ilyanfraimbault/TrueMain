@@ -1,0 +1,16 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "truemain-qa",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "truemain_qa",
+      "Username": "truemain_qa",
+      "Password": "truemain_qa",
+      "SSLMode": "prefer",
+      "SavePassword": 1
+    }
+  }
+}
+
