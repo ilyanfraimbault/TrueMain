@@ -1,16 +1,16 @@
 services:
   postgres:
     image: postgres:17.2
-    container_name: truemain-postgres
+    container_name: truemain-qa-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-    ports:
-      - "5432:5432"
     volumes:
-      - truemain_db_data:/var/lib/postgresql/data
+      - truemain_qa_db_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
@@ -21,10 +21,8 @@ services:
       - truemain_internal
 
   api:
-    build:
-      context: .
-      dockerfile: Api/Dockerfile
-    container_name: truemain-api
+    image: ghcr.io/ilyanfraimbault/truemain-api:qa
+    container_name: truemain-qa-api
     restart: unless-stopped
     environment:
       ASPNETCORE_ENVIRONMENT: Production
@@ -34,33 +32,29 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "8080:8080"
+      - "8081:8080"
     networks:
       - truemain_internal
 
   web:
-    build:
-      context: .
-      dockerfile: truemain-web/Dockerfile
-    container_name: truemain-web
+    image: ghcr.io/ilyanfraimbault/truemain-web:qa
+    container_name: truemain-qa-web
     restart: unless-stopped
     environment:
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: 3000
-      NUXT_PUBLIC_API_BASE_URL: ${NUXT_PUBLIC_API_BASE_URL:-http://localhost:8080}
+      NUXT_PUBLIC_API_BASE_URL: ${NUXT_PUBLIC_API_BASE_URL:-http://localhost:8081}
     depends_on:
       api:
         condition: service_started
     ports:
-      - "3000:3000"
+      - "3001:3000"
     networks:
       - truemain_internal
 
   ingestor:
-    build:
-      context: .
-      dockerfile: Ingestor/Dockerfile
-    container_name: truemain-ingestor
+    image: ghcr.io/ilyanfraimbault/truemain-ingestor:qa
+    container_name: truemain-qa-ingestor
     restart: unless-stopped
     environment:
       DOTNET_ENVIRONMENT: Production
@@ -74,15 +68,15 @@ services:
 
   pgadmin:
     image: dpage/pgadmin4:9.11
-    container_name: truemain-pgadmin
+    container_name: truemain-qa-pgadmin
     restart: unless-stopped
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
     ports:
-      - "5050:80"
+      - "5051:80"
     volumes:
-      - truemain_pgadmin_data:/var/lib/pgadmin
+      - truemain_qa_pgadmin_data:/var/lib/pgadmin
     depends_on:
       postgres:
         condition: service_healthy
@@ -90,9 +84,12 @@ services:
       - truemain_internal
 
 volumes:
-  truemain_db_data:
-  truemain_pgadmin_data:
+  truemain_qa_db_data:
+    name: truemain_qa_db_data
+  truemain_qa_pgadmin_data:
+    name: truemain_qa_pgadmin_data
 
 networks:
   truemain_internal:
+    name: truemain_qa_internal
     driver: bridge
