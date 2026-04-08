@@ -4,15 +4,15 @@ services:
     container_name: truemain-qa-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER_QA}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_QA}
+      POSTGRES_DB: ${POSTGRES_DB_QA}
     volumes:
       - truemain_qa_db_data:/var/lib/postgresql/data
     ports:
       - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER_QA} -d ${POSTGRES_DB_QA}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -27,7 +27,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=${POSTGRES_DB_QA};Username=${POSTGRES_USER_QA};Password=${POSTGRES_PASSWORD_QA}
     depends_on:
       postgres:
         condition: service_healthy
@@ -43,7 +43,7 @@ services:
     environment:
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: 3000
-      NUXT_PUBLIC_API_BASE_URL: ${NUXT_PUBLIC_API_BASE_URL:-http://localhost:8081}
+      NUXT_PUBLIC_API_BASE_URL: ${NUXT_PUBLIC_API_BASE_URL_QA:-http://localhost:8081}
     depends_on:
       api:
         condition: service_started
@@ -58,8 +58,8 @@ services:
     restart: unless-stopped
     environment:
       DOTNET_ENVIRONMENT: Production
-      ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
-      Riot__ApiKey: ${RIOT_API_KEY}
+      ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=${POSTGRES_DB_QA};Username=${POSTGRES_USER_QA};Password=${POSTGRES_PASSWORD_QA}
+      Riot__ApiKey: ${RIOT_API_KEY_QA}
     depends_on:
       postgres:
         condition: service_healthy
@@ -71,8 +71,8 @@ services:
     container_name: truemain-qa-pgadmin
     restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL_QA}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD_QA}
     ports:
       - "5051:80"
     volumes:
