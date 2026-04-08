@@ -13,7 +13,6 @@ riderModule.iml
 .env.*
 !.env.example
 !.env.prod.example
-!.env.qa.example
 
 **/node_modules/
 **/.nuxt/

@@ -4,13 +4,15 @@ services:
     container_name: truemain-qa-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: truemain_qa
+      POSTGRES_PASSWORD: truemain_qa
+      POSTGRES_DB: truemain_qa
     volumes:
       - truemain_qa_db_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U truemain_qa -d truemain_qa"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -19,13 +21,13 @@ services:
       - truemain_internal
 
   api:
-    image: ghcr.io/ilyanfraimbault/truemain-api:latest
+    image: ghcr.io/ilyanfraimbault/truemain-api:qa
     container_name: truemain-qa-api
     restart: unless-stopped
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=truemain_qa;Username=truemain_qa;Password=truemain_qa
     depends_on:
       postgres:
         condition: service_healthy
@@ -35,7 +37,7 @@ services:
       - truemain_internal
 
   web:
-    image: ghcr.io/ilyanfraimbault/truemain-web:latest
+    image: ghcr.io/ilyanfraimbault/truemain-web:qa
     container_name: truemain-qa-web
     restart: unless-stopped
     environment:
@@ -51,12 +53,12 @@ services:
       - truemain_internal
 
   ingestor:
-    image: ghcr.io/ilyanfraimbault/truemain-ingestor:latest
+    image: ghcr.io/ilyanfraimbault/truemain-ingestor:qa
     container_name: truemain-qa-ingestor
     restart: unless-stopped
     environment:
       DOTNET_ENVIRONMENT: Production
-      ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=truemain_qa;Username=truemain_qa;Password=truemain_qa
       Riot__ApiKey: ${RIOT_API_KEY}
     depends_on:
       postgres:
@@ -69,13 +71,12 @@ services:
     container_name: truemain-qa-pgadmin
     restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+      PGADMIN_DEFAULT_EMAIL: admin@truemain-qa.dev
+      PGADMIN_DEFAULT_PASSWORD: admin
     ports:
       - "5051:80"
     volumes:
       - truemain_qa_pgadmin_data:/var/lib/pgadmin
-      - ./pgadmin/servers.qa.json:/pgadmin4/servers.json:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -92,5 +93,3 @@ networks:
   truemain_internal:
     name: truemain_qa_internal
     driver: bridge
-
-
