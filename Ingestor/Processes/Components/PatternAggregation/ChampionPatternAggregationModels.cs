@@ -22,6 +22,7 @@ internal sealed class AggregateSourceRow
     public string PlatformId { get; init; } = string.Empty;
     public int QueueId { get; init; }
     public DateTime GameStartTimeUtc { get; init; }
+    public int GameDurationSeconds { get; init; }
     public Guid RiotAccountId { get; init; }
     public bool Win { get; init; }
     public string? Position { get; init; }

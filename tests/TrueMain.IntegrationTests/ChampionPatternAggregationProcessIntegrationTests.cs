@@ -101,6 +101,22 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
         (await verifyDb.ChampionPatternAggregates.ToListAsync()).Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task RunAsync_ShouldIgnoreMatchesShorterThanFifteenMinutes()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedChampionPatternDataAsync(includeShortMatch: true);
+
+        var process = CreateProcess();
+        await process.RunAsync(CancellationToken.None);
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        var aggregates = await verifyDb.ChampionPatternAggregates.ToListAsync();
+
+        aggregates.Should().HaveCount(2);
+        aggregates.Should().NotContain(aggregate => aggregate.GameVersion == "16.6");
+    }
+
     private ChampionPatternAggregationProcess CreateProcess()
         => new(
             NullLogger<ChampionPatternAggregationProcess>.Instance,
@@ -112,7 +128,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
                 new FakeItemMetadataProvider()),
             new ChampionPatternAggregatePersister(new TestDbContextFactory(_fixture)));
 
-    private async Task SeedChampionPatternDataAsync()
+    private async Task SeedChampionPatternDataAsync(bool includeShortMatch = false)
     {
         var now = DateTime.UtcNow;
 
@@ -176,9 +192,36 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
                 TimelineIngested = true
             });
 
+        if (includeShortMatch)
+        {
+            db.Matches.Add(new Match
+            {
+                Id = "KR_AGG_3",
+                PlatformId = "KR",
+                QueueId = 420,
+                MapId = 11,
+                GameMode = "CLASSIC",
+                GameType = "MATCHED_GAME",
+                GameStartTimeUtc = now.AddMinutes(-30),
+                GameDurationSeconds = 14 * 60,
+                GameVersion = "16.6.1",
+                CreatedAtUtc = now.AddMinutes(-30),
+                TimelineIngested = true
+            });
+        }
+
         db.MatchParticipants.AddRange(
             BuildParticipant(Guid.Parse("11111111-1111-1111-1111-111111111111"), "KR_AGG_1", true, [3153, 3006, 6672]),
             BuildParticipant(Guid.Parse("22222222-2222-2222-2222-222222222222"), "KR_AGG_2", false, [3006, 3031, 3085]));
+
+        if (includeShortMatch)
+        {
+            db.MatchParticipants.Add(BuildParticipant(
+                Guid.Parse("33333333-3333-3333-3333-333333333333"),
+                "KR_AGG_3",
+                true,
+                [6672, 3006, 3031]));
+        }
 
         await db.SaveChangesAsync();
     }
