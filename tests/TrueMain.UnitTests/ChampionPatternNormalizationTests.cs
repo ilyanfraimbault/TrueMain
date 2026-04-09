@@ -13,6 +13,9 @@ public sealed class ChampionPatternNormalizationTests
         [1056] = new(1056, 400, true, false, false, false, false, false),
         [1001] = new(1001, 300, true, false, true, true, false, false),
         [3070] = new(3070, 400, true, false, false, false, false, false),
+        [3865] = new(3865, 400, true, false, false, false, false, false),
+        [3866] = new(3866, 400, true, false, false, false, false, false),
+        [3867] = new(3867, 400, true, false, false, false, false, false),
         [3006] = new(3006, 1100, true, false, true, false, true, true),
         [3031] = new(3031, 3000, true, false, false, false, true, false),
         [3085] = new(3085, 3000, true, false, false, false, true, false),
@@ -21,17 +24,62 @@ public sealed class ChampionPatternNormalizationTests
     };
 
     [Fact]
-    public void BuildSkillOrderKey_ShouldKeepFirstThreeNormalLevelUps()
+    public void BuildSkillOrderKey_ShouldReflectTheOrderBasicSpellsReachTheirSecondPoint()
     {
         var key = ChampionPatternNormalization.BuildSkillOrderKey(
         [
-            new SkillEvent { TimestampMs = 2000, SkillSlot = 2, LevelUpType = "NORMAL" },
-            new SkillEvent { TimestampMs = 1000, SkillSlot = 1, LevelUpType = "NORMAL" },
-            new SkillEvent { TimestampMs = 2500, SkillSlot = 3, LevelUpType = "NORMAL" },
-            new SkillEvent { TimestampMs = 3000, SkillSlot = 1, LevelUpType = "EVOLVE" }
+            new SkillEvent { TimestampMs = 1_000, SkillSlot = 1, LevelUpType = "NORMAL" },
+            new SkillEvent { TimestampMs = 2_000, SkillSlot = 1, LevelUpType = "NORMAL" },
+            new SkillEvent { TimestampMs = 3_000, SkillSlot = 3, LevelUpType = "NORMAL" },
+            new SkillEvent { TimestampMs = 4_000, SkillSlot = 2, LevelUpType = "NORMAL" },
+            new SkillEvent { TimestampMs = 5_000, SkillSlot = 1, LevelUpType = "NORMAL" },
+            new SkillEvent { TimestampMs = 6_000, SkillSlot = 1, LevelUpType = "NORMAL" },
+            new SkillEvent { TimestampMs = 7_000, SkillSlot = 4, LevelUpType = "NORMAL" },
+            new SkillEvent { TimestampMs = 8_000, SkillSlot = 1, LevelUpType = "NORMAL" },
+            new SkillEvent { TimestampMs = 9_000, SkillSlot = 2, LevelUpType = "NORMAL" },
+            new SkillEvent { TimestampMs = 10_000, SkillSlot = 3, LevelUpType = "NORMAL" },
+            new SkillEvent { TimestampMs = 11_000, SkillSlot = 2, LevelUpType = "NORMAL" },
+            new SkillEvent { TimestampMs = 12_000, SkillSlot = 2, LevelUpType = "NORMAL" },
+            new SkillEvent { TimestampMs = 13_000, SkillSlot = 4, LevelUpType = "NORMAL" },
+            new SkillEvent { TimestampMs = 14_000, SkillSlot = 2, LevelUpType = "NORMAL" },
+            new SkillEvent { TimestampMs = 15_000, SkillSlot = 3, LevelUpType = "NORMAL" },
+            new SkillEvent { TimestampMs = 16_000, SkillSlot = 3, LevelUpType = "NORMAL" },
+            new SkillEvent { TimestampMs = 17_000, SkillSlot = 4, LevelUpType = "NORMAL" },
+            new SkillEvent { TimestampMs = 18_000, SkillSlot = 3, LevelUpType = "NORMAL" },
+            new SkillEvent { TimestampMs = 19_000, SkillSlot = 1, LevelUpType = "EVOLVE" }
         ]);
 
         key.Should().Be("Q-W-E");
+    }
+
+    [Fact]
+    public void BuildSkillOrderKey_ShouldFallbackToRemainingSpellWhenOnlyTwoSpellsReachedSecondPoint()
+    {
+        var key = ChampionPatternNormalization.BuildSkillOrderKey(
+        [
+            new SkillEvent { TimestampMs = 1_000, SkillSlot = 1, LevelUpType = "NORMAL" },
+            new SkillEvent { TimestampMs = 2_000, SkillSlot = 1, LevelUpType = "NORMAL" },
+            new SkillEvent { TimestampMs = 3_000, SkillSlot = 2, LevelUpType = "NORMAL" },
+            new SkillEvent { TimestampMs = 4_000, SkillSlot = 3, LevelUpType = "NORMAL" },
+            new SkillEvent { TimestampMs = 5_000, SkillSlot = 1, LevelUpType = "NORMAL" },
+            new SkillEvent { TimestampMs = 6_000, SkillSlot = 4, LevelUpType = "NORMAL" },
+            new SkillEvent { TimestampMs = 7_000, SkillSlot = 2, LevelUpType = "NORMAL" }
+        ]);
+
+        key.Should().Be("Q-W-E");
+    }
+
+    [Fact]
+    public void BuildSkillOrderKey_ShouldReturnEmpty_WhenThereAreNoNormalBasicSkillEvents()
+    {
+        var key = ChampionPatternNormalization.BuildSkillOrderKey(
+        [
+            new SkillEvent { TimestampMs = 1_000, SkillSlot = 4, LevelUpType = "NORMAL" },
+            new SkillEvent { TimestampMs = 2_000, SkillSlot = 1, LevelUpType = "EVOLVE" },
+            new SkillEvent { TimestampMs = 3_000, SkillSlot = 2, LevelUpType = "EVOLVE" }
+        ]);
+
+        key.Should().BeEmpty();
     }
 
     [Fact]
@@ -149,6 +197,38 @@ public sealed class ChampionPatternNormalizationTests
             ItemMetadataById);
 
         starterItems.Should().Equal(1055, 2003);
+    }
+
+    [Fact]
+    public void BuildStarterItems_ShouldInferSupportStarterWhenQuestChainExistsWithoutInitialPurchaseEvent()
+    {
+        var starterItems = ChampionPatternNormalization.BuildStarterItems(
+        [
+            new ItemEvent { TimestampMs = 3_000, ItemId = 2003, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 3_200, ItemId = 2003, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 3_400, ItemId = 3340, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 420_000, ItemId = 3865, EventType = "ITEM_DESTROYED" },
+            new ItemEvent { TimestampMs = 794_000, ItemId = 3866, EventType = "ITEM_DESTROYED" },
+            new ItemEvent { TimestampMs = 807_000, ItemId = 3867, EventType = "ITEM_DESTROYED" }
+        ],
+            ItemMetadataById);
+
+        starterItems.Should().Equal(2003, 2003, 3865);
+    }
+
+    [Fact]
+    public void AnalyzeStarterItems_ShouldNotCountInferredSupportStarterTowardPaidStarterCost()
+    {
+        var analysis = ChampionPatternNormalization.AnalyzeStarterItems(
+        [
+            new ItemEvent { TimestampMs = 3_000, ItemId = 2003, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 3_200, ItemId = 2003, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 420_000, ItemId = 3865, EventType = "ITEM_DESTROYED" }
+        ],
+            ItemMetadataById);
+
+        analysis.Items.Should().Equal(2003, 2003, 3865);
+        analysis.TotalCost.Should().Be(100);
     }
 
     [Fact]

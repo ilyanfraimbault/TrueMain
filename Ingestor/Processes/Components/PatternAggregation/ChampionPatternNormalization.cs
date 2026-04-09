@@ -12,6 +12,13 @@ internal static class ChampionPatternNormalization
         3330
     ];
 
+    private static readonly HashSet<int> SupportStarterQuestItemIds =
+    [
+        3865,
+        3866,
+        3867
+    ];
+
     private static readonly HashSet<string> ValidTeamPositions = new(StringComparer.OrdinalIgnoreCase)
     {
         "TOP",
@@ -42,21 +49,52 @@ internal static class ChampionPatternNormalization
 
     public static string BuildSkillOrderKey(IEnumerable<SkillEvent> skillEvents)
     {
-        var sequence = skillEvents
-            .Where(skill => skill.LevelUpType.Equals("NORMAL", StringComparison.OrdinalIgnoreCase))
-            .OrderBy(skill => skill.TimestampMs)
-            .Take(3)
-            .Select(skill => skill.SkillSlot switch
+        var basicSkillStates = new Dictionary<int, (int Rank, int LastRankUpAtMs)>
+        {
+            [1] = (0, int.MaxValue),
+            [2] = (0, int.MaxValue),
+            [3] = (0, int.MaxValue)
+        };
+        var sequence = new List<int>(3);
+
+        foreach (var skill in skillEvents
+                     .Where(skill => skill.LevelUpType.Equals("NORMAL", StringComparison.OrdinalIgnoreCase))
+                     .OrderBy(skill => skill.TimestampMs))
+        {
+            if (!basicSkillStates.TryGetValue(skill.SkillSlot, out var state))
+            {
+                continue;
+            }
+
+            var updatedRank = state.Rank + 1;
+            basicSkillStates[skill.SkillSlot] = (updatedRank, skill.TimestampMs);
+
+            if (updatedRank == 2)
+            {
+                sequence.Add(skill.SkillSlot);
+            }
+        }
+
+        if (basicSkillStates.Values.All(state => state.Rank == 0))
+        {
+            return string.Empty;
+        }
+
+        var remainingSlots = basicSkillStates.Keys
+            .Except(sequence)
+            .OrderByDescending(slot => basicSkillStates[slot].Rank)
+            .ThenBy(slot => basicSkillStates[slot].LastRankUpAtMs)
+            .ThenBy(slot => slot);
+
+        return string.Join("-", sequence
+            .Concat(remainingSlots)
+            .Select(slot => slot switch
             {
                 1 => "Q",
                 2 => "W",
                 3 => "E",
-                4 => "R",
-                _ => skill.SkillSlot.ToString()
-            })
-            .ToArray();
-
-        return string.Join("-", sequence);
+                _ => slot.ToString()
+            }));
     }
 
     public static string? NormalizeTeamPosition(string? teamPosition)
@@ -110,6 +148,8 @@ internal static class ChampionPatternNormalization
             }
         }
 
+        TryInferImplicitSupportStarterItem(starterItems, orderedEvents, itemMetadataById);
+
         if (starterItems.Count == 0)
         {
             return new StarterItemsAnalysis([], "EmptyBasketAfterEarlyEvents", 0, earlyEvents);
@@ -118,7 +158,7 @@ internal static class ChampionPatternNormalization
         var totalCost = 0;
         foreach (var itemId in starterItems)
         {
-            if (ShouldIgnoreStarterItem(itemId))
+            if (!ShouldCountTowardStarterBudget(itemId))
             {
                 continue;
             }
@@ -241,7 +281,7 @@ internal static class ChampionPatternNormalization
         var currentTotal = 0;
         foreach (var existingItemId in starterItems)
         {
-            if (ShouldIgnoreStarterItem(existingItemId))
+            if (!ShouldCountTowardStarterBudget(existingItemId))
             {
                 continue;
             }
@@ -283,6 +323,48 @@ internal static class ChampionPatternNormalization
         }
     }
 
+    private static void TryInferImplicitSupportStarterItem(
+        List<int> starterItems,
+        IReadOnlyList<ItemEvent> orderedEvents,
+        IReadOnlyDictionary<int, ItemMetadata> itemMetadataById)
+    {
+        if (starterItems.Any(SupportStarterQuestItemIds.Contains))
+        {
+            return;
+        }
+
+        var referencesSupportQuestItem = orderedEvents.Any(itemEvent =>
+            SupportStarterQuestItemIds.Contains(itemEvent.ItemId)
+            || (itemEvent.BeforeId is > 0 && SupportStarterQuestItemIds.Contains(itemEvent.BeforeId.Value))
+            || (itemEvent.AfterId is > 0 && SupportStarterQuestItemIds.Contains(itemEvent.AfterId.Value)));
+
+        if (!referencesSupportQuestItem)
+        {
+            return;
+        }
+
+        TryAddStarterItemIgnoringBudget(starterItems, 3865, itemMetadataById);
+    }
+
+    private static void TryAddStarterItemIgnoringBudget(
+        ICollection<int> starterItems,
+        int? itemId,
+        IReadOnlyDictionary<int, ItemMetadata> itemMetadataById)
+    {
+        if (itemId is not > 0 || ShouldIgnoreStarterItem(itemId.Value))
+        {
+            return;
+        }
+
+        if (!itemMetadataById.TryGetValue(itemId.Value, out var metadata) || metadata.PriceTotal <= 0)
+        {
+            starterItems.Add(itemId.Value);
+            return;
+        }
+
+        starterItems.Add(itemId.Value);
+    }
+
     private static bool IsEligibleFinalBuildItem(ItemMetadata metadata)
         => metadata is { InStore: true, IsFinalItem: true, IsConsumable: false }
            && (!metadata.IsBootsItem || metadata.IsFinalBoots);
@@ -320,6 +402,9 @@ internal static class ChampionPatternNormalization
 
     private static bool ShouldIgnoreStarterItem(int itemId)
         => IgnoredStarterItemIds.Contains(itemId);
+
+    private static bool ShouldCountTowardStarterBudget(int itemId)
+        => !ShouldIgnoreStarterItem(itemId) && !SupportStarterQuestItemIds.Contains(itemId);
 }
 
 internal sealed record StarterItemsAnalysis(

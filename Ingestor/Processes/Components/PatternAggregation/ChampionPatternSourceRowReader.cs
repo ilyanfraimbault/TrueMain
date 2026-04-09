@@ -6,6 +6,8 @@ namespace Ingestor.Processes.Components.PatternAggregation;
 public sealed class ChampionPatternSourceRowReader(
     IDbContextFactory<TrueMainDbContext> dbContextFactory)
 {
+    private const int MinimumAggregatedGameDurationSeconds = 15 * 60;
+
     internal async Task<ChampionPatternAggregationInputs> LoadAggregationInputsAsync(
         int queueId,
         CancellationToken ct)
@@ -61,6 +63,7 @@ public sealed class ChampionPatternSourceRowReader(
                 PlatformId = match.PlatformId,
                 QueueId = match.QueueId,
                 GameStartTimeUtc = match.GameStartTimeUtc,
+                GameDurationSeconds = match.GameDurationSeconds,
                 RiotAccountId = participant.RiotAccountId!.Value,
                 Win = participant.Win,
                 Position = ChampionPatternNormalization.NormalizeTeamPosition(participant.TeamPosition),
@@ -96,6 +99,7 @@ public sealed class ChampionPatternSourceRowReader(
             skillEvent.LevelUpType.Equals("NORMAL", StringComparison.OrdinalIgnoreCase));
 
         return purchaseCount > 0
+            && row.GameDurationSeconds >= MinimumAggregatedGameDurationSeconds
             && normalSkillLevelUps >= 3
             && !string.IsNullOrWhiteSpace(row.Position);
     }
