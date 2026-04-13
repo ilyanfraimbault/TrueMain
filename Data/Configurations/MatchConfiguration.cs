@@ -61,6 +61,6 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
         entity.HasMany(e => e.Participants)
             .WithOne(e => e.Match)
             .HasForeignKey(e => e.MatchId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

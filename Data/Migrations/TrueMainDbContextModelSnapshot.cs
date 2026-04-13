@@ -664,7 +664,7 @@ namespace Data.Migrations
                     b.HasOne("Data.Entities.Match", "Match")
                         .WithMany("Participants")
                         .HasForeignKey("MatchId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("Data.Entities.RiotAccount", "RiotAccount")
