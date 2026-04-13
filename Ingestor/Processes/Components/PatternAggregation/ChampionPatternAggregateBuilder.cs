@@ -98,7 +98,7 @@ public sealed class ChampionPatternAggregateBuilder(
             var skillOrderKey = ChampionPatternNormalization.BuildSkillOrderKey(row.SkillEvents);
             var buildItems = ChampionPatternNormalization.BuildOrderedFinalBuild(
                 row.ItemEvents,
-                [row.Item0, row.Item1, row.Item2, row.Item3, row.Item4, row.Item5],
+                [row.Item0, row.Item1, row.Item2, row.Item3, row.Item4, row.Item5, row.Item6],
                 starterAnalysis.Items,
                 itemMetadata);
             var slots = PadBuildItems(buildItems);

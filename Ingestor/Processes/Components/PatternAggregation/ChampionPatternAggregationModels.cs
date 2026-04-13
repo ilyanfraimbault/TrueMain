@@ -41,6 +41,7 @@ internal sealed class AggregateSourceRow
     public int Item3 { get; init; }
     public int Item4 { get; init; }
     public int Item5 { get; init; }
+    public int Item6 { get; init; }
 }
 
 internal sealed record ExpandedSourceRow(

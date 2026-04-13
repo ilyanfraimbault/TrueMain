@@ -373,6 +373,7 @@ internal static class ChampionPatternNormalization
 
     private static bool IsEligibleFinalBuildItem(ItemMetadata metadata)
         => metadata is { InStore: true, IsFinalItem: true, IsConsumable: false }
+           && !IgnoredStarterItemIds.Contains(metadata.Id)
            && (!metadata.IsBootsItem || metadata.IsFinalBoots);
 
     private static ItemEvent[] ExtractStarterBatchEvents(IReadOnlyList<ItemEvent> orderedEvents)

@@ -81,7 +81,8 @@ public sealed class ChampionPatternSourceRowReader(
                 Item2 = participant.Item2,
                 Item3 = participant.Item3,
                 Item4 = participant.Item4,
-                Item5 = participant.Item5
+                Item5 = participant.Item5,
+                Item6 = participant.Item6
             })
             .ToListAsync(ct);
 
