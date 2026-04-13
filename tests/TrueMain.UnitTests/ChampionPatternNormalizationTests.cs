@@ -242,6 +242,7 @@ public sealed class ChampionPatternNormalizationTests
             new ItemEvent { TimestampMs = 18000, ItemId = 3031, EventType = "ITEM_PURCHASED" }
         ],
             [3153, 3006, 3031, 1055, 0, 0],
+            [1055],
             ItemMetadataById);
 
         buildItems.Should().Equal(3006, 3153, 3031);
@@ -257,6 +258,7 @@ public sealed class ChampionPatternNormalizationTests
             new ItemEvent { TimestampMs = 12000, ItemId = 3085, EventType = "ITEM_PURCHASED" }
         ],
             [3006, 3085, 1055, 0, 0, 0],
+            [1055],
             ItemMetadataById);
 
         buildItems.Should().Equal(3006, 3085);
@@ -273,6 +275,7 @@ public sealed class ChampionPatternNormalizationTests
             new ItemEvent { TimestampMs = 18_000, ItemId = 3153, EventType = "ITEM_PURCHASED" }
         ],
             [3153, 3006, 0, 0, 0, 0],
+            [],
             ItemMetadataById);
 
         buildItems.Should().Equal(3006, 3153);

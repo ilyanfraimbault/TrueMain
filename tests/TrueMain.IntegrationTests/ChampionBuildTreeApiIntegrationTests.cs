@@ -19,7 +19,7 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
     }
 
     [Fact]
-    public async Task GetBuildTreeAsync_ShouldReturnAggregateBackedTree()
+    public async Task GetChampionAsync_ShouldEmbedAggregateBackedTree()
     {
         await _fixture.ResetDatabaseAsync();
         await SeedBuildTreeAggregatesAsync();
@@ -30,27 +30,29 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
             BaseAddress = new Uri("https://localhost")
         });
 
-        var payload = await client.GetFromJsonAsync<ChampionBuildTreeResponse>(
-            "/champions/67/build-tree?patch=16.5&platformId=KR&position=BOTTOM&maxDepth=3&minBranchGames=1");
+        var payload = await client.GetFromJsonAsync<ChampionResponse>(
+            "/champions/67?patch=16.5&platformId=KR&position=BOTTOM&maxDepth=3&minBranchGames=1");
 
         payload.Should().NotBeNull();
-        payload!.ChampionId.Should().Be(67);
-        payload.Patch.Should().Be("16.5");
-        payload.Position.Should().Be("BOTTOM");
-        payload.TotalGames.Should().Be(10);
-        payload.Build.Should().HaveCount(1);
-        payload.Build[0].ItemId.Should().Be(3153);
-        payload.Build[0].Games.Should().Be(10);
-        payload.Build[0].PickRate.Should().BeApproximately(1.0, 0.0001);
-        payload.Build[0].Children.Should().HaveCount(2);
-        payload.Build[0].Children[0].ItemId.Should().Be(3006);
-        payload.Build[0].Children[0].PickRate.Should().BeApproximately(0.7, 0.0001);
-        payload.Build[0].Children[1].ItemId.Should().Be(3091);
-        payload.Build[0].Children[1].PickRate.Should().BeApproximately(0.3, 0.0001);
+        payload!.BuildTree.ChampionId.Should().Be(67);
+        payload.BuildTree.Patch.Should().Be("16.5");
+        payload.BuildTree.Position.Should().Be("BOTTOM");
+        payload.BuildTree.TotalGames.Should().Be(10);
+        payload.BuildTree.Build.Should().HaveCount(1);
+        payload.BuildTree.Build[0].ItemId.Should().Be(3153);
+        payload.BuildTree.Build[0].Games.Should().Be(10);
+        payload.BuildTree.Build[0].PickRate.Should().BeApproximately(1.0, 0.0001);
+        payload.BuildTree.Build[0].Children.Should().HaveCount(2);
+        payload.BuildTree.Build[0].Children[0].ItemId.Should().Be(3006);
+        payload.BuildTree.Build[0].Children[0].PickRate.Should().BeApproximately(0.7, 0.0001);
+        payload.BuildTree.Build[0].Children[1].ItemId.Should().Be(3091);
+        payload.BuildTree.Build[0].Children[1].PickRate.Should().BeApproximately(0.3, 0.0001);
+        payload.Core.BuildPath.Should().NotBeNull();
+        payload.Core.BuildPath!.ItemIds.Should().Equal(3153, 3006, 6672);
     }
 
     [Fact]
-    public async Task GetBuildTreeAsync_ShouldFilterByRiotAccountIdAndIgnoreNullOptionalFilters()
+    public async Task GetChampionAsync_ShouldFilterByRiotAccountIdAndIgnoreNullOptionalFilters()
     {
         await _fixture.ResetDatabaseAsync();
         var (account1Id, _) = await SeedBuildTreeAggregatesAsync();
@@ -61,22 +63,22 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
             BaseAddress = new Uri("https://localhost")
         });
 
-        var payload = await client.GetFromJsonAsync<ChampionBuildTreeResponse>(
-            $"/champions/67/build-tree?riotAccountId={account1Id}&patch=&platformId=&position=&maxDepth=3&minBranchGames=1");
+        var payload = await client.GetFromJsonAsync<ChampionResponse>(
+            $"/champions/67?riotAccountId={account1Id}&patch=&platformId=&position=&maxDepth=3&minBranchGames=1");
 
         payload.Should().NotBeNull();
-        payload!.RiotAccountId.Should().Be(account1Id);
-        payload.Patch.Should().BeNull();
-        payload.Position.Should().BeNull();
-        payload.PlatformId.Should().BeNull();
-        payload.TotalGames.Should().Be(9);
-        payload.Build.Should().HaveCount(2);
-        payload.Build[0].ItemId.Should().Be(3153);
-        payload.Build[0].Children.Single().ItemId.Should().Be(3006);
+        payload!.BuildTree.RiotAccountId.Should().Be(account1Id);
+        payload.BuildTree.Patch.Should().BeNull();
+        payload.BuildTree.Position.Should().BeNull();
+        payload.BuildTree.PlatformId.Should().BeNull();
+        payload.BuildTree.TotalGames.Should().Be(9);
+        payload.BuildTree.Build.Should().HaveCount(2);
+        payload.BuildTree.Build[0].ItemId.Should().Be(3153);
+        payload.BuildTree.Build[0].Children.Single().ItemId.Should().Be(3006);
     }
 
     [Fact]
-    public async Task GetBuildTreeAsync_ShouldReturnEmptyBuild_WhenNoRowsMatch()
+    public async Task GetChampionAsync_ShouldReturnEmptyEmbeddedBuild_WhenNoRowsMatch()
     {
         await _fixture.ResetDatabaseAsync();
         await SeedBuildTreeAggregatesAsync();
@@ -87,17 +89,18 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
             BaseAddress = new Uri("https://localhost")
         });
 
-        var response = await client.GetAsync("/champions/67/build-tree?patch=99.1&position=BOTTOM");
+        var response = await client.GetAsync("/champions/67?patch=99.1&position=BOTTOM");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var payload = await response.Content.ReadFromJsonAsync<ChampionBuildTreeResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<ChampionResponse>();
         payload.Should().NotBeNull();
-        payload!.TotalGames.Should().Be(0);
-        payload.Build.Should().BeEmpty();
+        payload!.BuildTree.TotalGames.Should().Be(0);
+        payload.BuildTree.Build.Should().BeEmpty();
+        payload.Core.BuildPath.Should().BeNull();
     }
 
     [Fact]
-    public async Task GetBuildTreeAsync_ShouldExcludeEmptyBuildRowsFromTotalGames()
+    public async Task GetChampionAsync_ShouldExcludeEmptyBuildRowsFromEmbeddedBuildTotalGames()
     {
         await _fixture.ResetDatabaseAsync();
         await SeedBuildTreeAggregatesWithEmptyBuildAsync();
@@ -108,13 +111,13 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
             BaseAddress = new Uri("https://localhost")
         });
 
-        var payload = await client.GetFromJsonAsync<ChampionBuildTreeResponse>(
-            "/champions/67/build-tree?patch=16.5&platformId=KR&position=BOTTOM&maxDepth=3&minBranchGames=1");
+        var payload = await client.GetFromJsonAsync<ChampionResponse>(
+            "/champions/67?patch=16.5&platformId=KR&position=BOTTOM&maxDepth=3&minBranchGames=1");
 
         payload.Should().NotBeNull();
-        payload!.TotalGames.Should().Be(10);
-        payload.Build.Should().ContainSingle();
-        payload.Build[0].PickRate.Should().BeApproximately(1.0, 0.0001);
+        payload!.BuildTree.TotalGames.Should().Be(10);
+        payload.BuildTree.Build.Should().ContainSingle();
+        payload.BuildTree.Build[0].PickRate.Should().BeApproximately(1.0, 0.0001);
     }
 
     private async Task<(Guid Account1Id, Guid Account2Id)> SeedBuildTreeAggregatesAsync()

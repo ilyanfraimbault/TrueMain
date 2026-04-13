@@ -37,49 +37,62 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
         var json = await response.Content.ReadAsStringAsync();
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
-        root.EnumerateObject().Select(property => property.Name).Should().BeEquivalentTo(["summary", "howToPlay"]);
+        root.EnumerateObject().Select(property => property.Name).Should().BeEquivalentTo(["summary", "core", "advanced", "buildTree"]);
 
         var summaryProperties = root.GetProperty("summary").EnumerateObject().Select(property => property.Name);
         summaryProperties.Should().BeEquivalentTo(
             ["championId", "games", "winRate", "trueMainCount", "position", "latestPatchVersion", "lastUpdatedAtUtc"]);
 
-        var howToPlayProperties = root.GetProperty("howToPlay").EnumerateObject().Select(property => property.Name);
-        howToPlayProperties.Should().BeEquivalentTo(
-            ["sampleSize", "coreSummonerSpells", "coreSkillOrder", "coreItemSet", "summonerSpellOptions", "skillOrderOptions", "itemSetOptions"]);
+        var coreProperties = root.GetProperty("core").EnumerateObject().Select(property => property.Name);
+        coreProperties.Should().BeEquivalentTo(
+            ["sampleSize", "starterItems", "buildPath", "summonerSpells", "skillOrder"]);
 
-        root.GetProperty("howToPlay").GetProperty("coreSummonerSpells").EnumerateObject().Select(property => property.Name)
+        var advancedProperties = root.GetProperty("advanced").EnumerateObject().Select(property => property.Name);
+        advancedProperties.Should().BeEquivalentTo(
+            ["starterItemOptions", "summonerSpellOptions", "skillOrderOptions"]);
+
+        root.GetProperty("core").GetProperty("summonerSpells").EnumerateObject().Select(property => property.Name)
             .Should().BeEquivalentTo(["spell1Id", "spell2Id", "games", "playRate", "winRate"]);
-        root.GetProperty("howToPlay").GetProperty("coreSkillOrder").EnumerateObject().Select(property => property.Name)
+        root.GetProperty("core").GetProperty("skillOrder").EnumerateObject().Select(property => property.Name)
             .Should().BeEquivalentTo(["sequence", "games", "playRate", "winRate"]);
-        root.GetProperty("howToPlay").GetProperty("coreItemSet").EnumerateObject().Select(property => property.Name)
+        root.GetProperty("core").GetProperty("starterItems").EnumerateObject().Select(property => property.Name)
             .Should().BeEquivalentTo(["itemIds", "games", "playRate", "winRate"]);
-        AssertObjectArrayElementsHaveProperties(root.GetProperty("howToPlay").GetProperty("summonerSpellOptions"),
-            "spell1Id", "spell2Id", "games", "playRate", "winRate");
-        AssertObjectArrayElementsHaveProperties(root.GetProperty("howToPlay").GetProperty("skillOrderOptions"),
-            "sequence", "games", "playRate", "winRate");
-        AssertObjectArrayElementsHaveProperties(root.GetProperty("howToPlay").GetProperty("itemSetOptions"),
+        root.GetProperty("core").GetProperty("buildPath").EnumerateObject().Select(property => property.Name)
+            .Should().BeEquivalentTo(["itemIds"]);
+        AssertObjectArrayElementsHaveProperties(root.GetProperty("advanced").GetProperty("starterItemOptions"),
             "itemIds", "games", "playRate", "winRate");
+        AssertObjectArrayElementsHaveProperties(root.GetProperty("advanced").GetProperty("summonerSpellOptions"),
+            "spell1Id", "spell2Id", "games", "playRate", "winRate");
+        AssertObjectArrayElementsHaveProperties(root.GetProperty("advanced").GetProperty("skillOrderOptions"),
+            "sequence", "games", "playRate", "winRate");
+        root.GetProperty("buildTree").EnumerateObject().Select(property => property.Name)
+            .Should().BeEquivalentTo(["championId", "patch", "position", "riotAccountId", "platformId", "totalGames", "build"]);
 
-        var payload = await response.Content.ReadFromJsonAsync<ChampionFoundationResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<ChampionResponse>();
         payload.Should().NotBeNull();
         payload!.Summary.ChampionId.Should().Be(22);
         payload.Summary.Games.Should().Be(3);
         payload.Summary.TrueMainCount.Should().Be(2);
         payload.Summary.Position.Should().Be("BOTTOM");
         payload.Summary.LatestPatchVersion.Should().Be("16.4");
-        payload.HowToPlay.SampleSize.Should().Be(3);
-        payload.HowToPlay.CoreSummonerSpells.Should().NotBeNull();
-        payload.HowToPlay.CoreSummonerSpells!.Spell1Id.Should().Be(4);
-        payload.HowToPlay.CoreSummonerSpells.Spell2Id.Should().Be(7);
-        payload.HowToPlay.CoreSummonerSpells.Games.Should().Be(3);
-        payload.HowToPlay.CoreSkillOrder.Should().NotBeNull();
-        payload.HowToPlay.CoreSkillOrder!.Sequence.Should().Equal("Q", "W", "E");
-        payload.HowToPlay.CoreSkillOrder.Games.Should().Be(3);
-        payload.HowToPlay.CoreItemSet.Should().NotBeNull();
-        payload.HowToPlay.CoreItemSet!.ItemIds.Should().ContainInOrder(6672, 3006, 3094);
-        payload.HowToPlay.CoreItemSet.Games.Should().Be(3);
-        payload.HowToPlay.SummonerSpellOptions.Should().OnlyContain(option => option.Spell1Id == 4 && option.Spell2Id == 7);
-        payload.HowToPlay.ItemSetOptions.Should().OnlyContain(option => option.ItemIds.Contains(6672));
+        payload.Core.SampleSize.Should().Be(3);
+        payload.Core.StarterItems.Should().NotBeNull();
+        payload.Core.StarterItems!.ItemIds.Should().Equal(1055, 2003);
+        payload.Core.BuildPath.Should().NotBeNull();
+        payload.Core.BuildPath!.ItemIds.Should().Equal(6672, 3006, 3094);
+        payload.Core.SummonerSpells.Should().NotBeNull();
+        payload.Core.SummonerSpells!.Spell1Id.Should().Be(4);
+        payload.Core.SummonerSpells.Spell2Id.Should().Be(7);
+        payload.Core.SummonerSpells.Games.Should().Be(3);
+        payload.Core.SkillOrder.Should().NotBeNull();
+        payload.Core.SkillOrder!.Sequence.Should().Equal("Q", "W", "E");
+        payload.Core.SkillOrder.Games.Should().Be(3);
+        payload.Advanced.SummonerSpellOptions.Should().OnlyContain(option => option.Spell1Id == 4 && option.Spell2Id == 7);
+        payload.Advanced.StarterItemOptions.Should().OnlyContain(option => option.ItemIds.Contains(1055));
+        payload.BuildTree.ChampionId.Should().Be(22);
+        payload.BuildTree.TotalGames.Should().Be(8);
+        payload.BuildTree.Build.Should().NotBeEmpty();
+        payload.BuildTree.Build[0].ItemId.Should().Be(6672);
     }
 
     [Fact]
@@ -94,20 +107,21 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
             BaseAddress = new Uri("https://localhost")
         });
 
-        var payload = await client.GetFromJsonAsync<ChampionFoundationResponse>("/champions/55");
+        var payload = await client.GetFromJsonAsync<ChampionResponse>("/champions/55");
 
         payload.Should().NotBeNull();
         payload!.Summary.Games.Should().Be(4);
         payload.Summary.LatestPatchVersion.Should().Be("16.5");
         payload.Summary.Position.Should().Be("MIDDLE");
-        payload.HowToPlay.SampleSize.Should().Be(4);
-        payload.HowToPlay.CoreSummonerSpells.Should().NotBeNull();
-        payload.HowToPlay.CoreSummonerSpells!.Spell1Id.Should().Be(4);
-        payload.HowToPlay.CoreSummonerSpells.Spell2Id.Should().Be(7);
-        payload.HowToPlay.CoreSkillOrder.Should().NotBeNull();
-        payload.HowToPlay.CoreSkillOrder!.Sequence.Should().Equal("Q", "W", "E");
-        payload.HowToPlay.CoreItemSet.Should().NotBeNull();
-        payload.HowToPlay.CoreItemSet!.ItemIds.Should().Equal(3006);
+        payload.Core.SampleSize.Should().Be(4);
+        payload.Core.BuildPath.Should().NotBeNull();
+        payload.Core.BuildPath!.ItemIds.Should().ContainInOrder(3006);
+        payload.Core.SummonerSpells.Should().NotBeNull();
+        payload.Core.SummonerSpells!.Spell1Id.Should().Be(4);
+        payload.Core.SummonerSpells.Spell2Id.Should().Be(7);
+        payload.Core.SkillOrder.Should().NotBeNull();
+        payload.Core.SkillOrder!.Sequence.Should().Equal("Q", "W", "E");
+        payload.BuildTree.Build.Should().NotBeEmpty();
     }
 
     [Fact]
@@ -122,17 +136,18 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
             BaseAddress = new Uri("https://localhost")
         });
 
-        var payload = await client.GetFromJsonAsync<ChampionFoundationResponse>("/champions/81");
+        var payload = await client.GetFromJsonAsync<ChampionResponse>("/champions/81");
 
         payload.Should().NotBeNull();
-        payload!.HowToPlay.CoreSummonerSpells.Should().NotBeNull();
-        payload.HowToPlay.CoreSummonerSpells!.Spell1Id.Should().Be(4);
-        payload.HowToPlay.CoreSummonerSpells.Spell2Id.Should().Be(7);
-        payload.HowToPlay.CoreSkillOrder.Should().NotBeNull();
-        payload.HowToPlay.CoreSkillOrder!.Sequence.Should().Equal("Q", "W", "E");
-        payload.HowToPlay.CoreItemSet.Should().NotBeNull();
-        payload.HowToPlay.CoreItemSet!.ItemIds.Should().Equal(3153, 3006, 3091);
-        payload.HowToPlay.CoreItemSet.Games.Should().Be(6);
+        payload!.Core.SummonerSpells.Should().NotBeNull();
+        payload.Core.BuildPath.Should().NotBeNull();
+        payload.Core.BuildPath!.ItemIds.Should().Equal(3153, 3006, 3091);
+        payload.Core.SummonerSpells!.Spell1Id.Should().Be(4);
+        payload.Core.SummonerSpells.Spell2Id.Should().Be(7);
+        payload.Core.SkillOrder.Should().NotBeNull();
+        payload.Core.SkillOrder!.Sequence.Should().Equal("Q", "W", "E");
+        payload.BuildTree.Build.Should().NotBeEmpty();
+        payload.BuildTree.Build[0].ItemId.Should().Be(3153);
     }
 
     [Fact]
@@ -147,17 +162,18 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
             BaseAddress = new Uri("https://localhost")
         });
 
-        var payload = await client.GetFromJsonAsync<ChampionFoundationResponse>("/champions/110");
+        var payload = await client.GetFromJsonAsync<ChampionResponse>("/champions/110");
 
         payload.Should().NotBeNull();
-        payload!.HowToPlay.CoreSummonerSpells.Should().NotBeNull();
-        payload.HowToPlay.CoreSummonerSpells!.Spell1Id.Should().Be(4);
-        payload.HowToPlay.CoreSummonerSpells.Spell2Id.Should().Be(7);
-        payload.HowToPlay.CoreSkillOrder.Should().NotBeNull();
-        payload.HowToPlay.CoreSkillOrder!.Sequence.Should().Equal("Q", "W", "E");
-        payload.HowToPlay.CoreItemSet.Should().NotBeNull();
-        payload.HowToPlay.CoreItemSet!.ItemIds.Should().Equal(3153, 3006, 3091);
-        payload.HowToPlay.CoreItemSet.Games.Should().Be(5);
+        payload!.Core.SummonerSpells.Should().NotBeNull();
+        payload.Core.BuildPath.Should().NotBeNull();
+        payload.Core.BuildPath!.ItemIds.Should().Equal(3153, 3006, 3091);
+        payload.Core.SummonerSpells!.Spell1Id.Should().Be(4);
+        payload.Core.SummonerSpells.Spell2Id.Should().Be(7);
+        payload.Core.SkillOrder.Should().NotBeNull();
+        payload.Core.SkillOrder!.Sequence.Should().Equal("Q", "W", "E");
+        payload.BuildTree.Build.Should().ContainSingle();
+        payload.BuildTree.Build[0].ItemId.Should().Be(3153);
     }
 
     [Fact]

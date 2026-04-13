@@ -11,19 +11,7 @@ public sealed class ChampionsController(
     IChampionBuildTreeQueryService championBuildTreeQueryService) : ControllerBase
 {
     [HttpGet("{championId:int}")]
-    public async Task<ActionResult> GetFoundationAsync(int championId, CancellationToken ct)
-    {
-        var readModel = await championFoundationQueryService.GetAsync(championId, ct);
-        if (readModel is null)
-        {
-            return NotFound();
-        }
-
-        return Ok(readModel.ToContract());
-    }
-
-    [HttpGet("{championId:int}/build-tree")]
-    public async Task<ActionResult> GetBuildTreeAsync(
+    public async Task<ActionResult> GetChampionAsync(
         int championId,
         [FromQuery] Guid? riotAccountId,
         [FromQuery] string? patch,
@@ -33,7 +21,27 @@ public sealed class ChampionsController(
         [FromQuery] int minBranchGames = 1,
         CancellationToken ct = default)
     {
-        var readModel = await championBuildTreeQueryService.GetAsync(
+        patch = NullIfEmpty(patch);
+        platformId = NullIfEmpty(platformId);
+        position = NullIfEmpty(position);
+
+        var requestedFoundationReadModel = await championFoundationQueryService.GetAsync(
+            championId,
+            riotAccountId,
+            patch,
+            platformId,
+            position,
+            ct);
+
+        var foundationReadModel = requestedFoundationReadModel
+            ?? await championFoundationQueryService.GetAsync(championId, null, null, null, null, ct);
+
+        if (foundationReadModel is null)
+        {
+            return NotFound();
+        }
+
+        var buildTreeReadModel = await championBuildTreeQueryService.GetAsync(
             championId,
             riotAccountId,
             patch,
@@ -43,6 +51,13 @@ public sealed class ChampionsController(
             minBranchGames,
             ct);
 
-        return Ok(readModel.ToContract());
+        var coreReadModel = ChampionCoreBuilder.Build(
+            foundationReadModel,
+            includeBuildPath: requestedFoundationReadModel is not null);
+
+        return Ok(ChampionMapper.ToContract(foundationReadModel, coreReadModel, buildTreeReadModel));
     }
+
+    private static string? NullIfEmpty(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value;
 }
