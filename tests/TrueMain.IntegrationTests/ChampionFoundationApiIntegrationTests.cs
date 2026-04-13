@@ -45,7 +45,7 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
 
         var coreProperties = root.GetProperty("core").EnumerateObject().Select(property => property.Name);
         coreProperties.Should().BeEquivalentTo(
-            ["sampleSize", "starterItems", "buildPath", "summonerSpells", "skillOrder"]);
+            ["sampleSize", "starterItems", "boots", "buildPath", "summonerSpells", "skillOrder"]);
 
         var advancedProperties = root.GetProperty("advanced").EnumerateObject().Select(property => property.Name);
         advancedProperties.Should().BeEquivalentTo(
@@ -57,6 +57,7 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
             .Should().BeEquivalentTo(["sequence", "games", "playRate", "winRate"]);
         root.GetProperty("core").GetProperty("starterItems").EnumerateObject().Select(property => property.Name)
             .Should().BeEquivalentTo(["itemIds", "games", "playRate", "winRate"]);
+        root.GetProperty("core").GetProperty("boots").ValueKind.Should().Be(JsonValueKind.Null);
         root.GetProperty("core").GetProperty("buildPath").EnumerateObject().Select(property => property.Name)
             .Should().BeEquivalentTo(["itemIds"]);
         AssertObjectArrayElementsHaveProperties(root.GetProperty("advanced").GetProperty("starterItemOptions"),
@@ -78,6 +79,7 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
         payload.Core.SampleSize.Should().Be(3);
         payload.Core.StarterItems.Should().NotBeNull();
         payload.Core.StarterItems!.ItemIds.Should().Equal(1055, 2003);
+        payload.Core.Boots.Should().BeNull();
         payload.Core.BuildPath.Should().NotBeNull();
         payload.Core.BuildPath!.ItemIds.Should().Equal(6672, 3006, 3094);
         payload.Core.SummonerSpells.Should().NotBeNull();

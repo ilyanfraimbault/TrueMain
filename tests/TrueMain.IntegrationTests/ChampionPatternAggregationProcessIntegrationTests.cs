@@ -40,16 +40,17 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
         var aggregate = aggregates.Single(a =>
             a.GameVersion == "16.5"
             && a.BuildItem0 == 3153
-            && a.BuildItem1 == 3006
-            && a.BuildItem2 == 6672);
+            && a.BuildItem1 == 6672
+            && a.BuildItem2 == 0);
         aggregate.RiotAccountId.Should().Be(_riotAccountId);
         aggregate.ChampionId.Should().Be(22);
         aggregate.PlatformId.Should().Be("KR");
         aggregate.Position.Should().Be("BOTTOM");
         aggregate.StarterItems.Should().Equal(1055, 2003);
+        aggregate.BootsItemId.Should().Be(3006);
         aggregate.BuildItem0.Should().Be(3153);
-        aggregate.BuildItem1.Should().Be(3006);
-        aggregate.BuildItem2.Should().Be(6672);
+        aggregate.BuildItem1.Should().Be(6672);
+        aggregate.BuildItem2.Should().Be(0);
         aggregate.BuildItem3.Should().Be(0);
         aggregate.BuildItem6.Should().Be(0);
         aggregate.Games.Should().Be(1);
