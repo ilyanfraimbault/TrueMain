@@ -52,18 +52,7 @@ public sealed class ChampionBuildTreeQueryService(
 
         if (string.IsNullOrWhiteSpace(effectivePosition))
         {
-            effectivePosition = rows
-                .Where(aggregate => !string.IsNullOrWhiteSpace(aggregate.Position))
-                .GroupBy(aggregate => aggregate.Position)
-                .Select(group => new
-                {
-                    Position = group.Key,
-                    Games = group.Sum(aggregate => aggregate.Games)
-                })
-                .OrderByDescending(group => group.Games)
-                .ThenBy(group => group.Position, StringComparer.Ordinal)
-                .Select(group => group.Position)
-                .FirstOrDefault();
+            effectivePosition = ChampionAggregateScopeResolver.ResolveDominantPosition(rows);
 
             if (!string.IsNullOrWhiteSpace(effectivePosition))
             {

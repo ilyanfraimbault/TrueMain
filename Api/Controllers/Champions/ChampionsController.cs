@@ -43,6 +43,8 @@ public sealed class ChampionsController(
             minBranchGames,
             ct);
 
-        return Ok(foundationReadModel.ToContract(buildTreeReadModel));
+        var coreReadModel = ChampionCoreBuilder.Build(foundationReadModel.Advanced, buildTreeReadModel);
+
+        return Ok(ChampionMapper.ToContract(foundationReadModel, coreReadModel, buildTreeReadModel));
     }
 }
