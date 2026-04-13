@@ -54,15 +54,7 @@ function getItemSet(option: ItemSetOptionResponse | null): StaticItemData[] {
     .filter((item): item is StaticItemData => item !== null)
 }
 
-const starterItemIds = computed(() =>
-  new Set(
-    (advanced.value?.starterItemOptions ?? [])
-      .flatMap(option => option.itemIds)
-      .filter(itemId => itemId > 0)
-  ))
-
-const visibleBuildTreeNodes = computed(() =>
-  (buildTree.value?.build ?? []).filter(node => !starterItemIds.value.has(node.itemId)))
+const visibleBuildTreeNodes = computed(() => buildTree.value?.build ?? [])
 
 const sortedCoreStarterItems = computed(() =>
   getItemSet(core.value?.starterItems ?? null)

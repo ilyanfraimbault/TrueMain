@@ -99,6 +99,7 @@ public sealed class ChampionPatternAggregateBuilder(
             var buildItems = ChampionPatternNormalization.BuildOrderedFinalBuild(
                 row.ItemEvents,
                 [row.Item0, row.Item1, row.Item2, row.Item3, row.Item4, row.Item5],
+                starterAnalysis.Items,
                 itemMetadata);
             var slots = PadBuildItems(buildItems);
 

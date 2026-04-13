@@ -180,10 +180,16 @@ internal static class ChampionPatternNormalization
     public static int[] BuildOrderedFinalBuild(
         IReadOnlyList<ItemEvent> itemEvents,
         IReadOnlyList<int> finalItems,
+        IReadOnlyCollection<int> starterItems,
         IReadOnlyDictionary<int, ItemMetadata> itemMetadataById)
     {
+        var starterItemIds = starterItems
+            .Where(itemId => itemId > 0)
+            .ToHashSet();
+
         var finalInventory = finalItems
             .Where(itemId => itemId > 0)
+            .Where(itemId => !starterItemIds.Contains(itemId))
             .Distinct()
             .Select(itemId => itemMetadataById.TryGetValue(itemId, out var metadata) ? metadata : null)
             .Where(metadata => metadata is not null)
