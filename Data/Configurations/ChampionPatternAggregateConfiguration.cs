@@ -29,6 +29,7 @@ public sealed class ChampionPatternAggregateConfiguration : IEntityTypeConfigura
         entity.Property(e => e.SkillOrderKey).IsRequired().HasMaxLength(32);
         entity.Property(e => e.StarterItems).IsRequired().HasColumnType("jsonb");
         entity.Property(e => e.StarterItemsKey).IsRequired().HasMaxLength(64);
+        entity.Property(e => e.BootsItemId).IsRequired();
         entity.Property(e => e.BuildItem0).IsRequired();
         entity.Property(e => e.BuildItem1).IsRequired();
         entity.Property(e => e.BuildItem2).IsRequired();
@@ -58,6 +59,7 @@ public sealed class ChampionPatternAggregateConfiguration : IEntityTypeConfigura
             e.SummonerSpell2Id,
             e.SkillOrderKey,
             e.StarterItemsKey,
+            e.BootsItemId,
             e.BuildItem0,
             e.BuildItem1,
             e.BuildItem2,

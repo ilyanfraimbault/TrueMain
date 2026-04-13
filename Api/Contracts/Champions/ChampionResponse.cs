@@ -34,6 +34,8 @@ public sealed class ChampionCoreResponse
 
     public ItemSetOptionResponse? StarterItems { get; init; }
 
+    public ItemSetOptionResponse? Boots { get; init; }
+
     public BuildPathPreviewResponse? BuildPath { get; init; }
 
     public SummonerSpellOptionResponse? SummonerSpells { get; init; }

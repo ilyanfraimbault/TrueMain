@@ -34,6 +34,7 @@ internal static class ChampionOptionProjector
                     row.Wins,
                     row.AggregatedAtUtc,
                     StarterItems = starterItems,
+                    BootsItemId = row.BootsItemId,
                     BuildItemIds = buildItemIds,
                     SummonerSpell1Id = normalizedSummonerPair.spell1Id,
                     SummonerSpell2Id = normalizedSummonerPair.spell2Id,
@@ -43,6 +44,7 @@ internal static class ChampionOptionProjector
             .GroupBy(entry => new
             {
                 StarterItemsKey = string.Join("-", entry.StarterItems),
+                entry.BootsItemId,
                 BuildKey = string.Join("-", entry.BuildItemIds),
                 entry.SummonerSpell1Id,
                 entry.SummonerSpell2Id,
@@ -62,6 +64,15 @@ internal static class ChampionOptionProjector
                         : new ItemSetOptionReadModel
                         {
                             ItemIds = first.StarterItems,
+                            Games = games,
+                            PlayRate = ComputeRate(games, sampleSize),
+                            WinRate = ComputeRate(wins, games)
+                        },
+                    Boots = first.BootsItemId <= 0
+                        ? null
+                        : new ItemSetOptionReadModel
+                        {
+                            ItemIds = [first.BootsItemId],
                             Games = games,
                             PlayRate = ComputeRate(games, sampleSize),
                             WinRate = ComputeRate(wins, games)
@@ -97,6 +108,7 @@ internal static class ChampionOptionProjector
             .ThenBy(pattern => pattern.StarterItems is null
                 ? string.Empty
                 : string.Join("-", pattern.StarterItems.ItemIds), StringComparer.Ordinal)
+            .ThenBy(pattern => pattern.Boots is null ? 0 : pattern.Boots.ItemIds[0])
             .ToList();
 
     public static IReadOnlyList<int> BuildStarterItemSet(ChampionPatternAggregate aggregate)

@@ -41,6 +41,7 @@ internal sealed class AggregateSourceRow
     public int Item3 { get; init; }
     public int Item4 { get; init; }
     public int Item5 { get; init; }
+    public int Item6 { get; init; }
 }
 
 internal sealed record ExpandedSourceRow(
@@ -59,6 +60,7 @@ internal sealed record ExpandedSourceRow(
     int SummonerSpell2Id,
     string SkillOrderKey,
     List<int> StarterItems,
+    int BootsItemId,
     int BuildItem0,
     int BuildItem1,
     int BuildItem2,
@@ -88,6 +90,7 @@ internal sealed record AggregateKey(
     int SummonerSpell2Id,
     string SkillOrderKey,
     string StarterItemsKey,
+    int BootsItemId,
     int BuildItem0,
     int BuildItem1,
     int BuildItem2,

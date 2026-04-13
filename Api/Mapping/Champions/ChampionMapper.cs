@@ -27,6 +27,9 @@ public static class ChampionMapper
                 StarterItems = coreReadModel.StarterItems is null
                     ? null
                     : MapItemSetOption(coreReadModel.StarterItems),
+                Boots = coreReadModel.Boots is null
+                    ? null
+                    : MapItemSetOption(coreReadModel.Boots),
                 BuildPath = coreReadModel.BuildPathItemIds.Count == 0
                     ? null
                     : new BuildPathPreviewResponse

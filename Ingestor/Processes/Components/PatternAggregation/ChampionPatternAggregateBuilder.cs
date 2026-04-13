@@ -34,6 +34,7 @@ public sealed class ChampionPatternAggregateBuilder(
                     row.SummonerSpell2Id,
                     row.SkillOrderKey,
                     row.StarterItemsKey,
+                    row.BootsItemId,
                     row.BuildItem0,
                     row.BuildItem1,
                     row.BuildItem2,
@@ -65,6 +66,7 @@ public sealed class ChampionPatternAggregateBuilder(
                     SkillOrderKey = group.Key.SkillOrderKey,
                     StarterItems = group.First().StarterItems,
                     StarterItemsKey = group.Key.StarterItemsKey,
+                    BootsItemId = group.Key.BootsItemId,
                     BuildItem0 = group.Key.BuildItem0,
                     BuildItem1 = group.Key.BuildItem1,
                     BuildItem2 = group.Key.BuildItem2,
@@ -98,7 +100,11 @@ public sealed class ChampionPatternAggregateBuilder(
             var skillOrderKey = ChampionPatternNormalization.BuildSkillOrderKey(row.SkillEvents);
             var buildItems = ChampionPatternNormalization.BuildOrderedFinalBuild(
                 row.ItemEvents,
-                [row.Item0, row.Item1, row.Item2, row.Item3, row.Item4, row.Item5],
+                [row.Item0, row.Item1, row.Item2, row.Item3, row.Item4, row.Item5, row.Item6],
+                starterAnalysis.Items,
+                itemMetadata);
+            var bootsItemId = ChampionPatternNormalization.BuildCorrelatedBootsItem(
+                [row.Item0, row.Item1, row.Item2, row.Item3, row.Item4, row.Item5, row.Item6],
                 starterAnalysis.Items,
                 itemMetadata);
             var slots = PadBuildItems(buildItems);
@@ -119,6 +125,7 @@ public sealed class ChampionPatternAggregateBuilder(
                 spell2Id,
                 skillOrderKey,
                 starterAnalysis.Items,
+                bootsItemId,
                 slots[0],
                 slots[1],
                 slots[2],

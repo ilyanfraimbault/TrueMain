@@ -12,6 +12,15 @@ internal static class ChampionPatternNormalization
         3330
     ];
 
+    private static readonly HashSet<int> IgnoredFinalBuildItemIds =
+    [
+        3340,
+        3363,
+        3364,
+        3330,
+        1083
+    ];
+
     private static readonly HashSet<int> SupportStarterQuestItemIds =
     [
         3865,
@@ -212,6 +221,28 @@ internal static class ChampionPatternNormalization
             .ToArray();
     }
 
+    public static int BuildCorrelatedBootsItem(
+        IReadOnlyList<int> finalItems,
+        IReadOnlyCollection<int> starterItems,
+        IReadOnlyDictionary<int, ItemMetadata> itemMetadataById)
+    {
+        var starterItemIds = starterItems
+            .Where(itemId => itemId > 0)
+            .ToHashSet();
+
+        return finalItems
+            .Where(itemId => itemId > 0)
+            .Where(itemId => !starterItemIds.Contains(itemId))
+            .Distinct()
+            .Select(itemId => itemMetadataById.TryGetValue(itemId, out var metadata) ? metadata : null)
+            .Where(metadata => metadata is { InStore: true, IsConsumable: false, IsBootsItem: true })
+            .OrderByDescending(metadata => metadata!.IsFinalBoots)
+            .ThenByDescending(metadata => metadata!.PriceTotal)
+            .ThenBy(metadata => metadata!.Id)
+            .Select(metadata => metadata!.Id)
+            .FirstOrDefault();
+    }
+
     private static Dictionary<int, int> BuildFinalItemCompletionTimes(
         IReadOnlyList<ItemEvent> itemEvents,
         IReadOnlyCollection<int> finalInventoryItemIds)
@@ -373,7 +404,8 @@ internal static class ChampionPatternNormalization
 
     private static bool IsEligibleFinalBuildItem(ItemMetadata metadata)
         => metadata is { InStore: true, IsFinalItem: true, IsConsumable: false }
-           && (!metadata.IsBootsItem || metadata.IsFinalBoots);
+           && !IgnoredFinalBuildItemIds.Contains(metadata.Id)
+           && !metadata.IsBootsItem;
 
     private static ItemEvent[] ExtractStarterBatchEvents(IReadOnlyList<ItemEvent> orderedEvents)
     {
