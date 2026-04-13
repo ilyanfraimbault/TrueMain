@@ -2,7 +2,8 @@ FROM node:24-alpine AS deps
 WORKDIR /app
 
 COPY truemain-web/package.json ./
-RUN npm install
+COPY truemain-web/package-lock.json ./
+RUN npm ci
 
 FROM deps AS build
 WORKDIR /app

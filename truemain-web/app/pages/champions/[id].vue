@@ -79,9 +79,12 @@ const sortedStarterItemOptions = computed(() =>
       items: getItemSet(option).sort((left, right) => right.totalGold - left.totalGold || left.id - right.id)
     })))
 
+const pageTitle = computed(() => championStatic.value.championName || 'TrueMain')
+const pageDescription = computed(() => `Vue champion et build tree pour le champion ${championId.value}.`)
+
 useSeoMeta({
-  title: championStatic.value.championName || 'TrueMain',
-  description: `Vue champion et build tree pour le champion ${championId.value}.`
+  title: () => pageTitle.value,
+  description: () => pageDescription.value
 })
 </script>
 

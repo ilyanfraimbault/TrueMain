@@ -70,7 +70,11 @@ async function fetchChampionData(
     fallbackRouteQuery.value = {}
 
     return await $fetch<ChampionResponse>(`/champions/${championId}`, {
-      baseURL: apiBaseUrl
+      baseURL: apiBaseUrl,
+      query: {
+        maxDepth: query.maxDepth,
+        minBranchGames: query.minBranchGames
+      }
     })
   }
 }
@@ -252,7 +256,10 @@ export function useChampionPageStore(championId: ComputedRef<number>) {
     Object.keys(championStatic.value.summonerSpells).length > 0 ||
     Object.keys(championStatic.value.championSpells).length > 0
   )
-  const isStaticPending = computed(() => !hasStaticData.value)
+  const isStaticPending = computed(() =>
+    championStaticState.pending.value
+    && !hasStaticData.value
+    && !championStaticState.error.value)
   const effectivePosition = computed(() => filters.position || summary.value?.position || '')
 
   function syncFiltersFromRoute() {
