@@ -17,6 +17,7 @@ internal static class ChampionCoreBuilder
         {
             SampleSize = foundationReadModel.Advanced.SampleSize,
             StarterItems = primaryStarterItems,
+            Boots = correlatedPattern?.Boots,
             BuildPathItemIds = includeBuildPath
                 ? correlatedPattern?.BuildItemIds.Take(3).ToList() ?? []
                 : [],

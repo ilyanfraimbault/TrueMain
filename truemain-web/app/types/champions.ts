@@ -37,6 +37,7 @@ export interface BuildPathPreviewResponse {
 export interface ChampionCoreResponse {
   sampleSize: number
   starterItems: ItemSetOptionResponse | null
+  boots: ItemSetOptionResponse | null
   buildPath: BuildPathPreviewResponse | null
   summonerSpells: SummonerSpellOptionResponse | null
   skillOrder: SkillOrderOptionResponse | null

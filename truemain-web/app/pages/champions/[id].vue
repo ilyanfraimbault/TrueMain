@@ -7,7 +7,8 @@ import type {
 } from '~/types/static-data'
 import { formatPercentage } from '~/utils/items'
 
-const championId = computed(() => Number.parseInt(String(useRoute().params.id), 10))
+const route = useRoute()
+const championId = computed(() => Number.parseInt(String(route.params.id), 10))
 
 const {
   advanced,
@@ -58,6 +59,10 @@ const visibleBuildTreeNodes = computed(() => buildTree.value?.build ?? [])
 
 const sortedCoreStarterItems = computed(() =>
   getItemSet(core.value?.starterItems ?? null)
+    .sort((left, right) => right.totalGold - left.totalGold || left.id - right.id))
+
+const coreBoots = computed(() =>
+  getItemSet(core.value?.boots ?? null)
     .sort((left, right) => right.totalGold - left.totalGold || left.id - right.id))
 
 const primaryBuildPath = computed(() =>
@@ -198,7 +203,7 @@ useSeoMeta({
         </h2>
 
         <UCard variant="subtle">
-          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <div class="space-y-3">
               <p class="text-sm font-medium text-muted">
                 Starter items
@@ -246,6 +251,28 @@ useSeoMeta({
                 <ChampionsChampionItemChip
                   v-for="item in primaryBuildPath"
                   :key="item.id"
+                  :item="item"
+                />
+              </div>
+            </div>
+
+            <div class="space-y-3">
+              <p class="text-sm font-medium text-muted">
+                Boots
+              </p>
+              <div
+                v-if="isStaticPending"
+                class="flex flex-wrap gap-1"
+              >
+                <USkeleton class="size-14 rounded-xl" />
+              </div>
+              <div
+                v-else
+                class="flex flex-wrap gap-1"
+              >
+                <ChampionsChampionItemChip
+                  v-for="item in coreBoots"
+                  :key="`boots-${item.id}`"
                   :item="item"
                 />
               </div>
@@ -380,13 +407,26 @@ useSeoMeta({
 
       <UCard variant="subtle">
         <template #header>
-          <div class="space-y-1">
-            <h2 class="text-lg font-semibold">
-              Build tree
-            </h2>
-            <p class="text-sm text-muted">
-              Arbre des probabilités d’achat.
-            </p>
+          <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div class="space-y-1">
+              <h2 class="text-lg font-semibold">
+                Build tree
+              </h2>
+              <p class="text-sm text-muted">
+                Arbre des probabilités d’achat.
+              </p>
+            </div>
+            <div
+              v-if="!isStaticPending && coreBoots.length > 0"
+              class="flex items-center gap-2"
+            >
+              <span class="text-sm text-muted">Correlated boots</span>
+              <ChampionsChampionItemChip
+                v-for="item in coreBoots"
+                :key="`tree-boots-${item.id}`"
+                :item="item"
+              />
+            </div>
           </div>
         </template>
 

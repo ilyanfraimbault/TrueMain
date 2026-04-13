@@ -8,8 +8,9 @@ public sealed class ChampionPatternNormalizationTests
 {
     private static readonly IReadOnlyDictionary<int, ItemMetadata> ItemMetadataById = new Dictionary<int, ItemMetadata>
     {
-        [3340] = new(3340, 0, false, false, false, false, true, false),
+        [3340] = new(3340, 0, true, false, false, false, true, false),
         [2003] = new(2003, 50, true, true, false, false, true, false),
+        [1083] = new(1083, 450, true, false, false, false, true, false),
         [1055] = new(1055, 450, true, false, false, false, false, false),
         [1056] = new(1056, 400, true, false, false, false, false, false),
         [1001] = new(1001, 300, true, false, true, true, false, false),
@@ -246,7 +247,7 @@ public sealed class ChampionPatternNormalizationTests
             [1055],
             ItemMetadataById);
 
-        buildItems.Should().Equal(3006, 3153, 3031);
+        buildItems.Should().Equal(3153, 3031);
     }
 
     [Fact]
@@ -262,7 +263,7 @@ public sealed class ChampionPatternNormalizationTests
             [1055],
             ItemMetadataById);
 
-        buildItems.Should().Equal(3006, 3085);
+        buildItems.Should().Equal(3085);
     }
 
     [Fact]
@@ -279,7 +280,7 @@ public sealed class ChampionPatternNormalizationTests
             [],
             ItemMetadataById);
 
-        buildItems.Should().Equal(3006, 3153);
+        buildItems.Should().Equal(3153);
     }
 
     [Fact]
@@ -295,7 +296,34 @@ public sealed class ChampionPatternNormalizationTests
             [],
             ItemMetadataById);
 
-        buildItems.Should().Equal(3153, 3006);
+        buildItems.Should().Equal(3153);
+    }
+
+    [Fact]
+    public void BuildOrderedFinalBuild_ShouldIgnoreCullInFinalBuild()
+    {
+        var buildItems = ChampionPatternNormalization.BuildOrderedFinalBuild(
+        [
+            new ItemEvent { TimestampMs = 5_000, ItemId = 1083, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 12_000, ItemId = 3153, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 18_000, ItemId = 3031, EventType = "ITEM_PURCHASED" }
+        ],
+            [1083, 3153, 3031, 0, 0, 0, 0],
+            [],
+            ItemMetadataById);
+
+        buildItems.Should().Equal(3153, 3031);
+    }
+
+    [Fact]
+    public void BuildCorrelatedBootsItem_ShouldReturnTheMostRelevantBootsFromFinalInventory()
+    {
+        var bootsItemId = ChampionPatternNormalization.BuildCorrelatedBootsItem(
+            [3153, 1001, 3006, 3031, 0, 0, 0],
+            [],
+            ItemMetadataById);
+
+        bootsItemId.Should().Be(3006);
     }
 
     [Fact]

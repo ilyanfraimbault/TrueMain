@@ -20,6 +20,7 @@ public class ChampionPatternAggregate
     public string SkillOrderKey { get; set; } = string.Empty;
     public List<int> StarterItems { get; set; } = [];
     public string StarterItemsKey { get; set; } = string.Empty;
+    public int BootsItemId { get; set; }
     public int BuildItem0 { get; set; }
     public int BuildItem1 { get; set; }
     public int BuildItem2 { get; set; }

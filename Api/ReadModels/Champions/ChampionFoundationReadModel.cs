@@ -43,6 +43,8 @@ public sealed class ChampionCoreReadModel
 
     public ItemSetOptionReadModel? StarterItems { get; init; }
 
+    public ItemSetOptionReadModel? Boots { get; init; }
+
     public IReadOnlyList<int> BuildPathItemIds { get; init; } = [];
 
     public SummonerSpellOptionReadModel? SummonerSpells { get; init; }
@@ -53,6 +55,8 @@ public sealed class ChampionCoreReadModel
 public sealed class ChampionCorrelatedPatternReadModel
 {
     public ItemSetOptionReadModel? StarterItems { get; init; }
+
+    public ItemSetOptionReadModel? Boots { get; init; }
 
     public IReadOnlyList<int> BuildItemIds { get; init; } = [];
 
