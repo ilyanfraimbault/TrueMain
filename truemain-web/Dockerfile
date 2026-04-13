@@ -8,6 +8,7 @@ FROM deps AS build
 WORKDIR /app
 
 COPY truemain-web/ ./
+RUN npm run typecheck
 RUN npm run build
 
 FROM node:24-alpine AS runner
