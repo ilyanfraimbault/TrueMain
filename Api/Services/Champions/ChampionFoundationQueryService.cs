@@ -33,6 +33,11 @@ public sealed class ChampionFoundationQueryService(
             query = query.Where(aggregate => aggregate.PlatformId == platformId);
         }
 
+        if (!string.IsNullOrWhiteSpace(patch))
+        {
+            query = query.Where(aggregate => aggregate.GameVersion == patch);
+        }
+
         if (!string.IsNullOrWhiteSpace(position))
         {
             query = query.Where(aggregate => aggregate.Position == position);

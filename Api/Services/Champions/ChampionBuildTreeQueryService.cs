@@ -49,10 +49,13 @@ public sealed class ChampionBuildTreeQueryService(
 
         var rows = await query.ToListAsync(ct);
         var effectivePosition = position;
+        var rowsWithBuildPath = rows
+            .Where(HasBuildPath)
+            .ToList();
 
         if (string.IsNullOrWhiteSpace(effectivePosition))
         {
-            effectivePosition = ChampionAggregateScopeResolver.ResolveDominantPosition(rows);
+            effectivePosition = ChampionAggregateScopeResolver.ResolveDominantPosition(rowsWithBuildPath);
 
             if (!string.IsNullOrWhiteSpace(effectivePosition))
             {
