@@ -4,5 +4,11 @@ namespace TrueMain.Services.Champions;
 
 public interface IChampionFoundationQueryService
 {
-    Task<ChampionFoundationReadModel?> GetAsync(int championId, CancellationToken ct);
+    Task<ChampionFoundationReadModel?> GetAsync(
+        int championId,
+        Guid? riotAccountId,
+        string? patch,
+        string? platformId,
+        string? position,
+        CancellationToken ct);
 }

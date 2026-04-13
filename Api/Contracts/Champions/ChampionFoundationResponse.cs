@@ -1,10 +1,14 @@
 namespace TrueMain.Contracts.Champions;
 
-public sealed class ChampionFoundationResponse
+public sealed class ChampionResponse
 {
     public ChampionSummaryResponse Summary { get; init; } = new();
 
-    public ChampionHowToPlayFoundationResponse HowToPlay { get; init; } = new();
+    public ChampionCoreResponse Core { get; init; } = new();
+
+    public ChampionAdvancedDetailsResponse Advanced { get; init; } = new();
+
+    public ChampionBuildTreeResponse BuildTree { get; init; } = new();
 }
 
 public sealed class ChampionSummaryResponse
@@ -24,21 +28,26 @@ public sealed class ChampionSummaryResponse
     public DateTime LastUpdatedAtUtc { get; init; }
 }
 
-public sealed class ChampionHowToPlayFoundationResponse
+public sealed class ChampionCoreResponse
 {
     public int SampleSize { get; init; }
 
-    public SummonerSpellOptionResponse? CoreSummonerSpells { get; init; }
+    public ItemSetOptionResponse? StarterItems { get; init; }
 
-    public SkillOrderOptionResponse? CoreSkillOrder { get; init; }
+    public BuildPathPreviewResponse? BuildPath { get; init; }
 
-    public ItemSetOptionResponse? CoreItemSet { get; init; }
+    public SummonerSpellOptionResponse? SummonerSpells { get; init; }
+
+    public SkillOrderOptionResponse? SkillOrder { get; init; }
+}
+
+public sealed class ChampionAdvancedDetailsResponse
+{
+    public IReadOnlyList<ItemSetOptionResponse> StarterItemOptions { get; init; } = [];
 
     public IReadOnlyList<SummonerSpellOptionResponse> SummonerSpellOptions { get; init; } = [];
 
     public IReadOnlyList<SkillOrderOptionResponse> SkillOrderOptions { get; init; } = [];
-
-    public IReadOnlyList<ItemSetOptionResponse> ItemSetOptions { get; init; } = [];
 }
 
 public sealed class SummonerSpellOptionResponse
@@ -74,4 +83,9 @@ public sealed class ItemSetOptionResponse
     public double PlayRate { get; init; }
 
     public double WinRate { get; init; }
+}
+
+public sealed class BuildPathPreviewResponse
+{
+    public IReadOnlyList<int> ItemIds { get; init; } = [];
 }

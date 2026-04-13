@@ -11,19 +11,7 @@ public sealed class ChampionsController(
     IChampionBuildTreeQueryService championBuildTreeQueryService) : ControllerBase
 {
     [HttpGet("{championId:int}")]
-    public async Task<ActionResult> GetFoundationAsync(int championId, CancellationToken ct)
-    {
-        var readModel = await championFoundationQueryService.GetAsync(championId, ct);
-        if (readModel is null)
-        {
-            return NotFound();
-        }
-
-        return Ok(readModel.ToContract());
-    }
-
-    [HttpGet("{championId:int}/build-tree")]
-    public async Task<ActionResult> GetBuildTreeAsync(
+    public async Task<ActionResult> GetChampionAsync(
         int championId,
         [FromQuery] Guid? riotAccountId,
         [FromQuery] string? patch,
@@ -33,16 +21,28 @@ public sealed class ChampionsController(
         [FromQuery] int minBranchGames = 1,
         CancellationToken ct = default)
     {
-        var readModel = await championBuildTreeQueryService.GetAsync(
+        var foundationReadModel = await championFoundationQueryService.GetAsync(
             championId,
             riotAccountId,
             patch,
             platformId,
             position,
+            ct);
+        if (foundationReadModel is null)
+        {
+            return NotFound();
+        }
+
+        var buildTreeReadModel = await championBuildTreeQueryService.GetAsync(
+            championId,
+            riotAccountId,
+            foundationReadModel.Summary.LatestPatchVersion,
+            platformId,
+            foundationReadModel.Summary.Position,
             maxDepth,
             minBranchGames,
             ct);
 
-        return Ok(readModel.ToContract());
+        return Ok(foundationReadModel.ToContract(buildTreeReadModel));
     }
 }
