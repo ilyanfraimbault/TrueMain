@@ -48,23 +48,6 @@ public sealed class ChampionBuildTreeQueryService(
         }
 
         var rows = await query.ToListAsync(ct);
-        var effectivePosition = position;
-        var rowsWithBuildPath = rows
-            .Where(HasBuildPath)
-            .ToList();
-
-        if (string.IsNullOrWhiteSpace(effectivePosition))
-        {
-            effectivePosition = ChampionAggregateScopeResolver.ResolveDominantPosition(rowsWithBuildPath);
-
-            if (!string.IsNullOrWhiteSpace(effectivePosition))
-            {
-                rows = rows
-                    .Where(aggregate => string.Equals(aggregate.Position, effectivePosition, StringComparison.Ordinal))
-                    .ToList();
-            }
-        }
-
         var buildRows = rows
             .Where(HasBuildPath)
             .ToList();
@@ -75,7 +58,7 @@ public sealed class ChampionBuildTreeQueryService(
         {
             ChampionId = championId,
             Patch = patch,
-            Position = effectivePosition,
+            Position = position,
             RiotAccountId = riotAccountId,
             PlatformId = platformId,
             TotalGames = totalGames,

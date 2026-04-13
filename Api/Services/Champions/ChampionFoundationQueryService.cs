@@ -84,7 +84,10 @@ public sealed class ChampionFoundationQueryService(
         return new ChampionFoundationReadModel
         {
             Summary = BuildSummary(championId, selectedPatchVersion, scopedRows),
-            Advanced = ChampionOptionProjector.BuildAdvancedDetails(scopedRows)
+            Advanced = ChampionOptionProjector.BuildAdvancedDetails(scopedRows),
+            CorrelatedPatterns = ChampionOptionProjector.BuildCorrelatedPatterns(
+                scopedRows,
+                scopedRows.Sum(row => row.Games))
         };
     }
 

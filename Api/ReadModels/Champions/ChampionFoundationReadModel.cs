@@ -5,6 +5,8 @@ public sealed class ChampionFoundationReadModel
     public ChampionSummaryReadModel Summary { get; init; } = new();
 
     public ChampionAdvancedDetailsReadModel Advanced { get; init; } = new();
+
+    public IReadOnlyList<ChampionCorrelatedPatternReadModel> CorrelatedPatterns { get; init; } = [];
 }
 
 public sealed class ChampionSummaryReadModel
@@ -46,6 +48,23 @@ public sealed class ChampionCoreReadModel
     public SummonerSpellOptionReadModel? SummonerSpells { get; init; }
 
     public SkillOrderOptionReadModel? SkillOrder { get; init; }
+}
+
+public sealed class ChampionCorrelatedPatternReadModel
+{
+    public ItemSetOptionReadModel? StarterItems { get; init; }
+
+    public IReadOnlyList<int> BuildItemIds { get; init; } = [];
+
+    public SummonerSpellOptionReadModel SummonerSpells { get; init; } = new();
+
+    public SkillOrderOptionReadModel SkillOrder { get; init; } = new();
+
+    public int Games { get; init; }
+
+    public int Wins { get; init; }
+
+    public DateTime LastUpdatedAtUtc { get; init; }
 }
 
 public sealed class SummonerSpellOptionReadModel

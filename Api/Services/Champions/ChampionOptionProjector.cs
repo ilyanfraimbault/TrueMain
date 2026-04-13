@@ -18,10 +18,105 @@ internal static class ChampionOptionProjector
         };
     }
 
+    public static IReadOnlyList<ChampionCorrelatedPatternReadModel> BuildCorrelatedPatterns(
+        IReadOnlyCollection<ChampionPatternAggregate> rows,
+        int sampleSize)
+        => rows
+            .Select(row =>
+            {
+                var starterItems = BuildStarterItemSet(row);
+                var buildItemIds = BuildFinalBuildItemSet(row);
+                var normalizedSummonerPair = NormalizeSummonerPair(row.SummonerSpell1Id, row.SummonerSpell2Id);
+
+                return new
+                {
+                    row.Games,
+                    row.Wins,
+                    row.AggregatedAtUtc,
+                    StarterItems = starterItems,
+                    BuildItemIds = buildItemIds,
+                    SummonerSpell1Id = normalizedSummonerPair.spell1Id,
+                    SummonerSpell2Id = normalizedSummonerPair.spell2Id,
+                    SkillOrderKey = row.SkillOrderKey
+                };
+            })
+            .GroupBy(entry => new
+            {
+                StarterItemsKey = string.Join("-", entry.StarterItems),
+                BuildKey = string.Join("-", entry.BuildItemIds),
+                entry.SummonerSpell1Id,
+                entry.SummonerSpell2Id,
+                entry.SkillOrderKey
+            })
+            .Select(group =>
+            {
+                var first = group.First();
+                var games = group.Sum(entry => entry.Games);
+                var wins = group.Sum(entry => entry.Wins);
+                var lastUpdatedAtUtc = group.Max(entry => entry.AggregatedAtUtc);
+
+                return new ChampionCorrelatedPatternReadModel
+                {
+                    StarterItems = first.StarterItems.Count == 0
+                        ? null
+                        : new ItemSetOptionReadModel
+                        {
+                            ItemIds = first.StarterItems,
+                            Games = games,
+                            PlayRate = ComputeRate(games, sampleSize),
+                            WinRate = ComputeRate(wins, games)
+                        },
+                    BuildItemIds = first.BuildItemIds,
+                    SummonerSpells = new SummonerSpellOptionReadModel
+                    {
+                        Spell1Id = first.SummonerSpell1Id,
+                        Spell2Id = first.SummonerSpell2Id,
+                        Games = games,
+                        PlayRate = ComputeRate(games, sampleSize),
+                        WinRate = ComputeRate(wins, games)
+                    },
+                    SkillOrder = new SkillOrderOptionReadModel
+                    {
+                        Sequence = SplitSequence(first.SkillOrderKey),
+                        Games = games,
+                        PlayRate = ComputeRate(games, sampleSize),
+                        WinRate = ComputeRate(wins, games)
+                    },
+                    Games = games,
+                    Wins = wins,
+                    LastUpdatedAtUtc = lastUpdatedAtUtc
+                };
+            })
+            .OrderByDescending(pattern => pattern.Games)
+            .ThenByDescending(pattern => pattern.Wins)
+            .ThenByDescending(pattern => pattern.LastUpdatedAtUtc)
+            .ThenBy(pattern => pattern.SummonerSpells.Spell1Id)
+            .ThenBy(pattern => pattern.SummonerSpells.Spell2Id)
+            .ThenBy(pattern => string.Join("-", pattern.SkillOrder.Sequence), StringComparer.Ordinal)
+            .ThenBy(pattern => string.Join("-", pattern.BuildItemIds), StringComparer.Ordinal)
+            .ThenBy(pattern => pattern.StarterItems is null
+                ? string.Empty
+                : string.Join("-", pattern.StarterItems.ItemIds), StringComparer.Ordinal)
+            .ToList();
+
     public static IReadOnlyList<int> BuildStarterItemSet(ChampionPatternAggregate aggregate)
         => aggregate.StarterItems
             .Where(itemId => itemId > 0)
             .ToList();
+
+    public static IReadOnlyList<int> BuildFinalBuildItemSet(ChampionPatternAggregate aggregate)
+        => new[]
+        {
+            aggregate.BuildItem0,
+            aggregate.BuildItem1,
+            aggregate.BuildItem2,
+            aggregate.BuildItem3,
+            aggregate.BuildItem4,
+            aggregate.BuildItem5,
+            aggregate.BuildItem6
+        }
+        .Where(itemId => itemId > 0)
+        .ToList();
 
     public static (int spell1Id, int spell2Id) NormalizeSummonerPair(int summoner1Id, int summoner2Id)
     {

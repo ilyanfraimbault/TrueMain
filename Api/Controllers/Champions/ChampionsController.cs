@@ -21,13 +21,21 @@ public sealed class ChampionsController(
         [FromQuery] int minBranchGames = 1,
         CancellationToken ct = default)
     {
-        var foundationReadModel = await championFoundationQueryService.GetAsync(
+        patch = NullIfEmpty(patch);
+        platformId = NullIfEmpty(platformId);
+        position = NullIfEmpty(position);
+
+        var requestedFoundationReadModel = await championFoundationQueryService.GetAsync(
             championId,
             riotAccountId,
             patch,
             platformId,
             position,
             ct);
+
+        var foundationReadModel = requestedFoundationReadModel
+            ?? await championFoundationQueryService.GetAsync(championId, null, null, null, null, ct);
+
         if (foundationReadModel is null)
         {
             return NotFound();
@@ -36,15 +44,20 @@ public sealed class ChampionsController(
         var buildTreeReadModel = await championBuildTreeQueryService.GetAsync(
             championId,
             riotAccountId,
-            foundationReadModel.Summary.LatestPatchVersion,
+            patch,
             platformId,
-            foundationReadModel.Summary.Position,
+            position,
             maxDepth,
             minBranchGames,
             ct);
 
-        var coreReadModel = ChampionCoreBuilder.Build(foundationReadModel.Advanced, buildTreeReadModel);
+        var coreReadModel = ChampionCoreBuilder.Build(
+            foundationReadModel,
+            includeBuildPath: requestedFoundationReadModel is not null);
 
         return Ok(ChampionMapper.ToContract(foundationReadModel, coreReadModel, buildTreeReadModel));
     }
+
+    private static string? NullIfEmpty(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value;
 }
