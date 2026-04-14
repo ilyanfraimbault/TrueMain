@@ -8,6 +8,7 @@ public sealed class CommunityDragonItemMetadataProvider(
     ILogger<CommunityDragonItemMetadataProvider> logger) : IItemMetadataProvider
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly HashSet<int> TierTwoBootIds = [3006, 3047, 3111, 3020, 3158, 3117, 3009, 3013];
     private readonly ConcurrentDictionary<string, Lazy<Task<IReadOnlyDictionary<int, ItemMetadata>>>> _cache = new(StringComparer.Ordinal);
 
     public Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemsAsync(string gameVersion, CancellationToken ct)
@@ -35,21 +36,31 @@ public sealed class CommunityDragonItemMetadataProvider(
 
         return items.ToDictionary(
             item => item.id,
-            item => new ItemMetadata(
-                item.id,
-                item.priceTotal,
-                item.inStore,
-                ContainsCategory(item.categories, "Consumable"),
-                ContainsCategory(item.categories, "Boots"),
-                item.id == 1001,
-                item.to is null || item.to.Count == 0,
-                (item.to is null || item.to.Count == 0)
-                    && ContainsCategory(item.categories, "Boots")
-                    && item.id != 1001));
+            item =>
+            {
+                var isBootsItem = IsBootsItem(item);
+                return new ItemMetadata(
+                    item.id,
+                    item.priceTotal,
+                    item.inStore,
+                    ContainsCategory(item.categories, "Consumable"),
+                    isBootsItem,
+                    item.id == 1001,
+                    item.to is null || item.to.Count == 0,
+                    (item.to is null || item.to.Count == 0)
+                        && isBootsItem
+                        && item.id != 1001);
+            });
     }
 
     private static bool ContainsCategory(IReadOnlyCollection<string>? categories, string value)
         => categories?.Any(category => string.Equals(category, value, StringComparison.OrdinalIgnoreCase)) == true;
+
+    private static bool IsBootsItem(CommunityDragonItem item)
+        => ContainsCategory(item.categories, "Boots")
+           || (item.from?.Any(TierTwoBootIds.Contains) ?? false)
+           || string.Equals(item.requiredBuffCurrencyName, "Feats_NoxianBootPurchaseBuff", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(item.requiredBuffCurrencyName, "Feats_SpecialQuestBootBuff", StringComparison.OrdinalIgnoreCase);
 
     public sealed class CommunityDragonItem
     {
