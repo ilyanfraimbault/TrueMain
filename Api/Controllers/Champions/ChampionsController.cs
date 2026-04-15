@@ -33,29 +33,28 @@ public sealed class ChampionsController(
             position,
             ct);
 
-        var foundationReadModel = requestedFoundationReadModel
-            ?? await championFoundationQueryService.GetAsync(championId, null, null, null, null, ct);
-
-        if (foundationReadModel is null)
+        if (requestedFoundationReadModel is null)
         {
             return NotFound();
         }
 
+        var effectivePatch = patch ?? requestedFoundationReadModel.Summary.LatestPatchVersion;
+        var effectivePosition = position ?? requestedFoundationReadModel.Summary.Position;
+
         var buildTreeReadModel = await championBuildTreeQueryService.GetAsync(
             championId,
             riotAccountId,
-            patch,
+            effectivePatch,
             platformId,
-            position,
+            effectivePosition,
             maxDepth,
             minBranchGames,
             ct);
 
         var coreReadModel = ChampionCoreBuilder.Build(
-            foundationReadModel,
-            includeBuildPath: requestedFoundationReadModel is not null);
+            requestedFoundationReadModel);
 
-        return Ok(ChampionMapper.ToContract(foundationReadModel, coreReadModel, buildTreeReadModel));
+        return Ok(ChampionMapper.ToContract(requestedFoundationReadModel, coreReadModel, buildTreeReadModel));
     }
 
     private static string? NullIfEmpty(string? value)

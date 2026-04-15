@@ -68,8 +68,8 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
 
         payload.Should().NotBeNull();
         payload!.BuildTree.RiotAccountId.Should().Be(account1Id);
-        payload.BuildTree.Patch.Should().BeNull();
-        payload.BuildTree.Position.Should().BeNull();
+        payload.BuildTree.Patch.Should().Be("16.5");
+        payload.BuildTree.Position.Should().Be("BOTTOM");
         payload.BuildTree.PlatformId.Should().BeNull();
         payload.BuildTree.TotalGames.Should().Be(9);
         payload.BuildTree.Build.Should().HaveCount(2);
@@ -78,7 +78,7 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
     }
 
     [Fact]
-    public async Task GetChampionAsync_ShouldReturnEmptyEmbeddedBuild_WhenNoRowsMatch()
+    public async Task GetChampionAsync_ShouldReturnNotFound_WhenNoRowsMatch()
     {
         await _fixture.ResetDatabaseAsync();
         await SeedBuildTreeAggregatesAsync();
@@ -90,13 +90,7 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
         });
 
         var response = await client.GetAsync("/champions/67?patch=99.1&position=BOTTOM");
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        var payload = await response.Content.ReadFromJsonAsync<ChampionResponse>();
-        payload.Should().NotBeNull();
-        payload!.BuildTree.TotalGames.Should().Be(0);
-        payload.BuildTree.Build.Should().BeEmpty();
-        payload.Core.BuildPath.Should().BeNull();
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [Fact]
