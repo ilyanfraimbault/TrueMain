@@ -92,7 +92,8 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
         payload.Advanced.SummonerSpellOptions.Should().OnlyContain(option => option.Spell1Id == 4 && option.Spell2Id == 7);
         payload.Advanced.StarterItemOptions.Should().OnlyContain(option => option.ItemIds.Contains(1055));
         payload.BuildTree.ChampionId.Should().Be(22);
-        payload.BuildTree.TotalGames.Should().Be(8);
+        payload.BuildTree.Patch.Should().Be("16.4");
+        payload.BuildTree.TotalGames.Should().Be(3);
         payload.BuildTree.Build.Should().NotBeEmpty();
         payload.BuildTree.Build[0].ItemId.Should().Be(6672);
     }

@@ -165,13 +165,13 @@ const parentOffsetStyle = computed(() => {
         class="tree-node__card"
         :style="parentOffsetStyle"
       >
-        <img
+        <ChampionsChampionAsyncImage
           v-if="item"
           :src="item.iconUrl"
           :alt="item.name"
-          class="tree-node__image"
+          wrapper-class="tree-node__image"
           loading="lazy"
-        >
+        />
         <div
           v-else
           class="tree-node__fallback"

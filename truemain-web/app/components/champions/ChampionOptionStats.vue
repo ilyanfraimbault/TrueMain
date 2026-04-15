@@ -21,7 +21,7 @@ function winRateBadgeColor(winRate: number): 'success' | 'error' | 'neutral' {
 
 function optionStatsTooltip(games: number, winRate: number): string {
   const wins = Math.round(games * winRate)
-  return `${games} games • ${wins} wins / ${games}`
+  return `${games} games • ${wins} wins`
 }
 </script>
 

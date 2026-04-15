@@ -1,12 +1,4 @@
 <script setup lang="ts">
-import type { ItemSetOptionResponse } from '~/types/champions'
-import type {
-  StaticChampionSpellData,
-  StaticItemData,
-  StaticSummonerSpellData
-} from '~/types/static-data'
-import { formatPercentage } from '~/utils/items'
-
 const route = useRoute()
 const championId = computed(() => Number.parseInt(String(route.params.id), 10))
 
@@ -17,72 +9,16 @@ const {
   championState,
   championStatic,
   core,
-  effectivePosition,
-  filters,
+  displayPosition,
   isPageLoading,
   isStaticPending,
   patchOptions,
   positionOptions,
+  selectedPatch,
+  setPatchFilter,
   setPositionFilter,
   summary
 } = useChampionPageStore(championId)
-
-function getSummonerSpell(id: number): StaticSummonerSpellData | null {
-  return championStatic.value.summonerSpells[id] ?? null
-}
-
-function getChampionSpell(sequenceKey: string): StaticChampionSpellData | null {
-  return championStatic.value.championSpells[sequenceKey] ?? null
-}
-
-function getSkillSequence(sequence: string[]): StaticChampionSpellData[] {
-  return sequence
-    .map(getChampionSpell)
-    .filter((spell): spell is StaticChampionSpellData => spell !== null)
-}
-
-function getItem(itemId: number): StaticItemData | null {
-  return championStatic.value.items[itemId] ?? null
-}
-
-function getItemSet(option: ItemSetOptionResponse | null): StaticItemData[] {
-  if (!option) {
-    return []
-  }
-
-  return option.itemIds
-    .map(getItem)
-    .filter((item): item is StaticItemData => item !== null)
-}
-
-const visibleBuildTreeNodes = computed(() => buildTree.value?.build ?? [])
-
-const sortedCoreStarterItems = computed(() =>
-  getItemSet(core.value?.starterItems ?? null)
-    .sort((left, right) => right.totalGold - left.totalGold || left.id - right.id))
-
-const coreBoots = computed(() =>
-  getItemSet(core.value?.boots ?? null)
-    .sort((left, right) => right.totalGold - left.totalGold || left.id - right.id))
-
-const primaryBuildPath = computed(() =>
-  (core.value?.buildPath?.itemIds ?? [])
-    .map(getItem)
-    .filter((item): item is StaticItemData => item !== null))
-
-const visibleSummonerOptions = computed(() =>
-  (advanced.value?.summonerSpellOptions ?? []).filter((option) => option.playRate >= 0.1))
-
-const visibleSkillOrderOptions = computed(() =>
-  (advanced.value?.skillOrderOptions ?? []).filter((option) => option.playRate >= 0.1))
-
-const sortedStarterItemOptions = computed(() =>
-  (advanced.value?.starterItemOptions ?? [])
-    .filter((option) => option.playRate >= 0.1)
-    .map((option) => ({
-      option,
-      items: getItemSet(option).sort((left, right) => right.totalGold - left.totalGold || left.id - right.id)
-    })))
 
 const pageTitle = computed(() => championStatic.value.championName || 'TrueMain')
 const pageDescription = computed(() => `Vue champion et build tree pour le champion ${championId.value}.`)
@@ -110,334 +46,34 @@ useSeoMeta({
       v-else-if="champion && summary && core && advanced && buildTree"
       class="space-y-8"
     >
-      <header class="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
-        <div class="flex items-center gap-5">
-          <img
-            v-if="championStatic.championIconUrl"
-            :src="championStatic.championIconUrl"
-            :alt="championStatic.championName ?? ''"
-            class="size-28 shrink-0 rounded-3xl border border-default object-cover shadow-sm"
-            loading="lazy"
-          >
-          <div
-            v-else
-            class="size-28 shrink-0 rounded-3xl border border-default bg-elevated"
-          />
+      <ChampionsChampionHeader
+        :champion-static="championStatic"
+        :summary="summary"
+        :patch-options="patchOptions"
+        :position-options="positionOptions"
+        :selected-patch="selectedPatch"
+        :display-position="displayPosition"
+        @update:patch="setPatchFilter"
+        @update:position="setPositionFilter"
+      />
 
-          <div class="space-y-3">
-            <div class="space-y-2">
-              <h1
-                v-if="championStatic.championName"
-                class="text-3xl font-semibold tracking-tight"
-              >
-                {{ championStatic.championName }}
-              </h1>
-            </div>
+      <ChampionsChampionCoreSection
+        :core="core"
+        :champion-static="championStatic"
+        :is-static-pending="isStaticPending"
+      />
 
-            <dl class="flex flex-wrap items-end gap-x-10 gap-y-3 text-sm">
-              <div>
-                <dt class="text-muted">
-                  Games
-                </dt>
-                <dd class="mt-1 text-2xl font-semibold tracking-tight">
-                  {{ summary.games }}
-                </dd>
-              </div>
-              <div>
-                <dt class="text-muted">
-                  Win rate
-                </dt>
-                <dd class="mt-1 text-2xl font-semibold tracking-tight">
-                  {{ formatPercentage(summary.winRate) }}
-                </dd>
-              </div>
-            </dl>
-          </div>
-        </div>
+      <ChampionsChampionAdvancedSection
+        :advanced="advanced"
+        :champion-static="championStatic"
+      />
 
-        <div class="ml-auto flex w-full max-w-md flex-col items-end gap-4">
-          <UFormField
-            label="Patch"
-            class="w-36"
-          >
-            <USelect
-              v-model="filters.patch"
-              :items="patchOptions"
-              color="neutral"
-              variant="subtle"
-              class="w-36"
-            />
-          </UFormField>
-
-          <div class="flex w-full justify-end">
-            <UFieldGroup
-              size="md"
-              class="rounded-xl bg-elevated/40 p-1"
-            >
-              <UButton
-                v-for="option in positionOptions"
-                :key="option.value"
-                type="button"
-                color="neutral"
-                square
-                :variant="effectivePosition === option.value ? 'soft' : 'ghost'"
-                :title="option.label"
-                :aria-label="option.label"
-                @click="setPositionFilter(option.value)"
-              >
-                <img
-                  :src="option.iconUrl"
-                  :alt="option.label"
-                  class="size-5 object-contain"
-                  loading="lazy"
-                >
-              </UButton>
-            </UFieldGroup>
-          </div>
-        </div>
-      </header>
-
-      <section class="space-y-4">
-        <h2 class="text-xl font-semibold">
-          Core
-        </h2>
-
-        <UCard variant="subtle">
-          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            <div class="space-y-3">
-              <p class="text-sm font-medium text-muted">
-                Starter items
-              </p>
-              <div
-                v-if="isStaticPending"
-                class="flex flex-wrap gap-1"
-              >
-                <USkeleton
-                  v-for="item in 3"
-                  :key="item"
-                  class="size-14 rounded-xl"
-                />
-              </div>
-              <div
-                v-else
-                class="flex flex-wrap gap-1"
-              >
-                <ChampionsChampionItemChip
-                  v-for="item in sortedCoreStarterItems"
-                  :key="`starter-${item.id}`"
-                  :item="item"
-                />
-              </div>
-            </div>
-
-            <div class="space-y-3">
-              <p class="text-sm font-medium text-muted">
-                Build path
-              </p>
-              <div
-                v-if="isStaticPending"
-                class="flex flex-wrap gap-1"
-              >
-                <USkeleton
-                  v-for="item in 3"
-                  :key="item"
-                  class="size-14 rounded-xl"
-                />
-              </div>
-              <div
-                v-else
-                class="flex flex-wrap gap-1"
-              >
-                <ChampionsChampionItemChip
-                  v-for="item in primaryBuildPath"
-                  :key="item.id"
-                  :item="item"
-                />
-              </div>
-            </div>
-
-            <div class="space-y-3">
-              <p class="text-sm font-medium text-muted">
-                Boots
-              </p>
-              <div
-                v-if="isStaticPending"
-                class="flex flex-wrap gap-1"
-              >
-                <USkeleton class="size-14 rounded-xl" />
-              </div>
-              <div
-                v-else
-                class="flex flex-wrap gap-1"
-              >
-                <ChampionsChampionItemChip
-                  v-for="item in coreBoots"
-                  :key="`boots-${item.id}`"
-                  :item="item"
-                />
-              </div>
-            </div>
-
-            <div class="space-y-3">
-              <p class="text-sm font-medium text-muted">
-                Summoners
-              </p>
-              <div
-                v-if="isStaticPending"
-                class="flex gap-1"
-              >
-                <USkeleton class="size-14 rounded-xl" />
-                <USkeleton class="size-14 rounded-xl" />
-              </div>
-              <ChampionsChampionSummonerSpellPair
-                v-else
-                :left="core.summonerSpells ? getSummonerSpell(core.summonerSpells.spell1Id) : null"
-                :right="core.summonerSpells ? getSummonerSpell(core.summonerSpells.spell2Id) : null"
-              />
-            </div>
-
-            <div class="space-y-3">
-              <p class="text-sm font-medium text-muted">
-                Skill order
-              </p>
-              <div
-                v-if="isStaticPending"
-                class="flex gap-1"
-              >
-                <USkeleton class="size-14 rounded-xl" />
-                <USkeleton class="size-14 rounded-xl" />
-                <USkeleton class="size-14 rounded-xl" />
-              </div>
-              <ChampionsChampionSkillOrderDisplay
-                v-else
-                :spells="core.skillOrder ? getSkillSequence(core.skillOrder.sequence) : []"
-              />
-            </div>
-          </div>
-        </UCard>
-      </section>
-
-      <section class="space-y-4">
-        <h2 class="text-xl font-semibold">
-          Advanced details
-        </h2>
-
-        <div class="grid gap-4 xl:grid-cols-3">
-          <UCard variant="subtle">
-            <template #header>
-              <h3 class="text-base font-semibold">
-                Summoner options
-              </h3>
-            </template>
-
-            <ul class="grid gap-1">
-              <li
-                v-for="option in visibleSummonerOptions"
-                :key="`${option.spell1Id}-${option.spell2Id}`"
-                class="flex flex-wrap items-center justify-between gap-1"
-              >
-                <ChampionsChampionSummonerSpellPair
-                  :left="getSummonerSpell(option.spell1Id)"
-                  :right="getSummonerSpell(option.spell2Id)"
-                />
-                <ChampionsChampionOptionStats
-                  :games="option.games"
-                  :play-rate="option.playRate"
-                  :win-rate="option.winRate"
-                />
-              </li>
-            </ul>
-          </UCard>
-
-          <UCard variant="subtle">
-            <template #header>
-              <h3 class="text-base font-semibold">
-                Skill options
-              </h3>
-            </template>
-
-            <ul class="grid gap-4">
-              <li
-                v-for="option in visibleSkillOrderOptions"
-                :key="option.sequence.join('-')"
-                class="flex flex-wrap items-center justify-between gap-1"
-              >
-                <ChampionsChampionSkillOrderDisplay
-                  :spells="getSkillSequence(option.sequence)"
-                />
-                <ChampionsChampionOptionStats
-                  :games="option.games"
-                  :play-rate="option.playRate"
-                  :win-rate="option.winRate"
-                />
-              </li>
-            </ul>
-          </UCard>
-
-          <UCard variant="subtle">
-            <template #header>
-              <h3 class="text-base font-semibold">
-                Starter item options
-              </h3>
-            </template>
-
-            <ul class="grid gap-4">
-              <li
-                v-for="{ option, items } in sortedStarterItemOptions"
-                :key="`starter-${option.itemIds.join('-')}`"
-                class="flex flex-wrap items-center justify-between gap-1"
-              >
-                <div class="flex flex-wrap gap-1">
-                  <ChampionsChampionItemChip
-                    v-for="item in items"
-                    :key="item.id"
-                    :item="item"
-                  />
-                </div>
-                <ChampionsChampionOptionStats
-                  :games="option.games"
-                  :play-rate="option.playRate"
-                  :win-rate="option.winRate"
-                />
-              </li>
-            </ul>
-          </UCard>
-        </div>
-      </section>
-
-      <UCard variant="subtle">
-        <template #header>
-          <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div class="space-y-1">
-              <h2 class="text-lg font-semibold">
-                Build tree
-              </h2>
-              <p class="text-sm text-muted">
-                Arbre des probabilités d’achat.
-              </p>
-            </div>
-            <div
-              v-if="!isStaticPending && coreBoots.length > 0"
-              class="flex items-center gap-2"
-            >
-              <span class="text-sm text-muted">Correlated boots</span>
-              <ChampionsChampionItemChip
-                v-for="item in coreBoots"
-                :key="`tree-boots-${item.id}`"
-                :item="item"
-              />
-            </div>
-          </div>
-        </template>
-
-        <ChampionsChampionBuildTree
-          :nodes="visibleBuildTreeNodes"
-          :items-by-id="championStatic.items"
-          :total-games="buildTree.totalGames"
-          :max-children="3"
-          :minimum-pick-rate="0.05"
-        />
-      </UCard>
+      <ChampionsChampionBuildTreeSection
+        :build-tree="buildTree"
+        :champion-static="championStatic"
+        :boots="core.boots"
+        :is-static-pending="isStaticPending"
+      />
     </section>
   </main>
 </template>

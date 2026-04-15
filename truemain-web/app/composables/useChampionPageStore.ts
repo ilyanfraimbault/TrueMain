@@ -13,6 +13,7 @@ import {
 } from '~/utils/items'
 
 export type ChampionPosition = 'TOP' | 'JUNGLE' | 'MIDDLE' | 'BOTTOM' | 'UTILITY'
+export type ChampionDisplayPosition = ChampionPosition | ''
 
 const EMPTY_STATIC_DATA: ChampionStaticData = {
   championName: null,
@@ -183,8 +184,8 @@ export function useChampionPageStore(championId: ComputedRef<number>) {
   const buildTreeQuery = computed(() => ({
     patch: getSingleQueryValue(route.query.patch as string | string[] | undefined) || undefined,
     position: getSingleQueryValue(route.query.position as string | string[] | undefined) || undefined,
-    maxDepth: toPositiveInteger(getSingleQueryValue(route.query.maxDepth as string | string[] | undefined), 3),
-    minBranchGames: toPositiveInteger(getSingleQueryValue(route.query.minBranchGames as string | string[] | undefined), 3)
+    maxDepth: toPositiveInteger(getSingleQueryValue(route.query.maxDepth as string | string[] | undefined), 7),
+    minBranchGames: toPositiveInteger(getSingleQueryValue(route.query.minBranchGames as string | string[] | undefined), 1)
   }))
 
   const championState = useAsyncData(
@@ -257,17 +258,30 @@ export function useChampionPageStore(championId: ComputedRef<number>) {
     Object.keys(championStatic.value.championSpells).length > 0
   )
   const isStaticPending = computed(() =>
-    championStaticState.pending.value
-    && !hasStaticData.value
-    && !championStaticState.error.value)
-  const effectivePosition = computed(() => filters.position || summary.value?.position || '')
+    !hasStaticData.value
+    && !championStaticState.error.value
+    && (import.meta.server
+      || championStaticState.pending.value
+      || championStaticState.status.value === 'idle'))
+  const selectedPatch = computed({
+    get: () => filters.patch || summary.value?.latestPatchVersion || '',
+    set: (value: string) => {
+      filters.patch = value
+    }
+  })
+  const displayPosition = computed<ChampionDisplayPosition>(() => {
+    const value = summary.value?.position || filters.position || ''
+    return POSITION_OPTIONS.some(option => option.value === value)
+      ? value as ChampionPosition
+      : ''
+  })
 
   function syncFiltersFromRoute() {
     const routePatch = getSingleQueryValue(route.query.patch as string | string[] | undefined)
     const routePosition = getSingleQueryValue(route.query.position as string | string[] | undefined)
 
-    filters.patch = routePatch || summary.value?.latestPatchVersion || filters.patch
-    filters.position = routePosition || summary.value?.position || filters.position
+    filters.patch = routePatch || summary.value?.latestPatchVersion || ''
+    filters.position = routePosition || summary.value?.position || ''
   }
 
   async function applyFilters() {
@@ -303,15 +317,6 @@ export function useChampionPageStore(championId: ComputedRef<number>) {
     immediate: true
   })
 
-  watch([
-    () => filters.patch,
-    () => filters.position
-  ], async () => {
-    await applyFilters()
-  }, {
-    flush: 'post'
-  })
-
   watch(fallbackRouteQuery, async (query) => {
     if (!query || import.meta.server) {
       return
@@ -333,6 +338,12 @@ export function useChampionPageStore(championId: ComputedRef<number>) {
 
   function setPositionFilter(position: ChampionPosition) {
     filters.position = position
+    void applyFilters()
+  }
+
+  function setPatchFilter(patch: string) {
+    filters.patch = patch
+    void applyFilters()
   }
 
   return {
@@ -342,12 +353,13 @@ export function useChampionPageStore(championId: ComputedRef<number>) {
     championState,
     championStatic,
     core,
-    effectivePosition,
-    filters,
     isPageLoading,
     isStaticPending,
     patchOptions,
     positionOptions: POSITION_OPTIONS,
+    displayPosition,
+    selectedPatch,
+    setPatchFilter,
     setPositionFilter,
     summary
   }
