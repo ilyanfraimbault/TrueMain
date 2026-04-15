@@ -15,12 +15,15 @@ defineProps<{
         :content="{ side: 'top' }"
         arrow
       >
-        <img
+        <ChampionsChampionAsyncImage
           :src="left.iconUrl"
           :alt="left.name"
-          class="size-10 rounded-md border border-default bg-default object-cover"
-          loading="lazy"
-        >
+          size-class="size-10"
+          image-class="rounded-md border border-default bg-default object-cover"
+          wrapper-class="rounded-md"
+          width="40"
+          height="40"
+        />
       </UTooltip>
 
       <UTooltip
@@ -28,12 +31,15 @@ defineProps<{
         :content="{ side: 'top' }"
         arrow
       >
-        <img
+        <ChampionsChampionAsyncImage
           :src="right.iconUrl"
           :alt="right.name"
-          class="size-10 rounded-md border border-default bg-default object-cover"
-          loading="lazy"
-        >
+          size-class="size-10"
+          image-class="rounded-md border border-default bg-default object-cover"
+          wrapper-class="rounded-md"
+          width="40"
+          height="40"
+        />
       </UTooltip>
     </template>
 

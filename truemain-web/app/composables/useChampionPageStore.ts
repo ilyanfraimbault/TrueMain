@@ -13,6 +13,7 @@ import {
 } from '~/utils/items'
 
 export type ChampionPosition = 'TOP' | 'JUNGLE' | 'MIDDLE' | 'BOTTOM' | 'UTILITY'
+export type ChampionDisplayPosition = ChampionPosition | ''
 
 const EMPTY_STATIC_DATA: ChampionStaticData = {
   championName: null,
@@ -268,7 +269,12 @@ export function useChampionPageStore(championId: ComputedRef<number>) {
       filters.patch = value
     }
   })
-  const displayPosition = computed(() => summary.value?.position || filters.position || '')
+  const displayPosition = computed<ChampionDisplayPosition>(() => {
+    const value = summary.value?.position || filters.position || ''
+    return POSITION_OPTIONS.some(option => option.value === value)
+      ? value as ChampionPosition
+      : ''
+  })
 
   function syncFiltersFromRoute() {
     const routePatch = getSingleQueryValue(route.query.patch as string | string[] | undefined)

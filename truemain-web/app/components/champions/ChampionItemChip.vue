@@ -13,12 +13,15 @@ defineProps<{
     arrow
   >
     <div class="inline-flex items-center">
-      <img
+      <ChampionsChampionAsyncImage
         :src="item.iconUrl"
         :alt="item.name"
-        class="size-10 rounded-md border border-default bg-default object-cover"
-        loading="lazy"
-      >
+        size-class="size-10"
+        image-class="rounded-md border border-default bg-default object-cover"
+        wrapper-class="rounded-md"
+        width="40"
+        height="40"
+      />
     </div>
   </UTooltip>
 </template>

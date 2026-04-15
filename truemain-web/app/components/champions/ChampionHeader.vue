@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChampionPosition } from '~/composables/useChampionPageStore'
+import type { ChampionDisplayPosition, ChampionPosition } from '~/composables/useChampionPageStore'
 import type { ChampionSummaryResponse } from '~/types/champions'
 import type { ChampionStaticData } from '~/types/static-data'
 import { formatPercentage } from '~/utils/items'
@@ -10,7 +10,7 @@ defineProps<{
   patchOptions: Array<{ label: string, value: string }>
   positionOptions: Array<{ label: string, value: ChampionPosition, iconUrl: string }>
   selectedPatch: string
-  displayPosition: string
+  displayPosition: ChampionDisplayPosition
 }>()
 
 const emit = defineEmits<{
@@ -22,13 +22,16 @@ const emit = defineEmits<{
 <template>
   <header class="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
     <div class="flex items-center gap-5">
-      <img
+      <ChampionsChampionAsyncImage
         v-if="championStatic.championIconUrl"
         :src="championStatic.championIconUrl"
         :alt="championStatic.championName ?? ''"
-        class="size-28 shrink-0 rounded-3xl border border-default object-cover shadow-sm"
-        loading="lazy"
-      >
+        size-class="size-28 shrink-0"
+        image-class="rounded-3xl border border-default shadow-sm"
+        wrapper-class="rounded-3xl"
+        width="112"
+        height="112"
+      />
       <div
         v-else
         class="size-28 shrink-0 rounded-3xl border border-default bg-elevated"
@@ -94,12 +97,15 @@ const emit = defineEmits<{
             :aria-label="option.label"
             @click="emit('update:position', option.value)"
           >
-            <img
+            <ChampionsChampionAsyncImage
               :src="option.iconUrl"
               :alt="option.label"
-              class="size-5 object-contain"
-              loading="lazy"
-            >
+              size-class="size-5"
+              image-class="object-contain"
+              wrapper-class="rounded-sm"
+              width="20"
+              height="20"
+            />
           </UButton>
         </UFieldGroup>
       </div>

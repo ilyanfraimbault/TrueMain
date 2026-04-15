@@ -18,12 +18,15 @@ defineProps<{
         arrow
       >
         <div class="relative">
-          <img
+          <ChampionsChampionAsyncImage
             :src="spell.iconUrl"
             :alt="spell.name"
-            class="size-11 rounded-md border border-default bg-default object-cover"
-            loading="lazy"
-          >
+            size-class="size-11"
+            image-class="rounded-md border border-default bg-default object-cover"
+            wrapper-class="rounded-md"
+            width="44"
+            height="44"
+          />
           <UBadge
             color="neutral"
             variant="subtle"
