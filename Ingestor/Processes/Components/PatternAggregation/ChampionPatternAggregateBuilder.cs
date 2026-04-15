@@ -104,6 +104,7 @@ public sealed class ChampionPatternAggregateBuilder(
                 starterAnalysis.Items,
                 itemMetadata);
             var bootsItemId = ChampionPatternNormalization.BuildCorrelatedBootsItem(
+                row.ItemEvents,
                 [row.Item0, row.Item1, row.Item2, row.Item3, row.Item4, row.Item5, row.Item6],
                 starterAnalysis.Items,
                 itemMetadata);

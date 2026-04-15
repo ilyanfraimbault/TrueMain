@@ -222,6 +222,7 @@ internal static class ChampionPatternNormalization
     }
 
     public static int BuildCorrelatedBootsItem(
+        IReadOnlyList<ItemEvent> itemEvents,
         IReadOnlyList<int> finalItems,
         IReadOnlyCollection<int> starterItems,
         IReadOnlyDictionary<int, ItemMetadata> itemMetadataById)
@@ -229,6 +230,32 @@ internal static class ChampionPatternNormalization
         var starterItemIds = starterItems
             .Where(itemId => itemId > 0)
             .ToHashSet();
+
+        var purchasedBoots = itemEvents
+            .OrderBy(itemEvent => itemEvent.TimestampMs)
+            .SelectMany(itemEvent => itemEvent.EventType.ToUpperInvariant() switch
+            {
+                "ITEM_PURCHASED" => [new CandidateBootPurchase(itemEvent.ItemId, itemEvent.TimestampMs)],
+                "ITEM_UNDO" when itemEvent.AfterId is > 0 => [new CandidateBootPurchase(itemEvent.AfterId.Value, itemEvent.TimestampMs)],
+                _ => Array.Empty<CandidateBootPurchase>()
+            })
+            .Where(candidate => candidate.ItemId > 0)
+            .Where(candidate => !starterItemIds.Contains(candidate.ItemId))
+            .Select(candidate => itemMetadataById.TryGetValue(candidate.ItemId, out var metadata)
+                ? new { candidate.TimestampMs, Metadata = metadata }
+                : null)
+            .Where(candidate => candidate?.Metadata is { InStore: true, IsConsumable: false, IsBootsItem: true })
+            .OrderByDescending(candidate => candidate!.TimestampMs)
+            .ThenByDescending(candidate => candidate!.Metadata.IsFinalBoots)
+            .ThenByDescending(candidate => candidate!.Metadata.PriceTotal)
+            .ThenBy(candidate => candidate!.Metadata.Id)
+            .Select(candidate => candidate!.Metadata.Id)
+            .FirstOrDefault();
+
+        if (purchasedBoots > 0)
+        {
+            return purchasedBoots;
+        }
 
         return finalItems
             .Where(itemId => itemId > 0)
@@ -450,3 +477,7 @@ internal sealed record StarterItemsAnalysis(
     string Reason,
     int TotalCost,
     IReadOnlyList<ItemEvent> EarlyEvents);
+
+internal sealed record CandidateBootPurchase(
+    int ItemId,
+    int TimestampMs);

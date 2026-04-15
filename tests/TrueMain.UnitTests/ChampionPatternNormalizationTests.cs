@@ -319,7 +319,25 @@ public sealed class ChampionPatternNormalizationTests
     public void BuildCorrelatedBootsItem_ShouldReturnTheMostRelevantBootsFromFinalInventory()
     {
         var bootsItemId = ChampionPatternNormalization.BuildCorrelatedBootsItem(
+            [
+                new ItemEvent { TimestampMs = 5_000, ItemId = 3006, EventType = "ITEM_PURCHASED" }
+            ],
             [3153, 1001, 3006, 3031, 0, 0, 0],
+            [],
+            ItemMetadataById);
+
+        bootsItemId.Should().Be(3006);
+    }
+
+    [Fact]
+    public void BuildCorrelatedBootsItem_ShouldUsePurchasedBootsEvenWhenTheyAreMissingFromFinalInventory()
+    {
+        var bootsItemId = ChampionPatternNormalization.BuildCorrelatedBootsItem(
+        [
+            new ItemEvent { TimestampMs = 120_000, ItemId = 3006, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 720_000, ItemId = 3006, EventType = "ITEM_DESTROYED" }
+        ],
+            [3153, 3124, 3302, 3082, 0, 0, 0],
             [],
             ItemMetadataById);
 
