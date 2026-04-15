@@ -38,8 +38,8 @@ public sealed class ChampionsController(
             return NotFound();
         }
 
-        var effectivePatch = patch ?? requestedFoundationReadModel.Summary.LatestPatchVersion;
-        var effectivePosition = position ?? requestedFoundationReadModel.Summary.Position;
+        var effectivePatch = NullIfEmpty(patch ?? requestedFoundationReadModel.Summary.LatestPatchVersion);
+        var effectivePosition = NullIfEmpty(position ?? requestedFoundationReadModel.Summary.Position);
 
         var buildTreeReadModel = await championBuildTreeQueryService.GetAsync(
             championId,

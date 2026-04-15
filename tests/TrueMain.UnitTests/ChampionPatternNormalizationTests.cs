@@ -345,6 +345,21 @@ public sealed class ChampionPatternNormalizationTests
     }
 
     [Fact]
+    public void BuildCorrelatedBootsItem_ShouldIgnoreUndoneBootPurchases()
+    {
+        var bootsItemId = ChampionPatternNormalization.BuildCorrelatedBootsItem(
+        [
+            new ItemEvent { TimestampMs = 120_000, ItemId = 3006, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 121_000, ItemId = 3006, BeforeId = 3006, EventType = "ITEM_UNDO" }
+        ],
+            [3153, 3124, 3302, 3082, 0, 0, 0],
+            [],
+            ItemMetadataById);
+
+        bootsItemId.Should().Be(0);
+    }
+
+    [Fact]
     public void NormalizeTeamPosition_ShouldKeepOnlyValidTeamPositions()
     {
         ChampionPatternNormalization.NormalizeTeamPosition("BOTTOM").Should().Be("BOTTOM");
