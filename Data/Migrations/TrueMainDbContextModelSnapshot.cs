@@ -25,6 +25,118 @@ namespace Data.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Data.Entities.ChampionPatternAggregate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AggregatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("BootsItemId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BuildItem0")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BuildItem1")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BuildItem2")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BuildItem3")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BuildItem4")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BuildItem5")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BuildItem6")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ChampionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("GameVersion")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int>("Games")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("LastGameStartTimeUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("PerksDefense")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PerksFlex")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PerksOffense")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PlatformId")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<string>("Position")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("PrimaryStyleId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("QueueId")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("RiotAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SkillOrderKey")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.PrimitiveCollection<List<int>>("StarterItems")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("StarterItemsKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("SubStyleId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SummonerSpell1Id")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SummonerSpell2Id")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Wins")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RiotAccountId", "ChampionId", "GameVersion", "PlatformId", "Position");
+
+                    b.HasIndex("RiotAccountId", "ChampionId", "GameVersion", "PlatformId", "QueueId", "Position", "PrimaryStyleId", "SubStyleId", "PerksOffense", "PerksFlex", "PerksDefense", "SummonerSpell1Id", "SummonerSpell2Id", "SkillOrderKey", "StarterItemsKey", "BootsItemId", "BuildItem0", "BuildItem1", "BuildItem2", "BuildItem3", "BuildItem4", "BuildItem5", "BuildItem6")
+                        .IsUnique()
+                        .HasDatabaseName("IX_champion_pattern_aggregates_RiotAccountId_ChampionId_GameV~1");
+
+                    b.ToTable("champion_pattern_aggregates", (string)null);
+                });
+
             modelBuilder.Entity("Data.Entities.MainCandidate", b =>
                 {
                     b.Property<Guid>("Id")
@@ -102,6 +214,9 @@ namespace Data.Migrations
                     b.Property<bool>("IsMain")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsOtp")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("PlatformId")
                         .IsRequired()
                         .HasMaxLength(8)
@@ -128,8 +243,6 @@ namespace Data.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("IsMain", "PlayRate");
 
                     b.HasIndex("PlatformId", "Puuid");
 
@@ -284,6 +397,9 @@ namespace Data.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
+                    b.Property<Guid?>("RiotAccountId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -330,6 +446,8 @@ namespace Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("MatchId");
+
+                    b.HasIndex("RiotAccountId");
 
                     b.ToTable("match_participants", (string)null);
                 });
@@ -421,7 +539,8 @@ namespace Data.Migrations
                         .HasColumnType("integer");
 
                     b.Property<string>("Error")
-                        .HasColumnType("text");
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
 
                     b.Property<DateTime>("FinishedAtUtc")
                         .HasColumnType("timestamp with time zone");
@@ -532,6 +651,17 @@ namespace Data.Migrations
                     b.ToTable("riot_accounts", (string)null);
                 });
 
+            modelBuilder.Entity("Data.Entities.ChampionPatternAggregate", b =>
+                {
+                    b.HasOne("Data.Entities.RiotAccount", "RiotAccount")
+                        .WithMany()
+                        .HasForeignKey("RiotAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RiotAccount");
+                });
+
             modelBuilder.Entity("Data.Entities.MatchParticipant", b =>
                 {
                     b.HasOne("Data.Entities.Match", "Match")
@@ -540,7 +670,13 @@ namespace Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("Data.Entities.RiotAccount", "RiotAccount")
+                        .WithMany()
+                        .HasForeignKey("RiotAccountId");
+
                     b.Navigation("Match");
+
+                    b.Navigation("RiotAccount");
                 });
 
             modelBuilder.Entity("Data.Entities.ParticipantPerkSelection", b =>

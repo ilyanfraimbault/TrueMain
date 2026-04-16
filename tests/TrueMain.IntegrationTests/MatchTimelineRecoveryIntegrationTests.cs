@@ -41,7 +41,10 @@ public sealed class MatchTimelineRecoveryIntegrationTests : IClassFixture<Postgr
 
         await using var verifyDb = _fixture.CreateDbContext();
         var participant = verifyDb.MatchParticipants.Single(p => p.MatchId == matchId && p.ParticipantId == 1);
+        participant.ItemEvents.Should().ContainSingle();
         participant.SkillEvents.Should().ContainSingle();
+        participant.ItemEvents[0].ItemId.Should().Be(1055);
+        participant.ItemEvents[0].EventType.Should().Be("ITEM_PURCHASED");
 
         var match = verifyDb.Matches.Single(m => m.Id == matchId);
         match.TimelineIngested.Should().BeTrue();
@@ -124,6 +127,13 @@ public sealed class MatchTimelineRecoveryIntegrationTests : IClassFixture<Postgr
             {
                 Events =
                 [
+                    new MatchTimelineEventDto
+                    {
+                        ParticipantId = 1,
+                        TimestampMs = 500,
+                        Type = "ITEM_PURCHASED",
+                        ItemId = 1055
+                    },
                     new MatchTimelineEventDto
                     {
                         ParticipantId = 1,

@@ -1,0 +1,67 @@
+name: Publish QA Docker Images
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - develop
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_API: ghcr.io/${{ github.repository_owner }}/truemain-api
+  IMAGE_INGESTOR: ghcr.io/${{ github.repository_owner }}/truemain-ingestor
+  IMAGE_WEB: ghcr.io/${{ github.repository_owner }}/truemain-web
+
+jobs:
+  publish-qa:
+    name: Publish QA Images
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Api/Dockerfile
+          push: true
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+          tags: ${{ env.IMAGE_API }}:qa
+
+      - name: Build and push Ingestor image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Ingestor/Dockerfile
+          push: true
+          cache-from: type=gha,scope=ingestor
+          cache-to: type=gha,mode=max,scope=ingestor
+          tags: ${{ env.IMAGE_INGESTOR }}:qa
+
+      - name: Build and push Web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: truemain-web/Dockerfile
+          push: true
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+          tags: ${{ env.IMAGE_WEB }}:qa

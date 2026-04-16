@@ -1,13 +1,43 @@
+using Core.Options;
+using TrueMain.Services.Champions;
+using TrueMain.Services.Ops;
 using Data;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using TrueMain.Options;
 
 var builder = WebApplication.CreateBuilder(args);
+const string frontendCorsPolicy = "FrontendCors";
 
 // Add services to the container.
 
 builder.Services.AddControllers();
 builder.Services.AddHealthChecks();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(frontendCorsPolicy, policy =>
+    {
+        policy
+            .WithOrigins(
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+                "http://localhost:3001",
+                "http://127.0.0.1:3001")
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
+builder.Services.AddOptions<MainAnalysisOptions>()
+    .Bind(builder.Configuration.GetSection("MainAnalysis"))
+    .Validate(options => options.QueueId > 0, "MainAnalysis:QueueId must be greater than 0.")
+    .ValidateOnStart();
+builder.Services.AddOptions<OpsOptions>()
+    .Bind(builder.Configuration.GetSection("Ops"));
+builder.Services.AddScoped<IChampionFoundationQueryService, ChampionFoundationQueryService>();
+builder.Services.AddScoped<IChampionBuildTreeQueryService, ChampionBuildTreeQueryService>();
+builder.Services.AddScoped<IPipelineHealthQueryService, PipelineHealthQueryService>();
 builder.Services.AddDbContext<TrueMainDbContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("TrueMain");
@@ -24,18 +54,25 @@ builder.Services.AddDbContext<TrueMainDbContext>(options =>
 
     options.UseNpgsql(dataSource);
 });
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
-
 var app = builder.Build();
+var applyMigrationsOnStartup = builder.Configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup");
+
+if (applyMigrationsOnStartup && !app.Environment.IsEnvironment("Testing"))
+{
+    using var scope = app.Services.CreateScope();
+    var dbContext = scope.ServiceProvider.GetRequiredService<TrueMainDbContext>();
+    await dbContext.Database.MigrateAsync();
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
 
 app.UseHttpsRedirection();
+app.UseCors(frontendCorsPolicy);
 
 app.UseAuthorization();
 
@@ -43,3 +80,5 @@ app.MapHealthChecks("/health");
 app.MapControllers();
 
 app.Run();
+
+public partial class Program;

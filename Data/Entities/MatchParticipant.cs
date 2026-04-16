@@ -12,6 +12,10 @@ public class MatchParticipant
 
     public string Puuid { get; set; } = string.Empty;
 
+    public Guid? RiotAccountId { get; set; }
+
+    public RiotAccount? RiotAccount { get; set; }
+
     public string SummonerName { get; set; } = string.Empty;
 
     public int SummonerLevel { get; set; }

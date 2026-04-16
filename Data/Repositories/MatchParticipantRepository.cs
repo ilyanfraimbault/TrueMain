@@ -8,6 +8,18 @@ public sealed class MatchParticipantRepository(TrueMainDbContext db) : IMatchPar
     public Task<List<MatchParticipant>> GetByMatchIdAsync(string matchId, CancellationToken ct)
         => db.MatchParticipants.Where(p => p.MatchId == matchId).ToListAsync(ct);
 
+    public Task<List<MatchParticipant>> GetByMatchIdsAsync(IReadOnlyCollection<string> matchIds, CancellationToken ct)
+    {
+        if (matchIds.Count == 0)
+        {
+            return Task.FromResult(new List<MatchParticipant>());
+        }
+
+        return db.MatchParticipants
+            .Where(participant => matchIds.Contains(participant.MatchId))
+            .ToListAsync(ct);
+    }
+
     public Task<List<ParticipantRow>> GetRecentParticipantsAsync(string platformId, string puuid, int queueId, int take, CancellationToken ct)
     {
         return (

@@ -18,6 +18,8 @@ public class MainChampionStat
 
     public bool IsMain { get; set; }
 
+    public bool IsOtp { get; set; }
+
     public string PrimaryPosition { get; set; } = string.Empty;
 
     public List<PositionStat> PositionBreakdown { get; set; } = new();

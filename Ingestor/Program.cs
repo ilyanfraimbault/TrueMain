@@ -6,6 +6,7 @@ using Ingestor.Processes;
 using Ingestor.Processes.Components.Discovery;
 using Ingestor.Processes.Components.MainAnalysis;
 using Ingestor.Processes.Components.MatchIngestion;
+using Ingestor.Processes.Components.PatternAggregation;
 using Ingestor.Riot;
 using Ingestor.Services;
 using Microsoft.EntityFrameworkCore;
@@ -31,12 +32,18 @@ builder.Services.AddScoped<IAccountValidationService, AccountValidationService>(
 
 builder.Services.AddScoped<IMainStatsCalculator, MainStatsCalculator>();
 builder.Services.AddScoped<IMainDemotionPolicy, MainDemotionPolicy>();
+builder.Services.AddHttpClient<IItemMetadataProvider, CommunityDragonItemMetadataProvider>();
+builder.Services.AddScoped<ChampionPatternSourceRowReader>();
+builder.Services.AddScoped<ChampionPatternAggregateBuilder>();
+builder.Services.AddScoped<ChampionPatternAggregatePersister>();
 
 builder.Services.AddScoped<DiscoveryProcess>();
 builder.Services.AddScoped<ScoringProcess>();
 builder.Services.AddScoped<MatchIngestionProcess>();
 builder.Services.AddScoped<MainAnalysisProcess>();
+builder.Services.AddScoped<ChampionPatternAggregationProcess>();
 builder.Services.AddScoped<AccountRefreshProcess>();
+builder.Services.AddScoped<MatchDataRetentionProcess>();
 builder.Services.AddSingleton<IProcessRunRecorder, ProcessRunRecorder>();
 
 builder.Services.AddDbContextFactory<TrueMainDbContext>(options =>

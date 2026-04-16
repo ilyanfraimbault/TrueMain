@@ -1,5 +1,4 @@
 using Core;
-using Data.Entities;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Components.MatchIngestion;
@@ -18,120 +17,116 @@ public sealed class MatchIngestionProcess(
     IAccountValidationService accountValidationService,
     IOptions<MatchIngestionOptions> matchOptions)
 {
+    private const string ProcessName = "MatchIngestion";
+
     public async Task RunAsync(CancellationToken ct)
     {
         var startedAt = DateTime.UtcNow;
         var options = matchOptions.Value;
+        var platforms = NormalizePlatforms(options);
 
-        if (options.Platforms.Count == 0)
+        if (platforms.Count == 0)
         {
             logger.LogWarning("No platforms configured (MatchIngestion:Platforms).");
-            await RecordNoOpAsync(startedAt, "No platforms configured.", ct);
+            await runRecorder.RecordNoOpAsync(
+                ProcessName,
+                startedAt,
+                new { reason = "No platforms configured.", selected = 0 },
+                ct);
             return;
         }
 
-        var platforms = options.Platforms
-            .Where(platform => !string.IsNullOrWhiteSpace(platform))
-            .Select(platform => platform.Trim().ToUpperInvariant())
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
-
-        var summaryByPlatform = platforms.ToDictionary(platform => platform, _ => new PlatformSummary());
-        var lease = TimeSpan.FromMinutes(Math.Max(1, options.ClaimLeaseMinutes));
-
-        var totalAccounts = 0;
-        var totalInserted = 0;
-        var totalSkipped = 0;
-        var totalTimelines = 0;
-        var totalErrors = 0;
-
         try
         {
-            var claimedAccounts = await matchClaimService.ClaimAsync(platforms, options.BatchSize, lease, ct);
-            if (claimedAccounts.Count == 0)
-            {
-                logger.LogInformation("No queued accounts to ingest.");
-            }
-
-            foreach (var account in claimedAccounts)
-            {
-                ct.ThrowIfCancellationRequested();
-
-                try
-                {
-                    var accountSummary = await ProcessAccountAsync(account, options, ct);
-                    if (!summaryByPlatform.TryGetValue(accountSummary.PlatformId, out var platformSummary))
-                    {
-                        platformSummary = new PlatformSummary();
-                        summaryByPlatform[accountSummary.PlatformId] = platformSummary;
-                    }
-
-                    platformSummary.AccountsProcessed++;
-                    platformSummary.MatchesInserted += accountSummary.Inserted;
-                    platformSummary.MatchesSkipped += accountSummary.Skipped;
-                    platformSummary.TimelinesUpdated += accountSummary.TimelinesUpdated;
-
-                    totalAccounts++;
-                    totalInserted += accountSummary.Inserted;
-                    totalSkipped += accountSummary.Skipped;
-                    totalTimelines += accountSummary.TimelinesUpdated;
-                }
-                catch (Exception ex)
-                {
-                    totalErrors++;
-                    logger.LogError(
-                        ex,
-                        "Match ingestion failed for {Platform}/{Puuid}. Reverting to queued.",
-                        account.PlatformId,
-                        account.Puuid);
-                    await accountValidationService.RevertAsync(account, ct);
-                }
-            }
-
-            LogSummaryByPlatform(summaryByPlatform);
-
-            await runRecorder.RecordAsync(
-                "MatchIngestion",
-                startedAt,
-                DateTime.UtcNow,
-                ProcessRunStatus.Success,
-                new
-                {
-                    accountsProcessed = totalAccounts,
-                    matchesInserted = totalInserted,
-                    matchesSkipped = totalSkipped,
-                    timelinesUpdated = totalTimelines,
-                    errors = totalErrors,
-                    byPlatform = summaryByPlatform
-                        .Where(entry => entry.Value.AccountsProcessed > 0)
-                        .Select(entry => new
-                        {
-                            platform = entry.Key,
-                            accountsProcessed = entry.Value.AccountsProcessed,
-                            matchesInserted = entry.Value.MatchesInserted,
-                            matchesSkipped = entry.Value.MatchesSkipped,
-                            timelinesUpdated = entry.Value.TimelinesUpdated
-                        })
-                        .ToList()
-                },
-                null,
-                ct);
+            var claimedAccounts = await ClaimAccountsAsync(platforms, options, ct);
+            var summary = await IngestClaimedAccountsAsync(claimedAccounts, platforms, options, ct);
+            LogPlatformSummaries(summary.ByPlatform);
+            await runRecorder.RecordSuccessAsync(ProcessName, startedAt, BuildSuccessPayload(summary), ct);
         }
         catch (Exception ex)
         {
-            await runRecorder.RecordAsync(
-                "MatchIngestion",
-                startedAt,
-                DateTime.UtcNow,
-                ProcessRunStatus.Failed,
-                null,
-                ex.Message,
-                ct);
+            await runRecorder.RecordFailureAsync(ProcessName, startedAt, ex, ct);
             throw;
         }
     }
 
-    private async Task<AccountIngestionSummary> ProcessAccountAsync(
+    private static List<string> NormalizePlatforms(MatchIngestionOptions options)
+    {
+        return options.Platforms
+            .Where(platform => !string.IsNullOrWhiteSpace(platform))
+            .Select(platform => platform.Trim().ToUpperInvariant())
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+    }
+
+    private async Task<IReadOnlyList<AccountKey>> ClaimAccountsAsync(
+        IReadOnlyCollection<string> platforms,
+        MatchIngestionOptions options,
+        CancellationToken ct)
+    {
+        var lease = TimeSpan.FromMinutes(Math.Max(1, options.ClaimLeaseMinutes));
+        var claimedAccounts = await matchClaimService.ClaimAsync(platforms, options.BatchSize, lease, ct);
+        if (claimedAccounts.Count == 0)
+        {
+            logger.LogInformation("No queued accounts to ingest.");
+        }
+
+        return claimedAccounts;
+    }
+
+    private async Task<IngestionSummary> IngestClaimedAccountsAsync(
+        IReadOnlyList<AccountKey> claimedAccounts,
+        IReadOnlyCollection<string> platforms,
+        MatchIngestionOptions options,
+        CancellationToken ct)
+    {
+        var summary = new IngestionSummary(platforms);
+
+        foreach (var account in claimedAccounts)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            try
+            {
+                var accountSummary = await IngestSingleAccountAsync(account, options, ct);
+                summary.TotalAccounts++;
+                summary.TotalInserted += accountSummary.Inserted;
+                summary.TotalSkipped += accountSummary.Skipped;
+                summary.TotalTimelines += accountSummary.TimelinesUpdated;
+                UpdatePlatformSummary(summary.ByPlatform, accountSummary);
+            }
+            catch (Exception ex)
+            {
+                summary.TotalErrors++;
+                logger.LogError(
+                    ex,
+                    "Match ingestion failed for {Platform}/{Puuid}. Reverting to queued.",
+                    account.PlatformId,
+                    account.Puuid);
+                await accountValidationService.RevertAsync(account, ct);
+            }
+        }
+
+        return summary;
+    }
+
+    private static void UpdatePlatformSummary(
+        IDictionary<string, PlatformSummary> summaryByPlatform,
+        AccountIngestionSummary accountSummary)
+    {
+        if (!summaryByPlatform.TryGetValue(accountSummary.PlatformId, out var platformSummary))
+        {
+            platformSummary = new PlatformSummary();
+            summaryByPlatform[accountSummary.PlatformId] = platformSummary;
+        }
+
+        platformSummary.AccountsProcessed++;
+        platformSummary.MatchesInserted += accountSummary.Inserted;
+        platformSummary.MatchesSkipped += accountSummary.Skipped;
+        platformSummary.TimelinesUpdated += accountSummary.TimelinesUpdated;
+    }
+
+    private async Task<AccountIngestionSummary> IngestSingleAccountAsync(
         AccountKey account,
         MatchIngestionOptions options,
         CancellationToken ct)
@@ -175,7 +170,7 @@ public sealed class MatchIngestionProcess(
         return new AccountIngestionSummary(platformId, snapshotResult.Inserted, snapshotResult.Skipped, timelineUpdated);
     }
 
-    private void LogSummaryByPlatform(IReadOnlyDictionary<string, PlatformSummary> summaryByPlatform)
+    private void LogPlatformSummaries(IReadOnlyDictionary<string, PlatformSummary> summaryByPlatform)
     {
         foreach (var (platformId, summary) in summaryByPlatform)
         {
@@ -194,19 +189,45 @@ public sealed class MatchIngestionProcess(
         }
     }
 
-    private async Task RecordNoOpAsync(DateTime startedAtUtc, string reason, CancellationToken ct)
+    private static object BuildSuccessPayload(IngestionSummary summary)
     {
-        await runRecorder.RecordAsync(
-            "MatchIngestion",
-            startedAtUtc,
-            DateTime.UtcNow,
-            ProcessRunStatus.Success,
-            new { reason, selected = 0 },
-            null,
-            ct);
+        return new
+        {
+            accountsProcessed = summary.TotalAccounts,
+            matchesInserted = summary.TotalInserted,
+            matchesSkipped = summary.TotalSkipped,
+            timelinesUpdated = summary.TotalTimelines,
+            errors = summary.TotalErrors,
+            byPlatform = summary.ByPlatform
+                .Where(entry => entry.Value.AccountsProcessed > 0)
+                .Select(entry => new
+                {
+                    platform = entry.Key,
+                    accountsProcessed = entry.Value.AccountsProcessed,
+                    matchesInserted = entry.Value.MatchesInserted,
+                    matchesSkipped = entry.Value.MatchesSkipped,
+                    timelinesUpdated = entry.Value.TimelinesUpdated
+                })
+                .ToList()
+        };
     }
 
     private sealed record AccountIngestionSummary(string PlatformId, int Inserted, int Skipped, int TimelinesUpdated);
+
+    private sealed class IngestionSummary
+    {
+        public IngestionSummary(IEnumerable<string> platforms)
+        {
+            ByPlatform = platforms.ToDictionary(platform => platform, _ => new PlatformSummary());
+        }
+
+        public Dictionary<string, PlatformSummary> ByPlatform { get; }
+        public int TotalAccounts { get; set; }
+        public int TotalInserted { get; set; }
+        public int TotalSkipped { get; set; }
+        public int TotalTimelines { get; set; }
+        public int TotalErrors { get; set; }
+    }
 
     private sealed class PlatformSummary
     {

@@ -1,6 +1,6 @@
+using Core.Options;
 using Data.Entities;
 using Data.Repositories;
-using Ingestor.Options;
 
 namespace Ingestor.Processes.Components.MainAnalysis;
 
@@ -40,6 +40,7 @@ public sealed class MainStatsCalculator : IMainStatsCalculator
     {
         var championMatches = group.Count();
         var playRate = (double)championMatches / totalMatches;
+        var eligibleForClassification = totalMatches >= options.MinMatchesToEvaluate;
 
         var positions = group
             .GroupBy(row => row.TeamPosition)
@@ -57,8 +58,8 @@ public sealed class MainStatsCalculator : IMainStatsCalculator
             .ToList();
 
         var primaryPosition = positions.Count > 0 ? positions[0].Position : string.Empty;
-        var isMain = totalMatches >= options.MinMatchesToEvaluate
-                     && playRate >= options.PlayRateThreshold;
+        var isMain = eligibleForClassification && playRate >= options.PlayRateThreshold;
+        var isOtp = isMain && playRate >= options.OtpPlayRateThreshold;
 
         return new MainChampionStat
         {
@@ -69,6 +70,7 @@ public sealed class MainStatsCalculator : IMainStatsCalculator
             ChampionMatches = championMatches,
             PlayRate = playRate,
             IsMain = isMain,
+            IsOtp = isOtp,
             PrimaryPosition = primaryPosition,
             PositionBreakdown = positions,
             CalculatedAtUtc = calculatedAtUtc

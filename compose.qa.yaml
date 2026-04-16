@@ -1,0 +1,95 @@
+services:
+  postgres:
+    image: postgres:17.2
+    container_name: truemain-qa-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - truemain_qa_db_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - truemain_internal
+
+  api:
+    image: ghcr.io/ilyanfraimbault/truemain-api:qa
+    container_name: truemain-qa-api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8081:8080"
+    networks:
+      - truemain_internal
+
+  web:
+    image: ghcr.io/ilyanfraimbault/truemain-web:qa
+    container_name: truemain-qa-web
+    restart: unless-stopped
+    environment:
+      NITRO_HOST: 0.0.0.0
+      NITRO_PORT: 3000
+      NUXT_API_BASE_URL: http://api:8080
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "3001:3000"
+    networks:
+      - truemain_internal
+
+  ingestor:
+    image: ghcr.io/ilyanfraimbault/truemain-ingestor:qa
+    container_name: truemain-qa-ingestor
+    restart: unless-stopped
+    environment:
+      DOTNET_ENVIRONMENT: Production
+      ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      Riot__ApiKey: ${RIOT_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - truemain_internal
+
+  pgadmin:
+    image: dpage/pgadmin4:9.11
+    container_name: truemain-qa-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    ports:
+      - "5051:80"
+    volumes:
+      - truemain_qa_pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - truemain_internal
+
+volumes:
+  truemain_qa_db_data:
+    name: truemain_qa_db_data
+  truemain_qa_pgadmin_data:
+    name: truemain_qa_pgadmin_data
+
+networks:
+  truemain_internal:
+    name: truemain_qa_internal
+    driver: bridge

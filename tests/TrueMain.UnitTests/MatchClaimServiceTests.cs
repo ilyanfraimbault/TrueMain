@@ -13,7 +13,6 @@ public sealed class MatchClaimServiceTests
     [Fact]
     public async Task ClaimAsync_PassesLeaseToRepositoryAndUpdatesCandidateStatus()
     {
-        var now = DateTime.UtcNow;
         var lease = TimeSpan.FromMinutes(30);
 
         var sessionFactory = Substitute.For<IDataSessionFactory>();

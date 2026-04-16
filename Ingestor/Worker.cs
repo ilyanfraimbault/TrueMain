@@ -22,7 +22,9 @@ public class Worker(
             var scoringProcess = scope.ServiceProvider.GetRequiredService<ScoringProcess>();
             var matchIngestionProcess = scope.ServiceProvider.GetRequiredService<MatchIngestionProcess>();
             var mainAnalysisProcess = scope.ServiceProvider.GetRequiredService<MainAnalysisProcess>();
+            var championPatternAggregationProcess = scope.ServiceProvider.GetRequiredService<ChampionPatternAggregationProcess>();
             var accountRefreshProcess = scope.ServiceProvider.GetRequiredService<AccountRefreshProcess>();
+            var matchDataRetentionProcess = scope.ServiceProvider.GetRequiredService<MatchDataRetentionProcess>();
 
             switch (mode)
             {
@@ -38,15 +40,23 @@ public class Worker(
                 case JobMode.MainAnalysisOnly:
                     await mainAnalysisProcess.RunAsync(stoppingToken);
                     break;
+                case JobMode.PatternAggregationOnly:
+                    await championPatternAggregationProcess.RunAsync(stoppingToken);
+                    break;
                 case JobMode.AccountRefreshOnly:
                     await accountRefreshProcess.RunAsync(stoppingToken);
+                    break;
+                case JobMode.MatchDataRetentionOnly:
+                    await matchDataRetentionProcess.RunAsync(stoppingToken);
                     break;
                 default:
                     await discoveryProcess.RunAsync(stoppingToken);
                     await scoringProcess.RunAsync(stoppingToken);
                     await matchIngestionProcess.RunAsync(stoppingToken);
                     await mainAnalysisProcess.RunAsync(stoppingToken);
+                    await championPatternAggregationProcess.RunAsync(stoppingToken);
                     await accountRefreshProcess.RunAsync(stoppingToken);
+                    await matchDataRetentionProcess.RunAsync(stoppingToken);
                     break;
             }
 
@@ -76,7 +86,10 @@ public class Worker(
             "scoringonly" => JobMode.ScoringOnly,
             "matchingestiononly" => JobMode.MatchIngestionOnly,
             "mainanalysisonly" => JobMode.MainAnalysisOnly,
+            "patternaggregationonly" => JobMode.PatternAggregationOnly,
             "accountrefreshonly" => JobMode.AccountRefreshOnly,
+            "matchdataretentiononly" => JobMode.MatchDataRetentionOnly,
+            "retentiononly" => JobMode.MatchDataRetentionOnly,
             "full" => JobMode.Full,
             _ => throw new InvalidOperationException($"Unsupported job mode '{mode}'.")
         };
@@ -89,6 +102,8 @@ public class Worker(
         ScoringOnly,
         MatchIngestionOnly,
         MainAnalysisOnly,
-        AccountRefreshOnly
+        PatternAggregationOnly,
+        AccountRefreshOnly,
+        MatchDataRetentionOnly
     }
 }

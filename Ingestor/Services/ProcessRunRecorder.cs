@@ -6,6 +6,8 @@ namespace Ingestor.Services;
 
 public sealed class ProcessRunRecorder(IDataSessionFactory sessionFactory) : IProcessRunRecorder
 {
+    private const int MaxErrorLength = 2048;
+
     public async Task RecordAsync(
         string processName,
         DateTime startedAtUtc,
@@ -30,11 +32,21 @@ public sealed class ProcessRunRecorder(IDataSessionFactory sessionFactory) : IPr
             FinishedAtUtc = finishedAtUtc,
             DurationMs = (int)Math.Max(0, (finishedAtUtc - startedAtUtc).TotalMilliseconds),
             Status = status,
-            Error = error,
+            Error = Truncate(error, MaxErrorLength),
             Host = Environment.MachineName,
             Summary = summaryDoc
         });
 
         await session.SaveChangesAsync(ct);
+    }
+
+    private static string? Truncate(string? value, int maxLength)
+    {
+        if (string.IsNullOrEmpty(value) || value.Length <= maxLength)
+        {
+            return value;
+        }
+
+        return value[..maxLength];
     }
 }

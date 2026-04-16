@@ -37,6 +37,9 @@ public sealed class MainChampionStatConfiguration : IEntityTypeConfiguration<Mai
         entity.Property(e => e.IsMain)
             .IsRequired();
 
+        entity.Property(e => e.IsOtp)
+            .IsRequired();
+
         entity.Property(e => e.PrimaryPosition)
             .IsRequired()
             .HasMaxLength(32);
@@ -53,6 +56,5 @@ public sealed class MainChampionStatConfiguration : IEntityTypeConfiguration<Mai
 
         entity.HasIndex(e => new { e.PlatformId, e.Puuid });
 
-        entity.HasIndex(e => new { e.IsMain, e.PlayRate });
     }
 }

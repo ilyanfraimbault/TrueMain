@@ -22,7 +22,11 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
             .Distinct(StringComparer.Ordinal)
             .ToList();
 
+        var trackedAccount = await session.RiotAccounts.GetByKeyAsync(platformId, puuid, ct);
         var existingSet = await session.Matches.GetExistingMatchIdsAsync(allMatchIds, ct);
+        var existingMatchIds = allMatchIds
+            .Where(id => existingSet.Contains(id))
+            .ToList();
         var newMatchIds = allMatchIds
             .Where(id => !existingSet.Contains(id))
             .ToList();
@@ -30,6 +34,17 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
         var inserted = 0;
         var skipped = allMatchIds.Count - newMatchIds.Count;
         var batchSize = Math.Max(1, saveBatchSize);
+
+        if (trackedAccount is not null && existingMatchIds.Count > 0)
+        {
+            await BackfillTrackedParticipantAccountIdsAsync(
+                session,
+                existingMatchIds,
+                puuid,
+                trackedAccount.Id,
+                batchSize,
+                ct);
+        }
 
         for (var i = 0; i < newMatchIds.Count; i += batchSize)
         {
@@ -55,6 +70,12 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
     {
         var matchId = matchDto.Metadata.MatchId;
         var gameStartUtc = RiotDataHelpers.ToUtcDateTime(matchDto.Info.GameStartTimestamp);
+        var participantAccounts = await session.RiotAccounts.GetByKeysAsync(
+            matchDto.Info.Participants
+                .Select(participant => new AccountKey(platformId, participant.Puuid))
+                .Distinct()
+                .ToArray(),
+            ct);
 
         session.Matches.Add(new Match
         {
@@ -71,7 +92,7 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
             TimelineIngested = false
         });
 
-        session.MatchParticipants.AddRange(MapParticipants(matchDto, matchId));
+        session.MatchParticipants.AddRange(MapParticipants(matchDto, matchId, platformId, participantAccounts));
 
         var mappedSelections = BuildPerkSelectionRows(matchDto)
             .Select(selection => new MappedPerkSelection(matchId, selection.ParticipantId, selection.Key))
@@ -90,7 +111,52 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
         session.MatchParticipants.AddPerkSelections(perkSelections);
     }
 
-    private static List<MatchParticipant> MapParticipants(RiotMatchDto match, string matchId)
+    private static async Task BackfillTrackedParticipantAccountIdsAsync(
+        IDataSession session,
+        IReadOnlyCollection<string> existingMatchIds,
+        string trackedPuuid,
+        Guid trackedRiotAccountId,
+        int batchSize,
+        CancellationToken ct)
+    {
+        if (existingMatchIds.Count == 0)
+        {
+            return;
+        }
+
+        var participantsToUpdate = (await session.MatchParticipants.GetByMatchIdsAsync(existingMatchIds, ct))
+            .Where(participant =>
+                participant.RiotAccountId == null &&
+                string.Equals(participant.Puuid, trackedPuuid, StringComparison.Ordinal))
+            .ToList();
+
+        var pendingUpdates = 0;
+
+        foreach (var trackedParticipant in participantsToUpdate)
+        {
+            trackedParticipant.RiotAccountId = trackedRiotAccountId;
+            pendingUpdates++;
+
+            if (pendingUpdates < batchSize)
+            {
+                continue;
+            }
+
+            await session.SaveChangesAsync(ct);
+            pendingUpdates = 0;
+        }
+
+        if (pendingUpdates > 0)
+        {
+            await session.SaveChangesAsync(ct);
+        }
+    }
+
+    private static List<MatchParticipant> MapParticipants(
+        RiotMatchDto match,
+        string matchId,
+        string platformId,
+        IReadOnlyDictionary<AccountKey, RiotAccount> participantAccounts)
     {
         var participants = new List<MatchParticipant>(match.Info.Participants.Count);
 
@@ -106,6 +172,9 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
                 MatchId = matchId,
                 ParticipantId = participant.ParticipantId,
                 Puuid = participant.Puuid,
+                RiotAccountId = participantAccounts.TryGetValue(new AccountKey(platformId, participant.Puuid), out var riotAccount)
+                    ? riotAccount.Id
+                    : null,
                 SummonerName = participant.SummonerName,
                 SummonerLevel = participant.SummonerLevel,
                 ChampionId = participant.ChampionId,

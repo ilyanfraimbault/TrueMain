@@ -18,6 +18,7 @@ public class ScoringProcess(
     /// Since Log10(1,000,000) ≈ 6, we divide by 6 to normalize the score to the [0, 1] range.
     /// </summary>
     private const double ChampionPointsLogNormalizer = 6.0;
+    private const string ProcessName = "Scoring";
 
     public async Task RunAsync(CancellationToken ct)
     {
@@ -27,89 +28,135 @@ public class ScoringProcess(
         try
         {
             await using var session = await sessionFactory.CreateAsync(ct);
-            var nowUtc = DateTime.UtcNow;
-            var batchSize = Math.Max(1, scoring.BatchSize);
-
-            var totalScored = 0;
-            var platformsTouched = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var scoredByPlatform = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-
-            while (true)
-            {
-                var batch = await session.MainCandidates.GetNewBatchAsync(batchSize, ct);
-                if (batch.Count == 0)
-                {
-                    break;
-                }
-
-                foreach (var candidate in batch)
-                {
-                    candidate.Score = ComputeScore(candidate, scoring, nowUtc);
-                    candidate.Status = MainCandidateStatus.Scored;
-                    candidate.ScoredAtUtc = nowUtc;
-                    platformsTouched.Add(candidate.PlatformId);
-                    scoredByPlatform[candidate.PlatformId] = scoredByPlatform.TryGetValue(candidate.PlatformId, out var count)
-                        ? count + 1
-                        : 1;
-                }
-
-                totalScored += batch.Count;
-                await session.SaveChangesAsync(ct);
-            }
-
-            if (totalScored == 0)
+            var scoringResult = await ScoreCandidatesAsync(session, scoring, ct);
+            if (scoringResult.TotalScored == 0)
             {
                 logger.LogInformation("No new candidates to score.");
-                var finishedAtNoOp = DateTime.UtcNow;
-                await runRecorder.RecordAsync(
-                    "Scoring",
+                await runRecorder.RecordNoOpAsync(
+                    ProcessName,
                     startedAt,
-                    finishedAtNoOp,
-                    ProcessRunStatus.Success,
                     new { reason = "No new candidates to score.", selected = 0 },
-                    null,
                     ct);
                 return;
             }
 
-            var platformSummaries = new List<object>();
-
-            foreach (var platformId in platformsTouched)
-            {
-                var queued = await session.MainCandidates
-                    .GetScoredByPlatformAsync(platformId, scoring.TopNPerPlatform, ct);
-
-                foreach (var candidate in queued)
-                {
-                    candidate.Status = MainCandidateStatus.Queued;
-                }
-
-                await session.SaveChangesAsync(ct);
-
-                platformSummaries.Add(new
-                {
-                    platform = platformId,
-                    scored = scoredByPlatform.TryGetValue(platformId, out var scoredCount) ? scoredCount : 0,
-                    queued = queued.Count
-                });
-
-                logger.LogInformation(
-                    "Scoring summary for {Platform}: scored={Scored}, queued={Queued}.",
-                    platformId,
-                    scoredByPlatform.TryGetValue(platformId, out var scored) ? scored : 0,
-                    queued.Count);
-            }
-
-            var finishedAt = DateTime.UtcNow;
-            await runRecorder.RecordAsync("Scoring", startedAt, finishedAt, ProcessRunStatus.Success,
-                new { platforms = platformSummaries }, null, ct);
+            var platformSummaries = await PromoteTopCandidatesAsync(session, scoring, scoringResult.ScoredByPlatform, ct);
+            await runRecorder.RecordSuccessAsync(ProcessName, startedAt, BuildSuccessPayload(platformSummaries), ct);
         }
         catch (Exception ex)
         {
-            var finishedAt = DateTime.UtcNow;
-            await runRecorder.RecordAsync("Scoring", startedAt, finishedAt, ProcessRunStatus.Failed, null, ex.Message, ct);
+            await runRecorder.RecordFailureAsync(ProcessName, startedAt, ex, ct);
             throw;
         }
+    }
+
+    private async Task<ScoringResult> ScoreCandidatesAsync(
+        IDataSession session,
+        ScoringOptions scoring,
+        CancellationToken ct)
+    {
+        var nowUtc = DateTime.UtcNow;
+        var batchSize = Math.Max(1, scoring.BatchSize);
+        var result = new ScoringResult();
+
+        while (true)
+        {
+            var scoredCandidates = await ScoreCandidatesBatchAsync(session, scoring, nowUtc, batchSize, ct);
+            if (scoredCandidates.Count == 0)
+            {
+                return result;
+            }
+
+            result.TotalScored += scoredCandidates.Count;
+
+            foreach (var candidate in scoredCandidates)
+            {
+                result.ScoredByPlatform[candidate.PlatformId] = result.ScoredByPlatform.TryGetValue(candidate.PlatformId, out var count)
+                    ? count + 1
+                    : 1;
+            }
+        }
+    }
+
+    private async Task<List<MainCandidate>> ScoreCandidatesBatchAsync(
+        IDataSession session,
+        ScoringOptions scoring,
+        DateTime nowUtc,
+        int batchSize,
+        CancellationToken ct)
+    {
+        var candidates = await session.MainCandidates.GetNewBatchAsync(batchSize, ct);
+        if (candidates.Count == 0)
+        {
+            return [];
+        }
+
+        foreach (var candidate in candidates)
+        {
+            candidate.Score = ComputeScore(candidate, scoring, nowUtc);
+            candidate.Status = MainCandidateStatus.Scored;
+            candidate.ScoredAtUtc = nowUtc;
+        }
+
+        await session.SaveChangesAsync(ct);
+        return candidates;
+    }
+
+    private async Task<List<object>> PromoteTopCandidatesAsync(
+        IDataSession session,
+        ScoringOptions scoring,
+        IReadOnlyDictionary<string, int> scoredByPlatform,
+        CancellationToken ct)
+    {
+        var platformSummaries = new List<object>();
+
+        foreach (var platformId in scoredByPlatform.Keys.Order(StringComparer.OrdinalIgnoreCase))
+        {
+            var queuedCandidates = await QueueTopCandidatesByPlatformAsync(session, platformId, scoring.TopNPerPlatform, ct);
+            var scoredCount = scoredByPlatform[platformId];
+
+            logger.LogInformation(
+                "Scoring summary for {Platform}: scored={Scored}, queued={Queued}.",
+                platformId,
+                scoredCount,
+                queuedCandidates.Count);
+
+            platformSummaries.Add(new
+            {
+                platform = platformId,
+                scored = scoredCount,
+                queued = queuedCandidates.Count
+            });
+        }
+
+        return platformSummaries;
+    }
+
+    private static async Task<IReadOnlyList<MainCandidate>> QueueTopCandidatesByPlatformAsync(
+        IDataSession session,
+        string platformId,
+        int topNPerPlatform,
+        CancellationToken ct)
+    {
+        var queuedCandidates = await session.MainCandidates.GetScoredByPlatformAsync(platformId, topNPerPlatform, ct);
+        foreach (var candidate in queuedCandidates)
+        {
+            candidate.Status = MainCandidateStatus.Queued;
+        }
+
+        await session.SaveChangesAsync(ct);
+        return queuedCandidates;
+    }
+
+    private static object BuildSuccessPayload(IEnumerable<object> platformSummaries)
+    {
+        return new { platforms = platformSummaries.ToList() };
+    }
+
+    private sealed class ScoringResult
+    {
+        public int TotalScored { get; set; }
+        public Dictionary<string, int> ScoredByPlatform { get; } = new(StringComparer.OrdinalIgnoreCase);
     }
 
     private static double ComputeScore(MainCandidate candidate, ScoringOptions scoring, DateTime nowUtc)
