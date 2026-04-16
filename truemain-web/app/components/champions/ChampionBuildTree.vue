@@ -20,6 +20,9 @@ const visibleNodes = computed(() =>
     .sort((left, right) => right.pickRate - left.pickRate)
 )
 
+const normalizedMaxChildren = computed(() => props.maxChildren)
+const normalizedMinimumPickRate = computed(() => props.minimumPickRate)
+
 const selectedRoot = ref<string>('')
 const treeContainerRef = ref<HTMLElement | null>(null)
 const treeContentRef = ref<HTMLElement | null>(null)
@@ -215,8 +218,8 @@ onBeforeUnmount(() => {
               :node="activeNode"
               :item="itemsById[activeNode.itemId] ?? null"
               :items-by-id="itemsById"
-              :max-children="maxChildren"
-              :minimum-pick-rate="minimumPickRate"
+              :max-children="normalizedMaxChildren"
+              :minimum-pick-rate="normalizedMinimumPickRate"
               :node-path-key="String(activeNode.itemId)"
               :primary-edge-ranks="primaryEdgeRanks"
             />
