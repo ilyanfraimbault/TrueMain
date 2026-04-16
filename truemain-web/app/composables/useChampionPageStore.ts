@@ -41,7 +41,6 @@ function toPositiveInteger(value: string, fallback: number): number {
 }
 
 async function fetchChampionData(
-  apiBaseUrl: string,
   championId: number,
   query: {
     patch?: string
@@ -54,8 +53,7 @@ async function fetchChampionData(
   try {
     fallbackRouteQuery.value = null
 
-    return await $fetch<ChampionResponse>(`/champions/${championId}`, {
-      baseURL: apiBaseUrl,
+    return await $fetch<ChampionResponse>(`/api/champions/${championId}`, {
       query
     })
   }
@@ -70,8 +68,7 @@ async function fetchChampionData(
 
     fallbackRouteQuery.value = {}
 
-    return await $fetch<ChampionResponse>(`/champions/${championId}`, {
-      baseURL: apiBaseUrl,
+    return await $fetch<ChampionResponse>(`/api/champions/${championId}`, {
       query: {
         maxDepth: query.maxDepth,
         minBranchGames: query.minBranchGames
@@ -173,7 +170,6 @@ async function fetchPatchCatalog(): Promise<string[]> {
 export function useChampionPageStore(championId: ComputedRef<number>) {
   const route = useRoute()
   const router = useRouter()
-  const runtimeConfig = useRuntimeConfig()
   const fallbackRouteQuery = ref<Record<string, string | undefined> | null>(null)
 
   const filters = reactive({
@@ -190,7 +186,7 @@ export function useChampionPageStore(championId: ComputedRef<number>) {
 
   const championState = useAsyncData(
     () => `champion-${championId.value}-${JSON.stringify(buildTreeQuery.value)}`,
-    () => fetchChampionData(runtimeConfig.public.apiBaseUrl, championId.value, buildTreeQuery.value, fallbackRouteQuery),
+    () => fetchChampionData(championId.value, buildTreeQuery.value, fallbackRouteQuery),
     {
       watch: [championId, buildTreeQuery]
     }
