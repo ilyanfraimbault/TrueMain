@@ -1,4 +1,11 @@
 <script setup lang="ts">
+import type {
+  ChampionAdvancedResponse,
+  ChampionBuildTreeResponse,
+  ChampionCoreResponse,
+  ChampionSummaryResponse
+} from '~/types/champions'
+
 const route = useRoute()
 const championId = computed(() => Number.parseInt(String(route.params.id), 10))
 
@@ -20,6 +27,47 @@ const {
   summary
 } = useChampionPageStore(championId)
 
+const loadingSummary: ChampionSummaryResponse = {
+  championId: 0,
+  games: 0,
+  winRate: 0,
+  trueMainCount: 0,
+  position: '',
+  latestPatchVersion: '',
+  lastUpdatedAtUtc: ''
+}
+
+const loadingCore: ChampionCoreResponse = {
+  sampleSize: 0,
+  starterItems: null,
+  boots: null,
+  buildPath: null,
+  summonerSpells: null,
+  skillOrder: null
+}
+
+const loadingAdvanced: ChampionAdvancedResponse = {
+  starterItemOptions: [],
+  summonerSpellOptions: [],
+  skillOrderOptions: []
+}
+
+const loadingBuildTree: ChampionBuildTreeResponse = {
+  championId: 0,
+  patch: null,
+  position: null,
+  riotAccountId: null,
+  platformId: null,
+  totalGames: 0,
+  build: []
+}
+
+const renderedSummary = computed(() => summary.value ?? loadingSummary)
+const renderedCore = computed(() => core.value ?? loadingCore)
+const renderedAdvanced = computed(() => advanced.value ?? loadingAdvanced)
+const renderedBuildTree = computed(() => buildTree.value ?? loadingBuildTree)
+const isSectionLoading = computed(() => isPageLoading.value || isStaticPending.value)
+
 const pageTitle = computed(() => championStatic.value.championName || 'TrueMain')
 const pageDescription = computed(() => `Vue champion et build tree pour le champion ${championId.value}.`)
 
@@ -31,9 +79,7 @@ useSeoMeta({
 
 <template>
   <main class="mx-auto max-w-5xl space-y-8 p-4 md:p-6">
-    <ChampionsChampionPageSkeleton v-if="isPageLoading" />
-
-    <section v-else-if="championState.error.value">
+    <section v-if="championState.error.value && !isPageLoading">
       <UAlert
         color="error"
         variant="soft"
@@ -43,36 +89,38 @@ useSeoMeta({
     </section>
 
     <section
-      v-else-if="champion && summary && core && advanced && buildTree"
+      v-else
       class="space-y-8"
     >
       <ChampionsChampionHeader
         :champion-static="championStatic"
-        :summary="summary"
+        :summary="renderedSummary"
         :patch-options="patchOptions"
         :position-options="positionOptions"
         :selected-patch="selectedPatch"
         :display-position="displayPosition"
+        :is-static-pending="isSectionLoading"
         @update:patch="setPatchFilter"
         @update:position="setPositionFilter"
       />
 
       <ChampionsChampionCoreSection
-        :core="core"
+        :core="renderedCore"
         :champion-static="championStatic"
-        :is-static-pending="isStaticPending"
+        :is-static-pending="isSectionLoading"
       />
 
       <ChampionsChampionAdvancedSection
-        :advanced="advanced"
+        :advanced="renderedAdvanced"
         :champion-static="championStatic"
+        :is-static-pending="isSectionLoading"
       />
 
       <ChampionsChampionBuildTreeSection
-        :build-tree="buildTree"
+        :build-tree="renderedBuildTree"
         :champion-static="championStatic"
-        :boots="core.boots"
-        :is-static-pending="isStaticPending"
+        :boots="renderedCore.boots"
+        :is-static-pending="isSectionLoading"
       />
     </section>
   </main>

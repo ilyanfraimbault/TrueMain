@@ -22,10 +22,11 @@ const visibleNodes = computed(() =>
 
 const selectedRoot = ref<string>('')
 
-const tabItems = computed(() =>
+const rootItems = computed(() =>
   visibleNodes.value.map((node, index) => ({
     value: `${node.itemId}-${index}`,
-    label: itemsByIdLabel(node.itemId),
+    itemId: node.itemId,
+    item: props.itemsById[node.itemId] ?? null,
     badge: `${Math.round(node.pickRate * 100)}%`
   }))
 )
@@ -35,11 +36,11 @@ const activeNode = computed(() => {
     return null
   }
 
-  const activeIndex = tabItems.value.findIndex(item => item.value === selectedRoot.value)
+  const activeIndex = rootItems.value.findIndex(item => item.value === selectedRoot.value)
   return visibleNodes.value[activeIndex >= 0 ? activeIndex : 0] ?? null
 })
 
-watch(tabItems, (items) => {
+watch(rootItems, (items) => {
   if (!items.length) {
     selectedRoot.value = ''
     return
@@ -51,10 +52,6 @@ watch(tabItems, (items) => {
 }, {
   immediate: true
 })
-
-function itemsByIdLabel(itemId: number): string {
-  return props.itemsById[itemId]?.name ?? `Item ${itemId}`
-}
 </script>
 
 <template>
@@ -63,15 +60,45 @@ function itemsByIdLabel(itemId: number): string {
       v-if="visibleNodes.length"
       class="space-y-4"
     >
-      <UTabs
-        v-if="tabItems.length > 1"
-        v-model="selectedRoot"
-        :items="tabItems"
-        :content="false"
-        color="neutral"
-        variant="link"
-        class="w-full"
-      />
+      <div
+        v-if="rootItems.length > 1"
+        class="flex flex-wrap items-center gap-3"
+      >
+        <UButton
+          v-for="root in rootItems"
+          :key="root.value"
+          type="button"
+          color="neutral"
+          :variant="selectedRoot === root.value ? 'soft' : 'ghost'"
+          :title="root.item?.name ?? `Item ${root.itemId}`"
+          class="rounded-xl px-2 py-1.5"
+          @click="selectedRoot = root.value"
+        >
+          <div class="flex items-center gap-2">
+            <ChampionsChampionAsyncImage
+              v-if="root.item"
+              :src="root.item.iconUrl"
+              :alt="root.item.name"
+              size-class="size-8"
+              image-class="rounded-md border border-default bg-default object-cover"
+              wrapper-class="rounded-md"
+              width="32"
+              height="32"
+            />
+            <div
+              v-else
+              class="size-8 rounded-md border border-default bg-elevated"
+            />
+            <UBadge
+              color="neutral"
+              variant="subtle"
+              size="sm"
+            >
+              {{ root.badge }}
+            </UBadge>
+          </div>
+        </UButton>
+      </div>
 
       <div class="overflow-x-auto pb-3">
         <div class="flex min-w-max justify-center px-2">

@@ -5,7 +5,7 @@
         <USkeleton class="size-28 shrink-0 rounded-3xl" />
 
         <div class="space-y-4">
-          <div class="h-10 w-48 rounded-lg bg-transparent text-3xl font-semibold tracking-tight" />
+          <USkeleton class="h-10 w-48 rounded-lg" />
           <div class="flex gap-10">
             <div class="space-y-2">
               <p class="text-sm text-muted">
@@ -30,12 +30,16 @@
           </p>
           <USkeleton class="h-10 w-36 rounded-lg" />
         </div>
-        <div class="flex gap-2">
-          <USkeleton
-            v-for="index in 5"
-            :key="index"
-            class="size-8 rounded-lg"
-          />
+        <div class="rounded-xl bg-elevated/40 p-1">
+          <div class="flex gap-2">
+            <div
+              v-for="index in 5"
+              :key="index"
+              class="flex size-8 items-center justify-center rounded-md"
+            >
+              <USkeleton class="size-5 rounded-sm" />
+            </div>
+          </div>
         </div>
       </div>
     </header>
@@ -45,21 +49,58 @@
         Core
       </h2>
       <UCard variant="subtle">
-        <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <div class="space-y-3">
+            <p class="text-sm font-medium text-muted">
+              Starter items
+            </p>
+            <div class="flex items-center gap-1">
+              <USkeleton class="size-14 rounded-xl" />
+              <USkeleton class="size-14 rounded-xl" />
+              <USkeleton class="size-14 rounded-xl" />
+            </div>
+          </div>
+
+          <div class="space-y-3">
+            <p class="text-sm font-medium text-muted">
+              Build path
+            </p>
+            <div class="flex items-center gap-1">
+              <USkeleton class="size-14 rounded-xl" />
+              <USkeleton class="size-14 rounded-xl" />
+              <USkeleton class="size-14 rounded-xl" />
+            </div>
+          </div>
+
+          <div class="space-y-3">
+            <p class="text-sm font-medium text-muted">
+              Boots
+            </p>
+            <div class="flex items-center gap-1">
+              <USkeleton class="size-14 rounded-xl" />
+            </div>
+          </div>
+
           <div
-            v-for="section in 4"
-            :key="section"
             class="space-y-3"
           >
             <p class="text-sm font-medium text-muted">
-              {{ ['Starter items', 'Build path', 'Summoners', 'Skill order'][section - 1] }}
+              Summoners
             </p>
-            <div class="flex flex-wrap gap-2">
-              <USkeleton
-                v-for="item in 3"
-                :key="item"
-                class="size-14 rounded-xl"
-              />
+            <div class="flex items-center gap-1">
+              <USkeleton class="size-14 rounded-xl" />
+              <USkeleton class="size-14 rounded-xl" />
+            </div>
+          </div>
+
+          <div class="space-y-3">
+            <p class="text-sm font-medium text-muted">
+              Skill order
+            </p>
+            <div class="flex items-center gap-1">
+              <USkeleton class="size-14 rounded-xl" />
+              <USkeleton class="size-14 rounded-xl" />
+              <USkeleton class="size-14 rounded-xl" />
             </div>
           </div>
         </div>
@@ -83,18 +124,21 @@
           </template>
 
           <div class="space-y-4">
-            <div
-              v-for="row in 3"
-              :key="row"
-              class="flex items-center justify-between gap-3"
-            >
-              <div class="flex gap-2">
-                <USkeleton class="size-14 rounded-xl" />
-                <USkeleton class="size-14 rounded-xl" />
-                <USkeleton class="size-14 rounded-xl" />
-              </div>
-              <div class="flex gap-2">
-                <USkeleton class="h-7 w-18 rounded-full" />
+          <div
+            v-for="row in 3"
+            :key="row"
+            class="flex items-center justify-between gap-3"
+          >
+            <div class="flex items-center gap-1">
+              <USkeleton class="size-10 rounded-md" />
+              <USkeleton class="size-10 rounded-md" />
+              <USkeleton
+                v-if="card !== 1"
+                class="size-10 rounded-md"
+              />
+            </div>
+            <div class="flex gap-2">
+              <USkeleton class="h-7 w-18 rounded-full" />
                 <USkeleton class="h-7 w-22 rounded-full" />
               </div>
             </div>
@@ -105,17 +149,32 @@
 
     <UCard variant="subtle">
       <template #header>
-        <div class="space-y-1">
-          <h2 class="text-lg font-semibold">
-            Build tree
-          </h2>
-          <p class="text-sm text-muted">
-            Arbre des probabilités d’achat.
-          </p>
+        <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div class="space-y-1">
+            <h2 class="text-lg font-semibold">
+              Build tree
+            </h2>
+            <p class="text-sm text-muted">
+              Arbre des probabilités d’achat.
+            </p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-muted">Correlated boots</span>
+            <USkeleton class="size-10 rounded-md" />
+          </div>
         </div>
       </template>
 
-      <div class="flex justify-center py-8">
+      <div class="space-y-4">
+        <div class="flex flex-wrap items-center gap-3">
+          <USkeleton
+            v-for="index in 4"
+            :key="`tree-root-skeleton-${index}`"
+            class="size-10 rounded-md"
+          />
+        </div>
+
+        <div class="flex justify-center py-8">
         <div class="flex min-w-max flex-col items-center gap-4">
           <USkeleton class="size-14 rounded-xl" />
           <USkeleton class="h-4 w-px" />
@@ -128,10 +187,15 @@
               <USkeleton class="h-px w-16" />
               <USkeleton class="size-14 rounded-xl" />
               <USkeleton class="h-4 w-px" />
-              <USkeleton class="size-14 rounded-xl" />
+              <div class="flex items-center gap-3">
+                <USkeleton class="size-14 rounded-xl" />
+                <USkeleton class="size-14 rounded-xl" />
+                <USkeleton class="size-14 rounded-xl" />
+              </div>
             </div>
           </div>
         </div>
+      </div>
       </div>
     </UCard>
   </section>

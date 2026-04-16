@@ -11,6 +11,7 @@ defineProps<{
   positionOptions: Array<{ label: string, value: ChampionPosition, iconUrl: string }>
   selectedPatch: string
   displayPosition: ChampionDisplayPosition
+  isStaticPending: boolean
 }>()
 
 const emit = defineEmits<{
@@ -38,8 +39,12 @@ const emit = defineEmits<{
       />
 
       <div class="space-y-3">
+        <USkeleton
+          v-if="isStaticPending"
+          class="h-10 w-40 rounded-lg"
+        />
         <h1
-          v-if="championStatic.championName"
+          v-else-if="championStatic.championName"
           class="text-3xl font-semibold tracking-tight"
         >
           {{ championStatic.championName }}
@@ -50,17 +55,31 @@ const emit = defineEmits<{
             <dt class="text-muted">
               Games
             </dt>
-            <dd class="mt-1 text-2xl font-semibold tracking-tight">
+            <dd
+              v-if="!isStaticPending"
+              class="mt-1 text-2xl font-semibold tracking-tight"
+            >
               {{ summary.games }}
             </dd>
+            <USkeleton
+              v-else
+              class="mt-1 h-8 w-16 rounded-lg"
+            />
           </div>
           <div>
             <dt class="text-muted">
               Win rate
             </dt>
-            <dd class="mt-1 text-2xl font-semibold tracking-tight">
+            <dd
+              v-if="!isStaticPending"
+              class="mt-1 text-2xl font-semibold tracking-tight"
+            >
               {{ formatPercentage(summary.winRate) }}
             </dd>
+            <USkeleton
+              v-else
+              class="mt-1 h-8 w-20 rounded-lg"
+            />
           </div>
         </dl>
       </div>
@@ -83,6 +102,7 @@ const emit = defineEmits<{
 
       <div class="flex w-full justify-end">
         <UFieldGroup
+          v-if="!isStaticPending"
           size="md"
           class="rounded-xl bg-elevated/40 p-1"
         >
@@ -107,6 +127,19 @@ const emit = defineEmits<{
               height="20"
             />
           </UButton>
+        </UFieldGroup>
+        <UFieldGroup
+          v-else
+          size="md"
+          class="rounded-xl bg-elevated/40 p-1"
+        >
+          <div
+            v-for="option in positionOptions"
+            :key="option.value"
+            class="flex size-8 items-center justify-center rounded-md"
+          >
+            <USkeleton class="size-5 rounded-sm" />
+          </div>
         </UFieldGroup>
       </div>
     </div>
