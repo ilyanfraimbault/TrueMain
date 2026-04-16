@@ -17,6 +17,7 @@ public sealed class PipelineHealthQueryService(
         "Scoring",
         "MatchIngestion",
         "MainAnalysis",
+        "ChampionPatternAggregation",
         "AccountRefresh",
         "MatchDataRetention"
     ];
@@ -37,22 +38,27 @@ public sealed class PipelineHealthQueryService(
             .AsNoTracking()
             .Where(match => match.QueueId == queueId);
 
-        var queueScopedMatchFreshness = await queueScopedMatches
+        var latestMatchesByPlatform = await queueScopedMatches
+            .Where(match => match.GameStartTimeUtc == queueScopedMatches
+                .Where(candidate => candidate.PlatformId == match.PlatformId)
+                .Max(candidate => candidate.GameStartTimeUtc))
             .Select(match => new
             {
+                match.Id,
                 match.PlatformId,
                 match.GameStartTimeUtc,
                 match.GameVersion
             })
+            .OrderBy(match => match.PlatformId)
+            .ThenByDescending(match => match.GameStartTimeUtc)
+            .ThenByDescending(match => match.Id)
             .ToListAsync(ct);
 
-        var platformFreshness = queueScopedMatchFreshness
+        var platformFreshness = latestMatchesByPlatform
             .GroupBy(match => match.PlatformId)
             .Select(group =>
             {
-                var latestMatch = group
-                    .OrderByDescending(match => match.GameStartTimeUtc)
-                    .First();
+                var latestMatch = group.First();
 
                 return new PlatformRawDataFreshnessReadModel
                 {
@@ -61,7 +67,6 @@ public sealed class PipelineHealthQueryService(
                     LatestPatchVersion = NormalizePatchVersion(latestMatch.GameVersion)
                 };
             })
-            .OrderBy(platform => platform.PlatformId)
             .ToList();
 
         var rawMatchCount = await queueScopedMatches.CountAsync(ct);

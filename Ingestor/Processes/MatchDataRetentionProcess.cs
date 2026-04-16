@@ -112,17 +112,28 @@ public sealed class MatchDataRetentionProcess(
         IReadOnlyDictionary<string, HashSet<string>> retainedPatchesByPlatform,
         CancellationToken ct)
     {
-        var rawMatches = await db.Matches
-            .AsNoTracking()
-            .Select(match => new MatchIdentity(match.Id, match.PlatformId, match.QueueId, match.GameVersion))
-            .ToListAsync(ct);
+        var deletableMatchIds = new List<string>();
 
-        return rawMatches
-            .Where(match => match.QueueId == queueId
-                && retainedPatchesByPlatform.TryGetValue(match.PlatformId, out var retainedPatches)
-                && !retainedPatches.Contains(NormalizePatchVersion(match.GameVersion)))
-            .Select(match => match.Id)
-            .ToList();
+        foreach (var (platformId, retainedPatches) in retainedPatchesByPlatform.OrderBy(entry => entry.Key))
+        {
+            var platformQuery = db.Matches
+                .AsNoTracking()
+                .Where(match => match.QueueId == queueId && match.PlatformId == platformId);
+
+            foreach (var retainedPatch in retainedPatches)
+            {
+                var patchPrefix = $"{retainedPatch}.%";
+                platformQuery = platformQuery
+                    .Where(match => match.GameVersion != retainedPatch
+                        && !EF.Functions.Like(match.GameVersion, patchPrefix));
+            }
+
+            deletableMatchIds.AddRange(await platformQuery
+                .Select(match => match.Id)
+                .ToListAsync(ct));
+        }
+
+        return deletableMatchIds;
     }
 
     private async Task<DeletionResult> DeleteExpiredMatchDataAsync(
@@ -176,8 +187,6 @@ public sealed class MatchDataRetentionProcess(
     }
 
     private sealed record ObservedMatch(string PlatformId, string GameVersion);
-
-    private sealed record MatchIdentity(string Id, string PlatformId, int QueueId, string GameVersion);
 
     private sealed record DeletionResult(int DeletedMatches, int DeletedParticipants);
 

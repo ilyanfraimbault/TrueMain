@@ -55,8 +55,9 @@ builder.Services.AddDbContext<TrueMainDbContext>(options =>
     options.UseNpgsql(dataSource);
 });
 var app = builder.Build();
+var applyMigrationsOnStartup = builder.Configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup");
 
-if (!app.Environment.IsEnvironment("Testing"))
+if (applyMigrationsOnStartup && !app.Environment.IsEnvironment("Testing"))
 {
     using var scope = app.Services.CreateScope();
     var dbContext = scope.ServiceProvider.GetRequiredService<TrueMainDbContext>();

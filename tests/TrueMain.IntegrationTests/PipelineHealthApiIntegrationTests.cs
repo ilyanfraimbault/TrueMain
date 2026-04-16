@@ -44,6 +44,7 @@ public sealed class PipelineHealthApiIntegrationTests : IClassFixture<PostgresFi
         var payload = await response.Content.ReadFromJsonAsync<PipelineHealthResponseTestContract>();
         payload.Should().NotBeNull();
         payload!.Processes.Should().Contain(process => process.ProcessName == "MatchIngestion" && process.Status == "success");
+        payload.Processes.Should().Contain(process => process.ProcessName == "ChampionPatternAggregation" && process.Status == "success");
         payload.RawData.QueueId.Should().Be(420);
         payload.RawData.RawMatchCount.Should().Be(3);
         payload.RawData.RawParticipantCount.Should().Be(3);
@@ -79,6 +80,7 @@ public sealed class PipelineHealthApiIntegrationTests : IClassFixture<PostgresFi
             BuildProcessRun("Scoring", ProcessRunStatus.Success, now.AddMinutes(-35), now.AddMinutes(-34)),
             BuildProcessRun("MatchIngestion", ProcessRunStatus.Success, now.AddMinutes(-30), now.AddMinutes(-28)),
             BuildProcessRun("MainAnalysis", ProcessRunStatus.Success, now.AddMinutes(-20), now.AddMinutes(-18)),
+            BuildProcessRun("ChampionPatternAggregation", ProcessRunStatus.Success, now.AddMinutes(-17), now.AddMinutes(-16)),
             BuildProcessRun("AccountRefresh", ProcessRunStatus.Success, now.AddMinutes(-10), now.AddMinutes(-9)));
 
         db.MainChampionStats.Add(

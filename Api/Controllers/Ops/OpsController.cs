@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using TrueMain.Mapping.Ops;
@@ -24,7 +26,14 @@ public sealed class OpsController(
         }
 
         if (!Request.Headers.TryGetValue(OpsApiKeyHeaderName, out var providedApiKey)
-            || !string.Equals(providedApiKey.ToString(), configuredApiKey, StringComparison.Ordinal))
+            || providedApiKey.Count != 1)
+        {
+            return Unauthorized();
+        }
+
+        var providedApiKeyBytes = Encoding.UTF8.GetBytes(providedApiKey[0]!);
+        var configuredApiKeyBytes = Encoding.UTF8.GetBytes(configuredApiKey);
+        if (!CryptographicOperations.FixedTimeEquals(providedApiKeyBytes, configuredApiKeyBytes))
         {
             return Unauthorized();
         }
