@@ -51,26 +51,17 @@ function visibleChildrenFor(node: ChampionBuildTreeNodeResponse) {
     .slice(0, props.maxChildren)
 }
 
-function collectPathSummaries(
+function collectGreedyPrimaryPath(
   node: ChampionBuildTreeNodeResponse,
-  cumulativePickRate: number,
   nodePathKey: string
-): Array<{ score: number, edgeKeys: string[] }> {
-  const children = visibleChildrenFor(node)
-
-  if (!children.length) {
-    return [{ score: cumulativePickRate, edgeKeys: [] }]
+): string[] {
+  const primaryChild = visibleChildrenFor(node)[0]
+  if (!primaryChild) {
+    return []
   }
 
-  return children.flatMap((child) => {
-    const childPathKey = `${nodePathKey}>${child.itemId}`
-    const childCumulativePickRate = cumulativePickRate * child.pickRate
-
-    return collectPathSummaries(child, childCumulativePickRate, childPathKey).map(path => ({
-      score: path.score,
-      edgeKeys: [childPathKey, ...path.edgeKeys]
-    }))
-  })
+  const childPathKey = `${nodePathKey}>${primaryChild.itemId}`
+  return [childPathKey, ...collectGreedyPrimaryPath(primaryChild, childPathKey)]
 }
 
 const primaryEdgeRanks = computed<Record<string, number>>(() => {
@@ -78,22 +69,11 @@ const primaryEdgeRanks = computed<Record<string, number>>(() => {
     return {}
   }
 
-  const topPaths = collectPathSummaries(
+  return collectGreedyPrimaryPath(
     activeNode.value,
-    activeNode.value.pickRate,
     String(activeNode.value.itemId)
-  )
-    .sort((left, right) => right.score - left.score || right.edgeKeys.length - left.edgeKeys.length)
-    .slice(0, 2)
-
-  return topPaths.reduce<Record<string, number>>((ranks, path, index) => {
-    for (const edgeKey of path.edgeKeys) {
-      const currentRank = ranks[edgeKey]
-      if (currentRank === undefined || index < currentRank) {
-        ranks[edgeKey] = index
-      }
-    }
-
+  ).reduce<Record<string, number>>((ranks, edgeKey) => {
+    ranks[edgeKey] = 0
     return ranks
   }, {})
 })
@@ -237,7 +217,6 @@ onBeforeUnmount(() => {
               :items-by-id="itemsById"
               :max-children="maxChildren"
               :minimum-pick-rate="minimumPickRate"
-              :cumulative-pick-rate="activeNode.pickRate"
               :node-path-key="String(activeNode.itemId)"
               :primary-edge-ranks="primaryEdgeRanks"
             />

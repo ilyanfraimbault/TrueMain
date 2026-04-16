@@ -15,7 +15,6 @@ const props = defineProps<{
   itemsById: Record<number, StaticItemData>
   maxChildren: number
   minimumPickRate: number
-  cumulativePickRate: number
   nodePathKey: string
   primaryEdgeRanks: Record<string, number>
 }>()
@@ -92,7 +91,7 @@ function getBranchStroke(pathRank?: number) {
   }
 
   return {
-    strokeWidth: pathRank === 0 ? 2.2 : 1.8,
+    strokeWidth: 2.2,
     strokeDasharray: undefined,
     strokeOpacity: 1,
     background: 'rgb(71 85 105)'
@@ -271,7 +270,6 @@ const hasSingleVisibleChild = computed(() => visibleChildren.value.length === 1)
             :items-by-id="itemsById"
             :max-children="maxChildren"
             :minimum-pick-rate="minimumPickRate"
-            :cumulative-pick-rate="cumulativePickRate * child.pickRate"
             :node-path-key="`${nodePathKey}>${child.itemId}`"
             :primary-edge-ranks="primaryEdgeRanks"
           />
