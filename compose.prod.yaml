@@ -59,7 +59,7 @@ services:
       DOTNET_ENVIRONMENT: Production
       ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300
       Riot__ApiKey: ${RIOT_API_KEY}
-      Job__Mode: ${INGESTOR_JOB_MODE}
+      Job__Mode: ${INGESTOR_JOB_MODE:-Full}
     depends_on:
       postgres:
         condition: service_healthy
