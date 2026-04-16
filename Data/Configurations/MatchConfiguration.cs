@@ -55,6 +55,9 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
 
         entity.HasIndex(e => e.PlatformId);
 
+        entity.HasIndex(e => new { e.PlatformId, e.QueueId, e.GameStartTimeUtc })
+            .HasDatabaseName("IX_matches_platform_queue_game_start");
+
         entity.HasIndex(e => e.TimelineIngested)
             .HasDatabaseName("IX_matches_timeline_ingested");
 

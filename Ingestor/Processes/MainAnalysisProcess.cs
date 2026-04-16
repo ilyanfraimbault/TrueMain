@@ -103,6 +103,8 @@ public sealed class MainAnalysisProcess(
         await using var transaction = await session.BeginTransactionAsync(ct);
         var existingStatsByAccount = await session.MainChampionStats.GetByAccountsAsync(batch, ct);
         var accountEntitiesByKey = await session.RiotAccounts.GetByKeysAsync(batch, ct);
+        var participantRowsByAccount = await session.MatchParticipants
+            .GetRecentParticipantsByAccountsAsync(batch, options.QueueId, Math.Max(1, options.MatchesToConsider), ct);
 
         foreach (var account in batch)
         {
@@ -110,6 +112,7 @@ public sealed class MainAnalysisProcess(
             var accountResult = await AnalyzeSingleAccountAsync(
                 session,
                 account,
+                participantRowsByAccount,
                 existingStatsByAccount,
                 accountEntitiesByKey,
                 options,
@@ -126,6 +129,7 @@ public sealed class MainAnalysisProcess(
     private async Task<AnalysisSummary> AnalyzeSingleAccountAsync(
         IDataSession session,
         AccountKey account,
+        IReadOnlyDictionary<AccountKey, List<ParticipantRow>> participantRowsByAccount,
         IReadOnlyDictionary<AccountKey, List<MainChampionStat>> existingStatsByAccount,
         IReadOnlyDictionary<AccountKey, RiotAccount> accountEntitiesByKey,
         MainAnalysisOptions options,
@@ -133,8 +137,9 @@ public sealed class MainAnalysisProcess(
         CancellationToken ct)
     {
         var summary = new AnalysisSummary();
-        var participantRows = await session.MatchParticipants
-            .GetRecentParticipantsAsync(account.PlatformId, account.Puuid, options.QueueId, Math.Max(1, options.MatchesToConsider), ct);
+        var participantRows = participantRowsByAccount.TryGetValue(account, out var rows)
+            ? rows
+            : [];
 
         var existingStats = existingStatsByAccount.TryGetValue(account, out var stats)
             ? stats
