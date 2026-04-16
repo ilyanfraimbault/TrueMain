@@ -78,7 +78,7 @@ function setChildRef(element: Element | ComponentPublicInstance | null, index: n
 }
 
 const tooltipText = computed(() =>
-  `${(props.item?.name ?? 'Unknown item') + " " + props.item?.id} • ${formatPercentage(props.node.pickRate)} pick rate • ${props.node.games} games • ${formatPercentage(props.node.wins / Math.max(props.node.games, 1))} WR`)
+  `${props.item?.name ?? 'Unknown item'} ${props.item?.id ?? props.node.itemId} • ${formatPercentage(props.node.pickRate)} pick rate • ${props.node.games} games • ${formatPercentage(props.node.wins / Math.max(props.node.games, 1))} WR`)
 
 function getBranchStroke(pathRank?: number) {
   if (pathRank === undefined) {

@@ -109,6 +109,18 @@ async function updateTreeScale() {
 }
 
 let resizeObserver: ResizeObserver | null = null
+let resizeFrame: number | null = null
+
+function scheduleTreeScaleUpdate() {
+  if (resizeFrame !== null) {
+    cancelAnimationFrame(resizeFrame)
+  }
+
+  resizeFrame = window.requestAnimationFrame(() => {
+    resizeFrame = null
+    void updateTreeScale()
+  })
+}
 
 watch(rootItems, (items) => {
   if (!items.length) {
@@ -124,15 +136,15 @@ watch(rootItems, (items) => {
 })
 
 watch(activeNode, () => {
-  void updateTreeScale()
+  scheduleTreeScaleUpdate()
 })
 
 onMounted(() => {
-  void updateTreeScale()
+  scheduleTreeScaleUpdate()
 
   if (typeof ResizeObserver !== 'undefined') {
     resizeObserver = new ResizeObserver(() => {
-      void updateTreeScale()
+      scheduleTreeScaleUpdate()
     })
 
     if (treeContainerRef.value) {
@@ -143,13 +155,18 @@ onMounted(() => {
       resizeObserver.observe(treeContentRef.value)
     }
   }
-
-  window.addEventListener('resize', updateTreeScale)
+  else {
+    window.addEventListener('resize', scheduleTreeScaleUpdate)
+  }
 })
 
 onBeforeUnmount(() => {
+  if (resizeFrame !== null) {
+    cancelAnimationFrame(resizeFrame)
+  }
+
   resizeObserver?.disconnect()
-  window.removeEventListener('resize', updateTreeScale)
+  window.removeEventListener('resize', scheduleTreeScaleUpdate)
 })
 </script>
 
