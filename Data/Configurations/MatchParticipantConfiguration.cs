@@ -122,6 +122,9 @@ public sealed class MatchParticipantConfiguration : IEntityTypeConfiguration<Mat
             .HasColumnType("jsonb")
             .IsRequired();
 
+        entity.HasIndex(e => new { e.Puuid, e.MatchId })
+            .HasDatabaseName("IX_match_participants_puuid_match");
+
         entity.HasIndex(e => e.RiotAccountId);
 
         entity.HasOne(e => e.RiotAccount)

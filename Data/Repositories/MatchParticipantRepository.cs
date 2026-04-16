@@ -5,6 +5,13 @@ namespace Data.Repositories;
 
 public sealed class MatchParticipantRepository(TrueMainDbContext db) : IMatchParticipantRepository
 {
+    private sealed record ParticipantHistoryRow(
+        string PlatformId,
+        string Puuid,
+        int ChampionId,
+        string TeamPosition,
+        DateTime GameStartTimeUtc);
+
     public Task<List<MatchParticipant>> GetByMatchIdAsync(string matchId, CancellationToken ct)
         => db.MatchParticipants.Where(p => p.MatchId == matchId).ToListAsync(ct);
 
@@ -33,6 +40,58 @@ public sealed class MatchParticipantRepository(TrueMainDbContext db) : IMatchPar
             )
             .Take(Math.Max(1, take))
             .ToListAsync(ct);
+    }
+
+    public async Task<Dictionary<AccountKey, List<ParticipantRow>>> GetRecentParticipantsByAccountsAsync(
+        IReadOnlyCollection<AccountKey> accounts,
+        int queueId,
+        int take,
+        CancellationToken ct)
+    {
+        var result = new Dictionary<AccountKey, List<ParticipantRow>>();
+        if (accounts.Count == 0)
+        {
+            return result;
+        }
+
+        var safeTake = Math.Max(1, take);
+        foreach (var grouping in accounts
+                     .Distinct()
+                     .GroupBy(account => account.PlatformId, StringComparer.OrdinalIgnoreCase))
+        {
+            var platformId = grouping.Key;
+            var puuids = grouping
+                .Select(account => account.Puuid)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+
+            var participantRows = await (
+                    from participant in db.MatchParticipants.AsNoTracking()
+                    join match in db.Matches.AsNoTracking() on participant.MatchId equals match.Id
+                    where puuids.Contains(participant.Puuid)
+                          && match.PlatformId == platformId
+                          && match.QueueId == queueId
+                    orderby participant.Puuid, match.GameStartTimeUtc descending
+                    select new ParticipantHistoryRow(
+                        platformId,
+                        participant.Puuid,
+                        participant.ChampionId,
+                        participant.TeamPosition,
+                        match.GameStartTimeUtc)
+                )
+                .ToListAsync(ct);
+
+            foreach (var accountRows in participantRows.GroupBy(row => row.Puuid, StringComparer.Ordinal))
+            {
+                var accountKey = new AccountKey(platformId, accountRows.Key);
+                result[accountKey] = accountRows
+                    .Take(safeTake)
+                    .Select(row => new ParticipantRow(row.ChampionId, row.TeamPosition))
+                    .ToList();
+            }
+        }
+
+        return result;
     }
 
     public void AddRange(IEnumerable<MatchParticipant> participants)
