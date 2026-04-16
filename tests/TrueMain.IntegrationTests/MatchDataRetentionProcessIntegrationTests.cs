@@ -7,7 +7,6 @@ using Ingestor.Processes;
 using Ingestor.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using System.Diagnostics.CodeAnalysis;
 
 namespace TrueMain.IntegrationTests;
@@ -31,11 +30,11 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IClassFixture<Po
             NullLogger<MatchDataRetentionProcess>.Instance,
             new TestDbContextFactory(_fixture),
             new ProcessRunRecorder(_fixture.CreateSessionFactory()),
-            Options.Create(new MatchDataRetentionOptions
+            Microsoft.Extensions.Options.Options.Create(new MatchDataRetentionOptions
             {
                 RetainedPatchCount = 1
             }),
-            Options.Create(new MainAnalysisOptions
+            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions
             {
                 QueueId = 420
             }));
@@ -153,6 +152,6 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IClassFixture<Po
 
         [SuppressMessage("Reliability", "CA2000", Justification = "DbContext ownership is transferred to the caller.")]
         public TrueMainDbContext CreateDbContext()
-            => fixture.CreateDbContext();
+            => CreateDbContextAsync().GetAwaiter().GetResult();
     }
 }

@@ -34,11 +34,11 @@ internal static class ChampionOptionProjector
                     row.Wins,
                     row.AggregatedAtUtc,
                     StarterItems = starterItems,
-                    BootsItemId = row.BootsItemId,
+                    row.BootsItemId,
                     BuildItemIds = buildItemIds,
                     SummonerSpell1Id = normalizedSummonerPair.spell1Id,
                     SummonerSpell2Id = normalizedSummonerPair.spell2Id,
-                    SkillOrderKey = row.SkillOrderKey
+                    row.SkillOrderKey
                 };
             })
             .GroupBy(entry => new
@@ -132,19 +132,19 @@ internal static class ChampionOptionProjector
 
     public static (int spell1Id, int spell2Id) NormalizeSummonerPair(int summoner1Id, int summoner2Id)
     {
-        const int FlashId = 4;
-        const int SmiteId = 11;
+        const int flashId = 4;
+        const int smiteId = 11;
 
-        if (summoner1Id == FlashId || summoner2Id == FlashId)
+        if (summoner1Id == flashId || summoner2Id == flashId)
         {
-            return summoner1Id == FlashId
+            return summoner1Id == flashId
                 ? (summoner1Id, summoner2Id)
                 : (summoner2Id, summoner1Id);
         }
 
-        if (summoner1Id == SmiteId || summoner2Id == SmiteId)
+        if (summoner1Id == smiteId || summoner2Id == smiteId)
         {
-            return summoner1Id == SmiteId
+            return summoner1Id == smiteId
                 ? (summoner1Id, summoner2Id)
                 : (summoner2Id, summoner1Id);
         }

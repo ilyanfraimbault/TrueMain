@@ -1,5 +1,4 @@
 using Core;
-using Data.Entities;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Components.Discovery;

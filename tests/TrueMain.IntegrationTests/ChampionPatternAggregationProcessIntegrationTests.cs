@@ -7,7 +7,6 @@ using Ingestor.Processes.Components.PatternAggregation;
 using Ingestor.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 
 namespace TrueMain.IntegrationTests;
 
@@ -122,10 +121,9 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
         => new(
             NullLogger<ChampionPatternAggregationProcess>.Instance,
             new FakeProcessRunRecorder(),
-            Options.Create(new MainAnalysisOptions { QueueId = 420 }),
+            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = 420 }),
             new ChampionPatternSourceRowReader(new TestDbContextFactory(_fixture)),
             new ChampionPatternAggregateBuilder(
-                NullLogger<ChampionPatternAggregateBuilder>.Instance,
                 new FakeItemMetadataProvider()),
             new ChampionPatternAggregatePersister(new TestDbContextFactory(_fixture)));
 

@@ -1,5 +1,4 @@
 using Data;
-using Data.Entities;
 using Core.Options;
 using Ingestor.Options;
 using Ingestor.Services;

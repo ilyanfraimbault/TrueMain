@@ -5,7 +5,6 @@ using Ingestor.Processes;
 using Ingestor.Processes.Components.MatchIngestion;
 using Ingestor.Services;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using NSubstitute;
 
 namespace TrueMain.UnitTests;
@@ -30,7 +29,7 @@ public sealed class MatchIngestionProcessNoOpTests
             matchSnapshotWriter,
             timelineIngestionService,
             accountValidationService,
-            Options.Create(new MatchIngestionOptions
+            Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions
             {
                 Platforms = [" ", "  "]
             }));

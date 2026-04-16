@@ -27,7 +27,6 @@ public static class ChampionBuildTreeBuilder
             }
 
             Dictionary<int, MutableNode> level = roots;
-            MutableNode? current = null;
 
             foreach (var itemId in buildPath)
             {
@@ -39,7 +38,6 @@ public static class ChampionBuildTreeBuilder
 
                 node.Games += row.Games;
                 node.Wins += row.Wins;
-                current = node;
                 level = node.Children;
             }
         }

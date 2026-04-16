@@ -54,7 +54,7 @@ const skillSequence = computed(() =>
           </p>
           <div
             v-if="isStaticPending"
-            class="flex flex-wrap gap-1"
+            class="flex items-center gap-1"
           >
             <USkeleton
               v-for="item in 3"
@@ -80,7 +80,7 @@ const skillSequence = computed(() =>
           </p>
           <div
             v-if="isStaticPending"
-            class="flex flex-wrap gap-1"
+            class="flex items-center gap-1"
           >
             <USkeleton
               v-for="item in 3"
@@ -146,7 +146,7 @@ const skillSequence = computed(() =>
           </p>
           <div
             v-if="isStaticPending"
-            class="flex flex-wrap items-center gap-1"
+            class="flex items-center gap-1"
           >
             <USkeleton class="size-14 rounded-xl" />
             <USkeleton class="size-14 rounded-xl" />

@@ -4,7 +4,6 @@ using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Services;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using NSubstitute;
 
 namespace TrueMain.UnitTests;
@@ -30,7 +29,7 @@ public sealed class ScoringProcessNoOpTests
             NullLogger<ScoringProcess>.Instance,
             sessionFactory,
             runRecorder,
-            Options.Create(new ScoringOptions()));
+            Microsoft.Extensions.Options.Options.Create(new ScoringOptions()));
 
         await process.RunAsync(CancellationToken.None);
 
@@ -80,7 +79,7 @@ public sealed class ScoringProcessNoOpTests
             NullLogger<ScoringProcess>.Instance,
             sessionFactory,
             runRecorder,
-            Options.Create(new ScoringOptions()));
+            Microsoft.Extensions.Options.Options.Create(new ScoringOptions()));
 
         await process.RunAsync(CancellationToken.None);
 

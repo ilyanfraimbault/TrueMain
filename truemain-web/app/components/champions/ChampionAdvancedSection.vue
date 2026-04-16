@@ -11,6 +11,7 @@ import {
 const props = defineProps<{
   advanced: ChampionAdvancedResponse
   championStatic: ChampionStaticData
+  isStaticPending: boolean
 }>()
 
 const visibleSummonerOptions = computed(() =>
@@ -45,7 +46,48 @@ function skillSequence(option: SkillOrderOptionResponse) {
       Advanced details
     </h2>
 
-    <div class="grid gap-4 xl:grid-cols-3">
+    <div
+      v-if="isStaticPending"
+      class="grid gap-4 xl:grid-cols-3"
+    >
+      <UCard
+        v-for="card in 3"
+        :key="`advanced-skeleton-${card}`"
+        variant="subtle"
+      >
+        <template #header>
+          <h3 class="text-base font-semibold">
+            {{ ['Summoner options', 'Skill options', 'Starter item options'][card - 1] }}
+          </h3>
+        </template>
+
+        <div class="space-y-4">
+          <div
+            v-for="row in 2"
+            :key="row"
+            class="flex items-center justify-between gap-3"
+          >
+            <div class="flex items-center gap-1">
+              <USkeleton class="size-10 rounded-md" />
+              <USkeleton class="size-10 rounded-md" />
+              <USkeleton
+                v-if="card !== 1"
+                class="size-10 rounded-md"
+              />
+            </div>
+            <div class="flex gap-2">
+              <USkeleton class="h-7 w-16 rounded-full" />
+              <USkeleton class="h-7 w-22 rounded-full" />
+            </div>
+          </div>
+        </div>
+      </UCard>
+    </div>
+
+    <div
+      v-else
+      class="grid gap-4 xl:grid-cols-3"
+    >
       <UCard variant="subtle">
         <template #header>
           <h3 class="text-base font-semibold">

@@ -1,10 +1,8 @@
 using Data.Entities;
-using System.Text.Json;
 
 namespace Ingestor.Processes.Components.PatternAggregation;
 
 public sealed class ChampionPatternAggregateBuilder(
-    ILogger<ChampionPatternAggregateBuilder> logger,
     IItemMetadataProvider itemMetadataProvider)
 {
     internal async Task<ChampionPatternAggregationResult> BuildAggregatesAsync(
@@ -88,13 +86,11 @@ public sealed class ChampionPatternAggregateBuilder(
         CancellationToken ct)
     {
         var expandedRows = new List<ExpandedSourceRow>(sourceRows.Count);
-        var loggedEmptyStarterSamples = 0;
 
         foreach (var row in sourceRows)
         {
             var itemMetadata = await itemMetadataProvider.GetItemsAsync(row.GameVersion, ct);
             var starterAnalysis = ChampionPatternNormalization.AnalyzeStarterItems(row.ItemEvents, itemMetadata);
-            LogEmptyStarterSample(row, starterAnalysis, ref loggedEmptyStarterSamples);
 
             var (spell1Id, spell2Id) = ChampionPatternNormalization.NormalizeSummonerPair(row.Summoner1Id, row.Summoner2Id);
             var skillOrderKey = ChampionPatternNormalization.BuildSkillOrderKey(row.SkillEvents);
@@ -139,37 +135,6 @@ public sealed class ChampionPatternAggregateBuilder(
         }
 
         return expandedRows;
-    }
-
-    private void LogEmptyStarterSample(
-        AggregateSourceRow row,
-        StarterItemsAnalysis starterAnalysis,
-        ref int loggedEmptyStarterSamples)
-    {
-        if (starterAnalysis.Items.Count > 0 || loggedEmptyStarterSamples >= 3)
-        {
-            return;
-        }
-
-        loggedEmptyStarterSamples++;
-        logger.LogInformation(
-            "Starter detection sample {SampleIndex}: matchId={MatchId}, riotAccountId={RiotAccountId}, championId={ChampionId}, patch={Patch}, position={Position}, reason={Reason}, totalCost={TotalCost}, earlyEvents={EarlyEvents}",
-            loggedEmptyStarterSamples,
-            row.MatchId,
-            row.RiotAccountId,
-            row.ChampionId,
-            row.GameVersion,
-            row.Position ?? "UNKNOWN",
-            starterAnalysis.Reason,
-            starterAnalysis.TotalCost,
-            JsonSerializer.Serialize(starterAnalysis.EarlyEvents.Select(static itemEvent => new
-            {
-                itemEvent.TimestampMs,
-                itemEvent.EventType,
-                itemEvent.ItemId,
-                itemEvent.BeforeId,
-                itemEvent.AfterId
-            })));
     }
 
     private static int[] PadBuildItems(IReadOnlyList<int> normalizedItems)

@@ -7,7 +7,6 @@ using Ingestor.Riot;
 using Ingestor.Riot.Dto;
 using Ingestor.Services;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 
 namespace TrueMain.IntegrationTests;
 
@@ -33,7 +32,7 @@ public sealed class DiscoveryProcessIntegrationTests : IClassFixture<PostgresFix
             new FakeLadderDiscoveryService(),
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
-            Options.Create(new DiscoveryOptions
+            Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
                 Platforms = ["KR"],
                 SaveBatchSize = 1,

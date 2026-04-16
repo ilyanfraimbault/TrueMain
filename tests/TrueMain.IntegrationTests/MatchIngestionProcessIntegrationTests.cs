@@ -7,7 +7,6 @@ using Ingestor.Riot;
 using Ingestor.Riot.Dto;
 using Ingestor.Services;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 
 namespace TrueMain.IntegrationTests;
 
@@ -33,7 +32,7 @@ public sealed class MatchIngestionProcessIntegrationTests : IClassFixture<Postgr
             new MatchSnapshotWriter(new FakeRiotMatchClient()),
             new TimelineIngestionService(new FakeRiotMatchClient()),
             validationService,
-            Options.Create(new MatchIngestionOptions
+            Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions
             {
                 Platforms = ["KR"],
                 BatchSize = 1,

@@ -5,7 +5,6 @@ using Ingestor.Processes;
 using Ingestor.Processes.Components.MainAnalysis;
 using Ingestor.Services;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 
 namespace TrueMain.IntegrationTests;
 
@@ -30,7 +29,7 @@ public sealed class MainAnalysisProcessIntegrationTests : IClassFixture<Postgres
             new FakeProcessRunRecorder(),
             new MainStatsCalculator(),
             new MainDemotionPolicy(),
-            Options.Create(new MainAnalysisOptions
+            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions
             {
                 BatchSize = 10,
                 ProcessingBatchSize = 10,

@@ -1,13 +1,13 @@
 using Core.Options;
-using TrueMain.Configuration;
 using TrueMain.Services.Champions;
 using TrueMain.Services.Ops;
 using Data;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using TrueMain.Options;
 
 var builder = WebApplication.CreateBuilder(args);
-const string FrontendCorsPolicy = "FrontendCors";
+const string frontendCorsPolicy = "FrontendCors";
 
 // Add services to the container.
 
@@ -17,7 +17,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy(FrontendCorsPolicy, policy =>
+    options.AddPolicy(frontendCorsPolicy, policy =>
     {
         policy
             .WithOrigins(
@@ -71,7 +71,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseCors(FrontendCorsPolicy);
+app.UseCors(frontendCorsPolicy);
 
 app.UseAuthorization();
 

@@ -1,6 +1,6 @@
 # TrueMain Web
 
-TrueMain Web is the Nuxt-based frontend for the TrueMain platform. It is developed and run as part of the TrueMain monorepo and communicates with backend services via a configurable API base URL.
+TrueMain Web is the Nuxt-based frontend for the TrueMain platform. It is developed and run as part of the TrueMain monorepo and communicates with backend services through a server-side Nuxt proxy.
 
 ## Monorepo integration
 
@@ -10,18 +10,18 @@ This project lives under the `truemain-web/` directory of the TrueMain monorepo.
 - Shared configuration / tooling: managed at the monorepo root
 - Backend / API services: defined in other packages within the monorepo
 
-TrueMain Web expects a running API service reachable via `NUXT_PUBLIC_API_BASE_URL`. When running the full monorepo (e.g. via Docker), that variable should point at the API gateway or main backend service exposed by the compose stack.
+TrueMain Web expects a running API service reachable from the `web` container via `NUXT_API_BASE_URL`. Browser requests go only to the Nuxt app, which proxies `/api/**` to the backend service.
 
 ## Environment variables
 
-The application reads configuration from standard Nuxt environment variables. The key variable for API communication is:
+The application reads configuration from standard Nuxt environment variables. The key variable for backend communication is:
 
-- `NUXT_PUBLIC_API_BASE_URL` (required)  
-  Base URL for all HTTP requests from the frontend to the backend.  
+- `NUXT_API_BASE_URL` (required)  
+  Base URL used by the Nuxt server proxy to reach the backend API.  
   Examples:
   - Local Docker compose: `http://api:8080` (service name and port defined in `docker-compose.yml`)
   - Local non-Docker development: `http://localhost:8080`
-  - Staging/production: the public URL of the API gateway (e.g. `https://api.staging.truemain.example`, `https://api.truemain.example`)
+  - Staging/production: the internal URL reachable by the Nuxt server process
 
 Set this variable in your environment before starting the app (for example in a `.env` file at the project root or via your container configuration).
 
@@ -39,7 +39,7 @@ docker compose up --build
 # docker compose --profile web up --build
 ```
 
-After the stack is up, TrueMain Web should be available at the host and port configured in the compose file (commonly `http://localhost:3000`). The `NUXT_PUBLIC_API_BASE_URL` is usually wired through as an environment variable for the `truemain-web` service in `docker-compose.yml`.
+After the stack is up, TrueMain Web should be available at the host and port configured in the compose file (commonly `http://localhost:3000`). The `NUXT_API_BASE_URL` is usually wired through as an environment variable for the `truemain-web` service in `docker-compose.yml`.
 
 Refer to the monorepo’s root `README.md` and `docker-compose` files for the authoritative Docker commands and available profiles.
 
@@ -65,7 +65,7 @@ yarn install
 bun install
 ```
 
-Make sure `NUXT_PUBLIC_API_BASE_URL` is set in your environment before starting the dev server.
+Make sure `NUXT_API_BASE_URL` is set in your environment before starting the dev server.
 
 ### Development server
 

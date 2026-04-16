@@ -8,4 +8,8 @@ public sealed record ItemMetadata(
     bool IsBootsItem,
     bool IsBaseBoots,
     bool IsFinalItem,
-    bool IsFinalBoots);
+    bool IsFinalBoots)
+{
+    public bool IsInventoryTransformItem { get; init; }
+    public int? TransformFromItemId { get; init; }
+}

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { ChampionBuildTreeNodeResponse } from '~/types/champions'
 import type { StaticItemData } from '~/types/static-data'
 
@@ -20,12 +20,20 @@ const visibleNodes = computed(() =>
     .sort((left, right) => right.pickRate - left.pickRate)
 )
 
-const selectedRoot = ref<string>('')
+const normalizedMaxChildren = computed(() => props.maxChildren)
+const normalizedMinimumPickRate = computed(() => props.minimumPickRate)
 
-const tabItems = computed(() =>
+const selectedRoot = ref<string>('')
+const treeContainerRef = ref<HTMLElement | null>(null)
+const treeContentRef = ref<HTMLElement | null>(null)
+const treeScale = ref(1)
+const scaledTreeHeight = ref<number | null>(null)
+
+const rootItems = computed(() =>
   visibleNodes.value.map((node, index) => ({
     value: `${node.itemId}-${index}`,
-    label: itemsByIdLabel(node.itemId),
+    itemId: node.itemId,
+    item: props.itemsById[node.itemId] ?? null,
     badge: `${Math.round(node.pickRate * 100)}%`
   }))
 )
@@ -35,11 +43,86 @@ const activeNode = computed(() => {
     return null
   }
 
-  const activeIndex = tabItems.value.findIndex(item => item.value === selectedRoot.value)
+  const activeIndex = rootItems.value.findIndex(item => item.value === selectedRoot.value)
   return visibleNodes.value[activeIndex >= 0 ? activeIndex : 0] ?? null
 })
 
-watch(tabItems, (items) => {
+function visibleChildrenFor(node: ChampionBuildTreeNodeResponse) {
+  return [...node.children]
+    .filter((child) => child.pickRate >= props.minimumPickRate)
+    .sort((left, right) => right.pickRate - left.pickRate)
+    .slice(0, props.maxChildren)
+}
+
+function collectGreedyPrimaryPath(
+  node: ChampionBuildTreeNodeResponse,
+  nodePathKey: string
+): string[] {
+  const primaryChild = visibleChildrenFor(node)[0]
+  if (!primaryChild) {
+    return []
+  }
+
+  const childPathKey = `${nodePathKey}>${primaryChild.itemId}`
+  return [childPathKey, ...collectGreedyPrimaryPath(primaryChild, childPathKey)]
+}
+
+const primaryEdgeRanks = computed<Record<string, number>>(() => {
+  if (!activeNode.value) {
+    return {}
+  }
+
+  return collectGreedyPrimaryPath(
+    activeNode.value,
+    String(activeNode.value.itemId)
+  ).reduce<Record<string, number>>((ranks, edgeKey) => {
+    ranks[edgeKey] = 0
+    return ranks
+  }, {})
+})
+
+async function updateTreeScale() {
+  await nextTick()
+
+  const container = treeContainerRef.value
+  const content = treeContentRef.value
+
+  if (!container || !content) {
+    treeScale.value = 1
+    scaledTreeHeight.value = null
+    return
+  }
+
+  const availableWidth = Math.max(container.clientWidth - 16, 0)
+  const contentWidth = content.scrollWidth
+  const contentHeight = content.scrollHeight
+
+  if (availableWidth <= 0 || contentWidth <= 0 || contentHeight <= 0) {
+    treeScale.value = 1
+    scaledTreeHeight.value = null
+    return
+  }
+
+  const nextScale = Math.min(1, availableWidth / contentWidth)
+  treeScale.value = nextScale
+  scaledTreeHeight.value = contentHeight * nextScale
+}
+
+let resizeObserver: ResizeObserver | null = null
+let resizeFrame: number | null = null
+
+function scheduleTreeScaleUpdate() {
+  if (resizeFrame !== null) {
+    cancelAnimationFrame(resizeFrame)
+  }
+
+  resizeFrame = window.requestAnimationFrame(() => {
+    resizeFrame = null
+    void updateTreeScale()
+  })
+}
+
+watch(rootItems, (items) => {
   if (!items.length) {
     selectedRoot.value = ''
     return
@@ -52,9 +135,39 @@ watch(tabItems, (items) => {
   immediate: true
 })
 
-function itemsByIdLabel(itemId: number): string {
-  return props.itemsById[itemId]?.name ?? `Item ${itemId}`
-}
+watch(activeNode, () => {
+  scheduleTreeScaleUpdate()
+})
+
+onMounted(() => {
+  scheduleTreeScaleUpdate()
+
+  if (typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(() => {
+      scheduleTreeScaleUpdate()
+    })
+
+    if (treeContainerRef.value) {
+      resizeObserver.observe(treeContainerRef.value)
+    }
+
+    if (treeContentRef.value) {
+      resizeObserver.observe(treeContentRef.value)
+    }
+  }
+  else {
+    window.addEventListener('resize', scheduleTreeScaleUpdate)
+  }
+})
+
+onBeforeUnmount(() => {
+  if (resizeFrame !== null) {
+    cancelAnimationFrame(resizeFrame)
+  }
+
+  resizeObserver?.disconnect()
+  window.removeEventListener('resize', scheduleTreeScaleUpdate)
+})
 </script>
 
 <template>
@@ -63,27 +176,71 @@ function itemsByIdLabel(itemId: number): string {
       v-if="visibleNodes.length"
       class="space-y-4"
     >
-      <UTabs
-        v-if="tabItems.length > 1"
-        v-model="selectedRoot"
-        :items="tabItems"
-        :content="false"
-        color="neutral"
-        variant="link"
-        class="w-full"
-      />
+      <div
+        v-if="rootItems.length > 1"
+        class="flex flex-wrap items-center gap-3"
+      >
+        <UButton
+          v-for="root in rootItems"
+          :key="root.value"
+          type="button"
+          color="neutral"
+          :variant="selectedRoot === root.value ? 'soft' : 'ghost'"
+          :title="root.item?.name ?? `Item ${root.itemId}`"
+          class="rounded-xl px-2 py-1.5"
+          @click="selectedRoot = root.value"
+        >
+          <div class="flex items-center gap-2">
+            <ChampionsChampionAsyncImage
+              v-if="root.item"
+              :src="root.item.iconUrl"
+              :alt="root.item.name"
+              size-class="size-8"
+              image-class="rounded-md border border-default bg-default object-cover"
+              wrapper-class="rounded-md"
+              width="32"
+              height="32"
+            />
+            <div
+              v-else
+              class="size-8 rounded-md border border-default bg-elevated"
+            />
+            <UBadge
+              color="neutral"
+              variant="subtle"
+              size="sm"
+            >
+              {{ root.badge }}
+            </UBadge>
+          </div>
+        </UButton>
+      </div>
 
-      <div class="overflow-x-auto pb-3">
-        <div class="flex min-w-max justify-center px-2">
-          <ChampionsChampionBuildTreeNode
-            v-if="activeNode"
-            :key="`${activeNode.itemId}-${activeNode.games}`"
-            :node="activeNode"
-            :item="itemsById[activeNode.itemId] ?? null"
-            :items-by-id="itemsById"
-            :max-children="maxChildren"
-            :minimum-pick-rate="minimumPickRate"
-          />
+      <div
+        ref="treeContainerRef"
+        class="overflow-hidden pb-3"
+      >
+        <div
+          class="flex justify-center px-2"
+          :style="scaledTreeHeight ? { height: `${scaledTreeHeight}px` } : undefined"
+        >
+          <div
+            ref="treeContentRef"
+            class="origin-top"
+            :style="{ transform: `scale(${treeScale})` }"
+          >
+            <ChampionsChampionBuildTreeNode
+              v-if="activeNode"
+              :key="`${activeNode.itemId}-${activeNode.games}`"
+              :node="activeNode"
+              :item="itemsById[activeNode.itemId] ?? null"
+              :items-by-id="itemsById"
+              :max-children="normalizedMaxChildren"
+              :minimum-pick-rate="normalizedMinimumPickRate"
+              :node-path-key="String(activeNode.itemId)"
+              :primary-edge-ranks="primaryEdgeRanks"
+            />
+          </div>
         </div>
       </div>
     </div>
