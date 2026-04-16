@@ -33,7 +33,7 @@ public sealed class MatchIngestionProcessIntegrationTests : IClassFixture<Postgr
             new MatchSnapshotWriter(new FakeRiotMatchClient()),
             new TimelineIngestionService(new FakeRiotMatchClient()),
             validationService,
-            Options.Create(new MatchIngestionOptions
+            Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions
             {
                 Platforms = ["KR"],
                 BatchSize = 1,

@@ -27,7 +27,7 @@ public sealed class ScoringProcessIntegrationTests : IClassFixture<PostgresFixtu
             NullLogger<ScoringProcess>.Instance,
             _fixture.CreateSessionFactory(),
             new FakeProcessRunRecorder(),
-            Options.Create(new ScoringOptions
+            Microsoft.Extensions.Options.Options.Create(new ScoringOptions
             {
                 BatchSize = 10,
                 TopNPerPlatform = 1,
@@ -64,7 +64,7 @@ public sealed class ScoringProcessIntegrationTests : IClassFixture<PostgresFixtu
             NullLogger<ScoringProcess>.Instance,
             _fixture.CreateSessionFactory(),
             new FakeProcessRunRecorder(),
-            Options.Create(new ScoringOptions
+            Microsoft.Extensions.Options.Options.Create(new ScoringOptions
             {
                 BatchSize = 1,
                 TopNPerPlatform = 1,

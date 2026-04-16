@@ -30,7 +30,7 @@ public sealed class MainAnalysisProcessIntegrationTests : IClassFixture<Postgres
             new FakeProcessRunRecorder(),
             new MainStatsCalculator(),
             new MainDemotionPolicy(),
-            Options.Create(new MainAnalysisOptions
+            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions
             {
                 BatchSize = 10,
                 ProcessingBatchSize = 10,

@@ -31,11 +31,11 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IClassFixture<Po
             NullLogger<MatchDataRetentionProcess>.Instance,
             new TestDbContextFactory(_fixture),
             new ProcessRunRecorder(_fixture.CreateSessionFactory()),
-            Options.Create(new MatchDataRetentionOptions
+            Microsoft.Extensions.Options.Options.Create(new MatchDataRetentionOptions
             {
                 RetainedPatchCount = 1
             }),
-            Options.Create(new MainAnalysisOptions
+            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions
             {
                 QueueId = 420
             }));

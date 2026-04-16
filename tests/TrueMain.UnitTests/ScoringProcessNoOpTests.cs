@@ -30,7 +30,7 @@ public sealed class ScoringProcessNoOpTests
             NullLogger<ScoringProcess>.Instance,
             sessionFactory,
             runRecorder,
-            Options.Create(new ScoringOptions()));
+            Microsoft.Extensions.Options.Options.Create(new ScoringOptions()));
 
         await process.RunAsync(CancellationToken.None);
 
@@ -80,7 +80,7 @@ public sealed class ScoringProcessNoOpTests
             NullLogger<ScoringProcess>.Instance,
             sessionFactory,
             runRecorder,
-            Options.Create(new ScoringOptions()));
+            Microsoft.Extensions.Options.Options.Create(new ScoringOptions()));
 
         await process.RunAsync(CancellationToken.None);
 

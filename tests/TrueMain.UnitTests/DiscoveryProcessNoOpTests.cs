@@ -33,7 +33,7 @@ public sealed class DiscoveryProcessNoOpTests
             ladderDiscoveryService,
             accountUpsertService,
             candidateUpsertService,
-            Options.Create(new DiscoveryOptions
+            Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
                 Platforms = [" ", "  "]
             }));

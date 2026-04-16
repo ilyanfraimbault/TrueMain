@@ -30,7 +30,7 @@ public sealed class MatchIngestionProcessNoOpTests
             matchSnapshotWriter,
             timelineIngestionService,
             accountValidationService,
-            Options.Create(new MatchIngestionOptions
+            Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions
             {
                 Platforms = [" ", "  "]
             }));
