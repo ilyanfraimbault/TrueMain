@@ -211,13 +211,13 @@ internal static class ChampionPatternNormalization
             return [];
         }
 
-        var completionTimes = BuildFinalItemCompletionTimes(itemEvents, finalInventory.Keys);
+        var completionTimes = BuildFinalItemCompletionTimes(itemEvents, finalInventory);
 
         return finalInventory.Values
             .OrderBy(metadata => completionTimes.GetValueOrDefault(metadata.Id, int.MaxValue))
             .ThenBy(metadata => metadata.Id)
             .Take(MaxBuildItems)
-            .Select(metadata => metadata.Id)
+            .Select(GetDisplayedBuildItemId)
             .ToArray();
     }
 
@@ -325,10 +325,11 @@ internal static class ChampionPatternNormalization
 
     private static Dictionary<int, int> BuildFinalItemCompletionTimes(
         IReadOnlyList<ItemEvent> itemEvents,
-        IReadOnlyCollection<int> finalInventoryItemIds)
+        IReadOnlyDictionary<int, ItemMetadata> finalInventory)
     {
-        var trackedItemIds = finalInventoryItemIds.ToHashSet();
+        var trackedItemIds = finalInventory.Keys.ToHashSet();
         var completionTimes = new Dictionary<int, int>();
+        var transformSourceCompletionTimes = new Dictionary<int, int>();
 
         foreach (var itemEvent in itemEvents.OrderBy(itemEvent => itemEvent.TimestampMs))
         {
@@ -336,6 +337,7 @@ internal static class ChampionPatternNormalization
             {
                 case "ITEM_PURCHASED":
                     AddTrackedItem(itemEvent.ItemId, itemEvent.TimestampMs, trackedItemIds, completionTimes);
+                    AddTransformSourceCompletionTime(itemEvent.ItemId, itemEvent.TimestampMs, finalInventory, transformSourceCompletionTimes);
                     break;
                 case "ITEM_SOLD":
                 case "ITEM_DESTROYED":
@@ -344,8 +346,22 @@ internal static class ChampionPatternNormalization
                 case "ITEM_UNDO":
                     RemoveTrackedItem(itemEvent.BeforeId ?? itemEvent.ItemId, trackedItemIds, completionTimes);
                     AddTrackedItem(itemEvent.AfterId, itemEvent.TimestampMs, trackedItemIds, completionTimes);
+                    AddTransformSourceCompletionTime(itemEvent.AfterId, itemEvent.TimestampMs, finalInventory, transformSourceCompletionTimes);
                     break;
             }
+        }
+
+        foreach (var metadata in finalInventory.Values)
+        {
+            if (!metadata.IsInventoryTransformItem
+                || completionTimes.ContainsKey(metadata.Id)
+                || metadata.TransformFromItemId is not > 0
+                || !transformSourceCompletionTimes.TryGetValue(metadata.TransformFromItemId.Value, out var completionTime))
+            {
+                continue;
+            }
+
+            completionTimes[metadata.Id] = completionTime;
         }
 
         return completionTimes;
@@ -376,6 +392,28 @@ internal static class ChampionPatternNormalization
         }
 
         completionTimes.Remove(itemId.Value);
+    }
+
+    private static void AddTransformSourceCompletionTime(
+        int? itemId,
+        int timestampMs,
+        IReadOnlyDictionary<int, ItemMetadata> finalInventory,
+        IDictionary<int, int> transformSourceCompletionTimes)
+    {
+        if (itemId is not > 0)
+        {
+            return;
+        }
+
+        foreach (var metadata in finalInventory.Values)
+        {
+            if (!metadata.IsInventoryTransformItem || metadata.TransformFromItemId != itemId.Value)
+            {
+                continue;
+            }
+
+            transformSourceCompletionTimes[itemId.Value] = timestampMs;
+        }
     }
 
     private static void TryAddStarterItem(
@@ -483,9 +521,15 @@ internal static class ChampionPatternNormalization
     }
 
     private static bool IsEligibleFinalBuildItem(ItemMetadata metadata)
-        => metadata is { InStore: true, IsFinalItem: true, IsConsumable: false }
+        => metadata is { IsFinalItem: true, IsConsumable: false }
+           && (metadata.InStore || metadata.IsInventoryTransformItem)
            && !IgnoredFinalBuildItemIds.Contains(metadata.Id)
            && !metadata.IsBootsItem;
+
+    private static int GetDisplayedBuildItemId(ItemMetadata metadata)
+        => metadata.IsInventoryTransformItem && metadata.TransformFromItemId is > 0
+            ? metadata.TransformFromItemId.Value
+            : metadata.Id;
 
     private static ItemEvent[] ExtractStarterBatchEvents(IReadOnlyList<ItemEvent> orderedEvents)
     {

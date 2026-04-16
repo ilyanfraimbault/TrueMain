@@ -49,7 +49,11 @@ public sealed class CommunityDragonItemMetadataProvider(
                     item.to is null || item.to.Count == 0,
                     (item.to is null || item.to.Count == 0)
                         && isBootsItem
-                        && item.id != 1001);
+                        && item.id != 1001)
+                {
+                    IsInventoryTransformItem = IsInventoryTransformItem(item),
+                    TransformFromItemId = item.specialRecipe > 0 ? item.specialRecipe : null
+                };
             });
     }
 
@@ -61,6 +65,12 @@ public sealed class CommunityDragonItemMetadataProvider(
            || (item.from?.Any(TierTwoBootIds.Contains) ?? false)
            || string.Equals(item.requiredBuffCurrencyName, "Feats_NoxianBootPurchaseBuff", StringComparison.OrdinalIgnoreCase)
            || string.Equals(item.requiredBuffCurrencyName, "Feats_SpecialQuestBootBuff", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsInventoryTransformItem(CommunityDragonItem item)
+        => !item.inStore
+           && item.specialRecipe > 0
+           && (item.to is null || item.to.Count == 0)
+           && item.priceTotal >= 2_000;
 
     public sealed class CommunityDragonItem
     {

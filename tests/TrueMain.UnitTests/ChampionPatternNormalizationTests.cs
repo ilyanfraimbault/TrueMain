@@ -19,6 +19,12 @@ public sealed class ChampionPatternNormalizationTests
         [3866] = new(3866, 400, true, false, false, false, false, false),
         [3867] = new(3867, 400, true, false, false, false, false, false),
         [3006] = new(3006, 1100, true, false, true, false, true, true),
+        [3004] = new(3004, 2900, true, false, false, false, true, false),
+        [3042] = new(3042, 2900, false, false, false, false, true, false)
+        {
+            IsInventoryTransformItem = true,
+            TransformFromItemId = 3004
+        },
         [3031] = new(3031, 3000, true, false, false, false, true, false),
         [3085] = new(3085, 3000, true, false, false, false, true, false),
         [3153] = new(3153, 3200, true, false, false, false, true, false),
@@ -313,6 +319,37 @@ public sealed class ChampionPatternNormalizationTests
             ItemMetadataById);
 
         buildItems.Should().Equal(3153, 3031);
+    }
+
+    [Fact]
+    public void BuildOrderedFinalBuild_ShouldIncludeInventoryTransformsUsingTheirSourcePurchaseTime()
+    {
+        var buildItems = ChampionPatternNormalization.BuildOrderedFinalBuild(
+        [
+            new ItemEvent { TimestampMs = 5_000, ItemId = 3004, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 12_000, ItemId = 3153, EventType = "ITEM_PURCHASED" }
+        ],
+            [3042, 3153, 0, 0, 0, 0],
+            [],
+            ItemMetadataById);
+
+        buildItems.Should().Equal(3004, 3153);
+    }
+
+    [Fact]
+    public void BuildOrderedFinalBuild_ShouldDisplayTheSourceItemUsingTheTransformCompletionTime()
+    {
+        var buildItems = ChampionPatternNormalization.BuildOrderedFinalBuild(
+        [
+            new ItemEvent { TimestampMs = 5_000, ItemId = 3004, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 12_000, ItemId = 3153, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 20_000, ItemId = 3042, EventType = "ITEM_PURCHASED" }
+        ],
+            [3042, 3153, 0, 0, 0, 0],
+            [],
+            ItemMetadataById);
+
+        buildItems.Should().Equal(3153, 3004);
     }
 
     [Fact]

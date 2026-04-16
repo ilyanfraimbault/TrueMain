@@ -47,6 +47,45 @@ public sealed class CommunityDragonItemMetadataProviderTests
         items[3172].IsFinalBoots.Should().BeTrue();
     }
 
+    [Fact]
+    public async Task GetItemsAsync_ShouldFlagMuramanaStyleTransformsAsInventoryTransformItems()
+    {
+        const string payload = """
+[
+  {
+    "id": 3042,
+    "name": "Muramana",
+    "description": "",
+    "active": true,
+    "inStore": false,
+    "from": [],
+    "to": [],
+    "categories": ["Damage", "Mana"],
+    "maxStacks": 1,
+    "requiredChampion": "",
+    "requiredAlly": "",
+    "requiredBuffCurrencyName": "",
+    "requiredBuffCurrencyCost": 0,
+    "specialRecipe": 3004,
+    "isEnchantment": false,
+    "price": 0,
+    "priceTotal": 2900,
+    "displayInItemSets": true,
+    "iconPath": ""
+  }
+]
+""";
+
+        using var handler = new StubHttpMessageHandler(payload);
+        using var httpClient = new HttpClient(handler);
+        var provider = new CommunityDragonItemMetadataProvider(httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance);
+
+        var items = await provider.GetItemsAsync("16.7.1", CancellationToken.None);
+
+        items[3042].IsInventoryTransformItem.Should().BeTrue();
+        items[3042].TransformFromItemId.Should().Be(3004);
+    }
+
     private sealed class StubHttpMessageHandler(string payload) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
