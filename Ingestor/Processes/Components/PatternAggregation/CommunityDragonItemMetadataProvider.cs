@@ -39,16 +39,18 @@ public sealed class CommunityDragonItemMetadataProvider(
             item => item.Id,
             item =>
             {
+                var categories = item.Categories ?? [];
+                var to = item.To ?? [];
                 var isBootsItem = IsBootsItem(item);
                 return new ItemMetadata(
                     item.Id,
                     item.PriceTotal,
                     item.InStore,
-                    ContainsCategory(item.Categories, "Consumable"),
+                    ContainsCategory(categories, "Consumable"),
                     isBootsItem,
                     item.Id == 1001,
-                    item.To.Count == 0,
-                    item.To.Count == 0
+                    to.Count == 0,
+                    to.Count == 0
                         && isBootsItem
                         && item.Id != 1001)
                 {
@@ -62,15 +64,15 @@ public sealed class CommunityDragonItemMetadataProvider(
         => categories.Any(category => string.Equals(category, value, StringComparison.OrdinalIgnoreCase));
 
     private static bool IsBootsItem(CommunityDragonItem item)
-        => ContainsCategory(item.Categories, "Boots")
-           || item.From.Any(TierTwoBootIds.Contains)
+        => ContainsCategory(item.Categories ?? [], "Boots")
+           || (item.From ?? []).Any(TierTwoBootIds.Contains)
            || string.Equals(item.RequiredBuffCurrencyName, "Feats_NoxianBootPurchaseBuff", StringComparison.OrdinalIgnoreCase)
            || string.Equals(item.RequiredBuffCurrencyName, "Feats_SpecialQuestBootBuff", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsInventoryTransformItem(CommunityDragonItem item)
         => !item.InStore
            && item.SpecialRecipe > 0
-           && item.To.Count == 0
+           && (item.To ?? []).Count == 0
            && item.PriceTotal >= 2_000;
 
     public sealed class CommunityDragonItem
@@ -91,13 +93,13 @@ public sealed class CommunityDragonItemMetadataProvider(
         public bool InStore { get; set; }
 
         [JsonPropertyName("from")]
-        public List<int> From { get; set; } = [];
+        public List<int>? From { get; set; }
 
         [JsonPropertyName("to")]
-        public List<int> To { get; set; } = [];
+        public List<int>? To { get; set; }
 
         [JsonPropertyName("categories")]
-        public List<string> Categories { get; set; } = [];
+        public List<string>? Categories { get; set; }
 
         [JsonPropertyName("maxStacks")]
         public int MaxStacks { get; set; }
