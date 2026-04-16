@@ -367,11 +367,11 @@ public sealed class PipelineHealthApiIntegrationTests : IClassFixture<PostgresFi
 
     private sealed class RawDataFreshnessTestContract
     {
-        public int QueueId { get; init; }
+        public int QueueId { get; set; }
 
-        public int RawMatchCount { get; init; }
+        public int RawMatchCount { get; set; }
 
-        public int RawParticipantCount { get; init; }
+        public int RawParticipantCount { get; set; }
 
         public IReadOnlyList<PlatformRawDataFreshnessTestContract> Platforms { get; init; } = [];
     }
@@ -385,8 +385,8 @@ public sealed class PipelineHealthApiIntegrationTests : IClassFixture<PostgresFi
 
     private sealed class PipelineGapTestContract
     {
-        public double? MatchIngestionToMainAnalysisMinutes { get; init; }
+        public double? MatchIngestionToMainAnalysisMinutes { get; set; }
 
-        public double? ChampionDataLagMinutes { get; init; }
+        public double? ChampionDataLagMinutes { get; set; }
     }
 }

@@ -7,7 +7,6 @@ using Ingestor.Processes.Components.PatternAggregation;
 using Ingestor.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 
 namespace TrueMain.IntegrationTests;
 

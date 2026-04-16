@@ -157,7 +157,7 @@ internal static class ChampionPatternNormalization
             }
         }
 
-        TryInferImplicitSupportStarterItem(starterItems, orderedEvents, itemMetadataById);
+        TryInferImplicitSupportStarterItem(starterItems, orderedEvents);
 
         if (starterItems.Count == 0)
         {
@@ -480,8 +480,7 @@ internal static class ChampionPatternNormalization
 
     private static void TryInferImplicitSupportStarterItem(
         List<int> starterItems,
-        IReadOnlyList<ItemEvent> orderedEvents,
-        IReadOnlyDictionary<int, ItemMetadata> itemMetadataById)
+        IReadOnlyList<ItemEvent> orderedEvents)
     {
         if (starterItems.Any(SupportStarterQuestItemIds.Contains))
         {
@@ -498,22 +497,15 @@ internal static class ChampionPatternNormalization
             return;
         }
 
-        TryAddStarterItemIgnoringBudget(starterItems, 3865, itemMetadataById);
+        TryAddStarterItemIgnoringBudget(starterItems, 3865);
     }
 
     private static void TryAddStarterItemIgnoringBudget(
         ICollection<int> starterItems,
-        int? itemId,
-        IReadOnlyDictionary<int, ItemMetadata> itemMetadataById)
+        int? itemId)
     {
         if (itemId is not > 0 || ShouldIgnoreStarterItem(itemId.Value))
         {
-            return;
-        }
-
-        if (!itemMetadataById.TryGetValue(itemId.Value, out var metadata) || metadata.PriceTotal <= 0)
-        {
-            starterItems.Add(itemId.Value);
             return;
         }
 

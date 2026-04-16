@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Ingestor.Processes.Components.PatternAggregation;
 
@@ -35,63 +36,100 @@ public sealed class CommunityDragonItemMetadataProvider(
         logger.LogInformation("Loaded {Count} item metadata rows for patch {Patch}.", items.Count, patch);
 
         return items.ToDictionary(
-            item => item.id,
+            item => item.Id,
             item =>
             {
                 var isBootsItem = IsBootsItem(item);
                 return new ItemMetadata(
-                    item.id,
-                    item.priceTotal,
-                    item.inStore,
-                    ContainsCategory(item.categories, "Consumable"),
+                    item.Id,
+                    item.PriceTotal,
+                    item.InStore,
+                    ContainsCategory(item.Categories, "Consumable"),
                     isBootsItem,
-                    item.id == 1001,
-                    item.to is null || item.to.Count == 0,
-                    (item.to is null || item.to.Count == 0)
+                    item.Id == 1001,
+                    item.To.Count == 0,
+                    item.To.Count == 0
                         && isBootsItem
-                        && item.id != 1001)
+                        && item.Id != 1001)
                 {
                     IsInventoryTransformItem = IsInventoryTransformItem(item),
-                    TransformFromItemId = item.specialRecipe > 0 ? item.specialRecipe : null
+                    TransformFromItemId = item.SpecialRecipe > 0 ? item.SpecialRecipe : null
                 };
             });
     }
 
-    private static bool ContainsCategory(IReadOnlyCollection<string>? categories, string value)
-        => categories?.Any(category => string.Equals(category, value, StringComparison.OrdinalIgnoreCase)) == true;
+    private static bool ContainsCategory(IReadOnlyCollection<string> categories, string value)
+        => categories.Any(category => string.Equals(category, value, StringComparison.OrdinalIgnoreCase));
 
     private static bool IsBootsItem(CommunityDragonItem item)
-        => ContainsCategory(item.categories, "Boots")
-           || (item.from?.Any(TierTwoBootIds.Contains) ?? false)
-           || string.Equals(item.requiredBuffCurrencyName, "Feats_NoxianBootPurchaseBuff", StringComparison.OrdinalIgnoreCase)
-           || string.Equals(item.requiredBuffCurrencyName, "Feats_SpecialQuestBootBuff", StringComparison.OrdinalIgnoreCase);
+        => ContainsCategory(item.Categories, "Boots")
+           || item.From.Any(TierTwoBootIds.Contains)
+           || string.Equals(item.RequiredBuffCurrencyName, "Feats_NoxianBootPurchaseBuff", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(item.RequiredBuffCurrencyName, "Feats_SpecialQuestBootBuff", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsInventoryTransformItem(CommunityDragonItem item)
-        => !item.inStore
-           && item.specialRecipe > 0
-           && (item.to is null || item.to.Count == 0)
-           && item.priceTotal >= 2_000;
+        => !item.InStore
+           && item.SpecialRecipe > 0
+           && item.To.Count == 0
+           && item.PriceTotal >= 2_000;
 
     public sealed class CommunityDragonItem
     {
-        public int id { get; set; }
-        public string name { get; set; } = string.Empty;
-        public string description { get; set; } = string.Empty;
-        public bool active { get; set; }
-        public bool inStore { get; set; }
-        public List<int> from { get; set; } = [];
-        public List<int> to { get; set; } = [];
-        public List<string> categories { get; set; } = [];
-        public int maxStacks { get; set; }
-        public string requiredChampion { get; set; } = string.Empty;
-        public string requiredAlly { get; set; } = string.Empty;
-        public string requiredBuffCurrencyName { get; set; } = string.Empty;
-        public int requiredBuffCurrencyCost { get; set; }
-        public int specialRecipe { get; set; }
-        public bool isEnchantment { get; set; }
-        public int price { get; set; }
-        public int priceTotal { get; set; }
-        public bool displayInItemSets { get; set; }
-        public string iconPath { get; set; } = string.Empty;
+        [JsonPropertyName("id")]
+        public int Id { get; set; }
+
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+
+        [JsonPropertyName("description")]
+        public string Description { get; set; } = string.Empty;
+
+        [JsonPropertyName("active")]
+        public bool Active { get; set; }
+
+        [JsonPropertyName("inStore")]
+        public bool InStore { get; set; }
+
+        [JsonPropertyName("from")]
+        public List<int> From { get; set; } = [];
+
+        [JsonPropertyName("to")]
+        public List<int> To { get; set; } = [];
+
+        [JsonPropertyName("categories")]
+        public List<string> Categories { get; set; } = [];
+
+        [JsonPropertyName("maxStacks")]
+        public int MaxStacks { get; set; }
+
+        [JsonPropertyName("requiredChampion")]
+        public string RequiredChampion { get; set; } = string.Empty;
+
+        [JsonPropertyName("requiredAlly")]
+        public string RequiredAlly { get; set; } = string.Empty;
+
+        [JsonPropertyName("requiredBuffCurrencyName")]
+        public string RequiredBuffCurrencyName { get; set; } = string.Empty;
+
+        [JsonPropertyName("requiredBuffCurrencyCost")]
+        public int RequiredBuffCurrencyCost { get; set; }
+
+        [JsonPropertyName("specialRecipe")]
+        public int SpecialRecipe { get; set; }
+
+        [JsonPropertyName("isEnchantment")]
+        public bool IsEnchantment { get; set; }
+
+        [JsonPropertyName("price")]
+        public int Price { get; set; }
+
+        [JsonPropertyName("priceTotal")]
+        public int PriceTotal { get; set; }
+
+        [JsonPropertyName("displayInItemSets")]
+        public bool DisplayInItemSets { get; set; }
+
+        [JsonPropertyName("iconPath")]
+        public string IconPath { get; set; } = string.Empty;
     }
 }

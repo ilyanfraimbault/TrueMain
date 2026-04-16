@@ -4,7 +4,6 @@ using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Services;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 
 namespace TrueMain.IntegrationTests;
 

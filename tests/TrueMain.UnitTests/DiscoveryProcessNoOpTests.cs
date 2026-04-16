@@ -5,10 +5,8 @@ using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.Discovery;
 using Ingestor.Riot;
-using Ingestor.Riot.Dto;
 using Ingestor.Services;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using NSubstitute;
 
 namespace TrueMain.UnitTests;
