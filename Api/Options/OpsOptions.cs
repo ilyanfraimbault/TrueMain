@@ -1,4 +1,4 @@
-namespace TrueMain.Configuration;
+namespace TrueMain.Options;
 
 public sealed class OpsOptions
 {
