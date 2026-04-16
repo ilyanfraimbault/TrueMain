@@ -57,35 +57,51 @@ public sealed class MatchParticipantRepository(TrueMainDbContext db) : IMatchPar
         var safeTake = Math.Max(1, take);
         foreach (var grouping in accounts
                      .Distinct()
-                     .GroupBy(account => account.PlatformId, StringComparer.OrdinalIgnoreCase))
+                     .GroupBy(account => account.PlatformId.ToUpperInvariant(), StringComparer.Ordinal))
         {
-            var platformId = grouping.Key;
+            var normalizedPlatformId = grouping.Key;
+            var accountKeysByPuuid = grouping
+                .GroupBy(account => account.Puuid, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
             var puuids = grouping
                 .Select(account => account.Puuid)
                 .Distinct(StringComparer.Ordinal)
                 .ToArray();
 
-            var participantRows = await (
-                    from participant in db.MatchParticipants.AsNoTracking()
-                    join match in db.Matches.AsNoTracking() on participant.MatchId equals match.Id
-                    where puuids.Contains(participant.Puuid)
-                          && match.PlatformId == platformId
-                          && match.QueueId == queueId
-                    orderby participant.Puuid, match.GameStartTimeUtc descending
-                    select new ParticipantHistoryRow(
-                        platformId,
-                        participant.Puuid,
-                        participant.ChampionId,
-                        participant.TeamPosition,
-                        match.GameStartTimeUtc)
-                )
+            var participantRows = await db.Database
+                .SqlQuery<ParticipantHistoryRow>(
+                    $"""
+                    SELECT ranked."PlatformId", ranked."Puuid", ranked."ChampionId", ranked."TeamPosition", ranked."GameStartTimeUtc"
+                    FROM (
+                        SELECT
+                            m."PlatformId",
+                            p."Puuid",
+                            p."ChampionId",
+                            p."TeamPosition",
+                            m."GameStartTimeUtc",
+                            ROW_NUMBER() OVER (
+                                PARTITION BY p."Puuid"
+                                ORDER BY m."GameStartTimeUtc" DESC
+                            ) AS row_num
+                        FROM "match_participants" AS p
+                        INNER JOIN "matches" AS m ON p."MatchId" = m."Id"
+                        WHERE p."Puuid" = ANY ({puuids})
+                          AND m."PlatformId" = {normalizedPlatformId}
+                          AND m."QueueId" = {queueId}
+                    ) AS ranked
+                    WHERE ranked.row_num <= {safeTake}
+                    ORDER BY ranked."Puuid", ranked."GameStartTimeUtc" DESC
+                    """)
                 .ToListAsync(ct);
 
             foreach (var accountRows in participantRows.GroupBy(row => row.Puuid, StringComparer.Ordinal))
             {
-                var accountKey = new AccountKey(platformId, accountRows.Key);
+                if (!accountKeysByPuuid.TryGetValue(accountRows.Key, out var accountKey))
+                {
+                    continue;
+                }
+
                 result[accountKey] = accountRows
-                    .Take(safeTake)
                     .Select(row => new ParticipantRow(row.ChampionId, row.TeamPosition))
                     .ToList();
             }
