@@ -86,7 +86,6 @@ jobs:
           RIOT_API_KEY: RGAPI-REPLACE_ME
           PGADMIN_DEFAULT_EMAIL: admin@truemain.dev
           PGADMIN_DEFAULT_PASSWORD: admin
-          NUXT_API_BASE_URL: http://localhost:8080
         run: docker compose -f compose.yaml config
 
       - name: Validate production compose file
@@ -97,18 +96,16 @@ jobs:
           RIOT_API_KEY: RGAPI-REPLACE_ME
           PGADMIN_DEFAULT_EMAIL: admin@truemain.dev
           PGADMIN_DEFAULT_PASSWORD: admin
-          NUXT_API_BASE_URL: http://localhost:8080
         run: docker compose -f compose.prod.yaml config
 
       - name: Validate QA compose file
         env:
-          POSTGRES_USER_QA: truemain_qa
-          POSTGRES_PASSWORD_QA: truemain_qa
-          POSTGRES_DB_QA: truemain_qa
-          RIOT_API_KEY_QA: RGAPI-REPLACE_ME_QA
-          PGADMIN_DEFAULT_EMAIL_QA: admin@truemain-qa.dev
-          PGADMIN_DEFAULT_PASSWORD_QA: admin
-          NUXT_API_BASE_URL: http://localhost:8080
+          POSTGRES_USER: truemain_qa
+          POSTGRES_PASSWORD: truemain_qa
+          POSTGRES_DB: truemain_qa
+          RIOT_API_KEY: RGAPI-REPLACE_ME_QA
+          PGADMIN_DEFAULT_EMAIL: admin@truemain-qa.dev
+          PGADMIN_DEFAULT_PASSWORD: admin
         run: docker compose -f compose.qa.yaml config
 
   docker-build:
