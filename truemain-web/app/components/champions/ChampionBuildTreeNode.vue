@@ -15,6 +15,9 @@ const props = defineProps<{
   itemsById: Record<number, StaticItemData>
   maxChildren: number
   minimumPickRate: number
+  cumulativePickRate: number
+  nodePathKey: string
+  primaryEdgeRanks: Record<string, number>
 }>()
 
 const visibleChildren = computed(() => {
@@ -24,19 +27,46 @@ const visibleChildren = computed(() => {
     .slice(0, props.maxChildren)
 })
 
+const currentPathRank = computed(() => {
+  const ownRank = props.primaryEdgeRanks[props.nodePathKey]
+  if (ownRank !== undefined) {
+    return ownRank
+  }
+
+  const childRanks = branchSegments.value
+    .map(segment => props.primaryEdgeRanks[segment.childPathKey])
+    .filter((rank): rank is number => rank !== undefined)
+
+  if (!childRanks.length) {
+    return undefined
+  }
+
+  return Math.min(...childRanks)
+})
+
 const primaryStemStyle = computed(() => {
-  const primaryStroke = getBranchStroke(0)
+  const currentStroke = getBranchStroke(currentPathRank.value)
+  const stemStroke = branchSegments.value.length === 1
+    ? branchSegments.value[0]!.stroke
+    : currentStroke
 
   return {
-    '--branch-opacity': String(primaryStroke.strokeOpacity),
-    '--branch-thickness': `${primaryStroke.strokeWidth}px`
+    '--branch-thickness': `${stemStroke.strokeWidth}px`,
+    '--branch-background': stemStroke.background
   }
 })
 
 const branchGuideHeight = 14
+const stemHeight = 14
+const childCardGap = 6
 const childrenRowRef = ref<HTMLElement | null>(null)
 const childRefs = ref<HTMLElement[]>([])
-const branchSegments = ref<Array<{ childX: number, rank: number }>>([])
+const branchSegments = ref<Array<{
+  childX: number
+  child: ChampionBuildTreeNodeResponse
+  childPathKey: string
+  stroke: ReturnType<typeof getBranchStroke>
+}>>([])
 const branchRowWidth = ref(0)
 const parentCenterX = ref(0)
 
@@ -49,29 +79,23 @@ function setChildRef(element: Element | ComponentPublicInstance | null, index: n
 }
 
 const tooltipText = computed(() =>
-  `${props.item?.name ?? 'Unknown item'} • ${formatPercentage(props.node.pickRate)} pick rate • ${props.node.games} games • ${formatPercentage(props.node.wins / Math.max(props.node.games, 1))} WR`)
+  `${(props.item?.name ?? 'Unknown item') + " " + props.item?.id} • ${formatPercentage(props.node.pickRate)} pick rate • ${props.node.games} games • ${formatPercentage(props.node.wins / Math.max(props.node.games, 1))} WR`)
 
-function getBranchStroke(rank: number) {
-  if (rank === 0) {
+function getBranchStroke(pathRank?: number) {
+  if (pathRank === undefined) {
     return {
-      strokeWidth: 2.5,
-      strokeDasharray: undefined,
-      strokeOpacity: 0.92
-    }
-  }
-
-  if (rank === 1) {
-    return {
-      strokeWidth: 1.75,
-      strokeDasharray: undefined,
-      strokeOpacity: 0.72
+      strokeWidth: 1.5,
+      strokeDasharray: '4 3',
+      strokeOpacity: 1,
+      background: 'repeating-linear-gradient(to bottom, rgb(71 85 105) 0 7px, transparent 7px 12px)'
     }
   }
 
   return {
-    strokeWidth: 1.5,
-    strokeDasharray: '4 4',
-    strokeOpacity: 0.56
+    strokeWidth: pathRank === 0 ? 2.2 : 1.8,
+    strokeDasharray: undefined,
+    strokeOpacity: 1,
+    background: 'rgb(71 85 105)'
   }
 }
 
@@ -88,21 +112,30 @@ async function updateBranchSegments() {
   branchRowWidth.value = rowRect.width
 
   branchSegments.value = visibleChildren.value
-    .map((_, index) => {
-      const child = childRefs.value[index]
-      if (!child) {
+    .map((child, index) => {
+      const childElement = childRefs.value[index]
+      if (!childElement) {
         return null
       }
 
-      const childCard = child.querySelector<HTMLElement>('.tree-node__card')
-      const childRect = (childCard ?? child).getBoundingClientRect()
+      const childCard = childElement.querySelector<HTMLElement>('.tree-node__card')
+      const childRect = (childCard ?? childElement).getBoundingClientRect()
+      const childPathKey = `${props.nodePathKey}>${child.itemId}`
+      const childPathRank = props.primaryEdgeRanks[childPathKey]
 
       return {
         childX: childRect.left - rowRect.left + (childRect.width / 2),
-        rank: index
+        child,
+        childPathKey,
+        stroke: getBranchStroke(childPathRank)
       }
     })
-    .filter((segment): segment is { childX: number, rank: number } => segment !== null)
+    .filter((segment): segment is {
+      childX: number
+      child: ChampionBuildTreeNodeResponse
+      childPathKey: string
+      stroke: ReturnType<typeof getBranchStroke>
+    } => segment !== null)
 
   if (!branchSegments.value.length) {
     parentCenterX.value = rowRect.width / 2
@@ -152,6 +185,8 @@ const parentOffsetStyle = computed(() => {
     transform: `translateX(${parentCenterX.value - (branchRowWidth.value / 2)}px)`
   }
 })
+
+const hasSingleVisibleChild = computed(() => visibleChildren.value.length === 1)
 </script>
 
 <template>
@@ -185,6 +220,7 @@ const parentOffsetStyle = computed(() => {
       :style="primaryStemStyle"
     >
       <div
+        v-if="!hasSingleVisibleChild"
         class="tree-node__stem"
         :style="parentOffsetStyle"
       />
@@ -192,40 +228,33 @@ const parentOffsetStyle = computed(() => {
       <div
         ref="childrenRowRef"
         class="tree-node__children-row"
-        :style="{ '--branch-guide-height': `${branchGuideHeight}px` }"
+        :style="{
+          '--branch-guide-height': `${branchGuideHeight}px`,
+          '--stem-height': `${stemHeight}px`
+        }"
       >
         <svg
           v-if="branchRowWidth > 0"
           class="tree-node__branches"
-          :viewBox="`0 0 ${branchRowWidth} ${branchGuideHeight}`"
+          :viewBox="`0 ${hasSingleVisibleChild ? -stemHeight : 0} ${branchRowWidth} ${branchGuideHeight + (hasSingleVisibleChild ? stemHeight : 0)}`"
           preserveAspectRatio="none"
           aria-hidden="true"
         >
           <g
             v-for="segment in branchSegments"
-            :key="`${node.itemId}-${segment.rank}-${segment.childX}`"
+            :key="`${node.itemId}-${segment.child.itemId}-${segment.childX}`"
           >
-            <line
-              :x1="parentCenterX"
-              y1="0"
-              :x2="segment.childX"
-              y2="0"
+            <path
+              :d="hasSingleVisibleChild
+                ? `M ${parentCenterX} ${-stemHeight} V 0 H ${segment.childX} V ${branchGuideHeight - childCardGap}`
+                : `M ${parentCenterX} 0 H ${segment.childX} V ${branchGuideHeight - childCardGap}`"
               stroke="rgb(71 85 105)"
-              stroke-linecap="round"
-              :stroke-width="getBranchStroke(segment.rank).strokeWidth"
-              :stroke-opacity="getBranchStroke(segment.rank).strokeOpacity"
-              :stroke-dasharray="getBranchStroke(segment.rank).strokeDasharray"
-            />
-            <line
-              :x1="segment.childX"
-              y1="0"
-              :x2="segment.childX"
-              :y2="branchGuideHeight"
-              stroke="rgb(71 85 105)"
-              stroke-linecap="round"
-              :stroke-width="getBranchStroke(segment.rank).strokeWidth"
-              :stroke-opacity="getBranchStroke(segment.rank).strokeOpacity"
-              :stroke-dasharray="getBranchStroke(segment.rank).strokeDasharray"
+              fill="none"
+              stroke-linecap="square"
+              stroke-linejoin="miter"
+              :stroke-width="segment.stroke.strokeWidth"
+              :stroke-opacity="segment.stroke.strokeOpacity"
+              :stroke-dasharray="segment.stroke.strokeDasharray"
             />
           </g>
         </svg>
@@ -242,6 +271,9 @@ const parentOffsetStyle = computed(() => {
             :items-by-id="itemsById"
             :max-children="maxChildren"
             :minimum-pick-rate="minimumPickRate"
+            :cumulative-pick-rate="cumulativePickRate * child.pickRate"
+            :node-path-key="`${nodePathKey}>${child.itemId}`"
+            :primary-edge-ranks="primaryEdgeRanks"
           />
         </div>
       </div>
@@ -261,6 +293,8 @@ const parentOffsetStyle = computed(() => {
 }
 
 .tree-node__card {
+  position: relative;
+  z-index: 1;
   display: grid;
   place-items: center;
   padding: var(--tree-card-padding);
@@ -291,8 +325,8 @@ const parentOffsetStyle = computed(() => {
 .tree-node__stem {
   width: var(--branch-thickness, 1px);
   height: 0.85rem;
-  border-radius: 999px;
-  background: rgba(71, 85, 105, var(--branch-opacity, 0.5));
+  border-radius: 0;
+  background: var(--branch-background, rgb(71 85 105));
 }
 
 .tree-node__children-row {
@@ -304,6 +338,8 @@ const parentOffsetStyle = computed(() => {
 }
 
 .tree-node__child {
+  position: relative;
+  z-index: 1;
   display: grid;
   justify-items: center;
 }
@@ -312,6 +348,7 @@ const parentOffsetStyle = computed(() => {
   position: absolute;
   top: 0;
   left: 0;
+  z-index: 0;
   width: 100%;
   height: var(--branch-guide-height, 14px);
   overflow: visible;
