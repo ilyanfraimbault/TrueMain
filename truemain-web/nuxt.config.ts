@@ -4,6 +4,17 @@ export default defineNuxtConfig({
   css: ['./app/assets/css/main.css'],
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
+  colorMode: {
+    preference: 'dark',
+    fallback: 'dark'
+  },
+  appConfig: {
+    ui: {
+      colors: {
+        neutral: 'zinc'
+      }
+    }
+  },
   image: {
     domains: ['ddragon.leagueoflegends.com', 'raw.communitydragon.org']
   },
