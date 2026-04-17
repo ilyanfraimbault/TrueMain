@@ -1,0 +1,15 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0
+
+WORKDIR /workspace
+
+COPY ["Directory.Build.props", "./"]
+COPY ["Ingestor/Ingestor.csproj", "Ingestor/"]
+COPY ["Core/Core.csproj", "Core/"]
+COPY ["Data/Data.csproj", "Data/"]
+RUN dotnet restore "Ingestor/Ingestor.csproj"
+
+COPY ["Ingestor/", "Ingestor/"]
+COPY ["Core/", "Core/"]
+COPY ["Data/", "Data/"]
+
+CMD ["dotnet", "watch", "--project", "Ingestor/Ingestor.csproj", "run"]

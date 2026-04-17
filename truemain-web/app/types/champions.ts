@@ -71,5 +71,6 @@ export interface ChampionBuildTreeResponse {
   riotAccountId: string | null
   platformId: string | null
   totalGames: number
+  boots: ItemSetOptionResponse | null
   build: ChampionBuildTreeNodeResponse[]
 }

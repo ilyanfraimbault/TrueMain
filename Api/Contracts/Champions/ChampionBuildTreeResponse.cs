@@ -14,6 +14,8 @@ public sealed class ChampionBuildTreeResponse
 
     public int TotalGames { get; init; }
 
+    public ItemSetOptionResponse? Boots { get; init; }
+
     public IReadOnlyList<ChampionBuildTreeNodeResponse> Build { get; init; } = [];
 }
 

@@ -14,6 +14,15 @@ public static class ChampionBuildTreeMapper
             RiotAccountId = readModel.RiotAccountId,
             PlatformId = readModel.PlatformId,
             TotalGames = readModel.TotalGames,
+            Boots = readModel.Boots is null
+                ? null
+                : new ItemSetOptionResponse
+                {
+                    ItemIds = readModel.Boots.ItemIds.ToList(),
+                    Games = readModel.Boots.Games,
+                    PlayRate = readModel.Boots.PlayRate,
+                    WinRate = readModel.Boots.WinRate
+                },
             Build = readModel.Build.Select(MapNode).ToList()
         };
 
