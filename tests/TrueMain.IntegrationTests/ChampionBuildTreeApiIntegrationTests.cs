@@ -40,6 +40,7 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
         payload.BuildTree.TotalGames.Should().Be(10);
         payload.BuildTree.Boots.Should().NotBeNull();
         payload.BuildTree.Boots!.ItemIds.Should().Equal(3006);
+        payload.BuildTree.Boots.PlayRate.Should().BeApproximately(0.7, 0.0001);
         payload.BuildTree.Build.Should().HaveCount(1);
         payload.BuildTree.Build[0].ItemId.Should().Be(3153);
         payload.BuildTree.Build[0].Games.Should().Be(10);
@@ -76,6 +77,7 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
         payload.BuildTree.TotalGames.Should().Be(9);
         payload.BuildTree.Boots.Should().NotBeNull();
         payload.BuildTree.Boots!.ItemIds.Should().Equal(3006);
+        payload.BuildTree.Boots.PlayRate.Should().BeApproximately(1.0, 0.0001);
         payload.BuildTree.Build.Should().HaveCount(2);
         payload.BuildTree.Build[0].ItemId.Should().Be(3153);
         payload.BuildTree.Build[0].Children.Single().ItemId.Should().Be(3006);
@@ -116,6 +118,7 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
         payload!.BuildTree.TotalGames.Should().Be(10);
         payload.BuildTree.Boots.Should().NotBeNull();
         payload.BuildTree.Boots!.ItemIds.Should().Equal(3006);
+        payload.BuildTree.Boots.PlayRate.Should().BeApproximately(0.7, 0.0001);
         payload.BuildTree.Build.Should().ContainSingle();
         payload.BuildTree.Build[0].PickRate.Should().BeApproximately(1.0, 0.0001);
     }
