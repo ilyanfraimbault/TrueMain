@@ -46,7 +46,6 @@ services:
         - action: sync
           path: ./Api
           target: /workspace/Api
-          initial_sync: true
           ignore:
             - Api.csproj
             - bin/
@@ -54,7 +53,6 @@ services:
         - action: sync
           path: ./Core
           target: /workspace/Core
-          initial_sync: true
           ignore:
             - Core.csproj
             - bin/
@@ -62,7 +60,6 @@ services:
         - action: sync
           path: ./Data
           target: /workspace/Data
-          initial_sync: true
           ignore:
             - Data.csproj
             - bin/
@@ -129,7 +126,6 @@ services:
         - action: sync
           path: ./Ingestor
           target: /workspace/Ingestor
-          initial_sync: true
           ignore:
             - Ingestor.csproj
             - bin/
@@ -137,7 +133,6 @@ services:
         - action: sync
           path: ./Core
           target: /workspace/Core
-          initial_sync: true
           ignore:
             - Core.csproj
             - bin/
@@ -145,7 +140,6 @@ services:
         - action: sync
           path: ./Data
           target: /workspace/Data
-          initial_sync: true
           ignore:
             - Data.csproj
             - bin/
