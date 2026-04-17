@@ -14,6 +14,8 @@ public sealed class ChampionBuildTreeReadModel
 
     public int TotalGames { get; init; }
 
+    public ItemSetOptionReadModel? Boots { get; init; }
+
     public IReadOnlyList<ChampionBuildTreeNodeReadModel> Build { get; init; } = [];
 }
 

@@ -57,7 +57,8 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
             .Should().BeEquivalentTo(["sequence", "games", "playRate", "winRate"]);
         root.GetProperty("core").GetProperty("starterItems").EnumerateObject().Select(property => property.Name)
             .Should().BeEquivalentTo(["itemIds", "games", "playRate", "winRate"]);
-        root.GetProperty("core").GetProperty("boots").ValueKind.Should().Be(JsonValueKind.Null);
+        root.GetProperty("core").GetProperty("boots").EnumerateObject().Select(property => property.Name)
+            .Should().BeEquivalentTo(["itemIds", "games", "playRate", "winRate"]);
         root.GetProperty("core").GetProperty("buildPath").EnumerateObject().Select(property => property.Name)
             .Should().BeEquivalentTo(["itemIds"]);
         AssertObjectArrayElementsHaveProperties(root.GetProperty("advanced").GetProperty("starterItemOptions"),
@@ -67,7 +68,7 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
         AssertObjectArrayElementsHaveProperties(root.GetProperty("advanced").GetProperty("skillOrderOptions"),
             "sequence", "games", "playRate", "winRate");
         root.GetProperty("buildTree").EnumerateObject().Select(property => property.Name)
-            .Should().BeEquivalentTo(["championId", "patch", "position", "riotAccountId", "platformId", "totalGames", "build"]);
+            .Should().BeEquivalentTo(["championId", "patch", "position", "riotAccountId", "platformId", "totalGames", "boots", "build"]);
 
         var payload = await response.Content.ReadFromJsonAsync<ChampionResponse>();
         payload.Should().NotBeNull();
@@ -79,7 +80,8 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
         payload.Core.SampleSize.Should().Be(3);
         payload.Core.StarterItems.Should().NotBeNull();
         payload.Core.StarterItems!.ItemIds.Should().Equal(1055, 2003);
-        payload.Core.Boots.Should().BeNull();
+        payload.Core.Boots.Should().NotBeNull();
+        payload.Core.Boots!.ItemIds.Should().Equal(3006);
         payload.Core.BuildPath.Should().NotBeNull();
         payload.Core.BuildPath!.ItemIds.Should().Equal(6672, 3006, 3094);
         payload.Core.SummonerSpells.Should().NotBeNull();
@@ -94,6 +96,8 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
         payload.BuildTree.ChampionId.Should().Be(22);
         payload.BuildTree.Patch.Should().Be("16.4");
         payload.BuildTree.TotalGames.Should().Be(3);
+        payload.BuildTree.Boots.Should().NotBeNull();
+        payload.BuildTree.Boots!.ItemIds.Should().Equal(3006);
         payload.BuildTree.Build.Should().NotBeEmpty();
         payload.BuildTree.Build[0].ItemId.Should().Be(6672);
     }
@@ -150,6 +154,8 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
         payload.Core.SkillOrder.Should().NotBeNull();
         payload.Core.SkillOrder!.Sequence.Should().Equal("Q", "W", "E");
         payload.BuildTree.Build.Should().NotBeEmpty();
+        payload.BuildTree.Boots.Should().NotBeNull();
+        payload.BuildTree.Boots!.ItemIds.Should().Equal(3006);
         payload.BuildTree.Build[0].ItemId.Should().Be(3153);
     }
 
@@ -176,6 +182,8 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
         payload.Core.SkillOrder.Should().NotBeNull();
         payload.Core.SkillOrder!.Sequence.Should().Equal("Q", "W", "E");
         payload.BuildTree.Build.Should().ContainSingle();
+        payload.BuildTree.Boots.Should().NotBeNull();
+        payload.BuildTree.Boots!.ItemIds.Should().Equal(3006);
         payload.BuildTree.Build[0].ItemId.Should().Be(3153);
     }
 
@@ -207,10 +215,10 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
             BuildAccount(account2Id, "KR", "foundation-puuid-2", "foundation-two", now));
 
         db.ChampionPatternAggregates.AddRange(
-            BuildAggregate(account1Id, 22, "16.4", "KR", 420, "BOTTOM", 4, 7, "Q-W-E", [6672, 3006, 3094], 2, 1, now.AddMinutes(-10)),
-            BuildAggregate(account2Id, 22, "16.4", "KR", 420, "BOTTOM", 7, 4, "Q-W-E", [6672, 3006, 3094], 1, 1, now.AddMinutes(-5)),
-            BuildAggregate(account2Id, 22, "16.3", "KR", 420, "BOTTOM", 4, 7, "Q-E-W", [6672, 3085, 3031], 5, 2, now.AddDays(-2)),
-            BuildAggregate(account1Id, 22, "16.9", "KR", 450, "BOTTOM", 4, 7, "Q-W-E", [6672, 3094, 3031], 3, 2, now.AddMinutes(-1)));
+            BuildAggregate(account1Id, 22, "16.4", "KR", 420, "BOTTOM", 4, 7, "Q-W-E", [6672, 3006, 3094], 3006, 2, 1, now.AddMinutes(-10)),
+            BuildAggregate(account2Id, 22, "16.4", "KR", 420, "BOTTOM", 7, 4, "Q-W-E", [6672, 3006, 3094], 3006, 1, 1, now.AddMinutes(-5)),
+            BuildAggregate(account2Id, 22, "16.3", "KR", 420, "BOTTOM", 4, 7, "Q-E-W", [6672, 3085, 3031], 3111, 5, 2, now.AddDays(-2)),
+            BuildAggregate(account1Id, 22, "16.9", "KR", 450, "BOTTOM", 4, 7, "Q-W-E", [6672, 3094, 3031], 3006, 3, 2, now.AddMinutes(-1)));
 
         await db.SaveChangesAsync();
     }
@@ -228,12 +236,12 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
             BuildAccount(account2Id, "KR", "tie-foundation-puuid-2", "tie-two", now));
 
         db.ChampionPatternAggregates.AddRange(
-            BuildAggregate(account1Id, 55, "16.5", "KR", 420, "MIDDLE", 4, 7, "Q-W-E", [3006], 1, 1, now.AddMinutes(-8)),
-            BuildAggregate(account1Id, 55, "16.5", "KR", 420, "MIDDLE", 4, 14, "Q-E-W", [3007], 1, 0, now.AddMinutes(-7)),
-            BuildAggregate(account2Id, 55, "16.5", "KR", 420, "MIDDLE", 7, 4, "Q-W-E", [3006], 1, 1, now.AddMinutes(-6)),
-            BuildAggregate(account2Id, 55, "16.5", "KR", 420, "MIDDLE", 14, 4, "Q-E-W", [3007], 1, 0, now.AddMinutes(-5)),
-            BuildAggregate(account1Id, 55, "16.4", "KR", 420, "MIDDLE", 4, 7, "Q-W-E", [3020], 3, 2, now.AddDays(-1)),
-            BuildAggregate(account1Id, 55, "16.8", "KR", 450, "MIDDLE", 4, 7, "Q-W-E", [3089], 2, 2, now.AddMinutes(-1)));
+            BuildAggregate(account1Id, 55, "16.5", "KR", 420, "MIDDLE", 4, 7, "Q-W-E", [3006], 3006, 1, 1, now.AddMinutes(-8)),
+            BuildAggregate(account1Id, 55, "16.5", "KR", 420, "MIDDLE", 4, 14, "Q-E-W", [3007], 3007, 1, 0, now.AddMinutes(-7)),
+            BuildAggregate(account2Id, 55, "16.5", "KR", 420, "MIDDLE", 7, 4, "Q-W-E", [3006], 3006, 1, 1, now.AddMinutes(-6)),
+            BuildAggregate(account2Id, 55, "16.5", "KR", 420, "MIDDLE", 14, 4, "Q-E-W", [3007], 3007, 1, 0, now.AddMinutes(-5)),
+            BuildAggregate(account1Id, 55, "16.4", "KR", 420, "MIDDLE", 4, 7, "Q-W-E", [3020], 3020, 3, 2, now.AddDays(-1)),
+            BuildAggregate(account1Id, 55, "16.8", "KR", 450, "MIDDLE", 4, 7, "Q-W-E", [3089], 3089, 2, 2, now.AddMinutes(-1)));
 
         await db.SaveChangesAsync();
     }
@@ -253,9 +261,9 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
             BuildAccount(account3Id, "KR", "corr-puuid-3", "corr-three", now));
 
         db.ChampionPatternAggregates.AddRange(
-            BuildAggregate(account1Id, 81, "16.5", "KR", 420, "BOTTOM", 4, 7, "Q-W-E", [3153, 3006, 3091], 3, 2, now.AddMinutes(-10)),
-            BuildAggregate(account2Id, 81, "16.5", "KR", 420, "BOTTOM", 4, 7, "Q-W-E", [3153, 3006, 3091], 3, 2, now.AddMinutes(-9)),
-            BuildAggregate(account3Id, 81, "16.5", "KR", 420, "BOTTOM", 14, 4, "Q-E-W", [6672, 3006, 3031], 5, 4, now.AddMinutes(-8)));
+            BuildAggregate(account1Id, 81, "16.5", "KR", 420, "BOTTOM", 4, 7, "Q-W-E", [3153, 3006, 3091], 3006, 3, 2, now.AddMinutes(-10)),
+            BuildAggregate(account2Id, 81, "16.5", "KR", 420, "BOTTOM", 4, 7, "Q-W-E", [3153, 3006, 3091], 3006, 3, 2, now.AddMinutes(-9)),
+            BuildAggregate(account3Id, 81, "16.5", "KR", 420, "BOTTOM", 14, 4, "Q-E-W", [6672, 3006, 3031], 3047, 5, 4, now.AddMinutes(-8)));
 
         await db.SaveChangesAsync();
     }
@@ -273,8 +281,8 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
             BuildAccount(account2Id, "KR", "empty-build-puuid-2", "empty-build-two", now));
 
         db.ChampionPatternAggregates.AddRange(
-            BuildAggregate(account1Id, 110, "16.5", "KR", 420, "MIDDLE", 14, 4, "Q-E-W", [], 6, 4, now.AddMinutes(-12)),
-            BuildAggregate(account2Id, 110, "16.5", "KR", 420, "MIDDLE", 4, 7, "Q-W-E", [3153, 3006, 3091], 5, 3, now.AddMinutes(-10)));
+            BuildAggregate(account1Id, 110, "16.5", "KR", 420, "MIDDLE", 14, 4, "Q-E-W", [], 0, 6, 4, now.AddMinutes(-12)),
+            BuildAggregate(account2Id, 110, "16.5", "KR", 420, "MIDDLE", 4, 7, "Q-W-E", [3153, 3006, 3091], 3006, 5, 3, now.AddMinutes(-10)));
 
         await db.SaveChangesAsync();
     }
@@ -305,6 +313,7 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
         int summoner2Id,
         string skillOrderKey,
         IReadOnlyList<int> buildItems,
+        int bootsItemId,
         int games,
         int wins,
         DateTime aggregatedAtUtc)
@@ -329,6 +338,7 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
             SkillOrderKey = skillOrderKey,
             StarterItems = [1055, 2003],
             StarterItemsKey = "1055-2003",
+            BootsItemId = bootsItemId,
             BuildItem0 = build[0],
             BuildItem1 = build[1],
             BuildItem2 = build[2],

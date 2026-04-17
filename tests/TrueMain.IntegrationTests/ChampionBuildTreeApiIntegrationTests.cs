@@ -38,6 +38,8 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
         payload.BuildTree.Patch.Should().Be("16.5");
         payload.BuildTree.Position.Should().Be("BOTTOM");
         payload.BuildTree.TotalGames.Should().Be(10);
+        payload.BuildTree.Boots.Should().NotBeNull();
+        payload.BuildTree.Boots!.ItemIds.Should().Equal(3006);
         payload.BuildTree.Build.Should().HaveCount(1);
         payload.BuildTree.Build[0].ItemId.Should().Be(3153);
         payload.BuildTree.Build[0].Games.Should().Be(10);
@@ -72,6 +74,8 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
         payload.BuildTree.Position.Should().Be("BOTTOM");
         payload.BuildTree.PlatformId.Should().BeNull();
         payload.BuildTree.TotalGames.Should().Be(9);
+        payload.BuildTree.Boots.Should().NotBeNull();
+        payload.BuildTree.Boots!.ItemIds.Should().Equal(3006);
         payload.BuildTree.Build.Should().HaveCount(2);
         payload.BuildTree.Build[0].ItemId.Should().Be(3153);
         payload.BuildTree.Build[0].Children.Single().ItemId.Should().Be(3006);
@@ -110,6 +114,8 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
 
         payload.Should().NotBeNull();
         payload!.BuildTree.TotalGames.Should().Be(10);
+        payload.BuildTree.Boots.Should().NotBeNull();
+        payload.BuildTree.Boots!.ItemIds.Should().Equal(3006);
         payload.BuildTree.Build.Should().ContainSingle();
         payload.BuildTree.Build[0].PickRate.Should().BeApproximately(1.0, 0.0001);
     }
@@ -126,11 +132,11 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
             BuildAccount(account2Id, "tree-puuid-2", "tree-two", now));
 
         db.ChampionPatternAggregates.AddRange(
-            BuildAggregate(account1Id, 67, "16.5", "KR", 420, "BOTTOM", [3153, 3006, 6672], 7, 4, now.AddMinutes(-10)),
-            BuildAggregate(account2Id, 67, "16.5", "KR", 420, "BOTTOM", [3153, 3091, 3085], 3, 2, now.AddMinutes(-8)),
-            BuildAggregate(account2Id, 67, "16.4", "KR", 420, "BOTTOM", [6672, 3006, 3031], 5, 2, now.AddDays(-1)),
-            BuildAggregate(account1Id, 67, "16.5", "EUW", 420, "BOTTOM", [6672, 3006, 3031], 2, 1, now.AddMinutes(-7)),
-            BuildAggregate(account1Id, 67, "16.5", "KR", 450, "BOTTOM", [6672, 3006, 3031], 4, 3, now.AddMinutes(-6)));
+            BuildAggregate(account1Id, 67, "16.5", "KR", 420, "BOTTOM", [3153, 3006, 6672], 3006, 7, 4, now.AddMinutes(-10)),
+            BuildAggregate(account2Id, 67, "16.5", "KR", 420, "BOTTOM", [3153, 3091, 3085], 3047, 3, 2, now.AddMinutes(-8)),
+            BuildAggregate(account2Id, 67, "16.4", "KR", 420, "BOTTOM", [6672, 3006, 3031], 3006, 5, 2, now.AddDays(-1)),
+            BuildAggregate(account1Id, 67, "16.5", "EUW", 420, "BOTTOM", [6672, 3006, 3031], 3006, 2, 1, now.AddMinutes(-7)),
+            BuildAggregate(account1Id, 67, "16.5", "KR", 450, "BOTTOM", [6672, 3006, 3031], 3006, 4, 3, now.AddMinutes(-6)));
 
         await db.SaveChangesAsync();
         return (account1Id, account2Id);
@@ -148,9 +154,9 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
             BuildAccount(account2Id, "tree-empty-puuid-2", "tree-empty-two", now));
 
         db.ChampionPatternAggregates.AddRange(
-            BuildAggregate(account1Id, 67, "16.5", "KR", 420, "BOTTOM", [3153, 3006, 6672], 7, 4, now.AddMinutes(-10)),
-            BuildAggregate(account2Id, 67, "16.5", "KR", 420, "BOTTOM", [3153, 3091, 3085], 3, 2, now.AddMinutes(-8)),
-            BuildAggregate(account2Id, 67, "16.5", "KR", 420, "BOTTOM", [], 5, 1, now.AddMinutes(-7)));
+            BuildAggregate(account1Id, 67, "16.5", "KR", 420, "BOTTOM", [3153, 3006, 6672], 3006, 7, 4, now.AddMinutes(-10)),
+            BuildAggregate(account2Id, 67, "16.5", "KR", 420, "BOTTOM", [3153, 3091, 3085], 3047, 3, 2, now.AddMinutes(-8)),
+            BuildAggregate(account2Id, 67, "16.5", "KR", 420, "BOTTOM", [], 0, 5, 1, now.AddMinutes(-7)));
 
         await db.SaveChangesAsync();
     }
@@ -178,6 +184,7 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
         int queueId,
         string position,
         IReadOnlyList<int> buildItems,
+        int bootsItemId,
         int games,
         int wins,
         DateTime aggregatedAtUtc)
@@ -202,6 +209,7 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
             SkillOrderKey = "Q-W-E",
             StarterItems = [1055, 2003],
             StarterItemsKey = "1055-2003",
+            BootsItemId = bootsItemId,
             BuildItem0 = build[0],
             BuildItem1 = build[1],
             BuildItem2 = build[2],

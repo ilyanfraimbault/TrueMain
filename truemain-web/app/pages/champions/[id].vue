@@ -59,6 +59,7 @@ const loadingBuildTree: ChampionBuildTreeResponse = {
   riotAccountId: null,
   platformId: null,
   totalGames: 0,
+  boots: null,
   build: []
 }
 
@@ -119,7 +120,7 @@ useSeoMeta({
       <ChampionsChampionBuildTreeSection
         :build-tree="renderedBuildTree"
         :champion-static="championStatic"
-        :boots="renderedCore.boots"
+        :fallback-boots="renderedCore.boots"
         :is-static-pending="isSectionLoading"
       />
     </section>

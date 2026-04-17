@@ -6,12 +6,13 @@ import { mapItemSetToStaticItems, sortItemsByGoldDesc } from '~/utils/champion-d
 const props = defineProps<{
   buildTree: ChampionBuildTreeResponse
   championStatic: ChampionStaticData
-  boots: ItemSetOptionResponse | null
+  fallbackBoots: ItemSetOptionResponse | null
   isStaticPending: boolean
 }>()
 
 const correlatedBoots = computed(() =>
-  sortItemsByGoldDesc(mapItemSetToStaticItems(props.boots, props.championStatic.items)))
+  sortItemsByGoldDesc(
+    mapItemSetToStaticItems(props.buildTree.boots ?? props.fallbackBoots, props.championStatic.items)))
 </script>
 
 <template>
