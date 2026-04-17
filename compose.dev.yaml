@@ -1,0 +1,190 @@
+name: truemain-dev
+
+services:
+  postgres:
+    image: postgres:17.2
+    container_name: truemain-dev-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - truemain_dev_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - truemain_dev_internal
+
+  api:
+    build:
+      context: .
+      dockerfile: Api/Dockerfile.dev
+    container_name: truemain-dev-api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      DOTNET_USE_POLLING_FILE_WATCHER: "1"
+      Database__ApplyMigrationsOnStartup: "true"
+      ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    volumes:
+      - truemain_dev_api_nuget:/root/.nuget/packages
+    develop:
+      watch:
+        - action: sync
+          path: ./Api
+          target: /workspace/Api
+          initial_sync: true
+          ignore:
+            - Api.csproj
+            - bin/
+            - obj/
+        - action: sync
+          path: ./Core
+          target: /workspace/Core
+          initial_sync: true
+          ignore:
+            - Core.csproj
+            - bin/
+            - obj/
+        - action: sync
+          path: ./Data
+          target: /workspace/Data
+          initial_sync: true
+          ignore:
+            - Data.csproj
+            - bin/
+            - obj/
+        - action: rebuild
+          path: ./Api/Api.csproj
+        - action: rebuild
+          path: ./Core/Core.csproj
+        - action: rebuild
+          path: ./Data/Data.csproj
+        - action: rebuild
+          path: ./Directory.Build.props
+    networks:
+      - truemain_dev_internal
+
+  web:
+    build:
+      context: .
+      dockerfile: truemain-web/Dockerfile.dev
+    container_name: truemain-dev-web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      NITRO_HOST: 0.0.0.0
+      NITRO_PORT: 3000
+      NUXT_API_BASE_URL: http://api:8080
+      CHOKIDAR_USEPOLLING: "true"
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./truemain-web:/workspace/truemain-web
+      - truemain_dev_web_node_modules:/workspace/truemain-web/node_modules
+    develop:
+      watch:
+        - action: rebuild
+          path: ./truemain-web/package.json
+        - action: rebuild
+          path: ./truemain-web/package-lock.json
+    networks:
+      - truemain_dev_internal
+
+  ingestor:
+    build:
+      context: .
+      dockerfile: Ingestor/Dockerfile.dev
+    container_name: truemain-dev-ingestor
+    restart: unless-stopped
+    environment:
+      DOTNET_ENVIRONMENT: Development
+      DOTNET_USE_POLLING_FILE_WATCHER: "1"
+      ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300
+      Riot__ApiKey: ${RIOT_API_KEY}
+      Job__Mode: ${INGESTOR_JOB_MODE:-Full}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - truemain_dev_ingestor_nuget:/root/.nuget/packages
+    develop:
+      watch:
+        - action: sync
+          path: ./Ingestor
+          target: /workspace/Ingestor
+          initial_sync: true
+          ignore:
+            - Ingestor.csproj
+            - bin/
+            - obj/
+        - action: sync
+          path: ./Core
+          target: /workspace/Core
+          initial_sync: true
+          ignore:
+            - Core.csproj
+            - bin/
+            - obj/
+        - action: sync
+          path: ./Data
+          target: /workspace/Data
+          initial_sync: true
+          ignore:
+            - Data.csproj
+            - bin/
+            - obj/
+        - action: rebuild
+          path: ./Ingestor/Ingestor.csproj
+        - action: rebuild
+          path: ./Core/Core.csproj
+        - action: rebuild
+          path: ./Data/Data.csproj
+        - action: rebuild
+          path: ./Directory.Build.props
+    networks:
+      - truemain_dev_internal
+
+  pgadmin:
+    image: dpage/pgadmin4:9.11
+    container_name: truemain-dev-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    ports:
+      - "5050:80"
+    volumes:
+      - truemain_dev_pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - truemain_dev_internal
+
+volumes:
+  truemain_dev_db_data:
+  truemain_dev_pgadmin_data:
+  truemain_dev_api_nuget:
+  truemain_dev_ingestor_nuget:
+  truemain_dev_web_node_modules:
+
+networks:
+  truemain_dev_internal:
+    driver: bridge
