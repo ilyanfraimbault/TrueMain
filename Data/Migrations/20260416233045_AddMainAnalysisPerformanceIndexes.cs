@@ -12,17 +12,15 @@ namespace Data.Migrations
         {
             migrationBuilder.Sql(
                 """
-                CREATE INDEX CONCURRENTLY IF NOT EXISTS "IX_matches_platform_queue_game_start"
+                CREATE INDEX IF NOT EXISTS "IX_matches_platform_queue_game_start"
                 ON "matches" ("PlatformId", "QueueId", "GameStartTimeUtc");
-                """,
-                suppressTransaction: true);
+                """);
 
             migrationBuilder.Sql(
                 """
-                CREATE INDEX CONCURRENTLY IF NOT EXISTS "IX_match_participants_puuid_match"
+                CREATE INDEX IF NOT EXISTS "IX_match_participants_puuid_match"
                 ON "match_participants" ("Puuid", "MatchId");
-                """,
-                suppressTransaction: true);
+                """);
         }
 
         /// <inheritdoc />
@@ -30,15 +28,13 @@ namespace Data.Migrations
         {
             migrationBuilder.Sql(
                 """
-                DROP INDEX CONCURRENTLY IF EXISTS "IX_matches_platform_queue_game_start";
-                """,
-                suppressTransaction: true);
+                DROP INDEX IF EXISTS "IX_matches_platform_queue_game_start";
+                """);
 
             migrationBuilder.Sql(
                 """
-                DROP INDEX CONCURRENTLY IF EXISTS "IX_match_participants_puuid_match";
-                """,
-                suppressTransaction: true);
+                DROP INDEX IF EXISTS "IX_match_participants_puuid_match";
+                """);
         }
     }
 }
