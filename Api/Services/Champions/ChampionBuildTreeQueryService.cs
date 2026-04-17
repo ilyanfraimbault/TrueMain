@@ -54,7 +54,7 @@ public sealed class ChampionBuildTreeQueryService(
         var totalGames = buildRows.Sum(row => row.Games);
         var build = ChampionBuildTreeBuilder.Build(buildRows, totalGames, maxDepth, minBranchGames);
         var primaryBuildPath = BuildPrimaryPath(build);
-        var correlatedBoots = SelectBootsForPrimaryBuildPath(buildRows, primaryBuildPath, maxDepth);
+        var correlatedBoots = SelectBootsForPrimaryBuildPath(buildRows, primaryBuildPath, totalGames, maxDepth);
 
         return new ChampionBuildTreeReadModel
         {
@@ -95,9 +95,10 @@ public sealed class ChampionBuildTreeQueryService(
     private static ItemSetOptionReadModel? SelectBootsForPrimaryBuildPath(
         IReadOnlyList<Data.Entities.ChampionPatternAggregate> rows,
         IReadOnlyList<int> primaryBuildPath,
+        int totalGames,
         int maxDepth)
     {
-        if (rows.Count == 0 || primaryBuildPath.Count == 0)
+        if (rows.Count == 0 || primaryBuildPath.Count == 0 || totalGames <= 0)
         {
             return null;
         }
@@ -107,13 +108,6 @@ public sealed class ChampionBuildTreeQueryService(
             .ToList();
 
         if (matchingRows.Count == 0)
-        {
-            return null;
-        }
-
-        var matchingGames = matchingRows.Sum(row => row.Games);
-
-        if (matchingGames <= 0)
         {
             return null;
         }
@@ -128,7 +122,7 @@ public sealed class ChampionBuildTreeQueryService(
                 {
                     ItemIds = [group.Key],
                     Games = games,
-                    PlayRate = ChampionOptionProjector.ComputeRate(games, matchingGames),
+                    PlayRate = ChampionOptionProjector.ComputeRate(games, totalGames),
                     WinRate = ChampionOptionProjector.ComputeRate(group.Sum(row => row.Wins), games)
                 };
             })
