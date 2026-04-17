@@ -53,8 +53,7 @@ public sealed class ChampionBuildTreeQueryService(
             .ToList();
         var totalGames = buildRows.Sum(row => row.Games);
         var build = ChampionBuildTreeBuilder.Build(buildRows, totalGames, maxDepth, minBranchGames);
-        var primaryBuildPath = BuildPrimaryPath(build);
-        var correlatedBoots = SelectBootsForPrimaryBuildPath(buildRows, primaryBuildPath, totalGames, maxDepth);
+        var correlatedBoots = SelectBoots(buildRows, totalGames);
 
         return new ChampionBuildTreeReadModel
         {
@@ -78,41 +77,16 @@ public sealed class ChampionBuildTreeQueryService(
            aggregate.BuildItem5 > 0 ||
            aggregate.BuildItem6 > 0;
 
-    private static IReadOnlyList<int> BuildPrimaryPath(IReadOnlyList<ChampionBuildTreeNodeReadModel> build)
-    {
-        var path = new List<int>();
-        var current = build.FirstOrDefault();
-
-        while (current is not null)
-        {
-            path.Add(current.ItemId);
-            current = current.Children.FirstOrDefault();
-        }
-
-        return path;
-    }
-
-    private static ItemSetOptionReadModel? SelectBootsForPrimaryBuildPath(
+    private static ItemSetOptionReadModel? SelectBoots(
         IReadOnlyList<Data.Entities.ChampionPatternAggregate> rows,
-        IReadOnlyList<int> primaryBuildPath,
-        int totalGames,
-        int maxDepth)
+        int totalGames)
     {
-        if (rows.Count == 0 || primaryBuildPath.Count == 0 || totalGames <= 0)
+        if (rows.Count == 0 || totalGames <= 0)
         {
             return null;
         }
 
-        var matchingRows = rows
-            .Where(row => MatchesPrimaryBuildPath(row, primaryBuildPath, maxDepth))
-            .ToList();
-
-        if (matchingRows.Count == 0)
-        {
-            return null;
-        }
-
-        var selectedBoots = matchingRows
+        var selectedBoots = rows
             .Where(row => row.BootsItemId > 0)
             .GroupBy(row => row.BootsItemId)
             .Select(group =>
@@ -132,28 +106,5 @@ public sealed class ChampionBuildTreeQueryService(
             .FirstOrDefault();
 
         return selectedBoots;
-    }
-
-    private static bool MatchesPrimaryBuildPath(
-        Data.Entities.ChampionPatternAggregate row,
-        IReadOnlyList<int> primaryBuildPath,
-        int maxDepth)
-    {
-        var rowBuildPath = new[]
-        {
-            row.BuildItem0,
-            row.BuildItem1,
-            row.BuildItem2,
-            row.BuildItem3,
-            row.BuildItem4,
-            row.BuildItem5,
-            row.BuildItem6
-        }
-        .Where(itemId => itemId > 0)
-        .Take(maxDepth)
-        .ToList();
-
-        return rowBuildPath.Count >= primaryBuildPath.Count &&
-               rowBuildPath.Take(primaryBuildPath.Count).SequenceEqual(primaryBuildPath);
     }
 }
