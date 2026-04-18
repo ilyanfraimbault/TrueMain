@@ -47,11 +47,8 @@ public sealed class RiotHttpExecutor(ILogger<RiotHttpExecutor> logger) : IRiotHt
 
             response.EnsureSuccessStatusCode();
 
-            var payload = await response.Content.ReadFromJsonAsync<T>(JsonOptions, ct);
-            if (payload is null)
-            {
-                throw new InvalidOperationException($"Empty response from Riot API ({uri}).");
-            }
+            var payload = await response.Content.ReadFromJsonAsync<T>(JsonOptions, ct)
+                ?? throw new InvalidOperationException($"Empty response from Riot API ({uri}).");
 
             return payload;
         }

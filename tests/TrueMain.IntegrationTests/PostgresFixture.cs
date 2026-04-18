@@ -1,8 +1,8 @@
+using System.Diagnostics.CodeAnalysis;
 using Data;
 using Data.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
-using System.Diagnostics.CodeAnalysis;
 using Testcontainers.PostgreSql;
 
 namespace TrueMain.IntegrationTests;
