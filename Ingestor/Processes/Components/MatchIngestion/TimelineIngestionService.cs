@@ -1,4 +1,4 @@
-using Core;
+using Core.Lol.Identifiers;
 using Data.Entities;
 using Data.Repositories;
 using Ingestor.Riot;

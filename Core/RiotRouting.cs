@@ -1,3 +1,5 @@
+using Core.Lol.Identifiers;
+
 namespace Core;
 
 public static class RiotRouting

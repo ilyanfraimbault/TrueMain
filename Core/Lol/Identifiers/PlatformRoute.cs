@@ -1,4 +1,4 @@
-namespace Core;
+namespace Core.Lol.Identifiers;
 
 public enum PlatformRoute
 {
