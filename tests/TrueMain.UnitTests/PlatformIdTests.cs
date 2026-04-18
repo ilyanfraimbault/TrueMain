@@ -16,7 +16,7 @@ public sealed class PlatformIdTests
     [Fact]
     public void Default_throws_on_implicit_string_conversion()
     {
-        var act = () => { string _ = default(PlatformId); };
+        var act = () => _ = (string)default(PlatformId);
 
         act.Should().Throw<InvalidOperationException>();
     }
