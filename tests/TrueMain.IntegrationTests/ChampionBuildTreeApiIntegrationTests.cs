@@ -5,7 +5,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
-using TrueMain.Contracts.Champions;
+using TrueMain.ReadModels.Champions;
 
 namespace TrueMain.IntegrationTests;
 
@@ -30,7 +30,7 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
             BaseAddress = new Uri("https://localhost")
         });
 
-        var payload = await client.GetFromJsonAsync<ChampionResponse>(
+        var payload = await client.GetFromJsonAsync<ChampionReadModel>(
             "/champions/67?patch=16.5&platformId=KR&position=BOTTOM&maxDepth=3&minBranchGames=1");
 
         payload.Should().NotBeNull();
@@ -66,7 +66,7 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
             BaseAddress = new Uri("https://localhost")
         });
 
-        var payload = await client.GetFromJsonAsync<ChampionResponse>(
+        var payload = await client.GetFromJsonAsync<ChampionReadModel>(
             $"/champions/67?riotAccountId={account1Id}&patch=&platformId=&position=&maxDepth=3&minBranchGames=1");
 
         payload.Should().NotBeNull();
@@ -111,7 +111,7 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
             BaseAddress = new Uri("https://localhost")
         });
 
-        var payload = await client.GetFromJsonAsync<ChampionResponse>(
+        var payload = await client.GetFromJsonAsync<ChampionReadModel>(
             "/champions/67?patch=16.5&platformId=KR&position=BOTTOM&maxDepth=3&minBranchGames=1");
 
         payload.Should().NotBeNull();
@@ -237,7 +237,8 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
                 configurationBuilder.AddInMemoryCollection(
                 [
                     new KeyValuePair<string, string?>("ConnectionStrings:TrueMain", fixture.ConnectionString),
-                    new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420")
+                    new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420"),
+                    new KeyValuePair<string, string?>("Ops:ApiKey", "integration-tests-ops-key-0123456789-padding")
                 ]);
             });
         }

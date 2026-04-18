@@ -1,7 +1,9 @@
 using Core.Options;
 using Data;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using TrueMain.Authentication;
 using TrueMain.Options;
 using TrueMain.Services.Champions;
 using TrueMain.Services.Ops;
@@ -12,29 +14,49 @@ const string frontendCorsPolicy = "FrontendCors";
 // Add services to the container.
 
 builder.Services.AddControllers();
-builder.Services.AddHealthChecks();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+var healthConnectionString = builder.Configuration.GetConnectionString("TrueMain");
+var healthChecks = builder.Services.AddHealthChecks();
+if (!string.IsNullOrWhiteSpace(healthConnectionString))
+{
+    healthChecks.AddNpgSql(
+        healthConnectionString,
+        name: "postgres",
+        tags: ["ready"]);
+}
+
+var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(frontendCorsPolicy, policy =>
     {
-        policy
-            .WithOrigins(
-                "http://localhost:3000",
-                "http://127.0.0.1:3000",
-                "http://localhost:3001",
-                "http://127.0.0.1:3001")
-            .AllowAnyHeader()
-            .AllowAnyMethod();
+        var builderPolicy = policy.AllowAnyHeader().AllowAnyMethod();
+        if (corsOrigins.Length > 0)
+        {
+            builderPolicy.WithOrigins(corsOrigins);
+        }
     });
 });
+
 builder.Services.AddOptions<MainAnalysisOptions>()
     .Bind(builder.Configuration.GetSection("MainAnalysis"))
     .Validate(options => options.QueueId > 0, "MainAnalysis:QueueId must be greater than 0.")
     .ValidateOnStart();
 builder.Services.AddOptions<OpsOptions>()
-    .Bind(builder.Configuration.GetSection("Ops"));
+    .Bind(builder.Configuration.GetSection("Ops"))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+builder.Services.AddOptions<MigrationsOptions>()
+    .Bind(builder.Configuration.GetSection("Migrations"));
+
+builder.Services
+    .AddAuthentication(ApiKeyAuthenticationDefaults.Scheme)
+    .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(
+        ApiKeyAuthenticationDefaults.Scheme,
+        _ => { });
+builder.Services.AddAuthorization();
 builder.Services.AddScoped<IChampionFoundationQueryService, ChampionFoundationQueryService>();
 builder.Services.AddScoped<IChampionBuildTreeQueryService, ChampionBuildTreeQueryService>();
 builder.Services.AddScoped<IPipelineHealthQueryService, PipelineHealthQueryService>();
@@ -55,28 +77,40 @@ builder.Services.AddDbContext<TrueMainDbContext>(options =>
     options.UseNpgsql(dataSource);
 });
 var app = builder.Build();
-var applyMigrationsOnStartup = builder.Configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup");
+var migrationsOptions = app.Services
+    .GetRequiredService<Microsoft.Extensions.Options.IOptions<MigrationsOptions>>()
+    .Value;
 
-if (applyMigrationsOnStartup && !app.Environment.IsEnvironment("Testing"))
+if (migrationsOptions.ApplyOnStartup)
 {
     using var scope = app.Services.CreateScope();
     var dbContext = scope.ServiceProvider.GetRequiredService<TrueMainDbContext>();
     await dbContext.Database.MigrateAsync();
 }
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+// Swagger is exposed in every environment so the OpenAPI doc stays
+// available for tooling outside Development. Proper auth-gating of
+// both the UI and /swagger/v1/swagger.json needs a browser-compatible
+// scheme (Basic auth, session cookie, reverse-proxy) — the X-Ops-Key
+// header handler here can't serve the Swagger UI's unsolicited fetch
+// of the JSON document.
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
 app.UseCors(frontendCorsPolicy);
 
+app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/healthz", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = _ => false
+});
+app.MapHealthChecks("/readyz", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = registration => registration.Tags.Contains("ready")
+});
 app.MapControllers();
 
 app.Run();

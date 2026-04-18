@@ -13,7 +13,7 @@ public class Worker(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var options = jobOptions.Value;
-        var mode = NormalizeMode(options.Mode);
+        var mode = JobModeParser.Parse(options.Mode);
 
         do
         {
@@ -89,37 +89,4 @@ public class Worker(
         return index;
     }
 
-    private static JobMode NormalizeMode(string? mode)
-    {
-        if (string.IsNullOrWhiteSpace(mode))
-        {
-            return JobMode.Full;
-        }
-
-        return mode.Trim().ToLowerInvariant() switch
-        {
-            "discoveryonly" => JobMode.DiscoveryOnly,
-            "scoringonly" => JobMode.ScoringOnly,
-            "matchingestiononly" => JobMode.MatchIngestionOnly,
-            "mainanalysisonly" => JobMode.MainAnalysisOnly,
-            "patternaggregationonly" => JobMode.PatternAggregationOnly,
-            "accountrefreshonly" => JobMode.AccountRefreshOnly,
-            "matchdataretentiononly" => JobMode.MatchDataRetentionOnly,
-            "retentiononly" => JobMode.MatchDataRetentionOnly,
-            "full" => JobMode.Full,
-            _ => throw new InvalidOperationException($"Unsupported job mode '{mode}'.")
-        };
-    }
-
-    private enum JobMode
-    {
-        Full,
-        DiscoveryOnly,
-        ScoringOnly,
-        MatchIngestionOnly,
-        MainAnalysisOnly,
-        PatternAggregationOnly,
-        AccountRefreshOnly,
-        MatchDataRetentionOnly
-    }
 }

@@ -47,10 +47,16 @@ public sealed class ChampionBuildTreeQueryService(
             query = query.Where(aggregate => aggregate.Position == position);
         }
 
-        var rows = await query.ToListAsync(ct);
-        var buildRows = rows
-            .Where(HasBuildPath)
-            .ToList();
+        var buildRows = await query
+            .Where(aggregate =>
+                aggregate.BuildItem0 > 0
+                || aggregate.BuildItem1 > 0
+                || aggregate.BuildItem2 > 0
+                || aggregate.BuildItem3 > 0
+                || aggregate.BuildItem4 > 0
+                || aggregate.BuildItem5 > 0
+                || aggregate.BuildItem6 > 0)
+            .ToListAsync(ct);
         var totalGames = buildRows.Sum(row => row.Games);
         var build = ChampionBuildTreeBuilder.Build(buildRows, totalGames, maxDepth, minBranchGames);
         var correlatedBoots = SelectBoots(buildRows, totalGames);
@@ -67,15 +73,6 @@ public sealed class ChampionBuildTreeQueryService(
             Build = build
         };
     }
-
-    private static bool HasBuildPath(Data.Entities.ChampionPatternAggregate aggregate)
-        => aggregate.BuildItem0 > 0 ||
-           aggregate.BuildItem1 > 0 ||
-           aggregate.BuildItem2 > 0 ||
-           aggregate.BuildItem3 > 0 ||
-           aggregate.BuildItem4 > 0 ||
-           aggregate.BuildItem5 > 0 ||
-           aggregate.BuildItem6 > 0;
 
     private static ItemSetOptionReadModel? SelectBoots(
         IReadOnlyList<Data.Entities.ChampionPatternAggregate> rows,

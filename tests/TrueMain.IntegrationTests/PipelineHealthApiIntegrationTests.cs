@@ -12,7 +12,7 @@ namespace TrueMain.IntegrationTests;
 
 public sealed class PipelineHealthApiIntegrationTests : IClassFixture<PostgresFixture>
 {
-    private const string OpsApiKey = "test-ops-key";
+    private const string OpsApiKey = "test-ops-key-0123456789-abcdefghijklmnop";
     private readonly PostgresFixture _fixture;
 
     public PipelineHealthApiIntegrationTests(PostgresFixture fixture)

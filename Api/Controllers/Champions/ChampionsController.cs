@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using TrueMain.Mapping.Champions;
+using TrueMain.ReadModels.Champions;
 using TrueMain.Services.Champions;
 
 namespace TrueMain.Controllers.Champions;
@@ -11,7 +11,7 @@ public sealed class ChampionsController(
     IChampionBuildTreeQueryService championBuildTreeQueryService) : ControllerBase
 {
     [HttpGet("{championId:int}")]
-    public async Task<ActionResult> GetChampionAsync(
+    public async Task<ActionResult<ChampionReadModel>> GetChampionAsync(
         int championId,
         [FromQuery] Guid? riotAccountId,
         [FromQuery] string? patch,
@@ -25,7 +25,7 @@ public sealed class ChampionsController(
         platformId = NullIfEmpty(platformId);
         position = NullIfEmpty(position);
 
-        var requestedFoundationReadModel = await championFoundationQueryService.GetAsync(
+        var foundationReadModel = await championFoundationQueryService.GetAsync(
             championId,
             riotAccountId,
             patch,
@@ -33,13 +33,13 @@ public sealed class ChampionsController(
             position,
             ct);
 
-        if (requestedFoundationReadModel is null)
+        if (foundationReadModel is null)
         {
             return NotFound();
         }
 
-        var effectivePatch = NullIfEmpty(patch ?? requestedFoundationReadModel.Summary.LatestPatchVersion);
-        var effectivePosition = NullIfEmpty(position ?? requestedFoundationReadModel.Summary.Position);
+        var effectivePatch = NullIfEmpty(patch ?? foundationReadModel.Summary.LatestPatchVersion);
+        var effectivePosition = NullIfEmpty(position ?? foundationReadModel.Summary.Position);
 
         var buildTreeReadModel = await championBuildTreeQueryService.GetAsync(
             championId,
@@ -51,10 +51,15 @@ public sealed class ChampionsController(
             minBranchGames,
             ct);
 
-        var coreReadModel = ChampionCoreBuilder.Build(
-            requestedFoundationReadModel);
+        var coreReadModel = ChampionCoreBuilder.Build(foundationReadModel);
 
-        return Ok(ChampionMapper.ToContract(requestedFoundationReadModel, coreReadModel, buildTreeReadModel));
+        return Ok(new ChampionReadModel
+        {
+            Summary = foundationReadModel.Summary,
+            Core = coreReadModel,
+            Advanced = foundationReadModel.Advanced,
+            BuildTree = buildTreeReadModel
+        });
     }
 
     private static string? NullIfEmpty(string? value)

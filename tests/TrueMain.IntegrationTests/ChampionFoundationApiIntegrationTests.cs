@@ -6,7 +6,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
-using TrueMain.Contracts.Champions;
+using TrueMain.ReadModels.Champions;
 
 namespace TrueMain.IntegrationTests;
 
@@ -70,7 +70,7 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
         root.GetProperty("buildTree").EnumerateObject().Select(property => property.Name)
             .Should().BeEquivalentTo(["championId", "patch", "position", "riotAccountId", "platformId", "totalGames", "boots", "build"]);
 
-        var payload = await response.Content.ReadFromJsonAsync<ChampionResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<ChampionReadModel>();
         payload.Should().NotBeNull();
         payload!.Summary.ChampionId.Should().Be(22);
         payload.Summary.Games.Should().Be(3);
@@ -114,7 +114,7 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
             BaseAddress = new Uri("https://localhost")
         });
 
-        var payload = await client.GetFromJsonAsync<ChampionResponse>("/champions/55");
+        var payload = await client.GetFromJsonAsync<ChampionReadModel>("/champions/55");
 
         payload.Should().NotBeNull();
         payload!.Summary.Games.Should().Be(4);
@@ -143,7 +143,7 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
             BaseAddress = new Uri("https://localhost")
         });
 
-        var payload = await client.GetFromJsonAsync<ChampionResponse>("/champions/81");
+        var payload = await client.GetFromJsonAsync<ChampionReadModel>("/champions/81");
 
         payload.Should().NotBeNull();
         payload!.Core.SummonerSpells.Should().NotBeNull();
@@ -171,7 +171,7 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
             BaseAddress = new Uri("https://localhost")
         });
 
-        var payload = await client.GetFromJsonAsync<ChampionResponse>("/champions/110");
+        var payload = await client.GetFromJsonAsync<ChampionReadModel>("/champions/110");
 
         payload.Should().NotBeNull();
         payload!.Core.SummonerSpells.Should().NotBeNull();
@@ -372,7 +372,8 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
                 configurationBuilder.AddInMemoryCollection(
                 [
                     new KeyValuePair<string, string?>("ConnectionStrings:TrueMain", fixture.ConnectionString),
-                    new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420")
+                    new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420"),
+                    new KeyValuePair<string, string?>("Ops:ApiKey", "integration-tests-ops-key-0123456789-padding")
                 ]);
             });
         }

@@ -15,14 +15,18 @@ internal static class ChampionCoreBuilder
             .FirstOrDefault(pattern => pattern.BuildItemIds.Count > 0)
             ?? foundationReadModel.CorrelatedPatterns.FirstOrDefault();
 
+        var buildPathItemIds = includeBuildPath
+            ? BuildPrimaryBuildPath(foundationReadModel.CorrelatedPatterns)
+            : [];
+
         return new ChampionCoreReadModel
         {
             SampleSize = foundationReadModel.Advanced.SampleSize,
             StarterItems = primaryStarterItems,
             Boots = correlatedPattern?.Boots,
-            BuildPathItemIds = includeBuildPath
-                ? BuildPrimaryBuildPath(foundationReadModel.CorrelatedPatterns)
-                : [],
+            BuildPath = buildPathItemIds.Count == 0
+                ? null
+                : new BuildPathPreviewReadModel { ItemIds = buildPathItemIds },
             SummonerSpells = correlatedPattern?.SummonerSpells,
             SkillOrder = correlatedPattern?.SkillOrder
         };
