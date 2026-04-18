@@ -38,9 +38,17 @@ public readonly record struct PatchVersion(int Major, int Minor) : IComparable<P
     }
 
     /// <summary>
-    /// String-to-string normalization mirroring the legacy behaviour:
-    /// null / whitespace → empty string, single non-numeric segment → pass-through,
-    /// any input with at least 2 dot-separated segments → "MAJOR.MINOR".
+    /// String-to-string normalization mirroring the legacy behaviour, kept for
+    /// callers that persist or compare patch strings without parsing them:
+    /// <list type="bullet">
+    ///   <item>null / empty / whitespace input → empty string;</item>
+    ///   <item>input with 2+ dot-separated segments → first two segments joined
+    ///   ("16.4.521.123" → "16.4"); segments are not validated as numeric;</item>
+    ///   <item>input with a single segment after splitting (e.g. "16", "abc")
+    ///   → original input returned unchanged.</item>
+    /// </list>
+    /// Use <see cref="Parse"/> / <see cref="TryParse"/> when a strictly typed
+    /// <see cref="PatchVersion"/> is needed.
     /// </summary>
     public static string Normalize(string? gameVersion)
     {
