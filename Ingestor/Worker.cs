@@ -18,9 +18,7 @@ public class Worker(
         do
         {
             await using var scope = scopeFactory.CreateAsyncScope();
-            var processesByName = scope.ServiceProvider
-                .GetRequiredService<IEnumerable<IIngestorProcess>>()
-                .ToDictionary(process => process.Name, StringComparer.Ordinal);
+            var processesByName = BuildProcessIndex(scope.ServiceProvider);
 
             await RunModeAsync(mode, processesByName, stoppingToken);
 
@@ -65,8 +63,30 @@ public class Worker(
 
         foreach (var processName in sequence)
         {
-            await processesByName[processName].RunCoreAsync(stoppingToken);
+            if (!processesByName.TryGetValue(processName, out var process))
+            {
+                throw new InvalidOperationException(
+                    $"No IIngestorProcess registered with Name '{processName}'. "
+                    + $"Registered: {string.Join(", ", processesByName.Keys.Order(StringComparer.Ordinal))}.");
+            }
+
+            await process.RunCoreAsync(stoppingToken);
         }
+    }
+
+    private static IReadOnlyDictionary<string, IIngestorProcess> BuildProcessIndex(IServiceProvider serviceProvider)
+    {
+        var index = new Dictionary<string, IIngestorProcess>(StringComparer.Ordinal);
+        foreach (var process in serviceProvider.GetRequiredService<IEnumerable<IIngestorProcess>>())
+        {
+            if (!index.TryAdd(process.Name, process))
+            {
+                throw new InvalidOperationException(
+                    $"Duplicate IIngestorProcess registration for Name '{process.Name}'.");
+            }
+        }
+
+        return index;
     }
 
     private static JobMode NormalizeMode(string? mode)
