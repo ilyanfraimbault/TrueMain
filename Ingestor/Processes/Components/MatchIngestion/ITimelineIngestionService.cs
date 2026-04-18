@@ -1,4 +1,4 @@
-using Core;
+using Core.Lol.Identifiers;
 using Data.Repositories;
 
 namespace Ingestor.Processes.Components.MatchIngestion;

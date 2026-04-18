@@ -1,3 +1,4 @@
+using Core.Lol.Map;
 using Core.Options;
 using Data;
 using Data.Entities;
@@ -121,7 +122,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
         => new(
             NullLogger<ChampionPatternAggregationProcess>.Instance,
             new FakeProcessRunRecorder(),
-            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = 420 }),
+            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueIds.RankedSoloDuo }),
             new ChampionPatternSourceRowReader(new TestDbContextFactory(_fixture)),
             new ChampionPatternAggregateBuilder(
                 new FakeItemMetadataProvider()),
@@ -166,8 +167,8 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
             {
                 Id = "KR_AGG_1",
                 PlatformId = "KR",
-                QueueId = 420,
-                MapId = 11,
+                QueueId = LolQueueIds.RankedSoloDuo,
+                MapId = LolMapIds.SummonersRift,
                 GameMode = "CLASSIC",
                 GameType = "MATCHED_GAME",
                 GameStartTimeUtc = now.AddHours(-2),
@@ -180,8 +181,8 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
             {
                 Id = "KR_AGG_2",
                 PlatformId = "KR",
-                QueueId = 420,
-                MapId = 11,
+                QueueId = LolQueueIds.RankedSoloDuo,
+                MapId = LolMapIds.SummonersRift,
                 GameMode = "CLASSIC",
                 GameType = "MATCHED_GAME",
                 GameStartTimeUtc = now.AddHours(-1),
@@ -197,8 +198,8 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
             {
                 Id = "KR_AGG_3",
                 PlatformId = "KR",
-                QueueId = 420,
-                MapId = 11,
+                QueueId = LolQueueIds.RankedSoloDuo,
+                MapId = LolMapIds.SummonersRift,
                 GameMode = "CLASSIC",
                 GameType = "MATCHED_GAME",
                 GameStartTimeUtc = now.AddMinutes(-30),

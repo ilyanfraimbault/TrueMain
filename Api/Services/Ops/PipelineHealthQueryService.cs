@@ -1,3 +1,4 @@
+using Core.Lol.Patches;
 using Core.Options;
 using Data;
 using Data.Entities;
@@ -64,7 +65,7 @@ public sealed class PipelineHealthQueryService(
                 {
                     PlatformId = group.Key,
                     LatestMatchStartAtUtc = latestMatch.GameStartTimeUtc,
-                    LatestPatchVersion = NormalizePatchVersion(latestMatch.GameVersion)
+                    LatestPatchVersion = PatchVersion.Normalize(latestMatch.GameVersion)
                 };
             })
             .ToList();
@@ -149,16 +150,4 @@ public sealed class PipelineHealthQueryService(
         return (to.Value - from.Value).TotalMinutes;
     }
 
-    private static string NormalizePatchVersion(string gameVersion)
-    {
-        if (string.IsNullOrWhiteSpace(gameVersion))
-        {
-            return string.Empty;
-        }
-
-        var segments = gameVersion.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return segments.Length >= 2
-            ? $"{segments[0]}.{segments[1]}"
-            : gameVersion;
-    }
 }

@@ -6,11 +6,9 @@ namespace Data.Repositories;
 public sealed class MatchParticipantRepository(TrueMainDbContext db) : IMatchParticipantRepository
 {
     private sealed record ParticipantHistoryRow(
-        string PlatformId,
         string Puuid,
         int ChampionId,
-        string TeamPosition,
-        DateTime GameStartTimeUtc);
+        string TeamPosition);
 
     public Task<List<MatchParticipant>> GetByMatchIdAsync(string matchId, CancellationToken ct)
         => db.MatchParticipants.Where(p => p.MatchId == matchId).ToListAsync(ct);
@@ -71,10 +69,9 @@ public sealed class MatchParticipantRepository(TrueMainDbContext db) : IMatchPar
             var participantRows = await db.Database
                 .SqlQuery<ParticipantHistoryRow>(
                     $"""
-                    SELECT ranked."PlatformId", ranked."Puuid", ranked."ChampionId", ranked."TeamPosition", ranked."GameStartTimeUtc"
+                    SELECT ranked."Puuid", ranked."ChampionId", ranked."TeamPosition"
                     FROM (
                         SELECT
-                            m."PlatformId",
                             p."Puuid",
                             p."ChampionId",
                             p."TeamPosition",

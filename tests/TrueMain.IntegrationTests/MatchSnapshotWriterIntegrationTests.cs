@@ -1,4 +1,5 @@
-using Core;
+using Core.Lol.Map;
+using Core.Lol.Identifiers;
 using Data.Entities;
 using FluentAssertions;
 using Ingestor.Processes.Components.MatchIngestion;
@@ -266,8 +267,8 @@ public sealed class MatchSnapshotWriterIntegrationTests : IClassFixture<Postgres
                 },
                 Info = new RiotMatchInfoDto
                 {
-                    QueueId = 420,
-                    MapId = 11,
+                    QueueId = LolQueueIds.RankedSoloDuo,
+                    MapId = LolMapIds.SummonersRift,
                     GameMode = "CLASSIC",
                     GameType = "MATCHED_GAME",
                     GameStartTimestamp = new DateTimeOffset(2026, 3, 10, 20, 15, 0, TimeSpan.Zero).ToUnixTimeMilliseconds(),

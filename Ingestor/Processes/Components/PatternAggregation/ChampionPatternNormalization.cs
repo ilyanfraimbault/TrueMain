@@ -1,60 +1,22 @@
+using Core.Lol.Items;
+using Core.Lol.Map;
 using Data.Entities;
 
 namespace Ingestor.Processes.Components.PatternAggregation;
 
 internal static class ChampionPatternNormalization
 {
-    private static readonly HashSet<int> IgnoredStarterItemIds =
-    [
-        3340,
-        3363,
-        3364,
-        3330
-    ];
+    private static readonly IReadOnlySet<int> IgnoredStarterItemIds = LolItemIds.Trinkets.All;
 
-    private static readonly HashSet<int> IgnoredFinalBuildItemIds =
-    [
-        3340,
-        3363,
-        3364,
-        3330,
-        1083
-    ];
+    private static readonly IReadOnlySet<int> IgnoredFinalBuildItemIds =
+        new HashSet<int>(LolItemIds.Trinkets.All) { LolItemIds.Cull };
 
-    private static readonly HashSet<int> SupportStarterQuestItemIds =
-    [
-        3865,
-        3866,
-        3867
-    ];
-
-    private static readonly HashSet<string> ValidTeamPositions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "TOP",
-        "JUNGLE",
-        "MIDDLE",
-        "BOTTOM",
-        "UTILITY"
-    };
+    private static readonly IReadOnlySet<int> SupportStarterQuestItemIds = LolItemIds.SupportQuest.All;
 
     private const int StarterPurchaseWindowMs = 120_000;
     private const int StarterBatchGapMs = 15_000;
     private const int StarterMaxTotalCost = 500;
     private const int MaxBuildItems = 7;
-
-    public static string NormalizePatchVersion(string gameVersion)
-    {
-        if (string.IsNullOrWhiteSpace(gameVersion))
-        {
-            return string.Empty;
-        }
-
-        var segments = gameVersion.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return segments.Length >= 2 ? $"{segments[0]}.{segments[1]}" : gameVersion;
-    }
-
-    public static (int spell1Id, int spell2Id) NormalizeSummonerPair(int summoner1Id, int summoner2Id)
-        => summoner1Id <= summoner2Id ? (summoner1Id, summoner2Id) : (summoner2Id, summoner1Id);
 
     public static string BuildSkillOrderKey(IEnumerable<SkillEvent> skillEvents)
     {
@@ -107,15 +69,7 @@ internal static class ChampionPatternNormalization
     }
 
     public static string? NormalizeTeamPosition(string? teamPosition)
-    {
-        if (string.IsNullOrWhiteSpace(teamPosition))
-        {
-            return null;
-        }
-
-        var normalized = teamPosition.Trim().ToUpperInvariant();
-        return ValidTeamPositions.Contains(normalized) ? normalized : null;
-    }
+        => LolPositionExtensions.Parse(teamPosition).ToRiotString();
 
     public static List<int> BuildStarterItems(
         IReadOnlyList<ItemEvent> itemEvents,
@@ -497,7 +451,7 @@ internal static class ChampionPatternNormalization
             return;
         }
 
-        TryAddStarterItemIgnoringBudget(starterItems, 3865);
+        TryAddStarterItemIgnoringBudget(starterItems, LolItemIds.SupportQuest.SpellthiefsEdge);
     }
 
     private static void TryAddStarterItemIgnoringBudget(

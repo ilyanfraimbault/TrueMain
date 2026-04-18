@@ -1,3 +1,4 @@
+using Core.Lol.Patches;
 using Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -59,7 +60,7 @@ public sealed class ChampionPatternSourceRowReader(
             {
                 MatchId = match.Id,
                 ChampionId = participant.ChampionId,
-                GameVersion = ChampionPatternNormalization.NormalizePatchVersion(match.GameVersion),
+                GameVersion = PatchVersion.Normalize(match.GameVersion),
                 PlatformId = match.PlatformId,
                 QueueId = match.QueueId,
                 GameStartTimeUtc = match.GameStartTimeUtc,

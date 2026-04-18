@@ -1,3 +1,4 @@
+using Core.Lol.Spells;
 using Data.Entities;
 using TrueMain.ReadModels.Champions;
 
@@ -26,7 +27,7 @@ internal static class ChampionOptionProjector
             {
                 var starterItems = BuildStarterItemSet(row);
                 var buildItemIds = BuildFinalBuildItemSet(row);
-                var normalizedSummonerPair = NormalizeSummonerPair(row.SummonerSpell1Id, row.SummonerSpell2Id);
+                var displayPair = new SummonerSpellPair(row.SummonerSpell1Id, row.SummonerSpell2Id).OrderedForDisplay();
 
                 return new
                 {
@@ -36,8 +37,8 @@ internal static class ChampionOptionProjector
                     StarterItems = starterItems,
                     row.BootsItemId,
                     BuildItemIds = buildItemIds,
-                    SummonerSpell1Id = normalizedSummonerPair.spell1Id,
-                    SummonerSpell2Id = normalizedSummonerPair.spell2Id,
+                    SummonerSpell1Id = displayPair.Spell1Id,
+                    SummonerSpell2Id = displayPair.Spell2Id,
                     row.SkillOrderKey
                 };
             })
@@ -130,30 +131,6 @@ internal static class ChampionOptionProjector
         .Where(itemId => itemId > 0)
         .ToList();
 
-    public static (int spell1Id, int spell2Id) NormalizeSummonerPair(int summoner1Id, int summoner2Id)
-    {
-        const int flashId = 4;
-        const int smiteId = 11;
-
-        if (summoner1Id == flashId || summoner2Id == flashId)
-        {
-            return summoner1Id == flashId
-                ? (summoner1Id, summoner2Id)
-                : (summoner2Id, summoner1Id);
-        }
-
-        if (summoner1Id == smiteId || summoner2Id == smiteId)
-        {
-            return summoner1Id == smiteId
-                ? (summoner1Id, summoner2Id)
-                : (summoner2Id, summoner1Id);
-        }
-
-        return summoner1Id <= summoner2Id
-            ? (summoner1Id, summoner2Id)
-            : (summoner2Id, summoner1Id);
-    }
-
     public static double ComputeRate(int numerator, int denominator)
         => denominator == 0 ? 0 : (double)numerator / denominator;
 
@@ -197,14 +174,14 @@ internal static class ChampionOptionProjector
         IReadOnlyCollection<ChampionPatternAggregate> rows,
         int sampleSize)
         => rows
-            .GroupBy(row => NormalizeSummonerPair(row.SummonerSpell1Id, row.SummonerSpell2Id))
+            .GroupBy(row => new SummonerSpellPair(row.SummonerSpell1Id, row.SummonerSpell2Id).OrderedForDisplay())
             .Select(group =>
             {
                 var games = group.Sum(row => row.Games);
                 return new SummonerSpellOptionReadModel
                 {
-                    Spell1Id = group.Key.spell1Id,
-                    Spell2Id = group.Key.spell2Id,
+                    Spell1Id = group.Key.Spell1Id,
+                    Spell2Id = group.Key.Spell2Id,
                     Games = games,
                     PlayRate = ComputeRate(games, sampleSize),
                     WinRate = ComputeRate(group.Sum(row => row.Wins), games)
