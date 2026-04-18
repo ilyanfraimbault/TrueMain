@@ -6,6 +6,7 @@ using Data.Entities;
 using FluentAssertions;
 using Ingestor.Options;
 using Ingestor.Processes;
+using Ingestor.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -37,8 +38,11 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IClassFixture<Po
             {
                 QueueId = LolQueueIds.RankedSoloDuo
             }));
+        var recorded = new RecordedProcess<MatchDataRetentionProcess>(
+            process,
+            new ProcessRunRecorder(_fixture.CreateSessionFactory()));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await recorded.RunCoreAsync(CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         var remainingMatchIds = await db.Matches
