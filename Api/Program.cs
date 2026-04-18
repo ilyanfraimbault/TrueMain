@@ -1,7 +1,9 @@
 using Core.Options;
 using Data;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using TrueMain.Authentication;
 using TrueMain.Options;
 using TrueMain.Services.Champions;
 using TrueMain.Services.Ops;
@@ -15,26 +17,37 @@ builder.Services.AddControllers();
 builder.Services.AddHealthChecks();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(frontendCorsPolicy, policy =>
     {
-        policy
-            .WithOrigins(
-                "http://localhost:3000",
-                "http://127.0.0.1:3000",
-                "http://localhost:3001",
-                "http://127.0.0.1:3001")
-            .AllowAnyHeader()
-            .AllowAnyMethod();
+        var builderPolicy = policy.AllowAnyHeader().AllowAnyMethod();
+        if (corsOrigins.Length > 0)
+        {
+            builderPolicy.WithOrigins(corsOrigins);
+        }
     });
 });
+
 builder.Services.AddOptions<MainAnalysisOptions>()
     .Bind(builder.Configuration.GetSection("MainAnalysis"))
     .Validate(options => options.QueueId > 0, "MainAnalysis:QueueId must be greater than 0.")
     .ValidateOnStart();
 builder.Services.AddOptions<OpsOptions>()
-    .Bind(builder.Configuration.GetSection("Ops"));
+    .Bind(builder.Configuration.GetSection("Ops"))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+builder.Services.AddOptions<MigrationsOptions>()
+    .Bind(builder.Configuration.GetSection("Migrations"));
+
+builder.Services
+    .AddAuthentication(ApiKeyAuthenticationDefaults.Scheme)
+    .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(
+        ApiKeyAuthenticationDefaults.Scheme,
+        _ => { });
+builder.Services.AddAuthorization();
 builder.Services.AddScoped<IChampionFoundationQueryService, ChampionFoundationQueryService>();
 builder.Services.AddScoped<IChampionBuildTreeQueryService, ChampionBuildTreeQueryService>();
 builder.Services.AddScoped<IPipelineHealthQueryService, PipelineHealthQueryService>();
@@ -55,9 +68,11 @@ builder.Services.AddDbContext<TrueMainDbContext>(options =>
     options.UseNpgsql(dataSource);
 });
 var app = builder.Build();
-var applyMigrationsOnStartup = builder.Configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup");
+var migrationsOptions = app.Services
+    .GetRequiredService<Microsoft.Extensions.Options.IOptions<MigrationsOptions>>()
+    .Value;
 
-if (applyMigrationsOnStartup && !app.Environment.IsEnvironment("Testing"))
+if (migrationsOptions.ApplyOnStartup)
 {
     using var scope = app.Services.CreateScope();
     var dbContext = scope.ServiceProvider.GetRequiredService<TrueMainDbContext>();
@@ -74,6 +89,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseCors(frontendCorsPolicy);
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapHealthChecks("/health");
