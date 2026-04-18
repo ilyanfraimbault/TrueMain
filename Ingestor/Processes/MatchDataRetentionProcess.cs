@@ -1,3 +1,4 @@
+using Core.Lol.Patches;
 using Core.Options;
 using Data;
 using Ingestor.Options;
@@ -98,7 +99,7 @@ public sealed class MatchDataRetentionProcess(
             .ToDictionary(
                 group => group.Key,
                 group => group
-                    .Select(match => NormalizePatchVersion(match.GameVersion))
+                    .Select(match => PatchVersion.Normalize(match.GameVersion))
                     .Where(patch => !string.IsNullOrWhiteSpace(patch))
                     .Distinct()
                     .Take(retainedPatchCount)
@@ -171,19 +172,6 @@ public sealed class MatchDataRetentionProcess(
                 })
                 .ToArray()
         };
-    }
-
-    private static string NormalizePatchVersion(string gameVersion)
-    {
-        if (string.IsNullOrWhiteSpace(gameVersion))
-        {
-            return string.Empty;
-        }
-
-        var segments = gameVersion.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return segments.Length >= 2
-            ? $"{segments[0]}.{segments[1]}"
-            : gameVersion;
     }
 
     private sealed record ObservedMatch(string PlatformId, string GameVersion);

@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Core.Lol.Patches;
 
 namespace Ingestor.Processes.Components.PatternAggregation;
 
@@ -14,7 +15,7 @@ public sealed class CommunityDragonItemMetadataProvider(
 
     public Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemsAsync(string gameVersion, CancellationToken ct)
     {
-        var patch = ChampionPatternNormalization.NormalizePatchVersion(gameVersion);
+        var patch = PatchVersion.Normalize(gameVersion);
         var lazyTask = _cache.GetOrAdd(patch, static (normalizedPatch, provider) =>
             new Lazy<Task<IReadOnlyDictionary<int, ItemMetadata>>>(
                 () => provider.LoadPatchItemsAsync(normalizedPatch, CancellationToken.None),

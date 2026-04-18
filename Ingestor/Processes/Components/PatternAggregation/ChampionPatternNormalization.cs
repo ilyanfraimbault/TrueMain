@@ -42,17 +42,6 @@ internal static class ChampionPatternNormalization
     private const int StarterMaxTotalCost = 500;
     private const int MaxBuildItems = 7;
 
-    public static string NormalizePatchVersion(string gameVersion)
-    {
-        if (string.IsNullOrWhiteSpace(gameVersion))
-        {
-            return string.Empty;
-        }
-
-        var segments = gameVersion.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return segments.Length >= 2 ? $"{segments[0]}.{segments[1]}" : gameVersion;
-    }
-
     public static (int spell1Id, int spell2Id) NormalizeSummonerPair(int summoner1Id, int summoner2Id)
         => summoner1Id <= summoner2Id ? (summoner1Id, summoner2Id) : (summoner2Id, summoner1Id);
 
