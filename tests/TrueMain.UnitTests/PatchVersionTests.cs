@@ -44,7 +44,7 @@ public sealed class PatchVersionTests
         var parsed = PatchVersion.TryParse(input, out var version);
 
         parsed.Should().BeFalse();
-        version.Should().Be(default(PatchVersion));
+        version.Should().Be(default);
     }
 
     [Theory]
