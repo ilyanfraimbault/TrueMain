@@ -39,8 +39,12 @@ jobs:
       - name: Build solution
         run: dotnet build TrueMain.sln --configuration Release --no-restore
 
-      - name: Test solution
-        run: dotnet test TrueMain.sln --configuration Release --no-build --verbosity normal
+      - name: Unit tests
+        run: dotnet test tests/TrueMain.UnitTests/TrueMain.UnitTests.csproj --configuration Release --no-build --verbosity normal
+
+      - name: Integration tests
+        if: github.event_name == 'pull_request'
+        run: dotnet test tests/TrueMain.IntegrationTests/TrueMain.IntegrationTests.csproj --configuration Release --no-build --verbosity normal
 
   frontend:
     name: Frontend Build

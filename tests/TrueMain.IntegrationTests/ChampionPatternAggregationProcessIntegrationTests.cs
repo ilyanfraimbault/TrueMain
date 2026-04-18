@@ -1,11 +1,9 @@
 using Core.Lol.Map;
 using Core.Options;
-using Data;
 using Data.Entities;
 using FluentAssertions;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.PatternAggregation;
-using Ingestor.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -299,24 +297,4 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
             => Task.FromResult(Metadata);
     }
 
-    private sealed class TestDbContextFactory(PostgresFixture fixture) : IDbContextFactory<TrueMainDbContext>
-    {
-        public TrueMainDbContext CreateDbContext() => fixture.CreateDbContext();
-
-        public Task<TrueMainDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult(fixture.CreateDbContext());
-    }
-
-    private sealed class FakeProcessRunRecorder : IProcessRunRecorder
-    {
-        public Task RecordAsync(
-            string processName,
-            DateTime startedAtUtc,
-            DateTime completedAtUtc,
-            ProcessRunStatus status,
-            object? metrics,
-            string? error,
-            CancellationToken ct)
-            => Task.CompletedTask;
-    }
 }

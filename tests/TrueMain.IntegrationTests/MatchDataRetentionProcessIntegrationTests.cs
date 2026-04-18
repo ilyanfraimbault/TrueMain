@@ -1,7 +1,5 @@
 using Core.Lol.Map;
-using System.Diagnostics.CodeAnalysis;
 using Core.Options;
-using Data;
 using Data.Entities;
 using FluentAssertions;
 using Ingestor.Options;
@@ -147,14 +145,4 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IClassFixture<Po
         };
     }
 
-    private sealed class TestDbContextFactory(PostgresFixture fixture) : IDbContextFactory<TrueMainDbContext>
-    {
-        [SuppressMessage("Reliability", "CA2000", Justification = "DbContext ownership is transferred to the caller.")]
-        public ValueTask<TrueMainDbContext> CreateDbContextAsync(CancellationToken _ = default)
-            => ValueTask.FromResult(fixture.CreateDbContext());
-
-        [SuppressMessage("Reliability", "CA2000", Justification = "DbContext ownership is transferred to the caller.")]
-        public TrueMainDbContext CreateDbContext()
-            => CreateDbContextAsync().GetAwaiter().GetResult();
-    }
 }

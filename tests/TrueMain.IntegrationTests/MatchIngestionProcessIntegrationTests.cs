@@ -6,7 +6,6 @@ using Ingestor.Processes;
 using Ingestor.Processes.Components.MatchIngestion;
 using Ingestor.Riot;
 using Ingestor.Riot.Dto;
-using Ingestor.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace TrueMain.IntegrationTests;
@@ -86,19 +85,6 @@ public sealed class MatchIngestionProcessIntegrationTests : IClassFixture<Postgr
             Reverted.Add(account);
             return Task.CompletedTask;
         }
-    }
-
-    private sealed class FakeProcessRunRecorder : IProcessRunRecorder
-    {
-        public Task RecordAsync(
-            string processName,
-            DateTime startedAtUtc,
-            DateTime finishedAtUtc,
-            Data.Entities.ProcessRunStatus status,
-            object? summary,
-            string? error,
-            CancellationToken ct)
-            => Task.CompletedTask;
     }
 
     private sealed class FakeRiotMatchClient : IRiotMatchClient
