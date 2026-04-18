@@ -1,6 +1,6 @@
+using Microsoft.AspNetCore.Mvc;
 using TrueMain.Mapping.Champions;
 using TrueMain.Services.Champions;
-using Microsoft.AspNetCore.Mvc;
 
 namespace TrueMain.Controllers.Champions;
 

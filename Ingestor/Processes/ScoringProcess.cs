@@ -50,7 +50,7 @@ public class ScoringProcess(
         }
     }
 
-    private async Task<ScoringResult> ScoreCandidatesAsync(
+    private static async Task<ScoringResult> ScoreCandidatesAsync(
         IDataSession session,
         ScoringOptions scoring,
         CancellationToken ct)
@@ -78,7 +78,7 @@ public class ScoringProcess(
         }
     }
 
-    private async Task<List<MainCandidate>> ScoreCandidatesBatchAsync(
+    private static async Task<List<MainCandidate>> ScoreCandidatesBatchAsync(
         IDataSession session,
         ScoringOptions scoring,
         DateTime nowUtc,

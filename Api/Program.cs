@@ -1,10 +1,10 @@
 using Core.Options;
-using TrueMain.Services.Champions;
-using TrueMain.Services.Ops;
 using Data;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using TrueMain.Options;
+using TrueMain.Services.Champions;
+using TrueMain.Services.Ops;
 
 var builder = WebApplication.CreateBuilder(args);
 const string frontendCorsPolicy = "FrontendCors";

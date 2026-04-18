@@ -1,13 +1,13 @@
+using System.Diagnostics.CodeAnalysis;
+using Core.Options;
 using Data;
 using Data.Entities;
 using FluentAssertions;
-using Core.Options;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
-using System.Diagnostics.CodeAnalysis;
 
 namespace TrueMain.IntegrationTests;
 

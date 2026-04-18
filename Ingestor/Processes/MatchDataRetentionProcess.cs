@@ -1,5 +1,5 @@
-using Data;
 using Core.Options;
+using Data;
 using Ingestor.Options;
 using Ingestor.Services;
 using Microsoft.EntityFrameworkCore;
