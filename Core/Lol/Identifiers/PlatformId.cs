@@ -6,8 +6,6 @@ namespace Core.Lol.Identifiers;
 /// </summary>
 public readonly record struct PlatformId
 {
-    private readonly PlatformRoute _route;
-
     public PlatformId(PlatformRoute route)
     {
         if (!Enum.IsDefined(route))
@@ -15,12 +13,12 @@ public readonly record struct PlatformId
             throw new ArgumentException($"Unknown platform route: {route}.", nameof(route));
         }
 
-        _route = route;
+        Route = route;
     }
 
-    public PlatformRoute Route => _route;
+    public PlatformRoute Route { get; }
 
-    public string Value => _route.ToString();
+    public string Value => Route.ToString();
 
     public static PlatformId Parse(string value)
     {
@@ -49,7 +47,7 @@ public readonly record struct PlatformId
     public override string ToString() => Value;
 
     public static implicit operator string(PlatformId platformId) => platformId.Value;
-    public static implicit operator PlatformRoute(PlatformId platformId) => platformId._route;
+    public static implicit operator PlatformRoute(PlatformId platformId) => platformId.Route;
     public static implicit operator PlatformId(PlatformRoute route) => new(route);
     public static explicit operator PlatformId(string value) => Parse(value);
 }
