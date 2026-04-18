@@ -1,3 +1,4 @@
+using Core.Lol.Map;
 using System.Diagnostics.CodeAnalysis;
 using Core.Options;
 using Data;
@@ -36,7 +37,7 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IClassFixture<Po
             }),
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions
             {
-                QueueId = 420
+                QueueId = LolQueueIds.RankedSoloDuo
             }));
 
         await process.RunAsync(CancellationToken.None);

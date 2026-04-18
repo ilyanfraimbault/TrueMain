@@ -1,4 +1,5 @@
 using Core.Lol.Items;
+using Core.Lol.Map;
 using Data.Entities;
 
 namespace Ingestor.Processes.Components.PatternAggregation;
@@ -11,15 +12,6 @@ internal static class ChampionPatternNormalization
         new HashSet<int>(LolItemIds.Trinkets.All) { LolItemIds.Cull };
 
     private static readonly IReadOnlySet<int> SupportStarterQuestItemIds = LolItemIds.SupportQuest.All;
-
-    private static readonly HashSet<string> ValidTeamPositions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "TOP",
-        "JUNGLE",
-        "MIDDLE",
-        "BOTTOM",
-        "UTILITY"
-    };
 
     private const int StarterPurchaseWindowMs = 120_000;
     private const int StarterBatchGapMs = 15_000;
@@ -77,15 +69,7 @@ internal static class ChampionPatternNormalization
     }
 
     public static string? NormalizeTeamPosition(string? teamPosition)
-    {
-        if (string.IsNullOrWhiteSpace(teamPosition))
-        {
-            return null;
-        }
-
-        var normalized = teamPosition.Trim().ToUpperInvariant();
-        return ValidTeamPositions.Contains(normalized) ? normalized : null;
-    }
+        => LolPositionExtensions.Parse(teamPosition).ToRiotString();
 
     public static List<int> BuildStarterItems(
         IReadOnlyList<ItemEvent> itemEvents,

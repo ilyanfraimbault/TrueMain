@@ -1,3 +1,4 @@
+using Core.Lol.Map;
 using Core.Lol.Identifiers;
 using FluentAssertions;
 using Ingestor.Options;
@@ -116,8 +117,8 @@ public sealed class MatchIngestionProcessIntegrationTests : IClassFixture<Postgr
                 },
                 Info = new RiotMatchInfoDto
                 {
-                    QueueId = 420,
-                    MapId = 11,
+                    QueueId = LolQueueIds.RankedSoloDuo,
+                    MapId = LolMapIds.SummonersRift,
                     GameMode = "CLASSIC",
                     GameType = "MATCHED_GAME",
                     GameStartTimestamp = new DateTimeOffset(2026, 3, 10, 21, 0, 0, TimeSpan.Zero).ToUnixTimeMilliseconds(),

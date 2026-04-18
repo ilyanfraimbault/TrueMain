@@ -1,3 +1,4 @@
+using Core.Lol.Map;
 using Core.Options;
 using Data.Entities;
 using FluentAssertions;
@@ -34,7 +35,7 @@ public sealed class MainAnalysisProcessIntegrationTests : IClassFixture<Postgres
                 BatchSize = 10,
                 ProcessingBatchSize = 10,
                 MatchesToConsider = 20,
-                QueueId = 420,
+                QueueId = LolQueueIds.RankedSoloDuo,
                 MinMatchesToEvaluate = 5,
                 PlayRateThreshold = 0.5,
                 OtpPlayRateThreshold = 0.8,
@@ -109,8 +110,8 @@ public sealed class MainAnalysisProcessIntegrationTests : IClassFixture<Postgres
             {
                 Id = matchId,
                 PlatformId = "KR",
-                QueueId = 420,
-                MapId = 11,
+                QueueId = LolQueueIds.RankedSoloDuo,
+                MapId = LolMapIds.SummonersRift,
                 GameMode = "CLASSIC",
                 GameType = "MATCHED_GAME",
                 GameStartTimeUtc = now.AddHours(-i),

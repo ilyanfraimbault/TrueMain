@@ -1,3 +1,5 @@
+using Core.Lol.Map;
+
 namespace Core.Options;
 
 public class MainAnalysisOptions
@@ -11,7 +13,7 @@ public class MainAnalysisOptions
     public int ProcessingBatchSize { get; set; } = 100;
 
     public int MatchesToConsider { get; set; } = 50;
-    public int QueueId { get; set; } = 420;
+    public int QueueId { get; set; } = LolQueueIds.RankedSoloDuo;
     public double PlayRateThreshold { get; set; } = 0.2;
     public double OtpPlayRateThreshold { get; set; } = 0.85;
     public double CriticalPlayRateThreshold { get; set; } = 0.1;

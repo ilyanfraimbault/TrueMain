@@ -1,3 +1,4 @@
+using Core.Lol.Map;
 using Data.Entities;
 using FluentAssertions;
 using TrueMain.Services.Champions;
@@ -71,7 +72,7 @@ public sealed class ChampionBuildTreeBuilderTests
             ChampionId = 22,
             GameVersion = "16.5",
             PlatformId = "KR",
-            QueueId = 420,
+            QueueId = LolQueueIds.RankedSoloDuo,
             Position = "BOTTOM",
             PrimaryStyleId = 8000,
             SubStyleId = 8100,

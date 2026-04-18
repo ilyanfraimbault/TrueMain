@@ -1,3 +1,4 @@
+using Core.Lol.Map;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -103,8 +104,8 @@ public sealed class PipelineHealthApiIntegrationTests : IClassFixture<PostgresFi
             {
                 Id = "OPS_1",
                 PlatformId = "KR",
-                QueueId = 420,
-                MapId = 11,
+                QueueId = LolQueueIds.RankedSoloDuo,
+                MapId = LolMapIds.SummonersRift,
                 GameMode = "CLASSIC",
                 GameType = "MATCHED_GAME",
                 GameStartTimeUtc = now.AddHours(-2),
@@ -117,8 +118,8 @@ public sealed class PipelineHealthApiIntegrationTests : IClassFixture<PostgresFi
             {
                 Id = "OPS_2",
                 PlatformId = "KR",
-                QueueId = 420,
-                MapId = 11,
+                QueueId = LolQueueIds.RankedSoloDuo,
+                MapId = LolMapIds.SummonersRift,
                 GameMode = "CLASSIC",
                 GameType = "MATCHED_GAME",
                 GameStartTimeUtc = now.AddHours(-1),
@@ -131,8 +132,8 @@ public sealed class PipelineHealthApiIntegrationTests : IClassFixture<PostgresFi
             {
                 Id = "OPS_3",
                 PlatformId = "EUW1",
-                QueueId = 420,
-                MapId = 11,
+                QueueId = LolQueueIds.RankedSoloDuo,
+                MapId = LolMapIds.SummonersRift,
                 GameMode = "CLASSIC",
                 GameType = "MATCHED_GAME",
                 GameStartTimeUtc = now.AddMinutes(-45),
