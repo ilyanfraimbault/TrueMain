@@ -45,11 +45,16 @@ public sealed class ChampionCoreReadModel
 
     public ItemSetOptionReadModel? Boots { get; init; }
 
-    public IReadOnlyList<int> BuildPathItemIds { get; init; } = [];
+    public BuildPathPreviewReadModel? BuildPath { get; init; }
 
     public SummonerSpellOptionReadModel? SummonerSpells { get; init; }
 
     public SkillOrderOptionReadModel? SkillOrder { get; init; }
+}
+
+public sealed class BuildPathPreviewReadModel
+{
+    public IReadOnlyList<int> ItemIds { get; init; } = [];
 }
 
 public sealed class ChampionCorrelatedPatternReadModel
