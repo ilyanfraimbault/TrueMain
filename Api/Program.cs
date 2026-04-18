@@ -14,9 +14,18 @@ const string frontendCorsPolicy = "FrontendCors";
 // Add services to the container.
 
 builder.Services.AddControllers();
-builder.Services.AddHealthChecks();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+var healthConnectionString = builder.Configuration.GetConnectionString("TrueMain");
+var healthChecks = builder.Services.AddHealthChecks();
+if (!string.IsNullOrWhiteSpace(healthConnectionString))
+{
+    healthChecks.AddNpgSql(
+        healthConnectionString,
+        name: "postgres",
+        tags: ["ready"]);
+}
 
 var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>
@@ -79,12 +88,22 @@ if (migrationsOptions.ApplyOnStartup)
     await dbContext.Database.MigrateAsync();
 }
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+app.UseWhen(
+    context => context.Request.Path.StartsWithSegments("/swagger/v1/swagger.json"),
+    branch => branch.Use(async (ctx, next) =>
+    {
+        var authResult = await ctx.AuthenticateAsync(ApiKeyAuthenticationDefaults.Scheme);
+        if (!authResult.Succeeded)
+        {
+            ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return;
+        }
+
+        await next();
+    }));
+
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
 app.UseCors(frontendCorsPolicy);
@@ -92,7 +111,14 @@ app.UseCors(frontendCorsPolicy);
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/healthz", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = _ => false
+});
+app.MapHealthChecks("/readyz", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = registration => registration.Tags.Contains("ready")
+});
 app.MapControllers();
 
 app.Run();
