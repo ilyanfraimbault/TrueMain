@@ -11,8 +11,8 @@ namespace Core.Lol.Identifiers;
 /// </summary>
 public readonly record struct PlatformId
 {
-    private readonly PlatformRoute _route;
-    private readonly bool _initialized;
+    private PlatformRoute RouteOrDefault { get; }
+    private bool Initialized { get; }
 
     public PlatformId(PlatformRoute route)
     {
@@ -21,12 +21,12 @@ public readonly record struct PlatformId
             throw new ArgumentException($"Unknown platform route: {route}.", nameof(route));
         }
 
-        _route = route;
-        _initialized = true;
+        RouteOrDefault = route;
+        Initialized = true;
     }
 
-    public PlatformRoute Route => _initialized
-        ? _route
+    public PlatformRoute Route => Initialized
+        ? RouteOrDefault
         : throw new InvalidOperationException("Default PlatformId is not a valid platform.");
 
     public string Value => Route.ToString();
