@@ -5,10 +5,10 @@ using Ingestor.Riot.Dto;
 
 namespace TrueMain.UnitTests;
 
-public sealed class MatchSnapshotWriterPerkMappingTests
+public sealed class RiotMatchMapperPerkSelectionTests
 {
     [Fact]
-    public void BuildPerkSelectionRows_ShouldReturnSixRowsForSingleParticipant()
+    public void BuildPerkSelectionRows_returns_six_rows_for_single_participant()
     {
         var match = new RiotMatchDto
         {
@@ -52,7 +52,7 @@ public sealed class MatchSnapshotWriterPerkMappingTests
             }
         };
 
-        var rows = MatchSnapshotWriter.BuildPerkSelectionRows(match);
+        var rows = RiotMatchMapper.BuildPerkSelectionRows(match, matchId: "TEST_MATCH");
 
         rows.Should().HaveCount(6);
         rows.Select(row => row.ParticipantId).Should().OnlyContain(id => id == 1);
