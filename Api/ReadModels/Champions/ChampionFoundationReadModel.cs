@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace TrueMain.ReadModels.Champions;
 
 public sealed class ChampionFoundationReadModel
@@ -6,6 +8,11 @@ public sealed class ChampionFoundationReadModel
 
     public ChampionAdvancedDetailsReadModel Advanced { get; init; } = new();
 
+    /// <summary>
+    /// Internal scratchpad used by <c>ChampionCoreBuilder</c>; not part of the
+    /// API contract.
+    /// </summary>
+    [JsonIgnore]
     public IReadOnlyList<ChampionCorrelatedPatternReadModel> CorrelatedPatterns { get; init; } = [];
 }
 
@@ -28,6 +35,12 @@ public sealed class ChampionSummaryReadModel
 
 public sealed class ChampionAdvancedDetailsReadModel
 {
+    /// <summary>
+    /// Internal scratchpad reused by <c>ChampionCoreBuilder</c>; not part of
+    /// the API contract (<c>ChampionCoreReadModel.SampleSize</c> already
+    /// surfaces it under <c>core.sampleSize</c>).
+    /// </summary>
+    [JsonIgnore]
     public int SampleSize { get; init; }
 
     public IReadOnlyList<ItemSetOptionReadModel> StarterItemOptions { get; init; } = [];
