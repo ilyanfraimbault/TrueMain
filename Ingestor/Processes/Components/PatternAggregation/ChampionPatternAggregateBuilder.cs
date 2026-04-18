@@ -91,20 +91,13 @@ public sealed class ChampionPatternAggregateBuilder(
         foreach (var row in sourceRows)
         {
             var itemMetadata = await itemMetadataProvider.GetItemsAsync(row.GameVersion, ct);
-            var starterAnalysis = ChampionPatternNormalization.AnalyzeStarterItems(row.ItemEvents, itemMetadata);
+            var starterAnalysis = StarterItemAnalyzer.Analyze(row.ItemEvents, itemMetadata);
 
             var (spell1Id, spell2Id) = new SummonerSpellPair(row.Summoner1Id, row.Summoner2Id).Canonical();
-            var skillOrderKey = ChampionPatternNormalization.BuildSkillOrderKey(row.SkillEvents);
-            var buildItems = ChampionPatternNormalization.BuildOrderedFinalBuild(
-                row.ItemEvents,
-                [row.Item0, row.Item1, row.Item2, row.Item3, row.Item4, row.Item5, row.Item6],
-                starterAnalysis.Items,
-                itemMetadata);
-            var bootsItemId = ChampionPatternNormalization.BuildCorrelatedBootsItem(
-                row.ItemEvents,
-                [row.Item0, row.Item1, row.Item2, row.Item3, row.Item4, row.Item5, row.Item6],
-                starterAnalysis.Items,
-                itemMetadata);
+            var skillOrderKey = SkillOrderBuilder.Build(row.SkillEvents);
+            int[] finalItems = [row.Item0, row.Item1, row.Item2, row.Item3, row.Item4, row.Item5, row.Item6];
+            var buildItems = FinalBuildResolver.Resolve(row.ItemEvents, finalItems, starterAnalysis.Items, itemMetadata);
+            var bootsItemId = BootsResolver.Resolve(row.ItemEvents, finalItems, starterAnalysis.Items, itemMetadata);
             var slots = PadBuildItems(buildItems);
 
             expandedRows.Add(new ExpandedSourceRow(
