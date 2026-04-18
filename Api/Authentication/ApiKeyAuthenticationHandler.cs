@@ -24,9 +24,12 @@ public sealed class ApiKeyAuthenticationHandler(
         }
 
         var configured = opsOptions.CurrentValue.ApiKey;
-        var providedBytes = Encoding.UTF8.GetBytes(providedApiKey[0]!);
-        var configuredBytes = Encoding.UTF8.GetBytes(configured);
-        if (!CryptographicOperations.FixedTimeEquals(providedBytes, configuredBytes))
+        // Hash both sides so FixedTimeEquals gets same-length spans even when
+        // the provided key differs in length from the configured one —
+        // otherwise the early-out on span length re-opens the timing channel.
+        var providedHash = SHA256.HashData(Encoding.UTF8.GetBytes(providedApiKey[0]!));
+        var configuredHash = SHA256.HashData(Encoding.UTF8.GetBytes(configured));
+        if (!CryptographicOperations.FixedTimeEquals(providedHash, configuredHash))
         {
             return Task.FromResult(AuthenticateResult.Fail("Invalid API key."));
         }

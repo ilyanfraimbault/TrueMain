@@ -23,8 +23,21 @@ public static class JobModeParser
             return true;
         }
 
-        return Enum.TryParse(trimmed, ignoreCase: true, out mode) && Enum.IsDefined(mode);
+        // Enum.TryParse accepts numeric strings like "0"; reject them so only
+        // the named modes + RetentionOnly alias resolve successfully.
+        if (!IsDefinedJobModeName(trimmed))
+        {
+            mode = default;
+            return false;
+        }
+
+        return Enum.TryParse(trimmed, ignoreCase: true, out mode);
     }
+
+    private static bool IsDefinedJobModeName(string value)
+        => Array.Exists(
+            Enum.GetNames<JobMode>(),
+            name => string.Equals(name, value, StringComparison.OrdinalIgnoreCase));
 
     public static JobMode Parse(string? value)
         => TryParse(value, out var mode)

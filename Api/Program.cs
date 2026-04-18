@@ -88,20 +88,12 @@ if (migrationsOptions.ApplyOnStartup)
     await dbContext.Database.MigrateAsync();
 }
 
-app.UseWhen(
-    context => context.Request.Path.StartsWithSegments("/swagger/v1/swagger.json"),
-    branch => branch.Use(async (ctx, next) =>
-    {
-        var authResult = await ctx.AuthenticateAsync(ApiKeyAuthenticationDefaults.Scheme);
-        if (!authResult.Succeeded)
-        {
-            ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            return;
-        }
-
-        await next();
-    }));
-
+// Swagger is exposed in every environment so the OpenAPI doc stays
+// available for tooling outside Development. Proper auth-gating of
+// both the UI and /swagger/v1/swagger.json needs a browser-compatible
+// scheme (Basic auth, session cookie, reverse-proxy) — the X-Ops-Key
+// header handler here can't serve the Swagger UI's unsolicited fetch
+// of the JSON document.
 app.UseSwagger();
 app.UseSwaggerUI();
 
