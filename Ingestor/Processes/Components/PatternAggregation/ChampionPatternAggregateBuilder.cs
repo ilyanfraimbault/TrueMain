@@ -1,3 +1,4 @@
+using Core.Lol.Spells;
 using Data.Entities;
 
 namespace Ingestor.Processes.Components.PatternAggregation;
@@ -92,7 +93,7 @@ public sealed class ChampionPatternAggregateBuilder(
             var itemMetadata = await itemMetadataProvider.GetItemsAsync(row.GameVersion, ct);
             var starterAnalysis = ChampionPatternNormalization.AnalyzeStarterItems(row.ItemEvents, itemMetadata);
 
-            var (spell1Id, spell2Id) = ChampionPatternNormalization.NormalizeSummonerPair(row.Summoner1Id, row.Summoner2Id);
+            var (spell1Id, spell2Id) = new SummonerSpellPair(row.Summoner1Id, row.Summoner2Id).Canonical();
             var skillOrderKey = ChampionPatternNormalization.BuildSkillOrderKey(row.SkillEvents);
             var buildItems = ChampionPatternNormalization.BuildOrderedFinalBuild(
                 row.ItemEvents,

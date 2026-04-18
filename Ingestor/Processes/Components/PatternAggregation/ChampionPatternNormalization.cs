@@ -42,9 +42,6 @@ internal static class ChampionPatternNormalization
     private const int StarterMaxTotalCost = 500;
     private const int MaxBuildItems = 7;
 
-    public static (int spell1Id, int spell2Id) NormalizeSummonerPair(int summoner1Id, int summoner2Id)
-        => summoner1Id <= summoner2Id ? (summoner1Id, summoner2Id) : (summoner2Id, summoner1Id);
-
     public static string BuildSkillOrderKey(IEnumerable<SkillEvent> skillEvents)
     {
         var basicSkillStates = new Dictionary<int, (int Rank, int LastRankUpAtMs)>
