@@ -1,32 +1,16 @@
+using Core.Lol.Items;
 using Data.Entities;
 
 namespace Ingestor.Processes.Components.PatternAggregation;
 
 internal static class ChampionPatternNormalization
 {
-    private static readonly HashSet<int> IgnoredStarterItemIds =
-    [
-        3340,
-        3363,
-        3364,
-        3330
-    ];
+    private static readonly IReadOnlySet<int> IgnoredStarterItemIds = LolItemIds.Trinkets.All;
 
-    private static readonly HashSet<int> IgnoredFinalBuildItemIds =
-    [
-        3340,
-        3363,
-        3364,
-        3330,
-        1083
-    ];
+    private static readonly IReadOnlySet<int> IgnoredFinalBuildItemIds =
+        new HashSet<int>(LolItemIds.Trinkets.All) { LolItemIds.Cull };
 
-    private static readonly HashSet<int> SupportStarterQuestItemIds =
-    [
-        3865,
-        3866,
-        3867
-    ];
+    private static readonly IReadOnlySet<int> SupportStarterQuestItemIds = LolItemIds.SupportQuest.All;
 
     private static readonly HashSet<string> ValidTeamPositions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -483,7 +467,7 @@ internal static class ChampionPatternNormalization
             return;
         }
 
-        TryAddStarterItemIgnoringBudget(starterItems, 3865);
+        TryAddStarterItemIgnoringBudget(starterItems, LolItemIds.SupportQuest.SpellthiefsEdge);
     }
 
     private static void TryAddStarterItemIgnoringBudget(
