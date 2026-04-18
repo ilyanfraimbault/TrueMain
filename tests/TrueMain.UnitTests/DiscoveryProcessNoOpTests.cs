@@ -8,6 +8,7 @@ using Ingestor.Riot;
 using Ingestor.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using TrueMain.UnitTests.Fixtures;
 
 namespace TrueMain.UnitTests;
 
@@ -27,7 +28,6 @@ public sealed class DiscoveryProcessNoOpTests
             NullLogger<DiscoveryProcess>.Instance,
             riotPlatformClient,
             sessionFactory,
-            runRecorder,
             ladderDiscoveryService,
             accountUpsertService,
             candidateUpsertService,
@@ -36,7 +36,7 @@ public sealed class DiscoveryProcessNoOpTests
                 Platforms = [" ", "  "]
             }));
 
-        await process.RunAsync(CancellationToken.None);
+        await process.RunRecordedAsync(runRecorder);
 
         await runRecorder.Received(1).RecordAsync(
             "Discovery",

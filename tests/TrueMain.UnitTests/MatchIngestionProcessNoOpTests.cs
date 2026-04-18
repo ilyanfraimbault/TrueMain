@@ -6,6 +6,7 @@ using Ingestor.Processes.Components.MatchIngestion;
 using Ingestor.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using TrueMain.UnitTests.Fixtures;
 
 namespace TrueMain.UnitTests;
 
@@ -24,7 +25,6 @@ public sealed class MatchIngestionProcessNoOpTests
         var process = new MatchIngestionProcess(
             NullLogger<MatchIngestionProcess>.Instance,
             sessionFactory,
-            runRecorder,
             matchClaimService,
             matchSnapshotWriter,
             timelineIngestionService,
@@ -34,7 +34,7 @@ public sealed class MatchIngestionProcessNoOpTests
                 Platforms = [" ", "  "]
             }));
 
-        await process.RunAsync(CancellationToken.None);
+        await process.RunRecordedAsync(runRecorder);
 
         await runRecorder.Received(1).RecordAsync(
             "MatchIngestion",

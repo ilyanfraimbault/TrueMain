@@ -1,3 +1,4 @@
+using Core.Lol.Map;
 using Core.Lol.Patches;
 using Data;
 using Microsoft.EntityFrameworkCore;
@@ -67,7 +68,7 @@ public sealed class ChampionPatternSourceRowReader(
                 GameDurationSeconds = match.GameDurationSeconds,
                 RiotAccountId = participant.RiotAccountId!.Value,
                 Win = participant.Win,
-                Position = ChampionPatternNormalization.NormalizeTeamPosition(participant.TeamPosition),
+                Position = LolPositionExtensions.Parse(participant.TeamPosition).ToRiotString(),
                 Summoner1Id = participant.Summoner1Id,
                 Summoner2Id = participant.Summoner2Id,
                 PrimaryStyleId = participant.PrimaryStyleId,

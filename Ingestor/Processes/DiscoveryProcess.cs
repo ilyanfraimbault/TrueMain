@@ -4,7 +4,6 @@ using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Components.Discovery;
 using Ingestor.Riot;
-using Ingestor.Services;
 using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
@@ -13,41 +12,26 @@ public sealed class DiscoveryProcess(
     ILogger<DiscoveryProcess> logger,
     IRiotPlatformClient riotPlatformClient,
     IDataSessionFactory sessionFactory,
-    IProcessRunRecorder runRecorder,
     ILadderDiscoveryService ladderDiscoveryService,
     IAccountUpsertService accountUpsertService,
     ICandidateUpsertService candidateUpsertService,
-    IOptions<DiscoveryOptions> discoveryOptions)
+    IOptions<DiscoveryOptions> discoveryOptions) : IIngestorProcess
 {
-    private const string ProcessName = "Discovery";
+    public string Name => "Discovery";
 
-    public async Task RunAsync(CancellationToken ct)
+    public async Task<object?> RunCoreAsync(CancellationToken ct)
     {
         var options = discoveryOptions.Value;
-        var startedAt = DateTime.UtcNow;
         var platforms = NormalizePlatforms(options);
 
         if (platforms.Count == 0)
         {
             logger.LogWarning("No platforms configured (Discovery:Platforms).");
-            await runRecorder.RecordNoOpAsync(
-                ProcessName,
-                startedAt,
-                new { reason = "No platforms configured.", selected = 0 },
-                ct);
-            return;
+            return new { reason = "No platforms configured.", selected = 0 };
         }
 
-        try
-        {
-            var summaries = await DiscoverAcrossPlatformsAsync(platforms, options, ct);
-            await runRecorder.RecordSuccessAsync(ProcessName, startedAt, BuildSuccessPayload(summaries), ct);
-        }
-        catch (Exception ex)
-        {
-            await runRecorder.RecordFailureAsync(ProcessName, startedAt, ex, ct);
-            throw;
-        }
+        var summaries = await DiscoverAcrossPlatformsAsync(platforms, options, ct);
+        return BuildSuccessPayload(summaries);
     }
 
     private static List<string> NormalizePlatforms(DiscoveryOptions options)

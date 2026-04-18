@@ -30,7 +30,6 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IClassFixture<Po
         var process = new MatchDataRetentionProcess(
             NullLogger<MatchDataRetentionProcess>.Instance,
             new TestDbContextFactory(_fixture),
-            new ProcessRunRecorder(_fixture.CreateSessionFactory()),
             Microsoft.Extensions.Options.Options.Create(new MatchDataRetentionOptions
             {
                 RetainedPatchCount = 1
@@ -39,8 +38,11 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IClassFixture<Po
             {
                 QueueId = LolQueueIds.RankedSoloDuo
             }));
+        var recorded = new RecordedProcess<MatchDataRetentionProcess>(
+            process,
+            new ProcessRunRecorder(_fixture.CreateSessionFactory()));
 
-        await process.RunAsync(CancellationToken.None);
+        await recorded.RunCoreAsync(CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         var remainingMatchIds = await db.Matches

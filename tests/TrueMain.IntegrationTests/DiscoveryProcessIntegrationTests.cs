@@ -28,7 +28,6 @@ public sealed class DiscoveryProcessIntegrationTests : IClassFixture<PostgresFix
             NullLogger<DiscoveryProcess>.Instance,
             new FakeRiotPlatformClient(),
             _fixture.CreateSessionFactory(),
-            new FakeProcessRunRecorder(),
             new FakeLadderDiscoveryService(),
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
@@ -39,7 +38,7 @@ public sealed class DiscoveryProcessIntegrationTests : IClassFixture<PostgresFix
                 NewAccountsTarget = 1
             }));
 
-        await process.RunAsync(CancellationToken.None);
+        await process.RunCoreAsync(CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var account = verifyDb.RiotAccounts.Single(a => a.Puuid == "puuid-discovered-1");
