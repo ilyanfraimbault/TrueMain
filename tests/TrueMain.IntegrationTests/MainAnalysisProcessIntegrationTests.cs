@@ -27,7 +27,6 @@ public sealed class MainAnalysisProcessIntegrationTests : IClassFixture<Postgres
         var process = new MainAnalysisProcess(
             NullLogger<MainAnalysisProcess>.Instance,
             _fixture.CreateSessionFactory(),
-            new FakeProcessRunRecorder(),
             new MainStatsCalculator(),
             new MainDemotionPolicy(),
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions
@@ -43,7 +42,7 @@ public sealed class MainAnalysisProcessIntegrationTests : IClassFixture<Postgres
                 RecomputeAfterHours = 24
             }));
 
-        await process.RunAsync(CancellationToken.None);
+        await process.RunCoreAsync(CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var account = verifyDb.RiotAccounts.Single(a => a.PlatformId == "KR" && a.Puuid == "puuid-main-1");

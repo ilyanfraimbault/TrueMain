@@ -2,7 +2,6 @@ using Core;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Components.MatchIngestion;
-using Ingestor.Services;
 using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
@@ -10,44 +9,29 @@ namespace Ingestor.Processes;
 public sealed class MatchIngestionProcess(
     ILogger<MatchIngestionProcess> logger,
     IDataSessionFactory sessionFactory,
-    IProcessRunRecorder runRecorder,
     IMatchClaimService matchClaimService,
     IMatchSnapshotWriter matchSnapshotWriter,
     ITimelineIngestionService timelineIngestionService,
     IAccountValidationService accountValidationService,
-    IOptions<MatchIngestionOptions> matchOptions)
+    IOptions<MatchIngestionOptions> matchOptions) : IIngestorProcess
 {
-    private const string ProcessName = "MatchIngestion";
+    public string Name => "MatchIngestion";
 
-    public async Task RunAsync(CancellationToken ct)
+    public async Task<object?> RunCoreAsync(CancellationToken ct)
     {
-        var startedAt = DateTime.UtcNow;
         var options = matchOptions.Value;
         var platforms = NormalizePlatforms(options);
 
         if (platforms.Count == 0)
         {
             logger.LogWarning("No platforms configured (MatchIngestion:Platforms).");
-            await runRecorder.RecordNoOpAsync(
-                ProcessName,
-                startedAt,
-                new { reason = "No platforms configured.", selected = 0 },
-                ct);
-            return;
+            return new { reason = "No platforms configured.", selected = 0 };
         }
 
-        try
-        {
-            var claimedAccounts = await ClaimAccountsAsync(platforms, options, ct);
-            var summary = await IngestClaimedAccountsAsync(claimedAccounts, platforms, options, ct);
-            LogPlatformSummaries(summary.ByPlatform);
-            await runRecorder.RecordSuccessAsync(ProcessName, startedAt, BuildSuccessPayload(summary), ct);
-        }
-        catch (Exception ex)
-        {
-            await runRecorder.RecordFailureAsync(ProcessName, startedAt, ex, ct);
-            throw;
-        }
+        var claimedAccounts = await ClaimAccountsAsync(platforms, options, ct);
+        var summary = await IngestClaimedAccountsAsync(claimedAccounts, platforms, options, ct);
+        LogPlatformSummaries(summary.ByPlatform);
+        return BuildSuccessPayload(summary);
     }
 
     private static List<string> NormalizePlatforms(MatchIngestionOptions options)

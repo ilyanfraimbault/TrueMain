@@ -28,7 +28,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
         await SeedChampionPatternDataAsync();
 
         var process = CreateProcess();
-        await process.RunAsync(CancellationToken.None);
+        await process.RunCoreAsync(CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var aggregates = await verifyDb.ChampionPatternAggregates
@@ -64,8 +64,8 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
         await SeedChampionPatternDataAsync();
 
         var process = CreateProcess();
-        await process.RunAsync(CancellationToken.None);
-        await process.RunAsync(CancellationToken.None);
+        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var aggregates = await verifyDb.ChampionPatternAggregates.ToListAsync();
@@ -82,7 +82,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
         await SeedChampionPatternDataAsync();
 
         var process = CreateProcess();
-        await process.RunAsync(CancellationToken.None);
+        await process.RunCoreAsync(CancellationToken.None);
 
         await using (var mutateDb = _fixture.CreateDbContext())
         {
@@ -96,7 +96,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
             await mutateDb.SaveChangesAsync();
         }
 
-        await process.RunAsync(CancellationToken.None);
+        await process.RunCoreAsync(CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         (await verifyDb.ChampionPatternAggregates.ToListAsync()).Should().BeEmpty();
@@ -109,7 +109,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
         await SeedChampionPatternDataAsync(includeShortMatch: true);
 
         var process = CreateProcess();
-        await process.RunAsync(CancellationToken.None);
+        await process.RunCoreAsync(CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var aggregates = await verifyDb.ChampionPatternAggregates.ToListAsync();
@@ -121,7 +121,6 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
     private ChampionPatternAggregationProcess CreateProcess()
         => new(
             NullLogger<ChampionPatternAggregationProcess>.Instance,
-            new FakeProcessRunRecorder(),
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueIds.RankedSoloDuo }),
             new ChampionPatternSourceRowReader(new TestDbContextFactory(_fixture)),
             new ChampionPatternAggregateBuilder(

@@ -18,47 +18,11 @@ public class Worker(
         do
         {
             await using var scope = scopeFactory.CreateAsyncScope();
-            var discoveryProcess = scope.ServiceProvider.GetRequiredService<DiscoveryProcess>();
-            var scoringProcess = scope.ServiceProvider.GetRequiredService<ScoringProcess>();
-            var matchIngestionProcess = scope.ServiceProvider.GetRequiredService<MatchIngestionProcess>();
-            var mainAnalysisProcess = scope.ServiceProvider.GetRequiredService<MainAnalysisProcess>();
-            var championPatternAggregationProcess = scope.ServiceProvider.GetRequiredService<ChampionPatternAggregationProcess>();
-            var accountRefreshProcess = scope.ServiceProvider.GetRequiredService<AccountRefreshProcess>();
-            var matchDataRetentionProcess = scope.ServiceProvider.GetRequiredService<MatchDataRetentionProcess>();
+            var processesByName = scope.ServiceProvider
+                .GetRequiredService<IEnumerable<IIngestorProcess>>()
+                .ToDictionary(process => process.Name, StringComparer.Ordinal);
 
-            switch (mode)
-            {
-                case JobMode.DiscoveryOnly:
-                    await discoveryProcess.RunAsync(stoppingToken);
-                    break;
-                case JobMode.ScoringOnly:
-                    await scoringProcess.RunAsync(stoppingToken);
-                    break;
-                case JobMode.MatchIngestionOnly:
-                    await matchIngestionProcess.RunAsync(stoppingToken);
-                    break;
-                case JobMode.MainAnalysisOnly:
-                    await mainAnalysisProcess.RunAsync(stoppingToken);
-                    break;
-                case JobMode.PatternAggregationOnly:
-                    await championPatternAggregationProcess.RunAsync(stoppingToken);
-                    break;
-                case JobMode.AccountRefreshOnly:
-                    await accountRefreshProcess.RunAsync(stoppingToken);
-                    break;
-                case JobMode.MatchDataRetentionOnly:
-                    await matchDataRetentionProcess.RunAsync(stoppingToken);
-                    break;
-                default:
-                    await discoveryProcess.RunAsync(stoppingToken);
-                    await scoringProcess.RunAsync(stoppingToken);
-                    await matchIngestionProcess.RunAsync(stoppingToken);
-                    await mainAnalysisProcess.RunAsync(stoppingToken);
-                    await championPatternAggregationProcess.RunAsync(stoppingToken);
-                    await accountRefreshProcess.RunAsync(stoppingToken);
-                    await matchDataRetentionProcess.RunAsync(stoppingToken);
-                    break;
-            }
+            await RunModeAsync(mode, processesByName, stoppingToken);
 
             if (options.RunOnce)
             {
@@ -71,6 +35,38 @@ public class Worker(
         } while (!stoppingToken.IsCancellationRequested);
 
         applicationLifetime.StopApplication();
+    }
+
+    private static async Task RunModeAsync(
+        JobMode mode,
+        IReadOnlyDictionary<string, IIngestorProcess> processesByName,
+        CancellationToken stoppingToken)
+    {
+        var sequence = mode switch
+        {
+            JobMode.DiscoveryOnly => ["Discovery"],
+            JobMode.ScoringOnly => ["Scoring"],
+            JobMode.MatchIngestionOnly => ["MatchIngestion"],
+            JobMode.MainAnalysisOnly => ["MainAnalysis"],
+            JobMode.PatternAggregationOnly => ["ChampionPatternAggregation"],
+            JobMode.AccountRefreshOnly => ["AccountRefresh"],
+            JobMode.MatchDataRetentionOnly => ["MatchDataRetention"],
+            _ => (string[])
+            [
+                "Discovery",
+                "Scoring",
+                "MatchIngestion",
+                "MainAnalysis",
+                "ChampionPatternAggregation",
+                "AccountRefresh",
+                "MatchDataRetention"
+            ]
+        };
+
+        foreach (var processName in sequence)
+        {
+            await processesByName[processName].RunCoreAsync(stoppingToken);
+        }
     }
 
     private static JobMode NormalizeMode(string? mode)

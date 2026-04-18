@@ -28,7 +28,6 @@ public sealed class MatchIngestionProcessIntegrationTests : IClassFixture<Postgr
         var process = new MatchIngestionProcess(
             NullLogger<MatchIngestionProcess>.Instance,
             _fixture.CreateSessionFactory(),
-            new FakeProcessRunRecorder(),
             new FakeMatchClaimService(),
             new MatchSnapshotWriter(new FakeRiotMatchClient()),
             new TimelineIngestionService(new FakeRiotMatchClient()),
@@ -42,7 +41,7 @@ public sealed class MatchIngestionProcessIntegrationTests : IClassFixture<Postgr
                 ClaimLeaseMinutes = 5
             }));
 
-        await process.RunAsync(CancellationToken.None);
+        await process.RunCoreAsync(CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var match = verifyDb.Matches.Single(m => m.Id == "KR_200");

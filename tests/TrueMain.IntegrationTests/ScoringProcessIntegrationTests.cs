@@ -25,7 +25,6 @@ public sealed class ScoringProcessIntegrationTests : IClassFixture<PostgresFixtu
         var process = new ScoringProcess(
             NullLogger<ScoringProcess>.Instance,
             _fixture.CreateSessionFactory(),
-            new FakeProcessRunRecorder(),
             Microsoft.Extensions.Options.Options.Create(new ScoringOptions
             {
                 BatchSize = 10,
@@ -37,7 +36,7 @@ public sealed class ScoringProcessIntegrationTests : IClassFixture<PostgresFixtu
                 PointsWeight = 0.15
             }));
 
-        await process.RunAsync(CancellationToken.None);
+        await process.RunCoreAsync(CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var candidates = verifyDb.MainCandidates
@@ -62,7 +61,6 @@ public sealed class ScoringProcessIntegrationTests : IClassFixture<PostgresFixtu
         var process = new ScoringProcess(
             NullLogger<ScoringProcess>.Instance,
             _fixture.CreateSessionFactory(),
-            new FakeProcessRunRecorder(),
             Microsoft.Extensions.Options.Options.Create(new ScoringOptions
             {
                 BatchSize = 1,
@@ -74,7 +72,7 @@ public sealed class ScoringProcessIntegrationTests : IClassFixture<PostgresFixtu
                 PointsWeight = 0.15
             }));
 
-        await process.RunAsync(CancellationToken.None);
+        await process.RunCoreAsync(CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var queuedCandidate = verifyDb.MainCandidates

@@ -2,7 +2,6 @@ using Core.Options;
 using Data.Entities;
 using Data.Repositories;
 using Ingestor.Processes.Components.MainAnalysis;
-using Ingestor.Services;
 using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
@@ -10,47 +9,31 @@ namespace Ingestor.Processes;
 public sealed class MainAnalysisProcess(
     ILogger<MainAnalysisProcess> logger,
     IDataSessionFactory sessionFactory,
-    IProcessRunRecorder runRecorder,
     IMainStatsCalculator mainStatsCalculator,
     IMainDemotionPolicy mainDemotionPolicy,
-    IOptions<MainAnalysisOptions> analysisOptions)
+    IOptions<MainAnalysisOptions> analysisOptions) : IIngestorProcess
 {
-    private const string ProcessName = "MainAnalysis";
+    public string Name => "MainAnalysis";
 
-    public async Task RunAsync(CancellationToken ct)
+    public async Task<object?> RunCoreAsync(CancellationToken ct)
     {
-        var startedAt = DateTime.UtcNow;
-
-        try
+        var options = analysisOptions.Value;
+        var nowUtc = DateTime.UtcNow;
+        var accounts = await LoadEligibleAccountsAsync(options, nowUtc, ct);
+        if (accounts.Count == 0)
         {
-            var options = analysisOptions.Value;
-            var nowUtc = DateTime.UtcNow;
-            var accounts = await LoadEligibleAccountsAsync(options, nowUtc, ct);
-            if (accounts.Count == 0)
-            {
-                logger.LogInformation("No accounts eligible for main analysis.");
-                await runRecorder.RecordNoOpAsync(
-                    ProcessName,
-                    startedAt,
-                    new { reason = "No accounts eligible for main analysis.", selected = 0 },
-                    ct);
-                return;
-            }
-
-            var summary = await AnalyzeAccountsInBatchesAsync(accounts, options, nowUtc, ct);
-            logger.LogInformation(
-                "Main analysis summary: accountsProcessed={Accounts}, statsUpserted={Upserted}, statsRemoved={Removed}.",
-                summary.Processed,
-                summary.TotalStatsUpserted,
-                summary.TotalStatsRemoved);
-
-            await runRecorder.RecordSuccessAsync(ProcessName, startedAt, BuildSuccessPayload(summary), ct);
+            logger.LogInformation("No accounts eligible for main analysis.");
+            return new { reason = "No accounts eligible for main analysis.", selected = 0 };
         }
-        catch (Exception ex)
-        {
-            await runRecorder.RecordFailureAsync(ProcessName, startedAt, ex, ct);
-            throw;
-        }
+
+        var summary = await AnalyzeAccountsInBatchesAsync(accounts, options, nowUtc, ct);
+        logger.LogInformation(
+            "Main analysis summary: accountsProcessed={Accounts}, statsUpserted={Upserted}, statsRemoved={Removed}.",
+            summary.Processed,
+            summary.TotalStatsUpserted,
+            summary.TotalStatsRemoved);
+
+        return BuildSuccessPayload(summary);
     }
 
     private async Task<IReadOnlyList<AccountKey>> LoadEligibleAccountsAsync(

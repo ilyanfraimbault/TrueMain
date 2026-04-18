@@ -5,6 +5,7 @@ using Ingestor.Processes;
 using Ingestor.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using TrueMain.UnitTests.Fixtures;
 
 namespace TrueMain.UnitTests;
 
@@ -28,10 +29,9 @@ public sealed class ScoringProcessNoOpTests
         var process = new ScoringProcess(
             NullLogger<ScoringProcess>.Instance,
             sessionFactory,
-            runRecorder,
             Microsoft.Extensions.Options.Options.Create(new ScoringOptions()));
 
-        await process.RunAsync(CancellationToken.None);
+        await process.RunRecordedAsync(runRecorder);
 
         await runRecorder.Received(1).RecordAsync(
             "Scoring",
@@ -78,10 +78,9 @@ public sealed class ScoringProcessNoOpTests
         var process = new ScoringProcess(
             NullLogger<ScoringProcess>.Instance,
             sessionFactory,
-            runRecorder,
             Microsoft.Extensions.Options.Options.Create(new ScoringOptions()));
 
-        await process.RunAsync(CancellationToken.None);
+        await process.RunRecordedAsync(runRecorder);
 
         await sessionFactory.Received(1).CreateAsync(Arg.Any<CancellationToken>());
         await mainCandidates.Received(1).GetScoredByPlatformAsync("KR", Arg.Any<int>(), Arg.Any<CancellationToken>());
