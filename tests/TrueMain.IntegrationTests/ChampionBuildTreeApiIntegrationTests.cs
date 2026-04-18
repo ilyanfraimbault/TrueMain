@@ -237,7 +237,8 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
                 configurationBuilder.AddInMemoryCollection(
                 [
                     new KeyValuePair<string, string?>("ConnectionStrings:TrueMain", fixture.ConnectionString),
-                    new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420")
+                    new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420"),
+                    new KeyValuePair<string, string?>("Ops:ApiKey", "integration-tests-ops-key-0123456789-padding")
                 ]);
             });
         }
