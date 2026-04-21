@@ -5,7 +5,6 @@ using Ingestor.Processes;
 using Ingestor.Processes.Components.Discovery;
 using Ingestor.Riot;
 using Ingestor.Riot.Dto;
-using Ingestor.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace TrueMain.IntegrationTests;
@@ -106,16 +105,4 @@ public sealed class DiscoveryProcessIntegrationTests : IClassFixture<PostgresFix
             => Task.FromResult(new CandidateUpsertResult(0, 0));
     }
 
-    private sealed class FakeProcessRunRecorder : IProcessRunRecorder
-    {
-        public Task RecordAsync(
-            string processName,
-            DateTime startedAtUtc,
-            DateTime finishedAtUtc,
-            Data.Entities.ProcessRunStatus status,
-            object? summary,
-            string? error,
-            CancellationToken ct)
-            => Task.CompletedTask;
-    }
 }

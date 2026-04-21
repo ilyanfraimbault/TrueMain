@@ -4,7 +4,6 @@ using Data.Entities;
 using FluentAssertions;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.MainAnalysis;
-using Ingestor.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace TrueMain.IntegrationTests;
@@ -164,16 +163,4 @@ public sealed class MainAnalysisProcessIntegrationTests : IClassFixture<Postgres
         await db.SaveChangesAsync();
     }
 
-    private sealed class FakeProcessRunRecorder : IProcessRunRecorder
-    {
-        public Task RecordAsync(
-            string processName,
-            DateTime startedAtUtc,
-            DateTime finishedAtUtc,
-            ProcessRunStatus status,
-            object? summary,
-            string? error,
-            CancellationToken ct)
-            => Task.CompletedTask;
-    }
 }

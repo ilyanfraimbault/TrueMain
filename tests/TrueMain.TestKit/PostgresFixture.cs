@@ -5,8 +5,14 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Testcontainers.PostgreSql;
 
-namespace TrueMain.IntegrationTests;
+namespace TrueMain.TestKit;
 
+/// <summary>
+/// Spawns a throwaway Postgres container, runs the migrations once, and
+/// hands out <see cref="TrueMainDbContext"/> instances bound to it. Tests
+/// share this fixture via <see cref="IClassFixture{TFixture}"/> so the
+/// container setup cost is amortised across a whole class of tests.
+/// </summary>
 public sealed class PostgresFixture : IAsyncLifetime
 {
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17.2")
@@ -55,9 +61,7 @@ public sealed class PostgresFixture : IAsyncLifetime
     }
 
     public IDataSessionFactory CreateSessionFactory()
-    {
-        return new TestDataSessionFactory(this);
-    }
+        => new TestDataSessionFactory(this);
 
     private sealed class TestDataSessionFactory(PostgresFixture fixture) : IDataSessionFactory
     {
