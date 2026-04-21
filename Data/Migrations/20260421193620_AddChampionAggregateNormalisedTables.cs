@@ -194,6 +194,8 @@ namespace Data.Migrations
             // Backfill from the wide champion_pattern_aggregates table into the
             // normalised schema. The old table stays populated for this PR; a
             // later PR drops it once the new tables have been validated.
+            // ON CONFLICT DO NOTHING makes the backfill idempotent so re-runs
+            // of the migration on a partially populated target are safe.
             migrationBuilder.Sql(
                 """
                 INSERT INTO champion_aggregate_scopes
@@ -219,7 +221,8 @@ namespace Data.Migrations
                     a."GameVersion",
                     a."PlatformId",
                     a."QueueId",
-                    a."Position";
+                    a."Position"
+                ON CONFLICT DO NOTHING;
                 """);
 
             migrationBuilder.Sql(
