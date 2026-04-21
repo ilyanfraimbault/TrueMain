@@ -1,3 +1,4 @@
+using System.Threading.RateLimiting;
 using Core.Options;
 using Data;
 using Microsoft.AspNetCore.Authentication;
@@ -57,6 +58,26 @@ builder.Services
         ApiKeyAuthenticationDefaults.Scheme,
         _ => { });
 builder.Services.AddAuthorization();
+
+// Rate limiting: default per-IP fixed window (100 req / min with a small
+// queue) shields the public champion endpoints from casual abuse. Ops
+// endpoints are already gated by ApiKey and don't need the same ceiling —
+// they opt into a dedicated named policy ("ops") which is attached via
+// [EnableRateLimiting("ops")] on the controller if we ever want it.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 100,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 10,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+            }));
+});
 builder.Services.AddScoped<IChampionFoundationQueryService, ChampionFoundationQueryService>();
 builder.Services.AddScoped<IChampionBuildTreeQueryService, ChampionBuildTreeQueryService>();
 builder.Services.AddScoped<IPipelineHealthQueryService, PipelineHealthQueryService>();
@@ -102,15 +123,16 @@ app.UseCors(frontendCorsPolicy);
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapHealthChecks("/healthz", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
     Predicate = _ => false
-});
+}).DisableRateLimiting();
 app.MapHealthChecks("/readyz", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
     Predicate = registration => registration.Tags.Contains("ready")
-});
+}).DisableRateLimiting();
 app.MapControllers();
 
 app.Run();
