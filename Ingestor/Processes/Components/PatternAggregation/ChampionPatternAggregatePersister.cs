@@ -9,20 +9,20 @@ public sealed class ChampionPatternAggregatePersister(
 {
     internal async Task ReplaceAggregatesAsync(
         IReadOnlyCollection<AggregateScopeKey> cleanupScopes,
-        IReadOnlyCollection<ChampionPatternAggregate> aggregateRows,
+        IReadOnlyCollection<ChampionAggregateScope> scopes,
         CancellationToken ct)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
 
-        await DeleteExistingAggregatesAsync(db, cleanupScopes, ct);
+        await DeleteExistingScopesAsync(db, cleanupScopes, ct);
 
-        db.ChampionPatternAggregates.AddRange(aggregateRows);
+        db.ChampionAggregateScopes.AddRange(scopes);
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
     }
 
-    private static async Task DeleteExistingAggregatesAsync(
+    private static async Task DeleteExistingScopesAsync(
         TrueMainDbContext db,
         IReadOnlyCollection<AggregateScopeKey> cleanupScopes,
         CancellationToken ct)
@@ -33,26 +33,26 @@ public sealed class ChampionPatternAggregatePersister(
             return;
         }
 
-        var cleanupChampionIds = cleanupScopeSet.Select(scope => scope.ChampionId).Distinct().ToList();
-        var cleanupGameVersions = cleanupScopeSet.Select(scope => scope.GameVersion).Distinct().ToList();
-        var cleanupPlatformIds = cleanupScopeSet.Select(scope => scope.PlatformId).Distinct().ToList();
-        var cleanupQueueIds = cleanupScopeSet.Select(scope => scope.QueueId).Distinct().ToList();
+        var championIds = cleanupScopeSet.Select(scope => scope.ChampionId).Distinct().ToList();
+        var gameVersions = cleanupScopeSet.Select(scope => scope.GameVersion).Distinct().ToList();
+        var platformIds = cleanupScopeSet.Select(scope => scope.PlatformId).Distinct().ToList();
+        var queueIds = cleanupScopeSet.Select(scope => scope.QueueId).Distinct().ToList();
 
-        var aggregatesToDelete = await db.ChampionPatternAggregates
-            .Where(aggregate =>
-                cleanupChampionIds.Contains(aggregate.ChampionId)
-                && cleanupGameVersions.Contains(aggregate.GameVersion)
-                && cleanupPlatformIds.Contains(aggregate.PlatformId)
-                && cleanupQueueIds.Contains(aggregate.QueueId))
+        var scopesToDelete = await db.ChampionAggregateScopes
+            .Where(scope =>
+                championIds.Contains(scope.ChampionId)
+                && gameVersions.Contains(scope.GameVersion)
+                && platformIds.Contains(scope.PlatformId)
+                && queueIds.Contains(scope.QueueId))
             .ToListAsync(ct);
 
-        db.ChampionPatternAggregates.RemoveRange(
-            aggregatesToDelete.Where(aggregate =>
+        db.ChampionAggregateScopes.RemoveRange(
+            scopesToDelete.Where(scope =>
                 cleanupScopeSet.Contains(new AggregateScopeKey(
-                    aggregate.ChampionId,
-                    aggregate.GameVersion,
-                    aggregate.PlatformId,
-                    aggregate.QueueId))));
+                    scope.ChampionId,
+                    scope.GameVersion,
+                    scope.PlatformId,
+                    scope.QueueId))));
 
         await db.SaveChangesAsync(ct);
     }

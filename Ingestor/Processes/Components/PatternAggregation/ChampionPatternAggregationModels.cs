@@ -10,7 +10,18 @@ internal sealed class ChampionPatternAggregationInputs
 
 internal sealed class ChampionPatternAggregationResult
 {
+    /// <summary>
+    /// Scopes (master + dimension rows) in the new normalised schema.
+    /// </summary>
+    public required List<ChampionAggregateScope> Scopes { get; init; }
+
+    /// <summary>
+    /// Legacy wide-table rows for dual-write during the Phase 5 migration
+    /// window. Removed once the reader side switches to the normalised
+    /// schema and the drop migration lands.
+    /// </summary>
     public required List<ChampionPatternAggregate> AggregateRows { get; init; }
+
     public required int SourceRowCount { get; init; }
 }
 

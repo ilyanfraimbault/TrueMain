@@ -18,6 +18,11 @@ public class TrueMainDbContext : DbContext
     public DbSet<Match> Matches => Set<Match>();
     public DbSet<MainChampionStat> MainChampionStats => Set<MainChampionStat>();
     public DbSet<ChampionPatternAggregate> ChampionPatternAggregates => Set<ChampionPatternAggregate>();
+    public DbSet<ChampionAggregateScope> ChampionAggregateScopes => Set<ChampionAggregateScope>();
+    public DbSet<ChampionAggregateSpellPair> ChampionAggregateSpellPairs => Set<ChampionAggregateSpellPair>();
+    public DbSet<ChampionAggregateSkillOrder> ChampionAggregateSkillOrders => Set<ChampionAggregateSkillOrder>();
+    public DbSet<ChampionAggregateStarterItems> ChampionAggregateStarterItems => Set<ChampionAggregateStarterItems>();
+    public DbSet<ChampionAggregateBuild> ChampionAggregateBuilds => Set<ChampionAggregateBuild>();
     public DbSet<ProcessRun> ProcessRuns => Set<ProcessRun>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
