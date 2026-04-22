@@ -46,11 +46,11 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
 
         var coreProperties = root.GetProperty("core").EnumerateObject().Select(property => property.Name);
         coreProperties.Should().BeEquivalentTo(
-            ["sampleSize", "starterItems", "boots", "buildPath", "summonerSpells", "skillOrder"]);
+            ["sampleSize", "starterItems", "boots", "buildPath", "summonerSpells", "skillOrder", "runePage"]);
 
         var advancedProperties = root.GetProperty("advanced").EnumerateObject().Select(property => property.Name);
         advancedProperties.Should().BeEquivalentTo(
-            ["starterItemOptions", "summonerSpellOptions", "skillOrderOptions"]);
+            ["starterItemOptions", "summonerSpellOptions", "skillOrderOptions", "runePageOptions"]);
 
         root.GetProperty("core").GetProperty("summonerSpells").EnumerateObject().Select(property => property.Name)
             .Should().BeEquivalentTo(["spell1Id", "spell2Id", "games", "playRate", "winRate"]);
