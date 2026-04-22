@@ -7,10 +7,10 @@ namespace TrueMain.Services.Champions;
 internal static class ChampionSummonerSpellAggregator
 {
     public static IReadOnlyList<SummonerSpellOptionReadModel> AggregateTopThree(
-        IReadOnlyCollection<ChampionPatternAggregate> rows,
+        IReadOnlyCollection<ChampionAggregateSpellPair> rows,
         int sampleSize)
         => rows
-            .GroupBy(row => new SummonerSpellPair(row.SummonerSpell1Id, row.SummonerSpell2Id).OrderedForDisplay())
+            .GroupBy(row => new SummonerSpellPair(row.Spell1Id, row.Spell2Id).OrderedForDisplay())
             .Select(group =>
             {
                 var games = group.Sum(row => row.Games);

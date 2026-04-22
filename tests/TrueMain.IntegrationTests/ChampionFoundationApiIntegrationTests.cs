@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using TrueMain.ReadModels.Champions;
+using TrueMain.TestKit.EntityBuilders;
 
 namespace TrueMain.IntegrationTests;
 
@@ -213,15 +214,17 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
         db.RiotAccounts.AddRange(
             BuildAccount(account1Id, "KR", "foundation-puuid-1", "foundation-one", now),
             BuildAccount(account2Id, "KR", "foundation-puuid-2", "foundation-two", now));
-
-        db.ChampionPatternAggregates.AddRange(
-            BuildAggregate(account1Id, 22, "16.4", "KR", 420, "BOTTOM", 4, 7, "Q-W-E", [6672, 3006, 3094], 3006, 2, 1, now.AddMinutes(-10)),
-            BuildAggregate(account2Id, 22, "16.4", "KR", 420, "BOTTOM", 7, 4, "Q-W-E", [6672, 3006, 3094], 3006, 1, 1, now.AddMinutes(-5)),
-            BuildAggregate(account2Id, 22, "16.3", "KR", 420, "BOTTOM", 4, 7, "Q-E-W", [6672, 3085, 3031], 3111, 5, 2, now.AddDays(-2)),
-            BuildAggregate(account1Id, 22, "16.9", "KR", 450, "BOTTOM", 4, 7, "Q-W-E", [6672, 3094, 3031], 3006, 3, 2, now.AddMinutes(-1)));
-
         await db.SaveChangesAsync();
+
+        await DefaultSeeder()
+            .AddPatternDefaults(account1Id, 22, "16.4", "KR", 420, "BOTTOM", 4, 7, "Q-W-E", [6672, 3006, 3094], 3006, 2, 1, now.AddMinutes(-10))
+            .AddPatternDefaults(account2Id, 22, "16.4", "KR", 420, "BOTTOM", 7, 4, "Q-W-E", [6672, 3006, 3094], 3006, 1, 1, now.AddMinutes(-5))
+            .AddPatternDefaults(account2Id, 22, "16.3", "KR", 420, "BOTTOM", 4, 7, "Q-E-W", [6672, 3085, 3031], 3111, 5, 2, now.AddDays(-2))
+            .AddPatternDefaults(account1Id, 22, "16.9", "KR", 450, "BOTTOM", 4, 7, "Q-W-E", [6672, 3094, 3031], 3006, 3, 2, now.AddMinutes(-1))
+            .SaveAsync(db);
     }
+
+    private static ChampionAggregateSeeder DefaultSeeder() => new();
 
     private async Task SeedChampionFoundationTieAggregatesAsync()
     {
@@ -234,16 +237,16 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
         db.RiotAccounts.AddRange(
             BuildAccount(account1Id, "KR", "tie-foundation-puuid-1", "tie-one", now),
             BuildAccount(account2Id, "KR", "tie-foundation-puuid-2", "tie-two", now));
-
-        db.ChampionPatternAggregates.AddRange(
-            BuildAggregate(account1Id, 55, "16.5", "KR", 420, "MIDDLE", 4, 7, "Q-W-E", [3006], 3006, 1, 1, now.AddMinutes(-8)),
-            BuildAggregate(account1Id, 55, "16.5", "KR", 420, "MIDDLE", 4, 14, "Q-E-W", [3007], 3007, 1, 0, now.AddMinutes(-7)),
-            BuildAggregate(account2Id, 55, "16.5", "KR", 420, "MIDDLE", 7, 4, "Q-W-E", [3006], 3006, 1, 1, now.AddMinutes(-6)),
-            BuildAggregate(account2Id, 55, "16.5", "KR", 420, "MIDDLE", 14, 4, "Q-E-W", [3007], 3007, 1, 0, now.AddMinutes(-5)),
-            BuildAggregate(account1Id, 55, "16.4", "KR", 420, "MIDDLE", 4, 7, "Q-W-E", [3020], 3020, 3, 2, now.AddDays(-1)),
-            BuildAggregate(account1Id, 55, "16.8", "KR", 450, "MIDDLE", 4, 7, "Q-W-E", [3089], 3089, 2, 2, now.AddMinutes(-1)));
-
         await db.SaveChangesAsync();
+
+        await DefaultSeeder()
+            .AddPatternDefaults(account1Id, 55, "16.5", "KR", 420, "MIDDLE", 4, 7, "Q-W-E", [3006], 3006, 1, 1, now.AddMinutes(-8))
+            .AddPatternDefaults(account1Id, 55, "16.5", "KR", 420, "MIDDLE", 4, 14, "Q-E-W", [3007], 3007, 1, 0, now.AddMinutes(-7))
+            .AddPatternDefaults(account2Id, 55, "16.5", "KR", 420, "MIDDLE", 7, 4, "Q-W-E", [3006], 3006, 1, 1, now.AddMinutes(-6))
+            .AddPatternDefaults(account2Id, 55, "16.5", "KR", 420, "MIDDLE", 14, 4, "Q-E-W", [3007], 3007, 1, 0, now.AddMinutes(-5))
+            .AddPatternDefaults(account1Id, 55, "16.4", "KR", 420, "MIDDLE", 4, 7, "Q-W-E", [3020], 3020, 3, 2, now.AddDays(-1))
+            .AddPatternDefaults(account1Id, 55, "16.8", "KR", 450, "MIDDLE", 4, 7, "Q-W-E", [3089], 3089, 2, 2, now.AddMinutes(-1))
+            .SaveAsync(db);
     }
 
     private async Task SeedChampionFoundationCorrelationAggregatesAsync()
@@ -259,13 +262,13 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
             BuildAccount(account1Id, "KR", "corr-puuid-1", "corr-one", now),
             BuildAccount(account2Id, "KR", "corr-puuid-2", "corr-two", now),
             BuildAccount(account3Id, "KR", "corr-puuid-3", "corr-three", now));
-
-        db.ChampionPatternAggregates.AddRange(
-            BuildAggregate(account1Id, 81, "16.5", "KR", 420, "BOTTOM", 4, 7, "Q-W-E", [3153, 3006, 3091], 3006, 3, 2, now.AddMinutes(-10)),
-            BuildAggregate(account2Id, 81, "16.5", "KR", 420, "BOTTOM", 4, 7, "Q-W-E", [3153, 3006, 3091], 3006, 3, 2, now.AddMinutes(-9)),
-            BuildAggregate(account3Id, 81, "16.5", "KR", 420, "BOTTOM", 14, 4, "Q-E-W", [6672, 3006, 3031], 3047, 5, 4, now.AddMinutes(-8)));
-
         await db.SaveChangesAsync();
+
+        await DefaultSeeder()
+            .AddPatternDefaults(account1Id, 81, "16.5", "KR", 420, "BOTTOM", 4, 7, "Q-W-E", [3153, 3006, 3091], 3006, 3, 2, now.AddMinutes(-10))
+            .AddPatternDefaults(account2Id, 81, "16.5", "KR", 420, "BOTTOM", 4, 7, "Q-W-E", [3153, 3006, 3091], 3006, 3, 2, now.AddMinutes(-9))
+            .AddPatternDefaults(account3Id, 81, "16.5", "KR", 420, "BOTTOM", 14, 4, "Q-E-W", [6672, 3006, 3031], 3047, 5, 4, now.AddMinutes(-8))
+            .SaveAsync(db);
     }
 
     private async Task SeedChampionFoundationWithEmptyTopPatternAsync()
@@ -279,12 +282,12 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
         db.RiotAccounts.AddRange(
             BuildAccount(account1Id, "KR", "empty-build-puuid-1", "empty-build-one", now),
             BuildAccount(account2Id, "KR", "empty-build-puuid-2", "empty-build-two", now));
-
-        db.ChampionPatternAggregates.AddRange(
-            BuildAggregate(account1Id, 110, "16.5", "KR", 420, "MIDDLE", 14, 4, "Q-E-W", [], 0, 6, 4, now.AddMinutes(-12)),
-            BuildAggregate(account2Id, 110, "16.5", "KR", 420, "MIDDLE", 4, 7, "Q-W-E", [3153, 3006, 3091], 3006, 5, 3, now.AddMinutes(-10)));
-
         await db.SaveChangesAsync();
+
+        await DefaultSeeder()
+            .AddPatternDefaults(account1Id, 110, "16.5", "KR", 420, "MIDDLE", 14, 4, "Q-E-W", [], 0, 6, 4, now.AddMinutes(-12))
+            .AddPatternDefaults(account2Id, 110, "16.5", "KR", 420, "MIDDLE", 4, 7, "Q-W-E", [3153, 3006, 3091], 3006, 5, 3, now.AddMinutes(-10))
+            .SaveAsync(db);
     }
 
     private static RiotAccount BuildAccount(Guid id, string platformId, string puuid, string gameName, DateTime now)
@@ -302,56 +305,6 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
             UpdatedAtUtc = now.AddDays(-1)
         };
 
-    private static ChampionPatternAggregate BuildAggregate(
-        Guid riotAccountId,
-        int championId,
-        string patch,
-        string platformId,
-        int queueId,
-        string position,
-        int summoner1Id,
-        int summoner2Id,
-        string skillOrderKey,
-        IReadOnlyList<int> buildItems,
-        int bootsItemId,
-        int games,
-        int wins,
-        DateTime aggregatedAtUtc)
-    {
-        var build = buildItems.Concat(Enumerable.Repeat(0, 7)).Take(7).ToArray();
-
-        return new ChampionPatternAggregate
-        {
-            RiotAccountId = riotAccountId,
-            ChampionId = championId,
-            GameVersion = patch,
-            PlatformId = platformId,
-            QueueId = queueId,
-            Position = position,
-            PrimaryStyleId = 8000,
-            SubStyleId = 8200,
-            PerksOffense = 5005,
-            PerksFlex = 5008,
-            PerksDefense = 5002,
-            SummonerSpell1Id = summoner1Id,
-            SummonerSpell2Id = summoner2Id,
-            SkillOrderKey = skillOrderKey,
-            StarterItems = [1055, 2003],
-            StarterItemsKey = "1055-2003",
-            BootsItemId = bootsItemId,
-            BuildItem0 = build[0],
-            BuildItem1 = build[1],
-            BuildItem2 = build[2],
-            BuildItem3 = build[3],
-            BuildItem4 = build[4],
-            BuildItem5 = build[5],
-            BuildItem6 = build[6],
-            Games = games,
-            Wins = wins,
-            LastGameStartTimeUtc = aggregatedAtUtc.AddMinutes(-30),
-            AggregatedAtUtc = aggregatedAtUtc
-        };
-    }
 
     private static void AssertObjectArrayElementsHaveProperties(JsonElement arrayElement, params string[] expectedPropertyNames)
     {

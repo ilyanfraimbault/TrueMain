@@ -1,4 +1,3 @@
-using Core.Lol.Map;
 using Data.Entities;
 using FluentAssertions;
 using TrueMain.Services.Champions;
@@ -12,8 +11,8 @@ public sealed class ChampionBuildTreeBuilderTests
     {
         var rows = new[]
         {
-            BuildAggregate([3153, 3006], games: 7, wins: 4),
-            BuildAggregate([3153, 3091], games: 3, wins: 2)
+            BuildAggregateBuild([3153, 3006], games: 7, wins: 4),
+            BuildAggregateBuild([3153, 3091], games: 3, wins: 2)
         };
 
         var tree = ChampionBuildTreeBuilder.Build(rows, totalGames: 10, maxDepth: 7, minBranchGames: 1);
@@ -36,8 +35,8 @@ public sealed class ChampionBuildTreeBuilderTests
     {
         var rows = new[]
         {
-            BuildAggregate([3153, 3006, 6672], games: 2, wins: 1),
-            BuildAggregate([3153, 6672, 3006], games: 1, wins: 1)
+            BuildAggregateBuild([3153, 3006, 6672], games: 2, wins: 1),
+            BuildAggregateBuild([3153, 6672, 3006], games: 1, wins: 1)
         };
 
         var tree = ChampionBuildTreeBuilder.Build(rows, totalGames: 3, maxDepth: 7, minBranchGames: 1);
@@ -50,8 +49,8 @@ public sealed class ChampionBuildTreeBuilderTests
     {
         var rows = new[]
         {
-            BuildAggregate([3153, 3006, 6672], games: 5, wins: 3),
-            BuildAggregate([3153, 3091, 3085], games: 1, wins: 0)
+            BuildAggregateBuild([3153, 3006, 6672], games: 5, wins: 3),
+            BuildAggregateBuild([3153, 3091, 3085], games: 1, wins: 0)
         };
 
         var tree = ChampionBuildTreeBuilder.Build(rows, totalGames: 6, maxDepth: 2, minBranchGames: 2);
@@ -62,28 +61,15 @@ public sealed class ChampionBuildTreeBuilderTests
         tree[0].Children[0].Children.Should().BeEmpty();
     }
 
-    private static ChampionPatternAggregate BuildAggregate(IReadOnlyList<int> buildItems, int games, int wins)
+    private static ChampionAggregateBuild BuildAggregateBuild(IReadOnlyList<int> buildItems, int games, int wins)
     {
         var build = buildItems.Concat(Enumerable.Repeat(0, 7)).Take(7).ToArray();
 
-        return new ChampionPatternAggregate
+        return new ChampionAggregateBuild
         {
-            RiotAccountId = Guid.NewGuid(),
-            ChampionId = 22,
-            GameVersion = "16.5",
-            PlatformId = "KR",
-            QueueId = LolQueueIds.RankedSoloDuo,
-            Position = "BOTTOM",
-            PrimaryStyleId = 8000,
-            SubStyleId = 8100,
-            PerksOffense = 5005,
-            PerksFlex = 5008,
-            PerksDefense = 5002,
-            SummonerSpell1Id = 4,
-            SummonerSpell2Id = 7,
-            SkillOrderKey = "Q-W-E",
-            StarterItems = [1055, 2003],
-            StarterItemsKey = "1055-2003",
+            Id = Guid.NewGuid(),
+            ScopeId = Guid.NewGuid(),
+            BootsItemId = 0,
             BuildItem0 = build[0],
             BuildItem1 = build[1],
             BuildItem2 = build[2],
@@ -92,9 +78,7 @@ public sealed class ChampionBuildTreeBuilderTests
             BuildItem5 = build[5],
             BuildItem6 = build[6],
             Games = games,
-            Wins = wins,
-            LastGameStartTimeUtc = DateTime.UtcNow,
-            AggregatedAtUtc = DateTime.UtcNow
+            Wins = wins
         };
     }
 }

@@ -6,7 +6,7 @@ namespace TrueMain.Services.Champions;
 public static class ChampionBuildTreeBuilder
 {
     public static IReadOnlyList<ChampionBuildTreeNodeReadModel> Build(
-        IReadOnlyCollection<ChampionPatternAggregate> rows,
+        IReadOnlyCollection<ChampionAggregateBuild> rows,
         int totalGames,
         int maxDepth,
         int minBranchGames)
@@ -69,22 +69,20 @@ public static class ChampionBuildTreeBuilder
         };
     }
 
-    private static List<int> ExtractBuildPath(ChampionPatternAggregate aggregate, int maxDepth)
-    {
-        return new[]
-        {
-            aggregate.BuildItem0,
-            aggregate.BuildItem1,
-            aggregate.BuildItem2,
-            aggregate.BuildItem3,
-            aggregate.BuildItem4,
-            aggregate.BuildItem5,
-            aggregate.BuildItem6
-        }
-        .Where(itemId => itemId > 0)
-        .Take(maxDepth)
-        .ToList();
-    }
+    private static List<int> ExtractBuildPath(ChampionAggregateBuild build, int maxDepth)
+        => new[]
+            {
+                build.BuildItem0,
+                build.BuildItem1,
+                build.BuildItem2,
+                build.BuildItem3,
+                build.BuildItem4,
+                build.BuildItem5,
+                build.BuildItem6
+            }
+            .Where(itemId => itemId > 0)
+            .Take(maxDepth)
+            .ToList();
 
     private static double ComputeRate(int numerator, int denominator)
         => denominator == 0 ? 0 : (double)numerator / denominator;

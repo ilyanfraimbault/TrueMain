@@ -6,14 +6,9 @@ public sealed class ChampionFoundationReadModel
 {
     public ChampionSummaryReadModel Summary { get; init; } = new();
 
-    public ChampionAdvancedDetailsReadModel Advanced { get; init; } = new();
+    public ChampionCoreReadModel Core { get; init; } = new();
 
-    /// <summary>
-    /// Internal scratchpad used by <c>ChampionCoreBuilder</c>; not part of the
-    /// API contract.
-    /// </summary>
-    [JsonIgnore]
-    public IReadOnlyList<ChampionCorrelatedPatternReadModel> CorrelatedPatterns { get; init; } = [];
+    public ChampionAdvancedDetailsReadModel Advanced { get; init; } = new();
 }
 
 public sealed class ChampionSummaryReadModel
@@ -68,25 +63,6 @@ public sealed class ChampionCoreReadModel
 public sealed class BuildPathPreviewReadModel
 {
     public IReadOnlyList<int> ItemIds { get; init; } = [];
-}
-
-public sealed class ChampionCorrelatedPatternReadModel
-{
-    public ItemSetOptionReadModel? StarterItems { get; init; }
-
-    public ItemSetOptionReadModel? Boots { get; init; }
-
-    public IReadOnlyList<int> BuildItemIds { get; init; } = [];
-
-    public SummonerSpellOptionReadModel SummonerSpells { get; init; } = new();
-
-    public SkillOrderOptionReadModel SkillOrder { get; init; } = new();
-
-    public int Games { get; init; }
-
-    public int Wins { get; init; }
-
-    public DateTime LastUpdatedAtUtc { get; init; }
 }
 
 public sealed class SummonerSpellOptionReadModel
