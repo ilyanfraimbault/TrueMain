@@ -57,7 +57,7 @@ namespace Data.Migrations
             // + their perk selections). The legacy champion_pattern_aggregates
             // table never stored the 6 individual perk ids, so we have to
             // rebuild rune pages by pivoting participant_perk_selections ⋈
-            // perk_selection_catalogs in SQL. ON CONFLICT DO NOTHING keeps the
+            // perk_selection_catalog in SQL. ON CONFLICT DO NOTHING keeps the
             // statement idempotent on re-runs.
             migrationBuilder.Sql(
                 """
@@ -99,7 +99,7 @@ namespace Data.Migrations
                     JOIN participant_perk_selections pps
                         ON pps."MatchId"       = p."MatchId"
                        AND pps."ParticipantId" = p."ParticipantId"
-                    JOIN perk_selection_catalogs c
+                    JOIN perk_selection_catalog c
                         ON c."Id" = pps."PerkSelectionCatalogId"
                     WHERE s."IsMain" = TRUE
                       AND p."RiotAccountId" IS NOT NULL

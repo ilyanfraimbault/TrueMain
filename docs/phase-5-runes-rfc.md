@@ -74,7 +74,7 @@ At the match-participant grain we have:
 - `match_participants.PerksOffense`, `PerksFlex`, `PerksDefense` — the
   three stat shard ids.
 - `participant_perk_selections (MatchId, ParticipantId, PerkSelectionCatalogId)` ⋈
-  `perk_selection_catalogs (StyleId, SelectionIndex, PerkId, StyleDescription)` —
+  `perk_selection_catalog (StyleId, SelectionIndex, PerkId, StyleDescription)` —
   the six primary/secondary perk slots.
 
 Pivot:
@@ -105,7 +105,7 @@ PrimaryStyleId / SubStyleId / PerksOffense/Flex/Defense. So we cannot
 backfill rune pages from `champion_pattern_aggregates` alone.
 
 We can, however, rebuild the rune pages from the source of truth:
-`match_participants` plus `participant_perk_selections` ⋈ `perk_selection_catalogs`.
+`match_participants` plus `participant_perk_selections` ⋈ `perk_selection_catalog`.
 For each (scope, rune page) the counters are `SUM(games)` where each
 participant contributes 1 game (1 win if `participant.Win`).
 

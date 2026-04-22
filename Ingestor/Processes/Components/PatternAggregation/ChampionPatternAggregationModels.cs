@@ -48,7 +48,7 @@ internal sealed class AggregateSourceRow
 
     // Populated after the initial LINQ projection by HydratePerkSelectionsAsync
     // (the six individual perk ids live in participant_perk_selections ⋈
-    // perk_selection_catalogs, not on match_participants directly).
+    // perk_selection_catalog, not on match_participants directly).
     public int PrimaryKeystoneId { get; set; }
     public int PrimaryPerk1Id { get; set; }
     public int PrimaryPerk2Id { get; set; }
