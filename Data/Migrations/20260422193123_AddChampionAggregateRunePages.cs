@@ -66,9 +66,12 @@ namespace Data.Migrations
                         p."Id"             AS participant_id,
                         p."RiotAccountId"  AS riot_account_id,
                         p."ChampionId"     AS champion_id,
-                        split_part(m."GameVersion", '.', 1)
-                            || '.' || split_part(m."GameVersion", '.', 2)
-                            AS game_version,
+                        CASE
+                            WHEN position('.' in m."GameVersion") > 0
+                                THEN split_part(m."GameVersion", '.', 1)
+                                     || '.' || split_part(m."GameVersion", '.', 2)
+                            ELSE m."GameVersion"
+                        END                AS game_version,
                         m."PlatformId"     AS platform_id,
                         m."QueueId"        AS queue_id,
                         UPPER(TRIM(p."TeamPosition")) AS position,
