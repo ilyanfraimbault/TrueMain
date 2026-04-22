@@ -161,8 +161,14 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
     }
 
     [Fact]
-    public async Task GetFoundationAsync_ShouldChooseTheFirstCorrelatedPatternWithABuildForCoreBlocks()
+    public async Task GetFoundationAsync_ShouldOnlySurfaceBuildPathsFromRowsThatHaveBuilds()
     {
+        // Post Sprint 5.4: Core.SummonerSpells / .SkillOrder are picked
+        // independently from their dimensions (top-by-games across scopes),
+        // so they can differ from the top build path that Core.BuildPath
+        // comes from. What the test still proves is that BuildPath /
+        // BuildTree skip scopes whose build is empty — account1's empty
+        // build cannot contaminate the build-tree output.
         await _fixture.ResetDatabaseAsync();
         await SeedChampionFoundationWithEmptyTopPatternAsync();
 
@@ -175,13 +181,15 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
         var payload = await client.GetFromJsonAsync<ChampionReadModel>("/champions/110");
 
         payload.Should().NotBeNull();
-        payload!.Core.SummonerSpells.Should().NotBeNull();
-        payload.Core.BuildPath.Should().NotBeNull();
+        payload!.Core.BuildPath.Should().NotBeNull();
         payload.Core.BuildPath!.ItemIds.Should().Equal(3153, 3006, 3091);
+        // (14, 4) is observed 6 times on account1, (4, 7) 5 times on account2.
+        // OrderedForDisplay puts Flash (4) first → (4, 14) is the top pair.
+        payload.Core.SummonerSpells.Should().NotBeNull();
         payload.Core.SummonerSpells!.Spell1Id.Should().Be(4);
-        payload.Core.SummonerSpells.Spell2Id.Should().Be(7);
+        payload.Core.SummonerSpells.Spell2Id.Should().Be(14);
         payload.Core.SkillOrder.Should().NotBeNull();
-        payload.Core.SkillOrder!.Sequence.Should().Equal("Q", "W", "E");
+        payload.Core.SkillOrder!.Sequence.Should().Equal("Q", "E", "W");
         payload.BuildTree.Build.Should().ContainSingle();
         payload.BuildTree.Boots.Should().NotBeNull();
         payload.BuildTree.Boots!.ItemIds.Should().Equal(3006);
