@@ -9,13 +9,15 @@ internal static class ChampionOptionProjector
         IReadOnlyCollection<ChampionAggregateStarterItems> starterItems,
         IReadOnlyCollection<ChampionAggregateSpellPair> spellPairs,
         IReadOnlyCollection<ChampionAggregateSkillOrder> skillOrders,
+        IReadOnlyCollection<ChampionAggregateRunePage> runePages,
         int sampleSize)
         => new()
         {
             SampleSize = sampleSize,
             StarterItemOptions = ChampionStarterItemAggregator.AggregateTopThree(starterItems, sampleSize),
             SummonerSpellOptions = ChampionSummonerSpellAggregator.AggregateTopThree(spellPairs, sampleSize),
-            SkillOrderOptions = ChampionSkillOrderAggregator.AggregateTopThree(skillOrders, sampleSize)
+            SkillOrderOptions = ChampionSkillOrderAggregator.AggregateTopThree(skillOrders, sampleSize),
+            RunePageOptions = ChampionRunePageAggregator.AggregateTopThree(runePages, sampleSize)
         };
 
     public static double ComputeRate(int numerator, int denominator)

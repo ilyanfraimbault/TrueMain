@@ -16,6 +16,7 @@ internal static class ChampionCoreBuilder
         var primaryStarterItems = advanced.StarterItemOptions.FirstOrDefault();
         var primarySummonerSpells = advanced.SummonerSpellOptions.FirstOrDefault();
         var primarySkillOrder = advanced.SkillOrderOptions.FirstOrDefault();
+        var primaryRunePage = advanced.RunePageOptions.FirstOrDefault();
 
         var bootsOption = SelectBoots(builds, sampleSize);
         var buildPathItemIds = includeBuildPath
@@ -31,7 +32,8 @@ internal static class ChampionCoreBuilder
                 ? null
                 : new BuildPathPreviewReadModel { ItemIds = buildPathItemIds },
             SummonerSpells = primarySummonerSpells,
-            SkillOrder = primarySkillOrder
+            SkillOrder = primarySkillOrder,
+            RunePage = primaryRunePage
         };
     }
 

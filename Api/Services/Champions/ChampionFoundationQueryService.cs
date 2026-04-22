@@ -38,12 +38,16 @@ public sealed class ChampionFoundationQueryService(
         var builds = await db.ChampionAggregateBuilds.AsNoTracking()
             .Where(row => scopeIds.Contains(row.ScopeId))
             .ToListAsync(ct);
+        var runePages = await db.ChampionAggregateRunePages.AsNoTracking()
+            .Where(row => scopeIds.Contains(row.ScopeId))
+            .ToListAsync(ct);
 
         var sampleSize = scopes.Sum(scope => scope.Games);
         var advanced = ChampionOptionProjector.BuildAdvancedDetails(
             starterItems,
             spellPairs,
             skillOrders,
+            runePages,
             sampleSize);
 
         return new ChampionFoundationReadModel

@@ -180,6 +180,37 @@ public sealed class ChampionPatternAggregateBuilder(
                     Games = dim.Count(),
                     Wins = dim.Count(row => row.Win)
                 })
+                .ToList(),
+            RunePages = rows
+                .GroupBy(row => (
+                    row.PrimaryStyleId,
+                    row.PrimaryKeystoneId,
+                    row.PrimaryPerk1Id,
+                    row.PrimaryPerk2Id,
+                    row.PrimaryPerk3Id,
+                    row.SubStyleId,
+                    row.SecondaryPerk1Id,
+                    row.SecondaryPerk2Id,
+                    row.PerksOffense,
+                    row.PerksFlex,
+                    row.PerksDefense))
+                .Select(dim => new ChampionAggregateRunePage
+                {
+                    Id = Guid.NewGuid(),
+                    PrimaryStyleId = dim.Key.PrimaryStyleId,
+                    PrimaryKeystoneId = dim.Key.PrimaryKeystoneId,
+                    PrimaryPerk1Id = dim.Key.PrimaryPerk1Id,
+                    PrimaryPerk2Id = dim.Key.PrimaryPerk2Id,
+                    PrimaryPerk3Id = dim.Key.PrimaryPerk3Id,
+                    SecondaryStyleId = dim.Key.SubStyleId,
+                    SecondaryPerk1Id = dim.Key.SecondaryPerk1Id,
+                    SecondaryPerk2Id = dim.Key.SecondaryPerk2Id,
+                    StatOffense = dim.Key.PerksOffense,
+                    StatFlex = dim.Key.PerksFlex,
+                    StatDefense = dim.Key.PerksDefense,
+                    Games = dim.Count(),
+                    Wins = dim.Count(row => row.Win)
+                })
                 .ToList()
         };
     }
@@ -214,6 +245,12 @@ public sealed class ChampionPatternAggregateBuilder(
                 row.PerksOffense,
                 row.PerksFlex,
                 row.PerksDefense,
+                row.PrimaryKeystoneId,
+                row.PrimaryPerk1Id,
+                row.PrimaryPerk2Id,
+                row.PrimaryPerk3Id,
+                row.SecondaryPerk1Id,
+                row.SecondaryPerk2Id,
                 spell1Id,
                 spell2Id,
                 skillOrderKey,
