@@ -15,6 +15,8 @@ using Npgsql;
 var builder = Host.CreateApplicationBuilder(args);
 
 builder.Services.AddValidatedOptions(builder.Configuration);
+builder.Services.AddOptions<DatabaseOptions>()
+    .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName));
 
 builder.Services.AddSingleton<IRiotHttpExecutor, RiotHttpExecutor>();
 builder.Services.AddHttpClient<IRiotMatchClient, RiotMatchClient>();
@@ -69,4 +71,5 @@ builder.Services.AddSingleton<IDataSessionFactory, DataSessionFactory>();
 builder.Services.AddHostedService<Worker>();
 
 var host = builder.Build();
-host.Run();
+await DatabaseMigrator.ApplyPendingMigrationsAsync(host.Services);
+await host.RunAsync();

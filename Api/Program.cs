@@ -49,8 +49,8 @@ builder.Services.AddOptions<OpsOptions>()
     .Bind(builder.Configuration.GetSection("Ops"))
     .ValidateDataAnnotations()
     .ValidateOnStart();
-builder.Services.AddOptions<MigrationsOptions>()
-    .Bind(builder.Configuration.GetSection("Migrations"));
+builder.Services.AddOptions<DatabaseOptions>()
+    .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName));
 
 builder.Services
     .AddAuthentication(ApiKeyAuthenticationDefaults.Scheme)
@@ -98,16 +98,7 @@ builder.Services.AddDbContext<TrueMainDbContext>(options =>
     options.UseNpgsql(dataSource);
 });
 var app = builder.Build();
-var migrationsOptions = app.Services
-    .GetRequiredService<Microsoft.Extensions.Options.IOptions<MigrationsOptions>>()
-    .Value;
-
-if (migrationsOptions.ApplyOnStartup)
-{
-    using var scope = app.Services.CreateScope();
-    var dbContext = scope.ServiceProvider.GetRequiredService<TrueMainDbContext>();
-    await dbContext.Database.MigrateAsync();
-}
+await DatabaseMigrator.ApplyPendingMigrationsAsync(app.Services);
 
 // Swagger is exposed in every environment so the OpenAPI doc stays
 // available for tooling outside Development. Proper auth-gating of
