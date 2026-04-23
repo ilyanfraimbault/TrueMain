@@ -28,4 +28,5 @@ public class ChampionAggregateScope
     public List<ChampionAggregateSkillOrder> SkillOrders { get; set; } = [];
     public List<ChampionAggregateStarterItems> StarterItems { get; set; } = [];
     public List<ChampionAggregateBuild> Builds { get; set; } = [];
+    public List<ChampionAggregateRunePage> RunePages { get; set; } = [];
 }

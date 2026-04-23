@@ -29,5 +29,13 @@ public sealed class ChampionBuildTreeNodeReadModel
 
     public double PickRate { get; init; }
 
+    /// <summary>
+    /// Top rune page played when this item is the first completed build item.
+    /// Populated on root nodes only (depth 1); null on deeper branches and
+    /// when no rune-page data is correlated with this root. Lets the UI show
+    /// a "when rushing X, play rune page Y" badge per build-tree branch.
+    /// </summary>
+    public RunePageOptionReadModel? RunePage { get; init; }
+
     public IReadOnlyList<ChampionBuildTreeNodeReadModel> Children { get; init; } = [];
 }

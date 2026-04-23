@@ -66,8 +66,15 @@ public sealed class ChampionBuildTreeQueryService(
                     || build.BuildItem6 > 0)
                 .ToListAsync(ct);
 
+        var runePages = scopeIds.Count == 0
+            ? []
+            : await db.ChampionAggregateRunePages.AsNoTracking()
+                .Where(runePage => scopeIds.Contains(runePage.ScopeId))
+                .Where(runePage => runePage.FirstItemId > 0)
+                .ToListAsync(ct);
+
         var totalGames = builds.Sum(build => build.Games);
-        var tree = ChampionBuildTreeBuilder.Build(builds, totalGames, maxDepth, minBranchGames);
+        var tree = ChampionBuildTreeBuilder.Build(builds, totalGames, maxDepth, minBranchGames, runePages);
         var bootsOption = SelectBoots(builds, totalGames);
 
         return new ChampionBuildTreeReadModel

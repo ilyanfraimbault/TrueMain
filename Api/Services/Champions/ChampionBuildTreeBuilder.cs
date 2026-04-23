@@ -9,7 +9,8 @@ public static class ChampionBuildTreeBuilder
         IReadOnlyCollection<ChampionAggregateBuild> rows,
         int totalGames,
         int maxDepth,
-        int minBranchGames)
+        int minBranchGames,
+        IReadOnlyCollection<ChampionAggregateRunePage>? runePages = null)
     {
         if (rows.Count == 0 || totalGames <= 0 || maxDepth <= 0)
         {
@@ -42,16 +43,43 @@ public static class ChampionBuildTreeBuilder
             }
         }
 
+        var runePagesOrEmpty = runePages ?? [];
         return roots.Values
             .Where(node => node.Games >= minBranchGames)
             .OrderByDescending(node => node.Games)
             .ThenByDescending(node => ComputeRate(node.Wins, node.Games))
             .ThenBy(node => node.ItemId)
-            .Select(node => Project(node, totalGames, minBranchGames))
+            .Select(node => ProjectRoot(node, totalGames, minBranchGames, runePagesOrEmpty))
             .ToList();
     }
 
-    private static ChampionBuildTreeNodeReadModel Project(MutableNode node, int parentGames, int minBranchGames)
+    private static ChampionBuildTreeNodeReadModel ProjectRoot(
+        MutableNode node,
+        int parentGames,
+        int minBranchGames,
+        IReadOnlyCollection<ChampionAggregateRunePage> runePages)
+    {
+        // Runes are attached only at the root (depth 1) — that's the
+        // "when rushing X, play rune Y" correlation we care about. Attaching
+        // them deeper would split the sample too thin to be meaningful.
+        return new ChampionBuildTreeNodeReadModel
+        {
+            ItemId = node.ItemId,
+            Games = node.Games,
+            Wins = node.Wins,
+            PickRate = ComputeRate(node.Games, parentGames),
+            RunePage = ChampionRunePageAggregator.SelectTopForFirstItem(runePages, node.ItemId),
+            Children = node.Children.Values
+                .Where(child => child.Games >= minBranchGames)
+                .OrderByDescending(child => child.Games)
+                .ThenByDescending(child => ComputeRate(child.Wins, child.Games))
+                .ThenBy(child => child.ItemId)
+                .Select(child => ProjectChild(child, node.Games, minBranchGames))
+                .ToList()
+        };
+    }
+
+    private static ChampionBuildTreeNodeReadModel ProjectChild(MutableNode node, int parentGames, int minBranchGames)
     {
         return new ChampionBuildTreeNodeReadModel
         {
@@ -64,7 +92,7 @@ public static class ChampionBuildTreeBuilder
                 .OrderByDescending(child => child.Games)
                 .ThenByDescending(child => ComputeRate(child.Wins, child.Games))
                 .ThenBy(child => child.ItemId)
-                .Select(child => Project(child, node.Games, minBranchGames))
+                .Select(child => ProjectChild(child, node.Games, minBranchGames))
                 .ToList()
         };
     }

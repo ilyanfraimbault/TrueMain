@@ -43,6 +43,8 @@ public sealed class ChampionAdvancedDetailsReadModel
     public IReadOnlyList<SummonerSpellOptionReadModel> SummonerSpellOptions { get; init; } = [];
 
     public IReadOnlyList<SkillOrderOptionReadModel> SkillOrderOptions { get; init; } = [];
+
+    public IReadOnlyList<RunePageOptionReadModel> RunePageOptions { get; init; } = [];
 }
 
 public sealed class ChampionCoreReadModel
@@ -58,6 +60,33 @@ public sealed class ChampionCoreReadModel
     public SummonerSpellOptionReadModel? SummonerSpells { get; init; }
 
     public SkillOrderOptionReadModel? SkillOrder { get; init; }
+
+    public RunePageOptionReadModel? RunePage { get; init; }
+}
+
+public sealed class RunePageOptionReadModel
+{
+    /// <summary>
+    /// The first completed build item this page is correlated with. 0 means
+    /// "unknown" (backfilled rows prior to the first aggregation run, or
+    /// participants with no completed build item at game end).
+    /// </summary>
+    public int FirstItemId { get; init; }
+
+    public int PrimaryStyleId { get; init; }
+    public int PrimaryKeystoneId { get; init; }
+    public int PrimaryPerk1Id { get; init; }
+    public int PrimaryPerk2Id { get; init; }
+    public int PrimaryPerk3Id { get; init; }
+    public int SecondaryStyleId { get; init; }
+    public int SecondaryPerk1Id { get; init; }
+    public int SecondaryPerk2Id { get; init; }
+    public int StatOffense { get; init; }
+    public int StatFlex { get; init; }
+    public int StatDefense { get; init; }
+    public int Games { get; init; }
+    public double PlayRate { get; init; }
+    public double WinRate { get; init; }
 }
 
 public sealed class BuildPathPreviewReadModel
