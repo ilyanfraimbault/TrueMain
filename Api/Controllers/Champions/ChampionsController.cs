@@ -51,12 +51,10 @@ public sealed class ChampionsController(
             minBranchGames,
             ct);
 
-        var coreReadModel = ChampionCoreBuilder.Build(foundationReadModel);
-
         return Ok(new ChampionReadModel
         {
             Summary = foundationReadModel.Summary,
-            Core = coreReadModel,
+            Core = foundationReadModel.Core,
             Advanced = foundationReadModel.Advanced,
             BuildTree = buildTreeReadModel
         });

@@ -23,6 +23,7 @@ public class TrueMainDbContext : DbContext
     public DbSet<ChampionAggregateSkillOrder> ChampionAggregateSkillOrders => Set<ChampionAggregateSkillOrder>();
     public DbSet<ChampionAggregateStarterItems> ChampionAggregateStarterItems => Set<ChampionAggregateStarterItems>();
     public DbSet<ChampionAggregateBuild> ChampionAggregateBuilds => Set<ChampionAggregateBuild>();
+    public DbSet<ChampionAggregateRunePage> ChampionAggregateRunePages => Set<ChampionAggregateRunePage>();
     public DbSet<ProcessRun> ProcessRuns => Set<ProcessRun>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

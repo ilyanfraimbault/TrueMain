@@ -5,7 +5,7 @@ namespace TrueMain.Services.Champions;
 internal static class ChampionAggregateScopeResolver
 {
     public static string? ResolvePatchVersion(
-        IReadOnlyCollection<ChampionPatternAggregate> rows,
+        IReadOnlyCollection<ChampionAggregateScope> scopes,
         string? requestedPatch)
     {
         if (!string.IsNullOrWhiteSpace(requestedPatch))
@@ -13,21 +13,21 @@ internal static class ChampionAggregateScopeResolver
             return requestedPatch;
         }
 
-        return rows
-            .Select(aggregate => aggregate.GameVersion)
+        return scopes
+            .Select(scope => scope.GameVersion)
             .Distinct(StringComparer.Ordinal)
             .OrderByDescending(ParsePatchVersion)
             .FirstOrDefault();
     }
 
-    public static string ResolveDominantPosition(IReadOnlyCollection<ChampionPatternAggregate> rows)
-        => rows
-            .Where(row => !string.IsNullOrWhiteSpace(row.Position))
-            .GroupBy(row => row.Position)
+    public static string ResolveDominantPosition(IReadOnlyCollection<ChampionAggregateScope> scopes)
+        => scopes
+            .Where(scope => !string.IsNullOrWhiteSpace(scope.Position))
+            .GroupBy(scope => scope.Position)
             .Select(group => new
             {
                 Position = group.Key,
-                Games = group.Sum(row => row.Games)
+                Games = group.Sum(scope => scope.Games)
             })
             .OrderByDescending(group => group.Games)
             .ThenBy(group => group.Position, StringComparer.Ordinal)

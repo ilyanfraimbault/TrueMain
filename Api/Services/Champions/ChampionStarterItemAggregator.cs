@@ -6,27 +6,20 @@ namespace TrueMain.Services.Champions;
 internal static class ChampionStarterItemAggregator
 {
     public static IReadOnlyList<ItemSetOptionReadModel> AggregateTopThree(
-        IReadOnlyCollection<ChampionPatternAggregate> rows,
+        IReadOnlyCollection<ChampionAggregateStarterItems> rows,
         int sampleSize)
         => rows
-            .Select(row => new
-            {
-                row.Games,
-                row.Wins,
-                ItemSet = ChampionPatternProjector.BuildStarterItemSet(row)
-            })
-            .Where(entry => entry.ItemSet.Count > 0)
-            .GroupBy(entry => string.Join("-", entry.ItemSet))
+            .Where(row => row.StarterItems.Count > 0)
+            .GroupBy(row => row.StarterItemsKey, StringComparer.Ordinal)
             .Select(group =>
             {
-                var itemSet = group.First().ItemSet;
-                var games = group.Sum(entry => entry.Games);
+                var games = group.Sum(row => row.Games);
                 return new ItemSetOptionReadModel
                 {
-                    ItemIds = itemSet,
+                    ItemIds = group.First().StarterItems,
                     Games = games,
                     PlayRate = ChampionOptionProjector.ComputeRate(games, sampleSize),
-                    WinRate = ChampionOptionProjector.ComputeRate(group.Sum(entry => entry.Wins), games)
+                    WinRate = ChampionOptionProjector.ComputeRate(group.Sum(row => row.Wins), games)
                 };
             })
             .OrderByDescending(option => option.Games)

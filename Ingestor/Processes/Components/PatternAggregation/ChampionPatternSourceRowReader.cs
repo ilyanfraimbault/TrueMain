@@ -60,6 +60,7 @@ public sealed class ChampionPatternSourceRowReader(
             select new AggregateSourceRow
             {
                 MatchId = match.Id,
+                ParticipantId = participant.ParticipantId,
                 ChampionId = participant.ChampionId,
                 GameVersion = PatchVersion.Normalize(match.GameVersion),
                 PlatformId = match.PlatformId,
@@ -88,9 +89,68 @@ public sealed class ChampionPatternSourceRowReader(
             })
             .ToListAsync(ct);
 
-        return sourceRows
+        var filtered = sourceRows
             .Where(HasCompleteCorrelatedTimeline)
             .ToList();
+
+        await HydratePerkSelectionsAsync(db, filtered, ct);
+        return filtered;
+    }
+
+    private static async Task HydratePerkSelectionsAsync(
+        TrueMainDbContext db,
+        IReadOnlyCollection<AggregateSourceRow> sourceRows,
+        CancellationToken ct)
+    {
+        if (sourceRows.Count == 0)
+        {
+            return;
+        }
+
+        var matchIds = sourceRows.Select(row => row.MatchId).Distinct().ToList();
+
+        var perkRows = await (
+            from selection in db.ParticipantPerkSelections.AsNoTracking()
+            join catalog in db.PerkSelectionCatalogs.AsNoTracking()
+                on selection.PerkSelectionCatalogId equals catalog.Id
+            where matchIds.Contains(selection.MatchId)
+            select new
+            {
+                selection.MatchId,
+                selection.ParticipantId,
+                catalog.SelectionIndex,
+                catalog.PerkId,
+                catalog.StyleDescription
+            })
+            .ToListAsync(ct);
+
+        var perksByParticipant = perkRows
+            .GroupBy(row => (row.MatchId, row.ParticipantId))
+            .ToDictionary(group => group.Key, group => group.ToList());
+
+        foreach (var row in sourceRows)
+        {
+            if (!perksByParticipant.TryGetValue((row.MatchId, row.ParticipantId), out var perks))
+            {
+                continue;
+            }
+
+            var primary = perks
+                .Where(perk => string.Equals(perk.StyleDescription, "primaryStyle", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(perk => perk.SelectionIndex)
+                .ToList();
+            var secondary = perks
+                .Where(perk => string.Equals(perk.StyleDescription, "subStyle", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(perk => perk.SelectionIndex)
+                .ToList();
+
+            row.PrimaryKeystoneId = primary.ElementAtOrDefault(0)?.PerkId ?? 0;
+            row.PrimaryPerk1Id = primary.ElementAtOrDefault(1)?.PerkId ?? 0;
+            row.PrimaryPerk2Id = primary.ElementAtOrDefault(2)?.PerkId ?? 0;
+            row.PrimaryPerk3Id = primary.ElementAtOrDefault(3)?.PerkId ?? 0;
+            row.SecondaryPerk1Id = secondary.ElementAtOrDefault(0)?.PerkId ?? 0;
+            row.SecondaryPerk2Id = secondary.ElementAtOrDefault(1)?.PerkId ?? 0;
+        }
     }
 
     private static bool HasCompleteCorrelatedTimeline(AggregateSourceRow row)

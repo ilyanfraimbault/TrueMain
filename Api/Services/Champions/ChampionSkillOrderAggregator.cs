@@ -6,11 +6,11 @@ namespace TrueMain.Services.Champions;
 internal static class ChampionSkillOrderAggregator
 {
     public static IReadOnlyList<SkillOrderOptionReadModel> AggregateTopThree(
-        IReadOnlyCollection<ChampionPatternAggregate> rows,
+        IReadOnlyCollection<ChampionAggregateSkillOrder> rows,
         int sampleSize)
         => rows
             .Where(row => !string.IsNullOrWhiteSpace(row.SkillOrderKey))
-            .GroupBy(row => row.SkillOrderKey)
+            .GroupBy(row => row.SkillOrderKey, StringComparer.Ordinal)
             .Select(group =>
             {
                 var games = group.Sum(row => row.Games);
