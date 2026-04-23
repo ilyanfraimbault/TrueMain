@@ -47,7 +47,7 @@ services:
       NUXT_API_BASE_URL: http://api:8080
     depends_on:
       api:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "3001:3000"
     networks:

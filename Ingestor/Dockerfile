@@ -14,4 +14,16 @@ RUN dotnet publish "Ingestor.csproj" -c Release -o /app/publish /p:UseAppHost=fa
 FROM mcr.microsoft.com/dotnet/runtime:10.0 AS final
 WORKDIR /app
 COPY --from=build /app/publish .
+USER app
+
+# Liveness: the Worker rewrites /tmp/ingestor-heartbeat at the top of every
+# loop iteration. The healthcheck rejects the container when the heartbeat
+# is older than ~10x the default Job:IntervalMinutes — an interval value
+# above ~6h means this needs reconfiguring (rare).
+ENV INGESTOR_HEARTBEAT_PATH=/tmp/ingestor-heartbeat
+HEALTHCHECK --interval=60s --timeout=5s --start-period=30s --retries=3 \
+    CMD test -f "$INGESTOR_HEARTBEAT_PATH" \
+        && test "$(($(date +%s) - $(stat -c %Y "$INGESTOR_HEARTBEAT_PATH")))" -lt 21600 \
+        || exit 1
+
 ENTRYPOINT ["dotnet", "Ingestor.dll"]
