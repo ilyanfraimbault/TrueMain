@@ -12,6 +12,8 @@ namespace TrueMain.Controllers.Ops;
 public sealed class OpsController(IPipelineHealthQueryService pipelineHealthQueryService) : ControllerBase
 {
     [HttpGet("pipeline-health")]
+    [ProducesResponseType(typeof(PipelineHealthReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<PipelineHealthReadModel>> GetPipelineHealthAsync(CancellationToken ct)
     {
         var readModel = await pipelineHealthQueryService.GetAsync(ct);

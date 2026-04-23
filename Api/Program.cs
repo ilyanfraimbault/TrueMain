@@ -15,6 +15,7 @@ const string frontendCorsPolicy = "FrontendCors";
 // Add services to the container.
 
 builder.Services.AddControllers();
+builder.Services.AddProblemDetails();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -106,6 +107,13 @@ await DatabaseMigrator.ApplyPendingMigrationsAsync(app.Services);
 // scheme (Basic auth, session cookie, reverse-proxy) — the X-Ops-Key
 // header handler here can't serve the Swagger UI's unsolicited fetch
 // of the JSON document.
+// Wrap unhandled exceptions in RFC 7807 ProblemDetails so clients
+// always see a structured payload instead of HTML stack traces, and
+// emit StatusCodePages for 4xx/5xx responses without a body so things
+// like a bare 404 still arrive as ProblemDetails JSON.
+app.UseExceptionHandler();
+app.UseStatusCodePages();
+
 app.UseSwagger();
 app.UseSwaggerUI();
 
