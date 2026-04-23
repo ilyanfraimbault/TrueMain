@@ -13,6 +13,7 @@ public sealed class ChampionAggregateRunePageConfiguration : IEntityTypeConfigur
         entity.Property(e => e.Id).ValueGeneratedOnAdd();
 
         entity.Property(e => e.ScopeId).IsRequired();
+        entity.Property(e => e.FirstItemId).IsRequired();
         entity.Property(e => e.PrimaryStyleId).IsRequired();
         entity.Property(e => e.PrimaryKeystoneId).IsRequired();
         entity.Property(e => e.PrimaryPerk1Id).IsRequired();
@@ -30,6 +31,7 @@ public sealed class ChampionAggregateRunePageConfiguration : IEntityTypeConfigur
         entity.HasIndex(e => new
         {
             e.ScopeId,
+            e.FirstItemId,
             e.PrimaryStyleId,
             e.PrimaryKeystoneId,
             e.PrimaryPerk1Id,
@@ -43,6 +45,7 @@ public sealed class ChampionAggregateRunePageConfiguration : IEntityTypeConfigur
             e.StatDefense
         }).IsUnique();
         entity.HasIndex(e => e.ScopeId);
+        entity.HasIndex(e => new { e.ScopeId, e.FirstItemId });
 
         entity.HasOne(e => e.Scope)
             .WithMany(s => s.RunePages)

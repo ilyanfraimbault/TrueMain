@@ -183,6 +183,7 @@ public sealed class ChampionPatternAggregateBuilder(
                 .ToList(),
             RunePages = rows
                 .GroupBy(row => (
+                    row.BuildItem0,
                     row.PrimaryStyleId,
                     row.PrimaryKeystoneId,
                     row.PrimaryPerk1Id,
@@ -197,6 +198,7 @@ public sealed class ChampionPatternAggregateBuilder(
                 .Select(dim => new ChampionAggregateRunePage
                 {
                     Id = Guid.NewGuid(),
+                    FirstItemId = dim.Key.BuildItem0,
                     PrimaryStyleId = dim.Key.PrimaryStyleId,
                     PrimaryKeystoneId = dim.Key.PrimaryKeystoneId,
                     PrimaryPerk1Id = dim.Key.PrimaryPerk1Id,

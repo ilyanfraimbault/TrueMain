@@ -43,6 +43,7 @@ by bloc, so we model it as a single wide dimension row.
 champion_aggregate_rune_pages      (dimension, referenced by scope)
   id                      uuid pk
   scope_id                uuid fk -> champion_aggregate_scopes cascade
+  first_item_id           int                     -- new: build correlation
   primary_style_id        int
   primary_keystone_id     int
   primary_perk_1_id       int
@@ -56,16 +57,31 @@ champion_aggregate_rune_pages      (dimension, referenced by scope)
   stat_defense            int
   games                   int
   wins                    int
-  unique (scope_id,
+  unique (scope_id, first_item_id,
           primary_style_id, primary_keystone_id,
           primary_perk_1_id, primary_perk_2_id, primary_perk_3_id,
           secondary_style_id, secondary_perk_1_id, secondary_perk_2_id,
           stat_offense, stat_flex, stat_defense)
 ```
 
-12-column unique index. This is a **single dimension** within a scope —
-not a return to the wide-table pattern the previous RFC buried. Typical
-cardinality per scope should be under a dozen distinct pages.
+13-column unique index. This is a **single dimension** within a scope —
+not a return to the wide-table pattern the previous RFC buried.
+
+`first_item_id` is the resolved first completed build item
+(`ChampionAggregateBuild.BuildItem0`) of the participant. It turns the
+rune-page dimension into the "when rushing X, play rune page Y"
+correlation the user explicitly asked for — without it, the aggregation
+conflates Conqueror-on-bruiser and Lethal-Tempo-on-AD-crit participants
+into one overall "top" that hides the actual coupling between build
+direction and rune choice. Typical cardinality: under a dozen pages per
+`(scope, first_item)` pair.
+
+The migration backfill seeds `first_item_id = 0` ("unknown") because
+`BuildItem0` is computed in-process by `FinalBuildResolver` from raw
+item events and cannot be reconstructed from `match_participants`
+alone. The persister replaces scopes wholesale (cascade drops rune
+pages), so the column self-heals on the first post-deploy aggregation
+cycle.
 
 ## Data source per participant
 

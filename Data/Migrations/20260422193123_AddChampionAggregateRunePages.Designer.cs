@@ -83,6 +83,9 @@ namespace Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<int>("FirstItemId")
+                        .HasColumnType("integer");
+
                     b.Property<int>("Games")
                         .HasColumnType("integer");
 
@@ -129,7 +132,9 @@ namespace Data.Migrations
 
                     b.HasIndex("ScopeId");
 
-                    b.HasIndex("ScopeId", "PrimaryStyleId", "PrimaryKeystoneId", "PrimaryPerk1Id", "PrimaryPerk2Id", "PrimaryPerk3Id", "SecondaryStyleId", "SecondaryPerk1Id", "SecondaryPerk2Id", "StatOffense", "StatFlex", "StatDefense")
+                    b.HasIndex("ScopeId", "FirstItemId");
+
+                    b.HasIndex("ScopeId", "FirstItemId", "PrimaryStyleId", "PrimaryKeystoneId", "PrimaryPerk1Id", "PrimaryPerk2Id", "PrimaryPerk3Id", "SecondaryStyleId", "SecondaryPerk1Id", "SecondaryPerk2Id", "StatOffense", "StatFlex", "StatDefense")
                         .IsUnique();
 
                     b.ToTable("champion_aggregate_rune_pages", (string)null);

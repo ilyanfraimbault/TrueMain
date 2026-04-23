@@ -17,6 +17,7 @@ namespace Data.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     ScopeId = table.Column<Guid>(type: "uuid", nullable: false),
+                    FirstItemId = table.Column<int>(type: "integer", nullable: false),
                     PrimaryStyleId = table.Column<int>(type: "integer", nullable: false),
                     PrimaryKeystoneId = table.Column<int>(type: "integer", nullable: false),
                     PrimaryPerk1Id = table.Column<int>(type: "integer", nullable: false),
@@ -48,9 +49,14 @@ namespace Data.Migrations
                 column: "ScopeId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_champion_aggregate_rune_pages_ScopeId_PrimaryStyleId_Primar~",
+                name: "IX_champion_aggregate_rune_pages_ScopeId_FirstItemId",
                 table: "champion_aggregate_rune_pages",
-                columns: new[] { "ScopeId", "PrimaryStyleId", "PrimaryKeystoneId", "PrimaryPerk1Id", "PrimaryPerk2Id", "PrimaryPerk3Id", "SecondaryStyleId", "SecondaryPerk1Id", "SecondaryPerk2Id", "StatOffense", "StatFlex", "StatDefense" },
+                columns: new[] { "ScopeId", "FirstItemId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_champion_aggregate_rune_pages_ScopeId_FirstItemId_PrimaryS~",
+                table: "champion_aggregate_rune_pages",
+                columns: new[] { "ScopeId", "FirstItemId", "PrimaryStyleId", "PrimaryKeystoneId", "PrimaryPerk1Id", "PrimaryPerk2Id", "PrimaryPerk3Id", "SecondaryStyleId", "SecondaryPerk1Id", "SecondaryPerk2Id", "StatOffense", "StatFlex", "StatDefense" },
                 unique: true);
 
             // Backfill rune pages from the source of truth (match participants
@@ -59,6 +65,14 @@ namespace Data.Migrations
             // rebuild rune pages by pivoting participant_perk_selections ⋈
             // perk_selection_catalog in SQL. ON CONFLICT DO NOTHING keeps the
             // statement idempotent on re-runs.
+            //
+            // FirstItemId is backfilled as 0 ("unknown"): it's derived from
+            // the completed build order (ChampionAggregateBuild.BuildItem0),
+            // which the ingestor computes in-memory via FinalBuildResolver
+            // and is not recoverable from match_participants alone without
+            // re-running that resolver. The next aggregation run replaces
+            // scopes wholesale (cascade drops rune pages), so this column
+            // self-heals on the first post-deploy ingestion cycle.
             migrationBuilder.Sql(
                 """
                 WITH participant_rune_pages AS (
@@ -118,7 +132,7 @@ namespace Data.Migrations
                         p."Win"
                 )
                 INSERT INTO champion_aggregate_rune_pages (
-                    "Id", "ScopeId",
+                    "Id", "ScopeId", "FirstItemId",
                     "PrimaryStyleId", "PrimaryKeystoneId",
                     "PrimaryPerk1Id", "PrimaryPerk2Id", "PrimaryPerk3Id",
                     "SecondaryStyleId", "SecondaryPerk1Id", "SecondaryPerk2Id",
@@ -128,6 +142,7 @@ namespace Data.Migrations
                 SELECT
                     gen_random_uuid(),
                     scope."Id",
+                    0,
                     prp.primary_style_id,
                     prp.primary_keystone_id,
                     prp.primary_perk_1_id,
