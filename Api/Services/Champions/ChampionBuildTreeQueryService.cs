@@ -24,31 +24,9 @@ public sealed class ChampionBuildTreeQueryService(
         maxDepth = Math.Clamp(maxDepth, 1, 7);
         minBranchGames = Math.Max(1, minBranchGames);
 
-        var scopesQuery = db.ChampionAggregateScopes
+        var scopeIds = await db.ChampionAggregateScopes
             .AsNoTracking()
-            .Where(scope => scope.ChampionId == championId && scope.QueueId == options.Value.QueueId);
-
-        if (riotAccountId.HasValue)
-        {
-            scopesQuery = scopesQuery.Where(scope => scope.RiotAccountId == riotAccountId.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(patch))
-        {
-            scopesQuery = scopesQuery.Where(scope => scope.GameVersion == patch);
-        }
-
-        if (!string.IsNullOrWhiteSpace(platformId))
-        {
-            scopesQuery = scopesQuery.Where(scope => scope.PlatformId == platformId);
-        }
-
-        if (!string.IsNullOrWhiteSpace(position))
-        {
-            scopesQuery = scopesQuery.Where(scope => scope.Position == position);
-        }
-
-        var scopeIds = await scopesQuery
+            .WhereChampionScope(championId, options.Value.QueueId, riotAccountId, patch, platformId, position)
             .Select(scope => scope.Id)
             .ToListAsync(ct);
 

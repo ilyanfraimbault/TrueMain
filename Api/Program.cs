@@ -15,6 +15,7 @@ const string frontendCorsPolicy = "FrontendCors";
 // Add services to the container.
 
 builder.Services.AddControllers();
+builder.Services.AddProblemDetails();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -49,8 +50,8 @@ builder.Services.AddOptions<OpsOptions>()
     .Bind(builder.Configuration.GetSection("Ops"))
     .ValidateDataAnnotations()
     .ValidateOnStart();
-builder.Services.AddOptions<MigrationsOptions>()
-    .Bind(builder.Configuration.GetSection("Migrations"));
+builder.Services.AddOptions<DatabaseOptions>()
+    .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName));
 
 builder.Services
     .AddAuthentication(ApiKeyAuthenticationDefaults.Scheme)
@@ -98,16 +99,7 @@ builder.Services.AddDbContext<TrueMainDbContext>(options =>
     options.UseNpgsql(dataSource);
 });
 var app = builder.Build();
-var migrationsOptions = app.Services
-    .GetRequiredService<Microsoft.Extensions.Options.IOptions<MigrationsOptions>>()
-    .Value;
-
-if (migrationsOptions.ApplyOnStartup)
-{
-    using var scope = app.Services.CreateScope();
-    var dbContext = scope.ServiceProvider.GetRequiredService<TrueMainDbContext>();
-    await dbContext.Database.MigrateAsync();
-}
+await DatabaseMigrator.ApplyPendingMigrationsAsync(app.Services);
 
 // Swagger is exposed in every environment so the OpenAPI doc stays
 // available for tooling outside Development. Proper auth-gating of
@@ -115,6 +107,13 @@ if (migrationsOptions.ApplyOnStartup)
 // scheme (Basic auth, session cookie, reverse-proxy) — the X-Ops-Key
 // header handler here can't serve the Swagger UI's unsolicited fetch
 // of the JSON document.
+// Wrap unhandled exceptions in RFC 7807 ProblemDetails so clients
+// always see a structured payload instead of HTML stack traces, and
+// emit StatusCodePages for 4xx/5xx responses without a body so things
+// like a bare 404 still arrive as ProblemDetails JSON.
+app.UseExceptionHandler();
+app.UseStatusCodePages();
+
 app.UseSwagger();
 app.UseSwaggerUI();
 

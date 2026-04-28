@@ -11,6 +11,9 @@ public sealed class ChampionsController(
     IChampionBuildTreeQueryService championBuildTreeQueryService) : ControllerBase
 {
     [HttpGet("{championId:int}")]
+    [ProducesResponseType(typeof(ChampionReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<ChampionReadModel>> GetChampionAsync(
         int championId,
         [FromQuery] Guid? riotAccountId,

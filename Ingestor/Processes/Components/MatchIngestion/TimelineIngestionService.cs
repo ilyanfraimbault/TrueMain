@@ -8,6 +8,14 @@ namespace Ingestor.Processes.Components.MatchIngestion;
 
 public sealed class TimelineIngestionService(IRiotMatchClient riotMatchClient) : ITimelineIngestionService
 {
+    /// <summary>
+    /// Skill events past level 11 add no information for our pattern aggregation
+    /// (SkillOrderBuilder only needs to see each basic skill reach rank 2). Cap
+    /// what we persist to keep MatchParticipant rows small — see DB optimisation
+    /// backlog: SkillEvents tronquer à 11.
+    /// </summary>
+    internal const int MaxSkillEventsPerParticipant = 11;
+
     public async Task<int> IngestTimelinesAsync(
         IDataSession session,
         RegionalRoute region,
@@ -79,7 +87,7 @@ public sealed class TimelineIngestionService(IRiotMatchClient riotMatchClient) :
                 : [];
 
             participant.SkillEvents = skillEventsByParticipant.TryGetValue(participant.ParticipantId, out var skillEvents)
-                ? skillEvents
+                ? TruncateSkillEvents(skillEvents)
                 : [];
         }
 
@@ -109,6 +117,19 @@ public sealed class TimelineIngestionService(IRiotMatchClient riotMatchClient) :
             BeforeId = timelineEvent.BeforeId,
             AfterId = timelineEvent.AfterId
         });
+    }
+
+    internal static List<SkillEvent> TruncateSkillEvents(List<SkillEvent> skillEvents)
+    {
+        if (skillEvents.Count <= MaxSkillEventsPerParticipant)
+        {
+            return skillEvents;
+        }
+
+        return skillEvents
+            .OrderBy(skillEvent => skillEvent.TimestampMs)
+            .Take(MaxSkillEventsPerParticipant)
+            .ToList();
     }
 
     private static void AddSkillEventIfApplicable(

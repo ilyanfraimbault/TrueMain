@@ -4,35 +4,89 @@ using Microsoft.Extensions.Options;
 
 namespace Ingestor;
 
-public class Worker(
+public sealed class Worker(
     ILogger<Worker> logger,
     IServiceScopeFactory scopeFactory,
     IOptions<JobOptions> jobOptions,
     IHostApplicationLifetime applicationLifetime) : BackgroundService
 {
+    private const string HeartbeatEnvironmentVariable = "INGESTOR_HEARTBEAT_PATH";
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var options = jobOptions.Value;
         var mode = JobModeParser.Parse(options.Mode);
 
-        do
+        try
+        {
+            do
+            {
+                TouchHeartbeat();
+                await RunOnceAsync(mode, stoppingToken);
+
+                if (options.RunOnce)
+                {
+                    break;
+                }
+
+                var delayMinutes = options.IntervalMinutes is > 0 ? options.IntervalMinutes.Value : 60;
+                logger.LogInformation(
+                    "Run completed. Waiting {DelayMinutes} minutes before next run.",
+                    delayMinutes);
+                await Task.Delay(TimeSpan.FromMinutes(delayMinutes), stoppingToken);
+            } while (!stoppingToken.IsCancellationRequested);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Expected on host shutdown — bubble up cleanly.
+        }
+        finally
+        {
+            applicationLifetime.StopApplication();
+        }
+    }
+
+    private void TouchHeartbeat()
+    {
+        var path = Environment.GetEnvironmentVariable(HeartbeatEnvironmentVariable);
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        try
+        {
+            File.WriteAllText(path, DateTimeOffset.UtcNow.ToString("O"));
+        }
+        catch (Exception ex)
+        {
+            // The heartbeat is a liveness signal for the Docker healthcheck;
+            // a write failure must not crash the worker. Log and move on so
+            // the next iteration can retry — the healthcheck will mark the
+            // container unhealthy if the file stays stale long enough.
+            logger.LogWarning(ex, "Failed to update Ingestor heartbeat at {Path}.", path);
+        }
+    }
+
+    private async Task RunOnceAsync(JobMode mode, CancellationToken stoppingToken)
+    {
+        try
         {
             await using var scope = scopeFactory.CreateAsyncScope();
             var processesByName = BuildProcessIndex(scope.ServiceProvider);
-
             await RunModeAsync(mode, processesByName, stoppingToken);
-
-            if (options.RunOnce)
-            {
-                break;
-            }
-
-            var delayMinutes = options.IntervalMinutes is > 0 ? options.IntervalMinutes.Value : 60;
-            logger.LogInformation("Run completed. Waiting {DelayMinutes} minutes before next run.", delayMinutes);
-            await Task.Delay(TimeSpan.FromMinutes(delayMinutes), stoppingToken);
-        } while (!stoppingToken.IsCancellationRequested);
-
-        applicationLifetime.StopApplication();
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // A single iteration failure must not kill the worker — long-running
+            // ingestion services should self-heal across runs (transient DB / Riot
+            // hiccups, schema drift caught by validation, etc.).
+            logger.LogError(ex, "Ingestor run failed; will retry on next interval.");
+        }
     }
 
     private static async Task RunModeAsync(

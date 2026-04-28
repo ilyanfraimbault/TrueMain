@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
 
-public class ScoringProcess(
+public sealed class ScoringProcess(
     ILogger<ScoringProcess> logger,
     IDataSessionFactory sessionFactory,
     IOptions<ScoringOptions> scoringOptions) : IIngestorProcess

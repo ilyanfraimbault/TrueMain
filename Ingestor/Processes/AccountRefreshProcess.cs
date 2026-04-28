@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
 
-public class AccountRefreshProcess(
+public sealed class AccountRefreshProcess(
     ILogger<AccountRefreshProcess> logger,
     IRiotAccountClient riotAccountClient,
     IDataSessionFactory sessionFactory,

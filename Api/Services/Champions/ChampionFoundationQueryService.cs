@@ -66,31 +66,10 @@ public sealed class ChampionFoundationQueryService(
         string? position,
         CancellationToken ct)
     {
-        var query = db.ChampionAggregateScopes
+        var scopes = await db.ChampionAggregateScopes
             .AsNoTracking()
-            .Where(scope => scope.ChampionId == championId && scope.QueueId == options.Value.QueueId);
-
-        if (riotAccountId.HasValue)
-        {
-            query = query.Where(scope => scope.RiotAccountId == riotAccountId.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(platformId))
-        {
-            query = query.Where(scope => scope.PlatformId == platformId);
-        }
-
-        if (!string.IsNullOrWhiteSpace(patch))
-        {
-            query = query.Where(scope => scope.GameVersion == patch);
-        }
-
-        if (!string.IsNullOrWhiteSpace(position))
-        {
-            query = query.Where(scope => scope.Position == position);
-        }
-
-        var scopes = await query.ToListAsync(ct);
+            .WhereChampionScope(championId, options.Value.QueueId, riotAccountId, patch, platformId, position)
+            .ToListAsync(ct);
         if (scopes.Count == 0)
         {
             return null;
