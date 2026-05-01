@@ -1,13 +1,12 @@
-using Data;
+using Core.Lol.Map;
+using Core.Options;
 using Data.Entities;
 using FluentAssertions;
-using Core.Options;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
-using System.Diagnostics.CodeAnalysis;
 
 namespace TrueMain.IntegrationTests;
 
@@ -29,17 +28,19 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IClassFixture<Po
         var process = new MatchDataRetentionProcess(
             NullLogger<MatchDataRetentionProcess>.Instance,
             new TestDbContextFactory(_fixture),
-            new ProcessRunRecorder(_fixture.CreateSessionFactory()),
             Microsoft.Extensions.Options.Options.Create(new MatchDataRetentionOptions
             {
                 RetainedPatchCount = 1
             }),
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions
             {
-                QueueId = 420
+                QueueId = LolQueueIds.RankedSoloDuo
             }));
+        var recorded = new RecordedProcess<MatchDataRetentionProcess>(
+            process,
+            new ProcessRunRecorder(_fixture.CreateSessionFactory()));
 
-        await process.RunAsync(CancellationToken.None);
+        await recorded.RunCoreAsync(CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         var remainingMatchIds = await db.Matches
@@ -144,14 +145,4 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IClassFixture<Po
         };
     }
 
-    private sealed class TestDbContextFactory(PostgresFixture fixture) : IDbContextFactory<TrueMainDbContext>
-    {
-        [SuppressMessage("Reliability", "CA2000", Justification = "DbContext ownership is transferred to the caller.")]
-        public ValueTask<TrueMainDbContext> CreateDbContextAsync(CancellationToken _ = default)
-            => ValueTask.FromResult(fixture.CreateDbContext());
-
-        [SuppressMessage("Reliability", "CA2000", Justification = "DbContext ownership is transferred to the caller.")]
-        public TrueMainDbContext CreateDbContext()
-            => CreateDbContextAsync().GetAwaiter().GetResult();
-    }
 }

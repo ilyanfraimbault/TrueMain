@@ -20,10 +20,272 @@ namespace Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.0-preview.2.25163.8")
+                .HasAnnotation("ProductVersion", "10.0.0")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("Data.Entities.ChampionAggregateBuild", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("BootsItemId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BuildItem0")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BuildItem1")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BuildItem2")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BuildItem3")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BuildItem4")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BuildItem5")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BuildItem6")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Games")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ScopeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Wins")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ScopeId");
+
+                    b.HasIndex("ScopeId", "BootsItemId", "BuildItem0", "BuildItem1", "BuildItem2", "BuildItem3", "BuildItem4", "BuildItem5", "BuildItem6")
+                        .IsUnique();
+
+                    b.ToTable("champion_aggregate_builds", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.ChampionAggregateRunePage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("FirstItemId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Games")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PrimaryKeystoneId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PrimaryPerk1Id")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PrimaryPerk2Id")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PrimaryPerk3Id")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PrimaryStyleId")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ScopeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SecondaryPerk1Id")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SecondaryPerk2Id")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SecondaryStyleId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("StatDefense")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("StatFlex")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("StatOffense")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Wins")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ScopeId");
+
+                    b.HasIndex("ScopeId", "FirstItemId");
+
+                    b.HasIndex("ScopeId", "FirstItemId", "PrimaryStyleId", "PrimaryKeystoneId", "PrimaryPerk1Id", "PrimaryPerk2Id", "PrimaryPerk3Id", "SecondaryStyleId", "SecondaryPerk1Id", "SecondaryPerk2Id", "StatOffense", "StatFlex", "StatDefense")
+                        .IsUnique();
+
+                    b.ToTable("champion_aggregate_rune_pages", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.ChampionAggregateScope", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AggregatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ChampionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("GameVersion")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int>("Games")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("LastGameStartTimeUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PlatformId")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<string>("Position")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("QueueId")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("RiotAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Wins")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChampionId", "GameVersion", "PlatformId", "QueueId");
+
+                    b.HasIndex("RiotAccountId", "ChampionId", "GameVersion", "PlatformId", "Position");
+
+                    b.HasIndex("RiotAccountId", "ChampionId", "GameVersion", "PlatformId", "QueueId", "Position")
+                        .IsUnique()
+                        .HasDatabaseName("IX_champion_aggregate_scopes_RiotAccountId_ChampionId_GameVer~1");
+
+                    b.ToTable("champion_aggregate_scopes", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.ChampionAggregateSkillOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Games")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ScopeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SkillOrderKey")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int>("Wins")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ScopeId");
+
+                    b.HasIndex("ScopeId", "SkillOrderKey")
+                        .IsUnique();
+
+                    b.ToTable("champion_aggregate_skill_orders", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.ChampionAggregateSpellPair", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Games")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ScopeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Spell1Id")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Spell2Id")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Wins")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ScopeId");
+
+                    b.HasIndex("ScopeId", "Spell1Id", "Spell2Id")
+                        .IsUnique();
+
+                    b.ToTable("champion_aggregate_spell_pairs", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.ChampionAggregateStarterItems", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Games")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ScopeId")
+                        .HasColumnType("uuid");
+
+                    b.PrimitiveCollection<string>("StarterItems")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("StarterItemsKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("Wins")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ScopeId");
+
+                    b.HasIndex("ScopeId", "StarterItemsKey")
+                        .IsUnique();
+
+                    b.ToTable("champion_aggregate_starter_items", (string)null);
+                });
 
             modelBuilder.Entity("Data.Entities.ChampionPatternAggregate", b =>
                 {
@@ -105,7 +367,7 @@ namespace Data.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
-                    b.PrimitiveCollection<List<int>>("StarterItems")
+                    b.PrimitiveCollection<string>("StarterItems")
                         .IsRequired()
                         .HasColumnType("jsonb");
 
@@ -657,6 +919,72 @@ namespace Data.Migrations
                     b.ToTable("riot_accounts", (string)null);
                 });
 
+            modelBuilder.Entity("Data.Entities.ChampionAggregateBuild", b =>
+                {
+                    b.HasOne("Data.Entities.ChampionAggregateScope", "Scope")
+                        .WithMany("Builds")
+                        .HasForeignKey("ScopeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Scope");
+                });
+
+            modelBuilder.Entity("Data.Entities.ChampionAggregateRunePage", b =>
+                {
+                    b.HasOne("Data.Entities.ChampionAggregateScope", "Scope")
+                        .WithMany("RunePages")
+                        .HasForeignKey("ScopeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Scope");
+                });
+
+            modelBuilder.Entity("Data.Entities.ChampionAggregateScope", b =>
+                {
+                    b.HasOne("Data.Entities.RiotAccount", "RiotAccount")
+                        .WithMany()
+                        .HasForeignKey("RiotAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RiotAccount");
+                });
+
+            modelBuilder.Entity("Data.Entities.ChampionAggregateSkillOrder", b =>
+                {
+                    b.HasOne("Data.Entities.ChampionAggregateScope", "Scope")
+                        .WithMany("SkillOrders")
+                        .HasForeignKey("ScopeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Scope");
+                });
+
+            modelBuilder.Entity("Data.Entities.ChampionAggregateSpellPair", b =>
+                {
+                    b.HasOne("Data.Entities.ChampionAggregateScope", "Scope")
+                        .WithMany("SpellPairs")
+                        .HasForeignKey("ScopeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Scope");
+                });
+
+            modelBuilder.Entity("Data.Entities.ChampionAggregateStarterItems", b =>
+                {
+                    b.HasOne("Data.Entities.ChampionAggregateScope", "Scope")
+                        .WithMany("StarterItems")
+                        .HasForeignKey("ScopeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Scope");
+                });
+
             modelBuilder.Entity("Data.Entities.ChampionPatternAggregate", b =>
                 {
                     b.HasOne("Data.Entities.RiotAccount", "RiotAccount")
@@ -701,6 +1029,19 @@ namespace Data.Migrations
                         .HasForeignKey("PersonaId");
 
                     b.Navigation("Persona");
+                });
+
+            modelBuilder.Entity("Data.Entities.ChampionAggregateScope", b =>
+                {
+                    b.Navigation("Builds");
+
+                    b.Navigation("RunePages");
+
+                    b.Navigation("SkillOrders");
+
+                    b.Navigation("SpellPairs");
+
+                    b.Navigation("StarterItems");
                 });
 
             modelBuilder.Entity("Data.Entities.Match", b =>

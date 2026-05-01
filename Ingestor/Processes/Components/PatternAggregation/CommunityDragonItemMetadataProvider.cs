@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Core.Lol.Items;
+using Core.Lol.Patches;
 
 namespace Ingestor.Processes.Components.PatternAggregation;
 
@@ -9,12 +11,12 @@ public sealed class CommunityDragonItemMetadataProvider(
     ILogger<CommunityDragonItemMetadataProvider> logger) : IItemMetadataProvider
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    private static readonly HashSet<int> TierTwoBootIds = [3006, 3047, 3111, 3020, 3158, 3117, 3009, 3013];
+    private static readonly IReadOnlySet<int> TierTwoBootIds = LolItemIds.TierTwoBoots.All;
     private readonly ConcurrentDictionary<string, Lazy<Task<IReadOnlyDictionary<int, ItemMetadata>>>> _cache = new(StringComparer.Ordinal);
 
     public Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemsAsync(string gameVersion, CancellationToken ct)
     {
-        var patch = ChampionPatternNormalization.NormalizePatchVersion(gameVersion);
+        var patch = PatchVersion.Normalize(gameVersion);
         var lazyTask = _cache.GetOrAdd(patch, static (normalizedPatch, provider) =>
             new Lazy<Task<IReadOnlyDictionary<int, ItemMetadata>>>(
                 () => provider.LoadPatchItemsAsync(normalizedPatch, CancellationToken.None),
@@ -48,11 +50,11 @@ public sealed class CommunityDragonItemMetadataProvider(
                     item.InStore,
                     ContainsCategory(categories, "Consumable"),
                     isBootsItem,
-                    item.Id == 1001,
+                    item.Id == LolItemIds.BootsOfSpeed,
                     to.Count == 0,
                     to.Count == 0
                         && isBootsItem
-                        && item.Id != 1001)
+                        && item.Id != LolItemIds.BootsOfSpeed)
                 {
                     IsInventoryTransformItem = IsInventoryTransformItem(item),
                     TransformFromItemId = item.SpecialRecipe > 0 ? item.SpecialRecipe : null
@@ -66,8 +68,8 @@ public sealed class CommunityDragonItemMetadataProvider(
     private static bool IsBootsItem(CommunityDragonItem item)
         => ContainsCategory(item.Categories ?? [], "Boots")
            || (item.From ?? []).Any(TierTwoBootIds.Contains)
-           || string.Equals(item.RequiredBuffCurrencyName, "Feats_NoxianBootPurchaseBuff", StringComparison.OrdinalIgnoreCase)
-           || string.Equals(item.RequiredBuffCurrencyName, "Feats_SpecialQuestBootBuff", StringComparison.OrdinalIgnoreCase);
+           || string.Equals(item.RequiredBuffCurrencyName, LolItemIds.RequiredBuffCurrency.FeatsNoxianBootPurchase, StringComparison.OrdinalIgnoreCase)
+           || string.Equals(item.RequiredBuffCurrencyName, LolItemIds.RequiredBuffCurrency.FeatsSpecialQuestBoot, StringComparison.OrdinalIgnoreCase);
 
     private static bool IsInventoryTransformItem(CommunityDragonItem item)
         => !item.InStore

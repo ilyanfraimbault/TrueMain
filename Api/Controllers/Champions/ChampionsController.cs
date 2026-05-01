@@ -1,6 +1,6 @@
-using TrueMain.Mapping.Champions;
-using TrueMain.Services.Champions;
 using Microsoft.AspNetCore.Mvc;
+using TrueMain.ReadModels.Champions;
+using TrueMain.Services.Champions;
 
 namespace TrueMain.Controllers.Champions;
 
@@ -11,7 +11,10 @@ public sealed class ChampionsController(
     IChampionBuildTreeQueryService championBuildTreeQueryService) : ControllerBase
 {
     [HttpGet("{championId:int}")]
-    public async Task<ActionResult> GetChampionAsync(
+    [ProducesResponseType(typeof(ChampionReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<ChampionReadModel>> GetChampionAsync(
         int championId,
         [FromQuery] Guid? riotAccountId,
         [FromQuery] string? patch,
@@ -21,42 +24,48 @@ public sealed class ChampionsController(
         [FromQuery] int minBranchGames = 1,
         CancellationToken ct = default)
     {
-        patch = NullIfEmpty(patch);
-        platformId = NullIfEmpty(platformId);
-        position = NullIfEmpty(position);
+        // Canonicalise raw query params to the exact strings stored on
+        // champion_aggregate_scopes. The query services do exact-string
+        // comparisons, so passing through the raw values causes silent 404s
+        // for inputs like ?platformId=euw1 or ?patch=16.4.521.
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+        var normalizedPlatform = ChampionQueryParameterNormalizer.NormalizePlatform(platformId);
+        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
 
-        var requestedFoundationReadModel = await championFoundationQueryService.GetAsync(
+        var foundationReadModel = await championFoundationQueryService.GetAsync(
             championId,
             riotAccountId,
-            patch,
-            platformId,
-            position,
+            normalizedPatch,
+            normalizedPlatform,
+            normalizedPosition,
             ct);
 
-        if (requestedFoundationReadModel is null)
+        if (foundationReadModel is null)
         {
             return NotFound();
         }
 
-        var effectivePatch = NullIfEmpty(patch ?? requestedFoundationReadModel.Summary.LatestPatchVersion);
-        var effectivePosition = NullIfEmpty(position ?? requestedFoundationReadModel.Summary.Position);
+        var effectivePatch = normalizedPatch
+            ?? ChampionQueryParameterNormalizer.NormalizePatch(foundationReadModel.Summary.LatestPatchVersion);
+        var effectivePosition = normalizedPosition
+            ?? ChampionQueryParameterNormalizer.NormalizePosition(foundationReadModel.Summary.Position);
 
         var buildTreeReadModel = await championBuildTreeQueryService.GetAsync(
             championId,
             riotAccountId,
             effectivePatch,
-            platformId,
+            normalizedPlatform,
             effectivePosition,
             maxDepth,
             minBranchGames,
             ct);
 
-        var coreReadModel = ChampionCoreBuilder.Build(
-            requestedFoundationReadModel);
-
-        return Ok(ChampionMapper.ToContract(requestedFoundationReadModel, coreReadModel, buildTreeReadModel));
+        return Ok(new ChampionReadModel
+        {
+            Summary = foundationReadModel.Summary,
+            Core = foundationReadModel.Core,
+            Advanced = foundationReadModel.Advanced,
+            BuildTree = buildTreeReadModel
+        });
     }
-
-    private static string? NullIfEmpty(string? value)
-        => string.IsNullOrWhiteSpace(value) ? null : value;
 }

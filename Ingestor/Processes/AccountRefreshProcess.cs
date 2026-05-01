@@ -3,53 +3,36 @@ using Data.Entities;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Riot;
-using Ingestor.Services;
 using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
 
-public class AccountRefreshProcess(
+public sealed class AccountRefreshProcess(
     ILogger<AccountRefreshProcess> logger,
     IRiotAccountClient riotAccountClient,
     IDataSessionFactory sessionFactory,
-    IProcessRunRecorder runRecorder,
-    IOptions<AccountRefreshOptions> refreshOptions)
+    IOptions<AccountRefreshOptions> refreshOptions) : IIngestorProcess
 {
-    private const string ProcessName = "AccountRefresh";
+    public string Name => "AccountRefresh";
 
-    public async Task RunAsync(CancellationToken ct)
+    public async Task<object?> RunCoreAsync(CancellationToken ct)
     {
-        var startedAt = DateTime.UtcNow;
-
-        try
+        var accounts = await LoadAccountsForRefreshAsync(ct);
+        if (accounts.Count == 0)
         {
-            var accounts = await LoadAccountsForRefreshAsync(ct);
-            if (accounts.Count == 0)
-            {
-                logger.LogInformation("No riot accounts found for refresh.");
-                await runRecorder.RecordNoOpAsync(
-                    ProcessName,
-                    startedAt,
-                    new { reason = "No riot accounts found for refresh.", selected = 0 },
-                    ct);
-                return;
-            }
-
-            var summary = await RefreshAccountsAsync(accounts, ct);
-            logger.LogInformation(
-                "Account refresh summary: selected={Selected}, updated={Updated}, skipped={Skipped}, failed={Failed}.",
-                summary.Selected,
-                summary.Updated,
-                summary.Skipped,
-                summary.Failed);
-
-            await runRecorder.RecordSuccessAsync(ProcessName, startedAt, BuildSuccessPayload(summary), ct);
+            logger.LogInformation("No riot accounts found for refresh.");
+            return new { reason = "No riot accounts found for refresh.", selected = 0 };
         }
-        catch (Exception ex)
-        {
-            await runRecorder.RecordFailureAsync(ProcessName, startedAt, ex, ct);
-            throw;
-        }
+
+        var summary = await RefreshAccountsAsync(accounts, ct);
+        logger.LogInformation(
+            "Account refresh summary: selected={Selected}, updated={Updated}, skipped={Skipped}, failed={Failed}.",
+            summary.Selected,
+            summary.Updated,
+            summary.Skipped,
+            summary.Failed);
+
+        return BuildSuccessPayload(summary);
     }
 
     private async Task<IReadOnlyList<AccountKey>> LoadAccountsForRefreshAsync(CancellationToken ct)

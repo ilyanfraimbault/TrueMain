@@ -1,10 +1,9 @@
+using Core.Lol.Map;
 using Core.Options;
-using Data;
 using Data.Entities;
 using FluentAssertions;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.PatternAggregation;
-using Ingestor.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -27,7 +26,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
         await SeedChampionPatternDataAsync();
 
         var process = CreateProcess();
-        await process.RunAsync(CancellationToken.None);
+        await process.RunCoreAsync(CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var aggregates = await verifyDb.ChampionPatternAggregates
@@ -63,8 +62,8 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
         await SeedChampionPatternDataAsync();
 
         var process = CreateProcess();
-        await process.RunAsync(CancellationToken.None);
-        await process.RunAsync(CancellationToken.None);
+        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var aggregates = await verifyDb.ChampionPatternAggregates.ToListAsync();
@@ -81,7 +80,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
         await SeedChampionPatternDataAsync();
 
         var process = CreateProcess();
-        await process.RunAsync(CancellationToken.None);
+        await process.RunCoreAsync(CancellationToken.None);
 
         await using (var mutateDb = _fixture.CreateDbContext())
         {
@@ -95,7 +94,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
             await mutateDb.SaveChangesAsync();
         }
 
-        await process.RunAsync(CancellationToken.None);
+        await process.RunCoreAsync(CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         (await verifyDb.ChampionPatternAggregates.ToListAsync()).Should().BeEmpty();
@@ -108,7 +107,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
         await SeedChampionPatternDataAsync(includeShortMatch: true);
 
         var process = CreateProcess();
-        await process.RunAsync(CancellationToken.None);
+        await process.RunCoreAsync(CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var aggregates = await verifyDb.ChampionPatternAggregates.ToListAsync();
@@ -120,8 +119,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
     private ChampionPatternAggregationProcess CreateProcess()
         => new(
             NullLogger<ChampionPatternAggregationProcess>.Instance,
-            new FakeProcessRunRecorder(),
-            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = 420 }),
+            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueIds.RankedSoloDuo }),
             new ChampionPatternSourceRowReader(new TestDbContextFactory(_fixture)),
             new ChampionPatternAggregateBuilder(
                 new FakeItemMetadataProvider()),
@@ -166,8 +164,8 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
             {
                 Id = "KR_AGG_1",
                 PlatformId = "KR",
-                QueueId = 420,
-                MapId = 11,
+                QueueId = LolQueueIds.RankedSoloDuo,
+                MapId = LolMapIds.SummonersRift,
                 GameMode = "CLASSIC",
                 GameType = "MATCHED_GAME",
                 GameStartTimeUtc = now.AddHours(-2),
@@ -180,8 +178,8 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
             {
                 Id = "KR_AGG_2",
                 PlatformId = "KR",
-                QueueId = 420,
-                MapId = 11,
+                QueueId = LolQueueIds.RankedSoloDuo,
+                MapId = LolMapIds.SummonersRift,
                 GameMode = "CLASSIC",
                 GameType = "MATCHED_GAME",
                 GameStartTimeUtc = now.AddHours(-1),
@@ -197,8 +195,8 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
             {
                 Id = "KR_AGG_3",
                 PlatformId = "KR",
-                QueueId = 420,
-                MapId = 11,
+                QueueId = LolQueueIds.RankedSoloDuo,
+                MapId = LolMapIds.SummonersRift,
                 GameMode = "CLASSIC",
                 GameType = "MATCHED_GAME",
                 GameStartTimeUtc = now.AddMinutes(-30),
@@ -299,24 +297,4 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
             => Task.FromResult(Metadata);
     }
 
-    private sealed class TestDbContextFactory(PostgresFixture fixture) : IDbContextFactory<TrueMainDbContext>
-    {
-        public TrueMainDbContext CreateDbContext() => fixture.CreateDbContext();
-
-        public Task<TrueMainDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult(fixture.CreateDbContext());
-    }
-
-    private sealed class FakeProcessRunRecorder : IProcessRunRecorder
-    {
-        public Task RecordAsync(
-            string processName,
-            DateTime startedAtUtc,
-            DateTime completedAtUtc,
-            ProcessRunStatus status,
-            object? metrics,
-            string? error,
-            CancellationToken ct)
-            => Task.CompletedTask;
-    }
 }

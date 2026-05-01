@@ -1,3 +1,4 @@
+using Data.Entities;
 using TrueMain.ReadModels.Champions;
 
 namespace TrueMain.Services.Champions;
@@ -7,42 +8,86 @@ internal static class ChampionCoreBuilder
     private const int MaxPreviewBuildItems = 3;
 
     public static ChampionCoreReadModel Build(
-        ChampionFoundationReadModel foundationReadModel,
+        int sampleSize,
+        ChampionAdvancedDetailsReadModel advanced,
+        IReadOnlyCollection<ChampionAggregateBuild> builds,
         bool includeBuildPath = true)
     {
-        var primaryStarterItems = foundationReadModel.Advanced.StarterItemOptions.FirstOrDefault();
-        var correlatedPattern = foundationReadModel.CorrelatedPatterns
-            .FirstOrDefault(pattern => pattern.BuildItemIds.Count > 0)
-            ?? foundationReadModel.CorrelatedPatterns.FirstOrDefault();
+        var primaryStarterItems = advanced.StarterItemOptions.FirstOrDefault();
+        var primarySummonerSpells = advanced.SummonerSpellOptions.FirstOrDefault();
+        var primarySkillOrder = advanced.SkillOrderOptions.FirstOrDefault();
+        var primaryRunePage = advanced.RunePageOptions.FirstOrDefault();
+
+        var bootsOption = SelectBoots(builds, sampleSize);
+        var buildPathItemIds = includeBuildPath
+            ? BuildPrimaryBuildPath(builds)
+            : [];
 
         return new ChampionCoreReadModel
         {
-            SampleSize = foundationReadModel.Advanced.SampleSize,
+            SampleSize = sampleSize,
             StarterItems = primaryStarterItems,
-            Boots = correlatedPattern?.Boots,
-            BuildPathItemIds = includeBuildPath
-                ? BuildPrimaryBuildPath(foundationReadModel.CorrelatedPatterns)
-                : [],
-            SummonerSpells = correlatedPattern?.SummonerSpells,
-            SkillOrder = correlatedPattern?.SkillOrder
+            Boots = bootsOption,
+            BuildPath = buildPathItemIds.Count == 0
+                ? null
+                : new BuildPathPreviewReadModel { ItemIds = buildPathItemIds },
+            SummonerSpells = primarySummonerSpells,
+            SkillOrder = primarySkillOrder,
+            RunePage = primaryRunePage
         };
     }
 
-    private static IReadOnlyList<int> BuildPrimaryBuildPath(
-        IReadOnlyList<ChampionCorrelatedPatternReadModel> patterns)
+    private static ItemSetOptionReadModel? SelectBoots(
+        IReadOnlyCollection<ChampionAggregateBuild> builds,
+        int sampleSize)
     {
-        if (patterns.Count == 0)
+        if (builds.Count == 0 || sampleSize <= 0)
+        {
+            return null;
+        }
+
+        var best = builds
+            .Where(build => build.BootsItemId > 0)
+            .GroupBy(build => build.BootsItemId)
+            .Select(group =>
+            {
+                var games = group.Sum(build => build.Games);
+                return new ItemSetOptionReadModel
+                {
+                    ItemIds = [group.Key],
+                    Games = games,
+                    PlayRate = ChampionOptionProjector.ComputeRate(games, sampleSize),
+                    WinRate = ChampionOptionProjector.ComputeRate(group.Sum(build => build.Wins), games)
+                };
+            })
+            .OrderByDescending(option => option.Games)
+            .ThenByDescending(option => option.WinRate)
+            .ThenBy(option => option.ItemIds[0])
+            .FirstOrDefault();
+
+        return best;
+    }
+
+    private static IReadOnlyList<int> BuildPrimaryBuildPath(IReadOnlyCollection<ChampionAggregateBuild> builds)
+    {
+        if (builds.Count == 0)
         {
             return [];
         }
 
         var roots = new Dictionary<int, MutableBuildNode>();
 
-        foreach (var pattern in patterns.Where(pattern => pattern.BuildItemIds.Count > 0))
+        foreach (var build in builds)
         {
+            var path = ExtractBuildPath(build);
+            if (path.Count == 0)
+            {
+                continue;
+            }
+
             var level = roots;
 
-            foreach (var itemId in pattern.BuildItemIds)
+            foreach (var itemId in path)
             {
                 if (!level.TryGetValue(itemId, out var node))
                 {
@@ -50,8 +95,8 @@ internal static class ChampionCoreBuilder
                     level[itemId] = node;
                 }
 
-                node.Games += pattern.Games;
-                node.Wins += pattern.Wins;
+                node.Games += build.Games;
+                node.Wins += build.Wins;
                 level = node.Children;
             }
         }
@@ -61,19 +106,33 @@ internal static class ChampionCoreBuilder
             return [];
         }
 
-        var path = new List<int>(MaxPreviewBuildItems);
+        var previewPath = new List<int>(MaxPreviewBuildItems);
         var current = SelectBestNode(roots.Values);
 
-        while (current is not null && path.Count < MaxPreviewBuildItems)
+        while (current is not null && previewPath.Count < MaxPreviewBuildItems)
         {
-            path.Add(current.ItemId);
+            previewPath.Add(current.ItemId);
             current = current.Children.Count == 0
                 ? null
                 : SelectBestNode(current.Children.Values);
         }
 
-        return path;
+        return previewPath;
     }
+
+    private static List<int> ExtractBuildPath(ChampionAggregateBuild build)
+        => new[]
+        {
+            build.BuildItem0,
+            build.BuildItem1,
+            build.BuildItem2,
+            build.BuildItem3,
+            build.BuildItem4,
+            build.BuildItem5,
+            build.BuildItem6
+        }
+        .Where(itemId => itemId > 0)
+        .ToList();
 
     private static MutableBuildNode? SelectBestNode(IEnumerable<MutableBuildNode> nodes)
         => nodes

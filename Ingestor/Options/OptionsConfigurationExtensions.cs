@@ -4,19 +4,6 @@ namespace Ingestor.Options;
 
 public static class OptionsConfigurationExtensions
 {
-    private static readonly HashSet<string> SupportedJobModes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "Full",
-        "DiscoveryOnly",
-        "ScoringOnly",
-        "MatchIngestionOnly",
-        "MainAnalysisOnly",
-        "PatternAggregationOnly",
-        "AccountRefreshOnly",
-        "MatchDataRetentionOnly",
-        "RetentionOnly"
-    };
-
     public static IServiceCollection AddValidatedOptions(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptions<RiotOptions>()
@@ -84,8 +71,8 @@ public static class OptionsConfigurationExtensions
 
         services.AddOptions<JobOptions>()
             .Bind(configuration.GetSection("Job"))
-            .Validate(options => SupportedJobModes.Contains(options.Mode),
-                $"Job:Mode must be one of: {string.Join(", ", SupportedJobModes)}")
+            .Validate(options => JobModeParser.TryParse(options.Mode, out _),
+                $"Job:Mode must be one of: {string.Join(", ", Enum.GetNames<JobMode>())} (or the legacy alias RetentionOnly).")
             .Validate(options => options.RunOnce || (options.IntervalMinutes.HasValue && options.IntervalMinutes > 0),
                 "Job:IntervalMinutes must be greater than 0 when RunOnce is false.")
             .ValidateOnStart();

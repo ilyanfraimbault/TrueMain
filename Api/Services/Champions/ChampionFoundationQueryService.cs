@@ -19,90 +19,98 @@ public sealed class ChampionFoundationQueryService(
         string? position,
         CancellationToken ct)
     {
-        var query = db.ChampionPatternAggregates
+        var scopes = await LoadScopedScopesAsync(championId, riotAccountId, patch, platformId, position, ct);
+        if (scopes is null)
+        {
+            return null;
+        }
+
+        var scopeIds = scopes.Select(scope => scope.Id).ToList();
+        var starterItems = await db.ChampionAggregateStarterItems.AsNoTracking()
+            .Where(row => scopeIds.Contains(row.ScopeId))
+            .ToListAsync(ct);
+        var spellPairs = await db.ChampionAggregateSpellPairs.AsNoTracking()
+            .Where(row => scopeIds.Contains(row.ScopeId))
+            .ToListAsync(ct);
+        var skillOrders = await db.ChampionAggregateSkillOrders.AsNoTracking()
+            .Where(row => scopeIds.Contains(row.ScopeId))
+            .ToListAsync(ct);
+        var builds = await db.ChampionAggregateBuilds.AsNoTracking()
+            .Where(row => scopeIds.Contains(row.ScopeId))
+            .ToListAsync(ct);
+        var runePages = await db.ChampionAggregateRunePages.AsNoTracking()
+            .Where(row => scopeIds.Contains(row.ScopeId))
+            .ToListAsync(ct);
+
+        var sampleSize = scopes.Sum(scope => scope.Games);
+        var advanced = ChampionOptionProjector.BuildAdvancedDetails(
+            starterItems,
+            spellPairs,
+            skillOrders,
+            runePages,
+            sampleSize);
+
+        return new ChampionFoundationReadModel
+        {
+            Summary = BuildSummary(championId, scopes.First().GameVersion, scopes),
+            Core = ChampionCoreBuilder.Build(sampleSize, advanced, builds),
+            Advanced = advanced
+        };
+    }
+
+    internal async Task<IReadOnlyList<ChampionAggregateScope>?> LoadScopedScopesAsync(
+        int championId,
+        Guid? riotAccountId,
+        string? patch,
+        string? platformId,
+        string? position,
+        CancellationToken ct)
+    {
+        var scopes = await db.ChampionAggregateScopes
             .AsNoTracking()
-            .Where(aggregate => aggregate.ChampionId == championId && aggregate.QueueId == options.Value.QueueId);
-
-        if (riotAccountId.HasValue)
-        {
-            query = query.Where(aggregate => aggregate.RiotAccountId == riotAccountId.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(platformId))
-        {
-            query = query.Where(aggregate => aggregate.PlatformId == platformId);
-        }
-
-        if (!string.IsNullOrWhiteSpace(patch))
-        {
-            query = query.Where(aggregate => aggregate.GameVersion == patch);
-        }
-
-        if (!string.IsNullOrWhiteSpace(position))
-        {
-            query = query.Where(aggregate => aggregate.Position == position);
-        }
-
-        var aggregateRows = await query.ToListAsync(ct);
-
-        if (aggregateRows.Count == 0)
+            .WhereChampionScope(championId, options.Value.QueueId, riotAccountId, patch, platformId, position)
+            .ToListAsync(ct);
+        if (scopes.Count == 0)
         {
             return null;
         }
 
-        var selectedPatchVersion = ChampionAggregateScopeResolver.ResolvePatchVersion(aggregateRows, patch);
-
-        if (string.IsNullOrWhiteSpace(selectedPatchVersion))
+        var selectedPatch = ChampionAggregateScopeResolver.ResolvePatchVersion(scopes, patch);
+        if (string.IsNullOrWhiteSpace(selectedPatch))
         {
             return null;
         }
 
-        var patchRows = aggregateRows
-            .Where(aggregate => string.Equals(aggregate.GameVersion, selectedPatchVersion, StringComparison.Ordinal))
+        var patchScopes = scopes
+            .Where(scope => string.Equals(scope.GameVersion, selectedPatch, StringComparison.Ordinal))
             .ToList();
-
-        if (patchRows.Count == 0)
+        if (patchScopes.Count == 0)
         {
             return null;
         }
 
         var effectivePosition = string.IsNullOrWhiteSpace(position)
-            ? ChampionAggregateScopeResolver.ResolveDominantPosition(patchRows)
+            ? ChampionAggregateScopeResolver.ResolveDominantPosition(patchScopes)
             : position;
 
-        var scopedRows = string.IsNullOrWhiteSpace(effectivePosition)
-            ? patchRows
-            : patchRows
-                .Where(aggregate => string.Equals(aggregate.Position, effectivePosition, StringComparison.Ordinal))
+        var scopedScopes = string.IsNullOrWhiteSpace(effectivePosition)
+            ? patchScopes
+            : patchScopes
+                .Where(scope => string.Equals(scope.Position, effectivePosition, StringComparison.Ordinal))
                 .ToList();
 
-        if (scopedRows.Count == 0)
-        {
-            return null;
-        }
-
-        return new ChampionFoundationReadModel
-        {
-            Summary = BuildSummary(championId, selectedPatchVersion, scopedRows),
-            Advanced = ChampionOptionProjector.BuildAdvancedDetails(scopedRows),
-            CorrelatedPatterns = ChampionOptionProjector.BuildCorrelatedPatterns(
-                scopedRows,
-                scopedRows.Sum(row => row.Games))
-        };
+        return scopedScopes.Count == 0 ? null : scopedScopes;
     }
 
     private static ChampionSummaryReadModel BuildSummary(
         int championId,
         string latestPatchVersion,
-        IReadOnlyCollection<ChampionPatternAggregate> rows)
+        IReadOnlyCollection<ChampionAggregateScope> scopes)
     {
-        var totalGames = rows.Sum(row => row.Games);
-        var totalWins = rows.Sum(row => row.Wins);
-        var trueMainCount = rows
-            .Select(row => row.RiotAccountId)
-            .Distinct()
-            .Count();
-        var position = ChampionAggregateScopeResolver.ResolveDominantPosition(rows);
+        var totalGames = scopes.Sum(scope => scope.Games);
+        var totalWins = scopes.Sum(scope => scope.Wins);
+        var trueMainCount = scopes.Select(scope => scope.RiotAccountId).Distinct().Count();
+        var dominantPosition = ChampionAggregateScopeResolver.ResolveDominantPosition(scopes);
 
         return new ChampionSummaryReadModel
         {
@@ -110,9 +118,9 @@ public sealed class ChampionFoundationQueryService(
             Games = totalGames,
             WinRate = ChampionOptionProjector.ComputeRate(totalWins, totalGames),
             TrueMainCount = trueMainCount,
-            Position = position,
+            Position = dominantPosition,
             LatestPatchVersion = latestPatchVersion,
-            LastUpdatedAtUtc = rows.Max(row => row.AggregatedAtUtc)
+            LastUpdatedAtUtc = scopes.Max(scope => scope.AggregatedAtUtc)
         };
     }
 }

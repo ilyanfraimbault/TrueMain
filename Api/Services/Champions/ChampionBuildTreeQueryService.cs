@@ -1,5 +1,6 @@
 using Core.Options;
 using Data;
+using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrueMain.ReadModels.Champions;
@@ -23,37 +24,36 @@ public sealed class ChampionBuildTreeQueryService(
         maxDepth = Math.Clamp(maxDepth, 1, 7);
         minBranchGames = Math.Max(1, minBranchGames);
 
-        var query = db.ChampionPatternAggregates
+        var scopeIds = await db.ChampionAggregateScopes
             .AsNoTracking()
-            .Where(aggregate => aggregate.ChampionId == championId && aggregate.QueueId == options.Value.QueueId);
+            .WhereChampionScope(championId, options.Value.QueueId, riotAccountId, patch, platformId, position)
+            .Select(scope => scope.Id)
+            .ToListAsync(ct);
 
-        if (riotAccountId.HasValue)
-        {
-            query = query.Where(aggregate => aggregate.RiotAccountId == riotAccountId.Value);
-        }
+        var builds = scopeIds.Count == 0
+            ? []
+            : await db.ChampionAggregateBuilds.AsNoTracking()
+                .Where(build => scopeIds.Contains(build.ScopeId))
+                .Where(build =>
+                    build.BuildItem0 > 0
+                    || build.BuildItem1 > 0
+                    || build.BuildItem2 > 0
+                    || build.BuildItem3 > 0
+                    || build.BuildItem4 > 0
+                    || build.BuildItem5 > 0
+                    || build.BuildItem6 > 0)
+                .ToListAsync(ct);
 
-        if (!string.IsNullOrWhiteSpace(patch))
-        {
-            query = query.Where(aggregate => aggregate.GameVersion == patch);
-        }
+        var runePages = scopeIds.Count == 0
+            ? []
+            : await db.ChampionAggregateRunePages.AsNoTracking()
+                .Where(runePage => scopeIds.Contains(runePage.ScopeId))
+                .Where(runePage => runePage.FirstItemId > 0)
+                .ToListAsync(ct);
 
-        if (!string.IsNullOrWhiteSpace(platformId))
-        {
-            query = query.Where(aggregate => aggregate.PlatformId == platformId);
-        }
-
-        if (!string.IsNullOrWhiteSpace(position))
-        {
-            query = query.Where(aggregate => aggregate.Position == position);
-        }
-
-        var rows = await query.ToListAsync(ct);
-        var buildRows = rows
-            .Where(HasBuildPath)
-            .ToList();
-        var totalGames = buildRows.Sum(row => row.Games);
-        var build = ChampionBuildTreeBuilder.Build(buildRows, totalGames, maxDepth, minBranchGames);
-        var correlatedBoots = SelectBoots(buildRows, totalGames);
+        var totalGames = builds.Sum(build => build.Games);
+        var tree = ChampionBuildTreeBuilder.Build(builds, totalGames, maxDepth, minBranchGames, runePages);
+        var bootsOption = SelectBoots(builds, totalGames);
 
         return new ChampionBuildTreeReadModel
         {
@@ -63,48 +63,37 @@ public sealed class ChampionBuildTreeQueryService(
             RiotAccountId = riotAccountId,
             PlatformId = platformId,
             TotalGames = totalGames,
-            Boots = correlatedBoots,
-            Build = build
+            Boots = bootsOption,
+            Build = tree
         };
     }
 
-    private static bool HasBuildPath(Data.Entities.ChampionPatternAggregate aggregate)
-        => aggregate.BuildItem0 > 0 ||
-           aggregate.BuildItem1 > 0 ||
-           aggregate.BuildItem2 > 0 ||
-           aggregate.BuildItem3 > 0 ||
-           aggregate.BuildItem4 > 0 ||
-           aggregate.BuildItem5 > 0 ||
-           aggregate.BuildItem6 > 0;
-
     private static ItemSetOptionReadModel? SelectBoots(
-        IReadOnlyList<Data.Entities.ChampionPatternAggregate> rows,
+        IReadOnlyList<ChampionAggregateBuild> builds,
         int totalGames)
     {
-        if (rows.Count == 0 || totalGames <= 0)
+        if (builds.Count == 0 || totalGames <= 0)
         {
             return null;
         }
 
-        var selectedBoots = rows
-            .Where(row => row.BootsItemId > 0)
-            .GroupBy(row => row.BootsItemId)
+        return builds
+            .Where(build => build.BootsItemId > 0)
+            .GroupBy(build => build.BootsItemId)
             .Select(group =>
             {
-                var games = group.Sum(row => row.Games);
+                var games = group.Sum(build => build.Games);
                 return new ItemSetOptionReadModel
                 {
                     ItemIds = [group.Key],
                     Games = games,
                     PlayRate = ChampionOptionProjector.ComputeRate(games, totalGames),
-                    WinRate = ChampionOptionProjector.ComputeRate(group.Sum(row => row.Wins), games)
+                    WinRate = ChampionOptionProjector.ComputeRate(group.Sum(build => build.Wins), games)
                 };
             })
             .OrderByDescending(option => option.Games)
             .ThenByDescending(option => option.WinRate)
             .ThenBy(option => option.ItemIds[0])
             .FirstOrDefault();
-
-        return selectedBoots;
     }
 }

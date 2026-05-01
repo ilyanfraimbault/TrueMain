@@ -1,10 +1,13 @@
+using System.Threading.RateLimiting;
 using Core.Options;
-using TrueMain.Services.Champions;
-using TrueMain.Services.Ops;
 using Data;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using TrueMain.Authentication;
 using TrueMain.Options;
+using TrueMain.Services.Champions;
+using TrueMain.Services.Ops;
 
 var builder = WebApplication.CreateBuilder(args);
 const string frontendCorsPolicy = "FrontendCors";
@@ -12,29 +15,70 @@ const string frontendCorsPolicy = "FrontendCors";
 // Add services to the container.
 
 builder.Services.AddControllers();
-builder.Services.AddHealthChecks();
+builder.Services.AddProblemDetails();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+var healthConnectionString = builder.Configuration.GetConnectionString("TrueMain");
+var healthChecks = builder.Services.AddHealthChecks();
+if (!string.IsNullOrWhiteSpace(healthConnectionString))
+{
+    healthChecks.AddNpgSql(
+        healthConnectionString,
+        name: "postgres",
+        tags: ["ready"]);
+}
+
+var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(frontendCorsPolicy, policy =>
     {
-        policy
-            .WithOrigins(
-                "http://localhost:3000",
-                "http://127.0.0.1:3000",
-                "http://localhost:3001",
-                "http://127.0.0.1:3001")
-            .AllowAnyHeader()
-            .AllowAnyMethod();
+        var builderPolicy = policy.AllowAnyHeader().AllowAnyMethod();
+        if (corsOrigins.Length > 0)
+        {
+            builderPolicy.WithOrigins(corsOrigins);
+        }
     });
 });
+
 builder.Services.AddOptions<MainAnalysisOptions>()
     .Bind(builder.Configuration.GetSection("MainAnalysis"))
     .Validate(options => options.QueueId > 0, "MainAnalysis:QueueId must be greater than 0.")
     .ValidateOnStart();
 builder.Services.AddOptions<OpsOptions>()
-    .Bind(builder.Configuration.GetSection("Ops"));
+    .Bind(builder.Configuration.GetSection("Ops"))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+builder.Services.AddOptions<DatabaseOptions>()
+    .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName));
+
+builder.Services
+    .AddAuthentication(ApiKeyAuthenticationDefaults.Scheme)
+    .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(
+        ApiKeyAuthenticationDefaults.Scheme,
+        _ => { });
+builder.Services.AddAuthorization();
+
+// Rate limiting: default per-IP fixed window (100 req / min with a small
+// queue) shields the public champion endpoints from casual abuse. Ops
+// endpoints are already gated by ApiKey and don't need the same ceiling —
+// they opt into a dedicated named policy ("ops") which is attached via
+// [EnableRateLimiting("ops")] on the controller if we ever want it.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 100,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 10,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+            }));
+});
 builder.Services.AddScoped<IChampionFoundationQueryService, ChampionFoundationQueryService>();
 builder.Services.AddScoped<IChampionBuildTreeQueryService, ChampionBuildTreeQueryService>();
 builder.Services.AddScoped<IPipelineHealthQueryService, PipelineHealthQueryService>();
@@ -55,28 +99,39 @@ builder.Services.AddDbContext<TrueMainDbContext>(options =>
     options.UseNpgsql(dataSource);
 });
 var app = builder.Build();
-var applyMigrationsOnStartup = builder.Configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup");
+await DatabaseMigrator.ApplyPendingMigrationsAsync(app.Services);
 
-if (applyMigrationsOnStartup && !app.Environment.IsEnvironment("Testing"))
-{
-    using var scope = app.Services.CreateScope();
-    var dbContext = scope.ServiceProvider.GetRequiredService<TrueMainDbContext>();
-    await dbContext.Database.MigrateAsync();
-}
+// Swagger is exposed in every environment so the OpenAPI doc stays
+// available for tooling outside Development. Proper auth-gating of
+// both the UI and /swagger/v1/swagger.json needs a browser-compatible
+// scheme (Basic auth, session cookie, reverse-proxy) — the X-Ops-Key
+// header handler here can't serve the Swagger UI's unsolicited fetch
+// of the JSON document.
+// Wrap unhandled exceptions in RFC 7807 ProblemDetails so clients
+// always see a structured payload instead of HTML stack traces, and
+// emit StatusCodePages for 4xx/5xx responses without a body so things
+// like a bare 404 still arrive as ProblemDetails JSON.
+app.UseExceptionHandler();
+app.UseStatusCodePages();
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
 app.UseCors(frontendCorsPolicy);
 
+app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/healthz", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = _ => false
+}).DisableRateLimiting();
+app.MapHealthChecks("/readyz", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = registration => registration.Tags.Contains("ready")
+}).DisableRateLimiting();
 app.MapControllers();
 
 app.Run();

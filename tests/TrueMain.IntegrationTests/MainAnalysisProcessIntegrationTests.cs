@@ -1,9 +1,9 @@
+using Core.Lol.Map;
 using Core.Options;
 using Data.Entities;
 using FluentAssertions;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.MainAnalysis;
-using Ingestor.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace TrueMain.IntegrationTests;
@@ -26,7 +26,6 @@ public sealed class MainAnalysisProcessIntegrationTests : IClassFixture<Postgres
         var process = new MainAnalysisProcess(
             NullLogger<MainAnalysisProcess>.Instance,
             _fixture.CreateSessionFactory(),
-            new FakeProcessRunRecorder(),
             new MainStatsCalculator(),
             new MainDemotionPolicy(),
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions
@@ -34,7 +33,7 @@ public sealed class MainAnalysisProcessIntegrationTests : IClassFixture<Postgres
                 BatchSize = 10,
                 ProcessingBatchSize = 10,
                 MatchesToConsider = 20,
-                QueueId = 420,
+                QueueId = LolQueueIds.RankedSoloDuo,
                 MinMatchesToEvaluate = 5,
                 PlayRateThreshold = 0.5,
                 OtpPlayRateThreshold = 0.8,
@@ -42,7 +41,7 @@ public sealed class MainAnalysisProcessIntegrationTests : IClassFixture<Postgres
                 RecomputeAfterHours = 24
             }));
 
-        await process.RunAsync(CancellationToken.None);
+        await process.RunCoreAsync(CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var account = verifyDb.RiotAccounts.Single(a => a.PlatformId == "KR" && a.Puuid == "puuid-main-1");
@@ -109,8 +108,8 @@ public sealed class MainAnalysisProcessIntegrationTests : IClassFixture<Postgres
             {
                 Id = matchId,
                 PlatformId = "KR",
-                QueueId = 420,
-                MapId = 11,
+                QueueId = LolQueueIds.RankedSoloDuo,
+                MapId = LolMapIds.SummonersRift,
                 GameMode = "CLASSIC",
                 GameType = "MATCHED_GAME",
                 GameStartTimeUtc = now.AddHours(-i),
@@ -164,16 +163,4 @@ public sealed class MainAnalysisProcessIntegrationTests : IClassFixture<Postgres
         await db.SaveChangesAsync();
     }
 
-    private sealed class FakeProcessRunRecorder : IProcessRunRecorder
-    {
-        public Task RecordAsync(
-            string processName,
-            DateTime startedAtUtc,
-            DateTime finishedAtUtc,
-            ProcessRunStatus status,
-            object? summary,
-            string? error,
-            CancellationToken ct)
-            => Task.CompletedTask;
-    }
 }
