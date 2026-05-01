@@ -1,3 +1,4 @@
+using Core.Lol.Patches;
 using Data.Entities;
 
 namespace TrueMain.Services.Champions;
@@ -10,7 +11,13 @@ internal static class ChampionAggregateScopeResolver
     {
         if (!string.IsNullOrWhiteSpace(requestedPatch))
         {
-            return requestedPatch;
+            // Defence in depth: the controller already canonicalises HTTP
+            // query params, but service-layer callers (tests, future
+            // entrypoints) might pass a full Riot version string like
+            // "16.4.521.123". Aggregates persist as "major.minor", so we
+            // canonicalise here too to avoid silent empty results.
+            var normalized = PatchVersion.Normalize(requestedPatch);
+            return string.IsNullOrEmpty(normalized) ? null : normalized;
         }
 
         return scopes

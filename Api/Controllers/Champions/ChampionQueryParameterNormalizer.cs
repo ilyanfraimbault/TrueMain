@@ -1,0 +1,58 @@
+using Core.Lol.Identifiers;
+using Core.Lol.Map;
+using Core.Lol.Patches;
+
+namespace TrueMain.Controllers.Champions;
+
+/// <summary>
+/// Canonicalises raw HTTP query parameters into the exact string forms
+/// stored in <c>champion_aggregate_scopes</c>. Without this layer, callers
+/// that send <c>?platformId=euw1</c>, <c>?patch=16.4.521</c> or
+/// <c>?position=mid</c> get silent 404s because the WHERE clause does an
+/// exact-string comparison against the canonical persisted values
+/// (<c>EUW1</c>, <c>16.4</c>, <c>MIDDLE</c>).
+/// </summary>
+internal static class ChampionQueryParameterNormalizer
+{
+    /// <summary>
+    /// Normalises a Riot patch string (e.g. <c>16.4.521.123</c>) to the
+    /// canonical <c>major.minor</c> form persisted on aggregates.
+    /// Returns <c>null</c> for null / whitespace input.
+    /// </summary>
+    public static string? NormalizePatch(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        var normalized = PatchVersion.Normalize(raw);
+        return string.IsNullOrEmpty(normalized) ? null : normalized;
+    }
+
+    /// <summary>
+    /// Normalises a platform identifier to the canonical Riot upper-case
+    /// form (e.g. <c>EUW1</c>). Returns <c>null</c> for null / whitespace
+    /// input or for any value that doesn't parse to a known platform —
+    /// the alternative (passing the raw string through) would cause a
+    /// silent 404 downstream.
+    /// </summary>
+    public static string? NormalizePlatform(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        return PlatformId.TryParse(raw, out var platformId) ? platformId.Value : null;
+    }
+
+    /// <summary>
+    /// Normalises a team position to the canonical Riot upper-case form
+    /// (<c>TOP</c> / <c>JUNGLE</c> / <c>MIDDLE</c> / <c>BOTTOM</c> /
+    /// <c>UTILITY</c>). Returns <c>null</c> for null / whitespace input
+    /// or for any value that doesn't map to a recognised position.
+    /// </summary>
+    public static string? NormalizePosition(string? raw)
+        => LolPositionExtensions.Parse(raw).ToRiotString();
+}
