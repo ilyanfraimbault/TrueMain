@@ -29,8 +29,10 @@ groupings explode when the first item differs by one slot), and shaped
 by the migration's inability to recompute it from raw SQL — see commit
 `fix(migrations): drop the rune-page backfill SQL` for the rationale.
 
-Frontend backlog (`project_runes_backlog.md`) explicitly calls for
-"runes correlated with build path, mirror the correlated-boots pattern".
+A user-side runes backlog note (kept in Claude memory rather than the
+repo, summarised here so the rationale survives) explicitly calls for
+"runes block on the champion page, correlated with build path — mirror
+the correlated-boots pattern, check API exposure first".
 The legacy `champion_pattern_aggregates` row got that right by
 construction (one row = one full combo) — but at the cost of 23
 inlined columns and the 23-column unique index that Phase 5 set out
@@ -120,9 +122,9 @@ Per scope, the aggregator already groups source rows into combos
      the resolved FKs.
 
 Step 4 mirrors today's "delete + reinsert per scope" semantics
-(`ChampionPatternAggregatePersister.PersistAsync` already does this for
-the dimension tables via cascade). Pattern rows replace scope-by-scope,
-no partial state.
+(`ChampionPatternAggregatePersister.ReplaceAggregatesAsync` already
+does this for the dimension tables via cascade). Pattern rows replace
+scope-by-scope, no partial state.
 
 The dimension tables are **append-only** in steady state. New combos
 add rows, existing combos return existing IDs. They grow until they
@@ -233,12 +235,12 @@ Each PR is independently mergeable; the API stays functional throughout.
   `champion_aggregate_builds` / `_rune_pages` / `_skill_orders` /
   `_spell_pairs` / `_starter_items` tables.
 - Drop `FirstItemId` (it's gone with the table).
-- OPTION-C entry C-2 is now done.
+- [`docs/refactor-option-c.md`](./refactor-option-c.md) entry C-2 is now done.
 
 **PR 6.5 — Cleanup:**
 - Remove the dual-write code paths.
 - Remove unused indexes / dead code.
-- Update OPTION-C.md.
+- Update [`docs/refactor-option-c.md`](./refactor-option-c.md).
 
 ## Out of scope
 
