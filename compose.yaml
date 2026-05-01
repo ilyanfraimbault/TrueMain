@@ -31,6 +31,7 @@ services:
       ASPNETCORE_URLS: http://+:8080
       Database__ApplyMigrationsOnStartup: "true"
       ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300
+      Ops__ApiKey: ${OPS_API_KEY}
     depends_on:
       postgres:
         condition: service_healthy
