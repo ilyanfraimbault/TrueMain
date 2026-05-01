@@ -101,6 +101,56 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
     }
 
     [Fact]
+    public async Task RunAsync_DualWritesPatternsConsistentWithLegacyAggregateCounts()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedChampionPatternDataAsync();
+
+        var process = CreateProcess();
+        await process.RunCoreAsync(CancellationToken.None);
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        var legacyAggregates = await verifyDb.ChampionPatternAggregates.AsNoTracking().ToListAsync();
+        var patterns = await verifyDb.ChampionAggregatePatterns.AsNoTracking().ToListAsync();
+
+        // One pattern row per legacy aggregate row — both group by the same
+        // (account, champion, version, platform, queue, position, build,
+        // runes, skills, spells, starters) tuple.
+        patterns.Should().HaveCount(legacyAggregates.Count);
+        patterns.Sum(p => p.Games).Should().Be(legacyAggregates.Sum(a => a.Games));
+        patterns.Sum(p => p.Wins).Should().Be(legacyAggregates.Sum(a => a.Wins));
+
+        // Dim tables hold deduplicated reference rows.
+        var distinctBuilds = await verifyDb.ChampionDimBuilds.AsNoTracking().ToListAsync();
+        var distinctRunes = await verifyDb.ChampionDimRunePages.AsNoTracking().ToListAsync();
+        var distinctSpellPairs = await verifyDb.ChampionDimSpellPairs.AsNoTracking().ToListAsync();
+        var distinctSkillOrders = await verifyDb.ChampionDimSkillOrders.AsNoTracking().ToListAsync();
+        var distinctStarters = await verifyDb.ChampionDimStarterItems.AsNoTracking().ToListAsync();
+
+        distinctBuilds.Should().NotBeEmpty();
+        distinctRunes.Should().NotBeEmpty();
+        distinctSpellPairs.Should().NotBeEmpty();
+        distinctSkillOrders.Should().NotBeEmpty();
+        distinctStarters.Should().NotBeEmpty();
+
+        // Re-running the aggregation must produce the same dim row count
+        // (idempotent get-or-create) — no duplicate rows in the dim tables.
+        await process.RunCoreAsync(CancellationToken.None);
+
+        await using var rerunDb = _fixture.CreateDbContext();
+        (await rerunDb.ChampionDimBuilds.AsNoTracking().CountAsync()).Should().Be(distinctBuilds.Count);
+        (await rerunDb.ChampionDimRunePages.AsNoTracking().CountAsync()).Should().Be(distinctRunes.Count);
+        (await rerunDb.ChampionDimSpellPairs.AsNoTracking().CountAsync()).Should().Be(distinctSpellPairs.Count);
+        (await rerunDb.ChampionDimSkillOrders.AsNoTracking().CountAsync()).Should().Be(distinctSkillOrders.Count);
+        (await rerunDb.ChampionDimStarterItems.AsNoTracking().CountAsync()).Should().Be(distinctStarters.Count);
+
+        // Pattern rows are replaced wholesale via scope cascade — count
+        // should match the legacy count after re-run too.
+        var rerunPatterns = await rerunDb.ChampionAggregatePatterns.AsNoTracking().ToListAsync();
+        rerunPatterns.Should().HaveCount(legacyAggregates.Count);
+    }
+
+    [Fact]
     public async Task RunAsync_ShouldIgnoreMatchesShorterThanFifteenMinutes()
     {
         await _fixture.ResetDatabaseAsync();
@@ -117,13 +167,17 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
     }
 
     private ChampionPatternAggregationProcess CreateProcess()
-        => new(
+    {
+        var dbContextFactory = new TestDbContextFactory(_fixture);
+        return new ChampionPatternAggregationProcess(
             NullLogger<ChampionPatternAggregationProcess>.Instance,
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueIds.RankedSoloDuo }),
-            new ChampionPatternSourceRowReader(new TestDbContextFactory(_fixture)),
-            new ChampionPatternAggregateBuilder(
-                new FakeItemMetadataProvider()),
-            new ChampionPatternAggregatePersister(new TestDbContextFactory(_fixture)));
+            new ChampionPatternSourceRowReader(dbContextFactory),
+            new ChampionPatternAggregateBuilder(new FakeItemMetadataProvider()),
+            new ChampionPatternAggregatePersister(
+                dbContextFactory,
+                new ChampionDimensionResolver(dbContextFactory)));
+    }
 
     private async Task SeedChampionPatternDataAsync(bool includeShortMatch = false)
     {
