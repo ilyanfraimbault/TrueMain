@@ -11,7 +11,9 @@ internal sealed class ChampionPatternAggregationInputs
 internal sealed class ChampionPatternAggregationResult
 {
     /// <summary>
-    /// Scopes (master + dimension rows) in the new normalised schema.
+    /// Scopes (master + dimension rows) in the Sprint 5 normalised schema.
+    /// Still written by the dual-write persister so the read side keeps
+    /// working until PR 6.3 swaps it onto patterns.
     /// </summary>
     public required List<ChampionAggregateScope> Scopes { get; init; }
 
@@ -21,6 +23,15 @@ internal sealed class ChampionPatternAggregationResult
     /// schema and the drop migration lands.
     /// </summary>
     public required List<ChampionPatternAggregate> AggregateRows { get; init; }
+
+    /// <summary>
+    /// Phase 6 pattern intents — one per (scope, full combo) tuple. Each
+    /// scope's <c>Id</c> is shared with the matching <see cref="Scopes"/>
+    /// entry so the persister can attach FKs after dim resolution. Empty
+    /// rows from upstream code paths that haven't migrated yet are valid
+    /// (the persister no-ops).
+    /// </summary>
+    public required List<PatternIntent> Patterns { get; init; }
 
     public required int SourceRowCount { get; init; }
 }

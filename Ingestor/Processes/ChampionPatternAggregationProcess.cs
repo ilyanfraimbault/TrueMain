@@ -31,13 +31,15 @@ public sealed class ChampionPatternAggregationProcess(
             aggregationInputs.ExistingAggregateScopes,
             aggregationResult.AggregateRows,
             aggregationResult.Scopes,
+            aggregationResult.Patterns,
             ct);
 
         logger.LogInformation(
-            "Champion pattern aggregation summary: sourceRows={SourceRows}, aggregateRows={AggregateRows}, scopes={ScopeCount}.",
+            "Champion pattern aggregation summary: sourceRows={SourceRows}, aggregateRows={AggregateRows}, scopes={ScopeCount}, patterns={PatternCount}.",
             aggregationResult.SourceRowCount,
             aggregationResult.AggregateRows.Count,
-            aggregationResult.Scopes.Count);
+            aggregationResult.Scopes.Count,
+            aggregationResult.Patterns.Count);
 
         return BuildSuccessPayload(aggregationResult);
     }
@@ -49,6 +51,7 @@ public sealed class ChampionPatternAggregationProcess(
             sourceRows = aggregationResult.SourceRowCount,
             aggregateRows = aggregationResult.AggregateRows.Count,
             scopes = aggregationResult.Scopes.Count,
+            patterns = aggregationResult.Patterns.Count,
             gameVersions = aggregationResult.AggregateRows.Select(a => a.GameVersion).Distinct().Count(),
             champions = aggregationResult.AggregateRows.Select(a => a.ChampionId).Distinct().Count()
         };

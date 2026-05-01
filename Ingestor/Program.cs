@@ -38,6 +38,7 @@ builder.Services.AddHttpClient<IItemMetadataProvider, CommunityDragonItemMetadat
 builder.Services.AddScoped<ChampionPatternSourceRowReader>();
 builder.Services.AddScoped<ChampionPatternAggregateBuilder>();
 builder.Services.AddScoped<ChampionPatternAggregatePersister>();
+builder.Services.AddScoped<IChampionDimensionResolver, ChampionDimensionResolver>();
 
 builder.Services.AddSingleton<IProcessRunRecorder, ProcessRunRecorder>();
 builder.Services.AddRecordedProcess<DiscoveryProcess>();
