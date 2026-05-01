@@ -88,6 +88,7 @@ jobs:
           POSTGRES_PASSWORD: truemain
           POSTGRES_DB: truemain
           RIOT_API_KEY: RGAPI-REPLACE_ME
+          OPS_API_KEY: ci-ops-api-key-min-32-characters-padding
           PGADMIN_DEFAULT_EMAIL: admin@truemain.dev
           PGADMIN_DEFAULT_PASSWORD: admin
         run: docker compose -f compose.yaml config
@@ -98,6 +99,7 @@ jobs:
           POSTGRES_PASSWORD: truemain
           POSTGRES_DB: truemain
           RIOT_API_KEY: RGAPI-REPLACE_ME
+          OPS_API_KEY: ci-ops-api-key-min-32-characters-padding
           PGADMIN_DEFAULT_EMAIL: admin@truemain.dev
           PGADMIN_DEFAULT_PASSWORD: admin
         run: docker compose -f compose.dev.yaml config
@@ -108,6 +110,7 @@ jobs:
           POSTGRES_PASSWORD: truemain
           POSTGRES_DB: truemain
           RIOT_API_KEY: RGAPI-REPLACE_ME
+          OPS_API_KEY: ci-ops-api-key-min-32-characters-padding
           PGADMIN_DEFAULT_EMAIL: admin@truemain.dev
           PGADMIN_DEFAULT_PASSWORD: admin
         run: docker compose -f compose.prod.yaml config
@@ -118,6 +121,7 @@ jobs:
           POSTGRES_PASSWORD: truemain_qa
           POSTGRES_DB: truemain_qa
           RIOT_API_KEY: RGAPI-REPLACE_ME_QA
+          OPS_API_KEY: ci-ops-api-key-min-32-characters-padding
           PGADMIN_DEFAULT_EMAIL: admin@truemain-qa.dev
           PGADMIN_DEFAULT_PASSWORD: admin
         run: docker compose -f compose.qa.yaml config
