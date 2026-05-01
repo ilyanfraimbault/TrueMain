@@ -43,13 +43,15 @@ const loadingCore: ChampionCoreResponse = {
   boots: null,
   buildPath: null,
   summonerSpells: null,
-  skillOrder: null
+  skillOrder: null,
+  runePage: null
 }
 
 const loadingAdvanced: ChampionAdvancedResponse = {
   starterItemOptions: [],
   summonerSpellOptions: [],
-  skillOrderOptions: []
+  skillOrderOptions: [],
+  runePageOptions: []
 }
 
 const loadingBuildTree: ChampionBuildTreeResponse = {
@@ -60,6 +62,7 @@ const loadingBuildTree: ChampionBuildTreeResponse = {
   platformId: null,
   totalGames: 0,
   boots: null,
+  runePage: null,
   build: []
 }
 

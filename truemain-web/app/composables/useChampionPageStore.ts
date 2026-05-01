@@ -3,6 +3,8 @@ import type {
   ChampionStaticData,
   StaticChampionSpellData,
   StaticItemData,
+  StaticPerkData,
+  StaticPerkStyleData,
   StaticSummonerSpellData
 } from '~/types/static-data'
 import {
@@ -12,6 +14,27 @@ import {
   normalizeDataDragonPatch
 } from '~/utils/items'
 
+/**
+ * Community Dragon hosts perk metadata + icons. iconPath returned by the
+ * JSON is a CDN path under /lol-game-data/assets/ — rewriting the prefix
+ * gives the directly-fetchable image URL. The CDN serves all paths
+ * lowercased, so we lowercase the iconPath before swapping the prefix.
+ */
+const COMMUNITY_DRAGON_ASSET_PREFIX
+  = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default'
+const PERKS_URL
+  = `${COMMUNITY_DRAGON_ASSET_PREFIX}/v1/perks.json`
+const PERK_STYLES_URL
+  = `${COMMUNITY_DRAGON_ASSET_PREFIX}/v1/perkstyles.json`
+
+function rewriteCommunityDragonAsset(iconPath: string): string {
+  if (!iconPath) {
+    return ''
+  }
+  const normalized = iconPath.toLowerCase()
+  return normalized.replace(/^\/lol-game-data\/assets/, COMMUNITY_DRAGON_ASSET_PREFIX)
+}
+
 export type ChampionPosition = 'TOP' | 'JUNGLE' | 'MIDDLE' | 'BOTTOM' | 'UTILITY'
 export type ChampionDisplayPosition = ChampionPosition | ''
 
@@ -20,7 +43,9 @@ const EMPTY_STATIC_DATA: ChampionStaticData = {
   championIconUrl: null,
   items: {},
   summonerSpells: {},
-  championSpells: {}
+  championSpells: {},
+  perks: {},
+  perkStyles: {}
 }
 
 const POSITION_OPTIONS: Array<{ label: string, value: ChampionPosition, iconUrl: string }> = [
@@ -83,7 +108,13 @@ async function fetchChampionStaticData(championId: number, patch: string | null)
     return EMPTY_STATIC_DATA
   }
 
-  const [itemDataResponse, summonerDataResponse, championListResponse] = await Promise.all([
+  const [
+    itemDataResponse,
+    summonerDataResponse,
+    championListResponse,
+    perksResponse,
+    perkStylesResponse
+  ] = await Promise.all([
     $fetch<{ data: Record<string, { name: string, image: { full: string }, gold: { total: number } }> }>(
       `https://ddragon.leagueoflegends.com/cdn/${normalizedPatch}/data/en_US/item.json`
     ),
@@ -92,7 +123,9 @@ async function fetchChampionStaticData(championId: number, patch: string | null)
     ),
     $fetch<{ data: Record<string, { id: string, key: string, name: string, image: { full: string } }> }>(
       `https://ddragon.leagueoflegends.com/cdn/${normalizedPatch}/data/en_US/champion.json`
-    )
+    ),
+    $fetch<Array<{ id: number, name: string, iconPath: string }>>(PERKS_URL),
+    $fetch<{ styles: Array<{ id: number, name: string, iconPath: string }> }>(PERK_STYLES_URL)
   ])
 
   const items = Object.fromEntries(
@@ -118,6 +151,28 @@ async function fetchChampionStaticData(championId: number, patch: string | null)
     ])
   )
 
+  const perks = Object.fromEntries(
+    perksResponse.map(perk => [
+      perk.id,
+      {
+        id: perk.id,
+        name: perk.name,
+        iconUrl: rewriteCommunityDragonAsset(perk.iconPath)
+      } satisfies StaticPerkData
+    ])
+  )
+
+  const perkStyles = Object.fromEntries(
+    (perkStylesResponse.styles ?? []).map(style => [
+      style.id,
+      {
+        id: style.id,
+        name: style.name,
+        iconUrl: rewriteCommunityDragonAsset(style.iconPath)
+      } satisfies StaticPerkStyleData
+    ])
+  )
+
   const championSummary = Object.values(championListResponse.data)
     .find((currentChampion) => Number(currentChampion.key) === championId)
 
@@ -125,7 +180,9 @@ async function fetchChampionStaticData(championId: number, patch: string | null)
     return {
       ...EMPTY_STATIC_DATA,
       items,
-      summonerSpells
+      summonerSpells,
+      perks,
+      perkStyles
     }
   }
 
@@ -159,7 +216,9 @@ async function fetchChampionStaticData(championId: number, patch: string | null)
     championIconUrl: `https://ddragon.leagueoflegends.com/cdn/${normalizedPatch}/img/champion/${championSummary.image.full}`,
     items,
     summonerSpells,
-    championSpells
+    championSpells,
+    perks,
+    perkStyles
   }
 }
 

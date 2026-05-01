@@ -47,7 +47,7 @@ const skillSequence = computed(() =>
     </h2>
 
     <UCard variant="subtle">
-      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-7">
         <div class="space-y-3">
           <p class="text-sm font-medium text-muted">
             Starter items
@@ -156,6 +156,32 @@ const skillSequence = computed(() =>
             v-else
             :spells="skillSequence"
           />
+        </div>
+
+        <div class="space-y-3 md:col-span-2 xl:col-span-2">
+          <p class="text-sm font-medium text-muted">
+            Runes
+          </p>
+          <div
+            v-if="isStaticPending"
+            class="flex flex-col gap-2"
+          >
+            <USkeleton class="h-12 w-40 rounded-xl" />
+            <USkeleton class="h-9 w-32 rounded-xl" />
+            <USkeleton class="h-6 w-28 rounded-xl" />
+          </div>
+          <ChampionsChampionRunePageDisplay
+            v-else-if="core.runePage"
+            :page="core.runePage"
+            :perks="championStatic.perks"
+            :perk-styles="championStatic.perkStyles"
+          />
+          <p
+            v-else
+            class="text-xs text-muted"
+          >
+            No data
+          </p>
         </div>
       </div>
     </UCard>
