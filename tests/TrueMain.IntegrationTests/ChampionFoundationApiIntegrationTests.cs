@@ -5,6 +5,7 @@ using Data.Entities;
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using TrueMain.ReadModels.Champions;
 using TrueMain.TestKit.EntityBuilders;
@@ -209,6 +210,51 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
 
         var response = await client.GetAsync("/champions/999");
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task GetFoundationAsync_WithBuildIdPivot_FiltersAdvancedDimensionsToThatBuild()
+    {
+        // Phase 6.3 — the cross-dim correlation pivot. Two builds, two
+        // distinct skill orders: each skill order is associated with one
+        // build via the pattern junction. Without a pivot the foundation
+        // sees both skill orders. Pivoting on build A's id should leave
+        // only the skill order paired with build A.
+        await _fixture.ResetDatabaseAsync();
+        var account = Guid.Parse("11111111-1111-1111-1111-111111111111");
+
+        await using var seedDb = _fixture.CreateDbContext();
+        seedDb.RiotAccounts.Add(BuildAccount(account, "KR", "pivot-puuid", "pivot", DateTime.UtcNow));
+        await seedDb.SaveChangesAsync();
+
+        await DefaultSeeder()
+            .AddPatternDefaults(account, 33, "16.4", "KR", 420, "MIDDLE", 4, 7, "Q-W-E", [6672, 3094, 3031], 3006, 5, 3, DateTime.UtcNow.AddMinutes(-10))
+            .AddPatternDefaults(account, 33, "16.4", "KR", 420, "MIDDLE", 4, 7, "Q-E-W", [3153, 3006, 3091], 3006, 4, 2, DateTime.UtcNow.AddMinutes(-5))
+            .SaveAsync(seedDb);
+
+        // Discover the dim build id for build A (BuildItem0 = 6672) so the
+        // test doesn't depend on the seeder's GUIDs.
+        await using var lookupDb = _fixture.CreateDbContext();
+        var buildA = await lookupDb.Set<Data.Entities.ChampionDimBuild>()
+            .Where(build => build.BuildItem0 == 6672)
+            .Select(build => build.Id)
+            .FirstAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var unpivoted = await client.GetFromJsonAsync<ChampionReadModel>("/champions/33");
+        unpivoted.Should().NotBeNull();
+        unpivoted!.Advanced.SkillOrderOptions.Should().HaveCount(2);
+
+        var pivoted = await client.GetFromJsonAsync<ChampionReadModel>($"/champions/33?buildId={buildA}");
+        pivoted.Should().NotBeNull();
+        pivoted!.Advanced.SkillOrderOptions.Should().ContainSingle();
+        pivoted.Advanced.SkillOrderOptions[0].Sequence.Should().Equal("Q", "W", "E");
+        pivoted.Core.SampleSize.Should().Be(5);
     }
 
     private async Task SeedChampionFoundationAggregatesAsync()
