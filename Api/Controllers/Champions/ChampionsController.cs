@@ -24,16 +24,20 @@ public sealed class ChampionsController(
         [FromQuery] int minBranchGames = 1,
         CancellationToken ct = default)
     {
-        patch = NullIfEmpty(patch);
-        platformId = NullIfEmpty(platformId);
-        position = NullIfEmpty(position);
+        // Canonicalise raw query params to the exact strings stored on
+        // champion_aggregate_scopes. The query services do exact-string
+        // comparisons, so passing through the raw values causes silent 404s
+        // for inputs like ?platformId=euw1 or ?patch=16.4.521.
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+        var normalizedPlatform = ChampionQueryParameterNormalizer.NormalizePlatform(platformId);
+        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
 
         var foundationReadModel = await championFoundationQueryService.GetAsync(
             championId,
             riotAccountId,
-            patch,
-            platformId,
-            position,
+            normalizedPatch,
+            normalizedPlatform,
+            normalizedPosition,
             ct);
 
         if (foundationReadModel is null)
@@ -41,14 +45,16 @@ public sealed class ChampionsController(
             return NotFound();
         }
 
-        var effectivePatch = NullIfEmpty(patch ?? foundationReadModel.Summary.LatestPatchVersion);
-        var effectivePosition = NullIfEmpty(position ?? foundationReadModel.Summary.Position);
+        var effectivePatch = normalizedPatch
+            ?? ChampionQueryParameterNormalizer.NormalizePatch(foundationReadModel.Summary.LatestPatchVersion);
+        var effectivePosition = normalizedPosition
+            ?? ChampionQueryParameterNormalizer.NormalizePosition(foundationReadModel.Summary.Position);
 
         var buildTreeReadModel = await championBuildTreeQueryService.GetAsync(
             championId,
             riotAccountId,
             effectivePatch,
-            platformId,
+            normalizedPlatform,
             effectivePosition,
             maxDepth,
             minBranchGames,
@@ -62,7 +68,4 @@ public sealed class ChampionsController(
             BuildTree = buildTreeReadModel
         });
     }
-
-    private static string? NullIfEmpty(string? value)
-        => string.IsNullOrWhiteSpace(value) ? null : value;
 }
