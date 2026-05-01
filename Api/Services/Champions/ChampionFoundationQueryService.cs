@@ -11,12 +11,22 @@ public sealed class ChampionFoundationQueryService(
     TrueMainDbContext db,
     IOptions<MainAnalysisOptions> options) : IChampionFoundationQueryService
 {
+    public Task<ChampionFoundationReadModel?> GetAsync(
+        int championId,
+        Guid? riotAccountId,
+        string? patch,
+        string? platformId,
+        string? position,
+        CancellationToken ct)
+        => GetAsync(championId, riotAccountId, patch, platformId, position, ChampionPatternPivot.None, ct);
+
     public async Task<ChampionFoundationReadModel?> GetAsync(
         int championId,
         Guid? riotAccountId,
         string? patch,
         string? platformId,
         string? position,
+        ChampionPatternPivot pivot,
         CancellationToken ct)
     {
         var scopes = await LoadScopedScopesAsync(championId, riotAccountId, patch, platformId, position, ct);
@@ -26,34 +36,31 @@ public sealed class ChampionFoundationQueryService(
         }
 
         var scopeIds = scopes.Select(scope => scope.Id).ToList();
-        var starterItems = await db.ChampionAggregateStarterItems.AsNoTracking()
-            .Where(row => scopeIds.Contains(row.ScopeId))
-            .ToListAsync(ct);
-        var spellPairs = await db.ChampionAggregateSpellPairs.AsNoTracking()
-            .Where(row => scopeIds.Contains(row.ScopeId))
-            .ToListAsync(ct);
-        var skillOrders = await db.ChampionAggregateSkillOrders.AsNoTracking()
-            .Where(row => scopeIds.Contains(row.ScopeId))
-            .ToListAsync(ct);
-        var builds = await db.ChampionAggregateBuilds.AsNoTracking()
-            .Where(row => scopeIds.Contains(row.ScopeId))
-            .ToListAsync(ct);
-        var runePages = await db.ChampionAggregateRunePages.AsNoTracking()
-            .Where(row => scopeIds.Contains(row.ScopeId))
-            .ToListAsync(ct);
+        var projection = await ChampionPatternProjector.ProjectAsync(db, scopeIds, pivot, ct);
 
-        var sampleSize = scopes.Sum(scope => scope.Games);
+        // SampleSize must reflect the (possibly filtered) pattern volume so
+        // play-rates compute against the right denominator. With no pivot
+        // this collapses to the legacy scope-level total; with a build
+        // pivot it shrinks to the games that played that build, which is
+        // the correct denominator for "given build X, how often does this
+        // rune page show up".
+        var sampleSize = projection.Builds.Sum(build => build.Games);
+        if (sampleSize == 0)
+        {
+            sampleSize = scopes.Sum(scope => scope.Games);
+        }
+
         var advanced = ChampionOptionProjector.BuildAdvancedDetails(
-            starterItems,
-            spellPairs,
-            skillOrders,
-            runePages,
+            projection.StarterItems,
+            projection.SpellPairs,
+            projection.SkillOrders,
+            projection.RunePages,
             sampleSize);
 
         return new ChampionFoundationReadModel
         {
             Summary = BuildSummary(championId, scopes.First().GameVersion, scopes),
-            Core = ChampionCoreBuilder.Build(sampleSize, advanced, builds),
+            Core = ChampionCoreBuilder.Build(sampleSize, advanced, projection.Builds),
             Advanced = advanced
         };
     }

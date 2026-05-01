@@ -20,6 +20,7 @@ public sealed class ChampionsController(
         [FromQuery] string? patch,
         [FromQuery] string? platformId,
         [FromQuery] string? position,
+        [FromQuery] Guid? buildId,
         [FromQuery] int maxDepth = 7,
         [FromQuery] int minBranchGames = 1,
         CancellationToken ct = default)
@@ -32,12 +33,21 @@ public sealed class ChampionsController(
         var normalizedPlatform = ChampionQueryParameterNormalizer.NormalizePlatform(platformId);
         var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
 
+        // Phase 6.3 — optional cross-dimension correlation pivot. When set
+        // (e.g. ?buildId=<champion_dim_builds.Id>), the foundation Core /
+        // Advanced blocks are computed from patterns matching that build
+        // only, answering "given this build, what runes / skills / spells /
+        // starters do players run". The build tree never pivots — it is
+        // the build, the user navigates it via the response itself.
+        var pivot = buildId.HasValue ? new ChampionPatternPivot(buildId) : ChampionPatternPivot.None;
+
         var foundationReadModel = await championFoundationQueryService.GetAsync(
             championId,
             riotAccountId,
             normalizedPatch,
             normalizedPlatform,
             normalizedPosition,
+            pivot,
             ct);
 
         if (foundationReadModel is null)

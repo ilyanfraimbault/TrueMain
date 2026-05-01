@@ -30,29 +30,32 @@ public sealed class ChampionBuildTreeQueryService(
             .Select(scope => scope.Id)
             .ToListAsync(ct);
 
-        var builds = scopeIds.Count == 0
-            ? []
-            : await db.ChampionAggregateBuilds.AsNoTracking()
-                .Where(build => scopeIds.Contains(build.ScopeId))
-                .Where(build =>
-                    build.BuildItem0 > 0
-                    || build.BuildItem1 > 0
-                    || build.BuildItem2 > 0
-                    || build.BuildItem3 > 0
-                    || build.BuildItem4 > 0
-                    || build.BuildItem5 > 0
-                    || build.BuildItem6 > 0)
-                .ToListAsync(ct);
+        // Phase 6.3 — read from the pattern junction. The projector
+        // groups runes by (BuildId, RunePageId) and hydrates FirstItemId
+        // from BuildDim.BuildItem0, so SelectTopForFirstItem in
+        // ChampionRunePageAggregator still picks the right correlated rune
+        // per tree root. No FirstItemId pre-filter here either: empty rune
+        // pages wouldn't have made it into a pattern row in the first
+        // place (the aggregator always pairs them with a build).
+        var projection = await ChampionPatternProjector.ProjectAsync(
+            db,
+            scopeIds,
+            ChampionPatternPivot.None,
+            ct);
 
-        var runePages = scopeIds.Count == 0
-            ? []
-            : await db.ChampionAggregateRunePages.AsNoTracking()
-                .Where(runePage => scopeIds.Contains(runePage.ScopeId))
-                .Where(runePage => runePage.FirstItemId > 0)
-                .ToListAsync(ct);
+        var builds = projection.Builds
+            .Where(build =>
+                build.BuildItem0 > 0
+                || build.BuildItem1 > 0
+                || build.BuildItem2 > 0
+                || build.BuildItem3 > 0
+                || build.BuildItem4 > 0
+                || build.BuildItem5 > 0
+                || build.BuildItem6 > 0)
+            .ToList();
 
         var totalGames = builds.Sum(build => build.Games);
-        var tree = ChampionBuildTreeBuilder.Build(builds, totalGames, maxDepth, minBranchGames, runePages);
+        var tree = ChampionBuildTreeBuilder.Build(builds, totalGames, maxDepth, minBranchGames, projection.RunePages);
         var bootsOption = SelectBoots(builds, totalGames);
 
         return new ChampionBuildTreeReadModel
