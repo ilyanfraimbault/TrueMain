@@ -24,6 +24,18 @@ public class TrueMainDbContext : DbContext
     public DbSet<ChampionAggregateStarterItems> ChampionAggregateStarterItems => Set<ChampionAggregateStarterItems>();
     public DbSet<ChampionAggregateBuild> ChampionAggregateBuilds => Set<ChampionAggregateBuild>();
     public DbSet<ChampionAggregateRunePage> ChampionAggregateRunePages => Set<ChampionAggregateRunePage>();
+
+    // Phase 6: junction-table aggregate + globally-deduplicated dimension
+    // tables. Empty until PR 6.2 wires the aggregator dual-write; the
+    // legacy ChampionAggregate* tables above stay the source of truth for
+    // reads until PR 6.3 swaps them out.
+    public DbSet<ChampionAggregatePattern> ChampionAggregatePatterns => Set<ChampionAggregatePattern>();
+    public DbSet<ChampionDimBuild> ChampionDimBuilds => Set<ChampionDimBuild>();
+    public DbSet<ChampionDimRunePage> ChampionDimRunePages => Set<ChampionDimRunePage>();
+    public DbSet<ChampionDimSkillOrder> ChampionDimSkillOrders => Set<ChampionDimSkillOrder>();
+    public DbSet<ChampionDimSpellPair> ChampionDimSpellPairs => Set<ChampionDimSpellPair>();
+    public DbSet<ChampionDimStarterItems> ChampionDimStarterItems => Set<ChampionDimStarterItems>();
+
     public DbSet<ProcessRun> ProcessRuns => Set<ProcessRun>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
