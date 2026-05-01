@@ -2,6 +2,7 @@ using Core.Lol.Identifiers;
 using Data.Entities;
 using Data.Repositories;
 using Ingestor.Riot;
+using Ingestor.Riot.Dto;
 
 namespace Ingestor.Processes.Components.MatchIngestion;
 
@@ -33,10 +34,30 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
         var inserted = 0;
         for (var i = 0; i < scan.Fresh.Count; i += batchSize)
         {
-            foreach (var matchId in scan.Fresh.Skip(i).Take(batchSize))
+            var batchIds = scan.Fresh.Skip(i).Take(batchSize).ToList();
+            var fetched = new List<(string Id, RiotMatchDto Dto)>(batchIds.Count);
+            foreach (var matchId in batchIds)
             {
-                var matchDto = await riotMatchClient.GetMatchAsync(matchId, region, ct);
-                await PersistMatchAsync(session, matchDto, platformId, ct);
+                fetched.Add((matchId, await riotMatchClient.GetMatchAsync(matchId, region, ct)));
+            }
+
+            // Pre-resolve perk catalog ids for the whole batch BEFORE we add
+            // any match/participant entities to the change tracker. The
+            // catalog upsert performs its own SaveChanges; if it ran while
+            // match entities were already Added, a catalog uniqueness clash
+            // would roll back the match transaction and the subsequent
+            // ChangeTracker.Clear() would silently drop those entities,
+            // leaving us free to commit orphan perk_selections in the
+            // batch's final SaveChanges.
+            var catalogKeys = fetched
+                .SelectMany(item => RiotMatchMapper.BuildPerkSelectionRows(item.Dto, item.Id))
+                .Select(selection => selection.Key)
+                .ToArray();
+            var catalogIds = await session.MatchParticipants.GetOrCreatePerkCatalogIdsAsync(catalogKeys, ct);
+
+            foreach (var (_, dto) in fetched)
+            {
+                await PersistMatchAsync(session, dto, platformId, catalogIds, ct);
                 inserted++;
             }
 
@@ -48,8 +69,9 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
 
     private static async Task PersistMatchAsync(
         IDataSession session,
-        Ingestor.Riot.Dto.RiotMatchDto matchDto,
+        RiotMatchDto matchDto,
         string platformId,
+        IReadOnlyDictionary<PerkCatalogKey, int> catalogIds,
         CancellationToken ct)
     {
         var participantAccounts = await session.RiotAccounts.GetByKeysAsync(
@@ -64,15 +86,11 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
         session.Matches.Add(mapped.Match);
         session.MatchParticipants.AddRange(mapped.Participants);
 
-        var catalogIdsByKey = await session.MatchParticipants.GetOrCreatePerkCatalogIdsAsync(
-            mapped.PerkSelections.Select(selection => selection.Key).ToArray(),
-            ct);
-
         var perkSelections = mapped.PerkSelections.Select(selection => new ParticipantPerkSelection
         {
             MatchId = selection.MatchId,
             ParticipantId = selection.ParticipantId,
-            PerkSelectionCatalogId = catalogIdsByKey[selection.Key]
+            PerkSelectionCatalogId = catalogIds[selection.Key]
         });
 
         session.MatchParticipants.AddPerkSelections(perkSelections);
