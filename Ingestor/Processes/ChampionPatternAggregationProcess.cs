@@ -20,7 +20,7 @@ public sealed class ChampionPatternAggregationProcess(
         if (aggregationInputs.SourceRows.Count == 0 && aggregationInputs.ExistingAggregateScopes.Count == 0)
         {
             logger.LogInformation("No specialist-backed source rows available for champion pattern aggregation.");
-            return new { reason = "No specialist-backed source rows available for champion pattern aggregation.", aggregateRows = 0 };
+            return new { reason = "No specialist-backed source rows available for champion pattern aggregation.", patterns = 0 };
         }
 
         var aggregationResult = await aggregateBuilder.BuildAggregatesAsync(
@@ -29,15 +29,13 @@ public sealed class ChampionPatternAggregationProcess(
             ct);
         await aggregatePersister.ReplaceAggregatesAsync(
             aggregationInputs.ExistingAggregateScopes,
-            aggregationResult.AggregateRows,
             aggregationResult.Scopes,
             aggregationResult.Patterns,
             ct);
 
         logger.LogInformation(
-            "Champion pattern aggregation summary: sourceRows={SourceRows}, aggregateRows={AggregateRows}, scopes={ScopeCount}, patterns={PatternCount}.",
+            "Champion pattern aggregation summary: sourceRows={SourceRows}, scopes={ScopeCount}, patterns={PatternCount}.",
             aggregationResult.SourceRowCount,
-            aggregationResult.AggregateRows.Count,
             aggregationResult.Scopes.Count,
             aggregationResult.Patterns.Count);
 
@@ -49,11 +47,10 @@ public sealed class ChampionPatternAggregationProcess(
         return new
         {
             sourceRows = aggregationResult.SourceRowCount,
-            aggregateRows = aggregationResult.AggregateRows.Count,
             scopes = aggregationResult.Scopes.Count,
             patterns = aggregationResult.Patterns.Count,
-            gameVersions = aggregationResult.AggregateRows.Select(a => a.GameVersion).Distinct().Count(),
-            champions = aggregationResult.AggregateRows.Select(a => a.ChampionId).Distinct().Count()
+            gameVersions = aggregationResult.Scopes.Select(scope => scope.GameVersion).Distinct().Count(),
+            champions = aggregationResult.Scopes.Select(scope => scope.ChampionId).Distinct().Count()
         };
     }
 }

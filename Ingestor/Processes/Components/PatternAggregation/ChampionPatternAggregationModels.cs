@@ -11,25 +11,14 @@ internal sealed class ChampionPatternAggregationInputs
 internal sealed class ChampionPatternAggregationResult
 {
     /// <summary>
-    /// Scopes (master + dimension rows) in the Sprint 5 normalised schema.
-    /// Still written by the dual-write persister so the read side keeps
-    /// working until PR 6.3 swaps it onto patterns.
+    /// Scope master rows. Pattern intents reference each scope's
+    /// <see cref="ChampionAggregateScope.Id"/> so the persister can attach
+    /// FKs after dim resolution.
     /// </summary>
     public required List<ChampionAggregateScope> Scopes { get; init; }
 
     /// <summary>
-    /// Legacy wide-table rows for dual-write during the Phase 5 migration
-    /// window. Removed once the reader side switches to the normalised
-    /// schema and the drop migration lands.
-    /// </summary>
-    public required List<ChampionPatternAggregate> AggregateRows { get; init; }
-
-    /// <summary>
-    /// Phase 6 pattern intents — one per (scope, full combo) tuple. Each
-    /// scope's <c>Id</c> is shared with the matching <see cref="Scopes"/>
-    /// entry so the persister can attach FKs after dim resolution. Empty
-    /// rows from upstream code paths that haven't migrated yet are valid
-    /// (the persister no-ops).
+    /// Phase 6 pattern intents — one per (scope, full combo) tuple.
     /// </summary>
     public required List<PatternIntent> Patterns { get; init; }
 
@@ -113,31 +102,6 @@ internal sealed record ExpandedSourceRow(
 {
     public string StarterItemsKey { get; } = string.Join("-", StarterItems);
 }
-
-internal sealed record AggregateKey(
-    Guid RiotAccountId,
-    int ChampionId,
-    string GameVersion,
-    string PlatformId,
-    int QueueId,
-    string Position,
-    int PrimaryStyleId,
-    int SubStyleId,
-    int PerksOffense,
-    int PerksFlex,
-    int PerksDefense,
-    int SummonerSpell1Id,
-    int SummonerSpell2Id,
-    string SkillOrderKey,
-    string StarterItemsKey,
-    int BootsItemId,
-    int BuildItem0,
-    int BuildItem1,
-    int BuildItem2,
-    int BuildItem3,
-    int BuildItem4,
-    int BuildItem5,
-    int BuildItem6);
 
 internal sealed record AggregateScopeKey(
     int ChampionId,

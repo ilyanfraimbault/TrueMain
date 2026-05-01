@@ -10,7 +10,6 @@ public sealed class ChampionPatternAggregatePersister(
 {
     internal async Task ReplaceAggregatesAsync(
         IReadOnlyCollection<AggregateScopeKey> cleanupScopes,
-        IReadOnlyCollection<ChampionPatternAggregate> legacyAggregateRows,
         IReadOnlyCollection<ChampionAggregateScope> scopes,
         IReadOnlyCollection<PatternIntent> patterns,
         CancellationToken ct)
@@ -35,8 +34,8 @@ public sealed class ChampionPatternAggregatePersister(
         // Resolve dimension IDs ahead of the transaction. Dim tables are
         // append-only globally and idempotent under UNIQUE; doing the
         // get-or-create outside the scope/pattern transaction means a roll
-        // back on the inserts below leaves the dim rows in place (harmless
-        // — the next run reuses them).
+        // back on the inserts below leaves the dim rows in place
+        // harmlessly — the next run reuses them.
         var resolution = keptPatterns.Count > 0
             ? await dimensionResolver.ResolveAsync(keptPatterns, ct)
             : EmptyResolution;
@@ -44,15 +43,11 @@ public sealed class ChampionPatternAggregatePersister(
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
 
-        // Dual-write window: delete + insert on the legacy wide table, the
-        // Sprint 5 scope/dimension tables AND the Phase 6 pattern junction.
-        // Deleting a scope cascades to both the Sprint 5 dim tables and to
-        // patterns (FK config in PR 6.1), so we don't need explicit pattern
-        // cleanup. PR 6.5 drops the dual-write once the read side ships.
-        await DeleteExistingLegacyAggregatesAsync(db, cleanupScopes, ct);
+        // Delete existing scopes for the cleanup keys; the FK cascade from
+        // PR 6.1 drops the scope's pattern rows in the same statement. New
+        // scopes + patterns then take their place.
         await DeleteExistingScopesAsync(db, cleanupScopes, ct);
 
-        db.ChampionPatternAggregates.AddRange(legacyAggregateRows);
         db.ChampionAggregateScopes.AddRange(dedupedScopes);
         await db.SaveChangesAsync(ct);
 
@@ -86,41 +81,6 @@ public sealed class ChampionPatternAggregatePersister(
         new Dictionary<string, Guid>(StringComparer.Ordinal),
         new Dictionary<SpellPairDimensionContent, Guid>(),
         new Dictionary<string, Guid>(StringComparer.Ordinal));
-
-    private static async Task DeleteExistingLegacyAggregatesAsync(
-        TrueMainDbContext db,
-        IReadOnlyCollection<AggregateScopeKey> cleanupScopes,
-        CancellationToken ct)
-    {
-        var cleanupScopeSet = cleanupScopes.ToHashSet();
-        if (cleanupScopeSet.Count == 0)
-        {
-            return;
-        }
-
-        var championIds = cleanupScopeSet.Select(scope => scope.ChampionId).Distinct().ToList();
-        var gameVersions = cleanupScopeSet.Select(scope => scope.GameVersion).Distinct().ToList();
-        var platformIds = cleanupScopeSet.Select(scope => scope.PlatformId).Distinct().ToList();
-        var queueIds = cleanupScopeSet.Select(scope => scope.QueueId).Distinct().ToList();
-
-        var aggregatesToDelete = await db.ChampionPatternAggregates
-            .Where(aggregate =>
-                championIds.Contains(aggregate.ChampionId)
-                && gameVersions.Contains(aggregate.GameVersion)
-                && platformIds.Contains(aggregate.PlatformId)
-                && queueIds.Contains(aggregate.QueueId))
-            .ToListAsync(ct);
-
-        db.ChampionPatternAggregates.RemoveRange(
-            aggregatesToDelete.Where(aggregate =>
-                cleanupScopeSet.Contains(new AggregateScopeKey(
-                    aggregate.ChampionId,
-                    aggregate.GameVersion,
-                    aggregate.PlatformId,
-                    aggregate.QueueId))));
-
-        await db.SaveChangesAsync(ct);
-    }
 
     private static async Task DeleteExistingScopesAsync(
         TrueMainDbContext db,

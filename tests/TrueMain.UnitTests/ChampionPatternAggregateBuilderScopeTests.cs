@@ -7,16 +7,15 @@ using NSubstitute;
 namespace TrueMain.UnitTests;
 
 /// <summary>
-/// Locks the Phase 5 data-preservation invariants: whatever the builder
-/// emits on the legacy <c>ChampionPatternAggregate</c> wide-table path
-/// MUST agree with the new normalised schema on total games / wins, per
-/// scope and per dimension. A drift here is the signal that backfill
-/// from the old table into the new one would lose rows.
+/// Locks the Phase 6 builder invariants: scopes carry the right
+/// per-(account, champion, patch, platform, queue, position) totals, and
+/// pattern intents preserve every observation as a (full combo) tuple.
+/// Drift here means the persister would write inconsistent counts.
 /// </summary>
 public sealed class ChampionPatternAggregateBuilderScopeTests
 {
     [Fact]
-    public async Task DualWrite_preserves_totals_across_legacy_and_normalised_outputs()
+    public async Task BuildAggregates_PreservesTotalsAcrossScopesAndPatterns()
     {
         var metadataProvider = Substitute.For<IItemMetadataProvider>();
         metadataProvider
@@ -44,37 +43,25 @@ public sealed class ChampionPatternAggregateBuilderScopeTests
             DateTime.UtcNow,
             CancellationToken.None);
 
-        result.AggregateRows.Sum(a => a.Games).Should().Be(sourceRows.Count);
-        result.AggregateRows.Sum(a => a.Wins).Should().Be(sourceRows.Count(row => row.Win));
-
         result.Scopes.Sum(s => s.Games).Should().Be(sourceRows.Count);
         result.Scopes.Sum(s => s.Wins).Should().Be(sourceRows.Count(row => row.Win));
 
+        // Each pattern intent represents one (scope + full combo) — summing
+        // games across patterns must equal the scope totals (no observation
+        // double-counted, none lost).
+        result.Patterns.Sum(p => p.Games).Should().Be(sourceRows.Count);
+        result.Patterns.Sum(p => p.Wins).Should().Be(sourceRows.Count(row => row.Win));
+
         foreach (var scope in result.Scopes)
         {
-            scope.SpellPairs.Sum(p => p.Games).Should().Be(
-                scope.Games,
-                because: "the spell-pair dimension must sum to the scope total");
-            scope.SpellPairs.Sum(p => p.Wins).Should().Be(scope.Wins);
-
-            scope.SkillOrders.Sum(o => o.Games).Should().Be(scope.Games);
-            scope.SkillOrders.Sum(o => o.Wins).Should().Be(scope.Wins);
-
-            scope.StarterItems.Sum(s => s.Games).Should().Be(scope.Games);
-            scope.StarterItems.Sum(s => s.Wins).Should().Be(scope.Wins);
-
-            scope.Builds.Sum(b => b.Games).Should().Be(scope.Games);
-            scope.Builds.Sum(b => b.Wins).Should().Be(scope.Wins);
-
-            scope.RunePages.Sum(p => p.Games).Should().Be(
-                scope.Games,
-                because: "the rune-page dimension must sum to the scope total");
-            scope.RunePages.Sum(p => p.Wins).Should().Be(scope.Wins);
+            var scopePatterns = result.Patterns.Where(p => p.ScopeId == scope.Id).ToList();
+            scopePatterns.Sum(p => p.Games).Should().Be(scope.Games);
+            scopePatterns.Sum(p => p.Wins).Should().Be(scope.Wins);
         }
     }
 
     [Fact]
-    public async Task RunePages_fold_participants_with_identical_pages_into_a_single_dimension_row()
+    public async Task BuildAggregates_FoldsIdenticalCombosIntoSinglePattern()
     {
         var metadataProvider = Substitute.For<IItemMetadataProvider>();
         metadataProvider
@@ -99,11 +86,12 @@ public sealed class ChampionPatternAggregateBuilderScopeTests
 
         var result = await builder.BuildAggregatesAsync(sourceRows, DateTime.UtcNow, CancellationToken.None);
 
-        var scope = result.Scopes.Should().ContainSingle().Subject;
-        scope.RunePages.Should().HaveCount(2);
-        scope.RunePages.Single(rp => rp.PrimaryKeystoneId == 8005).Games.Should().Be(2);
-        scope.RunePages.Single(rp => rp.PrimaryKeystoneId == 8005).Wins.Should().Be(1);
-        scope.RunePages.Single(rp => rp.PrimaryKeystoneId == 8021).Games.Should().Be(1);
+        result.Scopes.Should().ContainSingle();
+        result.Patterns.Should().HaveCount(2,
+            "two distinct rune pages with the same other dims = two patterns");
+        result.Patterns.Single(p => p.RunePage.PrimaryKeystoneId == 8005).Games.Should().Be(2);
+        result.Patterns.Single(p => p.RunePage.PrimaryKeystoneId == 8005).Wins.Should().Be(1);
+        result.Patterns.Single(p => p.RunePage.PrimaryKeystoneId == 8021).Games.Should().Be(1);
     }
 
     private readonly record struct PageSpec(

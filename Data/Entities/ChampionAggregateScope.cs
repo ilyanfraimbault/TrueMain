@@ -1,11 +1,13 @@
 namespace Data.Entities;
 
 /// <summary>
-/// Master row of the normalised aggregate schema: one row per
+/// Master row of the aggregate schema: one row per
 /// (riot_account_id, champion_id, game_version, platform_id, queue_id, position)
-/// slice, carrying the aggregate totals for the slice. The dimension
-/// tables (<see cref="ChampionAggregateSpellPair"/> etc.) reference this
-/// row via <c>ScopeId</c> and decompose the old 23-column pattern.
+/// slice, carrying the scope-level totals (Games / Wins / aggregated-at).
+/// Per-combo counts live on <see cref="ChampionAggregatePattern"/> with
+/// FKs to the deduplicated <c>ChampionDim*</c> tables — the scope itself
+/// no longer owns dimension rows directly (Phase 6 removed the
+/// per-scope dim tables in favour of the junction).
 /// </summary>
 public class ChampionAggregateScope
 {
@@ -23,10 +25,4 @@ public class ChampionAggregateScope
     public int Wins { get; set; }
     public DateTime LastGameStartTimeUtc { get; set; }
     public DateTime AggregatedAtUtc { get; set; }
-
-    public List<ChampionAggregateSpellPair> SpellPairs { get; set; } = [];
-    public List<ChampionAggregateSkillOrder> SkillOrders { get; set; } = [];
-    public List<ChampionAggregateStarterItems> StarterItems { get; set; } = [];
-    public List<ChampionAggregateBuild> Builds { get; set; } = [];
-    public List<ChampionAggregateRunePage> RunePages { get; set; } = [];
 }

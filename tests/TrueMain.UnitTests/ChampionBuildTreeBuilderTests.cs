@@ -115,8 +115,6 @@ public sealed class ChampionBuildTreeBuilderTests
     private static ChampionAggregateRunePage BuildAggregateRunePage(int firstItemId, int keystoneId, int games, int wins)
         => new()
         {
-            Id = Guid.NewGuid(),
-            ScopeId = Guid.NewGuid(),
             FirstItemId = firstItemId,
             PrimaryStyleId = 8000,
             PrimaryKeystoneId = keystoneId,
@@ -131,8 +129,6 @@ public sealed class ChampionBuildTreeBuilderTests
 
         return new ChampionAggregateBuild
         {
-            Id = Guid.NewGuid(),
-            ScopeId = Guid.NewGuid(),
             BootsItemId = 0,
             BuildItem0 = build[0],
             BuildItem1 = build[1],
