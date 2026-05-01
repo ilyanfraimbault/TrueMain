@@ -29,30 +29,35 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
         await process.RunCoreAsync(CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
-        var aggregates = await verifyDb.ChampionPatternAggregates
-            .OrderBy(a => a.GameVersion)
-            .ToListAsync();
+        // Both seeded matches (16.5.2, 16.5.1) normalise to patch "16.5",
+        // same account / champion / position / platform / queue → one scope
+        // with two patterns (one per distinct build combo).
+        var scope = await verifyDb.ChampionAggregateScopes.SingleAsync();
+        scope.RiotAccountId.Should().Be(_riotAccountId);
+        scope.ChampionId.Should().Be(22);
+        scope.PlatformId.Should().Be("KR");
+        scope.Position.Should().Be("BOTTOM");
+        scope.GameVersion.Should().Be("16.5");
+        scope.Games.Should().Be(2);
+        scope.Wins.Should().Be(1);
 
-        aggregates.Should().HaveCount(2);
+        // Match the seeded combo (build items [3153, 6672, 0...], boots 3006,
+        // starter [1055, 2003]) through the dim tables to find its pattern.
+        var combo = await (
+            from pattern in verifyDb.ChampionAggregatePatterns
+            join build in verifyDb.ChampionDimBuilds on pattern.BuildId equals build.Id
+            join starter in verifyDb.ChampionDimStarterItems on pattern.StarterItemsId equals starter.Id
+            where pattern.ScopeId == scope.Id
+                && build.BuildItem0 == 3153
+                && build.BuildItem1 == 6672
+                && build.BuildItem2 == 0
+            select new { pattern.Games, pattern.Wins, build.BootsItemId, starter.StarterItems })
+            .SingleAsync();
 
-        var aggregate = aggregates.Single(a =>
-            a.GameVersion == "16.5"
-            && a.BuildItem0 == 3153
-            && a.BuildItem1 == 6672
-            && a.BuildItem2 == 0);
-        aggregate.RiotAccountId.Should().Be(_riotAccountId);
-        aggregate.ChampionId.Should().Be(22);
-        aggregate.PlatformId.Should().Be("KR");
-        aggregate.Position.Should().Be("BOTTOM");
-        aggregate.StarterItems.Should().Equal(1055, 2003);
-        aggregate.BootsItemId.Should().Be(3006);
-        aggregate.BuildItem0.Should().Be(3153);
-        aggregate.BuildItem1.Should().Be(6672);
-        aggregate.BuildItem2.Should().Be(0);
-        aggregate.BuildItem3.Should().Be(0);
-        aggregate.BuildItem6.Should().Be(0);
-        aggregate.Games.Should().Be(1);
-        aggregate.Wins.Should().Be(1);
+        combo.BootsItemId.Should().Be(3006);
+        combo.StarterItems.Should().Equal(1055, 2003);
+        combo.Games.Should().Be(1);
+        combo.Wins.Should().Be(1);
     }
 
     [Fact]
@@ -66,11 +71,13 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
         await process.RunCoreAsync(CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
-        var aggregates = await verifyDb.ChampionPatternAggregates.ToListAsync();
+        var scopes = await verifyDb.ChampionAggregateScopes.AsNoTracking().ToListAsync();
+        var patterns = await verifyDb.ChampionAggregatePatterns.AsNoTracking().ToListAsync();
 
-        aggregates.Should().HaveCount(2);
-        aggregates.Should().OnlyHaveUniqueItems(a =>
-            $"{a.RiotAccountId}:{a.GameVersion}:{string.Join("-", a.StarterItems)}:{a.BuildItem0}:{a.BuildItem1}:{a.BuildItem2}:{a.BuildItem3}:{a.BuildItem4}:{a.BuildItem5}:{a.BuildItem6}");
+        scopes.Should().ContainSingle();
+        patterns.Should().HaveCount(2,
+            "two source matches with distinct builds = two pattern rows in the same scope; "
+            + "the second run deletes + reinserts via the cascade so we must not see duplicates");
     }
 
     [Fact]
@@ -97,11 +104,12 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
         await process.RunCoreAsync(CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
-        (await verifyDb.ChampionPatternAggregates.ToListAsync()).Should().BeEmpty();
+        (await verifyDb.ChampionAggregateScopes.ToListAsync()).Should().BeEmpty();
+        (await verifyDb.ChampionAggregatePatterns.ToListAsync()).Should().BeEmpty();
     }
 
     [Fact]
-    public async Task RunAsync_DualWritesPatternsConsistentWithLegacyAggregateCounts()
+    public async Task RunAsync_PopulatesGloballyDeduplicatedDimensionRows()
     {
         await _fixture.ResetDatabaseAsync();
         await SeedChampionPatternDataAsync();
@@ -110,44 +118,27 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
         await process.RunCoreAsync(CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
-        var legacyAggregates = await verifyDb.ChampionPatternAggregates.AsNoTracking().ToListAsync();
-        var patterns = await verifyDb.ChampionAggregatePatterns.AsNoTracking().ToListAsync();
+        var dimBuilds = await verifyDb.ChampionDimBuilds.AsNoTracking().ToListAsync();
+        var dimRunes = await verifyDb.ChampionDimRunePages.AsNoTracking().ToListAsync();
+        var dimSpellPairs = await verifyDb.ChampionDimSpellPairs.AsNoTracking().ToListAsync();
+        var dimSkillOrders = await verifyDb.ChampionDimSkillOrders.AsNoTracking().ToListAsync();
+        var dimStarters = await verifyDb.ChampionDimStarterItems.AsNoTracking().ToListAsync();
 
-        // One pattern row per legacy aggregate row — both group by the same
-        // (account, champion, version, platform, queue, position, build,
-        // runes, skills, spells, starters) tuple.
-        patterns.Should().HaveCount(legacyAggregates.Count);
-        patterns.Sum(p => p.Games).Should().Be(legacyAggregates.Sum(a => a.Games));
-        patterns.Sum(p => p.Wins).Should().Be(legacyAggregates.Sum(a => a.Wins));
+        dimBuilds.Should().NotBeEmpty();
+        dimRunes.Should().NotBeEmpty();
+        dimSpellPairs.Should().NotBeEmpty();
+        dimSkillOrders.Should().NotBeEmpty();
+        dimStarters.Should().NotBeEmpty();
 
-        // Dim tables hold deduplicated reference rows.
-        var distinctBuilds = await verifyDb.ChampionDimBuilds.AsNoTracking().ToListAsync();
-        var distinctRunes = await verifyDb.ChampionDimRunePages.AsNoTracking().ToListAsync();
-        var distinctSpellPairs = await verifyDb.ChampionDimSpellPairs.AsNoTracking().ToListAsync();
-        var distinctSkillOrders = await verifyDb.ChampionDimSkillOrders.AsNoTracking().ToListAsync();
-        var distinctStarters = await verifyDb.ChampionDimStarterItems.AsNoTracking().ToListAsync();
-
-        distinctBuilds.Should().NotBeEmpty();
-        distinctRunes.Should().NotBeEmpty();
-        distinctSpellPairs.Should().NotBeEmpty();
-        distinctSkillOrders.Should().NotBeEmpty();
-        distinctStarters.Should().NotBeEmpty();
-
-        // Re-running the aggregation must produce the same dim row count
-        // (idempotent get-or-create) — no duplicate rows in the dim tables.
+        // Re-running must NOT add duplicate dim rows (get-or-create idempotency).
         await process.RunCoreAsync(CancellationToken.None);
 
         await using var rerunDb = _fixture.CreateDbContext();
-        (await rerunDb.ChampionDimBuilds.AsNoTracking().CountAsync()).Should().Be(distinctBuilds.Count);
-        (await rerunDb.ChampionDimRunePages.AsNoTracking().CountAsync()).Should().Be(distinctRunes.Count);
-        (await rerunDb.ChampionDimSpellPairs.AsNoTracking().CountAsync()).Should().Be(distinctSpellPairs.Count);
-        (await rerunDb.ChampionDimSkillOrders.AsNoTracking().CountAsync()).Should().Be(distinctSkillOrders.Count);
-        (await rerunDb.ChampionDimStarterItems.AsNoTracking().CountAsync()).Should().Be(distinctStarters.Count);
-
-        // Pattern rows are replaced wholesale via scope cascade — count
-        // should match the legacy count after re-run too.
-        var rerunPatterns = await rerunDb.ChampionAggregatePatterns.AsNoTracking().ToListAsync();
-        rerunPatterns.Should().HaveCount(legacyAggregates.Count);
+        (await rerunDb.ChampionDimBuilds.CountAsync()).Should().Be(dimBuilds.Count);
+        (await rerunDb.ChampionDimRunePages.CountAsync()).Should().Be(dimRunes.Count);
+        (await rerunDb.ChampionDimSpellPairs.CountAsync()).Should().Be(dimSpellPairs.Count);
+        (await rerunDb.ChampionDimSkillOrders.CountAsync()).Should().Be(dimSkillOrders.Count);
+        (await rerunDb.ChampionDimStarterItems.CountAsync()).Should().Be(dimStarters.Count);
     }
 
     [Fact]
@@ -160,10 +151,12 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFi
         await process.RunCoreAsync(CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
-        var aggregates = await verifyDb.ChampionPatternAggregates.ToListAsync();
+        var scopes = await verifyDb.ChampionAggregateScopes.ToListAsync();
 
-        aggregates.Should().HaveCount(2);
-        aggregates.Should().NotContain(aggregate => aggregate.GameVersion == "16.6");
+        // Both 16.5.x matches collapse to one "16.5" scope; the 16.6 match
+        // is filtered out as too short, so there's no second scope to keep.
+        scopes.Should().ContainSingle();
+        scopes.Should().NotContain(scope => scope.GameVersion == "16.6");
     }
 
     private ChampionPatternAggregationProcess CreateProcess()

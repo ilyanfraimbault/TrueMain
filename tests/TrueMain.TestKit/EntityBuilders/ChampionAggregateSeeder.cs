@@ -148,52 +148,7 @@ public sealed class ChampionAggregateSeeder
                 Games = accumulator.Games,
                 Wins = accumulator.Wins,
                 LastGameStartTimeUtc = accumulator.AggregatedAtUtc.AddMinutes(-30),
-                AggregatedAtUtc = accumulator.AggregatedAtUtc,
-                SpellPairs = accumulator.SpellPairs
-                    .Select(pair => new ChampionAggregateSpellPair
-                    {
-                        Id = Guid.NewGuid(),
-                        Spell1Id = pair.Key.spell1,
-                        Spell2Id = pair.Key.spell2,
-                        Games = pair.Value.Games,
-                        Wins = pair.Value.Wins
-                    })
-                    .ToList(),
-                SkillOrders = accumulator.SkillOrders
-                    .Select(order => new ChampionAggregateSkillOrder
-                    {
-                        Id = Guid.NewGuid(),
-                        SkillOrderKey = order.Key,
-                        Games = order.Value.Games,
-                        Wins = order.Value.Wins
-                    })
-                    .ToList(),
-                StarterItems = accumulator.StarterItems
-                    .Select(starter => new ChampionAggregateStarterItems
-                    {
-                        Id = Guid.NewGuid(),
-                        StarterItemsKey = starter.Key,
-                        StarterItems = starter.Value.Items.ToList(),
-                        Games = starter.Value.Games,
-                        Wins = starter.Value.Wins
-                    })
-                    .ToList(),
-                Builds = accumulator.Builds
-                    .Select(build => new ChampionAggregateBuild
-                    {
-                        Id = Guid.NewGuid(),
-                        BootsItemId = build.Key.BootsItemId,
-                        BuildItem0 = build.Key.Item0,
-                        BuildItem1 = build.Key.Item1,
-                        BuildItem2 = build.Key.Item2,
-                        BuildItem3 = build.Key.Item3,
-                        BuildItem4 = build.Key.Item4,
-                        BuildItem5 = build.Key.Item5,
-                        BuildItem6 = build.Key.Item6,
-                        Games = build.Value.Games,
-                        Wins = build.Value.Wins
-                    })
-                    .ToList()
+                AggregatedAtUtc = accumulator.AggregatedAtUtc
             };
 
             db.Set<ChampionAggregateScope>().Add(scope);

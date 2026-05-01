@@ -13,14 +13,12 @@ public sealed class ChampionPatternAggregateBuilder(
     {
         var expandedRows = await ExpandSourceRowsAsync(sourceRows, ct);
 
-        var legacyAggregates = BuildLegacyAggregates(expandedRows, aggregatedAtUtc);
         var scopes = BuildScopes(expandedRows, aggregatedAtUtc);
         var patterns = BuildPatternIntents(expandedRows, scopes);
 
         return new ChampionPatternAggregationResult
         {
             SourceRowCount = sourceRows.Count,
-            AggregateRows = legacyAggregates,
             Scopes = scopes,
             Patterns = patterns
         };
@@ -89,73 +87,6 @@ public sealed class ChampionPatternAggregateBuilder(
             .ToList();
     }
 
-    private static List<ChampionPatternAggregate> BuildLegacyAggregates(
-        IReadOnlyList<ExpandedSourceRow> expandedRows,
-        DateTime aggregatedAtUtc)
-        => expandedRows
-            .GroupBy(row => new AggregateKey(
-                row.RiotAccountId,
-                row.ChampionId,
-                row.GameVersion,
-                row.PlatformId,
-                row.QueueId,
-                row.Position,
-                row.PrimaryStyleId,
-                row.SubStyleId,
-                row.PerksOffense,
-                row.PerksFlex,
-                row.PerksDefense,
-                row.SummonerSpell1Id,
-                row.SummonerSpell2Id,
-                row.SkillOrderKey,
-                row.StarterItemsKey,
-                row.BootsItemId,
-                row.BuildItem0,
-                row.BuildItem1,
-                row.BuildItem2,
-                row.BuildItem3,
-                row.BuildItem4,
-                row.BuildItem5,
-                row.BuildItem6))
-            .OrderBy(group => group.Key.RiotAccountId)
-            .ThenBy(group => group.Key.ChampionId)
-            .ThenBy(group => group.Key.GameVersion)
-            .ThenBy(group => group.Key.PlatformId)
-            .ThenBy(group => group.Key.Position)
-            .Select(group => new ChampionPatternAggregate
-            {
-                Id = Guid.NewGuid(),
-                RiotAccountId = group.Key.RiotAccountId,
-                ChampionId = group.Key.ChampionId,
-                GameVersion = group.Key.GameVersion,
-                PlatformId = group.Key.PlatformId,
-                QueueId = group.Key.QueueId,
-                Position = group.Key.Position,
-                PrimaryStyleId = group.Key.PrimaryStyleId,
-                SubStyleId = group.Key.SubStyleId,
-                PerksOffense = group.Key.PerksOffense,
-                PerksFlex = group.Key.PerksFlex,
-                PerksDefense = group.Key.PerksDefense,
-                SummonerSpell1Id = group.Key.SummonerSpell1Id,
-                SummonerSpell2Id = group.Key.SummonerSpell2Id,
-                SkillOrderKey = group.Key.SkillOrderKey,
-                StarterItems = group.First().StarterItems,
-                StarterItemsKey = group.Key.StarterItemsKey,
-                BootsItemId = group.Key.BootsItemId,
-                BuildItem0 = group.Key.BuildItem0,
-                BuildItem1 = group.Key.BuildItem1,
-                BuildItem2 = group.Key.BuildItem2,
-                BuildItem3 = group.Key.BuildItem3,
-                BuildItem4 = group.Key.BuildItem4,
-                BuildItem5 = group.Key.BuildItem5,
-                BuildItem6 = group.Key.BuildItem6,
-                Games = group.Count(),
-                Wins = group.Count(entry => entry.Win),
-                LastGameStartTimeUtc = group.Max(entry => entry.GameStartTimeUtc),
-                AggregatedAtUtc = aggregatedAtUtc
-            })
-            .ToList();
-
     private static List<ChampionAggregateScope> BuildScopes(
         IReadOnlyList<ExpandedSourceRow> expandedRows,
         DateTime aggregatedAtUtc)
@@ -193,92 +124,7 @@ public sealed class ChampionPatternAggregateBuilder(
             Games = rows.Count,
             Wins = rows.Count(row => row.Win),
             LastGameStartTimeUtc = rows.Max(row => row.GameStartTimeUtc),
-            AggregatedAtUtc = aggregatedAtUtc,
-            SpellPairs = rows
-                .GroupBy(row => (row.SummonerSpell1Id, row.SummonerSpell2Id))
-                .Select(dim => new ChampionAggregateSpellPair
-                {
-                    Id = Guid.NewGuid(),
-                    Spell1Id = dim.Key.SummonerSpell1Id,
-                    Spell2Id = dim.Key.SummonerSpell2Id,
-                    Games = dim.Count(),
-                    Wins = dim.Count(row => row.Win)
-                })
-                .ToList(),
-            SkillOrders = rows
-                .GroupBy(row => row.SkillOrderKey)
-                .Select(dim => new ChampionAggregateSkillOrder
-                {
-                    Id = Guid.NewGuid(),
-                    SkillOrderKey = dim.Key,
-                    Games = dim.Count(),
-                    Wins = dim.Count(row => row.Win)
-                })
-                .ToList(),
-            StarterItems = rows
-                .GroupBy(row => row.StarterItemsKey)
-                .Select(dim => new ChampionAggregateStarterItems
-                {
-                    Id = Guid.NewGuid(),
-                    StarterItemsKey = dim.Key,
-                    StarterItems = dim.First().StarterItems,
-                    Games = dim.Count(),
-                    Wins = dim.Count(row => row.Win)
-                })
-                .ToList(),
-            Builds = rows
-                .GroupBy(row => (
-                    row.BootsItemId,
-                    row.BuildItem0, row.BuildItem1, row.BuildItem2, row.BuildItem3,
-                    row.BuildItem4, row.BuildItem5, row.BuildItem6))
-                .Select(dim => new ChampionAggregateBuild
-                {
-                    Id = Guid.NewGuid(),
-                    BootsItemId = dim.Key.BootsItemId,
-                    BuildItem0 = dim.Key.BuildItem0,
-                    BuildItem1 = dim.Key.BuildItem1,
-                    BuildItem2 = dim.Key.BuildItem2,
-                    BuildItem3 = dim.Key.BuildItem3,
-                    BuildItem4 = dim.Key.BuildItem4,
-                    BuildItem5 = dim.Key.BuildItem5,
-                    BuildItem6 = dim.Key.BuildItem6,
-                    Games = dim.Count(),
-                    Wins = dim.Count(row => row.Win)
-                })
-                .ToList(),
-            RunePages = rows
-                .GroupBy(row => (
-                    row.BuildItem0,
-                    row.PrimaryStyleId,
-                    row.PrimaryKeystoneId,
-                    row.PrimaryPerk1Id,
-                    row.PrimaryPerk2Id,
-                    row.PrimaryPerk3Id,
-                    row.SubStyleId,
-                    row.SecondaryPerk1Id,
-                    row.SecondaryPerk2Id,
-                    row.PerksOffense,
-                    row.PerksFlex,
-                    row.PerksDefense))
-                .Select(dim => new ChampionAggregateRunePage
-                {
-                    Id = Guid.NewGuid(),
-                    FirstItemId = dim.Key.BuildItem0,
-                    PrimaryStyleId = dim.Key.PrimaryStyleId,
-                    PrimaryKeystoneId = dim.Key.PrimaryKeystoneId,
-                    PrimaryPerk1Id = dim.Key.PrimaryPerk1Id,
-                    PrimaryPerk2Id = dim.Key.PrimaryPerk2Id,
-                    PrimaryPerk3Id = dim.Key.PrimaryPerk3Id,
-                    SecondaryStyleId = dim.Key.SubStyleId,
-                    SecondaryPerk1Id = dim.Key.SecondaryPerk1Id,
-                    SecondaryPerk2Id = dim.Key.SecondaryPerk2Id,
-                    StatOffense = dim.Key.PerksOffense,
-                    StatFlex = dim.Key.PerksFlex,
-                    StatDefense = dim.Key.PerksDefense,
-                    Games = dim.Count(),
-                    Wins = dim.Count(row => row.Win)
-                })
-                .ToList()
+            AggregatedAtUtc = aggregatedAtUtc
         };
     }
 

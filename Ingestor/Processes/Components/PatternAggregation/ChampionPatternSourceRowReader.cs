@@ -30,14 +30,17 @@ public sealed class ChampionPatternSourceRowReader(
         int queueId,
         CancellationToken ct)
     {
-        return db.ChampionPatternAggregates
+        // Phase 6.4: source the cleanup keys from ChampionAggregateScope
+        // since ChampionPatternAggregate is gone. Same semantic — replace
+        // every scope that already exists for this queue.
+        return db.ChampionAggregateScopes
             .AsNoTracking()
-            .Where(aggregate => aggregate.QueueId == queueId)
-            .Select(aggregate => new AggregateScopeKey(
-                aggregate.ChampionId,
-                aggregate.GameVersion,
-                aggregate.PlatformId,
-                aggregate.QueueId))
+            .Where(scope => scope.QueueId == queueId)
+            .Select(scope => new AggregateScopeKey(
+                scope.ChampionId,
+                scope.GameVersion,
+                scope.PlatformId,
+                scope.QueueId))
             .Distinct()
             .ToListAsync(ct);
     }
