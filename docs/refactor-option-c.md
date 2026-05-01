@@ -28,22 +28,9 @@ Each item is tagged with the audit zone (Core / Data / Api / Ingestor / Infra
 - Risk: any catch block elsewhere keying off `Exception` type would have to
   be updated.
 
-## C-2. Drop the legacy `ChampionPatternAggregate` table
+## ~~C-2. Drop the legacy `ChampionPatternAggregate` table~~ — **DONE**
 
-- Zone: Data
-- Why: the normalised aggregate (`ChampionAggregateScope` + 5 dimension
-  tables) replaced the 23-column flat row in Sprint 5. The legacy table
-  still has its 23-column unique index, doubles every write
-  (`ChampionPatternAggregatePersister.WriteAsync` keeps the legacy
-  upsert as a defensive backup), and is no longer read by the API.
-- Approach:
-  1. Stop dual-writing to the legacy table (one release).
-  2. After two run cycles confirm the new aggregate is sufficient (compare
-     row counts and hash a few payloads).
-  3. Drop the table and the `ChampionPatternAggregate` entity in a
-     dedicated migration.
-- Risk: rollback requires data recovery from a Postgres dump; can't be
-  bundled with another change.
+Closed by Phase 6 (RFC: [`docs/phase-6-pattern-junction-rfc.md`](./phase-6-pattern-junction-rfc.md), PRs 6.1 → 6.4). The legacy `champion_pattern_aggregates` table is gone, along with the per-scope `champion_aggregate_*` dim tables and the dual-write code path. The aggregator now writes the new pattern junction (`champion_aggregate_patterns` + globally-deduplicated `champion_dim_*`) only, and the read side projects from there with optional cross-dimension correlation pivots (`?buildId=`).
 
 ## C-3. Backfill the SkillEvents truncation against existing data
 
