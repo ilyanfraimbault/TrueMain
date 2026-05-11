@@ -15,6 +15,8 @@ using Npgsql;
 var builder = Host.CreateApplicationBuilder(args);
 
 builder.Services.AddValidatedOptions(builder.Configuration);
+builder.Services.AddOptions<DatabaseOptions>()
+    .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName));
 
 builder.Services.AddSingleton<IRiotHttpExecutor, RiotHttpExecutor>();
 builder.Services.AddHttpClient<IRiotMatchClient, RiotMatchClient>();
@@ -36,15 +38,16 @@ builder.Services.AddHttpClient<IItemMetadataProvider, CommunityDragonItemMetadat
 builder.Services.AddScoped<ChampionPatternSourceRowReader>();
 builder.Services.AddScoped<ChampionPatternAggregateBuilder>();
 builder.Services.AddScoped<ChampionPatternAggregatePersister>();
+builder.Services.AddScoped<IChampionDimensionResolver, ChampionDimensionResolver>();
 
-builder.Services.AddScoped<DiscoveryProcess>();
-builder.Services.AddScoped<ScoringProcess>();
-builder.Services.AddScoped<MatchIngestionProcess>();
-builder.Services.AddScoped<MainAnalysisProcess>();
-builder.Services.AddScoped<ChampionPatternAggregationProcess>();
-builder.Services.AddScoped<AccountRefreshProcess>();
-builder.Services.AddScoped<MatchDataRetentionProcess>();
 builder.Services.AddSingleton<IProcessRunRecorder, ProcessRunRecorder>();
+builder.Services.AddRecordedProcess<DiscoveryProcess>();
+builder.Services.AddRecordedProcess<ScoringProcess>();
+builder.Services.AddRecordedProcess<MatchIngestionProcess>();
+builder.Services.AddRecordedProcess<MainAnalysisProcess>();
+builder.Services.AddRecordedProcess<ChampionPatternAggregationProcess>();
+builder.Services.AddRecordedProcess<AccountRefreshProcess>();
+builder.Services.AddRecordedProcess<MatchDataRetentionProcess>();
 
 builder.Services.AddDbContextFactory<TrueMainDbContext>(options =>
 {
@@ -69,4 +72,5 @@ builder.Services.AddSingleton<IDataSessionFactory, DataSessionFactory>();
 builder.Services.AddHostedService<Worker>();
 
 var host = builder.Build();
-host.Run();
+await DatabaseMigrator.ApplyPendingMigrationsAsync(host.Services);
+await host.RunAsync();

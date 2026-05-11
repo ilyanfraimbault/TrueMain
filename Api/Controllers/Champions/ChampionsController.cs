@@ -1,6 +1,6 @@
-using TrueMain.Mapping.Champions;
-using TrueMain.Services.Champions;
 using Microsoft.AspNetCore.Mvc;
+using TrueMain.ReadModels.Champions;
+using TrueMain.Services.Champions;
 
 namespace TrueMain.Controllers.Champions;
 
@@ -11,52 +11,71 @@ public sealed class ChampionsController(
     IChampionBuildTreeQueryService championBuildTreeQueryService) : ControllerBase
 {
     [HttpGet("{championId:int}")]
-    public async Task<ActionResult> GetChampionAsync(
+    [ProducesResponseType(typeof(ChampionReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<ChampionReadModel>> GetChampionAsync(
         int championId,
         [FromQuery] Guid? riotAccountId,
         [FromQuery] string? patch,
         [FromQuery] string? platformId,
         [FromQuery] string? position,
+        [FromQuery] Guid? buildId,
         [FromQuery] int maxDepth = 7,
         [FromQuery] int minBranchGames = 1,
         CancellationToken ct = default)
     {
-        patch = NullIfEmpty(patch);
-        platformId = NullIfEmpty(platformId);
-        position = NullIfEmpty(position);
+        // Canonicalise raw query params to the exact strings stored on
+        // champion_aggregate_scopes. The query services do exact-string
+        // comparisons, so passing through the raw values causes silent 404s
+        // for inputs like ?platformId=euw1 or ?patch=16.4.521.
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+        var normalizedPlatform = ChampionQueryParameterNormalizer.NormalizePlatform(platformId);
+        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
 
-        var requestedFoundationReadModel = await championFoundationQueryService.GetAsync(
+        // Phase 6.3 — optional cross-dimension correlation pivot. When set
+        // (e.g. ?buildId=<champion_dim_builds.Id>), the foundation Core /
+        // Advanced blocks are computed from patterns matching that build
+        // only, answering "given this build, what runes / skills / spells /
+        // starters do players run". The build tree never pivots — it is
+        // the build, the user navigates it via the response itself.
+        var pivot = buildId.HasValue ? new ChampionPatternPivot(buildId) : ChampionPatternPivot.None;
+
+        var foundationReadModel = await championFoundationQueryService.GetAsync(
             championId,
             riotAccountId,
-            patch,
-            platformId,
-            position,
+            normalizedPatch,
+            normalizedPlatform,
+            normalizedPosition,
+            pivot,
             ct);
 
-        if (requestedFoundationReadModel is null)
+        if (foundationReadModel is null)
         {
             return NotFound();
         }
 
-        var effectivePatch = NullIfEmpty(patch ?? requestedFoundationReadModel.Summary.LatestPatchVersion);
-        var effectivePosition = NullIfEmpty(position ?? requestedFoundationReadModel.Summary.Position);
+        var effectivePatch = normalizedPatch
+            ?? ChampionQueryParameterNormalizer.NormalizePatch(foundationReadModel.Summary.LatestPatchVersion);
+        var effectivePosition = normalizedPosition
+            ?? ChampionQueryParameterNormalizer.NormalizePosition(foundationReadModel.Summary.Position);
 
         var buildTreeReadModel = await championBuildTreeQueryService.GetAsync(
             championId,
             riotAccountId,
             effectivePatch,
-            platformId,
+            normalizedPlatform,
             effectivePosition,
             maxDepth,
             minBranchGames,
             ct);
 
-        var coreReadModel = ChampionCoreBuilder.Build(
-            requestedFoundationReadModel);
-
-        return Ok(ChampionMapper.ToContract(requestedFoundationReadModel, coreReadModel, buildTreeReadModel));
+        return Ok(new ChampionReadModel
+        {
+            Summary = foundationReadModel.Summary,
+            Core = foundationReadModel.Core,
+            Advanced = foundationReadModel.Advanced,
+            BuildTree = buildTreeReadModel
+        });
     }
-
-    private static string? NullIfEmpty(string? value)
-        => string.IsNullOrWhiteSpace(value) ? null : value;
 }

@@ -1,4 +1,5 @@
-using Core;
+using Core.Lol.Map;
+using Core.Lol.Identifiers;
 using Data.Entities;
 using Data.Repositories;
 using FluentAssertions;
@@ -59,8 +60,8 @@ public sealed class MatchTimelineRecoveryIntegrationTests : IClassFixture<Postgr
         {
             Id = matchId,
             PlatformId = "KR",
-            QueueId = 420,
-            MapId = 11,
+            QueueId = LolQueueIds.RankedSoloDuo,
+            MapId = LolMapIds.SummonersRift,
             GameMode = "CLASSIC",
             GameType = "MATCHED_GAME",
             GameStartTimeUtc = now,

@@ -1,0 +1,76 @@
+version: 2
+updates:
+  # Central .NET package graph lives in Directory.Packages.props; Dependabot's
+  # nuget ecosystem scanner picks the Directory.Packages.props + per-project
+  # csproj files up automatically.
+  - package-ecosystem: nuget
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Paris
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - dotnet
+    groups:
+      microsoft-extensions:
+        patterns:
+          - "Microsoft.Extensions.*"
+          - "Microsoft.AspNetCore.*"
+      ef-core:
+        patterns:
+          - "Microsoft.EntityFrameworkCore*"
+          - "Npgsql.EntityFrameworkCore*"
+      xunit-stack:
+        patterns:
+          - "xunit*"
+          - "Microsoft.NET.Test.Sdk"
+          - "coverlet.*"
+
+  - package-ecosystem: npm
+    directory: "/truemain-web"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Paris
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - frontend
+    groups:
+      nuxt:
+        patterns:
+          - "nuxt"
+          - "@nuxt/*"
+      eslint:
+        patterns:
+          - "eslint*"
+          - "@typescript-eslint/*"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Paris
+    labels:
+      - dependencies
+      - ci
+
+  - package-ecosystem: docker
+    directories:
+      - /Api
+      - /Ingestor
+      - /truemain-web
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Paris
+    labels:
+      - dependencies
+      - docker

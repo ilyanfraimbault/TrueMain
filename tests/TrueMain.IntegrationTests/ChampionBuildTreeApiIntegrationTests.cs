@@ -5,7 +5,8 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
-using TrueMain.Contracts.Champions;
+using TrueMain.ReadModels.Champions;
+using TrueMain.TestKit.EntityBuilders;
 
 namespace TrueMain.IntegrationTests;
 
@@ -30,7 +31,7 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
             BaseAddress = new Uri("https://localhost")
         });
 
-        var payload = await client.GetFromJsonAsync<ChampionResponse>(
+        var payload = await client.GetFromJsonAsync<ChampionReadModel>(
             "/champions/67?patch=16.5&platformId=KR&position=BOTTOM&maxDepth=3&minBranchGames=1");
 
         payload.Should().NotBeNull();
@@ -38,6 +39,9 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
         payload.BuildTree.Patch.Should().Be("16.5");
         payload.BuildTree.Position.Should().Be("BOTTOM");
         payload.BuildTree.TotalGames.Should().Be(10);
+        payload.BuildTree.Boots.Should().NotBeNull();
+        payload.BuildTree.Boots!.ItemIds.Should().Equal(3006);
+        payload.BuildTree.Boots.PlayRate.Should().BeApproximately(0.7, 0.0001);
         payload.BuildTree.Build.Should().HaveCount(1);
         payload.BuildTree.Build[0].ItemId.Should().Be(3153);
         payload.BuildTree.Build[0].Games.Should().Be(10);
@@ -63,7 +67,7 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
             BaseAddress = new Uri("https://localhost")
         });
 
-        var payload = await client.GetFromJsonAsync<ChampionResponse>(
+        var payload = await client.GetFromJsonAsync<ChampionReadModel>(
             $"/champions/67?riotAccountId={account1Id}&patch=&platformId=&position=&maxDepth=3&minBranchGames=1");
 
         payload.Should().NotBeNull();
@@ -72,6 +76,9 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
         payload.BuildTree.Position.Should().Be("BOTTOM");
         payload.BuildTree.PlatformId.Should().BeNull();
         payload.BuildTree.TotalGames.Should().Be(9);
+        payload.BuildTree.Boots.Should().NotBeNull();
+        payload.BuildTree.Boots!.ItemIds.Should().Equal(3006);
+        payload.BuildTree.Boots.PlayRate.Should().BeApproximately(1.0, 0.0001);
         payload.BuildTree.Build.Should().HaveCount(2);
         payload.BuildTree.Build[0].ItemId.Should().Be(3153);
         payload.BuildTree.Build[0].Children.Single().ItemId.Should().Be(3006);
@@ -105,11 +112,14 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
             BaseAddress = new Uri("https://localhost")
         });
 
-        var payload = await client.GetFromJsonAsync<ChampionResponse>(
+        var payload = await client.GetFromJsonAsync<ChampionReadModel>(
             "/champions/67?patch=16.5&platformId=KR&position=BOTTOM&maxDepth=3&minBranchGames=1");
 
         payload.Should().NotBeNull();
         payload!.BuildTree.TotalGames.Should().Be(10);
+        payload.BuildTree.Boots.Should().NotBeNull();
+        payload.BuildTree.Boots!.ItemIds.Should().Equal(3006);
+        payload.BuildTree.Boots.PlayRate.Should().BeApproximately(0.7, 0.0001);
         payload.BuildTree.Build.Should().ContainSingle();
         payload.BuildTree.Build[0].PickRate.Should().BeApproximately(1.0, 0.0001);
     }
@@ -124,15 +134,16 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
         db.RiotAccounts.AddRange(
             BuildAccount(account1Id, "tree-puuid-1", "tree-one", now),
             BuildAccount(account2Id, "tree-puuid-2", "tree-two", now));
-
-        db.ChampionPatternAggregates.AddRange(
-            BuildAggregate(account1Id, 67, "16.5", "KR", 420, "BOTTOM", [3153, 3006, 6672], 7, 4, now.AddMinutes(-10)),
-            BuildAggregate(account2Id, 67, "16.5", "KR", 420, "BOTTOM", [3153, 3091, 3085], 3, 2, now.AddMinutes(-8)),
-            BuildAggregate(account2Id, 67, "16.4", "KR", 420, "BOTTOM", [6672, 3006, 3031], 5, 2, now.AddDays(-1)),
-            BuildAggregate(account1Id, 67, "16.5", "EUW", 420, "BOTTOM", [6672, 3006, 3031], 2, 1, now.AddMinutes(-7)),
-            BuildAggregate(account1Id, 67, "16.5", "KR", 450, "BOTTOM", [6672, 3006, 3031], 4, 3, now.AddMinutes(-6)));
-
         await db.SaveChangesAsync();
+
+        await new ChampionAggregateSeeder()
+            .AddPatternDefaults(account1Id, 67, "16.5", "KR", 420, "BOTTOM", 4, 7, "Q-W-E", [3153, 3006, 6672], 3006, 7, 4, now.AddMinutes(-10))
+            .AddPatternDefaults(account2Id, 67, "16.5", "KR", 420, "BOTTOM", 4, 7, "Q-W-E", [3153, 3091, 3085], 3047, 3, 2, now.AddMinutes(-8))
+            .AddPatternDefaults(account2Id, 67, "16.4", "KR", 420, "BOTTOM", 4, 7, "Q-W-E", [6672, 3006, 3031], 3006, 5, 2, now.AddDays(-1))
+            .AddPatternDefaults(account1Id, 67, "16.5", "EUW", 420, "BOTTOM", 4, 7, "Q-W-E", [6672, 3006, 3031], 3006, 2, 1, now.AddMinutes(-7))
+            .AddPatternDefaults(account1Id, 67, "16.5", "KR", 450, "BOTTOM", 4, 7, "Q-W-E", [6672, 3006, 3031], 3006, 4, 3, now.AddMinutes(-6))
+            .SaveAsync(db);
+
         return (account1Id, account2Id);
     }
 
@@ -146,13 +157,13 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
         db.RiotAccounts.AddRange(
             BuildAccount(account1Id, "tree-empty-puuid-1", "tree-empty-one", now),
             BuildAccount(account2Id, "tree-empty-puuid-2", "tree-empty-two", now));
-
-        db.ChampionPatternAggregates.AddRange(
-            BuildAggregate(account1Id, 67, "16.5", "KR", 420, "BOTTOM", [3153, 3006, 6672], 7, 4, now.AddMinutes(-10)),
-            BuildAggregate(account2Id, 67, "16.5", "KR", 420, "BOTTOM", [3153, 3091, 3085], 3, 2, now.AddMinutes(-8)),
-            BuildAggregate(account2Id, 67, "16.5", "KR", 420, "BOTTOM", [], 5, 1, now.AddMinutes(-7)));
-
         await db.SaveChangesAsync();
+
+        await new ChampionAggregateSeeder()
+            .AddPatternDefaults(account1Id, 67, "16.5", "KR", 420, "BOTTOM", 4, 7, "Q-W-E", [3153, 3006, 6672], 3006, 7, 4, now.AddMinutes(-10))
+            .AddPatternDefaults(account2Id, 67, "16.5", "KR", 420, "BOTTOM", 4, 7, "Q-W-E", [3153, 3091, 3085], 3047, 3, 2, now.AddMinutes(-8))
+            .AddPatternDefaults(account2Id, 67, "16.5", "KR", 420, "BOTTOM", 4, 7, "Q-W-E", [], 0, 5, 1, now.AddMinutes(-7))
+            .SaveAsync(db);
     }
 
     private static RiotAccount BuildAccount(Guid id, string puuid, string gameName, DateTime now)
@@ -170,51 +181,6 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
             UpdatedAtUtc = now.AddDays(-1)
         };
 
-    private static ChampionPatternAggregate BuildAggregate(
-        Guid riotAccountId,
-        int championId,
-        string patch,
-        string platformId,
-        int queueId,
-        string position,
-        IReadOnlyList<int> buildItems,
-        int games,
-        int wins,
-        DateTime aggregatedAtUtc)
-    {
-        var build = buildItems.Concat(Enumerable.Repeat(0, 7)).Take(7).ToArray();
-
-        return new ChampionPatternAggregate
-        {
-            RiotAccountId = riotAccountId,
-            ChampionId = championId,
-            GameVersion = patch,
-            PlatformId = platformId,
-            QueueId = queueId,
-            Position = position,
-            PrimaryStyleId = 8000,
-            SubStyleId = 8200,
-            PerksOffense = 5005,
-            PerksFlex = 5008,
-            PerksDefense = 5002,
-            SummonerSpell1Id = 4,
-            SummonerSpell2Id = 7,
-            SkillOrderKey = "Q-W-E",
-            StarterItems = [1055, 2003],
-            StarterItemsKey = "1055-2003",
-            BuildItem0 = build[0],
-            BuildItem1 = build[1],
-            BuildItem2 = build[2],
-            BuildItem3 = build[3],
-            BuildItem4 = build[4],
-            BuildItem5 = build[5],
-            BuildItem6 = build[6],
-            Games = games,
-            Wins = wins,
-            LastGameStartTimeUtc = aggregatedAtUtc.AddMinutes(-30),
-            AggregatedAtUtc = aggregatedAtUtc
-        };
-    }
 
     private sealed class ApiWebApplicationFactory(PostgresFixture fixture) : WebApplicationFactory<Program>
     {
@@ -226,7 +192,8 @@ public sealed class ChampionBuildTreeApiIntegrationTests : IClassFixture<Postgre
                 configurationBuilder.AddInMemoryCollection(
                 [
                     new KeyValuePair<string, string?>("ConnectionStrings:TrueMain", fixture.ConnectionString),
-                    new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420")
+                    new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420"),
+                    new KeyValuePair<string, string?>("Ops:ApiKey", "integration-tests-ops-key-0123456789-padding")
                 ]);
             });
         }

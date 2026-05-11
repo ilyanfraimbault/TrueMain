@@ -20,12 +20,70 @@ namespace Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.0-preview.2.25163.8")
+                .HasAnnotation("ProductVersion", "10.0.0")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Data.Entities.ChampionPatternAggregate", b =>
+            modelBuilder.Entity("Data.Entities.ChampionAggregatePattern", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BuildId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Games")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("RunePageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ScopeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SkillOrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SpellPairId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("StarterItemsId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Wins")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BuildId");
+
+                    b.HasIndex("RunePageId");
+
+                    b.HasIndex("SkillOrderId");
+
+                    b.HasIndex("SpellPairId");
+
+                    b.HasIndex("StarterItemsId");
+
+                    b.HasIndex("ScopeId", "BuildId");
+
+                    b.HasIndex("ScopeId", "RunePageId");
+
+                    b.HasIndex("ScopeId", "SkillOrderId");
+
+                    b.HasIndex("ScopeId", "SpellPairId");
+
+                    b.HasIndex("ScopeId", "StarterItemsId");
+
+                    b.HasIndex("ScopeId", "BuildId", "RunePageId", "SkillOrderId", "SpellPairId", "StarterItemsId")
+                        .IsUnique();
+
+                    b.ToTable("champion_aggregate_patterns", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.ChampionAggregateScope", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -33,6 +91,58 @@ namespace Data.Migrations
 
                     b.Property<DateTime>("AggregatedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ChampionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("GameVersion")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int>("Games")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("LastGameStartTimeUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PlatformId")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<string>("Position")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("QueueId")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("RiotAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Wins")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChampionId", "GameVersion", "PlatformId", "QueueId");
+
+                    b.HasIndex("RiotAccountId", "ChampionId", "GameVersion", "PlatformId", "Position");
+
+                    b.HasIndex("RiotAccountId", "ChampionId", "GameVersion", "PlatformId", "QueueId", "Position")
+                        .IsUnique()
+                        .HasDatabaseName("IX_champion_aggregate_scopes_RiotAccountId_ChampionId_GameVer~1");
+
+                    b.ToTable("champion_aggregate_scopes", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.ChampionDimBuild", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
 
                     b.Property<int>("BootsItemId")
                         .HasColumnType("integer");
@@ -58,54 +168,107 @@ namespace Data.Migrations
                     b.Property<int>("BuildItem6")
                         .HasColumnType("integer");
 
-                    b.Property<int>("ChampionId")
+                    b.HasKey("Id");
+
+                    b.HasIndex("BootsItemId", "BuildItem0", "BuildItem1", "BuildItem2", "BuildItem3", "BuildItem4", "BuildItem5", "BuildItem6")
+                        .IsUnique();
+
+                    b.ToTable("champion_dim_builds", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.ChampionDimRunePage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("PrimaryKeystoneId")
                         .HasColumnType("integer");
 
-                    b.Property<string>("GameVersion")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<int>("Games")
+                    b.Property<int>("PrimaryPerk1Id")
                         .HasColumnType("integer");
 
-                    b.Property<DateTime>("LastGameStartTimeUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("PerksDefense")
+                    b.Property<int>("PrimaryPerk2Id")
                         .HasColumnType("integer");
 
-                    b.Property<int>("PerksFlex")
+                    b.Property<int>("PrimaryPerk3Id")
                         .HasColumnType("integer");
-
-                    b.Property<int>("PerksOffense")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("PlatformId")
-                        .IsRequired()
-                        .HasMaxLength(8)
-                        .HasColumnType("character varying(8)");
-
-                    b.Property<string>("Position")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
 
                     b.Property<int>("PrimaryStyleId")
                         .HasColumnType("integer");
 
-                    b.Property<int>("QueueId")
+                    b.Property<int>("SecondaryPerk1Id")
                         .HasColumnType("integer");
 
-                    b.Property<Guid>("RiotAccountId")
+                    b.Property<int>("SecondaryPerk2Id")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SecondaryStyleId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("StatDefense")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("StatFlex")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("StatOffense")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PrimaryStyleId", "PrimaryKeystoneId", "PrimaryPerk1Id", "PrimaryPerk2Id", "PrimaryPerk3Id", "SecondaryStyleId", "SecondaryPerk1Id", "SecondaryPerk2Id", "StatOffense", "StatFlex", "StatDefense")
+                        .IsUnique();
+
+                    b.ToTable("champion_dim_rune_pages", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.ChampionDimSkillOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
                     b.Property<string>("SkillOrderKey")
                         .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
-                    b.PrimitiveCollection<List<int>>("StarterItems")
+                    b.HasKey("Id");
+
+                    b.HasIndex("SkillOrderKey")
+                        .IsUnique();
+
+                    b.ToTable("champion_dim_skill_orders", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.ChampionDimSpellPair", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Spell1Id")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Spell2Id")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Spell1Id", "Spell2Id")
+                        .IsUnique();
+
+                    b.ToTable("champion_dim_spell_pairs", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.ChampionDimStarterItems", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.PrimitiveCollection<string>("StarterItems")
                         .IsRequired()
                         .HasColumnType("jsonb");
 
@@ -114,27 +277,12 @@ namespace Data.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
-                    b.Property<int>("SubStyleId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("SummonerSpell1Id")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("SummonerSpell2Id")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Wins")
-                        .HasColumnType("integer");
-
                     b.HasKey("Id");
 
-                    b.HasIndex("RiotAccountId", "ChampionId", "GameVersion", "PlatformId", "Position");
+                    b.HasIndex("StarterItemsKey")
+                        .IsUnique();
 
-                    b.HasIndex("RiotAccountId", "ChampionId", "GameVersion", "PlatformId", "QueueId", "Position", "PrimaryStyleId", "SubStyleId", "PerksOffense", "PerksFlex", "PerksDefense", "SummonerSpell1Id", "SummonerSpell2Id", "SkillOrderKey", "StarterItemsKey", "BootsItemId", "BuildItem0", "BuildItem1", "BuildItem2", "BuildItem3", "BuildItem4", "BuildItem5", "BuildItem6")
-                        .IsUnique()
-                        .HasDatabaseName("IX_champion_pattern_aggregates_RiotAccountId_ChampionId_GameV~1");
-
-                    b.ToTable("champion_pattern_aggregates", (string)null);
+                    b.ToTable("champion_dim_starter_items", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.MainCandidate", b =>
@@ -657,7 +805,58 @@ namespace Data.Migrations
                     b.ToTable("riot_accounts", (string)null);
                 });
 
-            modelBuilder.Entity("Data.Entities.ChampionPatternAggregate", b =>
+            modelBuilder.Entity("Data.Entities.ChampionAggregatePattern", b =>
+                {
+                    b.HasOne("Data.Entities.ChampionDimBuild", "Build")
+                        .WithMany()
+                        .HasForeignKey("BuildId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Data.Entities.ChampionDimRunePage", "RunePage")
+                        .WithMany()
+                        .HasForeignKey("RunePageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Data.Entities.ChampionAggregateScope", "Scope")
+                        .WithMany()
+                        .HasForeignKey("ScopeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Data.Entities.ChampionDimSkillOrder", "SkillOrder")
+                        .WithMany()
+                        .HasForeignKey("SkillOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Data.Entities.ChampionDimSpellPair", "SpellPair")
+                        .WithMany()
+                        .HasForeignKey("SpellPairId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Data.Entities.ChampionDimStarterItems", "StarterItems")
+                        .WithMany()
+                        .HasForeignKey("StarterItemsId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Build");
+
+                    b.Navigation("RunePage");
+
+                    b.Navigation("Scope");
+
+                    b.Navigation("SkillOrder");
+
+                    b.Navigation("SpellPair");
+
+                    b.Navigation("StarterItems");
+                });
+
+            modelBuilder.Entity("Data.Entities.ChampionAggregateScope", b =>
                 {
                     b.HasOne("Data.Entities.RiotAccount", "RiotAccount")
                         .WithMany()
@@ -687,6 +886,12 @@ namespace Data.Migrations
 
             modelBuilder.Entity("Data.Entities.ParticipantPerkSelection", b =>
                 {
+                    b.HasOne("Data.Entities.Match", null)
+                        .WithMany()
+                        .HasForeignKey("MatchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("Data.Entities.PerkSelectionCatalog", null)
                         .WithMany()
                         .HasForeignKey("PerkSelectionCatalogId")

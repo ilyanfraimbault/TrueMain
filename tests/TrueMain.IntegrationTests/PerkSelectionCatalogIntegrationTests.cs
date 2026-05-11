@@ -27,8 +27,18 @@ public sealed class PerkSelectionCatalogIntegrationTests : IClassFixture<Postgre
             var migrator = db.Database.GetService<IMigrator>();
             await migrator.MigrateAsync(PreNormalizationMigration);
 
+            // Seed parent matches first so the later
+            // PurgeOrphanPerkSelectionsAndFk migration's orphan cleanup
+            // does not wipe these rows before the catalog backfill runs.
             await db.Database.ExecuteSqlRawAsync(
                 """
+                INSERT INTO matches
+                    ("Id", "PlatformId", "QueueId", "GameStartTimeUtc",
+                     "GameDurationSeconds", "GameVersion")
+                VALUES
+                    ('EUW1_1', 'EUW1', 420, NOW(), 1800, '14.1.1'),
+                    ('EUW1_2', 'EUW1', 420, NOW(), 1800, '14.1.1');
+
                 INSERT INTO participant_perk_selections
                     ("Id", "MatchId", "ParticipantId", "StyleId", "StyleDescription", "SelectionIndex", "PerkId")
                 VALUES

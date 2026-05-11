@@ -4,106 +4,143 @@ using Microsoft.Extensions.Options;
 
 namespace Ingestor;
 
-public class Worker(
+public sealed class Worker(
     ILogger<Worker> logger,
     IServiceScopeFactory scopeFactory,
     IOptions<JobOptions> jobOptions,
     IHostApplicationLifetime applicationLifetime) : BackgroundService
 {
+    private const string HeartbeatEnvironmentVariable = "INGESTOR_HEARTBEAT_PATH";
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var options = jobOptions.Value;
-        var mode = NormalizeMode(options.Mode);
+        var mode = JobModeParser.Parse(options.Mode);
 
-        do
+        try
         {
-            await using var scope = scopeFactory.CreateAsyncScope();
-            var discoveryProcess = scope.ServiceProvider.GetRequiredService<DiscoveryProcess>();
-            var scoringProcess = scope.ServiceProvider.GetRequiredService<ScoringProcess>();
-            var matchIngestionProcess = scope.ServiceProvider.GetRequiredService<MatchIngestionProcess>();
-            var mainAnalysisProcess = scope.ServiceProvider.GetRequiredService<MainAnalysisProcess>();
-            var championPatternAggregationProcess = scope.ServiceProvider.GetRequiredService<ChampionPatternAggregationProcess>();
-            var accountRefreshProcess = scope.ServiceProvider.GetRequiredService<AccountRefreshProcess>();
-            var matchDataRetentionProcess = scope.ServiceProvider.GetRequiredService<MatchDataRetentionProcess>();
-
-            switch (mode)
+            do
             {
-                case JobMode.DiscoveryOnly:
-                    await discoveryProcess.RunAsync(stoppingToken);
-                    break;
-                case JobMode.ScoringOnly:
-                    await scoringProcess.RunAsync(stoppingToken);
-                    break;
-                case JobMode.MatchIngestionOnly:
-                    await matchIngestionProcess.RunAsync(stoppingToken);
-                    break;
-                case JobMode.MainAnalysisOnly:
-                    await mainAnalysisProcess.RunAsync(stoppingToken);
-                    break;
-                case JobMode.PatternAggregationOnly:
-                    await championPatternAggregationProcess.RunAsync(stoppingToken);
-                    break;
-                case JobMode.AccountRefreshOnly:
-                    await accountRefreshProcess.RunAsync(stoppingToken);
-                    break;
-                case JobMode.MatchDataRetentionOnly:
-                    await matchDataRetentionProcess.RunAsync(stoppingToken);
-                    break;
-                default:
-                    await discoveryProcess.RunAsync(stoppingToken);
-                    await scoringProcess.RunAsync(stoppingToken);
-                    await matchIngestionProcess.RunAsync(stoppingToken);
-                    await mainAnalysisProcess.RunAsync(stoppingToken);
-                    await championPatternAggregationProcess.RunAsync(stoppingToken);
-                    await accountRefreshProcess.RunAsync(stoppingToken);
-                    await matchDataRetentionProcess.RunAsync(stoppingToken);
-                    break;
-            }
+                TouchHeartbeat();
+                await RunOnceAsync(mode, stoppingToken);
 
-            if (options.RunOnce)
-            {
-                break;
-            }
+                if (options.RunOnce)
+                {
+                    break;
+                }
 
-            var delayMinutes = options.IntervalMinutes is > 0 ? options.IntervalMinutes.Value : 60;
-            logger.LogInformation("Run completed. Waiting {DelayMinutes} minutes before next run.", delayMinutes);
-            await Task.Delay(TimeSpan.FromMinutes(delayMinutes), stoppingToken);
-        } while (!stoppingToken.IsCancellationRequested);
-
-        applicationLifetime.StopApplication();
+                var delayMinutes = options.IntervalMinutes is > 0 ? options.IntervalMinutes.Value : 60;
+                logger.LogInformation(
+                    "Run completed. Waiting {DelayMinutes} minutes before next run.",
+                    delayMinutes);
+                await Task.Delay(TimeSpan.FromMinutes(delayMinutes), stoppingToken);
+            } while (!stoppingToken.IsCancellationRequested);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Expected on host shutdown — bubble up cleanly.
+        }
+        finally
+        {
+            applicationLifetime.StopApplication();
+        }
     }
 
-    private static JobMode NormalizeMode(string? mode)
+    private void TouchHeartbeat()
     {
-        if (string.IsNullOrWhiteSpace(mode))
+        var path = Environment.GetEnvironmentVariable(HeartbeatEnvironmentVariable);
+        if (string.IsNullOrWhiteSpace(path))
         {
-            return JobMode.Full;
+            return;
         }
 
-        return mode.Trim().ToLowerInvariant() switch
+        try
         {
-            "discoveryonly" => JobMode.DiscoveryOnly,
-            "scoringonly" => JobMode.ScoringOnly,
-            "matchingestiononly" => JobMode.MatchIngestionOnly,
-            "mainanalysisonly" => JobMode.MainAnalysisOnly,
-            "patternaggregationonly" => JobMode.PatternAggregationOnly,
-            "accountrefreshonly" => JobMode.AccountRefreshOnly,
-            "matchdataretentiononly" => JobMode.MatchDataRetentionOnly,
-            "retentiononly" => JobMode.MatchDataRetentionOnly,
-            "full" => JobMode.Full,
-            _ => throw new InvalidOperationException($"Unsupported job mode '{mode}'.")
-        };
+            File.WriteAllText(path, DateTimeOffset.UtcNow.ToString("O"));
+        }
+        catch (Exception ex)
+        {
+            // The heartbeat is a liveness signal for the Docker healthcheck;
+            // a write failure must not crash the worker. Log and move on so
+            // the next iteration can retry — the healthcheck will mark the
+            // container unhealthy if the file stays stale long enough.
+            logger.LogWarning(ex, "Failed to update Ingestor heartbeat at {Path}.", path);
+        }
     }
 
-    private enum JobMode
+    private async Task RunOnceAsync(JobMode mode, CancellationToken stoppingToken)
     {
-        Full,
-        DiscoveryOnly,
-        ScoringOnly,
-        MatchIngestionOnly,
-        MainAnalysisOnly,
-        PatternAggregationOnly,
-        AccountRefreshOnly,
-        MatchDataRetentionOnly
+        try
+        {
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var processesByName = BuildProcessIndex(scope.ServiceProvider);
+            await RunModeAsync(mode, processesByName, stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // A single iteration failure must not kill the worker — long-running
+            // ingestion services should self-heal across runs (transient DB / Riot
+            // hiccups, schema drift caught by validation, etc.).
+            logger.LogError(ex, "Ingestor run failed; will retry on next interval.");
+        }
     }
+
+    private static async Task RunModeAsync(
+        JobMode mode,
+        IReadOnlyDictionary<string, IIngestorProcess> processesByName,
+        CancellationToken stoppingToken)
+    {
+        var sequence = mode switch
+        {
+            JobMode.DiscoveryOnly => ["Discovery"],
+            JobMode.ScoringOnly => ["Scoring"],
+            JobMode.MatchIngestionOnly => ["MatchIngestion"],
+            JobMode.MainAnalysisOnly => ["MainAnalysis"],
+            JobMode.PatternAggregationOnly => ["ChampionPatternAggregation"],
+            JobMode.AccountRefreshOnly => ["AccountRefresh"],
+            JobMode.MatchDataRetentionOnly => ["MatchDataRetention"],
+            _ => (string[])
+            [
+                "Discovery",
+                "Scoring",
+                "MatchIngestion",
+                "MainAnalysis",
+                "ChampionPatternAggregation",
+                "AccountRefresh",
+                "MatchDataRetention"
+            ]
+        };
+
+        foreach (var processName in sequence)
+        {
+            if (!processesByName.TryGetValue(processName, out var process))
+            {
+                throw new InvalidOperationException(
+                    $"No IIngestorProcess registered with Name '{processName}'. "
+                    + $"Registered: {string.Join(", ", processesByName.Keys.Order(StringComparer.Ordinal))}.");
+            }
+
+            await process.RunCoreAsync(stoppingToken);
+        }
+    }
+
+    private static IReadOnlyDictionary<string, IIngestorProcess> BuildProcessIndex(IServiceProvider serviceProvider)
+    {
+        var index = new Dictionary<string, IIngestorProcess>(StringComparer.Ordinal);
+        foreach (var process in serviceProvider.GetRequiredService<IEnumerable<IIngestorProcess>>())
+        {
+            if (!index.TryAdd(process.Name, process))
+            {
+                throw new InvalidOperationException(
+                    $"Duplicate IIngestorProcess registration for Name '{process.Name}'.");
+            }
+        }
+
+        return index;
+    }
+
 }

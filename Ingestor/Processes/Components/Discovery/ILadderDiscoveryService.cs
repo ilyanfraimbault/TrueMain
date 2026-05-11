@@ -1,4 +1,4 @@
-using Core;
+using Core.Lol.Identifiers;
 using Ingestor.Options;
 using Ingestor.Riot.Dto;
 

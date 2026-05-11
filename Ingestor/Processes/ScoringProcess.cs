@@ -1,16 +1,14 @@
 using Data.Entities;
 using Data.Repositories;
 using Ingestor.Options;
-using Ingestor.Services;
 using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
 
-public class ScoringProcess(
+public sealed class ScoringProcess(
     ILogger<ScoringProcess> logger,
     IDataSessionFactory sessionFactory,
-    IProcessRunRecorder runRecorder,
-    IOptions<ScoringOptions> scoringOptions)
+    IOptions<ScoringOptions> scoringOptions) : IIngestorProcess
 {
     /// <summary>
     /// Normalization factor for champion points logarithmic score.
@@ -18,39 +16,26 @@ public class ScoringProcess(
     /// Since Log10(1,000,000) ≈ 6, we divide by 6 to normalize the score to the [0, 1] range.
     /// </summary>
     private const double ChampionPointsLogNormalizer = 6.0;
-    private const string ProcessName = "Scoring";
 
-    public async Task RunAsync(CancellationToken ct)
+    public string Name => "Scoring";
+
+    public async Task<object?> RunCoreAsync(CancellationToken ct)
     {
         var scoring = scoringOptions.Value;
-        var startedAt = DateTime.UtcNow;
 
-        try
+        await using var session = await sessionFactory.CreateAsync(ct);
+        var scoringResult = await ScoreCandidatesAsync(session, scoring, ct);
+        if (scoringResult.TotalScored == 0)
         {
-            await using var session = await sessionFactory.CreateAsync(ct);
-            var scoringResult = await ScoreCandidatesAsync(session, scoring, ct);
-            if (scoringResult.TotalScored == 0)
-            {
-                logger.LogInformation("No new candidates to score.");
-                await runRecorder.RecordNoOpAsync(
-                    ProcessName,
-                    startedAt,
-                    new { reason = "No new candidates to score.", selected = 0 },
-                    ct);
-                return;
-            }
+            logger.LogInformation("No new candidates to score.");
+            return new { reason = "No new candidates to score.", selected = 0 };
+        }
 
-            var platformSummaries = await PromoteTopCandidatesAsync(session, scoring, scoringResult.ScoredByPlatform, ct);
-            await runRecorder.RecordSuccessAsync(ProcessName, startedAt, BuildSuccessPayload(platformSummaries), ct);
-        }
-        catch (Exception ex)
-        {
-            await runRecorder.RecordFailureAsync(ProcessName, startedAt, ex, ct);
-            throw;
-        }
+        var platformSummaries = await PromoteTopCandidatesAsync(session, scoring, scoringResult.ScoredByPlatform, ct);
+        return BuildSuccessPayload(platformSummaries);
     }
 
-    private async Task<ScoringResult> ScoreCandidatesAsync(
+    private static async Task<ScoringResult> ScoreCandidatesAsync(
         IDataSession session,
         ScoringOptions scoring,
         CancellationToken ct)
@@ -78,7 +63,7 @@ public class ScoringProcess(
         }
     }
 
-    private async Task<List<MainCandidate>> ScoreCandidatesBatchAsync(
+    private static async Task<List<MainCandidate>> ScoreCandidatesBatchAsync(
         IDataSession session,
         ScoringOptions scoring,
         DateTime nowUtc,

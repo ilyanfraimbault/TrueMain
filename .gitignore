@@ -23,3 +23,6 @@ _bmad*
 .agents/
 
 AGENTS.md
+AUDIT_DOTNET.md
+ROADMAP.md
+.claude/

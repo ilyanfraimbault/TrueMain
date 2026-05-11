@@ -6,10 +6,12 @@ import type { StaticItemData } from '~/types/static-data'
 const props = withDefaults(defineProps<{
   nodes: ChampionBuildTreeNodeResponse[]
   itemsById: Record<number, StaticItemData>
+  correlatedBoots?: StaticItemData[]
   totalGames: number
   maxChildren?: number
   minimumPickRate?: number
 }>(), {
+  correlatedBoots: () => [],
   maxChildren: 3,
   minimumPickRate: 0.05
 })
@@ -176,44 +178,58 @@ onBeforeUnmount(() => {
       v-if="visibleNodes.length"
       class="space-y-4"
     >
-      <div
-        v-if="rootItems.length > 1"
-        class="flex flex-wrap items-center gap-3"
-      >
-        <UButton
-          v-for="root in rootItems"
-          :key="root.value"
-          type="button"
-          color="neutral"
-          :variant="selectedRoot === root.value ? 'soft' : 'ghost'"
-          :title="root.item?.name ?? `Item ${root.itemId}`"
-          class="rounded-xl px-2 py-1.5"
-          @click="selectedRoot = root.value"
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div
+          v-if="rootItems.length > 1"
+          class="flex flex-wrap items-center gap-3"
         >
-          <div class="flex items-center gap-2">
-            <ChampionsChampionAsyncImage
-              v-if="root.item"
-              :src="root.item.iconUrl"
-              :alt="root.item.name"
-              size-class="size-8"
-              image-class="rounded-md border border-default bg-default object-cover"
-              wrapper-class="rounded-md"
-              width="32"
-              height="32"
-            />
-            <div
-              v-else
-              class="size-8 rounded-md border border-default bg-elevated"
-            />
-            <UBadge
-              color="neutral"
-              variant="subtle"
-              size="sm"
-            >
-              {{ root.badge }}
-            </UBadge>
-          </div>
-        </UButton>
+          <UButton
+            v-for="root in rootItems"
+            :key="root.value"
+            type="button"
+            color="neutral"
+            :variant="selectedRoot === root.value ? 'soft' : 'ghost'"
+            :title="root.item?.name ?? `Item ${root.itemId}`"
+            class="rounded-xl px-2 py-1.5"
+            @click="selectedRoot = root.value"
+          >
+            <div class="flex items-center gap-2">
+              <ChampionsChampionAsyncImage
+                v-if="root.item"
+                :src="root.item.iconUrl"
+                :alt="root.item.name"
+                size-class="size-8"
+                image-class="rounded-md border border-default bg-default object-cover"
+                wrapper-class="rounded-md"
+                width="32"
+                height="32"
+              />
+              <div
+                v-else
+                class="size-8 rounded-md border border-default bg-elevated"
+              />
+              <UBadge
+                color="neutral"
+                variant="subtle"
+                size="sm"
+              >
+                {{ root.badge }}
+              </UBadge>
+            </div>
+          </UButton>
+        </div>
+
+        <div
+          v-if="correlatedBoots.length"
+          class="ml-auto flex flex-wrap items-center justify-end gap-2"
+        >
+          <span class="text-sm text-muted">Correlated boots</span>
+          <ChampionsChampionItemChip
+            v-for="item in correlatedBoots"
+            :key="`tree-boots-${item.id}`"
+            :item="item"
+          />
+        </div>
       </div>
 
       <div

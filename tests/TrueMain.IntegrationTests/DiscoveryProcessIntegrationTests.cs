@@ -1,11 +1,10 @@
-using Core;
+using Core.Lol.Identifiers;
 using FluentAssertions;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.Discovery;
 using Ingestor.Riot;
 using Ingestor.Riot.Dto;
-using Ingestor.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace TrueMain.IntegrationTests;
@@ -28,7 +27,6 @@ public sealed class DiscoveryProcessIntegrationTests : IClassFixture<PostgresFix
             NullLogger<DiscoveryProcess>.Instance,
             new FakeRiotPlatformClient(),
             _fixture.CreateSessionFactory(),
-            new FakeProcessRunRecorder(),
             new FakeLadderDiscoveryService(),
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
@@ -39,7 +37,7 @@ public sealed class DiscoveryProcessIntegrationTests : IClassFixture<PostgresFix
                 NewAccountsTarget = 1
             }));
 
-        await process.RunAsync(CancellationToken.None);
+        await process.RunCoreAsync(CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var account = verifyDb.RiotAccounts.Single(a => a.Puuid == "puuid-discovered-1");
@@ -107,16 +105,4 @@ public sealed class DiscoveryProcessIntegrationTests : IClassFixture<PostgresFix
             => Task.FromResult(new CandidateUpsertResult(0, 0));
     }
 
-    private sealed class FakeProcessRunRecorder : IProcessRunRecorder
-    {
-        public Task RecordAsync(
-            string processName,
-            DateTime startedAtUtc,
-            DateTime finishedAtUtc,
-            Data.Entities.ProcessRunStatus status,
-            object? summary,
-            string? error,
-            CancellationToken ct)
-            => Task.CompletedTask;
-    }
 }

@@ -12,6 +12,9 @@ public sealed class RiotHttpExecutor(ILogger<RiotHttpExecutor> logger) : IRiotHt
         PropertyNameCaseInsensitive = true
     };
 
+    private static readonly TimeSpan DefaultBackoff = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan MaxBackoff = TimeSpan.FromSeconds(30);
+
     public async Task<T> GetAsync<T>(
         HttpClient httpClient,
         Uri uri,
@@ -23,55 +26,112 @@ public sealed class RiotHttpExecutor(ILogger<RiotHttpExecutor> logger) : IRiotHt
 
         for (var attempt = 1; attempt <= attempts; attempt++)
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, uri);
-            using var response = await httpClient.SendAsync(request, ct);
-
-            if (response.StatusCode == (HttpStatusCode)429)
+            HttpResponseMessage? response = null;
+            try
             {
-                if (attempt == attempts)
+                using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+                response = await httpClient.SendAsync(request, ct);
+
+                if (response.StatusCode == (HttpStatusCode)429)
                 {
-                    break;
+                    if (attempt == attempts)
+                    {
+                        break;
+                    }
+
+                    var delay = GetRetryDelay(response.Headers.RetryAfter, DateTimeOffset.UtcNow);
+                    LogRetry(clientName, "rate limited", delay, attempt, attempts);
+                    await Task.Delay(delay, ct);
+                    continue;
                 }
 
-                var delay = GetRetryDelay(response.Headers.RetryAfter, DateTimeOffset.UtcNow);
-                logger.LogWarning(
-                    "Riot API ({ClientName}) rate limited. Retrying in {Delay} (attempt {Attempt}/{MaxAttempts}).",
-                    clientName,
-                    delay,
-                    attempt + 1,
-                    attempts);
+                if (IsTransientServerError(response.StatusCode))
+                {
+                    if (attempt == attempts)
+                    {
+                        response.EnsureSuccessStatusCode();
+                    }
 
-                await Task.Delay(delay, ct);
-                continue;
+                    var delay = GetExponentialBackoff(attempt);
+                    LogRetry(clientName, $"transient {(int)response.StatusCode}", delay, attempt, attempts);
+                    await Task.Delay(delay, ct);
+                    continue;
+                }
+
+                response.EnsureSuccessStatusCode();
+
+                var payload = await response.Content.ReadFromJsonAsync<T>(JsonOptions, ct)
+                    ?? throw new InvalidOperationException($"Empty response from Riot API ({uri}).");
+
+                return payload;
             }
-
-            response.EnsureSuccessStatusCode();
-
-            var payload = await response.Content.ReadFromJsonAsync<T>(JsonOptions, ct);
-            if (payload is null)
+            catch (HttpRequestException ex) when (IsTransientNetworkException(ex) && attempt < attempts)
             {
-                throw new InvalidOperationException($"Empty response from Riot API ({uri}).");
+                var delay = GetExponentialBackoff(attempt);
+                LogRetry(clientName, $"network failure: {ex.Message}", delay, attempt, attempts);
+                await Task.Delay(delay, ct);
             }
-
-            return payload;
+            finally
+            {
+                response?.Dispose();
+            }
         }
 
-        throw new HttpRequestException($"Riot API request failed after {attempts} attempts.", null, HttpStatusCode.TooManyRequests);
+        throw new HttpRequestException(
+            $"Riot API request failed after {attempts} attempts.",
+            null,
+            HttpStatusCode.TooManyRequests);
     }
 
     internal static TimeSpan GetRetryDelay(RetryConditionHeaderValue? retryAfter, DateTimeOffset nowUtc)
     {
         if (retryAfter?.Delta is { } delta)
         {
-            return delta <= TimeSpan.Zero ? TimeSpan.FromSeconds(1) : delta;
+            return delta <= TimeSpan.Zero ? DefaultBackoff : delta;
         }
 
         if (retryAfter?.Date is { } date)
         {
             var delay = date - nowUtc;
-            return delay <= TimeSpan.Zero ? TimeSpan.FromSeconds(1) : delay;
+            return delay <= TimeSpan.Zero ? DefaultBackoff : delay;
         }
 
-        return TimeSpan.FromSeconds(1);
+        return DefaultBackoff;
+    }
+
+    internal static TimeSpan GetExponentialBackoff(int attempt)
+    {
+        // 1s, 2s, 4s, 8s, 16s, capped at 30s. Attempt is 1-based.
+        var seconds = Math.Pow(2, Math.Max(0, attempt - 1));
+        var backoff = TimeSpan.FromSeconds(seconds);
+        return backoff > MaxBackoff ? MaxBackoff : backoff;
+    }
+
+    internal static bool IsTransientServerError(HttpStatusCode statusCode)
+    {
+        // Retry only on the server-side faults Riot themselves recommend retrying.
+        // 4xx other than 429 indicate caller bugs and are propagated immediately.
+        return statusCode is HttpStatusCode.InternalServerError
+            or HttpStatusCode.BadGateway
+            or HttpStatusCode.ServiceUnavailable
+            or HttpStatusCode.GatewayTimeout;
+    }
+
+    private static bool IsTransientNetworkException(HttpRequestException ex)
+    {
+        // HttpRequestException with no status code wraps socket-level / DNS / TLS issues.
+        // Anything coming back with a status was already classified above.
+        return ex.StatusCode is null;
+    }
+
+    private void LogRetry(string clientName, string reason, TimeSpan delay, int attempt, int maxAttempts)
+    {
+        logger.LogWarning(
+            "Riot API ({ClientName}) {Reason}. Retrying in {Delay} (attempt {Attempt}/{MaxAttempts}).",
+            clientName,
+            reason,
+            delay,
+            attempt + 1,
+            maxAttempts);
     }
 }

@@ -43,13 +43,15 @@ const loadingCore: ChampionCoreResponse = {
   boots: null,
   buildPath: null,
   summonerSpells: null,
-  skillOrder: null
+  skillOrder: null,
+  runePage: null
 }
 
 const loadingAdvanced: ChampionAdvancedResponse = {
   starterItemOptions: [],
   summonerSpellOptions: [],
-  skillOrderOptions: []
+  skillOrderOptions: [],
+  runePageOptions: []
 }
 
 const loadingBuildTree: ChampionBuildTreeResponse = {
@@ -59,6 +61,8 @@ const loadingBuildTree: ChampionBuildTreeResponse = {
   riotAccountId: null,
   platformId: null,
   totalGames: 0,
+  boots: null,
+  runePage: null,
   build: []
 }
 
@@ -119,7 +123,7 @@ useSeoMeta({
       <ChampionsChampionBuildTreeSection
         :build-tree="renderedBuildTree"
         :champion-static="championStatic"
-        :boots="renderedCore.boots"
+        :fallback-boots="renderedCore.boots"
         :is-static-pending="isSectionLoading"
       />
     </section>

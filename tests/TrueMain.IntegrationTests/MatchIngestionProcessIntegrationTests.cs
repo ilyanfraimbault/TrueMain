@@ -1,11 +1,11 @@
-using Core;
+using Core.Lol.Map;
+using Core.Lol.Identifiers;
 using FluentAssertions;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.MatchIngestion;
 using Ingestor.Riot;
 using Ingestor.Riot.Dto;
-using Ingestor.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace TrueMain.IntegrationTests;
@@ -27,7 +27,6 @@ public sealed class MatchIngestionProcessIntegrationTests : IClassFixture<Postgr
         var process = new MatchIngestionProcess(
             NullLogger<MatchIngestionProcess>.Instance,
             _fixture.CreateSessionFactory(),
-            new FakeProcessRunRecorder(),
             new FakeMatchClaimService(),
             new MatchSnapshotWriter(new FakeRiotMatchClient()),
             new TimelineIngestionService(new FakeRiotMatchClient()),
@@ -41,7 +40,7 @@ public sealed class MatchIngestionProcessIntegrationTests : IClassFixture<Postgr
                 ClaimLeaseMinutes = 5
             }));
 
-        await process.RunAsync(CancellationToken.None);
+        await process.RunCoreAsync(CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var match = verifyDb.Matches.Single(m => m.Id == "KR_200");
@@ -88,19 +87,6 @@ public sealed class MatchIngestionProcessIntegrationTests : IClassFixture<Postgr
         }
     }
 
-    private sealed class FakeProcessRunRecorder : IProcessRunRecorder
-    {
-        public Task RecordAsync(
-            string processName,
-            DateTime startedAtUtc,
-            DateTime finishedAtUtc,
-            Data.Entities.ProcessRunStatus status,
-            object? summary,
-            string? error,
-            CancellationToken ct)
-            => Task.CompletedTask;
-    }
-
     private sealed class FakeRiotMatchClient : IRiotMatchClient
     {
         public Task<List<string>> GetMatchIdsAsync(string puuid, RegionalRoute region, int count, CancellationToken ct)
@@ -116,8 +102,8 @@ public sealed class MatchIngestionProcessIntegrationTests : IClassFixture<Postgr
                 },
                 Info = new RiotMatchInfoDto
                 {
-                    QueueId = 420,
-                    MapId = 11,
+                    QueueId = LolQueueIds.RankedSoloDuo,
+                    MapId = LolMapIds.SummonersRift,
                     GameMode = "CLASSIC",
                     GameType = "MATCHED_GAME",
                     GameStartTimestamp = new DateTimeOffset(2026, 3, 10, 21, 0, 0, TimeSpan.Zero).ToUnixTimeMilliseconds(),

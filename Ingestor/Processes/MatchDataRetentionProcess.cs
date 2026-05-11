@@ -1,7 +1,7 @@
-using Data;
+using Core.Lol.Patches;
 using Core.Options;
+using Data;
 using Ingestor.Options;
-using Ingestor.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -10,56 +10,32 @@ namespace Ingestor.Processes;
 public sealed class MatchDataRetentionProcess(
     ILogger<MatchDataRetentionProcess> logger,
     IDbContextFactory<TrueMainDbContext> dbContextFactory,
-    IProcessRunRecorder runRecorder,
     IOptions<MatchDataRetentionOptions> retentionOptions,
-    IOptions<MainAnalysisOptions> mainAnalysisOptions)
+    IOptions<MainAnalysisOptions> mainAnalysisOptions) : IIngestorProcess
 {
-    private const string ProcessName = "MatchDataRetention";
+    public string Name => "MatchDataRetention";
 
-    public async Task RunAsync(CancellationToken ct)
+    public async Task<object?> RunCoreAsync(CancellationToken ct)
     {
-        var startedAt = DateTime.UtcNow;
-        try
+        var retentionPlan = await LoadRetentionPlanAsync(ct);
+        if (retentionPlan.RetainedPatchesByPlatform.Count == 0
+            || retentionPlan.DeletableMatchIds.Count == 0)
         {
-            var retentionPlan = await LoadRetentionPlanAsync(ct);
-            if (retentionPlan.RetainedPatchesByPlatform.Count == 0)
-            {
-                await runRecorder.RecordNoOpAsync(
-                    ProcessName,
-                    startedAt,
-                    BuildRetentionPayload(retentionPlan, 0, 0),
-                    ct);
-                return;
-            }
-
-            if (retentionPlan.DeletableMatchIds.Count == 0)
-            {
-                await runRecorder.RecordSuccessAsync(ProcessName, startedAt, BuildRetentionPayload(retentionPlan, 0, 0), ct);
-                return;
-            }
-
-            var deletionResult = await DeleteExpiredMatchDataAsync(retentionPlan.DeletableMatchIds, ct);
-            logger.LogInformation(
-                "Match data retention removed {DeletedMatches} matches and {DeletedParticipants} participants while keeping patches {RetainedPatches}.",
-                deletionResult.DeletedMatches,
-                deletionResult.DeletedParticipants,
-                string.Join(
-                    ", ",
-                    retentionPlan.RetainedPatchesByPlatform
-                        .OrderBy(entry => entry.Key)
-                        .Select(entry => $"{entry.Key}=[{string.Join("|", entry.Value.Order())}]")));
-
-            await runRecorder.RecordSuccessAsync(
-                ProcessName,
-                startedAt,
-                BuildRetentionPayload(retentionPlan, deletionResult.DeletedMatches, deletionResult.DeletedParticipants),
-                ct);
+            return BuildRetentionPayload(retentionPlan, 0, 0);
         }
-        catch (Exception ex)
-        {
-            await runRecorder.RecordFailureAsync(ProcessName, startedAt, ex, ct);
-            throw;
-        }
+
+        var deletionResult = await DeleteExpiredMatchDataAsync(retentionPlan.DeletableMatchIds, ct);
+        logger.LogInformation(
+            "Match data retention removed {DeletedMatches} matches and {DeletedParticipants} participants while keeping patches {RetainedPatches}.",
+            deletionResult.DeletedMatches,
+            deletionResult.DeletedParticipants,
+            string.Join(
+                ", ",
+                retentionPlan.RetainedPatchesByPlatform
+                    .OrderBy(entry => entry.Key)
+                    .Select(entry => $"{entry.Key}=[{string.Join("|", entry.Value.Order())}]")));
+
+        return BuildRetentionPayload(retentionPlan, deletionResult.DeletedMatches, deletionResult.DeletedParticipants);
     }
 
     private async Task<RetentionPlan> LoadRetentionPlanAsync(CancellationToken ct)
@@ -98,7 +74,7 @@ public sealed class MatchDataRetentionProcess(
             .ToDictionary(
                 group => group.Key,
                 group => group
-                    .Select(match => NormalizePatchVersion(match.GameVersion))
+                    .Select(match => PatchVersion.Normalize(match.GameVersion))
                     .Where(patch => !string.IsNullOrWhiteSpace(patch))
                     .Distinct()
                     .Take(retainedPatchCount)
@@ -171,19 +147,6 @@ public sealed class MatchDataRetentionProcess(
                 })
                 .ToArray()
         };
-    }
-
-    private static string NormalizePatchVersion(string gameVersion)
-    {
-        if (string.IsNullOrWhiteSpace(gameVersion))
-        {
-            return string.Empty;
-        }
-
-        var segments = gameVersion.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return segments.Length >= 2
-            ? $"{segments[0]}.{segments[1]}"
-            : gameVersion;
     }
 
     private sealed record ObservedMatch(string PlatformId, string GameVersion);
