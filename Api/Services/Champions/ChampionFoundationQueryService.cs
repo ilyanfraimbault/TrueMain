@@ -73,41 +73,60 @@ public sealed class ChampionFoundationQueryService(
         string? position,
         CancellationToken ct)
     {
-        var scopes = await db.ChampionAggregateScopes
+        // Pass 1: a light projection over the (champion, queue, account,
+        // patch, platform, position) slice. We only need the columns that
+        // feed the dominant-patch and dominant-position resolution; pulling
+        // entities would also drag the RiotAccount navigation surface for
+        // no reason. The strict equality filters (championId, queueId,
+        // riotAccountId, platformId, and patch/position when supplied)
+        // already live in WhereChampionScope and translate to SQL.
+        var baseQuery = db.ChampionAggregateScopes
             .AsNoTracking()
-            .WhereChampionScope(championId, options.Value.QueueId, riotAccountId, patch, platformId, position)
+            .WhereChampionScope(championId, options.Value.QueueId, riotAccountId, patch, platformId, position);
+
+        var resolutionRows = await baseQuery
+            .Select(scope => new ScopeResolutionRow(scope.GameVersion, scope.Position, scope.Games))
             .ToListAsync(ct);
-        if (scopes.Count == 0)
+        if (resolutionRows.Count == 0)
         {
             return null;
         }
 
-        var selectedPatch = ChampionAggregateScopeResolver.ResolvePatchVersion(scopes, patch);
+        var selectedPatch = ChampionAggregateScopeResolver.ResolvePatchVersion(
+            resolutionRows.Select(row => row.GameVersion).ToList(),
+            patch);
         if (string.IsNullOrWhiteSpace(selectedPatch))
         {
             return null;
         }
 
-        var patchScopes = scopes
-            .Where(scope => string.Equals(scope.GameVersion, selectedPatch, StringComparison.Ordinal))
-            .ToList();
-        if (patchScopes.Count == 0)
-        {
-            return null;
-        }
-
         var effectivePosition = string.IsNullOrWhiteSpace(position)
-            ? ChampionAggregateScopeResolver.ResolveDominantPosition(patchScopes)
+            ? ChampionAggregateScopeResolver.ResolveDominantPosition(
+                resolutionRows
+                    .Where(row => string.Equals(row.GameVersion, selectedPatch, StringComparison.Ordinal))
+                    .Select(row => (row.Position, row.Games))
+                    .ToList())
             : position;
 
-        var scopedScopes = string.IsNullOrWhiteSpace(effectivePosition)
-            ? patchScopes
-            : patchScopes
-                .Where(scope => string.Equals(scope.Position, effectivePosition, StringComparison.Ordinal))
-                .ToList();
+        // Pass 2: re-query with the resolved patch (and position when
+        // available) pushed into SQL via WhereChampionScope. This keeps
+        // the materialisation tight even when the caller didn't pin a
+        // patch upfront.
+        var scopedScopes = await db.ChampionAggregateScopes
+            .AsNoTracking()
+            .WhereChampionScope(
+                championId,
+                options.Value.QueueId,
+                riotAccountId,
+                selectedPatch,
+                platformId,
+                string.IsNullOrWhiteSpace(effectivePosition) ? null : effectivePosition)
+            .ToListAsync(ct);
 
         return scopedScopes.Count == 0 ? null : scopedScopes;
     }
+
+    private sealed record ScopeResolutionRow(string GameVersion, string Position, int Games);
 
     private static ChampionSummaryReadModel BuildSummary(
         int championId,

@@ -8,6 +8,13 @@ internal static class ChampionAggregateScopeResolver
     public static string? ResolvePatchVersion(
         IReadOnlyCollection<ChampionAggregateScope> scopes,
         string? requestedPatch)
+        => ResolvePatchVersion(
+            scopes.Select(scope => scope.GameVersion).ToList(),
+            requestedPatch);
+
+    public static string? ResolvePatchVersion(
+        IReadOnlyCollection<string> gameVersions,
+        string? requestedPatch)
     {
         if (!string.IsNullOrWhiteSpace(requestedPatch))
         {
@@ -20,21 +27,23 @@ internal static class ChampionAggregateScopeResolver
             return string.IsNullOrEmpty(normalized) ? null : normalized;
         }
 
-        return scopes
-            .Select(scope => scope.GameVersion)
+        return gameVersions
             .Distinct(StringComparer.Ordinal)
             .OrderByDescending(ParsePatchVersion)
             .FirstOrDefault();
     }
 
     public static string ResolveDominantPosition(IReadOnlyCollection<ChampionAggregateScope> scopes)
-        => scopes
-            .Where(scope => !string.IsNullOrWhiteSpace(scope.Position))
-            .GroupBy(scope => scope.Position)
+        => ResolveDominantPosition(scopes.Select(scope => (scope.Position, scope.Games)).ToList());
+
+    public static string ResolveDominantPosition(IReadOnlyCollection<(string Position, int Games)> rows)
+        => rows
+            .Where(row => !string.IsNullOrWhiteSpace(row.Position))
+            .GroupBy(row => row.Position)
             .Select(group => new
             {
                 Position = group.Key,
-                Games = group.Sum(scope => scope.Games)
+                Games = group.Sum(row => row.Games)
             })
             .OrderByDescending(group => group.Games)
             .ThenBy(group => group.Position, StringComparer.Ordinal)
