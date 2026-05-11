@@ -48,6 +48,14 @@ const EMPTY_STATIC_DATA: ChampionStaticData = {
   perkStyles: {}
 }
 
+/**
+ * Module-level cache of in-flight + resolved static-data promises, keyed by
+ * `${championId}-${patch}`. ddragon/CommunityDragon assets are immutable per
+ * patch, so once we have a promise for a given pair we can reuse it across
+ * every consumer rather than re-issuing the same five $fetch calls.
+ */
+const championStaticDataCache = new Map<string, Promise<ChampionStaticData>>()
+
 const POSITION_OPTIONS: Array<{ label: string, value: ChampionPosition, iconUrl: string }> = [
   { label: 'Top', value: 'TOP', iconUrl: getPositionIconUrl('TOP') },
   { label: 'Jungle', value: 'JUNGLE', iconUrl: getPositionIconUrl('JUNGLE') },
@@ -102,31 +110,45 @@ async function fetchChampionData(
   }
 }
 
-async function fetchChampionStaticData(championId: number, patch: string | null): Promise<ChampionStaticData> {
-  const normalizedPatch = normalizeDataDragonPatch(patch)
-  if (!normalizedPatch) {
-    return EMPTY_STATIC_DATA
-  }
+type ItemDataResponse = { data: Record<string, { name: string, image: { full: string }, gold: { total: number } }> }
+type SummonerDataResponse = { data: Record<string, { key: string, name: string, image: { full: string } }> }
+type ChampionListResponse = { data: Record<string, { id: string, key: string, name: string, image: { full: string } }> }
+type PerksResponse = Array<{ id: number, name: string, iconPath: string }>
+type PerkStylesResponse = { styles: Array<{ id: number, name: string, iconPath: string }> }
+type ChampionDetailResponse = {
+  data: Record<string, { spells: Array<{ name: string, image: { full: string } }> }>
+}
 
+function settledValue<T>(result: PromiseSettledResult<T>, fallback: T): T {
+  return result.status === 'fulfilled' ? result.value : fallback
+}
+
+async function loadChampionStaticData(championId: number, normalizedPatch: string): Promise<ChampionStaticData> {
   const [
-    itemDataResponse,
-    summonerDataResponse,
-    championListResponse,
-    perksResponse,
-    perkStylesResponse
-  ] = await Promise.all([
-    $fetch<{ data: Record<string, { name: string, image: { full: string }, gold: { total: number } }> }>(
+    itemDataResult,
+    summonerDataResult,
+    championListResult,
+    perksResult,
+    perkStylesResult
+  ] = await Promise.allSettled([
+    $fetch<ItemDataResponse>(
       `https://ddragon.leagueoflegends.com/cdn/${normalizedPatch}/data/en_US/item.json`
     ),
-    $fetch<{ data: Record<string, { key: string, name: string, image: { full: string } }> }>(
+    $fetch<SummonerDataResponse>(
       `https://ddragon.leagueoflegends.com/cdn/${normalizedPatch}/data/en_US/summoner.json`
     ),
-    $fetch<{ data: Record<string, { id: string, key: string, name: string, image: { full: string } }> }>(
+    $fetch<ChampionListResponse>(
       `https://ddragon.leagueoflegends.com/cdn/${normalizedPatch}/data/en_US/champion.json`
     ),
-    $fetch<Array<{ id: number, name: string, iconPath: string }>>(PERKS_URL),
-    $fetch<{ styles: Array<{ id: number, name: string, iconPath: string }> }>(PERK_STYLES_URL)
+    $fetch<PerksResponse>(PERKS_URL),
+    $fetch<PerkStylesResponse>(PERK_STYLES_URL)
   ])
+
+  const itemDataResponse = settledValue<ItemDataResponse>(itemDataResult, { data: {} })
+  const summonerDataResponse = settledValue<SummonerDataResponse>(summonerDataResult, { data: {} })
+  const championListResponse = settledValue<ChampionListResponse>(championListResult, { data: {} })
+  const perksResponse = settledValue<PerksResponse>(perksResult, [])
+  const perkStylesResponse = settledValue<PerkStylesResponse>(perkStylesResult, { styles: [] })
 
   const items = Object.fromEntries(
     Object.entries(itemDataResponse.data).map(([itemId, item]) => [
@@ -186,9 +208,9 @@ async function fetchChampionStaticData(championId: number, patch: string | null)
     }
   }
 
-  const championDetailResponse = await $fetch<{
-    data: Record<string, { spells: Array<{ name: string, image: { full: string } }> }>
-  }>(`https://ddragon.leagueoflegends.com/cdn/${normalizedPatch}/data/en_US/champion/${championSummary.id}.json`)
+  const championDetailResponse = await $fetch<ChampionDetailResponse>(
+    `https://ddragon.leagueoflegends.com/cdn/${normalizedPatch}/data/en_US/champion/${championSummary.id}.json`
+  ).catch((): ChampionDetailResponse => ({ data: {} }))
 
   const championDetail = championDetailResponse.data[championSummary.id]
   const slots = ['Q', 'W', 'E'] as const
@@ -220,6 +242,29 @@ async function fetchChampionStaticData(championId: number, patch: string | null)
     perks,
     perkStyles
   }
+}
+
+async function fetchChampionStaticData(championId: number, patch: string | null): Promise<ChampionStaticData> {
+  const normalizedPatch = normalizeDataDragonPatch(patch)
+  if (!normalizedPatch) {
+    return EMPTY_STATIC_DATA
+  }
+
+  const cacheKey = `${championId}-${normalizedPatch}`
+  const cached = championStaticDataCache.get(cacheKey)
+  if (cached) {
+    return cached
+  }
+
+  const promise = loadChampionStaticData(championId, normalizedPatch).catch((error) => {
+    // Evict on rejection so a subsequent call can retry instead of being stuck
+    // with a poisoned cache entry.
+    championStaticDataCache.delete(cacheKey)
+    throw error
+  })
+
+  championStaticDataCache.set(cacheKey, promise)
+  return promise
 }
 
 async function fetchPatchCatalog(): Promise<string[]> {

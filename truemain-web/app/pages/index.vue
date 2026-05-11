@@ -25,7 +25,7 @@ useSeoMeta({
   place-items: center;
   padding: 2rem;
   background:
-    radial-gradient(circle at top, rgba(80, 92, 255, 0.18), transparent 35%),
+    radial-gradient(circle at top, rgba(16, 185, 129, 0.12), transparent 35%),
     #0b1020;
   color: #f4f7fb;
 }
