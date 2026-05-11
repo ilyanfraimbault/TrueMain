@@ -1,3 +1,4 @@
+using Core.Lol.Patches;
 using Core.Options;
 using Data;
 using Data.Entities;
@@ -73,6 +74,14 @@ public sealed class ChampionFoundationQueryService(
         string? position,
         CancellationToken ct)
     {
+        // Canonicalise the requested patch up-front so the SQL filter and
+        // the materialised rows both use the persisted "major.minor" form
+        // (callers — especially non-controller ones — may pass a full Riot
+        // version string like "16.4.521.123").
+        var normalizedPatch = string.IsNullOrWhiteSpace(patch)
+            ? null
+            : PatchVersion.Normalize(patch);
+
         // Pass 1: a light projection over the (champion, queue, account,
         // patch, platform, position) slice. We only need the columns that
         // feed the dominant-patch and dominant-position resolution; pulling
@@ -82,7 +91,7 @@ public sealed class ChampionFoundationQueryService(
         // already live in WhereChampionScope and translate to SQL.
         var baseQuery = db.ChampionAggregateScopes
             .AsNoTracking()
-            .WhereChampionScope(championId, options.Value.QueueId, riotAccountId, patch, platformId, position);
+            .WhereChampionScope(championId, options.Value.QueueId, riotAccountId, normalizedPatch, platformId, position);
 
         var resolutionRows = await baseQuery
             .Select(scope => new ScopeResolutionRow(scope.GameVersion, scope.Position, scope.Games))
@@ -93,8 +102,8 @@ public sealed class ChampionFoundationQueryService(
         }
 
         var selectedPatch = ChampionAggregateScopeResolver.ResolvePatchVersion(
-            resolutionRows.Select(row => row.GameVersion).ToList(),
-            patch);
+            resolutionRows.Select(row => row.GameVersion),
+            normalizedPatch);
         if (string.IsNullOrWhiteSpace(selectedPatch))
         {
             return null;
@@ -104,8 +113,7 @@ public sealed class ChampionFoundationQueryService(
             ? ChampionAggregateScopeResolver.ResolveDominantPosition(
                 resolutionRows
                     .Where(row => string.Equals(row.GameVersion, selectedPatch, StringComparison.Ordinal))
-                    .Select(row => (row.Position, row.Games))
-                    .ToList())
+                    .Select(row => (row.Position, row.Games)))
             : position;
 
         // Pass 2: re-query with the resolved patch (and position when

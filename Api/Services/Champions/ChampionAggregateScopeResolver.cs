@@ -6,25 +6,24 @@ namespace TrueMain.Services.Champions;
 internal static class ChampionAggregateScopeResolver
 {
     public static string? ResolvePatchVersion(
-        IReadOnlyCollection<ChampionAggregateScope> scopes,
-        string? requestedPatch)
-        => ResolvePatchVersion(
-            scopes.Select(scope => scope.GameVersion).ToList(),
-            requestedPatch);
-
-    public static string? ResolvePatchVersion(
-        IReadOnlyCollection<string> gameVersions,
+        IEnumerable<ChampionAggregateScope> scopes,
         string? requestedPatch)
     {
         if (!string.IsNullOrWhiteSpace(requestedPatch))
         {
-            // Defence in depth: the controller already canonicalises HTTP
-            // query params, but service-layer callers (tests, future
-            // entrypoints) might pass a full Riot version string like
-            // "16.4.521.123". Aggregates persist as "major.minor", so we
-            // canonicalise here too to avoid silent empty results.
-            var normalized = PatchVersion.Normalize(requestedPatch);
-            return string.IsNullOrEmpty(normalized) ? null : normalized;
+            return NormalizeRequestedPatch(requestedPatch);
+        }
+
+        return ResolvePatchVersion(scopes.Select(scope => scope.GameVersion), requestedPatch);
+    }
+
+    public static string? ResolvePatchVersion(
+        IEnumerable<string> gameVersions,
+        string? requestedPatch)
+    {
+        if (!string.IsNullOrWhiteSpace(requestedPatch))
+        {
+            return NormalizeRequestedPatch(requestedPatch);
         }
 
         return gameVersions
@@ -33,10 +32,10 @@ internal static class ChampionAggregateScopeResolver
             .FirstOrDefault();
     }
 
-    public static string ResolveDominantPosition(IReadOnlyCollection<ChampionAggregateScope> scopes)
-        => ResolveDominantPosition(scopes.Select(scope => (scope.Position, scope.Games)).ToList());
+    public static string ResolveDominantPosition(IEnumerable<ChampionAggregateScope> scopes)
+        => ResolveDominantPosition(scopes.Select(scope => (scope.Position, scope.Games)));
 
-    public static string ResolveDominantPosition(IReadOnlyCollection<(string Position, int Games)> rows)
+    public static string ResolveDominantPosition(IEnumerable<(string Position, int Games)> rows)
         => rows
             .Where(row => !string.IsNullOrWhiteSpace(row.Position))
             .GroupBy(row => row.Position)
@@ -49,6 +48,15 @@ internal static class ChampionAggregateScopeResolver
             .ThenBy(group => group.Position, StringComparer.Ordinal)
             .Select(group => group.Position)
             .FirstOrDefault() ?? string.Empty;
+
+    private static string? NormalizeRequestedPatch(string requestedPatch)
+    {
+        // Service-layer callers may pass a full Riot version string like
+        // "16.4.521.123" while aggregates persist as "major.minor". Canonicalise
+        // here so SQL filters built from this value hit the persisted form.
+        var normalized = PatchVersion.Normalize(requestedPatch);
+        return string.IsNullOrEmpty(normalized) ? null : normalized;
+    }
 
     private static (int Major, int Minor) ParsePatchVersion(string gameVersion)
     {
