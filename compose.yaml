@@ -22,7 +22,7 @@ services:
 
   api:
     build:
-      context: .
+      context: ./backend
       dockerfile: Api/Dockerfile
     container_name: truemain-api
     restart: unless-stopped
@@ -42,8 +42,8 @@ services:
 
   web:
     build:
-      context: .
-      dockerfile: truemain-web/Dockerfile
+      context: ./web
+      dockerfile: Dockerfile
     container_name: truemain-web
     restart: unless-stopped
     environment:
@@ -60,7 +60,7 @@ services:
 
   ingestor:
     build:
-      context: .
+      context: ./backend
       dockerfile: Ingestor/Dockerfile
     container_name: truemain-ingestor
     restart: unless-stopped

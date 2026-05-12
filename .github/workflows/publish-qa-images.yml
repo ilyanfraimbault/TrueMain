@@ -39,8 +39,8 @@ jobs:
       - name: Build and push API image
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: Api/Dockerfile
+          context: ./backend
+          file: backend/Api/Dockerfile
           push: true
           cache-from: type=gha,scope=api
           cache-to: type=gha,mode=max,scope=api
@@ -49,8 +49,8 @@ jobs:
       - name: Build and push Ingestor image
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: Ingestor/Dockerfile
+          context: ./backend
+          file: backend/Ingestor/Dockerfile
           push: true
           cache-from: type=gha,scope=ingestor
           cache-to: type=gha,mode=max,scope=ingestor
@@ -59,8 +59,8 @@ jobs:
       - name: Build and push Web image
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: truemain-web/Dockerfile
+          context: ./web
+          file: web/Dockerfile
           push: true
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
