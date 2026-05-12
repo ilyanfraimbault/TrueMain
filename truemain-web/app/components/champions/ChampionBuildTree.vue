@@ -3,6 +3,8 @@ import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { ChampionBuildTreeNodeResponse } from '~/types/champions'
 import type { StaticItemData } from '~/types/static-data'
 
+const MAX_DEPTH = 50
+
 const props = withDefaults(defineProps<{
   nodes: ChampionBuildTreeNodeResponse[]
   itemsById: Record<number, StaticItemData>
@@ -58,15 +60,20 @@ function visibleChildrenFor(node: ChampionBuildTreeNodeResponse) {
 
 function collectGreedyPrimaryPath(
   node: ChampionBuildTreeNodeResponse,
-  nodePathKey: string
+  nodePathKey: string,
+  depth: number = 0
 ): string[] {
+  if (depth >= MAX_DEPTH) {
+    return []
+  }
+
   const primaryChild = visibleChildrenFor(node)[0]
   if (!primaryChild) {
     return []
   }
 
   const childPathKey = `${nodePathKey}>${primaryChild.itemId}`
-  return [childPathKey, ...collectGreedyPrimaryPath(primaryChild, childPathKey)]
+  return [childPathKey, ...collectGreedyPrimaryPath(primaryChild, childPathKey, depth + 1)]
 }
 
 const primaryEdgeRanks = computed<Record<string, number>>(() => {
