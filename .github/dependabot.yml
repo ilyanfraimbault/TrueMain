@@ -5,6 +5,7 @@ updates:
   # csproj files up automatically.
   - package-ecosystem: nuget
     directory: "/"
+    target-branch: develop
     schedule:
       interval: weekly
       day: monday
@@ -31,6 +32,7 @@ updates:
 
   - package-ecosystem: npm
     directory: "/truemain-web"
+    target-branch: develop
     schedule:
       interval: weekly
       day: monday
@@ -52,6 +54,7 @@ updates:
 
   - package-ecosystem: github-actions
     directory: "/"
+    target-branch: develop
     schedule:
       interval: weekly
       day: monday
@@ -66,6 +69,7 @@ updates:
       - /Api
       - /Ingestor
       - /truemain-web
+    target-branch: develop
     schedule:
       interval: weekly
       day: monday
