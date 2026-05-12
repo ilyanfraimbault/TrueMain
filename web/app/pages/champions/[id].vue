@@ -159,7 +159,7 @@ function onPositionChange(value: unknown) {
             @update:model-value="onPatchChange"
           />
           <USelect
-            :model-value="selectedPosition"
+            :model-value="selectedPosition || undefined"
             :items="positionOptions"
             placeholder="Position"
             class="w-32"
