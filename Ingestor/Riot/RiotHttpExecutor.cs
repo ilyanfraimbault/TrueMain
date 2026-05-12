@@ -39,7 +39,7 @@ public sealed class RiotHttpExecutor(ILogger<RiotHttpExecutor> logger) : IRiotHt
                         break;
                     }
 
-                    var delay = GetRetryDelay(response.Headers.RetryAfter, DateTimeOffset.UtcNow);
+                    var delay = ComputeRetryDelay(response, attempt, DateTimeOffset.UtcNow);
                     LogRetry(clientName, "rate limited", delay, attempt, attempts);
                     await Task.Delay(delay, ct);
                     continue;
@@ -52,7 +52,7 @@ public sealed class RiotHttpExecutor(ILogger<RiotHttpExecutor> logger) : IRiotHt
                         response.EnsureSuccessStatusCode();
                     }
 
-                    var delay = GetExponentialBackoff(attempt);
+                    var delay = ComputeRetryDelay(response, attempt, DateTimeOffset.UtcNow);
                     LogRetry(clientName, $"transient {(int)response.StatusCode}", delay, attempt, attempts);
                     await Task.Delay(delay, ct);
                     continue;
@@ -81,6 +81,18 @@ public sealed class RiotHttpExecutor(ILogger<RiotHttpExecutor> logger) : IRiotHt
             $"Riot API request failed after {attempts} attempts.",
             null,
             HttpStatusCode.TooManyRequests);
+    }
+
+    internal static TimeSpan ComputeRetryDelay(HttpResponseMessage response, int attempt, DateTimeOffset nowUtc)
+    {
+        // Honour Retry-After whenever Riot supplies it (not just on 429); fall back to
+        // exponential backoff when the header is missing.
+        if (response.Headers.RetryAfter is { } retryAfter)
+        {
+            return GetRetryDelay(retryAfter, nowUtc);
+        }
+
+        return GetExponentialBackoff(attempt);
     }
 
     internal static TimeSpan GetRetryDelay(RetryConditionHeaderValue? retryAfter, DateTimeOffset nowUtc)
@@ -127,11 +139,11 @@ public sealed class RiotHttpExecutor(ILogger<RiotHttpExecutor> logger) : IRiotHt
     private void LogRetry(string clientName, string reason, TimeSpan delay, int attempt, int maxAttempts)
     {
         logger.LogWarning(
-            "Riot API ({ClientName}) {Reason}. Retrying in {Delay} (attempt {Attempt}/{MaxAttempts}).",
+            "Riot API ({ClientName}) attempt {Attempt}/{MaxAttempts} failed ({Reason}), retrying in {Delay}.",
             clientName,
+            attempt,
+            maxAttempts,
             reason,
-            delay,
-            attempt + 1,
-            maxAttempts);
+            delay);
     }
 }

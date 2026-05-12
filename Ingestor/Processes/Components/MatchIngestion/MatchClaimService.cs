@@ -41,9 +41,9 @@ public sealed class MatchClaimService(
                     updated,
                     account.PlatformId,
                     account.Puuid);
-            }
 
-            claimed.Add(account);
+                claimed.Add(account);
+            }
         }
 
         await session.SaveChangesAsync(ct);
