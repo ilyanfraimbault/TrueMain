@@ -163,37 +163,31 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
         return claimed;
     }
 
-    public async Task<int> SetMatchIngestStatusAsync(string platformId, string puuid, MatchIngestStatus status, CancellationToken ct)
+    public Task<int> SetMatchIngestStatusAsync(string platformId, string puuid, MatchIngestStatus status, CancellationToken ct)
     {
-        var account = await db.RiotAccounts
-            .FirstOrDefaultAsync(a => a.PlatformId == platformId && a.Puuid == puuid, ct);
+        var query = db.RiotAccounts
+            .Where(a => a.PlatformId == platformId && a.Puuid == puuid);
 
-        if (account is null)
-        {
-            return 0;
-        }
-
-        account.MatchIngestStatus = status;
         if (status == MatchIngestStatus.Idle)
         {
-            account.MatchIngestClaimedAtUtc = null;
+            return query.ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(a => a.MatchIngestStatus, status)
+                    .SetProperty(a => a.MatchIngestClaimedAtUtc, (DateTime?)null),
+                ct);
         }
 
-        return 1;
+        return query.ExecuteUpdateAsync(
+            setters => setters.SetProperty(a => a.MatchIngestStatus, status),
+            ct);
     }
 
-    public async Task UpdateLastMatchIngestAtAsync(string platformId, string puuid, DateTime atUtc, CancellationToken ct)
-    {
-        var account = await db.RiotAccounts
-            .FirstOrDefaultAsync(a => a.PlatformId == platformId && a.Puuid == puuid, ct);
-
-        if (account is null)
-        {
-            return;
-        }
-
-        account.LastMatchIngestAtUtc = atUtc;
-    }
+    public Task UpdateLastMatchIngestAtAsync(string platformId, string puuid, DateTime atUtc, CancellationToken ct)
+        => db.RiotAccounts
+            .Where(a => a.PlatformId == platformId && a.Puuid == puuid)
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(a => a.LastMatchIngestAtUtc, atUtc),
+                ct);
 
     public void Add(RiotAccount account)
         => db.RiotAccounts.Add(account);
