@@ -10,7 +10,8 @@ namespace TrueMain.Services.Ops;
 
 public sealed class PipelineHealthQueryService(
     TrueMainDbContext db,
-    IOptions<MainAnalysisOptions> mainAnalysisOptions) : IPipelineHealthQueryService
+    IOptions<MainAnalysisOptions> mainAnalysisOptions,
+    IHostEnvironment environment) : IPipelineHealthQueryService
 {
     private static readonly string[] ProcessNames =
     [
@@ -102,6 +103,8 @@ public sealed class PipelineHealthQueryService(
             .Select(run => (DateTime?)run.FinishedAtUtc)
             .FirstOrDefault();
 
+        var sanitizeErrors = environment.IsProduction();
+
         return new PipelineHealthReadModel
         {
             Processes = ProcessNames
@@ -121,7 +124,7 @@ public sealed class PipelineHealthQueryService(
                             LastStartedAtUtc = run.StartedAtUtc,
                             LastFinishedAtUtc = run.FinishedAtUtc,
                             DurationMs = run.DurationMs,
-                            Error = run.Error
+                            Error = SanitizeError(run.Error, sanitizeErrors)
                         };
                 })
                 .ToList(),
@@ -150,4 +153,24 @@ public sealed class PipelineHealthQueryService(
         return (to.Value - from.Value).TotalMinutes;
     }
 
+    private static string? SanitizeError(string? error, bool sanitize)
+    {
+        if (string.IsNullOrWhiteSpace(error))
+        {
+            return null;
+        }
+
+        if (!sanitize)
+        {
+            // Dev/QA: surface the full payload (stack, paths, message) so
+            // operators can diagnose without poking at logs.
+            return error;
+        }
+
+        // Production: never echo raw exception text to API clients. It can
+        // leak filesystem paths, connection-string fragments or internal
+        // type names. The status field already carries the failure signal;
+        // operators reach for logs/tracing for the real cause.
+        return "internal error";
+    }
 }
