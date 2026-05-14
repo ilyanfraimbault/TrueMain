@@ -8,6 +8,7 @@ import type {
 } from '~/types/champions'
 import type { StaticItemData } from '~/types/static-data'
 import { formatPercentage } from '~/utils/items'
+import { POSITION_OPTIONS, type ChampionPosition } from '~/composables/useChampionPageStore'
 
 const route = useRoute()
 const championId = computed(() => Number.parseInt(String(route.params.id), 10))
@@ -105,11 +106,17 @@ const starterItems = computed(() => itemsFromSet(core.value?.starterItems ?? nul
 const bootsItems = computed(() => itemsFromSet(core.value?.boots ?? null))
 
 function onPatchChange(value: unknown) {
-  void setFilter(String(value), null)
+  if (typeof value !== 'string' || !value) return
+  void setFilter(value, null)
+}
+
+function isChampionPosition(value: unknown): value is ChampionPosition {
+  return typeof value === 'string' && POSITION_OPTIONS.some(option => option.value === value)
 }
 
 function onPositionChange(value: unknown) {
-  void setFilter(null, String(value) as never)
+  if (!isChampionPosition(value)) return
+  void setFilter(null, value)
 }
 </script>
 
@@ -178,22 +185,27 @@ function onPositionChange(value: unknown) {
             v-if="topSummoners"
             class="mt-2 flex items-center gap-1"
           >
-            <NuxtImg
-              :src="summonerIcon(topSummoners.spell1Id)"
-              :alt="summonerName(topSummoners.spell1Id)"
-              :title="summonerName(topSummoners.spell1Id)"
-              width="40"
-              height="40"
-              class="size-10 rounded"
-            />
-            <NuxtImg
-              :src="summonerIcon(topSummoners.spell2Id)"
-              :alt="summonerName(topSummoners.spell2Id)"
-              :title="summonerName(topSummoners.spell2Id)"
-              width="40"
-              height="40"
-              class="size-10 rounded"
-            />
+            <template
+              v-for="spellId in [topSummoners.spell1Id, topSummoners.spell2Id]"
+              :key="`sum-${spellId}`"
+            >
+              <NuxtImg
+                v-if="summonerIcon(spellId)"
+                :src="summonerIcon(spellId)"
+                :alt="summonerName(spellId)"
+                :title="summonerName(spellId)"
+                width="40"
+                height="40"
+                class="size-10 rounded"
+              />
+              <span
+                v-else
+                class="inline-flex size-10 items-center justify-center rounded border border-default text-xs"
+                :title="summonerName(spellId)"
+              >
+                {{ summonerName(spellId) }}
+              </span>
+            </template>
             <span class="ml-2 text-sm text-muted">
               {{ formatPercentage(topSummoners.winRate) }} WR · {{ topSummoners.games }} games
             </span>

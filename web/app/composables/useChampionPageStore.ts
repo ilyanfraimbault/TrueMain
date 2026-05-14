@@ -147,13 +147,48 @@ export function useChampionPageStore(championId: ComputedRef<number>) {
   const query = computed(() => ({
     patch: getQuery(route.query.patch as string | string[] | undefined) || undefined,
     position: getQuery(route.query.position as string | string[] | undefined) || undefined,
+    platformId: getQuery(route.query.platformId as string | string[] | undefined) || undefined,
+    riotAccountId: getQuery(route.query.riotAccountId as string | string[] | undefined) || undefined,
+    buildId: getQuery(route.query.buildId as string | string[] | undefined) || undefined,
     maxDepth: 7,
     minBranchGames: 1
   }))
 
+  function fetchChampion(filtered: boolean): Promise<ChampionResponse> {
+    const q = filtered
+      ? query.value
+      : { maxDepth: query.value.maxDepth, minBranchGames: query.value.minBranchGames }
+    return $fetch<ChampionResponse>(`/api/champions/${championId.value}`, { query: q })
+  }
+
   const championState = useAsyncData<ChampionResponse>(
-    () => `champion-${championId.value}-${query.value.patch ?? ''}-${query.value.position ?? ''}`,
-    () => $fetch<ChampionResponse>(`/api/champions/${championId.value}`, { query: query.value }),
+    () => [
+      'champion',
+      championId.value,
+      query.value.patch ?? '',
+      query.value.position ?? '',
+      query.value.platformId ?? '',
+      query.value.riotAccountId ?? '',
+      query.value.buildId ?? ''
+    ].join('-'),
+    async () => {
+      try {
+        return await fetchChampion(true)
+      } catch (error: unknown) {
+        const status = (error as { statusCode?: number }).statusCode
+        const hasFilters = Boolean(
+          query.value.patch || query.value.position || query.value.platformId
+          || query.value.riotAccountId || query.value.buildId
+        )
+        // 404 with filters likely means "no data for that filter combo".
+        // Fall back to the unfiltered champion so the page still renders
+        // basic info instead of surfacing a hard error.
+        if (status === 404 && hasFilters) {
+          return await fetchChampion(false)
+        }
+        throw error
+      }
+    },
     { watch: [championId, query] }
   )
 
