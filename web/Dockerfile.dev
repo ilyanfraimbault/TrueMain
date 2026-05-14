@@ -1,16 +1,16 @@
 FROM node:24-alpine
 
-WORKDIR /workspace/truemain-web
+WORKDIR /workspace/web
 
 ENV NODE_ENV=development
 ENV NITRO_HOST=0.0.0.0
 ENV NITRO_PORT=3000
 
-COPY truemain-web/package.json ./
-COPY truemain-web/package-lock.json ./
+COPY package.json ./
+COPY package-lock.json ./
 RUN npm ci
 
-COPY truemain-web/ ./
+COPY . ./
 
 EXPOSE 3000
 

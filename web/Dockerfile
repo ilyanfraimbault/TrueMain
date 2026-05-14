@@ -1,14 +1,14 @@
 FROM node:24-alpine AS deps
 WORKDIR /app
 
-COPY truemain-web/package.json ./
-COPY truemain-web/package-lock.json ./
+COPY package.json ./
+COPY package-lock.json ./
 RUN npm ci
 
 FROM deps AS build
 WORKDIR /app
 
-COPY truemain-web/ ./
+COPY . ./
 RUN npm run typecheck
 RUN npm run build
 
