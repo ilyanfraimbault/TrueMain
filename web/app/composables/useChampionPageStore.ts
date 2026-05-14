@@ -14,31 +14,12 @@ import {
   normalizeDataDragonPatch
 } from '~/utils/items'
 
-/**
- * Community Dragon hosts perk metadata + icons. iconPath returned by the
- * JSON is a CDN path under /lol-game-data/assets/ — rewriting the prefix
- * gives the directly-fetchable image URL. The CDN serves all paths
- * lowercased, so we lowercase the iconPath before swapping the prefix.
- */
-const COMMUNITY_DRAGON_ASSET_PREFIX
+const COMMUNITY_DRAGON_PREFIX
   = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default'
-const PERKS_URL
-  = `${COMMUNITY_DRAGON_ASSET_PREFIX}/v1/perks.json`
-const PERK_STYLES_URL
-  = `${COMMUNITY_DRAGON_ASSET_PREFIX}/v1/perkstyles.json`
-
-function rewriteCommunityDragonAsset(iconPath: string): string {
-  if (!iconPath) {
-    return ''
-  }
-  const normalized = iconPath.toLowerCase()
-  return normalized.replace(/^\/lol-game-data\/assets/, COMMUNITY_DRAGON_ASSET_PREFIX)
-}
 
 export type ChampionPosition = 'TOP' | 'JUNGLE' | 'MIDDLE' | 'BOTTOM' | 'UTILITY'
-export type ChampionDisplayPosition = ChampionPosition | ''
 
-const EMPTY_STATIC_DATA: ChampionStaticData = {
+export const EMPTY_STATIC_DATA: ChampionStaticData = {
   championName: null,
   championIconUrl: null,
   items: {},
@@ -48,15 +29,7 @@ const EMPTY_STATIC_DATA: ChampionStaticData = {
   perkStyles: {}
 }
 
-/**
- * Module-level cache of in-flight + resolved static-data promises, keyed by
- * `${championId}-${patch}`. ddragon/CommunityDragon assets are immutable per
- * patch, so once we have a promise for a given pair we can reuse it across
- * every consumer rather than re-issuing the same five $fetch calls.
- */
-const championStaticDataCache = new Map<string, Promise<ChampionStaticData>>()
-
-const POSITION_OPTIONS: Array<{ label: string, value: ChampionPosition, iconUrl: string }> = [
+export const POSITION_OPTIONS: Array<{ label: string, value: ChampionPosition, iconUrl: string }> = [
   { label: 'Top', value: 'TOP', iconUrl: getPositionIconUrl('TOP') },
   { label: 'Jungle', value: 'JUNGLE', iconUrl: getPositionIconUrl('JUNGLE') },
   { label: 'Middle', value: 'MIDDLE', iconUrl: getPositionIconUrl('MIDDLE') },
@@ -64,236 +37,159 @@ const POSITION_OPTIONS: Array<{ label: string, value: ChampionPosition, iconUrl:
   { label: 'Support', value: 'UTILITY', iconUrl: getPositionIconUrl('UTILITY') }
 ]
 
-function getSingleQueryValue(value: string | string[] | undefined): string {
-  return Array.isArray(value) ? value[0] ?? '' : value ?? ''
-}
-
-function toPositiveInteger(value: string, fallback: number): number {
-  const parsed = Number.parseInt(value, 10)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
-}
-
-async function fetchChampionData(
-  championId: number,
-  query: {
-    patch?: string
-    position?: string
-    maxDepth: number
-    minBranchGames: number
-  },
-  fallbackRouteQuery: Ref<Record<string, string | undefined> | null>
-) {
-  try {
-    fallbackRouteQuery.value = null
-
-    return await $fetch<ChampionResponse>(`/api/champions/${championId}`, {
-      query
-    })
-  }
-  catch (error: unknown) {
-    const statusCode = typeof error === 'object' && error !== null && 'statusCode' in error
-      ? Number((error as { statusCode?: number }).statusCode)
-      : undefined
-
-    if (statusCode !== 404) {
-      throw error
-    }
-
-    fallbackRouteQuery.value = {}
-
-    return await $fetch<ChampionResponse>(`/api/champions/${championId}`, {
-      query: {
-        maxDepth: query.maxDepth,
-        minBranchGames: query.minBranchGames
-      }
-    })
-  }
-}
-
 type ItemDataResponse = { data: Record<string, { name: string, image: { full: string }, gold: { total: number } }> }
 type SummonerDataResponse = { data: Record<string, { key: string, name: string, image: { full: string } }> }
 type ChampionListResponse = { data: Record<string, { id: string, key: string, name: string, image: { full: string } }> }
 type PerksResponse = Array<{ id: number, name: string, iconPath: string }>
 type PerkStylesResponse = { styles: Array<{ id: number, name: string, iconPath: string }> }
-type ChampionDetailResponse = {
-  data: Record<string, { spells: Array<{ name: string, image: { full: string } }> }>
+type ChampionDetailResponse = { data: Record<string, { spells: Array<{ name: string, image: { full: string } }> }> }
+
+function getQuery(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? value[0] ?? '' : value ?? ''
 }
 
-function settledValue<T>(result: PromiseSettledResult<T>, fallback: T): T {
-  return result.status === 'fulfilled' ? result.value : fallback
+function rewriteCdragonAsset(iconPath: string): string {
+  if (!iconPath) return ''
+  return iconPath.toLowerCase().replace(/^\/lol-game-data\/assets/, COMMUNITY_DRAGON_PREFIX)
 }
 
-async function loadChampionStaticData(championId: number, normalizedPatch: string): Promise<ChampionStaticData> {
-  const [
-    itemDataResult,
-    summonerDataResult,
-    championListResult,
-    perksResult,
-    perkStylesResult
-  ] = await Promise.allSettled([
-    $fetch<ItemDataResponse>(
-      `https://ddragon.leagueoflegends.com/cdn/${normalizedPatch}/data/en_US/item.json`
-    ),
-    $fetch<SummonerDataResponse>(
-      `https://ddragon.leagueoflegends.com/cdn/${normalizedPatch}/data/en_US/summoner.json`
-    ),
-    $fetch<ChampionListResponse>(
-      `https://ddragon.leagueoflegends.com/cdn/${normalizedPatch}/data/en_US/champion.json`
-    ),
-    $fetch<PerksResponse>(PERKS_URL),
-    $fetch<PerkStylesResponse>(PERK_STYLES_URL)
+const staticDataCache = new Map<string, Promise<ChampionStaticData>>()
+
+async function loadStaticData(championId: number, patch: string): Promise<ChampionStaticData> {
+  const [items, spells, champs, perks, perkStyles] = await Promise.all([
+    $fetch<ItemDataResponse>(`https://ddragon.leagueoflegends.com/cdn/${patch}/data/en_US/item.json`).catch(() => ({ data: {} })),
+    $fetch<SummonerDataResponse>(`https://ddragon.leagueoflegends.com/cdn/${patch}/data/en_US/summoner.json`).catch(() => ({ data: {} })),
+    $fetch<ChampionListResponse>(`https://ddragon.leagueoflegends.com/cdn/${patch}/data/en_US/champion.json`).catch(() => ({ data: {} })),
+    $fetch<PerksResponse>(`${COMMUNITY_DRAGON_PREFIX}/v1/perks.json`).catch(() => [] as PerksResponse),
+    $fetch<PerkStylesResponse>(`${COMMUNITY_DRAGON_PREFIX}/v1/perkstyles.json`).catch(() => ({ styles: [] }))
   ])
 
-  const itemDataResponse = settledValue<ItemDataResponse>(itemDataResult, { data: {} })
-  const summonerDataResponse = settledValue<SummonerDataResponse>(summonerDataResult, { data: {} })
-  const championListResponse = settledValue<ChampionListResponse>(championListResult, { data: {} })
-  const perksResponse = settledValue<PerksResponse>(perksResult, [])
-  const perkStylesResponse = settledValue<PerkStylesResponse>(perkStylesResult, { styles: [] })
-
-  const items = Object.fromEntries(
-    Object.entries(itemDataResponse.data).map(([itemId, item]) => [
-      Number(itemId),
+  const itemMap: Record<number, StaticItemData> = Object.fromEntries(
+    Object.entries(items.data).map(([id, item]) => [
+      Number(id),
       {
-        id: Number(itemId),
+        id: Number(id),
         name: item.name,
-        iconUrl: `https://ddragon.leagueoflegends.com/cdn/${normalizedPatch}/img/item/${item.image.full}`,
+        iconUrl: `https://ddragon.leagueoflegends.com/cdn/${patch}/img/item/${item.image.full}`,
         totalGold: item.gold.total
-      } satisfies StaticItemData
+      }
     ])
   )
 
-  const summonerSpells = Object.fromEntries(
-    Object.values(summonerDataResponse.data).map((spell) => [
+  const summonerMap: Record<number, StaticSummonerSpellData> = Object.fromEntries(
+    Object.values(spells.data).map((spell) => [
       Number(spell.key),
       {
         id: Number(spell.key),
         name: spell.name,
-        iconUrl: getSummonerSpellImageUrl(spell.image.full, normalizedPatch) ?? ''
-      } satisfies StaticSummonerSpellData
+        iconUrl: getSummonerSpellImageUrl(spell.image.full, patch) ?? ''
+      }
     ])
   )
 
-  const perks = Object.fromEntries(
-    perksResponse.map(perk => [
-      perk.id,
-      {
-        id: perk.id,
-        name: perk.name,
-        iconUrl: rewriteCommunityDragonAsset(perk.iconPath)
-      } satisfies StaticPerkData
-    ])
+  const perkMap: Record<number, StaticPerkData> = Object.fromEntries(
+    perks.map(perk => [perk.id, { id: perk.id, name: perk.name, iconUrl: rewriteCdragonAsset(perk.iconPath) }])
   )
 
-  const perkStyles = Object.fromEntries(
-    (perkStylesResponse.styles ?? []).map(style => [
-      style.id,
-      {
-        id: style.id,
-        name: style.name,
-        iconUrl: rewriteCommunityDragonAsset(style.iconPath)
-      } satisfies StaticPerkStyleData
-    ])
+  const perkStyleMap: Record<number, StaticPerkStyleData> = Object.fromEntries(
+    (perkStyles.styles ?? []).map(style => [style.id, { id: style.id, name: style.name, iconUrl: rewriteCdragonAsset(style.iconPath) }])
   )
 
-  const championSummary = Object.values(championListResponse.data)
-    .find((currentChampion) => Number(currentChampion.key) === championId)
-
-  if (!championSummary) {
-    return {
-      ...EMPTY_STATIC_DATA,
-      items,
-      summonerSpells,
-      perks,
-      perkStyles
-    }
+  const summary = Object.values(champs.data).find(c => Number(c.key) === championId)
+  if (!summary) {
+    return { ...EMPTY_STATIC_DATA, items: itemMap, summonerSpells: summonerMap, perks: perkMap, perkStyles: perkStyleMap }
   }
 
-  const championDetailResponse = await $fetch<ChampionDetailResponse>(
-    `https://ddragon.leagueoflegends.com/cdn/${normalizedPatch}/data/en_US/champion/${championSummary.id}.json`
+  const detail = await $fetch<ChampionDetailResponse>(
+    `https://ddragon.leagueoflegends.com/cdn/${patch}/data/en_US/champion/${summary.id}.json`
   ).catch((): ChampionDetailResponse => ({ data: {} }))
 
-  const championDetail = championDetailResponse.data[championSummary.id]
   const slots = ['Q', 'W', 'E'] as const
-
-  const championSpells = Object.fromEntries(
-    (championDetail?.spells ?? []).slice(0, 3).flatMap((spell, index) => {
+  const championSpells: Record<string, StaticChampionSpellData> = Object.fromEntries(
+    (detail.data[summary.id]?.spells ?? []).slice(0, 3).flatMap((spell, index) => {
       const key = slots[index]
-      if (!key) {
-        return []
-      }
-
-      return [[
-        key,
-        {
-          key,
-          name: spell.name,
-          iconUrl: getChampionSpellImageUrl(spell.image.full, normalizedPatch) ?? ''
-        } satisfies StaticChampionSpellData
-      ]]
+      if (!key) return []
+      return [[key, { key, name: spell.name, iconUrl: getChampionSpellImageUrl(spell.image.full, patch) ?? '' }]]
     })
   )
 
   return {
-    championName: championSummary.name,
-    championIconUrl: `https://ddragon.leagueoflegends.com/cdn/${normalizedPatch}/img/champion/${championSummary.image.full}`,
-    items,
-    summonerSpells,
+    championName: summary.name,
+    championIconUrl: `https://ddragon.leagueoflegends.com/cdn/${patch}/img/champion/${summary.image.full}`,
+    items: itemMap,
+    summonerSpells: summonerMap,
     championSpells,
-    perks,
-    perkStyles
+    perks: perkMap,
+    perkStyles: perkStyleMap
   }
 }
 
-async function fetchChampionStaticData(championId: number, patch: string | null): Promise<ChampionStaticData> {
-  const normalizedPatch = normalizeDataDragonPatch(patch)
-  if (!normalizedPatch) {
-    return EMPTY_STATIC_DATA
-  }
+function fetchStaticData(championId: number, patch: string | null): Promise<ChampionStaticData> {
+  const normalized = normalizeDataDragonPatch(patch)
+  if (!normalized) return Promise.resolve(EMPTY_STATIC_DATA)
 
-  const cacheKey = `${championId}-${normalizedPatch}`
-  const cached = championStaticDataCache.get(cacheKey)
-  if (cached) {
-    return cached
-  }
+  const key = `${championId}-${normalized}`
+  const cached = staticDataCache.get(key)
+  if (cached) return cached
 
-  const promise = loadChampionStaticData(championId, normalizedPatch).catch((error) => {
-    // Evict on rejection so a subsequent call can retry instead of being stuck
-    // with a poisoned cache entry.
-    championStaticDataCache.delete(cacheKey)
+  const promise = loadStaticData(championId, normalized).catch((error) => {
+    staticDataCache.delete(key)
     throw error
   })
-
-  championStaticDataCache.set(cacheKey, promise)
+  staticDataCache.set(key, promise)
   return promise
-}
-
-async function fetchPatchCatalog(): Promise<string[]> {
-  return await $fetch<string[]>('https://ddragon.leagueoflegends.com/api/versions.json')
 }
 
 export function useChampionPageStore(championId: ComputedRef<number>) {
   const route = useRoute()
   const router = useRouter()
-  const fallbackRouteQuery = ref<Record<string, string | undefined> | null>(null)
 
-  const filters = reactive({
-    patch: '',
-    position: ''
-  })
-
-  const buildTreeQuery = computed(() => ({
-    patch: getSingleQueryValue(route.query.patch as string | string[] | undefined) || undefined,
-    position: getSingleQueryValue(route.query.position as string | string[] | undefined) || undefined,
-    maxDepth: toPositiveInteger(getSingleQueryValue(route.query.maxDepth as string | string[] | undefined), 7),
-    minBranchGames: toPositiveInteger(getSingleQueryValue(route.query.minBranchGames as string | string[] | undefined), 1)
+  const query = computed(() => ({
+    patch: getQuery(route.query.patch as string | string[] | undefined) || undefined,
+    position: getQuery(route.query.position as string | string[] | undefined) || undefined,
+    platformId: getQuery(route.query.platformId as string | string[] | undefined) || undefined,
+    riotAccountId: getQuery(route.query.riotAccountId as string | string[] | undefined) || undefined,
+    buildId: getQuery(route.query.buildId as string | string[] | undefined) || undefined,
+    maxDepth: 7,
+    minBranchGames: 1
   }))
 
-  const championState = useAsyncData(
-    () => `champion-${championId.value}-${JSON.stringify(buildTreeQuery.value)}`,
-    () => fetchChampionData(championId.value, buildTreeQuery.value, fallbackRouteQuery),
-    {
-      watch: [championId, buildTreeQuery]
-    }
+  function fetchChampion(filtered: boolean): Promise<ChampionResponse> {
+    const q = filtered
+      ? query.value
+      : { maxDepth: query.value.maxDepth, minBranchGames: query.value.minBranchGames }
+    return $fetch<ChampionResponse>(`/api/champions/${championId.value}`, { query: q })
+  }
+
+  const championState = useAsyncData<ChampionResponse>(
+    () => [
+      'champion',
+      championId.value,
+      query.value.patch ?? '',
+      query.value.position ?? '',
+      query.value.platformId ?? '',
+      query.value.riotAccountId ?? '',
+      query.value.buildId ?? ''
+    ].join('-'),
+    async () => {
+      try {
+        return await fetchChampion(true)
+      } catch (error: unknown) {
+        const status = (error as { statusCode?: number }).statusCode
+        const hasFilters = Boolean(
+          query.value.patch || query.value.position || query.value.platformId
+          || query.value.riotAccountId || query.value.buildId
+        )
+        // 404 with filters likely means "no data for that filter combo".
+        // Fall back to the unfiltered champion so the page still renders
+        // basic info instead of surfacing a hard error.
+        if (status === 404 && hasFilters) {
+          return await fetchChampion(false)
+        }
+        throw error
+      }
+    },
+    { watch: [championId, query] }
   )
 
   const champion = computed(() => championState.data.value ?? null)
@@ -301,166 +197,72 @@ export function useChampionPageStore(championId: ComputedRef<number>) {
   const core = computed(() => champion.value?.core ?? null)
   const advanced = computed(() => champion.value?.advanced ?? null)
   const buildTree = computed(() => champion.value?.buildTree ?? null)
-  const itemPatch = computed(() =>
-    buildTree.value?.patch || summary.value?.latestPatchVersion || buildTreeQuery.value.patch || null)
 
-  const championStaticState = useAsyncData(
-    () => `champion-static-${championId.value}-${itemPatch.value ?? 'none'}`,
-    () => fetchChampionStaticData(championId.value, itemPatch.value),
-    {
-      server: false,
-      watch: [itemPatch, championId]
-    }
+  const activePatch = computed(() =>
+    buildTree.value?.patch || summary.value?.latestPatchVersion || query.value.patch || null)
+
+  const staticState = useAsyncData(
+    () => `champion-static-${championId.value}-${activePatch.value ?? 'none'}`,
+    () => fetchStaticData(championId.value, activePatch.value),
+    { server: false, watch: [activePatch, championId] }
   )
 
-  const championStatic = computed(() => championStaticState.data.value ?? EMPTY_STATIC_DATA)
+  const championStatic = computed(() => staticState.data.value ?? EMPTY_STATIC_DATA)
 
-  const patchCatalogState = useAsyncData(
+  const versionsState = useAsyncData(
     'ddragon-versions',
-    fetchPatchCatalog,
-    {
-      server: false,
-      default: () => []
-    }
+    () => $fetch<string[]>('https://ddragon.leagueoflegends.com/api/versions.json'),
+    { server: false, default: () => [] }
   )
 
   const patchOptions = computed(() => {
-    const latestPatch = summary.value?.latestPatchVersion ?? buildTree.value?.patch ?? ''
-    const selectedPatch = filters.patch
-    const patches = new Set<string>(
-      (patchCatalogState.data.value ?? [])
-        .map((patch) => patch.split('.').slice(0, 2).join('.'))
+    const seen = new Set<string>(
+      (versionsState.data.value ?? [])
+        .map(p => p.split('.').slice(0, 2).join('.'))
         .filter(Boolean)
         .slice(0, 12)
     )
-
-    if (selectedPatch) {
-      patches.add(selectedPatch)
-    }
-
-    if (latestPatch) {
-      patches.add(latestPatch)
-    }
-
-    return [...patches]
-      .map(patch => ({
-        label: patch,
-        value: patch
-      }))
-      .sort((left, right) => right.value.localeCompare(left.value, undefined, { numeric: true }))
+    if (summary.value?.latestPatchVersion) seen.add(summary.value.latestPatchVersion)
+    if (query.value.patch) seen.add(query.value.patch)
+    return [...seen]
+      .map(p => ({ label: p, value: p }))
+      .sort((a, b) => b.value.localeCompare(a.value, undefined, { numeric: true }))
   })
 
-  const isPageLoading = computed(() => championState.pending.value && !champion.value)
-  const hasStaticData = computed(() =>
-    championStatic.value.championName !== null ||
-    Object.keys(championStatic.value.items).length > 0 ||
-    Object.keys(championStatic.value.summonerSpells).length > 0 ||
-    Object.keys(championStatic.value.championSpells).length > 0
-  )
-  const isStaticPending = computed(() =>
-    !hasStaticData.value
-    && !championStaticState.error.value
-    && (import.meta.server
-      || championStaticState.pending.value
-      || championStaticState.status.value === 'idle'))
-  const selectedPatch = computed({
-    get: () => filters.patch || summary.value?.latestPatchVersion || '',
-    set: (value: string) => {
-      filters.patch = value
-    }
-  })
-  const displayPosition = computed<ChampionDisplayPosition>(() => {
-    const value = summary.value?.position || filters.position || ''
-    return POSITION_OPTIONS.some(option => option.value === value)
-      ? value as ChampionPosition
-      : ''
+  const selectedPatch = computed(() => query.value.patch || summary.value?.latestPatchVersion || '')
+  const selectedPosition = computed<ChampionPosition | ''>(() => {
+    const value = query.value.position || summary.value?.position || ''
+    return POSITION_OPTIONS.some(o => o.value === value) ? value as ChampionPosition : ''
   })
 
-  function syncFiltersFromRoute() {
-    const routePatch = getSingleQueryValue(route.query.patch as string | string[] | undefined)
-    const routePosition = getSingleQueryValue(route.query.position as string | string[] | undefined)
+  const isLoading = computed(() => championState.pending.value && !champion.value)
 
-    filters.patch = routePatch || summary.value?.latestPatchVersion || ''
-    filters.position = routePosition || summary.value?.position || ''
-  }
-
-  async function applyFilters() {
-    const patch = filters.patch || summary.value?.latestPatchVersion
-    const position = filters.position || summary.value?.position
-
-    if (!patch || !position) {
-      return
-    }
-
-    if (
-      getSingleQueryValue(route.query.patch as string | string[] | undefined) === patch &&
-      getSingleQueryValue(route.query.position as string | string[] | undefined) === position
-    ) {
-      return
-    }
+  async function setFilter(patch: string | null, position: ChampionPosition | null) {
+    const nextPatch = patch ?? query.value.patch ?? summary.value?.latestPatchVersion
+    const nextPosition = position ?? query.value.position ?? summary.value?.position
+    if (!nextPatch || !nextPosition) return
 
     await router.replace({
       query: {
-        patch,
-        position,
-        maxDepth: getSingleQueryValue(route.query.maxDepth as string | string[] | undefined) || undefined,
-        minBranchGames: getSingleQueryValue(route.query.minBranchGames as string | string[] | undefined) || undefined
+        ...route.query,
+        patch: nextPatch,
+        position: nextPosition
       }
     })
-  }
-
-  watch([
-    () => route.fullPath,
-    () => summary.value?.latestPatchVersion,
-    () => summary.value?.position
-  ], syncFiltersFromRoute, {
-    immediate: true
-  })
-
-  watch(fallbackRouteQuery, async (query) => {
-    if (!query || import.meta.server) {
-      return
-    }
-
-    const currentPatch = getSingleQueryValue(route.query.patch as string | string[] | undefined)
-    const currentPosition = getSingleQueryValue(route.query.position as string | string[] | undefined)
-
-    if (!currentPatch && !currentPosition) {
-      fallbackRouteQuery.value = null
-      return
-    }
-
-    await router.replace({ query })
-    fallbackRouteQuery.value = null
-  }, {
-    flush: 'post'
-  })
-
-  function setPositionFilter(position: ChampionPosition) {
-    filters.position = position
-    void applyFilters()
-  }
-
-  function setPatchFilter(patch: string) {
-    filters.patch = patch
-    void applyFilters()
   }
 
   return {
     advanced,
     buildTree,
-    champion,
     championState,
     championStatic,
     core,
-    isPageLoading,
-    isStaticPending,
+    isLoading,
     patchOptions,
     positionOptions: POSITION_OPTIONS,
-    displayPosition,
     selectedPatch,
-    setPatchFilter,
-    setPositionFilter,
+    selectedPosition,
+    setFilter,
     summary
   }
 }
