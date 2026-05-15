@@ -18,6 +18,7 @@ builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddMemoryCache();
 
 var healthConnectionString = builder.Configuration.GetConnectionString("TrueMain");
 var healthChecks = builder.Services.AddHealthChecks();
