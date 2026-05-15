@@ -26,7 +26,7 @@ function spellByKey(key: string) {
         v-for="(key, index) in skillOrder.sequence"
         :key="`${key}-${index}`"
       >
-        <div class="flex flex-col items-center gap-1">
+        <div class="relative size-12">
           <NuxtImg
             v-if="spellByKey(key)"
             :src="spellByKey(key)!.iconUrl"
@@ -43,7 +43,7 @@ function spellByKey(key: string) {
             {{ key }}
           </span>
 
-          <span class="inline-flex size-5 items-center justify-center rounded-full bg-elevated text-[10px] font-bold uppercase">
+          <span class="absolute bottom-0.5 left-1/2 inline-flex size-4 -translate-x-1/2 items-center justify-center rounded-full bg-default/85 text-[9px] font-bold uppercase ring-1 ring-default backdrop-blur-sm">
             {{ key }}
           </span>
         </div>
