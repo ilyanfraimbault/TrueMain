@@ -57,19 +57,15 @@ function styleName(id: number): string {
       v-if="primary"
       class="flex flex-col items-center gap-5"
     >
-      <!-- Style header -->
-      <div class="flex items-center gap-2">
-        <NuxtImg
-          :src="styleIcon(primary.styleId)"
-          :alt="primary.name"
-          width="24"
-          height="24"
-          class="size-6"
-        />
-        <span class="font-semibold tracking-wide text-default">
-          {{ primary.name }}
-        </span>
-      </div>
+      <!-- Style icon (no text — keeps the tree identifiable without labels) -->
+      <NuxtImg
+        :src="styleIcon(primary.styleId)"
+        :alt="primary.name"
+        :title="primary.name"
+        width="32"
+        height="32"
+        class="size-8"
+      />
 
       <!-- Keystone row (3-4 options, larger + with subtle separator below) -->
       <div class="flex items-center gap-4 border-b border-default pb-5">
@@ -119,19 +115,15 @@ function styleName(id: number): string {
         v-if="secondary"
         class="flex flex-col items-center gap-4"
       >
-        <!-- Style header -->
-        <div class="flex items-center gap-2">
-          <NuxtImg
-            :src="styleIcon(secondary.styleId)"
-            :alt="secondary.name"
-            width="20"
-            height="20"
-            class="size-5"
-          />
-          <span class="font-medium tracking-wide text-default">
-            {{ secondary.name }}
-          </span>
-        </div>
+        <!-- Style icon (no text) -->
+        <NuxtImg
+          :src="styleIcon(secondary.styleId)"
+          :alt="secondary.name"
+          :title="secondary.name"
+          width="24"
+          height="24"
+          class="size-6"
+        />
 
         <div
           v-for="(row, rowIndex) in secondary.subRows"
