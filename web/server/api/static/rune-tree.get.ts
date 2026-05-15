@@ -30,10 +30,19 @@ function rewriteCdragonAsset(iconPath: string): string {
 
 const loadRuneTree = defineCachedFunction(
   async (): Promise<RuneTreeResponse> => {
+    // Let any CommunityDragon failure bubble up — we'd rather return 502 once
+    // and let the next request retry than cache an empty `RuneTreeResponse`
+    // for 1h on a transient outage. Same trade-off as champions.get.ts.
     const [perks, perkStyles] = await Promise.all([
       $fetch<PerksResponse>(`${COMMUNITY_DRAGON_PREFIX}/v1/perks.json`),
       $fetch<PerkStylesResponse>(`${COMMUNITY_DRAGON_PREFIX}/v1/perkstyles.json`),
-    ])
+    ]).catch((error) => {
+      throw createError({
+        statusCode: 502,
+        statusMessage: 'CommunityDragon rune tree fetch failed',
+        cause: error,
+      })
+    })
 
     const perkMap: Record<number, StaticPerkData> = Object.fromEntries(
       perks.map(perk => [perk.id, {
@@ -74,7 +83,7 @@ const loadRuneTree = defineCachedFunction(
   },
   {
     maxAge: 60 * 60,
-    name: 'ddragon-rune-tree',
+    name: 'cdragon-rune-tree',
     getKey: () => 'rune-tree',
   },
 )
