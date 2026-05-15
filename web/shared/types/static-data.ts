@@ -54,3 +54,24 @@ export interface ChampionStaticListItem {
   name: string
   iconUrl: string
 }
+
+/**
+ * One full primary rune tree: the keystone row (3–4 perks depending on the
+ * style) followed by 3 sub-rows of 3 perks each. Secondary trees reuse the
+ * same `subRows` but never show the `keystones` row.
+ */
+export interface RuneTreeStyle {
+  styleId: number
+  name: string
+  iconUrl: string
+  keystones: number[]
+  subRows: number[][]
+}
+
+export interface RuneTreeResponse {
+  styles: RuneTreeStyle[]
+  perks: Record<number, StaticPerkData>
+  perkStyles: Record<number, StaticPerkStyleData>
+  /** 3 rows × 3 perks — fixed across all styles (offense / flex / defense). */
+  shardSlots: number[][]
+}

@@ -22,6 +22,7 @@ const activePatch = computed(() =>
 
 const { data: staticData } = await useChampionStatic(championId, activePatch)
 const { data: versions } = useDDragonVersions()
+const { data: runeTree } = await useFetch('/api/static/rune-tree', { key: 'rune-tree' })
 
 useSeoMeta({
   title: () => staticData.value?.championName ?? 'TrueMain',
@@ -101,10 +102,29 @@ const isLoading = computed(() => championStatus.value === 'pending' && !champion
         />
       </section>
 
-      <ChampionRunes
-        :pages="topRunePages"
-        :champion-static="staticData"
-      />
+      <section class="space-y-4">
+        <h2 class="text-base font-semibold">
+          Runes
+        </h2>
+        <ChampionRunesFull
+          v-if="topRunePages[0] && runeTree"
+          :page="topRunePages[0]"
+          :tree="runeTree"
+        />
+      </section>
+
+      <section
+        v-if="topRunePages.length > 1"
+        class="space-y-3"
+      >
+        <h3 class="text-sm font-medium text-muted">
+          Other rune pages
+        </h3>
+        <ChampionRunes
+          :pages="topRunePages.slice(1)"
+          :champion-static="staticData"
+        />
+      </section>
 
       <section class="space-y-6">
         <h2 class="text-base font-semibold">

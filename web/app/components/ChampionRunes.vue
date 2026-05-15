@@ -19,10 +19,7 @@ function perkStyleIcon(id: number): string {
 
 <template>
   <section>
-    <h2 class="text-base font-semibold">
-      Runes
-    </h2>
-    <ul class="mt-3 space-y-3">
+    <ul class="space-y-3">
       <li
         v-for="(page, index) in pages"
         :key="`rune-${index}`"
