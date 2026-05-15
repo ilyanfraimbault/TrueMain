@@ -36,7 +36,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push API image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./backend
           file: backend/Api/Dockerfile
@@ -48,7 +48,7 @@ jobs:
             ${{ env.IMAGE_API }}:latest
 
       - name: Build and push Ingestor image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./backend
           file: backend/Ingestor/Dockerfile
@@ -60,7 +60,7 @@ jobs:
             ${{ env.IMAGE_INGESTOR }}:latest
 
       - name: Build and push Web image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./web
           file: web/Dockerfile
