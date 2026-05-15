@@ -20,28 +20,41 @@ function spellByKey(key: string) {
     </h2>
     <div
       v-if="skillOrder"
-      class="mt-2 flex flex-wrap items-center gap-1"
+      class="mt-2 flex flex-wrap items-center gap-2"
     >
       <template
         v-for="(key, index) in skillOrder.sequence"
         :key="`${key}-${index}`"
       >
-        <NuxtImg
-          v-if="spellByKey(key)"
-          :src="spellByKey(key)!.iconUrl"
-          :alt="spellByKey(key)!.name"
-          :title="`${key} — ${spellByKey(key)!.name}`"
-          width="32"
-          height="32"
-          class="size-8 rounded"
+        <div class="flex flex-col items-center gap-1">
+          <NuxtImg
+            v-if="spellByKey(key)"
+            :src="spellByKey(key)!.iconUrl"
+            :alt="spellByKey(key)!.name"
+            :title="spellByKey(key)!.name"
+            width="48"
+            height="48"
+            class="size-12 rounded-md"
+          />
+          <span
+            v-else
+            class="inline-flex size-12 items-center justify-center rounded-md border border-default text-sm"
+          >
+            {{ key }}
+          </span>
+
+          <span class="inline-flex size-5 items-center justify-center rounded-full bg-elevated text-[10px] font-bold uppercase">
+            {{ key }}
+          </span>
+        </div>
+
+        <UIcon
+          v-if="index < skillOrder.sequence.length - 1"
+          name="i-lucide-chevron-right"
+          class="size-4 text-dimmed"
         />
-        <span
-          v-else
-          class="inline-flex size-8 items-center justify-center rounded border border-default text-xs"
-        >
-          {{ key }}
-        </span>
       </template>
+
       <span class="ml-2 text-sm text-muted">
         {{ formatPercentage(skillOrder.winRate) }} WR · {{ skillOrder.games }} games
       </span>
