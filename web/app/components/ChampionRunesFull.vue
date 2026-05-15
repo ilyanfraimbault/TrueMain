@@ -48,10 +48,10 @@ function styleIcon(id: number): string {
 
 <template>
   <div class="flex flex-wrap items-start gap-x-6 gap-y-4">
-    <!-- Primary tree (left) -->
+    <!-- Primary tree (left) — sub-rows stretch to the keystone-row width -->
     <section
       v-if="primary"
-      class="flex flex-col items-center gap-1"
+      class="flex flex-col items-stretch gap-1"
     >
       <!-- Style icon (silent tree identifier, no text) -->
       <NuxtImg
@@ -60,11 +60,11 @@ function styleIcon(id: number): string {
         :title="primary.name"
         width="16"
         height="16"
-        class="size-4"
+        class="size-4 self-center"
       />
 
       <!-- Keystone row (3-4 options, larger to read as "the keystone slot") -->
-      <div class="flex items-center gap-0.5">
+      <div class="flex items-center justify-center gap-0.5">
         <NuxtImg
           v-for="id in primary.keystones"
           :key="`pk-${id}`"
@@ -80,11 +80,11 @@ function styleIcon(id: number): string {
         />
       </div>
 
-      <!-- 3 sub-rows of 3 -->
+      <!-- 3 sub-rows of 3 perks, spread across the section width -->
       <div
         v-for="(row, rowIndex) in primary.subRows"
         :key="`prow-${rowIndex}`"
-        class="flex items-center gap-1"
+        class="flex items-center justify-between"
       >
         <NuxtImg
           v-for="id in row"
@@ -104,10 +104,10 @@ function styleIcon(id: number): string {
 
     <!-- Right column: secondary on top + shards below -->
     <div class="flex flex-col gap-4">
-      <!-- Secondary tree (3 rows of 3, no keystone) -->
+      <!-- Secondary tree (3 rows of 3, no keystone) — fixed width, spread perks -->
       <section
         v-if="secondary"
-        class="flex flex-col items-center gap-1"
+        class="flex w-32 flex-col items-stretch gap-1"
       >
         <NuxtImg
           :src="styleIcon(secondary.styleId)"
@@ -115,13 +115,13 @@ function styleIcon(id: number): string {
           :title="secondary.name"
           width="16"
           height="16"
-          class="size-4"
+          class="size-4 self-center"
         />
 
         <div
           v-for="(row, rowIndex) in secondary.subRows"
           :key="`srow-${rowIndex}`"
-          class="flex items-center gap-1"
+          class="flex items-center justify-between"
         >
           <NuxtImg
             v-for="id in row"
@@ -139,12 +139,12 @@ function styleIcon(id: number): string {
         </div>
       </section>
 
-      <!-- Stat shards -->
-      <section class="flex flex-col items-center gap-1">
+      <!-- Stat shards — same fixed width as secondary so columns align -->
+      <section class="flex w-32 flex-col items-stretch gap-1">
         <div
           v-for="(row, rowIndex) in tree.shardSlots"
           :key="`shard-row-${rowIndex}`"
-          class="flex items-center gap-1"
+          class="flex items-center justify-between"
         >
           <NuxtImg
             v-for="id in row"
