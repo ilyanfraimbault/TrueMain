@@ -44,133 +44,125 @@ function perkName(id: number): string {
 function styleIcon(id: number): string {
   return props.tree.perkStyles[id]?.iconUrl ?? ''
 }
-
-function styleName(id: number): string {
-  return props.tree.perkStyles[id]?.name ?? ''
-}
 </script>
 
 <template>
-  <div class="flex flex-wrap items-start gap-x-16 gap-y-10">
-    <!-- Primary tree (left) -->
-    <section
-      v-if="primary"
-      class="flex flex-col items-center gap-5"
-    >
-      <!-- Style icon (no text — keeps the tree identifiable without labels) -->
-      <NuxtImg
-        :src="styleIcon(primary.styleId)"
-        :alt="primary.name"
-        :title="primary.name"
-        width="32"
-        height="32"
-        class="size-8"
-      />
-
-      <!-- Keystone row (3-4 options, larger + with subtle separator below) -->
-      <div class="flex items-center gap-4 border-b border-default pb-5">
-        <NuxtImg
-          v-for="id in primary.keystones"
-          :key="`pk-${id}`"
-          :src="perkIcon(id)"
-          :alt="perkName(id)"
-          :title="perkName(id)"
-          width="64"
-          height="64"
-          :class="[
-            'size-16 rounded-full transition',
-            id === page.primaryKeystoneId
-              ? ''
-              : 'opacity-40 grayscale',
-          ]"
-        />
-      </div>
-
-      <!-- 3 sub-rows of 3 -->
-      <div
-        v-for="(row, rowIndex) in primary.subRows"
-        :key="`prow-${rowIndex}`"
-        class="flex items-center gap-4"
-      >
-        <NuxtImg
-          v-for="id in row"
-          :key="`pp-${rowIndex}-${id}`"
-          :src="perkIcon(id)"
-          :alt="perkName(id)"
-          :title="perkName(id)"
-          width="44"
-          height="44"
-          :class="[
-            'size-11 rounded-full transition',
-            selectedPrimary.has(id) ? '' : 'opacity-40 grayscale',
-          ]"
-        />
-      </div>
-    </section>
-
-    <!-- Right column: secondary on top + shards below -->
-    <div class="flex flex-col gap-8">
-      <!-- Secondary tree (3 rows of 3, no keystone) -->
+  <div class="@container">
+    <div class="flex flex-wrap items-start gap-x-8 gap-y-6 @lg:gap-x-12">
+      <!-- Primary tree (left) -->
       <section
-        v-if="secondary"
-        class="flex flex-col items-center gap-4"
+        v-if="primary"
+        class="flex flex-col items-center gap-3 @lg:gap-4"
       >
-        <!-- Style icon (no text) -->
+        <!-- Style icon (silent tree identifier, no text) -->
         <NuxtImg
-          :src="styleIcon(secondary.styleId)"
-          :alt="secondary.name"
-          :title="secondary.name"
+          :src="styleIcon(primary.styleId)"
+          :alt="primary.name"
+          :title="primary.name"
           width="24"
           height="24"
-          class="size-6"
+          class="size-5 @lg:size-6"
         />
 
+        <!-- Keystone row (3-4 options, larger to read as "the keystone slot") -->
+        <div class="flex items-center gap-2 @lg:gap-3">
+          <NuxtImg
+            v-for="id in primary.keystones"
+            :key="`pk-${id}`"
+            :src="perkIcon(id)"
+            :alt="perkName(id)"
+            :title="perkName(id)"
+            width="56"
+            height="56"
+            :class="[
+              'size-11 rounded-full transition @lg:size-14',
+              id === page.primaryKeystoneId ? '' : 'opacity-40 grayscale',
+            ]"
+          />
+        </div>
+
+        <!-- 3 sub-rows of 3 -->
         <div
-          v-for="(row, rowIndex) in secondary.subRows"
-          :key="`srow-${rowIndex}`"
-          class="flex items-center gap-3"
+          v-for="(row, rowIndex) in primary.subRows"
+          :key="`prow-${rowIndex}`"
+          class="flex items-center gap-2 @lg:gap-3"
         >
           <NuxtImg
             v-for="id in row"
-            :key="`sp-${rowIndex}-${id}`"
+            :key="`pp-${rowIndex}-${id}`"
             :src="perkIcon(id)"
             :alt="perkName(id)"
             :title="perkName(id)"
             width="40"
             height="40"
             :class="[
-              'size-10 rounded-full transition',
-              selectedSecondary.has(id) ? '' : 'opacity-40 grayscale',
+              'size-8 rounded-full transition @lg:size-10',
+              selectedPrimary.has(id) ? '' : 'opacity-40 grayscale',
             ]"
           />
         </div>
       </section>
 
-      <!-- Stat shards -->
-      <section class="flex flex-col items-center gap-2">
-        <span class="text-xs font-medium uppercase tracking-[0.12em] text-dimmed">
-          Shards
-        </span>
-        <div
-          v-for="(row, rowIndex) in tree.shardSlots"
-          :key="`shard-row-${rowIndex}`"
-          class="flex items-center gap-3"
+      <!-- Right column: secondary on top + shards below -->
+      <div class="flex flex-col gap-5 @lg:gap-6">
+        <!-- Secondary tree (3 rows of 3, no keystone) -->
+        <section
+          v-if="secondary"
+          class="flex flex-col items-center gap-3 @lg:gap-4"
         >
           <NuxtImg
-            v-for="id in row"
-            :key="`shard-${rowIndex}-${id}`"
-            :src="perkIcon(id)"
-            :alt="perkName(id)"
-            :title="perkName(id)"
-            width="28"
-            height="28"
-            :class="[
-              'size-7 rounded-full transition',
-              selectedShards[rowIndex] === id ? '' : 'opacity-40 grayscale',
-            ]"
+            :src="styleIcon(secondary.styleId)"
+            :alt="secondary.name"
+            :title="secondary.name"
+            width="20"
+            height="20"
+            class="size-5"
           />
-        </div>
-      </section>
+
+          <div
+            v-for="(row, rowIndex) in secondary.subRows"
+            :key="`srow-${rowIndex}`"
+            class="flex items-center gap-2 @lg:gap-3"
+          >
+            <NuxtImg
+              v-for="id in row"
+              :key="`sp-${rowIndex}-${id}`"
+              :src="perkIcon(id)"
+              :alt="perkName(id)"
+              :title="perkName(id)"
+              width="36"
+              height="36"
+              :class="[
+                'size-7 rounded-full transition @lg:size-9',
+                selectedSecondary.has(id) ? '' : 'opacity-40 grayscale',
+              ]"
+            />
+          </div>
+        </section>
+
+        <!-- Stat shards -->
+        <section class="flex flex-col items-center gap-1.5">
+          <div
+            v-for="(row, rowIndex) in tree.shardSlots"
+            :key="`shard-row-${rowIndex}`"
+            class="flex items-center gap-2 @lg:gap-3"
+          >
+            <NuxtImg
+              v-for="id in row"
+              :key="`shard-${rowIndex}-${id}`"
+              :src="perkIcon(id)"
+              :alt="perkName(id)"
+              :title="perkName(id)"
+              width="24"
+              height="24"
+              :class="[
+                'size-5 rounded-full transition @lg:size-6',
+                selectedShards[rowIndex] === id ? '' : 'opacity-40 grayscale',
+              ]"
+            />
+          </div>
+        </section>
+      </div>
     </div>
   </div>
 </template>
