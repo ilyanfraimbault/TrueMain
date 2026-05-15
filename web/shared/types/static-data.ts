@@ -49,6 +49,12 @@ export interface ChampionStaticData {
   perkStyles: Record<number, StaticPerkStyleData>
 }
 
+export interface ChampionStaticListItem {
+  championId: number
+  name: string
+  iconUrl: string
+}
+
 /**
  * One full primary rune tree: the keystone row (3–4 perks depending on the
  * style) followed by 3 sub-rows of 3 perks each. Secondary trees reuse the

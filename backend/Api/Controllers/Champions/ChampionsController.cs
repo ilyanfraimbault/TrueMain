@@ -10,6 +10,15 @@ public sealed class ChampionsController(
     IChampionFoundationQueryService championFoundationQueryService,
     IChampionBuildTreeQueryService championBuildTreeQueryService) : ControllerBase
 {
+    [HttpGet]
+    [ProducesResponseType(typeof(IReadOnlyList<ChampionSummaryReadModel>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<ChampionSummaryReadModel>>> ListChampionsAsync(
+        CancellationToken ct = default)
+    {
+        var summaries = await championFoundationQueryService.GetAllSummariesAsync(ct);
+        return Ok(summaries);
+    }
+
     [HttpGet("{championId:int}")]
     [ProducesResponseType(typeof(ChampionReadModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
