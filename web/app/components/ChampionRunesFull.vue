@@ -47,7 +47,7 @@ function styleIcon(id: number): string {
 </script>
 
 <template>
-  <div class="flex flex-wrap items-start gap-x-6 gap-y-4">
+  <div class="flex flex-wrap items-stretch gap-x-6 gap-y-4">
     <!-- Primary tree (left) -->
     <section
       v-if="primary"
@@ -102,8 +102,10 @@ function styleIcon(id: number): string {
       </div>
     </section>
 
-    <!-- Right column: secondary on top + shards below -->
-    <div class="flex flex-col gap-4">
+    <!-- Right column: secondary on top + shards on bottom, height pinned to
+         the primary tree via items-stretch on the parent so the inner
+         justify-between spreads them to match. -->
+    <div class="flex flex-col justify-between">
       <!-- Secondary tree (3 rows of 3, no keystone) -->
       <section
         v-if="secondary"
@@ -129,10 +131,10 @@ function styleIcon(id: number): string {
             :src="perkIcon(id)"
             :alt="perkName(id)"
             :title="perkName(id)"
-            width="32"
-            height="32"
+            width="24"
+            height="24"
             :class="[
-              'size-8 rounded-full transition',
+              'size-6 rounded-full transition',
               selectedSecondary.has(id) ? '' : 'opacity-40 grayscale',
             ]"
           />
