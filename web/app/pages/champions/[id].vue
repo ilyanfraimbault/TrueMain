@@ -113,12 +113,15 @@ const isLoading = computed(() => championStatus.value === 'pending' && !champion
         />
       </section>
 
-      <section class="space-y-3">
+      <section
+        v-if="topRunePages.length > 1"
+        class="space-y-3"
+      >
         <h3 class="text-sm font-medium text-muted">
-          Alternative pages
+          Other rune pages
         </h3>
         <ChampionRunes
-          :pages="topRunePages"
+          :pages="topRunePages.slice(1)"
           :champion-static="staticData"
         />
       </section>
