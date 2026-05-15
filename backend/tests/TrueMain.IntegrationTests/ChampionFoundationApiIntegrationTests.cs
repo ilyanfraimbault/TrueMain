@@ -257,6 +257,78 @@ public sealed class ChampionFoundationApiIntegrationTests : IClassFixture<Postgr
         pivoted.Core.SampleSize.Should().Be(5);
     }
 
+    [Fact]
+    public async Task ListChampionsAsync_ShouldReturnOneSummaryPerChampionFromLatestPatch()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedChampionsListAggregatesAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var summaries = await client.GetFromJsonAsync<List<ChampionSummaryReadModel>>("/champions");
+
+        summaries.Should().NotBeNull();
+        summaries!.Should().HaveCount(2);
+
+        // Ordered by Games desc — champion 22 has 5 games on its latest patch
+        // (16.4), champion 33 only has 2 games on its latest patch (16.6).
+        // Older-patch rows for 22 (e.g. 16.3) must be excluded.
+        summaries[0].ChampionId.Should().Be(22);
+        summaries[0].Games.Should().Be(5);
+        summaries[0].LatestPatchVersion.Should().Be("16.4");
+        summaries[0].Position.Should().Be("BOTTOM");
+        summaries[0].WinRate.Should().BeApproximately(0.6, 0.001);
+        summaries[0].TrueMainCount.Should().Be(2);
+
+        summaries[1].ChampionId.Should().Be(33);
+        summaries[1].Games.Should().Be(2);
+        summaries[1].LatestPatchVersion.Should().Be("16.6");
+        summaries[1].Position.Should().Be("MIDDLE");
+    }
+
+    [Fact]
+    public async Task ListChampionsAsync_ShouldReturnEmptyListWhenNoData()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var summaries = await client.GetFromJsonAsync<List<ChampionSummaryReadModel>>("/champions");
+        summaries.Should().NotBeNull().And.BeEmpty();
+    }
+
+    private async Task SeedChampionsListAggregatesAsync()
+    {
+        var now = DateTime.UtcNow;
+        var account1Id = Guid.Parse("11111111-2222-3333-4444-555555555551");
+        var account2Id = Guid.Parse("11111111-2222-3333-4444-555555555552");
+
+        await using var db = _fixture.CreateDbContext();
+
+        db.RiotAccounts.AddRange(
+            BuildAccount(account1Id, "KR", "list-puuid-1", "list-one", now),
+            BuildAccount(account2Id, "KR", "list-puuid-2", "list-two", now));
+        await db.SaveChangesAsync();
+
+        await DefaultSeeder()
+            // Champion 22: 3 games on 16.4 BOTTOM (account1) + 2 games on 16.4 BOTTOM (account2) = 5 on latest
+            .AddPatternDefaults(account1Id, 22, "16.4", "KR", 420, "BOTTOM", 4, 7, "Q-W-E", [6672, 3006, 3094], 3006, 3, 2, now.AddMinutes(-10))
+            .AddPatternDefaults(account2Id, 22, "16.4", "KR", 420, "BOTTOM", 7, 4, "Q-W-E", [6672, 3006, 3094], 3006, 2, 1, now.AddMinutes(-5))
+            // Older patch for champion 22 — must be filtered out of summary
+            .AddPatternDefaults(account1Id, 22, "16.3", "KR", 420, "BOTTOM", 4, 7, "Q-E-W", [6672, 3085, 3031], 3111, 10, 4, now.AddDays(-2))
+            // Champion 33: only 2 games on 16.6 MIDDLE
+            .AddPatternDefaults(account1Id, 33, "16.6", "KR", 420, "MIDDLE", 4, 14, "Q-E-W", [3153, 3006, 3091], 3006, 2, 1, now.AddMinutes(-1))
+            .SaveAsync(db);
+    }
+
     private async Task SeedChampionFoundationAggregatesAsync()
     {
         var now = DateTime.UtcNow;

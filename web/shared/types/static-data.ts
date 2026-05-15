@@ -48,3 +48,9 @@ export interface ChampionStaticData {
   perks: Record<number, StaticPerkData>
   perkStyles: Record<number, StaticPerkStyleData>
 }
+
+export interface ChampionStaticListItem {
+  championId: number
+  name: string
+  iconUrl: string
+}
