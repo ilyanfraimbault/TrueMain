@@ -11,13 +11,6 @@ const heroLinks: ButtonProps[] = [
   { label: 'See the meta', to: '/meta', color: 'neutral', variant: 'subtle', size: 'lg', icon: 'i-lucide-trending-up' },
 ]
 
-const stats = [
-  { value: '168', label: 'Champions tracked' },
-  { value: '12+', label: 'Recent patches' },
-  { value: '50k+', label: 'Main-player games' },
-  { value: '5', label: 'Regions covered' },
-]
-
 const steps = [
   {
     step: '01',
@@ -114,24 +107,6 @@ const faqs = [
         />
       </template>
     </UPageHero>
-
-    <!-- Stats strip -->
-    <section class="border-y border-default bg-elevated/40">
-      <div class="mx-auto grid max-w-5xl grid-cols-2 gap-y-8 px-6 py-10 sm:grid-cols-4">
-        <div
-          v-for="stat in stats"
-          :key="stat.label"
-          class="text-center"
-        >
-          <p class="text-3xl font-semibold tabular-nums text-highlighted sm:text-4xl">
-            {{ stat.value }}
-          </p>
-          <p class="mt-1 font-mono text-xs uppercase tracking-[0.12em] text-dimmed">
-            {{ stat.label }}
-          </p>
-        </div>
-      </div>
-    </section>
 
     <!-- How it works -->
     <UPageSection
