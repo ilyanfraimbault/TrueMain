@@ -66,6 +66,80 @@ public sealed class ChampionFoundationQueryService(
         };
     }
 
+    public async Task<IReadOnlyList<ChampionSummaryReadModel>> GetAllSummariesAsync(CancellationToken ct)
+    {
+        // One pass over the active queue. Only the columns BuildSummary needs
+        // are projected so the materialised payload stays small even when
+        // the table grows wide on (account, patch, platform, position).
+        var rows = await db.ChampionAggregateScopes
+            .AsNoTracking()
+            .Where(scope => scope.QueueId == options.Value.QueueId)
+            .Select(scope => new ChampionSummaryRow(
+                scope.ChampionId,
+                scope.GameVersion,
+                scope.Position,
+                scope.Games,
+                scope.Wins,
+                scope.RiotAccountId,
+                scope.AggregatedAtUtc))
+            .ToListAsync(ct);
+
+        if (rows.Count == 0)
+        {
+            return [];
+        }
+
+        // For each champion, resolve its own latest patch (champions ship and
+        // get reworked at different times — a global "latest patch" would hide
+        // anyone who hasn't been touched recently), then aggregate against
+        // that patch only. Mirrors what LoadScopedScopesAsync does for one
+        // champion, applied per group here.
+        return rows
+            .GroupBy(row => row.ChampionId)
+            .Select(group =>
+            {
+                var latestPatch = ChampionAggregateScopeResolver.ResolvePatchVersion(
+                    group.Select(row => row.GameVersion),
+                    requestedPatch: null);
+                if (string.IsNullOrEmpty(latestPatch))
+                {
+                    return null;
+                }
+
+                var scoped = group.Where(row => string.Equals(row.GameVersion, latestPatch, StringComparison.Ordinal)).ToList();
+                var totalGames = scoped.Sum(row => row.Games);
+                var totalWins = scoped.Sum(row => row.Wins);
+                var trueMainCount = scoped.Select(row => row.RiotAccountId).Distinct().Count();
+                var dominantPosition = ChampionAggregateScopeResolver.ResolveDominantPosition(
+                    scoped.Select(row => (row.Position, row.Games)));
+
+                return new ChampionSummaryReadModel
+                {
+                    ChampionId = group.Key,
+                    Games = totalGames,
+                    WinRate = ChampionOptionProjector.ComputeRate(totalWins, totalGames),
+                    TrueMainCount = trueMainCount,
+                    Position = dominantPosition,
+                    LatestPatchVersion = latestPatch,
+                    LastUpdatedAtUtc = scoped.Max(row => row.AggregatedAtUtc)
+                };
+            })
+            .Where(summary => summary is not null)
+            .Cast<ChampionSummaryReadModel>()
+            .OrderByDescending(summary => summary.Games)
+            .ThenBy(summary => summary.ChampionId)
+            .ToList();
+    }
+
+    private sealed record ChampionSummaryRow(
+        int ChampionId,
+        string GameVersion,
+        string Position,
+        int Games,
+        int Wins,
+        Guid RiotAccountId,
+        DateTime AggregatedAtUtc);
+
     internal async Task<IReadOnlyList<ChampionAggregateScope>?> LoadScopedScopesAsync(
         int championId,
         Guid? riotAccountId,
