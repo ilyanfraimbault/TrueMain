@@ -2,28 +2,18 @@
 export default defineNuxtConfig({
   modules: ['@nuxt/ui', '@nuxt/image'],
   css: ['./app/assets/css/main.css'],
-  compatibilityDate: '2025-07-15',
+  compatibilityDate: '2026-05-15',
   devtools: { enabled: true },
   colorMode: {
     preference: 'dark',
-    fallback: 'dark'
-  },
-  appConfig: {
-    ui: {
-      colors: {
-        neutral: 'zinc'
-      }
-    }
+    fallback: 'dark',
   },
   image: {
-    domains: ['ddragon.leagueoflegends.com', 'raw.communitydragon.org']
-  },
-  ui: {
-    fonts: false
+    domains: ['ddragon.leagueoflegends.com', 'raw.communitydragon.org'],
   },
   runtimeConfig: {
     apiBaseUrl: process.env.NUXT_API_BASE_URL
       ?? 'http://localhost:5008',
-    public: {}
-  }
+    public: {},
+  },
 })
