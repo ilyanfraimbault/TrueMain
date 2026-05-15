@@ -64,7 +64,7 @@ function styleIcon(id: number): string {
       />
 
       <!-- Keystone row (3-4 options, larger to read as "the keystone slot") -->
-      <div class="flex items-center gap-1">
+      <div class="flex items-center gap-0.5">
         <NuxtImg
           v-for="id in primary.keystones"
           :key="`pk-${id}`"
