@@ -7,7 +7,6 @@ useSeoMeta({
 
 <template>
   <ComingSoon
-    icon="i-lucide-users"
     title="True mains leaderboard"
     description="Discover the top players who actually main each champion, ranked by games and consistency across recent patches."
   />

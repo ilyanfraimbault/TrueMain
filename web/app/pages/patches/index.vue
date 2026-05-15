@@ -7,7 +7,6 @@ useSeoMeta({
 
 <template>
   <ComingSoon
-    icon="i-lucide-history"
     title="Patch comparisons"
     description="See how each champion's builds, runes and win rate shifted between patches — straight from main-player data."
   />

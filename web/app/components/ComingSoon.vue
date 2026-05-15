@@ -2,7 +2,6 @@
 defineProps<{
   title: string
   description: string
-  icon?: string
 }>()
 </script>
 
@@ -15,14 +14,6 @@ defineProps<{
       container: 'py-24 sm:py-32',
     }"
   >
-    <template #top>
-      <UIcon
-        v-if="icon"
-        :name="icon"
-        class="size-12 text-primary mx-auto mb-4"
-      />
-    </template>
-
     <template #links>
       <UButton
         to="/champions/266"
