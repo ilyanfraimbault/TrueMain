@@ -43,7 +43,7 @@ function spellByKey(key: string) {
             {{ key }}
           </span>
 
-          <span class="absolute bottom-0.5 left-1/2 inline-flex size-4 -translate-x-1/2 items-center justify-center rounded-full bg-default/85 text-[9px] font-bold uppercase ring-1 ring-default backdrop-blur-sm">
+          <span class="absolute bottom-0.5 left-1/2 inline-flex size-4 -translate-x-1/2 items-center justify-center rounded bg-default/85 text-[9px] font-bold uppercase ring-1 ring-default backdrop-blur-sm">
             {{ key }}
           </span>
         </div>
