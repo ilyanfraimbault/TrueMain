@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { h, resolveComponent } from 'vue'
+import type { Column } from '@tanstack/vue-table'
 import type { TableColumn, TableRow } from '@nuxt/ui'
 import type { ChampionSummaryResponse } from '~~/shared/types/champions'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
@@ -10,6 +12,7 @@ useSeoMeta({
 })
 
 const router = useRouter()
+const UButton = resolveComponent('UButton')
 
 const [summariesState, staticState] = await Promise.all([
   useFetch<ChampionSummaryResponse[]>('/api/champions', { key: 'champions-list' }),
@@ -43,11 +46,42 @@ const rows = computed<Row[]>(() => {
   }))
 })
 
+const sorting = ref([{ id: 'games', desc: true }])
+
+function sortableHeader(label: string, align: 'left' | 'right' = 'left') {
+  return ({ column }: { column: Column<Row> }) => {
+    const direction = column.getIsSorted()
+    const icon = direction === 'asc'
+      ? 'i-lucide-arrow-up'
+      : direction === 'desc'
+        ? 'i-lucide-arrow-down'
+        : 'i-lucide-arrow-up-down'
+    return h(UButton, {
+      label,
+      icon,
+      color: 'neutral',
+      variant: 'ghost',
+      size: 'sm',
+      class: align === 'right' ? '-mr-2 ml-auto' : '-ml-2',
+      trailingIcon: undefined,
+      onClick: () => column.toggleSorting(direction === 'asc'),
+    })
+  }
+}
+
 const columns: TableColumn<Row>[] = [
-  { accessorKey: 'name', header: 'Champion' },
-  { accessorKey: 'position', header: 'Position' },
-  { accessorKey: 'games', header: 'Games', meta: { class: { th: 'text-right', td: 'text-right tabular-nums' } } },
-  { accessorKey: 'winRate', header: 'Win rate', meta: { class: { th: 'text-right', td: 'text-right tabular-nums' } } },
+  { accessorKey: 'name', header: sortableHeader('Champion') },
+  { accessorKey: 'position', header: sortableHeader('Position') },
+  {
+    accessorKey: 'games',
+    header: sortableHeader('Games', 'right'),
+    meta: { class: { th: 'text-right', td: 'text-right tabular-nums' } },
+  },
+  {
+    accessorKey: 'winRate',
+    header: sortableHeader('Win rate', 'right'),
+    meta: { class: { th: 'text-right', td: 'text-right tabular-nums' } },
+  },
 ]
 
 function onSelect(_event: Event, row: TableRow<Row>) {
@@ -76,6 +110,7 @@ function onSelect(_event: Event, row: TableRow<Row>) {
 
     <UTable
       v-else
+      v-model:sorting="sorting"
       :data="rows"
       :columns="columns"
       :loading="summariesState.status.value === 'pending'"
