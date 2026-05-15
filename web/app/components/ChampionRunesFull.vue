@@ -80,7 +80,7 @@ function styleName(id: number): string {
           :class="[
             'size-16 rounded-full transition',
             id === page.primaryKeystoneId
-              ? 'ring-2 ring-primary ring-offset-2 ring-offset-default'
+              ? ''
               : 'opacity-40 grayscale',
           ]"
         />
@@ -166,9 +166,7 @@ function styleName(id: number): string {
             height="28"
             :class="[
               'size-7 rounded-full transition',
-              selectedShards[rowIndex] === id
-                ? 'ring-2 ring-primary'
-                : 'opacity-40 grayscale',
+              selectedShards[rowIndex] === id ? '' : 'opacity-40 grayscale',
             ]"
           />
         </div>
