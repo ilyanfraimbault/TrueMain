@@ -1,6 +1,12 @@
 <template>
   <UApp :tooltip="{ delayDuration: 0 }">
     <NuxtRouteAnnouncer />
-    <NuxtPage />
+    <AppHeader />
+
+    <UMain>
+      <NuxtPage />
+    </UMain>
+
+    <AppFooter />
   </UApp>
 </template>
