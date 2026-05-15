@@ -5,6 +5,8 @@ const links = [
   { label: 'Mains', to: '/mains' },
   { label: 'Patches', to: '/patches' },
 ]
+
+const year = new Date().getUTCFullYear()
 </script>
 
 <template>
@@ -16,7 +18,7 @@ const links = [
   >
     <template #left>
       <p class="text-sm text-dimmed">
-        TrueMain · {{ new Date().getFullYear() }}
+        TrueMain · {{ year }}
       </p>
     </template>
 

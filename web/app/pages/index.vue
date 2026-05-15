@@ -103,7 +103,8 @@ const faqs = [
       <template #top>
         <div
           aria-hidden="true"
-          class="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[80%] bg-[radial-gradient(ellipse_at_top,var(--ui-color-primary-500)/0.18,transparent_60%)]"
+          class="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[80%]"
+          style="background: radial-gradient(ellipse at top, color-mix(in oklch, var(--ui-color-primary-500) 18%, transparent), transparent 60%);"
         />
       </template>
     </UPageHero>

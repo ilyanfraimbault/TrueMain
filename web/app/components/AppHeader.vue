@@ -3,30 +3,34 @@ import type { NavigationMenuItem } from '@nuxt/ui'
 
 const route = useRoute()
 
+function isActive(prefix: string): boolean {
+  return route.path === prefix || route.path.startsWith(`${prefix}/`)
+}
+
 const items = computed<NavigationMenuItem[]>(() => [
   {
     label: 'Champions',
     icon: 'i-lucide-swords',
     to: '/champions',
-    active: route.path.startsWith('/champions'),
+    active: isActive('/champions'),
   },
   {
     label: 'Meta',
     icon: 'i-lucide-trending-up',
     to: '/meta',
-    active: route.path.startsWith('/meta'),
+    active: isActive('/meta'),
   },
   {
     label: 'Mains',
     icon: 'i-lucide-users',
     to: '/mains',
-    active: route.path.startsWith('/mains'),
+    active: isActive('/mains'),
   },
   {
     label: 'Patches',
     icon: 'i-lucide-history',
     to: '/patches',
-    active: route.path.startsWith('/patches'),
+    active: isActive('/patches'),
   },
 ])
 </script>
