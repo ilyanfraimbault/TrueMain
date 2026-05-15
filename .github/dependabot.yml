@@ -4,7 +4,8 @@ updates:
   # nuget ecosystem scanner picks the Directory.Packages.props + per-project
   # csproj files up automatically.
   - package-ecosystem: nuget
-    directory: "/"
+    directory: "/backend"
+    target-branch: develop
     schedule:
       interval: weekly
       day: monday
@@ -30,7 +31,8 @@ updates:
           - "coverlet.*"
 
   - package-ecosystem: npm
-    directory: "/truemain-web"
+    directory: "/web"
+    target-branch: develop
     schedule:
       interval: weekly
       day: monday
@@ -52,6 +54,7 @@ updates:
 
   - package-ecosystem: github-actions
     directory: "/"
+    target-branch: develop
     schedule:
       interval: weekly
       day: monday
@@ -63,9 +66,10 @@ updates:
 
   - package-ecosystem: docker
     directories:
-      - /Api
-      - /Ingestor
-      - /truemain-web
+      - /backend/Api
+      - /backend/Ingestor
+      - /web
+    target-branch: develop
     schedule:
       interval: weekly
       day: monday

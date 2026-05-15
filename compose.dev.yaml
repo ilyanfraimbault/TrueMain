@@ -24,7 +24,7 @@ services:
 
   api:
     build:
-      context: .
+      context: ./backend
       dockerfile: Api/Dockerfile.dev
     container_name: truemain-dev-api
     restart: unless-stopped
@@ -45,41 +45,41 @@ services:
     develop:
       watch:
         - action: sync
-          path: ./Api
+          path: ./backend/Api
           target: /workspace/Api
           ignore:
             - Api.csproj
             - bin/
             - obj/
         - action: sync
-          path: ./Core
+          path: ./backend/Core
           target: /workspace/Core
           ignore:
             - Core.csproj
             - bin/
             - obj/
         - action: sync
-          path: ./Data
+          path: ./backend/Data
           target: /workspace/Data
           ignore:
             - Data.csproj
             - bin/
             - obj/
         - action: rebuild
-          path: ./Api/Api.csproj
+          path: ./backend/Api/Api.csproj
         - action: rebuild
-          path: ./Core/Core.csproj
+          path: ./backend/Core/Core.csproj
         - action: rebuild
-          path: ./Data/Data.csproj
+          path: ./backend/Data/Data.csproj
         - action: rebuild
-          path: ./Directory.Build.props
+          path: ./backend/Directory.Build.props
     networks:
       - truemain_dev_internal
 
   web:
     build:
-      context: .
-      dockerfile: truemain-web/Dockerfile.dev
+      context: ./web
+      dockerfile: Dockerfile.dev
     container_name: truemain-dev-web
     restart: unless-stopped
     environment:
@@ -94,20 +94,20 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./truemain-web:/workspace/truemain-web
-      - truemain_dev_web_node_modules:/workspace/truemain-web/node_modules
+      - ./web:/workspace/web
+      - truemain_dev_web_node_modules:/workspace/web/node_modules
     develop:
       watch:
         - action: rebuild
-          path: ./truemain-web/package.json
+          path: ./web/package.json
         - action: rebuild
-          path: ./truemain-web/package-lock.json
+          path: ./web/package-lock.json
     networks:
       - truemain_dev_internal
 
   ingestor:
     build:
-      context: .
+      context: ./backend
       dockerfile: Ingestor/Dockerfile.dev
     container_name: truemain-dev-ingestor
     restart: unless-stopped
@@ -125,34 +125,34 @@ services:
     develop:
       watch:
         - action: sync
-          path: ./Ingestor
+          path: ./backend/Ingestor
           target: /workspace/Ingestor
           ignore:
             - Ingestor.csproj
             - bin/
             - obj/
         - action: sync
-          path: ./Core
+          path: ./backend/Core
           target: /workspace/Core
           ignore:
             - Core.csproj
             - bin/
             - obj/
         - action: sync
-          path: ./Data
+          path: ./backend/Data
           target: /workspace/Data
           ignore:
             - Data.csproj
             - bin/
             - obj/
         - action: rebuild
-          path: ./Ingestor/Ingestor.csproj
+          path: ./backend/Ingestor/Ingestor.csproj
         - action: rebuild
-          path: ./Core/Core.csproj
+          path: ./backend/Core/Core.csproj
         - action: rebuild
-          path: ./Data/Data.csproj
+          path: ./backend/Data/Data.csproj
         - action: rebuild
-          path: ./Directory.Build.props
+          path: ./backend/Directory.Build.props
     networks:
       - truemain_dev_internal
 

@@ -1,0 +1,24 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0
+
+WORKDIR /workspace
+
+COPY ["Directory.Build.props", "./"]
+COPY ["Ingestor/Ingestor.csproj", "Ingestor/"]
+COPY ["Core/Core.csproj", "Core/"]
+COPY ["Data/Data.csproj", "Data/"]
+RUN dotnet restore "Ingestor/Ingestor.csproj"
+
+COPY ["Ingestor/", "Ingestor/"]
+COPY ["Core/", "Core/"]
+COPY ["Data/", "Data/"]
+
+# Mirror the prod heartbeat liveness check so `dotnet watch` containers can
+# still report healthy. start_period is wider here because the SDK image
+# compiles on first run.
+ENV INGESTOR_HEARTBEAT_PATH=/tmp/ingestor-heartbeat
+HEALTHCHECK --interval=60s --timeout=5s --start-period=120s --retries=5 \
+    CMD test -f "$INGESTOR_HEARTBEAT_PATH" \
+        && test "$(($(date +%s) - $(stat -c %Y "$INGESTOR_HEARTBEAT_PATH")))" -lt 21600 \
+        || exit 1
+
+CMD ["dotnet", "watch", "--project", "Ingestor/Ingestor.csproj", "run"]

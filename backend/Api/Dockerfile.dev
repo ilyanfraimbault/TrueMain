@@ -1,0 +1,23 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0
+
+WORKDIR /workspace
+
+COPY ["Directory.Build.props", "./"]
+COPY ["Api/Api.csproj", "Api/"]
+COPY ["Core/Core.csproj", "Core/"]
+COPY ["Data/Data.csproj", "Data/"]
+RUN dotnet restore "Api/Api.csproj"
+
+COPY ["Api/", "Api/"]
+COPY ["Core/", "Core/"]
+COPY ["Data/", "Data/"]
+
+EXPOSE 8080
+
+# `dotnet watch run` recompiles on first hit and emits logs to stdout — the
+# long start_period covers the initial JIT + EF migrations. curl is shipped
+# by the SDK base image so no extra apt-get install is required here.
+HEALTHCHECK --interval=10s --timeout=5s --start-period=90s --retries=10 \
+    CMD curl --fail --silent http://localhost:8080/healthz || exit 1
+
+CMD ["dotnet", "watch", "--project", "Api/Api.csproj", "run", "--no-launch-profile"]
