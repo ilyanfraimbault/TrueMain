@@ -51,7 +51,7 @@ function styleIcon(id: number): string {
     <!-- Primary tree (left) -->
     <section
       v-if="primary"
-      class="flex flex-col items-center gap-2"
+      class="flex flex-col items-center gap-1"
     >
       <!-- Style icon (silent tree identifier, no text) -->
       <NuxtImg
@@ -64,7 +64,7 @@ function styleIcon(id: number): string {
       />
 
       <!-- Keystone row (3-4 options, larger to read as "the keystone slot") -->
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-1">
         <NuxtImg
           v-for="id in primary.keystones"
           :key="`pk-${id}`"
@@ -84,7 +84,7 @@ function styleIcon(id: number): string {
       <div
         v-for="(row, rowIndex) in primary.subRows"
         :key="`prow-${rowIndex}`"
-        class="flex items-center gap-2"
+        class="flex items-center gap-1"
       >
         <NuxtImg
           v-for="id in row"
@@ -107,7 +107,7 @@ function styleIcon(id: number): string {
       <!-- Secondary tree (3 rows of 3, no keystone) -->
       <section
         v-if="secondary"
-        class="flex flex-col items-center gap-2"
+        class="flex flex-col items-center gap-1"
       >
         <NuxtImg
           :src="styleIcon(secondary.styleId)"
@@ -121,7 +121,7 @@ function styleIcon(id: number): string {
         <div
           v-for="(row, rowIndex) in secondary.subRows"
           :key="`srow-${rowIndex}`"
-          class="flex items-center gap-2"
+          class="flex items-center gap-1"
         >
           <NuxtImg
             v-for="id in row"
@@ -144,7 +144,7 @@ function styleIcon(id: number): string {
         <div
           v-for="(row, rowIndex) in tree.shardSlots"
           :key="`shard-row-${rowIndex}`"
-          class="flex items-center gap-2"
+          class="flex items-center gap-1"
         >
           <NuxtImg
             v-for="id in row"
