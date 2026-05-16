@@ -13,13 +13,7 @@ const {
   status: championStatus,
 } = await useChampion(championId, filters)
 
-const summary = computed(() => champion.value?.summary ?? null)
-const core = computed(() => champion.value?.core ?? null)
-const advanced = computed(() => champion.value?.advanced ?? null)
-const buildTree = computed(() => champion.value?.buildTree ?? null)
-
-const activePatch = computed(() =>
-  buildTree.value?.patch || summary.value?.latestPatchVersion || filters.value.patch || null)
+const activePatch = computed(() => champion.value?.patch || filters.value.patch || null)
 
 const { data: staticData } = await useChampionStatic(championId, activePatch)
 const { data: versions } = useDDragonVersions()
@@ -27,7 +21,7 @@ const { data: runeTree } = await useFetch<RuneTreeResponse>('/api/static/rune-tr
 
 useSeoMeta({
   title: () => staticData.value?.championName ?? 'TrueMain',
-  description: () => `Champion ${championId.value} build, runes and skill order.`,
+  description: () => `Champion ${championId.value} builds, runes and skill order.`,
 })
 
 const patchOptions = computed(() => {
@@ -37,22 +31,17 @@ const patchOptions = computed(() => {
       .filter(Boolean)
       .slice(0, 12),
   )
-  if (summary.value?.latestPatchVersion) seen.add(summary.value.latestPatchVersion)
+  if (champion.value?.patch) seen.add(champion.value.patch)
   if (filters.value.patch) seen.add(filters.value.patch)
   return [...seen]
     .map(p => ({ label: p, value: p }))
     .sort((a, b) => b.value.localeCompare(a.value, undefined, { numeric: true }))
 })
 
-const selectedPatch = computed(() => filters.value.patch || summary.value?.latestPatchVersion || '')
+const selectedPatch = computed(() => filters.value.patch || champion.value?.patch || '')
 const selectedPosition = computed<ChampionPosition | ''>(() => {
-  const value = filters.value.position || summary.value?.position || ''
+  const value = filters.value.position || champion.value?.position || ''
   return POSITION_OPTIONS.some(o => o.value === value) ? value as ChampionPosition : ''
-})
-
-const topRunePages = computed(() => {
-  const options = advanced.value?.runePageOptions ?? []
-  return [...options].sort((a, b) => b.playRate - a.playRate).slice(0, 3)
 })
 
 const isLoading = computed(() => championStatus.value === 'pending' && !champion.value)
@@ -75,12 +64,14 @@ const isLoading = computed(() => championStatus.value === 'pending' && !champion
       :description="championError.message"
     />
 
-    <template v-else-if="summary && staticData">
+    <template v-else-if="champion && staticData">
       <header class="flex flex-wrap items-center gap-4">
         <ChampionHeader
-          :summary="summary"
           :champion-static="staticData"
           :champion-id="championId"
+          :position="champion.position"
+          :total-games="champion.totalGames"
+          :total-wins="champion.totalWins"
         />
         <ChampionFilters
           :selected-patch="selectedPatch"
@@ -92,31 +83,11 @@ const isLoading = computed(() => championStatus.value === 'pending' && !champion
         />
       </header>
 
-      <ChampionCore
-        :core="core"
+      <ChampionBuildTabs
+        :builds="champion.builds"
         :champion-static="staticData"
-        :top-rune-page="topRunePages[0] ?? null"
         :rune-tree="runeTree ?? null"
       />
-
-      <section
-        v-if="(buildTree?.build?.length ?? 0) > 0 || topRunePages.length > 1"
-        class="space-y-6"
-      >
-        <h2 class="text-base font-semibold">
-          Alternatives
-        </h2>
-        <ChampionAlternativesBuildPaths
-          v-if="(buildTree?.build?.length ?? 0) > 0"
-          :build-tree="buildTree"
-          :champion-static="staticData"
-        />
-        <ChampionAlternativesRunePages
-          v-if="topRunePages.length > 1"
-          :pages="topRunePages.slice(1)"
-          :champion-static="staticData"
-        />
-      </section>
     </template>
   </main>
 </template>

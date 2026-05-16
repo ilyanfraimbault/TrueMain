@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { BuildPathPreviewResponse } from '~~/shared/types/champions'
+import type { BuildItemPath } from '~~/shared/types/champions'
 import type { ChampionStaticData, StaticItemData } from '~~/shared/types/static-data'
 
 const props = defineProps<{
-  path: BuildPathPreviewResponse | null
+  path: BuildItemPath | null
   championStatic: ChampionStaticData
 }>()
 

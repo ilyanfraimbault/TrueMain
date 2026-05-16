@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { SummonerSpellOptionResponse } from '~~/shared/types/champions'
+import type { BuildSummonerSpells } from '~~/shared/types/champions'
 import type { ChampionStaticData } from '~~/shared/types/static-data'
 
 const props = defineProps<{
-  summoners: SummonerSpellOptionResponse | null
+  summoners: BuildSummonerSpells | null
   championStatic: ChampionStaticData
 }>()
 

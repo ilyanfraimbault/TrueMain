@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import type { ChampionSummaryResponse } from '~~/shared/types/champions'
 import type { ChampionStaticData } from '~~/shared/types/static-data'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 
 const props = defineProps<{
-  summary: ChampionSummaryResponse
   championStatic: ChampionStaticData
   championId: number
+  position: string
+  totalGames: number
+  totalWins: number
 }>()
 
 const displayName = computed(() => props.championStatic.championName ?? `Champion ${props.championId}`)
+const winRate = computed(() => (props.totalGames === 0 ? 0 : props.totalWins / props.totalGames))
 </script>
 
 <template>
@@ -27,7 +29,7 @@ const displayName = computed(() => props.championStatic.championName ?? `Champio
         {{ displayName }}
       </h1>
       <p class="text-sm text-muted">
-        {{ summary.position || '—' }} · {{ summary.games }} games · {{ formatPercentage(summary.winRate) }} WR
+        {{ position || '—' }} · {{ totalGames }} games · {{ formatPercentage(winRate) }} WR
       </p>
     </div>
   </div>

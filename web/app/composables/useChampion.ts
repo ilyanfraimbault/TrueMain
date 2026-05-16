@@ -8,26 +8,18 @@ export function useChampion(championId: MaybeRefOrGetter<number>, filters: Filte
   return useAsyncData<ChampionResponse>(
     () => {
       const f = filters.value
-      return [
-        'champion', championIdRef.value,
-        f.patch ?? '', f.position ?? '', f.platformId ?? '',
-        f.riotAccountId ?? '', f.buildId ?? '',
-      ].join('-')
+      return ['champion', championIdRef.value, f.patch ?? '', f.position ?? ''].join('-')
     },
     async () => {
       const id = championIdRef.value
       const f = filters.value
-      const baseQuery = { maxDepth: f.maxDepth, minBranchGames: f.minBranchGames }
       try {
         return await $fetch<ChampionResponse>(`/api/champions/${id}`, { query: f })
       } catch (error: unknown) {
         const status = (error as { statusCode?: number }).statusCode
-        const hadFilters = Boolean(f.patch || f.position || f.platformId || f.riotAccountId || f.buildId)
-        // 404 with filters likely means "no data for that filter combo".
-        // Fall back to the unfiltered champion so the page still renders
-        // basic info instead of surfacing a hard error.
+        const hadFilters = Boolean(f.patch || f.position)
         if (status === 404 && hadFilters) {
-          return await $fetch<ChampionResponse>(`/api/champions/${id}`, { query: baseQuery })
+          return await $fetch<ChampionResponse>(`/api/champions/${id}`)
         }
         throw error
       }

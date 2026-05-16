@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { ItemSetOptionResponse } from '~~/shared/types/champions'
+import type { BuildItemSet } from '~~/shared/types/champions'
 import type { ChampionStaticData, StaticItemData } from '~~/shared/types/static-data'
 
 const props = defineProps<{
-  boots: ItemSetOptionResponse | null
+  boots: BuildItemSet | null
   championStatic: ChampionStaticData
 }>()
 
