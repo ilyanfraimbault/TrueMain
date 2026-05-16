@@ -40,18 +40,11 @@ defineProps<{
           />
         </div>
       </div>
-      <div>
+      <div v-if="topRunePage && runeTree">
         <ChampionCoreRunes
-          v-if="topRunePage && runeTree"
           :page="topRunePage"
           :tree="runeTree"
         />
-        <p
-          v-else
-          class="text-sm text-muted"
-        >
-          No data
-        </p>
       </div>
     </div>
   </UCard>

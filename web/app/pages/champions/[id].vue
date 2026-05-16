@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { RuneTreeResponse } from '~~/shared/types/static-data'
 import { POSITION_OPTIONS, type ChampionPosition } from '~/utils/positions'
 
 const route = useRoute()
@@ -22,7 +23,7 @@ const activePatch = computed(() =>
 
 const { data: staticData } = await useChampionStatic(championId, activePatch)
 const { data: versions } = useDDragonVersions()
-const { data: runeTree } = await useFetch('/api/static/rune-tree', { key: 'rune-tree' })
+const { data: runeTree } = await useFetch<RuneTreeResponse>('/api/static/rune-tree', { key: 'rune-tree' })
 
 useSeoMeta({
   title: () => staticData.value?.championName ?? 'TrueMain',
@@ -95,7 +96,7 @@ const isLoading = computed(() => championStatus.value === 'pending' && !champion
         :core="core"
         :champion-static="staticData"
         :top-rune-page="topRunePages[0] ?? null"
-        :rune-tree="runeTree"
+        :rune-tree="runeTree ?? null"
       />
 
       <section
@@ -106,6 +107,7 @@ const isLoading = computed(() => championStatus.value === 'pending' && !champion
           Alternatives
         </h2>
         <ChampionAlternativesBuildPaths
+          v-if="(buildTree?.build?.length ?? 0) > 0"
           :build-tree="buildTree"
           :champion-static="staticData"
         />

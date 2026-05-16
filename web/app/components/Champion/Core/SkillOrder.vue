@@ -30,7 +30,7 @@ function spellByKey(key: string) {
             v-if="spellByKey(key)"
             :src="spellByKey(key)!.iconUrl"
             :alt="spellByKey(key)!.name"
-            :title="spellByKey(key)!.name"
+            :title="`${key} — ${spellByKey(key)!.name}`"
             width="36"
             height="36"
             class="size-9 rounded"
