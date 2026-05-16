@@ -19,6 +19,9 @@ public sealed class ChampionBuildsQueryService(
     private const double ItemPathProbThreshold = 0.20;
     private const int ItemPathMinItems = 3;
     private const int ItemPathMaxDepth = 6;
+    private const int BuildTreeMaxDepth = 6;
+    private const int BuildTreeMaxChildrenPerNode = 6;
+    private const int BuildTreeMinGames = 2;
 
     public async Task<ChampionResponse?> GetAsync(
         int championId,
@@ -326,8 +329,20 @@ public sealed class ChampionBuildsQueryService(
                 .OrderByDescending(group => group.Count())
                 .ThenBy(group => group.Key)
                 .Select(group => group.Key)
-                .Take(ItemPathMinItems - path.Count);
-            path.AddRange(fillers);
+                .Take(ItemPathMinItems - path.Count)
+                .ToList();
+
+            if (fillers.Count > 0)
+            {
+                path.AddRange(fillers);
+                // Fillers are popularity-ranked items pulled from any build
+                // slot, not a continuation of the natural chain — there is no
+                // single (Games, PickRate, WinRate) tuple that describes the
+                // padded list. Zero the stats so the frontend can either hide
+                // them or render the items without a misleading rate.
+                deepestGames = 0;
+                deepestWins = 0;
+            }
         }
 
         return (path, deepestGames, deepestWins);
@@ -345,9 +360,10 @@ public sealed class ChampionBuildsQueryService(
                 row.BuildItem4, row.BuildItem5, row.BuildItem6
             };
             Dictionary<int, MutableItemNode> level = rootChildren;
+            var depth = 0;
             foreach (var itemId in chain)
             {
-                if (itemId <= 0)
+                if (itemId <= 0 || depth >= BuildTreeMaxDepth)
                 {
                     break;
                 }
@@ -359,14 +375,39 @@ public sealed class ChampionBuildsQueryService(
                 node.Games += row.Games;
                 node.Wins += row.Wins;
                 level = node.Children;
+                depth++;
             }
         }
 
-        return rootChildren.Values
+        return PruneTreeLevel(rootChildren);
+    }
+
+    // Prune one level of the tree: drop low-support nodes, cap fan-out, then
+    // recurse into the kept children. Without this the payload grows with the
+    // number of distinct item combinations observed, which on popular
+    // champions can be hundreds of nodes the UI won't render anyway.
+    private static IReadOnlyList<MutableItemNode> PruneTreeLevel(
+        IDictionary<int, MutableItemNode> level)
+    {
+        var kept = level.Values
+            .Where(node => node.Games >= BuildTreeMinGames)
             .OrderByDescending(node => node.Games)
             .ThenByDescending(node => node.Wins)
             .ThenBy(node => node.ItemId)
+            .Take(BuildTreeMaxChildrenPerNode)
             .ToList();
+
+        foreach (var node in kept)
+        {
+            var prunedChildren = PruneTreeLevel(node.Children);
+            node.Children.Clear();
+            foreach (var child in prunedChildren)
+            {
+                node.Children[child.ItemId] = child;
+            }
+        }
+
+        return kept;
     }
 
     private static List<Guid> UniqueIds(IEnumerable<Guid> source)
