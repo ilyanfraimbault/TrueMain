@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { SummonerSpellOptionResponse } from '~~/shared/types/champions'
 import type { ChampionStaticData } from '~~/shared/types/static-data'
-import { formatPercentage } from '~~/shared/utils/ddragon'
 
 const props = defineProps<{
   summoners: SummonerSpellOptionResponse | null
@@ -20,7 +19,7 @@ function summonerIcon(id: number): string {
 <template>
   <div>
     <h2 class="text-sm font-medium text-muted">
-      Summoner spells
+      Summoners
     </h2>
     <div
       v-if="summoners"
@@ -35,25 +34,22 @@ function summonerIcon(id: number): string {
           :src="summonerIcon(spellId)"
           :alt="summonerName(spellId)"
           :title="summonerName(spellId)"
-          width="40"
-          height="40"
-          class="size-10 rounded"
+          width="36"
+          height="36"
+          class="size-9 rounded"
         />
         <span
           v-else
-          class="inline-flex size-10 items-center justify-center rounded border border-default text-xs"
+          class="inline-flex size-9 items-center justify-center rounded border border-default text-xs"
           :title="summonerName(spellId)"
         >
           {{ summonerName(spellId) }}
         </span>
       </template>
-      <span class="ml-2 text-sm text-muted">
-        {{ formatPercentage(summoners.winRate) }} WR · {{ summoners.games }} games
-      </span>
     </div>
     <p
       v-else
-      class="text-sm text-muted"
+      class="mt-2 text-sm text-muted"
     >
       No data
     </p>
