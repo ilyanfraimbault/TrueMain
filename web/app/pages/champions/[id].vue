@@ -91,51 +91,27 @@ const isLoading = computed(() => championStatus.value === 'pending' && !champion
         />
       </header>
 
-      <section class="flex flex-wrap gap-8">
-        <ChampionSummonerSpells
-          :summoners="core?.summonerSpells ?? null"
-          :champion-static="staticData"
-        />
-        <ChampionSkillOrder
-          :skill-order="core?.skillOrder ?? null"
-          :champion-static="staticData"
-        />
-      </section>
-
-      <section class="space-y-4">
-        <h2 class="text-base font-semibold">
-          Runes
-        </h2>
-        <ChampionRunesFull
-          v-if="topRunePages[0] && runeTree"
-          :page="topRunePages[0]"
-          :tree="runeTree"
-        />
-      </section>
+      <ChampionCore
+        :core="core"
+        :champion-static="staticData"
+        :top-rune-page="topRunePages[0] ?? null"
+        :rune-tree="runeTree"
+      />
 
       <section
-        v-if="topRunePages.length > 1"
-        class="space-y-3"
+        v-if="(buildTree?.build?.length ?? 0) > 0 || topRunePages.length > 1"
+        class="space-y-6"
       >
-        <h3 class="text-sm font-medium text-muted">
-          Other rune pages
-        </h3>
-        <ChampionRunes
-          :pages="topRunePages.slice(1)"
-          :champion-static="staticData"
-        />
-      </section>
-
-      <section class="space-y-6">
         <h2 class="text-base font-semibold">
-          Build
+          Alternatives
         </h2>
-        <ChampionBuild
-          :core="core"
+        <ChampionAlternativesBuildPaths
+          :build-tree="buildTree"
           :champion-static="staticData"
         />
-        <ChampionBuildPaths
-          :build-tree="buildTree"
+        <ChampionAlternativesRunePages
+          v-if="topRunePages.length > 1"
+          :pages="topRunePages.slice(1)"
           :champion-static="staticData"
         />
       </section>
