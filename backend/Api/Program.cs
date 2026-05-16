@@ -80,8 +80,8 @@ builder.Services.AddRateLimiter(options =>
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst
             }));
 });
-builder.Services.AddScoped<IChampionFoundationQueryService, ChampionFoundationQueryService>();
-builder.Services.AddScoped<IChampionBuildTreeQueryService, ChampionBuildTreeQueryService>();
+builder.Services.AddScoped<IChampionSummariesQueryService, ChampionSummariesQueryService>();
+builder.Services.AddScoped<IChampionBuildsQueryService, ChampionBuildsQueryService>();
 builder.Services.AddScoped<IPipelineHealthQueryService, PipelineHealthQueryService>();
 builder.Services.AddDbContext<TrueMainDbContext>(options =>
 {
