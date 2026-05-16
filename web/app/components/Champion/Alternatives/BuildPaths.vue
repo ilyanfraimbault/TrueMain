@@ -38,28 +38,33 @@ const topBuildPaths = computed<BuildPath[]>(() => {
 
 <template>
   <div>
-    <h3 class="text-sm font-medium text-muted">
-      Top build paths
-    </h3>
-    <ul class="mt-2 space-y-2">
+    <ul class="space-y-2">
       <li
         v-for="(path, pathIndex) in topBuildPaths"
         :key="`path-${pathIndex}`"
-        class="flex flex-wrap items-center gap-2"
+        class="flex flex-wrap items-center gap-1"
       >
         <span class="text-sm tabular-nums text-muted">
           {{ formatPercentage(path.pickRate) }}
         </span>
-        <NuxtImg
+        <template
           v-for="(item, index) in path.items"
           :key="`pathitem-${pathIndex}-${item.id}-${index}`"
-          :src="item.iconUrl"
-          :alt="item.name"
-          :title="item.name"
-          width="32"
-          height="32"
-          class="size-8 rounded"
-        />
+        >
+          <NuxtImg
+            :src="item.iconUrl"
+            :alt="item.name"
+            :title="item.name"
+            width="32"
+            height="32"
+            class="size-8 rounded"
+          />
+          <UIcon
+            v-if="index < path.items.length - 1"
+            name="i-lucide-chevron-right"
+            class="size-4 text-dimmed"
+          />
+        </template>
         <span class="ml-auto text-sm text-muted">
           {{ formatPercentage(path.winRate) }} WR · {{ path.games }} games
         </span>

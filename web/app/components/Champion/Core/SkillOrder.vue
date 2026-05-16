@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { SkillOrderOptionResponse } from '~~/shared/types/champions'
 import type { ChampionStaticData } from '~~/shared/types/static-data'
-import { formatPercentage } from '~~/shared/utils/ddragon'
 
 const props = defineProps<{
   skillOrder: SkillOrderOptionResponse | null
@@ -20,7 +19,7 @@ function spellByKey(key: string) {
     </h2>
     <div
       v-if="skillOrder"
-      class="mt-2 flex flex-wrap items-center gap-2"
+      class="mt-2 flex flex-wrap items-center gap-1"
     >
       <template
         v-for="(key, index) in skillOrder.sequence"
@@ -54,14 +53,10 @@ function spellByKey(key: string) {
           class="size-4 text-dimmed"
         />
       </template>
-
-      <span class="ml-2 text-sm text-muted">
-        {{ formatPercentage(skillOrder.winRate) }} WR · {{ skillOrder.games }} games
-      </span>
     </div>
     <p
       v-else
-      class="text-sm text-muted"
+      class="mt-2 text-sm text-muted"
     >
       No data
     </p>

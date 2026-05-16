@@ -71,10 +71,10 @@ function styleIcon(id: number): string {
           :src="perkIcon(id)"
           :alt="perkName(id)"
           :title="perkName(id)"
-          width="40"
-          height="40"
+          width="32"
+          height="32"
           :class="[
-            'size-10 rounded-full transition',
+            'size-8 rounded-full transition',
             id === page.primaryKeystoneId ? '' : 'opacity-40 grayscale',
           ]"
         />
@@ -92,10 +92,10 @@ function styleIcon(id: number): string {
           :src="perkIcon(id)"
           :alt="perkName(id)"
           :title="perkName(id)"
-          width="36"
-          height="36"
+          width="28"
+          height="28"
           :class="[
-            'size-9 rounded-full transition',
+            'size-7 rounded-full transition',
             selectedPrimary.has(id) ? '' : 'opacity-40 grayscale',
           ]"
         />
@@ -131,10 +131,10 @@ function styleIcon(id: number): string {
             :src="perkIcon(id)"
             :alt="perkName(id)"
             :title="perkName(id)"
-            width="24"
-            height="24"
+            width="20"
+            height="20"
             :class="[
-              'size-6 rounded-full transition',
+              'size-5 rounded-full transition',
               selectedSecondary.has(id) ? '' : 'opacity-40 grayscale',
             ]"
           />
@@ -154,10 +154,10 @@ function styleIcon(id: number): string {
             :src="perkIcon(id)"
             :alt="perkName(id)"
             :title="perkName(id)"
-            width="20"
-            height="20"
+            width="16"
+            height="16"
             :class="[
-              'size-5 rounded-full transition',
+              'size-4 rounded-full transition',
               selectedShards[rowIndex] === id ? '' : 'opacity-40 grayscale',
             ]"
           />
