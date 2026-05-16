@@ -266,7 +266,10 @@ public sealed class ChampionBuildsQueryService(
             var cursor = root;
             foreach (var itemId in chain)
             {
-                if (itemId <= 0) break;
+                if (itemId <= 0)
+                {
+                    break;
+                }
                 if (!cursor.Children.TryGetValue(itemId, out var child))
                 {
                     child = new MutableItemNode(itemId);
@@ -344,7 +347,10 @@ public sealed class ChampionBuildsQueryService(
             Dictionary<int, MutableItemNode> level = rootChildren;
             foreach (var itemId in chain)
             {
-                if (itemId <= 0) break;
+                if (itemId <= 0)
+                {
+                    break;
+                }
                 if (!level.TryGetValue(itemId, out var node))
                 {
                     node = new MutableItemNode(itemId);
@@ -536,12 +542,18 @@ public sealed class ChampionBuildsQueryService(
 
     private static int MaxDepth(MutableItemNode node)
     {
-        if (node.Children.Count == 0) return 0;
+        if (node.Children.Count == 0)
+        {
+            return 0;
+        }
         var best = 0;
         foreach (var child in node.Children.Values)
         {
             var d = MaxDepth(child);
-            if (d > best) best = d;
+            if (d > best)
+            {
+                best = d;
+            }
         }
         return 1 + best;
     }
