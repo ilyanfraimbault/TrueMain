@@ -17,7 +17,6 @@ public sealed class ChampionBuildsQueryService(
     private const int VariationsTopN = 3;
     private const int RunePagesTopN = 3;
     private const double ItemPathProbThreshold = 0.20;
-    private const int ItemPathMinItems = 3;
     private const int ItemPathMaxDepth = 6;
     private const int BuildTreeMaxDepth = 6;
     private const int BuildTreeMaxChildrenPerNode = 6;
@@ -302,47 +301,14 @@ public sealed class ChampionBuildsQueryService(
                 .ThenBy(node => node.ItemId)
                 .First();
             var probability = sliceGames == 0 ? 0d : (double)best.Games / sliceGames;
-            if (probability >= ItemPathProbThreshold || path.Count < ItemPathMinItems)
-            {
-                path.Add(best.ItemId);
-                deepestGames = best.Games;
-                deepestWins = best.Wins;
-                current = best;
-            }
-            else
+            if (probability < ItemPathProbThreshold)
             {
                 break;
             }
-        }
-
-        if (path.Count < ItemPathMinItems)
-        {
-            var existing = new HashSet<int>(path);
-            var fillers = rows
-                .SelectMany(row => new[]
-                {
-                    row.BuildItem1, row.BuildItem2, row.BuildItem3,
-                    row.BuildItem4, row.BuildItem5, row.BuildItem6
-                })
-                .Where(itemId => itemId > 0 && !existing.Contains(itemId))
-                .GroupBy(itemId => itemId)
-                .OrderByDescending(group => group.Count())
-                .ThenBy(group => group.Key)
-                .Select(group => group.Key)
-                .Take(ItemPathMinItems - path.Count)
-                .ToList();
-
-            if (fillers.Count > 0)
-            {
-                path.AddRange(fillers);
-                // Fillers are popularity-ranked items pulled from any build
-                // slot, not a continuation of the natural chain — there is no
-                // single (Games, PickRate, WinRate) tuple that describes the
-                // padded list. Zero the stats so the frontend can either hide
-                // them or render the items without a misleading rate.
-                deepestGames = 0;
-                deepestWins = 0;
-            }
+            path.Add(best.ItemId);
+            deepestGames = best.Games;
+            deepestWins = best.Wins;
+            current = best;
         }
 
         return (path, deepestGames, deepestWins);
