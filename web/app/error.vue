@@ -13,10 +13,10 @@ function handleReturn() {
     <main class="mx-auto grid min-h-screen max-w-2xl place-items-center p-8">
       <section class="space-y-4 text-center">
         <p class="text-6xl font-bold tabular-nums text-primary">
-          {{ error.status }}
+          {{ error.statusCode }}
         </p>
         <h1 class="text-balance text-2xl font-semibold">
-          {{ error.statusText || 'Something went wrong' }}
+          {{ error.statusMessage || 'Something went wrong' }}
         </h1>
         <p
           v-if="error.message"
