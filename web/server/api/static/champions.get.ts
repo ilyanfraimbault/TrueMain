@@ -1,4 +1,5 @@
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
+import { normalizeDataDragonPatch } from '~~/shared/utils/ddragon'
 
 interface ChampionListResponse {
   data: Record<string, { id: string, key: string, name: string, image: { full: string } }>
@@ -39,9 +40,10 @@ const loadChampionsForPatch = defineCachedFunction(
 
 export default defineEventHandler(async (event): Promise<ChampionStaticListItem[]> => {
   const { patch } = getQuery(event) as { patch?: string }
-  // Resolve outside the cached layer so a new Riot patch invalidates the
-  // cache key naturally. resolveLatestPatch hits DDragon's versions.json,
-  // which is itself cached by their CDN (~10 min Cache-Control).
-  const resolved = patch && patch.length > 0 ? patch : await resolveLatestPatch()
+  // Backend scopes expose patches in the short "16.5" form; DDragon CDN paths
+  // need "16.5.1". Normalize here so a caller can pass the patch straight from
+  // a champion summary. Fall back to the latest DDragon version when none is
+  // supplied so a new Riot patch invalidates the cache key naturally.
+  const resolved = normalizeDataDragonPatch(patch) ?? await resolveLatestPatch()
   return loadChampionsForPatch(resolved)
 })
