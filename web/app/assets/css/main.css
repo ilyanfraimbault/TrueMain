@@ -1,2 +1,19 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
+
+@theme static {
+  --animate-shimmer: shimmer 8s ease-in-out infinite alternate;
+
+  @keyframes shimmer {
+    0% { background-position: 0% center; }
+    100% { background-position: 200% center; }
+  }
+}
+
+.dark {
+  --ui-bg: var(--ui-color-neutral-900);
+  --ui-bg-muted: var(--ui-color-neutral-800);
+  --ui-bg-elevated: var(--ui-color-neutral-800);
+  --ui-bg-accented: var(--ui-color-neutral-700);
+  --ui-border: var(--ui-color-neutral-800);
+}

@@ -1,0 +1,61 @@
+<script setup lang="ts">
+import type { NavigationMenuItem } from '@nuxt/ui'
+
+const route = useRoute()
+
+function isActive(prefix: string): boolean {
+  return route.path === prefix || route.path.startsWith(`${prefix}/`)
+}
+
+const items = computed<NavigationMenuItem[]>(() => [
+  {
+    label: 'Champions',
+    icon: 'i-lucide-swords',
+    to: '/champions',
+    active: isActive('/champions'),
+  },
+  {
+    label: 'Meta',
+    icon: 'i-lucide-trending-up',
+    to: '/meta',
+    active: isActive('/meta'),
+  },
+  {
+    label: 'Mains',
+    icon: 'i-lucide-users',
+    to: '/mains',
+    active: isActive('/mains'),
+  },
+  {
+    label: 'Patches',
+    icon: 'i-lucide-history',
+    to: '/patches',
+    active: isActive('/patches'),
+  },
+])
+</script>
+
+<template>
+  <UHeader title="TrueMain">
+    <template #title>
+      <AppLogo class="text-lg" />
+    </template>
+
+    <UNavigationMenu
+      :items="items"
+      variant="link"
+    />
+
+    <template #right>
+      <UColorModeButton />
+    </template>
+
+    <template #body>
+      <UNavigationMenu
+        :items="items"
+        orientation="vertical"
+        class="-mx-2.5"
+      />
+    </template>
+  </UHeader>
+</template>
