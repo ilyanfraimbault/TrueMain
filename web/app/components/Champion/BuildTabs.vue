@@ -53,7 +53,7 @@ function styleName(id: number): string {
   >
     <template #leading="{ item }">
       <div class="flex items-center gap-2">
-        <NuxtImg
+        <SkeletonImage
           v-if="itemIcon(item.build.firstItemId)"
           :src="itemIcon(item.build.firstItemId)"
           :alt="itemName(item.build.firstItemId)"
@@ -66,7 +66,7 @@ function styleName(id: number): string {
           v-if="perkIcon(item.build.primaryKeystoneId)"
           class="relative size-7"
         >
-          <NuxtImg
+          <SkeletonImage
             :src="perkIcon(item.build.primaryKeystoneId)"
             :alt="perkName(item.build.primaryKeystoneId)"
             :title="perkName(item.build.primaryKeystoneId)"
@@ -74,7 +74,7 @@ function styleName(id: number): string {
             height="28"
             class="size-7 rounded-full"
           />
-          <NuxtImg
+          <SkeletonImage
             v-if="item.build.core.runePage && styleIcon(item.build.core.runePage.secondaryStyleId)"
             :src="styleIcon(item.build.core.runePage.secondaryStyleId)"
             :alt="styleName(item.build.core.runePage.secondaryStyleId)"

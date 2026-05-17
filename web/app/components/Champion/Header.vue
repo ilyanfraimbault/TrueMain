@@ -16,8 +16,7 @@ const winRate = computed(() => (props.totalGames === 0 ? 0 : props.totalWins / p
 
 <template>
   <div class="flex flex-1 flex-wrap items-center gap-4">
-    <NuxtImg
-      v-if="championStatic.championIconUrl"
+    <SkeletonImage
       :src="championStatic.championIconUrl"
       :alt="championStatic.championName ?? ''"
       width="80"

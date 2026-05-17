@@ -30,7 +30,7 @@ const items = computed<StaticItemData[]>(() => {
         v-for="(item, index) in items"
         :key="`bp-${item.id}-${index}`"
       >
-        <NuxtImg
+        <SkeletonImage
           :src="item.iconUrl"
           :alt="item.name"
           :title="item.name"

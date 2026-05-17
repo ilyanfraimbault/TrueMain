@@ -26,7 +26,7 @@ function spellByKey(key: string) {
         :key="`${key}-${index}`"
       >
         <div class="relative size-9">
-          <NuxtImg
+          <SkeletonImage
             v-if="spellByKey(key)"
             :src="spellByKey(key)!.iconUrl"
             :alt="spellByKey(key)!.name"
