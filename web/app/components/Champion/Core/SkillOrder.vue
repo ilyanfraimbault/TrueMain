@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { SkillOrderOptionResponse } from '~~/shared/types/champions'
+import type { BuildSkillOrder } from '~~/shared/types/champions'
 import type { ChampionStaticData } from '~~/shared/types/static-data'
 
 const props = defineProps<{
-  skillOrder: SkillOrderOptionResponse | null
+  skillOrder: BuildSkillOrder | null
   championStatic: ChampionStaticData
 }>()
 
@@ -41,12 +41,10 @@ function spellByKey(key: string) {
           >
             {{ key }}
           </span>
-
           <span class="absolute bottom-0 left-1/2 inline-flex h-3 min-w-3 -translate-x-1/2 items-center justify-center rounded bg-default/85 px-0.5 text-[8px] font-bold uppercase ring-1 ring-default backdrop-blur-sm">
             {{ key }}
           </span>
         </div>
-
         <UIcon
           v-if="index < skillOrder.sequence.length - 1"
           name="i-lucide-chevron-right"

@@ -11,17 +11,9 @@ export function useChampionFilters() {
   const filters = computed(() => ({
     patch: getQuery(route.query.patch as string | string[] | undefined) || undefined,
     position: getQuery(route.query.position as string | string[] | undefined) || undefined,
-    platformId: getQuery(route.query.platformId as string | string[] | undefined) || undefined,
-    riotAccountId: getQuery(route.query.riotAccountId as string | string[] | undefined) || undefined,
-    buildId: getQuery(route.query.buildId as string | string[] | undefined) || undefined,
-    maxDepth: 7,
-    minBranchGames: 1,
   }))
 
-  const hasFilters = computed(() =>
-    Boolean(filters.value.patch || filters.value.position || filters.value.platformId
-      || filters.value.riotAccountId || filters.value.buildId),
-  )
+  const hasFilters = computed(() => Boolean(filters.value.patch || filters.value.position))
 
   async function setFilter(patch: string | null, position: ChampionPosition | null) {
     const nextPatch = patch ?? filters.value.patch

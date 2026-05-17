@@ -1,11 +1,17 @@
 <script setup lang="ts">
-import type { RunePageOptionResponse } from '~~/shared/types/champions'
+import type { BuildRunePage } from '~~/shared/types/champions'
 import type { RuneTreeResponse, RuneTreeStyle } from '~~/shared/types/static-data'
 
 const props = defineProps<{
-  page: RunePageOptionResponse
+  page: BuildRunePage
   tree: RuneTreeResponse
+  size?: number
 }>()
+
+const keystoneSize = computed(() => props.size ?? 32)
+const perkSize = computed(() => Math.max(20, keystoneSize.value - 4))
+const secondarySize = computed(() => Math.max(16, keystoneSize.value - 12))
+const shardSize = computed(() => Math.max(12, keystoneSize.value - 16))
 
 const primary = computed<RuneTreeStyle | null>(() =>
   props.tree.styles.find(s => s.styleId === props.page.primaryStyleId) ?? null,
@@ -40,10 +46,6 @@ function perkIcon(id: number): string {
 function perkName(id: number): string {
   return props.tree.perks[id]?.name ?? `Perk ${id}`
 }
-
-function styleIcon(id: number): string {
-  return props.tree.perkStyles[id]?.iconUrl ?? ''
-}
 </script>
 
 <template>
@@ -53,17 +55,7 @@ function styleIcon(id: number): string {
       v-if="primary"
       class="flex flex-col items-center gap-1"
     >
-      <!-- Style icon (silent tree identifier, no text) -->
-      <NuxtImg
-        :src="styleIcon(primary.styleId)"
-        :alt="primary.name"
-        :title="primary.name"
-        width="16"
-        height="16"
-        class="size-4"
-      />
-
-      <!-- Keystone row (3-4 options, larger to read as "the keystone slot") -->
+      <!-- Keystone row -->
       <div class="flex items-center gap-0.5">
         <NuxtImg
           v-for="id in primary.keystones"
@@ -71,16 +63,17 @@ function styleIcon(id: number): string {
           :src="perkIcon(id)"
           :alt="perkName(id)"
           :title="perkName(id)"
-          width="32"
-          height="32"
+          :width="keystoneSize"
+          :height="keystoneSize"
+          :style="{ width: `${keystoneSize}px`, height: `${keystoneSize}px` }"
           :class="[
-            'size-8 rounded-full transition',
+            'rounded-full transition',
             id === page.primaryKeystoneId ? '' : 'opacity-40 grayscale',
           ]"
         />
       </div>
 
-      <!-- 3 sub-rows of 3 perks, similar size as keystones -->
+      <!-- 3 sub-rows of 3 perks -->
       <div
         v-for="(row, rowIndex) in primary.subRows"
         :key="`prow-${rowIndex}`"
@@ -92,34 +85,24 @@ function styleIcon(id: number): string {
           :src="perkIcon(id)"
           :alt="perkName(id)"
           :title="perkName(id)"
-          width="28"
-          height="28"
+          :width="perkSize"
+          :height="perkSize"
+          :style="{ width: `${perkSize}px`, height: `${perkSize}px` }"
           :class="[
-            'size-7 rounded-full transition',
+            'rounded-full transition',
             selectedPrimary.has(id) ? '' : 'opacity-40 grayscale',
           ]"
         />
       </div>
     </section>
 
-    <!-- Right column: secondary on top + shards on bottom, height pinned to
-         the primary tree via items-stretch on the parent so the inner
-         justify-between spreads them to match. -->
+    <!-- Right column: secondary on top + shards on bottom -->
     <div class="flex flex-col justify-between">
       <!-- Secondary tree (3 rows of 3, no keystone) -->
       <section
         v-if="secondary"
         class="flex flex-col items-center gap-1"
       >
-        <NuxtImg
-          :src="styleIcon(secondary.styleId)"
-          :alt="secondary.name"
-          :title="secondary.name"
-          width="16"
-          height="16"
-          class="size-4"
-        />
-
         <div
           v-for="(row, rowIndex) in secondary.subRows"
           :key="`srow-${rowIndex}`"
@@ -131,10 +114,11 @@ function styleIcon(id: number): string {
             :src="perkIcon(id)"
             :alt="perkName(id)"
             :title="perkName(id)"
-            width="20"
-            height="20"
+            :width="secondarySize"
+            :height="secondarySize"
+            :style="{ width: `${secondarySize}px`, height: `${secondarySize}px` }"
             :class="[
-              'size-5 rounded-full transition',
+              'rounded-full transition',
               selectedSecondary.has(id) ? '' : 'opacity-40 grayscale',
             ]"
           />
@@ -154,10 +138,11 @@ function styleIcon(id: number): string {
             :src="perkIcon(id)"
             :alt="perkName(id)"
             :title="perkName(id)"
-            width="16"
-            height="16"
+            :width="shardSize"
+            :height="shardSize"
+            :style="{ width: `${shardSize}px`, height: `${shardSize}px` }"
             :class="[
-              'size-4 rounded-full transition',
+              'rounded-full transition',
               selectedShards[rowIndex] === id ? '' : 'opacity-40 grayscale',
             ]"
           />

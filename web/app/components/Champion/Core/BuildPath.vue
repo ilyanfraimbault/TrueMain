@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { BuildPathPreviewResponse } from '~~/shared/types/champions'
+import type { BuildItemPath } from '~~/shared/types/champions'
 import type { ChampionStaticData, StaticItemData } from '~~/shared/types/static-data'
 
 const props = defineProps<{
-  path: BuildPathPreviewResponse | null
+  path: BuildItemPath | null
   championStatic: ChampionStaticData
 }>()
 
@@ -16,7 +16,12 @@ const items = computed<StaticItemData[]>(() => {
 </script>
 
 <template>
-  <div>
+  <!-- Reserve room for the worst case (6 items + 5 chevrons) on the
+       outer block so the BuildPath footprint stays constant across tabs.
+       items-center keeps the actual items centred inside that footprint
+       — without it a shorter chain hugs the left edge of the wider block
+       and visually drifts off the A2 midpoint between tabs. -->
+  <div class="flex min-w-[336px] flex-col items-center">
     <h2 class="text-sm font-medium text-muted">
       Build path
     </h2>
