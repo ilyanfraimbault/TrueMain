@@ -29,7 +29,7 @@ function summonerIcon(id: number): string {
         v-for="spellId in [summoners.spell1Id, summoners.spell2Id]"
         :key="`sum-${spellId}`"
       >
-        <NuxtImg
+        <SkeletonImage
           v-if="summonerIcon(spellId)"
           :src="summonerIcon(spellId)"
           :alt="summonerName(spellId)"

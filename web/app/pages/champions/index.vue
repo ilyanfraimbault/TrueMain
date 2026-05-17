@@ -120,8 +120,7 @@ function onSelect(_event: Event, row: TableRow<Row>) {
     >
       <template #name-cell="{ row }">
         <div class="flex items-center gap-3">
-          <NuxtImg
-            v-if="row.original.iconUrl"
+          <SkeletonImage
             :src="row.original.iconUrl"
             :alt="row.original.name"
             width="32"

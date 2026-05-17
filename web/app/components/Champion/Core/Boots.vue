@@ -21,7 +21,7 @@ const items = computed<StaticItemData[]>(() => {
       Boots
     </h2>
     <div class="mt-2 flex flex-wrap gap-1">
-      <NuxtImg
+      <SkeletonImage
         v-for="(item, index) in items"
         :key="`boots-${item.id}-${index}`"
         :src="item.iconUrl"

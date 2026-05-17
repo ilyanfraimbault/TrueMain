@@ -40,7 +40,7 @@ function spellByKey(key: string) {
               v-for="spellId in [option.spell1Id, option.spell2Id]"
               :key="`sum-${option.spell1Id}-${option.spell2Id}-${spellId}`"
             >
-              <NuxtImg
+              <SkeletonImage
                 v-if="summonerIcon(spellId)"
                 :src="summonerIcon(spellId)"
                 :alt="summonerName(spellId)"
@@ -78,7 +78,7 @@ function spellByKey(key: string) {
               :key="`${optionIndex}-${key}-${index}`"
             >
               <div class="relative size-8">
-                <NuxtImg
+                <SkeletonImage
                   v-if="spellByKey(key)"
                   :src="spellByKey(key)!.iconUrl"
                   :alt="spellByKey(key)!.name"
@@ -126,7 +126,7 @@ function spellByKey(key: string) {
           class="flex items-center justify-between gap-3"
         >
           <div class="flex items-center gap-1">
-            <NuxtImg
+            <SkeletonImage
               v-for="(item, index) in itemsByIds(option.itemIds)"
               :key="`boots-item-${optionIndex}-${item.id}-${index}`"
               :src="item.iconUrl"
@@ -159,7 +159,7 @@ function spellByKey(key: string) {
           class="flex items-center justify-between gap-3"
         >
           <div class="flex items-center gap-1">
-            <NuxtImg
+            <SkeletonImage
               v-for="(item, index) in itemsByIds(option.itemIds)"
               :key="`starter-item-${optionIndex}-${item.id}-${index}`"
               :src="item.iconUrl"

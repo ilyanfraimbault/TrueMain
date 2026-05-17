@@ -158,7 +158,7 @@ const hasNodes = computed(() => layout.value.flat.length > 1)
             :stroke-dasharray="edge.child.isMainEdge ? undefined : '4 4'"
           />
         </svg>
-        <NuxtImg
+        <SkeletonImage
           v-for="(node, index) in layout.flat"
           :key="`node-${index}`"
           :src="itemIcon(node.itemId)"

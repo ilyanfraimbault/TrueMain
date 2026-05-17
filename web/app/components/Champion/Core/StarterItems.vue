@@ -24,7 +24,7 @@ const items = computed<StaticItemData[]>(() => {
          A1 column width stays constant when a tab only carries 2 items.
          Otherwise A1 shrinks, A2 widens, and the rest of the row shifts. -->
     <div class="mt-2 flex min-w-[116px] flex-wrap gap-1">
-      <NuxtImg
+      <SkeletonImage
         v-for="(item, index) in items"
         :key="`starter-${item.id}-${index}`"
         :src="item.iconUrl"

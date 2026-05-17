@@ -57,7 +57,7 @@ function perkName(id: number): string {
     >
       <!-- Keystone row -->
       <div class="flex items-center gap-0.5">
-        <NuxtImg
+        <SkeletonImage
           v-for="id in primary.keystones"
           :key="`pk-${id}`"
           :src="perkIcon(id)"
@@ -79,7 +79,7 @@ function perkName(id: number): string {
         :key="`prow-${rowIndex}`"
         class="flex items-center gap-1"
       >
-        <NuxtImg
+        <SkeletonImage
           v-for="id in row"
           :key="`pp-${rowIndex}-${id}`"
           :src="perkIcon(id)"
@@ -108,7 +108,7 @@ function perkName(id: number): string {
           :key="`srow-${rowIndex}`"
           class="flex items-center gap-1"
         >
-          <NuxtImg
+          <SkeletonImage
             v-for="id in row"
             :key="`sp-${rowIndex}-${id}`"
             :src="perkIcon(id)"
@@ -132,7 +132,7 @@ function perkName(id: number): string {
           :key="`shard-row-${rowIndex}`"
           class="flex items-center gap-1"
         >
-          <NuxtImg
+          <SkeletonImage
             v-for="id in row"
             :key="`shard-${rowIndex}-${id}`"
             :src="perkIcon(id)"
