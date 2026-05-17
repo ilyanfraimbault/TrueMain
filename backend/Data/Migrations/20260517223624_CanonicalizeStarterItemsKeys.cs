@@ -51,27 +51,57 @@ namespace Data.Migrations
                 processed INT := 0;
                 batch_size CONSTANT INT := 500;
             BEGIN
-                -- Price reference for known starter items. Items not listed
-                -- fall back to price 0 (they sort to the tail of the basket,
-                -- tiebroken by ascending item id) — same fallback the C# sort
-                -- uses when an item is missing from ItemMetadata.
+                -- Price reference for items that can land in a starter basket.
+                -- This list mirrors ItemMetadata.PriceTotal for every item the
+                -- StarterItemAnalyzer admits under its 500g budget (Doran's
+                -- variants, support quest items, component starters for low-
+                -- mana/AD/defensive openers, potions, biscuits). Items absent
+                -- from this table fall back to price 0 and sort to the tail of
+                -- the basket — matching the C# sort's behavior when ItemMetadata
+                -- has no entry for an id. Keep this in sync with the analyzer's
+                -- expectations: a missing entry won't crash the migration but
+                -- will produce a different canonical order than the ingestor
+                -- emits today, leaving fresh dim rows split from legacy ones.
                 CREATE TEMP TABLE _starter_price_ref (
                     item_id INT PRIMARY KEY,
                     price INT NOT NULL
                 );
                 INSERT INTO _starter_price_ref(item_id, price) VALUES
                     (1001, 300),   -- Boots of Speed
+                    (1004, 125),   -- Faerie Charm
+                    (1006, 300),   -- Rejuvenation Bead
+                    (1027, 350),   -- Sapphire Crystal
+                    (1028, 400),   -- Ruby Crystal
+                    (1029, 300),   -- Cloth Armor
+                    (1033, 450),   -- Null-Magic Mantle
+                    (1036, 350),   -- Long Sword
+                    (1042, 300),   -- Dagger
+                    (1052, 435),   -- Amplifying Tome
                     (1054, 450),   -- Doran's Shield
                     (1055, 450),   -- Doran's Blade
                     (1056, 400),   -- Doran's Ring
                     (1057, 400),   -- legacy Doran variant
+                    (1082, 350),   -- Dark Seal
                     (1083, 450),   -- Cull
                     (2003, 50),    -- Health Potion
+                    (2010, 75),    -- Total Biscuit of Everlasting Will
                     (2031, 150),   -- Refillable Potion
                     (2033, 500),   -- Corrupting Potion
+                    (2051, 250),   -- Guardian's Horn
+                    (2055, 75),    -- Control Ward
                     (3070, 400),   -- Tear of the Goddess
-                    (3801, 400),   -- legacy support quest item
-                    (3802, 400),   -- legacy support quest item
+                    (3850, 400),   -- legacy Spellthief upgrade tier
+                    (3851, 400),   -- legacy Spellthief upgrade tier
+                    (3853, 400),   -- legacy Shard of True Ice (Spellthief T2)
+                    (3854, 400),   -- legacy Steel Shoulderguards tier
+                    (3855, 400),   -- legacy Runesteel Spaulders
+                    (3857, 400),   -- legacy Pauldrons of Whiterock
+                    (3858, 400),   -- legacy Relic Shield tier
+                    (3859, 400),   -- legacy Targon's Buckler
+                    (3860, 400),   -- legacy Bulwark of the Mountain
+                    (3862, 400),   -- legacy Frostfang
+                    (3863, 400),   -- legacy Harrowing Crescent
+                    (3864, 400),   -- legacy Black Mist Scythe
                     (3865, 400),   -- Spellthief's Edge
                     (3866, 400),   -- Relic Shield
                     (3867, 400);   -- Steel Shoulderguards
@@ -104,12 +134,18 @@ namespace Data.Migrations
                 -- Snapshot every canonical key that has more than one dim row
                 -- pointing at it — those groups need merging. Using FOREACH over
                 -- an array (rather than a cursor) keeps the loop body free to
-                -- COMMIT between iterations.
-                SELECT array_agg(new_key ORDER BY new_key)
+                -- COMMIT between iterations. The subquery is required: doing
+                -- array_agg directly on a GROUP BY would produce one array per
+                -- group (each holding repeated copies of that single key) and
+                -- INTO would only capture the first row.
+                SELECT array_agg(dup.new_key ORDER BY dup.new_key)
                 INTO duplicate_keys
-                FROM _starter_dim_canonical
-                GROUP BY new_key
-                HAVING COUNT(*) > 1;
+                FROM (
+                    SELECT new_key
+                    FROM _starter_dim_canonical
+                    GROUP BY new_key
+                    HAVING COUNT(*) > 1
+                ) dup;
 
                 IF duplicate_keys IS NOT NULL THEN
                     FOREACH current_key IN ARRAY duplicate_keys LOOP

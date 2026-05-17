@@ -41,7 +41,7 @@ public sealed class CanonicalizeStarterItemsKeysMigrationIntegrationTests : ICla
         var account = new RiotAccountBuilder().Build();
         db.RiotAccounts.Add(account);
 
-        // Three independent scopes — the collision tuple lives entirely
+        // Four independent scopes — the collision tuple lives entirely
         // within scope1 (both P1 and P2 point at it), scope2 carries the
         // simple-redirect case, scope3 the stale-single re-key path, scope4
         // the already-canonical no-op path.
@@ -175,6 +175,96 @@ public sealed class CanonicalizeStarterItemsKeysMigrationIntegrationTests : ICla
         p5After.StarterItemsId.Should().Be(DimD);
         p5After.Games.Should().Be(1);
         p5After.Wins.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Canonicalize_MergesEveryDuplicateGroup_WhenMultipleGroupsExist()
+    {
+        // Regression test: an earlier draft built `duplicate_keys` with
+        // array_agg on a GROUP BY new_key, which produced one array per
+        // group and INTO only captured the first row. The result was that
+        // only one duplicate group got merged. Two independent groups here
+        // pin the corrected snapshot query.
+        await _fixture.ResetDatabaseAsync();
+        await using var db = _fixture.CreateDbContext();
+
+        var account = new RiotAccountBuilder().Build();
+        db.RiotAccounts.Add(account);
+
+        var scope = BuildScope(account.Id, championId: 22, position: "BOTTOM");
+        db.ChampionAggregateScopes.Add(scope);
+
+        var build = BuildBuild(bootsId: 3006);
+        var runes = BuildRunePage(keystoneId: 8005);
+        var skill = new ChampionDimSkillOrder { SkillOrderKey = "Q-W-E" };
+        var spells = new ChampionDimSpellPair { Spell1Id = 4, Spell2Id = 7 };
+        db.ChampionDimBuilds.Add(build);
+        db.ChampionDimRunePages.Add(runes);
+        db.ChampionDimSkillOrders.Add(skill);
+        db.ChampionDimSpellPairs.Add(spells);
+
+        // Group 1: same basket [1055, 2003], two purchase orders.
+        var groupOneWinner = new ChampionDimStarterItems
+        {
+            Id = Guid.Parse("00000000-0000-0000-0000-000000000010"),
+            StarterItemsKey = "1055-2003",
+            StarterItems = [1055, 2003]
+        };
+        var groupOneLoser = new ChampionDimStarterItems
+        {
+            Id = Guid.Parse("00000000-0000-0000-0000-000000000011"),
+            StarterItemsKey = "2003-1055",
+            StarterItems = [2003, 1055]
+        };
+
+        // Group 2: same basket [3865, 2003, 2003], two purchase orders.
+        var groupTwoWinner = new ChampionDimStarterItems
+        {
+            Id = Guid.Parse("00000000-0000-0000-0000-000000000020"),
+            StarterItemsKey = "3865-2003-2003",
+            StarterItems = [3865, 2003, 2003]
+        };
+        var groupTwoLoser = new ChampionDimStarterItems
+        {
+            Id = Guid.Parse("00000000-0000-0000-0000-000000000021"),
+            StarterItemsKey = "2003-2003-3865",
+            StarterItems = [2003, 2003, 3865]
+        };
+
+        db.ChampionDimStarterItems.AddRange(groupOneWinner, groupOneLoser, groupTwoWinner, groupTwoLoser);
+
+        // One pattern per dim row, each on a different scope so no collisions
+        // — the test isolates the "every group is processed" property.
+        var scopeForG1Winner = BuildScope(account.Id, championId: 23, position: "TOP");
+        var scopeForG1Loser = BuildScope(account.Id, championId: 24, position: "TOP");
+        var scopeForG2Winner = BuildScope(account.Id, championId: 25, position: "TOP");
+        var scopeForG2Loser = BuildScope(account.Id, championId: 26, position: "TOP");
+        db.ChampionAggregateScopes.AddRange(scopeForG1Winner, scopeForG1Loser, scopeForG2Winner, scopeForG2Loser);
+
+        db.ChampionAggregatePatterns.AddRange(
+            BuildPattern(scopeForG1Winner, build, runes, skill, spells, groupOneWinner, games: 4, wins: 2),
+            BuildPattern(scopeForG1Loser, build, runes, skill, spells, groupOneLoser, games: 3, wins: 1),
+            BuildPattern(scopeForG2Winner, build, runes, skill, spells, groupTwoWinner, games: 5, wins: 3),
+            BuildPattern(scopeForG2Loser, build, runes, skill, spells, groupTwoLoser, games: 2, wins: 0));
+        await db.SaveChangesAsync();
+
+        await db.Database.ExecuteSqlRawAsync(CanonicalizeStarterItemsKeys.CanonicalizeSql);
+
+        await using var verify = _fixture.CreateDbContext();
+        var dims = await verify.ChampionDimStarterItems
+            .AsNoTracking()
+            .OrderBy(d => d.Id)
+            .ToListAsync();
+        dims.Should().HaveCount(2, "both duplicate groups should collapse to their winner");
+        dims.Select(d => d.Id).Should().BeEquivalentTo(new[] { groupOneWinner.Id, groupTwoWinner.Id });
+
+        var redirectedPatterns = await verify.ChampionAggregatePatterns
+            .AsNoTracking()
+            .Where(p => p.ScopeId == scopeForG1Loser.Id || p.ScopeId == scopeForG2Loser.Id)
+            .ToListAsync();
+        redirectedPatterns.Should().HaveCount(2);
+        redirectedPatterns.Single(p => p.ScopeId == scopeForG1Loser.Id).StarterItemsId.Should().Be(groupOneWinner.Id);
+        redirectedPatterns.Single(p => p.ScopeId == scopeForG2Loser.Id).StarterItemsId.Should().Be(groupTwoWinner.Id);
     }
 
     [Fact]
