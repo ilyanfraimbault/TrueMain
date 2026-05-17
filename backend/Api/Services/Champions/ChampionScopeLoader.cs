@@ -39,9 +39,29 @@ internal static class ChampionScopeLoader
             return null;
         }
 
-        var selectedPatch = ChampionAggregateScopeResolver.ResolvePatchVersion(
-            resolutionRows.Select(row => row.GameVersion),
-            normalizedPatch);
+        string? selectedPatch;
+        if (!string.IsNullOrEmpty(normalizedPatch))
+        {
+            // Caller pinned a specific patch — respect it.
+            selectedPatch = ChampionAggregateScopeResolver.ResolvePatchVersion(
+                resolutionRows.Select(row => row.GameVersion),
+                normalizedPatch);
+        }
+        else
+        {
+            // No patch requested: default to the global latest patch across
+            // every champion on the active queue. Champions that don't yet
+            // have data on the global latest fall back to their own most
+            // recent patch, so the page never lands on an empty slice.
+            var globalLatestPatch = await ResolveGlobalLatestPatchAsync(db, queueId, ct);
+            var hasGlobalLatest = !string.IsNullOrEmpty(globalLatestPatch)
+                && resolutionRows.Any(row => string.Equals(row.GameVersion, globalLatestPatch, StringComparison.Ordinal));
+            selectedPatch = hasGlobalLatest
+                ? globalLatestPatch
+                : ChampionAggregateScopeResolver.ResolvePatchVersion(
+                    resolutionRows.Select(row => row.GameVersion),
+                    requestedPatch: null);
+        }
         if (string.IsNullOrWhiteSpace(selectedPatch))
         {
             return null;
@@ -69,4 +89,22 @@ internal static class ChampionScopeLoader
     }
 
     private sealed record ScopeResolutionRow(string GameVersion, string Position, int Games);
+
+    private static async Task<string?> ResolveGlobalLatestPatchAsync(
+        TrueMainDbContext db,
+        int queueId,
+        CancellationToken ct)
+    {
+        // SELECT DISTINCT GameVersion ... pulls a tiny set (one row per
+        // ingested patch) so this stays cheap even without caching. Routes
+        // through the existing resolver so the same parsing/ordering rules
+        // apply.
+        var versions = await db.ChampionAggregateScopes
+            .AsNoTracking()
+            .Where(scope => scope.QueueId == queueId)
+            .Select(scope => scope.GameVersion)
+            .Distinct()
+            .ToListAsync(ct);
+        return ChampionAggregateScopeResolver.ResolvePatchVersion(versions, requestedPatch: null);
+    }
 }

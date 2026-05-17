@@ -110,6 +110,65 @@ public sealed class ChampionBuildsApiIntegrationTests : IClassFixture<PostgresFi
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
+    [Fact]
+    public async Task GetChampionAsync_DefaultsToGlobalLatestPatchWithPerChampionFallback()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedGlobalPatchFallbackAggregatesAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        // Global latest across the queue is 16.9 (champion 200 ships data on it).
+        // - Champion 200 has 16.9 data → page lands on 16.9.
+        // - Champion 100 only has 16.7/16.8 → page falls back to 16.8, NOT 16.9
+        //   (we never strand the user on an empty slice).
+        var trailingChampion = await client.GetFromJsonAsync<ChampionResponse>("/champions/100");
+        trailingChampion.Should().NotBeNull();
+        trailingChampion!.Patch.Should().Be("16.8");
+
+        var currentChampion = await client.GetFromJsonAsync<ChampionResponse>("/champions/200");
+        currentChampion.Should().NotBeNull();
+        currentChampion!.Patch.Should().Be("16.9");
+    }
+
+    private async Task SeedGlobalPatchFallbackAggregatesAsync()
+    {
+        var now = DateTime.UtcNow;
+        var account1Id = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        var account2Id = Guid.Parse("44444444-4444-4444-4444-444444444444");
+
+        await using var db = _fixture.CreateDbContext();
+
+        db.RiotAccounts.AddRange(
+            BuildAccount(account1Id, "KR", "fallback-puuid-1", "fallback-one", now),
+            BuildAccount(account2Id, "KR", "fallback-puuid-2", "fallback-two", now));
+        await db.SaveChangesAsync();
+
+        // Champion 100 — older meta, last seen on 16.7 and 16.8 only.
+        // Champion 200 — caught up, has 16.9 data. Drives the global latest.
+        await new ChampionAggregateSeeder()
+            .AddPatternWithRune(account1Id, 100, "16.7", "KR", 420, "MIDDLE",
+                summoner1Id: 4, summoner2Id: 12, skillOrderKey: "Q-W-E",
+                buildItems: [3153, 3006, 3031], bootsItemId: 3006,
+                primaryStyleId: 8000, primaryKeystoneId: 8008, secondaryStyleId: 8400,
+                games: 2, wins: 1, aggregatedAtUtc: now.AddDays(-3))
+            .AddPatternWithRune(account1Id, 100, "16.8", "KR", 420, "MIDDLE",
+                summoner1Id: 4, summoner2Id: 12, skillOrderKey: "Q-W-E",
+                buildItems: [3153, 3006, 3094], bootsItemId: 3006,
+                primaryStyleId: 8000, primaryKeystoneId: 8008, secondaryStyleId: 8400,
+                games: 3, wins: 1, aggregatedAtUtc: now.AddDays(-1))
+            .AddPatternWithRune(account2Id, 200, "16.9", "KR", 420, "BOTTOM",
+                summoner1Id: 4, summoner2Id: 7, skillOrderKey: "Q-W-E",
+                buildItems: [6672, 3006, 3094], bootsItemId: 3006,
+                primaryStyleId: 8000, primaryKeystoneId: 8008, secondaryStyleId: 8400,
+                games: 5, wins: 3, aggregatedAtUtc: now.AddMinutes(-30))
+            .SaveAsync(db);
+    }
+
     private async Task SeedChampionBuildsAggregatesAsync()
     {
         var now = DateTime.UtcNow;
