@@ -20,7 +20,10 @@ const items = computed<StaticItemData[]>(() => {
     <h2 class="text-sm font-medium text-muted">
       Starter
     </h2>
-    <div class="mt-2 flex flex-wrap gap-1">
+    <!-- Reserve room for the worst case (3 starter items + 2 gaps) so the
+         A1 column width stays constant when a tab only carries 2 items.
+         Otherwise A1 shrinks, A2 widens, and the rest of the row shifts. -->
+    <div class="mt-2 flex min-w-[116px] flex-wrap gap-1">
       <NuxtImg
         v-for="(item, index) in items"
         :key="`starter-${item.id}-${index}`"
