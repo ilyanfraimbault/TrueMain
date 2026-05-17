@@ -2,6 +2,7 @@ using Core.Options;
 using Data;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using TrueMain.ReadModels.Champions;
 
@@ -9,7 +10,8 @@ namespace TrueMain.Services.Champions;
 
 public sealed class ChampionBuildsQueryService(
     TrueMainDbContext db,
-    IOptions<MainAnalysisOptions> options)
+    IOptions<MainAnalysisOptions> options,
+    IMemoryCache cache)
     : IChampionBuildsQueryService
 {
     private const int MaxBuilds = 4;
@@ -23,14 +25,27 @@ public sealed class ChampionBuildsQueryService(
     private const int BuildTreeMaxChildrenPerNode = 6;
     private const int BuildTreeMinGames = 2;
 
+    // Caching the unpinned patch default so we don't fan out
+    // SELECT DISTINCT GameVersion ... WHERE QueueId = X (no covering index)
+    // on every champion request. The TTL matches the summaries cache so
+    // both directories stay in sync within the same ingestor flush window.
+    private const string GlobalLatestPatchCacheKey = "champions:global-latest-patch";
+    private static readonly TimeSpan GlobalLatestPatchCacheTtl = TimeSpan.FromSeconds(30);
+
     public async Task<ChampionResponse?> GetAsync(
         int championId,
         string? patch,
         string? position,
         CancellationToken ct)
     {
+        // Only compute the global latest when the caller hasn't pinned a
+        // patch — pinned requests always use the requested patch verbatim.
+        var globalLatestPatch = string.IsNullOrWhiteSpace(patch)
+            ? await GetGlobalLatestPatchAsync(ct)
+            : null;
+
         var scopes = await ChampionScopeLoader.LoadAsync(
-            db, options.Value.QueueId, championId, patch, position, ct);
+            db, options.Value.QueueId, championId, patch, position, ct, globalLatestPatch);
         if (scopes is null)
         {
             return null;
@@ -121,6 +136,24 @@ public sealed class ChampionBuildsQueryService(
             TotalWins = totalWins,
             Builds = builds
         };
+    }
+
+    private async Task<string?> GetGlobalLatestPatchAsync(CancellationToken ct)
+    {
+        if (cache.TryGetValue<string?>(GlobalLatestPatchCacheKey, out var cached))
+        {
+            return cached;
+        }
+
+        var versions = await db.ChampionAggregateScopes
+            .AsNoTracking()
+            .Where(scope => scope.QueueId == options.Value.QueueId)
+            .Select(scope => scope.GameVersion)
+            .Distinct()
+            .ToListAsync(ct);
+        var latest = ChampionAggregateScopeResolver.ResolvePatchVersion(versions, requestedPatch: null);
+        cache.Set(GlobalLatestPatchCacheKey, latest, GlobalLatestPatchCacheTtl);
+        return latest;
     }
 
     private async Task<IReadOnlyList<ChampionPatternEnrichedRow>> FetchRowsAsync(

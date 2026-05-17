@@ -135,6 +135,38 @@ public sealed class ChampionBuildsApiIntegrationTests : IClassFixture<PostgresFi
         currentChampion!.Patch.Should().Be("16.9");
     }
 
+    [Fact]
+    public async Task GetChampionAsync_HonoursPinnedPatchWithoutFallback()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedGlobalPatchFallbackAggregatesAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        // Pinning an older patch a champion actually has data on must return
+        // that patch verbatim, not the global latest or the champion's own
+        // most recent — pinning is a strict request.
+        var pinnedOlder = await client.GetFromJsonAsync<ChampionResponse>("/champions/100?patch=16.7");
+        pinnedOlder.Should().NotBeNull();
+        pinnedOlder!.Patch.Should().Be("16.7");
+
+        // Pinning a patch the champion has no data on must 404 — silent
+        // fallback would hide ingestion gaps from the caller. (Champion 100
+        // has 16.7/16.8 only; 16.9 is empty for them.)
+        var pinnedMissing = await client.GetAsync("/champions/100?patch=16.9");
+        pinnedMissing.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        // Full Riot version strings get canonicalised to "major.minor" before
+        // matching, so "16.7.521" routes to the 16.7 slice.
+        var pinnedVerbose = await client.GetFromJsonAsync<ChampionResponse>("/champions/100?patch=16.7.521");
+        pinnedVerbose.Should().NotBeNull();
+        pinnedVerbose!.Patch.Should().Be("16.7");
+    }
+
     private async Task SeedGlobalPatchFallbackAggregatesAsync()
     {
         var now = DateTime.UtcNow;
