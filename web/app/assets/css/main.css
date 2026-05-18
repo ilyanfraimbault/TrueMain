@@ -43,7 +43,7 @@
   /* Resources / utility */
   --color-stat-mana: #00a6ed;            /* mana / mana regen */
   --color-stat-haste: #ede2cf;           /* ability haste — beige (unique to AH) */
-  --color-stat-speed: #00a6ed;           /* move speed (shares mana hue) */
+  --color-stat-speed: #ffffff;           /* move speed / on-hit — white */
 
   /* Offensive — physical */
   --color-stat-ad: #f19425;              /* attack damage */
