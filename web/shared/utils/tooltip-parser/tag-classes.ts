@@ -29,6 +29,7 @@ export const TAG_CLASS: Record<string, string> = {
   attentionmana: 'text-stat-mana font-semibold',
   attentionspeed: 'text-stat-speed font-semibold',
   attentioncrit: 'text-stat-crit font-semibold',
+  attentionvamp: 'text-stat-vamp font-semibold',
   attentionshield: 'text-stat-shield font-semibold',
   passive: 'text-stat-passive font-semibold uppercase tracking-wide text-xs',
   active: 'text-stat-active font-semibold uppercase tracking-wide text-xs',

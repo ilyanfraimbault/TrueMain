@@ -19,15 +19,18 @@ export function parseItemDescription(description: string): ParsedDocument {
 }
 
 const STAT_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
-  // AD bucket — numbers paired with "Attack Damage" or "Lethality" / "Armor Penetration" read like AD
+  // AD bucket — numbers paired with "Attack Damage" / "Lethality" / "Armor Penetration" read like AD
   [/^\s*(?:Attack Damage|AD\b|Lethality|Armor Penetration|Bonus Attack Damage)/i, 'attentionad'],
-  // AP bucket — magic damage scaling stats land here, including Ability Haste (cyan in-game)
+  // AP bucket — magic-damage scaling stats land here, including Ability Haste (cyan in-game)
   [/^\s*(?:Ability Power|AP\b|Magic Penetration|Ability Haste|Magic Resist Reduction)/i, 'attentionap'],
   // MR before generic "Magic" so "Magic Resist" doesn't match the AP pattern
   [/^\s*(?:Magic Resist|MR\b|Tenacity|Slow Resist)/i, 'attentionmr'],
   [/^\s*(?:Armor)\b/i, 'attentionarmor'],
-  // Health / regen / sustain stats
-  [/^\s*(?:Health(?: Regen(?:eration)?)?|HP\b|Life Steal|Omnivamp|Heal and Shield Power|Physical Vamp)/i, 'attentionhealth'],
+  // Vamp / lifesteal / sustain — pink, distinct from flat-health green.
+  // Checked BEFORE the health bucket so "Life Steal" doesn't fall into health.
+  [/^\s*(?:Life Steal|Omnivamp|Heal and Shield Power|Physical Vamp)/i, 'attentionvamp'],
+  // Flat health / HP regen — green
+  [/^\s*(?:Health(?: Regen(?:eration)?)?|HP\b)/i, 'attentionhealth'],
   // Movement / attack speed / on-hit utility
   [/^\s*(?:Move(?:ment)? Speed|Attack Speed|On-Hit)/i, 'attentionspeed'],
   // Resources
