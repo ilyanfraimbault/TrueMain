@@ -131,7 +131,7 @@ public sealed class StarterItemAnalyzerTests
             new ItemEvent { TimestampMs = 807_000, ItemId = 3867, EventType = "ITEM_DESTROYED" }
         ], Metadata);
 
-        starterItems.Should().Equal(2003, 2003, 3865);
+        starterItems.Should().Equal(3865, 2003, 2003);
     }
 
     [Fact]
@@ -144,7 +144,7 @@ public sealed class StarterItemAnalyzerTests
             new ItemEvent { TimestampMs = 420_000, ItemId = 3865, EventType = "ITEM_DESTROYED" }
         ], Metadata);
 
-        analysis.Items.Should().Equal(2003, 2003, 3865);
+        analysis.Items.Should().Equal(3865, 2003, 2003);
         analysis.TotalCost.Should().Be(100);
     }
 }

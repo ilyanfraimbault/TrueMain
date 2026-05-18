@@ -56,6 +56,8 @@ public static class StarterItemAnalyzer
             return new StarterItemsAnalysis([], "EmptyBasketAfterEarlyEvents", 0, earlyEvents);
         }
 
+        SortStarterItemsCanonically(starterItems, itemMetadataById);
+
         var totalCost = 0;
         foreach (var itemId in starterItems)
         {
@@ -76,6 +78,23 @@ public static class StarterItemAnalyzer
             ? $"DetectedIgnoringOverflow:{string.Join(",", ignoredOverflowPurchases)}"
             : "Detected";
         return new StarterItemsAnalysis(starterItems, reason, totalCost, earlyEvents);
+    }
+
+    // Canonical order = most-expensive first, ties broken by item id ascending.
+    // Makes the StarterItemsKey order-independent so the dim table stores one
+    // row per item set (not one per purchase sequence), and matches how the UI
+    // expects to display starters (Doran's first, then potions).
+    private static void SortStarterItemsCanonically(
+        List<int> starterItems,
+        IReadOnlyDictionary<int, ItemMetadata> itemMetadataById)
+    {
+        starterItems.Sort((left, right) =>
+        {
+            var leftPrice = itemMetadataById.TryGetValue(left, out var leftMeta) ? leftMeta.PriceTotal : 0;
+            var rightPrice = itemMetadataById.TryGetValue(right, out var rightMeta) ? rightMeta.PriceTotal : 0;
+            var byPrice = rightPrice.CompareTo(leftPrice);
+            return byPrice != 0 ? byPrice : left.CompareTo(right);
+        });
     }
 
     private static void TryAddStarterItem(
