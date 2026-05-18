@@ -300,7 +300,12 @@ public sealed class ChampionBuildsQueryService(
                 .ThenByDescending(node => node.Wins)
                 .ThenBy(node => node.ItemId)
                 .First();
-            var probability = sliceGames == 0 ? 0d : (double)best.Games / sliceGames;
+            // Probability is parent-relative — share of games that *reached*
+            // the current node and then went on to pick `best`. Matches the
+            // pickrate semantic shown in the build-tree tooltip (see
+            // ConvertTreeNode below), so a node displayed as "40% pick" is
+            // also the same 40% the threshold sees.
+            var probability = current.Games == 0 ? 0d : (double)best.Games / current.Games;
             if (probability < ItemPathProbThreshold)
             {
                 break;
