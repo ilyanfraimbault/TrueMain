@@ -7,8 +7,13 @@ const props = defineProps<{
   perk: StaticPerkData
 }>()
 
-const parsedShort = computed(() => props.perk.shortDesc ? parseRuneDescription(props.perk.shortDesc) : [])
-const parsedLong = computed(() => props.perk.longDesc ? parseRuneDescription(props.perk.longDesc) : [])
+// Prefer the detailed `longDesc` (carries melee/ranged chips + full numbers),
+// fall back to `shortDesc` when longDesc is missing (stat shards). Showing
+// both stacks two near-duplicate paragraphs and clutters the tooltip.
+const parsed = computed(() => {
+  const source = props.perk.longDesc ?? props.perk.shortDesc
+  return source ? parseRuneDescription(source) : []
+})
 </script>
 
 <template>
@@ -25,17 +30,11 @@ const parsedLong = computed(() => props.perk.longDesc ? parseRuneDescription(pro
         {{ perk.name }}
       </div>
     </header>
-    <div class="space-y-2 border-t border-default/40 pt-2 text-sm">
+    <div class="border-t border-default/40 pt-2 text-sm leading-relaxed">
       <GameTooltipRichText
-        v-if="parsedShort.length"
-        :segments="parsedShort"
+        v-if="parsed.length"
+        :segments="parsed"
       />
-      <div
-        v-if="parsedLong.length"
-        class="text-xs text-muted"
-      >
-        <GameTooltipRichText :segments="parsedLong" />
-      </div>
     </div>
   </div>
 </template>

@@ -31,9 +31,10 @@ const parsed = computed(() => props.spell.description ? parseSummonerSpell(props
       />
       <div
         v-if="spell.cooldown"
-        class="text-sm"
+        class="text-xs"
       >
-        <span class="font-semibold">Cooldown:</span> {{ spell.cooldown }}s
+        <span class="text-muted">Cooldown:</span>
+        <span class="text-stat-speed font-semibold"> {{ spell.cooldown }}s</span>
       </div>
     </div>
   </div>

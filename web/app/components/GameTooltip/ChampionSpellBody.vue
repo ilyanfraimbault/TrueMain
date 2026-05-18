@@ -31,15 +31,15 @@ const showsCost = computed(() => Boolean(props.spell.costBurn && props.spell.cos
           class="text-xs text-muted"
         >
           <template v-if="spell.cooldownBurn">
-            CD: <span class="text-default">{{ spell.cooldownBurn }}s</span>
+            Cooldown: <span class="text-stat-speed font-semibold">{{ spell.cooldownBurn }}s</span>
           </template>
           <template v-if="showsCost">
             <span v-if="spell.cooldownBurn"> · </span>
-            Cost: <span class="text-stat-mana">{{ spell.costBurn }}</span>
+            Cost: <span class="text-stat-mana font-semibold">{{ spell.costBurn }}</span>
           </template>
           <template v-if="spell.rangeBurn">
             <span v-if="spell.cooldownBurn || showsCost"> · </span>
-            Range: <span class="text-default">{{ spell.rangeBurn }}</span>
+            Range: <span class="text-default font-semibold">{{ spell.rangeBurn }}</span>
           </template>
         </div>
       </div>

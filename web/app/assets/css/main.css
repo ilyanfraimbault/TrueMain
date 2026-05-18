@@ -1,7 +1,16 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
 
-@theme static {
+/*
+ * Tailwind v4 only generates utilities for class names it can statically
+ * detect in source files. The tag-class map in shared/utils/tooltip-parser
+ * is built outside Tailwind's default scan root, so explicitly include it
+ * here. Without this, `text-stat-ad` and friends silently fall back to
+ * the default text color.
+ */
+@source "../../../shared/utils/tooltip-parser/**/*.ts";
+
+@theme {
   --animate-shimmer: shimmer 8s ease-in-out infinite alternate;
 
   /*
