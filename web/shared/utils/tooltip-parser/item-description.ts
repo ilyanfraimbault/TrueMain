@@ -15,7 +15,49 @@ import type { ParsedDocument, ParsedSegment } from './types'
  * tiny look-ahead pass on the parsed segments.
  */
 export function parseItemDescription(description: string): ParsedDocument {
-  return recolorAttentionByStatLabel(walkHtmlToSegments(description))
+  return ensureParagraphBeforeLabels(recolorAttentionByStatLabel(walkHtmlToSegments(description)))
+}
+
+const PARAGRAPH_LABEL_TAGS = new Set(['passive', 'active'])
+
+/**
+ * Force a paragraph break (two `<br>`) before every `<passive>` / `<active>`
+ * label that appears mid-prose. DDragon sometimes inlines `<active>X</active>`
+ * inside the same sentence as the preceding passive description (cf.
+ * Solstice Sleigh: "...nearby ally. <active>Active</active> (4 charges)..."),
+ * which reads as a wall of text. The in-game tooltip renders it as a fresh
+ * paragraph; this pass keeps the same visual rhythm.
+ */
+function ensureParagraphBeforeLabels(doc: ParsedDocument): ParsedDocument {
+  const result: ParsedSegment[] = []
+  for (const seg of doc) {
+    if (seg.kind === 'text' && PARAGRAPH_LABEL_TAGS.has(seg.tag.toLowerCase())) {
+      const prev = result[result.length - 1]
+      if (prev && prev.kind !== 'break' && !isFlattenContinuation(result, seg.tag.toLowerCase())) {
+        result.push({ kind: 'break' })
+        result.push({ kind: 'break' })
+      }
+    }
+    result.push(seg)
+  }
+  return result
+}
+
+/**
+ * Walk back through the already-emitted segments (skipping nothing, stopping
+ * at the first break) and return true when we find another segment with the
+ * same label tag. That means we're in the flattened tail of the same
+ * `<passive>` / `<active>` DOM element — not a fresh label — and we must not
+ * insert a paragraph break in the middle of it.
+ */
+function isFlattenContinuation(result: ParsedSegment[], tag: string): boolean {
+  for (let i = result.length - 1; i >= 0; i--) {
+    const s = result[i]
+    if (!s) return false
+    if (s.kind === 'break') return false
+    if (s.kind === 'text' && s.tag.toLowerCase() === tag) return true
+  }
+  return false
 }
 
 // Ordered most-specific to least-specific. Each line includes the in-game

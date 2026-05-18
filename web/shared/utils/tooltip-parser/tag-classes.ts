@@ -73,6 +73,8 @@ export const TAG_CLASS: Record<string, string> = {
   // Misc inline emphasis
   speed: 'text-stat-speed',
   status: 'text-stat-status',
+  // Inline crowd-control / game-term highlights (Slowing, Immobilizing, Invisible, ...)
+  keyword: 'text-stat-status',
   keywordstealth: 'text-stat-status',
   keywordmajor: 'text-default font-semibold',
   onhit: 'text-stat-speed',

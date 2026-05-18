@@ -67,6 +67,28 @@ describe('parseItemDescription', () => {
     expect(textOf('attentiongold')).toEqual(['2'])
   })
 
+  it('inserts a paragraph break before mid-prose <active> / <passive> labels', () => {
+    // Real-world fragment from Solstice Sleigh: <active> is glued to the
+    // sentence that precedes it.
+    const parsed = parseItemDescription('<passive>Going Sledding</passive><br>The aura. <active>Active</active> (4 charges)<br>Places a ward.')
+    // Find the <active> segment and confirm the two preceding emissions are breaks.
+    const activeIdx = parsed.findIndex(s => s.kind === 'text' && s.tag === 'active')
+    expect(activeIdx).toBeGreaterThan(1)
+    expect(parsed[activeIdx - 1]?.kind).toBe('break')
+    expect(parsed[activeIdx - 2]?.kind).toBe('break')
+  })
+
+  it('does not double-break before a <passive> already preceded by <br><br>', () => {
+    // The first passive label after the stats block is already separated by
+    // two breaks — the post-pass must not stack another pair on top.
+    const parsed = parseItemDescription('<mainText><stats><attention>40</attention> Attack Damage</stats><br><br><passive>Carve</passive><br>Description.</mainText>')
+    const passiveIdx = parsed.findIndex(s => s.kind === 'text' && s.tag === 'passive')
+    // Exactly two breaks immediately before the passive — not three or four.
+    expect(parsed[passiveIdx - 1]?.kind).toBe('break')
+    expect(parsed[passiveIdx - 2]?.kind).toBe('break')
+    expect(parsed[passiveIdx - 3]?.kind).not.toBe('break')
+  })
+
   it('trims leading and trailing structural breaks', () => {
     // Items with no stats produce `<stats></stats><br><br>...` and most
     // descriptions end with trailing `<br><br>` after the last passive.
