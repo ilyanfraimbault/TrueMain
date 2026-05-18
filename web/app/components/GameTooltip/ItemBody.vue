@@ -5,11 +5,19 @@ import { parseItemDescription } from '~~/shared/utils/tooltip-parser'
 
 const props = defineProps<{
   item: StaticItemData
+  /** Optional pickrate (0..1) — only passed from the build-tree call site to surface slot popularity. */
+  pickRate?: number
 }>()
 
 const parsed = computed(() => props.item.description ? parseItemDescription(props.item.description) : [])
 const hasDescription = computed(() => parsed.value.length > 0)
 const goldLabel = computed(() => props.item.totalGold > 0 ? `${props.item.totalGold.toLocaleString('en-US')}g` : null)
+const pickRateLabel = computed(() => {
+  if (props.pickRate === undefined || props.pickRate === null) return null
+  const pct = props.pickRate * 100
+  // Sub-1% picks would otherwise round to "0%" and look broken; show one decimal there.
+  return pct >= 1 ? `${pct.toFixed(0)}%` : `${pct.toFixed(1)}%`
+})
 </script>
 
 <template>
@@ -22,7 +30,7 @@ const goldLabel = computed(() => props.item.totalGold > 0 ? `${props.item.totalG
         :height="36"
         class="size-9 shrink-0 rounded"
       />
-      <div class="min-w-0">
+      <div class="min-w-0 flex-1">
         <div class="truncate font-semibold text-default">
           {{ item.name }}
         </div>
@@ -32,6 +40,12 @@ const goldLabel = computed(() => props.item.totalGold > 0 ? `${props.item.totalG
         >
           {{ goldLabel }}
         </div>
+      </div>
+      <div
+        v-if="pickRateLabel"
+        class="shrink-0 self-start text-xs font-semibold text-muted"
+      >
+        {{ pickRateLabel }} pick
       </div>
     </header>
     <div class="border-t border-default/40 pt-2 text-sm">

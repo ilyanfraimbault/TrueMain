@@ -8,10 +8,13 @@ const props = withDefaults(defineProps<{
   item?: StaticItemData | null
   width?: number | string
   height?: number | string
+  /** Optional pickrate (0..1) — only set by BuildTree call sites; renders next to the item name. */
+  pickRate?: number
 }>(), {
   item: null,
   width: 36,
   height: 36,
+  pickRate: undefined,
 })
 
 const hasItem = computed(() => Boolean(props.item))
@@ -35,7 +38,10 @@ const hasItem = computed(() => Boolean(props.item))
       #content
     >
       <GameTooltipSurface>
-        <GameTooltipItemBody :item="item" />
+        <GameTooltipItemBody
+          :item="item"
+          :pick-rate="pickRate"
+        />
       </GameTooltipSurface>
     </template>
   </UTooltip>
