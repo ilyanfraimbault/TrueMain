@@ -78,6 +78,19 @@ describe('parseItemDescription', () => {
     expect(parsed[activeIdx - 2]?.kind).toBe('break')
   })
 
+  it('retags stealth-family <keyword> text to keywordstealth', () => {
+    const parsed = parseItemDescription('Places an <keyword>Invisible</keyword> Stealth Ward.')
+    const stealth = parsed.find(s => s.kind === 'text' && s.tag === 'keywordstealth')
+    expect(stealth?.kind).toBe('text')
+    if (stealth?.kind === 'text') expect(stealth.text).toBe('Invisible')
+  })
+
+  it('keeps non-stealth <keyword> labels (Slowing, Immobilizing) on the keyword tag', () => {
+    const parsed = parseItemDescription('<keyword>Slowing</keyword> or <keyword>Immobilizing</keyword> a champion.')
+    const keywords = parsed.filter(s => s.kind === 'text' && s.tag === 'keyword').map(s => (s.kind === 'text' ? s.text : ''))
+    expect(keywords).toEqual(['Slowing', 'Immobilizing'])
+  })
+
   it('does not double-break before a <passive> already preceded by <br><br>', () => {
     // The first passive label after the stats block is already separated by
     // two breaks — the post-pass must not stack another pair on top.

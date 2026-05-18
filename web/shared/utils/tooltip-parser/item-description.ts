@@ -15,7 +15,26 @@ import type { ParsedDocument, ParsedSegment } from './types'
  * tiny look-ahead pass on the parsed segments.
  */
 export function parseItemDescription(description: string): ParsedDocument {
-  return ensureParagraphBeforeLabels(recolorAttentionByStatLabel(walkHtmlToSegments(description)))
+  return ensureParagraphBeforeLabels(
+    retagStealthKeywords(recolorAttentionByStatLabel(walkHtmlToSegments(description))),
+  )
+}
+
+const STEALTH_KEYWORDS = /^\s*(?:Invisible|Camouflage|Stealth(?:ed)?|Obscured)\s*$/i
+
+/**
+ * DDragon uses a single `<keyword>` tag for both CC labels ("Slowing",
+ * "Immobilizing") and stealth labels ("Invisible", "Camouflage"). In-game
+ * they're distinct colors. Retag stealth-family text to `keywordstealth`
+ * so the renderer can route it to the dedicated `--color-stat-stealth`
+ * token.
+ */
+function retagStealthKeywords(doc: ParsedDocument): ParsedDocument {
+  return doc.map((seg) => {
+    if (seg.kind !== 'text' || seg.tag.toLowerCase() !== 'keyword') return seg
+    if (!STEALTH_KEYWORDS.test(seg.text)) return seg
+    return { ...seg, tag: 'keywordstealth' }
+  })
 }
 
 const PARAGRAPH_LABEL_TAGS = new Set(['passive', 'active'])

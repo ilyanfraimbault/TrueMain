@@ -61,6 +61,7 @@ type SummonerDataResponse = {
 type ChampionListResponse = { data: Record<string, { id: string, key: string, name: string, image: { full: string } }> }
 type ChampionDetailResponse = {
   data: Record<string, {
+    partype?: string
     spells: Array<{
       name: string
       image: { full: string }
@@ -71,6 +72,20 @@ type ChampionDetailResponse = {
       rangeBurn?: string
     }>
   }>
+}
+
+/**
+ * DDragon ships some champion spell `costType` values as the literal
+ * placeholder `" {{ abilityresourcename }}"` (or `(( ... ))`) instead of the
+ * resolved resource name. Substitute the champion-level `partype` (Mana,
+ * Energy, Blood Well, ...) so the tooltip shows "Cost: 65 Mana" rather than
+ * "Cost: 65 {{ abilityresourcename }}".
+ */
+function resolveCostType(costType: string | undefined, partype: string): string | undefined {
+  if (!costType) return costType
+  return costType
+    .replace(/\{\{\s*abilityresourcename\s*\}\}/gi, partype)
+    .replace(/\(\(\s*abilityresourcename\s*\)\)/gi, partype)
 }
 
 export function rewriteCdragonAsset(iconPath: string): string {
@@ -164,6 +179,7 @@ export async function loadStaticData(championId: number, patch: string | null): 
     `https://ddragon.leagueoflegends.com/cdn/${normalized}/data/en_US/champion/${summary.id}.json`,
   ).catch((): ChampionDetailResponse => ({ data: {} }))
 
+  const partype = detail.data[summary.id]?.partype ?? ''
   const championSpells: Record<string, StaticChampionSpellData> = Object.fromEntries(
     (detail.data[summary.id]?.spells ?? []).slice(0, SPELL_SLOTS.length).flatMap((spell, index) => {
       const key = SPELL_SLOTS[index]
@@ -175,7 +191,7 @@ export async function loadStaticData(championId: number, patch: string | null): 
         description: spell.description,
         cooldownBurn: spell.cooldownBurn,
         costBurn: spell.costBurn,
-        costType: spell.costType,
+        costType: resolveCostType(spell.costType, partype),
         rangeBurn: spell.rangeBurn,
       }]]
     }),
