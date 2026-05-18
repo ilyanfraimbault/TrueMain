@@ -198,9 +198,12 @@ public sealed class ChampionBuildsQueryService(
             rows, r => r.RunePageId, r => r.Games, r => r.Wins, RunePagesTopN);
         var topBoots = AggregateBoots(rows, VariationsTopN);
 
-        var (itemPath, itemPathGames, itemPathWins) = ComputeItemPath(
-            rows, pending.Key.FirstItemId, sliceGames);
+        // Build the (pruned) tree once and derive the highlighted item path
+        // from the same tree, so anything the path includes is guaranteed to
+        // be visible in the build-tree visualization (no "ghost" deep items).
         var buildTree = BuildItemTree(rows);
+        var (itemPath, itemPathGames, itemPathWins) = ComputeItemPath(
+            buildTree, pending.Key.FirstItemId, sliceGames, rows.Sum(row => row.Wins));
 
         return new GroupAggregates(
             pending.Key,
@@ -253,34 +256,17 @@ public sealed class ChampionBuildsQueryService(
             .ToList();
 
     private static (List<int> ItemIds, int Games, int Wins) ComputeItemPath(
-        IReadOnlyList<ChampionPatternEnrichedRow> rows,
+        IReadOnlyList<MutableItemNode> rootChildren,
         int firstItemId,
-        int sliceGames)
+        int sliceGames,
+        int sliceWins)
     {
-        var root = new MutableItemNode(firstItemId) { Games = sliceGames, Wins = rows.Sum(row => row.Wins) };
-        foreach (var row in rows)
+        // Synthetic root so the loop below can walk uniformly. Games / Wins
+        // come from the slice (every game in this build group starts here).
+        var root = new MutableItemNode(firstItemId) { Games = sliceGames, Wins = sliceWins };
+        foreach (var child in rootChildren)
         {
-            var chain = new[]
-            {
-                row.BuildItem1, row.BuildItem2, row.BuildItem3,
-                row.BuildItem4, row.BuildItem5, row.BuildItem6
-            };
-            var cursor = root;
-            foreach (var itemId in chain)
-            {
-                if (itemId <= 0)
-                {
-                    break;
-                }
-                if (!cursor.Children.TryGetValue(itemId, out var child))
-                {
-                    child = new MutableItemNode(itemId);
-                    cursor.Children[itemId] = child;
-                }
-                child.Games += row.Games;
-                child.Wins += row.Wins;
-                cursor = child;
-            }
+            root.Children[child.ItemId] = child;
         }
 
         var path = new List<int> { firstItemId };
