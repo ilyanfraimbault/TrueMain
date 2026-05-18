@@ -50,16 +50,18 @@ const STAT_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
   // ── Sustain offensif — must precede flat-health green
   // Lifesteal / Omnivamp / Physical Vamp (#d70045)
   [/^\s*(?:Life ?[Ss]teal|Omnivamp|Physical Vamp)/i, 'attentionvamp'],
-  // Flat health / HP regen (#24a564)
-  [/^\s*(?:Health(?: Regen(?:eration)?)?|HP\b)/i, 'attentionhealth'],
+  // Flat health / HP regen — also matches "Base Health Regen" (#24a564)
+  [/^\s*(?:Base )?(?:Health(?: Regen(?:eration)?)?|HP(?: Regen(?:eration)?)?)\b/i, 'attentionhealth'],
 
   // ── Resources / utility
   // Ability Haste (#ede2cf) — beige, its own bucket
   [/^\s*(?:Ability Haste|AH\b)/i, 'attentionhaste'],
-  // Move Speed / On-Hit (#00a6ed)
+  // Move Speed / On-Hit (#ffffff)
   [/^\s*(?:Move(?:ment)? Speed|On-Hit)/i, 'attentionspeed'],
-  // Mana (#00a6ed)
-  [/^\s*(?:Mana(?: Regen(?:eration)?)?)\b/i, 'attentionmana'],
+  // Mana — also matches "Base Mana Regen" (#00a6ed)
+  [/^\s*(?:Base )?(?:Mana(?: Regen(?:eration)?)?)\b/i, 'attentionmana'],
+  // Gold per N seconds — support / world items (#c8aa6e)
+  [/^\s*Gold per\b/i, 'attentiongold'],
 
   // ── Crit
   [/^\s*(?:Critical Strike(?: Chance| Damage)?|Crit Chance|Crit Damage)/i, 'attentioncrit'],

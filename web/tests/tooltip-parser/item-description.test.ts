@@ -54,6 +54,19 @@ describe('parseItemDescription', () => {
     ])
   })
 
+  it('matches "Base Health Regen" / "Base Mana Regen" labels', () => {
+    const parsed = parseItemDescription('<mainText><stats><attention>50%</attention> Base Health Regen<br><attention>50%</attention> Base Mana Regen</stats></mainText>')
+    const textOf = (tag: string) => parsed.filter(s => s.kind === 'text' && s.tag === tag).map(s => (s.kind === 'text' ? s.text : ''))
+    expect(textOf('attentionhealth')).toEqual(['50%'])
+    expect(textOf('attentionmana')).toEqual(['50%'])
+  })
+
+  it('matches "Gold per N Seconds" support-item stat label', () => {
+    const parsed = parseItemDescription('<mainText><stats><attention>2</attention> Gold per 10 Seconds</stats></mainText>')
+    const textOf = (tag: string) => parsed.filter(s => s.kind === 'text' && s.tag === tag).map(s => (s.kind === 'text' ? s.text : ''))
+    expect(textOf('attentiongold')).toEqual(['2'])
+  })
+
   it('trims leading and trailing structural breaks', () => {
     // Items with no stats produce `<stats></stats><br><br>...` and most
     // descriptions end with trailing `<br><br>` after the last passive.

@@ -40,6 +40,7 @@ export const TAG_CLASS: Record<string, string> = {
   attentioncrit: 'text-stat-crit font-semibold',
   attentionvamp: 'text-stat-vamp font-semibold',
   attentionshield: 'text-stat-shield font-semibold',
+  attentiongold: 'text-stat-gold font-semibold',
   attentiontrue: 'text-stat-true font-semibold',
 
   // Item structural labels
