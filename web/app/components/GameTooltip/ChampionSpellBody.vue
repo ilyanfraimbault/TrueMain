@@ -8,7 +8,21 @@ const props = defineProps<{
 }>()
 
 const parsed = computed(() => props.spell.description ? parseChampionSpell(props.spell.description) : [])
-const showsCost = computed(() => Boolean(props.spell.costBurn && props.spell.costType && props.spell.costType.trim().toLowerCase() !== 'no cost'))
+
+// DDragon represents "no cost" / "self-cast" with either an explicit
+// 'No Cost' costType or a per-rank `0` (e.g. costBurn = '0' or
+// rangeBurn = '0/0/0/0/0'). Treat any all-zero burn string as "absent".
+function isAllZeros(value: string | undefined): boolean {
+  if (!value) return true
+  return /^[0/\s]+$/.test(value)
+}
+
+const showsCost = computed(() =>
+  !isAllZeros(props.spell.costBurn)
+  && Boolean(props.spell.costType)
+  && props.spell.costType!.trim().toLowerCase() !== 'no cost',
+)
+const showsRange = computed(() => !isAllZeros(props.spell.rangeBurn))
 </script>
 
 <template>
@@ -27,7 +41,7 @@ const showsCost = computed(() => Boolean(props.spell.costBurn && props.spell.cos
           <span class="truncate">{{ spell.name }}</span>
         </div>
         <div
-          v-if="spell.cooldownBurn || showsCost || spell.rangeBurn"
+          v-if="spell.cooldownBurn || showsCost || showsRange"
           class="text-xs text-muted"
         >
           <template v-if="spell.cooldownBurn">
@@ -37,7 +51,7 @@ const showsCost = computed(() => Boolean(props.spell.costBurn && props.spell.cos
             <span v-if="spell.cooldownBurn"> · </span>
             Cost: <span class="text-stat-mana font-semibold">{{ spell.costBurn }} {{ spell.costType?.trim() }}</span>
           </template>
-          <template v-if="spell.rangeBurn">
+          <template v-if="showsRange">
             <span v-if="spell.cooldownBurn || showsCost"> · </span>
             Range: <span class="text-default font-semibold">{{ spell.rangeBurn }}</span>
           </template>
