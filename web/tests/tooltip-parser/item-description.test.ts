@@ -78,6 +78,12 @@ describe('parseItemDescription', () => {
     expect(parsed[activeIdx - 2]?.kind).toBe('break')
   })
 
+  it('groups Item Haste and Summoner Spell Haste into the ability-haste bucket', () => {
+    const parsed = parseItemDescription('<mainText><stats><attention>10</attention> Item Haste<br><attention>15</attention> Summoner Spell Haste<br><attention>20</attention> Ability Haste</stats></mainText>')
+    const haste = parsed.filter(s => s.kind === 'text' && s.tag === 'attentionhaste').map(s => (s.kind === 'text' ? s.text : ''))
+    expect(haste).toEqual(['10', '15', '20'])
+  })
+
   it('retags stealth-family <keyword> text to keywordstealth', () => {
     const parsed = parseItemDescription('Places an <keyword>Invisible</keyword> Stealth Ward.')
     const stealth = parsed.find(s => s.kind === 'text' && s.tag === 'keywordstealth')

@@ -115,8 +115,9 @@ const STAT_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
   [/^\s*(?:Base )?(?:Health(?: Regen(?:eration)?)?|HP(?: Regen(?:eration)?)?)\b/i, 'attentionhealth'],
 
   // ── Resources / utility
-  // Ability Haste (#ede2cf) — beige, its own bucket
-  [/^\s*(?:Ability Haste|AH\b)/i, 'attentionhaste'],
+  // Haste family (#ede2cf) — Ability Haste, Item Haste, Summoner Spell Haste
+  // all reduce cooldowns and share the same beige bucket in the client.
+  [/^\s*(?:Ability Haste|Item Haste|Summoner(?: Spell)? Haste|Haste\b|AH\b)/i, 'attentionhaste'],
   // Move Speed / On-Hit (#ffffff)
   [/^\s*(?:Move(?:ment)? Speed|On-Hit)/i, 'attentionspeed'],
   // Mana — also matches "Base Mana Regen" (#00a6ed)
