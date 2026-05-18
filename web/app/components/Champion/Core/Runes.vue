@@ -38,14 +38,6 @@ const selectedShards = computed(() => [
   props.page.statFlex,
   props.page.statDefense,
 ])
-
-function perkIcon(id: number): string {
-  return props.tree.perks[id]?.iconUrl ?? ''
-}
-
-function perkName(id: number): string {
-  return props.tree.perks[id]?.name ?? `Perk ${id}`
-}
 </script>
 
 <template>
@@ -57,12 +49,10 @@ function perkName(id: number): string {
     >
       <!-- Keystone row -->
       <div class="flex items-center gap-0.5">
-        <SkeletonImage
+        <GameTooltipPerkIcon
           v-for="id in primary.keystones"
           :key="`pk-${id}`"
-          :src="perkIcon(id)"
-          :alt="perkName(id)"
-          :title="perkName(id)"
+          :perk="tree.perks[id] ?? null"
           :width="keystoneSize"
           :height="keystoneSize"
           :style="{ width: `${keystoneSize}px`, height: `${keystoneSize}px` }"
@@ -79,12 +69,10 @@ function perkName(id: number): string {
         :key="`prow-${rowIndex}`"
         class="flex items-center gap-1"
       >
-        <SkeletonImage
+        <GameTooltipPerkIcon
           v-for="id in row"
           :key="`pp-${rowIndex}-${id}`"
-          :src="perkIcon(id)"
-          :alt="perkName(id)"
-          :title="perkName(id)"
+          :perk="tree.perks[id] ?? null"
           :width="perkSize"
           :height="perkSize"
           :style="{ width: `${perkSize}px`, height: `${perkSize}px` }"
@@ -108,12 +96,10 @@ function perkName(id: number): string {
           :key="`srow-${rowIndex}`"
           class="flex items-center gap-1"
         >
-          <SkeletonImage
+          <GameTooltipPerkIcon
             v-for="id in row"
             :key="`sp-${rowIndex}-${id}`"
-            :src="perkIcon(id)"
-            :alt="perkName(id)"
-            :title="perkName(id)"
+            :perk="tree.perks[id] ?? null"
             :width="secondarySize"
             :height="secondarySize"
             :style="{ width: `${secondarySize}px`, height: `${secondarySize}px` }"
@@ -132,12 +118,10 @@ function perkName(id: number): string {
           :key="`shard-row-${rowIndex}`"
           class="flex items-center gap-1"
         >
-          <SkeletonImage
+          <GameTooltipPerkIcon
             v-for="id in row"
             :key="`shard-${rowIndex}-${id}`"
-            :src="perkIcon(id)"
-            :alt="perkName(id)"
-            :title="perkName(id)"
+            :perk="tree.perks[id] ?? null"
             :width="shardSize"
             :height="shardSize"
             :style="{ width: `${shardSize}px`, height: `${shardSize}px` }"

@@ -21,14 +21,12 @@ const items = computed<StaticItemData[]>(() => {
       Boots
     </h2>
     <div class="mt-2 flex flex-wrap gap-1">
-      <SkeletonImage
+      <GameTooltipItemIcon
         v-for="(item, index) in items"
         :key="`boots-${item.id}-${index}`"
-        :src="item.iconUrl"
-        :alt="item.name"
-        :title="item.name"
-        width="36"
-        height="36"
+        :item="item"
+        :width="36"
+        :height="36"
         class="size-9 rounded"
       />
       <span

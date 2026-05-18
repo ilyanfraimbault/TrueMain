@@ -4,6 +4,28 @@
 @theme static {
   --animate-shimmer: shimmer 8s ease-in-out infinite alternate;
 
+  /*
+   * Stat / damage-type colors for tooltip emphasis on numeric and keyword
+   * fragments inside rich game-entity tooltips. Text emphasis only — the app
+   * is emerald-only on surfaces, so do NOT use these as `bg-*` / `ring-*` /
+   * `border-*`. Tailwind v4 auto-generates `text-stat-*` utilities from
+   * `--color-*` vars.
+   */
+  --color-stat-ad: #ff9966;          /* AD / physical damage */
+  --color-stat-ap: #6fb2d9;          /* AP / magic damage */
+  --color-stat-true: #ffffff;        /* true damage */
+  --color-stat-armor: #f2c94c;       /* armor */
+  --color-stat-mr: #b597f5;          /* MR — soft purple (text emphasis only) */
+  --color-stat-health: #5bc489;      /* health */
+  --color-stat-mana: #6fb2d9;        /* mana — mirrors AP */
+  --color-stat-shield: #e0c56e;      /* shields */
+  --color-stat-crit: #e45858;        /* crit chance */
+  --color-stat-adaptive: #48c4b7;    /* adaptive damage (verified from Lethal Tempo longDesc) */
+  --color-stat-passive: #b6d77b;     /* item passive label */
+  --color-stat-active: #f2c94c;      /* item active label */
+  --color-stat-status: #b597f5;      /* status keywords (Slow, Airborne, ...) */
+  --color-stat-speed: #6fb2d9;       /* move speed */
+
   @keyframes shimmer {
     0% { background-position: 0% center; }
     100% { background-position: 200% center; }

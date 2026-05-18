@@ -30,12 +30,10 @@ const items = computed<StaticItemData[]>(() => {
         v-for="(item, index) in items"
         :key="`bp-${item.id}-${index}`"
       >
-        <SkeletonImage
-          :src="item.iconUrl"
-          :alt="item.name"
-          :title="item.name"
-          width="36"
-          height="36"
+        <GameTooltipItemIcon
+          :item="item"
+          :width="36"
+          :height="36"
           class="size-9 rounded"
         />
         <UIcon
