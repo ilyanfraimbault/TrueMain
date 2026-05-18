@@ -20,6 +20,10 @@ const props = withDefaults(defineProps<{
 const hasSpell = computed(() => Boolean(props.spell))
 const hasIcon = computed(() => Boolean(props.spell?.iconUrl))
 const fallbackText = computed(() => props.fallbackLabel || props.spell?.name || '')
+const fallbackStyle = computed(() => ({
+  width: typeof props.width === 'number' ? `${props.width}px` : props.width,
+  height: typeof props.height === 'number' ? `${props.height}px` : props.height,
+}))
 </script>
 
 <template>
@@ -39,7 +43,8 @@ const fallbackText = computed(() => props.fallbackLabel || props.spell?.name || 
     <span
       v-else
       v-bind="$attrs"
-      class="inline-flex size-9 items-center justify-center rounded border border-default text-xs"
+      class="inline-flex items-center justify-center rounded border border-default text-xs"
+      :style="fallbackStyle"
     >
       {{ fallbackText }}
     </span>

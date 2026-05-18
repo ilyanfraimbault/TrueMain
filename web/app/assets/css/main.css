@@ -24,7 +24,7 @@
   --color-stat-ap: #6fb2d9;          /* AP / magic damage */
   --color-stat-true: #ffffff;        /* true damage */
   --color-stat-armor: #f2c94c;       /* armor */
-  --color-stat-mr: #b597f5;          /* MR — soft purple (text emphasis only) */
+  --color-stat-mr: #f2c94c;          /* MR — same yellow family as armor (per issue spec) */
   --color-stat-health: #5bc489;      /* health */
   --color-stat-mana: #6fb2d9;        /* mana — mirrors AP */
   --color-stat-shield: #e0c56e;      /* shields */

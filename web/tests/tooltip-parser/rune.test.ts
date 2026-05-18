@@ -43,10 +43,11 @@ describe('parseRuneDescription', () => {
   it('emits adaptive + keyword segments for Lethal Tempo shortDesc', () => {
     const parsed = parseRuneDescription(LETHAL_TEMPO_SHORT)
 
-    // The keyword wraps the font tag, so we get a keyword segment whose
-    // children include the adaptive emphasis. Flatten means: the inner text
-    // is reachable under both `runekeyword` and `runeadaptive` tags across
-    // adjacent segments.
+    // The keyword wraps the font tag (`<lol-uikit-tooltipped-keyword><font
+    // color='#48C4B7'>...</font></lol-uikit-tooltipped-keyword>`). After the
+    // pre-pass and the DOM walker, the inner text is emitted under the
+    // deepest tag — `runeadaptive`. The outer `runekeyword` wrapper is dropped
+    // because it has no direct text children, only the nested element.
     const tags = parsed.filter(s => s.kind === 'text').map(s => s.kind === 'text' ? s.tag : '')
     expect(tags).toContain('runeadaptive')
   })

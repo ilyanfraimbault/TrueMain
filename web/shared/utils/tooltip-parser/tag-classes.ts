@@ -4,9 +4,10 @@
  * ones emitted by the parsers) is styled. Tags are matched case-insensitively
  * by the parsers — keys are lowercase.
  *
- * Unknown tags fall through to the `default` entry (no extra emphasis class);
- * the renderer logs once per session in dev so we can grow this list as new
- * tags surface in real patch data.
+ * Unknown tags fall through to the `default` entry (plain `text-default`,
+ * no emphasis). The renderer never throws on an unrecognised tag — text
+ * always reaches the user, only the styling is missing. Add a new entry to
+ * this table when a new tag surfaces in real patch data.
  */
 export const TAG_CLASS: Record<string, string> = {
   // Structural wrappers (no class — children carry the styling; line breaks
@@ -80,12 +81,4 @@ export const TAG_CLASS: Record<string, string> = {
 export function classForTag(tag: string): string {
   const normalized = tag.toLowerCase()
   return TAG_CLASS[normalized] ?? TAG_CLASS.default ?? ''
-}
-
-/**
- * Whether the parser has a known mapping for this tag. Used by the renderer
- * to surface unknown tags in dev console.
- */
-export function isKnownTag(tag: string): boolean {
-  return Object.prototype.hasOwnProperty.call(TAG_CLASS, tag.toLowerCase())
 }
