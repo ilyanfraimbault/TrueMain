@@ -110,6 +110,18 @@ describe('parseItemDescription', () => {
     expect(keywords).toEqual(['Slowing', 'Immobilizing'])
   })
 
+  it('tops up to two breaks when a label follows a single <br>', () => {
+    // Celestial Opposition fragment — DDragon ships only one <br> between
+    // the passive prose and the inline <active> label. Renderer must still
+    // show a full paragraph break.
+    const parsed = parseItemDescription('<passive>Passive Name</passive><br>Prose ends.<br><active>Active</active> (4 charges)')
+    const activeIdx = parsed.findIndex(s => s.kind === 'text' && s.tag === 'active')
+    expect(parsed[activeIdx - 1]?.kind).toBe('break')
+    expect(parsed[activeIdx - 2]?.kind).toBe('break')
+    // And the prose text before those breaks remains untouched.
+    expect(parsed[activeIdx - 3]?.kind).toBe('text')
+  })
+
   it('does not double-break before a <passive> already preceded by <br><br>', () => {
     // The first passive label after the stats block is already separated by
     // two breaks — the post-pass must not stack another pair on top.

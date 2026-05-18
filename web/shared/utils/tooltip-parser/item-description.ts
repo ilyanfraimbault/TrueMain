@@ -60,15 +60,29 @@ function ensureParagraphBeforeLabels(doc: ParsedDocument): ParsedDocument {
       const labelKey = `${seg.tag.toLowerCase()}:${seg.text.trim().toLowerCase()}`
       const isReference = seenLabels.has(labelKey)
       seenLabels.add(labelKey)
-      const prev = result[result.length - 1]
-      if (!isReference && prev && prev.kind !== 'break' && !isFlattenContinuation(result, seg.tag.toLowerCase())) {
-        result.push({ kind: 'break' })
-        result.push({ kind: 'break' })
+      if (result.length > 0 && !isReference && !isFlattenContinuation(result, seg.tag.toLowerCase())) {
+        // Want exactly two consecutive breaks before a label that follows
+        // earlier content. Items vary in how they separate the previous
+        // block: Solstice Sleigh has zero (inline), Celestial Opposition
+        // has one `<br>`, items with their own paragraph already have two.
+        // Top up to two regardless. Skip entirely when the label is the
+        // very first segment — no preceding content means no separator.
+        const trailingBreaks = countTrailingBreaks(result)
+        for (let i = trailingBreaks; i < 2; i++) result.push({ kind: 'break' })
       }
     }
     result.push(seg)
   }
   return result
+}
+
+function countTrailingBreaks(segments: ParsedDocument): number {
+  let count = 0
+  for (let i = segments.length - 1; i >= 0; i--) {
+    if (segments[i]?.kind === 'break') count++
+    else break
+  }
+  return count
 }
 
 /**
