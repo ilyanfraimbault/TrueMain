@@ -15,11 +15,11 @@ describe('parseItemDescription', () => {
 
     // After the stat-label look-ahead, each `<attention>` segment is retagged
     // to match its stat color (AD → attentionad, Health → attentionhealth,
-    // Ability Haste → attentionap). Passive / inline emphasis tags pass
+    // Ability Haste → attentionhaste). Passive / inline emphasis tags pass
     // through unchanged.
     expect(tags).toContain('attentionad')
     expect(tags).toContain('attentionhealth')
-    expect(tags).toContain('attentionap')
+    expect(tags).toContain('attentionhaste')
     expect(tags).toContain('passive')
     expect(tags).toContain('physicaldamage')
     expect(tags).toContain('scalearmor')
@@ -32,7 +32,7 @@ describe('parseItemDescription', () => {
     // Retagged values land in the right buckets
     expect(textOf('attentionad')).toEqual(['40'])
     expect(textOf('attentionhealth')).toEqual(['400'])
-    expect(textOf('attentionap')).toEqual(['20'])
+    expect(textOf('attentionhaste')).toEqual(['20'])
 
     // Passive labels in order
     expect(textOf('passive')).toEqual(['Carve', 'Fervor'])

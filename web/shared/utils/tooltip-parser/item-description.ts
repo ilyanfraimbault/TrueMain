@@ -18,26 +18,53 @@ export function parseItemDescription(description: string): ParsedDocument {
   return recolorAttentionByStatLabel(walkHtmlToSegments(description))
 }
 
+// Ordered most-specific to least-specific. Each line includes the in-game
+// hex (color-picked from the live client on 2026-05-18) for reviewer context.
 const STAT_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
-  // AD bucket — numbers paired with "Attack Damage" / "Lethality" / "Armor Penetration" read like AD
-  [/^\s*(?:Attack Damage|AD\b|Lethality|Armor Penetration|Bonus Attack Damage)/i, 'attentionad'],
-  // AP bucket — magic-damage scaling stats land here, including Ability Haste (cyan in-game)
-  [/^\s*(?:Ability Power|AP\b|Magic Penetration|Ability Haste|Magic Resist Reduction)/i, 'attentionap'],
-  // MR before generic "Magic" so "Magic Resist" doesn't match the AP pattern
-  [/^\s*(?:Magic Resist|MR\b|Tenacity|Slow Resist)/i, 'attentionmr'],
-  [/^\s*(?:Armor)\b/i, 'attentionarmor'],
-  // Vamp / lifesteal / sustain — pink, distinct from flat-health green.
-  // Checked BEFORE the health bucket so "Life Steal" doesn't fall into health.
-  [/^\s*(?:Life Steal|Omnivamp|Heal and Shield Power|Physical Vamp)/i, 'attentionvamp'],
-  // Flat health / HP regen — green
+  // ── Magic family — checked before AP/Armor so multi-word stats win
+  // Magic Resist (#54e6ff) — must precede the generic Magic pattern
+  [/^\s*(?:Magic Resist|MR\b)/i, 'attentionmr'],
+  // Magic Penetration (#cc6efc) — distinct from MR and AP
+  [/^\s*(?:Magic Penetration|Magic Pen\b|Magic Resist Reduction)/i, 'attentionmagicpen'],
+  // Ability Power (#7e78ff)
+  [/^\s*(?:Ability Power|AP\b)/i, 'attentionap'],
+
+  // ── Physical family
+  // Lethality / Armor Penetration (#f65e57) — separate from raw AD
+  [/^\s*(?:Lethality|Armor Penetration|Armor Pen\b)/i, 'attentionlethality'],
+  // Attack Damage (#f19425)
+  [/^\s*(?:Attack Damage|AD\b|Bonus Attack Damage)/i, 'attentionad'],
+  // Attack Speed (#ffe991) — distinct from Move Speed
+  [/^\s*Attack Speed/i, 'attentionas'],
+
+  // ── Defensive
+  // Tenacity / Slow Resist (#8c72ff)
+  [/^\s*(?:Tenacity|Slow Resist)/i, 'attentiontenacity'],
+  // Armor (#f3c057) — bare word, after Lethality/ArmorPen above
+  [/^\s*Armor\b/i, 'attentionarmor'],
+  // Heal and Shield Power (#6be695) — own bucket
+  [/^\s*Heal and Shield Power/i, 'attentionhsp'],
+  // Heal Reduction / Grievous Wounds (#8d5874)
+  [/^\s*(?:Heal(?:ing)? Reduction|Grievous Wounds|Reduced Healing)/i, 'attentionhealreduction'],
+
+  // ── Sustain offensif — must precede flat-health green
+  // Lifesteal / Omnivamp / Physical Vamp (#d70045)
+  [/^\s*(?:Life ?[Ss]teal|Omnivamp|Physical Vamp)/i, 'attentionvamp'],
+  // Flat health / HP regen (#24a564)
   [/^\s*(?:Health(?: Regen(?:eration)?)?|HP\b)/i, 'attentionhealth'],
-  // Movement / attack speed / on-hit utility
-  [/^\s*(?:Move(?:ment)? Speed|Attack Speed|On-Hit)/i, 'attentionspeed'],
-  // Resources
+
+  // ── Resources / utility
+  // Ability Haste (#ede2cf) — beige, its own bucket
+  [/^\s*(?:Ability Haste|AH\b)/i, 'attentionhaste'],
+  // Move Speed / On-Hit (#00a6ed)
+  [/^\s*(?:Move(?:ment)? Speed|On-Hit)/i, 'attentionspeed'],
+  // Mana (#00a6ed)
   [/^\s*(?:Mana(?: Regen(?:eration)?)?)\b/i, 'attentionmana'],
-  // Crit
-  [/^\s*(?:Critical Strike(?: Chance)?|Crit Chance)/i, 'attentioncrit'],
-  // Shields
+
+  // ── Crit
+  [/^\s*(?:Critical Strike(?: Chance| Damage)?|Crit Chance|Crit Damage)/i, 'attentioncrit'],
+
+  // ── Shields
   [/^\s*Shield/i, 'attentionshield'],
 ]
 

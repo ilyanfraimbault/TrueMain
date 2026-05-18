@@ -14,34 +14,59 @@
   --animate-shimmer: shimmer 8s ease-in-out infinite alternate;
 
   /*
-   * Stat / damage-type colors for tooltip emphasis on numeric and keyword
-   * fragments inside rich game-entity tooltips. Text emphasis only — the app
-   * is emerald-only on surfaces, so do NOT use these as `bg-*` / `ring-*` /
-   * `border-*`. Tailwind v4 auto-generates `text-stat-*` utilities from
-   * `--color-*` vars.
+   * Stat / damage-type colors for rich game-entity tooltips. Text emphasis
+   * only — the app is emerald-only on surfaces, so do NOT use these as
+   * `bg-*` / `ring-*` / `border-*`. Tailwind v4 auto-generates `text-stat-*`
+   * utilities from these `--color-*` vars.
    *
-   * Palette reference: the in-game item tooltips shown in issue #85
-   * (Essence Reaver, Black Cleaver, Plated Steelcaps, Deathfire Touch,
-   * Lethal Tempo, Exhaust). Riot does not publish a canonical hex map for
-   * tooltip stats — these values approximate what those screenshots show.
-   * Only #48C4B7 (adaptive damage) is data-verified, from the Lethal Tempo
-   * longDesc in CDragon perks.json.
+   * Palette source: hex values eyedropper-sampled from the live League of
+   * Legends client (item tooltips, ability tooltips, rune tooltips) on
+   * 2026-05-18. Riot does not publish a canonical mapping, so this is the
+   * closest faithful reproduction without binary-dumping the client CSS.
+   * Only #48C4B7 (adaptive damage) is independently verified via the
+   * Lethal Tempo longDesc in CDragon perks.json.
+   *
+   * Three "families" mirror Riot's UI:
+   *   - Physical offense: orange → red
+   *   - Magic offense:    blue   → violet
+   *   - Defensive/utility: green / yellow / cyan / beige
    */
-  --color-stat-ad: #ff9966;          /* AD / physical damage */
-  --color-stat-ap: #6fb2d9;          /* AP / magic damage */
-  --color-stat-true: #ffffff;        /* true damage */
-  --color-stat-armor: #f2c94c;       /* armor */
-  --color-stat-mr: #f2c94c;          /* MR — same yellow family as armor (per issue spec) */
-  --color-stat-health: #5bc489;      /* flat health / HP regen — green */
-  --color-stat-mana: #6fb2d9;        /* mana — mirrors AP */
-  --color-stat-shield: #e0c56e;      /* shields */
-  --color-stat-crit: #e45858;        /* crit chance */
-  --color-stat-vamp: #ff8585;        /* lifesteal / omnivamp / heal-and-shield-power — pink, distinct from flat-health green */
-  --color-stat-adaptive: #48c4b7;    /* adaptive damage (verified from Lethal Tempo longDesc) */
-  --color-stat-passive: #b6d77b;     /* item passive label */
-  --color-stat-active: #f2c94c;      /* item active label */
-  --color-stat-status: #c8c8d4;      /* status keywords (Slow, Airborne, ...) — soft neutral, no purple */
-  --color-stat-speed: #6fb2d9;       /* move speed */
+
+  /* Defensive / sustain */
+  --color-stat-health: #24a564;          /* flat HP / HP regen */
+  --color-stat-armor: #f3c057;           /* armor — yellow */
+  --color-stat-mr: #54e6ff;              /* magic resist — cyan (distinct from armor) */
+  --color-stat-tenacity: #8c72ff;        /* tenacity / slow resist — violet */
+  --color-stat-hsp: #6be695;             /* heal & shield power — mint */
+  --color-stat-heal-reduction: #8d5874;  /* grievous wounds / anti-heal */
+
+  /* Resources / utility */
+  --color-stat-mana: #00a6ed;            /* mana / mana regen */
+  --color-stat-haste: #ede2cf;           /* ability haste — beige (unique to AH) */
+  --color-stat-speed: #00a6ed;           /* move speed (shares mana hue) */
+
+  /* Offensive — physical */
+  --color-stat-ad: #f19425;              /* attack damage */
+  --color-stat-lethality: #f65e57;       /* lethality / armor pen */
+  --color-stat-crit: #ee2a00;            /* critical strike chance / crit damage */
+  --color-stat-as: #ffe991;              /* attack speed — pale yellow */
+
+  /* Offensive — magical */
+  --color-stat-ap: #7e78ff;              /* ability power */
+  --color-stat-magicpen: #cc6efc;        /* magic penetration */
+
+  /* Sustain offensif (vamp) */
+  --color-stat-vamp: #d70045;            /* lifesteal / omnivamp / physical vamp — crimson */
+
+  /* Damage type keywords (used inside passive prose) */
+  --color-stat-true: #f5f5f5;            /* true damage */
+  --color-stat-adaptive: #48c4b7;        /* adaptive damage (verified) */
+
+  /* Misc / structural */
+  --color-stat-status: #8c72ff;          /* status keywords (Slow, Airborne, Stun) — violet (matches Tenacity bucket) */
+  --color-stat-shield: #e0c56e;          /* shield value (rarely used alone) */
+  --color-stat-passive: #b7d87a;         /* item passive label */
+  --color-stat-active: #f3c057;          /* item active label (same hue as armor) */
 
   @keyframes shimmer {
     0% { background-position: 0% center; }

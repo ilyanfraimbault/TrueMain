@@ -15,22 +15,34 @@ export const TAG_CLASS: Record<string, string> = {
   maintext: '',
   stats: '',
 
-  // Item / spell semantic tags
   // <attention> = numeric callout. The item parser retroactively retags each
   // `attention` segment into `attention<stat>` based on the following stat
   // label, so each value matches its stat color in-game. Bare `attention`
   // (no recognised label nearby) stays AD-orange like the in-game default.
   attention: 'text-stat-ad font-semibold',
+
+  // Per-stat numeric callouts (emitted by the lookahead pass in
+  // item-description.ts based on the stat label following the value).
   attentionad: 'text-stat-ad font-semibold',
+  attentionlethality: 'text-stat-lethality font-semibold',
   attentionap: 'text-stat-ap font-semibold',
+  attentionmagicpen: 'text-stat-magicpen font-semibold',
   attentionhealth: 'text-stat-health font-semibold',
+  attentionhsp: 'text-stat-hsp font-semibold',
+  attentionhealreduction: 'text-stat-heal-reduction font-semibold',
   attentionarmor: 'text-stat-armor font-semibold',
   attentionmr: 'text-stat-mr font-semibold',
+  attentiontenacity: 'text-stat-tenacity font-semibold',
   attentionmana: 'text-stat-mana font-semibold',
+  attentionhaste: 'text-stat-haste font-semibold',
   attentionspeed: 'text-stat-speed font-semibold',
+  attentionas: 'text-stat-as font-semibold',
   attentioncrit: 'text-stat-crit font-semibold',
   attentionvamp: 'text-stat-vamp font-semibold',
   attentionshield: 'text-stat-shield font-semibold',
+  attentiontrue: 'text-stat-true font-semibold',
+
+  // Item structural labels
   passive: 'text-stat-passive font-semibold uppercase tracking-wide text-xs',
   active: 'text-stat-active font-semibold uppercase tracking-wide text-xs',
   rules: 'text-muted text-xs italic block mt-1',
@@ -38,19 +50,26 @@ export const TAG_CLASS: Record<string, string> = {
   raritymythic: 'text-stat-active font-semibold',
   raritylegendary: 'text-stat-active font-semibold',
 
-  // Damage / scaling
+  // Damage type keywords (used inline inside passive prose)
   physicaldamage: 'text-stat-ad',
   magicdamage: 'text-stat-ap',
   truedamage: 'text-stat-true',
+  adaptivedamage: 'text-stat-adaptive',
+
+  // Stat-scaling keywords (e.g. "scales with <scaleAP>0.4 AP</scaleAP>")
   scalead: 'text-stat-ad',
   scaleap: 'text-stat-ap',
   scalearmor: 'text-stat-armor',
   scalemr: 'text-stat-mr',
   scalehealth: 'text-stat-health',
   scalemana: 'text-stat-mana',
-  healing: 'text-stat-health',
-  shield: 'text-stat-shield',
-  lifesteal: 'text-stat-health',
+
+  // Sustain / healing keywords
+  healing: 'text-stat-hsp',
+  shield: 'text-stat-hsp',
+  lifesteal: 'text-stat-vamp',
+
+  // Misc inline emphasis
   speed: 'text-stat-speed',
   status: 'text-stat-status',
   keywordstealth: 'text-stat-status',
@@ -58,7 +77,7 @@ export const TAG_CLASS: Record<string, string> = {
   onhit: 'text-stat-speed',
 
   // Champion-ability slot key (synthetic — not emitted by DDragon)
-  spellkey: 'text-stat-default font-bold',
+  spellkey: 'text-stat-active font-bold',
 
   // Rune synthetic tags (emitted by rune parser only)
   runekeyword: 'text-stat-adaptive font-semibold',
