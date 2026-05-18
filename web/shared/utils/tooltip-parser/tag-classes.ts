@@ -15,7 +15,20 @@ export const TAG_CLASS: Record<string, string> = {
   stats: '',
 
   // Item / spell semantic tags
+  // <attention> = numeric callout. The item parser retroactively retags each
+  // `attention` segment into `attention<stat>` based on the following stat
+  // label, so each value matches its stat color in-game. Bare `attention`
+  // (no recognised label nearby) stays AD-orange like the in-game default.
   attention: 'text-stat-ad font-semibold',
+  attentionad: 'text-stat-ad font-semibold',
+  attentionap: 'text-stat-ap font-semibold',
+  attentionhealth: 'text-stat-health font-semibold',
+  attentionarmor: 'text-stat-armor font-semibold',
+  attentionmr: 'text-stat-mr font-semibold',
+  attentionmana: 'text-stat-mana font-semibold',
+  attentionspeed: 'text-stat-speed font-semibold',
+  attentioncrit: 'text-stat-crit font-semibold',
+  attentionshield: 'text-stat-shield font-semibold',
   passive: 'text-stat-passive font-semibold uppercase tracking-wide text-xs',
   active: 'text-stat-active font-semibold uppercase tracking-wide text-xs',
   rules: 'text-muted text-xs italic block mt-1',

@@ -13,11 +13,13 @@ describe('parseItemDescription', () => {
     const parsed = parseItemDescription(BLACK_CLEAVER)
     const tags = parsed.map(s => s.kind === 'text' ? s.tag : s.kind)
 
-    // Should see the structural <stats> wrapper, four <attention> values
-    // (40, 400, 20 plus the inner stat labels), the two <passive> labels
-    // (Carve, Fervor), and the inline <physicalDamage>/<scaleArmor>/<speed>
-    // emphasis tags.
-    expect(tags).toContain('attention')
+    // After the stat-label look-ahead, each `<attention>` segment is retagged
+    // to match its stat color (AD → attentionad, Health → attentionhealth,
+    // Ability Haste → attentionap). Passive / inline emphasis tags pass
+    // through unchanged.
+    expect(tags).toContain('attentionad')
+    expect(tags).toContain('attentionhealth')
+    expect(tags).toContain('attentionap')
     expect(tags).toContain('passive')
     expect(tags).toContain('physicaldamage')
     expect(tags).toContain('scalearmor')
@@ -27,8 +29,10 @@ describe('parseItemDescription', () => {
     const textOf = (tag: string): string[] =>
       parsed.filter(s => s.kind === 'text' && s.tag === tag).map(s => (s.kind === 'text' ? s.text : ''))
 
-    // Numeric callouts (<attention> values)
-    expect(textOf('attention')).toEqual(['40', '400', '20'])
+    // Retagged values land in the right buckets
+    expect(textOf('attentionad')).toEqual(['40'])
+    expect(textOf('attentionhealth')).toEqual(['400'])
+    expect(textOf('attentionap')).toEqual(['20'])
 
     // Passive labels in order
     expect(textOf('passive')).toEqual(['Carve', 'Fervor'])
@@ -37,6 +41,27 @@ describe('parseItemDescription', () => {
     expect(textOf('physicaldamage')).toEqual(['physical damage', 'physical damage'])
     expect(textOf('scalearmor')).toEqual(['Armor by 6%'])
     expect(textOf('speed')).toEqual(['20 Move Speed'])
+  })
+
+  it('keeps bare attention as AD when no recognised stat label follows', () => {
+    // Inside passive prose like "<attention>30%</attention> bar" we have no
+    // stat keyword nearby — the value should keep the generic AD-orange tint.
+    const parsed = parseItemDescription('<passive>Foo <attention>30%</attention> bar</passive>')
+    expect(parsed).toEqual([
+      { kind: 'text', tag: 'passive', text: 'Foo ' },
+      { kind: 'text', tag: 'attention', text: '30%' },
+      { kind: 'text', tag: 'passive', text: ' bar' },
+    ])
+  })
+
+  it('trims leading and trailing structural breaks', () => {
+    // Items with no stats produce `<stats></stats><br><br>...` and most
+    // descriptions end with trailing `<br><br>` after the last passive.
+    // Neither should bleed into the rendered tooltip as whitespace.
+    const parsed = parseItemDescription('<mainText><stats></stats><br><br><active>Consume</active><br>Restores health.</mainText>')
+    expect(parsed[0]?.kind).toBe('text')
+    if (parsed[0]?.kind === 'text') expect(parsed[0].tag).toBe('active')
+    expect(parsed[parsed.length - 1]?.kind).not.toBe('break')
   })
 
   it('flattens nested tags into a single segment list', () => {

@@ -22,7 +22,7 @@ export function walkHtmlToSegments(html: string): ParsedDocument {
 
   const segments: ParsedSegment[] = []
   walkNode(root, 'default', segments)
-  return collapseAdjacentBreaks(segments)
+  return trimEdgeBreaks(collapseAdjacentBreaks(segments))
 }
 
 function walkNode(node: Node, inheritedTag: string, out: ParsedSegment[]): void {
@@ -86,4 +86,18 @@ function collapseAdjacentBreaks(segments: ParsedDocument): ParsedDocument {
     result.push(segment)
   }
   return result
+}
+
+/**
+ * Strip leading and trailing structural breaks. DDragon descriptions often
+ * end with `<br><br>` after the last passive, and items with no stats start
+ * with an empty `<stats></stats><br><br>` — neither carries meaning, both
+ * produce ugly whitespace inside the tooltip surface.
+ */
+function trimEdgeBreaks(segments: ParsedDocument): ParsedDocument {
+  let start = 0
+  let end = segments.length
+  while (start < end && segments[start]?.kind === 'break') start++
+  while (end > start && segments[end - 1]?.kind === 'break') end--
+  return segments.slice(start, end)
 }
