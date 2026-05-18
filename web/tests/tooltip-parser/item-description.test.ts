@@ -78,6 +78,19 @@ describe('parseItemDescription', () => {
     expect(parsed[activeIdx - 2]?.kind).toBe('break')
   })
 
+  it('does not paragraph-break before a <passive> reference to an earlier label', () => {
+    // Mirror of Blackfire Torch: the second `<passive>Baleful Blaze</passive>`
+    // is a reference to the first label, not a new section header — should
+    // stay inline inside the surrounding sentence.
+    const parsed = parseItemDescription('<passive>Baleful Blaze</passive><br>Effect one.<br><br><passive>Blackfire</passive><br>Affected by your <passive>Baleful Blaze</passive>, gain AP.')
+    const allPassives = parsed.filter(s => s.kind === 'text' && s.tag === 'passive')
+    expect(allPassives).toHaveLength(3)
+    // Last passive is the in-sentence reference — verify the preceding segment
+    // is plain prose, not a paragraph break.
+    const lastPassiveIdx = parsed.length - 1 - [...parsed].reverse().findIndex(s => s.kind === 'text' && s.tag === 'passive')
+    expect(parsed[lastPassiveIdx - 1]?.kind).toBe('text')
+  })
+
   it('groups Item Haste and Summoner Spell Haste into the ability-haste bucket', () => {
     const parsed = parseItemDescription('<mainText><stats><attention>10</attention> Item Haste<br><attention>15</attention> Summoner Spell Haste<br><attention>20</attention> Ability Haste</stats></mainText>')
     const haste = parsed.filter(s => s.kind === 'text' && s.tag === 'attentionhaste').map(s => (s.kind === 'text' ? s.text : ''))

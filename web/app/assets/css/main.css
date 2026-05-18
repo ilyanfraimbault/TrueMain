@@ -67,7 +67,7 @@
   --color-stat-stealth: #b472a6;         /* stealth keywords (Invisible, Camouflage, Stealth) — pink-violet */
   --color-stat-shield: #e0c56e;          /* shield value (rarely used alone) */
   --color-stat-gold: #c8aa6e;            /* gold per X seconds (support items) */
-  --color-stat-passive: #b7d87a;         /* item passive label */
+  --color-stat-passive: #ffffff;         /* item passive label — white */
   --color-stat-active: #f3c057;          /* item active label (same hue as armor) */
 
   @keyframes shimmer {

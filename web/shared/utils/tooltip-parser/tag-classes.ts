@@ -51,9 +51,11 @@ export const TAG_CLASS: Record<string, string> = {
   raritymythic: 'text-stat-active font-semibold',
   raritylegendary: 'text-stat-active font-semibold',
 
-  // Damage type keywords (used inline inside passive prose)
+  // Damage type keywords (used inline inside passive prose).
+  // Magic damage tracks the MR cyan, NOT the AP violet — Riot colors damage
+  // by the resist that blocks it (AD→armor-orange, magic→MR-cyan).
   physicaldamage: 'text-stat-ad',
-  magicdamage: 'text-stat-ap',
+  magicdamage: 'text-stat-mr',
   truedamage: 'text-stat-true',
   adaptivedamage: 'text-stat-adaptive',
 

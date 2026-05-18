@@ -49,10 +49,19 @@ const PARAGRAPH_LABEL_TAGS = new Set(['passive', 'active'])
  */
 function ensureParagraphBeforeLabels(doc: ParsedDocument): ParsedDocument {
   const result: ParsedSegment[] = []
+  // Track each label name we've already emitted. DDragon often mentions an
+  // earlier passive by name inside a later passive's prose (cf. Blackfire
+  // Torch: "Blackfire ... affected by your <passive>Baleful Blaze</passive>")
+  // — those second mentions are *references*, not fresh labels, and must NOT
+  // trigger a paragraph break in the middle of a sentence.
+  const seenLabels = new Set<string>()
   for (const seg of doc) {
     if (seg.kind === 'text' && PARAGRAPH_LABEL_TAGS.has(seg.tag.toLowerCase())) {
+      const labelKey = `${seg.tag.toLowerCase()}:${seg.text.trim().toLowerCase()}`
+      const isReference = seenLabels.has(labelKey)
+      seenLabels.add(labelKey)
       const prev = result[result.length - 1]
-      if (prev && prev.kind !== 'break' && !isFlattenContinuation(result, seg.tag.toLowerCase())) {
+      if (!isReference && prev && prev.kind !== 'break' && !isFlattenContinuation(result, seg.tag.toLowerCase())) {
         result.push({ kind: 'break' })
         result.push({ kind: 'break' })
       }
