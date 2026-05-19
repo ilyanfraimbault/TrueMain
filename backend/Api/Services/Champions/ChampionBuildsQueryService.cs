@@ -21,6 +21,12 @@ public sealed class ChampionBuildsQueryService(
     private const int BuildTreeMaxDepth = 6;
     private const int BuildTreeMaxChildrenPerNode = 6;
     private const int BuildTreeMinGames = 2;
+    // Parent-relative cutoff. Same semantic as the tooltip pickrate, so a
+    // node displayed under another only appears when ≥5% of games that
+    // reached the parent then picked this item. Keeps the tree focused on
+    // realistic continuations and avoids the wide top-row clutter on
+    // popular champions.
+    private const double BuildTreeMinPickRate = 0.05;
 
     public async Task<ChampionResponse?> GetAsync(
         int championId,
@@ -201,7 +207,7 @@ public sealed class ChampionBuildsQueryService(
         // Build the (pruned) tree once and derive the highlighted item path
         // from the same tree, so anything the path includes is guaranteed to
         // be visible in the build-tree visualization (no "ghost" deep items).
-        var buildTree = BuildItemTree(rows);
+        var buildTree = BuildItemTree(rows, sliceGames);
         var (itemPath, itemPathGames, itemPathWins) = ComputeItemPath(
             buildTree, pending.Key.FirstItemId, sliceGames, rows.Sum(row => row.Wins));
 
@@ -306,7 +312,8 @@ public sealed class ChampionBuildsQueryService(
     }
 
     private static IReadOnlyList<MutableItemNode> BuildItemTree(
-        IReadOnlyList<ChampionPatternEnrichedRow> rows)
+        IReadOnlyList<ChampionPatternEnrichedRow> rows,
+        int sliceGames)
     {
         var rootChildren = new Dictionary<int, MutableItemNode>();
         foreach (var row in rows)
@@ -336,18 +343,25 @@ public sealed class ChampionBuildsQueryService(
             }
         }
 
-        return PruneTreeLevel(rootChildren);
+        return PruneTreeLevel(rootChildren, sliceGames);
     }
 
     // Prune one level of the tree: drop low-support nodes, cap fan-out, then
     // recurse into the kept children. Without this the payload grows with the
     // number of distinct item combinations observed, which on popular
     // champions can be hundreds of nodes the UI won't render anyway.
+    //
+    // `parentGames` is the games count of the node whose children we're
+    // pruning (or the slice total at the top-level call) — used to drop
+    // children that represent fewer than `BuildTreeMinPickRate` of games
+    // arriving at the parent. Same denominator as the tooltip pickrate.
     private static IReadOnlyList<MutableItemNode> PruneTreeLevel(
-        IDictionary<int, MutableItemNode> level)
+        IDictionary<int, MutableItemNode> level,
+        int parentGames)
     {
         var kept = level.Values
             .Where(node => node.Games >= BuildTreeMinGames)
+            .Where(node => parentGames == 0 || (double)node.Games / parentGames >= BuildTreeMinPickRate)
             .OrderByDescending(node => node.Games)
             .ThenByDescending(node => node.Wins)
             .ThenBy(node => node.ItemId)
@@ -356,7 +370,7 @@ public sealed class ChampionBuildsQueryService(
 
         foreach (var node in kept)
         {
-            var prunedChildren = PruneTreeLevel(node.Children);
+            var prunedChildren = PruneTreeLevel(node.Children, node.Games);
             node.Children.Clear();
             foreach (var child in prunedChildren)
             {
