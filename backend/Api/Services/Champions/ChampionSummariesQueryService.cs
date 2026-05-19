@@ -13,25 +13,25 @@ public sealed class ChampionSummariesQueryService(
     IMemoryCache cache) : IChampionSummariesQueryService
 {
     // The directory list is the same payload for every caller of GET /champions
-    // and stays valid for the few seconds between ingestor flushes. Caching here
-    // means the row-fanning groupby below is paid once per window instead of
-    // once per request as the table grows on (account, patch, platform, position).
-    private const string SummariesCacheKey = "champions:summaries";
+    // on a given patch and stays valid for the few seconds between ingestor
+    // flushes. Caching keyed on the resolved patch means the row-fanning groupby
+    // below is paid once per (patch, window) instead of once per request.
     private static readonly TimeSpan SummariesCacheTtl = TimeSpan.FromSeconds(30);
 
-    public async Task<IReadOnlyList<ChampionSummaryReadModel>> GetAllSummariesAsync(CancellationToken ct)
+    public async Task<IReadOnlyList<ChampionSummaryReadModel>> GetAllSummariesAsync(string? patch, CancellationToken ct)
     {
-        if (cache.TryGetValue<IReadOnlyList<ChampionSummaryReadModel>>(SummariesCacheKey, out var cached) && cached is not null)
+        var cacheKey = $"champions:summaries:{patch ?? "latest"}";
+        if (cache.TryGetValue<IReadOnlyList<ChampionSummaryReadModel>>(cacheKey, out var cached) && cached is not null)
         {
             return cached;
         }
 
-        var summaries = await ComputeAllSummariesAsync(ct);
-        cache.Set(SummariesCacheKey, summaries, SummariesCacheTtl);
+        var summaries = await ComputeAllSummariesAsync(patch, ct);
+        cache.Set(cacheKey, summaries, SummariesCacheTtl);
         return summaries;
     }
 
-    private async Task<IReadOnlyList<ChampionSummaryReadModel>> ComputeAllSummariesAsync(CancellationToken ct)
+    private async Task<IReadOnlyList<ChampionSummaryReadModel>> ComputeAllSummariesAsync(string? requestedPatch, CancellationToken ct)
     {
         var rows = await db.ChampionAggregateScopes
             .AsNoTracking()
@@ -51,39 +51,60 @@ public sealed class ChampionSummariesQueryService(
             return [];
         }
 
-        return rows
+        var activePatch = ChampionAggregateScopeResolver.ResolvePatchVersion(
+            rows.Select(row => row.GameVersion),
+            requestedPatch);
+        if (string.IsNullOrEmpty(activePatch))
+        {
+            return [];
+        }
+
+        var scoped = rows
+            .Where(row => string.Equals(row.GameVersion, activePatch, StringComparison.Ordinal))
+            .Where(row => !string.IsNullOrWhiteSpace(row.Position))
+            .ToList();
+
+        if (scoped.Count == 0)
+        {
+            return [];
+        }
+
+        // Pre-computed denominators reused across every group.
+        // - championTotals: this champion's games across all lanes  → LanePlayRate
+        // - laneTotals    : all games on this lane across champions → PickRate
+        var championTotals = scoped
             .GroupBy(row => row.ChampionId)
+            .ToDictionary(group => group.Key, group => group.Sum(row => row.Games));
+        var laneTotals = scoped
+            .GroupBy(row => row.Position, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Sum(row => row.Games), StringComparer.Ordinal);
+
+        return scoped
+            .GroupBy(row => (row.ChampionId, row.Position))
             .Select(group =>
             {
-                var latestPatch = ChampionAggregateScopeResolver.ResolvePatchVersion(
-                    group.Select(row => row.GameVersion),
-                    requestedPatch: null);
-                if (string.IsNullOrEmpty(latestPatch))
-                {
-                    return null;
-                }
-
-                var scoped = group.Where(row => string.Equals(row.GameVersion, latestPatch, StringComparison.Ordinal)).ToList();
-                var totalGames = scoped.Sum(row => row.Games);
-                var totalWins = scoped.Sum(row => row.Wins);
-                var trueMainCount = scoped.Select(row => row.RiotAccountId).Distinct().Count();
-                var dominantPosition = ChampionAggregateScopeResolver.ResolveDominantPosition(
-                    scoped.Select(row => (row.Position, row.Games)));
+                var games = group.Sum(row => row.Games);
+                var wins = group.Sum(row => row.Wins);
+                var championTotal = championTotals.GetValueOrDefault(group.Key.ChampionId);
+                var laneTotal = laneTotals.GetValueOrDefault(group.Key.Position);
 
                 return new ChampionSummaryReadModel
                 {
-                    ChampionId = group.Key,
-                    Games = totalGames,
-                    WinRate = totalGames == 0 ? 0 : (double)totalWins / totalGames,
-                    TrueMainCount = trueMainCount,
-                    Position = dominantPosition,
-                    LatestPatchVersion = latestPatch,
-                    LastUpdatedAtUtc = scoped.Max(row => row.AggregatedAtUtc)
+                    ChampionId = group.Key.ChampionId,
+                    Games = games,
+                    Wins = wins,
+                    WinRate = games == 0 ? 0 : (double)wins / games,
+                    PickRate = laneTotal == 0 ? 0 : (double)games / laneTotal,
+                    LanePlayRate = championTotal == 0 ? 0 : (double)games / championTotal,
+                    TrueMainCount = group.Select(row => row.RiotAccountId).Distinct().Count(),
+                    Position = group.Key.Position,
+                    PatchVersion = activePatch,
+                    LastUpdatedAtUtc = group.Max(row => row.AggregatedAtUtc)
                 };
             })
-            .OfType<ChampionSummaryReadModel>()
-            .OrderByDescending(summary => summary.Games)
+            .OrderByDescending(summary => summary.PickRate)
             .ThenBy(summary => summary.ChampionId)
+            .ThenBy(summary => summary.Position, StringComparer.Ordinal)
             .ToList();
     }
 

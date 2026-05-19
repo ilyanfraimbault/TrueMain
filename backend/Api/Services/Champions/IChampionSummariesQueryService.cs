@@ -6,10 +6,11 @@ public interface IChampionSummariesQueryService
 {
     /// <summary>
     /// Lightweight directory query: one <see cref="ChampionSummaryReadModel"/>
-    /// per champion that has data on the active queue, each summary computed
-    /// against the champion's own latest patch (no global patch pin). Used by
-    /// list / index pages that need games + winRate + dominant position
-    /// without paying for builds, runes or patterns.
+    /// per <c>(champion, position)</c> pair on the active queue, all rows
+    /// pinned to a single patch (<paramref name="patch"/> if non-null and
+    /// canonical, otherwise the global latest patch in the aggregate table).
+    /// Used by the champions list / index page; callers that need builds,
+    /// runes or patterns go through <c>GET /champions/{id}</c>.
     /// </summary>
-    Task<IReadOnlyList<ChampionSummaryReadModel>> GetAllSummariesAsync(CancellationToken ct);
+    Task<IReadOnlyList<ChampionSummaryReadModel>> GetAllSummariesAsync(string? patch, CancellationToken ct);
 }

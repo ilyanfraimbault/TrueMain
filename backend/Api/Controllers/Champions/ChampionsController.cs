@@ -13,9 +13,11 @@ public sealed class ChampionsController(
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<ChampionSummaryReadModel>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<ChampionSummaryReadModel>>> ListChampionsAsync(
+        [FromQuery] string? patch,
         CancellationToken ct = default)
     {
-        var summaries = await summariesQueryService.GetAllSummariesAsync(ct);
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+        var summaries = await summariesQueryService.GetAllSummariesAsync(normalizedPatch, ct);
         return Ok(summaries);
     }
 
