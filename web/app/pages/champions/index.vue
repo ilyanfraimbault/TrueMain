@@ -1,25 +1,19 @@
 <script setup lang="ts">
-import { h, resolveComponent } from 'vue'
-import type { TableColumn, TableRow } from '@nuxt/ui'
 import type { ChampionSummaryResponse } from '~~/shared/types/champions'
-import type { ChampionStaticListItem } from '~~/shared/types/static-data'
+import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 import { POSITION_OPTIONS, isChampionPosition, type ChampionPosition } from '~/utils/positions'
 
 useSeoMeta({
   title: 'Champions · TrueMain',
-  description: 'Browse champions by lane with pickrate, winrate and games for the selected patch.',
+  description: 'Browse champions by lane with the most-played build, winrate and pickrate.',
 })
 
 const route = useRoute()
 const router = useRouter()
-const UButton = resolveComponent('UButton')
 
 const { filters, setFilter } = useChampionFilters()
 
-// One asyncData entry per resolved patch — refire only on patch change so
-// switching the position filter (which is applied client-side) doesn't trigger
-// an unnecessary refetch + table loading flash.
 const {
   data: summaries,
   error: summariesError,
@@ -38,14 +32,19 @@ const { data: staticList, error: staticError } = await useFetch<ChampionStaticLi
   '/api/static/champions',
   { key: 'champion-static-list' },
 )
+const { data: itemsMap, error: itemsError } = await useFetch<Record<number, StaticItemData>>(
+  '/api/static/items',
+  { key: 'static-items' },
+)
+const { data: runeTree, error: runeTreeError } = await useFetch<RuneTreeResponse>(
+  '/api/static/rune-tree',
+  { key: 'rune-tree' },
+)
 const { data: versions } = useDDragonVersions()
 
-const error = computed(() => summariesError.value ?? staticError.value)
+const error = computed(() => summariesError.value ?? staticError.value ?? itemsError.value ?? runeTreeError.value)
 const isPending = computed(() => summariesStatus.value === 'pending')
 
-// Patch the API actually resolved for these rows (== filters.patch when one is
-// pinned, else the global latest). Drives the dropdown selection + ensures the
-// resolved patch is always present in the option list.
 const apiPatch = computed(() => summaries.value?.[0]?.patchVersion ?? '')
 
 const patchOptions = computed(() => {
@@ -63,159 +62,73 @@ const patchOptions = computed(() => {
 })
 
 const selectedPatch = computed(() => filters.value.patch || apiPatch.value || '')
+
+const ALL_POSITIONS = 'all' as const
 const selectedPosition = computed<ChampionPosition | typeof ALL_POSITIONS>(() => {
   const value = filters.value.position ?? ''
   return isChampionPosition(value) ? value : ALL_POSITIONS
 })
-
-// Reka UI (USelect's underlying primitive) forbids '' as an item value, so the
-// "clear" entry uses a sentinel string and gets translated to a URL strip below.
-const ALL_POSITIONS = 'all' as const
-const POSITION_FILTER_OPTIONS = [
-  { label: 'All positions', value: ALL_POSITIONS },
-  ...POSITION_OPTIONS.map(o => ({ label: o.label, value: o.value as string })),
-]
 
 function onPatchChange(value: unknown) {
   if (typeof value !== 'string' || !value) return
   setFilter(value, null)
 }
 
-async function onPositionChange(value: unknown) {
+async function selectPosition(value: ChampionPosition | typeof ALL_POSITIONS) {
   if (value === ALL_POSITIONS) {
     // useChampionFilters.setFilter() can only add, not clear, so strip the
-    // position param via router directly to keep the URL clean.
-    const { position: _omit, ...rest } = route.query
-    await router.replace({ query: rest })
+    // position param via router directly.
+    const next = { ...route.query }
+    delete next.position
+    await router.replace({ query: next })
     return
   }
-  if (!isChampionPosition(value)) return
   await setFilter(null, value)
 }
 
 const searchQuery = ref('')
 
-type Row = {
-  championId: number
-  name: string
-  iconUrl: string
-  position: string
-  games: number
-  winRate: number
-  pickRate: number
-  lanePlayRate: number
-}
-
-type RankedRow = Row & { rank: number }
-type SortKey = 'name' | 'games' | 'winRate' | 'pickRate' | 'lanePlayRate'
-const sortState = ref<{ id: SortKey, desc: boolean }>({ id: 'pickRate', desc: true })
-
-function toggleSort(id: SortKey) {
-  if (sortState.value.id === id) {
-    sortState.value = { id, desc: !sortState.value.desc }
-  } else {
-    // Numeric columns open descending (best-first); name opens ascending (A→Z).
-    sortState.value = { id, desc: id !== 'name' }
-  }
-}
-
-const baseRows = computed<Row[]>(() => {
-  const nameById = new Map(
-    (staticList.value ?? []).map(item => [item.championId, item]),
-  )
+const baseRows = computed(() => {
+  const nameById = new Map((staticList.value ?? []).map(item => [item.championId, item]))
   return (summaries.value ?? []).map(summary => ({
-    championId: summary.championId,
+    ...summary,
     name: nameById.get(summary.championId)?.name ?? `Champion ${summary.championId}`,
     iconUrl: nameById.get(summary.championId)?.iconUrl ?? '',
-    position: summary.position,
-    games: summary.games,
-    winRate: summary.winRate,
-    pickRate: summary.pickRate,
-    lanePlayRate: summary.lanePlayRate,
   }))
 })
 
 const filteredRows = computed(() => {
   let rows = baseRows.value
   const pos = selectedPosition.value
-  // selectedPosition holds the ALL_POSITIONS sentinel when the filter is off —
-  // only narrow by position when the value is a real ChampionPosition.
-  if (pos !== ALL_POSITIONS) rows = rows.filter(r => r.position === pos)
+  if (pos !== ALL_POSITIONS) rows = rows.filter(row => row.position === pos)
   const q = searchQuery.value.trim().toLowerCase()
-  if (q) rows = rows.filter(r => r.name.toLowerCase().includes(q))
+  if (q) rows = rows.filter(row => row.name.toLowerCase().includes(q))
   return rows
 })
 
-const sortedRows = computed<RankedRow[]>(() => {
-  const { id, desc } = sortState.value
-  const sorted = [...filteredRows.value].sort((a, b) => {
-    const av = a[id]
-    const bv = b[id]
-    const cmp = typeof av === 'string' && typeof bv === 'string'
-      ? av.localeCompare(bv)
-      : av < bv ? -1 : av > bv ? 1 : 0
-    return desc ? -cmp : cmp
-  })
-  return sorted.map((row, index) => ({ ...row, rank: index + 1 }))
-})
+const positionByValue = new Map(POSITION_OPTIONS.map(option => [option.value as string, option]))
 
-const positionIconUrlMap = new Map(POSITION_OPTIONS.map(o => [o.value as string, o.iconUrl]))
-
-function sortableHeader(label: string, key: SortKey, align: 'left' | 'right' = 'left') {
-  return () => {
-    const isActive = sortState.value.id === key
-    const icon = !isActive
-      ? 'i-lucide-arrow-up-down'
-      : sortState.value.desc ? 'i-lucide-arrow-down' : 'i-lucide-arrow-up'
-    return h(UButton, {
-      label,
-      icon,
-      color: 'neutral',
-      variant: 'ghost',
-      size: 'sm',
-      class: align === 'right' ? '-mr-2 ml-auto' : '-ml-2',
-      onClick: () => toggleSort(key),
-    })
-  }
+function perk(id: number | undefined) {
+  if (!id) return null
+  return runeTree.value?.perks?.[id] ?? null
+}
+function perkStyle(id: number | undefined) {
+  if (!id) return null
+  return runeTree.value?.perkStyles?.[id] ?? null
+}
+function staticItem(id: number | undefined) {
+  if (!id) return null
+  return itemsMap.value?.[id] ?? null
 }
 
-const columns: TableColumn<RankedRow>[] = [
-  {
-    id: 'rank',
-    header: '#',
-    meta: { class: { th: 'w-12 text-right text-muted', td: 'w-12 text-right text-muted tabular-nums' } },
-  },
-  { accessorKey: 'name', header: sortableHeader('Champion', 'name') },
-  {
-    id: 'lane',
-    header: 'Lane',
-    meta: { class: { th: 'w-32' } },
-  },
-  {
-    accessorKey: 'winRate',
-    header: sortableHeader('Win rate', 'winRate', 'right'),
-    meta: { class: { th: 'text-right', td: 'text-right tabular-nums' } },
-  },
-  {
-    accessorKey: 'pickRate',
-    header: sortableHeader('Pickrate', 'pickRate', 'right'),
-    meta: { class: { th: 'text-right', td: 'text-right tabular-nums' } },
-  },
-  {
-    accessorKey: 'games',
-    header: sortableHeader('Games', 'games', 'right'),
-    meta: { class: { th: 'text-right', td: 'text-right tabular-nums' } },
-  },
-]
-
-function onSelect(_event: Event, row: TableRow<RankedRow>) {
-  router.push({
-    path: `/champions/${row.original.championId}`,
+function linkToFor(position: string) {
+  return {
+    path: `/champions/${position}`,
     query: {
       ...(selectedPatch.value ? { patch: selectedPatch.value } : {}),
-      ...(row.original.position ? { position: row.original.position } : {}),
+      ...(position ? { position } : {}),
     },
-  })
+  }
 }
 </script>
 
@@ -227,28 +140,52 @@ function onSelect(_event: Event, row: TableRow<RankedRow>) {
           Champions
         </h1>
         <p class="text-sm text-muted">
-          One row per champion and lane. Filter by patch or position, or search by name.
+          One row per champion and lane. The build shown is the most-played for the selected patch.
         </p>
       </div>
-      <div class="flex flex-wrap items-center gap-2">
+
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <UFieldGroup size="md">
+          <UButton
+            :variant="selectedPosition === ALL_POSITIONS ? 'soft' : 'ghost'"
+            :color="selectedPosition === ALL_POSITIONS ? 'primary' : 'neutral'"
+            icon="i-lucide-asterisk"
+            square
+            aria-label="All positions"
+            @click="selectPosition(ALL_POSITIONS)"
+          />
+          <UButton
+            v-for="option in POSITION_OPTIONS"
+            :key="option.value"
+            :variant="selectedPosition === option.value ? 'soft' : 'ghost'"
+            :color="selectedPosition === option.value ? 'primary' : 'neutral'"
+            square
+            :aria-label="option.label"
+            @click="selectPosition(option.value)"
+          >
+            <NuxtImg
+              :src="option.iconUrl"
+              :alt="option.label"
+              :width="18"
+              :height="18"
+              class="size-[18px]"
+            />
+          </UButton>
+        </UFieldGroup>
+
+        <UInput
+          v-model="searchQuery"
+          icon="i-lucide-search"
+          placeholder="Search champion…"
+          class="min-w-[16rem] max-w-md flex-1"
+        />
+
         <USelect
           :model-value="selectedPatch || undefined"
           :items="patchOptions"
           placeholder="Patch"
           class="w-28"
           @update:model-value="onPatchChange"
-        />
-        <USelect
-          :model-value="selectedPosition"
-          :items="POSITION_FILTER_OPTIONS"
-          class="w-40"
-          @update:model-value="onPositionChange"
-        />
-        <UInput
-          v-model="searchQuery"
-          icon="i-lucide-search"
-          placeholder="Search champion…"
-          class="w-56"
         />
       </div>
     </header>
@@ -262,62 +199,124 @@ function onSelect(_event: Event, row: TableRow<RankedRow>) {
     />
 
     <template v-else>
-      <UTable
-        :data="sortedRows"
-        :columns="columns"
-        :loading="isPending"
-        loading-color="primary"
-        :meta="{ class: { tr: 'cursor-pointer' } }"
-        @select="onSelect"
+      <div
+        v-if="isPending && filteredRows.length === 0"
+        class="space-y-2"
       >
-        <template #rank-cell="{ row }">
-          {{ row.original.rank }}
-        </template>
+        <USkeleton
+          v-for="i in 6"
+          :key="i"
+          class="h-14 w-full rounded"
+        />
+      </div>
 
-        <template #name-cell="{ row }">
-          <div class="flex items-center gap-3">
-            <SkeletonImage
-              :src="row.original.iconUrl"
-              :alt="row.original.name"
-              width="32"
-              height="32"
-              class="size-8 rounded"
+      <ul
+        v-else
+        class="space-y-1"
+      >
+        <li
+          v-for="row in filteredRows"
+          :key="`${row.championId}-${row.position}`"
+        >
+          <NuxtLink
+            :to="{ path: `/champions/${row.championId}`, query: { ...(selectedPatch ? { patch: selectedPatch } : {}), ...(row.position ? { position: row.position } : {}) } }"
+            class="flex items-center gap-4 rounded-md border border-default/60 bg-elevated/40 px-3 py-2 transition-colors hover:bg-elevated/80"
+          >
+            <!-- Champion -->
+            <div class="flex min-w-[10rem] items-center gap-2">
+              <SkeletonImage
+                :src="row.iconUrl"
+                :alt="row.name"
+                width="36"
+                height="36"
+                class="size-9 rounded"
+              />
+              <span class="truncate font-medium">{{ row.name }}</span>
+            </div>
+
+            <!-- Position -->
+            <NuxtImg
+              v-if="positionByValue.get(row.position)?.iconUrl"
+              :src="positionByValue.get(row.position)!.iconUrl"
+              :alt="row.position"
+              :width="22"
+              :height="22"
+              class="size-[22px] shrink-0"
             />
-            <span class="font-medium">{{ row.original.name }}</span>
-          </div>
-        </template>
 
-        <template #lane-cell="{ row }">
-          <div class="flex items-center gap-2">
-            <SkeletonImage
-              v-if="positionIconUrlMap.get(row.original.position)"
-              :src="positionIconUrlMap.get(row.original.position)!"
-              :alt="row.original.position"
-              width="20"
-              height="20"
-              class="size-5"
-            />
-            <span class="text-xs text-muted tabular-nums">
-              {{ formatPercentage(row.original.lanePlayRate) }}
-            </span>
-          </div>
-        </template>
+            <!-- Runes: primary keystone + secondary tree -->
+            <div
+              v-if="row.topBuild"
+              class="flex shrink-0 items-center gap-1"
+            >
+              <NuxtImg
+                v-if="perk(row.topBuild.primaryKeystoneId)?.iconUrl"
+                :src="perk(row.topBuild.primaryKeystoneId)!.iconUrl"
+                :alt="perk(row.topBuild.primaryKeystoneId)!.name"
+                :width="28"
+                :height="28"
+                class="size-7 rounded-full"
+              />
+              <NuxtImg
+                v-if="perkStyle(row.topBuild.secondaryStyleId)?.iconUrl"
+                :src="perkStyle(row.topBuild.secondaryStyleId)!.iconUrl"
+                :alt="perkStyle(row.topBuild.secondaryStyleId)!.name"
+                :width="20"
+                :height="20"
+                class="size-5"
+              />
+            </div>
 
-        <template #winRate-cell="{ row }">
-          {{ formatPercentage(row.original.winRate) }}
-        </template>
+            <!-- Build path -->
+            <div
+              v-if="row.topBuild && row.topBuild.itemPath.length > 0"
+              class="flex shrink-0 items-center gap-1"
+            >
+              <template
+                v-for="(itemId, idx) in row.topBuild.itemPath.slice(0, 5)"
+                :key="`${row.championId}-${row.position}-bp-${idx}`"
+              >
+                <NuxtImg
+                  v-if="staticItem(itemId)?.iconUrl"
+                  :src="staticItem(itemId)!.iconUrl"
+                  :alt="staticItem(itemId)!.name"
+                  :width="28"
+                  :height="28"
+                  class="size-7 rounded"
+                />
+                <UIcon
+                  v-if="idx < Math.min(row.topBuild.itemPath.length, 5) - 1"
+                  name="i-lucide-chevron-right"
+                  class="size-3 text-dimmed"
+                />
+              </template>
+            </div>
 
-        <template #pickRate-cell="{ row }">
-          {{ formatPercentage(row.original.pickRate) }}
-        </template>
-
-        <template #games-cell="{ row }">
-          {{ row.original.games.toLocaleString() }}
-        </template>
-      </UTable>
+            <!-- Rates -->
+            <div class="ml-auto flex shrink-0 items-center gap-5 tabular-nums">
+              <div class="text-right">
+                <div class="text-xs text-muted">
+                  Win rate
+                </div>
+                <div class="font-medium">
+                  {{ formatPercentage(row.winRate) }}
+                </div>
+              </div>
+              <div class="text-right">
+                <div class="text-xs text-muted">
+                  Pickrate
+                </div>
+                <div class="font-medium">
+                  {{ formatPercentage(row.pickRate) }}
+                </div>
+              </div>
+            </div>
+          </NuxtLink>
+        </li>
+      </ul>
 
       <p
-        v-if="!isPending && sortedRows.length === 0"
+        v-if="!isPending && filteredRows.length === 0"
         class="text-sm text-muted"
       >
         No champions match these filters.

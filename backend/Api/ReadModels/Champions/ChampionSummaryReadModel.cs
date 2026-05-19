@@ -36,4 +36,12 @@ public sealed class ChampionSummaryReadModel
     public string PatchVersion { get; init; } = string.Empty;
 
     public DateTime LastUpdatedAtUtc { get; init; }
+
+    /// <summary>
+    /// Most-played build for this <c>(champion, position)</c> on the active
+    /// patch — keystone, secondary tree, item sequence. Null when no
+    /// pattern rows exist (rare; e.g. positions with summary games but no
+    /// observed builds yet).
+    /// </summary>
+    public TopBuildReadModel? TopBuild { get; init; }
 }

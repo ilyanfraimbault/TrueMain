@@ -9,6 +9,14 @@ export interface ChampionSummaryResponse {
   position: string
   patchVersion: string
   lastUpdatedAtUtc: string
+  topBuild: ChampionSummaryTopBuild | null
+}
+
+export interface ChampionSummaryTopBuild {
+  firstItemId: number
+  primaryKeystoneId: number
+  secondaryStyleId: number
+  itemPath: number[]
 }
 
 export interface ChampionResponse {

@@ -77,6 +77,11 @@ public sealed class ChampionSummariesQueryService(
             return [];
         }
 
+        // Top build per (champion, position) — loaded once for the whole
+        // patch so the directory renders keystone / secondary tree / item
+        // sequence inline without paying a per-row build query.
+        var topBuilds = await LoadTopBuildsAsync(activePatch, ct);
+
         // Pre-computed denominators reused across every group.
         // - championTotals: this champion's games across all lanes  → LanePlayRate
         // - laneTotals    : all games on this lane across champions → PickRate
@@ -96,6 +101,7 @@ public sealed class ChampionSummariesQueryService(
                 var championTotal = championTotals.GetValueOrDefault(group.Key.ChampionId);
                 var laneTotal = laneTotals.GetValueOrDefault(group.Key.Position);
 
+                topBuilds.TryGetValue((group.Key.ChampionId, group.Key.Position), out var topBuild);
                 return new ChampionSummaryReadModel
                 {
                     ChampionId = group.Key.ChampionId,
@@ -107,7 +113,8 @@ public sealed class ChampionSummariesQueryService(
                     TrueMainCount = group.Select(row => row.RiotAccountId).Distinct().Count(),
                     Position = group.Key.Position,
                     PatchVersion = activePatch,
-                    LastUpdatedAtUtc = group.Max(row => row.AggregatedAtUtc)
+                    LastUpdatedAtUtc = group.Max(row => row.AggregatedAtUtc),
+                    TopBuild = topBuild,
                 };
             })
             .OrderByDescending(summary => summary.PickRate)
@@ -124,4 +131,102 @@ public sealed class ChampionSummariesQueryService(
         int Wins,
         Guid RiotAccountId,
         DateTime AggregatedAtUtc);
+
+    /// <summary>
+    /// Resolves the most-played <c>(BuildId, RunePageId)</c> tuple for every
+    /// <c>(champion, position)</c> pair on <paramref name="activePatch"/>,
+    /// then hydrates the matching dim rows. Single aggregate SQL query plus
+    /// two dim lookups — independent of the directory row count.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<(int ChampionId, string Position), TopBuildReadModel>> LoadTopBuildsAsync(
+        string activePatch,
+        CancellationToken ct)
+    {
+        var queueId = options.Value.QueueId;
+
+        // Bring the (champion, position) onto each pattern row by joining
+        // through the scope. The window-functioned `top-per-partition` is
+        // done in memory after pulling the small aggregate set — there are
+        // far fewer (champion, position, build, rune) combinations than raw
+        // pattern rows, so this stays cheap even on a busy patch.
+        var grouped = await db.ChampionAggregatePatterns
+            .AsNoTracking()
+            .Join(
+                db.ChampionAggregateScopes.AsNoTracking()
+                    .Where(scope => scope.QueueId == queueId && scope.GameVersion == activePatch),
+                pattern => pattern.ScopeId,
+                scope => scope.Id,
+                (pattern, scope) => new
+                {
+                    scope.ChampionId,
+                    scope.Position,
+                    pattern.BuildId,
+                    pattern.RunePageId,
+                    pattern.Games,
+                })
+            .Where(row => row.Position != string.Empty)
+            .GroupBy(row => new { row.ChampionId, row.Position, row.BuildId, row.RunePageId })
+            .Select(group => new
+            {
+                group.Key.ChampionId,
+                group.Key.Position,
+                group.Key.BuildId,
+                group.Key.RunePageId,
+                Games = group.Sum(row => row.Games),
+            })
+            .ToListAsync(ct);
+
+        if (grouped.Count == 0)
+        {
+            return new Dictionary<(int, string), TopBuildReadModel>();
+        }
+
+        var top = grouped
+            .GroupBy(row => (row.ChampionId, row.Position))
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderByDescending(row => row.Games)
+                    .ThenBy(row => row.BuildId)
+                    .ThenBy(row => row.RunePageId)
+                    .First());
+
+        var topBuildIds = top.Values.Select(row => row.BuildId).Distinct().ToList();
+        var topRuneIds = top.Values.Select(row => row.RunePageId).Distinct().ToList();
+
+        var dimBuilds = await db.ChampionDimBuilds.AsNoTracking()
+            .Where(dim => topBuildIds.Contains(dim.Id))
+            .ToDictionaryAsync(dim => dim.Id, ct);
+        var dimRunes = await db.ChampionDimRunePages.AsNoTracking()
+            .Where(dim => topRuneIds.Contains(dim.Id))
+            .ToDictionaryAsync(dim => dim.Id, ct);
+
+        var result = new Dictionary<(int ChampionId, string Position), TopBuildReadModel>(top.Count);
+        foreach (var (key, row) in top)
+        {
+            if (!dimBuilds.TryGetValue(row.BuildId, out var build)) continue;
+            if (!dimRunes.TryGetValue(row.RunePageId, out var rune)) continue;
+            if (build.BuildItem0 <= 0 || rune.PrimaryKeystoneId <= 0) continue;
+
+            var itemPath = new List<int>(7);
+            void Append(int id) { if (id > 0) itemPath.Add(id); }
+            Append(build.BuildItem0);
+            Append(build.BuildItem1);
+            Append(build.BuildItem2);
+            Append(build.BuildItem3);
+            Append(build.BuildItem4);
+            Append(build.BuildItem5);
+            Append(build.BuildItem6);
+
+            result[key] = new TopBuildReadModel
+            {
+                FirstItemId = build.BuildItem0,
+                PrimaryKeystoneId = rune.PrimaryKeystoneId,
+                SecondaryStyleId = rune.SecondaryStyleId,
+                ItemPath = itemPath,
+            };
+        }
+
+        return result;
+    }
 }
