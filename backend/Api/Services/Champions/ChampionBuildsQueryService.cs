@@ -16,17 +16,6 @@ public sealed class ChampionBuildsQueryService(
     private const double MinBuildPickRate = 0.05;
     private const int VariationsTopN = 3;
     private const int RunePagesTopN = 3;
-    private const double ItemPathProbThreshold = 0.20;
-    private const int ItemPathMaxDepth = 6;
-    private const int BuildTreeMaxDepth = 6;
-    private const int BuildTreeMaxChildrenPerNode = 6;
-    private const int BuildTreeMinGames = 2;
-    // Parent-relative cutoff. Same semantic as the tooltip pickrate, so a
-    // node displayed under another only appears when ≥5% of games that
-    // reached the parent then picked this item. Keeps the tree focused on
-    // realistic continuations and avoids the wide top-row clutter on
-    // popular champions.
-    private const double BuildTreeMinPickRate = 0.05;
 
     public async Task<ChampionResponse?> GetAsync(
         int championId,
@@ -207,8 +196,14 @@ public sealed class ChampionBuildsQueryService(
         // Build the (pruned) tree once and derive the highlighted item path
         // from the same tree, so anything the path includes is guaranteed to
         // be visible in the build-tree visualization (no "ghost" deep items).
-        var buildTree = BuildItemTree(rows, sliceGames);
-        var (itemPath, itemPathGames, itemPathWins) = ComputeItemPath(
+        var sequences = rows
+            .Select(row => new ChampionBuildPathAnalyzer.BuildSequence(
+                row.BuildItem1, row.BuildItem2, row.BuildItem3,
+                row.BuildItem4, row.BuildItem5, row.BuildItem6,
+                row.Games, row.Wins))
+            .ToList();
+        var buildTree = ChampionBuildPathAnalyzer.BuildItemTree(sequences, sliceGames);
+        var (itemPath, itemPathGames, itemPathWins) = ChampionBuildPathAnalyzer.WalkPath(
             buildTree, pending.Key.FirstItemId, sliceGames, pending.Wins);
 
         return new GroupAggregates(
@@ -260,126 +255,6 @@ public sealed class ChampionBuildsQueryService(
             .ThenBy(aggregate => aggregate.ItemId)
             .Take(topN)
             .ToList();
-
-    private static (List<int> ItemIds, int Games, int Wins) ComputeItemPath(
-        IReadOnlyList<MutableItemNode> rootChildren,
-        int firstItemId,
-        int sliceGames,
-        int sliceWins)
-    {
-        // Synthetic root so the loop below can walk uniformly. Games / Wins
-        // come from the slice (every game in this build group starts here).
-        var root = new MutableItemNode(firstItemId) { Games = sliceGames, Wins = sliceWins };
-        foreach (var child in rootChildren)
-        {
-            root.Children[child.ItemId] = child;
-        }
-
-        var path = new List<int> { firstItemId };
-        var current = root;
-        var deepestGames = sliceGames;
-        var deepestWins = root.Wins;
-
-        while (path.Count <= ItemPathMaxDepth && current.Children.Count > 0)
-        {
-            // Pick the child whose subtree extends deepest — keeps the main
-            // build "very complete" instead of stopping at the most popular
-            // terminal item. Tie-break by games then wins then itemId so the
-            // chain stays deterministic.
-            var best = current.Children.Values
-                .OrderByDescending(MaxDepth)
-                .ThenByDescending(node => node.Games)
-                .ThenByDescending(node => node.Wins)
-                .ThenBy(node => node.ItemId)
-                .First();
-            // Probability is parent-relative — share of games that *reached*
-            // the current node and then went on to pick `best`. Matches the
-            // pickrate semantic shown in the build-tree tooltip (see
-            // ConvertTreeNode below), so a node displayed as "40% pick" is
-            // also the same 40% the threshold sees.
-            var probability = current.Games == 0 ? 0d : (double)best.Games / current.Games;
-            if (probability < ItemPathProbThreshold)
-            {
-                break;
-            }
-            path.Add(best.ItemId);
-            deepestGames = best.Games;
-            deepestWins = best.Wins;
-            current = best;
-        }
-
-        return (path, deepestGames, deepestWins);
-    }
-
-    private static IReadOnlyList<MutableItemNode> BuildItemTree(
-        IReadOnlyList<ChampionPatternEnrichedRow> rows,
-        int sliceGames)
-    {
-        var rootChildren = new Dictionary<int, MutableItemNode>();
-        foreach (var row in rows)
-        {
-            var chain = new[]
-            {
-                row.BuildItem1, row.BuildItem2, row.BuildItem3,
-                row.BuildItem4, row.BuildItem5, row.BuildItem6
-            };
-            Dictionary<int, MutableItemNode> level = rootChildren;
-            var depth = 0;
-            foreach (var itemId in chain)
-            {
-                if (itemId <= 0 || depth >= BuildTreeMaxDepth)
-                {
-                    break;
-                }
-                if (!level.TryGetValue(itemId, out var node))
-                {
-                    node = new MutableItemNode(itemId);
-                    level[itemId] = node;
-                }
-                node.Games += row.Games;
-                node.Wins += row.Wins;
-                level = node.Children;
-                depth++;
-            }
-        }
-
-        return PruneTreeLevel(rootChildren, sliceGames);
-    }
-
-    // Prune one level of the tree: drop low-support nodes, cap fan-out, then
-    // recurse into the kept children. Without this the payload grows with the
-    // number of distinct item combinations observed, which on popular
-    // champions can be hundreds of nodes the UI won't render anyway.
-    //
-    // `parentGames` is the games count of the node whose children we're
-    // pruning (or the slice total at the top-level call) — used to drop
-    // children that represent fewer than `BuildTreeMinPickRate` of games
-    // arriving at the parent. Same denominator as the tooltip pickrate.
-    private static IReadOnlyList<MutableItemNode> PruneTreeLevel(
-        IDictionary<int, MutableItemNode> level,
-        int parentGames)
-    {
-        var kept = level.Values
-            .Where(node => node.Games >= BuildTreeMinGames)
-            .Where(node => parentGames == 0 || (double)node.Games / parentGames >= BuildTreeMinPickRate)
-            .OrderByDescending(node => node.Games)
-            .ThenByDescending(node => node.Wins)
-            .ThenBy(node => node.ItemId)
-            .Take(BuildTreeMaxChildrenPerNode)
-            .ToList();
-
-        foreach (var node in kept)
-        {
-            var prunedChildren = PruneTreeLevel(node.Children, node.Games);
-            node.Children.Clear();
-            foreach (var child in prunedChildren)
-            {
-                node.Children[child.ItemId] = child;
-            }
-        }
-
-        return kept;
-    }
 
     private static List<Guid> UniqueIds(IEnumerable<Guid> source)
         => source.Distinct().ToList();
@@ -552,25 +427,7 @@ public sealed class ChampionBuildsQueryService(
         };
     }
 
-    private static int MaxDepth(MutableItemNode node)
-    {
-        if (node.Children.Count == 0)
-        {
-            return 0;
-        }
-        var best = 0;
-        foreach (var child in node.Children.Values)
-        {
-            var d = MaxDepth(child);
-            if (d > best)
-            {
-                best = d;
-            }
-        }
-        return 1 + best;
-    }
-
-    private static BuildTreeNodeReadModel ConvertTreeNode(MutableItemNode node, int parentGames)
+    private static BuildTreeNodeReadModel ConvertTreeNode(ChampionBuildPathAnalyzer.TreeNode node, int parentGames)
         => new()
         {
             ItemId = node.ItemId,
@@ -606,7 +463,7 @@ public sealed class ChampionBuildsQueryService(
         IReadOnlyList<int> ItemPath,
         int ItemPathGames,
         int ItemPathWins,
-        IReadOnlyList<MutableItemNode> BuildTree);
+        IReadOnlyList<ChampionBuildPathAnalyzer.TreeNode> BuildTree);
 
     private readonly record struct DimAggregate(Guid Id, int Games, int Wins);
 
@@ -629,14 +486,4 @@ public sealed class ChampionBuildsQueryService(
         int Games,
         int Wins);
 
-    private sealed class MutableItemNode(int itemId)
-    {
-        public int ItemId { get; } = itemId;
-
-        public int Games { get; set; }
-
-        public int Wins { get; set; }
-
-        public Dictionary<int, MutableItemNode> Children { get; } = [];
-    }
 }

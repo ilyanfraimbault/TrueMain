@@ -197,10 +197,13 @@ public sealed class ChampionSummariesQueryService(
     }
 
     /// <summary>
-    /// Resolves the most-played <c>(BuildId, RunePageId)</c> tuple for every
-    /// <c>(champion, position)</c> pair on <paramref name="activePatch"/>,
-    /// then hydrates the matching dim rows. Single aggregate SQL query plus
-    /// two dim lookups — independent of the directory row count.
+    /// Resolves the dominant <c>(firstItem, primaryKeystone)</c> bucket for
+    /// every <c>(champion, position)</c> pair on
+    /// <paramref name="activePatch"/>, then computes the consensus item
+    /// path for that bucket via <see cref="ChampionBuildPathAnalyzer"/> —
+    /// the same tree-walk used to build the "core" path on the champion
+    /// detail page, so the path shown on each list row matches the path on
+    /// that champion's detail page for the same slice.
     /// </summary>
     private async Task<IReadOnlyDictionary<(int ChampionId, string Position), TopBuildReadModel>> LoadTopBuildsAsync(
         string activePatch,
@@ -208,11 +211,10 @@ public sealed class ChampionSummariesQueryService(
     {
         var queueId = options.Value.QueueId;
 
-        // Bring the (champion, position) onto each pattern row by joining
-        // through the scope. The window-functioned `top-per-partition` is
-        // done in memory after pulling the small aggregate set — there are
-        // far fewer (champion, position, build, rune) combinations than raw
-        // pattern rows, so this stays cheap even on a busy patch.
+        // Aggregate every pattern row to one bucket per
+        // (champion, position, build, rune-page). Collapsing in SQL keeps
+        // the materialised set bounded — for a busy patch it's tens of
+        // thousands of bucket rows instead of millions of raw patterns.
         var grouped = await db.ChampionAggregatePatterns
             .AsNoTracking()
             .Join(
@@ -227,6 +229,7 @@ public sealed class ChampionSummariesQueryService(
                     pattern.BuildId,
                     pattern.RunePageId,
                     pattern.Games,
+                    pattern.Wins,
                 })
             .Where(row => row.Position != string.Empty)
             .GroupBy(row => new { row.ChampionId, row.Position, row.BuildId, row.RunePageId })
@@ -237,6 +240,7 @@ public sealed class ChampionSummariesQueryService(
                 group.Key.BuildId,
                 group.Key.RunePageId,
                 Games = group.Sum(row => row.Games),
+                Wins = group.Sum(row => row.Wins),
             })
             .ToListAsync(ct);
 
@@ -245,48 +249,79 @@ public sealed class ChampionSummariesQueryService(
             return new Dictionary<(int, string), TopBuildReadModel>();
         }
 
-        var top = grouped
-            .GroupBy(row => (row.ChampionId, row.Position))
-            .ToDictionary(
-                group => group.Key,
-                group => group
-                    .OrderByDescending(row => row.Games)
-                    .ThenBy(row => row.BuildId)
-                    .ThenBy(row => row.RunePageId)
-                    .First());
-
-        var topBuildIds = top.Values.Select(row => row.BuildId).Distinct().ToList();
-        var topRuneIds = top.Values.Select(row => row.RunePageId).Distinct().ToList();
+        var buildIds = grouped.Select(row => row.BuildId).Distinct().ToList();
+        var runeIds = grouped.Select(row => row.RunePageId).Distinct().ToList();
 
         var dimBuilds = await db.ChampionDimBuilds.AsNoTracking()
-            .Where(dim => topBuildIds.Contains(dim.Id))
+            .Where(dim => buildIds.Contains(dim.Id))
             .ToDictionaryAsync(dim => dim.Id, ct);
         var dimRunes = await db.ChampionDimRunePages.AsNoTracking()
-            .Where(dim => topRuneIds.Contains(dim.Id))
+            .Where(dim => runeIds.Contains(dim.Id))
             .ToDictionaryAsync(dim => dim.Id, ct);
 
-        var result = new Dictionary<(int ChampionId, string Position), TopBuildReadModel>(top.Count);
-        foreach (var (key, row) in top)
+        var result = new Dictionary<(int ChampionId, string Position), TopBuildReadModel>();
+
+        foreach (var laneGroup in grouped.GroupBy(row => (row.ChampionId, row.Position)))
         {
-            if (!dimBuilds.TryGetValue(row.BuildId, out var build)) continue;
-            if (!dimRunes.TryGetValue(row.RunePageId, out var rune)) continue;
-            if (build.BuildItem0 <= 0 || rune.PrimaryKeystoneId <= 0) continue;
+            // Hydrate the bucket rows with their dim entries. Skip any row
+            // whose dim lookup is missing (transient state during ingest) or
+            // whose build / rune is malformed.
+            var enriched = laneGroup
+                .Select(row => new
+                {
+                    row.Games,
+                    row.Wins,
+                    Build = dimBuilds.GetValueOrDefault(row.BuildId),
+                    Rune = dimRunes.GetValueOrDefault(row.RunePageId),
+                })
+                .Where(row => row.Build is not null && row.Rune is not null
+                    && row.Build.BuildItem0 > 0 && row.Rune.PrimaryKeystoneId > 0)
+                .ToList();
 
-            var itemPath = new List<int>(7);
-            void Append(int id) { if (id > 0) itemPath.Add(id); }
-            Append(build.BuildItem0);
-            Append(build.BuildItem1);
-            Append(build.BuildItem2);
-            Append(build.BuildItem3);
-            Append(build.BuildItem4);
-            Append(build.BuildItem5);
-            Append(build.BuildItem6);
+            if (enriched.Count == 0) continue;
 
-            result[key] = new TopBuildReadModel
+            // Same first-tie ordering as ChampionBuildsQueryService: games
+            // desc, firstItemId asc, keystoneId asc — so a champion's list
+            // row and its detail page land on the same dominant bucket.
+            var topBucket = enriched
+                .GroupBy(row => (row.Build!.BuildItem0, row.Rune!.PrimaryKeystoneId))
+                .Select(group => new
+                {
+                    FirstItem = group.Key.BuildItem0,
+                    Keystone = group.Key.PrimaryKeystoneId,
+                    Games = group.Sum(row => row.Games),
+                    Wins = group.Sum(row => row.Wins),
+                    Rows = group.ToList(),
+                })
+                .OrderByDescending(bucket => bucket.Games)
+                .ThenBy(bucket => bucket.FirstItem)
+                .ThenBy(bucket => bucket.Keystone)
+                .First();
+
+            // Consensus item path via the same tree-walk + threshold logic
+            // the detail page uses for its core build path.
+            var sequences = topBucket.Rows
+                .Select(row => new ChampionBuildPathAnalyzer.BuildSequence(
+                    row.Build!.BuildItem1, row.Build.BuildItem2, row.Build.BuildItem3,
+                    row.Build.BuildItem4, row.Build.BuildItem5, row.Build.BuildItem6,
+                    row.Games, row.Wins))
+                .ToList();
+            var tree = ChampionBuildPathAnalyzer.BuildItemTree(sequences, topBucket.Games);
+            var (itemPath, _, _) = ChampionBuildPathAnalyzer.WalkPath(
+                tree, topBucket.FirstItem, topBucket.Games, topBucket.Wins);
+
+            // Dominant secondary tree within the top bucket.
+            var secondaryStyleId = topBucket.Rows
+                .GroupBy(row => row.Rune!.SecondaryStyleId)
+                .OrderByDescending(group => group.Sum(row => row.Games))
+                .ThenBy(group => group.Key)
+                .First().Key;
+
+            result[(laneGroup.Key.ChampionId, laneGroup.Key.Position)] = new TopBuildReadModel
             {
-                FirstItemId = build.BuildItem0,
-                PrimaryKeystoneId = rune.PrimaryKeystoneId,
-                SecondaryStyleId = rune.SecondaryStyleId,
+                FirstItemId = topBucket.FirstItem,
+                PrimaryKeystoneId = topBucket.Keystone,
+                SecondaryStyleId = secondaryStyleId,
                 ItemPath = itemPath,
             };
         }
