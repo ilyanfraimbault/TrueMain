@@ -57,7 +57,12 @@ function ensureParagraphBeforeLabels(doc: ParsedDocument): ParsedDocument {
   const seenLabels = new Set<string>()
   for (const seg of doc) {
     if (seg.kind === 'text' && PARAGRAPH_LABEL_TAGS.has(seg.tag.toLowerCase())) {
-      const labelKey = `${seg.tag.toLowerCase()}:${seg.text.trim().toLowerCase()}`
+      // Normalise possessive forms so an inline back-reference like
+      // `<passive>Ignore Pain's</passive>` (Death's Dance) collapses onto
+      // the original `<passive>Ignore Pain</passive>` label and skips the
+      // paragraph break.
+      const normalizedText = seg.text.trim().toLowerCase().replace(/['’]s?$/, '')
+      const labelKey = `${seg.tag.toLowerCase()}:${normalizedText}`
       const isReference = seenLabels.has(labelKey)
       seenLabels.add(labelKey)
       if (result.length > 0 && !isReference && !isFlattenContinuation(result, seg.tag.toLowerCase())) {

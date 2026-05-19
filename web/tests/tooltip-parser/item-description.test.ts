@@ -78,6 +78,15 @@ describe('parseItemDescription', () => {
     expect(parsed[activeIdx - 2]?.kind).toBe('break')
   })
 
+  it('treats possessive <passive>Foo\'s</passive> as a reference to <passive>Foo</passive>', () => {
+    // Death's Dance fragment: the trailing 's is a back-reference, not a new label.
+    const parsed = parseItemDescription('<passive>Ignore Pain</passive><br>Effect one.<br><br><passive>Defy</passive><br>cleanse <passive>Ignore Pain\'s</passive> damage.')
+    const passives = parsed.filter(s => s.kind === 'text' && s.tag === 'passive')
+    expect(passives).toHaveLength(3)
+    const lastIdx = parsed.length - 1 - [...parsed].reverse().findIndex(s => s.kind === 'text' && s.tag === 'passive')
+    expect(parsed[lastIdx - 1]?.kind).toBe('text')
+  })
+
   it('does not paragraph-break before a <passive> reference to an earlier label', () => {
     // Mirror of Blackfire Torch: the second `<passive>Baleful Blaze</passive>`
     // is a reference to the first label, not a new section header — should
