@@ -5,13 +5,19 @@ import type { RuneTreeResponse, RuneTreeStyle } from '~~/shared/types/static-dat
 const props = defineProps<{
   page: BuildRunePage
   tree: RuneTreeResponse
+  /** Base size (px) for the regular perks. Other rows scale from this. */
   size?: number
+  /** Override the keystone row size independently of `size`. Useful when the
+   *  surrounding layout wants emphasised keystones but smaller perk rows
+   *  (e.g. the rune-variations panel). Defaults to `size`. */
+  keystoneSize?: number
 }>()
 
-const keystoneSize = computed(() => props.size ?? 32)
-const perkSize = computed(() => Math.max(20, keystoneSize.value - 4))
-const secondarySize = computed(() => Math.max(16, keystoneSize.value - 12))
-const shardSize = computed(() => Math.max(12, keystoneSize.value - 16))
+const baseSize = computed(() => props.size ?? 32)
+const keystoneSize = computed(() => props.keystoneSize ?? baseSize.value)
+const perkSize = computed(() => Math.max(20, baseSize.value - 4))
+const secondarySize = computed(() => Math.max(16, baseSize.value - 12))
+const shardSize = computed(() => Math.max(12, baseSize.value - 16))
 
 const primary = computed<RuneTreeStyle | null>(() =>
   props.tree.styles.find(s => s.styleId === props.page.primaryStyleId) ?? null,

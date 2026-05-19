@@ -27,6 +27,7 @@ defineProps<{
           :page="page"
           :tree="runeTree"
           :size="36"
+          :keystone-size="40"
         />
       </div>
     </div>
