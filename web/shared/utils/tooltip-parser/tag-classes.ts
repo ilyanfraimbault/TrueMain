@@ -46,6 +46,12 @@ export const TAG_CLASS: Record<string, string> = {
   // Item structural labels
   passive: 'text-stat-passive font-semibold uppercase tracking-wide text-xs',
   active: 'text-stat-active font-semibold uppercase tracking-wide text-xs',
+  // Inline back-references to an earlier passive/active label (retagged by
+  // the item parser). Subdued styling — just the color, no header
+  // uppercase/tracking/text-xs — so the reference reads as prose, not a
+  // new section header.
+  passiveref: 'text-stat-passive font-semibold',
+  activeref: 'text-stat-active font-semibold',
   rules: 'text-muted text-xs italic block mt-1',
   flavortext: 'text-muted italic block mt-1',
   raritymythic: 'text-stat-active font-semibold',

@@ -65,7 +65,15 @@ function ensureParagraphBeforeLabels(doc: ParsedDocument): ParsedDocument {
       const labelKey = `${seg.tag.toLowerCase()}:${normalizedText}`
       const isReference = seenLabels.has(labelKey)
       seenLabels.add(labelKey)
-      if (result.length > 0 && !isReference && !isFlattenContinuation(result, seg.tag.toLowerCase())) {
+      if (isReference) {
+        // Retag references so the renderer can drop the header-style
+        // (uppercase / tracking / text-xs) and keep the inline mention
+        // visually subdued — otherwise an inline "IGNORE PAIN'S" looks
+        // identical to the section header and reads as a new paragraph.
+        result.push({ ...seg, tag: `${seg.tag.toLowerCase()}ref` })
+        continue
+      }
+      if (result.length > 0 && !isFlattenContinuation(result, seg.tag.toLowerCase())) {
         // Want exactly two consecutive breaks before a label that follows
         // earlier content. Items vary in how they separate the previous
         // block: Solstice Sleigh has zero (inline), Celestial Opposition

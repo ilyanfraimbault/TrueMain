@@ -78,13 +78,16 @@ describe('parseItemDescription', () => {
     expect(parsed[activeIdx - 2]?.kind).toBe('break')
   })
 
-  it('treats possessive <passive>Foo\'s</passive> as a reference to <passive>Foo</passive>', () => {
+  it('retags possessive <passive>Foo\'s</passive> as a passiveref reference', () => {
     // Death's Dance fragment: the trailing 's is a back-reference, not a new label.
     const parsed = parseItemDescription('<passive>Ignore Pain</passive><br>Effect one.<br><br><passive>Defy</passive><br>cleanse <passive>Ignore Pain\'s</passive> damage.')
     const passives = parsed.filter(s => s.kind === 'text' && s.tag === 'passive')
-    expect(passives).toHaveLength(3)
-    const lastIdx = parsed.length - 1 - [...parsed].reverse().findIndex(s => s.kind === 'text' && s.tag === 'passive')
-    expect(parsed[lastIdx - 1]?.kind).toBe('text')
+    const refs = parsed.filter(s => s.kind === 'text' && s.tag === 'passiveref')
+    expect(passives).toHaveLength(2)
+    expect(refs).toHaveLength(1)
+    if (refs[0]?.kind === 'text') expect(refs[0].text).toBe("Ignore Pain's")
+    const refIdx = parsed.findIndex(s => s.kind === 'text' && s.tag === 'passiveref')
+    expect(parsed[refIdx - 1]?.kind).toBe('text')
   })
 
   it('does not paragraph-break before a <passive> reference to an earlier label', () => {
@@ -92,12 +95,14 @@ describe('parseItemDescription', () => {
     // is a reference to the first label, not a new section header — should
     // stay inline inside the surrounding sentence.
     const parsed = parseItemDescription('<passive>Baleful Blaze</passive><br>Effect one.<br><br><passive>Blackfire</passive><br>Affected by your <passive>Baleful Blaze</passive>, gain AP.')
-    const allPassives = parsed.filter(s => s.kind === 'text' && s.tag === 'passive')
-    expect(allPassives).toHaveLength(3)
-    // Last passive is the in-sentence reference — verify the preceding segment
-    // is plain prose, not a paragraph break.
-    const lastPassiveIdx = parsed.length - 1 - [...parsed].reverse().findIndex(s => s.kind === 'text' && s.tag === 'passive')
-    expect(parsed[lastPassiveIdx - 1]?.kind).toBe('text')
+    const labels = parsed.filter(s => s.kind === 'text' && s.tag === 'passive')
+    const refs = parsed.filter(s => s.kind === 'text' && s.tag === 'passiveref')
+    expect(labels).toHaveLength(2)
+    expect(refs).toHaveLength(1)
+    // The reference is in-sentence — verify the preceding segment is plain
+    // prose, not a paragraph break.
+    const refIdx = parsed.findIndex(s => s.kind === 'text' && s.tag === 'passiveref')
+    expect(parsed[refIdx - 1]?.kind).toBe('text')
   })
 
   it('groups Item Haste and Summoner Spell Haste into the ability-haste bucket', () => {
