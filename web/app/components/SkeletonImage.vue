@@ -54,6 +54,7 @@ const FETCH_SIZE = 64
         :title="title"
         :width="FETCH_SIZE"
         :height="FETCH_SIZE"
+        densities="1x"
         class="size-full transition-opacity duration-150"
         :class="loaded && !failed ? 'opacity-100' : 'opacity-0'"
         @load="loaded = true"
