@@ -33,9 +33,31 @@ public sealed class ChampionSummariesQueryService(
 
     private async Task<IReadOnlyList<ChampionSummaryReadModel>> ComputeAllSummariesAsync(string? requestedPatch, CancellationToken ct)
     {
+        // Resolve the active patch first so the row pull below can apply the
+        // GameVersion filter in SQL. Loading every aggregate row for the queue
+        // before filtering in-memory would re-scan the whole table on every
+        // cache miss — fine when only the latest patch matters but wasteful
+        // once historical patches are reachable through ?patch=.
+        var activePatch = requestedPatch;
+        if (string.IsNullOrEmpty(activePatch))
+        {
+            var distinctPatches = await db.ChampionAggregateScopes
+                .AsNoTracking()
+                .Where(scope => scope.QueueId == options.Value.QueueId)
+                .Select(scope => scope.GameVersion)
+                .Distinct()
+                .ToListAsync(ct);
+            activePatch = ChampionAggregateScopeResolver.ResolvePatchVersion(distinctPatches, requestedPatch: null);
+        }
+        if (string.IsNullOrEmpty(activePatch))
+        {
+            return [];
+        }
+
         var rows = await db.ChampionAggregateScopes
             .AsNoTracking()
             .Where(scope => scope.QueueId == options.Value.QueueId)
+            .Where(scope => scope.GameVersion == activePatch)
             .Select(scope => new ChampionSummaryRow(
                 scope.ChampionId,
                 scope.GameVersion,
@@ -46,21 +68,7 @@ public sealed class ChampionSummariesQueryService(
                 scope.AggregatedAtUtc))
             .ToListAsync(ct);
 
-        if (rows.Count == 0)
-        {
-            return [];
-        }
-
-        var activePatch = ChampionAggregateScopeResolver.ResolvePatchVersion(
-            rows.Select(row => row.GameVersion),
-            requestedPatch);
-        if (string.IsNullOrEmpty(activePatch))
-        {
-            return [];
-        }
-
         var scoped = rows
-            .Where(row => string.Equals(row.GameVersion, activePatch, StringComparison.Ordinal))
             .Where(row => !string.IsNullOrWhiteSpace(row.Position))
             .ToList();
 

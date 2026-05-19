@@ -17,8 +17,9 @@ const UButton = resolveComponent('UButton')
 
 const { filters, setFilter } = useChampionFilters()
 
-// One asyncData entry per resolved patch — when the patch filter changes,
-// `watch` refires and the new entry is cached under a fresh key.
+// One asyncData entry per resolved patch — refire only on patch change so
+// switching the position filter (which is applied client-side) doesn't trigger
+// an unnecessary refetch + table loading flash.
 const {
   data: summaries,
   error: summariesError,
@@ -31,7 +32,7 @@ const {
       query: patch ? { patch } : {},
     })
   },
-  { watch: [filters] },
+  { watch: [() => filters.value.patch] },
 )
 const { data: staticList, error: staticError } = await useFetch<ChampionStaticListItem[]>(
   '/api/static/champions',
