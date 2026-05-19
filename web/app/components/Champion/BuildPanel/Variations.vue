@@ -7,10 +7,6 @@ const props = defineProps<{
   championStatic: ChampionStaticData
 }>()
 
-function summonerIcon(id: number): string {
-  return props.championStatic.summonerSpells[id]?.iconUrl ?? ''
-}
-
 function summonerName(id: number): string {
   return props.championStatic.summonerSpells[id]?.name ?? `Spell ${id}`
 }
@@ -36,20 +32,15 @@ function spellByKey(key: string) {
           class="flex items-center justify-between gap-3"
         >
           <div class="flex items-center gap-1">
-            <template
+            <GameTooltipSummonerSpellIcon
               v-for="spellId in [option.spell1Id, option.spell2Id]"
               :key="`sum-${option.spell1Id}-${option.spell2Id}-${spellId}`"
-            >
-              <SkeletonImage
-                v-if="summonerIcon(spellId)"
-                :src="summonerIcon(spellId)"
-                :alt="summonerName(spellId)"
-                :title="summonerName(spellId)"
-                width="32"
-                height="32"
-                class="size-8 rounded"
-              />
-            </template>
+              :spell="championStatic.summonerSpells[spellId] ?? null"
+              :fallback-label="summonerName(spellId)"
+              :width="32"
+              :height="32"
+              class="size-8 rounded"
+            />
           </div>
           <RateBadge
             :pick-rate="option.pickRate"
@@ -78,21 +69,13 @@ function spellByKey(key: string) {
               :key="`${optionIndex}-${key}-${index}`"
             >
               <div class="relative size-8">
-                <SkeletonImage
-                  v-if="spellByKey(key)"
-                  :src="spellByKey(key)!.iconUrl"
-                  :alt="spellByKey(key)!.name"
-                  :title="`${key} — ${spellByKey(key)!.name}`"
-                  width="32"
-                  height="32"
+                <GameTooltipChampionSpellIcon
+                  :spell="spellByKey(key)"
+                  :fallback-label="key"
+                  :width="32"
+                  :height="32"
                   class="size-8 rounded"
                 />
-                <span
-                  v-else
-                  class="inline-flex size-8 items-center justify-center rounded border border-default text-xs"
-                >
-                  {{ key }}
-                </span>
                 <span class="absolute bottom-0 left-1/2 inline-flex h-3 min-w-3 -translate-x-1/2 items-center justify-center rounded bg-default/85 px-0.5 text-[8px] font-bold uppercase ring-1 ring-default backdrop-blur-sm">
                   {{ key }}
                 </span>
@@ -126,14 +109,12 @@ function spellByKey(key: string) {
           class="flex items-center justify-between gap-3"
         >
           <div class="flex items-center gap-1">
-            <SkeletonImage
+            <GameTooltipItemIcon
               v-for="(item, index) in itemsByIds(option.itemIds)"
               :key="`boots-item-${optionIndex}-${item.id}-${index}`"
-              :src="item.iconUrl"
-              :alt="item.name"
-              :title="item.name"
-              width="32"
-              height="32"
+              :item="item"
+              :width="32"
+              :height="32"
               class="size-8 rounded"
             />
           </div>
@@ -159,14 +140,12 @@ function spellByKey(key: string) {
           class="flex items-center justify-between gap-3"
         >
           <div class="flex items-center gap-1">
-            <SkeletonImage
+            <GameTooltipItemIcon
               v-for="(item, index) in itemsByIds(option.itemIds)"
               :key="`starter-item-${optionIndex}-${item.id}-${index}`"
-              :src="item.iconUrl"
-              :alt="item.name"
-              :title="item.name"
-              width="32"
-              height="32"
+              :item="item"
+              :width="32"
+              :height="32"
               class="size-8 rounded"
             />
           </div>

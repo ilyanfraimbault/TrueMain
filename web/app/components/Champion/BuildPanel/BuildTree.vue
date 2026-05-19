@@ -11,6 +11,8 @@ const props = defineProps<{
 interface LaidOutNode {
   itemId: number
   games: number
+  /** Fraction in [0..1] — share of games at this slot that picked this item. Undefined on the synthetic root (no parent context). */
+  pickRate?: number
   isMainEdge: boolean
   x: number
   y: number
@@ -56,6 +58,7 @@ const layout = computed(() => {
     return sorted.map((node, index) => ({
       itemId: node.itemId,
       games: node.games,
+      pickRate: node.pickRate,
       isMainEdge: index === mainIndex,
       x: 0,
       y: 0,
@@ -66,6 +69,9 @@ const layout = computed(() => {
   const root: LaidOutNode = {
     itemId: props.firstItemId,
     games: 0,
+    // Root is the build's first item by definition — every path in this
+    // sub-tree starts here, so its slot-1 pickrate is 100%.
+    pickRate: 1,
     isMainEdge: false,
     x: 0,
     y: 0,
@@ -121,14 +127,6 @@ const layout = computed(() => {
   return { flat, width, height, edges }
 })
 
-function itemIcon(id: number): string {
-  return props.championStatic.items[id]?.iconUrl ?? ''
-}
-
-function itemName(id: number): string {
-  return props.championStatic.items[id]?.name ?? `Item ${id}`
-}
-
 const hasNodes = computed(() => layout.value.flat.length > 1)
 </script>
 
@@ -158,12 +156,11 @@ const hasNodes = computed(() => layout.value.flat.length > 1)
             :stroke-dasharray="edge.child.isMainEdge ? undefined : '4 4'"
           />
         </svg>
-        <SkeletonImage
+        <GameTooltipItemIcon
           v-for="(node, index) in layout.flat"
           :key="`node-${index}`"
-          :src="itemIcon(node.itemId)"
-          :alt="itemName(node.itemId)"
-          :title="itemName(node.itemId)"
+          :item="championStatic.items[node.itemId] ?? null"
+          :pick-rate="node.pickRate"
           :width="ITEM_SIZE"
           :height="ITEM_SIZE"
           class="absolute rounded"

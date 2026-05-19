@@ -5,13 +5,19 @@ import type { RuneTreeResponse, RuneTreeStyle } from '~~/shared/types/static-dat
 const props = defineProps<{
   page: BuildRunePage
   tree: RuneTreeResponse
+  /** Base size (px) for the regular perks. Other rows scale from this. */
   size?: number
+  /** Override the keystone row size independently of `size`. Useful when the
+   *  surrounding layout wants emphasised keystones but smaller perk rows
+   *  (e.g. the rune-variations panel). Defaults to `size`. */
+  keystoneSize?: number
 }>()
 
-const keystoneSize = computed(() => props.size ?? 32)
-const perkSize = computed(() => Math.max(20, keystoneSize.value - 4))
-const secondarySize = computed(() => Math.max(16, keystoneSize.value - 12))
-const shardSize = computed(() => Math.max(12, keystoneSize.value - 16))
+const baseSize = computed(() => props.size ?? 32)
+const keystoneSize = computed(() => props.keystoneSize ?? baseSize.value)
+const perkSize = computed(() => Math.max(20, baseSize.value - 4))
+const secondarySize = computed(() => Math.max(16, baseSize.value - 12))
+const shardSize = computed(() => Math.max(12, baseSize.value - 16))
 
 const primary = computed<RuneTreeStyle | null>(() =>
   props.tree.styles.find(s => s.styleId === props.page.primaryStyleId) ?? null,
@@ -38,14 +44,6 @@ const selectedShards = computed(() => [
   props.page.statFlex,
   props.page.statDefense,
 ])
-
-function perkIcon(id: number): string {
-  return props.tree.perks[id]?.iconUrl ?? ''
-}
-
-function perkName(id: number): string {
-  return props.tree.perks[id]?.name ?? `Perk ${id}`
-}
 </script>
 
 <template>
@@ -57,12 +55,10 @@ function perkName(id: number): string {
     >
       <!-- Keystone row -->
       <div class="flex items-center gap-0.5">
-        <SkeletonImage
+        <GameTooltipPerkIcon
           v-for="id in primary.keystones"
           :key="`pk-${id}`"
-          :src="perkIcon(id)"
-          :alt="perkName(id)"
-          :title="perkName(id)"
+          :perk="tree.perks[id] ?? null"
           :width="keystoneSize"
           :height="keystoneSize"
           :style="{ width: `${keystoneSize}px`, height: `${keystoneSize}px` }"
@@ -79,12 +75,10 @@ function perkName(id: number): string {
         :key="`prow-${rowIndex}`"
         class="flex items-center gap-1"
       >
-        <SkeletonImage
+        <GameTooltipPerkIcon
           v-for="id in row"
           :key="`pp-${rowIndex}-${id}`"
-          :src="perkIcon(id)"
-          :alt="perkName(id)"
-          :title="perkName(id)"
+          :perk="tree.perks[id] ?? null"
           :width="perkSize"
           :height="perkSize"
           :style="{ width: `${perkSize}px`, height: `${perkSize}px` }"
@@ -108,12 +102,10 @@ function perkName(id: number): string {
           :key="`srow-${rowIndex}`"
           class="flex items-center gap-1"
         >
-          <SkeletonImage
+          <GameTooltipPerkIcon
             v-for="id in row"
             :key="`sp-${rowIndex}-${id}`"
-            :src="perkIcon(id)"
-            :alt="perkName(id)"
-            :title="perkName(id)"
+            :perk="tree.perks[id] ?? null"
             :width="secondarySize"
             :height="secondarySize"
             :style="{ width: `${secondarySize}px`, height: `${secondarySize}px` }"
@@ -132,12 +124,10 @@ function perkName(id: number): string {
           :key="`shard-row-${rowIndex}`"
           class="flex items-center gap-1"
         >
-          <SkeletonImage
+          <GameTooltipPerkIcon
             v-for="id in row"
             :key="`shard-${rowIndex}-${id}`"
-            :src="perkIcon(id)"
-            :alt="perkName(id)"
-            :title="perkName(id)"
+            :perk="tree.perks[id] ?? null"
             :width="shardSize"
             :height="shardSize"
             :style="{ width: `${shardSize}px`, height: `${shardSize}px` }"

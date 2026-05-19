@@ -8,7 +8,9 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
-    "typecheck": "nuxt typecheck"
+    "typecheck": "nuxt typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@nuxt/image": "^2.0.0",
@@ -18,8 +20,10 @@
   },
   "devDependencies": {
     "@types/node": "^25.8.0",
+    "happy-dom": "^15.11.7",
     "tailwindcss": "^4.2.2",
     "typescript": "^6.0.3",
+    "vitest": "^2.1.8",
     "vue-tsc": "^3.2.8"
   }
 }

@@ -1,0 +1,60 @@
+<script setup lang="ts">
+import { computed } from 'vue'
+import type { StaticSummonerSpellData } from '~~/shared/types/static-data'
+
+defineOptions({ inheritAttrs: false })
+
+const props = withDefaults(defineProps<{
+  spell?: StaticSummonerSpellData | null
+  width?: number | string
+  height?: number | string
+  /** Optional fallback label rendered (and used as tooltip text) when no icon URL is available. */
+  fallbackLabel?: string
+}>(), {
+  spell: null,
+  width: 36,
+  height: 36,
+  fallbackLabel: '',
+})
+
+const hasSpell = computed(() => Boolean(props.spell))
+const hasIcon = computed(() => Boolean(props.spell?.iconUrl))
+const fallbackText = computed(() => props.fallbackLabel || props.spell?.name || '')
+const fallbackStyle = computed(() => ({
+  width: typeof props.width === 'number' ? `${props.width}px` : props.width,
+  height: typeof props.height === 'number' ? `${props.height}px` : props.height,
+}))
+</script>
+
+<template>
+  <UTooltip
+    :disabled="!hasSpell"
+    :delay-duration="150"
+    :ui="{ content: 'p-0 h-auto max-w-none bg-transparent ring-0 shadow-none text-default' }"
+  >
+    <SkeletonImage
+      v-if="hasIcon"
+      v-bind="$attrs"
+      :src="spell?.iconUrl"
+      :alt="spell?.name"
+      :width="width"
+      :height="height"
+    />
+    <span
+      v-else
+      v-bind="$attrs"
+      class="inline-flex items-center justify-center rounded border border-default text-xs"
+      :style="fallbackStyle"
+    >
+      {{ fallbackText }}
+    </span>
+    <template
+      v-if="spell"
+      #content
+    >
+      <GameTooltipSurface>
+        <GameTooltipSummonerSpellBody :spell="spell" />
+      </GameTooltipSurface>
+    </template>
+  </UTooltip>
+</template>

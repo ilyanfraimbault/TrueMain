@@ -1,31 +1,17 @@
-import type {
-  RuneTreeResponse,
-  RuneTreeStyle,
-  StaticPerkData,
-  StaticPerkStyleData,
-} from '~~/shared/types/static-data'
-
-const COMMUNITY_DRAGON_PREFIX
-  = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default'
-
-interface PerksResponse extends Array<{
-  id: number
-  name: string
-  iconPath: string
-}> {}
+import type { RuneTreeResponse, RuneTreeStyle } from '~~/shared/types/static-data'
+import {
+  buildPerkMap,
+  buildPerkStyleMap,
+  COMMUNITY_DRAGON_PREFIX,
+  rewriteCdragonAsset,
+  type CdragonPerkRow,
+  type CdragonPerkStyleRow,
+} from '~~/server/utils/ddragon-loader'
 
 interface PerkStylesResponse {
-  styles: Array<{
-    id: number
-    name: string
-    iconPath: string
+  styles: Array<CdragonPerkStyleRow & {
     slots: Array<{ type: string, perks: number[] }>
   }>
-}
-
-function rewriteCdragonAsset(iconPath: string): string {
-  if (!iconPath) return ''
-  return iconPath.toLowerCase().replace(/^\/lol-game-data\/assets/, COMMUNITY_DRAGON_PREFIX)
 }
 
 const loadRuneTree = defineCachedFunction(
@@ -34,7 +20,7 @@ const loadRuneTree = defineCachedFunction(
     // and let the next request retry than cache an empty `RuneTreeResponse`
     // for 1h on a transient outage. Same trade-off as champions.get.ts.
     const [perks, perkStyles] = await Promise.all([
-      $fetch<PerksResponse>(`${COMMUNITY_DRAGON_PREFIX}/v1/perks.json`),
+      $fetch<CdragonPerkRow[]>(`${COMMUNITY_DRAGON_PREFIX}/v1/perks.json`),
       $fetch<PerkStylesResponse>(`${COMMUNITY_DRAGON_PREFIX}/v1/perkstyles.json`),
     ]).catch((error) => {
       throw createError({
@@ -44,21 +30,8 @@ const loadRuneTree = defineCachedFunction(
       })
     })
 
-    const perkMap: Record<number, StaticPerkData> = Object.fromEntries(
-      perks.map(perk => [perk.id, {
-        id: perk.id,
-        name: perk.name,
-        iconUrl: rewriteCdragonAsset(perk.iconPath),
-      }]),
-    )
-
-    const perkStyleMap: Record<number, StaticPerkStyleData> = Object.fromEntries(
-      perkStyles.styles.map(style => [style.id, {
-        id: style.id,
-        name: style.name,
-        iconUrl: rewriteCdragonAsset(style.iconPath),
-      }]),
-    )
+    const perkMap = buildPerkMap(perks)
+    const perkStyleMap = buildPerkStyleMap(perkStyles.styles)
 
     // CommunityDragon emits 7 slots per style: 0 = keystone, 1-3 = regular
     // sub-rows, 4-6 = stat shards (same triplets for every style, so we read

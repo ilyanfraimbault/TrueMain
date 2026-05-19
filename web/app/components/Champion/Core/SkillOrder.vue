@@ -26,21 +26,13 @@ function spellByKey(key: string) {
         :key="`${key}-${index}`"
       >
         <div class="relative size-9">
-          <SkeletonImage
-            v-if="spellByKey(key)"
-            :src="spellByKey(key)!.iconUrl"
-            :alt="spellByKey(key)!.name"
-            :title="`${key} — ${spellByKey(key)!.name}`"
-            width="36"
-            height="36"
+          <GameTooltipChampionSpellIcon
+            :spell="spellByKey(key)"
+            :fallback-label="key"
+            :width="36"
+            :height="36"
             class="size-9 rounded"
           />
-          <span
-            v-else
-            class="inline-flex size-9 items-center justify-center rounded border border-default text-xs"
-          >
-            {{ key }}
-          </span>
           <span class="absolute bottom-0 left-1/2 inline-flex h-3 min-w-3 -translate-x-1/2 items-center justify-center rounded bg-default/85 px-0.5 text-[8px] font-bold uppercase ring-1 ring-default backdrop-blur-sm">
             {{ key }}
           </span>
