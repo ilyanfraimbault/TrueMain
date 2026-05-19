@@ -209,7 +209,7 @@ public sealed class ChampionBuildsQueryService(
         // be visible in the build-tree visualization (no "ghost" deep items).
         var buildTree = BuildItemTree(rows, sliceGames);
         var (itemPath, itemPathGames, itemPathWins) = ComputeItemPath(
-            buildTree, pending.Key.FirstItemId, sliceGames, rows.Sum(row => row.Wins));
+            buildTree, pending.Key.FirstItemId, sliceGames, pending.Wins);
 
         return new GroupAggregates(
             pending.Key,

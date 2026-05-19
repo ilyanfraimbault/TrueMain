@@ -83,9 +83,14 @@ type ChampionDetailResponse = {
  */
 function resolveCostType(costType: string | undefined, partype: string): string | undefined {
   if (!costType) return costType
-  return costType
+  const resolved = costType
     .replace(/\{\{\s*abilityresourcename\s*\}\}/gi, partype)
     .replace(/\(\(\s*abilityresourcename\s*\)\)/gi, partype)
+  // If `partype` was missing/empty we'd end up with just the placeholder's
+  // surrounding whitespace (e.g. " Mana" → " "). Treat that as "no resource
+  // name available" rather than letting the UI render "Cost: 50 " with a
+  // blank resource label.
+  return resolved.trim() === '' ? undefined : resolved
 }
 
 export function rewriteCdragonAsset(iconPath: string): string {
