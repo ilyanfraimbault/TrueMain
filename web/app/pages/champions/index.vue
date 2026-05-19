@@ -133,14 +133,9 @@ function staticItem(id: number | undefined) {
 <template>
   <main class="mx-auto max-w-6xl space-y-6 p-4 md:p-6">
     <header class="space-y-3">
-      <div class="space-y-1">
-        <h1 class="text-2xl font-semibold">
-          Champions
-        </h1>
-        <p class="text-sm text-muted">
-          One row per champion and lane. The build shown is the most-played for the selected patch.
-        </p>
-      </div>
+      <h1 class="text-2xl font-semibold">
+        Champions
+      </h1>
 
       <div class="flex flex-wrap items-center justify-between gap-3">
         <UFieldGroup size="md">
@@ -163,7 +158,7 @@ function staticItem(id: number | undefined) {
             v-for="option in POSITION_OPTIONS"
             :key="option.value"
             :variant="selectedPosition === option.value ? 'soft' : 'ghost'"
-            :color="selectedPosition === option.value ? 'primary' : 'neutral'"
+            color="neutral"
             square
             :aria-label="option.label"
             @click="selectPosition(option.value)"
