@@ -1,8 +1,24 @@
 <script setup lang="ts">
 import type { ChampionSummaryResponse } from '~~/shared/types/champions'
 import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
-import { formatPercentage } from '~~/shared/utils/ddragon'
+import { formatPercentage, getPositionIconUrl } from '~~/shared/utils/ddragon'
 import { POSITION_OPTIONS, isChampionPosition, type ChampionPosition } from '~/utils/positions'
+
+// Color thresholds for the inline win-rate / pick-rate badges. Tuned to feel
+// like the in-client stats colors: clearly positive above the upper bound,
+// neutral text in the middle band, distinctly negative below the lower bound.
+function winRateColor(value: number): string {
+  if (value >= 0.53) return 'text-emerald-400'
+  if (value < 0.48) return 'text-rose-400'
+  return 'text-default'
+}
+function pickRateColor(value: number): string {
+  if (value >= 0.08) return 'text-emerald-400'
+  if (value < 0.03) return 'text-rose-400'
+  return 'text-default'
+}
+
+const FILL_POSITION_ICON_URL = getPositionIconUrl('fill')
 
 useSeoMeta({
   title: 'Champions · TrueMain',
@@ -120,16 +136,6 @@ function staticItem(id: number | undefined) {
   if (!id) return null
   return itemsMap.value?.[id] ?? null
 }
-
-function linkToFor(position: string) {
-  return {
-    path: `/champions/${position}`,
-    query: {
-      ...(selectedPatch.value ? { patch: selectedPatch.value } : {}),
-      ...(position ? { position } : {}),
-    },
-  }
-}
 </script>
 
 <template>
@@ -149,11 +155,18 @@ function linkToFor(position: string) {
           <UButton
             :variant="selectedPosition === ALL_POSITIONS ? 'soft' : 'ghost'"
             :color="selectedPosition === ALL_POSITIONS ? 'primary' : 'neutral'"
-            icon="i-lucide-asterisk"
             square
             aria-label="All positions"
             @click="selectPosition(ALL_POSITIONS)"
-          />
+          >
+            <NuxtImg
+              :src="FILL_POSITION_ICON_URL"
+              alt="All positions"
+              :width="18"
+              :height="18"
+              class="size-[18px]"
+            />
+          </UButton>
           <UButton
             v-for="option in POSITION_OPTIONS"
             :key="option.value"
@@ -244,30 +257,29 @@ function linkToFor(position: string) {
               class="size-[22px] shrink-0"
             />
 
-            <!-- Runes: primary keystone + secondary tree -->
+            <!-- Runes: primary keystone + secondary tree (same tooltip
+                 components as the champion detail page so hover shows the
+                 full perk / style description). -->
             <div
               v-if="row.topBuild"
               class="flex shrink-0 items-center gap-1"
             >
-              <NuxtImg
-                v-if="perk(row.topBuild.primaryKeystoneId)?.iconUrl"
-                :src="perk(row.topBuild.primaryKeystoneId)!.iconUrl"
-                :alt="perk(row.topBuild.primaryKeystoneId)!.name"
+              <GameTooltipPerkIcon
+                :perk="perk(row.topBuild.primaryKeystoneId)"
                 :width="28"
                 :height="28"
                 class="size-7 rounded-full"
               />
-              <NuxtImg
-                v-if="perkStyle(row.topBuild.secondaryStyleId)?.iconUrl"
-                :src="perkStyle(row.topBuild.secondaryStyleId)!.iconUrl"
-                :alt="perkStyle(row.topBuild.secondaryStyleId)!.name"
+              <GameTooltipPerkStyleIcon
+                :style="perkStyle(row.topBuild.secondaryStyleId)"
                 :width="20"
                 :height="20"
                 class="size-5"
               />
             </div>
 
-            <!-- Build path -->
+            <!-- Build path: reuse GameTooltipItemIcon so hover shows the
+                 same item tooltip as the champion detail page. -->
             <div
               v-if="row.topBuild && row.topBuild.itemPath.length > 0"
               class="flex shrink-0 items-center gap-1"
@@ -276,10 +288,8 @@ function linkToFor(position: string) {
                 v-for="(itemId, idx) in row.topBuild.itemPath.slice(0, 5)"
                 :key="`${row.championId}-${row.position}-bp-${idx}`"
               >
-                <NuxtImg
-                  v-if="staticItem(itemId)?.iconUrl"
-                  :src="staticItem(itemId)!.iconUrl"
-                  :alt="staticItem(itemId)!.name"
+                <GameTooltipItemIcon
+                  :item="staticItem(itemId)"
                   :width="28"
                   :height="28"
                   class="size-7 rounded"
@@ -292,23 +302,27 @@ function linkToFor(position: string) {
               </template>
             </div>
 
-            <!-- Rates -->
+            <!-- Rates: large coloured percentage on top, small muted label
+                 below. Color thresholds chosen to feel like the in-client
+                 stats colors. -->
             <div class="ml-auto flex shrink-0 items-center gap-5 tabular-nums">
-              <div class="text-right">
-                <div class="text-xs text-muted">
-                  Win rate
-                </div>
-                <div class="font-medium">
+              <div class="flex min-w-[3rem] flex-col items-center">
+                <span
+                  class="text-lg font-semibold leading-none"
+                  :class="winRateColor(row.winRate)"
+                >
                   {{ formatPercentage(row.winRate) }}
-                </div>
+                </span>
+                <span class="mt-0.5 text-xs text-muted">WR</span>
               </div>
-              <div class="text-right">
-                <div class="text-xs text-muted">
-                  Pickrate
-                </div>
-                <div class="font-medium">
+              <div class="flex min-w-[3rem] flex-col items-center">
+                <span
+                  class="text-lg font-semibold leading-none"
+                  :class="pickRateColor(row.pickRate)"
+                >
                   {{ formatPercentage(row.pickRate) }}
-                </div>
+                </span>
+                <span class="mt-0.5 text-xs text-muted">PR</span>
               </div>
             </div>
           </NuxtLink>
