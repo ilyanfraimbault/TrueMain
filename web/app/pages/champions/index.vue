@@ -1,21 +1,13 @@
 <script setup lang="ts">
 import type { ChampionSummaryResponse } from '~~/shared/types/champions'
 import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
-import { formatPercentage, getPositionIconUrl } from '~~/shared/utils/ddragon'
+import { getPositionIconUrl } from '~~/shared/utils/ddragon'
 import { POSITION_OPTIONS, isChampionPosition, type ChampionPosition } from '~/utils/positions'
 
-// Color thresholds for the inline win-rate / pick-rate badges. Tuned to feel
-// like the in-client stats colors: clearly positive above the upper bound,
-// neutral text in the middle band, distinctly negative below the lower bound.
-function winRateColor(value: number): string {
-  if (value >= 0.53) return 'text-emerald-400'
-  if (value < 0.48) return 'text-rose-400'
-  return 'text-default'
-}
-function pickRateColor(value: number): string {
-  if (value >= 0.08) return 'text-emerald-400'
-  if (value < 0.03) return 'text-rose-400'
-  return 'text-default'
+// Whole-percent format used for both WR and PR in the list — matches the
+// terse style used by the in-game stats and the detail-page build tabs.
+function pct(value: number): string {
+  return `${Math.round(value * 100)}%`
 }
 
 const FILL_POSITION_ICON_URL = getPositionIconUrl('fill')
@@ -154,7 +146,7 @@ function staticItem(id: number | undefined) {
         <UFieldGroup size="md">
           <UButton
             :variant="selectedPosition === ALL_POSITIONS ? 'soft' : 'ghost'"
-            :color="selectedPosition === ALL_POSITIONS ? 'primary' : 'neutral'"
+            color="neutral"
             square
             aria-label="All positions"
             @click="selectPosition(ALL_POSITIONS)"
@@ -257,12 +249,12 @@ function staticItem(id: number | undefined) {
               class="size-[22px] shrink-0"
             />
 
-            <!-- Runes: primary keystone + secondary tree (same tooltip
-                 components as the champion detail page so hover shows the
-                 full perk / style description). -->
+            <!-- Runes: primary keystone with the secondary tree as a small
+                 badge overlay — same presentation as the detail-page build
+                 tabs (see ChampionBuildTabs leading slot). -->
             <div
-              v-if="row.topBuild"
-              class="flex shrink-0 items-center gap-1"
+              v-if="row.topBuild && perk(row.topBuild.primaryKeystoneId)"
+              class="relative size-7 shrink-0"
             >
               <GameTooltipPerkIcon
                 :perk="perk(row.topBuild.primaryKeystoneId)"
@@ -271,10 +263,11 @@ function staticItem(id: number | undefined) {
                 class="size-7 rounded-full"
               />
               <GameTooltipPerkStyleIcon
+                v-if="perkStyle(row.topBuild.secondaryStyleId)"
                 :style="perkStyle(row.topBuild.secondaryStyleId)"
-                :width="20"
-                :height="20"
-                class="size-5"
+                :width="16"
+                :height="16"
+                class="absolute -bottom-1 -right-2 size-4"
               />
             </div>
 
@@ -302,26 +295,16 @@ function staticItem(id: number | undefined) {
               </template>
             </div>
 
-            <!-- Rates: large coloured percentage on top, small muted label
-                 below. Color thresholds chosen to feel like the in-client
-                 stats colors. -->
+            <!-- Rates: bold whole-percent on top, small muted label below.
+                 Numbers stay default-coloured — colour-coding tested too
+                 noisy against the rest of the row. -->
             <div class="ml-auto flex shrink-0 items-center gap-5 tabular-nums">
               <div class="flex min-w-[3rem] flex-col items-center">
-                <span
-                  class="text-lg font-semibold leading-none"
-                  :class="winRateColor(row.winRate)"
-                >
-                  {{ formatPercentage(row.winRate) }}
-                </span>
+                <span class="text-lg font-bold leading-none">{{ pct(row.winRate) }}</span>
                 <span class="mt-0.5 text-xs text-muted">WR</span>
               </div>
               <div class="flex min-w-[3rem] flex-col items-center">
-                <span
-                  class="text-lg font-semibold leading-none"
-                  :class="pickRateColor(row.pickRate)"
-                >
-                  {{ formatPercentage(row.pickRate) }}
-                </span>
+                <span class="text-lg font-bold leading-none">{{ pct(row.pickRate) }}</span>
                 <span class="mt-0.5 text-xs text-muted">PR</span>
               </div>
             </div>
