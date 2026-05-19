@@ -56,6 +56,7 @@ defineProps<{
           <ChampionCoreRunes
             :page="build.core.runePage"
             :tree="runeTree"
+            :keystone-size="35"
           />
         </div>
       </div>
