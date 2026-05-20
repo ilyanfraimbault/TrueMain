@@ -31,16 +31,19 @@ const layout = computed(() => {
   }
 
   function pickMainIndex(nodes: BuildTreeNode[]): number {
-    // Main path goes through the deepest subtree (so the visualised "main
-    // build" stays as complete as possible). Tie-break by games — when two
-    // siblings reach the same depth, the more popular one wins.
+    // Main path follows the most popular child at each step, with the deepest
+    // subtree as a tiebreak so equally-popular siblings prefer the more
+    // complete chain. Input is already pre-sorted by games desc (then wins
+    // desc, then itemId asc) by the backend serializer + wrapChildren, so
+    // nodes[0] is always the most popular; the loop only swaps when an
+    // equal-games sibling has a strictly deeper subtree.
     let bestIndex = 0
     let bestDepth = depth(nodes[0]!)
     let bestGames = nodes[0]!.games
     for (let i = 1; i < nodes.length; i++) {
       const d = depth(nodes[i]!)
       const g = nodes[i]!.games
-      if (d > bestDepth || (d === bestDepth && g > bestGames)) {
+      if (g > bestGames || (g === bestGames && d > bestDepth)) {
         bestIndex = i
         bestDepth = d
         bestGames = g

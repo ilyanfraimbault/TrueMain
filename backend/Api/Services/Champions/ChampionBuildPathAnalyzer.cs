@@ -10,9 +10,9 @@ namespace TrueMain.Services.Champions;
 /// The algorithm builds a pruned item-progression tree from every
 /// <c>(BuildItem1..6)</c> sequence observed in the slice (low-support nodes
 /// dropped, fan-out capped) and walks it greedily, picking at each step the
-/// child whose subtree extends deepest, breaking ties by games then wins
-/// then itemId. The walk stops once the next step's parent-relative
-/// pick rate dips below <see cref="ItemPathProbThreshold"/>.
+/// most-popular child, breaking ties by deepest subtree then wins then
+/// itemId. The walk stops once the next step's parent-relative pick rate
+/// dips below <see cref="ItemPathProbThreshold"/>.
 /// </summary>
 internal static class ChampionBuildPathAnalyzer
 {
@@ -96,11 +96,11 @@ internal static class ChampionBuildPathAnalyzer
 
     /// <summary>
     /// Walk the pruned tree starting from <paramref name="firstItemId"/>,
-    /// choosing the child with the deepest subtree at each step. Returns the
-    /// item-id chain plus the games / wins counts at the deepest reached
-    /// node. The walk stops at <see cref="ItemPathMaxDepth"/> or once the
-    /// next step's parent-relative pick rate falls below
-    /// <see cref="ItemPathProbThreshold"/>.
+    /// choosing the most-popular child at each step (ties broken by deepest
+    /// subtree, then wins, then itemId). Returns the item-id chain plus the
+    /// games / wins counts at the deepest reached node. The walk stops at
+    /// <see cref="ItemPathMaxDepth"/> or once the next step's parent-relative
+    /// pick rate falls below <see cref="ItemPathProbThreshold"/>.
     /// </summary>
     public static (List<int> ItemIds, int Games, int Wins) WalkPath(
         IReadOnlyList<TreeNode> rootChildren,
@@ -122,8 +122,8 @@ internal static class ChampionBuildPathAnalyzer
         while (path.Count <= ItemPathMaxDepth && current.Children.Count > 0)
         {
             var best = current.Children.Values
-                .OrderByDescending(MaxDepth)
-                .ThenByDescending(node => node.Games)
+                .OrderByDescending(node => node.Games)
+                .ThenByDescending(MaxDepth)
                 .ThenByDescending(node => node.Wins)
                 .ThenBy(node => node.ItemId)
                 .First();
