@@ -27,6 +27,14 @@ internal static class ItemMetadataFixtures
         [3031] = new(3031, 3000, true, false, false, false, true, false),
         [3085] = new(3085, 3000, true, false, false, false, true, false),
         [3153] = new(3153, 3200, true, false, false, false, true, false),
+        [3877] = new(3877, 400, true, false, false, false, true, false)
+        {
+            IsSupportQuestCompletion = true
+        },
+        [3876] = new(3876, 400, true, false, false, false, true, false)
+        {
+            IsSupportQuestCompletion = true
+        },
         [6672] = new(6672, 3000, true, false, false, false, true, false)
     };
 }

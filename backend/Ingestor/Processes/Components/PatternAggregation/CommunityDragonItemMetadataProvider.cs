@@ -57,7 +57,8 @@ public sealed class CommunityDragonItemMetadataProvider(
                         && item.Id != LolItemIds.BootsOfSpeed)
                 {
                     IsInventoryTransformItem = IsInventoryTransformItem(item),
-                    TransformFromItemId = item.SpecialRecipe > 0 ? item.SpecialRecipe : null
+                    TransformFromItemId = item.SpecialRecipe > 0 ? item.SpecialRecipe : null,
+                    IsSupportQuestCompletion = IsSupportQuestCompletion(item)
                 };
             });
     }
@@ -76,6 +77,23 @@ public sealed class CommunityDragonItemMetadataProvider(
            && item.SpecialRecipe > 0
            && (item.To ?? []).Count == 0
            && item.PriceTotal >= 2_000;
+
+    // Support quest completions auto-appear in slot 0 once the quest gold
+    // threshold is met — players never `buy` them, so we want to pin them at
+    // BuildItem0 for UTILITY scopes instead of showing them as a mid-build
+    // purchase. They share `S11Support_Quest_Completion_Buff` with the
+    // Wardstones, but only the completion upgrades have `from: [3867]`
+    // (Bounty of Worlds is the quest-complete intermediate that every
+    // upgrade replaces); the Wardstones are a real purchase decision and
+    // are correctly excluded.
+    private const string SupportQuestCompletionBuffCurrencyName = "S11Support_Quest_Completion_Buff";
+
+    private static bool IsSupportQuestCompletion(CommunityDragonItem item)
+        => (item.From ?? []).Contains(LolItemIds.SupportQuest.BountyOfWorlds)
+           && string.Equals(
+               item.RequiredBuffCurrencyName,
+               SupportQuestCompletionBuffCurrencyName,
+               StringComparison.OrdinalIgnoreCase);
 
     public sealed class CommunityDragonItem
     {

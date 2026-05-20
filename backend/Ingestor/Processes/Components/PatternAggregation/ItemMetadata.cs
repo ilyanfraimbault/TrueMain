@@ -12,4 +12,5 @@ public sealed record ItemMetadata(
 {
     public bool IsInventoryTransformItem { get; init; }
     public int? TransformFromItemId { get; init; }
+    public bool IsSupportQuestCompletion { get; init; }
 }

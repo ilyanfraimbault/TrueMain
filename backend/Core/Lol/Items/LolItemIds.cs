@@ -37,6 +37,13 @@ public static class LolItemIds
         public const int RelicShield = 3866;
         public const int SteelShoulderguards = 3867;
 
+        // Intermediate that every current support quest completion upgrades
+        // from (`from: [3867]` in CommunityDragon). Used by the metadata
+        // provider to flag the five completion upgrades (Bloodsong, Solstice
+        // Sleigh, Dream Maker, Zaz'Zak's Realmspike, Celestial Opposition)
+        // without hardcoding their IDs.
+        public const int BountyOfWorlds = 3867;
+
         public static readonly IReadOnlySet<int> All = new HashSet<int>
         {
             SpellthiefsEdge,

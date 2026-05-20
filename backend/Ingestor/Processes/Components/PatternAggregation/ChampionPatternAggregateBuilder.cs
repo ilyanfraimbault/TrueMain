@@ -142,7 +142,7 @@ public sealed class ChampionPatternAggregateBuilder(
             var (spell1Id, spell2Id) = new SummonerSpellPair(row.Summoner1Id, row.Summoner2Id).Canonical();
             var skillOrderKey = SkillOrderBuilder.Build(row.SkillEvents);
             int[] finalItems = [row.Item0, row.Item1, row.Item2, row.Item3, row.Item4, row.Item5, row.Item6];
-            var buildItems = FinalBuildResolver.Resolve(row.ItemEvents, finalItems, starterAnalysis.Items, itemMetadata);
+            var buildItems = FinalBuildResolver.ResolveOrdered(row.ItemEvents, finalItems, starterAnalysis.Items, row.Position, itemMetadata);
             var bootsItemId = BootsResolver.Resolve(row.ItemEvents, finalItems, starterAnalysis.Items, itemMetadata);
             var slots = PadBuildItems(buildItems);
 

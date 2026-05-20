@@ -100,4 +100,99 @@ public sealed class FinalBuildResolverTests
 
         buildItems.Should().Equal(3153, 3004);
     }
+
+    [Fact]
+    public void ResolveOrdered_pins_support_quest_completion_to_slot_zero_for_UTILITY()
+    {
+        // Bloodsong (3877) completes mid-game so `Resolve` orders it after
+        // the items purchased before the quest tipped over.
+        var buildItems = FinalBuildResolver.ResolveOrdered(
+        [
+            new ItemEvent { TimestampMs = 5_000, ItemId = 3031, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 12_000, ItemId = 3877, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 18_000, ItemId = 3085, EventType = "ITEM_PURCHASED" }
+        ], [3031, 3877, 3085, 0, 0, 0, 0], [], "UTILITY", Metadata);
+
+        buildItems.Should().Equal(3877, 3031, 3085);
+    }
+
+    [Fact]
+    public void ResolveOrdered_leaves_build_alone_for_non_UTILITY_positions()
+    {
+        // Same events as the UTILITY hoist test but on BOTTOM (e.g. Senna ADC
+        // running Relic Shield) — the completion should stay wherever its
+        // timestamp puts it.
+        var buildItems = FinalBuildResolver.ResolveOrdered(
+        [
+            new ItemEvent { TimestampMs = 5_000, ItemId = 3031, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 12_000, ItemId = 3877, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 18_000, ItemId = 3085, EventType = "ITEM_PURCHASED" }
+        ], [3031, 3877, 3085, 0, 0, 0, 0], [], "BOTTOM", Metadata);
+
+        buildItems.Should().Equal(3031, 3877, 3085);
+    }
+
+    [Fact]
+    public void ResolveOrdered_is_a_noop_for_UTILITY_without_any_completion_item()
+    {
+        var buildItems = FinalBuildResolver.ResolveOrdered(
+        [
+            new ItemEvent { TimestampMs = 5_000, ItemId = 3031, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 12_000, ItemId = 3085, EventType = "ITEM_PURCHASED" }
+        ], [3031, 3085, 0, 0, 0, 0, 0], [], "UTILITY", Metadata);
+
+        buildItems.Should().Equal(3031, 3085);
+    }
+
+    [Fact]
+    public void ResolveOrdered_is_a_noop_when_completion_already_at_slot_zero()
+    {
+        var buildItems = FinalBuildResolver.ResolveOrdered(
+        [
+            new ItemEvent { TimestampMs = 5_000, ItemId = 3877, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 12_000, ItemId = 3031, EventType = "ITEM_PURCHASED" }
+        ], [3877, 3031, 0, 0, 0, 0, 0], [], "UTILITY", Metadata);
+
+        buildItems.Should().Equal(3877, 3031);
+    }
+
+    [Fact]
+    public void ResolveOrdered_uses_case_insensitive_position_matching()
+    {
+        var buildItems = FinalBuildResolver.ResolveOrdered(
+        [
+            new ItemEvent { TimestampMs = 5_000, ItemId = 3031, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 12_000, ItemId = 3877, EventType = "ITEM_PURCHASED" }
+        ], [3031, 3877, 0, 0, 0, 0, 0], [], "utility", Metadata);
+
+        buildItems.Should().Equal(3877, 3031);
+    }
+
+    [Fact]
+    public void ResolveOrdered_treats_null_position_as_non_UTILITY()
+    {
+        var buildItems = FinalBuildResolver.ResolveOrdered(
+        [
+            new ItemEvent { TimestampMs = 5_000, ItemId = 3031, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 12_000, ItemId = 3877, EventType = "ITEM_PURCHASED" }
+        ], [3031, 3877, 0, 0, 0, 0, 0], [], position: null, Metadata);
+
+        buildItems.Should().Equal(3031, 3877);
+    }
+
+    [Fact]
+    public void ResolveOrdered_hoists_only_the_first_completion_when_two_are_present()
+    {
+        // Pathological inventory with both Bloodsong and Solstice Sleigh
+        // (couldn't happen in a normal game). The earliest-completed one
+        // wins slot 0; the second one stays at its post-Resolve position.
+        var buildItems = FinalBuildResolver.ResolveOrdered(
+        [
+            new ItemEvent { TimestampMs = 5_000, ItemId = 3031, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 9_000, ItemId = 3877, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 18_000, ItemId = 3876, EventType = "ITEM_PURCHASED" }
+        ], [3031, 3877, 3876, 0, 0, 0, 0], [], "UTILITY", Metadata);
+
+        buildItems.Should().Equal(3877, 3031, 3876);
+    }
 }
