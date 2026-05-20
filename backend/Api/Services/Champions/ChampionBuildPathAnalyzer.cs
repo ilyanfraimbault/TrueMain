@@ -98,9 +98,11 @@ internal static class ChampionBuildPathAnalyzer
     /// Walk the pruned tree starting from <paramref name="firstItemId"/>,
     /// choosing the most-popular child at each step (ties broken by deepest
     /// subtree, then wins, then itemId). Returns the item-id chain plus the
-    /// games / wins counts at the deepest reached node. The walk stops at
-    /// <see cref="ItemPathMaxDepth"/> or once the next step's parent-relative
-    /// pick rate falls below <see cref="ItemPathProbThreshold"/>.
+    /// games / wins counts at the last node of the walked path (which may
+    /// be the synthetic root when the first step fails the probability
+    /// gate). The walk stops at <see cref="ItemPathMaxDepth"/> or once the
+    /// next step's parent-relative pick rate falls below
+    /// <see cref="ItemPathProbThreshold"/>.
     /// </summary>
     public static (List<int> ItemIds, int Games, int Wins) WalkPath(
         IReadOnlyList<TreeNode> rootChildren,

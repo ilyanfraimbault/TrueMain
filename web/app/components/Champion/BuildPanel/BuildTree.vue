@@ -31,22 +31,33 @@ const layout = computed(() => {
   }
 
   function pickMainIndex(nodes: BuildTreeNode[]): number {
-    // Main path follows the most popular child at each step, with the deepest
-    // subtree as a tiebreak so equally-popular siblings prefer the more
-    // complete chain. Input is already pre-sorted by games desc (then wins
-    // desc, then itemId asc) by the backend serializer + wrapChildren, so
-    // nodes[0] is always the most popular; the loop only swaps when an
-    // equal-games sibling has a strictly deeper subtree.
+    // Main path follows the most popular child at each step. Tiebreak chain
+    // mirrors the backend's WalkPath comparer exactly: games desc → subtree
+    // depth desc → wins desc → itemId asc. Spelling all four out (rather
+    // than leaning on the input order) keeps the highlighted edge in sync
+    // with the backend's itemPath even after wrapChildren's re-sort.
     let bestIndex = 0
     let bestDepth = depth(nodes[0]!)
     let bestGames = nodes[0]!.games
+    let bestWins = nodes[0]!.wins
+    let bestItemId = nodes[0]!.itemId
     for (let i = 1; i < nodes.length; i++) {
-      const d = depth(nodes[i]!)
-      const g = nodes[i]!.games
-      if (g > bestGames || (g === bestGames && d > bestDepth)) {
+      const node = nodes[i]!
+      const d = depth(node)
+      const g = node.games
+      const w = node.wins
+      const id = node.itemId
+      const better
+        = g > bestGames
+        || (g === bestGames && d > bestDepth)
+        || (g === bestGames && d === bestDepth && w > bestWins)
+        || (g === bestGames && d === bestDepth && w === bestWins && id < bestItemId)
+      if (better) {
         bestIndex = i
         bestDepth = d
         bestGames = g
+        bestWins = w
+        bestItemId = id
       }
     }
     return bestIndex
