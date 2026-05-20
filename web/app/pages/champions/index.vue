@@ -40,20 +40,33 @@ const { data: staticList, error: staticError } = await useFetch<ChampionStaticLi
   '/api/static/champions',
   { key: 'champion-static-list' },
 )
-const { data: itemsMap, error: itemsError } = await useFetch<Record<number, StaticItemData>>(
-  '/api/static/items',
-  { key: 'static-items' },
-)
 const { data: runeTree, error: runeTreeError } = await useFetch<RuneTreeResponse>(
   '/api/static/rune-tree',
   { key: 'rune-tree' },
 )
 const { data: versions } = useDDragonVersions()
 
+const apiPatch = computed(() => summaries.value?.[0]?.patchVersion ?? '')
+const selectedPatch = computed(() => filters.value.patch || apiPatch.value || '')
+
+// Item icons are patch-specific (new items + visual refreshes ship with a
+// patch), so the fetch must follow whichever patch the list is currently
+// showing. Keying on selectedPatch keeps icons aligned with the build paths
+// rendered next to them — otherwise the icons would stay pinned to whatever
+// patch loaded first when the user switches via the dropdown.
+const {
+  data: itemsMap,
+  error: itemsError,
+} = await useAsyncData<Record<number, StaticItemData>>(
+  () => `static-items-${selectedPatch.value || 'latest'}`,
+  () => $fetch<Record<number, StaticItemData>>('/api/static/items', {
+    query: selectedPatch.value ? { patch: selectedPatch.value } : {},
+  }),
+  { watch: [selectedPatch] },
+)
+
 const error = computed(() => summariesError.value ?? staticError.value ?? itemsError.value ?? runeTreeError.value)
 const isPending = computed(() => summariesStatus.value === 'pending')
-
-const apiPatch = computed(() => summaries.value?.[0]?.patchVersion ?? '')
 
 const patchOptions = computed(() => {
   const seen = new Set<string>(
@@ -68,8 +81,6 @@ const patchOptions = computed(() => {
     .map(p => ({ label: p, value: p }))
     .sort((a, b) => b.value.localeCompare(a.value, undefined, { numeric: true }))
 })
-
-const selectedPatch = computed(() => filters.value.patch || apiPatch.value || '')
 
 const ALL_POSITIONS = 'all' as const
 const selectedPosition = computed<ChampionPosition | typeof ALL_POSITIONS>(() => {

@@ -75,7 +75,10 @@ internal static class ChampionBuildPathAnalyzer
             var depth = 0;
             foreach (var itemId in chain)
             {
-                if (itemId <= 0 || depth >= BuildTreeMaxDepth) break;
+                if (itemId <= 0 || depth >= BuildTreeMaxDepth)
+                {
+                    break;
+                }
                 if (!level.TryGetValue(itemId, out var node))
                 {
                     node = new TreeNode(itemId);
@@ -125,7 +128,10 @@ internal static class ChampionBuildPathAnalyzer
                 .ThenBy(node => node.ItemId)
                 .First();
             var probability = current.Games == 0 ? 0d : (double)best.Games / current.Games;
-            if (probability < ItemPathProbThreshold) break;
+            if (probability < ItemPathProbThreshold)
+            {
+                break;
+            }
             path.Add(best.ItemId);
             deepestGames = best.Games;
             deepestWins = best.Wins;
@@ -163,12 +169,18 @@ internal static class ChampionBuildPathAnalyzer
 
     private static int MaxDepth(TreeNode node)
     {
-        if (node.Children.Count == 0) return 0;
+        if (node.Children.Count == 0)
+        {
+            return 0;
+        }
         var best = 0;
         foreach (var child in node.Children.Values)
         {
             var d = MaxDepth(child);
-            if (d > best) best = d;
+            if (d > best)
+            {
+                best = d;
+            }
         }
         return 1 + best;
     }

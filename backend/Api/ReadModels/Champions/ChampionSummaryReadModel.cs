@@ -17,15 +17,16 @@ public sealed class ChampionSummaryReadModel
     public double WinRate { get; init; }
 
     /// <summary>
-    /// Share of all games on this position taken by this champion. Standalone
-    /// "Pickrate" column in the table.
+    /// Share of all games on this position taken by this champion — meta-wide
+    /// pickrate, computed against every observed game on the patch (not just
+    /// the TrueMain-scoped slice).
     /// </summary>
     public double PickRate { get; init; }
 
     /// <summary>
-    /// Share of this champion's own games played on this position
-    /// (role distribution). Shown next to the lane icon — e.g. "MID 60%" for
-    /// a champion that plays 60% of its games mid.
+    /// Share of this champion's own games played on this position — i.e. the
+    /// champion's role distribution. A champion played 60% mid / 40% top has
+    /// <c>LanePlayRate = 0.6</c> on its mid row and <c>0.4</c> on its top row.
     /// </summary>
     public double LanePlayRate { get; init; }
 

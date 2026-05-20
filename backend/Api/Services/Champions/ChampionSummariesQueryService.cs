@@ -20,40 +20,50 @@ public sealed class ChampionSummariesQueryService(
 
     public async Task<IReadOnlyList<ChampionSummaryReadModel>> GetAllSummariesAsync(string? patch, CancellationToken ct)
     {
-        var cacheKey = $"champions:summaries:{patch ?? "latest"}";
-        if (cache.TryGetValue<IReadOnlyList<ChampionSummaryReadModel>>(cacheKey, out var cached) && cached is not null)
-        {
-            return cached;
-        }
-
-        var summaries = await ComputeAllSummariesAsync(patch, ct);
-        cache.Set(cacheKey, summaries, SummariesCacheTtl);
-        return summaries;
-    }
-
-    private async Task<IReadOnlyList<ChampionSummaryReadModel>> ComputeAllSummariesAsync(string? requestedPatch, CancellationToken ct)
-    {
-        // Resolve the active patch first so the row pull below can apply the
-        // GameVersion filter in SQL. Loading every aggregate row for the queue
-        // before filtering in-memory would re-scan the whole table on every
-        // cache miss — fine when only the latest patch matters but wasteful
-        // once historical patches are reachable through ?patch=.
-        var activePatch = requestedPatch;
-        if (string.IsNullOrEmpty(activePatch))
-        {
-            var distinctPatches = await db.ChampionAggregateScopes
-                .AsNoTracking()
-                .Where(scope => scope.QueueId == options.Value.QueueId)
-                .Select(scope => scope.GameVersion)
-                .Distinct()
-                .ToListAsync(ct);
-            activePatch = ChampionAggregateScopeResolver.ResolvePatchVersion(distinctPatches, requestedPatch: null);
-        }
+        // Resolve the patch up-front so the cache key is the canonical patch
+        // value (e.g. "16.10") rather than the raw query string. This way
+        // requests with `patch=null` and `patch=16.10` share the same entry
+        // when the latter happens to be the active patch, and non-canonical
+        // inputs (trailing whitespace, capitalization differences if patches
+        // ever carry letters) can't fan out into redundant cache entries.
+        var activePatch = await ResolveActivePatchAsync(patch, ct);
         if (string.IsNullOrEmpty(activePatch))
         {
             return [];
         }
 
+        var cacheKey = $"champions:summaries:{activePatch}";
+        if (cache.TryGetValue<IReadOnlyList<ChampionSummaryReadModel>>(cacheKey, out var cached) && cached is not null)
+        {
+            return cached;
+        }
+
+        var summaries = await ComputeAllSummariesAsync(activePatch, ct);
+        cache.Set(cacheKey, summaries, SummariesCacheTtl);
+        return summaries;
+    }
+
+    private async Task<string?> ResolveActivePatchAsync(string? requestedPatch, CancellationToken ct)
+    {
+        if (!string.IsNullOrEmpty(requestedPatch))
+        {
+            return requestedPatch;
+        }
+
+        var distinctPatches = await db.ChampionAggregateScopes
+            .AsNoTracking()
+            .Where(scope => scope.QueueId == options.Value.QueueId)
+            .Select(scope => scope.GameVersion)
+            .Distinct()
+            .ToListAsync(ct);
+        return ChampionAggregateScopeResolver.ResolvePatchVersion(distinctPatches, requestedPatch: null);
+    }
+
+    private async Task<IReadOnlyList<ChampionSummaryReadModel>> ComputeAllSummariesAsync(string activePatch, CancellationToken ct)
+    {
+        // Filtering the row pull on GameVersion in SQL is what makes the
+        // per-patch caching worthwhile — without it every cache miss would
+        // re-scan the whole aggregate table for the queue.
         var rows = await db.ChampionAggregateScopes
             .AsNoTracking()
             .Where(scope => scope.QueueId == options.Value.QueueId)
@@ -278,7 +288,10 @@ public sealed class ChampionSummariesQueryService(
                     && row.Build.BuildItem0 > 0 && row.Rune.PrimaryKeystoneId > 0)
                 .ToList();
 
-            if (enriched.Count == 0) continue;
+            if (enriched.Count == 0)
+            {
+                continue;
+            }
 
             // Same first-tie ordering as ChampionBuildsQueryService: games
             // desc, firstItemId asc, keystoneId asc — so a champion's list
