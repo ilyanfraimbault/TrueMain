@@ -17,9 +17,12 @@ public sealed class ChampionSummaryReadModel
     public double WinRate { get; init; }
 
     /// <summary>
-    /// Share of all games on this position taken by this champion — meta-wide
-    /// pickrate, computed against every observed game on the patch (not just
-    /// the TrueMain-scoped slice).
+    /// Share of TrueMain games on this position taken by this champion —
+    /// a main-population pickrate, derived from the same
+    /// <c>champion_aggregate_scopes</c> rows as <see cref="Games"/> /
+    /// <see cref="Wins"/> / <see cref="LanePlayRate"/>. Not a meta-wide
+    /// ratio: the denominator is the sum of scoped games for this position
+    /// on the patch, not every observed game on the patch.
     /// </summary>
     public double PickRate { get; init; }
 

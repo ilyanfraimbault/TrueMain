@@ -97,9 +97,12 @@ public sealed class ChampionSummariesQueryService(
         // share of TrueMain games at this lane that picked this champion —
         // a main-population signal, not a meta-wide one (the meta-wide ratio
         // would need a full match_participants scan, which doesn't scale).
+        // Sum as long up-front: lane totals fan in over every scoped row on
+        // the patch, so this is the widest accumulator in the method — the
+        // only one with any plausible long-term risk of int overflow.
         var laneTotals = scoped
             .GroupBy(row => row.Position, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => (long)group.Sum(row => row.Games), StringComparer.Ordinal);
+            .ToDictionary(group => group.Key, group => group.Sum(row => (long)row.Games), StringComparer.Ordinal);
         var championTotals = scoped
             .GroupBy(row => row.ChampionId)
             .ToDictionary(group => group.Key, group => group.Sum(row => row.Games));
