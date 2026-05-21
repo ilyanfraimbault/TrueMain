@@ -22,11 +22,15 @@ const router = useRouter()
 
 const { filters, setFilter } = useChampionFilters()
 
+// All four fetches are lazy so SSR ships the page shell immediately and the
+// data streams in client-side under a skeleton. Awaiting them serially blocked
+// first paint on the slowest of: backend `/api/champions`, DDragon
+// `champion.json` + `item.json`, and CommunityDragon perks/styles.
 const {
   data: summaries,
   error: summariesError,
   status: summariesStatus,
-} = await useAsyncData<ChampionSummaryResponse[]>(
+} = useLazyAsyncData<ChampionSummaryResponse[]>(
   () => `champions-list-${filters.value.patch ?? 'latest'}`,
   () => {
     const patch = filters.value.patch
@@ -36,11 +40,11 @@ const {
   },
   { watch: [() => filters.value.patch] },
 )
-const { data: staticList, error: staticError } = await useFetch<ChampionStaticListItem[]>(
+const { data: staticList, error: staticError } = useLazyFetch<ChampionStaticListItem[]>(
   '/api/static/champions',
   { key: 'champion-static-list' },
 )
-const { data: runeTree, error: runeTreeError } = await useFetch<RuneTreeResponse>(
+const { data: runeTree, error: runeTreeError } = useLazyFetch<RuneTreeResponse>(
   '/api/static/rune-tree',
   { key: 'rune-tree' },
 )
@@ -57,7 +61,7 @@ const selectedPatch = computed(() => filters.value.patch || apiPatch.value || ''
 const {
   data: itemsMap,
   error: itemsError,
-} = await useAsyncData<Record<number, StaticItemData>>(
+} = useLazyAsyncData<Record<number, StaticItemData>>(
   () => `static-items-${selectedPatch.value || 'latest'}`,
   () => $fetch<Record<number, StaticItemData>>('/api/static/items', {
     query: selectedPatch.value ? { patch: selectedPatch.value } : {},
@@ -157,7 +161,7 @@ function staticItem(id: number | undefined) {
             aria-label="All positions"
             @click="selectPosition(ALL_POSITIONS)"
           >
-            <NuxtImg
+            <SkeletonImage
               :src="FILL_POSITION_ICON_URL"
               alt="All positions"
               :width="18"
@@ -174,7 +178,7 @@ function staticItem(id: number | undefined) {
             :aria-label="option.label"
             @click="selectPosition(option.value)"
           >
-            <NuxtImg
+            <SkeletonImage
               :src="option.iconUrl"
               :alt="option.label"
               :width="18"
@@ -210,8 +214,11 @@ function staticItem(id: number | undefined) {
     />
 
     <template v-else>
+      <!-- Skeleton stays up while the list refetches (initial load OR patch
+           swap) instead of leaving stale rows on screen with no signal —
+           matches the "fluid loading state" the user expects. -->
       <div
-        v-if="isPending && filteredRows.length === 0"
+        v-if="isPending"
         class="space-y-2"
       >
         <USkeleton
@@ -246,7 +253,7 @@ function staticItem(id: number | undefined) {
             </div>
 
             <!-- Position -->
-            <NuxtImg
+            <SkeletonImage
               v-if="positionByValue.get(row.position)?.iconUrl"
               :src="positionByValue.get(row.position)!.iconUrl"
               :alt="row.position"
