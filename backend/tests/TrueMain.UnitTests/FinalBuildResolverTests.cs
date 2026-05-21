@@ -122,17 +122,19 @@ public sealed class FinalBuildResolverTests
     [Fact]
     public void Resolve_excludes_support_quest_root_from_the_build_path()
     {
-        // The starter root (3865 = World Atlas) showing up in `finalItems`
-        // is unusual — the player normally transforms it to a completion
-        // — but if it slips through (early surrender match), the resolver
-        // must still drop it from the build path.
+        // 3899 is a synthetic support-quest root fixture: marked
+        // IsSupportQuestStarter=true *and* IsFinalItem=true, and absent from
+        // the starterItems filter — so the only thing that can exclude it
+        // from the build path is the IsSupportQuestStarter check we're
+        // validating here. (A realistic root like World Atlas would also be
+        // filtered by IsFinalItem=false, masking what's actually under test.)
         var buildItems = FinalBuildResolver.Resolve(
         [
-            new ItemEvent { TimestampMs = 5_000, ItemId = 3865, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 5_000, ItemId = 3899, EventType = "ITEM_PURCHASED" },
             new ItemEvent { TimestampMs = 12_000, ItemId = 3153, EventType = "ITEM_PURCHASED" }
-        ], [3153, 3865, 0, 0, 0, 0, 0], [3865], Metadata);
+        ], [3153, 3899, 0, 0, 0, 0, 0], [], Metadata);
 
-        buildItems.Should().NotContain(3865);
+        buildItems.Should().NotContain(3899);
         buildItems.Should().Equal(3153);
     }
 }

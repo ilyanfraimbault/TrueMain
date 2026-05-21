@@ -39,6 +39,15 @@ internal static class ItemMetadataFixtures
         {
             IsSupportQuestCompletion = true
         },
+        // 3899 — synthetic: a support-quest root that *would* be eligible as
+        // a final build item if not for IsSupportQuestStarter. Doesn't model
+        // any real item — exists so FinalBuildResolver tests can validate
+        // that the support-quest filter (and not IsFinalItem=false or the
+        // starter-items filter) is what drops the root from the build path.
+        [3899] = new(3899, 400, true, false, false, false, true, false)
+        {
+            IsSupportQuestStarter = true
+        },
         [LolItemIds.TierTwoBoots.BerserkersGreaves] = new(LolItemIds.TierTwoBoots.BerserkersGreaves, 1100, true, false, true, false, true, true),
         [LolItemIds.Manamune] = new(LolItemIds.Manamune, 2900, true, false, false, false, true, false),
         [LolItemIds.Muramana] = new(LolItemIds.Muramana, 2900, false, false, false, false, true, false)
