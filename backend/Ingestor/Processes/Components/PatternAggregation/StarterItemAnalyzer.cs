@@ -49,7 +49,7 @@ public static class StarterItemAnalyzer
             }
         }
 
-        TryInferImplicitSupportStarterItem(starterItems, orderedEvents);
+        NormalizeSupportQuestStarterItem(starterItems, orderedEvents, itemMetadataById);
 
         if (starterItems.Count == 0)
         {
@@ -61,7 +61,7 @@ public static class StarterItemAnalyzer
         var totalCost = 0;
         foreach (var itemId in starterItems)
         {
-            if (!ShouldCountTowardStarterBudget(itemId))
+            if (!ShouldCountTowardStarterBudget(itemId, itemMetadataById))
             {
                 continue;
             }
@@ -117,7 +117,7 @@ public static class StarterItemAnalyzer
         var currentTotal = 0;
         foreach (var existingItemId in starterItems)
         {
-            if (!ShouldCountTowardStarterBudget(existingItemId))
+            if (!ShouldCountTowardStarterBudget(existingItemId, itemMetadataById))
             {
                 continue;
             }
@@ -159,26 +159,146 @@ public static class StarterItemAnalyzer
         }
     }
 
-    private static void TryInferImplicitSupportStarterItem(
+    /// <summary>
+    /// Normalize the support-quest family representation in the starter
+    /// list. The early-events loop above may have already added the in-store
+    /// root (e.g. World Atlas at t=0), but if a completion (e.g. Bloodsong)
+    /// shows up later in the timeline, that's the item we want in the
+    /// starter slot for downstream display.
+    ///
+    /// Detection is event-based, not final-inventory-based: we walk
+    /// <paramref name="orderedEvents"/> and look for any reference to a
+    /// family member (root, intermediate, or completion) in the item id /
+    /// before / after fields of each event. This is a heuristic — a player
+    /// who buys a completion then sells it before end-of-match still gets
+    /// the completion in their starter slot — but completions are
+    /// practically never sold, and treating "ever observed" as "owned" is
+    /// good enough to keep this analyzer's signature free of
+    /// <c>finalItems</c>.
+    ///
+    /// Intermediates are treated as family members for the
+    /// "referencesFamily" fallback (their <c>ITEM_DESTROYED</c> events on
+    /// transformation are how we know a non-purchasing player was actually
+    /// on a support quest), but never replace the root in the starter slot.
+    ///
+    /// Rules:
+    /// - If a completion is observed anywhere in the timeline, drop every
+    ///   root/intermediate the early loop captured and replace with the
+    ///   completion (only one — Riot's chain is single-branch per match).
+    /// - Otherwise, if the starter list already has a family member (root
+    ///   bought at t=0, quest didn't finish), leave it alone.
+    /// - Otherwise, if any family member is referenced anywhere in events
+    ///   (transformation traces, undo chains), surface the patch's root so
+    ///   the player's lane intent isn't lost.
+    /// - Non-support match: nothing to do.
+    /// </summary>
+    private static void NormalizeSupportQuestStarterItem(
         List<int> starterItems,
-        IReadOnlyList<ItemEvent> orderedEvents)
+        IReadOnlyList<ItemEvent> orderedEvents,
+        IReadOnlyDictionary<int, ItemMetadata> itemMetadataById)
     {
-        if (starterItems.Any(LolItemIds.SupportQuest.All.Contains))
+        int? observedCompletion = null;
+        var referencesFamily = false;
+
+        foreach (var itemEvent in orderedEvents)
+        {
+            foreach (var candidate in EnumerateRelevantItemIds(itemEvent))
+            {
+                if (!itemMetadataById.TryGetValue(candidate, out var metadata))
+                {
+                    continue;
+                }
+
+                if (metadata.IsSupportQuestCompletion)
+                {
+                    observedCompletion ??= candidate;
+                    referencesFamily = true;
+                }
+                else if (metadata.IsSupportQuestStarter || metadata.IsSupportQuestIntermediate)
+                {
+                    referencesFamily = true;
+                }
+            }
+        }
+
+        if (observedCompletion is > 0)
+        {
+            // Quest finished: strip any root/intermediate the early loop kept,
+            // then add the completion if it isn't already there.
+            for (var i = starterItems.Count - 1; i >= 0; i--)
+            {
+                if (!itemMetadataById.TryGetValue(starterItems[i], out var metadata))
+                {
+                    continue;
+                }
+                if (metadata.IsSupportQuestStarter || metadata.IsSupportQuestIntermediate)
+                {
+                    starterItems.RemoveAt(i);
+                }
+            }
+            if (!starterItems.Contains(observedCompletion.Value))
+            {
+                TryAddStarterItemIgnoringBudget(starterItems, observedCompletion.Value);
+            }
+            return;
+        }
+
+        if (starterItems.Any(itemId => IsSupportQuestFamilyMember(itemId, itemMetadataById)))
         {
             return;
         }
 
-        var referencesSupportQuestItem = orderedEvents.Any(itemEvent =>
-            LolItemIds.SupportQuest.All.Contains(itemEvent.ItemId)
-            || (itemEvent.BeforeId is > 0 && LolItemIds.SupportQuest.All.Contains(itemEvent.BeforeId.Value))
-            || (itemEvent.AfterId is > 0 && LolItemIds.SupportQuest.All.Contains(itemEvent.AfterId.Value)));
-
-        if (!referencesSupportQuestItem)
+        if (!referencesFamily)
         {
             return;
         }
 
-        TryAddStarterItemIgnoringBudget(starterItems, LolItemIds.SupportQuest.SpellthiefsEdge);
+        var rootId = ResolveSupportQuestRoot(itemMetadataById);
+        if (rootId > 0)
+        {
+            TryAddStarterItemIgnoringBudget(starterItems, rootId);
+        }
+    }
+
+    private static IEnumerable<int> EnumerateRelevantItemIds(ItemEvent itemEvent)
+    {
+        if (itemEvent.ItemId > 0)
+        {
+            yield return itemEvent.ItemId;
+        }
+        if (itemEvent.BeforeId is > 0)
+        {
+            yield return itemEvent.BeforeId.Value;
+        }
+        if (itemEvent.AfterId is > 0)
+        {
+            yield return itemEvent.AfterId.Value;
+        }
+    }
+
+    private static int ResolveSupportQuestRoot(IReadOnlyDictionary<int, ItemMetadata> itemMetadataById)
+    {
+        foreach (var (id, metadata) in itemMetadataById)
+        {
+            if (metadata.IsSupportQuestStarter)
+            {
+                return id;
+            }
+        }
+        return 0;
+    }
+
+    private static bool IsSupportQuestFamilyMember(
+        int itemId,
+        IReadOnlyDictionary<int, ItemMetadata> itemMetadataById)
+    {
+        if (!itemMetadataById.TryGetValue(itemId, out var metadata))
+        {
+            return false;
+        }
+        return metadata.IsSupportQuestStarter
+            || metadata.IsSupportQuestIntermediate
+            || metadata.IsSupportQuestCompletion;
     }
 
     private static void TryAddStarterItemIgnoringBudget(
@@ -227,8 +347,29 @@ public static class StarterItemAnalyzer
     internal static bool ShouldIgnoreStarterItem(int itemId)
         => LolItemIds.Trinkets.All.Contains(itemId);
 
-    internal static bool ShouldCountTowardStarterBudget(int itemId)
-        => !ShouldIgnoreStarterItem(itemId) && !LolItemIds.SupportQuest.All.Contains(itemId);
+    /// <summary>
+    /// Items that should not count toward the 500g starter budget. Trinkets
+    /// are free; support-quest family members (root, intermediates,
+    /// completions) are technically held from minute 0 so we don't want a
+    /// completion's late-game price to blow past the budget and silently
+    /// drop legitimate starter items.
+    /// </summary>
+    internal static bool ShouldCountTowardStarterBudget(
+        int itemId,
+        IReadOnlyDictionary<int, ItemMetadata> itemMetadataById)
+    {
+        if (ShouldIgnoreStarterItem(itemId))
+        {
+            return false;
+        }
+        if (!itemMetadataById.TryGetValue(itemId, out var metadata))
+        {
+            return true;
+        }
+        return !metadata.IsSupportQuestStarter
+            && !metadata.IsSupportQuestIntermediate
+            && !metadata.IsSupportQuestCompletion;
+    }
 }
 
 public sealed record StarterItemsAnalysis(

@@ -37,6 +37,14 @@ public sealed class CommunityDragonItemMetadataProvider(
 
         logger.LogInformation("Loaded {Count} item metadata rows for patch {Patch}.", items.Count, patch);
 
+        var supportFamily = DetectSupportQuestFamily(items);
+        if (supportFamily.RootId > 0)
+        {
+            logger.LogInformation(
+                "Detected support-quest family for patch {Patch}: root={RootId}, intermediates={IntermediateCount}, completions={CompletionCount}.",
+                patch, supportFamily.RootId, supportFamily.IntermediateIds.Count, supportFamily.CompletionIds.Count);
+        }
+
         return items.ToDictionary(
             item => item.Id,
             item =>
@@ -57,9 +65,106 @@ public sealed class CommunityDragonItemMetadataProvider(
                         && item.Id != LolItemIds.BootsOfSpeed)
                 {
                     IsInventoryTransformItem = IsInventoryTransformItem(item),
-                    TransformFromItemId = item.SpecialRecipe > 0 ? item.SpecialRecipe : null
+                    TransformFromItemId = item.SpecialRecipe > 0 ? item.SpecialRecipe : null,
+                    IsSupportQuestStarter = supportFamily.IsRoot(item.Id),
+                    IsSupportQuestIntermediate = supportFamily.IsIntermediate(item.Id),
+                    IsSupportQuestCompletion = supportFamily.IsCompletion(item.Id)
                 };
             });
+    }
+
+    /// <summary>
+    /// Detect the support-quest item family for a given patch, 100% from
+    /// metadata. Riot publishes a stable internal marker
+    /// (<see cref="LolItemIds.RequiredBuffCurrency.SupportItemPurchase"/>) on
+    /// the single in-store root of the chain. From there we walk the
+    /// <c>specialRecipe</c> graph forward to collect transitional items, and
+    /// pick up the leaves (back-in-store completions like Bloodsong / Solstice
+    /// Sleigh / ...) by checking their <c>from</c> arrays.
+    ///
+    /// No hardcoded IDs anywhere — if Riot rebuilds the system in a future
+    /// patch this re-runs against the new metadata and returns the new family
+    /// (or <see cref="SupportQuestFamily.Empty"/> if the marker is missing).
+    /// </summary>
+    internal static SupportQuestFamily DetectSupportQuestFamily(
+        IReadOnlyList<CommunityDragonItem> items)
+    {
+        var roots = items
+            .Where(item =>
+                string.Equals(
+                    item.RequiredBuffCurrencyName,
+                    LolItemIds.RequiredBuffCurrency.SupportItemPurchase,
+                    StringComparison.Ordinal)
+                && item.InStore
+                && (item.From ?? []).Count == 0)
+            .ToList();
+
+        // Exactly one root is expected. Zero means an old or post-rework patch
+        // where this detection doesn't apply (graceful fallback). More than
+        // one would be a Riot data oddity we don't want to silently misclassify
+        // — bail and let the existing inventory-transform heuristic handle it.
+        if (roots.Count != 1)
+        {
+            return SupportQuestFamily.Empty;
+        }
+
+        var rootId = roots[0].Id;
+
+        var intermediates = new HashSet<int>();
+        var frontier = new HashSet<int> { rootId };
+        while (frontier.Count > 0)
+        {
+            var nextFrontier = new HashSet<int>();
+            foreach (var item in items)
+            {
+                if (item.InStore
+                    || item.SpecialRecipe <= 0
+                    || !frontier.Contains(item.SpecialRecipe)
+                    || intermediates.Contains(item.Id)
+                    || item.Id == rootId)
+                {
+                    continue;
+                }
+                intermediates.Add(item.Id);
+                nextFrontier.Add(item.Id);
+            }
+            frontier = nextFrontier;
+        }
+
+        var completions = new HashSet<int>();
+        foreach (var item in items)
+        {
+            if (!item.InStore || item.Id == rootId)
+            {
+                continue;
+            }
+            var from = item.From ?? [];
+            if (from.Count == 0)
+            {
+                continue;
+            }
+            if (from.Any(intermediates.Contains))
+            {
+                completions.Add(item.Id);
+            }
+        }
+
+        return new SupportQuestFamily(rootId, intermediates, completions);
+    }
+
+    internal sealed record SupportQuestFamily(
+        int RootId,
+        IReadOnlySet<int> IntermediateIds,
+        IReadOnlySet<int> CompletionIds)
+    {
+        public static SupportQuestFamily Empty { get; } =
+            new(0, new HashSet<int>(), new HashSet<int>());
+
+        public bool IsRoot(int itemId) => RootId > 0 && itemId == RootId;
+
+        public bool IsIntermediate(int itemId) => IntermediateIds.Contains(itemId);
+
+        public bool IsCompletion(int itemId) => CompletionIds.Contains(itemId);
     }
 
     private static bool ContainsCategory(IReadOnlyCollection<string> categories, string value)
