@@ -100,4 +100,39 @@ public sealed class FinalBuildResolverTests
 
         buildItems.Should().Equal(3153, 3004);
     }
+
+    [Fact]
+    public void Resolve_excludes_support_quest_completion_from_the_build_path()
+    {
+        // Bloodsong (3877) is a support-quest completion — it belongs to
+        // the starter slot via StarterItemAnalyzer, never as a build node.
+        // Even when it shows up in the player's final inventory, the
+        // resolver should drop it and surface only the genuine build items.
+        var buildItems = FinalBuildResolver.Resolve(
+        [
+            new ItemEvent { TimestampMs = 5_000, ItemId = 3153, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 12_000, ItemId = 3877, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 18_000, ItemId = 3031, EventType = "ITEM_PURCHASED" }
+        ], [3153, 3877, 3031, 0, 0, 0, 0], [], Metadata);
+
+        buildItems.Should().NotContain(3877);
+        buildItems.Should().Equal(3153, 3031);
+    }
+
+    [Fact]
+    public void Resolve_excludes_support_quest_root_from_the_build_path()
+    {
+        // The starter root (3865 = World Atlas) showing up in `finalItems`
+        // is unusual — the player normally transforms it to a completion
+        // — but if it slips through (early surrender match), the resolver
+        // must still drop it from the build path.
+        var buildItems = FinalBuildResolver.Resolve(
+        [
+            new ItemEvent { TimestampMs = 5_000, ItemId = 3865, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 12_000, ItemId = 3153, EventType = "ITEM_PURCHASED" }
+        ], [3153, 3865, 0, 0, 0, 0, 0], [3865], Metadata);
+
+        buildItems.Should().NotContain(3865);
+        buildItems.Should().Equal(3153);
+    }
 }

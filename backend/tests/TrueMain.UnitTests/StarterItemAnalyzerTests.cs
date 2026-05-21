@@ -147,4 +147,58 @@ public sealed class StarterItemAnalyzerTests
         analysis.Items.Should().Equal(3865, 2003, 2003);
         analysis.TotalCost.Should().Be(100);
     }
+
+    [Fact]
+    public void BuildStarterItems_prefers_completion_over_root_when_quest_finished_during_match()
+    {
+        // Player completed the support quest mid-match: events show the
+        // chain (root destroyed, intermediates destroyed) plus the final
+        // completion appearing in store. The starter slot should reflect
+        // what the player actually owned at the end — the completion.
+        var starterItems = StarterItemAnalyzer.BuildStarterItems(
+        [
+            new ItemEvent { TimestampMs = 3_000, ItemId = 2003, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 3_200, ItemId = 2003, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 3_400, ItemId = 3340, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 420_000, ItemId = 3865, EventType = "ITEM_DESTROYED" },
+            new ItemEvent { TimestampMs = 794_000, ItemId = 3866, EventType = "ITEM_DESTROYED" },
+            new ItemEvent { TimestampMs = 807_000, ItemId = 3867, EventType = "ITEM_DESTROYED" },
+            new ItemEvent { TimestampMs = 808_000, ItemId = 3877, EventType = "ITEM_PURCHASED" }
+        ], Metadata);
+
+        starterItems.Should().Contain(3877);
+        starterItems.Should().NotContain(3865);
+    }
+
+    [Fact]
+    public void BuildStarterItems_falls_back_to_root_when_quest_chain_appears_without_completion()
+    {
+        // Player surrendered early or the quest didn't finish: only the
+        // root / intermediates show up in the events. We surface the root
+        // so the player's lane intent ("they were on support") is preserved.
+        var starterItems = StarterItemAnalyzer.BuildStarterItems(
+        [
+            new ItemEvent { TimestampMs = 3_000, ItemId = 2003, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 3_200, ItemId = 2003, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 420_000, ItemId = 3866, EventType = "ITEM_DESTROYED" }
+        ], Metadata);
+
+        starterItems.Should().Equal(3865, 2003, 2003);
+    }
+
+    [Fact]
+    public void BuildStarterItems_keeps_completion_already_present_without_inferring_root()
+    {
+        // Completion observed directly in events as a purchase. Don't
+        // double-add the root on top — the player already has the right
+        // family member in their basket.
+        var starterItems = StarterItemAnalyzer.BuildStarterItems(
+        [
+            new ItemEvent { TimestampMs = 3_000, ItemId = 2003, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 60_000, ItemId = 3877, EventType = "ITEM_PURCHASED" }
+        ], Metadata);
+
+        starterItems.Should().Contain(3877);
+        starterItems.Should().NotContain(3865);
+    }
 }

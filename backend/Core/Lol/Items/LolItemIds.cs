@@ -31,20 +31,6 @@ public static class LolItemIds
         };
     }
 
-    public static class SupportQuest
-    {
-        public const int SpellthiefsEdge = 3865;
-        public const int RelicShield = 3866;
-        public const int SteelShoulderguards = 3867;
-
-        public static readonly IReadOnlySet<int> All = new HashSet<int>
-        {
-            SpellthiefsEdge,
-            RelicShield,
-            SteelShoulderguards
-        };
-    }
-
     public static class TierTwoBoots
     {
         public const int BootsOfSwiftness = 3009;
@@ -73,5 +59,14 @@ public static class LolItemIds
     {
         public const string FeatsNoxianBootPurchase = "Feats_NoxianBootPurchaseBuff";
         public const string FeatsSpecialQuestBoot = "Feats_SpecialQuestBootBuff";
+
+        /// <summary>
+        /// Riot's stable internal marker on the in-store root of the support
+        /// quest chain. Verified across patches 15.10 → 16.10. Used to detect
+        /// the support-quest family dynamically per patch — see
+        /// <c>CommunityDragonItemMetadataProvider</c>. The IDs themselves
+        /// (World Atlas, Bloodsong, etc.) are <em>not</em> hardcoded anywhere.
+        /// </summary>
+        public const string SupportItemPurchase = "SupportItemPurchaseBuff";
     }
 }

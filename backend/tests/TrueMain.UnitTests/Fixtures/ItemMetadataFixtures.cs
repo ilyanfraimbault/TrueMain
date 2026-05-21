@@ -5,6 +5,11 @@ namespace TrueMain.UnitTests.Fixtures;
 
 internal static class ItemMetadataFixtures
 {
+    // Raw item IDs are allowed in this test fixture — production code must
+    // never carry hardcoded IDs (the support-quest detection pipeline derives
+    // everything from CommunityDragon metadata at runtime). The IDs below
+    // model a patch-16.10 World-Atlas chain: 3865 root → 3866/3867
+    // intermediates → 3877 completion.
     public static readonly IReadOnlyDictionary<int, ItemMetadata> ItemMetadataById = new Dictionary<int, ItemMetadata>
     {
         [LolItemIds.Trinkets.StealthWard] = new(LolItemIds.Trinkets.StealthWard, 0, true, false, false, false, true, false),
@@ -14,9 +19,26 @@ internal static class ItemMetadataFixtures
         [1056] = new(1056, 400, true, false, false, false, false, false),
         [LolItemIds.BootsOfSpeed] = new(LolItemIds.BootsOfSpeed, 300, true, false, true, true, false, false),
         [LolItemIds.TearOfTheGoddess] = new(LolItemIds.TearOfTheGoddess, 400, true, false, false, false, false, false),
-        [LolItemIds.SupportQuest.SpellthiefsEdge] = new(LolItemIds.SupportQuest.SpellthiefsEdge, 400, true, false, false, false, false, false),
-        [LolItemIds.SupportQuest.RelicShield] = new(LolItemIds.SupportQuest.RelicShield, 400, true, false, false, false, false, false),
-        [LolItemIds.SupportQuest.SteelShoulderguards] = new(LolItemIds.SupportQuest.SteelShoulderguards, 400, true, false, false, false, false, false),
+        // 3865 = World Atlas (root starter of the support-quest chain)
+        [3865] = new(3865, 400, true, false, false, false, false, false)
+        {
+            IsSupportQuestStarter = true
+        },
+        // 3866 = Runic Compass (first transitional, not in store)
+        [3866] = new(3866, 400, false, false, false, false, false, false)
+        {
+            IsSupportQuestIntermediate = true
+        },
+        // 3867 = Bounty of Worlds (second transitional, not in store)
+        [3867] = new(3867, 400, false, false, false, false, false, false)
+        {
+            IsSupportQuestIntermediate = true
+        },
+        // 3877 = Bloodsong (one of the 5 in-store leaves)
+        [3877] = new(3877, 400, true, false, false, false, true, false)
+        {
+            IsSupportQuestCompletion = true
+        },
         [LolItemIds.TierTwoBoots.BerserkersGreaves] = new(LolItemIds.TierTwoBoots.BerserkersGreaves, 1100, true, false, true, false, true, true),
         [LolItemIds.Manamune] = new(LolItemIds.Manamune, 2900, true, false, false, false, true, false),
         [LolItemIds.Muramana] = new(LolItemIds.Muramana, 2900, false, false, false, false, true, false)
