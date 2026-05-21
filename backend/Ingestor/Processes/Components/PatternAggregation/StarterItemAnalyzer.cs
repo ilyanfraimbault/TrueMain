@@ -12,10 +12,22 @@ public static class StarterItemAnalyzer
     public static List<int> BuildStarterItems(
         IReadOnlyList<ItemEvent> itemEvents,
         IReadOnlyDictionary<int, ItemMetadata> itemMetadataById)
-        => Analyze(itemEvents, itemMetadataById).Items;
+        => Analyze(itemEvents, [], itemMetadataById).Items;
+
+    public static List<int> BuildStarterItems(
+        IReadOnlyList<ItemEvent> itemEvents,
+        IReadOnlyList<int> finalItems,
+        IReadOnlyDictionary<int, ItemMetadata> itemMetadataById)
+        => Analyze(itemEvents, finalItems, itemMetadataById).Items;
 
     public static StarterItemsAnalysis Analyze(
         IReadOnlyList<ItemEvent> itemEvents,
+        IReadOnlyDictionary<int, ItemMetadata> itemMetadataById)
+        => Analyze(itemEvents, [], itemMetadataById);
+
+    public static StarterItemsAnalysis Analyze(
+        IReadOnlyList<ItemEvent> itemEvents,
+        IReadOnlyList<int> finalItems,
         IReadOnlyDictionary<int, ItemMetadata> itemMetadataById)
     {
         var orderedEvents = itemEvents
@@ -49,7 +61,7 @@ public static class StarterItemAnalyzer
             }
         }
 
-        NormalizeSupportQuestStarterItem(starterItems, orderedEvents, itemMetadataById);
+        NormalizeSupportQuestStarterItem(starterItems, orderedEvents, finalItems, itemMetadataById);
 
         if (starterItems.Count == 0)
         {
@@ -161,40 +173,43 @@ public static class StarterItemAnalyzer
 
     /// <summary>
     /// Normalize the support-quest family representation in the starter
-    /// list. The early-events loop above may have already added the in-store
-    /// root (e.g. World Atlas at t=0), but if a completion (e.g. Bloodsong)
-    /// shows up later in the timeline, that's the item we want in the
-    /// starter slot for downstream display.
+    /// list. World Atlas is auto-gifted at game start (no
+    /// <c>ITEM_PURCHASED</c> event), so the early-events loop above
+    /// typically captures only <c>[2003, 2003]</c> for a support player.
+    /// The completion (Bloodsong, etc.) is what we want to surface in the
+    /// starter slot once the quest finishes.
     ///
-    /// Detection is event-based, not final-inventory-based: we walk
-    /// <paramref name="orderedEvents"/> and look for any reference to a
-    /// family member (root, intermediate, or completion) in the item id /
-    /// before / after fields of each event. This is a heuristic — a player
-    /// who buys a completion then sells it before end-of-match still gets
-    /// the completion in their starter slot — but completions are
-    /// practically never sold, and treating "ever observed" as "owned" is
-    /// good enough to keep this analyzer's signature free of
-    /// <c>finalItems</c>.
+    /// Detection cross-references two signals because Riot's timeline is
+    /// inconsistent:
+    /// - <paramref name="orderedEvents"/> — fires <c>ITEM_PURCHASED</c> for
+    ///   the completion in only ~18% of support matches (the quest-choice
+    ///   selection isn't always recorded). The intermediates'
+    ///   <c>ITEM_DESTROYED</c> events on transformation are reliable.
+    /// - <paramref name="finalItems"/> — the player's end-of-game
+    ///   inventory contains the chosen completion ~97% of the time when
+    ///   the quest finished. This is the authoritative signal.
     ///
-    /// Intermediates are treated as family members for the
-    /// "referencesFamily" fallback (their <c>ITEM_DESTROYED</c> events on
-    /// transformation are how we know a non-purchasing player was actually
-    /// on a support quest), but never replace the root in the starter slot.
+    /// We check both, taking the first completion observed in either
+    /// source. Intermediates count toward the "lane intent" fallback
+    /// (their destruction proves the player was on a support quest) but
+    /// never replace the root in the starter slot.
     ///
     /// Rules:
-    /// - If a completion is observed anywhere in the timeline, drop every
-    ///   root/intermediate the early loop captured and replace with the
-    ///   completion (only one — Riot's chain is single-branch per match).
-    /// - Otherwise, if the starter list already has a family member (root
-    ///   bought at t=0, quest didn't finish), leave it alone.
-    /// - Otherwise, if any family member is referenced anywhere in events
-    ///   (transformation traces, undo chains), surface the patch's root so
-    ///   the player's lane intent isn't lost.
+    /// - Completion observed in events or final inventory → strip any
+    ///   root/intermediate the early loop captured and surface the
+    ///   completion. Riot's chain is single-branch per match, so picking
+    ///   the first completion seen is safe.
+    /// - No completion, but a family member is already in the starter
+    ///   list (root bought at t=0, quest didn't finish) → leave it alone.
+    /// - No completion, no family in starter, but family members
+    ///   referenced anywhere → surface the patch's root so lane intent
+    ///   isn't lost.
     /// - Non-support match: nothing to do.
     /// </summary>
     private static void NormalizeSupportQuestStarterItem(
         List<int> starterItems,
         IReadOnlyList<ItemEvent> orderedEvents,
+        IReadOnlyList<int> finalItems,
         IReadOnlyDictionary<int, ItemMetadata> itemMetadataById)
     {
         int? observedCompletion = null;
@@ -218,6 +233,23 @@ public static class StarterItemAnalyzer
                 {
                     referencesFamily = true;
                 }
+            }
+        }
+
+        foreach (var itemId in finalItems)
+        {
+            if (itemId <= 0 || !itemMetadataById.TryGetValue(itemId, out var metadata))
+            {
+                continue;
+            }
+            if (metadata.IsSupportQuestCompletion)
+            {
+                observedCompletion ??= itemId;
+                referencesFamily = true;
+            }
+            else if (metadata.IsSupportQuestStarter || metadata.IsSupportQuestIntermediate)
+            {
+                referencesFamily = true;
             }
         }
 
