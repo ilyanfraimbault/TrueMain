@@ -33,9 +33,10 @@ const layout = computed(() => {
   function pickMainIndex(nodes: BuildTreeNode[]): number {
     // Main path follows the most popular child at each step. Tiebreak chain
     // mirrors the backend's WalkPath comparer exactly: games desc → subtree
-    // depth desc → wins desc → itemId asc. Spelling all four out (rather
-    // than leaning on the input order) keeps the highlighted edge in sync
-    // with the backend's itemPath even after wrapChildren's re-sort.
+    // depth desc → wins desc → itemId asc. Spelling all four out keeps the
+    // highlighted edge in sync with the backend's itemPath regardless of
+    // the input order — wrapChildren's re-sort drops the depth dimension,
+    // so this scan is the only place depth still influences the choice.
     let bestIndex = 0
     let bestDepth = depth(nodes[0]!)
     let bestGames = nodes[0]!.games
@@ -64,9 +65,21 @@ const layout = computed(() => {
   }
 
   function wrapChildren(nodes: BuildTreeNode[], parentIsMainPath: boolean): LaidOutNode[] {
+    // Apply the same ordering the backend uses to prune (games desc → wins
+    // desc → itemId asc) explicitly rather than relying on the response's
+    // serialization order. Backend keeps up to 6 children per node while
+    // the UI caps at 4 — with the explicit tiebreaks, the 2 we drop are
+    // deterministically the lowest by wins/itemId within each tied-games
+    // group, matching what the backend would have surfaced if it shared
+    // our cap. Depth doesn't enter here on purpose: it's a main-edge
+    // selection rule (pickMainIndex), not a child-pruning rule.
     const sorted = nodes
       .slice()
-      .sort((a, b) => b.games - a.games)
+      .sort((a, b) =>
+        b.games - a.games
+        || b.wins - a.wins
+        || a.itemId - b.itemId,
+      )
       .slice(0, MAX_CHILDREN)
     const mainIndex = parentIsMainPath && sorted.length > 0 ? pickMainIndex(sorted) : -1
     return sorted.map((node, index) => ({

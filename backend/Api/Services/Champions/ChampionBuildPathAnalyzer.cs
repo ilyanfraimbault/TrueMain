@@ -98,10 +98,12 @@ internal static class ChampionBuildPathAnalyzer
     /// Walk the pruned tree starting from <paramref name="firstItemId"/>,
     /// choosing the most-popular child at each step (ties broken by deepest
     /// subtree, then wins, then itemId). Returns the item-id chain plus the
-    /// games / wins counts at the last node of the walked path (which may
+    /// games / wins counts at the final node of the walked path — which may
     /// be the synthetic root when the first step fails the probability
-    /// gate). The walk stops at <see cref="ItemPathMaxDepth"/> or once the
-    /// next step's parent-relative pick rate falls below
+    /// gate, or any node short of <see cref="ItemPathMaxDepth"/> if the
+    /// probability gate triggers before max depth. The walk stops at
+    /// <see cref="ItemPathMaxDepth"/> or once the next step's
+    /// parent-relative pick rate falls below
     /// <see cref="ItemPathProbThreshold"/>.
     /// </summary>
     public static (List<int> ItemIds, int Games, int Wins) WalkPath(
@@ -118,8 +120,8 @@ internal static class ChampionBuildPathAnalyzer
 
         var path = new List<int> { firstItemId };
         var current = root;
-        var deepestGames = sliceGames;
-        var deepestWins = root.Wins;
+        var finalGames = sliceGames;
+        var finalWins = root.Wins;
 
         while (path.Count <= ItemPathMaxDepth && current.Children.Count > 0)
         {
@@ -135,12 +137,12 @@ internal static class ChampionBuildPathAnalyzer
                 break;
             }
             path.Add(best.ItemId);
-            deepestGames = best.Games;
-            deepestWins = best.Wins;
+            finalGames = best.Games;
+            finalWins = best.Wins;
             current = best;
         }
 
-        return (path, deepestGames, deepestWins);
+        return (path, finalGames, finalWins);
     }
 
     private static IReadOnlyList<TreeNode> PruneTreeLevel(
