@@ -24,10 +24,12 @@ const { filters, setFilter } = useChampionFilters()
 
 const nuxtApp = useNuxtApp()
 
-// All four fetches are lazy so SSR ships the page shell immediately and the
-// data streams in client-side under a skeleton. Awaiting them serially blocked
-// first paint on the slowest of: backend `/api/champions`, DDragon
-// `champion.json` + `item.json`, and CommunityDragon perks/styles.
+// All four fetches are client-only (`server: false`) so SSR ships a
+// deterministic empty shell under the skeleton/progress bar instead of
+// racing the data into the rendered HTML — without it, fast local API
+// responses resolved before the SSR render completed, baking `isPending=false`
+// into the server output while the client hydrated with `isPending=true`,
+// producing `<!-- -->` vs `<div>` and `<ul>` vs `<div>` hydration mismatches.
 const {
   data: summaries,
   error: summariesError,
@@ -40,7 +42,7 @@ const {
       query: patch ? { patch } : {},
     })
   },
-  { watch: [() => filters.value.patch] },
+  { watch: [() => filters.value.patch], server: false },
 )
 // Static fetches use `useLazyAsyncData` (not `useLazyFetch`) so the handler
 // closure can call `markStaticFetched` after the network round trip — the
@@ -57,7 +59,7 @@ const {
     markStaticFetched('champion-static-list', nuxtApp)
     return data
   },
-  { getCachedData: key => getStaticCachedData(key, nuxtApp) },
+  { getCachedData: key => getStaticCachedData(key, nuxtApp), server: false },
 )
 const { data: versions } = useDDragonVersions()
 
@@ -89,6 +91,7 @@ const {
     immediate: false,
     default: () => ({}),
     getCachedData: key => getStaticCachedData(key, nuxtApp),
+    server: false,
   },
 )
 watch(selectedPatch, (patch) => {
@@ -116,6 +119,7 @@ const {
   {
     watch: [selectedPatch],
     getCachedData: key => getStaticCachedData(key, nuxtApp),
+    server: false,
   },
 )
 

@@ -24,6 +24,6 @@ export function useChampion(championId: MaybeRefOrGetter<number>, filters: Filte
         throw error
       }
     },
-    { watch: [championIdRef, filters] },
+    { watch: [championIdRef, filters], server: false },
   )
 }

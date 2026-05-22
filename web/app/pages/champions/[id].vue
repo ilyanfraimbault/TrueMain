@@ -37,7 +37,7 @@ const { data: staticList, status: staticListStatus } = useLazyAsyncData<Champion
     markStaticFetched('champion-static-list', nuxtApp)
     return data
   },
-  { getCachedData: key => getStaticCachedData(key, nuxtApp) },
+  { getCachedData: key => getStaticCachedData(key, nuxtApp), server: false },
 )
 // Pin rune-tree to the champion's active patch so the icon URLs we render
 // hit CommunityDragon's per-patch (year-cacheable) tree, and so cached
@@ -55,6 +55,7 @@ const { data: runeTree, status: runeTreeStatus } = useLazyAsyncData<RuneTreeResp
   {
     watch: [activePatch],
     getCachedData: key => getStaticCachedData(key, nuxtApp),
+    server: false,
   },
 )
 const { data: itemsMap, status: itemsStatus } = useLazyAsyncData<Record<number, StaticItemData>>(
@@ -70,6 +71,7 @@ const { data: itemsMap, status: itemsStatus } = useLazyAsyncData<Record<number, 
   {
     watch: [activePatch],
     getCachedData: key => getStaticCachedData(key, nuxtApp),
+    server: false,
   },
 )
 const { data: summonersMap, status: summonersStatus } = useLazyAsyncData<Record<number, StaticSummonerSpellData>>(
@@ -85,6 +87,7 @@ const { data: summonersMap, status: summonersStatus } = useLazyAsyncData<Record<
   {
     watch: [activePatch],
     getCachedData: key => getStaticCachedData(key, nuxtApp),
+    server: false,
   },
 )
 
