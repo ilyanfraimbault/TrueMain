@@ -5,7 +5,7 @@ type Filters = ReturnType<typeof useChampionFilters>['filters']
 export function useChampion(championId: MaybeRefOrGetter<number>, filters: Filters) {
   const championIdRef = computed(() => toValue(championId))
 
-  return useAsyncData<ChampionResponse>(
+  return useLazyAsyncData<ChampionResponse>(
     () => {
       const f = filters.value
       return ['champion', championIdRef.value, f.patch ?? '', f.position ?? ''].join('-')
@@ -24,6 +24,6 @@ export function useChampion(championId: MaybeRefOrGetter<number>, filters: Filte
         throw error
       }
     },
-    { watch: [championIdRef, filters] },
+    { watch: [championIdRef, filters], server: false },
   )
 }
