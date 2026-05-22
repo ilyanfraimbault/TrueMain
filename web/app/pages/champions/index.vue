@@ -40,11 +40,19 @@ const {
   },
   { watch: [() => filters.value.patch] },
 )
-const { data: staticList, error: staticError } = useLazyFetch<ChampionStaticListItem[]>(
+const {
+  data: staticList,
+  error: staticError,
+  status: staticStatus,
+} = useLazyFetch<ChampionStaticListItem[]>(
   '/api/static/champions',
   { key: 'champion-static-list' },
 )
-const { data: runeTree, error: runeTreeError } = useLazyFetch<RuneTreeResponse>(
+const {
+  data: runeTree,
+  error: runeTreeError,
+  status: runeTreeStatus,
+} = useLazyFetch<RuneTreeResponse>(
   '/api/static/rune-tree',
   { key: 'rune-tree' },
 )
@@ -55,22 +63,42 @@ const selectedPatch = computed(() => filters.value.patch || apiPatch.value || ''
 
 // Item icons are patch-specific (new items + visual refreshes ship with a
 // patch), so the fetch must follow whichever patch the list is currently
-// showing. Keying on selectedPatch keeps icons aligned with the build paths
-// rendered next to them — otherwise the icons would stay pinned to whatever
-// patch loaded first when the user switches via the dropdown.
+// showing. `immediate: false` + the watcher below defers the first fetch until
+// `selectedPatch` is known, so we don't issue a redundant `static-items-latest`
+// round-trip and then immediately refetch under the resolved patch key.
 const {
   data: itemsMap,
   error: itemsError,
+  status: itemsStatus,
+  execute: fetchItems,
 } = useLazyAsyncData<Record<number, StaticItemData>>(
-  () => `static-items-${selectedPatch.value || 'latest'}`,
+  () => `static-items-${selectedPatch.value || 'pending'}`,
   () => $fetch<Record<number, StaticItemData>>('/api/static/items', {
-    query: selectedPatch.value ? { patch: selectedPatch.value } : {},
+    query: { patch: selectedPatch.value },
   }),
-  { watch: [selectedPatch] },
+  {
+    watch: [selectedPatch],
+    immediate: false,
+    default: () => ({}),
+  },
 )
+watch(selectedPatch, (patch) => {
+  if (patch) void fetchItems()
+}, { immediate: true })
 
 const error = computed(() => summariesError.value ?? staticError.value ?? itemsError.value ?? runeTreeError.value)
-const isPending = computed(() => summariesStatus.value === 'pending')
+// Treat the pre-fetch `'idle'` state from `useLazy*` the same as `'pending'`,
+// otherwise the SSR shell briefly renders the empty `<ul>` (and the "No
+// champions match…" copy below) before the client kicks off the first fetch.
+// All four sources gate the skeleton so we never show rows with placeholder
+// `Champion {id}` names or missing rune / item icons.
+const isLoadingStatus = (s: 'idle' | 'pending' | 'success' | 'error') => s === 'idle' || s === 'pending'
+const isPending = computed(() =>
+  isLoadingStatus(summariesStatus.value)
+  || isLoadingStatus(staticStatus.value)
+  || isLoadingStatus(runeTreeStatus.value)
+  || isLoadingStatus(itemsStatus.value),
+)
 
 const patchOptions = computed(() => {
   const seen = new Set<string>(
