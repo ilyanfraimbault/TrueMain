@@ -12,7 +12,7 @@ export function useChampionStatic(
   patch: MaybeRefOrGetter<string | null>,
 ) {
   const nuxtApp = useNuxtApp()
-  return useAsyncData<ChampionStaticData>(
+  return useLazyAsyncData<ChampionStaticData>(
     () => `champion-static-${toValue(championId)}-${toValue(patch) ?? 'none'}`,
     async () => {
       const id = toValue(championId)

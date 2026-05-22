@@ -21,7 +21,7 @@ const {
 
 const activePatch = computed(() => champion.value?.patch || filters.value.patch || null)
 
-const { data: staticData, status: staticStatus } = await useChampionStatic(championId, activePatch)
+const { data: staticData, status: staticStatus } = useChampionStatic(championId, activePatch)
 const { data: versions } = useDDragonVersions()
 
 // Share keys with /champions so the patch-keyed maps stay deduped across the
@@ -30,7 +30,7 @@ const { data: versions } = useDDragonVersions()
 // Each fetch wraps the network call so `markStaticFetched` runs after success
 // and `getCachedData` reuses entries across navigations within
 // `STATIC_CACHE_TTL_MS` (see static-cache.ts).
-const { data: staticList, status: staticListStatus } = await useAsyncData<ChampionStaticListItem[]>(
+const { data: staticList, status: staticListStatus } = useLazyAsyncData<ChampionStaticListItem[]>(
   'champion-static-list',
   async () => {
     const data = await $fetch<ChampionStaticListItem[]>('/api/static/champions')
@@ -39,7 +39,7 @@ const { data: staticList, status: staticListStatus } = await useAsyncData<Champi
   },
   { getCachedData: key => getStaticCachedData(key, nuxtApp) },
 )
-const { data: runeTree, status: runeTreeStatus } = await useAsyncData<RuneTreeResponse>(
+const { data: runeTree, status: runeTreeStatus } = useLazyAsyncData<RuneTreeResponse>(
   'rune-tree',
   async () => {
     const data = await $fetch<RuneTreeResponse>('/api/static/rune-tree')
@@ -48,7 +48,7 @@ const { data: runeTree, status: runeTreeStatus } = await useAsyncData<RuneTreeRe
   },
   { getCachedData: key => getStaticCachedData(key, nuxtApp) },
 )
-const { data: itemsMap, status: itemsStatus } = await useAsyncData<Record<number, StaticItemData>>(
+const { data: itemsMap, status: itemsStatus } = useLazyAsyncData<Record<number, StaticItemData>>(
   () => `static-items-${activePatch.value || 'latest'}`,
   async () => {
     const key = `static-items-${activePatch.value || 'latest'}`
@@ -63,7 +63,7 @@ const { data: itemsMap, status: itemsStatus } = await useAsyncData<Record<number
     getCachedData: key => getStaticCachedData(key, nuxtApp),
   },
 )
-const { data: summonersMap, status: summonersStatus } = await useAsyncData<Record<number, StaticSummonerSpellData>>(
+const { data: summonersMap, status: summonersStatus } = useLazyAsyncData<Record<number, StaticSummonerSpellData>>(
   () => `static-summoners-${activePatch.value || 'latest'}`,
   async () => {
     const key = `static-summoners-${activePatch.value || 'latest'}`
@@ -118,15 +118,18 @@ const selectedPosition = computed<ChampionPosition | ''>(() => {
 })
 
 const isLoading = computed(() => championStatus.value === 'pending' && !champion.value)
-// Bound to every async source on the page so patch swaps surface a cue even
-// when the previous champion's data is still rendered.
+// Bound to every async source so the bar covers both the initial lazy load
+// and patch/position swaps where the previous champion's data is still on
+// screen. `idle` is the pre-fetch state from useLazy* before the client
+// kicks them off — treat it as loading too.
+const isLoadingStatus = (s: 'idle' | 'pending' | 'success' | 'error') => s === 'idle' || s === 'pending'
 const isRefetching = computed(() =>
-  championStatus.value === 'pending'
-  || staticStatus.value === 'pending'
-  || staticListStatus.value === 'pending'
-  || runeTreeStatus.value === 'pending'
-  || itemsStatus.value === 'pending'
-  || summonersStatus.value === 'pending',
+  isLoadingStatus(championStatus.value)
+  || isLoadingStatus(staticStatus.value)
+  || isLoadingStatus(staticListStatus.value)
+  || isLoadingStatus(runeTreeStatus.value)
+  || isLoadingStatus(itemsStatus.value)
+  || isLoadingStatus(summonersStatus.value),
 )
 </script>
 
