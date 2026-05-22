@@ -196,6 +196,26 @@ const filteredRows = computed(() => {
 
 const positionByValue = new Map(POSITION_OPTIONS.map(option => [option.value as string, option]))
 
+// Per #147, the row is not a `<NuxtLink>` (and therefore not an `<a>`) because
+// the navigation target shows accounts main-ing the champion, and the user
+// asked for a button-style click target. We push the route programmatically
+// from a `<div role="button">` to keep the existing flex layout (a `<button>`
+// would force us to unset user-agent button styling). Keyboard activation is
+// wired to Enter and Space so the element behaves like a real button.
+function rowDestination(row: { championId: number, position: string }) {
+  return {
+    path: `/champions/${row.championId}`,
+    query: {
+      ...(selectedPatch.value ? { patch: selectedPatch.value } : {}),
+      ...(row.position ? { position: row.position } : {}),
+    },
+  }
+}
+
+function onRowActivate(row: { championId: number, position: string }) {
+  void router.push(rowDestination(row))
+}
+
 function perk(id: number | undefined) {
   if (!id) return null
   return runeTree.value?.perks?.[id] ?? null
@@ -308,9 +328,14 @@ function staticItem(id: number | undefined) {
             v-for="row in filteredRows"
             :key="`${row.championId}-${row.position}`"
           >
-            <NuxtLink
-              :to="{ path: `/champions/${row.championId}`, query: { ...(selectedPatch ? { patch: selectedPatch } : {}), ...(row.position ? { position: row.position } : {}) } }"
-              class="flex items-center gap-4 rounded-md border border-default/60 bg-elevated/40 px-3 py-2 transition-colors hover:bg-elevated/80"
+            <div
+              role="button"
+              tabindex="0"
+              :aria-label="`View ${row.name} builds`"
+              class="flex cursor-pointer items-center gap-4 rounded-md border border-default/60 bg-elevated/40 px-3 py-2 transition-colors hover:bg-elevated/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-default"
+              @click="onRowActivate(row)"
+              @keydown.enter.prevent="onRowActivate(row)"
+              @keydown.space.prevent="onRowActivate(row)"
             >
               <!-- Champion -->
               <div class="flex min-w-[10rem] items-center gap-2">
@@ -393,7 +418,7 @@ function staticItem(id: number | undefined) {
                   <span class="mt-0.5 text-xs text-muted">PR</span>
                 </div>
               </div>
-            </NuxtLink>
+            </div>
           </li>
         </ul>
 
