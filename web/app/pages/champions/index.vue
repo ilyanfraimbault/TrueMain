@@ -270,141 +270,169 @@ function staticItem(id: number | undefined) {
       </div>
     </header>
 
-    <div class="h-0.5">
-      <UProgress
-        v-if="isPending"
-        size="xs"
-        color="primary"
-        aria-label="Loading champions"
-      />
-    </div>
-
-    <UAlert
-      v-if="error"
-      color="error"
-      variant="soft"
-      title="Failed to load champions"
-      :description="error.message"
-    />
-
-    <template v-else>
-      <!-- Skeleton stays up while the list refetches (initial load OR patch
-           swap) instead of leaving stale rows on screen with no signal —
-           matches the "fluid loading state" the user expects. -->
-      <div
-        v-if="isPending"
-        class="space-y-2"
-      >
-        <USkeleton
-          v-for="i in 6"
-          :key="i"
-          class="h-14 w-full rounded"
+    <!-- Wrap the data-dependent body in `<ClientOnly>` so the four lazy
+         fetches (all `server: false`) never participate in the SSR render.
+         Without this, race conditions between the `static-prefetch.client.ts`
+         plugin priming the payload and the page's own `useLazyAsyncData`
+         setup could leave the server rendering one tree (e.g. `<ul>`) while
+         the client expected another (the skeleton), producing the
+         `<UProgress>` / `<ul>` hydration node mismatches reported in #149.
+         The `<template #fallback>` matches the SSR shell so the user sees
+         the same skeleton + progress bar before the client takes over. -->
+    <ClientOnly>
+      <div class="h-0.5">
+        <UProgress
+          v-if="isPending"
+          size="xs"
+          color="primary"
+          aria-label="Loading champions"
         />
       </div>
 
-      <ul
-        v-else
-        class="space-y-1"
-      >
-        <li
-          v-for="row in filteredRows"
-          :key="`${row.championId}-${row.position}`"
+      <UAlert
+        v-if="error"
+        color="error"
+        variant="soft"
+        title="Failed to load champions"
+        :description="error.message"
+      />
+
+      <template v-else>
+        <!-- Skeleton stays up while the list refetches (initial load OR patch
+             swap) instead of leaving stale rows on screen with no signal —
+             matches the "fluid loading state" the user expects. -->
+        <div
+          v-if="isPending"
+          class="space-y-2"
         >
-          <NuxtLink
-            :to="{ path: `/champions/${row.championId}`, query: { ...(selectedPatch ? { patch: selectedPatch } : {}), ...(row.position ? { position: row.position } : {}) } }"
-            class="flex items-center gap-4 rounded-md border border-default/60 bg-elevated/40 px-3 py-2 transition-colors hover:bg-elevated/80"
+          <USkeleton
+            v-for="i in 6"
+            :key="i"
+            class="h-14 w-full rounded"
+          />
+        </div>
+
+        <ul
+          v-else
+          class="space-y-1"
+        >
+          <li
+            v-for="row in filteredRows"
+            :key="`${row.championId}-${row.position}`"
           >
-            <!-- Champion -->
-            <div class="flex min-w-[10rem] items-center gap-2">
+            <NuxtLink
+              :to="{ path: `/champions/${row.championId}`, query: { ...(selectedPatch ? { patch: selectedPatch } : {}), ...(row.position ? { position: row.position } : {}) } }"
+              class="flex items-center gap-4 rounded-md border border-default/60 bg-elevated/40 px-3 py-2 transition-colors hover:bg-elevated/80"
+            >
+              <!-- Champion -->
+              <div class="flex min-w-[10rem] items-center gap-2">
+                <SkeletonImage
+                  :src="row.iconUrl"
+                  :alt="row.name"
+                  width="36"
+                  height="36"
+                  class="size-9 rounded"
+                />
+                <span class="truncate font-medium">{{ row.name }}</span>
+              </div>
+
+              <!-- Position -->
               <SkeletonImage
-                :src="row.iconUrl"
-                :alt="row.name"
-                width="36"
-                height="36"
-                class="size-9 rounded"
+                v-if="positionByValue.get(row.position)?.iconUrl"
+                :src="positionByValue.get(row.position)!.iconUrl"
+                :alt="row.position"
+                :width="22"
+                :height="22"
+                class="size-[22px] shrink-0"
               />
-              <span class="truncate font-medium">{{ row.name }}</span>
-            </div>
 
-            <!-- Position -->
-            <SkeletonImage
-              v-if="positionByValue.get(row.position)?.iconUrl"
-              :src="positionByValue.get(row.position)!.iconUrl"
-              :alt="row.position"
-              :width="22"
-              :height="22"
-              class="size-[22px] shrink-0"
-            />
-
-            <!-- Runes: primary keystone with the secondary tree as a small
-                 badge overlay — same presentation as the detail-page build
-                 tabs (see ChampionBuildTabs leading slot). -->
-            <div
-              v-if="row.topBuild && perk(row.topBuild.primaryKeystoneId)"
-              class="relative size-7 shrink-0"
-            >
-              <GameTooltipPerkIcon
-                :perk="perk(row.topBuild.primaryKeystoneId)"
-                :width="28"
-                :height="28"
-                class="size-7 rounded-full"
-              />
-              <GameTooltipPerkStyleIcon
-                v-if="perkStyle(row.topBuild.secondaryStyleId)"
-                :style="perkStyle(row.topBuild.secondaryStyleId)"
-                :width="16"
-                :height="16"
-                class="absolute -bottom-1 -right-2 size-4"
-              />
-            </div>
-
-            <!-- Build path: reuse GameTooltipItemIcon so hover shows the
-                 same item tooltip as the champion detail page. -->
-            <div
-              v-if="row.topBuild && row.topBuild.itemPath.length > 0"
-              class="flex shrink-0 items-center gap-1"
-            >
-              <template
-                v-for="(itemId, idx) in row.topBuild.itemPath.slice(0, 5)"
-                :key="`${row.championId}-${row.position}-bp-${idx}`"
+              <!-- Runes: primary keystone with the secondary tree as a small
+                   badge overlay — same presentation as the detail-page build
+                   tabs (see ChampionBuildTabs leading slot). -->
+              <div
+                v-if="row.topBuild && perk(row.topBuild.primaryKeystoneId)"
+                class="relative size-7 shrink-0"
               >
-                <GameTooltipItemIcon
-                  :item="staticItem(itemId)"
+                <GameTooltipPerkIcon
+                  :perk="perk(row.topBuild.primaryKeystoneId)"
                   :width="28"
                   :height="28"
-                  class="size-7 rounded"
+                  class="size-7 rounded-full"
                 />
-                <UIcon
-                  v-if="idx < Math.min(row.topBuild.itemPath.length, 5) - 1"
-                  name="i-lucide-chevron-right"
-                  class="size-3 text-dimmed"
+                <GameTooltipPerkStyleIcon
+                  v-if="perkStyle(row.topBuild.secondaryStyleId)"
+                  :style="perkStyle(row.topBuild.secondaryStyleId)"
+                  :width="16"
+                  :height="16"
+                  class="absolute -bottom-1 -right-2 size-4"
                 />
-              </template>
-            </div>
-
-            <!-- Rates: bold whole-percent on top, small muted label below.
-                 Numbers stay default-coloured — colour-coding tested too
-                 noisy against the rest of the row. -->
-            <div class="ml-auto flex shrink-0 items-center gap-5 tabular-nums">
-              <div class="flex min-w-[3rem] flex-col items-center">
-                <span class="text-lg font-bold leading-none">{{ pct(row.winRate) }}</span>
-                <span class="mt-0.5 text-xs text-muted">WR</span>
               </div>
-              <div class="flex min-w-[3rem] flex-col items-center">
-                <span class="text-lg font-bold leading-none">{{ pct(row.pickRate) }}</span>
-                <span class="mt-0.5 text-xs text-muted">PR</span>
-              </div>
-            </div>
-          </NuxtLink>
-        </li>
-      </ul>
 
-      <p
-        v-if="!isPending && filteredRows.length === 0"
-        class="text-sm text-muted"
-      >
-        No champions match these filters.
-      </p>
-    </template>
+              <!-- Build path: reuse GameTooltipItemIcon so hover shows the
+                   same item tooltip as the champion detail page. -->
+              <div
+                v-if="row.topBuild && row.topBuild.itemPath.length > 0"
+                class="flex shrink-0 items-center gap-1"
+              >
+                <template
+                  v-for="(itemId, idx) in row.topBuild.itemPath.slice(0, 5)"
+                  :key="`${row.championId}-${row.position}-bp-${idx}`"
+                >
+                  <GameTooltipItemIcon
+                    :item="staticItem(itemId)"
+                    :width="28"
+                    :height="28"
+                    class="size-7 rounded"
+                  />
+                  <UIcon
+                    v-if="idx < Math.min(row.topBuild.itemPath.length, 5) - 1"
+                    name="i-lucide-chevron-right"
+                    class="size-3 text-dimmed"
+                  />
+                </template>
+              </div>
+
+              <!-- Rates: bold whole-percent on top, small muted label below.
+                   Numbers stay default-coloured — colour-coding tested too
+                   noisy against the rest of the row. -->
+              <div class="ml-auto flex shrink-0 items-center gap-5 tabular-nums">
+                <div class="flex min-w-[3rem] flex-col items-center">
+                  <span class="text-lg font-bold leading-none">{{ pct(row.winRate) }}</span>
+                  <span class="mt-0.5 text-xs text-muted">WR</span>
+                </div>
+                <div class="flex min-w-[3rem] flex-col items-center">
+                  <span class="text-lg font-bold leading-none">{{ pct(row.pickRate) }}</span>
+                  <span class="mt-0.5 text-xs text-muted">PR</span>
+                </div>
+              </div>
+            </NuxtLink>
+          </li>
+        </ul>
+
+        <p
+          v-if="!isPending && filteredRows.length === 0"
+          class="text-sm text-muted"
+        >
+          No champions match these filters.
+        </p>
+      </template>
+
+      <template #fallback>
+        <div class="h-0.5">
+          <UProgress
+            size="xs"
+            color="primary"
+            aria-label="Loading champions"
+          />
+        </div>
+        <div class="space-y-2">
+          <USkeleton
+            v-for="i in 6"
+            :key="i"
+            class="h-14 w-full rounded"
+          />
+        </div>
+      </template>
+    </ClientOnly>
   </main>
 </template>

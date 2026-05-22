@@ -33,12 +33,24 @@ function readTimestamp(key: string, host: PayloadHost): number | undefined {
  * SSR-hydrated entries lack a sibling timestamp on the first client tick;
  * treat them as fresh so the client doesn't immediately refetch what the
  * server just sent.
+ *
+ * The `isServer` switch is defence-in-depth for #149: every consumer pairs
+ * this helper with `server: false`, so the fetch handler is already skipped
+ * during SSR. But if a callsite ever forgot the option (or if Nuxt's
+ * `useLazyAsyncData` ever started passing through a SSR-side payload entry),
+ * returning a cached value on the server would make the SSR render data-aware
+ * while the client still hydrates from the empty initial state — exactly the
+ * `<ul>`/`<UProgress>` hydration mismatch reported on filtered `/champions`
+ * routes. Forcing `undefined` server-side keeps the SSR output deterministic.
  */
 export function getStaticCachedData<T>(
   key: string,
   host: PayloadHost,
   now: number = Date.now(),
+  isServer: boolean = import.meta.server === true,
 ): T | undefined {
+  if (isServer) return undefined
+
   const cached = (host.payload.data[key] ?? host.static.data[key]) as T | undefined
   if (cached === undefined || cached === null) return undefined
 
