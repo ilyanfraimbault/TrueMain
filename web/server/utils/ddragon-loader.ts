@@ -12,8 +12,34 @@ import {
   normalizeDataDragonPatch,
 } from '~~/shared/utils/ddragon'
 
-export const COMMUNITY_DRAGON_PREFIX
-  = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default'
+const COMMUNITY_DRAGON_BASE = 'https://raw.communitydragon.org'
+const COMMUNITY_DRAGON_PATH_SUFFIX = 'plugins/rcp-be-lol-game-data/global/default'
+// Reject anything that isn't a strict `major.minor` or `major.minor.patch` so
+// a hostile `?patch=` query can't traverse out of the CDragon prefix.
+const PATCH_FORMAT_RE = /^\d+\.\d+(?:\.\d+)?$/
+
+/**
+ * CommunityDragon serves the same asset tree under both `/latest` and the
+ * patch-specific path `/<major>.<minor>` (e.g. `/15.10`). The per-patch URLs
+ * return a year-long `cache-control` max-age, while `latest` redirects with a
+ * much shorter TTL. Pinning to the patch lets IPX (and the browser) keep
+ * served bytes around for as long as we ask without going stale on a new
+ * patch release.
+ *
+ * @param patch - Either a major.minor patch (`15.10`) or a full DDragon
+ *   version (`15.10.1`). Anything falsy falls back to `latest`.
+ */
+export function communityDragonPrefix(patch?: string | null): string {
+  const version = communityDragonVersion(patch)
+  return `${COMMUNITY_DRAGON_BASE}/${version}/${COMMUNITY_DRAGON_PATH_SUFFIX}`
+}
+
+function communityDragonVersion(patch?: string | null): string {
+  if (!patch || !PATCH_FORMAT_RE.test(patch)) return 'latest'
+  // DDragon patches look like `15.10.1`; CommunityDragon expects `15.10`.
+  const segments = patch.split('.')
+  return `${segments[0]}.${segments[1]}`
+}
 
 export const EMPTY_STATIC_DATA: ChampionStaticData = {
   championName: null,
@@ -93,34 +119,38 @@ function resolveCostType(costType: string | undefined, partype: string): string 
   return resolved.trim() === '' ? undefined : resolved
 }
 
-export function rewriteCdragonAsset(iconPath: string): string {
+export function rewriteCdragonAsset(iconPath: string, patch?: string | null): string {
   if (!iconPath) return ''
-  return iconPath.toLowerCase().replace(/^\/lol-game-data\/assets/, COMMUNITY_DRAGON_PREFIX)
+  return iconPath.toLowerCase().replace(/^\/lol-game-data\/assets/, communityDragonPrefix(patch))
 }
 
 /**
  * Build the perk id→data map from a CDragon perks.json response. Shared by
  * the per-champion static endpoint and the standalone rune-tree endpoint so
  * the `StaticPerkData` shape stays in lockstep across both code paths.
+ *
+ * @param patch - If provided, icon URLs are rewritten to the per-patch CDN
+ *   path (long cache-control). Falls back to `latest` when omitted for
+ *   backwards compatibility.
  */
-export function buildPerkMap(perks: CdragonPerkRow[]): Record<number, StaticPerkData> {
+export function buildPerkMap(perks: CdragonPerkRow[], patch?: string | null): Record<number, StaticPerkData> {
   return Object.fromEntries(
     perks.map(perk => [perk.id, {
       id: perk.id,
       name: perk.name,
-      iconUrl: rewriteCdragonAsset(perk.iconPath),
+      iconUrl: rewriteCdragonAsset(perk.iconPath, patch),
       shortDesc: perk.shortDesc,
       longDesc: perk.longDesc,
     }]),
   )
 }
 
-export function buildPerkStyleMap(styles: CdragonPerkStyleRow[]): Record<number, StaticPerkStyleData> {
+export function buildPerkStyleMap(styles: CdragonPerkStyleRow[], patch?: string | null): Record<number, StaticPerkStyleData> {
   return Object.fromEntries(
     styles.map(style => [style.id, {
       id: style.id,
       name: style.name,
-      iconUrl: rewriteCdragonAsset(style.iconPath),
+      iconUrl: rewriteCdragonAsset(style.iconPath, patch),
     }]),
   )
 }
@@ -136,12 +166,16 @@ export async function loadStaticData(championId: number, patch: string | null): 
   const normalized = normalizeDataDragonPatch(patch) ?? await resolveLatestPatch()
   if (!normalized) return EMPTY_STATIC_DATA
 
+  // Pin CDragon to the same patch (e.g. /15.10/...) so its responses become
+  // year-cacheable rather than rolling on `latest`.
+  const cdragonPrefix = communityDragonPrefix(normalized)
+
   const [items, spells, champs, perks, perkStyles] = await Promise.all([
     $fetch<ItemDataResponse>(`https://ddragon.leagueoflegends.com/cdn/${normalized}/data/en_US/item.json`).catch(() => ({ data: {} })),
     $fetch<SummonerDataResponse>(`https://ddragon.leagueoflegends.com/cdn/${normalized}/data/en_US/summoner.json`).catch(() => ({ data: {} })),
     $fetch<ChampionListResponse>(`https://ddragon.leagueoflegends.com/cdn/${normalized}/data/en_US/champion.json`).catch(() => ({ data: {} })),
-    $fetch<CdragonPerkRow[]>(`${COMMUNITY_DRAGON_PREFIX}/v1/perks.json`).catch(() => [] as CdragonPerkRow[]),
-    $fetch<{ styles: CdragonPerkStyleRow[] }>(`${COMMUNITY_DRAGON_PREFIX}/v1/perkstyles.json`).catch(() => ({ styles: [] as CdragonPerkStyleRow[] })),
+    $fetch<CdragonPerkRow[]>(`${cdragonPrefix}/v1/perks.json`).catch(() => [] as CdragonPerkRow[]),
+    $fetch<{ styles: CdragonPerkStyleRow[] }>(`${cdragonPrefix}/v1/perkstyles.json`).catch(() => ({ styles: [] as CdragonPerkStyleRow[] })),
   ])
 
   const itemMap: Record<number, StaticItemData> = Object.fromEntries(
@@ -172,8 +206,8 @@ export async function loadStaticData(championId: number, patch: string | null): 
     ]),
   )
 
-  const perkMap = buildPerkMap(perks)
-  const perkStyleMap = buildPerkStyleMap(perkStyles.styles ?? [])
+  const perkMap = buildPerkMap(perks, normalized)
+  const perkStyleMap = buildPerkStyleMap(perkStyles.styles ?? [], normalized)
 
   const summary = Object.values(champs.data).find(c => Number(c.key) === championId)
   if (!summary) {

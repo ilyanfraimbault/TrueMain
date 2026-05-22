@@ -17,7 +17,16 @@ const activePatch = computed(() => champion.value?.patch || filters.value.patch 
 
 const { data: staticData } = await useChampionStatic(championId, activePatch)
 const { data: versions } = useDDragonVersions()
-const { data: runeTree } = await useFetch<RuneTreeResponse>('/api/static/rune-tree', { key: 'rune-tree' })
+// Pin rune-tree to the champion's active patch so the icon URLs we render
+// hit CommunityDragon's per-patch (year-cacheable) tree, and so cached
+// payloads don't bleed across patches when the user navigates between them.
+const { data: runeTree } = await useAsyncData<RuneTreeResponse>(
+  () => `rune-tree-${activePatch.value || 'latest'}`,
+  () => $fetch<RuneTreeResponse>('/api/static/rune-tree', {
+    query: activePatch.value ? { patch: activePatch.value } : {},
+  }),
+  { watch: [activePatch] },
+)
 
 useSeoMeta({
   title: () => staticData.value?.championName ?? 'TrueMain',
