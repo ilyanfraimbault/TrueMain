@@ -1,14 +1,11 @@
 import type {
   ChampionStaticData,
   StaticChampionSpellData,
-  StaticItemData,
   StaticPerkData,
   StaticPerkStyleData,
-  StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
 import {
   getChampionSpellImageUrl,
-  getSummonerSpellImageUrl,
   normalizeDataDragonPatch,
 } from '~~/shared/utils/ddragon'
 
@@ -18,11 +15,8 @@ export const COMMUNITY_DRAGON_PREFIX
 export const EMPTY_STATIC_DATA: ChampionStaticData = {
   championName: null,
   championIconUrl: null,
-  items: {},
-  summonerSpells: {},
   championSpells: {},
-  perks: {},
-  perkStyles: {},
+  partype: '',
 }
 
 export interface CdragonPerkRow {
@@ -39,25 +33,6 @@ export interface CdragonPerkStyleRow {
   iconPath: string
 }
 
-type ItemDataResponse = {
-  data: Record<string, {
-    name: string
-    image: { full: string }
-    gold: { total: number }
-    plaintext?: string
-    description?: string
-  }>
-}
-type SummonerDataResponse = {
-  data: Record<string, {
-    key: string
-    name: string
-    image: { full: string }
-    description?: string
-    cooldown?: number[]
-    summonerLevel?: number
-  }>
-}
 type ChampionListResponse = { data: Record<string, { id: string, key: string, name: string, image: { full: string } }> }
 type ChampionDetailResponse = {
   data: Record<string, {
@@ -136,49 +111,12 @@ export async function loadStaticData(championId: number, patch: string | null): 
   const normalized = normalizeDataDragonPatch(patch) ?? await resolveLatestPatch()
   if (!normalized) return EMPTY_STATIC_DATA
 
-  const [items, spells, champs, perks, perkStyles] = await Promise.all([
-    $fetch<ItemDataResponse>(`https://ddragon.leagueoflegends.com/cdn/${normalized}/data/en_US/item.json`).catch(() => ({ data: {} })),
-    $fetch<SummonerDataResponse>(`https://ddragon.leagueoflegends.com/cdn/${normalized}/data/en_US/summoner.json`).catch(() => ({ data: {} })),
-    $fetch<ChampionListResponse>(`https://ddragon.leagueoflegends.com/cdn/${normalized}/data/en_US/champion.json`).catch(() => ({ data: {} })),
-    $fetch<CdragonPerkRow[]>(`${COMMUNITY_DRAGON_PREFIX}/v1/perks.json`).catch(() => [] as CdragonPerkRow[]),
-    $fetch<{ styles: CdragonPerkStyleRow[] }>(`${COMMUNITY_DRAGON_PREFIX}/v1/perkstyles.json`).catch(() => ({ styles: [] as CdragonPerkStyleRow[] })),
-  ])
-
-  const itemMap: Record<number, StaticItemData> = Object.fromEntries(
-    Object.entries(items.data).map(([id, item]) => [
-      Number(id),
-      {
-        id: Number(id),
-        name: item.name,
-        iconUrl: `https://ddragon.leagueoflegends.com/cdn/${normalized}/img/item/${item.image.full}`,
-        totalGold: item.gold.total,
-        plaintext: item.plaintext,
-        description: item.description,
-      },
-    ]),
-  )
-
-  const summonerMap: Record<number, StaticSummonerSpellData> = Object.fromEntries(
-    Object.values(spells.data).map(spell => [
-      Number(spell.key),
-      {
-        id: Number(spell.key),
-        name: spell.name,
-        iconUrl: getSummonerSpellImageUrl(spell.image.full, normalized) ?? '',
-        description: spell.description,
-        cooldown: spell.cooldown?.[0],
-        summonerLevel: spell.summonerLevel,
-      },
-    ]),
-  )
-
-  const perkMap = buildPerkMap(perks)
-  const perkStyleMap = buildPerkStyleMap(perkStyles.styles ?? [])
+  const champs = await $fetch<ChampionListResponse>(
+    `https://ddragon.leagueoflegends.com/cdn/${normalized}/data/en_US/champion.json`,
+  ).catch((): ChampionListResponse => ({ data: {} }))
 
   const summary = Object.values(champs.data).find(c => Number(c.key) === championId)
-  if (!summary) {
-    return { ...EMPTY_STATIC_DATA, items: itemMap, summonerSpells: summonerMap, perks: perkMap, perkStyles: perkStyleMap }
-  }
+  if (!summary) return EMPTY_STATIC_DATA
 
   const detail = await $fetch<ChampionDetailResponse>(
     `https://ddragon.leagueoflegends.com/cdn/${normalized}/data/en_US/champion/${summary.id}.json`,
@@ -205,10 +143,7 @@ export async function loadStaticData(championId: number, patch: string | null): 
   return {
     championName: summary.name,
     championIconUrl: `https://ddragon.leagueoflegends.com/cdn/${normalized}/img/champion/${summary.image.full}`,
-    items: itemMap,
-    summonerSpells: summonerMap,
     championSpells,
-    perks: perkMap,
-    perkStyles: perkStyleMap,
+    partype,
   }
 }

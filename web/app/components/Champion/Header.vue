@@ -1,24 +1,24 @@
 <script setup lang="ts">
-import type { ChampionStaticData } from '~~/shared/types/static-data'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 
 const props = defineProps<{
-  championStatic: ChampionStaticData
+  championName: string | null
+  championIconUrl: string | null
   championId: number
   position: string
   totalGames: number
   totalWins: number
 }>()
 
-const displayName = computed(() => props.championStatic.championName ?? `Champion ${props.championId}`)
+const displayName = computed(() => props.championName ?? `Champion ${props.championId}`)
 const winRate = computed(() => (props.totalGames === 0 ? 0 : props.totalWins / props.totalGames))
 </script>
 
 <template>
   <div class="flex flex-1 flex-wrap items-center gap-4">
     <SkeletonImage
-      :src="championStatic.championIconUrl"
-      :alt="championStatic.championName ?? ''"
+      :src="championIconUrl"
+      :alt="championName ?? ''"
       width="80"
       height="80"
       class="size-20 rounded"

@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import type { BuildItemPath } from '~~/shared/types/champions'
-import type { ChampionStaticData, StaticItemData } from '~~/shared/types/static-data'
+import type { StaticItemData } from '~~/shared/types/static-data'
 
 const props = defineProps<{
   path: BuildItemPath | null
-  championStatic: ChampionStaticData
+  itemsMap: Record<number, StaticItemData>
 }>()
 
 const items = computed<StaticItemData[]>(() => {
   const ids = props.path?.itemIds ?? []
   return ids
-    .map(id => props.championStatic.items[id])
+    .map(id => props.itemsMap[id])
     .filter((item): item is StaticItemData => Boolean(item))
 })
 </script>

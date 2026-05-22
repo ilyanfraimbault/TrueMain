@@ -68,14 +68,20 @@ export interface StaticPerkStyleData {
   iconUrl: string
 }
 
+/**
+ * Per-champion static payload from `/api/static/[championId]`. Intentionally
+ * narrow: items, summoner spells, perks and perk styles all come from the
+ * patch-keyed endpoints (`/api/static/items`, `/api/static/summoner-spells`,
+ * `/api/static/rune-tree`) so the detail page can dedupe those caches with the
+ * list page instead of re-downloading them per champion.
+ */
 export interface ChampionStaticData {
   championName: string | null
   championIconUrl: string | null
-  items: Record<number, StaticItemData>
-  summonerSpells: Record<number, StaticSummonerSpellData>
   championSpells: Record<string, StaticChampionSpellData>
-  perks: Record<number, StaticPerkData>
-  perkStyles: Record<number, StaticPerkStyleData>
+  /** Champion resource type ("Mana", "Energy", "Blood Well", ...). Used to
+   *  resolve `{{ abilityresourcename }}` placeholders inside spell tooltips. */
+  partype: string
 }
 
 export interface ChampionStaticListItem {
