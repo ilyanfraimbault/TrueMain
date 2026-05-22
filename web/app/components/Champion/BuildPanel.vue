@@ -1,10 +1,17 @@
 <script setup lang="ts">
 import type { ChampionBuild } from '~~/shared/types/champions'
-import type { ChampionStaticData, RuneTreeResponse } from '~~/shared/types/static-data'
+import type {
+  ChampionStaticData,
+  RuneTreeResponse,
+  StaticItemData,
+  StaticSummonerSpellData,
+} from '~~/shared/types/static-data'
 
 defineProps<{
   build: ChampionBuild
   championStatic: ChampionStaticData
+  itemsMap: Record<number, StaticItemData>
+  summonersMap: Record<number, StaticSummonerSpellData>
   runeTree: RuneTreeResponse | null
 }>()
 </script>
@@ -20,11 +27,11 @@ defineProps<{
           <div class="flex flex-col gap-5">
             <ChampionCoreSpells
               :summoners="build.core.summonerSpells"
-              :champion-static="championStatic"
+              :summoners-map="summonersMap"
             />
             <ChampionCoreStarterItems
               :starter="build.core.starterItems"
-              :champion-static="championStatic"
+              :items-map="itemsMap"
             />
           </div>
           <!-- A2: Skill order + Boots on the same row (pinned to the edges),
@@ -39,14 +46,14 @@ defineProps<{
               />
               <ChampionCoreBoots
                 :boots="build.core.boots"
-                :champion-static="championStatic"
+                :items-map="itemsMap"
               />
             </div>
             <!-- A2b: Build path centered horizontally -->
             <div class="flex justify-center">
               <ChampionCoreBuildPath
                 :path="build.core.itemPath"
-                :champion-static="championStatic"
+                :items-map="itemsMap"
               />
             </div>
           </div>
@@ -66,13 +73,15 @@ defineProps<{
     <ChampionBuildPanelVariations
       :variations="build.variations"
       :champion-static="championStatic"
+      :items-map="itemsMap"
+      :summoners-map="summonersMap"
     />
 
     <!-- Section 3: Build tree -->
     <ChampionBuildPanelBuildTree
       :tree="build.buildTree"
       :first-item-id="build.firstItemId"
-      :champion-static="championStatic"
+      :items-map="itemsMap"
     />
 
     <!-- Section 4: Rune pages variations -->

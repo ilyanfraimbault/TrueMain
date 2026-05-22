@@ -22,11 +22,17 @@ const router = useRouter()
 
 const { filters, setFilter } = useChampionFilters()
 
+const nuxtApp = useNuxtApp()
+
+// All four fetches are lazy so SSR ships the page shell immediately and the
+// data streams in client-side under a skeleton. Awaiting them serially blocked
+// first paint on the slowest of: backend `/api/champions`, DDragon
+// `champion.json` + `item.json`, and CommunityDragon perks/styles.
 const {
   data: summaries,
   error: summariesError,
   status: summariesStatus,
-} = await useAsyncData<ChampionSummaryResponse[]>(
+} = useLazyAsyncData<ChampionSummaryResponse[]>(
   () => `champions-list-${filters.value.patch ?? 'latest'}`,
   () => {
     const patch = filters.value.patch
@@ -36,9 +42,22 @@ const {
   },
   { watch: [() => filters.value.patch] },
 )
-const { data: staticList, error: staticError } = await useFetch<ChampionStaticListItem[]>(
-  '/api/static/champions',
-  { key: 'champion-static-list' },
+// Static fetches use `useLazyAsyncData` (not `useLazyFetch`) so the handler
+// closure can call `markStaticFetched` after the network round trip — the
+// `useFetch` wrapper hides that hook. `getCachedData` reuses entries across
+// navigations within `STATIC_CACHE_TTL_MS` (see static-cache.ts).
+const {
+  data: staticList,
+  error: staticError,
+  status: staticStatus,
+} = useLazyAsyncData<ChampionStaticListItem[]>(
+  'champion-static-list',
+  async () => {
+    const data = await $fetch<ChampionStaticListItem[]>('/api/static/champions')
+    markStaticFetched('champion-static-list', nuxtApp)
+    return data
+  },
+  { getCachedData: key => getStaticCachedData(key, nuxtApp) },
 )
 const { data: versions } = useDDragonVersions()
 
@@ -47,19 +66,34 @@ const selectedPatch = computed(() => filters.value.patch || apiPatch.value || ''
 
 // Item icons are patch-specific (new items + visual refreshes ship with a
 // patch), so the fetch must follow whichever patch the list is currently
-// showing. Keying on selectedPatch keeps icons aligned with the build paths
-// rendered next to them — otherwise the icons would stay pinned to whatever
-// patch loaded first when the user switches via the dropdown.
+// showing. `immediate: false` + the watcher below defers the first fetch until
+// `selectedPatch` is known, so we don't issue a redundant `static-items-latest`
+// round-trip and then immediately refetch under the resolved patch key.
 const {
   data: itemsMap,
   error: itemsError,
-} = await useAsyncData<Record<number, StaticItemData>>(
-  () => `static-items-${selectedPatch.value || 'latest'}`,
-  () => $fetch<Record<number, StaticItemData>>('/api/static/items', {
-    query: selectedPatch.value ? { patch: selectedPatch.value } : {},
-  }),
-  { watch: [selectedPatch] },
+  status: itemsStatus,
+  execute: fetchItems,
+} = useLazyAsyncData<Record<number, StaticItemData>>(
+  () => `static-items-${selectedPatch.value || 'pending'}`,
+  async () => {
+    const key = `static-items-${selectedPatch.value || 'pending'}`
+    const data = await $fetch<Record<number, StaticItemData>>('/api/static/items', {
+      query: { patch: selectedPatch.value },
+    })
+    markStaticFetched(key, nuxtApp)
+    return data
+  },
+  {
+    watch: [selectedPatch],
+    immediate: false,
+    default: () => ({}),
+    getCachedData: key => getStaticCachedData(key, nuxtApp),
+  },
 )
+watch(selectedPatch, (patch) => {
+  if (patch) void fetchItems()
+}, { immediate: true })
 
 // Pin rune-tree to the same patch as the list so the icon URLs we hand to
 // IPX hit CommunityDragon's per-patch (year-cacheable) tree instead of
@@ -68,16 +102,36 @@ const {
 const {
   data: runeTree,
   error: runeTreeError,
-} = await useAsyncData<RuneTreeResponse>(
+  status: runeTreeStatus,
+} = useLazyAsyncData<RuneTreeResponse>(
   () => `rune-tree-${selectedPatch.value || 'latest'}`,
-  () => $fetch<RuneTreeResponse>('/api/static/rune-tree', {
-    query: selectedPatch.value ? { patch: selectedPatch.value } : {},
-  }),
-  { watch: [selectedPatch] },
+  async () => {
+    const key = `rune-tree-${selectedPatch.value || 'latest'}`
+    const data = await $fetch<RuneTreeResponse>('/api/static/rune-tree', {
+      query: selectedPatch.value ? { patch: selectedPatch.value } : {},
+    })
+    markStaticFetched(key, nuxtApp)
+    return data
+  },
+  {
+    watch: [selectedPatch],
+    getCachedData: key => getStaticCachedData(key, nuxtApp),
+  },
 )
 
 const error = computed(() => summariesError.value ?? staticError.value ?? itemsError.value ?? runeTreeError.value)
-const isPending = computed(() => summariesStatus.value === 'pending')
+// Treat the pre-fetch `'idle'` state from `useLazy*` the same as `'pending'`,
+// otherwise the SSR shell briefly renders the empty `<ul>` (and the "No
+// champions match…" copy below) before the client kicks off the first fetch.
+// All four sources gate the skeleton so we never show rows with placeholder
+// `Champion {id}` names or missing rune / item icons.
+const isLoadingStatus = (s: 'idle' | 'pending' | 'success' | 'error') => s === 'idle' || s === 'pending'
+const isPending = computed(() =>
+  isLoadingStatus(summariesStatus.value)
+  || isLoadingStatus(staticStatus.value)
+  || isLoadingStatus(runeTreeStatus.value)
+  || isLoadingStatus(itemsStatus.value),
+)
 
 const patchOptions = computed(() => {
   const seen = new Set<string>(
@@ -168,7 +222,7 @@ function staticItem(id: number | undefined) {
             aria-label="All positions"
             @click="selectPosition(ALL_POSITIONS)"
           >
-            <NuxtImg
+            <SkeletonImage
               :src="FILL_POSITION_ICON_URL"
               alt="All positions"
               :width="18"
@@ -185,7 +239,7 @@ function staticItem(id: number | undefined) {
             :aria-label="option.label"
             @click="selectPosition(option.value)"
           >
-            <NuxtImg
+            <SkeletonImage
               :src="option.iconUrl"
               :alt="option.label"
               :width="18"
@@ -212,6 +266,15 @@ function staticItem(id: number | undefined) {
       </div>
     </header>
 
+    <div class="h-0.5">
+      <UProgress
+        v-if="isPending"
+        size="xs"
+        color="primary"
+        aria-label="Loading champions"
+      />
+    </div>
+
     <UAlert
       v-if="error"
       color="error"
@@ -221,8 +284,11 @@ function staticItem(id: number | undefined) {
     />
 
     <template v-else>
+      <!-- Skeleton stays up while the list refetches (initial load OR patch
+           swap) instead of leaving stale rows on screen with no signal —
+           matches the "fluid loading state" the user expects. -->
       <div
-        v-if="isPending && filteredRows.length === 0"
+        v-if="isPending"
         class="space-y-2"
       >
         <USkeleton
@@ -257,7 +323,7 @@ function staticItem(id: number | undefined) {
             </div>
 
             <!-- Position -->
-            <NuxtImg
+            <SkeletonImage
               v-if="positionByValue.get(row.position)?.iconUrl"
               :src="positionByValue.get(row.position)!.iconUrl"
               :alt="row.position"

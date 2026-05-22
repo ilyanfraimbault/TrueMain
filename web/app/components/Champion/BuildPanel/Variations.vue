@@ -1,19 +1,25 @@
 <script setup lang="ts">
 import type { BuildVariations } from '~~/shared/types/champions'
-import type { ChampionStaticData, StaticItemData } from '~~/shared/types/static-data'
+import type {
+  ChampionStaticData,
+  StaticItemData,
+  StaticSummonerSpellData,
+} from '~~/shared/types/static-data'
 
 const props = defineProps<{
   variations: BuildVariations
   championStatic: ChampionStaticData
+  itemsMap: Record<number, StaticItemData>
+  summonersMap: Record<number, StaticSummonerSpellData>
 }>()
 
 function summonerName(id: number): string {
-  return props.championStatic.summonerSpells[id]?.name ?? `Spell ${id}`
+  return props.summonersMap[id]?.name ?? `Spell ${id}`
 }
 
 function itemsByIds(ids: number[]): StaticItemData[] {
   return ids
-    .map(id => props.championStatic.items[id])
+    .map(id => props.itemsMap[id])
     .filter((item): item is StaticItemData => Boolean(item))
 }
 
@@ -35,7 +41,7 @@ function spellByKey(key: string) {
             <GameTooltipSummonerSpellIcon
               v-for="spellId in [option.spell1Id, option.spell2Id]"
               :key="`sum-${option.spell1Id}-${option.spell2Id}-${spellId}`"
-              :spell="championStatic.summonerSpells[spellId] ?? null"
+              :spell="summonersMap[spellId] ?? null"
               :fallback-label="summonerName(spellId)"
               :width="32"
               :height="32"

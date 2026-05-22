@@ -1,10 +1,17 @@
 <script setup lang="ts">
 import type { ChampionBuild } from '~~/shared/types/champions'
-import type { ChampionStaticData, RuneTreeResponse } from '~~/shared/types/static-data'
+import type {
+  ChampionStaticData,
+  RuneTreeResponse,
+  StaticItemData,
+  StaticSummonerSpellData,
+} from '~~/shared/types/static-data'
 
 const props = defineProps<{
   builds: ChampionBuild[]
   championStatic: ChampionStaticData
+  itemsMap: Record<number, StaticItemData>
+  summonersMap: Record<number, StaticSummonerSpellData>
   runeTree: RuneTreeResponse | null
 }>()
 
@@ -30,8 +37,8 @@ const items = computed(() =>
     <template #leading="{ item }">
       <div class="flex items-center gap-2">
         <GameTooltipItemIcon
-          v-if="championStatic.items[item.build.firstItemId]"
-          :item="championStatic.items[item.build.firstItemId]"
+          v-if="itemsMap[item.build.firstItemId]"
+          :item="itemsMap[item.build.firstItemId]"
           :width="28"
           :height="28"
           class="size-7 rounded"
@@ -69,6 +76,8 @@ const items = computed(() =>
       <ChampionBuildPanel
         :build="item.build"
         :champion-static="championStatic"
+        :items-map="itemsMap"
+        :summoners-map="summonersMap"
         :rune-tree="runeTree"
       />
     </template>
