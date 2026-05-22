@@ -278,7 +278,7 @@ function staticItem(id: number | undefined) {
          the client expected another (the skeleton), producing the
          `<UProgress>` / `<ul>` hydration node mismatches reported in #149.
          The `<template #fallback>` matches the SSR shell so the user sees
-         the same skeleton + progress bar before the client takes over. -->
+         the same progress bar before the client takes over. -->
     <ClientOnly>
       <div class="h-0.5">
         <UProgress
@@ -298,24 +298,12 @@ function staticItem(id: number | undefined) {
       />
 
       <template v-else>
-        <!-- Skeleton stays up while the list refetches (initial load OR patch
-             swap) instead of leaving stale rows on screen with no signal —
-             matches the "fluid loading state" the user expects. -->
-        <div
-          v-if="isPending"
-          class="space-y-2"
-        >
-          <USkeleton
-            v-for="i in 6"
-            :key="i"
-            class="h-14 w-full rounded"
-          />
-        </div>
-
-        <ul
-          v-else
-          class="space-y-1"
-        >
+        <!-- During fetch the UProgress bar above is the only loading signal;
+             empty rectangles below it carried no information and looked worse
+             than the implicit empty state. Rows mount as soon as summaries
+             resolve, with per-icon SkeletonImage placeholders covering the
+             remaining image loads. -->
+        <ul class="space-y-1">
           <li
             v-for="row in filteredRows"
             :key="`${row.championId}-${row.position}`"
@@ -423,13 +411,6 @@ function staticItem(id: number | undefined) {
             size="xs"
             color="primary"
             aria-label="Loading champions"
-          />
-        </div>
-        <div class="space-y-2">
-          <USkeleton
-            v-for="i in 6"
-            :key="i"
-            class="h-14 w-full rounded"
           />
         </div>
       </template>
