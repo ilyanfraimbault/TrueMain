@@ -257,8 +257,15 @@ public sealed class RankSnapshotIngestionTests : IClassFixture<PostgresFixture>
         IEnumerable<RiotLeagueEntryByPuuidDto>? extraEntries = null)
     {
         var entries = new List<RiotLeagueEntryByPuuidDto>();
-        if (soloEntry is not null) entries.Add(soloEntry);
-        if (extraEntries is not null) entries.AddRange(extraEntries);
+        if (soloEntry is not null)
+        {
+            entries.Add(soloEntry);
+        }
+
+        if (extraEntries is not null)
+        {
+            entries.AddRange(extraEntries);
+        }
 
         var accountClient = Substitute.For<IRiotAccountClient>();
         accountClient.GetAccountByPuuidAsync(Arg.Any<string>(), Arg.Any<RegionalRoute>(), Arg.Any<CancellationToken>())
