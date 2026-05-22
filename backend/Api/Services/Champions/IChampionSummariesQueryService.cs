@@ -13,4 +13,17 @@ public interface IChampionSummariesQueryService
     /// runes or patterns go through <c>GET /champions/{id}</c>.
     /// </summary>
     Task<IReadOnlyList<ChampionSummaryReadModel>> GetAllSummariesAsync(string? patch, CancellationToken ct);
+
+    /// <summary>
+    /// Paged variant of <see cref="GetAllSummariesAsync"/> — returns the
+    /// requested page (1-indexed) of the cached, already-sorted directory.
+    /// <paramref name="page"/> and <paramref name="pageSize"/> are clamped:
+    /// pages past the end yield an empty <c>Items</c> list with the real
+    /// <c>TotalCount</c> so the caller can re-anchor on the last page.
+    /// </summary>
+    Task<ChampionSummariesPagedResponse> GetSummariesPageAsync(
+        string? patch,
+        int page,
+        int pageSize,
+        CancellationToken ct);
 }

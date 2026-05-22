@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChampionSummaryResponse } from '~~/shared/types/champions'
+import type { ChampionSummariesPagedResponse, ChampionSummaryResponse } from '~~/shared/types/champions'
 import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
 import { getPositionIconUrl } from '~~/shared/utils/ddragon'
 import { POSITION_OPTIONS, isChampionPosition, type ChampionPosition } from '~/utils/positions'
@@ -12,6 +12,11 @@ function pct(value: number): string {
 
 const FILL_POSITION_ICON_URL = getPositionIconUrl('fill')
 
+// Mirrors the backend default; the page size is fixed in the UI (no
+// per-page selector) so the only stateful pagination value carried in the
+// URL is the page number.
+const PAGE_SIZE = 50
+
 useSeoMeta({
   title: 'Champions · TrueMain',
   description: 'Browse champions by lane with the most-played build, winrate and pickrate.',
@@ -20,9 +25,31 @@ useSeoMeta({
 const route = useRoute()
 const router = useRouter()
 
-const { filters, setFilter } = useChampionFilters()
+const { filters } = useChampionFilters()
 
 const nuxtApp = useNuxtApp()
+
+// Current 1-indexed page, sourced from `?page=` so back/forward + direct
+// links stay in sync with the list state. Coerce non-numeric or <1 values
+// to 1 — that's the same clamping the backend does for safety, but doing
+// it here keeps the URL stable while the page mounts.
+const currentPage = computed<number>(() => {
+  const raw = Array.isArray(route.query.page) ? route.query.page[0] : route.query.page
+  const parsed = Number.parseInt(typeof raw === 'string' ? raw : '', 10)
+  return Number.isFinite(parsed) && parsed >= 1 ? parsed : 1
+})
+
+async function setPage(next: number) {
+  const clamped = Math.max(1, Math.floor(next))
+  if (clamped === currentPage.value) return
+  // Strip `?page=` when the user lands back on page 1 — keeps the URL
+  // identical to the natural landing state instead of carrying a
+  // redundant `?page=1`.
+  const nextQuery = { ...route.query }
+  if (clamped === 1) delete nextQuery.page
+  else nextQuery.page = String(clamped)
+  await router.replace({ query: nextQuery })
+}
 
 // All four fetches are client-only (`server: false`) so SSR ships a
 // deterministic empty shell under the skeleton/progress bar instead of
@@ -31,19 +58,25 @@ const nuxtApp = useNuxtApp()
 // into the server output while the client hydrated with `isPending=true`,
 // producing `<!-- -->` vs `<div>` and `<ul>` vs `<div>` hydration mismatches.
 const {
-  data: summaries,
+  data: summariesPage,
   error: summariesError,
   status: summariesStatus,
-} = useLazyAsyncData<ChampionSummaryResponse[]>(
-  () => `champions-list-${filters.value.patch ?? 'latest'}`,
+} = useLazyAsyncData<ChampionSummariesPagedResponse>(
+  () => `champions-list-${filters.value.patch ?? 'latest'}-p${currentPage.value}`,
   () => {
     const patch = filters.value.patch
-    return $fetch<ChampionSummaryResponse[]>('/api/champions', {
-      query: patch ? { patch } : {},
+    return $fetch<ChampionSummariesPagedResponse>('/api/champions', {
+      query: {
+        ...(patch ? { patch } : {}),
+        page: currentPage.value,
+        pageSize: PAGE_SIZE,
+      },
     })
   },
-  { watch: [() => filters.value.patch], server: false },
+  { watch: [() => filters.value.patch, currentPage], server: false },
 )
+const summaries = computed<ChampionSummaryResponse[]>(() => summariesPage.value?.items ?? [])
+const totalCount = computed<number>(() => summariesPage.value?.totalCount ?? 0)
 // Static fetches use `useLazyAsyncData` (not `useLazyFetch`) so the handler
 // closure can call `markStaticFetched` after the network round trip — the
 // `useFetch` wrapper hides that hook. `getCachedData` reuses entries across
@@ -157,21 +190,36 @@ const selectedPosition = computed<ChampionPosition | typeof ALL_POSITIONS>(() =>
   return isChampionPosition(value) ? value : ALL_POSITIONS
 })
 
+// Filter changes must reset to page 1 — otherwise switching from a
+// 5-page result to a single-page one leaves `?page=4` in the URL and the
+// list silently renders empty. Use a single router.replace so the patch /
+// position / page params transition atomically.
+async function applyFilterReset(updates: { patch?: string | null, position?: ChampionPosition | null | typeof ALL_POSITIONS }) {
+  const nextQuery: Record<string, string> = {}
+  for (const [key, value] of Object.entries(route.query)) {
+    if (typeof value === 'string') nextQuery[key] = value
+  }
+  // Drop `?page=` on any filter change to anchor on page 1.
+  delete nextQuery.page
+
+  if (updates.patch !== undefined) {
+    if (updates.patch) nextQuery.patch = updates.patch
+    else delete nextQuery.patch
+  }
+  if (updates.position !== undefined) {
+    if (updates.position === ALL_POSITIONS || !updates.position) delete nextQuery.position
+    else nextQuery.position = updates.position
+  }
+  await router.replace({ query: nextQuery })
+}
+
 function onPatchChange(value: unknown) {
   if (typeof value !== 'string' || !value) return
-  setFilter(value, null)
+  void applyFilterReset({ patch: value })
 }
 
 async function selectPosition(value: ChampionPosition | typeof ALL_POSITIONS) {
-  if (value === ALL_POSITIONS) {
-    // useChampionFilters.setFilter() can only add, not clear, so strip the
-    // position param via router directly.
-    const next = { ...route.query }
-    delete next.position
-    await router.replace({ query: next })
-    return
-  }
-  await setFilter(null, value)
+  await applyFilterReset({ position: value })
 }
 
 const searchQuery = ref('')
@@ -428,6 +476,24 @@ function staticItem(id: number | undefined) {
         >
           No champions match these filters.
         </p>
+
+        <!-- Only show pagination when there's more than one page of results
+             on the backend. The component is hidden during the pending state
+             to avoid flashing stale page counts between fetches. -->
+        <div
+          v-if="!isPending && totalCount > PAGE_SIZE"
+          class="flex justify-center pt-2"
+        >
+          <UPagination
+            :page="currentPage"
+            :total="totalCount"
+            :items-per-page="PAGE_SIZE"
+            :sibling-count="1"
+            color="primary"
+            active-color="primary"
+            @update:page="setPage"
+          />
+        </div>
       </template>
 
       <template #fallback>
