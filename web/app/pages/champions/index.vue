@@ -40,10 +40,6 @@ const { data: staticList, error: staticError } = await useFetch<ChampionStaticLi
   '/api/static/champions',
   { key: 'champion-static-list' },
 )
-const { data: runeTree, error: runeTreeError } = await useFetch<RuneTreeResponse>(
-  '/api/static/rune-tree',
-  { key: 'rune-tree' },
-)
 const { data: versions } = useDDragonVersions()
 
 const apiPatch = computed(() => summaries.value?.[0]?.patchVersion ?? '')
@@ -60,6 +56,21 @@ const {
 } = await useAsyncData<Record<number, StaticItemData>>(
   () => `static-items-${selectedPatch.value || 'latest'}`,
   () => $fetch<Record<number, StaticItemData>>('/api/static/items', {
+    query: selectedPatch.value ? { patch: selectedPatch.value } : {},
+  }),
+  { watch: [selectedPatch] },
+)
+
+// Pin rune-tree to the same patch as the list so the icon URLs we hand to
+// IPX hit CommunityDragon's per-patch (year-cacheable) tree instead of
+// `latest` (short TTL + moving target). Cache key includes the patch so
+// switching the dropdown swaps payloads cleanly.
+const {
+  data: runeTree,
+  error: runeTreeError,
+} = await useAsyncData<RuneTreeResponse>(
+  () => `rune-tree-${selectedPatch.value || 'latest'}`,
+  () => $fetch<RuneTreeResponse>('/api/static/rune-tree', {
     query: selectedPatch.value ? { patch: selectedPatch.value } : {},
   }),
   { watch: [selectedPatch] },

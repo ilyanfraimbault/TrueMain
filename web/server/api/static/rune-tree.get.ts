@@ -2,7 +2,7 @@ import type { RuneTreeResponse, RuneTreeStyle } from '~~/shared/types/static-dat
 import {
   buildPerkMap,
   buildPerkStyleMap,
-  COMMUNITY_DRAGON_PREFIX,
+  communityDragonPrefix,
   rewriteCdragonAsset,
   type CdragonPerkRow,
   type CdragonPerkStyleRow,
@@ -14,14 +14,26 @@ interface PerkStylesResponse {
   }>
 }
 
+// Normalize patches into the CDragon-friendly `major.minor` form (DDragon
+// patches like `15.10.1` reduce to `15.10`). Anything that doesn't parse is
+// treated as missing and falls back to `latest` downstream.
+function normalizeCdragonPatch(patch: string | null | undefined): string | null {
+  if (!patch) return null
+  const segments = patch.split('.').filter(Boolean)
+  if (segments.length >= 2) return `${segments[0]}.${segments[1]}`
+  return patch
+}
+
 const loadRuneTree = defineCachedFunction(
-  async (): Promise<RuneTreeResponse> => {
+  async (_event, patch: string | null): Promise<RuneTreeResponse> => {
+    const prefix = communityDragonPrefix(patch)
+
     // Let any CommunityDragon failure bubble up — we'd rather return 502 once
     // and let the next request retry than cache an empty `RuneTreeResponse`
     // for 1h on a transient outage. Same trade-off as champions.get.ts.
     const [perks, perkStyles] = await Promise.all([
-      $fetch<CdragonPerkRow[]>(`${COMMUNITY_DRAGON_PREFIX}/v1/perks.json`),
-      $fetch<PerkStylesResponse>(`${COMMUNITY_DRAGON_PREFIX}/v1/perkstyles.json`),
+      $fetch<CdragonPerkRow[]>(`${prefix}/v1/perks.json`),
+      $fetch<PerkStylesResponse>(`${prefix}/v1/perkstyles.json`),
     ]).catch((error) => {
       throw createError({
         statusCode: 502,
@@ -30,8 +42,8 @@ const loadRuneTree = defineCachedFunction(
       })
     })
 
-    const perkMap = buildPerkMap(perks)
-    const perkStyleMap = buildPerkStyleMap(perkStyles.styles)
+    const perkMap = buildPerkMap(perks, patch)
+    const perkStyleMap = buildPerkStyleMap(perkStyles.styles, patch)
 
     // CommunityDragon emits 7 slots per style: 0 = keystone, 1-3 = regular
     // sub-rows, 4-6 = stat shards (same triplets for every style, so we read
@@ -39,7 +51,7 @@ const loadRuneTree = defineCachedFunction(
     const styles: RuneTreeStyle[] = perkStyles.styles.map(style => ({
       styleId: style.id,
       name: style.name,
-      iconUrl: rewriteCdragonAsset(style.iconPath),
+      iconUrl: rewriteCdragonAsset(style.iconPath, patch),
       keystones: style.slots[0]?.perks ?? [],
       subRows: style.slots.slice(1, 4).map(slot => slot.perks),
     }))
@@ -57,10 +69,14 @@ const loadRuneTree = defineCachedFunction(
   {
     maxAge: 60 * 60,
     name: 'cdragon-rune-tree',
-    getKey: () => 'rune-tree',
+    // Cache key includes the patch so two pages on different patches don't
+    // step on each other's cached payload. `latest` keeps the legacy key.
+    getKey: (_event, patch: string | null) => `rune-tree:${patch ?? 'latest'}`,
   },
 )
 
-export default defineEventHandler(async (): Promise<RuneTreeResponse> => {
-  return loadRuneTree()
+export default defineEventHandler(async (event): Promise<RuneTreeResponse> => {
+  const { patch } = getQuery(event)
+  const normalized = normalizeCdragonPatch(typeof patch === 'string' ? patch : null)
+  return loadRuneTree(event, normalized)
 })
