@@ -16,6 +16,7 @@ public sealed class DataSession : IDataSession
         Matches = repositoryFactory.CreateMatchRepository(_db);
         MatchParticipants = repositoryFactory.CreateMatchParticipantRepository(_db);
         ProcessRuns = repositoryFactory.CreateProcessRunRepository(_db);
+        RankSnapshots = repositoryFactory.CreateRankSnapshotRepository(_db);
     }
 
     public IMainCandidateRepository MainCandidates { get; }
@@ -24,6 +25,7 @@ public sealed class DataSession : IDataSession
     public IMatchRepository Matches { get; }
     public IMatchParticipantRepository MatchParticipants { get; }
     public IProcessRunRepository ProcessRuns { get; }
+    public IRankSnapshotRepository RankSnapshots { get; }
 
     public Task<int> SaveChangesAsync(CancellationToken ct)
         => _db.SaveChangesAsync(ct);

@@ -19,6 +19,15 @@ watch(() => props.src, () => {
   loaded.value = false
   failed.value = false
 })
+
+// Canonical IPX fetch size. DDragon ships item icons at 64×64; CDragon perk
+// icons are larger but downscale cleanly. Funneling every <NuxtImg> request
+// through this one size makes the same asset share a single browser cache
+// entry no matter the CSS display size of its instances (build path 36 px,
+// runes 32 px, tabs 28 px, shards 16 px — all hit the same `_ipx/s_64x64/…`
+// URL). Display size still comes from the caller's wrapper class (`size-9`,
+// `size-7`, etc.) via the `size-full` rule on the inner img.
+const FETCH_SIZE = 64
 </script>
 
 <template>
@@ -43,8 +52,9 @@ watch(() => props.src, () => {
         :src="src"
         :alt="alt"
         :title="title"
-        :width="width"
-        :height="height"
+        :width="FETCH_SIZE"
+        :height="FETCH_SIZE"
+        densities="1x"
         class="size-full transition-opacity duration-150"
         :class="loaded && !failed ? 'opacity-100' : 'opacity-0'"
         @load="loaded = true"

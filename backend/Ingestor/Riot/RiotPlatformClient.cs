@@ -65,6 +65,12 @@ public sealed class RiotPlatformClient : IRiotPlatformClient
         return _httpExecutor.GetAsync<List<RiotChampionMasteryDto>>(_httpClient, uri, _options.MaxRetryAttempts, nameof(RiotPlatformClient), ct);
     }
 
+    public Task<List<RiotLeagueEntryByPuuidDto>> GetLeagueEntriesByPuuidAsync(PlatformRoute platform, string puuid, CancellationToken ct)
+    {
+        var uri = BuildPlatformUri(platform, $"/lol/league/v4/entries/by-puuid/{puuid}");
+        return _httpExecutor.GetAsync<List<RiotLeagueEntryByPuuidDto>>(_httpClient, uri, _options.MaxRetryAttempts, nameof(RiotPlatformClient), ct);
+    }
+
     private static Uri BuildPlatformUri(PlatformRoute platform, string path)
     {
         var host = RiotRouting.ToPlatformHost(platform);

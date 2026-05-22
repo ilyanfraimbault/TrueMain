@@ -20,7 +20,7 @@ namespace Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.0")
+                .HasAnnotation("ProductVersion", "10.0.4")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -724,6 +724,48 @@ namespace Data.Migrations
                     b.ToTable("process_runs", (string)null);
                 });
 
+            modelBuilder.Entity("Data.Entities.RankSnapshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CapturedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Division")
+                        .IsRequired()
+                        .HasMaxLength(4)
+                        .HasColumnType("character varying(4)");
+
+                    b.Property<int>("LeaguePoints")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("Losses")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("RiotAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Tier")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int?>("Wins")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RiotAccountId", "CapturedAtUtc")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("IX_rank_snapshots_account_captured");
+
+                    b.ToTable("rank_snapshots", (string)null);
+                });
+
             modelBuilder.Entity("Data.Entities.RiotAccount", b =>
                 {
                     b.Property<Guid>("Id")
@@ -897,6 +939,17 @@ namespace Data.Migrations
                         .HasForeignKey("PerkSelectionCatalogId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Data.Entities.RankSnapshot", b =>
+                {
+                    b.HasOne("Data.Entities.RiotAccount", "RiotAccount")
+                        .WithMany()
+                        .HasForeignKey("RiotAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RiotAccount");
                 });
 
             modelBuilder.Entity("Data.Entities.RiotAccount", b =>

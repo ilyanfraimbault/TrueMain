@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import type { BuildItemPath } from '~~/shared/types/champions'
-import type { ChampionStaticData, StaticItemData } from '~~/shared/types/static-data'
+import type { StaticItemData } from '~~/shared/types/static-data'
 
 const props = defineProps<{
   path: BuildItemPath | null
-  championStatic: ChampionStaticData
+  itemsMap: Record<number, StaticItemData>
 }>()
 
 const items = computed<StaticItemData[]>(() => {
   const ids = props.path?.itemIds ?? []
   return ids
-    .map(id => props.championStatic.items[id])
+    .map(id => props.itemsMap[id])
     .filter((item): item is StaticItemData => Boolean(item))
 })
 </script>
@@ -30,12 +30,10 @@ const items = computed<StaticItemData[]>(() => {
         v-for="(item, index) in items"
         :key="`bp-${item.id}-${index}`"
       >
-        <SkeletonImage
-          :src="item.iconUrl"
-          :alt="item.name"
-          :title="item.name"
-          width="36"
-          height="36"
+        <GameTooltipItemIcon
+          :item="item"
+          :width="36"
+          :height="36"
           class="size-9 rounded"
         />
         <UIcon

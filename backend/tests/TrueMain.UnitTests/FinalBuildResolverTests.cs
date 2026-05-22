@@ -100,4 +100,41 @@ public sealed class FinalBuildResolverTests
 
         buildItems.Should().Equal(3153, 3004);
     }
+
+    [Fact]
+    public void Resolve_excludes_support_quest_completion_from_the_build_path()
+    {
+        // Bloodsong (3877) is a support-quest completion — it belongs to
+        // the starter slot via StarterItemAnalyzer, never as a build node.
+        // Even when it shows up in the player's final inventory, the
+        // resolver should drop it and surface only the genuine build items.
+        var buildItems = FinalBuildResolver.Resolve(
+        [
+            new ItemEvent { TimestampMs = 5_000, ItemId = 3153, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 12_000, ItemId = 3877, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 18_000, ItemId = 3031, EventType = "ITEM_PURCHASED" }
+        ], [3153, 3877, 3031, 0, 0, 0, 0], [], Metadata);
+
+        buildItems.Should().NotContain(3877);
+        buildItems.Should().Equal(3153, 3031);
+    }
+
+    [Fact]
+    public void Resolve_excludes_support_quest_root_from_the_build_path()
+    {
+        // 3899 is a synthetic support-quest root fixture: marked
+        // IsSupportQuestStarter=true *and* IsFinalItem=true, and absent from
+        // the starterItems filter — so the only thing that can exclude it
+        // from the build path is the IsSupportQuestStarter check we're
+        // validating here. (A realistic root like World Atlas would also be
+        // filtered by IsFinalItem=false, masking what's actually under test.)
+        var buildItems = FinalBuildResolver.Resolve(
+        [
+            new ItemEvent { TimestampMs = 5_000, ItemId = 3899, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 12_000, ItemId = 3153, EventType = "ITEM_PURCHASED" }
+        ], [3153, 3899, 0, 0, 0, 0, 0], [], Metadata);
+
+        buildItems.Should().NotContain(3899);
+        buildItems.Should().Equal(3153);
+    }
 }

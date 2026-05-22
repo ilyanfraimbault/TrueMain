@@ -1,16 +1,18 @@
 <script setup lang="ts">
 import type { BuildTreeNode } from '~~/shared/types/champions'
-import type { ChampionStaticData } from '~~/shared/types/static-data'
+import type { StaticItemData } from '~~/shared/types/static-data'
 
 const props = defineProps<{
   tree: BuildTreeNode[]
   firstItemId: number
-  championStatic: ChampionStaticData
+  itemsMap: Record<number, StaticItemData>
 }>()
 
 interface LaidOutNode {
   itemId: number
   games: number
+  /** Fraction in [0..1] — share of games at this slot that picked this item. Undefined on the synthetic root (no parent context). */
+  pickRate?: number
   isMainEdge: boolean
   x: number
   y: number
@@ -29,33 +31,61 @@ const layout = computed(() => {
   }
 
   function pickMainIndex(nodes: BuildTreeNode[]): number {
-    // Main path goes through the deepest subtree (so the visualised "main
-    // build" stays as complete as possible). Tie-break by games — when two
-    // siblings reach the same depth, the more popular one wins.
+    // Main path follows the most popular child at each step. Tiebreak chain
+    // mirrors the backend's WalkPath comparer exactly: games desc → subtree
+    // depth desc → wins desc → itemId asc. Spelling all four out keeps the
+    // highlighted edge in sync with the backend's itemPath regardless of
+    // the input order — wrapChildren's re-sort drops the depth dimension,
+    // so this scan is the only place depth still influences the choice.
     let bestIndex = 0
     let bestDepth = depth(nodes[0]!)
     let bestGames = nodes[0]!.games
+    let bestWins = nodes[0]!.wins
+    let bestItemId = nodes[0]!.itemId
     for (let i = 1; i < nodes.length; i++) {
-      const d = depth(nodes[i]!)
-      const g = nodes[i]!.games
-      if (d > bestDepth || (d === bestDepth && g > bestGames)) {
+      const node = nodes[i]!
+      const d = depth(node)
+      const g = node.games
+      const w = node.wins
+      const id = node.itemId
+      const better
+        = g > bestGames
+        || (g === bestGames && d > bestDepth)
+        || (g === bestGames && d === bestDepth && w > bestWins)
+        || (g === bestGames && d === bestDepth && w === bestWins && id < bestItemId)
+      if (better) {
         bestIndex = i
         bestDepth = d
         bestGames = g
+        bestWins = w
+        bestItemId = id
       }
     }
     return bestIndex
   }
 
   function wrapChildren(nodes: BuildTreeNode[], parentIsMainPath: boolean): LaidOutNode[] {
+    // Apply the same ordering the backend uses to prune (games desc → wins
+    // desc → itemId asc) explicitly rather than relying on the response's
+    // serialization order. Backend keeps up to 6 children per node while
+    // the UI caps at 4 — with the explicit tiebreaks, the 2 we drop are
+    // deterministically the lowest by wins/itemId within each tied-games
+    // group, matching what the backend would have surfaced if it shared
+    // our cap. Depth doesn't enter here on purpose: it's a main-edge
+    // selection rule (pickMainIndex), not a child-pruning rule.
     const sorted = nodes
       .slice()
-      .sort((a, b) => b.games - a.games)
+      .sort((a, b) =>
+        b.games - a.games
+        || b.wins - a.wins
+        || a.itemId - b.itemId,
+      )
       .slice(0, MAX_CHILDREN)
     const mainIndex = parentIsMainPath && sorted.length > 0 ? pickMainIndex(sorted) : -1
     return sorted.map((node, index) => ({
       itemId: node.itemId,
       games: node.games,
+      pickRate: node.pickRate,
       isMainEdge: index === mainIndex,
       x: 0,
       y: 0,
@@ -66,6 +96,9 @@ const layout = computed(() => {
   const root: LaidOutNode = {
     itemId: props.firstItemId,
     games: 0,
+    // Root is the build's first item by definition — every path in this
+    // sub-tree starts here, so its slot-1 pickrate is 100%.
+    pickRate: 1,
     isMainEdge: false,
     x: 0,
     y: 0,
@@ -121,14 +154,6 @@ const layout = computed(() => {
   return { flat, width, height, edges }
 })
 
-function itemIcon(id: number): string {
-  return props.championStatic.items[id]?.iconUrl ?? ''
-}
-
-function itemName(id: number): string {
-  return props.championStatic.items[id]?.name ?? `Item ${id}`
-}
-
 const hasNodes = computed(() => layout.value.flat.length > 1)
 </script>
 
@@ -158,12 +183,11 @@ const hasNodes = computed(() => layout.value.flat.length > 1)
             :stroke-dasharray="edge.child.isMainEdge ? undefined : '4 4'"
           />
         </svg>
-        <SkeletonImage
+        <GameTooltipItemIcon
           v-for="(node, index) in layout.flat"
           :key="`node-${index}`"
-          :src="itemIcon(node.itemId)"
-          :alt="itemName(node.itemId)"
-          :title="itemName(node.itemId)"
+          :item="itemsMap[node.itemId] ?? null"
+          :pick-rate="node.pickRate"
           :width="ITEM_SIZE"
           :height="ITEM_SIZE"
           class="absolute rounded"

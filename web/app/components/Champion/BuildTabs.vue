@@ -1,10 +1,17 @@
 <script setup lang="ts">
 import type { ChampionBuild } from '~~/shared/types/champions'
-import type { ChampionStaticData, RuneTreeResponse } from '~~/shared/types/static-data'
+import type {
+  ChampionStaticData,
+  RuneTreeResponse,
+  StaticItemData,
+  StaticSummonerSpellData,
+} from '~~/shared/types/static-data'
 
 const props = defineProps<{
   builds: ChampionBuild[]
   championStatic: ChampionStaticData
+  itemsMap: Record<number, StaticItemData>
+  summonersMap: Record<number, StaticSummonerSpellData>
   runeTree: RuneTreeResponse | null
 }>()
 
@@ -15,30 +22,6 @@ const items = computed(() =>
     build,
   })),
 )
-
-function itemIcon(id: number): string {
-  return props.championStatic.items[id]?.iconUrl ?? ''
-}
-
-function itemName(id: number): string {
-  return props.championStatic.items[id]?.name ?? `Item ${id}`
-}
-
-function perkIcon(id: number): string {
-  return props.runeTree?.perks[id]?.iconUrl ?? ''
-}
-
-function perkName(id: number): string {
-  return props.runeTree?.perks[id]?.name ?? `Perk ${id}`
-}
-
-function styleIcon(id: number): string {
-  return props.runeTree?.perkStyles[id]?.iconUrl ?? ''
-}
-
-function styleName(id: number): string {
-  return props.runeTree?.perkStyles[id]?.name ?? `Style ${id}`
-}
 </script>
 
 <template>
@@ -53,34 +36,28 @@ function styleName(id: number): string {
   >
     <template #leading="{ item }">
       <div class="flex items-center gap-2">
-        <SkeletonImage
-          v-if="itemIcon(item.build.firstItemId)"
-          :src="itemIcon(item.build.firstItemId)"
-          :alt="itemName(item.build.firstItemId)"
-          :title="itemName(item.build.firstItemId)"
-          width="28"
-          height="28"
+        <GameTooltipItemIcon
+          v-if="itemsMap[item.build.firstItemId]"
+          :item="itemsMap[item.build.firstItemId]"
+          :width="28"
+          :height="28"
           class="size-7 rounded"
         />
         <div
-          v-if="perkIcon(item.build.primaryKeystoneId)"
+          v-if="runeTree?.perks[item.build.primaryKeystoneId]"
           class="relative size-7"
         >
-          <SkeletonImage
-            :src="perkIcon(item.build.primaryKeystoneId)"
-            :alt="perkName(item.build.primaryKeystoneId)"
-            :title="perkName(item.build.primaryKeystoneId)"
-            width="28"
-            height="28"
+          <GameTooltipPerkIcon
+            :perk="runeTree?.perks[item.build.primaryKeystoneId] ?? null"
+            :width="28"
+            :height="28"
             class="size-7 rounded-full"
           />
-          <SkeletonImage
-            v-if="item.build.core.runePage && styleIcon(item.build.core.runePage.secondaryStyleId)"
-            :src="styleIcon(item.build.core.runePage.secondaryStyleId)"
-            :alt="styleName(item.build.core.runePage.secondaryStyleId)"
-            :title="styleName(item.build.core.runePage.secondaryStyleId)"
-            width="16"
-            height="16"
+          <GameTooltipPerkStyleIcon
+            v-if="item.build.core.runePage && runeTree?.perkStyles[item.build.core.runePage.secondaryStyleId]"
+            :style="runeTree?.perkStyles[item.build.core.runePage.secondaryStyleId] ?? null"
+            :width="16"
+            :height="16"
             class="absolute -bottom-1 -right-2 size-4"
           />
         </div>
@@ -99,6 +76,8 @@ function styleName(id: number): string {
       <ChampionBuildPanel
         :build="item.build"
         :champion-static="championStatic"
+        :items-map="itemsMap"
+        :summoners-map="summonersMap"
         :rune-tree="runeTree"
       />
     </template>

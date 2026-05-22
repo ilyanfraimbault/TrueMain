@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import type { BuildItemSet } from '~~/shared/types/champions'
-import type { ChampionStaticData, StaticItemData } from '~~/shared/types/static-data'
+import type { StaticItemData } from '~~/shared/types/static-data'
 
 const props = defineProps<{
   boots: BuildItemSet | null
-  championStatic: ChampionStaticData
+  itemsMap: Record<number, StaticItemData>
 }>()
 
 const items = computed<StaticItemData[]>(() => {
   const ids = props.boots?.itemIds ?? []
   return ids
-    .map(id => props.championStatic.items[id])
+    .map(id => props.itemsMap[id])
     .filter((item): item is StaticItemData => Boolean(item))
 })
 </script>
@@ -21,14 +21,12 @@ const items = computed<StaticItemData[]>(() => {
       Boots
     </h2>
     <div class="mt-2 flex flex-wrap gap-1">
-      <SkeletonImage
+      <GameTooltipItemIcon
         v-for="(item, index) in items"
         :key="`boots-${item.id}-${index}`"
-        :src="item.iconUrl"
-        :alt="item.name"
-        :title="item.name"
-        width="36"
-        height="36"
+        :item="item"
+        :width="36"
+        :height="36"
         class="size-9 rounded"
       />
       <span

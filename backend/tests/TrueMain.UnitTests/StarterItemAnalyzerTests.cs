@@ -131,7 +131,7 @@ public sealed class StarterItemAnalyzerTests
             new ItemEvent { TimestampMs = 807_000, ItemId = 3867, EventType = "ITEM_DESTROYED" }
         ], Metadata);
 
-        starterItems.Should().Equal(2003, 2003, 3865);
+        starterItems.Should().Equal(3865, 2003, 2003);
     }
 
     [Fact]
@@ -144,7 +144,109 @@ public sealed class StarterItemAnalyzerTests
             new ItemEvent { TimestampMs = 420_000, ItemId = 3865, EventType = "ITEM_DESTROYED" }
         ], Metadata);
 
-        analysis.Items.Should().Equal(2003, 2003, 3865);
+        analysis.Items.Should().Equal(3865, 2003, 2003);
         analysis.TotalCost.Should().Be(100);
+    }
+
+    [Fact]
+    public void BuildStarterItems_prefers_completion_over_root_when_quest_finished_during_match()
+    {
+        // Player completed the support quest mid-match: events show the
+        // chain (root destroyed, intermediates destroyed) plus the final
+        // completion appearing in store. The starter slot should reflect
+        // what the player actually owned at the end — the completion.
+        var starterItems = StarterItemAnalyzer.BuildStarterItems(
+        [
+            new ItemEvent { TimestampMs = 3_000, ItemId = 2003, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 3_200, ItemId = 2003, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 3_400, ItemId = 3340, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 420_000, ItemId = 3865, EventType = "ITEM_DESTROYED" },
+            new ItemEvent { TimestampMs = 794_000, ItemId = 3866, EventType = "ITEM_DESTROYED" },
+            new ItemEvent { TimestampMs = 807_000, ItemId = 3867, EventType = "ITEM_DESTROYED" },
+            new ItemEvent { TimestampMs = 808_000, ItemId = 3877, EventType = "ITEM_PURCHASED" }
+        ], Metadata);
+
+        starterItems.Should().Contain(3877);
+        starterItems.Should().NotContain(3865);
+    }
+
+    [Fact]
+    public void BuildStarterItems_falls_back_to_root_when_quest_chain_appears_without_completion()
+    {
+        // Player surrendered early or the quest didn't finish: only the
+        // root / intermediates show up in the events. We surface the root
+        // so the player's lane intent ("they were on support") is preserved.
+        var starterItems = StarterItemAnalyzer.BuildStarterItems(
+        [
+            new ItemEvent { TimestampMs = 3_000, ItemId = 2003, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 3_200, ItemId = 2003, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 420_000, ItemId = 3866, EventType = "ITEM_DESTROYED" }
+        ], Metadata);
+
+        starterItems.Should().Equal(3865, 2003, 2003);
+    }
+
+    [Fact]
+    public void BuildStarterItems_keeps_completion_already_present_without_inferring_root()
+    {
+        // Completion observed directly in events as a purchase. Don't
+        // double-add the root on top — the player already has the right
+        // family member in their basket.
+        var starterItems = StarterItemAnalyzer.BuildStarterItems(
+        [
+            new ItemEvent { TimestampMs = 3_000, ItemId = 2003, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 60_000, ItemId = 3877, EventType = "ITEM_PURCHASED" }
+        ], Metadata);
+
+        starterItems.Should().Contain(3877);
+        starterItems.Should().NotContain(3865);
+    }
+
+    [Fact]
+    public void BuildStarterItems_detects_completion_via_final_inventory_when_event_missing()
+    {
+        // Real Riot timelines often omit the ITEM_PURCHASED for the support
+        // quest completion choice — only the intermediates' ITEM_DESTROYED
+        // events are reliable. Cross-checking the player's end-of-game
+        // inventory (finalItems) lets us surface the completion anyway.
+        // Mirrors the actual 16.10 Nautilus support shape verified against
+        // prod data: World Atlas is auto-gifted (no early purchase event),
+        // only DESTROYED events for 3865/3866/3867 show up in the timeline,
+        // but Bloodsong (3877) sits in finalItems.
+        var starterItems = StarterItemAnalyzer.BuildStarterItems(
+            [
+                new ItemEvent { TimestampMs = 1_500, ItemId = 3340, EventType = "ITEM_PURCHASED" },
+                new ItemEvent { TimestampMs = 2_000, ItemId = 2003, EventType = "ITEM_PURCHASED" },
+                new ItemEvent { TimestampMs = 2_500, ItemId = 2003, EventType = "ITEM_PURCHASED" },
+                new ItemEvent { TimestampMs = 410_000, ItemId = 3865, EventType = "ITEM_DESTROYED" },
+                new ItemEvent { TimestampMs = 762_000, ItemId = 3866, EventType = "ITEM_DESTROYED" },
+                new ItemEvent { TimestampMs = 765_000, ItemId = 3867, EventType = "ITEM_DESTROYED" }
+            ],
+            finalItems: [3877, 3153, 3047, 0, 0, 0, 0],
+            Metadata);
+
+        starterItems.Should().Contain(3877);
+        starterItems.Should().NotContain(3865);
+    }
+
+    [Fact]
+    public void BuildStarterItems_falls_back_to_root_when_final_inventory_still_holds_intermediate()
+    {
+        // Game ended mid-quest: final inventory still shows the
+        // intermediate (Bounty of Worlds, 3867) rather than a completion.
+        // We surface the root so the lane intent is preserved without
+        // misleadingly promoting an intermediate to the starter slot.
+        var starterItems = StarterItemAnalyzer.BuildStarterItems(
+            [
+                new ItemEvent { TimestampMs = 2_000, ItemId = 2003, EventType = "ITEM_PURCHASED" },
+                new ItemEvent { TimestampMs = 2_500, ItemId = 2003, EventType = "ITEM_PURCHASED" },
+                new ItemEvent { TimestampMs = 410_000, ItemId = 3865, EventType = "ITEM_DESTROYED" },
+                new ItemEvent { TimestampMs = 762_000, ItemId = 3866, EventType = "ITEM_DESTROYED" }
+            ],
+            finalItems: [3867, 3153, 0, 0, 0, 0, 0],
+            Metadata);
+
+        starterItems.Should().Contain(3865);
+        starterItems.Should().NotContain(3867);
     }
 }

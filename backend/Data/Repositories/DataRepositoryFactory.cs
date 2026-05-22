@@ -19,4 +19,7 @@ public sealed class DataRepositoryFactory : IDataRepositoryFactory
 
     public IProcessRunRepository CreateProcessRunRepository(TrueMainDbContext dbContext)
         => new ProcessRunRepository(dbContext);
+
+    public IRankSnapshotRepository CreateRankSnapshotRepository(TrueMainDbContext dbContext)
+        => new RankSnapshotRepository(dbContext);
 }

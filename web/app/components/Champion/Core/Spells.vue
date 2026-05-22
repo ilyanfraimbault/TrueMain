@@ -1,18 +1,14 @@
 <script setup lang="ts">
 import type { BuildSummonerSpells } from '~~/shared/types/champions'
-import type { ChampionStaticData } from '~~/shared/types/static-data'
+import type { StaticSummonerSpellData } from '~~/shared/types/static-data'
 
 const props = defineProps<{
   summoners: BuildSummonerSpells | null
-  championStatic: ChampionStaticData
+  summonersMap: Record<number, StaticSummonerSpellData>
 }>()
 
 function summonerName(id: number): string {
-  return props.championStatic.summonerSpells[id]?.name ?? `Spell ${id}`
-}
-
-function summonerIcon(id: number): string {
-  return props.championStatic.summonerSpells[id]?.iconUrl ?? ''
+  return props.summonersMap[id]?.name ?? `Spell ${id}`
 }
 </script>
 
@@ -25,27 +21,15 @@ function summonerIcon(id: number): string {
       v-if="summoners"
       class="mt-2 flex items-center gap-1"
     >
-      <template
+      <GameTooltipSummonerSpellIcon
         v-for="spellId in [summoners.spell1Id, summoners.spell2Id]"
         :key="`sum-${spellId}`"
-      >
-        <SkeletonImage
-          v-if="summonerIcon(spellId)"
-          :src="summonerIcon(spellId)"
-          :alt="summonerName(spellId)"
-          :title="summonerName(spellId)"
-          width="36"
-          height="36"
-          class="size-9 rounded"
-        />
-        <span
-          v-else
-          class="inline-flex size-9 items-center justify-center rounded border border-default text-xs"
-          :title="summonerName(spellId)"
-        >
-          {{ summonerName(spellId) }}
-        </span>
-      </template>
+        :spell="summonersMap[spellId] ?? null"
+        :fallback-label="summonerName(spellId)"
+        :width="36"
+        :height="36"
+        class="size-9 rounded"
+      />
     </div>
     <p
       v-else

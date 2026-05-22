@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import type { BuildItemSet } from '~~/shared/types/champions'
-import type { ChampionStaticData, StaticItemData } from '~~/shared/types/static-data'
+import type { StaticItemData } from '~~/shared/types/static-data'
 
 const props = defineProps<{
   starter: BuildItemSet | null
-  championStatic: ChampionStaticData
+  itemsMap: Record<number, StaticItemData>
 }>()
 
 const items = computed<StaticItemData[]>(() => {
   const ids = props.starter?.itemIds ?? []
   return ids
-    .map(id => props.championStatic.items[id])
+    .map(id => props.itemsMap[id])
     .filter((item): item is StaticItemData => Boolean(item))
 })
 </script>
@@ -24,14 +24,12 @@ const items = computed<StaticItemData[]>(() => {
          A1 column width stays constant when a tab only carries 2 items.
          Otherwise A1 shrinks, A2 widens, and the rest of the row shifts. -->
     <div class="mt-2 flex min-w-[116px] flex-wrap gap-1">
-      <SkeletonImage
+      <GameTooltipItemIcon
         v-for="(item, index) in items"
         :key="`starter-${item.id}-${index}`"
-        :src="item.iconUrl"
-        :alt="item.name"
-        :title="item.name"
-        width="36"
-        height="36"
+        :item="item"
+        :width="36"
+        :height="36"
         class="size-9 rounded"
       />
       <span

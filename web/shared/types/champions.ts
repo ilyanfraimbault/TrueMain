@@ -1,11 +1,22 @@
 export interface ChampionSummaryResponse {
   championId: number
   games: number
+  wins: number
   winRate: number
+  pickRate: number
+  lanePlayRate: number
   trueMainCount: number
   position: string
-  latestPatchVersion: string
+  patchVersion: string
   lastUpdatedAtUtc: string
+  topBuild: ChampionSummaryTopBuild | null
+}
+
+export interface ChampionSummaryTopBuild {
+  firstItemId: number
+  primaryKeystoneId: number
+  secondaryStyleId: number
+  itemPath: number[]
 }
 
 export interface ChampionResponse {

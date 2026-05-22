@@ -3,18 +3,43 @@ export interface StaticItemData {
   name: string
   iconUrl: string
   totalGold: number
+  /** Terse one-liner from DDragon `item.plaintext`. Fallback when `description` is missing. */
+  plaintext?: string
+  /**
+   * DDragon `item.description` — HTML fragment wrapped in `<mainText>` with
+   * semantic tags (`<stats>`, `<attention>`, `<passive>`, `<physicalDamage>`,
+   * `<scaleArmor>`, `<speed>`, ...). Parsed lazily on first hover by the
+   * tooltip-parser; not preprocessed server-side.
+   */
+  description?: string
 }
 
 export interface StaticSummonerSpellData {
   id: number
   name: string
   iconUrl: string
+  /** Plain-text description from DDragon `summoner.description` (may contain `<br>`). */
+  description?: string
+  /** Display-ready cooldown in seconds (DDragon `summoner.cooldown[0]`). */
+  cooldown?: number
+  /** Minimum summoner level required to equip (DDragon `summoner.summonerLevel`). */
+  summonerLevel?: number
 }
 
 export interface StaticChampionSpellData {
-  key: 'Q' | 'W' | 'E'
+  key: 'Q' | 'W' | 'E' | 'R'
   name: string
   iconUrl: string
+  /** Mostly clean description with occasional `<br>`, `<status>`, `<physicalDamage>` tags. */
+  description?: string
+  /** Cooldown string per rank (DDragon `spell.cooldownBurn`), e.g. "16/14/12/10/8". */
+  cooldownBurn?: string
+  /** Mana / energy cost string (DDragon `spell.costBurn`). */
+  costBurn?: string
+  /** "Mana" / "Energy" / "No Cost" (DDragon `spell.costType`). */
+  costType?: string
+  /** Range string (DDragon `spell.rangeBurn`). */
+  rangeBurn?: string
 }
 
 /**
@@ -27,6 +52,10 @@ export interface StaticPerkData {
   id: number
   name: string
   iconUrl: string
+  /** Single-line summary from CDragon `perk.shortDesc` (HTML with inline tags). */
+  shortDesc?: string
+  /** Full description from CDragon `perk.longDesc` (HTML with inline tags). */
+  longDesc?: string
 }
 
 /**
@@ -39,14 +68,20 @@ export interface StaticPerkStyleData {
   iconUrl: string
 }
 
+/**
+ * Per-champion static payload from `/api/static/[championId]`. Intentionally
+ * narrow: items, summoner spells, perks and perk styles all come from the
+ * patch-keyed endpoints (`/api/static/items`, `/api/static/summoner-spells`,
+ * `/api/static/rune-tree`) so the detail page can dedupe those caches with the
+ * list page instead of re-downloading them per champion.
+ */
 export interface ChampionStaticData {
   championName: string | null
   championIconUrl: string | null
-  items: Record<number, StaticItemData>
-  summonerSpells: Record<number, StaticSummonerSpellData>
   championSpells: Record<string, StaticChampionSpellData>
-  perks: Record<number, StaticPerkData>
-  perkStyles: Record<number, StaticPerkStyleData>
+  /** Champion resource type ("Mana", "Energy", "Blood Well", ...). Used to
+   *  resolve `{{ abilityresourcename }}` placeholders inside spell tooltips. */
+  partype: string
 }
 
 export interface ChampionStaticListItem {

@@ -142,7 +142,16 @@ public static class FinalBuildResolver
         => metadata is { IsFinalItem: true, IsConsumable: false }
            && (metadata.InStore || metadata.IsInventoryTransformItem)
            && !IgnoredFinalBuildItemIds.Contains(metadata.Id)
-           && !metadata.IsBootsItem;
+           && !metadata.IsBootsItem
+           // Support-quest family lives in the starter slot, never the build
+           // path — the player held the same inventory slot from minute 0,
+           // the visible identity just shifts as the quest progresses.
+           // Filtering all three (root / intermediate / completion) on the
+           // metadata side keeps the dim build table free of quest items
+           // regardless of when the quest completed in the timeline.
+           && !metadata.IsSupportQuestStarter
+           && !metadata.IsSupportQuestIntermediate
+           && !metadata.IsSupportQuestCompletion;
 
     private static int GetDisplayedBuildItemId(ItemMetadata metadata)
         => metadata.IsInventoryTransformItem && metadata.TransformFromItemId is > 0
