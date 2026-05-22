@@ -15,13 +15,14 @@ interface PerkStylesResponse {
 }
 
 // Normalize patches into the CDragon-friendly `major.minor` form (DDragon
-// patches like `15.10.1` reduce to `15.10`). Anything that doesn't parse is
-// treated as missing and falls back to `latest` downstream.
+// patches like `15.10.1` reduce to `15.10`). Anything that doesn't match the
+// strict numeric format is rejected so a hostile `?patch=` can't traverse out
+// of the CDragon prefix; the request falls back to `latest` downstream.
+const PATCH_FORMAT_RE = /^\d+\.\d+(?:\.\d+)?$/
 function normalizeCdragonPatch(patch: string | null | undefined): string | null {
-  if (!patch) return null
-  const segments = patch.split('.').filter(Boolean)
-  if (segments.length >= 2) return `${segments[0]}.${segments[1]}`
-  return patch
+  if (!patch || !PATCH_FORMAT_RE.test(patch)) return null
+  const segments = patch.split('.')
+  return `${segments[0]}.${segments[1]}`
 }
 
 const loadRuneTree = defineCachedFunction(

@@ -14,6 +14,9 @@ import {
 
 const COMMUNITY_DRAGON_BASE = 'https://raw.communitydragon.org'
 const COMMUNITY_DRAGON_PATH_SUFFIX = 'plugins/rcp-be-lol-game-data/global/default'
+// Reject anything that isn't a strict `major.minor` or `major.minor.patch` so
+// a hostile `?patch=` query can't traverse out of the CDragon prefix.
+const PATCH_FORMAT_RE = /^\d+\.\d+(?:\.\d+)?$/
 
 /**
  * CommunityDragon serves the same asset tree under both `/latest` and the
@@ -32,11 +35,10 @@ export function communityDragonPrefix(patch?: string | null): string {
 }
 
 function communityDragonVersion(patch?: string | null): string {
-  if (!patch) return 'latest'
+  if (!patch || !PATCH_FORMAT_RE.test(patch)) return 'latest'
   // DDragon patches look like `15.10.1`; CommunityDragon expects `15.10`.
-  const segments = patch.split('.').filter(Boolean)
-  if (segments.length >= 2) return `${segments[0]}.${segments[1]}`
-  return patch
+  const segments = patch.split('.')
+  return `${segments[0]}.${segments[1]}`
 }
 
 export const EMPTY_STATIC_DATA: ChampionStaticData = {
