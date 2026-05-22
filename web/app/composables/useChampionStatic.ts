@@ -3,11 +3,8 @@ import type { ChampionStaticData } from '~~/shared/types/static-data'
 const EMPTY_STATIC_DATA: ChampionStaticData = {
   championName: null,
   championIconUrl: null,
-  items: {},
-  summonerSpells: {},
   championSpells: {},
-  perks: {},
-  perkStyles: {},
+  partype: '',
 }
 
 export function useChampionStatic(

@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import type { RuneTreeResponse } from '~~/shared/types/static-data'
+import type {
+  ChampionStaticListItem,
+  RuneTreeResponse,
+  StaticItemData,
+  StaticSummonerSpellData,
+} from '~~/shared/types/static-data'
 import { POSITION_OPTIONS, type ChampionPosition } from '~/utils/positions'
 
 const route = useRoute()
@@ -17,6 +22,14 @@ const activePatch = computed(() => champion.value?.patch || filters.value.patch 
 
 const { data: staticData } = await useChampionStatic(championId, activePatch)
 const { data: versions } = useDDragonVersions()
+
+// Share keys with /champions so the patch-keyed maps stay deduped across the
+// list→detail→list round-trip. The list page issues these same fetches with
+// the same keys; without that alignment Nuxt would re-resolve them on mount.
+const { data: staticList } = await useFetch<ChampionStaticListItem[]>(
+  '/api/static/champions',
+  { key: 'champion-static-list' },
+)
 // Pin rune-tree to the champion's active patch so the icon URLs we render
 // hit CommunityDragon's per-patch (year-cacheable) tree, and so cached
 // payloads don't bleed across patches when the user navigates between them.
@@ -27,9 +40,36 @@ const { data: runeTree } = await useAsyncData<RuneTreeResponse>(
   }),
   { watch: [activePatch] },
 )
+const { data: itemsMap } = await useAsyncData<Record<number, StaticItemData>>(
+  () => `static-items-${activePatch.value || 'latest'}`,
+  () => $fetch<Record<number, StaticItemData>>('/api/static/items', {
+    query: activePatch.value ? { patch: activePatch.value } : {},
+  }),
+  { watch: [activePatch] },
+)
+const { data: summonersMap } = await useAsyncData<Record<number, StaticSummonerSpellData>>(
+  () => `static-summoners-${activePatch.value || 'latest'}`,
+  () => $fetch<Record<number, StaticSummonerSpellData>>('/api/static/summoner-spells', {
+    query: activePatch.value ? { patch: activePatch.value } : {},
+  }),
+  { watch: [activePatch] },
+)
+
+// Fall back to the list-page entry when the per-champion endpoint is still
+// pending or the patch failed to resolve — keeps the header readable instead
+// of flashing the numeric id.
+const championListEntry = computed(() =>
+  (staticList.value ?? []).find(item => item.championId === championId.value) ?? null,
+)
+const displayName = computed(() =>
+  staticData.value?.championName || championListEntry.value?.name || null,
+)
+const displayIconUrl = computed(() =>
+  staticData.value?.championIconUrl || championListEntry.value?.iconUrl || null,
+)
 
 useSeoMeta({
-  title: () => staticData.value?.championName ?? 'TrueMain',
+  title: () => displayName.value ?? 'TrueMain',
   description: () => `Champion ${championId.value} builds, runes and skill order.`,
 })
 
@@ -76,7 +116,8 @@ const isLoading = computed(() => championStatus.value === 'pending' && !champion
     <template v-else-if="champion && staticData">
       <header class="flex flex-wrap items-center gap-4">
         <ChampionHeader
-          :champion-static="staticData"
+          :champion-name="displayName"
+          :champion-icon-url="displayIconUrl"
           :champion-id="championId"
           :position="champion.position"
           :total-games="champion.totalGames"
@@ -95,6 +136,8 @@ const isLoading = computed(() => championStatus.value === 'pending' && !champion
       <ChampionBuildTabs
         :builds="champion.builds"
         :champion-static="staticData"
+        :items-map="itemsMap ?? {}"
+        :summoners-map="summonersMap ?? {}"
         :rune-tree="runeTree ?? null"
       />
     </template>

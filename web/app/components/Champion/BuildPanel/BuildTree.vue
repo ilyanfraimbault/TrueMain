@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import type { BuildTreeNode } from '~~/shared/types/champions'
-import type { ChampionStaticData } from '~~/shared/types/static-data'
+import type { StaticItemData } from '~~/shared/types/static-data'
 
 const props = defineProps<{
   tree: BuildTreeNode[]
   firstItemId: number
-  championStatic: ChampionStaticData
+  itemsMap: Record<number, StaticItemData>
 }>()
 
 interface LaidOutNode {
@@ -186,7 +186,7 @@ const hasNodes = computed(() => layout.value.flat.length > 1)
         <GameTooltipItemIcon
           v-for="(node, index) in layout.flat"
           :key="`node-${index}`"
-          :item="championStatic.items[node.itemId] ?? null"
+          :item="itemsMap[node.itemId] ?? null"
           :pick-rate="node.pickRate"
           :width="ITEM_SIZE"
           :height="ITEM_SIZE"
