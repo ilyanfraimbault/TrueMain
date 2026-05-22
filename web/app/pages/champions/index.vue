@@ -22,6 +22,8 @@ const router = useRouter()
 
 const { filters, setFilter } = useChampionFilters()
 
+const nuxtApp = useNuxtApp()
+
 // All four fetches are lazy so SSR ships the page shell immediately and the
 // data streams in client-side under a skeleton. Awaiting them serially blocked
 // first paint on the slowest of: backend `/api/champions`, DDragon
@@ -40,21 +42,35 @@ const {
   },
   { watch: [() => filters.value.patch] },
 )
+// Static fetches use `useLazyAsyncData` (not `useLazyFetch`) so the handler
+// closure can call `markStaticFetched` after the network round trip — the
+// `useFetch` wrapper hides that hook. `getCachedData` reuses entries across
+// navigations within `STATIC_CACHE_TTL_MS` (see static-cache.ts).
 const {
   data: staticList,
   error: staticError,
   status: staticStatus,
-} = useLazyFetch<ChampionStaticListItem[]>(
-  '/api/static/champions',
-  { key: 'champion-static-list' },
+} = useLazyAsyncData<ChampionStaticListItem[]>(
+  'champion-static-list',
+  async () => {
+    const data = await $fetch<ChampionStaticListItem[]>('/api/static/champions')
+    markStaticFetched('champion-static-list', nuxtApp)
+    return data
+  },
+  { getCachedData: key => getStaticCachedData(key, nuxtApp) },
 )
 const {
   data: runeTree,
   error: runeTreeError,
   status: runeTreeStatus,
-} = useLazyFetch<RuneTreeResponse>(
-  '/api/static/rune-tree',
-  { key: 'rune-tree' },
+} = useLazyAsyncData<RuneTreeResponse>(
+  'rune-tree',
+  async () => {
+    const data = await $fetch<RuneTreeResponse>('/api/static/rune-tree')
+    markStaticFetched('rune-tree', nuxtApp)
+    return data
+  },
+  { getCachedData: key => getStaticCachedData(key, nuxtApp) },
 )
 const { data: versions } = useDDragonVersions()
 
@@ -73,13 +89,19 @@ const {
   execute: fetchItems,
 } = useLazyAsyncData<Record<number, StaticItemData>>(
   () => `static-items-${selectedPatch.value || 'pending'}`,
-  () => $fetch<Record<number, StaticItemData>>('/api/static/items', {
-    query: { patch: selectedPatch.value },
-  }),
+  async () => {
+    const key = `static-items-${selectedPatch.value || 'pending'}`
+    const data = await $fetch<Record<number, StaticItemData>>('/api/static/items', {
+      query: { patch: selectedPatch.value },
+    })
+    markStaticFetched(key, nuxtApp)
+    return data
+  },
   {
     watch: [selectedPatch],
     immediate: false,
     default: () => ({}),
+    getCachedData: key => getStaticCachedData(key, nuxtApp),
   },
 )
 watch(selectedPatch, (patch) => {

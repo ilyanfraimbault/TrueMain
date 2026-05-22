@@ -11,6 +11,7 @@ const route = useRoute()
 const championId = computed(() => Number.parseInt(String(route.params.id), 10))
 
 const { filters, setFilter } = useChampionFilters()
+const nuxtApp = useNuxtApp()
 
 const {
   data: champion,
@@ -26,27 +27,56 @@ const { data: versions } = useDDragonVersions()
 // Share keys with /champions so the patch-keyed maps stay deduped across the
 // list→detail→list round-trip. The list page issues these same fetches with
 // the same keys; without that alignment Nuxt would re-resolve them on mount.
-const { data: staticList } = await useFetch<ChampionStaticListItem[]>(
-  '/api/static/champions',
-  { key: 'champion-static-list' },
+// Each fetch wraps the network call so `markStaticFetched` runs after success
+// and `getCachedData` reuses entries across navigations within
+// `STATIC_CACHE_TTL_MS` (see static-cache.ts).
+const { data: staticList } = await useAsyncData<ChampionStaticListItem[]>(
+  'champion-static-list',
+  async () => {
+    const data = await $fetch<ChampionStaticListItem[]>('/api/static/champions')
+    markStaticFetched('champion-static-list', nuxtApp)
+    return data
+  },
+  { getCachedData: key => getStaticCachedData(key, nuxtApp) },
 )
-const { data: runeTree } = await useFetch<RuneTreeResponse>(
-  '/api/static/rune-tree',
-  { key: 'rune-tree' },
+const { data: runeTree } = await useAsyncData<RuneTreeResponse>(
+  'rune-tree',
+  async () => {
+    const data = await $fetch<RuneTreeResponse>('/api/static/rune-tree')
+    markStaticFetched('rune-tree', nuxtApp)
+    return data
+  },
+  { getCachedData: key => getStaticCachedData(key, nuxtApp) },
 )
 const { data: itemsMap } = await useAsyncData<Record<number, StaticItemData>>(
   () => `static-items-${activePatch.value || 'latest'}`,
-  () => $fetch<Record<number, StaticItemData>>('/api/static/items', {
-    query: activePatch.value ? { patch: activePatch.value } : {},
-  }),
-  { watch: [activePatch] },
+  async () => {
+    const key = `static-items-${activePatch.value || 'latest'}`
+    const data = await $fetch<Record<number, StaticItemData>>('/api/static/items', {
+      query: activePatch.value ? { patch: activePatch.value } : {},
+    })
+    markStaticFetched(key, nuxtApp)
+    return data
+  },
+  {
+    watch: [activePatch],
+    getCachedData: key => getStaticCachedData(key, nuxtApp),
+  },
 )
 const { data: summonersMap } = await useAsyncData<Record<number, StaticSummonerSpellData>>(
   () => `static-summoners-${activePatch.value || 'latest'}`,
-  () => $fetch<Record<number, StaticSummonerSpellData>>('/api/static/summoner-spells', {
-    query: activePatch.value ? { patch: activePatch.value } : {},
-  }),
-  { watch: [activePatch] },
+  async () => {
+    const key = `static-summoners-${activePatch.value || 'latest'}`
+    const data = await $fetch<Record<number, StaticSummonerSpellData>>('/api/static/summoner-spells', {
+      query: activePatch.value ? { patch: activePatch.value } : {},
+    })
+    markStaticFetched(key, nuxtApp)
+    return data
+  },
+  {
+    watch: [activePatch],
+    getCachedData: key => getStaticCachedData(key, nuxtApp),
+  },
 )
 
 // Fall back to the list-page entry when the per-champion endpoint is still
