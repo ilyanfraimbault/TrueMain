@@ -44,16 +44,54 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
     public Task<bool> ExistsByPuuidAsync(string puuid, CancellationToken ct)
         => db.RiotAccounts.AnyAsync(a => a.Puuid == puuid, ct);
 
-    public Task<List<RiotAccount>> GetAccountsForRefreshAsync(int batchSize, CancellationToken ct)
+    public async Task<List<RiotAccount>> GetAccountsForRefreshAsync(int batchSize, CancellationToken ct)
     {
-        return db.RiotAccounts
+        // Fair-mix prioritization: target 75% truemains, 25% non-truemains
+        // per batch. Truemains (accounts linked to a MainChampionStat with
+        // IsMain=true) need fresher rank data because they back the public
+        // sorted list (issue #86) and profile chart (issue #118). The 25%
+        // budget for non-truemains prevents starvation under load. Quota
+        // underflow in either bucket is rebalanced to the other so we
+        // always fill the batch when work is available.
+        var safe = Math.Max(1, batchSize);
+        var truemainQuota = (int)Math.Ceiling(safe * 0.75d);
+
+        var truemainKeys = db.MainChampionStats
+            .AsNoTracking()
+            .Where(s => s.IsMain)
+            .Select(s => new { s.PlatformId, s.Puuid });
+
+        var truemains = await db.RiotAccounts
+            .Where(a => truemainKeys.Any(m => m.PlatformId == a.PlatformId && m.Puuid == a.Puuid))
             .OrderBy(a =>
                 (string.IsNullOrEmpty(a.GameName) || string.IsNullOrEmpty(a.TagLine))
                     ? 0
                     : 1)
             .ThenBy(a => a.UpdatedAtUtc)
-            .Take(Math.Max(1, batchSize))
+            .Take(truemainQuota)
             .ToListAsync(ct);
+
+        var remaining = safe - truemains.Count;
+        if (remaining <= 0)
+        {
+            return truemains;
+        }
+
+        var pickedIds = truemains.Select(a => a.Id).ToList();
+
+        var others = await db.RiotAccounts
+            .Where(a => !pickedIds.Contains(a.Id)
+                        && !truemainKeys.Any(m => m.PlatformId == a.PlatformId && m.Puuid == a.Puuid))
+            .OrderBy(a =>
+                (string.IsNullOrEmpty(a.GameName) || string.IsNullOrEmpty(a.TagLine))
+                    ? 0
+                    : 1)
+            .ThenBy(a => a.UpdatedAtUtc)
+            .Take(remaining)
+            .ToListAsync(ct);
+
+        truemains.AddRange(others);
+        return truemains;
     }
 
     public Task<List<AccountKey>> GetAccountsForMainAnalysisAsync(DateTime cutoff, int batchSize, CancellationToken ct)

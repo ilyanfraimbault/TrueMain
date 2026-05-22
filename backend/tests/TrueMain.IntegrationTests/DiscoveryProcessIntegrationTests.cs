@@ -90,6 +90,9 @@ public sealed class DiscoveryProcessIntegrationTests : IClassFixture<PostgresFix
 
         public Task<RiotSummonerDto> GetSummonerByPuuidAsync(PlatformRoute platform, string puuid, CancellationToken ct)
             => throw new NotSupportedException();
+
+        public Task<List<RiotLeagueEntryByPuuidDto>> GetLeagueEntriesByPuuidAsync(PlatformRoute platform, string puuid, CancellationToken ct)
+            => throw new NotSupportedException();
     }
 
     private sealed class NoOpCandidateUpsertService : ICandidateUpsertService

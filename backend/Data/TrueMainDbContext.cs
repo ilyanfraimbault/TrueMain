@@ -34,6 +34,8 @@ public class TrueMainDbContext : DbContext
 
     public DbSet<ProcessRun> ProcessRuns => Set<ProcessRun>();
 
+    public DbSet<RankSnapshot> RankSnapshots => Set<RankSnapshot>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
