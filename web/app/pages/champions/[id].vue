@@ -17,7 +17,7 @@ const {
   data: champion,
   error: championError,
   status: championStatus,
-} = await useChampion(championId, filters)
+} = useChampion(championId, filters)
 
 const activePatch = computed(() => champion.value?.patch || filters.value.patch || null)
 
