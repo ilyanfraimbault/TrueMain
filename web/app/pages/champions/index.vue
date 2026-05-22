@@ -255,6 +255,15 @@ function staticItem(id: number | undefined) {
       </div>
     </header>
 
+    <div class="h-0.5">
+      <UProgress
+        v-if="isPending"
+        size="xs"
+        color="primary"
+        aria-label="Loading champions"
+      />
+    </div>
+
     <UAlert
       v-if="error"
       color="error"

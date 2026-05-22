@@ -21,7 +21,7 @@ const {
 
 const activePatch = computed(() => champion.value?.patch || filters.value.patch || null)
 
-const { data: staticData } = await useChampionStatic(championId, activePatch)
+const { data: staticData, status: staticStatus } = await useChampionStatic(championId, activePatch)
 const { data: versions } = useDDragonVersions()
 
 // Share keys with /champions so the patch-keyed maps stay deduped across the
@@ -30,7 +30,7 @@ const { data: versions } = useDDragonVersions()
 // Each fetch wraps the network call so `markStaticFetched` runs after success
 // and `getCachedData` reuses entries across navigations within
 // `STATIC_CACHE_TTL_MS` (see static-cache.ts).
-const { data: staticList } = await useAsyncData<ChampionStaticListItem[]>(
+const { data: staticList, status: staticListStatus } = await useAsyncData<ChampionStaticListItem[]>(
   'champion-static-list',
   async () => {
     const data = await $fetch<ChampionStaticListItem[]>('/api/static/champions')
@@ -39,7 +39,7 @@ const { data: staticList } = await useAsyncData<ChampionStaticListItem[]>(
   },
   { getCachedData: key => getStaticCachedData(key, nuxtApp) },
 )
-const { data: runeTree } = await useAsyncData<RuneTreeResponse>(
+const { data: runeTree, status: runeTreeStatus } = await useAsyncData<RuneTreeResponse>(
   'rune-tree',
   async () => {
     const data = await $fetch<RuneTreeResponse>('/api/static/rune-tree')
@@ -48,7 +48,7 @@ const { data: runeTree } = await useAsyncData<RuneTreeResponse>(
   },
   { getCachedData: key => getStaticCachedData(key, nuxtApp) },
 )
-const { data: itemsMap } = await useAsyncData<Record<number, StaticItemData>>(
+const { data: itemsMap, status: itemsStatus } = await useAsyncData<Record<number, StaticItemData>>(
   () => `static-items-${activePatch.value || 'latest'}`,
   async () => {
     const key = `static-items-${activePatch.value || 'latest'}`
@@ -63,7 +63,7 @@ const { data: itemsMap } = await useAsyncData<Record<number, StaticItemData>>(
     getCachedData: key => getStaticCachedData(key, nuxtApp),
   },
 )
-const { data: summonersMap } = await useAsyncData<Record<number, StaticSummonerSpellData>>(
+const { data: summonersMap, status: summonersStatus } = await useAsyncData<Record<number, StaticSummonerSpellData>>(
   () => `static-summoners-${activePatch.value || 'latest'}`,
   async () => {
     const key = `static-summoners-${activePatch.value || 'latest'}`
@@ -118,10 +118,29 @@ const selectedPosition = computed<ChampionPosition | ''>(() => {
 })
 
 const isLoading = computed(() => championStatus.value === 'pending' && !champion.value)
+// Bound to every async source on the page so patch swaps surface a cue even
+// when the previous champion's data is still rendered.
+const isRefetching = computed(() =>
+  championStatus.value === 'pending'
+  || staticStatus.value === 'pending'
+  || staticListStatus.value === 'pending'
+  || runeTreeStatus.value === 'pending'
+  || itemsStatus.value === 'pending'
+  || summonersStatus.value === 'pending',
+)
 </script>
 
 <template>
   <main class="mx-auto max-w-5xl space-y-6 p-4 md:p-6">
+    <div class="h-0.5">
+      <UProgress
+        v-if="isRefetching"
+        size="xs"
+        color="primary"
+        aria-label="Loading champion"
+      />
+    </div>
+
     <p
       v-if="isLoading"
       class="text-sm"
