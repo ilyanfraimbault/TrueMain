@@ -8,4 +8,5 @@ public interface IDataRepositoryFactory
     IMatchRepository CreateMatchRepository(TrueMainDbContext dbContext);
     IMatchParticipantRepository CreateMatchParticipantRepository(TrueMainDbContext dbContext);
     IProcessRunRepository CreateProcessRunRepository(TrueMainDbContext dbContext);
+    IRankSnapshotRepository CreateRankSnapshotRepository(TrueMainDbContext dbContext);
 }
