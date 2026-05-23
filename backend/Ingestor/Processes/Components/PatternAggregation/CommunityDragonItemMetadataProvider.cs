@@ -193,13 +193,31 @@ public sealed class CommunityDragonItemMetadataProvider(
     /// </summary>
     private static bool IsStarterClassItem(CommunityDragonItem item, bool isBootsItem)
     {
-        if (!item.InStore) return false;
-        if ((item.From ?? []).Count > 0) return false;
-        if ((item.To ?? []).Count > 0) return false;
-        if (item.PriceTotal <= 0 || item.PriceTotal >= 600) return false;
+        if (!item.InStore)
+        {
+            return false;
+        }
+        if ((item.From ?? []).Count > 0)
+        {
+            return false;
+        }
+        if ((item.To ?? []).Count > 0)
+        {
+            return false;
+        }
+        if (item.PriceTotal <= 0 || item.PriceTotal >= 600)
+        {
+            return false;
+        }
         var categories = item.Categories ?? [];
-        if (ContainsCategory(categories, "Consumable")) return false;
-        if (isBootsItem) return false;
+        if (ContainsCategory(categories, "Consumable"))
+        {
+            return false;
+        }
+        if (isBootsItem)
+        {
+            return false;
+        }
         return ContainsCategory(categories, "Lane")
                || ContainsCategory(categories, "Jungle");
     }
