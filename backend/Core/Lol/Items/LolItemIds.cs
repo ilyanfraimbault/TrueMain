@@ -7,7 +7,6 @@ namespace Core.Lol.Items;
 public static class LolItemIds
 {
     public const int BootsOfSpeed = 1001;
-    public const int Cull = 1083;
 
     public const int Manamune = 3004;
     public const int Muramana = 3042;

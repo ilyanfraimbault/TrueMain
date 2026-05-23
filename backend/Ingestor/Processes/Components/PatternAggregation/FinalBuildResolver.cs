@@ -8,7 +8,7 @@ public static class FinalBuildResolver
     private const int MaxBuildItems = 7;
 
     private static readonly IReadOnlySet<int> IgnoredFinalBuildItemIds =
-        new HashSet<int>(LolItemIds.Trinkets.All) { LolItemIds.Cull };
+        new HashSet<int>(LolItemIds.Trinkets.All);
 
     public static int[] Resolve(
         IReadOnlyList<ItemEvent> itemEvents,
@@ -151,7 +151,13 @@ public static class FinalBuildResolver
            // regardless of when the quest completed in the timeline.
            && !metadata.IsSupportQuestStarter
            && !metadata.IsSupportQuestIntermediate
-           && !metadata.IsSupportQuestCompletion;
+           && !metadata.IsSupportQuestCompletion
+           // Starter-class items (Doran's, Cull, jungle pets, ARAM Guardian's)
+           // are starters by intent even when the player bought them outside
+           // the 120s starter window — a late Doran re-buy is still a starter
+           // decision, not a build commitment. Excluding them here catches
+           // what StarterItemAnalyzer's timing-based window misses.
+           && !metadata.IsStarterClassItem;
 
     private static int GetDisplayedBuildItemId(ItemMetadata metadata)
         => metadata.IsInventoryTransformItem && metadata.TransformFromItemId is > 0
