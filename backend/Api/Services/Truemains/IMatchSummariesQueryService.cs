@@ -5,15 +5,15 @@ namespace TrueMain.Services.Truemains;
 public interface IMatchSummariesQueryService
 {
     /// <summary>
-    /// Returns the page of recent matches for the player identified by
+    /// Returns the page of matches for the player identified by
     /// <paramref name="nameTag"/> (<c>gameName-tagLine</c>), ordered by game
-    /// start time descending. <paramref name="before"/> is the cursor — only
-    /// matches strictly older than this timestamp are returned. Returns
-    /// <c>null</c> when the name tag is malformed or no Riot account matches.
+    /// start time descending. Page numbers are 1-indexed; values outside the
+    /// valid range are clamped. Returns <c>null</c> when the name tag is
+    /// malformed or no Riot account matches.
     /// </summary>
     Task<MatchSummariesResponse?> GetAsync(
         string nameTag,
-        int limit,
-        DateTime? before,
+        int page,
+        int pageSize,
         CancellationToken ct);
 }

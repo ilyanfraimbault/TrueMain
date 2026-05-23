@@ -7,10 +7,32 @@ import type {
 } from '~~/shared/types/static-data'
 
 const route = useRoute()
+const router = useRouter()
+
 const nameTag = computed(() => {
   const param = route.params.nameTag
   return Array.isArray(param) ? param[0] ?? '' : (param ?? '')
 })
+
+const MATCHES_PAGE_SIZE = 10
+
+// 1-indexed current page, sourced from `?page=` so back/forward + direct
+// links stay in sync with the matches feed. Same coercion as
+// pages/champions/index.vue — invalid values clamp to page 1.
+const currentMatchesPage = computed<number>(() => {
+  const raw = Array.isArray(route.query.page) ? route.query.page[0] : route.query.page
+  const parsed = Number.parseInt(typeof raw === 'string' ? raw : '', 10)
+  return Number.isFinite(parsed) && parsed >= 1 ? parsed : 1
+})
+
+async function setMatchesPage(next: number) {
+  const clamped = Math.max(1, Math.floor(next))
+  if (clamped === currentMatchesPage.value) return
+  const nextQuery = { ...route.query }
+  if (clamped === 1) delete nextQuery.page
+  else nextQuery.page = String(clamped)
+  await router.replace({ query: nextQuery })
+}
 
 // ─── Profile fetch ─────────────────────────────────────────────────────────
 const {
@@ -36,12 +58,11 @@ useSeoMeta({
 // ─── Matches fetch ─────────────────────────────────────────────────────────
 const {
   matches,
-  isLoading: matchesLoading,
+  total: matchesTotal,
+  pageSize: matchesPageSize,
   isInitialLoading: matchesInitialLoading,
   notFound: matchesNotFound,
-  hasMore: matchesHasMore,
-  loadMore: loadMoreMatches,
-} = useTruemainMatches(nameTag, { pageSize: 10 })
+} = useTruemainMatches(nameTag, currentMatchesPage, { pageSize: MATCHES_PAGE_SIZE })
 
 // ─── Static lookups for MatchRow + identity icon ───────────────────────────
 const { data: versions } = useDDragonVersions()
@@ -171,14 +192,14 @@ const staticBundleReady = computed(() =>
         />
       </aside>
 
-      <!-- Right rail: recent matches feed -->
+      <!-- Right rail: paginated match history -->
       <section class="flex min-w-0 flex-col gap-3">
         <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
-          Recent matches
+          Match history
         </h2>
 
         <template v-if="matchesInitialLoading || !staticBundleReady">
-          <MatchRowSkeleton v-for="i in 5" :key="`match-skel-${i}`" />
+          <MatchRowSkeleton v-for="i in MATCHES_PAGE_SIZE" :key="`match-skel-${i}`" />
         </template>
         <template v-else-if="matchesNotFound || matches.length === 0">
           <MatchHistoryEmpty :not-found="matchesNotFound" />
@@ -193,15 +214,22 @@ const staticBundleReady = computed(() =>
             :summoner-spells="summonerSpells"
             :rune-tree="runeTree"
           />
-          <UButton
-            v-if="matchesHasMore"
-            variant="ghost"
-            :loading="matchesLoading"
-            class="self-center"
-            @click="loadMoreMatches()"
+          <div
+            v-if="matchesTotal > matchesPageSize"
+            class="flex justify-center pt-2"
           >
-            Load more
-          </UButton>
+            <UPagination
+              :page="currentMatchesPage"
+              :total="matchesTotal"
+              :items-per-page="matchesPageSize"
+              :sibling-count="1"
+              color="neutral"
+              variant="ghost"
+              active-color="primary"
+              active-variant="soft"
+              @update:page="setMatchesPage"
+            />
+          </div>
         </template>
       </section>
     </div>

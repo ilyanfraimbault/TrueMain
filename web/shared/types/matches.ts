@@ -45,6 +45,10 @@ export interface MatchSummaryParticipant {
 
 export interface MatchSummariesResponse {
   matches: MatchSummaryResponse[]
-  /** ISO-8601 UTC timestamp to pass back as `?before=` for the next page. Null when no more rows. */
-  nextBefore: string | null
+  /** 1-indexed current page. */
+  page: number
+  /** Page size the server actually used (after clamping). */
+  pageSize: number
+  /** Total matches available for the player across all pages. */
+  total: number
 }

@@ -166,17 +166,18 @@ const mockMatches = computed<MatchSummaryResponse[]>(() => [
 
 const nameTagInput = ref('')
 const liveNameTag = ref('')
+const livePage = ref(1)
 const {
   matches: liveMatches,
-  isLoading: liveIsLoading,
+  total: liveTotal,
+  pageSize: livePageSize,
   isInitialLoading: liveIsInitialLoading,
   notFound: liveNotFound,
-  hasMore: liveHasMore,
-  loadMore: liveLoadMore,
-} = useTruemainMatches(liveNameTag, { pageSize: 5 })
+} = useTruemainMatches(liveNameTag, livePage, { pageSize: 5 })
 
 function applyLive() {
   liveNameTag.value = nameTagInput.value.trim()
+  livePage.value = 1
 }
 
 const staticBundleReady = computed(() =>
@@ -260,14 +261,18 @@ const staticBundleReady = computed(() =>
           :summoner-spells="summonerSpells"
           :rune-tree="runeTree"
         />
-        <UButton
-          v-if="liveHasMore"
+        <UPagination
+          v-if="liveTotal > livePageSize"
+          v-model:page="livePage"
+          :total="liveTotal"
+          :items-per-page="livePageSize"
+          :sibling-count="1"
+          color="neutral"
           variant="ghost"
-          :loading="liveIsLoading"
-          @click="liveLoadMore()"
-        >
-          Load more
-        </UButton>
+          active-color="primary"
+          active-variant="soft"
+          class="self-center"
+        />
       </template>
     </section>
   </div>

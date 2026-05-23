@@ -8,13 +8,13 @@ public sealed class MatchSummariesQueryService(
     TrueMainDbContext db,
     ILogger<MatchSummariesQueryService> logger) : IMatchSummariesQueryService
 {
-    private const int DefaultPageSize = 20;
+    private const int DefaultPageSize = 10;
     private const int MaxPageSize = 50;
 
     public async Task<MatchSummariesResponse?> GetAsync(
         string nameTag,
-        int limit,
-        DateTime? before,
+        int page,
+        int pageSize,
         CancellationToken ct)
     {
         if (!NameTagParser.TryParse(nameTag, out var parsed))
@@ -40,23 +40,33 @@ public sealed class MatchSummariesQueryService(
             return null;
         }
 
-        var pageSize = limit <= 0 ? DefaultPageSize : Math.Min(limit, MaxPageSize);
+        var clampedPageSize = pageSize <= 0 ? DefaultPageSize : Math.Min(pageSize, MaxPageSize);
+        var clampedPage = page < 1 ? 1 : page;
 
-        // Page of matches the player participated in, newest first. Take one
-        // extra row to know whether there's another page without a separate
-        // count query.
+        // Total first so the frontend can render the pagination control even
+        // when it lands directly on a deep page via the URL. Filtered to the
+        // same predicate as the data query — we never want the count and the
+        // list to disagree about which matches "belong to" this player.
         var matchesQuery = db.Matches
             .AsNoTracking()
             .Where(m => m.Participants.Any(p => p.Puuid == account.Puuid));
 
-        if (before.HasValue)
+        var total = await matchesQuery.CountAsync(ct);
+        if (total == 0)
         {
-            matchesQuery = matchesQuery.Where(m => m.GameStartTimeUtc < before.Value);
+            return new MatchSummariesResponse
+            {
+                Matches = Array.Empty<MatchSummaryReadModel>(),
+                Page = 1,
+                PageSize = clampedPageSize,
+                Total = 0,
+            };
         }
 
         var matchRows = await matchesQuery
             .OrderByDescending(m => m.GameStartTimeUtc)
-            .Take(pageSize + 1)
+            .Skip((clampedPage - 1) * clampedPageSize)
+            .Take(clampedPageSize)
             .Select(m => new MatchRow(
                 m.Id,
                 m.QueueId,
@@ -65,18 +75,17 @@ public sealed class MatchSummariesQueryService(
                 m.GameDurationSeconds))
             .ToListAsync(ct);
 
-        var hasMore = matchRows.Count > pageSize;
-        if (hasMore)
-        {
-            matchRows = matchRows.Take(pageSize).ToList();
-        }
-
         if (matchRows.Count == 0)
         {
+            // Requested page is past the last one. Return an empty page with
+            // the real total so the frontend's pagination control still
+            // resolves to a valid range.
             return new MatchSummariesResponse
             {
                 Matches = Array.Empty<MatchSummaryReadModel>(),
-                NextBefore = null,
+                Page = clampedPage,
+                PageSize = clampedPageSize,
+                Total = total,
             };
         }
 
@@ -261,14 +270,12 @@ public sealed class MatchSummariesQueryService(
             });
         }
 
-        var nextBefore = hasMore && matches.Count > 0
-            ? matches[^1].GameStartTimeUtc
-            : (DateTime?)null;
-
         return new MatchSummariesResponse
         {
             Matches = matches,
-            NextBefore = nextBefore,
+            Page = clampedPage,
+            PageSize = clampedPageSize,
+            Total = total,
         };
     }
 
