@@ -47,11 +47,12 @@ public sealed class ChampionSummariesQueryService(
             return [];
         }
 
-        return await GetOrComputeSummariesAsync(activePatch, ct);
+        return await GetOrComputeSummariesAsync(activePatch, totalSw, ct);
     }
 
     private async Task<IReadOnlyList<ChampionSummaryReadModel>> GetOrComputeSummariesAsync(
         string activePatch,
+        Stopwatch totalSw,
         CancellationToken ct)
     {
         var cacheKey = $"champions:summaries:{activePatch}";
