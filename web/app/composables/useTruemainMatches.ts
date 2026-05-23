@@ -97,13 +97,17 @@ export function useTruemainMatches(
     void refresh()
   }, { immediate: true })
 
+  // Intentionally exposing raw refs (not `readonly()` wrappers) — readonly
+  // proxies cascade DeepReadonly across the entire response shape, which
+  // then collides with consumers' mutable prop types (`MatchSummaryResponse`
+  // vs. the deep-readonly view a `readonly()` wrap produces).
   return {
-    matches: readonly(matches),
-    nextBefore: readonly(nextBefore),
-    isLoading: readonly(isLoading),
-    isInitialLoading: readonly(isInitialLoading),
-    notFound: readonly(notFound),
-    error: readonly(error),
+    matches,
+    nextBefore,
+    isLoading,
+    isInitialLoading,
+    notFound,
+    error,
     hasMore: computed(() => nextBefore.value !== null),
     loadMore,
     refresh,
