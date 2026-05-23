@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Core.Options;
 using Data;
 using Microsoft.EntityFrameworkCore;
@@ -10,7 +11,8 @@ namespace TrueMain.Services.Champions;
 public sealed class ChampionSummariesQueryService(
     TrueMainDbContext db,
     IOptions<MainAnalysisOptions> options,
-    IMemoryCache cache) : IChampionSummariesQueryService
+    IMemoryCache cache,
+    ILogger<ChampionSummariesQueryService> logger) : IChampionSummariesQueryService
 {
     // The directory list is the same payload for every caller of GET /champions
     // on a given patch and stays valid for the few seconds between ingestor
@@ -18,17 +20,30 @@ public sealed class ChampionSummariesQueryService(
     // below is paid once per (patch, window) instead of once per request.
     private static readonly TimeSpan SummariesCacheTtl = TimeSpan.FromSeconds(30);
 
+    // Patches change roughly every two weeks, so the resolved "active patch"
+    // for an empty query stays stable far longer than the summaries payload.
+    // Caching it skips a `SELECT DISTINCT GameVersion` round-trip on every
+    // patch-less request — including the ones that hit the summaries cache.
+    private static readonly TimeSpan ActivePatchCacheTtl = TimeSpan.FromMinutes(5);
+    private const string ActivePatchCacheKey = "champions:summaries:active-patch";
+
     public async Task<IReadOnlyList<ChampionSummaryReadModel>> GetAllSummariesAsync(string? patch, CancellationToken ct)
     {
-        // Resolve the patch up-front so the cache key is the canonical patch
-        // value (e.g. "16.10") rather than the raw query string. This way
-        // requests with `patch=null` and `patch=16.10` share the same entry
-        // when the latter happens to be the active patch, and non-canonical
-        // inputs (trailing whitespace, capitalization differences if patches
-        // ever carry letters) can't fan out into redundant cache entries.
+        var totalSw = Stopwatch.StartNew();
+
+        var resolveSw = Stopwatch.StartNew();
         var activePatch = await ResolveActivePatchAsync(patch, ct);
+        resolveSw.Stop();
+        logger.LogInformation(
+            "[champions-summaries] resolve_patch requested={RequestedPatch} active={ActivePatch} elapsed={ElapsedMs}ms",
+            patch ?? "<null>", activePatch ?? "<null>", resolveSw.ElapsedMilliseconds);
+
         if (string.IsNullOrEmpty(activePatch))
         {
+            totalSw.Stop();
+            logger.LogInformation(
+                "[champions-summaries] total elapsed={ElapsedMs}ms result=empty",
+                totalSw.ElapsedMilliseconds);
             return [];
         }
 
@@ -42,11 +57,21 @@ public sealed class ChampionSummariesQueryService(
         var cacheKey = $"champions:summaries:{activePatch}";
         if (cache.TryGetValue<IReadOnlyList<ChampionSummaryReadModel>>(cacheKey, out var cached) && cached is not null)
         {
+            totalSw.Stop();
+            logger.LogInformation(
+                "[champions-summaries] total elapsed={ElapsedMs}ms result=cache_hit count={Count}",
+                totalSw.ElapsedMilliseconds, cached.Count);
             return cached;
         }
 
+        var computeSw = Stopwatch.StartNew();
         var summaries = await ComputeAllSummariesAsync(activePatch, ct);
+        computeSw.Stop();
         cache.Set(cacheKey, summaries, SummariesCacheTtl);
+        totalSw.Stop();
+        logger.LogInformation(
+            "[champions-summaries] compute elapsed={ComputeMs}ms total={TotalMs}ms result=miss count={Count}",
+            computeSw.ElapsedMilliseconds, totalSw.ElapsedMilliseconds, summaries.Count);
         return summaries;
     }
 
@@ -57,20 +82,34 @@ public sealed class ChampionSummariesQueryService(
             return requestedPatch;
         }
 
+        if (cache.TryGetValue<string>(ActivePatchCacheKey, out var cachedPatch) && cachedPatch is not null)
+        {
+            return cachedPatch;
+        }
+
+        var sw = Stopwatch.StartNew();
         var distinctPatches = await db.ChampionAggregateScopes
             .AsNoTracking()
             .Where(scope => scope.QueueId == options.Value.QueueId)
             .Select(scope => scope.GameVersion)
             .Distinct()
             .ToListAsync(ct);
-        return ChampionAggregateScopeResolver.ResolvePatchVersion(distinctPatches, requestedPatch: null);
+        sw.Stop();
+        logger.LogInformation(
+            "[champions-summaries] sql=distinct_patches rows={Rows} elapsed={ElapsedMs}ms",
+            distinctPatches.Count, sw.ElapsedMilliseconds);
+
+        var resolved = ChampionAggregateScopeResolver.ResolvePatchVersion(distinctPatches, requestedPatch: null);
+        if (!string.IsNullOrEmpty(resolved))
+        {
+            cache.Set(ActivePatchCacheKey, resolved, ActivePatchCacheTtl);
+        }
+        return resolved;
     }
 
     private async Task<IReadOnlyList<ChampionSummaryReadModel>> ComputeAllSummariesAsync(string activePatch, CancellationToken ct)
     {
-        // Filtering the row pull on GameVersion in SQL is what makes the
-        // per-patch caching worthwhile — without it every cache miss would
-        // re-scan the whole aggregate table for the queue.
+        var rowsSw = Stopwatch.StartNew();
         var rows = await db.ChampionAggregateScopes
             .AsNoTracking()
             .Where(scope => scope.QueueId == options.Value.QueueId)
@@ -84,6 +123,10 @@ public sealed class ChampionSummariesQueryService(
                 scope.RiotAccountId,
                 scope.AggregatedAtUtc))
             .ToListAsync(ct);
+        rowsSw.Stop();
+        logger.LogInformation(
+            "[champions-summaries] sql=scope_rows rows={Rows} elapsed={ElapsedMs}ms",
+            rows.Count, rowsSw.ElapsedMilliseconds);
 
         var scoped = rows
             .Where(row => !string.IsNullOrWhiteSpace(row.Position))
@@ -94,10 +137,12 @@ public sealed class ChampionSummariesQueryService(
             return [];
         }
 
-        // Top build per (champion, position) — loaded once for the whole
-        // patch so the directory renders keystone / secondary tree / item
-        // sequence inline without paying a per-row build query.
+        var topBuildsSw = Stopwatch.StartNew();
         var topBuilds = await LoadTopBuildsAsync(activePatch, ct);
+        topBuildsSw.Stop();
+        logger.LogInformation(
+            "[champions-summaries] load_top_builds buckets={Buckets} elapsed={ElapsedMs}ms",
+            topBuilds.Count, topBuildsSw.ElapsedMilliseconds);
 
         // Denominators come from the already-loaded scope rows: lane totals
         // for PickRate and champion totals for LanePlayRate. PickRate is the
@@ -169,10 +214,7 @@ public sealed class ChampionSummariesQueryService(
     {
         var queueId = options.Value.QueueId;
 
-        // Aggregate every pattern row to one bucket per
-        // (champion, position, build, rune-page). Collapsing in SQL keeps
-        // the materialised set bounded — for a busy patch it's tens of
-        // thousands of bucket rows instead of millions of raw patterns.
+        var groupedSw = Stopwatch.StartNew();
         var grouped = await db.ChampionAggregatePatterns
             .AsNoTracking()
             .Join(
@@ -201,6 +243,10 @@ public sealed class ChampionSummariesQueryService(
                 Wins = group.Sum(row => row.Wins),
             })
             .ToListAsync(ct);
+        groupedSw.Stop();
+        logger.LogInformation(
+            "[champions-summaries] sql=patterns_join_grouped buckets={Buckets} elapsed={ElapsedMs}ms",
+            grouped.Count, groupedSw.ElapsedMilliseconds);
 
         if (grouped.Count == 0)
         {
@@ -210,12 +256,23 @@ public sealed class ChampionSummariesQueryService(
         var buildIds = grouped.Select(row => row.BuildId).Distinct().ToList();
         var runeIds = grouped.Select(row => row.RunePageId).Distinct().ToList();
 
+        var dimBuildsSw = Stopwatch.StartNew();
         var dimBuilds = await db.ChampionDimBuilds.AsNoTracking()
             .Where(dim => buildIds.Contains(dim.Id))
             .ToDictionaryAsync(dim => dim.Id, ct);
+        dimBuildsSw.Stop();
+        logger.LogInformation(
+            "[champions-summaries] sql=dim_builds rows={Rows} elapsed={ElapsedMs}ms",
+            dimBuilds.Count, dimBuildsSw.ElapsedMilliseconds);
+
+        var dimRunesSw = Stopwatch.StartNew();
         var dimRunes = await db.ChampionDimRunePages.AsNoTracking()
             .Where(dim => runeIds.Contains(dim.Id))
             .ToDictionaryAsync(dim => dim.Id, ct);
+        dimRunesSw.Stop();
+        logger.LogInformation(
+            "[champions-summaries] sql=dim_rune_pages rows={Rows} elapsed={ElapsedMs}ms",
+            dimRunes.Count, dimRunesSw.ElapsedMilliseconds);
 
         var result = new Dictionary<(int ChampionId, string Position), TopBuildReadModel>();
 
