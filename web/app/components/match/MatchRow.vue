@@ -82,14 +82,17 @@ const lpDeltaText = computed(() => {
   return delta > 0 ? `+${delta} LP` : `${delta} LP`
 })
 
-// Row-level tint: subtle emerald for wins, subtle red for losses. The
-// whole row picks up the colour rather than just the left strip, so the
-// win/loss pattern is readable at a glance when scanning a feed of 20+
-// matches. Numbers tuned low (8% / 7% alpha) so the row body still reads
-// as "card" — anything higher and the colour starts to fight the content.
+// Row-level tint: subtle sky for wins (the LoL-tracker convention
+// across OP.GG / Mobalytics / DPM.LOL), red for losses. We deliberately
+// don't use the brand emerald here — emerald is the primary UI accent
+// (logo, buttons, active pagination) and overloading it as the win
+// signal made every "this is a win" cue blur into every "this is a
+// brand surface" cue. Sky reads as "result axis", emerald stays as
+// "brand". Numbers tuned low (8% / 12% alpha) so the row body still
+// reads as card.
 const rowTint = computed(() =>
   self.value.win
-    ? 'bg-emerald-500/8 hover:bg-emerald-500/12'
+    ? 'bg-sky-500/8 hover:bg-sky-500/12'
     : 'bg-red-500/8 hover:bg-red-500/12',
 )
 </script>
@@ -105,14 +108,14 @@ const rowTint = computed(() =>
          even when scanning quickly. -->
     <div
       class="w-1 shrink-0"
-      :class="self.win ? 'bg-emerald-500' : 'bg-red-500'"
+      :class="self.win ? 'bg-sky-500' : 'bg-red-500'"
       aria-hidden="true"
     />
 
     <div class="flex flex-1 items-center gap-3 px-3 py-2.5">
       <!-- Meta column: result + queue + LP + duration + timestamp -->
       <div class="flex w-[5.5rem] shrink-0 flex-col text-xs leading-tight">
-        <div class="font-semibold" :class="self.win ? 'text-emerald-400' : 'text-red-400'">
+        <div class="font-semibold" :class="self.win ? 'text-sky-400' : 'text-red-400'">
           {{ resultLabel }}
         </div>
         <div class="text-muted">
@@ -121,7 +124,7 @@ const rowTint = computed(() =>
         <div
           v-if="lpDeltaText"
           class="font-semibold"
-          :class="(self.lpDelta ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'"
+          :class="(self.lpDelta ?? 0) >= 0 ? 'text-sky-400' : 'text-red-400'"
         >
           {{ lpDeltaText }}
         </div>
@@ -224,11 +227,10 @@ const rowTint = computed(() =>
       </div>
 
       <!--
-        MVP / ACE badge anchored to the right. Colours intentionally split:
-        MVP rides the "gold standard" amber that's universal across sports
-        / LoL trackers, while ACE picks up a cool sky so the two accolades
-        never blur into each other (and neither reuses the row-tint emerald
-        / red, which already carry the win/loss signal).
+        MVP / ACE badge anchored to the right. MVP = amber (gold, the
+        "best of the game" accolade); ACE = stone (silver, the
+        "best of the rest" runner-up). Picked stone over sky so ACE
+        doesn't share a hue with the win row tint a few px to the left.
       -->
       <div class="ml-auto shrink-0">
         <span
@@ -236,7 +238,7 @@ const rowTint = computed(() =>
           class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold ring-1"
           :class="self.isMvp
             ? 'bg-amber-400/25 text-amber-200 ring-amber-400/50'
-            : 'bg-sky-400/25 text-sky-200 ring-sky-400/50'"
+            : 'bg-stone-400/30 text-stone-200 ring-stone-400/50'"
         >
           {{ self.isMvp ? 'MVP' : 'ACE' }}
         </span>
