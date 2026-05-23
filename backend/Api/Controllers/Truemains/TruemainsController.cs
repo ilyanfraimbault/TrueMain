@@ -30,12 +30,16 @@ public sealed class TruemainsController(
         string nameTag,
         [FromQuery] int? page,
         [FromQuery] int? pageSize,
+        [FromQuery] string? position,
+        [FromQuery] int? championId,
         CancellationToken ct = default)
     {
         var response = await matchSummariesQueryService.GetAsync(
             nameTag,
             page ?? 1,
             pageSize ?? 0,
+            position,
+            championId,
             ct);
 
         return response is null ? NotFound() : Ok(response);

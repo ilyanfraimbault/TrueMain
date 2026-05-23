@@ -8,12 +8,16 @@ public interface IMatchSummariesQueryService
     /// Returns the page of matches for the player identified by
     /// <paramref name="nameTag"/> (<c>gameName-tagLine</c>), ordered by game
     /// start time descending. Page numbers are 1-indexed; values outside the
-    /// valid range are clamped. Returns <c>null</c> when the name tag is
-    /// malformed or no Riot account matches.
+    /// valid range are clamped. Optional <paramref name="position"/> and
+    /// <paramref name="championId"/> filters narrow the feed to matches
+    /// where the player played that lane / champion. Returns <c>null</c>
+    /// when the name tag is malformed or no Riot account matches.
     /// </summary>
     Task<MatchSummariesResponse?> GetAsync(
         string nameTag,
         int page,
         int pageSize,
+        string? position,
+        int? championId,
         CancellationToken ct);
 }

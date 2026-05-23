@@ -15,12 +15,33 @@ public sealed class MatchSummariesQueryService(
         string nameTag,
         int page,
         int pageSize,
+        string? position,
+        int? championId,
         CancellationToken ct)
     {
         if (!NameTagParser.TryParse(nameTag, out var parsed))
         {
             return null;
         }
+
+        // Normalize the position filter once. The DB stores team positions
+        // as upper-case Riot strings (TOP/JUNGLE/MIDDLE/BOTTOM/UTILITY);
+        // any other value clamps to null so a bogus query param doesn't
+        // wedge the comparison.
+        var normalizedPosition = string.IsNullOrWhiteSpace(position)
+            ? null
+            : position.Trim().ToUpperInvariant();
+        if (normalizedPosition is not null
+            && normalizedPosition != "TOP"
+            && normalizedPosition != "JUNGLE"
+            && normalizedPosition != "MIDDLE"
+            && normalizedPosition != "BOTTOM"
+            && normalizedPosition != "UTILITY")
+        {
+            normalizedPosition = null;
+        }
+
+        var championFilter = championId is > 0 ? championId : null;
 
         // Multi-platform name-tag disambiguation: a (gameName, tagLine) pair
         // is unique within a Riot routing region but can collide across
@@ -48,17 +69,23 @@ public sealed class MatchSummariesQueryService(
         // same predicate as the data query — we never want the count and the
         // list to disagree about which matches "belong to" this player.
         //
-        // Arena (CHERRY game mode — queues 1700 / 1710 / 1750) is excluded
-        // from the truemain match history feed. The feed surfaces a
-        // player's serious-play track record (ranked / normals on Summoner's
-        // Rift + ARAM); Arena rounds are short, KDA-distorted, and noisy in
-        // a Riot-ID-level overview. They still ingest into the DB so other
-        // surfaces (per-mode analytics, future Arena tab) can opt in later
-        // without a re-ingest.
+        // No mode filter here: the ingestor pulls match ids with `type=ranked`
+        // at the Riot API source (see RiotMatchClient.GetMatchIdsAsync), so
+        // nothing non-ranked enters the DB going forward. Historical Arena
+        // / ARAM rows that pre-date that change may still surface for some
+        // accounts until they're either cleaned up or aged out.
+        //
+        // Position / champion filters live on the same `Any(...)` clause so
+        // the count and the page slice share a single predicate. Both apply
+        // to the self participant in the match — `p.Puuid == account.Puuid`
+        // narrows to that row, and the optional extras filter on its
+        // championId / teamPosition.
         var matchesQuery = db.Matches
             .AsNoTracking()
-            .Where(m => m.Participants.Any(p => p.Puuid == account.Puuid))
-            .Where(m => m.GameMode != "CHERRY");
+            .Where(m => m.Participants.Any(p =>
+                p.Puuid == account.Puuid
+                && (championFilter == null || p.ChampionId == championFilter)
+                && (normalizedPosition == null || p.TeamPosition == normalizedPosition)));
 
         var total = await matchesQuery.CountAsync(ct);
         if (total == 0)

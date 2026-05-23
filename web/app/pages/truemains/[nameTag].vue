@@ -5,6 +5,7 @@ import type {
   StaticItemData,
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
+import { isChampionPosition, type ChampionPosition } from '~/utils/positions'
 
 const route = useRoute()
 const router = useRouter()
@@ -25,12 +26,45 @@ const currentMatchesPage = computed<number>(() => {
   return Number.isFinite(parsed) && parsed >= 1 ? parsed : 1
 })
 
+// Filters live alongside the page in the URL so they're shareable. Position
+// is the Riot uppercase enum (TOP/JUNGLE/...); the helper guards against
+// garbage values so an attacker-controlled query never reaches the API.
+const filterPosition = computed<ChampionPosition | null>(() => {
+  const raw = Array.isArray(route.query.position) ? route.query.position[0] : route.query.position
+  return isChampionPosition(raw) ? raw : null
+})
+
+const filterChampionId = computed<number | null>(() => {
+  const raw = Array.isArray(route.query.championId) ? route.query.championId[0] : route.query.championId
+  const parsed = Number.parseInt(typeof raw === 'string' ? raw : '', 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+})
+
 async function setMatchesPage(next: number) {
   const clamped = Math.max(1, Math.floor(next))
   if (clamped === currentMatchesPage.value) return
   const nextQuery = { ...route.query }
   if (clamped === 1) delete nextQuery.page
   else nextQuery.page = String(clamped)
+  await router.replace({ query: nextQuery })
+}
+
+// Filter mutations always reset the page back to 1 — staying on, say,
+// page 5 after switching to "MID only" risks landing on an out-of-range
+// page since the total just shrank.
+async function setFilterPosition(next: ChampionPosition | null) {
+  const nextQuery = { ...route.query }
+  if (next) nextQuery.position = next
+  else delete nextQuery.position
+  delete nextQuery.page
+  await router.replace({ query: nextQuery })
+}
+
+async function setFilterChampionId(next: number | null) {
+  const nextQuery = { ...route.query }
+  if (next) nextQuery.championId = String(next)
+  else delete nextQuery.championId
+  delete nextQuery.page
   await router.replace({ query: nextQuery })
 }
 
@@ -62,7 +96,11 @@ const {
   pageSize: matchesPageSize,
   isInitialLoading: matchesInitialLoading,
   notFound: matchesNotFound,
-} = useTruemainMatches(nameTag, currentMatchesPage, { pageSize: MATCHES_PAGE_SIZE })
+} = useTruemainMatches(nameTag, currentMatchesPage, {
+  pageSize: MATCHES_PAGE_SIZE,
+  position: filterPosition,
+  championId: filterChampionId,
+})
 
 // ─── Static lookups for MatchRow + identity icon ───────────────────────────
 const { data: versions } = useDDragonVersions()
@@ -194,9 +232,18 @@ const staticBundleReady = computed(() =>
 
       <!-- Right rail: paginated match history -->
       <section class="flex min-w-0 flex-col gap-3">
-        <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
-          Match history
-        </h2>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
+            Match history
+          </h2>
+          <MatchHistoryFilters
+            :champions="champions"
+            :position="filterPosition"
+            :champion-id="filterChampionId"
+            @update:position="setFilterPosition"
+            @update:champion-id="setFilterChampionId"
+          />
+        </div>
 
         <template v-if="matchesInitialLoading || !staticBundleReady">
           <MatchRowSkeleton v-for="i in MATCHES_PAGE_SIZE" :key="`match-skel-${i}`" />
