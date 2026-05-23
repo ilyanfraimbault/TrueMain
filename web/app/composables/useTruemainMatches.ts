@@ -1,7 +1,7 @@
 import type { MatchSummariesResponse, MatchSummaryResponse } from '~~/shared/types/matches'
 
 interface UseTruemainMatchesOptions {
-  /** Page size to request per fetch. Defaults to the backend default (10). */
+  /** Page size to request per fetch. Defaults to the backend default (20). */
   pageSize?: number
 }
 
@@ -28,7 +28,7 @@ export function useTruemainMatches(
 
   const matches = ref<MatchSummaryResponse[]>([])
   const total = ref(0)
-  const pageSize = ref(options.pageSize ?? 10)
+  const pageSize = ref(options.pageSize ?? 20)
   const isLoading = ref(false)
   const isInitialLoading = ref(true)
   const notFound = ref(false)

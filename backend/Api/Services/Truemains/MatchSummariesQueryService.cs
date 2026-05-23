@@ -8,7 +8,7 @@ public sealed class MatchSummariesQueryService(
     TrueMainDbContext db,
     ILogger<MatchSummariesQueryService> logger) : IMatchSummariesQueryService
 {
-    private const int DefaultPageSize = 10;
+    private const int DefaultPageSize = 20;
     private const int MaxPageSize = 50;
 
     public async Task<MatchSummariesResponse?> GetAsync(

@@ -14,7 +14,7 @@ const nameTag = computed(() => {
   return Array.isArray(param) ? param[0] ?? '' : (param ?? '')
 })
 
-const MATCHES_PAGE_SIZE = 10
+const MATCHES_PAGE_SIZE = 20
 
 // 1-indexed current page, sourced from `?page=` so back/forward + direct
 // links stay in sync with the matches feed. Same coercion as
