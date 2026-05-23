@@ -68,7 +68,8 @@ public sealed class CommunityDragonItemMetadataProvider(
                     TransformFromItemId = item.SpecialRecipe > 0 ? item.SpecialRecipe : null,
                     IsSupportQuestStarter = supportFamily.IsRoot(item.Id),
                     IsSupportQuestIntermediate = supportFamily.IsIntermediate(item.Id),
-                    IsSupportQuestCompletion = supportFamily.IsCompletion(item.Id)
+                    IsSupportQuestCompletion = supportFamily.IsCompletion(item.Id),
+                    IsStarterClassItem = IsStarterClassItem(item, isBootsItem)
                 };
             });
     }
@@ -181,6 +182,27 @@ public sealed class CommunityDragonItemMetadataProvider(
            && item.SpecialRecipe > 0
            && (item.To ?? []).Count == 0
            && item.PriceTotal >= 2_000;
+
+    /// <summary>
+    /// Detect "starter-class" items: those Riot tags with the Lane or Jungle
+    /// semantic category and that match the structural shape of a starter
+    /// purchase (in-store, no recipe, no upgrade, cheap, non-consumable,
+    /// non-boots). Catches Doran's, Cull, jungle pets, ARAM Guardian's, and
+    /// the support-quest root in a single pass — no hardcoded IDs. Items
+    /// matching this rule must never appear in <c>BuildItem0..6</c>.
+    /// </summary>
+    private static bool IsStarterClassItem(CommunityDragonItem item, bool isBootsItem)
+    {
+        if (!item.InStore) return false;
+        if ((item.From ?? []).Count > 0) return false;
+        if ((item.To ?? []).Count > 0) return false;
+        if (item.PriceTotal <= 0 || item.PriceTotal >= 600) return false;
+        var categories = item.Categories ?? [];
+        if (ContainsCategory(categories, "Consumable")) return false;
+        if (isBootsItem) return false;
+        return ContainsCategory(categories, "Lane")
+               || ContainsCategory(categories, "Jungle");
+    }
 
     public sealed class CommunityDragonItem
     {
