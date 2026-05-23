@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChampionSummariesPagedResponse, ChampionSummaryResponse } from '~~/shared/types/champions'
+import type { ChampionSummaryResponse } from '~~/shared/types/champions'
 import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
 import { getPositionIconUrl } from '~~/shared/utils/ddragon'
 import { POSITION_OPTIONS, isChampionPosition, type ChampionPosition } from '~/utils/positions'
@@ -57,26 +57,25 @@ async function setPage(next: number) {
 // responses resolved before the SSR render completed, baking `isPending=false`
 // into the server output while the client hydrated with `isPending=true`,
 // producing `<!-- -->` vs `<div>` and `<ul>` vs `<div>` hydration mismatches.
+//
+// The endpoint returns the full directory (~500 rows on a populated patch).
+// Pagination is applied client-side below so search + position filters can
+// stay client-side too and the user can paginate filtered subsets without
+// extra round-trips.
 const {
-  data: summariesPage,
+  data: summaries,
   error: summariesError,
   status: summariesStatus,
-} = useLazyAsyncData<ChampionSummariesPagedResponse>(
-  () => `champions-list-${filters.value.patch ?? 'latest'}-p${currentPage.value}`,
+} = useLazyAsyncData<ChampionSummaryResponse[]>(
+  () => `champions-list-${filters.value.patch ?? 'latest'}`,
   () => {
     const patch = filters.value.patch
-    return $fetch<ChampionSummariesPagedResponse>('/api/champions', {
-      query: {
-        ...(patch ? { patch } : {}),
-        page: currentPage.value,
-        pageSize: PAGE_SIZE,
-      },
+    return $fetch<ChampionSummaryResponse[]>('/api/champions', {
+      query: patch ? { patch } : {},
     })
   },
-  { watch: [() => filters.value.patch, currentPage], server: false },
+  { watch: [() => filters.value.patch], server: false, default: () => [] },
 )
-const summaries = computed<ChampionSummaryResponse[]>(() => summariesPage.value?.items ?? [])
-const totalCount = computed<number>(() => summariesPage.value?.totalCount ?? 0)
 // Static fetches use `useLazyAsyncData` (not `useLazyFetch`) so the handler
 // closure can call `markStaticFetched` after the network round trip — the
 // `useFetch` wrapper hides that hook. `getCachedData` reuses entries across
@@ -242,6 +241,23 @@ const filteredRows = computed(() => {
   return rows
 })
 
+// Client-side pagination: slice the filtered list into pages of PAGE_SIZE.
+// `totalCount` follows `filteredRows.length` so the page count adjusts to
+// search + position filters without an extra round-trip.
+const totalCount = computed<number>(() => filteredRows.value.length)
+const pagedRows = computed(() => {
+  const start = (currentPage.value - 1) * PAGE_SIZE
+  return filteredRows.value.slice(start, start + PAGE_SIZE)
+})
+
+// Reset to page 1 when the filtered set shrinks below the current offset,
+// either because the user typed in the search box or because a filter
+// dropped enough rows to invalidate the current page anchor.
+watch(totalCount, (count) => {
+  const start = (currentPage.value - 1) * PAGE_SIZE
+  if (count > 0 && start >= count) void setPage(1)
+})
+
 const positionByValue = new Map(POSITION_OPTIONS.map(option => [option.value as string, option]))
 
 // Per #147, the row is not a `<NuxtLink>` (and therefore not an `<a>`) because
@@ -373,7 +389,7 @@ function staticItem(id: number | undefined) {
              remaining image loads. -->
         <ul class="space-y-1">
           <li
-            v-for="row in filteredRows"
+            v-for="row in pagedRows"
             :key="`${row.championId}-${row.position}`"
           >
             <div
@@ -489,8 +505,10 @@ function staticItem(id: number | undefined) {
             :total="totalCount"
             :items-per-page="PAGE_SIZE"
             :sibling-count="1"
-            color="primary"
+            color="neutral"
+            variant="ghost"
             active-color="primary"
+            active-variant="soft"
             @update:page="setPage"
           />
         </div>

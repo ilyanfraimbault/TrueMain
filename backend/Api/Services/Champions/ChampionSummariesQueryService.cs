@@ -35,45 +35,6 @@ public sealed class ChampionSummariesQueryService(
         return await GetOrComputeSummariesAsync(activePatch, ct);
     }
 
-    public async Task<ChampionSummariesPagedResponse> GetSummariesPageAsync(
-        string? patch,
-        int page,
-        int pageSize,
-        CancellationToken ct)
-    {
-        var activePatch = await ResolveActivePatchAsync(patch, ct);
-        if (string.IsNullOrEmpty(activePatch))
-        {
-            return new ChampionSummariesPagedResponse
-            {
-                Items = [],
-                TotalCount = 0,
-                Page = page,
-                PageSize = pageSize,
-            };
-        }
-
-        // Pull the full sorted list from the cache (or compute + cache on
-        // miss) and slice in memory. Slicing 50 of ~500 rows is cheap and
-        // keeps the cache key patch-only — caching every (patch, page, size)
-        // combination would fan out for no win since the list itself stays
-        // identical across page requests.
-        var all = await GetOrComputeSummariesAsync(activePatch, ct);
-
-        var skip = checked((page - 1) * pageSize);
-        var items = skip >= all.Count
-            ? (IReadOnlyList<ChampionSummaryReadModel>)[]
-            : all.Skip(skip).Take(pageSize).ToList();
-
-        return new ChampionSummariesPagedResponse
-        {
-            Items = items,
-            TotalCount = all.Count,
-            Page = page,
-            PageSize = pageSize,
-        };
-    }
-
     private async Task<IReadOnlyList<ChampionSummaryReadModel>> GetOrComputeSummariesAsync(
         string activePatch,
         CancellationToken ct)
