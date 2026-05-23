@@ -37,4 +37,15 @@ public sealed record ItemMetadata(
     /// build path.
     /// </summary>
     public bool IsSupportQuestCompletion { get; init; }
+
+    /// <summary>
+    /// True for starter-class items meant to be bought at game start: Doran's
+    /// (Blade/Ring/Shield/Bow/Helm), Cull, jungle pets, ARAM Guardian's, etc.
+    /// Detected dynamically per patch via the (Lane|Jungle) semantic category
+    /// combined with structural markers (no recipe, no upgrade, cheap,
+    /// in-store, non-consumable, non-boots). These should never appear in
+    /// BuildItem0..6 — they belong in the starter slot, regardless of when
+    /// in the game they were purchased.
+    /// </summary>
+    public bool IsStarterClassItem { get; init; }
 }

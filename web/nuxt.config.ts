@@ -3,11 +3,10 @@
 // Most upstream image sources we hit (DDragon item/champion/spell icons,
 // CommunityDragon perks) are content-addressed per (patch, asset), so once
 // IPX has processed a URL the resulting bytes never change. Position icons
-// still resolve through CommunityDragon's `/latest/` path and can drift on a
-// new patch, but the URL itself is stable enough that the staleness window
-// (one IPX cache cycle) is acceptable. Cache them aggressively in the browser
-// to avoid re-issuing dozens of requests on each client-side navigation back
-// to /champions.
+// used to resolve through CommunityDragon's `/latest/` path but are now
+// bundled under /public/positions to avoid hitting a third party on cold
+// loads. Cache the remaining upstream assets aggressively in the browser to
+// avoid re-issuing dozens of requests on each client-side navigation.
 const IPX_IMAGE_CACHE_SECONDS = 60 * 60 * 24 * 7 // 7 days
 
 export default defineNuxtConfig({

@@ -43,5 +43,5 @@ export function getChampionSpellImageUrl(imageFileName: string, patch?: string |
 }
 
 export function getPositionIconUrl(position: string): string {
-  return `https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-parties/global/default/icon-position-${position.toLowerCase()}.png`
+  return `/positions/icon-position-${position.toLowerCase()}.png`
 }

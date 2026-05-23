@@ -17,7 +17,7 @@ const {
   data: champion,
   error: championError,
   status: championStatus,
-} = await useChampion(championId, filters)
+} = useChampion(championId, filters)
 
 const activePatch = computed(() => champion.value?.patch || filters.value.patch || null)
 
@@ -37,7 +37,7 @@ const { data: staticList, status: staticListStatus } = useLazyAsyncData<Champion
     markStaticFetched('champion-static-list', nuxtApp)
     return data
   },
-  { getCachedData: key => getStaticCachedData(key, nuxtApp) },
+  { getCachedData: key => getStaticCachedData(key, nuxtApp), server: false },
 )
 // Pin rune-tree to the champion's active patch so the icon URLs we render
 // hit CommunityDragon's per-patch (year-cacheable) tree, and so cached
@@ -55,6 +55,7 @@ const { data: runeTree, status: runeTreeStatus } = useLazyAsyncData<RuneTreeResp
   {
     watch: [activePatch],
     getCachedData: key => getStaticCachedData(key, nuxtApp),
+    server: false,
   },
 )
 const { data: itemsMap, status: itemsStatus } = useLazyAsyncData<Record<number, StaticItemData>>(
@@ -70,6 +71,7 @@ const { data: itemsMap, status: itemsStatus } = useLazyAsyncData<Record<number, 
   {
     watch: [activePatch],
     getCachedData: key => getStaticCachedData(key, nuxtApp),
+    server: false,
   },
 )
 const { data: summonersMap, status: summonersStatus } = useLazyAsyncData<Record<number, StaticSummonerSpellData>>(
@@ -85,6 +87,7 @@ const { data: summonersMap, status: summonersStatus } = useLazyAsyncData<Record<
   {
     watch: [activePatch],
     getCachedData: key => getStaticCachedData(key, nuxtApp),
+    server: false,
   },
 )
 
@@ -126,7 +129,6 @@ const selectedPosition = computed<ChampionPosition | ''>(() => {
   return POSITION_OPTIONS.some(o => o.value === value) ? value as ChampionPosition : ''
 })
 
-const isLoading = computed(() => championStatus.value === 'pending' && !champion.value)
 // Bound to every async source so the bar covers both the initial lazy load
 // and patch/position swaps where the previous champion's data is still on
 // screen. `idle` is the pre-fetch state from useLazy* before the client
@@ -153,15 +155,8 @@ const isRefetching = computed(() =>
       />
     </div>
 
-    <p
-      v-if="isLoading"
-      class="text-sm"
-    >
-      Loading…
-    </p>
-
     <UAlert
-      v-else-if="championError"
+      v-if="championError"
       color="error"
       variant="soft"
       title="Failed to load champion"

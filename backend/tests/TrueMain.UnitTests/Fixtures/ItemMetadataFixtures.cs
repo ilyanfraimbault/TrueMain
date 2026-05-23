@@ -14,9 +14,18 @@ internal static class ItemMetadataFixtures
     {
         [LolItemIds.Trinkets.StealthWard] = new(LolItemIds.Trinkets.StealthWard, 0, true, false, false, false, true, false),
         [2003] = new(2003, 50, true, true, false, false, true, false),
-        [LolItemIds.Cull] = new(LolItemIds.Cull, 450, true, false, false, false, true, false),
-        [1055] = new(1055, 450, true, false, false, false, false, false),
-        [1056] = new(1056, 400, true, false, false, false, false, false),
+        [1083] = new(1083, 450, true, false, false, false, true, false)
+        {
+            IsStarterClassItem = true
+        },
+        [1055] = new(1055, 450, true, false, false, false, true, false)
+        {
+            IsStarterClassItem = true
+        },
+        [1056] = new(1056, 400, true, false, false, false, true, false)
+        {
+            IsStarterClassItem = true
+        },
         [LolItemIds.BootsOfSpeed] = new(LolItemIds.BootsOfSpeed, 300, true, false, true, true, false, false),
         [LolItemIds.TearOfTheGoddess] = new(LolItemIds.TearOfTheGoddess, 400, true, false, false, false, false, false),
         // 3865 = World Atlas (root starter of the support-quest chain)

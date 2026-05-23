@@ -231,6 +231,111 @@ public sealed class CommunityDragonItemMetadataProviderTests
         items[3868].IsSupportQuestStarter.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task GetItemsAsync_should_flag_starter_class_items_by_lane_or_jungle_category()
+    {
+        // Patch-16.10-shaped payloads covering the three starter-class
+        // families captured by the dynamic detector: a Doran's (Lane), Cull
+        // (Lane farming item), and a jungle pet (Jungle). The detector keys
+        // off the (Lane|Jungle) category combined with structural markers
+        // (in-store, no recipe, no upgrade, cheap, non-consumable, non-boots).
+        const string payload = """
+[
+  {
+    "id": 1056, "name": "Doran's Ring", "description": "", "active": true,
+    "inStore": true, "from": [], "to": [], "categories": ["Health", "Lane", "ManaRegen", "SpellDamage"],
+    "maxStacks": 1, "requiredChampion": "", "requiredAlly": "",
+    "requiredBuffCurrencyName": "", "requiredBuffCurrencyCost": 0,
+    "specialRecipe": 0, "isEnchantment": false, "price": 400,
+    "priceTotal": 400, "displayInItemSets": true, "iconPath": ""
+  },
+  {
+    "id": 1083, "name": "Cull", "description": "", "active": true,
+    "inStore": true, "from": [], "to": [], "categories": ["Damage", "OnHit", "Lane"],
+    "maxStacks": 1, "requiredChampion": "", "requiredAlly": "",
+    "requiredBuffCurrencyName": "", "requiredBuffCurrencyCost": 0,
+    "specialRecipe": 0, "isEnchantment": false, "price": 450,
+    "priceTotal": 450, "displayInItemSets": true, "iconPath": ""
+  },
+  {
+    "id": 1101, "name": "Scorchclaw Pup", "description": "", "active": true,
+    "inStore": true, "from": [], "to": [], "categories": ["Jungle"],
+    "maxStacks": 1, "requiredChampion": "", "requiredAlly": "",
+    "requiredBuffCurrencyName": "", "requiredBuffCurrencyCost": 0,
+    "specialRecipe": 0, "isEnchantment": false, "price": 450,
+    "priceTotal": 450, "displayInItemSets": true, "iconPath": ""
+  }
+]
+""";
+
+        using var handler = new StubHttpMessageHandler(payload);
+        using var httpClient = new HttpClient(handler);
+        var provider = new CommunityDragonItemMetadataProvider(httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance);
+
+        var items = await provider.GetItemsAsync("16.10.1", CancellationToken.None);
+
+        items[1056].IsStarterClassItem.Should().BeTrue();
+        items[1083].IsStarterClassItem.Should().BeTrue();
+        items[1101].IsStarterClassItem.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_should_not_flag_regular_build_items_as_starter_class()
+    {
+        // Discriminator must not catch items that share some structural
+        // properties with starters but aren't (boots have the recipe of a
+        // tier-2 transform, Liandry's costs >600, trinkets have no price,
+        // a Long Sword has an upgrade chain).
+        const string payload = """
+[
+  {
+    "id": 1001, "name": "Boots", "description": "", "active": true,
+    "inStore": true, "from": [], "to": [3006], "categories": ["Boots"],
+    "maxStacks": 1, "requiredChampion": "", "requiredAlly": "",
+    "requiredBuffCurrencyName": "", "requiredBuffCurrencyCost": 0,
+    "specialRecipe": 0, "isEnchantment": false, "price": 300,
+    "priceTotal": 300, "displayInItemSets": true, "iconPath": ""
+  },
+  {
+    "id": 6653, "name": "Liandry's Anguish", "description": "", "active": true,
+    "inStore": true, "from": [3916, 1058, 1052], "to": [],
+    "categories": ["SpellDamage", "Health"],
+    "maxStacks": 1, "requiredChampion": "", "requiredAlly": "",
+    "requiredBuffCurrencyName": "", "requiredBuffCurrencyCost": 0,
+    "specialRecipe": 0, "isEnchantment": false, "price": 0,
+    "priceTotal": 3000, "displayInItemSets": true, "iconPath": ""
+  },
+  {
+    "id": 3340, "name": "Stealth Ward", "description": "", "active": true,
+    "inStore": true, "from": [], "to": [], "categories": ["Trinket"],
+    "maxStacks": 1, "requiredChampion": "", "requiredAlly": "",
+    "requiredBuffCurrencyName": "", "requiredBuffCurrencyCost": 0,
+    "specialRecipe": 0, "isEnchantment": false, "price": 0,
+    "priceTotal": 0, "displayInItemSets": true, "iconPath": ""
+  },
+  {
+    "id": 2003, "name": "Health Potion", "description": "", "active": true,
+    "inStore": true, "from": [], "to": [], "categories": ["Consumable", "Lane"],
+    "maxStacks": 5, "requiredChampion": "", "requiredAlly": "",
+    "requiredBuffCurrencyName": "", "requiredBuffCurrencyCost": 0,
+    "specialRecipe": 0, "isEnchantment": false, "price": 50,
+    "priceTotal": 50, "displayInItemSets": true, "iconPath": ""
+  }
+]
+""";
+
+        using var handler = new StubHttpMessageHandler(payload);
+        using var httpClient = new HttpClient(handler);
+        var provider = new CommunityDragonItemMetadataProvider(httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance);
+
+        var items = await provider.GetItemsAsync("16.10.1", CancellationToken.None);
+
+        items[1001].IsStarterClassItem.Should().BeFalse();
+        items[6653].IsStarterClassItem.Should().BeFalse();
+        items[3340].IsStarterClassItem.Should().BeFalse();
+        items[2003].IsStarterClassItem.Should().BeFalse();
+    }
+
     private sealed class StubHttpMessageHandler(string payload) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)

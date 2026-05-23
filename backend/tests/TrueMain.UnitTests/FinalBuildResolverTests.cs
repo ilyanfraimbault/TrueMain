@@ -66,6 +66,10 @@ public sealed class FinalBuildResolverTests
     [Fact]
     public void Resolve_ignores_cull_in_final_build()
     {
+        // Cull (1083) is flagged via IsStarterClassItem in the fixture rather
+        // than the legacy hardcoded IgnoredFinalBuildItemIds — same outcome,
+        // routed through the dynamic detector that also catches Doran's and
+        // jungle pets.
         var buildItems = FinalBuildResolver.Resolve(
         [
             new ItemEvent { TimestampMs = 5_000, ItemId = 1083, EventType = "ITEM_PURCHASED" },
@@ -73,6 +77,30 @@ public sealed class FinalBuildResolverTests
             new ItemEvent { TimestampMs = 18_000, ItemId = 3031, EventType = "ITEM_PURCHASED" }
         ], [1083, 3153, 3031, 0, 0, 0, 0], [], Metadata);
 
+        buildItems.Should().Equal(3153, 3031);
+    }
+
+    [Fact]
+    public void Resolve_excludes_doran_item_bought_after_starter_window()
+    {
+        // Reproduces match NA1_5560060671 (Shaco TOP 16.10): the player
+        // bought a non-Doran starter (Sapphire Crystal + Refillable Potion)
+        // in the first 10 seconds, then bought Doran's Ring (1056) on a back
+        // at 178s — well outside StarterItemAnalyzer's 120s window — and kept
+        // it until end of game. The starter list passed to Resolve does not
+        // contain 1056 (because the analyzer never saw it as a starter), so
+        // the only thing that can keep it out of the build path is the
+        // IsStarterClassItem flag. Asserts the fix: 1056 never appears in
+        // BuildItem0..6 even when the late purchase landed in the final
+        // inventory and the starter filter doesn't catch it.
+        var buildItems = FinalBuildResolver.Resolve(
+        [
+            new ItemEvent { TimestampMs = 177_905, ItemId = 1056, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 864_048, ItemId = 3153, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 1_330_902, ItemId = 3031, EventType = "ITEM_PURCHASED" }
+        ], [3153, 3031, 1056, 0, 0, 0, 0], [], Metadata);
+
+        buildItems.Should().NotContain(1056);
         buildItems.Should().Equal(3153, 3031);
     }
 

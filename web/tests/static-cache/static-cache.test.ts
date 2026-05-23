@@ -52,6 +52,16 @@ describe('getStaticCachedData', () => {
     host.payload.data['rune-tree'] = { styles: ['fresh'] }
     expect(getStaticCachedData('rune-tree', host)).toEqual({ styles: ['fresh'] })
   })
+
+  it('returns undefined on the server even when payload has a value', () => {
+    // Defence-in-depth for #149: paired with `server: false`, but ignoring the
+    // payload entirely on SSR keeps the rendered HTML deterministic regardless
+    // of what populated `payload.data` (e.g. a stray prefetch from a soft
+    // navigation), so the client never hydrates onto a stale server tree.
+    const host = makeHost()
+    host.payload.data['rune-tree'] = { styles: ['fresh'] }
+    expect(getStaticCachedData('rune-tree', host, Date.now(), true)).toBeUndefined()
+  })
 })
 
 describe('markStaticFetched', () => {

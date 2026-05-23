@@ -28,6 +28,7 @@ export function useChampionStatic(
       default: () => EMPTY_STATIC_DATA,
       getCachedData: key => getStaticCachedData(key, nuxtApp),
       watch: [() => toValue(championId), () => toValue(patch)],
+      server: false,
     },
   )
 }
