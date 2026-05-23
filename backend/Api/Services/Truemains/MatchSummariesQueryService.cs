@@ -69,11 +69,16 @@ public sealed class MatchSummariesQueryService(
         // same predicate as the data query — we never want the count and the
         // list to disagree about which matches "belong to" this player.
         //
-        // No mode filter here: the ingestor pulls match ids with `type=ranked`
-        // at the Riot API source (see RiotMatchClient.GetMatchIdsAsync), so
-        // nothing non-ranked enters the DB going forward. Historical Arena
-        // / ARAM rows that pre-date that change may still surface for some
-        // accounts until they're either cleaned up or aged out.
+        // The ingestor now pulls match ids with `type=ranked` at the Riot
+        // source so nothing non-ranked enters the DB going forward. But
+        // historical CHERRY (Arena) rows pre-date that change and still
+        // live in `matches` — we keep them on disk on purpose (no
+        // destructive cleanup) but exclude them from the aggregations and
+        // visible feeds so Arena rounds don't pollute a user's "what
+        // games have I played" view. The other aggregation surface —
+        // MainChampionStat — already filters to QueueId=420 in
+        // MainStatsCalculator, so the sidebar mains / role distribution
+        // were never affected.
         //
         // Position / champion filters live on the same `Any(...)` clause so
         // the count and the page slice share a single predicate. Both apply
@@ -82,6 +87,7 @@ public sealed class MatchSummariesQueryService(
         // championId / teamPosition.
         var matchesQuery = db.Matches
             .AsNoTracking()
+            .Where(m => m.GameMode != "CHERRY")
             .Where(m => m.Participants.Any(p =>
                 p.Puuid == account.Puuid
                 && (championFilter == null || p.ChampionId == championFilter)
