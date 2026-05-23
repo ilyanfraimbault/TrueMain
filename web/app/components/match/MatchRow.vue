@@ -56,7 +56,7 @@ const trinket = computed<StaticItemData | null>(() => {
   return id > 0 ? props.items[id] ?? null : null
 })
 
-const queueLabel = computed(() => getQueueLabel(props.match.queueId))
+const queueLabel = computed(() => getQueueLabel(props.match.queueId, props.match.gameMode))
 const durationLabel = computed(() => formatDuration(props.match.gameDurationSeconds))
 const relativeLabel = computed(() => formatRelativeTime(props.match.gameStartTimeUtc))
 
