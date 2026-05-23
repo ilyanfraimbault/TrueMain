@@ -129,7 +129,6 @@ const selectedPosition = computed<ChampionPosition | ''>(() => {
   return POSITION_OPTIONS.some(o => o.value === value) ? value as ChampionPosition : ''
 })
 
-const isLoading = computed(() => championStatus.value === 'pending' && !champion.value)
 // Bound to every async source so the bar covers both the initial lazy load
 // and patch/position swaps where the previous champion's data is still on
 // screen. `idle` is the pre-fetch state from useLazy* before the client
@@ -156,15 +155,8 @@ const isRefetching = computed(() =>
       />
     </div>
 
-    <p
-      v-if="isLoading"
-      class="text-sm"
-    >
-      Loading…
-    </p>
-
     <UAlert
-      v-else-if="championError"
+      v-if="championError"
       color="error"
       variant="soft"
       title="Failed to load champion"

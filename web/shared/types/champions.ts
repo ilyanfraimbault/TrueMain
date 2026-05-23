@@ -12,13 +12,6 @@ export interface ChampionSummaryResponse {
   topBuild: ChampionSummaryTopBuild | null
 }
 
-export interface ChampionSummariesPagedResponse {
-  items: ChampionSummaryResponse[]
-  totalCount: number
-  page: number
-  pageSize: number
-}
-
 export interface ChampionSummaryTopBuild {
   firstItemId: number
   primaryKeystoneId: number
