@@ -505,8 +505,10 @@ function staticItem(id: number | undefined) {
             :total="totalCount"
             :items-per-page="PAGE_SIZE"
             :sibling-count="1"
-            color="primary"
+            color="neutral"
+            variant="ghost"
             active-color="primary"
+            active-variant="soft"
             @update:page="setPage"
           />
         </div>
