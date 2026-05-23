@@ -48,9 +48,6 @@ const subStyle: ComputedRef<StaticPerkStyleData | null> = computed(() => {
   return props.runeTree.perkStyles[self.value.subStyleId] ?? null
 })
 
-// Items 0..5 + trinket grouped together but visually separated by a small
-// gap before the trinket — matches the in-game inventory layout where the
-// trinket sits in its own slot.
 const inventoryItems = computed(() =>
   self.value.items.map(id => (id > 0 ? props.items[id] ?? null : null)),
 )
@@ -65,16 +62,14 @@ const relativeLabel = computed(() => formatRelativeTime(props.match.gameStartTim
 
 const kdaRatio = computed(() => {
   const { kills, deaths, assists } = self.value
-  return deaths === 0
-    ? 'Perfect'
-    : `${((kills + assists) / deaths).toFixed(1)} KDA`
+  if (deaths === 0) return 'Perfect'
+  return `${((kills + assists) / deaths).toFixed(2)} KDA`
 })
 
-const csTotal = computed(() => self.value.cs)
 const csPerMin = computed(() => {
   const minutes = props.match.gameDurationSeconds / 60
   if (minutes <= 0) return '0.0'
-  return (csTotal.value / minutes).toFixed(1)
+  return (self.value.cs / minutes).toFixed(1)
 })
 
 const kpPercent = computed(() => `${Math.round(self.value.killParticipation * 100)}%`)
@@ -84,22 +79,30 @@ const resultLabel = computed(() => (self.value.win ? 'Victory' : 'Defeat'))
 const lpDeltaText = computed(() => {
   const delta = self.value.lpDelta
   if (delta === null || delta === undefined) return null
-  if (delta > 0) return `+${delta} LP`
-  return `${delta} LP`
+  return delta > 0 ? `+${delta} LP` : `${delta} LP`
 })
+
+// Row-level tint: subtle emerald for wins, subtle red for losses. The
+// whole row picks up the colour rather than just the left strip, so the
+// win/loss pattern is readable at a glance when scanning a feed of 20+
+// matches. Numbers tuned low (8% / 7% alpha) so the row body still reads
+// as "card" — anything higher and the colour starts to fight the content.
+const rowTint = computed(() =>
+  self.value.win
+    ? 'bg-emerald-500/8 hover:bg-emerald-500/12'
+    : 'bg-red-500/8 hover:bg-red-500/12',
+)
 </script>
 
 <template>
   <article
-    class="group relative flex overflow-hidden rounded-lg bg-elevated/40 transition-colors hover:bg-elevated/70"
+    class="group relative flex overflow-hidden rounded-md transition-colors"
+    :class="rowTint"
     :aria-label="`${resultLabel} as ${championName}, ${self.kills}/${self.deaths}/${self.assists}`"
   >
-    <!--
-      Result strip: 4px vertical band on the left edge. Emerald for wins,
-      red for losses — the standard scoreboard cue. The body of the row
-      keeps neutral elevated/40 backgrounds so the result colour is the
-      only chromatic signal beyond the KDA/LP text.
-    -->
+    <!-- Result strip: 4px vertical band on the left edge, slightly more
+         saturated than the row tint so the eye still locks on the side
+         even when scanning quickly. -->
     <div
       class="w-1 shrink-0"
       :class="self.win ? 'bg-emerald-500' : 'bg-red-500'"
@@ -107,7 +110,7 @@ const lpDeltaText = computed(() => {
     />
 
     <div class="flex flex-1 items-center gap-3 px-3 py-2.5">
-      <!-- Meta column: result, queue, LP delta, duration, timestamp -->
+      <!-- Meta column: result + queue + LP + duration + timestamp -->
       <div class="flex w-[5.5rem] shrink-0 flex-col text-xs leading-tight">
         <div class="font-semibold" :class="self.win ? 'text-emerald-400' : 'text-red-400'">
           {{ resultLabel }}
@@ -130,75 +133,78 @@ const lpDeltaText = computed(() => {
         </div>
       </div>
 
-      <!-- Champion + level pill -->
-      <div class="relative shrink-0">
-        <SkeletonImage
-          :src="championIconUrl"
-          :alt="championName"
-          :title="championName"
-          class="size-12 rounded"
-        />
-        <span
-          class="absolute -bottom-1 -right-1 inline-flex size-4 items-center justify-center rounded-full bg-default text-[10px] font-bold leading-none ring-1 ring-default"
-        >
-          {{ self.championLevel }}
-        </span>
-      </div>
-
-      <!-- Summoner spells (stacked) -->
-      <div class="flex shrink-0 flex-col gap-0.5">
-        <GameTooltipSummonerSpellIcon
-          :spell="summoner1"
-          :width="22"
-          :height="22"
-          class="size-[22px] rounded"
-        />
-        <GameTooltipSummonerSpellIcon
-          :spell="summoner2"
-          :width="22"
-          :height="22"
-          class="size-[22px] rounded"
-        />
-      </div>
-
-      <!-- Runes (keystone bigger, secondary smaller) -->
-      <div class="flex shrink-0 flex-col items-center gap-0.5">
-        <GameTooltipPerkIcon
-          :perk="keystone"
-          :width="22"
-          :height="22"
-          class="size-[22px] rounded-full bg-black/50"
-        />
-        <GameTooltipPerkStyleIcon
-          :style="subStyle"
-          :width="18"
-          :height="18"
-          class="size-[18px]"
-        />
-      </div>
-
-      <!-- KDA centerpiece -->
-      <div class="flex min-w-[6rem] flex-col items-center">
-        <div class="text-lg font-bold leading-tight tabular-nums">
-          {{ self.kills }}
-          <span class="text-muted">/</span>
-          <span class="text-red-400">{{ self.deaths }}</span>
-          <span class="text-muted">/</span>
-          {{ self.assists }}
+      <!-- Loadout cluster: champion + level pill, summoner spells, runes -->
+      <div class="flex shrink-0 items-center gap-1.5">
+        <div class="relative">
+          <SkeletonImage
+            :src="championIconUrl"
+            :alt="championName"
+            :title="championName"
+            class="size-12 rounded"
+          />
+          <span
+            class="absolute -bottom-1 -right-1 inline-flex size-4 items-center justify-center rounded-full bg-default text-[10px] font-bold leading-none ring-1 ring-default"
+          >
+            {{ self.championLevel }}
+          </span>
         </div>
-        <div class="text-[11px] text-muted tabular-nums">
-          {{ kdaRatio }}
+        <div class="flex flex-col gap-0.5">
+          <GameTooltipSummonerSpellIcon
+            :spell="summoner1"
+            :width="22"
+            :height="22"
+            class="size-[22px] rounded"
+          />
+          <GameTooltipSummonerSpellIcon
+            :spell="summoner2"
+            :width="22"
+            :height="22"
+            class="size-[22px] rounded"
+          />
         </div>
-        <div class="text-[11px] text-muted tabular-nums">
-          {{ csTotal }} CS · {{ csPerMin }}/min
-        </div>
-        <div class="text-[11px] text-muted tabular-nums">
-          {{ kpPercent }} KP
+        <div class="flex flex-col items-center gap-0.5">
+          <GameTooltipPerkIcon
+            :perk="keystone"
+            :width="22"
+            :height="22"
+            class="size-[22px] rounded-full bg-black/40"
+          />
+          <GameTooltipPerkStyleIcon
+            :style="subStyle"
+            :width="18"
+            :height="18"
+            class="size-[18px]"
+          />
         </div>
       </div>
 
-      <!-- Items in one horizontal row of 6 + a small gap + trinket -->
-      <div class="flex shrink-0 items-center gap-2">
+      <!-- KDA + stats: two-column block. KDA on top with the ratio under
+           it; CS/m and KP stacked to the right so they share the vertical
+           rhythm of the KDA cluster. Tabular-nums everywhere so columns
+           visually align row-to-row. -->
+      <div class="flex shrink-0 items-start gap-3">
+        <div class="flex min-w-[5.5rem] flex-col items-center">
+          <div class="text-lg font-bold leading-tight tabular-nums">
+            {{ self.kills }}
+            <span class="text-muted/70">/</span>
+            <span class="text-red-400">{{ self.deaths }}</span>
+            <span class="text-muted/70">/</span>
+            {{ self.assists }}
+          </div>
+          <div class="text-[11px] font-semibold text-muted tabular-nums">
+            {{ kdaRatio }}
+          </div>
+        </div>
+        <div class="flex flex-col gap-0.5 text-[11px] text-muted tabular-nums">
+          <span>{{ csPerMin }} CS/m</span>
+          <span>{{ kpPercent }} KP</span>
+        </div>
+      </div>
+
+      <!-- Items: single row of 6 inventory slots + a small gap + trinket.
+           No background on the icons themselves — they sit on the row tint
+           directly, the way scoreboards usually render inventory. -->
+      <div class="flex shrink-0 items-center gap-1.5">
         <div class="flex gap-1">
           <GameTooltipItemIcon
             v-for="(item, idx) in inventoryItems"
@@ -206,25 +212,25 @@ const lpDeltaText = computed(() => {
             :item="item"
             :width="24"
             :height="24"
-            class="size-6 rounded bg-black/30"
+            class="size-6 rounded"
           />
         </div>
         <GameTooltipItemIcon
           :item="trinket"
           :width="24"
           :height="24"
-          class="size-6 rounded-full bg-black/30"
+          class="size-6 rounded-full"
         />
       </div>
 
-      <!-- MVP / ACE badge (right side, no VS thumbnails) -->
+      <!-- MVP / ACE badge anchored to the right -->
       <div class="ml-auto shrink-0">
         <span
           v-if="self.isMvp || self.isAce"
           class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold ring-1"
           :class="self.isMvp
-            ? 'bg-emerald-500/20 text-emerald-300 ring-emerald-500/40'
-            : 'bg-amber-500/20 text-amber-300 ring-amber-500/40'"
+            ? 'bg-emerald-500/25 text-emerald-200 ring-emerald-500/50'
+            : 'bg-amber-500/25 text-amber-200 ring-amber-500/50'"
         >
           {{ self.isMvp ? 'MVP' : 'ACE' }}
         </span>
