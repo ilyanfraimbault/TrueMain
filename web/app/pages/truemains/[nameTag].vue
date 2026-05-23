@@ -44,9 +44,6 @@ const {
 } = useTruemainMatches(nameTag, { pageSize: 10 })
 
 // ─── Static lookups for MatchRow + identity icon ───────────────────────────
-// Same patch-keyed pattern as pages/champions/[id].vue. We need the latest
-// patch for the profile icon URL (DDragon doesn't keep older patches'
-// profile icons fresh) and for the static maps.
 const { data: versions } = useDDragonVersions()
 const latestPatch = computed(() => versions.value?.[0] ?? null)
 
@@ -133,46 +130,55 @@ const staticBundleReady = computed(() =>
 </script>
 
 <template>
-  <main class="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 md:p-6">
+  <!--
+    Two-column layout on lg+. Left rail (20rem) collects the player-level
+    summary (identity, ranked, mains, roles); the right rail is the match
+    feed and stretches into the rest of the viewport. On smaller screens
+    everything stacks naturally — the grid collapses to a single column.
+
+    The container caps at 7xl (1280px); going wider starts to feel sparse
+    on ultrawide screens where the match rows can't get any denser without
+    more data per row.
+  -->
+  <main class="mx-auto w-full max-w-7xl p-4 md:p-6">
     <template v-if="profileNotFound">
       <ProfileNotFound :name-tag="nameTag" />
     </template>
-    <template v-else>
-      <!-- 1. Identity -->
-      <ProfileHeaderSkeleton v-if="profileLoading || !profile" />
-      <ProfileHeader
-        v-else
-        :identity="profile.identity"
-        :patch="latestPatch"
-      />
+    <div v-else class="grid gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
+      <!-- Left rail: identity + ranked + mains + roles -->
+      <aside class="flex flex-col gap-4">
+        <ProfileHeaderSkeleton v-if="profileLoading || !profile" />
+        <ProfileHeader
+          v-else
+          :identity="profile.identity"
+          :patch="latestPatch"
+        />
 
-      <!-- 2. Ranked -->
-      <ProfileRankedCardSkeleton v-if="profileLoading || !profile" />
-      <ProfileRankedCard v-else :ranked="profile.ranked" />
+        <ProfileRankedCardSkeleton v-if="profileLoading || !profile" />
+        <ProfileRankedCard v-else :ranked="profile.ranked" />
 
-      <!-- 3. Main champions -->
-      <ProfileMainChampionsSkeleton v-if="profileLoading || !profile" />
-      <ProfileMainChampions
-        v-else-if="profile.mains.length > 0"
-        :mains="profile.mains"
-        :champions="champions"
-      />
+        <ProfileMainChampionsSkeleton v-if="profileLoading || !profile" />
+        <ProfileMainChampions
+          v-else-if="profile.mains.length > 0"
+          :mains="profile.mains"
+          :champions="champions"
+        />
 
-      <!-- 4. Position breakdown -->
-      <ProfilePositionBreakdownSkeleton v-if="profileLoading || !profile" />
-      <ProfilePositionBreakdown
-        v-else
-        :positions="profile.positions"
-      />
+        <ProfilePositionBreakdownSkeleton v-if="profileLoading || !profile" />
+        <ProfilePositionBreakdown
+          v-else
+          :positions="profile.positions"
+        />
+      </aside>
 
-      <!-- 5. Recent matches -->
-      <section class="flex flex-col gap-3">
+      <!-- Right rail: recent matches feed -->
+      <section class="flex min-w-0 flex-col gap-3">
         <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
           Recent matches
         </h2>
 
         <template v-if="matchesInitialLoading || !staticBundleReady">
-          <MatchRowSkeleton v-for="i in 3" :key="`match-skel-${i}`" />
+          <MatchRowSkeleton v-for="i in 5" :key="`match-skel-${i}`" />
         </template>
         <template v-else-if="matchesNotFound || matches.length === 0">
           <MatchHistoryEmpty :not-found="matchesNotFound" />
@@ -198,6 +204,6 @@ const staticBundleReady = computed(() =>
           </UButton>
         </template>
       </section>
-    </template>
+    </div>
   </main>
 </template>
