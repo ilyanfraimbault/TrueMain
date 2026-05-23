@@ -62,7 +62,7 @@ const sorted = computed<RoleRow[]>(() =>
         <span class="text-xs text-muted tabular-nums">
           {{ role.games }} games
         </span>
-        <span class="w-12 text-right text-sm font-semibold tabular-nums text-emerald-300">
+        <span class="w-12 text-right text-sm font-semibold tabular-nums text-default">
           {{ Math.round(role.rate * 100) }}%
         </span>
       </li>

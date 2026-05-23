@@ -223,14 +223,20 @@ const rowTint = computed(() =>
         />
       </div>
 
-      <!-- MVP / ACE badge anchored to the right -->
+      <!--
+        MVP / ACE badge anchored to the right. Colours intentionally split:
+        MVP rides the "gold standard" amber that's universal across sports
+        / LoL trackers, while ACE picks up a cool sky so the two accolades
+        never blur into each other (and neither reuses the row-tint emerald
+        / red, which already carry the win/loss signal).
+      -->
       <div class="ml-auto shrink-0">
         <span
           v-if="self.isMvp || self.isAce"
           class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold ring-1"
           :class="self.isMvp
-            ? 'bg-emerald-500/25 text-emerald-200 ring-emerald-500/50'
-            : 'bg-amber-500/25 text-amber-200 ring-amber-500/50'"
+            ? 'bg-amber-400/25 text-amber-200 ring-amber-400/50'
+            : 'bg-sky-400/25 text-sky-200 ring-sky-400/50'"
         >
           {{ self.isMvp ? 'MVP' : 'ACE' }}
         </span>

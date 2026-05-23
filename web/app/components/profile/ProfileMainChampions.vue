@@ -45,7 +45,7 @@ function formatPlayRate(rate: number): string {
             </span>
             <span
               v-if="main.isOtp"
-              class="inline-flex items-center rounded-full bg-emerald-500/25 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-200 ring-1 ring-emerald-500/50"
+              class="inline-flex items-center rounded-full bg-amber-400/25 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-200 ring-1 ring-amber-400/50"
               title="One-trick pony"
             >
               OTP
@@ -63,7 +63,7 @@ function formatPlayRate(rate: number): string {
             <span>{{ main.games }} games</span>
           </div>
         </div>
-        <span class="shrink-0 text-sm font-semibold tabular-nums text-emerald-300">
+        <span class="shrink-0 text-sm font-semibold tabular-nums text-default">
           {{ formatPlayRate(main.playRate) }}
         </span>
       </li>
