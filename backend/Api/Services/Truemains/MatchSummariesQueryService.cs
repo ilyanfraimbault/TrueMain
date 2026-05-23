@@ -22,9 +22,16 @@ public sealed class MatchSummariesQueryService(
             return null;
         }
 
+        // Multi-platform name-tag disambiguation: a (gameName, tagLine) pair
+        // is unique within a Riot routing region but can collide across
+        // regions. Picking the most-recently-active row keeps this endpoint
+        // and `/truemains/{nameTag}/profile` (ProfileQueryService) aligned —
+        // both routes always resolve to the same account for a given name
+        // tag, so the user never lands on inconsistent profile vs. matches.
         var account = await db.RiotAccounts
             .AsNoTracking()
             .Where(a => a.GameName == parsed.GameName && a.TagLine == parsed.TagLine)
+            .OrderByDescending(a => a.LastMatchIngestAtUtc ?? a.UpdatedAtUtc)
             .Select(a => new { a.Id, a.Puuid })
             .FirstOrDefaultAsync(ct);
 

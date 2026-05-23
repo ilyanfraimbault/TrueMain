@@ -1,0 +1,160 @@
+using Data;
+using Microsoft.EntityFrameworkCore;
+using TrueMain.ReadModels.Truemains;
+
+namespace TrueMain.Services.Truemains;
+
+public sealed class ProfileQueryService(
+    TrueMainDbContext db,
+    ILogger<ProfileQueryService> logger) : IProfileQueryService
+{
+    private const int MainChampionsCap = 6;
+
+    public async Task<ProfileReadModel?> GetAsync(string nameTag, CancellationToken ct)
+    {
+        if (!NameTagParser.TryParse(nameTag, out var parsed))
+        {
+            return null;
+        }
+
+        // Multi-platform name-tag disambiguation: a (gameName, tagLine) pair
+        // is unique within a Riot routing region but can collide across
+        // regions (rare but real). Picking the most-recently-active row
+        // matches what a human looking for "this player" would expect, and
+        // mirrors the resolver used by the matches endpoint so both routes
+        // always land on the same account.
+        var account = await db.RiotAccounts
+            .AsNoTracking()
+            .Where(a => a.GameName == parsed.GameName && a.TagLine == parsed.TagLine)
+            .OrderByDescending(a => a.LastMatchIngestAtUtc ?? a.UpdatedAtUtc)
+            .Select(a => new
+            {
+                a.Id,
+                a.Puuid,
+                a.GameName,
+                a.TagLine,
+                a.PlatformId,
+                a.ProfileIconId,
+                a.SummonerLevel,
+            })
+            .FirstOrDefaultAsync(ct);
+
+        if (account is null)
+        {
+            return null;
+        }
+
+        var snapshot = await db.RankSnapshots
+            .AsNoTracking()
+            .Where(s => s.RiotAccountId == account.Id)
+            .OrderByDescending(s => s.CapturedAtUtc)
+            .Select(s => new
+            {
+                s.Tier,
+                s.Division,
+                s.LeaguePoints,
+                s.Wins,
+                s.Losses,
+            })
+            .FirstOrDefaultAsync(ct);
+
+        // The repository's helper is keyed on (platformId, puuid) — we
+        // intentionally use the same identity here instead of RiotAccountId
+        // because that's the natural key the ingestor writes against.
+        var mains = await db.MainChampionStats
+            .AsNoTracking()
+            .Where(m => m.PlatformId == account.PlatformId && m.Puuid == account.Puuid && m.IsMain)
+            .OrderByDescending(m => m.PlayRate)
+            .ThenByDescending(m => m.ChampionMatches)
+            .Take(MainChampionsCap)
+            .Select(m => new
+            {
+                m.ChampionId,
+                m.ChampionMatches,
+                m.PlayRate,
+                m.PrimaryPosition,
+                m.IsOtp,
+                m.PositionBreakdown,
+            })
+            .ToListAsync(ct);
+
+        // Aggregate position breakdown across the top mains. The per-champion
+        // entries already sum to that champion's games, so summing the
+        // Games across mains gives a fair "where did this player play"
+        // distribution scoped to the cards we're showing — not the
+        // account's full lifetime, which would over-weight off-role pool
+        // champions the analysis chose to drop.
+        var positionSums = mains
+            .SelectMany(m => m.PositionBreakdown)
+            .Where(p => !string.IsNullOrWhiteSpace(p.Position))
+            .GroupBy(p => p.Position)
+            .Select(g => new { Position = g.Key, Games = g.Sum(x => x.Games) })
+            .OrderByDescending(p => p.Games)
+            .ToList();
+
+        var totalPositionGames = positionSums.Sum(p => p.Games);
+
+        var positions = positionSums
+            .Select(p => new ProfilePositionStatReadModel
+            {
+                Position = p.Position,
+                Games = p.Games,
+                Rate = totalPositionGames == 0 ? 0d : (double)p.Games / totalPositionGames,
+            })
+            .ToList();
+
+        var ranked = snapshot is null
+            ? null
+            : new ProfileRankedReadModel
+            {
+                Tier = snapshot.Tier,
+                Division = snapshot.Division,
+                LeaguePoints = snapshot.LeaguePoints,
+                Wins = snapshot.Wins,
+                Losses = snapshot.Losses,
+                WinRate = ComputeWinRate(snapshot.Wins, snapshot.Losses),
+            };
+
+        logger.LogInformation(
+            "[truemain-profile] nameTag={NameTag} account_id={AccountId} mains={MainCount} ranked={Ranked}",
+            nameTag,
+            account.Id,
+            mains.Count,
+            ranked is null ? "none" : ranked.Tier);
+
+        return new ProfileReadModel
+        {
+            Identity = new ProfileIdentityReadModel
+            {
+                GameName = account.GameName,
+                TagLine = account.TagLine,
+                PlatformId = account.PlatformId,
+                ProfileIconId = account.ProfileIconId,
+                SummonerLevel = account.SummonerLevel,
+            },
+            Ranked = ranked,
+            Mains = mains
+                .Select(m => new ProfileMainChampionReadModel
+                {
+                    ChampionId = m.ChampionId,
+                    Games = m.ChampionMatches,
+                    PlayRate = m.PlayRate,
+                    PrimaryPosition = m.PrimaryPosition,
+                    IsOtp = m.IsOtp,
+                })
+                .ToList(),
+            Positions = positions,
+        };
+    }
+
+    private static double? ComputeWinRate(int? wins, int? losses)
+    {
+        if (wins is null || losses is null)
+        {
+            return null;
+        }
+
+        var total = wins.Value + losses.Value;
+        return total == 0 ? null : (double)wins.Value / total;
+    }
+}
