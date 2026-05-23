@@ -47,9 +47,18 @@ public sealed class MatchSummariesQueryService(
         // when it lands directly on a deep page via the URL. Filtered to the
         // same predicate as the data query — we never want the count and the
         // list to disagree about which matches "belong to" this player.
+        //
+        // Arena (CHERRY game mode — queues 1700 / 1710 / 1750) is excluded
+        // from the truemain match history feed. The feed surfaces a
+        // player's serious-play track record (ranked / normals on Summoner's
+        // Rift + ARAM); Arena rounds are short, KDA-distorted, and noisy in
+        // a Riot-ID-level overview. They still ingest into the DB so other
+        // surfaces (per-mode analytics, future Arena tab) can opt in later
+        // without a re-ingest.
         var matchesQuery = db.Matches
             .AsNoTracking()
-            .Where(m => m.Participants.Any(p => p.Puuid == account.Puuid));
+            .Where(m => m.Participants.Any(p => p.Puuid == account.Puuid))
+            .Where(m => m.GameMode != "CHERRY");
 
         var total = await matchesQuery.CountAsync(ct);
         if (total == 0)
