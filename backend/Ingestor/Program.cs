@@ -7,6 +7,7 @@ using Ingestor.Processes.Components.Discovery;
 using Ingestor.Processes.Components.MainAnalysis;
 using Ingestor.Processes.Components.MatchIngestion;
 using Ingestor.Processes.Components.PatternAggregation;
+using Ingestor.Ranking;
 using Ingestor.Riot;
 using Ingestor.Services;
 using Microsoft.EntityFrameworkCore;
@@ -26,6 +27,7 @@ builder.Services.AddHttpClient<IRiotAccountClient, RiotAccountClient>();
 builder.Services.AddScoped<ILadderDiscoveryService, LadderDiscoveryService>();
 builder.Services.AddScoped<IAccountUpsertService, AccountUpsertService>();
 builder.Services.AddScoped<ICandidateUpsertService, CandidateUpsertService>();
+builder.Services.AddScoped<IRankSnapshotWriter, RankSnapshotWriter>();
 
 builder.Services.AddScoped<IMatchClaimService, MatchClaimService>();
 builder.Services.AddScoped<IMatchSnapshotWriter, MatchSnapshotWriter>();

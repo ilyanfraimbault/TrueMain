@@ -4,6 +4,7 @@ using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.Discovery;
+using Ingestor.Ranking;
 using Ingestor.Riot;
 using Ingestor.Services;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -23,6 +24,7 @@ public sealed class DiscoveryProcessNoOpTests
         var ladderDiscoveryService = Substitute.For<ILadderDiscoveryService>();
         var accountUpsertService = Substitute.For<IAccountUpsertService>();
         var candidateUpsertService = Substitute.For<ICandidateUpsertService>();
+        var rankSnapshotWriter = Substitute.For<IRankSnapshotWriter>();
 
         var process = new DiscoveryProcess(
             NullLogger<DiscoveryProcess>.Instance,
@@ -31,6 +33,7 @@ public sealed class DiscoveryProcessNoOpTests
             ladderDiscoveryService,
             accountUpsertService,
             candidateUpsertService,
+            rankSnapshotWriter,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
                 Platforms = [" ", "  "]
