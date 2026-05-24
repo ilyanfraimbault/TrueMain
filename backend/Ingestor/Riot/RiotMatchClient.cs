@@ -45,7 +45,14 @@ public sealed class RiotMatchClient : IRiotMatchClient
     public Task<List<string>> GetMatchIdsAsync(string puuid, RegionalRoute region, int count, CancellationToken ct)
     {
         var safeCount = Math.Max(1, count);
-        var uri = BuildRegionalUri(region, $"/lol/match/v5/matches/by-puuid/{puuid}/ids?count={safeCount}");
+        // type=ranked filters at the source so the ingestor never burns
+        // requests fetching Arena / ARAM / normal / co-op-vs-AI rounds —
+        // those modes are not used by any downstream surface (champion
+        // aggregates use queue 420 only, the truemain match feed wants
+        // ranked play). Saves both Riot API rate and the per-match
+        // /matches/{id} round trip MatchSnapshotWriter would do for each
+        // returned id.
+        var uri = BuildRegionalUri(region, $"/lol/match/v5/matches/by-puuid/{puuid}/ids?count={safeCount}&type=ranked");
         return _httpExecutor.GetAsync<List<string>>(_httpClient, uri, _options.MaxRetryAttempts, nameof(RiotMatchClient), ct);
     }
 

@@ -45,3 +45,12 @@ export function getChampionSpellImageUrl(imageFileName: string, patch?: string |
 export function getPositionIconUrl(position: string): string {
   return `/positions/icon-position-${position.toLowerCase()}.png`
 }
+
+export function getProfileIconUrl(profileIconId: number, patch?: string | null): string | null {
+  const normalizedPatch = normalizeDataDragonPatch(patch)
+  if (!normalizedPatch) {
+    return null
+  }
+
+  return `https://ddragon.leagueoflegends.com/cdn/${normalizedPatch}/img/profileicon/${profileIconId}.png`
+}

@@ -107,13 +107,21 @@ public sealed class MatchSummaryParticipantReadModel
 }
 
 /// <summary>
-/// Paged response shape — <see cref="NextBefore"/> is the cursor to pass
-/// back as <c>?before=</c> on the next request. Null when no more rows.
+/// Paged response shape. <see cref="Total"/> is the count of matches
+/// available for the player across all pages — the frontend uses it to
+/// drive a classic page-number pagination control instead of a cursor.
 /// </summary>
 public sealed class MatchSummariesResponse
 {
     public IReadOnlyList<MatchSummaryReadModel> Matches { get; init; }
         = Array.Empty<MatchSummaryReadModel>();
 
-    public DateTime? NextBefore { get; init; }
+    /// <summary>1-indexed current page.</summary>
+    public int Page { get; init; }
+
+    /// <summary>Number of matches per page (the value the service clamped to).</summary>
+    public int PageSize { get; init; }
+
+    /// <summary>Total matches for the player across all pages.</summary>
+    public int Total { get; init; }
 }

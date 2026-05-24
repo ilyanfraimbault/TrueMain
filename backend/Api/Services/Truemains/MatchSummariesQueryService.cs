@@ -13,8 +13,10 @@ public sealed class MatchSummariesQueryService(
 
     public async Task<MatchSummariesResponse?> GetAsync(
         string nameTag,
-        int limit,
-        DateTime? before,
+        int page,
+        int pageSize,
+        string? position,
+        int? championId,
         CancellationToken ct)
     {
         if (!NameTagParser.TryParse(nameTag, out var parsed))
@@ -22,9 +24,35 @@ public sealed class MatchSummariesQueryService(
             return null;
         }
 
+        // Normalize the position filter once. The DB stores team positions
+        // as upper-case Riot strings (TOP/JUNGLE/MIDDLE/BOTTOM/UTILITY);
+        // any other value clamps to null so a bogus query param doesn't
+        // wedge the comparison.
+        var normalizedPosition = string.IsNullOrWhiteSpace(position)
+            ? null
+            : position.Trim().ToUpperInvariant();
+        if (normalizedPosition is not null
+            && normalizedPosition != "TOP"
+            && normalizedPosition != "JUNGLE"
+            && normalizedPosition != "MIDDLE"
+            && normalizedPosition != "BOTTOM"
+            && normalizedPosition != "UTILITY")
+        {
+            normalizedPosition = null;
+        }
+
+        var championFilter = championId is > 0 ? championId : null;
+
+        // Multi-platform name-tag disambiguation: a (gameName, tagLine) pair
+        // is unique within a Riot routing region but can collide across
+        // regions. Picking the most-recently-active row keeps this endpoint
+        // and `/truemains/{nameTag}/profile` (ProfileQueryService) aligned —
+        // both routes always resolve to the same account for a given name
+        // tag, so the user never lands on inconsistent profile vs. matches.
         var account = await db.RiotAccounts
             .AsNoTracking()
             .Where(a => a.GameName == parsed.GameName && a.TagLine == parsed.TagLine)
+            .OrderByDescending(a => a.LastMatchIngestAtUtc ?? a.UpdatedAtUtc)
             .Select(a => new { a.Id, a.Puuid })
             .FirstOrDefaultAsync(ct);
 
@@ -33,23 +61,54 @@ public sealed class MatchSummariesQueryService(
             return null;
         }
 
-        var pageSize = limit <= 0 ? DefaultPageSize : Math.Min(limit, MaxPageSize);
+        var clampedPageSize = pageSize <= 0 ? DefaultPageSize : Math.Min(pageSize, MaxPageSize);
+        var clampedPage = page < 1 ? 1 : page;
 
-        // Page of matches the player participated in, newest first. Take one
-        // extra row to know whether there's another page without a separate
-        // count query.
+        // Total first so the frontend can render the pagination control even
+        // when it lands directly on a deep page via the URL. Filtered to the
+        // same predicate as the data query — we never want the count and the
+        // list to disagree about which matches "belong to" this player.
+        //
+        // The ingestor now pulls match ids with `type=ranked` at the Riot
+        // source so nothing non-ranked enters the DB going forward. But
+        // historical CHERRY (Arena) rows pre-date that change and still
+        // live in `matches` — we keep them on disk on purpose (no
+        // destructive cleanup) but exclude them from the aggregations and
+        // visible feeds so Arena rounds don't pollute a user's "what
+        // games have I played" view. The other aggregation surface —
+        // MainChampionStat — already filters to QueueId=420 in
+        // MainStatsCalculator, so the sidebar mains / role distribution
+        // were never affected.
+        //
+        // Position / champion filters live on the same `Any(...)` clause so
+        // the count and the page slice share a single predicate. Both apply
+        // to the self participant in the match — `p.Puuid == account.Puuid`
+        // narrows to that row, and the optional extras filter on its
+        // championId / teamPosition.
         var matchesQuery = db.Matches
             .AsNoTracking()
-            .Where(m => m.Participants.Any(p => p.Puuid == account.Puuid));
+            .Where(m => m.GameMode != "CHERRY")
+            .Where(m => m.Participants.Any(p =>
+                p.Puuid == account.Puuid
+                && (championFilter == null || p.ChampionId == championFilter)
+                && (normalizedPosition == null || p.TeamPosition == normalizedPosition)));
 
-        if (before.HasValue)
+        var total = await matchesQuery.CountAsync(ct);
+        if (total == 0)
         {
-            matchesQuery = matchesQuery.Where(m => m.GameStartTimeUtc < before.Value);
+            return new MatchSummariesResponse
+            {
+                Matches = Array.Empty<MatchSummaryReadModel>(),
+                Page = 1,
+                PageSize = clampedPageSize,
+                Total = 0,
+            };
         }
 
         var matchRows = await matchesQuery
             .OrderByDescending(m => m.GameStartTimeUtc)
-            .Take(pageSize + 1)
+            .Skip((clampedPage - 1) * clampedPageSize)
+            .Take(clampedPageSize)
             .Select(m => new MatchRow(
                 m.Id,
                 m.QueueId,
@@ -58,18 +117,17 @@ public sealed class MatchSummariesQueryService(
                 m.GameDurationSeconds))
             .ToListAsync(ct);
 
-        var hasMore = matchRows.Count > pageSize;
-        if (hasMore)
-        {
-            matchRows = matchRows.Take(pageSize).ToList();
-        }
-
         if (matchRows.Count == 0)
         {
+            // Requested page is past the last one. Return an empty page with
+            // the real total so the frontend's pagination control still
+            // resolves to a valid range.
             return new MatchSummariesResponse
             {
                 Matches = Array.Empty<MatchSummaryReadModel>(),
-                NextBefore = null,
+                Page = clampedPage,
+                PageSize = clampedPageSize,
+                Total = total,
             };
         }
 
@@ -254,14 +312,12 @@ public sealed class MatchSummariesQueryService(
             });
         }
 
-        var nextBefore = hasMore && matches.Count > 0
-            ? matches[^1].GameStartTimeUtc
-            : (DateTime?)null;
-
         return new MatchSummariesResponse
         {
             Matches = matches,
-            NextBefore = nextBefore,
+            Page = clampedPage,
+            PageSize = clampedPageSize,
+            Total = total,
         };
     }
 
