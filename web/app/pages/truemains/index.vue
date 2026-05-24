@@ -76,18 +76,6 @@ async function setChampionId(next: number | null) {
   await router.replace({ query: nextQuery })
 }
 
-// Single replace so the three filter clears land atomically — emitting
-// three separate update:* events would race the router.replace calls
-// against each other and the last one would overwrite the earlier wins.
-async function clearFilters() {
-  const nextQuery = { ...route.query }
-  delete nextQuery.region
-  delete nextQuery.position
-  delete nextQuery.championId
-  delete nextQuery.page
-  await router.replace({ query: nextQuery })
-}
-
 // ─── Leaderboard fetch ────────────────────────────────────────────────────
 const {
   rows,
@@ -150,7 +138,6 @@ const championsById = computed(() => {
       @update:region="setRegion"
       @update:position="setPosition"
       @update:champion-id="setChampionId"
-      @clear="clearFilters"
     />
 
     <ClientOnly>
