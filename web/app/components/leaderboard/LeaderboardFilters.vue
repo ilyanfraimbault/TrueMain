@@ -61,27 +61,25 @@ const hasAnyFilter = computed(() =>
       @update:position="value => emit('update:position', value)"
     />
 
-    <!-- Champion search: middle slot, fixed at a comfortable width. The
-         arbitrary variant centres the placeholder + selected label inside
-         the trigger so the field reads as a "search" field rather than a
-         left-aligned form input. -->
+    <!-- Champion search: middle slot. `mx-auto` on a single flex item
+         pushes equal auto margin on both sides, centring the picker in the
+         space left over by the position pills (left) and the region select
+         (right). -->
     <ChampionPicker
       :champions="champions"
       :champion-id="championId"
       placeholder="Search for a champion"
-      trigger-class="w-64 [&_[data-slot=placeholder]]:flex-1 [&_[data-slot=placeholder]]:text-center [&_[data-slot=label]]:flex-1 [&_[data-slot=label]]:text-center"
+      trigger-class="mx-auto w-64"
       @update:champion-id="value => emit('update:championId', value)"
     />
 
     <!-- Region: rightmost, single dropdown so the strip stays compact and
-         each region is reachable in one click. ml-auto pushes it to the
-         right edge so the layout reads position | champion | … | region
-         left-to-right. The flag renders in both the trigger and the option
-         rows via USelectMenu slots. -->
+         each region is reachable in one click. The flag renders in both the
+         trigger and the option rows via USelectMenu slots. -->
     <USelectMenu
       :model-value="selectedRegion"
       :items="REGION_OPTIONS"
-      class="ml-auto w-40"
+      class="w-40"
       @update:model-value="onRegionChange"
     >
       <template #leading>
