@@ -1,12 +1,15 @@
 using System.Diagnostics;
 using Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using TrueMain.Options;
 using TrueMain.ReadModels.Truemains;
 
 namespace TrueMain.Services.Truemains;
 
 public sealed class TruemainsLeaderboardQueryService(
     TrueMainDbContext db,
+    IOptions<TruemainsLeaderboardOptions> options,
     ILogger<TruemainsLeaderboardQueryService> logger) : ITruemainsLeaderboardQueryService
 {
     private const int DefaultPageSize = 25;
@@ -48,15 +51,16 @@ public sealed class TruemainsLeaderboardQueryService(
         }
 
         var hasMainFilter = championFilter.HasValue || normalizedPosition is not null;
+        var minGames = Math.Max(0, options.Value.MinRankedGames);
 
-        var total = await CountAsync(platforms, hasMainFilter, championFilter, normalizedPosition, ct);
+        var total = await CountAsync(platforms, hasMainFilter, championFilter, normalizedPosition, minGames, ct);
         if (total == 0)
         {
             return Empty(clampedPage, clampedPageSize);
         }
 
         var pageRows = await FetchPageAsync(
-            platforms, hasMainFilter, championFilter, normalizedPosition, offset, clampedPageSize, ct);
+            platforms, hasMainFilter, championFilter, normalizedPosition, minGames, offset, clampedPageSize, ct);
         if (pageRows.Count == 0)
         {
             // The caller asked for a page past the end. Return an empty slice
@@ -128,8 +132,8 @@ public sealed class TruemainsLeaderboardQueryService(
 
         totalSw.Stop();
         logger.LogInformation(
-            "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} rows={Rows} total={Total} elapsed={ElapsedMs}ms",
-            clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter,
+            "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} rows={Rows} total={Total} elapsed={ElapsedMs}ms",
+            clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames,
             rows.Count, total, totalSw.ElapsedMilliseconds);
 
         return new LeaderboardResponse
@@ -146,6 +150,7 @@ public sealed class TruemainsLeaderboardQueryService(
         bool hasMainFilter,
         int? championFilter,
         string? position,
+        int minGames,
         CancellationToken ct)
     {
         // The two filters can both be null — when neither is set the
@@ -161,6 +166,14 @@ public sealed class TruemainsLeaderboardQueryService(
                   SELECT 1 FROM rank_snapshots rs
                   WHERE rs."RiotAccountId" = a."Id"
               )
+              AND ({minGames} = 0 OR (
+                  SELECT COUNT(*)::int
+                  FROM match_participants p
+                  INNER JOIN matches m ON m."Id" = p."MatchId"
+                  WHERE p."Puuid" = a."Puuid"
+                    AND m."QueueId" = {RankedQueueId}
+                    AND m."GameMode" <> 'CHERRY'
+              ) >= {minGames})
               AND ({hasMainFilter} = false OR EXISTS (
                   SELECT 1 FROM main_champion_stats m
                   WHERE m."PlatformId" = a."PlatformId"
@@ -179,6 +192,7 @@ public sealed class TruemainsLeaderboardQueryService(
         bool hasMainFilter,
         int? championFilter,
         string? position,
+        int minGames,
         int offset,
         int pageSize,
         CancellationToken ct)
@@ -216,6 +230,14 @@ public sealed class TruemainsLeaderboardQueryService(
             FROM riot_accounts a
             INNER JOIN latest_snapshot ls ON ls."RiotAccountId" = a."Id"
             WHERE a."PlatformId" = ANY ({0})
+              AND ({6} = 0 OR (
+                  SELECT COUNT(*)::int
+                  FROM match_participants p
+                  INNER JOIN matches m ON m."Id" = p."MatchId"
+                  WHERE p."Puuid" = a."Puuid"
+                    AND m."QueueId" = {{RankedQueueId}}
+                    AND m."GameMode" <> 'CHERRY'
+              ) >= {6})
               AND ({1} = false OR EXISTS (
                   SELECT 1 FROM main_champion_stats m
                   WHERE m."PlatformId" = a."PlatformId"
@@ -235,7 +257,8 @@ public sealed class TruemainsLeaderboardQueryService(
             (object?)championFilter ?? DBNull.Value,
             (object?)position ?? DBNull.Value,
             pageSize,
-            offset);
+            offset,
+            minGames);
 
         return await db.Database.SqlQuery<PageRow>(sql).ToListAsync(ct);
     }

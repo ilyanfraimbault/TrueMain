@@ -10,13 +10,14 @@ const props = defineProps<{
 
 const dim = computed(() => props.size ?? 28)
 
-// Lowercase tier name maps directly to the asset filename for every Riot
-// tier (iron / bronze / ... / master / grandmaster / challenger). Unknown
-// tiers render as a transparent placeholder so the row layout doesn't shift.
+// `ranked-emblem/emblem-<tier>.png` has the full set including EMERALD —
+// the older `ranked-mini-crests/` directory is missing emerald.png so
+// post-2023 tiers fall back to a broken image there. IPX downscales the
+// emblem from its native ~256px down to whatever size we render at.
 const iconUrl = computed(() => {
   const tier = props.tier?.trim().toLowerCase()
   if (!tier) return null
-  return `https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-static-assets/global/default/images/ranked-mini-crests/${tier}.png`
+  return `https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-static-assets/global/default/images/ranked-emblem/emblem-${tier}.png`
 })
 </script>
 

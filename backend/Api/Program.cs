@@ -52,6 +52,8 @@ builder.Services.AddOptions<OpsOptions>()
     .Bind(builder.Configuration.GetSection("Ops"))
     .ValidateDataAnnotations()
     .ValidateOnStart();
+builder.Services.AddOptions<TruemainsLeaderboardOptions>()
+    .Bind(builder.Configuration.GetSection(TruemainsLeaderboardOptions.SectionName));
 builder.Services.AddOptions<DatabaseOptions>()
     .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName));
 

@@ -53,9 +53,6 @@ function championIcon(id: number): string | null {
       #{{ row.rank }}
     </span>
 
-    <!-- Region flag (sits before avatar so the eye picks up region at a glance). -->
-    <LeaderboardRegionFlag :region="row.region" :width="24" />
-
     <!-- Avatar -->
     <SkeletonImage
       v-if="profileIconUrl"
@@ -67,15 +64,13 @@ function championIcon(id: number): string | null {
     />
     <div v-else class="size-10 shrink-0 rounded bg-elevated/60" aria-hidden="true" />
 
-    <!-- Name + tag + level -->
+    <!-- Name + tag, region flag sits under the name as a small badge. -->
     <div class="min-w-0 flex-1">
       <div class="flex items-baseline gap-1 truncate">
         <span class="truncate font-semibold text-default">{{ row.identity.gameName }}</span>
         <span v-if="row.identity.tagLine" class="text-xs text-muted">#{{ row.identity.tagLine }}</span>
       </div>
-      <div class="text-xs text-muted">
-        Lvl {{ row.identity.summonerLevel }}
-      </div>
+      <LeaderboardRegionFlag :region="row.region" :width="18" class="mt-0.5" />
     </div>
 
     <!-- Rank emblem + LP. Division is shown as a small Roman numeral after
@@ -92,8 +87,13 @@ function championIcon(id: number): string | null {
       </div>
     </div>
 
-    <!-- Top 3 champions -->
-    <div class="hidden shrink-0 items-center gap-1 md:flex">
+    <!-- Top champions (up to 3). No placeholders when the player has no
+         main-champion stats — the column simply collapses and the right
+         stats block slides left, which keeps the row visually honest. -->
+    <div
+      v-if="row.topChampions.length > 0"
+      class="hidden shrink-0 items-center gap-1 md:flex"
+    >
       <template v-for="champ in row.topChampions" :key="champ.championId">
         <SkeletonImage
           v-if="championIcon(champ.championId)"
@@ -111,13 +111,6 @@ function championIcon(id: number): string | null {
           aria-hidden="true"
         />
       </template>
-      <!-- Fill empty slots so the row keeps its width when a player has < 3 mains. -->
-      <div
-        v-for="i in Math.max(0, 3 - row.topChampions.length)"
-        :key="`fill-${i}`"
-        class="size-7 rounded bg-elevated/30"
-        aria-hidden="true"
-      />
     </div>
 
     <!-- Games / KDA / WR -->
