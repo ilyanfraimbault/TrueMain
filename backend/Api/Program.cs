@@ -8,6 +8,7 @@ using TrueMain.Authentication;
 using TrueMain.Options;
 using TrueMain.Services.Champions;
 using TrueMain.Services.Ops;
+using TrueMain.Services.Truemains;
 
 var builder = WebApplication.CreateBuilder(args);
 const string frontendCorsPolicy = "FrontendCors";
@@ -82,6 +83,7 @@ builder.Services.AddRateLimiter(options =>
 });
 builder.Services.AddScoped<IChampionSummariesQueryService, ChampionSummariesQueryService>();
 builder.Services.AddScoped<IChampionBuildsQueryService, ChampionBuildsQueryService>();
+builder.Services.AddScoped<IMatchSummariesQueryService, MatchSummariesQueryService>();
 builder.Services.AddScoped<IPipelineHealthQueryService, PipelineHealthQueryService>();
 builder.Services.AddDbContext<TrueMainDbContext>(options =>
 {
