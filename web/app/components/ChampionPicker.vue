@@ -7,14 +7,16 @@ import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 const props = defineProps<{
   champions: ChampionStaticListItem[]
   championId: number | null
+  /** Placeholder shown when no champion is selected. */
+  placeholder?: string
   /**
-   * Tailwind class controlling the select trigger's width. Defaults to a
-   * fixed `w-44` (compact, matches the match-history filter strip); pass
-   * `w-full` (with a flex-1 wrapper) when the picker should stretch to
-   * fill the remaining horizontal space — the leaderboard filters use it
-   * so the search field grows with the viewport.
+   * Tailwind classes applied to the USelectMenu trigger button. Defaults
+   * to a compact `w-44` (matches the match-history filter strip). Pass
+   * `w-full` (inside a flex-1 wrapper) or a wider fixed value when the
+   * picker should grow — the leaderboard filters use it to align text
+   * centred via the placeholder data-slot arbitrary variant.
    */
-  width?: string
+  triggerClass?: string
 }>()
 
 const emit = defineEmits<{
@@ -43,10 +45,10 @@ function onChange(value: { value: number } | undefined) {
   <USelectMenu
     :model-value="selectedChampion"
     :items="championItems"
-    placeholder="Any champion"
+    :placeholder="placeholder ?? 'Any champion'"
     searchable
     searchable-placeholder="Search champion…"
-    :class="props.width ?? 'w-44'"
+    :class="triggerClass ?? 'w-44'"
     @update:model-value="onChange"
   />
 </template>

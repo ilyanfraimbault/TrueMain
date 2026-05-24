@@ -61,13 +61,15 @@ const hasAnyFilter = computed(() =>
       @update:position="value => emit('update:position', value)"
     />
 
-    <!-- Champion search: middle slot, fixed at a comfortable width. Was
-         flex-1 originally — it stretched to the viewport edge which felt
-         oversized for a single-line picker. -->
+    <!-- Champion search: middle slot, fixed at a comfortable width. The
+         arbitrary variant centres the placeholder + selected label inside
+         the trigger so the field reads as a "search" field rather than a
+         left-aligned form input. -->
     <ChampionPicker
       :champions="champions"
       :champion-id="championId"
-      width="w-56"
+      placeholder="Search for a champion"
+      trigger-class="w-64 [&_[data-slot=placeholder]]:flex-1 [&_[data-slot=placeholder]]:text-center [&_[data-slot=label]]:flex-1 [&_[data-slot=label]]:text-center"
       @update:champion-id="value => emit('update:championId', value)"
     />
 
