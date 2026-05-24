@@ -67,24 +67,21 @@ function championIcon(id: number): string | null {
     <!-- Name + tag, region flag sits under the name as a small badge. -->
     <div class="min-w-0 flex-1">
       <div class="flex items-baseline gap-1 truncate">
-        <span class="truncate font-semibold text-default">{{ row.identity.gameName }}</span>
+        <span class="truncate font-bold text-default">{{ row.identity.gameName }}</span>
         <span v-if="row.identity.tagLine" class="text-xs text-muted">#{{ row.identity.tagLine }}</span>
       </div>
       <LeaderboardRegionFlag :region="row.region" :width="18" class="mt-0.5" />
     </div>
 
-    <!-- Rank emblem + LP. Division is shown as a small Roman numeral after
-         the emblem for non-apex tiers (Master+ ignore division). -->
-    <div v-if="ranked" class="flex w-28 shrink-0 items-center justify-end gap-2">
+    <!-- Rank emblem. Division is shown as a small Roman numeral next to
+         the icon for non-apex tiers (Master+ ignore division). LP is
+         intentionally omitted — rows are already sorted by it, the number
+         itself was noise. -->
+    <div v-if="ranked" class="flex shrink-0 items-center gap-1.5">
       <RankIcon :tier="ranked.tier" :size="28" />
-      <div class="flex flex-col items-end leading-tight">
-        <span v-if="showDivision" class="text-[10px] uppercase tracking-wide text-muted">
-          {{ ranked.division }}
-        </span>
-        <span class="text-sm font-semibold tabular-nums text-default">
-          {{ ranked.leaguePoints }} LP
-        </span>
-      </div>
+      <span v-if="showDivision" class="text-xs uppercase tracking-wide text-muted">
+        {{ ranked.division }}
+      </span>
     </div>
 
     <!-- Top champions (up to 3). No placeholders when the player has no
