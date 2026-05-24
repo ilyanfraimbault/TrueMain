@@ -13,13 +13,10 @@ function summonerName(id: number): string {
 </script>
 
 <template>
-  <div>
-    <h2 class="text-sm font-medium text-muted">
-      Summoners
-    </h2>
+  <SectionCard title="Summoners">
     <div
       v-if="summoners"
-      class="mt-2 flex items-center gap-1"
+      class="flex items-center gap-1"
     >
       <GameTooltipSummonerSpellIcon
         v-for="spellId in [summoners.spell1Id, summoners.spell2Id]"
@@ -33,9 +30,9 @@ function summonerName(id: number): string {
     </div>
     <p
       v-else
-      class="mt-2 text-sm text-muted"
+      class="text-sm text-muted"
     >
       No data
     </p>
-  </div>
+  </SectionCard>
 </template>
