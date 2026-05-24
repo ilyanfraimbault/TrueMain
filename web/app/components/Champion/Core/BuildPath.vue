@@ -16,16 +16,8 @@ const items = computed<StaticItemData[]>(() => {
 </script>
 
 <template>
-  <!-- Reserve room for the worst case (6 items + 5 chevrons) on the
-       outer block so the BuildPath footprint stays constant across tabs.
-       items-center keeps the actual items centred inside that footprint
-       — without it a shorter chain hugs the left edge of the wider block
-       and visually drifts off the A2 midpoint between tabs. -->
-  <div class="flex min-w-[336px] flex-col items-center">
-    <h2 class="text-sm font-medium text-muted">
-      Build path
-    </h2>
-    <div class="mt-2 flex flex-wrap items-center gap-1">
+  <SectionCard title="Build path">
+    <div class="flex flex-wrap items-center gap-1">
       <template
         v-for="(item, index) in items"
         :key="`bp-${item.id}-${index}`"
@@ -49,5 +41,5 @@ const items = computed<StaticItemData[]>(() => {
         No data
       </span>
     </div>
-  </div>
+  </SectionCard>
 </template>

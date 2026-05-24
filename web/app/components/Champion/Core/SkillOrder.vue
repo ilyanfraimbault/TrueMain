@@ -13,13 +13,10 @@ function spellByKey(key: string) {
 </script>
 
 <template>
-  <div>
-    <h2 class="text-sm font-medium text-muted">
-      Skill order
-    </h2>
+  <SectionCard title="Skill order">
     <div
       v-if="skillOrder"
-      class="mt-2 flex flex-wrap items-center gap-1"
+      class="flex flex-wrap items-center gap-1"
     >
       <template
         v-for="(key, index) in skillOrder.sequence"
@@ -46,9 +43,9 @@ function spellByKey(key: string) {
     </div>
     <p
       v-else
-      class="mt-2 text-sm text-muted"
+      class="text-sm text-muted"
     >
       No data
     </p>
-  </div>
+  </SectionCard>
 </template>
