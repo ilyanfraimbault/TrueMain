@@ -60,7 +60,7 @@ const hasAnyFilter = computed(() =>
         :aria-pressed="region === option.value"
         @click="toggleRegion(option.value)"
       >
-        <LeaderboardRegionFlag :region="option.value" :size="14" />
+        <LeaderboardRegionFlag :region="option.value" :width="18" />
         {{ option.label }}
       </button>
     </div>

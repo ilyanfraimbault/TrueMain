@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import type { ProfileRanked } from '~~/shared/types/profile'
-import { formatTier, tierColor } from '~/utils/tiers'
+import { isApexTier } from '~/utils/tiers'
 
 const props = defineProps<{
   ranked: ProfileRanked | null
 }>()
-
-const tierClass = computed(() => tierColor(props.ranked?.tier))
 
 const winRateLabel = computed(() => {
   if (!props.ranked || props.ranked.winRate === null) return null
@@ -21,10 +19,7 @@ const recordLabel = computed(() => {
   return `${w ?? '?'}W ${l ?? '?'}L`
 })
 
-const displayTier = computed(() => {
-  if (!props.ranked) return null
-  return formatTier(props.ranked.tier, props.ranked.division)
-})
+const showDivision = computed(() => props.ranked !== null && !isApexTier(props.ranked.tier))
 </script>
 
 <template>
@@ -33,15 +28,18 @@ const displayTier = computed(() => {
       Ranked Solo/Duo
     </h2>
     <template v-if="ranked">
-      <div class="mt-1 flex items-baseline gap-3">
-        <span class="text-2xl font-bold capitalize" :class="tierClass">
-          {{ displayTier?.toLowerCase() }}
-        </span>
-        <span class="text-lg font-semibold tabular-nums">
-          {{ ranked.leaguePoints }} LP
-        </span>
+      <div class="mt-2 flex items-center gap-3">
+        <RankIcon :tier="ranked.tier" :size="44" />
+        <div class="flex flex-col leading-tight">
+          <span v-if="showDivision" class="text-xs uppercase tracking-wide text-muted">
+            {{ ranked.division }}
+          </span>
+          <span class="text-lg font-semibold tabular-nums text-default">
+            {{ ranked.leaguePoints }} LP
+          </span>
+        </div>
       </div>
-      <p v-if="recordLabel || winRateLabel" class="mt-1 text-sm text-muted">
+      <p v-if="recordLabel || winRateLabel" class="mt-2 text-sm text-muted">
         <span v-if="recordLabel" class="tabular-nums">{{ recordLabel }}</span>
         <span v-if="recordLabel && winRateLabel"> · </span>
         <span v-if="winRateLabel" class="tabular-nums">{{ winRateLabel }}</span>

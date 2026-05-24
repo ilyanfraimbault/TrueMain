@@ -2,7 +2,7 @@
 import type { LeaderboardRowResponse } from '~~/shared/types/leaderboard'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { getProfileIconUrl } from '~~/shared/utils/ddragon'
-import { formatTier, tierColor } from '~/utils/tiers'
+import { isApexTier } from '~/utils/tiers'
 
 // One row of the leaderboard. The whole row is a NuxtLink to the profile so
 // keyboard / screen-reader navigation lands on a single focusable target
@@ -24,11 +24,7 @@ const profileIconUrl = computed(() =>
   getProfileIconUrl(props.row.identity.profileIconId, props.patch))
 
 const ranked = computed(() => props.row.ranked)
-const tierClass = computed(() => tierColor(ranked.value?.tier))
-const displayTier = computed(() => {
-  if (!ranked.value) return null
-  return formatTier(ranked.value.tier, ranked.value.division)
-})
+const showDivision = computed(() => ranked.value !== null && !isApexTier(ranked.value.tier))
 
 const winRateLabel = computed(() => {
   const wr = props.row.stats.winRate
@@ -58,7 +54,7 @@ function championIcon(id: number): string | null {
     </span>
 
     <!-- Region flag (sits before avatar so the eye picks up region at a glance). -->
-    <LeaderboardRegionFlag :region="row.region" :size="20" />
+    <LeaderboardRegionFlag :region="row.region" :width="24" />
 
     <!-- Avatar -->
     <SkeletonImage
@@ -82,13 +78,17 @@ function championIcon(id: number): string | null {
       </div>
     </div>
 
-    <!-- Tier + LP -->
-    <div v-if="ranked" class="w-32 shrink-0 text-right">
-      <div class="text-sm font-bold capitalize" :class="tierClass">
-        {{ displayTier?.toLowerCase() }}
-      </div>
-      <div class="text-xs tabular-nums text-muted">
-        {{ ranked.leaguePoints }} LP
+    <!-- Rank emblem + LP. Division is shown as a small Roman numeral after
+         the emblem for non-apex tiers (Master+ ignore division). -->
+    <div v-if="ranked" class="flex w-28 shrink-0 items-center justify-end gap-2">
+      <RankIcon :tier="ranked.tier" :size="28" />
+      <div class="flex flex-col items-end leading-tight">
+        <span v-if="showDivision" class="text-[10px] uppercase tracking-wide text-muted">
+          {{ ranked.division }}
+        </span>
+        <span class="text-sm font-semibold tabular-nums text-default">
+          {{ ranked.leaguePoints }} LP
+        </span>
       </div>
     </div>
 
