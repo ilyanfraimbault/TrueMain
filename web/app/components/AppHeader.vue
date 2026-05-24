@@ -15,6 +15,14 @@ const items = computed<NavigationMenuItem[]>(() => [
     active: isActive('/champions'),
   },
   {
+    label: 'Truemains',
+    icon: 'i-lucide-trophy',
+    to: '/truemains',
+    // Exact match only — the player profile pages (/truemains/{nameTag})
+    // shouldn't light up the leaderboard entry in the nav.
+    active: route.path === '/truemains',
+  },
+  {
     label: 'Meta',
     icon: 'i-lucide-trending-up',
     to: '/meta',

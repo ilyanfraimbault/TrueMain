@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { ChampionSummaryResponse } from '~~/shared/types/champions'
 import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
-import { getPositionIconUrl } from '~~/shared/utils/ddragon'
 import { POSITION_OPTIONS, isChampionPosition, type ChampionPosition } from '~/utils/positions'
 
 // Whole-percent format used for both WR and PR in the list — matches the
@@ -9,8 +8,6 @@ import { POSITION_OPTIONS, isChampionPosition, type ChampionPosition } from '~/u
 function pct(value: number): string {
   return `${Math.round(value * 100)}%`
 }
-
-const FILL_POSITION_ICON_URL = getPositionIconUrl('fill')
 
 // Mirrors the backend default; the page size is fixed in the UI (no
 // per-page selector) so the only stateful pagination value carried in the
@@ -183,17 +180,31 @@ const patchOptions = computed(() => {
     .sort((a, b) => b.value.localeCompare(a.value, undefined, { numeric: true }))
 })
 
-const ALL_POSITIONS = 'all' as const
-const selectedPosition = computed<ChampionPosition | typeof ALL_POSITIONS>(() => {
+// null = "All positions" — matches the RolePicker contract shared with
+// the leaderboard filter strip.
+const selectedPosition = computed<ChampionPosition | null>(() => {
   const value = filters.value.position ?? ''
-  return isChampionPosition(value) ? value : ALL_POSITIONS
+  return isChampionPosition(value) ? value : null
+})
+
+// Champion filter sources from `?championId=` so deep links and back/forward
+// keep the selection. Uses the same ChampionPicker as the truemain
+// leaderboard so the UX matches across the two list pages.
+const filterChampionId = computed<number | null>(() => {
+  const raw = Array.isArray(route.query.championId) ? route.query.championId[0] : route.query.championId
+  const parsed = Number.parseInt(typeof raw === 'string' ? raw : '', 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
 })
 
 // Filter changes must reset to page 1 — otherwise switching from a
 // 5-page result to a single-page one leaves `?page=4` in the URL and the
 // list silently renders empty. Use a single router.replace so the patch /
-// position / page params transition atomically.
-async function applyFilterReset(updates: { patch?: string | null, position?: ChampionPosition | null | typeof ALL_POSITIONS }) {
+// position / championId / page params transition atomically.
+async function applyFilterReset(updates: {
+  patch?: string | null
+  position?: ChampionPosition | null
+  championId?: number | null
+}) {
   const nextQuery: Record<string, string> = {}
   for (const [key, value] of Object.entries(route.query)) {
     if (typeof value === 'string') nextQuery[key] = value
@@ -206,8 +217,12 @@ async function applyFilterReset(updates: { patch?: string | null, position?: Cha
     else delete nextQuery.patch
   }
   if (updates.position !== undefined) {
-    if (updates.position === ALL_POSITIONS || !updates.position) delete nextQuery.position
+    if (!updates.position) delete nextQuery.position
     else nextQuery.position = updates.position
+  }
+  if (updates.championId !== undefined) {
+    if (updates.championId) nextQuery.championId = String(updates.championId)
+    else delete nextQuery.championId
   }
   await router.replace({ query: nextQuery })
 }
@@ -217,11 +232,13 @@ function onPatchChange(value: unknown) {
   void applyFilterReset({ patch: value })
 }
 
-async function selectPosition(value: ChampionPosition | typeof ALL_POSITIONS) {
+async function selectPosition(value: ChampionPosition | null) {
   await applyFilterReset({ position: value })
 }
 
-const searchQuery = ref('')
+async function selectChampion(value: number | null) {
+  await applyFilterReset({ championId: value })
+}
 
 const baseRows = computed(() => {
   const nameById = new Map((staticList.value ?? []).map(item => [item.championId, item]))
@@ -235,9 +252,9 @@ const baseRows = computed(() => {
 const filteredRows = computed(() => {
   let rows = baseRows.value
   const pos = selectedPosition.value
-  if (pos !== ALL_POSITIONS) rows = rows.filter(row => row.position === pos)
-  const q = searchQuery.value.trim().toLowerCase()
-  if (q) rows = rows.filter(row => row.name.toLowerCase().includes(q))
+  if (pos !== null) rows = rows.filter(row => row.position === pos)
+  const cid = filterChampionId.value
+  if (cid !== null) rows = rows.filter(row => row.championId === cid)
   return rows
 })
 
@@ -302,46 +319,17 @@ function staticItem(id: number | undefined) {
       </h1>
 
       <div class="flex flex-wrap items-center justify-between gap-3">
-        <UFieldGroup size="md">
-          <UButton
-            :variant="selectedPosition === ALL_POSITIONS ? 'soft' : 'ghost'"
-            color="neutral"
-            square
-            aria-label="All positions"
-            @click="selectPosition(ALL_POSITIONS)"
-          >
-            <SkeletonImage
-              :src="FILL_POSITION_ICON_URL"
-              alt="All positions"
-              :width="18"
-              :height="18"
-              class="size-[18px]"
-            />
-          </UButton>
-          <UButton
-            v-for="option in POSITION_OPTIONS"
-            :key="option.value"
-            :variant="selectedPosition === option.value ? 'soft' : 'ghost'"
-            color="neutral"
-            square
-            :aria-label="option.label"
-            @click="selectPosition(option.value)"
-          >
-            <SkeletonImage
-              :src="option.iconUrl"
-              :alt="option.label"
-              :width="18"
-              :height="18"
-              class="size-[18px]"
-            />
-          </UButton>
-        </UFieldGroup>
+        <RolePicker
+          :position="selectedPosition"
+          @update:position="selectPosition"
+        />
 
-        <UInput
-          v-model="searchQuery"
-          icon="i-lucide-search"
-          placeholder="Search champion…"
-          class="min-w-[16rem] max-w-md flex-1"
+        <ChampionPicker
+          :champions="staticList ?? []"
+          :champion-id="filterChampionId"
+          placeholder="Search for a champion"
+          trigger-class="w-64"
+          @update:champion-id="selectChampion"
         />
 
         <USelect

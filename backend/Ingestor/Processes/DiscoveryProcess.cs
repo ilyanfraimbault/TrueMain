@@ -1,8 +1,10 @@
 using Core;
 using Core.Lol.Identifiers;
+using Data.Entities;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Components.Discovery;
+using Ingestor.Ranking;
 using Ingestor.Riot;
 using Microsoft.Extensions.Options;
 
@@ -15,6 +17,7 @@ public sealed class DiscoveryProcess(
     ILadderDiscoveryService ladderDiscoveryService,
     IAccountUpsertService accountUpsertService,
     ICandidateUpsertService candidateUpsertService,
+    IRankSnapshotWriter rankSnapshotWriter,
     IOptions<DiscoveryOptions> discoveryOptions) : IIngestorProcess
 {
     public string Name => "Discovery";
@@ -74,9 +77,9 @@ public sealed class DiscoveryProcess(
     {
         var platformId = platform.ToString();
         var summary = new PlatformSummary(platformId);
-        var summoners = await ladderDiscoveryService.DiscoverSummonersAsync(platform, options, ct);
+        var discovered = await ladderDiscoveryService.DiscoverSummonersAsync(platform, options, ct);
 
-        if (summoners.Count == 0)
+        if (discovered.Count == 0)
         {
             logger.LogInformation("No ladder entries for platform {Platform}.", platformId);
             return summary;
@@ -86,25 +89,42 @@ public sealed class DiscoveryProcess(
         var saveBatchSize = Math.Max(1, options.SaveBatchSize);
         var newAccountsTarget = Math.Max(0, options.NewAccountsTarget);
 
+        var latestByAccountId = await PreloadLatestSnapshotsAsync(session, platformId, discovered, ct);
+
         var pendingChanges = 0;
         var discoveredAccounts = 0;
 
-        foreach (var summoner in summoners)
+        foreach (var item in discovered)
         {
             ct.ThrowIfCancellationRequested();
 
             var nowUtc = DateTime.UtcNow;
-            if (await accountUpsertService.UpsertAsync(session, platform, summoner, nowUtc, ct))
+            var upsertResult = await accountUpsertService.UpsertAsync(session, platform, item.Summoner, nowUtc, ct);
+            if (upsertResult.IsNew)
             {
                 discoveredAccounts++;
                 summary.NewAccountsDiscovered++;
             }
 
-            var masteries = await riotPlatformClient.GetChampionMasteriesAsync(platform, summoner.Puuid, ct);
+            if (item.Rank is not null)
+            {
+                latestByAccountId.TryGetValue(upsertResult.Account.Id, out var latest);
+                var outcome = rankSnapshotWriter.Write(session, upsertResult.Account, item.Rank, latest, nowUtc);
+                if (outcome == RankSnapshotOutcome.Inserted)
+                {
+                    summary.RankSnapshotsInserted++;
+                }
+                else
+                {
+                    summary.RankSnapshotsUnchanged++;
+                }
+            }
+
+            var masteries = await riotPlatformClient.GetChampionMasteriesAsync(platform, item.Summoner.Puuid, ct);
             var candidateResult = await candidateUpsertService.UpsertAsync(
                 session,
                 platformId,
-                summoner.Puuid,
+                item.Summoner.Puuid,
                 masteries,
                 options,
                 nowUtc,
@@ -139,15 +159,44 @@ public sealed class DiscoveryProcess(
         return summary;
     }
 
+    private static async Task<Dictionary<Guid, RankSnapshot>> PreloadLatestSnapshotsAsync(
+        IDataSession session,
+        string platformId,
+        IReadOnlyCollection<DiscoveredSummoner> discovered,
+        CancellationToken ct)
+    {
+        var keys = discovered
+            .Where(item => !string.IsNullOrWhiteSpace(item.Summoner.Puuid))
+            .Select(item => new AccountKey(platformId, item.Summoner.Puuid))
+            .Distinct()
+            .ToList();
+
+        if (keys.Count == 0)
+        {
+            return new Dictionary<Guid, RankSnapshot>();
+        }
+
+        var existing = await session.RiotAccounts.GetByKeysAsync(keys, ct);
+        if (existing.Count == 0)
+        {
+            return new Dictionary<Guid, RankSnapshot>();
+        }
+
+        var existingIds = existing.Values.Select(account => account.Id).ToList();
+        return await session.RankSnapshots.GetLatestForAccountsAsync(existingIds, ct);
+    }
+
     private void LogPlatformSummary(PlatformSummary platformSummary)
     {
         logger.LogInformation(
-            "Discovery summary for {Platform}: accounts={AccountsProcessed}, newAccounts={NewAccounts}, candidatesInserted={Inserted}, candidatesUpdated={Updated}.",
+            "Discovery summary for {Platform}: accounts={AccountsProcessed}, newAccounts={NewAccounts}, candidatesInserted={Inserted}, candidatesUpdated={Updated}, rankSnapshotsInserted={RankInserted}, rankSnapshotsUnchanged={RankUnchanged}.",
             platformSummary.PlatformId,
             platformSummary.AccountsProcessed,
             platformSummary.NewAccountsDiscovered,
             platformSummary.CandidatesInserted,
-            platformSummary.CandidatesUpdated);
+            platformSummary.CandidatesUpdated,
+            platformSummary.RankSnapshotsInserted,
+            platformSummary.RankSnapshotsUnchanged);
     }
 
     private static object BuildSuccessPayload(IEnumerable<PlatformSummary> summaries)
@@ -160,7 +209,9 @@ public sealed class DiscoveryProcess(
                 accountsProcessed = summary.AccountsProcessed,
                 newAccounts = summary.NewAccountsDiscovered,
                 candidatesInserted = summary.CandidatesInserted,
-                candidatesUpdated = summary.CandidatesUpdated
+                candidatesUpdated = summary.CandidatesUpdated,
+                rankSnapshotsInserted = summary.RankSnapshotsInserted,
+                rankSnapshotsUnchanged = summary.RankSnapshotsUnchanged
             })
         };
     }
@@ -172,5 +223,7 @@ public sealed class DiscoveryProcess(
         public int NewAccountsDiscovered { get; set; }
         public int CandidatesInserted { get; set; }
         public int CandidatesUpdated { get; set; }
+        public int RankSnapshotsInserted { get; set; }
+        public int RankSnapshotsUnchanged { get; set; }
     }
 }

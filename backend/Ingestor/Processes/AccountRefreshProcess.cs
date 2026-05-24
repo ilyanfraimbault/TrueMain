@@ -2,6 +2,7 @@ using Core;
 using Data.Entities;
 using Data.Repositories;
 using Ingestor.Options;
+using Ingestor.Ranking;
 using Ingestor.Riot;
 using Microsoft.Extensions.Options;
 
@@ -12,6 +13,7 @@ public sealed class AccountRefreshProcess(
     IRiotAccountClient riotAccountClient,
     IRiotPlatformClient riotPlatformClient,
     IDataSessionFactory sessionFactory,
+    IRankSnapshotWriter rankSnapshotWriter,
     IOptions<AccountRefreshOptions> refreshOptions) : IIngestorProcess
 {
     private const string SoloQueueType = "RANKED_SOLO_5x5";
@@ -29,7 +31,7 @@ public sealed class AccountRefreshProcess(
 
         var summary = await RefreshAccountsAsync(accounts, ct);
         logger.LogInformation(
-            "Account refresh summary: selected={Selected}, profileUpdated={ProfileUpdated}, profileSkipped={ProfileSkipped}, profileFailed={ProfileFailed}, rankInserted={RankInserted}, rankUnchanged={RankUnchanged}, rankSkippedUnranked={RankSkippedUnranked}, rankFailed={RankFailed}.",
+            "Account refresh summary: selected={Selected}, profileUpdated={ProfileUpdated}, profileSkipped={ProfileSkipped}, profileFailed={ProfileFailed}, rankInserted={RankInserted}, rankUnchanged={RankUnchanged}, rankSkippedUnranked={RankSkippedUnranked}, rankSkippedFresh={RankSkippedFresh}, rankFailed={RankFailed}.",
             summary.Selected,
             summary.ProfileUpdated,
             summary.ProfileSkipped,
@@ -37,6 +39,7 @@ public sealed class AccountRefreshProcess(
             summary.RankInserted,
             summary.RankUnchanged,
             summary.RankSkippedUnranked,
+            summary.RankSkippedFresh,
             summary.RankFailed);
 
         return BuildSuccessPayload(summary);
@@ -63,6 +66,7 @@ public sealed class AccountRefreshProcess(
 
         var accountIds = accountsByKey.Values.Select(a => a.Id).ToList();
         var latestByAccountId = await session.RankSnapshots.GetLatestForAccountsAsync(accountIds, ct);
+        var rankFreshness = refreshOptions.Value.RankSyncFreshness;
 
         foreach (var account in accounts)
         {
@@ -73,7 +77,7 @@ public sealed class AccountRefreshProcess(
                 continue;
             }
 
-            await RefreshSingleAccountAsync(session, accountEntity, latestByAccountId, nowUtc, summary, ct);
+            await RefreshSingleAccountAsync(session, accountEntity, latestByAccountId, rankFreshness, nowUtc, summary, ct);
         }
 
         await session.SaveChangesAsync(ct);
@@ -84,6 +88,7 @@ public sealed class AccountRefreshProcess(
         IDataSession session,
         RiotAccount account,
         IReadOnlyDictionary<Guid, RankSnapshot> latestByAccountId,
+        TimeSpan rankFreshness,
         DateTime nowUtc,
         RefreshSummary summary,
         CancellationToken ct)
@@ -127,6 +132,17 @@ public sealed class AccountRefreshProcess(
         // timeout on League-v4 must not block the GameName/TagLine update,
         // and vice versa. Both share the single SaveChangesAsync at the end
         // of RefreshAccountsAsync.
+
+        // Skip the by-puuid call when DiscoveryProcess has already snapped
+        // this account's rank in the current cycle (Master+ ladder scans).
+        if (rankFreshness > TimeSpan.Zero
+            && account.LastRankSyncAtUtc is { } lastSync
+            && nowUtc - lastSync < rankFreshness)
+        {
+            summary.RankSkippedFresh++;
+            return;
+        }
+
         try
         {
             var entries = await riotPlatformClient.GetLeagueEntriesByPuuidAsync(platform, account.Puuid, ct);
@@ -140,29 +156,21 @@ public sealed class AccountRefreshProcess(
             }
 
             latestByAccountId.TryGetValue(account.Id, out var last);
-            var unchanged = last is not null
-                && string.Equals(last.Tier, solo.Tier, StringComparison.Ordinal)
-                && string.Equals(last.Division, solo.Rank, StringComparison.Ordinal)
-                && last.LeaguePoints == solo.LeaguePoints;
+            var outcome = rankSnapshotWriter.Write(
+                session,
+                account,
+                new RankSnapshotInput(solo.Tier, solo.Rank, solo.LeaguePoints, solo.Wins, solo.Losses),
+                last,
+                nowUtc);
 
-            if (unchanged)
+            if (outcome == RankSnapshotOutcome.Inserted)
+            {
+                summary.RankInserted++;
+            }
+            else
             {
                 summary.RankUnchanged++;
-                return;
             }
-
-            session.RankSnapshots.Add(new RankSnapshot
-            {
-                Id = Guid.NewGuid(),
-                RiotAccountId = account.Id,
-                CapturedAtUtc = nowUtc,
-                Tier = solo.Tier,
-                Division = solo.Rank,
-                LeaguePoints = solo.LeaguePoints,
-                Wins = solo.Wins,
-                Losses = solo.Losses,
-            });
-            summary.RankInserted++;
         }
         catch (Exception ex)
         {
@@ -186,6 +194,7 @@ public sealed class AccountRefreshProcess(
             rankInserted = summary.RankInserted,
             rankUnchanged = summary.RankUnchanged,
             rankSkippedUnranked = summary.RankSkippedUnranked,
+            rankSkippedFresh = summary.RankSkippedFresh,
             rankFailed = summary.RankFailed
         };
     }
@@ -199,6 +208,7 @@ public sealed class AccountRefreshProcess(
         public int RankInserted { get; set; }
         public int RankUnchanged { get; set; }
         public int RankSkippedUnranked { get; set; }
+        public int RankSkippedFresh { get; set; }
         public int RankFailed { get; set; }
     }
 }

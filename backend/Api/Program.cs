@@ -8,6 +8,7 @@ using TrueMain.Authentication;
 using TrueMain.Options;
 using TrueMain.Services.Champions;
 using TrueMain.Services.Ops;
+using TrueMain.Services.Truemains;
 
 var builder = WebApplication.CreateBuilder(args);
 const string frontendCorsPolicy = "FrontendCors";
@@ -51,6 +52,8 @@ builder.Services.AddOptions<OpsOptions>()
     .Bind(builder.Configuration.GetSection("Ops"))
     .ValidateDataAnnotations()
     .ValidateOnStart();
+builder.Services.AddOptions<TruemainsLeaderboardOptions>()
+    .Bind(builder.Configuration.GetSection(TruemainsLeaderboardOptions.SectionName));
 builder.Services.AddOptions<DatabaseOptions>()
     .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName));
 
@@ -82,6 +85,9 @@ builder.Services.AddRateLimiter(options =>
 });
 builder.Services.AddScoped<IChampionSummariesQueryService, ChampionSummariesQueryService>();
 builder.Services.AddScoped<IChampionBuildsQueryService, ChampionBuildsQueryService>();
+builder.Services.AddScoped<IMatchSummariesQueryService, MatchSummariesQueryService>();
+builder.Services.AddScoped<IProfileQueryService, ProfileQueryService>();
+builder.Services.AddScoped<ITruemainsLeaderboardQueryService, TruemainsLeaderboardQueryService>();
 builder.Services.AddScoped<IPipelineHealthQueryService, PipelineHealthQueryService>();
 builder.Services.AddDbContext<TrueMainDbContext>(options =>
 {

@@ -8,7 +8,7 @@ namespace Ingestor.Processes.Components.Discovery;
 
 public sealed class AccountUpsertService : IAccountUpsertService
 {
-    public async Task<bool> UpsertAsync(
+    public async Task<AccountUpsertResult> UpsertAsync(
         IDataSession session,
         PlatformRoute platform,
         RiotSummonerDto summoner,
@@ -20,8 +20,9 @@ public sealed class AccountUpsertService : IAccountUpsertService
 
         if (existing is null)
         {
-            session.RiotAccounts.Add(new RiotAccount
+            var created = new RiotAccount
             {
+                Id = Guid.NewGuid(),
                 Puuid = summoner.Puuid,
                 GameName = summoner.Name,
                 TagLine = null,
@@ -31,8 +32,9 @@ public sealed class AccountUpsertService : IAccountUpsertService
                 SummonerLevel = RiotDataHelpers.ToIntSafe(summoner.SummonerLevel),
                 UpdatedAtUtc = nowUtc,
                 LastProfileSyncAtUtc = nowUtc
-            });
-            return true;
+            };
+            session.RiotAccounts.Add(created);
+            return new AccountUpsertResult(IsNew: true, Account: created);
         }
 
         existing.GameName = summoner.Name;
@@ -43,6 +45,6 @@ public sealed class AccountUpsertService : IAccountUpsertService
         existing.SummonerLevel = RiotDataHelpers.ToIntSafe(summoner.SummonerLevel);
         existing.UpdatedAtUtc = nowUtc;
         existing.LastProfileSyncAtUtc = nowUtc;
-        return false;
+        return new AccountUpsertResult(IsNew: false, Account: existing);
     }
 }

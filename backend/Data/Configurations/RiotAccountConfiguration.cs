@@ -52,6 +52,8 @@ public sealed class RiotAccountConfiguration : IEntityTypeConfiguration<RiotAcco
 
         entity.Property(e => e.LastProfileSyncAtUtc);
 
+        entity.Property(e => e.LastRankSyncAtUtc);
+
         entity.Property(e => e.LastMainCalcAtUtc);
 
         entity.Property(e => e.LastMatchIngestAtUtc);

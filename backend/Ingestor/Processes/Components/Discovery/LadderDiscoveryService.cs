@@ -1,5 +1,6 @@
 using Core.Lol.Identifiers;
 using Ingestor.Options;
+using Ingestor.Ranking;
 using Ingestor.Riot;
 using Ingestor.Riot.Dto;
 
@@ -9,7 +10,7 @@ public sealed class LadderDiscoveryService(IRiotPlatformClient riotPlatformClien
 {
     private const string RankedSoloQueue = "RANKED_SOLO_5x5";
 
-    public async Task<List<RiotSummonerDto>> DiscoverSummonersAsync(
+    public async Task<List<DiscoveredSummoner>> DiscoverSummonersAsync(
         PlatformRoute platform,
         DiscoveryOptions options,
         CancellationToken ct)
@@ -20,7 +21,7 @@ public sealed class LadderDiscoveryService(IRiotPlatformClient riotPlatformClien
             .Take(Math.Max(0, options.MaxAccountsPerPlatformPerRun))
             .ToList();
 
-        var summoners = new List<RiotSummonerDto>(boundedEntries.Count);
+        var discovered = new List<DiscoveredSummoner>(boundedEntries.Count);
         foreach (var entry in boundedEntries)
         {
             ct.ThrowIfCancellationRequested();
@@ -31,10 +32,10 @@ public sealed class LadderDiscoveryService(IRiotPlatformClient riotPlatformClien
                 continue;
             }
 
-            summoners.Add(summoner);
+            discovered.Add(new DiscoveredSummoner(summoner, entry.Rank));
         }
 
-        return summoners;
+        return discovered;
     }
 
     private async Task<List<LadderEntry>> FetchLadderEntriesAsync(
@@ -48,37 +49,48 @@ public sealed class LadderDiscoveryService(IRiotPlatformClient riotPlatformClien
         if (tierScope.Contains("CHALLENGER"))
         {
             var challenger = await riotPlatformClient.GetChallengerLeagueAsync(platform, RankedSoloQueue, ct);
-            result.AddRange(challenger.Entries.Select(ToLadderEntry).OfType<LadderEntry>());
+            result.AddRange(MapEntries(challenger));
         }
 
         if (tierScope.Contains("GM") || tierScope.Contains("GRANDMASTER"))
         {
             var grandmaster = await riotPlatformClient.GetGrandmasterLeagueAsync(platform, RankedSoloQueue, ct);
-            result.AddRange(grandmaster.Entries.Select(ToLadderEntry).OfType<LadderEntry>());
+            result.AddRange(MapEntries(grandmaster));
         }
 
         if (tierScope.Contains("MASTER"))
         {
             var master = await riotPlatformClient.GetMasterLeagueAsync(platform, RankedSoloQueue, ct);
-            result.AddRange(master.Entries.Select(ToLadderEntry).OfType<LadderEntry>());
+            result.AddRange(MapEntries(master));
         }
 
         return result;
     }
 
-    private static LadderEntry? ToLadderEntry(RiotLeagueEntryDto entry)
+    private static IEnumerable<LadderEntry> MapEntries(RiotLeagueListDto league)
     {
-        if (!string.IsNullOrWhiteSpace(entry.SummonerId))
+        var tier = league.Tier;
+        return league.Entries
+            .Select(entry => ToLadderEntry(entry, tier))
+            .OfType<LadderEntry>();
+    }
+
+    private static LadderEntry? ToLadderEntry(RiotLeagueEntryDto entry, string? tier)
+    {
+        var hasIdentity = !string.IsNullOrWhiteSpace(entry.SummonerId) || !string.IsNullOrWhiteSpace(entry.Puuid);
+        if (!hasIdentity)
         {
-            return new LadderEntry(entry.SummonerId, entry.Puuid);
+            return null;
         }
 
-        if (!string.IsNullOrWhiteSpace(entry.Puuid))
-        {
-            return new LadderEntry(null, entry.Puuid);
-        }
+        var rank = !string.IsNullOrWhiteSpace(tier) && !string.IsNullOrWhiteSpace(entry.Rank)
+            ? new RankSnapshotInput(tier!, entry.Rank!, entry.LeaguePoints, entry.Wins, entry.Losses)
+            : null;
 
-        return null;
+        return new LadderEntry(
+            SummonerId: string.IsNullOrWhiteSpace(entry.SummonerId) ? null : entry.SummonerId,
+            Puuid: string.IsNullOrWhiteSpace(entry.Puuid) ? null : entry.Puuid,
+            Rank: rank);
     }
 
     private async Task<RiotSummonerDto> ResolveSummonerAsync(PlatformRoute platform, LadderEntry entry, CancellationToken ct)
@@ -96,7 +108,7 @@ public sealed class LadderDiscoveryService(IRiotPlatformClient riotPlatformClien
         return new RiotSummonerDto();
     }
 
-    private sealed record LadderEntry(string? SummonerId, string? Puuid)
+    private sealed record LadderEntry(string? SummonerId, string? Puuid, RankSnapshotInput? Rank)
     {
         public string Key => SummonerId ?? Puuid ?? string.Empty;
     }

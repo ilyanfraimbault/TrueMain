@@ -791,6 +791,9 @@ namespace Data.Migrations
                     b.Property<DateTime?>("LastProfileSyncAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime?>("LastRankSyncAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime?>("MatchIngestClaimedAtUtc")
                         .HasColumnType("timestamp with time zone");
 

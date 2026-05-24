@@ -24,7 +24,7 @@ public sealed class AccountUpsertIntegrationTests : IClassFixture<PostgresFixtur
         await using var session = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None);
         var service = new AccountUpsertService();
 
-        var inserted = await service.UpsertAsync(
+        var result = await service.UpsertAsync(
             session,
             PlatformRoute.KR,
             new RiotSummonerDto
@@ -38,7 +38,8 @@ public sealed class AccountUpsertIntegrationTests : IClassFixture<PostgresFixtur
             now,
             CancellationToken.None);
 
-        inserted.Should().BeTrue();
+        result.IsNew.Should().BeTrue();
+        result.Account.Puuid.Should().Be("puuid-1");
         await session.SaveChangesAsync(CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
@@ -64,7 +65,7 @@ public sealed class AccountUpsertIntegrationTests : IClassFixture<PostgresFixtur
         await using var session = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None);
         var service = new AccountUpsertService();
 
-        var inserted = await service.UpsertAsync(
+        var result = await service.UpsertAsync(
             session,
             PlatformRoute.KR,
             new RiotSummonerDto
@@ -78,7 +79,8 @@ public sealed class AccountUpsertIntegrationTests : IClassFixture<PostgresFixtur
             now,
             CancellationToken.None);
 
-        inserted.Should().BeFalse();
+        result.IsNew.Should().BeFalse();
+        result.Account.Puuid.Should().Be("puuid-1");
         await session.SaveChangesAsync(CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
