@@ -61,25 +61,25 @@ const hasAnyFilter = computed(() =>
       @update:position="value => emit('update:position', value)"
     />
 
-    <!-- Champion search: middle slot, grows with the viewport. min-w guards
-         against the field collapsing to nothing on narrow widths where
-         flex-wrap kicks in. -->
-    <div class="min-w-[12rem] flex-1">
-      <ChampionPicker
-        :champions="champions"
-        :champion-id="championId"
-        width="w-full"
-        @update:champion-id="value => emit('update:championId', value)"
-      />
-    </div>
+    <!-- Champion search: middle slot, fixed at a comfortable width. Was
+         flex-1 originally — it stretched to the viewport edge which felt
+         oversized for a single-line picker. -->
+    <ChampionPicker
+      :champions="champions"
+      :champion-id="championId"
+      width="w-56"
+      @update:champion-id="value => emit('update:championId', value)"
+    />
 
     <!-- Region: rightmost, single dropdown so the strip stays compact and
-         each region is reachable in one click. The flag renders in both the
-         trigger and the option rows via USelectMenu slots. -->
+         each region is reachable in one click. ml-auto pushes it to the
+         right edge so the layout reads position | champion | … | region
+         left-to-right. The flag renders in both the trigger and the option
+         rows via USelectMenu slots. -->
     <USelectMenu
       :model-value="selectedRegion"
       :items="REGION_OPTIONS"
-      class="w-40"
+      class="ml-auto w-40"
       @update:model-value="onRegionChange"
     >
       <template #leading>
