@@ -10,14 +10,15 @@ const props = defineProps<{
 
 const dim = computed(() => props.size ?? 28)
 
-// `ranked-emblem/emblem-<tier>.png` has the full set including EMERALD —
-// the older `ranked-mini-crests/` directory is missing emerald.png so
-// post-2023 tiers fall back to a broken image there. IPX downscales the
-// emblem from its native ~256px down to whatever size we render at.
+// Community Dragon's `ranked-mini-crests/` has the clean wing-and-gem
+// shape we want — same visual family as the dpm.lol / op.gg leaderboards.
+// Emerald isn't in that directory (added 2023, never backfilled), so we
+// self-host a single matching SVG and switch source per tier.
 const iconUrl = computed(() => {
   const tier = props.tier?.trim().toLowerCase()
   if (!tier) return null
-  return `https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-static-assets/global/default/images/ranked-emblem/emblem-${tier}.png`
+  if (tier === 'emerald') return '/ranks/emerald.svg'
+  return `https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-static-assets/global/default/images/ranked-mini-crests/${tier}.png`
 })
 </script>
 
