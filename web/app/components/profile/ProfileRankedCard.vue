@@ -1,31 +1,10 @@
 <script setup lang="ts">
 import type { ProfileRanked } from '~~/shared/types/profile'
+import { isApexTier } from '~/utils/tiers'
 
 const props = defineProps<{
   ranked: ProfileRanked | null
 }>()
-
-// Tier colour mapping — picks one accent per tier so the eye locks onto the
-// rank at a glance. Emerald palette only per the project style rule, except
-// for the warm tiers (Iron/Bronze/Silver/Gold) where rank semantics demand
-// the standard colour cues — players read the rank from the colour first.
-const TIER_COLORS: Record<string, string> = {
-  IRON: 'text-stone-400',
-  BRONZE: 'text-amber-700',
-  SILVER: 'text-slate-300',
-  GOLD: 'text-amber-400',
-  PLATINUM: 'text-teal-300',
-  EMERALD: 'text-emerald-300',
-  DIAMOND: 'text-sky-300',
-  MASTER: 'text-fuchsia-300',
-  GRANDMASTER: 'text-red-300',
-  CHALLENGER: 'text-cyan-200',
-}
-
-const tierColor = computed(() => {
-  if (!props.ranked) return 'text-muted'
-  return TIER_COLORS[props.ranked.tier.toUpperCase()] ?? 'text-default'
-})
 
 const winRateLabel = computed(() => {
   if (!props.ranked || props.ranked.winRate === null) return null
@@ -40,15 +19,7 @@ const recordLabel = computed(() => {
   return `${w ?? '?'}W ${l ?? '?'}L`
 })
 
-const displayTier = computed(() => {
-  if (!props.ranked) return null
-  // Master+ tiers don't have meaningful divisions; Riot still returns "I" for them.
-  const upperTier = props.ranked.tier.toUpperCase()
-  if (upperTier === 'MASTER' || upperTier === 'GRANDMASTER' || upperTier === 'CHALLENGER') {
-    return props.ranked.tier
-  }
-  return `${props.ranked.tier} ${props.ranked.division}`
-})
+const showDivision = computed(() => props.ranked !== null && !isApexTier(props.ranked.tier))
 </script>
 
 <template>
@@ -57,15 +28,18 @@ const displayTier = computed(() => {
       Ranked Solo/Duo
     </h2>
     <template v-if="ranked">
-      <div class="mt-1 flex items-baseline gap-3">
-        <span class="text-2xl font-bold capitalize" :class="tierColor">
-          {{ displayTier?.toLowerCase() }}
-        </span>
-        <span class="text-lg font-semibold tabular-nums">
-          {{ ranked.leaguePoints }} LP
-        </span>
+      <div class="mt-2 flex items-center gap-3">
+        <RankIcon :tier="ranked.tier" :size="44" />
+        <div class="flex flex-col leading-tight">
+          <span v-if="showDivision" class="text-xs uppercase tracking-wide text-muted">
+            {{ ranked.division }}
+          </span>
+          <span class="text-lg font-semibold tabular-nums text-default">
+            {{ ranked.leaguePoints }} LP
+          </span>
+        </div>
       </div>
-      <p v-if="recordLabel || winRateLabel" class="mt-1 text-sm text-muted">
+      <p v-if="recordLabel || winRateLabel" class="mt-2 text-sm text-muted">
         <span v-if="recordLabel" class="tabular-nums">{{ recordLabel }}</span>
         <span v-if="recordLabel && winRateLabel"> · </span>
         <span v-if="winRateLabel" class="tabular-nums">{{ winRateLabel }}</span>
