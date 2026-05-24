@@ -3,8 +3,10 @@ using FluentAssertions;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.Discovery;
+using Ingestor.Ranking;
 using Ingestor.Riot;
 using Ingestor.Riot.Dto;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace TrueMain.IntegrationTests;
@@ -30,6 +32,7 @@ public sealed class DiscoveryProcessIntegrationTests : IClassFixture<PostgresFix
             new FakeLadderDiscoveryService(),
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
+            new RankSnapshotWriter(),
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
                 Platforms = ["KR"],
@@ -48,25 +51,147 @@ public sealed class DiscoveryProcessIntegrationTests : IClassFixture<PostgresFix
         account.ProfileIconId.Should().Be(23);
         account.SummonerLevel.Should().Be(201);
         account.LastProfileSyncAtUtc.Should().NotBeNull();
+        account.LastRankSyncAtUtc.Should().NotBeNull();
+
+        var snapshot = await verifyDb.RankSnapshots.SingleAsync(s => s.RiotAccountId == account.Id);
+        snapshot.Tier.Should().Be("MASTER");
+        snapshot.Division.Should().Be("I");
+        snapshot.LeaguePoints.Should().Be(42);
+        snapshot.Wins.Should().Be(7);
+        snapshot.Losses.Should().Be(3);
     }
 
-    private sealed class FakeLadderDiscoveryService : ILadderDiscoveryService
+    [Fact]
+    public async Task RunAsync_WhenLadderEntryHasNoRank_DoesNotWriteSnapshot()
     {
-        public Task<List<RiotSummonerDto>> DiscoverSummonersAsync(
+        await _fixture.ResetDatabaseAsync();
+
+        var process = new DiscoveryProcess(
+            NullLogger<DiscoveryProcess>.Instance,
+            new FakeRiotPlatformClient(),
+            _fixture.CreateSessionFactory(),
+            new NoRankLadderDiscoveryService(),
+            new AccountUpsertService(),
+            new NoOpCandidateUpsertService(),
+            new RankSnapshotWriter(),
+            Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
+            {
+                Platforms = ["KR"],
+                SaveBatchSize = 1,
+                NewAccountsTarget = 1
+            }));
+
+        await process.RunCoreAsync(CancellationToken.None);
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        var account = verifyDb.RiotAccounts.Single(a => a.Puuid == "puuid-no-rank");
+        account.LastRankSyncAtUtc.Should().BeNull();
+        (await verifyDb.RankSnapshots.AnyAsync(s => s.RiotAccountId == account.Id)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenLatestSnapshotMatchesLadder_DoesNotInsertDuplicate()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        // Seed an existing account with a snapshot matching what the ladder will return.
+        await using (var seedDb = _fixture.CreateDbContext())
+        {
+            var existing = new Data.Entities.RiotAccount
+            {
+                Id = Guid.NewGuid(),
+                Puuid = "puuid-discovered-1",
+                PlatformId = "KR",
+                GameName = "existing-player",
+                SummonerId = "summoner-discovered-1",
+                ProfileIconId = 1,
+                SummonerLevel = 100,
+                CreatedAtUtc = DateTime.UtcNow.AddDays(-2),
+                UpdatedAtUtc = DateTime.UtcNow.AddDays(-2)
+            };
+            seedDb.RiotAccounts.Add(existing);
+            seedDb.RankSnapshots.Add(new Data.Entities.RankSnapshot
+            {
+                Id = Guid.NewGuid(),
+                RiotAccountId = existing.Id,
+                CapturedAtUtc = DateTime.UtcNow.AddHours(-1),
+                Tier = "MASTER",
+                Division = "I",
+                LeaguePoints = 42,
+                Wins = 5,
+                Losses = 2
+            });
+            await seedDb.SaveChangesAsync();
+        }
+
+        var process = new DiscoveryProcess(
+            NullLogger<DiscoveryProcess>.Instance,
+            new FakeRiotPlatformClient(),
+            _fixture.CreateSessionFactory(),
+            new FakeLadderDiscoveryService(),
+            new AccountUpsertService(),
+            new NoOpCandidateUpsertService(),
+            new RankSnapshotWriter(),
+            Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
+            {
+                Platforms = ["KR"],
+                SaveBatchSize = 1,
+                NewAccountsTarget = 0
+            }));
+
+        await process.RunCoreAsync(CancellationToken.None);
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        var account = verifyDb.RiotAccounts.Single(a => a.Puuid == "puuid-discovered-1");
+        account.LastRankSyncAtUtc.Should().NotBeNull();
+        var snapshots = await verifyDb.RankSnapshots
+            .Where(s => s.RiotAccountId == account.Id)
+            .ToListAsync();
+        snapshots.Should().ContainSingle("the ladder rank matches the existing latest snapshot, so no duplicate row is written");
+    }
+
+    private sealed class NoRankLadderDiscoveryService : ILadderDiscoveryService
+    {
+        public Task<List<DiscoveredSummoner>> DiscoverSummonersAsync(
             PlatformRoute platform,
             DiscoveryOptions options,
             CancellationToken ct)
         {
-            return Task.FromResult(new List<RiotSummonerDto>
+            return Task.FromResult(new List<DiscoveredSummoner>
             {
-                new()
-                {
-                    Id = "summoner-discovered-1",
-                    Puuid = "puuid-discovered-1",
-                    Name = "discovered-player",
-                    ProfileIconId = 23,
-                    SummonerLevel = 201
-                }
+                new(
+                    new RiotSummonerDto
+                    {
+                        Id = "summoner-no-rank",
+                        Puuid = "puuid-no-rank",
+                        Name = "no-rank-player",
+                        ProfileIconId = 5,
+                        SummonerLevel = 50
+                    },
+                    Rank: null)
+            });
+        }
+    }
+
+    private sealed class FakeLadderDiscoveryService : ILadderDiscoveryService
+    {
+        public Task<List<DiscoveredSummoner>> DiscoverSummonersAsync(
+            PlatformRoute platform,
+            DiscoveryOptions options,
+            CancellationToken ct)
+        {
+            return Task.FromResult(new List<DiscoveredSummoner>
+            {
+                new(
+                    new RiotSummonerDto
+                    {
+                        Id = "summoner-discovered-1",
+                        Puuid = "puuid-discovered-1",
+                        Name = "discovered-player",
+                        ProfileIconId = 23,
+                        SummonerLevel = 201
+                    },
+                    new RankSnapshotInput("MASTER", "I", 42, Wins: 7, Losses: 3))
             });
         }
     }

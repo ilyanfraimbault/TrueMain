@@ -3,6 +3,7 @@ using Data.Entities;
 using FluentAssertions;
 using Ingestor.Options;
 using Ingestor.Processes;
+using Ingestor.Ranking;
 using Ingestor.Riot;
 using Ingestor.Riot.Dto;
 using Microsoft.EntityFrameworkCore;
@@ -235,6 +236,64 @@ public sealed class RankSnapshotIngestionTests : IClassFixture<PostgresFixture>
     }
 
     [Fact]
+    public async Task RunCoreAsync_SuccessfulRankWrite_BumpsLastRankSyncAtUtc()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var account = await SeedAccountAsync("puuid-bump");
+
+        var process = BuildProcess(soloEntry: SoloEntry("GOLD", "II", 50));
+        await process.RunCoreAsync(CancellationToken.None);
+
+        await using var verify = _fixture.CreateDbContext();
+        var stored = await verify.RiotAccounts.SingleAsync(a => a.Id == account.Id);
+        stored.LastRankSyncAtUtc.Should().NotBeNull();
+        stored.LastRankSyncAtUtc.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
+    }
+
+    [Fact]
+    public async Task RunCoreAsync_RecentLastRankSync_SkipsLeagueByPuuidCall()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var account = await SeedAccountAsync("puuid-skip-fresh");
+
+        // Simulate a snapshot the Discovery flow just wrote.
+        await using (var seed = _fixture.CreateDbContext())
+        {
+            var tracked = await seed.RiotAccounts.SingleAsync(a => a.Id == account.Id);
+            tracked.LastRankSyncAtUtc = DateTime.UtcNow.AddMinutes(-1);
+            await seed.SaveChangesAsync();
+        }
+
+        var accountClient = Substitute.For<IRiotAccountClient>();
+        accountClient.GetAccountByPuuidAsync(Arg.Any<string>(), Arg.Any<RegionalRoute>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new RiotAccountDto
+            {
+                Puuid = account.Puuid,
+                GameName = "player",
+                TagLine = "KR1"
+            }));
+
+        var platformClient = Substitute.For<IRiotPlatformClient>();
+        // If the league call is made, return entries that would force a snapshot — the test
+        // would then fail by seeing the snapshot appear.
+        platformClient.GetLeagueEntriesByPuuidAsync(Arg.Any<PlatformRoute>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new List<RiotLeagueEntryByPuuidDto>
+            {
+                SoloEntry("CHALLENGER", "I", 800)
+            }));
+
+        var process = BuildProcessWithClients(accountClient, platformClient);
+        await process.RunCoreAsync(CancellationToken.None);
+
+        await platformClient.DidNotReceive().GetLeagueEntriesByPuuidAsync(
+            Arg.Any<PlatformRoute>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+
+        await using var verify = _fixture.CreateDbContext();
+        var snapshots = await verify.RankSnapshots.Where(s => s.RiotAccountId == account.Id).ToListAsync();
+        snapshots.Should().BeEmpty("the rank call was skipped because LastRankSyncAtUtc is within the freshness window");
+    }
+
+    [Fact]
     public async Task DeletingRiotAccount_CascadesSnapshots()
     {
         await _fixture.ResetDatabaseAsync();
@@ -291,6 +350,7 @@ public sealed class RankSnapshotIngestionTests : IClassFixture<PostgresFixture>
             accountClient,
             platformClient,
             _fixture.CreateSessionFactory(),
+            new RankSnapshotWriter(),
             Microsoft.Extensions.Options.Options.Create(new AccountRefreshOptions { BatchSize = 200 }));
 
     private async Task<RiotAccount> SeedAccountAsync(string puuid)

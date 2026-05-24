@@ -28,6 +28,8 @@ public class RiotAccount
 
     public DateTime? LastProfileSyncAtUtc { get; set; }
 
+    public DateTime? LastRankSyncAtUtc { get; set; }
+
     public DateTime? LastMainCalcAtUtc { get; set; }
 
     public DateTime? LastMatchIngestAtUtc { get; set; }
