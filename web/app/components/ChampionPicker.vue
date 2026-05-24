@@ -7,6 +7,14 @@ import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 const props = defineProps<{
   champions: ChampionStaticListItem[]
   championId: number | null
+  /**
+   * Tailwind class controlling the select trigger's width. Defaults to a
+   * fixed `w-44` (compact, matches the match-history filter strip); pass
+   * `w-full` (with a flex-1 wrapper) when the picker should stretch to
+   * fill the remaining horizontal space — the leaderboard filters use it
+   * so the search field grows with the viewport.
+   */
+  width?: string
 }>()
 
 const emit = defineEmits<{
@@ -38,7 +46,7 @@ function onChange(value: { value: number } | undefined) {
     placeholder="Any champion"
     searchable
     searchable-placeholder="Search champion…"
-    class="w-44"
+    :class="props.width ?? 'w-44'"
     @update:model-value="onChange"
   />
 </template>

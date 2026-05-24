@@ -3,9 +3,10 @@ import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import type { RegionSlug } from '~~/shared/types/leaderboard'
 import type { ChampionPosition } from '~/utils/positions'
 
-// Three independent filters wired through v-model. Region pills sit on the
-// left (most discoverable filter), role + champion picker on the right —
-// matches the screenshot's filter strip.
+// Three independent filters, ordered visually as: position (left) → search
+// (middle, grows with the viewport) → region (right). The champion picker
+// is the most-used filter so it sits in the central slot people gravitate
+// to.
 const props = defineProps<{
   champions: ChampionStaticListItem[]
   region: RegionSlug | null
@@ -23,19 +24,25 @@ const emit = defineEmits<{
   'clear': []
 }>()
 
-const REGION_OPTIONS: { value: RegionSlug, label: string }[] = [
-  { value: 'europe', label: 'Europe' },
-  { value: 'americas', label: 'Americas' },
-  { value: 'korea', label: 'Korea' },
+interface RegionItem {
+  label: string
+  value: RegionSlug | null
+}
+
+// `null` value = "All regions" — keeps the select tri-state without
+// needing an extra Clear affordance just for region.
+const REGION_OPTIONS: RegionItem[] = [
+  { label: 'All regions', value: null },
+  { label: 'Europe', value: 'europe' },
+  { label: 'Americas', value: 'americas' },
+  { label: 'Korea', value: 'korea' },
 ]
 
-function toggleRegion(value: RegionSlug) {
-  if (props.region === value) {
-    emit('update:region', null)
-  }
-  else {
-    emit('update:region', value)
-  }
+const selectedRegion = computed<RegionItem>(() =>
+  REGION_OPTIONS.find(o => o.value === props.region) ?? REGION_OPTIONS[0]!)
+
+function onRegionChange(item: RegionItem | undefined) {
+  emit('update:region', item?.value ?? null)
 }
 
 function clearAll() {
@@ -48,33 +55,40 @@ const hasAnyFilter = computed(() =>
 
 <template>
   <div class="flex flex-wrap items-center gap-3">
-    <div class="flex items-center gap-1 rounded-lg bg-elevated/40 p-1">
-      <button
-        v-for="option in REGION_OPTIONS"
-        :key="option.value"
-        type="button"
-        class="inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition-colors"
-        :class="region === option.value
-          ? 'bg-primary/25 text-default ring-1 ring-primary/50'
-          : 'text-muted hover:bg-elevated/80 hover:text-default'"
-        :aria-pressed="region === option.value"
-        @click="toggleRegion(option.value)"
-      >
-        <LeaderboardRegionFlag :region="option.value" :width="18" />
-        {{ option.label }}
-      </button>
-    </div>
-
+    <!-- Position: leftmost, narrowest filter -->
     <RolePicker
       :position="position"
       @update:position="value => emit('update:position', value)"
     />
 
-    <ChampionPicker
-      :champions="champions"
-      :champion-id="championId"
-      @update:champion-id="value => emit('update:championId', value)"
-    />
+    <!-- Champion search: middle slot, grows with the viewport. min-w guards
+         against the field collapsing to nothing on narrow widths where
+         flex-wrap kicks in. -->
+    <div class="min-w-[12rem] flex-1">
+      <ChampionPicker
+        :champions="champions"
+        :champion-id="championId"
+        width="w-full"
+        @update:champion-id="value => emit('update:championId', value)"
+      />
+    </div>
+
+    <!-- Region: rightmost, single dropdown so the strip stays compact and
+         each region is reachable in one click. The flag renders in both the
+         trigger and the option rows via USelectMenu slots. -->
+    <USelectMenu
+      :model-value="selectedRegion"
+      :items="REGION_OPTIONS"
+      class="w-40"
+      @update:model-value="onRegionChange"
+    >
+      <template #leading>
+        <LeaderboardRegionFlag :region="selectedRegion.value" :width="18" />
+      </template>
+      <template #item-leading="{ item }">
+        <LeaderboardRegionFlag :region="(item as RegionItem).value" :width="18" />
+      </template>
+    </USelectMenu>
 
     <UButton
       v-if="hasAnyFilter"
