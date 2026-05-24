@@ -8,8 +8,31 @@ namespace TrueMain.Controllers.Truemains;
 [Route("truemains")]
 public sealed class TruemainsController(
     IMatchSummariesQueryService matchSummariesQueryService,
-    IProfileQueryService profileQueryService) : ControllerBase
+    IProfileQueryService profileQueryService,
+    ITruemainsLeaderboardQueryService leaderboardQueryService) : ControllerBase
 {
+    [HttpGet("")]
+    [ProducesResponseType(typeof(LeaderboardResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<LeaderboardResponse>> ListLeaderboardAsync(
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
+        [FromQuery] string? region,
+        [FromQuery] string? position,
+        [FromQuery] int? championId,
+        CancellationToken ct = default)
+    {
+        var response = await leaderboardQueryService.GetAsync(
+            page ?? 1,
+            pageSize ?? 0,
+            region,
+            position,
+            championId,
+            ct);
+
+        return Ok(response);
+    }
+
     [HttpGet("{nameTag}/profile")]
     [ProducesResponseType(typeof(ProfileReadModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
