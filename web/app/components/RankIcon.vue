@@ -12,13 +12,12 @@ const dim = computed(() => props.size ?? 28)
 
 // Community Dragon's `ranked-mini-crests/` has the clean wing-and-gem
 // shape we want — same visual family as the dpm.lol / op.gg leaderboards.
-// Emerald isn't in that directory (added 2023, never backfilled), so we
-// self-host a single matching SVG and switch source per tier.
+// We use the SVG variants (one file per tier, Emerald included) so the
+// icon scales crisply at any size without IPX rasterising a PNG down.
 const iconUrl = computed(() => {
   const tier = props.tier?.trim().toLowerCase()
   if (!tier) return null
-  if (tier === 'emerald') return '/ranks/emerald.svg'
-  return `https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-static-assets/global/default/images/ranked-mini-crests/${tier}.png`
+  return `https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-static-assets/global/default/images/ranked-mini-crests/${tier}.svg`
 })
 </script>
 
