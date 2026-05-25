@@ -31,6 +31,9 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IClassFixture<Post
         // Master 2625 > Challenger 800 > Master 20 > Diamond I 90 > Diamond II 50.
         // The Diamond rows still sit below every apex row (tier weight wins
         // when LP at apex is low) and the unranked account never appears.
+        //
+        // All ranked accounts also need an IsMain=true row to clear the
+        // strict truemain filter (issue #184).
         await using (var db = _fixture.CreateDbContext())
         {
             var masterHigh = Account("master-high", "MasterHigh", "EUW1");
@@ -47,6 +50,12 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IClassFixture<Post
                 Snapshot(challenger, "CHALLENGER", "I", 800, now),
                 Snapshot(diamondOne, "DIAMOND", "I", 90, now),
                 Snapshot(diamondTwo, "DIAMOND", "II", 50, now));
+            db.MainChampionStats.AddRange(
+                MainStat("master-high", "EUW1", 1, "MIDDLE", isMain: true),
+                MainStat("master-low", "EUW1", 1, "MIDDLE", isMain: true),
+                MainStat("challenger", "NA1", 1, "MIDDLE", isMain: true),
+                MainStat("diamond-one", "EUW1", 1, "MIDDLE", isMain: true),
+                MainStat("diamond-two", "EUW1", 1, "MIDDLE", isMain: true));
 
             await db.SaveChangesAsync();
         }
@@ -95,6 +104,14 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IClassFixture<Post
                 Snapshot(na, "PLATINUM", "III", 10, now),
                 Snapshot(kr, "CHALLENGER", "I", 1200, now),
                 Snapshot(jp, "MASTER", "I", 200, now));
+            // Strict truemain filter (issue #184) requires every visible row
+            // to back an IsMain=true main_champion_stats entry. JP1 doesn't
+            // need one — it's excluded by the region filter anyway.
+            db.MainChampionStats.AddRange(
+                MainStat("euw-1", "EUW1", 1, "MIDDLE", isMain: true),
+                MainStat("eun-1", "EUN1", 1, "MIDDLE", isMain: true),
+                MainStat("na-1", "NA1", 1, "MIDDLE", isMain: true),
+                MainStat("kr-1", "KR", 1, "MIDDLE", isMain: true));
 
             await db.SaveChangesAsync();
         }
@@ -193,6 +210,10 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IClassFixture<Post
                 var account = Account(id, $"Player{i}", "EUW1");
                 db.RiotAccounts.Add(account);
                 db.RankSnapshots.Add(Snapshot(account, "DIAMOND", "I", 99 - i, now));
+                // Strict truemain filter (issue #184): pagination is over the
+                // truemains subset, so every paginated row needs an
+                // IsMain=true main_champion_stats entry.
+                db.MainChampionStats.Add(MainStat(id, "EUW1", 1, "MIDDLE", isMain: true));
             }
 
             await db.SaveChangesAsync();
@@ -243,6 +264,14 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IClassFixture<Post
                 Snapshot(oneGame, "DIAMOND", "I", 50, now),
                 Snapshot(fourGames, "DIAMOND", "I", 50, now),
                 Snapshot(sixGames, "DIAMOND", "I", 50, now));
+            // Strict truemain filter (issue #184): the min-games filter runs
+            // alongside the IsMain=true requirement, so all three candidates
+            // need a main_champion_stats row even though the assertion only
+            // expects "six" to survive the MinRankedGames cut-off.
+            db.MainChampionStats.AddRange(
+                MainStat("one", "EUW1", 1, "MIDDLE", isMain: true),
+                MainStat("four", "EUW1", 1, "MIDDLE", isMain: true),
+                MainStat("six", "EUW1", 1, "MIDDLE", isMain: true));
 
             SeedRankedGames(db, "one", 1, now);
             SeedRankedGames(db, "four", 4, now);
@@ -260,6 +289,48 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IClassFixture<Post
         var response = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
         response!.Total.Should().Be(1, "only the account with >= 5 games should appear");
         response.Rows.Single().Identity.GameName.Should().Be("SixGames");
+    }
+
+    [Fact]
+    public async Task List_excludes_accounts_without_truemain_main_champion_stat()
+    {
+        // The /truemains page is, by definition, the list of truemains: an
+        // account that has rank data but no IsMain=true row in
+        // main_champion_stats (fresh ingest, or main analysis hasn't run yet,
+        // or the player isn't a true main of anyone) must NOT appear on the
+        // leaderboard. See issue #184.
+        await _fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var realMain = Account("real-main", "RealMain", "EUW1");
+            var notMain = Account("not-main", "NotMain", "EUW1");
+            var freshIngest = Account("fresh", "FreshIngest", "EUW1");
+
+            db.RiotAccounts.AddRange(realMain, notMain, freshIngest);
+            db.RankSnapshots.AddRange(
+                Snapshot(realMain, "DIAMOND", "I", 80, now),
+                Snapshot(notMain, "DIAMOND", "I", 80, now),
+                Snapshot(freshIngest, "DIAMOND", "I", 80, now));
+
+            // Only `real-main` qualifies. `not-main` has a row but with
+            // IsMain=false (the analyzer ran and decided the player isn't a
+            // main of any champion). `fresh-ingest` has no row at all
+            // (analyzer hasn't seen the puuid yet).
+            db.MainChampionStats.AddRange(
+                MainStat("real-main", "EUW1", 157, "MIDDLE", isMain: true),
+                MainStat("not-main", "EUW1", 86, "TOP", isMain: false));
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        var response = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        response!.Total.Should().Be(1);
+        response.Rows.Single().Identity.GameName.Should().Be("RealMain");
     }
 
     /// <summary>
