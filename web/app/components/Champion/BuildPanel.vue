@@ -18,42 +18,57 @@ defineProps<{
 
 <template>
   <div class="space-y-6 pt-4">
-    <!-- Section 1: Core view — small per-topic cards on the left, Runes pinned right -->
-    <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_max-content]">
-      <div class="grid gap-4 sm:grid-cols-2">
-        <ChampionCoreSpells
-          :summoners="build.core.summonerSpells"
-          :summoners-map="summonersMap"
-        />
-        <ChampionCoreSkillOrder
-          :skill-order="build.core.skillOrder"
-          :champion-static="championStatic"
-        />
-        <ChampionCoreStarterItems
-          :starter="build.core.starterItems"
-          :items-map="itemsMap"
-        />
-        <ChampionCoreBoots
-          :boots="build.core.boots"
-          :items-map="itemsMap"
-        />
-        <ChampionCoreBuildPath
-          class="sm:col-span-2"
-          :path="build.core.itemPath"
-          :items-map="itemsMap"
-        />
+    <!-- Section 1: Core view -->
+    <UCard>
+      <div class="grid gap-x-6 gap-y-5 lg:grid-cols-[minmax(0,1fr)_max-content]">
+        <!-- Section A: everything except runes -->
+        <div class="flex flex-col gap-5 sm:flex-row sm:items-start">
+          <!-- A1: Summoners + Starter, stacked, left-aligned -->
+          <div class="flex flex-col gap-5">
+            <ChampionCoreSpells
+              :summoners="build.core.summonerSpells"
+              :summoners-map="summonersMap"
+            />
+            <ChampionCoreStarterItems
+              :starter="build.core.starterItems"
+              :items-map="itemsMap"
+            />
+          </div>
+          <!-- A2: Skill order + Boots on the same row (evenly spaced via
+               justify-around — see A2a), Build path centred below. A2
+               grows to fill the row so the spacing + centring happen on
+               the full available width. -->
+          <div class="flex flex-1 flex-col gap-5">
+            <!-- A2a: Skill order and Boots evenly spaced across the row -->
+            <div class="flex flex-wrap items-start justify-around gap-6">
+              <ChampionCoreSkillOrder
+                :skill-order="build.core.skillOrder"
+                :champion-static="championStatic"
+              />
+              <ChampionCoreBoots
+                :boots="build.core.boots"
+                :items-map="itemsMap"
+              />
+            </div>
+            <!-- A2b: Build path centered horizontally -->
+            <div class="flex justify-center">
+              <ChampionCoreBuildPath
+                :path="build.core.itemPath"
+                :items-map="itemsMap"
+              />
+            </div>
+          </div>
+        </div>
+        <!-- Runes column -->
+        <div v-if="build.core.runePage && runeTree">
+          <ChampionCoreRunes
+            :page="build.core.runePage"
+            :tree="runeTree"
+            :keystone-size="35"
+          />
+        </div>
       </div>
-      <SectionCard
-        v-if="build.core.runePage && runeTree"
-        title="Runes"
-      >
-        <ChampionCoreRunes
-          :page="build.core.runePage"
-          :tree="runeTree"
-          :keystone-size="35"
-        />
-      </SectionCard>
-    </div>
+    </UCard>
 
     <!-- Section 2: Variations -->
     <ChampionBuildPanelVariations

@@ -16,8 +16,11 @@ const items = computed<StaticItemData[]>(() => {
 </script>
 
 <template>
-  <SectionCard title="Boots">
-    <div class="flex flex-wrap gap-1">
+  <div>
+    <h2 class="text-sm font-medium text-muted">
+      Boots
+    </h2>
+    <div class="mt-2 flex flex-wrap gap-1">
       <GameTooltipItemIcon
         v-for="(item, index) in items"
         :key="`boots-${item.id}-${index}`"
@@ -33,5 +36,5 @@ const items = computed<StaticItemData[]>(() => {
         No data
       </span>
     </div>
-  </SectionCard>
+  </div>
 </template>
