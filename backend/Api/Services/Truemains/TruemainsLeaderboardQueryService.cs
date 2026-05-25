@@ -50,17 +50,16 @@ public sealed class TruemainsLeaderboardQueryService(
             return Empty(clampedPage, clampedPageSize);
         }
 
-        var hasMainFilter = championFilter.HasValue || normalizedPosition is not null;
         var minGames = Math.Max(0, options.Value.MinRankedGames);
 
-        var total = await CountAsync(platforms, hasMainFilter, championFilter, normalizedPosition, minGames, ct);
+        var total = await CountAsync(platforms, championFilter, normalizedPosition, minGames, ct);
         if (total == 0)
         {
             return Empty(clampedPage, clampedPageSize);
         }
 
         var pageRows = await FetchPageAsync(
-            platforms, hasMainFilter, championFilter, normalizedPosition, minGames, offset, clampedPageSize, ct);
+            platforms, championFilter, normalizedPosition, minGames, offset, clampedPageSize, ct);
         if (pageRows.Count == 0)
         {
             // The caller asked for a page past the end. Return an empty slice
@@ -147,17 +146,17 @@ public sealed class TruemainsLeaderboardQueryService(
 
     private async Task<int> CountAsync(
         string[] platforms,
-        bool hasMainFilter,
         int? championFilter,
         string? position,
         int minGames,
         CancellationToken ct)
     {
-        // The two filters can both be null — when neither is set the
-        // `hasMainFilter` short-circuit skips the EXISTS entirely so accounts
-        // with no main_champion_stats row (e.g. fresh ingests before main
-        // analysis) still appear. When set, IS NULL inside the EXISTS lets
-        // either filter stand alone or combine with the other.
+        // The /truemains leaderboard is, by definition, the list of truemains
+        // — so the `IsMain = true` EXISTS is unconditional. Accounts that
+        // haven't been through main analysis yet (fresh ingests) are out of
+        // scope until they do. The `championFilter` / `position` parameters
+        // degrade to "any champion / any position" via IS NULL so they
+        // compose inside the same EXISTS clause without an outer toggle.
         FormattableString sql = $"""
             SELECT COUNT(*)::int AS "Value"
             FROM riot_accounts a
@@ -165,6 +164,14 @@ public sealed class TruemainsLeaderboardQueryService(
               AND EXISTS (
                   SELECT 1 FROM rank_snapshots rs
                   WHERE rs."RiotAccountId" = a."Id"
+              )
+              AND EXISTS (
+                  SELECT 1 FROM main_champion_stats m
+                  WHERE m."PlatformId" = a."PlatformId"
+                    AND m."Puuid" = a."Puuid"
+                    AND m."IsMain" = true
+                    AND ({championFilter}::int IS NULL OR m."ChampionId" = {championFilter})
+                    AND ({position}::text IS NULL OR m."PrimaryPosition" = {position})
               )
               AND ({minGames} = 0 OR (
                   SELECT COUNT(*)::int
@@ -174,14 +181,6 @@ public sealed class TruemainsLeaderboardQueryService(
                     AND m."QueueId" = {RankedQueueId}
                     AND m."GameMode" <> 'CHERRY'
               ) >= {minGames})
-              AND ({hasMainFilter} = false OR EXISTS (
-                  SELECT 1 FROM main_champion_stats m
-                  WHERE m."PlatformId" = a."PlatformId"
-                    AND m."Puuid" = a."Puuid"
-                    AND m."IsMain" = true
-                    AND ({championFilter}::int IS NULL OR m."ChampionId" = {championFilter})
-                    AND ({position}::text IS NULL OR m."PrimaryPosition" = {position})
-              ))
             """;
 
         return await db.Database.SqlQuery<int>(sql).FirstAsync(ct);
@@ -189,7 +188,6 @@ public sealed class TruemainsLeaderboardQueryService(
 
     private async Task<List<PageRow>> FetchPageAsync(
         string[] platforms,
-        bool hasMainFilter,
         int? championFilter,
         string? position,
         int minGames,
@@ -202,6 +200,10 @@ public sealed class TruemainsLeaderboardQueryService(
         // never-ranked accounts — those are out of scope for V1. The score
         // CASE is computed inline so ORDER BY happens server-side over the
         // full filtered set, allowing real pagination.
+        //
+        // The IsMain=true EXISTS is unconditional — see CountAsync for the
+        // rationale. The two EXISTS clauses (CountAsync + FetchPageAsync)
+        // must stay in lock-step or pagination will drift from the total.
         var scoreExpression = RankScore.OrderBySqlFragment("ls");
 
         // Use FormattableStringFactory to compose the SQL: scoreExpression is
@@ -230,30 +232,29 @@ public sealed class TruemainsLeaderboardQueryService(
             FROM riot_accounts a
             INNER JOIN latest_snapshot ls ON ls."RiotAccountId" = a."Id"
             WHERE a."PlatformId" = ANY ({0})
-              AND ({6} = 0 OR (
+              AND EXISTS (
+                  SELECT 1 FROM main_champion_stats m
+                  WHERE m."PlatformId" = a."PlatformId"
+                    AND m."Puuid" = a."Puuid"
+                    AND m."IsMain" = true
+                    AND ({1}::int IS NULL OR m."ChampionId" = {1})
+                    AND ({2}::text IS NULL OR m."PrimaryPosition" = {2})
+              )
+              AND ({5} = 0 OR (
                   SELECT COUNT(*)::int
                   FROM match_participants p
                   INNER JOIN matches m ON m."Id" = p."MatchId"
                   WHERE p."Puuid" = a."Puuid"
                     AND m."QueueId" = {{RankedQueueId}}
                     AND m."GameMode" <> 'CHERRY'
-              ) >= {6})
-              AND ({1} = false OR EXISTS (
-                  SELECT 1 FROM main_champion_stats m
-                  WHERE m."PlatformId" = a."PlatformId"
-                    AND m."Puuid" = a."Puuid"
-                    AND m."IsMain" = true
-                    AND ({2}::int IS NULL OR m."ChampionId" = {2})
-                    AND ({3}::text IS NULL OR m."PrimaryPosition" = {3})
-              ))
+              ) >= {5})
             ORDER BY "Score" DESC NULLS LAST, a."Id"
-            LIMIT {4} OFFSET {5}
+            LIMIT {3} OFFSET {4}
             """;
 
         var sql = System.Runtime.CompilerServices.FormattableStringFactory.Create(
             sqlTemplate,
             platforms,
-            hasMainFilter,
             (object?)championFilter ?? DBNull.Value,
             (object?)position ?? DBNull.Value,
             pageSize,

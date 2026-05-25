@@ -18,14 +18,20 @@ public sealed class AccountUpsertService : IAccountUpsertService
         var existing = await session.RiotAccounts.GetByPuuidAsync(summoner.Puuid, ct);
         var platformId = platform.ToString();
 
+        // GameName and TagLine are NOT owned by summoner-v4. Riot deprecated
+        // summoner.name with the Riot ID rollout (it's empty on every modern
+        // response), and summoner-v4 never exposed tagLine at all. The
+        // authoritative source is account-v1, which AccountRefreshProcess
+        // calls per-account. Touching either field here would clobber the
+        // identity AccountRefresh resolved — keep them as-is on update, and
+        // leave the entity defaults (empty string / null) on insert so the
+        // next refresh cycle populates them.
         if (existing is null)
         {
             var created = new RiotAccount
             {
                 Id = Guid.NewGuid(),
                 Puuid = summoner.Puuid,
-                GameName = summoner.Name,
-                TagLine = null,
                 PlatformId = platformId,
                 SummonerId = summoner.Id,
                 ProfileIconId = summoner.ProfileIconId,
@@ -37,8 +43,6 @@ public sealed class AccountUpsertService : IAccountUpsertService
             return new AccountUpsertResult(IsNew: true, Account: created);
         }
 
-        existing.GameName = summoner.Name;
-        existing.TagLine = null;
         existing.PlatformId = platformId;
         existing.SummonerId = summoner.Id;
         existing.ProfileIconId = summoner.ProfileIconId;
