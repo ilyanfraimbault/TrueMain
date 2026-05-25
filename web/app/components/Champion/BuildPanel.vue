@@ -34,9 +34,10 @@ defineProps<{
               :items-map="itemsMap"
             />
           </div>
-          <!-- A2: Skill order + Boots on the same row (pinned to the edges),
-               Build path centered below. A2 grows to fill the row so the
-               edge-pinning + centring happen on the full available width. -->
+          <!-- A2: Skill order + Boots on the same row (evenly spaced via
+               justify-around — see A2a), Build path centred below. A2
+               grows to fill the row so the spacing + centring happen on
+               the full available width. -->
           <div class="flex flex-1 flex-col gap-5">
             <!-- A2a: Skill order and Boots evenly spaced across the row -->
             <div class="flex flex-wrap items-start justify-around gap-6">
