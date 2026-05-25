@@ -85,6 +85,103 @@ public sealed class AccountRefreshFairMixTests : IClassFixture<PostgresFixture>
     }
 
     [Fact]
+    public async Task GetAccountsForRefreshAsync_DrainsIncompleteTruemainsBeforeFairMix()
+    {
+        // Priority 0 (issue #188): truemains with an incomplete identity
+        // (empty GameName or null TagLine) jump the 75/25 fair-mix and take
+        // the whole batch if their pool is large enough. Complete-identity
+        // truemains and non-truemains do not get refreshed until every
+        // incomplete truemain is in flight.
+        await _fixture.ResetDatabaseAsync();
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var now = DateTime.UtcNow;
+
+            // 50 incomplete truemains — exactly the batch size we'll request.
+            for (var i = 0; i < 50; i++)
+            {
+                var puuid = $"puuid-truemain-incomplete-{i:D3}";
+                db.RiotAccounts.Add(NewAccount(puuid, gameName: "", tagLine: null, now.AddDays(-2).AddMinutes(i)));
+                db.MainChampionStats.Add(NewMainStat(puuid));
+            }
+
+            // Plenty of complete truemains and non-truemains that would
+            // normally win the fair-mix on UpdatedAtUtc — must NOT appear.
+            for (var i = 0; i < 100; i++)
+            {
+                var truemainPuuid = $"puuid-truemain-complete-{i:D3}";
+                db.RiotAccounts.Add(NewAccount(truemainPuuid, $"main-{i}", "KR1", now.AddDays(-1).AddMinutes(i)));
+                db.MainChampionStats.Add(NewMainStat(truemainPuuid));
+
+                var otherPuuid = $"puuid-other-{i:D3}";
+                db.RiotAccounts.Add(NewAccount(otherPuuid, $"other-{i}", "KR1", now.AddDays(-1).AddMinutes(i)));
+            }
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var verify = _fixture.CreateDbContext();
+        var repo = new RiotAccountRepository(verify);
+
+        var batch = await repo.GetAccountsForRefreshAsync(50, CancellationToken.None);
+
+        batch.Should().HaveCount(50);
+        batch.Should().OnlyContain(
+            a => a.Puuid.StartsWith("puuid-truemain-incomplete-"),
+            "every slot should go to incomplete-identity truemains before any complete or non-truemain account is touched");
+    }
+
+    [Fact]
+    public async Task GetAccountsForRefreshAsync_FillsRemainingCapacityWithFairMixAfterDrainingIncompleteTruemains()
+    {
+        // If priority 0 doesn't fill the batch, the remaining capacity
+        // follows the legacy 75/25 truemain / non-truemain fair-mix. With
+        // 10 incomplete truemains and a batch of 100, we expect 10 P0 picks
+        // + (75 % of 90) ≈ 68 complete truemains + (25 % of 90) ≈ 22 others.
+        await _fixture.ResetDatabaseAsync();
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var now = DateTime.UtcNow;
+
+            for (var i = 0; i < 10; i++)
+            {
+                var puuid = $"puuid-truemain-incomplete-{i:D3}";
+                db.RiotAccounts.Add(NewAccount(puuid, gameName: "", tagLine: null, now.AddDays(-2).AddMinutes(i)));
+                db.MainChampionStats.Add(NewMainStat(puuid));
+            }
+
+            for (var i = 0; i < 200; i++)
+            {
+                var truemainPuuid = $"puuid-truemain-complete-{i:D3}";
+                db.RiotAccounts.Add(NewAccount(truemainPuuid, $"main-{i}", "KR1", now.AddDays(-1).AddMinutes(i)));
+                db.MainChampionStats.Add(NewMainStat(truemainPuuid));
+
+                var otherPuuid = $"puuid-other-{i:D3}";
+                db.RiotAccounts.Add(NewAccount(otherPuuid, $"other-{i}", "KR1", now.AddDays(-1).AddMinutes(i)));
+            }
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var verify = _fixture.CreateDbContext();
+        var repo = new RiotAccountRepository(verify);
+
+        var batch = await repo.GetAccountsForRefreshAsync(100, CancellationToken.None);
+
+        batch.Should().HaveCount(100);
+
+        var incompletePicked = batch.Count(a => a.Puuid.StartsWith("puuid-truemain-incomplete-"));
+        var completeTruemainPicked = batch.Count(a => a.Puuid.StartsWith("puuid-truemain-complete-"));
+        var otherPicked = batch.Count(a => a.Puuid.StartsWith("puuid-other-"));
+
+        incompletePicked.Should().Be(10, "all 10 incomplete truemains are picked first");
+        completeTruemainPicked.Should().Be(68, "75 % of the 90 leftover slots go to complete truemains (ceil(90 * 0.75))");
+        otherPicked.Should().Be(22, "the remaining 22 slots go to non-truemains");
+    }
+
+    [Fact]
     public async Task GetAccountsForRefreshAsync_PrioritizesIncompleteIdentityWithinBucket()
     {
         await _fixture.ResetDatabaseAsync();
