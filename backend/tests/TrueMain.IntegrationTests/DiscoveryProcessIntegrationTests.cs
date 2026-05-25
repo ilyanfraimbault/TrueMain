@@ -46,7 +46,12 @@ public sealed class DiscoveryProcessIntegrationTests : IClassFixture<PostgresFix
         var account = verifyDb.RiotAccounts.Single(a => a.Puuid == "puuid-discovered-1");
 
         account.PlatformId.Should().Be("KR");
-        account.GameName.Should().Be("discovered-player");
+        // GameName / TagLine are owned by AccountRefreshProcess via account-v1
+        // — Discovery's upsert leaves them at the entity default so the next
+        // refresh cycle backfills the identity from the authoritative source.
+        // See issue #182.
+        account.GameName.Should().BeEmpty();
+        account.TagLine.Should().BeNull();
         account.SummonerId.Should().Be("summoner-discovered-1");
         account.ProfileIconId.Should().Be(23);
         account.SummonerLevel.Should().Be(201);
