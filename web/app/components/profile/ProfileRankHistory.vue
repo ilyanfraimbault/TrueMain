@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { RankHistoryEntry } from '~~/shared/types/rank-history'
-import { formatTier, isApexTier, rankScore, tierFloor, tierHex, TIER_NAMES } from '~/utils/tiers'
+import { isApexTier, rankScore, tierFloor, tierHex, TIER_NAMES } from '~/utils/tiers'
 
 const props = defineProps<{
   entries: readonly RankHistoryEntry[]
@@ -136,11 +136,12 @@ const isUnranked = computed(() =>
               v-if="values"
               class="rounded-md border border-default bg-elevated px-2 py-1.5 text-xs shadow-md"
             >
-              <p class="font-semibold text-default">
-                {{ formatTier(values.entry.tier, values.entry.division) }}
-                <span class="text-muted">·</span>
-                <span class="tabular-nums">{{ values.entry.leaguePoints }} LP</span>
-              </p>
+              <div class="flex items-center gap-1.5">
+                <RankIcon :tier="values.entry.tier" :size="20" />
+                <span class="font-semibold tabular-nums text-default">
+                  {{ values.entry.leaguePoints }} LP
+                </span>
+              </div>
               <p class="mt-0.5 text-muted">
                 {{ dateLabel(values.entry.capturedAtUtc) }}
               </p>
