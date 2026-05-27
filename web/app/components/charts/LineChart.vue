@@ -2,7 +2,10 @@
 import type { BulletLegendItemInterface } from 'vue-chrts/types'
 import type { CurveType, LegendPosition } from 'vue-chrts/enums'
 
-// Thin wrapper around `nuxt-charts`'s global <LineChart>. Purpose:
+// Thin wrapper around `nuxt-charts`'s upstream chart (registered under
+// the `Nc` prefix in `nuxt.config.ts` so the wrapper can reference it
+// without colliding with its own auto-imported `<ChartsLineChart>` name).
+// Purpose:
 //   1. apply the TrueMain palette (emerald primary, muted neutral guides)
 //      so callers don't repeat hex codes on every chart;
 //   2. fix the container size so an empty/loading state never collapses
@@ -64,7 +67,7 @@ const crosshairConfig = { color: CHART_GUIDE_COLOR }
       {{ emptyMessage }}
     </div>
     <ClientOnly v-else>
-      <LineChart
+      <NcLineChart
         :data="data"
         :categories="resolvedCategories"
         :height="height"

@@ -14,9 +14,10 @@ export const CHART_SERIES_PALETTE = [
   '#3f3f46', // zinc-700
 ] as const
 
-// Crosshair / grid / axis stroke. Matches `--ui-border` (neutral-800)
-// closely so guides blend with surrounding cards instead of slicing them.
-export const CHART_GUIDE_COLOR = '#3f3f46'
+// Crosshair / grid / axis stroke. One shade lighter than `--ui-border`
+// (zinc-800, `#27272a`) so guides stay legible against card backgrounds
+// without slicing them.
+export const CHART_GUIDE_COLOR = '#3f3f46' // zinc-700
 
 // Pull the Nth default series color, wrapping around if the caller has
 // more series than the palette defines.
