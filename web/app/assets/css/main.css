@@ -83,3 +83,28 @@
   --ui-bg-accented: var(--ui-color-neutral-700);
   --ui-border: var(--ui-color-neutral-800);
 }
+
+/*
+ * Neutralise the Unovis tooltip container so chart-wrapper `#tooltip`
+ * slot content owns the look. The library defaults paint a near-opaque
+ * white card with its own border + padding, which sits beneath our
+ * styled slot and produces a "white blob behind a dark card" effect on
+ * top of TrueMain's dark surfaces.
+ *
+ * The override targets the tooltip element directly (Emotion suffixes
+ * the class with "-tooltip" — see `label: tooltip` in @unovis/ts
+ * `components/tooltip/style.js`) rather than `:root`, because Unovis
+ * re-injects its own `:root { --vis-tooltip-* }` block at chart-mount
+ * time, AFTER this stylesheet loads. Re-scoping the variables to the
+ * tooltip element wins on CSS-variable proximity regardless of source
+ * order. Chart consumers style the inner div however they want and
+ * the wrapper stays invisible.
+ */
+[class*="-tooltip"] {
+  --vis-tooltip-background-color: transparent;
+  --vis-tooltip-border-color: transparent;
+  --vis-tooltip-text-color: inherit;
+  --vis-tooltip-padding: 0;
+  --vis-tooltip-border-radius: 0;
+  --vis-tooltip-box-shadow: none;
+}
