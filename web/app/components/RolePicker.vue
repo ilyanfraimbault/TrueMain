@@ -7,9 +7,14 @@ import { getPositionIconUrl } from '~~/shared/utils/ddragon'
 // leaderboard and the champion list feel like one app. Selected state
 // uses `color="neutral" variant="soft"` — keeps the emerald accent out of
 // the segmented control where it would compete with the rest of the UI.
-const props = defineProps<{
+//
+// `hideAll` drops the leading "All positions" button — used on the
+// champion detail page where the API always returns data for a specific
+// position, so "no filter" has no meaningful UI state.
+const props = withDefaults(defineProps<{
   position: ChampionPosition | null
-}>()
+  hideAll?: boolean
+}>(), { hideAll: false })
 
 const emit = defineEmits<{
   'update:position': [value: ChampionPosition | null]
@@ -25,6 +30,7 @@ function select(value: ChampionPosition | null) {
 <template>
   <UFieldGroup size="md">
     <UButton
+      v-if="!hideAll"
       :variant="position === null ? 'soft' : 'ghost'"
       color="neutral"
       square
