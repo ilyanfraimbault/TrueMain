@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
 using TrueMain.ReadModels.Truemains;
@@ -10,11 +11,22 @@ namespace TrueMain.Services.Truemains;
 public sealed class TruemainsLeaderboardQueryService(
     TrueMainDbContext db,
     IOptions<TruemainsLeaderboardOptions> options,
+    IMemoryCache cache,
     ILogger<TruemainsLeaderboardQueryService> logger) : ITruemainsLeaderboardQueryService
 {
     private const int DefaultPageSize = 25;
     private const int MaxPageSize = 50;
     private const int TopChampionsPerRow = 3;
+
+    // The leaderboard is dominated by page-1 traffic with no filters, and the
+    // four SQL queries that make a fresh response (Count + FetchPage +
+    // FetchTopChampions + FetchStats) cost more than the response itself is
+    // worth re-deriving every second. The numbers underneath only shift when
+    // the ingestor flushes a new batch of rank snapshots or matches — that
+    // happens on a multi-minute cadence, so a 30s TTL trades a few seconds of
+    // staleness for a massive drop in DB load. Mirrors the TTL
+    // ChampionSummariesQueryService uses for the same reason.
+    private static readonly TimeSpan ResponseCacheTtl = TimeSpan.FromSeconds(30);
 
     // Ranked solo queue id (420). Matches the queue used by MainStatsCalculator
     // for main_champion_stats, so the "games" / KDA / winrate cell stays
@@ -52,10 +64,33 @@ public sealed class TruemainsLeaderboardQueryService(
 
         var minGames = Math.Max(0, options.Value.MinRankedGames);
 
+        // Page-1-no-filter is the dominant shape of /truemains traffic; the
+        // four SQL queries that compose a fresh response cost far more than
+        // the JSON is worth re-deriving every second. Cache the assembled
+        // response keyed on the request shape — the snapshot rate underneath
+        // moves on a multi-minute cadence (RankSnapshotIngestion + match
+        // ingest), so the TTL trades a few seconds of staleness for a large
+        // drop in DB load. Mirrors ChampionSummariesQueryService's TTL.
+        var cacheKey = BuildCacheKey(platforms, championFilter, normalizedPosition, minGames, clampedPage, clampedPageSize);
+        if (cache.TryGetValue<LeaderboardResponse>(cacheKey, out var cached) && cached is not null)
+        {
+            totalSw.Stop();
+            logger.LogInformation(
+                "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} rows={Rows} total={Total} elapsed={ElapsedMs}ms result=cache_hit",
+                clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames,
+                cached.Rows.Count, cached.Total, totalSw.ElapsedMilliseconds);
+            return cached;
+        }
+
         var total = await CountAsync(platforms, championFilter, normalizedPosition, minGames, ct);
         if (total == 0)
         {
-            return Empty(clampedPage, clampedPageSize);
+            var empty = Empty(clampedPage, clampedPageSize);
+            // Cache the empty response — a filter that yields nothing still
+            // pays for the Count SQL on every visit, and those are the same
+            // requests an attacker / overzealous client would replay.
+            cache.Set(cacheKey, empty, ResponseCacheTtl);
+            return empty;
         }
 
         var pageRows = await FetchPageAsync(
@@ -65,13 +100,15 @@ public sealed class TruemainsLeaderboardQueryService(
             // The caller asked for a page past the end. Return an empty slice
             // with the real total so the frontend's pagination control still
             // resolves to a valid range without a second round trip.
-            return new LeaderboardResponse
+            var pastEnd = new LeaderboardResponse
             {
                 Rows = Array.Empty<LeaderboardRowReadModel>(),
                 Page = clampedPage,
                 PageSize = clampedPageSize,
                 Total = total,
             };
+            cache.Set(cacheKey, pastEnd, ResponseCacheTtl);
+            return pastEnd;
         }
 
         // Hydrate the page slice with derived stats. Two batched queries — one
@@ -129,19 +166,42 @@ public sealed class TruemainsLeaderboardQueryService(
             });
         }
 
-        totalSw.Stop();
-        logger.LogInformation(
-            "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} rows={Rows} total={Total} elapsed={ElapsedMs}ms",
-            clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames,
-            rows.Count, total, totalSw.ElapsedMilliseconds);
-
-        return new LeaderboardResponse
+        var response = new LeaderboardResponse
         {
             Rows = rows,
             Page = clampedPage,
             PageSize = clampedPageSize,
             Total = total,
         };
+        cache.Set(cacheKey, response, ResponseCacheTtl);
+
+        totalSw.Stop();
+        logger.LogInformation(
+            "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} rows={Rows} total={Total} elapsed={ElapsedMs}ms result=miss",
+            clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames,
+            rows.Count, total, totalSw.ElapsedMilliseconds);
+
+        return response;
+    }
+
+    private static string BuildCacheKey(
+        string[] platforms,
+        int? championFilter,
+        string? position,
+        int minGames,
+        int page,
+        int pageSize)
+    {
+        // Caller-stable: platforms are normalised upstream (RegionFilterParser
+        // returns a deterministic iteration), but sorting defends against
+        // future drift if another caller passes them in a different order.
+        // The "_" sentinel keeps nullable values distinct from any literal
+        // filter value that could collide on the key (no champion uses "_"
+        // as an ID, no position is "_").
+        var platformPart = string.Join(",", platforms.OrderBy(p => p, StringComparer.Ordinal));
+        var championPart = championFilter?.ToString() ?? "_";
+        var positionPart = position ?? "_";
+        return $"truemains:leaderboard:{platformPart}:{championPart}:{positionPart}:{minGames}:{page}:{pageSize}";
     }
 
     private async Task<int> CountAsync(

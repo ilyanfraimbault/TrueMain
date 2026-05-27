@@ -333,6 +333,59 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IClassFixture<Post
         response.Rows.Single().Identity.GameName.Should().Be("RealMain");
     }
 
+    [Fact]
+    public async Task List_caches_response_for_identical_request_shape()
+    {
+        // Proves the 30s response cache short-circuits the four SQL queries
+        // for the same (page, filters) shape. We can't easily wait the TTL
+        // out inside a test, so we use the inverse signal: mutate the DB
+        // *after* the first request and verify the second request still sees
+        // the snapshot from the first — which only happens if the second one
+        // came back from the cache without hitting the DB.
+        await _fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var first = Account("first", "First", "EUW1");
+            db.RiotAccounts.Add(first);
+            db.RankSnapshots.Add(Snapshot(first, "DIAMOND", "I", 80, now));
+            db.MainChampionStats.Add(MainStat("first", "EUW1", 157, "MIDDLE", isMain: true));
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        // First request — populates the cache for this (platforms, …) shape.
+        var firstResponse = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        firstResponse!.Total.Should().Be(1);
+        firstResponse.Rows.Single().Identity.GameName.Should().Be("First");
+
+        // Sneak a second account into the DB. If the leaderboard wasn't
+        // cached, the next request would see Total=2.
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var second = Account("second", "Second", "EUW1");
+            db.RiotAccounts.Add(second);
+            db.RankSnapshots.Add(Snapshot(second, "MASTER", "I", 200, now));
+            db.MainChampionStats.Add(MainStat("second", "EUW1", 86, "TOP", isMain: true));
+            await db.SaveChangesAsync();
+        }
+
+        // Identical request — must come back from cache, so still Total=1.
+        var cachedResponse = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        cachedResponse!.Total.Should().Be(1, "the second request must hit the cache and ignore the freshly inserted account");
+        cachedResponse.Rows.Single().Identity.GameName.Should().Be("First");
+
+        // Different filter shape (?region=europe vs default) yields a
+        // different cache key. The request bypasses the cache, hits the DB,
+        // and now sees both accounts — proving the cache is keyed correctly
+        // (not just returning the first response for every request).
+        var freshResponse = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?region=europe");
+        freshResponse!.Total.Should().Be(2, "a different filter shape must miss the cache");
+    }
+
     /// <summary>
     /// Seeds <paramref name="games"/> matches + matching participants for
     /// <paramref name="puuid"/>. Both rows are required because the
