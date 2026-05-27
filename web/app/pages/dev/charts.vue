@@ -29,8 +29,8 @@ const lpCategories = {
   lp: { name: 'LP', color: '#34d399' },
 }
 
-const lpXFormatter = (tick: number | Date): string => {
-  const point = lpHistory[Number(tick)]
+const lpXFormatter = (tick: number): string => {
+  const point = lpHistory[tick]
   if (!point) return ''
   return new Date(point.ts).toLocaleDateString(undefined, {
     month: 'short',
@@ -62,11 +62,11 @@ const winrateCategories = {
   zed: { name: 'Zed',  color: '#71717a' },
 }
 
-const winrateXFormatter = (tick: number | Date): string =>
-  winrates[Number(tick)]?.patch ?? ''
+const winrateXFormatter = (tick: number): string =>
+  winrates[tick]?.patch ?? ''
 
-const winrateYFormatter = (tick: number | Date): string =>
-  `${(Number(tick) * 100).toFixed(0)}%`
+const winrateYFormatter = (tick: number): string =>
+  `${(tick * 100).toFixed(0)}%`
 </script>
 
 <template>

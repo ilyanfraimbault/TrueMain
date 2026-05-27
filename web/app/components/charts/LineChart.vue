@@ -1,5 +1,5 @@
 <script setup lang="ts" generic="TItem extends Record<string, unknown>">
-import type { BulletLegendItemInterface } from 'vue-chrts/types'
+import type { axisFormatter, BulletLegendItemInterface } from 'vue-chrts/types'
 import type { CurveType, LegendPosition } from 'vue-chrts/enums'
 
 // Thin wrapper around `nuxt-charts`'s upstream chart (registered under
@@ -21,8 +21,8 @@ interface Props {
   emptyMessage?: string
   xLabel?: string
   yLabel?: string
-  xFormatter?: (tick: number | Date, i: number, ticks: (number | Date)[]) => string
-  yFormatter?: (tick: number | Date, i: number, ticks: (number | Date)[]) => string
+  xFormatter?: axisFormatter
+  yFormatter?: axisFormatter
   curveType?: CurveType
   lineWidth?: number
   yGridLine?: boolean
