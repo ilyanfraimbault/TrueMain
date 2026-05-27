@@ -33,6 +33,13 @@ public sealed class TruemainsLeaderboardQueryService(
     // consistent with the player's top-champions cell on the same row.
     private const int RankedQueueId = 420;
 
+    // A position filter surfaces every player who plays that position on a
+    // main champion at least this share of the time, not just players whose
+    // single most-played position matches. Picking 0.4 keeps the bar firmly
+    // in "actually plays this lane" territory — a 60/40 Yasuo split lands in
+    // both MIDDLE and TOP, but a 70/30 cameo stays out of the lighter lane.
+    private const double MinPositionShare = 0.4d;
+
     public async Task<LeaderboardResponse> GetAsync(
         int page,
         int pageSize,
@@ -231,7 +238,12 @@ public sealed class TruemainsLeaderboardQueryService(
                     AND m."Puuid" = a."Puuid"
                     AND m."IsMain" = true
                     AND ({championFilter}::int IS NULL OR m."ChampionId" = {championFilter})
-                    AND ({position}::text IS NULL OR m."PrimaryPosition" = {position})
+                    AND ({position}::text IS NULL OR EXISTS (
+                        SELECT 1
+                        FROM jsonb_array_elements(m."PositionBreakdown") AS pos
+                        WHERE pos->>'Position' = {position}
+                          AND (pos->>'Rate')::float8 >= {MinPositionShare}
+                    ))
               )
               AND ({minGames} = 0 OR (
                   SELECT COUNT(*)::int
@@ -298,7 +310,12 @@ public sealed class TruemainsLeaderboardQueryService(
                     AND m."Puuid" = a."Puuid"
                     AND m."IsMain" = true
                     AND ({1}::int IS NULL OR m."ChampionId" = {1})
-                    AND ({2}::text IS NULL OR m."PrimaryPosition" = {2})
+                    AND ({2}::text IS NULL OR EXISTS (
+                        SELECT 1
+                        FROM jsonb_array_elements(m."PositionBreakdown") AS pos
+                        WHERE pos->>'Position' = {2}
+                          AND (pos->>'Rate')::float8 >= {6}
+                    ))
               )
               AND ({5} = 0 OR (
                   SELECT COUNT(*)::int
@@ -319,7 +336,8 @@ public sealed class TruemainsLeaderboardQueryService(
             (object?)position ?? DBNull.Value,
             pageSize,
             offset,
-            minGames);
+            minGames,
+            MinPositionShare);
 
         return await db.Database.SqlQuery<PageRow>(sql).ToListAsync(ct);
     }

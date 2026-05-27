@@ -197,6 +197,72 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IClassFixture<Post
     }
 
     [Fact]
+    public async Task List_position_filter_uses_40_percent_threshold_on_position_breakdown()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        // Three Yasuo mains with different lane splits. The filter should
+        // include any player who plays the queried position at least 40% of
+        // the time with a main champion, not only the player whose top lane
+        // is the queried position.
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var fortyForty = Account("split-40", "Split40", "EUW1");
+            var thirtySeventy = Account("split-30", "Split30", "EUW1");
+            var pureTop = Account("pure-top", "PureTop", "EUW1");
+
+            db.RiotAccounts.AddRange(fortyForty, thirtySeventy, pureTop);
+            db.RankSnapshots.AddRange(
+                Snapshot(fortyForty, "DIAMOND", "I", 50, now),
+                Snapshot(thirtySeventy, "DIAMOND", "I", 50, now),
+                Snapshot(pureTop, "DIAMOND", "I", 50, now));
+
+            // Split40: MIDDLE 60% / TOP 40% — should appear under both filters.
+            db.MainChampionStats.Add(MainStatWithBreakdown(
+                "split-40", "EUW1", championId: 157, primaryPosition: "MIDDLE",
+                breakdown:
+                [
+                    new PositionStat { Position = "MIDDLE", Games = 60, Rate = 0.6d },
+                    new PositionStat { Position = "TOP", Games = 40, Rate = 0.4d },
+                ]));
+
+            // Split30: MIDDLE 70% / TOP 30% — only MIDDLE clears the bar.
+            db.MainChampionStats.Add(MainStatWithBreakdown(
+                "split-30", "EUW1", championId: 157, primaryPosition: "MIDDLE",
+                breakdown:
+                [
+                    new PositionStat { Position = "MIDDLE", Games = 70, Rate = 0.7d },
+                    new PositionStat { Position = "TOP", Games = 30, Rate = 0.3d },
+                ]));
+
+            // PureTop: TOP 100% — control row, should appear under TOP only.
+            db.MainChampionStats.Add(MainStatWithBreakdown(
+                "pure-top", "EUW1", championId: 86, primaryPosition: "TOP",
+                breakdown:
+                [
+                    new PositionStat { Position = "TOP", Games = 50, Rate = 1d },
+                ]));
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        var middles = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?position=MIDDLE");
+        middles!.Total.Should().Be(2);
+        middles.Rows.Select(r => r.Identity.GameName)
+            .Should().BeEquivalentTo(["Split40", "Split30"]);
+
+        // Split40 (40% top) qualifies; Split30 (30% top) does not.
+        var tops = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?position=TOP");
+        tops!.Total.Should().Be(2);
+        tops.Rows.Select(r => r.Identity.GameName)
+            .Should().BeEquivalentTo(["Split40", "PureTop"]);
+    }
+
+    [Fact]
     public async Task List_paginates_with_server_computed_rank()
     {
         await _fixture.ResetDatabaseAsync();
@@ -478,6 +544,28 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IClassFixture<Post
             IsOtp = false,
             PrimaryPosition = primaryPosition,
             PositionBreakdown = [new PositionStat { Position = primaryPosition, Games = 50, Rate = 1d }],
+            CalculatedAtUtc = DateTime.UtcNow,
+        };
+
+    private static MainChampionStat MainStatWithBreakdown(
+        string puuid,
+        string platformId,
+        int championId,
+        string primaryPosition,
+        List<PositionStat> breakdown)
+        => new()
+        {
+            Id = Guid.NewGuid(),
+            PlatformId = platformId,
+            Puuid = puuid,
+            ChampionId = championId,
+            TotalMatches = 100,
+            ChampionMatches = breakdown.Sum(p => p.Games),
+            PlayRate = 0.5d,
+            IsMain = true,
+            IsOtp = false,
+            PrimaryPosition = primaryPosition,
+            PositionBreakdown = breakdown,
             CalculatedAtUtc = DateTime.UtcNow,
         };
 
