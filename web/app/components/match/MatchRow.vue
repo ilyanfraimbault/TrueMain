@@ -48,9 +48,37 @@ const subStyle: ComputedRef<StaticPerkStyleData | null> = computed(() => {
   return props.runeTree.perkStyles[self.value.subStyleId] ?? null
 })
 
-const inventoryItems = computed(() =>
-  self.value.items.map(id => (id > 0 ? props.items[id] ?? null : null)),
-)
+// Inventory slots: three-state model so the row can tell apart a slot the
+// player never bought (Item* = 0 in the DB — render an invisible same-sized
+// placeholder) from one whose static data hasn't resolved yet (id > 0 but no
+// entry in the items map — keep the skeleton, that's a real loading state).
+// Without this distinction, every zero in the participant row renders as a
+// "skeleton" square and looks like the page is stuck loading half the items.
+//
+// Real items are left-aligned and the remaining cells become invisible
+// placeholders so the six-slot grid stays the same width on every row — the
+// trinket column lines up vertically across the whole match history even
+// when a row only has three items.
+type InventorySlot =
+  | { kind: 'empty' }
+  | { kind: 'loading' }
+  | { kind: 'item', item: StaticItemData }
+
+const INVENTORY_SLOT_COUNT = 6
+
+const inventoryItems = computed<InventorySlot[]>(() => {
+  const filled: InventorySlot[] = self.value.items
+    .filter(id => id > 0)
+    .map((id) => {
+      const item = props.items[id]
+      return item ? { kind: 'item', item } : { kind: 'loading' }
+    })
+  const empties: InventorySlot[] = Array.from(
+    { length: Math.max(0, INVENTORY_SLOT_COUNT - filled.length) },
+    () => ({ kind: 'empty' }),
+  )
+  return [...filled, ...empties]
+})
 const trinket = computed<StaticItemData | null>(() => {
   const id = self.value.trinketItemId
   return id > 0 ? props.items[id] ?? null : null
@@ -206,17 +234,29 @@ const rowTint = computed(() =>
 
       <!-- Items: single row of 6 inventory slots + a small gap + trinket.
            No background on the icons themselves — they sit on the row tint
-           directly, the way scoreboards usually render inventory. -->
+           directly, the way scoreboards usually render inventory.
+           Empty slots render as transparent same-sized placeholders so the
+           trinket column stays aligned across every row regardless of how
+           many real items the player finished the game with. -->
       <div class="flex shrink-0 items-center gap-1.5">
         <div class="flex gap-1">
-          <GameTooltipItemIcon
-            v-for="(item, idx) in inventoryItems"
+          <template
+            v-for="(slot, idx) in inventoryItems"
             :key="`item-${idx}`"
-            :item="item"
-            :width="24"
-            :height="24"
-            class="size-6 rounded"
-          />
+          >
+            <div
+              v-if="slot.kind === 'empty'"
+              class="size-6 shrink-0"
+              aria-hidden="true"
+            />
+            <GameTooltipItemIcon
+              v-else
+              :item="slot.kind === 'item' ? slot.item : null"
+              :width="24"
+              :height="24"
+              class="size-6 rounded"
+            />
+          </template>
         </div>
         <GameTooltipItemIcon
           :item="trinket"
