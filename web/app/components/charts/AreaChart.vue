@@ -5,7 +5,10 @@ import type { CurveType, LegendPosition } from 'vue-chrts/enums'
 // Sibling of <ChartsLineChart>. Same defaults — emerald palette, fixed
 // container, decoupled API — but renders the filled area beneath the
 // line. Exposes <c>gradientStops</c> so callers can flatten or fade the
-// fill without dropping back to the upstream component directly.
+// fill without dropping back to the upstream component directly. The
+// upstream chart is referenced as <NcAreaChart> (see `nuxtCharts.prefix`
+// in nuxt.config.ts) to avoid self-resolving against this wrapper's
+// own auto-imported name.
 
 interface Props {
   data: TItem[]
@@ -69,7 +72,7 @@ const crosshairConfig = { color: CHART_GUIDE_COLOR }
       {{ emptyMessage }}
     </div>
     <ClientOnly v-else>
-      <AreaChart
+      <NcAreaChart
         :data="data"
         :categories="resolvedCategories"
         :height="height"
@@ -91,7 +94,7 @@ const crosshairConfig = { color: CHART_GUIDE_COLOR }
         <template v-if="$slots.tooltip" #tooltip="{ values }">
           <slot name="tooltip" :values="(values as TItem | undefined)" />
         </template>
-      </AreaChart>
+      </NcAreaChart>
       <template #fallback>
         <USkeleton class="absolute inset-0 size-full" />
       </template>
