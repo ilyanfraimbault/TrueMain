@@ -197,43 +197,43 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IClassFixture<Post
     }
 
     [Fact]
-    public async Task List_position_filter_uses_40_percent_threshold_on_position_breakdown()
+    public async Task List_position_filter_uses_position_breakdown_share_threshold()
     {
         await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         // Three Yasuo mains with different lane splits. The filter should
-        // include any player who plays the queried position at least 40% of
-        // the time with a main champion, not only the player whose top lane
-        // is the queried position.
+        // include any player who plays the queried position at least the
+        // configured share of the time with a main champion (20%), not only
+        // the player whose top lane is the queried position.
         await using (var db = _fixture.CreateDbContext())
         {
-            var fortyForty = Account("split-40", "Split40", "EUW1");
-            var thirtySeventy = Account("split-30", "Split30", "EUW1");
+            var flexTop = Account("flex-top", "FlexTop", "EUW1");
+            var cameoTop = Account("cameo-top", "CameoTop", "EUW1");
             var pureTop = Account("pure-top", "PureTop", "EUW1");
 
-            db.RiotAccounts.AddRange(fortyForty, thirtySeventy, pureTop);
+            db.RiotAccounts.AddRange(flexTop, cameoTop, pureTop);
             db.RankSnapshots.AddRange(
-                Snapshot(fortyForty, "DIAMOND", "I", 50, now),
-                Snapshot(thirtySeventy, "DIAMOND", "I", 50, now),
+                Snapshot(flexTop, "DIAMOND", "I", 50, now),
+                Snapshot(cameoTop, "DIAMOND", "I", 50, now),
                 Snapshot(pureTop, "DIAMOND", "I", 50, now));
 
-            // Split40: MIDDLE 60% / TOP 40% — should appear under both filters.
+            // FlexTop: MIDDLE 80% / TOP 20% — TOP just clears the bar.
             db.MainChampionStats.Add(MainStatWithBreakdown(
-                "split-40", "EUW1", championId: 157, primaryPosition: "MIDDLE",
+                "flex-top", "EUW1", championId: 157, primaryPosition: "MIDDLE",
                 breakdown:
                 [
-                    new PositionStat { Position = "MIDDLE", Games = 60, Rate = 0.6d },
-                    new PositionStat { Position = "TOP", Games = 40, Rate = 0.4d },
+                    new PositionStat { Position = "MIDDLE", Games = 80, Rate = 0.8d },
+                    new PositionStat { Position = "TOP", Games = 20, Rate = 0.2d },
                 ]));
 
-            // Split30: MIDDLE 70% / TOP 30% — only MIDDLE clears the bar.
+            // CameoTop: MIDDLE 85% / TOP 15% — TOP cameo is filtered out.
             db.MainChampionStats.Add(MainStatWithBreakdown(
-                "split-30", "EUW1", championId: 157, primaryPosition: "MIDDLE",
+                "cameo-top", "EUW1", championId: 157, primaryPosition: "MIDDLE",
                 breakdown:
                 [
-                    new PositionStat { Position = "MIDDLE", Games = 70, Rate = 0.7d },
-                    new PositionStat { Position = "TOP", Games = 30, Rate = 0.3d },
+                    new PositionStat { Position = "MIDDLE", Games = 85, Rate = 0.85d },
+                    new PositionStat { Position = "TOP", Games = 15, Rate = 0.15d },
                 ]));
 
             // PureTop: TOP 100% — control row, should appear under TOP only.
@@ -253,13 +253,13 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IClassFixture<Post
         var middles = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?position=MIDDLE");
         middles!.Total.Should().Be(2);
         middles.Rows.Select(r => r.Identity.GameName)
-            .Should().BeEquivalentTo(["Split40", "Split30"]);
+            .Should().BeEquivalentTo(["FlexTop", "CameoTop"]);
 
-        // Split40 (40% top) qualifies; Split30 (30% top) does not.
+        // FlexTop (20% top) qualifies; CameoTop (15% top) does not.
         var tops = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?position=TOP");
         tops!.Total.Should().Be(2);
         tops.Rows.Select(r => r.Identity.GameName)
-            .Should().BeEquivalentTo(["Split40", "PureTop"]);
+            .Should().BeEquivalentTo(["FlexTop", "PureTop"]);
     }
 
     [Fact]

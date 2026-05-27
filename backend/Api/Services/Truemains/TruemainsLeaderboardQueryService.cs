@@ -35,10 +35,10 @@ public sealed class TruemainsLeaderboardQueryService(
 
     // A position filter surfaces every player who plays that position on a
     // main champion at least this share of the time, not just players whose
-    // single most-played position matches. Picking 0.4 keeps the bar firmly
-    // in "actually plays this lane" territory — a 60/40 Yasuo split lands in
-    // both MIDDLE and TOP, but a 70/30 cameo stays out of the lighter lane.
-    private const double MinPositionShare = 0.4d;
+    // single most-played position matches. The bar is low (20%) on purpose:
+    // any meaningful flex into the lane should make the player visible there,
+    // and only one-off cameos (<20% of a champion's games) stay filtered out.
+    private const double MinPositionShare = 0.2d;
 
     public async Task<LeaderboardResponse> GetAsync(
         int page,
