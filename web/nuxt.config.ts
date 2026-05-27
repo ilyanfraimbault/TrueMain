@@ -10,7 +10,7 @@
 const IPX_IMAGE_CACHE_SECONDS = 60 * 60 * 24 * 7 // 7 days
 
 export default defineNuxtConfig({
-  modules: ['@nuxt/ui', '@nuxt/image'],
+  modules: ['@nuxt/ui', '@nuxt/image', 'nuxt-charts'],
   css: ['./app/assets/css/main.css'],
   compatibilityDate: '2026-05-15',
   devtools: { enabled: true },
