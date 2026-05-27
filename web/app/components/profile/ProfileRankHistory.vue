@@ -77,8 +77,8 @@ function dateLabel(iso: string): string {
   })
 }
 
-const xFormatter = (tick: number | Date): string => {
-  const point = chartPoints.value[Number(tick)]
+const xFormatter = (tick: number): string => {
+  const point = chartPoints.value[tick]
   return point ? dateLabel(point.entry.capturedAtUtc) : ''
 }
 
