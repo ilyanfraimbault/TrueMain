@@ -219,12 +219,11 @@ const staticBundleReady = computed(() =>
         />
 
         <ProfileRankedCardSkeleton v-if="profileLoading || !profile" />
-        <ProfileRankedCard v-else :ranked="profile.ranked" />
-
-        <ProfileRankHistory
-          :entries="rankHistory?.entries ?? []"
-          :current-tier="profile?.ranked?.tier ?? null"
-          :loading="rankHistoryLoading"
+        <ProfileRankedCard
+          v-else
+          :ranked="profile.ranked"
+          :history="rankHistory?.entries ?? []"
+          :history-loading="rankHistoryLoading"
         />
 
         <ProfileMainChampionsSkeleton v-if="profileLoading || !profile" />
