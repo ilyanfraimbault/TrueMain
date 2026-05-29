@@ -7,17 +7,17 @@ public static class OptionsConfigurationExtensions
     public static IServiceCollection AddValidatedOptions(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptions<RiotOptions>()
-            .Bind(configuration.GetSection("Riot"))
+            .Bind(configuration.GetSection(RiotOptions.SectionName))
             .Validate(options => !string.IsNullOrWhiteSpace(options.ApiKey), "Riot:ApiKey is required.")
             .Validate(options => options.MaxRetryAttempts > 0, "Riot:MaxRetryAttempts must be greater than 0.")
             .ValidateOnStart();
 
         services.AddOptions<SeedOptions>()
-            .Bind(configuration.GetSection("Seed"))
+            .Bind(configuration.GetSection(SeedOptions.SectionName))
             .ValidateOnStart();
 
         services.AddOptions<DiscoveryOptions>()
-            .Bind(configuration.GetSection("Discovery"))
+            .Bind(configuration.GetSection(DiscoveryOptions.SectionName))
             .Validate(options => HasNonEmptyItems(options.Platforms), "Discovery:Platforms must contain at least one value.")
             .Validate(options => HasNonEmptyItems(options.TierScope), "Discovery:TierScope must contain at least one value.")
             .Validate(options => options.TopChampionsPerAccount > 0, "Discovery:TopChampionsPerAccount must be greater than 0.")
@@ -26,7 +26,7 @@ public static class OptionsConfigurationExtensions
             .ValidateOnStart();
 
         services.AddOptions<ScoringOptions>()
-            .Bind(configuration.GetSection("Scoring"))
+            .Bind(configuration.GetSection(ScoringOptions.SectionName))
             .Validate(options => options.TopNPerPlatform > 0, "Scoring:TopNPerPlatform must be greater than 0.")
             .Validate(options => options.TopChampionsPerAccount > 0, "Scoring:TopChampionsPerAccount must be greater than 0.")
             .Validate(options => options.BatchSize > 0, "Scoring:BatchSize must be greater than 0.")
@@ -38,7 +38,7 @@ public static class OptionsConfigurationExtensions
             .ValidateOnStart();
 
         services.AddOptions<MatchIngestionOptions>()
-            .Bind(configuration.GetSection("MatchIngestion"))
+            .Bind(configuration.GetSection(MatchIngestionOptions.SectionName))
             .Validate(options => options.BatchSize > 0, "MatchIngestion:BatchSize must be greater than 0.")
             .Validate(options => options.MatchesPerAccount > 0, "MatchIngestion:MatchesPerAccount must be greater than 0.")
             .Validate(options => options.SaveBatchSizeMatches > 0, "MatchIngestion:SaveBatchSizeMatches must be greater than 0.")
@@ -60,17 +60,17 @@ public static class OptionsConfigurationExtensions
             .ValidateOnStart();
 
         services.AddOptions<AccountRefreshOptions>()
-            .Bind(configuration.GetSection("AccountRefresh"))
+            .Bind(configuration.GetSection(AccountRefreshOptions.SectionName))
             .Validate(options => options.BatchSize > 0, "AccountRefresh:BatchSize must be greater than 0.")
             .ValidateOnStart();
 
         services.AddOptions<MatchDataRetentionOptions>()
-            .Bind(configuration.GetSection("MatchDataRetention"))
+            .Bind(configuration.GetSection(MatchDataRetentionOptions.SectionName))
             .Validate(options => options.RetainedPatchCount > 0, "MatchDataRetention:RetainedPatchCount must be greater than 0.")
             .ValidateOnStart();
 
         services.AddOptions<JobOptions>()
-            .Bind(configuration.GetSection("Job"))
+            .Bind(configuration.GetSection(JobOptions.SectionName))
             .Validate(options => JobModeParser.TryParse(options.Mode, out _),
                 $"Job:Mode must be one of: {string.Join(", ", Enum.GetNames<JobMode>())} (or the legacy alias RetentionOnly).")
             .Validate(options => options.RunOnce || (options.IntervalMinutes.HasValue && options.IntervalMinutes > 0),
