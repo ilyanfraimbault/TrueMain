@@ -75,6 +75,11 @@ const {
   notFound: profileNotFound,
 } = useTruemainProfile(nameTag)
 
+const {
+  data: rankHistory,
+  isInitialLoading: rankHistoryLoading,
+} = useTruemainRankHistory(nameTag)
+
 useSeoMeta({
   title: () => {
     const identity = profile.value?.identity
@@ -214,7 +219,12 @@ const staticBundleReady = computed(() =>
         />
 
         <ProfileRankedCardSkeleton v-if="profileLoading || !profile" />
-        <ProfileRankedCard v-else :ranked="profile.ranked" />
+        <ProfileRankedCard
+          v-else
+          :ranked="profile.ranked"
+          :history="rankHistory?.entries ?? []"
+          :history-loading="rankHistoryLoading"
+        />
 
         <ProfileMainChampionsSkeleton v-if="profileLoading || !profile" />
         <ProfileMainChampions
