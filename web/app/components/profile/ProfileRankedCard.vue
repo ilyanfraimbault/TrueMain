@@ -41,31 +41,68 @@ const recordLabel = computed(() => {
 })
 
 // ─── Chart series ─────────────────────────────────────────────────────────
+// We render one series per tier present in the history so the line / area
+// fill colour-shifts at each promotion or demotion. Each chart point keeps
+// its rank-score under the *current* tier's key and leaves every other
+// tier `undefined`, which makes Unovis break that tier's line outside its
+// run. The boundary snapshot is duplicated under both adjacent tiers so
+// the segments visually meet rather than leaving a gap at the transition.
 interface ChartPoint extends Record<string, unknown> {
-  score: number
   entry: RankHistoryEntry
 }
 
-const chartPoints = computed<ChartPoint[]>(() =>
+// Plain score series, used for both delta math and the y-domain. Decoupled
+// from `chartPoints` because the multi-tier shape there would force every
+// consumer to scan tier keys to find a numeric value.
+const scoreSeries = computed(() =>
   props.history.map(entry => ({
-    score: rankScore(entry.tier, entry.division, entry.leaguePoints),
     entry,
+    score: rankScore(entry.tier, entry.division, entry.leaguePoints),
   })),
 )
 
-const currentTier = computed(() => props.ranked?.tier ?? null)
-const fillColor = computed(() => tierHex(currentTier.value))
+const chartPoints = computed<ChartPoint[]>(() => {
+  const out: ChartPoint[] = []
+  let prevTier: string | null = null
+  for (const item of scoreSeries.value) {
+    const tier = item.entry.tier.toUpperCase()
+    const point: ChartPoint = { entry: item.entry }
+    point[tier] = item.score
+    if (prevTier !== null && prevTier !== tier) {
+      // Carry the boundary score back into the previous tier's series so its
+      // line ends where the next one starts.
+      point[prevTier] = item.score
+    }
+    out.push(point)
+    prevTier = tier
+  }
+  return out
+})
 
-const categories = computed(() => ({
-  score: { name: 'Rank', color: fillColor.value },
-}))
+// Distinct tiers in the visible history, ordered low-to-high so categories
+// iterate Iron → Challenger and the SVG stacking order reflects rank.
+const presentTiers = computed(() => {
+  const seen = new Set<string>()
+  for (const entry of props.history) seen.add(entry.tier.toUpperCase())
+  return Array.from(seen).sort((a, b) => TIER_NAMES.indexOf(a) - TIER_NAMES.indexOf(b))
+})
+
+const categories = computed(() => {
+  const out: Record<string, { name: string, color: string }> = {}
+  for (const tier of presentTiers.value) {
+    out[tier] = { name: tier, color: tierHex(tier) }
+  }
+  return out
+})
+
+const currentTier = computed(() => props.ranked?.tier ?? null)
 
 // Pad the Y range by 25% (min 50 LP-equivalents) so the line never hugs
 // the top/bottom edge. Falls back to [0, 400] (Iron band) when there's
 // nothing to plot so the empty chart has a sensible scale.
 const yDomain = computed<[number, number]>(() => {
-  if (chartPoints.value.length === 0) return [0, 400]
-  const scores = chartPoints.value.map(p => p.score)
+  if (scoreSeries.value.length === 0) return [0, 400]
+  const scores = scoreSeries.value.map(p => p.score)
   const minScore = Math.min(...scores)
   const maxScore = Math.max(...scores)
   const padded = Math.max(50, (maxScore - minScore) * 0.25)
@@ -113,16 +150,16 @@ const xFormatter = (tick: number): string => {
 // meaningful comparison (≤1 snapshot, or the cutoff snapshot is the
 // current one).
 function deltaSince(days: number): number | null {
-  if (chartPoints.value.length < 2) return null
+  if (scoreSeries.value.length < 2) return null
   const cutoff = Date.now() - days * DAY_MS
-  let base: ChartPoint | undefined
-  for (const point of chartPoints.value) {
+  let base: { entry: RankHistoryEntry, score: number } | undefined
+  for (const point of scoreSeries.value) {
     const t = new Date(point.entry.capturedAtUtc).getTime()
     if (t <= cutoff) base = point
     else break
   }
-  base ??= chartPoints.value[0]
-  const current = chartPoints.value[chartPoints.value.length - 1]
+  base ??= scoreSeries.value[0]
+  const current = scoreSeries.value[scoreSeries.value.length - 1]
   if (!base || !current || base === current) return null
   return current.score - base.score
 }
