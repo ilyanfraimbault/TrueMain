@@ -9,7 +9,7 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
         => db.RiotAccounts.FirstOrDefaultAsync(a => a.Puuid == puuid, ct);
 
     public Task<RiotAccount?> GetByKeyAsync(string platformId, string puuid, CancellationToken ct)
-        => db.RiotAccounts.FirstOrDefaultAsync(a => a.PlatformId == platformId && a.Puuid == puuid, ct);
+        => db.RiotAccounts.AsNoTracking().FirstOrDefaultAsync(a => a.PlatformId == platformId && a.Puuid == puuid, ct);
 
     public async Task<Dictionary<AccountKey, RiotAccount>> GetByKeysAsync(
         IReadOnlyCollection<AccountKey> accounts,

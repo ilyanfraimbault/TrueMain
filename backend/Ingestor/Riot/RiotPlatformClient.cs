@@ -1,9 +1,7 @@
 using System.Net.Http.Json;
 using Core;
 using Core.Lol.Identifiers;
-using Ingestor.Options;
 using Ingestor.Riot.Dto;
-using Microsoft.Extensions.Options;
 
 namespace Ingestor.Riot;
 
@@ -11,20 +9,9 @@ public sealed class RiotPlatformClient : IRiotPlatformClient
 {
     private readonly HttpClient _httpClient;
 
-    public RiotPlatformClient(HttpClient httpClient, IOptions<RiotOptions> options)
+    public RiotPlatformClient(HttpClient httpClient)
     {
         _httpClient = httpClient;
-        var riotOptions = options.Value;
-
-        if (string.IsNullOrWhiteSpace(riotOptions.ApiKey))
-        {
-            throw new InvalidOperationException("Missing Riot ApiKey. Configure Riot:ApiKey.");
-        }
-
-        if (!_httpClient.DefaultRequestHeaders.Contains("X-Riot-Token"))
-        {
-            _httpClient.DefaultRequestHeaders.Add("X-Riot-Token", riotOptions.ApiKey);
-        }
     }
 
     public Task<RiotLeagueListDto> GetChallengerLeagueAsync(PlatformRoute platform, string queue, CancellationToken ct)
@@ -77,7 +64,7 @@ public sealed class RiotPlatformClient : IRiotPlatformClient
 
     private static Uri BuildPlatformUri(PlatformRoute platform, string path)
     {
-        var host = RiotRouting.ToPlatformHost(platform);
+        var host = platform.ToPlatformHost();
         return new Uri($"https://{host}.api.riotgames.com{path}");
     }
 }

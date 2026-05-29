@@ -1,4 +1,5 @@
 using Core;
+using Core.Lol.Identifiers;
 using Data.Entities;
 using Data.Repositories;
 using Ingestor.Options;
@@ -93,7 +94,7 @@ public sealed class AccountRefreshProcess(
         RefreshSummary summary,
         CancellationToken ct)
     {
-        if (!RiotDataHelpers.TryParsePlatform(account.PlatformId, out var platform))
+        if (!PlatformId.TryParse(account.PlatformId, out var platform))
         {
             logger.LogWarning(
                 "Skipping riot account {Puuid}: invalid platform {PlatformId}.",
@@ -105,7 +106,7 @@ public sealed class AccountRefreshProcess(
 
         try
         {
-            var region = RiotRouting.FromPlatform(platform);
+            var region = platform.Route.ToRegional();
             var profile = await riotAccountClient.GetAccountByPuuidAsync(account.Puuid, region, ct);
 
             if (!string.IsNullOrWhiteSpace(profile.GameName))

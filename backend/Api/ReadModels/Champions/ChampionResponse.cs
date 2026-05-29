@@ -6,7 +6,7 @@ namespace TrueMain.ReadModels.Champions;
 /// given patch + position, each tab keyed by (first completed item, primary
 /// keystone).
 /// </summary>
-public sealed class ChampionResponse
+public sealed record ChampionResponse
 {
     public int ChampionId { get; init; }
 
@@ -38,7 +38,7 @@ public sealed class ChampionResponse
 /// <see cref="Core"/>, <see cref="Variations"/>, <see cref="BuildTree"/>,
 /// and <see cref="RunePages"/>.
 /// </summary>
-public sealed class ChampionBuildReadModel
+public sealed record ChampionBuildReadModel
 {
     public int FirstItemId { get; init; }
 
@@ -76,7 +76,7 @@ public sealed class ChampionBuildReadModel
 /// deliberate so the frontend can render the prominent header and the full
 /// list independently.
 /// </summary>
-public sealed class BuildCoreReadModel
+public sealed record BuildCoreReadModel
 {
     public BuildItemPathReadModel? ItemPath { get; init; }
 
@@ -97,7 +97,7 @@ public sealed class BuildCoreReadModel
 /// exposed at the build level via <see cref="ChampionBuildReadModel.RunePages"/>,
 /// not here.
 /// </summary>
-public sealed class BuildVariationsReadModel
+public sealed record BuildVariationsReadModel
 {
     public IReadOnlyList<BuildItemSetReadModel> Boots { get; init; } = [];
 
@@ -108,7 +108,7 @@ public sealed class BuildVariationsReadModel
     public IReadOnlyList<BuildSkillOrderReadModel> SkillOrder { get; init; } = [];
 }
 
-public sealed class BuildTreeNodeReadModel
+public sealed record BuildTreeNodeReadModel
 {
     public int ItemId { get; init; }
 
@@ -126,7 +126,7 @@ public sealed class BuildTreeNodeReadModel
     public IReadOnlyList<BuildTreeNodeReadModel> Children { get; init; } = [];
 }
 
-public sealed class BuildItemPathReadModel
+public sealed record BuildItemPathReadModel
 {
     public IReadOnlyList<int> ItemIds { get; init; } = [];
 
@@ -137,7 +137,7 @@ public sealed class BuildItemPathReadModel
     public double WinRate { get; init; }
 }
 
-public sealed class BuildItemSetReadModel
+public sealed record BuildItemSetReadModel
 {
     public IReadOnlyList<int> ItemIds { get; init; } = [];
 
@@ -148,7 +148,7 @@ public sealed class BuildItemSetReadModel
     public double WinRate { get; init; }
 }
 
-public sealed class BuildSummonerSpellsReadModel
+public sealed record BuildSummonerSpellsReadModel
 {
     public int Spell1Id { get; init; }
 
@@ -161,7 +161,7 @@ public sealed class BuildSummonerSpellsReadModel
     public double WinRate { get; init; }
 }
 
-public sealed class BuildSkillOrderReadModel
+public sealed record BuildSkillOrderReadModel
 {
     public IReadOnlyList<string> Sequence { get; init; } = [];
 
@@ -172,7 +172,7 @@ public sealed class BuildSkillOrderReadModel
     public double WinRate { get; init; }
 }
 
-public sealed class BuildRunePageReadModel
+public sealed record BuildRunePageReadModel
 {
     public int PrimaryStyleId { get; init; }
 

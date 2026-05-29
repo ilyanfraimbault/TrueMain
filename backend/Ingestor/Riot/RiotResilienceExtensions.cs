@@ -1,4 +1,5 @@
 using Ingestor.Options;
+using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
 
 namespace Ingestor.Riot;
@@ -17,7 +18,7 @@ public static class RiotResilienceExtensions
     /// <returns>The same <paramref name="builder"/> so that calls can be chained.</returns>
     public static IHttpClientBuilder AddRiotResilienceHandler(this IHttpClientBuilder builder)
     {
-        builder.AddStandardResilienceHandler((options, serviceProvider) =>
+        builder.AddStandardResilienceHandler().Configure((options, serviceProvider) =>
         {
             var riotOptions = serviceProvider.GetRequiredService<IOptionsMonitor<RiotOptions>>().CurrentValue;
 

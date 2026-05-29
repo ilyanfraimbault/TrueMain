@@ -2,9 +2,19 @@ using Core.Lol.Identifiers;
 
 namespace Core;
 
+/// <summary>
+/// Routing helpers mapping Riot <see cref="PlatformRoute"/> and <see cref="RegionalRoute"/>
+/// values to their regional shards and API host segments.
+/// </summary>
 public static class RiotRouting
 {
-    public static RegionalRoute FromPlatform(PlatformRoute platform) =>
+    /// <summary>
+    /// Resolves the <see cref="RegionalRoute"/> that serves the given platform shard.
+    /// </summary>
+    /// <param name="platform">The platform route to resolve.</param>
+    /// <returns>The regional route the platform belongs to.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when the platform is not supported.</exception>
+    public static RegionalRoute ToRegional(this PlatformRoute platform) =>
         platform switch
         {
             PlatformRoute.EUW1 => RegionalRoute.Europe,
@@ -30,7 +40,13 @@ public static class RiotRouting
             _ => throw new ArgumentOutOfRangeException(nameof(platform), platform, "Unsupported platform route.")
         };
 
-    public static string ToPlatformHost(PlatformRoute platform) =>
+    /// <summary>
+    /// Returns the platform host segment (e.g. <c>"euw1"</c>) used in Riot API URLs.
+    /// </summary>
+    /// <param name="platform">The platform route to map.</param>
+    /// <returns>The lowercase platform host segment.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when the platform is not supported.</exception>
+    public static string ToPlatformHost(this PlatformRoute platform) =>
         platform switch
         {
             PlatformRoute.BR1 => "br1",
@@ -52,7 +68,13 @@ public static class RiotRouting
             _ => throw new ArgumentOutOfRangeException(nameof(platform), platform, "Unsupported platform route.")
         };
 
-    public static string ToRegionalHost(RegionalRoute region) =>
+    /// <summary>
+    /// Returns the regional host segment (e.g. <c>"europe"</c>) used in Riot API URLs.
+    /// </summary>
+    /// <param name="region">The regional route to map.</param>
+    /// <returns>The lowercase regional host segment.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when the region is not supported.</exception>
+    public static string ToRegionalHost(this RegionalRoute region) =>
         region switch
         {
             RegionalRoute.Europe => "europe",

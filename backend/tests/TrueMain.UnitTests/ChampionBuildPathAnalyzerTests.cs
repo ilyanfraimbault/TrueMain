@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using TrueMain.Services.Champions;
 
 namespace TrueMain.UnitTests;

@@ -24,7 +24,7 @@ public sealed class ParticipantPerkSelectionConfiguration : IEntityTypeConfigura
         entity.Property(e => e.PerkSelectionCatalogId)
             .IsRequired();
 
-        entity.HasOne<PerkSelectionCatalog>()
+        entity.HasOne(e => e.Catalog)
             .WithMany()
             .HasForeignKey(e => e.PerkSelectionCatalogId)
             .OnDelete(DeleteBehavior.Restrict);

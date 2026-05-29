@@ -1,5 +1,5 @@
 using Data.Repositories;
-using FluentAssertions;
+using AwesomeAssertions;
 using Ingestor.Processes.Components.MatchIngestion;
 using Ingestor.Riot.Dto;
 

@@ -1,9 +1,7 @@
 using System.Net.Http.Json;
 using Core;
 using Core.Lol.Identifiers;
-using Ingestor.Options;
 using Ingestor.Riot.Dto;
-using Microsoft.Extensions.Options;
 
 namespace Ingestor.Riot;
 
@@ -11,20 +9,9 @@ public sealed class RiotAccountClient : IRiotAccountClient
 {
     private readonly HttpClient _httpClient;
 
-    public RiotAccountClient(HttpClient httpClient, IOptions<RiotOptions> options)
+    public RiotAccountClient(HttpClient httpClient)
     {
         _httpClient = httpClient;
-        var riotOptions = options.Value;
-
-        if (string.IsNullOrWhiteSpace(riotOptions.ApiKey))
-        {
-            throw new InvalidOperationException("Missing Riot ApiKey. Configure Riot:ApiKey.");
-        }
-
-        if (!_httpClient.DefaultRequestHeaders.Contains("X-Riot-Token"))
-        {
-            _httpClient.DefaultRequestHeaders.Add("X-Riot-Token", riotOptions.ApiKey);
-        }
     }
 
     public async Task<RiotAccountDto> GetAccountByPuuidAsync(string puuid, RegionalRoute region, CancellationToken ct)
@@ -36,7 +23,7 @@ public sealed class RiotAccountClient : IRiotAccountClient
 
     private static Uri BuildRegionalUri(RegionalRoute region, string path)
     {
-        var host = RiotRouting.ToRegionalHost(region);
+        var host = region.ToRegionalHost();
         return new Uri($"https://{host}.api.riotgames.com{path}");
     }
 }

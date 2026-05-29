@@ -1,7 +1,7 @@
 using Core.Lol.Map;
 using Core.Options;
 using Data.Entities;
-using FluentAssertions;
+using AwesomeAssertions;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.PatternAggregation;
 using Microsoft.EntityFrameworkCore;

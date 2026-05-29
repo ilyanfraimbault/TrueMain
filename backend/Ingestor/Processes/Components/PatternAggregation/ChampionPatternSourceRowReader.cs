@@ -65,7 +65,7 @@ public sealed class ChampionPatternSourceRowReader(
                 MatchId = match.Id,
                 ParticipantId = participant.ParticipantId,
                 ChampionId = participant.ChampionId,
-                GameVersion = PatchVersion.Normalize(match.GameVersion),
+                GameVersion = NormalizeGameVersion(match.GameVersion),
                 PlatformId = match.PlatformId,
                 QueueId = match.QueueId,
                 GameStartTimeUtc = match.GameStartTimeUtc,
@@ -99,6 +99,9 @@ public sealed class ChampionPatternSourceRowReader(
         await HydratePerkSelectionsAsync(db, filtered, ct);
         return filtered;
     }
+
+    private static string NormalizeGameVersion(string gameVersion)
+        => PatchVersion.TryParse(gameVersion, out var patch) ? patch.ToString() : gameVersion;
 
     private static async Task HydratePerkSelectionsAsync(
         TrueMainDbContext db,

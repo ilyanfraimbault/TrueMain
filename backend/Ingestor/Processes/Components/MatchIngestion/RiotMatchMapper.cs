@@ -1,4 +1,3 @@
-using Core;
 using Data.Entities;
 using Data.Repositories;
 using Ingestor.Riot.Dto;
@@ -13,7 +12,7 @@ internal static class RiotMatchMapper
         IReadOnlyDictionary<AccountKey, RiotAccount> participantAccounts)
     {
         var matchId = matchDto.Metadata.MatchId;
-        var gameStartUtc = RiotDataHelpers.ToUtcDateTime(matchDto.Info.GameStartTimestamp);
+        var gameStartUtc = RiotValueConverters.ToUtcDateTime(matchDto.Info.GameStartTimestamp);
 
         var match = new Match
         {
@@ -24,7 +23,7 @@ internal static class RiotMatchMapper
             GameMode = matchDto.Info.GameMode,
             GameType = matchDto.Info.GameType,
             GameStartTimeUtc = gameStartUtc ?? DateTime.UtcNow,
-            GameDurationSeconds = RiotDataHelpers.ToIntSafe(matchDto.Info.GameDuration),
+            GameDurationSeconds = RiotValueConverters.ToIntSafe(matchDto.Info.GameDuration),
             GameVersion = matchDto.Info.GameVersion,
             CreatedAtUtc = DateTime.UtcNow,
             TimelineIngested = false

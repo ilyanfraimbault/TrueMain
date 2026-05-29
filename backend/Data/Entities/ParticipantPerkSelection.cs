@@ -9,4 +9,6 @@ public class ParticipantPerkSelection
     public int ParticipantId { get; set; }
 
     public int PerkSelectionCatalogId { get; set; }
+
+    public PerkSelectionCatalog Catalog { get; set; } = null!;
 }
