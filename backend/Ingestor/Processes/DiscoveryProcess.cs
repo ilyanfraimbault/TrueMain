@@ -1,4 +1,3 @@
-using Core;
 using Core.Lol.Identifiers;
 using Data.Entities;
 using Data.Repositories;
@@ -48,13 +47,13 @@ public sealed class DiscoveryProcess(
         foreach (var platformString in platforms)
         {
             ct.ThrowIfCancellationRequested();
-            if (!RiotDataHelpers.TryParsePlatform(platformString, out var platform))
+            if (!PlatformId.TryParse(platformString, out var platform))
             {
                 logger.LogWarning("Skipping unknown platform '{Platform}'.", platformString);
                 continue;
             }
 
-            var platformSummary = await ProcessPlatformAsync(platform, options, ct);
+            var platformSummary = await ProcessPlatformAsync(platform.Route, options, ct);
             summaries.Add(platformSummary);
             LogPlatformSummary(platformSummary);
         }

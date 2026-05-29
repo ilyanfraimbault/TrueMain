@@ -63,7 +63,7 @@ public sealed class RiotPlatformClient : IRiotPlatformClient
 
     private static Uri BuildPlatformUri(PlatformRoute platform, string path)
     {
-        var host = RiotRouting.ToPlatformHost(platform);
+        var host = platform.ToPlatformHost();
         return new Uri($"https://{host}.api.riotgames.com{path}");
     }
 }

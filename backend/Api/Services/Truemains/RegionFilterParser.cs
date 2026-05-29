@@ -13,7 +13,7 @@ namespace TrueMain.Services.Truemains;
 /// We deliberately do not surface every <see cref="RegionalRoute"/> value:
 /// the UI filter pills are the source of truth for what's exposed, and the
 /// mapping table here stays in sync with them. Membership of the underlying
-/// shards in each routing region still comes from <see cref="RiotRouting.FromPlatform"/>
+/// shards in each routing region still comes from <see cref="RiotRouting.ToRegional"/>
 /// so we never duplicate Riot's grouping logic.
 /// </summary>
 public static class RegionFilterParser
@@ -93,7 +93,7 @@ public static class RegionFilterParser
             return null;
         }
 
-        return RiotRouting.FromPlatform(platform) switch
+        return platform.ToRegional() switch
         {
             RegionalRoute.Europe => "europe",
             RegionalRoute.Americas => "americas",
@@ -103,7 +103,7 @@ public static class RegionFilterParser
 
     private static IReadOnlyList<string> PlatformsInRoute(RegionalRoute route)
         => Enum.GetValues<PlatformRoute>()
-            .Where(p => RiotRouting.FromPlatform(p) == route)
+            .Where(p => p.ToRegional() == route)
             .Select(p => p.ToString())
             .ToList();
 }

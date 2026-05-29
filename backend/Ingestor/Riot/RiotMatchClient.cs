@@ -48,7 +48,7 @@ public sealed class RiotMatchClient : IRiotMatchClient
 
     private static Uri BuildRegionalUri(RegionalRoute region, string path)
     {
-        var host = RiotRouting.ToRegionalHost(region);
+        var host = region.ToRegionalHost();
         return new Uri($"https://{host}.api.riotgames.com{path}");
     }
 
