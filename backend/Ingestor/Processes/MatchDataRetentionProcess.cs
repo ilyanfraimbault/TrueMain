@@ -117,12 +117,14 @@ public sealed class MatchDataRetentionProcess(
         CancellationToken ct)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var deletedParticipants = await db.MatchParticipants
             .Where(participant => deletableMatchIds.Contains(participant.MatchId))
             .ExecuteDeleteAsync(ct);
         var deletedMatches = await db.Matches
             .Where(match => deletableMatchIds.Contains(match.Id))
             .ExecuteDeleteAsync(ct);
+        await transaction.CommitAsync(ct);
 
         return new DeletionResult(deletedMatches, deletedParticipants);
     }
