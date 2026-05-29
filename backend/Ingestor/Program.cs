@@ -19,10 +19,9 @@ builder.Services.AddValidatedOptions(builder.Configuration);
 builder.Services.AddOptions<DatabaseOptions>()
     .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName));
 
-builder.Services.AddSingleton<IRiotHttpExecutor, RiotHttpExecutor>();
-builder.Services.AddHttpClient<IRiotMatchClient, RiotMatchClient>();
-builder.Services.AddHttpClient<IRiotPlatformClient, RiotPlatformClient>();
-builder.Services.AddHttpClient<IRiotAccountClient, RiotAccountClient>();
+builder.Services.AddHttpClient<IRiotMatchClient, RiotMatchClient>().AddRiotResilienceHandler();
+builder.Services.AddHttpClient<IRiotPlatformClient, RiotPlatformClient>().AddRiotResilienceHandler();
+builder.Services.AddHttpClient<IRiotAccountClient, RiotAccountClient>().AddRiotResilienceHandler();
 
 builder.Services.AddScoped<ILadderDiscoveryService, LadderDiscoveryService>();
 builder.Services.AddScoped<IAccountUpsertService, AccountUpsertService>();
