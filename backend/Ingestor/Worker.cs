@@ -72,9 +72,7 @@ public sealed class Worker(
     {
         try
         {
-            await using var scope = scopeFactory.CreateAsyncScope();
-            var processesByName = BuildProcessIndex(scope.ServiceProvider);
-            await RunModeAsync(mode, processesByName, stoppingToken);
+            await RunModeAsync(mode, stoppingToken);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
@@ -89,10 +87,7 @@ public sealed class Worker(
         }
     }
 
-    private static async Task RunModeAsync(
-        JobMode mode,
-        IReadOnlyDictionary<string, IIngestorProcess> processesByName,
-        CancellationToken stoppingToken)
+    private async Task RunModeAsync(JobMode mode, CancellationToken stoppingToken)
     {
         var sequence = mode switch
         {
@@ -117,6 +112,14 @@ public sealed class Worker(
 
         foreach (var processName in sequence)
         {
+            // A fresh scope per process gives each one its own DbContext and
+            // scoped repositories. A single shared scope would let the
+            // ChangeTracker accumulate every entity touched across the whole
+            // sequence and leak cached scoped state from one process into the
+            // next. The scope is disposed before moving on to the next process.
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var processesByName = BuildProcessIndex(scope.ServiceProvider);
+
             if (!processesByName.TryGetValue(processName, out var process))
             {
                 throw new InvalidOperationException(
