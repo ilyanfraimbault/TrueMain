@@ -27,13 +27,21 @@ public sealed class PipelineHealthQueryService(
     public async Task<PipelineHealthReadModel> GetAsync(CancellationToken ct)
     {
         var queueId = mainAnalysisOptions.Value.QueueId;
+
+        // Postgres DISTINCT ON keeps the first row per ProcessName under the
+        // ORDER BY, giving us the latest run per process in a single pass. This
+        // translates to one server-side query instead of EF Core falling back
+        // to a per-group correlated subquery (or client-side evaluation) for the
+        // GroupBy(...).Select(g => g.OrderByDescending(...).First()) pattern.
         var latestRuns = await db.ProcessRuns
+            .FromSqlInterpolated(
+                $"""
+                 SELECT DISTINCT ON ("ProcessName") *
+                 FROM process_runs
+                 WHERE "ProcessName" = ANY({ProcessNames})
+                 ORDER BY "ProcessName", "FinishedAtUtc" DESC
+                 """)
             .AsNoTracking()
-            .Where(run => ProcessNames.Contains(run.ProcessName))
-            .GroupBy(run => run.ProcessName)
-            .Select(group => group
-                .OrderByDescending(run => run.FinishedAtUtc)
-                .First())
             .ToListAsync(ct);
 
         var queueScopedMatches = db.Matches
