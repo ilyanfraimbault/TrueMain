@@ -20,7 +20,7 @@ namespace Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.4")
+                .HasAnnotation("ProductVersion", "10.0.8")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -596,8 +596,6 @@ namespace Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("MatchId");
-
                     b.HasIndex("RiotAccountId");
 
                     b.HasIndex("MatchId", "ParticipantId")
@@ -940,11 +938,13 @@ namespace Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Data.Entities.PerkSelectionCatalog", null)
+                    b.HasOne("Data.Entities.PerkSelectionCatalog", "Catalog")
                         .WithMany()
                         .HasForeignKey("PerkSelectionCatalogId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Catalog");
                 });
 
             modelBuilder.Entity("Data.Entities.RankSnapshot", b =>
