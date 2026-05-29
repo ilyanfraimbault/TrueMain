@@ -3,11 +3,9 @@ import type { ProfileRanked } from '~~/shared/types/profile'
 import type { RankHistoryEntry } from '~~/shared/types/rank-history'
 import {
   formatTier,
-  isApexTier,
   rankScore,
   TIER_NAMES,
   tierColor,
-  tierFloor,
   tierHex,
 } from '~/utils/tiers'
 
@@ -109,25 +107,32 @@ const yDomain = computed<[number, number]>(() => {
   return [Math.max(0, minScore - padded), maxScore + padded]
 })
 
-// Tier crests rendered alongside the chart. Sub-apex shows every tier
-// floor in the visible range so promotions/demotions read at a glance.
-// Apex tiers (Master+) share one continuous LP band so there's no
-// meaningful "tier band" to mark — pin one crest at the top instead.
+// Tier crests rendered alongside the chart. One crest per *tier* present
+// in the visible history — division changes within the same tier
+// (Emerald IV → Emerald II, etc.) don't add a crest. Each crest is pinned
+// at the median score of that tier's run so apex bands (Master, GM,
+// Challenger) — which share a single tier floor — still stack vertically
+// in climb order instead of collapsing to the same Y.
 const visibleTiers = computed(() => {
-  const tier = currentTier.value
-  if (tier && isApexTier(tier)) {
-    return [{ tier: tier.toUpperCase(), floor: yDomain.value[1] }]
+  if (scoreSeries.value.length === 0) return []
+  const buckets = new Map<string, number[]>()
+  for (const point of scoreSeries.value) {
+    const tier = point.entry.tier.toUpperCase()
+    const arr = buckets.get(tier)
+    if (arr) arr.push(point.score)
+    else buckets.set(tier, [point.score])
   }
-  const [yMin, yMax] = yDomain.value
-  return TIER_NAMES
-    .map(name => ({ tier: name, floor: tierFloor(name) }))
-    .filter(({ floor }) => floor >= yMin - 200 && floor <= yMax + 200)
+  return Array.from(buckets, ([tier, scores]) => {
+    const sorted = scores.slice().sort((a, b) => a - b)
+    const median = sorted[Math.floor(sorted.length / 2)]!
+    return { tier, score: median }
+  }).sort((a, b) => a.score - b.score)
 })
 
-function tierTopPx(floor: number): number {
+function tierTopPx(score: number): number {
   const [yMin, yMax] = yDomain.value
   if (yMax === yMin) return CHART_HEIGHT / 2
-  const ratio = (floor - yMin) / (yMax - yMin)
+  const ratio = (score - yMin) / (yMax - yMin)
   return CHART_HEIGHT * (1 - ratio)
 }
 
@@ -249,7 +254,7 @@ const showEmptyChart = computed(
           :tier="band.tier"
           :size="20"
           class="absolute left-0 -translate-y-1/2"
-          :style="{ top: `${tierTopPx(band.floor)}px` }"
+          :style="{ top: `${tierTopPx(band.score)}px` }"
         />
       </div>
 
