@@ -17,33 +17,28 @@ public sealed class Worker(
         var options = jobOptions.Value;
         var mode = JobModeParser.Parse(options.Mode);
 
-        try
+        do
         {
-            do
+            TouchHeartbeat();
+            await RunOnceAsync(mode, stoppingToken);
+
+            if (options.RunOnce)
             {
-                TouchHeartbeat();
-                await RunOnceAsync(mode, stoppingToken);
+                // A single scheduled run completed successfully; ask the host to
+                // shut down so the process exits with a success code. Any failure
+                // is left to propagate from ExecuteAsync so the host's exit code
+                // reflects it (cooperative cancellation on shutdown is honoured by
+                // the loop condition below).
+                applicationLifetime.StopApplication();
+                return;
+            }
 
-                if (options.RunOnce)
-                {
-                    break;
-                }
-
-                var delayMinutes = options.IntervalMinutes is > 0 ? options.IntervalMinutes.Value : 60;
-                logger.LogInformation(
-                    "Run completed. Waiting {DelayMinutes} minutes before next run.",
-                    delayMinutes);
-                await Task.Delay(TimeSpan.FromMinutes(delayMinutes), stoppingToken);
-            } while (!stoppingToken.IsCancellationRequested);
-        }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-        {
-            // Expected on host shutdown — bubble up cleanly.
-        }
-        finally
-        {
-            applicationLifetime.StopApplication();
-        }
+            var delayMinutes = options.IntervalMinutes is > 0 ? options.IntervalMinutes.Value : 60;
+            logger.LogInformation(
+                "Run completed. Waiting {DelayMinutes} minutes before next run.",
+                delayMinutes);
+            await Task.Delay(TimeSpan.FromMinutes(delayMinutes), stoppingToken);
+        } while (!stoppingToken.IsCancellationRequested);
     }
 
     private void TouchHeartbeat()
