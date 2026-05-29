@@ -37,7 +37,7 @@ public sealed class RiotAccountClient : IRiotAccountClient
 
     private static Uri BuildRegionalUri(RegionalRoute region, string path)
     {
-        var host = RiotRouting.ToRegionalHost(region);
+        var host = region.ToRegionalHost();
         return new Uri($"https://{host}.api.riotgames.com{path}");
     }
 }

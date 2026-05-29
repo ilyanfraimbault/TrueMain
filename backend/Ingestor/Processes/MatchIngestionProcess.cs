@@ -1,4 +1,5 @@
 using Core;
+using Core.Lol.Identifiers;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Components.MatchIngestion;
@@ -116,12 +117,12 @@ public sealed class MatchIngestionProcess(
         CancellationToken ct)
     {
         var platformId = account.PlatformId.ToUpperInvariant();
-        if (!RiotDataHelpers.TryParsePlatform(platformId, out var platform))
+        if (!PlatformId.TryParse(platformId, out var platform))
         {
             throw new InvalidOperationException($"Unknown platform {platformId}.");
         }
 
-        var region = RiotRouting.FromPlatform(platform);
+        var region = platform.Route.ToRegional();
         await using var session = await sessionFactory.CreateAsync(ct);
 
         var snapshotResult = await matchSnapshotWriter.IngestSnapshotsAsync(
