@@ -8,7 +8,7 @@ namespace TrueMain.ReadModels.Truemains;
 /// <c>IsMain=true</c>), and an aggregated position breakdown summed across
 /// those mains.
 /// </summary>
-public sealed class ProfileReadModel
+public sealed record ProfileReadModel
 {
     public ProfileIdentityReadModel Identity { get; init; } = new();
 
@@ -28,7 +28,7 @@ public sealed class ProfileReadModel
         = Array.Empty<ProfilePositionStatReadModel>();
 }
 
-public sealed class ProfileIdentityReadModel
+public sealed record ProfileIdentityReadModel
 {
     public string GameName { get; init; } = string.Empty;
 
@@ -42,7 +42,7 @@ public sealed class ProfileIdentityReadModel
     public int SummonerLevel { get; init; }
 }
 
-public sealed class ProfileRankedReadModel
+public sealed record ProfileRankedReadModel
 {
     public string Tier { get; init; } = string.Empty;
 
@@ -64,7 +64,7 @@ public sealed class ProfileRankedReadModel
     public double? WinRate { get; init; }
 }
 
-public sealed class ProfileMainChampionReadModel
+public sealed record ProfileMainChampionReadModel
 {
     public int ChampionId { get; init; }
 
@@ -79,7 +79,7 @@ public sealed class ProfileMainChampionReadModel
     public bool IsOtp { get; init; }
 }
 
-public sealed class ProfilePositionStatReadModel
+public sealed record ProfilePositionStatReadModel
 {
     public string Position { get; init; } = string.Empty;
 

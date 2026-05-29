@@ -6,7 +6,7 @@ namespace TrueMain.ReadModels.Truemains;
 /// account, stats from a participant aggregate on the same page slice, and top
 /// champions from <c>main_champion_stats</c> filtered to <c>IsMain=true</c>.
 /// </summary>
-public sealed class LeaderboardRowReadModel
+public sealed record LeaderboardRowReadModel
 {
     /// <summary>1-based position on the filtered leaderboard, computed server-side so the UI doesn't need to track <c>(page-1)*pageSize</c>.</summary>
     public int Rank { get; init; }
@@ -26,7 +26,7 @@ public sealed class LeaderboardRowReadModel
         = Array.Empty<LeaderboardTopChampionReadModel>();
 }
 
-public sealed class LeaderboardRankedReadModel
+public sealed record LeaderboardRankedReadModel
 {
     public string Tier { get; init; } = string.Empty;
     public string Division { get; init; } = string.Empty;
@@ -36,7 +36,7 @@ public sealed class LeaderboardRankedReadModel
     public int Score { get; init; }
 }
 
-public sealed class LeaderboardStatsReadModel
+public sealed record LeaderboardStatsReadModel
 {
     public int Games { get; init; }
 
@@ -52,7 +52,7 @@ public sealed class LeaderboardStatsReadModel
     public double? Kda { get; init; }
 }
 
-public sealed class LeaderboardTopChampionReadModel
+public sealed record LeaderboardTopChampionReadModel
 {
     public int ChampionId { get; init; }
 
@@ -64,7 +64,7 @@ public sealed class LeaderboardTopChampionReadModel
 /// <see cref="MatchSummariesResponse"/> so the frontend's pagination controls
 /// behave identically across leaderboard and match-history pages.
 /// </summary>
-public sealed class LeaderboardResponse
+public sealed record LeaderboardResponse
 {
     public IReadOnlyList<LeaderboardRowReadModel> Rows { get; init; }
         = Array.Empty<LeaderboardRowReadModel>();
