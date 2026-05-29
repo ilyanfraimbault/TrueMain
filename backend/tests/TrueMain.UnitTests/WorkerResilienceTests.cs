@@ -80,7 +80,7 @@ public sealed class WorkerResilienceTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_StopsCleanly_WhenCancellationRequested()
+    public async Task ExecuteAsync_LetsCancellationPropagate_WhenCancellationRequested()
     {
         var process = new FaultyProcess(throwOnCall: int.MaxValue);
         var serviceProvider = BuildServiceProvider(process);
@@ -97,17 +97,15 @@ public sealed class WorkerResilienceTests
 
         await worker.StartAsync(cts.Token);
 
-        try
-        {
-            await worker.ExecuteTask!;
-        }
-        catch (OperationCanceledException)
-        {
-            // Cancellation during the inter-run delay is a clean stop, not a
-            // failure. The worker still calls StopApplication in the finally.
-        }
+        // Cooperative cancellation during the inter-run delay must surface as an
+        // OperationCanceledException rather than being swallowed, so the host can
+        // observe the natural shutdown flow.
+        var act = async () => await worker.ExecuteTask!;
+        await act.Should().ThrowAsync<OperationCanceledException>();
 
-        lifetime.Received(1).StopApplication();
+        // The worker no longer forces StopApplication on shutdown; the host owns
+        // the lifecycle once cancellation has been requested.
+        lifetime.DidNotReceive().StopApplication();
     }
 
     private static IServiceScopeFactory BuildServiceProvider(FaultyProcess process)
