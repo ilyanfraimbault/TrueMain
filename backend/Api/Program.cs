@@ -108,12 +108,6 @@ builder.Services.AddDbContext<TrueMainDbContext>(options =>
 var app = builder.Build();
 await DatabaseMigrator.ApplyPendingMigrationsAsync(app.Services);
 
-// Swagger is exposed in every environment so the OpenAPI doc stays
-// available for tooling outside Development. Proper auth-gating of
-// both the UI and /swagger/v1/swagger.json needs a browser-compatible
-// scheme (Basic auth, session cookie, reverse-proxy) — the X-Ops-Key
-// header handler here can't serve the Swagger UI's unsolicited fetch
-// of the JSON document.
 // Wrap unhandled exceptions in RFC 7807 ProblemDetails so clients
 // always see a structured payload instead of HTML stack traces, and
 // emit StatusCodePages for 4xx/5xx responses without a body so things
@@ -121,8 +115,15 @@ await DatabaseMigrator.ApplyPendingMigrationsAsync(app.Services);
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 
-app.UseSwagger();
-app.UseSwaggerUI();
+// Swagger UI and the OpenAPI JSON document are gated to Development only:
+// exposing the API surface metadata to anonymous callers in production is
+// a needless information leak, and the X-Ops-Key header scheme can't serve
+// the Swagger UI's unsolicited fetch of the JSON document anyway.
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 
 app.UseHttpsRedirection();
 app.UseCors(frontendCorsPolicy);
