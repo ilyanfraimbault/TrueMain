@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using TrueMain.Controllers.Champions;
 
 namespace TrueMain.UnitTests;

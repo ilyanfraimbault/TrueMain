@@ -1,6 +1,6 @@
 using Data;
 using Data.Entities;
-using FluentAssertions;
+using AwesomeAssertions;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using TrueMain.TestKit.EntityBuilders;
