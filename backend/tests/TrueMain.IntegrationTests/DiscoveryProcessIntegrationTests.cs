@@ -1,5 +1,5 @@
 using Core.Lol.Identifiers;
-using FluentAssertions;
+using AwesomeAssertions;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.Discovery;

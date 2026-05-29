@@ -2,6 +2,8 @@ namespace Ingestor.Options;
 
 public class MatchIngestionOptions
 {
+    public const string SectionName = "MatchIngestion";
+
     public int BatchSize { get; set; } = 50;
 
     public int MatchesPerAccount { get; set; } = 20;

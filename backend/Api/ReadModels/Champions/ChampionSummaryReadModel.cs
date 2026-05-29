@@ -6,7 +6,7 @@ namespace TrueMain.ReadModels.Champions;
 /// requested one, or the global latest if unspecified). A champion played in
 /// multiple lanes therefore surfaces once per lane.
 /// </summary>
-public sealed class ChampionSummaryReadModel
+public sealed record ChampionSummaryReadModel
 {
     public int ChampionId { get; init; }
 

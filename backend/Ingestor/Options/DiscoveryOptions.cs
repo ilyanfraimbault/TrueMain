@@ -2,6 +2,8 @@ namespace Ingestor.Options;
 
 public class DiscoveryOptions
 {
+    public const string SectionName = "Discovery";
+
     public List<string> Platforms { get; set; } = new() { "KR", "EUW1", "NA1" };
 
     public List<string> TierScope { get; set; } = new() { "Master", "GM", "Challenger" };

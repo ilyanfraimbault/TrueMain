@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Ingestor;
 using Ingestor.Options;
 using Ingestor.Processes;
@@ -31,6 +31,51 @@ public sealed class WorkerResilienceTests
         // Worker swallows the exception so the host can keep running. RunOnce
         // means a single iteration was attempted.
         failingProcess.CallCount.Should().Be(1);
+        lifetime.Received(1).StopApplication();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_CreatesAFreshScopePerProcess_WhenRunningFullSequence()
+    {
+        // The full sequence drives seven processes. Issue #256 requires each one
+        // to resolve from its own scope (its own DbContext / scoped services)
+        // rather than sharing a single scope across the whole run.
+        var processNames = new[]
+        {
+            "Discovery",
+            "Scoring",
+            "MatchIngestion",
+            "MainAnalysis",
+            "ChampionPatternAggregation",
+            "AccountRefresh",
+            "MatchDataRetention"
+        };
+
+        var services = new ServiceCollection();
+        foreach (var name in processNames)
+        {
+            services.AddSingleton<IIngestorProcess>(new NamedProcess(name));
+        }
+
+        using var provider = services.BuildServiceProvider();
+        var countingScopeFactory = new CountingScopeFactory(
+            provider.GetRequiredService<IServiceScopeFactory>());
+        var lifetime = Substitute.For<IHostApplicationLifetime>();
+        var jobOptions = Microsoft.Extensions.Options.Options.Create(new JobOptions
+        {
+            Mode = "Full",
+            RunOnce = true
+        });
+
+        using var worker = new Worker(
+            NullLogger<Worker>.Instance, countingScopeFactory, jobOptions, lifetime);
+
+        await worker.StartAsync(CancellationToken.None);
+        await worker.ExecuteTask!;
+
+        // One scope is created and disposed per process in the sequence.
+        countingScopeFactory.ScopesCreated.Should().Be(processNames.Length);
+        countingScopeFactory.ScopesDisposed.Should().Be(processNames.Length);
         lifetime.Received(1).StopApplication();
     }
 
@@ -68,6 +113,65 @@ public sealed class WorkerResilienceTests
         var services = new ServiceCollection();
         services.AddSingleton<IIngestorProcess>(process);
         return services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
+    }
+
+    private sealed class NamedProcess(string name) : IIngestorProcess
+    {
+        public string Name => name;
+
+        public Task<object?> RunCoreAsync(CancellationToken ct) => Task.FromResult<object?>(null);
+    }
+
+    // Wraps the real scope factory so the test can assert that the worker
+    // creates (and disposes) exactly one scope per process in the sequence.
+    private sealed class CountingScopeFactory(IServiceScopeFactory inner) : IServiceScopeFactory
+    {
+        private int _scopesCreated;
+        private int _scopesDisposed;
+
+        public int ScopesCreated => Volatile.Read(ref _scopesCreated);
+
+        public int ScopesDisposed => Volatile.Read(ref _scopesDisposed);
+
+        public IServiceScope CreateScope()
+        {
+            Interlocked.Increment(ref _scopesCreated);
+            return new CountingScope(inner.CreateScope(), () => Interlocked.Increment(ref _scopesDisposed));
+        }
+
+        private sealed class CountingScope(IServiceScope inner, Action onDispose) : IServiceScope, IAsyncDisposable
+        {
+            private int _disposed;
+
+            public IServiceProvider ServiceProvider => inner.ServiceProvider;
+
+            public void Dispose()
+            {
+                MarkDisposed();
+                inner.Dispose();
+            }
+
+            public async ValueTask DisposeAsync()
+            {
+                MarkDisposed();
+                if (inner is IAsyncDisposable asyncDisposable)
+                {
+                    await asyncDisposable.DisposeAsync();
+                }
+                else
+                {
+                    inner.Dispose();
+                }
+            }
+
+            private void MarkDisposed()
+            {
+                if (Interlocked.Exchange(ref _disposed, 1) == 0)
+                {
+                    onDispose();
+                }
+            }
+        }
     }
 
     private sealed class FaultyProcess(int throwOnCall) : IIngestorProcess

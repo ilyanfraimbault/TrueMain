@@ -27,30 +27,53 @@ public sealed class PipelineHealthQueryService(
     public async Task<PipelineHealthReadModel> GetAsync(CancellationToken ct)
     {
         var queueId = mainAnalysisOptions.Value.QueueId;
+
+        // Postgres DISTINCT ON keeps the first row per ProcessName under the
+        // ORDER BY, giving us the latest run per process in a single pass. This
+        // translates to one server-side query instead of EF Core falling back
+        // to a per-group correlated subquery (or client-side evaluation) for the
+        // GroupBy(...).Select(g => g.OrderByDescending(...).First()) pattern.
         var latestRuns = await db.ProcessRuns
+            .FromSqlInterpolated(
+                $"""
+                 SELECT DISTINCT ON ("ProcessName") *
+                 FROM process_runs
+                 WHERE "ProcessName" = ANY({ProcessNames})
+                 ORDER BY "ProcessName", "FinishedAtUtc" DESC
+                 """)
             .AsNoTracking()
-            .Where(run => ProcessNames.Contains(run.ProcessName))
-            .GroupBy(run => run.ProcessName)
-            .Select(group => group
-                .OrderByDescending(run => run.FinishedAtUtc)
-                .First())
             .ToListAsync(ct);
 
         var queueScopedMatches = db.Matches
             .AsNoTracking()
             .Where(match => match.QueueId == queueId);
 
-        var latestMatchesByPlatform = await queueScopedMatches
-            .Where(match => match.GameStartTimeUtc == queueScopedMatches
-                .Where(candidate => candidate.PlatformId == match.PlatformId)
-                .Max(candidate => candidate.GameStartTimeUtc))
-            .Select(match => new
+        // Compute the latest GameStartTimeUtc per platform with a single
+        // GROUP BY aggregate, then join it back to the matches set. This
+        // replaces a per-row correlated subquery (which can degrade to a
+        // scan-per-row or client evaluation) with one grouped scan plus a
+        // hash/merge join. Ties on the max timestamp keep every matching
+        // row; the downstream GroupBy resolves them deterministically.
+        var latestStartByPlatform = queueScopedMatches
+            .GroupBy(match => match.PlatformId)
+            .Select(group => new
             {
-                match.Id,
-                match.PlatformId,
-                match.GameStartTimeUtc,
-                match.GameVersion
-            })
+                PlatformId = group.Key,
+                LatestStart = group.Max(match => match.GameStartTimeUtc)
+            });
+
+        var latestMatchesByPlatform = await queueScopedMatches
+            .Join(
+                latestStartByPlatform,
+                match => new { match.PlatformId, Start = match.GameStartTimeUtc },
+                latest => new { latest.PlatformId, Start = latest.LatestStart },
+                (match, _) => new
+                {
+                    match.Id,
+                    match.PlatformId,
+                    match.GameStartTimeUtc,
+                    match.GameVersion
+                })
             .OrderBy(match => match.PlatformId)
             .ThenByDescending(match => match.GameStartTimeUtc)
             .ThenByDescending(match => match.Id)

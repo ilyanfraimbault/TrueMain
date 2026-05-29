@@ -1,6 +1,6 @@
 using Core.Lol.Identifiers;
 using Data.Entities;
-using FluentAssertions;
+using AwesomeAssertions;
 using Ingestor.Processes.Components.Discovery;
 using Ingestor.Riot.Dto;
 

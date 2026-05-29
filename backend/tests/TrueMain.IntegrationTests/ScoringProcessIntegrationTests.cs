@@ -1,5 +1,5 @@
 using Data.Entities;
-using FluentAssertions;
+using AwesomeAssertions;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Microsoft.Extensions.Logging.Abstractions;

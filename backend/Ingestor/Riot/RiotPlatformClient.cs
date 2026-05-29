@@ -17,16 +17,6 @@ public sealed class RiotPlatformClient : IRiotPlatformClient
         _httpClient = httpClient;
         _options = options.Value;
         _httpExecutor = httpExecutor;
-
-        if (string.IsNullOrWhiteSpace(_options.ApiKey))
-        {
-            throw new InvalidOperationException("Missing Riot ApiKey. Configure Riot:ApiKey.");
-        }
-
-        if (!_httpClient.DefaultRequestHeaders.Contains("X-Riot-Token"))
-        {
-            _httpClient.DefaultRequestHeaders.Add("X-Riot-Token", _options.ApiKey);
-        }
     }
 
     public Task<RiotLeagueListDto> GetChallengerLeagueAsync(PlatformRoute platform, string queue, CancellationToken ct)
