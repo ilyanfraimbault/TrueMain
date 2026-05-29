@@ -9,6 +9,7 @@ namespace TrueMain.Controllers.Truemains;
 public sealed class TruemainsController(
     IMatchSummariesQueryService matchSummariesQueryService,
     IProfileQueryService profileQueryService,
+    IRankHistoryQueryService rankHistoryQueryService,
     ITruemainsLeaderboardQueryService leaderboardQueryService) : ControllerBase
 {
     [HttpGet("")]
@@ -42,6 +43,19 @@ public sealed class TruemainsController(
         CancellationToken ct = default)
     {
         var response = await profileQueryService.GetAsync(nameTag, ct);
+        return response is null ? NotFound() : Ok(response);
+    }
+
+    [HttpGet("{nameTag}/rank-history")]
+    [ProducesResponseType(typeof(RankHistoryReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<RankHistoryReadModel>> GetRankHistoryAsync(
+        string nameTag,
+        [FromQuery] int? days,
+        CancellationToken ct = default)
+    {
+        var response = await rankHistoryQueryService.GetAsync(nameTag, days ?? 0, ct);
         return response is null ? NotFound() : Ok(response);
     }
 

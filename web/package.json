@@ -16,6 +16,7 @@
     "@nuxt/image": "^2.0.0",
     "@nuxt/ui": "^4.8.0",
     "nuxt": "^4.4.6",
+    "nuxt-charts": "^2.1.4",
     "vue": "^3.5.30"
   },
   "devDependencies": {
@@ -24,6 +25,7 @@
     "tailwindcss": "^4.2.2",
     "typescript": "^6.0.3",
     "vitest": "^4.1.7",
+    "vue-chrts": "2.1.4",
     "vue-tsc": "^3.3.1"
   }
 }

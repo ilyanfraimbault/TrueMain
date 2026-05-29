@@ -10,7 +10,14 @@
 const IPX_IMAGE_CACHE_SECONDS = 60 * 60 * 24 * 7 // 7 days
 
 export default defineNuxtConfig({
-  modules: ['@nuxt/ui', '@nuxt/image'],
+  modules: ['@nuxt/ui', '@nuxt/image', 'nuxt-charts'],
+  // Namespace upstream nuxt-charts components under `Nc*` so our own
+  // wrappers (e.g. `components/charts/LineChart.vue` → `<ChartsLineChart>`)
+  // can use the upstream chart in their template without colliding with
+  // their own auto-resolved name.
+  nuxtCharts: {
+    prefix: 'Nc',
+  },
   css: ['./app/assets/css/main.css'],
   compatibilityDate: '2026-05-15',
   devtools: { enabled: true },
