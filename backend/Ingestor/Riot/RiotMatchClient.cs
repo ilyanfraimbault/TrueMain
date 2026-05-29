@@ -1,34 +1,29 @@
+using System.Net.Http.Json;
 using Core;
 using Core.Lol.Identifiers;
-using Ingestor.Options;
 using Ingestor.Riot.Dto;
-using Microsoft.Extensions.Options;
 
 namespace Ingestor.Riot;
 
 public sealed class RiotMatchClient : IRiotMatchClient
 {
     private readonly HttpClient _httpClient;
-    private readonly RiotOptions _options;
-    private readonly IRiotHttpExecutor _httpExecutor;
 
-    public RiotMatchClient(HttpClient httpClient, IOptions<RiotOptions> options, IRiotHttpExecutor httpExecutor)
+    public RiotMatchClient(HttpClient httpClient)
     {
         _httpClient = httpClient;
-        _options = options.Value;
-        _httpExecutor = httpExecutor;
     }
 
     public Task<RiotMatchDto> GetMatchAsync(string matchId, RegionalRoute region, CancellationToken ct)
     {
         var uri = BuildRegionalUri(region, $"/lol/match/v5/matches/{matchId}");
-        return _httpExecutor.GetAsync<RiotMatchDto>(_httpClient, uri, _options.MaxRetryAttempts, nameof(RiotMatchClient), ct);
+        return GetAsync<RiotMatchDto>(uri, ct);
     }
 
     public async Task<MatchTimelineDto> GetTimelineAsync(string matchId, RegionalRoute region, CancellationToken ct)
     {
         var uri = BuildRegionalUri(region, $"/lol/match/v5/matches/{matchId}/timeline");
-        var riotTimeline = await _httpExecutor.GetAsync<RiotTimelineDto>(_httpClient, uri, _options.MaxRetryAttempts, nameof(RiotMatchClient), ct);
+        var riotTimeline = await GetAsync<RiotTimelineDto>(uri, ct);
         return MapTimeline(riotTimeline);
     }
 
@@ -43,7 +38,13 @@ public sealed class RiotMatchClient : IRiotMatchClient
         // /matches/{id} round trip MatchSnapshotWriter would do for each
         // returned id.
         var uri = BuildRegionalUri(region, $"/lol/match/v5/matches/by-puuid/{puuid}/ids?count={safeCount}&type=ranked");
-        return _httpExecutor.GetAsync<List<string>>(_httpClient, uri, _options.MaxRetryAttempts, nameof(RiotMatchClient), ct);
+        return GetAsync<List<string>>(uri, ct);
+    }
+
+    private async Task<T> GetAsync<T>(Uri uri, CancellationToken ct)
+    {
+        return await _httpClient.GetFromJsonAsync<T>(uri, ct)
+            ?? throw new InvalidOperationException($"Empty response from Riot API ({uri}).");
     }
 
     private static Uri BuildRegionalUri(RegionalRoute region, string path)
