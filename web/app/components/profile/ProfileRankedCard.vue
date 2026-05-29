@@ -1,14 +1,33 @@
 <script setup lang="ts">
 import type { ProfileRanked } from '~~/shared/types/profile'
-import { isApexTier } from '~/utils/tiers'
+import type { RankHistoryEntry } from '~~/shared/types/rank-history'
+import {
+  formatTier,
+  isApexTier,
+  rankScore,
+  TIER_NAMES,
+  tierColor,
+  tierFloor,
+  tierHex,
+} from '~/utils/tiers'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   ranked: ProfileRanked | null
-}>()
+  history?: readonly RankHistoryEntry[]
+  historyLoading?: boolean
+}>(), {
+  history: () => [],
+  historyLoading: false,
+})
 
-const winRateLabel = computed(() => {
-  if (!props.ranked || props.ranked.winRate === null) return null
-  return `${Math.round(props.ranked.winRate * 100)}% WR`
+const CHART_HEIGHT = 150
+const DAY_MS = 24 * 60 * 60 * 1000
+
+// ─── Headline ─────────────────────────────────────────────────────────────
+const tierClass = computed(() => tierColor(props.ranked?.tier ?? null))
+const tierLabel = computed(() => {
+  if (!props.ranked) return null
+  return formatTier(props.ranked.tier, props.ranked.division)
 })
 
 const recordLabel = computed(() => {
@@ -16,39 +35,219 @@ const recordLabel = computed(() => {
   const w = props.ranked.wins
   const l = props.ranked.losses
   if (w === null && l === null) return null
-  return `${w ?? '?'}W ${l ?? '?'}L`
+  const record = `${w ?? '?'}W – ${l ?? '?'}L`
+  const wr = props.ranked.winRate === null ? null : `${Math.round(props.ranked.winRate * 100)}%`
+  return wr ? `${record} (${wr})` : record
 })
 
-const showDivision = computed(() => props.ranked !== null && !isApexTier(props.ranked.tier))
+// ─── Chart series ─────────────────────────────────────────────────────────
+interface ChartPoint extends Record<string, unknown> {
+  score: number
+  entry: RankHistoryEntry
+}
+
+const chartPoints = computed<ChartPoint[]>(() =>
+  props.history.map(entry => ({
+    score: rankScore(entry.tier, entry.division, entry.leaguePoints),
+    entry,
+  })),
+)
+
+const currentTier = computed(() => props.ranked?.tier ?? null)
+const fillColor = computed(() => tierHex(currentTier.value))
+
+const categories = computed(() => ({
+  score: { name: 'Rank', color: fillColor.value },
+}))
+
+// Pad the Y range by 25% (min 50 LP-equivalents) so the line never hugs
+// the top/bottom edge. Falls back to [0, 400] (Iron band) when there's
+// nothing to plot so the empty chart has a sensible scale.
+const yDomain = computed<[number, number]>(() => {
+  if (chartPoints.value.length === 0) return [0, 400]
+  const scores = chartPoints.value.map(p => p.score)
+  const minScore = Math.min(...scores)
+  const maxScore = Math.max(...scores)
+  const padded = Math.max(50, (maxScore - minScore) * 0.25)
+  return [Math.max(0, minScore - padded), maxScore + padded]
+})
+
+// Tier crests rendered alongside the chart. Sub-apex shows every tier
+// floor in the visible range so promotions/demotions read at a glance.
+// Apex tiers (Master+) share one continuous LP band so there's no
+// meaningful "tier band" to mark — pin one crest at the top instead.
+const visibleTiers = computed(() => {
+  const tier = currentTier.value
+  if (tier && isApexTier(tier)) {
+    return [{ tier: tier.toUpperCase(), floor: yDomain.value[1] }]
+  }
+  const [yMin, yMax] = yDomain.value
+  return TIER_NAMES
+    .map(name => ({ tier: name, floor: tierFloor(name) }))
+    .filter(({ floor }) => floor >= yMin - 200 && floor <= yMax + 200)
+})
+
+function tierTopPx(floor: number): number {
+  const [yMin, yMax] = yDomain.value
+  if (yMax === yMin) return CHART_HEIGHT / 2
+  const ratio = (floor - yMin) / (yMax - yMin)
+  return CHART_HEIGHT * (1 - ratio)
+}
+
+function dateLabel(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+const xFormatter = (tick: number): string => {
+  const point = chartPoints.value[tick]
+  return point ? dateLabel(point.entry.capturedAtUtc) : ''
+}
+
+// ─── LP deltas ────────────────────────────────────────────────────────────
+// "Last 30d / 7d" badges compare the latest rank score to the last snapshot
+// at-or-before the cutoff, falling back to the earliest tracked snapshot
+// when the player has no older data. Returns null when there's no
+// meaningful comparison (≤1 snapshot, or the cutoff snapshot is the
+// current one).
+function deltaSince(days: number): number | null {
+  if (chartPoints.value.length < 2) return null
+  const cutoff = Date.now() - days * DAY_MS
+  let base: ChartPoint | undefined
+  for (const point of chartPoints.value) {
+    const t = new Date(point.entry.capturedAtUtc).getTime()
+    if (t <= cutoff) base = point
+    else break
+  }
+  base ??= chartPoints.value[0]
+  const current = chartPoints.value[chartPoints.value.length - 1]
+  if (!base || !current || base === current) return null
+  return current.score - base.score
+}
+
+const delta30d = computed(() => deltaSince(30))
+const delta7d = computed(() => deltaSince(7))
+const hasDeltas = computed(() => delta30d.value !== null || delta7d.value !== null)
+
+const showEmptyChart = computed(
+  () => !props.historyLoading && chartPoints.value.length === 0 && props.ranked !== null,
+)
 </script>
 
 <template>
-  <section class="rounded-lg bg-elevated/40 px-4 py-3">
+  <section class="flex flex-col gap-3 rounded-lg bg-elevated/40 px-4 py-3">
     <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
       Ranked Solo/Duo
     </h2>
+
     <template v-if="ranked">
-      <div class="mt-2 flex items-center gap-3">
-        <RankIcon :tier="ranked.tier" :size="44" />
-        <div class="flex flex-col leading-tight">
-          <span v-if="showDivision" class="text-xs uppercase tracking-wide text-muted">
-            {{ ranked.division }}
+      <div class="flex items-center gap-3">
+        <RankIcon :tier="ranked.tier" :size="48" />
+        <div class="flex min-w-0 flex-col leading-tight">
+          <span class="text-base font-bold tabular-nums" :class="tierClass">
+            {{ tierLabel }}
+            <span class="text-default">{{ ranked.leaguePoints }} LP</span>
           </span>
-          <span class="text-lg font-semibold tabular-nums text-default">
-            {{ ranked.leaguePoints }} LP
+          <span v-if="recordLabel" class="mt-1 text-sm text-muted tabular-nums">
+            {{ recordLabel }}
           </span>
         </div>
       </div>
-      <p v-if="recordLabel || winRateLabel" class="mt-2 text-sm text-muted">
-        <span v-if="recordLabel" class="tabular-nums">{{ recordLabel }}</span>
-        <span v-if="recordLabel && winRateLabel"> · </span>
-        <span v-if="winRateLabel" class="tabular-nums">{{ winRateLabel }}</span>
-      </p>
+
+      <div v-if="hasDeltas" class="flex flex-wrap gap-2">
+        <span
+          v-if="delta30d !== null"
+          class="inline-flex items-center gap-1.5 rounded-md bg-elevated px-2 py-1 text-xs"
+        >
+          <span class="text-muted">Last 30d</span>
+          <UIcon
+            :name="delta30d >= 0 ? 'i-lucide-trending-up' : 'i-lucide-trending-down'"
+            class="size-3.5"
+            :class="delta30d >= 0 ? 'text-emerald-400' : 'text-red-400'"
+          />
+          <span class="font-semibold tabular-nums text-default">
+            {{ Math.abs(delta30d) }} LP
+          </span>
+        </span>
+        <span
+          v-if="delta7d !== null"
+          class="inline-flex items-center gap-1.5 rounded-md bg-elevated px-2 py-1 text-xs"
+        >
+          <span class="text-muted">Last 7d</span>
+          <UIcon
+            :name="delta7d >= 0 ? 'i-lucide-trending-up' : 'i-lucide-trending-down'"
+            class="size-3.5"
+            :class="delta7d >= 0 ? 'text-emerald-400' : 'text-red-400'"
+          />
+          <span class="font-semibold tabular-nums text-default">
+            {{ Math.abs(delta7d) }} LP
+          </span>
+        </span>
+      </div>
     </template>
-    <template v-else>
-      <p class="mt-1 text-base text-muted">
-        Unranked
-      </p>
-    </template>
+    <p v-else class="text-base text-muted">
+      Unranked
+    </p>
+
+    <USkeleton v-if="historyLoading" class="h-[150px] w-full rounded-md" />
+
+    <p v-else-if="showEmptyChart" class="text-sm text-muted">
+      No ranked snapshots in the last 90 days.
+    </p>
+
+    <div v-else-if="chartPoints.length > 0" class="flex gap-2">
+      <!-- Y-axis: tier crests stacked at their score band. The wrapping
+           column shares the chart's exact height so absolute offsets in
+           `tierTopPx` line up with the data range. -->
+      <div
+        class="relative w-7 shrink-0"
+        :style="{ height: `${CHART_HEIGHT}px` }"
+        aria-hidden="true"
+      >
+        <RankIcon
+          v-for="band in visibleTiers"
+          :key="band.tier"
+          :tier="band.tier"
+          :size="20"
+          class="absolute left-0 -translate-y-1/2"
+          :style="{ top: `${tierTopPx(band.floor)}px` }"
+        />
+      </div>
+
+      <div class="min-w-0 flex-1">
+        <ChartsAreaChart
+          :data="chartPoints"
+          :categories="categories"
+          :height="CHART_HEIGHT"
+          :x-formatter="xFormatter"
+          :y-domain="yDomain"
+          :gradient-stops="[
+            { offset: '0%', stopOpacity: 0.45 },
+            { offset: '100%', stopOpacity: 0.05 },
+          ]"
+          hide-y-axis
+          hide-legend
+        >
+          <template #tooltip="{ values }">
+            <div
+              v-if="values"
+              class="rounded-md border border-default bg-elevated px-2 py-1.5 text-xs shadow-md"
+            >
+              <div class="flex items-center gap-1.5">
+                <RankIcon :tier="values.entry.tier" :size="20" />
+                <span class="font-semibold tabular-nums text-default">
+                  {{ values.entry.leaguePoints }} LP
+                </span>
+              </div>
+              <p class="mt-0.5 text-muted">
+                {{ dateLabel(values.entry.capturedAtUtc) }}
+              </p>
+            </div>
+          </template>
+        </ChartsAreaChart>
+      </div>
+    </div>
   </section>
 </template>
