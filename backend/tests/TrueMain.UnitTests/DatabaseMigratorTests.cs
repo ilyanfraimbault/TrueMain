@@ -1,5 +1,5 @@
+using AwesomeAssertions;
 using Data;
-using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -44,7 +44,7 @@ public sealed class DatabaseMigratorTests
     {
         var services = new ServiceCollection();
         services.AddSingleton<IOptions<DatabaseOptions>>(
-            Options.Create(new DatabaseOptions { ApplyMigrationsOnStartup = applyOnStartup }));
+            Microsoft.Extensions.Options.Options.Create(new DatabaseOptions { ApplyMigrationsOnStartup = applyOnStartup }));
 
         // Register only the factory (the Ingestor wiring style). Creating a
         // context throws so the test never touches a real database while still
