@@ -1,6 +1,6 @@
 using Core.Lol.Patches;
 using Data.Entities;
-using FluentAssertions;
+using AwesomeAssertions;
 using Ingestor.Processes.Components.PatternAggregation;
 using NSubstitute;
 

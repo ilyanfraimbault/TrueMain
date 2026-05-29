@@ -1,4 +1,3 @@
-using Core;
 using Data.Entities;
 using Data.Repositories;
 using Ingestor.Options;
@@ -38,7 +37,7 @@ public sealed class CandidateUpsertService : ICandidateUpsertService
         for (var index = 0; index < topMasteries.Count; index++)
         {
             var mastery = topMasteries[index];
-            var lastPlayUtc = RiotDataHelpers.ToUtcDateTime(mastery.LastPlayTime);
+            var lastPlayUtc = RiotValueConverters.ToUtcDateTime(mastery.LastPlayTime);
             if (lastPlayUtc is null)
             {
                 continue;

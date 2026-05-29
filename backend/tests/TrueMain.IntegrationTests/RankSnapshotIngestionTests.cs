@@ -1,6 +1,6 @@
 using Core.Lol.Identifiers;
 using Data.Entities;
-using FluentAssertions;
+using AwesomeAssertions;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Ranking;

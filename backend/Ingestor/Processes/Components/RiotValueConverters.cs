@@ -1,29 +1,10 @@
-using Core.Lol.Identifiers;
-
-namespace Core;
+namespace Ingestor.Processes.Components;
 
 /// <summary>
-/// Provides utility methods for handling Riot API data conversions and parsing.
+/// Conversion helpers for normalizing raw Riot API values during ingestion.
 /// </summary>
-public static class RiotDataHelpers
+public static class RiotValueConverters
 {
-    /// <summary>
-    /// Attempts to parse a platform string into a <see cref="PlatformRoute"/> enum value.
-    /// </summary>
-    /// <param name="platform">The platform string to parse (e.g., "KR", "EUW1", "NA1").</param>
-    /// <param name="route">When this method returns, contains the parsed <see cref="PlatformRoute"/> value if parsing succeeded.</param>
-    /// <returns><c>true</c> if the platform string was successfully parsed; otherwise, <c>false</c>.</returns>
-    public static bool TryParsePlatform(string? platform, out PlatformRoute route)
-    {
-        route = default;
-        if (string.IsNullOrWhiteSpace(platform))
-        {
-            return false;
-        }
-
-        return Enum.TryParse(platform.Trim(), ignoreCase: true, out route);
-    }
-
     /// <summary>
     /// Converts a Unix timestamp in milliseconds to a UTC <see cref="DateTime"/>.
     /// </summary>

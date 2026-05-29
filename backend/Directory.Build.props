@@ -11,7 +11,21 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!--
+      GHSA-37gx-xxp4-5rgx (CVE-2026-33116, High/7.5): DoS via an infinite loop in
+      System.Security.Cryptography.Xml's EncryptedXml class. The package is only
+      pulled in transitively and EncryptedXml is not used by this codebase, so the
+      vulnerable code path is unreachable. Suppressed pending a transitive upgrade
+      to a patched release (>= 10.0.6). Last reviewed: 2026-05-29.
+    -->
     <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-37gx-xxp4-5rgx" />
+    <!--
+      GHSA-w3x6-4m5h-cxqf (CVE-2026-26171, High/7.5): DoS via uncontrolled resource
+      consumption in System.Security.Cryptography.Xml's EncryptedXml class. Same
+      transitive package as above; EncryptedXml is not used by this codebase, so the
+      vulnerable code path is unreachable. Suppressed pending a transitive upgrade
+      to a patched release (>= 10.0.6). Last reviewed: 2026-05-29.
+    -->
     <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-w3x6-4m5h-cxqf" />
   </ItemGroup>
 </Project>

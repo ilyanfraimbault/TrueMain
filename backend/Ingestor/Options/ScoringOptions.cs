@@ -2,6 +2,8 @@ namespace Ingestor.Options;
 
 public class ScoringOptions
 {
+    public const string SectionName = "Scoring";
+
     public int TopNPerPlatform { get; set; } = 200;
 
     public int MaxLastPlayDays { get; set; } = 10;

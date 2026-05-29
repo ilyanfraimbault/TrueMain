@@ -17,16 +17,6 @@ public sealed class RiotAccountClient : IRiotAccountClient
         _httpClient = httpClient;
         _options = options.Value;
         _httpExecutor = httpExecutor;
-
-        if (string.IsNullOrWhiteSpace(_options.ApiKey))
-        {
-            throw new InvalidOperationException("Missing Riot ApiKey. Configure Riot:ApiKey.");
-        }
-
-        if (!_httpClient.DefaultRequestHeaders.Contains("X-Riot-Token"))
-        {
-            _httpClient.DefaultRequestHeaders.Add("X-Riot-Token", _options.ApiKey);
-        }
     }
 
     public Task<RiotAccountDto> GetAccountByPuuidAsync(string puuid, RegionalRoute region, CancellationToken ct)
@@ -37,7 +27,7 @@ public sealed class RiotAccountClient : IRiotAccountClient
 
     private static Uri BuildRegionalUri(RegionalRoute region, string path)
     {
-        var host = RiotRouting.ToRegionalHost(region);
+        var host = region.ToRegionalHost();
         return new Uri($"https://{host}.api.riotgames.com{path}");
     }
 }

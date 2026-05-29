@@ -1,4 +1,3 @@
-using Core;
 using Core.Lol.Identifiers;
 using Data.Entities;
 using Data.Repositories;
@@ -35,7 +34,7 @@ public sealed class AccountUpsertService : IAccountUpsertService
                 PlatformId = platformId,
                 SummonerId = summoner.Id,
                 ProfileIconId = summoner.ProfileIconId,
-                SummonerLevel = RiotDataHelpers.ToIntSafe(summoner.SummonerLevel),
+                SummonerLevel = RiotValueConverters.ToIntSafe(summoner.SummonerLevel),
                 UpdatedAtUtc = nowUtc,
                 LastProfileSyncAtUtc = nowUtc
             };
@@ -46,7 +45,7 @@ public sealed class AccountUpsertService : IAccountUpsertService
         existing.PlatformId = platformId;
         existing.SummonerId = summoner.Id;
         existing.ProfileIconId = summoner.ProfileIconId;
-        existing.SummonerLevel = RiotDataHelpers.ToIntSafe(summoner.SummonerLevel);
+        existing.SummonerLevel = RiotValueConverters.ToIntSafe(summoner.SummonerLevel);
         existing.UpdatedAtUtc = nowUtc;
         existing.LastProfileSyncAtUtc = nowUtc;
         return new AccountUpsertResult(IsNew: false, Account: existing);

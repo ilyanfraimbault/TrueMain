@@ -1,5 +1,5 @@
 using Data.Entities;
-using FluentAssertions;
+using AwesomeAssertions;
 using Ingestor.Processes.Components.PatternAggregation;
 
 namespace TrueMain.UnitTests;
