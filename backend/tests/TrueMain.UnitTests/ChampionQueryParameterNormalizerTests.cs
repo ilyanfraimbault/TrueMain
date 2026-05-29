@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using TrueMain.Controllers.Champions;
 
 namespace TrueMain.UnitTests;
@@ -13,7 +13,9 @@ public sealed class ChampionQueryParameterNormalizerTests
     [InlineData("16.4.521", "16.4")]
     [InlineData("16.4.521.123", "16.4")]
     [InlineData("  16.4.521  ", "16.4")]
-    [InlineData("16", "16")]
+    [InlineData("16", null)]
+    [InlineData("16.x", null)]
+    [InlineData("abc.def", null)]
     public void NormalizePatch_TrimsTrailingSegmentsToMajorMinor(string? input, string? expected)
     {
         ChampionQueryParameterNormalizer.NormalizePatch(input).Should().Be(expected);

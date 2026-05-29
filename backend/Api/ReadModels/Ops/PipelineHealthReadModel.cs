@@ -1,6 +1,6 @@
 namespace TrueMain.ReadModels.Ops;
 
-public sealed class PipelineHealthReadModel
+public sealed record PipelineHealthReadModel
 {
     public IReadOnlyList<ProcessHealthReadModel> Processes { get; init; } = [];
 
@@ -9,7 +9,7 @@ public sealed class PipelineHealthReadModel
     public PipelineGapReadModel Gaps { get; init; } = new();
 }
 
-public sealed class ProcessHealthReadModel
+public sealed record ProcessHealthReadModel
 {
     public string ProcessName { get; init; } = string.Empty;
 
@@ -24,7 +24,7 @@ public sealed class ProcessHealthReadModel
     public string? Error { get; init; }
 }
 
-public sealed class RawDataFreshnessReadModel
+public sealed record RawDataFreshnessReadModel
 {
     public int QueueId { get; init; }
 
@@ -35,7 +35,7 @@ public sealed class RawDataFreshnessReadModel
     public IReadOnlyList<PlatformRawDataFreshnessReadModel> Platforms { get; init; } = [];
 }
 
-public sealed class PlatformRawDataFreshnessReadModel
+public sealed record PlatformRawDataFreshnessReadModel
 {
     public string PlatformId { get; init; } = string.Empty;
 
@@ -44,7 +44,7 @@ public sealed class PlatformRawDataFreshnessReadModel
     public string LatestPatchVersion { get; init; } = string.Empty;
 }
 
-public sealed class PipelineGapReadModel
+public sealed record PipelineGapReadModel
 {
     public double? MatchIngestionToMainAnalysisMinutes { get; init; }
 

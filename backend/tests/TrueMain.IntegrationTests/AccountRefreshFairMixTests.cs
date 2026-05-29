@@ -1,6 +1,6 @@
 using Data.Entities;
 using Data.Repositories;
-using FluentAssertions;
+using AwesomeAssertions;
 
 namespace TrueMain.IntegrationTests;
 

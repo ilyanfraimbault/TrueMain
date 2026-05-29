@@ -23,7 +23,7 @@ public sealed class MainCandidateRepository(TrueMainDbContext db) : IMainCandida
     }
 
     public Task<List<MainCandidate>> GetByStatusAsync(MainCandidateStatus status, CancellationToken ct)
-        => db.MainCandidates.Where(c => c.Status == status).ToListAsync(ct);
+        => db.MainCandidates.AsNoTracking().Where(c => c.Status == status).ToListAsync(ct);
 
     public Task<List<MainCandidate>> GetNewBatchAsync(int batchSize, CancellationToken ct)
         => db.MainCandidates

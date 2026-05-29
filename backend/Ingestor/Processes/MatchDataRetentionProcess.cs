@@ -74,8 +74,11 @@ public sealed class MatchDataRetentionProcess(
             .ToDictionary(
                 group => group.Key,
                 group => group
-                    .Select(match => PatchVersion.Normalize(match.GameVersion))
+                    .Select(match => PatchVersion.TryParse(match.GameVersion, out var patch)
+                        ? patch.ToString()
+                        : null)
                     .Where(patch => !string.IsNullOrWhiteSpace(patch))
+                    .Select(patch => patch!)
                     .Distinct()
                     .Take(retainedPatchCount)
                     .ToHashSet(StringComparer.Ordinal),
@@ -117,12 +120,14 @@ public sealed class MatchDataRetentionProcess(
         CancellationToken ct)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var deletedParticipants = await db.MatchParticipants
             .Where(participant => deletableMatchIds.Contains(participant.MatchId))
             .ExecuteDeleteAsync(ct);
         var deletedMatches = await db.Matches
             .Where(match => deletableMatchIds.Contains(match.Id))
             .ExecuteDeleteAsync(ct);
+        await transaction.CommitAsync(ct);
 
         return new DeletionResult(deletedMatches, deletedParticipants);
     }

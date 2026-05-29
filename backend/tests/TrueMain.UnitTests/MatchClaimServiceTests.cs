@@ -1,6 +1,6 @@
 using Data.Entities;
 using Data.Repositories;
-using FluentAssertions;
+using AwesomeAssertions;
 using Ingestor.Processes.Components.MatchIngestion;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging.Abstractions;

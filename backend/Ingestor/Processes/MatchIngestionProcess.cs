@@ -2,6 +2,7 @@ using Core;
 using Core.Lol.Identifiers;
 using Data.Repositories;
 using Ingestor.Options;
+using Ingestor.Processes.Common;
 using Ingestor.Processes.Components.MatchIngestion;
 using Microsoft.Extensions.Options;
 
@@ -21,7 +22,7 @@ public sealed class MatchIngestionProcess(
     public async Task<object?> RunCoreAsync(CancellationToken ct)
     {
         var options = matchOptions.Value;
-        var platforms = NormalizePlatforms(options);
+        var platforms = PlatformNormalizer.Normalize(options.Platforms);
 
         if (platforms.Count == 0)
         {
@@ -33,15 +34,6 @@ public sealed class MatchIngestionProcess(
         var summary = await IngestClaimedAccountsAsync(claimedAccounts, platforms, options, ct);
         LogPlatformSummaries(summary.ByPlatform);
         return BuildSuccessPayload(summary);
-    }
-
-    private static List<string> NormalizePlatforms(MatchIngestionOptions options)
-    {
-        return options.Platforms
-            .Where(platform => !string.IsNullOrWhiteSpace(platform))
-            .Select(platform => platform.Trim().ToUpperInvariant())
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
     }
 
     private async Task<IReadOnlyList<AccountKey>> ClaimAccountsAsync(
@@ -125,6 +117,14 @@ public sealed class MatchIngestionProcess(
         var region = platform.Route.ToRegional();
         await using var session = await sessionFactory.CreateAsync(ct);
 
+        // Wrap the snapshot, timeline, and catalog writes for this account in a
+        // single transaction so a mid-loop crash cannot leave partially ingested
+        // matches behind. EF Core automatically creates a savepoint before each
+        // SaveChanges while a transaction is in progress, so the catalog upsert's
+        // own DbUpdateException recovery still works without poisoning the
+        // transaction.
+        await using var transaction = await session.BeginTransactionAsync(ct);
+
         var snapshotResult = await matchSnapshotWriter.IngestSnapshotsAsync(
             session,
             platformId,
@@ -141,6 +141,8 @@ public sealed class MatchIngestionProcess(
             snapshotResult.NewMatchIds,
             options.SaveBatchSizeMatches,
             ct);
+
+        await transaction.CommitAsync(ct);
 
         await accountValidationService.ValidateAsync(account, ct);
 

@@ -1,7 +1,7 @@
 using Core.Lol.Map;
 using Core.Lol.Identifiers;
 using Data.Entities;
-using FluentAssertions;
+using AwesomeAssertions;
 using Ingestor.Processes.Components.MatchIngestion;
 using Ingestor.Riot;
 using Ingestor.Riot.Dto;

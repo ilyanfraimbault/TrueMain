@@ -7,7 +7,7 @@ namespace TrueMain.ReadModels.Truemains;
 /// team objective counts are intentionally absent; they require ingestion
 /// changes (see #159) and will be added once those land.
 /// </summary>
-public sealed class MatchSummaryReadModel
+public sealed record MatchSummaryReadModel
 {
     public string MatchId { get; init; } = string.Empty;
 
@@ -34,7 +34,7 @@ public sealed class MatchSummaryReadModel
 /// The viewing player's slice of the match: championship pick, build,
 /// summoner spells, keystone, KDA / CS, win/loss, and the MVP/ACE flag.
 /// </summary>
-public sealed class MatchSummarySelfReadModel
+public sealed record MatchSummarySelfReadModel
 {
     public int ChampionId { get; init; }
 
@@ -93,7 +93,7 @@ public sealed class MatchSummarySelfReadModel
     public bool IsAce { get; init; }
 }
 
-public sealed class MatchSummaryParticipantReadModel
+public sealed record MatchSummaryParticipantReadModel
 {
     public int ChampionId { get; init; }
 
@@ -111,7 +111,7 @@ public sealed class MatchSummaryParticipantReadModel
 /// available for the player across all pages — the frontend uses it to
 /// drive a classic page-number pagination control instead of a cursor.
 /// </summary>
-public sealed class MatchSummariesResponse
+public sealed record MatchSummariesResponse
 {
     public IReadOnlyList<MatchSummaryReadModel> Matches { get; init; }
         = Array.Empty<MatchSummaryReadModel>();

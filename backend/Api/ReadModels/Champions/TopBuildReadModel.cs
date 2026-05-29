@@ -6,7 +6,7 @@ namespace TrueMain.ReadModels.Champions;
 /// the keystone, secondary tree, and item sequence inline — full build /
 /// runes / variations remain on <c>GET /champions/{id}</c>.
 /// </summary>
-public sealed class TopBuildReadModel
+public sealed record TopBuildReadModel
 {
     /// <summary>First completed item (<c>BuildItem0</c>) of the dominant
     /// <see cref="Data.Entities.ChampionDimBuild"/> for this slice.</summary>
