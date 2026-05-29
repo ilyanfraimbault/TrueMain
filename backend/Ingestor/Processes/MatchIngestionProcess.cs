@@ -124,6 +124,14 @@ public sealed class MatchIngestionProcess(
         var region = RiotRouting.FromPlatform(platform);
         await using var session = await sessionFactory.CreateAsync(ct);
 
+        // Wrap the snapshot, timeline, and catalog writes for this account in a
+        // single transaction so a mid-loop crash cannot leave partially ingested
+        // matches behind. EF Core automatically creates a savepoint before each
+        // SaveChanges while a transaction is in progress, so the catalog upsert's
+        // own DbUpdateException recovery still works without poisoning the
+        // transaction.
+        await using var transaction = await session.BeginTransactionAsync(ct);
+
         var snapshotResult = await matchSnapshotWriter.IngestSnapshotsAsync(
             session,
             platformId,
@@ -140,6 +148,8 @@ public sealed class MatchIngestionProcess(
             snapshotResult.NewMatchIds,
             options.SaveBatchSizeMatches,
             ct);
+
+        await transaction.CommitAsync(ct);
 
         await accountValidationService.ValidateAsync(account, ct);
 
