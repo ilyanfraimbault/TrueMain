@@ -1,6 +1,7 @@
 using Core;
 using Data.Repositories;
 using Ingestor.Options;
+using Ingestor.Processes.Common;
 using Ingestor.Processes.Components.MatchIngestion;
 using Microsoft.Extensions.Options;
 
@@ -20,7 +21,7 @@ public sealed class MatchIngestionProcess(
     public async Task<object?> RunCoreAsync(CancellationToken ct)
     {
         var options = matchOptions.Value;
-        var platforms = NormalizePlatforms(options);
+        var platforms = PlatformNormalizer.Normalize(options.Platforms);
 
         if (platforms.Count == 0)
         {
@@ -32,15 +33,6 @@ public sealed class MatchIngestionProcess(
         var summary = await IngestClaimedAccountsAsync(claimedAccounts, platforms, options, ct);
         LogPlatformSummaries(summary.ByPlatform);
         return BuildSuccessPayload(summary);
-    }
-
-    private static List<string> NormalizePlatforms(MatchIngestionOptions options)
-    {
-        return options.Platforms
-            .Where(platform => !string.IsNullOrWhiteSpace(platform))
-            .Select(platform => platform.Trim().ToUpperInvariant())
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
     }
 
     private async Task<IReadOnlyList<AccountKey>> ClaimAccountsAsync(
