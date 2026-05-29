@@ -1,6 +1,6 @@
 using System.Net;
 using System.Text;
-using FluentAssertions;
+using AwesomeAssertions;
 using Ingestor.Processes.Components.PatternAggregation;
 using Microsoft.Extensions.Logging.Abstractions;
 

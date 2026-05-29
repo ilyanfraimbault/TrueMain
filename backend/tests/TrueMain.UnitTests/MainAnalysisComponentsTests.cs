@@ -1,7 +1,7 @@
 using Core.Options;
 using Data.Entities;
 using Data.Repositories;
-using FluentAssertions;
+using AwesomeAssertions;
 using Ingestor.Processes.Components.MainAnalysis;
 
 namespace TrueMain.UnitTests;

@@ -1,5 +1,5 @@
 using Core.Lol.Map;
-using FluentAssertions;
+using AwesomeAssertions;
 
 namespace TrueMain.UnitTests;
 
