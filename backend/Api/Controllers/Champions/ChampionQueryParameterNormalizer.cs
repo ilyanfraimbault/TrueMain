@@ -17,18 +17,11 @@ internal static class ChampionQueryParameterNormalizer
     /// <summary>
     /// Normalises a Riot patch string (e.g. <c>16.4.521.123</c>) to the
     /// canonical <c>major.minor</c> form persisted on aggregates.
-    /// Returns <c>null</c> for null / whitespace input.
+    /// Returns <c>null</c> for null / whitespace input or for any value that
+    /// doesn't parse to a valid <see cref="PatchVersion"/>.
     /// </summary>
     public static string? NormalizePatch(string? raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw))
-        {
-            return null;
-        }
-
-        var normalized = PatchVersion.Normalize(raw);
-        return string.IsNullOrEmpty(normalized) ? null : normalized;
-    }
+        => PatchVersion.TryParse(raw, out var patch) ? patch.ToString() : null;
 
     /// <summary>
     /// Normalises a platform identifier to the canonical Riot upper-case

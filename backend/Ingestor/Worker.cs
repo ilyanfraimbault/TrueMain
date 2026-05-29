@@ -17,33 +17,28 @@ public sealed class Worker(
         var options = jobOptions.Value;
         var mode = JobModeParser.Parse(options.Mode);
 
-        try
+        do
         {
-            do
+            TouchHeartbeat();
+            await RunOnceAsync(mode, stoppingToken);
+
+            if (options.RunOnce)
             {
-                TouchHeartbeat();
-                await RunOnceAsync(mode, stoppingToken);
+                // A single scheduled run completed successfully; ask the host to
+                // shut down so the process exits with a success code. Any failure
+                // is left to propagate from ExecuteAsync so the host's exit code
+                // reflects it (cooperative cancellation on shutdown is honoured by
+                // the loop condition below).
+                applicationLifetime.StopApplication();
+                return;
+            }
 
-                if (options.RunOnce)
-                {
-                    break;
-                }
-
-                var delayMinutes = options.IntervalMinutes is > 0 ? options.IntervalMinutes.Value : 60;
-                logger.LogInformation(
-                    "Run completed. Waiting {DelayMinutes} minutes before next run.",
-                    delayMinutes);
-                await Task.Delay(TimeSpan.FromMinutes(delayMinutes), stoppingToken);
-            } while (!stoppingToken.IsCancellationRequested);
-        }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-        {
-            // Expected on host shutdown — bubble up cleanly.
-        }
-        finally
-        {
-            applicationLifetime.StopApplication();
-        }
+            var delayMinutes = options.IntervalMinutes is > 0 ? options.IntervalMinutes.Value : 60;
+            logger.LogInformation(
+                "Run completed. Waiting {DelayMinutes} minutes before next run.",
+                delayMinutes);
+            await Task.Delay(TimeSpan.FromMinutes(delayMinutes), stoppingToken);
+        } while (!stoppingToken.IsCancellationRequested);
     }
 
     private void TouchHeartbeat()
@@ -72,9 +67,7 @@ public sealed class Worker(
     {
         try
         {
-            await using var scope = scopeFactory.CreateAsyncScope();
-            var processesByName = BuildProcessIndex(scope.ServiceProvider);
-            await RunModeAsync(mode, processesByName, stoppingToken);
+            await RunModeAsync(mode, stoppingToken);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
@@ -89,10 +82,7 @@ public sealed class Worker(
         }
     }
 
-    private static async Task RunModeAsync(
-        JobMode mode,
-        IReadOnlyDictionary<string, IIngestorProcess> processesByName,
-        CancellationToken stoppingToken)
+    private async Task RunModeAsync(JobMode mode, CancellationToken stoppingToken)
     {
         var sequence = mode switch
         {
@@ -117,6 +107,14 @@ public sealed class Worker(
 
         foreach (var processName in sequence)
         {
+            // A fresh scope per process gives each one its own DbContext and
+            // scoped repositories. A single shared scope would let the
+            // ChangeTracker accumulate every entity touched across the whole
+            // sequence and leak cached scoped state from one process into the
+            // next. The scope is disposed before moving on to the next process.
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var processesByName = BuildProcessIndex(scope.ServiceProvider);
+
             if (!processesByName.TryGetValue(processName, out var process))
             {
                 throw new InvalidOperationException(

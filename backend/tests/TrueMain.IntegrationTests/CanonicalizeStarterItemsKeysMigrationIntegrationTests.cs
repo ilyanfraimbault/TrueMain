@@ -1,6 +1,6 @@
 using Data.Entities;
 using Data.Migrations;
-using FluentAssertions;
+using AwesomeAssertions;
 using Microsoft.EntityFrameworkCore;
 using TrueMain.TestKit.EntityBuilders;
 

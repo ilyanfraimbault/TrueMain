@@ -8,6 +8,7 @@ public sealed class MainChampionStatRepository(TrueMainDbContext db) : IMainCham
     public Task<List<AccountKey>> GetMainAccountsAsync(List<string> platforms, CancellationToken ct)
     {
         return db.MainChampionStats
+            .AsNoTracking()
             .Where(s => s.IsMain && platforms.Contains(s.PlatformId))
             .GroupBy(s => new { s.PlatformId, s.Puuid })
             .Select(g => new AccountKey(g.Key.PlatformId, g.Key.Puuid))
@@ -16,6 +17,7 @@ public sealed class MainChampionStatRepository(TrueMainDbContext db) : IMainCham
 
     public Task<List<MainChampionStat>> GetByAccountAsync(string platformId, string puuid, CancellationToken ct)
         => db.MainChampionStats
+            .AsNoTracking()
             .Where(s => s.PlatformId == platformId && s.Puuid == puuid)
             .ToListAsync(ct);
 
