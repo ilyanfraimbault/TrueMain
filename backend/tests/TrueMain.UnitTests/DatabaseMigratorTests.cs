@@ -59,5 +59,7 @@ public sealed class DatabaseMigratorTests
         public TrueMainDbContext CreateDbContext() => throw new MigratorReachedException();
     }
 
-    private sealed class MigratorReachedException : Exception;
+    private sealed class MigratorReachedException : Exception
+    {
+    }
 }
