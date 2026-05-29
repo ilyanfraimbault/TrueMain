@@ -74,8 +74,11 @@ public sealed class MatchDataRetentionProcess(
             .ToDictionary(
                 group => group.Key,
                 group => group
-                    .Select(match => PatchVersion.Normalize(match.GameVersion))
+                    .Select(match => PatchVersion.TryParse(match.GameVersion, out var patch)
+                        ? patch.ToString()
+                        : null)
                     .Where(patch => !string.IsNullOrWhiteSpace(patch))
+                    .Select(patch => patch!)
                     .Distinct()
                     .Take(retainedPatchCount)
                     .ToHashSet(StringComparer.Ordinal),
