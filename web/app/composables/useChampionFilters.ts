@@ -15,18 +15,28 @@ export function useChampionFilters() {
 
   const hasFilters = computed(() => Boolean(filters.value.patch || filters.value.position))
 
-  async function setFilter(patch: string | null, position: ChampionPosition | null) {
-    const nextPatch = patch ?? filters.value.patch
-    const nextPosition = position ?? filters.value.position
-    if (!nextPatch && !nextPosition) return
+  // `undefined` = leave the field alone, `null` = clear it, string = set it.
+  // Mirrors the `applyFilterReset` pattern used on /champions so the two
+  // pages handle filter clearing the same way.
+  async function setFilter(updates: {
+    patch?: string | null
+    position?: ChampionPosition | null
+  }) {
+    const nextQuery: Record<string, string> = {}
+    for (const [key, value] of Object.entries(route.query)) {
+      if (typeof value === 'string') nextQuery[key] = value
+    }
 
-    await router.replace({
-      query: {
-        ...route.query,
-        ...(nextPatch ? { patch: nextPatch } : {}),
-        ...(nextPosition ? { position: nextPosition } : {}),
-      },
-    })
+    if (updates.patch !== undefined) {
+      if (updates.patch) nextQuery.patch = updates.patch
+      else delete nextQuery.patch
+    }
+    if (updates.position !== undefined) {
+      if (updates.position) nextQuery.position = updates.position
+      else delete nextQuery.position
+    }
+
+    await router.replace({ query: nextQuery })
   }
 
   return { filters, hasFilters, setFilter }

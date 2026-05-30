@@ -5,7 +5,7 @@ import type {
   StaticItemData,
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
-import { POSITION_OPTIONS, type ChampionPosition } from '~/utils/positions'
+import { isChampionPosition, type ChampionPosition } from '~/utils/positions'
 
 const route = useRoute()
 const championId = computed(() => Number.parseInt(String(route.params.id), 10))
@@ -124,9 +124,13 @@ const patchOptions = computed(() => {
 })
 
 const selectedPatch = computed(() => filters.value.patch || champion.value?.patch || '')
-const selectedPosition = computed<ChampionPosition | ''>(() => {
-  const value = filters.value.position || champion.value?.position || ''
-  return POSITION_OPTIONS.some(o => o.value === value) ? value as ChampionPosition : ''
+// Bind to the API-returned position once available so the picker reflects
+// what's actually being shown — covers the 404 fallback in useChampion
+// where the URL filter is dropped and the API returns the default position.
+// Fall back to the URL filter for the optimistic render before the fetch resolves.
+const selectedPosition = computed<ChampionPosition | null>(() => {
+  const value = champion.value?.position || filters.value.position || ''
+  return isChampionPosition(value) ? value : null
 })
 
 // Bound to every async source so the bar covers both the initial lazy load
@@ -177,9 +181,8 @@ const isRefetching = computed(() =>
           :selected-patch="selectedPatch"
           :selected-position="selectedPosition"
           :patch-options="patchOptions"
-          :position-options="POSITION_OPTIONS"
-          @update:patch="value => setFilter(value, null)"
-          @update:position="value => setFilter(null, value)"
+          @update:patch="value => setFilter({ patch: value })"
+          @update:position="value => setFilter({ position: value })"
         />
       </header>
 
