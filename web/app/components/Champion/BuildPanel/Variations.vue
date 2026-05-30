@@ -5,6 +5,7 @@ import type {
   StaticItemData,
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
+import { filterByPickRate } from '~~/shared/utils/build'
 
 const props = defineProps<{
   variations: BuildVariations
@@ -12,6 +13,13 @@ const props = defineProps<{
   itemsMap: Record<number, StaticItemData>
   summonersMap: Record<number, StaticSummonerSpellData>
 }>()
+
+// Hide long-tail alternatives below the shared pickrate floor; the empty-state
+// placeholder below keys off these filtered lists rather than the raw props.
+const summonerSpells = computed(() => filterByPickRate(props.variations.summonerSpells))
+const skillOrder = computed(() => filterByPickRate(props.variations.skillOrder))
+const boots = computed(() => filterByPickRate(props.variations.boots))
+const starterItems = computed(() => filterByPickRate(props.variations.starterItems))
 
 function summonerName(id: number): string {
   return props.summonersMap[id]?.name ?? `Spell ${id}`
@@ -33,7 +41,7 @@ function spellByKey(key: string) {
     <SectionCard title="Summoner spells">
       <ul class="space-y-2">
         <li
-          v-for="option in variations.summonerSpells"
+          v-for="option in summonerSpells"
           :key="`spells-${option.spell1Id}-${option.spell2Id}`"
           class="flex items-center justify-between gap-3"
         >
@@ -54,7 +62,7 @@ function spellByKey(key: string) {
           />
         </li>
         <li
-          v-if="!variations.summonerSpells.length"
+          v-if="!summonerSpells.length"
           class="text-sm text-muted"
         >
           No data
@@ -65,7 +73,7 @@ function spellByKey(key: string) {
     <SectionCard title="Skill order">
       <ul class="space-y-2">
         <li
-          v-for="(option, optionIndex) in variations.skillOrder"
+          v-for="(option, optionIndex) in skillOrder"
           :key="`skill-${optionIndex}`"
           class="flex items-center justify-between gap-3"
         >
@@ -99,7 +107,7 @@ function spellByKey(key: string) {
           />
         </li>
         <li
-          v-if="!variations.skillOrder.length"
+          v-if="!skillOrder.length"
           class="text-sm text-muted"
         >
           No data
@@ -110,7 +118,7 @@ function spellByKey(key: string) {
     <SectionCard title="Boots">
       <ul class="space-y-2">
         <li
-          v-for="(option, optionIndex) in variations.boots"
+          v-for="(option, optionIndex) in boots"
           :key="`boots-${optionIndex}-${option.itemIds.join('-')}`"
           class="flex items-center justify-between gap-3"
         >
@@ -130,7 +138,7 @@ function spellByKey(key: string) {
           />
         </li>
         <li
-          v-if="!variations.boots.length"
+          v-if="!boots.length"
           class="text-sm text-muted"
         >
           No data
@@ -141,7 +149,7 @@ function spellByKey(key: string) {
     <SectionCard title="Starter">
       <ul class="space-y-2">
         <li
-          v-for="(option, optionIndex) in variations.starterItems"
+          v-for="(option, optionIndex) in starterItems"
           :key="`starter-${optionIndex}-${option.itemIds.join('-')}`"
           class="flex items-center justify-between gap-3"
         >
@@ -161,7 +169,7 @@ function spellByKey(key: string) {
           />
         </li>
         <li
-          v-if="!variations.starterItems.length"
+          v-if="!starterItems.length"
           class="text-sm text-muted"
         >
           No data
