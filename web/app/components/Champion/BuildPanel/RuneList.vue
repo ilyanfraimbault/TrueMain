@@ -1,21 +1,25 @@
 <script setup lang="ts">
 import type { BuildRunePage } from '~~/shared/types/champions'
 import type { RuneTreeResponse } from '~~/shared/types/static-data'
+import { filterByPickRate } from '~~/shared/utils/build'
 
-defineProps<{
+const props = defineProps<{
   runePages: BuildRunePage[]
   runeTree: RuneTreeResponse
 }>()
+
+// Same pickrate floor as the other variation panels.
+const visiblePages = computed(() => filterByPickRate(props.runePages))
 </script>
 
 <template>
   <SectionCard title="Rune variations">
     <div
-      v-if="runePages.length"
+      v-if="visiblePages.length"
       class="flex flex-wrap items-start justify-around gap-y-4"
     >
       <div
-        v-for="(page, index) in runePages"
+        v-for="(page, index) in visiblePages"
         :key="`rune-${index}`"
         class="flex flex-col items-center gap-2"
       >
