@@ -197,6 +197,72 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IClassFixture<Post
     }
 
     [Fact]
+    public async Task List_position_filter_uses_position_breakdown_share_threshold()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        // Three Yasuo mains with different lane splits. The filter should
+        // include any player who plays the queried position at least the
+        // configured share of the time with a main champion (20%), not only
+        // the player whose top lane is the queried position.
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var flexTop = Account("flex-top", "FlexTop", "EUW1");
+            var cameoTop = Account("cameo-top", "CameoTop", "EUW1");
+            var pureTop = Account("pure-top", "PureTop", "EUW1");
+
+            db.RiotAccounts.AddRange(flexTop, cameoTop, pureTop);
+            db.RankSnapshots.AddRange(
+                Snapshot(flexTop, "DIAMOND", "I", 50, now),
+                Snapshot(cameoTop, "DIAMOND", "I", 50, now),
+                Snapshot(pureTop, "DIAMOND", "I", 50, now));
+
+            // FlexTop: MIDDLE 80% / TOP 20% — TOP just clears the bar.
+            db.MainChampionStats.Add(MainStatWithBreakdown(
+                "flex-top", "EUW1", championId: 157, primaryPosition: "MIDDLE",
+                breakdown:
+                [
+                    new PositionStat { Position = "MIDDLE", Games = 80, Rate = 0.8d },
+                    new PositionStat { Position = "TOP", Games = 20, Rate = 0.2d },
+                ]));
+
+            // CameoTop: MIDDLE 85% / TOP 15% — TOP cameo is filtered out.
+            db.MainChampionStats.Add(MainStatWithBreakdown(
+                "cameo-top", "EUW1", championId: 157, primaryPosition: "MIDDLE",
+                breakdown:
+                [
+                    new PositionStat { Position = "MIDDLE", Games = 85, Rate = 0.85d },
+                    new PositionStat { Position = "TOP", Games = 15, Rate = 0.15d },
+                ]));
+
+            // PureTop: TOP 100% — control row, should appear under TOP only.
+            db.MainChampionStats.Add(MainStatWithBreakdown(
+                "pure-top", "EUW1", championId: 86, primaryPosition: "TOP",
+                breakdown:
+                [
+                    new PositionStat { Position = "TOP", Games = 50, Rate = 1d },
+                ]));
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        var middles = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?position=MIDDLE");
+        middles!.Total.Should().Be(2);
+        middles.Rows.Select(r => r.Identity.GameName)
+            .Should().BeEquivalentTo(["FlexTop", "CameoTop"]);
+
+        // FlexTop (20% top) qualifies; CameoTop (15% top) does not.
+        var tops = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?position=TOP");
+        tops!.Total.Should().Be(2);
+        tops.Rows.Select(r => r.Identity.GameName)
+            .Should().BeEquivalentTo(["FlexTop", "PureTop"]);
+    }
+
+    [Fact]
     public async Task List_paginates_with_server_computed_rank()
     {
         await _fixture.ResetDatabaseAsync();
@@ -478,6 +544,28 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IClassFixture<Post
             IsOtp = false,
             PrimaryPosition = primaryPosition,
             PositionBreakdown = [new PositionStat { Position = primaryPosition, Games = 50, Rate = 1d }],
+            CalculatedAtUtc = DateTime.UtcNow,
+        };
+
+    private static MainChampionStat MainStatWithBreakdown(
+        string puuid,
+        string platformId,
+        int championId,
+        string primaryPosition,
+        List<PositionStat> breakdown)
+        => new()
+        {
+            Id = Guid.NewGuid(),
+            PlatformId = platformId,
+            Puuid = puuid,
+            ChampionId = championId,
+            TotalMatches = 100,
+            ChampionMatches = breakdown.Sum(p => p.Games),
+            PlayRate = 0.5d,
+            IsMain = true,
+            IsOtp = false,
+            PrimaryPosition = primaryPosition,
+            PositionBreakdown = breakdown,
             CalculatedAtUtc = DateTime.UtcNow,
         };
 
