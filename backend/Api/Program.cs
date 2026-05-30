@@ -4,6 +4,7 @@ using Data;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using Scalar.AspNetCore;
 using TrueMain.Authentication;
 using TrueMain.Options;
 using TrueMain.Services.Champions;
@@ -116,12 +117,13 @@ await DatabaseMigrator.ApplyPendingMigrationsAsync(app.Services);
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 
-// The OpenAPI JSON document (default /openapi/v1.json) is served only in
-// Development so no API surface metadata is exposed in production. No
-// interactive UI is wired; a Dev-only Scalar/Swagger UI could be added later.
+// The OpenAPI JSON document (default /openapi/v1.json) and the Scalar UI
+// at /scalar/v1 are served only in Development so no API surface metadata
+// is exposed in production.
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.MapScalarApiReference();
 }
 
 app.UseHttpsRedirection();
