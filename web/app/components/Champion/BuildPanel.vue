@@ -82,6 +82,7 @@ defineProps<{
     <ChampionBuildPanelBuildTree
       :tree="build.buildTree"
       :first-item-id="build.firstItemId"
+      :item-path="build.core.itemPath?.itemIds ?? []"
       :items-map="itemsMap"
     />
 

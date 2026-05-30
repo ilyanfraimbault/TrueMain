@@ -5,6 +5,10 @@ import type { StaticItemData } from '~~/shared/types/static-data'
 const props = defineProps<{
   tree: BuildTreeNode[]
   firstItemId: number
+  /** The backend's core "Build path" (itemIds, starting at firstItemId). The
+   * solid main-edge highlight traces this exactly, so it stops where the core
+   * path stops rather than running to the deepest leaf. */
+  itemPath: number[]
   itemsMap: Record<number, StaticItemData>
 }>()
 
@@ -25,54 +29,23 @@ const V_GAP = 44
 const MAX_CHILDREN = 4
 
 const layout = computed(() => {
-  function depth(node: BuildTreeNode): number {
-    if (node.children.length === 0) return 0
-    return 1 + Math.max(...node.children.map(depth))
-  }
-
-  function pickMainIndex(nodes: BuildTreeNode[]): number {
-    // Main path follows the most popular child at each step. Tiebreak chain
-    // mirrors the backend's WalkPath comparer exactly: games desc → subtree
-    // depth desc → wins desc → itemId asc. Spelling all four out keeps the
-    // highlighted edge in sync with the backend's itemPath regardless of
-    // the input order — wrapChildren's re-sort drops the depth dimension,
-    // so this scan is the only place depth still influences the choice.
-    let bestIndex = 0
-    let bestDepth = depth(nodes[0]!)
-    let bestGames = nodes[0]!.games
-    let bestWins = nodes[0]!.wins
-    let bestItemId = nodes[0]!.itemId
-    for (let i = 1; i < nodes.length; i++) {
-      const node = nodes[i]!
-      const d = depth(node)
-      const g = node.games
-      const w = node.wins
-      const id = node.itemId
-      const better
-        = g > bestGames
-        || (g === bestGames && d > bestDepth)
-        || (g === bestGames && d === bestDepth && w > bestWins)
-        || (g === bestGames && d === bestDepth && w === bestWins && id < bestItemId)
-      if (better) {
-        bestIndex = i
-        bestDepth = d
-        bestGames = g
-        bestWins = w
-        bestItemId = id
-      }
-    }
-    return bestIndex
-  }
-
-  function wrapChildren(nodes: BuildTreeNode[], parentIsMainPath: boolean): LaidOutNode[] {
-    // Apply the same ordering the backend uses to prune (games desc → wins
-    // desc → itemId asc) explicitly rather than relying on the response's
-    // serialization order. Backend keeps up to 6 children per node while
-    // the UI caps at 4 — with the explicit tiebreaks, the 2 we drop are
-    // deterministically the lowest by wins/itemId within each tied-games
-    // group, matching what the backend would have surfaced if it shared
-    // our cap. Depth doesn't enter here on purpose: it's a main-edge
-    // selection rule (pickMainIndex), not a child-pruning rule.
+  // The highlighted (solid) edges trace the backend's core "Build path"
+  // verbatim: we walk `props.itemPath` — the canonical progression the backend
+  // already computed and gated at its 20% confidence threshold — and light up
+  // the edge into each successive item. Driving the highlight from itemPath
+  // (instead of re-deriving a "most popular child" walk here) keeps the solid
+  // line in sync with the core build and, crucially, stops it exactly where the
+  // core stops: a child can clear the tree's 5% prune yet sit below the path's
+  // 20% gate, so it stays visible but un-highlighted.
+  function wrapChildren(
+    nodes: BuildTreeNode[],
+    parentIsMainPath: boolean,
+    parentDepth: number,
+  ): LaidOutNode[] {
+    // Mirror the backend's prune ordering (games desc → wins desc → itemId
+    // asc) explicitly rather than trusting serialization order. Backend keeps
+    // up to 6 children per node, the UI caps at 4 — the 2 we drop are the
+    // lowest by wins/itemId within each tied-games group.
     const sorted = nodes
       .slice()
       .sort((a, b) =>
@@ -81,15 +54,25 @@ const layout = computed(() => {
         || a.itemId - b.itemId,
       )
       .slice(0, MAX_CHILDREN)
-    const mainIndex = parentIsMainPath && sorted.length > 0 ? pickMainIndex(sorted) : -1
-    return sorted.map((node, index) => ({
+    // path[d] is the main item at depth d (path[0] is the root). The child
+    // continuing the main path is path[parentDepth + 1], and only while the
+    // parent itself sits on the main path. Once itemPath is exhausted there's
+    // no next id, so every deeper edge falls back to a dashed branch.
+    const mainChildId = parentIsMainPath
+      ? (props.itemPath[parentDepth + 1] ?? null)
+      : null
+    return sorted.map(node => ({
       itemId: node.itemId,
       games: node.games,
       pickRate: node.pickRate,
-      isMainEdge: index === mainIndex,
+      isMainEdge: mainChildId !== null && node.itemId === mainChildId,
       x: 0,
       y: 0,
-      children: wrapChildren(node.children, index === mainIndex),
+      children: wrapChildren(
+        node.children,
+        mainChildId !== null && node.itemId === mainChildId,
+        parentDepth + 1,
+      ),
     }))
   }
 
@@ -102,7 +85,7 @@ const layout = computed(() => {
     isMainEdge: false,
     x: 0,
     y: 0,
-    children: wrapChildren(props.tree, true),
+    children: wrapChildren(props.tree, true, 0),
   }
 
   function widthOf(node: LaidOutNode): number {
