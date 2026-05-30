@@ -2,7 +2,7 @@
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import type { ChampionPosition } from '~/utils/positions'
 
-const props = defineProps<{
+defineProps<{
   champions: ChampionStaticListItem[]
   position: ChampionPosition | null
   championId: number | null
@@ -12,37 +12,28 @@ const emit = defineEmits<{
   'update:position': [value: ChampionPosition | null]
   'update:championId': [value: number | null]
 }>()
-
-function clearAll() {
-  emit('update:position', null)
-  emit('update:championId', null)
-}
-
-const hasAnyFilter = computed(() => props.position !== null || props.championId !== null)
 </script>
 
 <template>
-  <div class="flex flex-wrap items-center gap-2">
-    <RolePicker
-      :position="position"
-      @update:position="value => emit('update:position', value)"
-    />
+  <!--
+    Two sibling roots (no wrapper div) so they become direct flex children
+    of the header's justify-between row: the champion search sits in the
+    middle and the position picker pins to the right. ChampionPicker uses
+    the same placeholder + width as the /champions and leaderboard filter
+    strips so the bars feel identical. Each picker self-resets (the
+    champion picker's inline ✕, the position picker's "All positions"), so
+    no extra Clear control is needed.
+  -->
+  <ChampionPicker
+    :champions="champions"
+    :champion-id="championId"
+    placeholder="Search for a champion"
+    trigger-class="w-64"
+    @update:champion-id="value => emit('update:championId', value)"
+  />
 
-    <ChampionPicker
-      :champions="champions"
-      :champion-id="championId"
-      @update:champion-id="value => emit('update:championId', value)"
-    />
-
-    <UButton
-      v-if="hasAnyFilter"
-      variant="ghost"
-      color="neutral"
-      size="xs"
-      icon="i-lucide-x"
-      @click="clearAll"
-    >
-      Clear
-    </UButton>
-  </div>
+  <RolePicker
+    :position="position"
+    @update:position="value => emit('update:position', value)"
+  />
 </template>

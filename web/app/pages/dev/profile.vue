@@ -3,6 +3,7 @@ import type {
   MatchSummaryResponse,
 } from '~~/shared/types/matches'
 import type { ProfileResponse } from '~~/shared/types/profile'
+import type { RankHistoryEntry } from '~~/shared/types/rank-history'
 import type {
   ChampionStaticListItem,
   RuneTreeResponse,
@@ -82,6 +83,40 @@ const now = new Date()
 function isoMinutesAgo(minutes: number): string {
   return new Date(now.getTime() - minutes * 60 * 1000).toISOString()
 }
+
+// 60 daily-ish snapshots tracing a wide climb across multiple tiers so the
+// chart shows real tier crossings and the 30d / 7d delta badges have data.
+const mockRankHistory: RankHistoryEntry[] = (() => {
+  const entries: RankHistoryEntry[] = []
+  const path: Array<{ tier: string, division: string, lp: number }> = [
+    { tier: 'EMERALD', division: 'III', lp: 40 },
+    { tier: 'EMERALD', division: 'II', lp: 60 },
+    { tier: 'EMERALD', division: 'I', lp: 75 },
+    { tier: 'DIAMOND', division: 'IV', lp: 20 },
+    { tier: 'DIAMOND', division: 'III', lp: 45 },
+    { tier: 'DIAMOND', division: 'II', lp: 72 },
+  ]
+  for (let day = 59; day >= 0; day--) {
+    const t = 1 - day / 59
+    const idx = Math.min(path.length - 1, Math.floor(t * path.length))
+    const next = path[idx]!
+    const lp = Math.max(0, Math.min(99, next.lp + Math.round(Math.sin(day / 4) * 8)))
+    entries.push({
+      capturedAtUtc: new Date(now.getTime() - day * 24 * 60 * 60 * 1000).toISOString(),
+      tier: next.tier,
+      division: next.division,
+      leaguePoints: lp,
+    })
+  }
+  // Pin the final entry to the headline rank so the chart endpoint matches.
+  entries[entries.length - 1] = {
+    capturedAtUtc: now.toISOString(),
+    tier: 'DIAMOND',
+    division: 'II',
+    leaguePoints: 72,
+  }
+  return entries
+})()
 
 function makeMockParticipants(): MatchSummaryResponse['participants'] {
   return [
@@ -175,7 +210,7 @@ const mockMatches = computed<MatchSummaryResponse[]>(() => [
     </header>
 
     <ProfileHeader :identity="mockProfile.identity" :patch="latestPatch" />
-    <ProfileRankedCard :ranked="mockProfile.ranked" />
+    <ProfileRankedCard :ranked="mockProfile.ranked" :history="mockRankHistory" />
     <ProfileMainChampions :mains="mockProfile.mains" :champions="champions" />
     <ProfilePositionBreakdown :positions="mockProfile.positions" />
 

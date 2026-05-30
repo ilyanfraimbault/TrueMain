@@ -4,6 +4,7 @@ using Data;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using Scalar.AspNetCore;
 using TrueMain.Authentication;
 using TrueMain.Options;
 using TrueMain.Services.Champions;
@@ -18,7 +19,7 @@ const string frontendCorsPolicy = "FrontendCors";
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddOpenApi();
 builder.Services.AddMemoryCache();
 
 var healthConnectionString = builder.Configuration.GetConnectionString("TrueMain");
@@ -87,6 +88,7 @@ builder.Services.AddScoped<IChampionSummariesQueryService, ChampionSummariesQuer
 builder.Services.AddScoped<IChampionBuildsQueryService, ChampionBuildsQueryService>();
 builder.Services.AddScoped<IMatchSummariesQueryService, MatchSummariesQueryService>();
 builder.Services.AddScoped<IProfileQueryService, ProfileQueryService>();
+builder.Services.AddScoped<IRankHistoryQueryService, RankHistoryQueryService>();
 builder.Services.AddScoped<ITruemainsLeaderboardQueryService, TruemainsLeaderboardQueryService>();
 builder.Services.AddScoped<IPipelineHealthQueryService, PipelineHealthQueryService>();
 builder.Services.AddDbContext<TrueMainDbContext>(options =>
@@ -108,12 +110,6 @@ builder.Services.AddDbContext<TrueMainDbContext>(options =>
 var app = builder.Build();
 await DatabaseMigrator.ApplyPendingMigrationsAsync(app.Services);
 
-// Swagger is exposed in every environment so the OpenAPI doc stays
-// available for tooling outside Development. Proper auth-gating of
-// both the UI and /swagger/v1/swagger.json needs a browser-compatible
-// scheme (Basic auth, session cookie, reverse-proxy) — the X-Ops-Key
-// header handler here can't serve the Swagger UI's unsolicited fetch
-// of the JSON document.
 // Wrap unhandled exceptions in RFC 7807 ProblemDetails so clients
 // always see a structured payload instead of HTML stack traces, and
 // emit StatusCodePages for 4xx/5xx responses without a body so things
@@ -121,8 +117,14 @@ await DatabaseMigrator.ApplyPendingMigrationsAsync(app.Services);
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 
-app.UseSwagger();
-app.UseSwaggerUI();
+// The OpenAPI JSON document (default /openapi/v1.json) and the Scalar UI
+// at /scalar/v1 are served only in Development so no API surface metadata
+// is exposed in production.
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+    app.MapScalarApiReference();
+}
 
 app.UseHttpsRedirection();
 app.UseCors(frontendCorsPolicy);

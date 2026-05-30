@@ -1,8 +1,8 @@
-using Core;
 using Core.Lol.Identifiers;
 using Data.Entities;
 using Data.Repositories;
 using Ingestor.Options;
+using Ingestor.Processes.Common;
 using Ingestor.Processes.Components.Discovery;
 using Ingestor.Ranking;
 using Ingestor.Riot;
@@ -25,7 +25,7 @@ public sealed class DiscoveryProcess(
     public async Task<object?> RunCoreAsync(CancellationToken ct)
     {
         var options = discoveryOptions.Value;
-        var platforms = NormalizePlatforms(options);
+        var platforms = PlatformNormalizer.Normalize(options.Platforms);
 
         if (platforms.Count == 0)
         {
@@ -35,15 +35,6 @@ public sealed class DiscoveryProcess(
 
         var summaries = await DiscoverAcrossPlatformsAsync(platforms, options, ct);
         return BuildSuccessPayload(summaries);
-    }
-
-    private static List<string> NormalizePlatforms(DiscoveryOptions options)
-    {
-        return options.Platforms
-            .Where(platform => !string.IsNullOrWhiteSpace(platform))
-            .Select(platform => platform.Trim().ToUpperInvariant())
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
     }
 
     private async Task<List<PlatformSummary>> DiscoverAcrossPlatformsAsync(
@@ -56,13 +47,13 @@ public sealed class DiscoveryProcess(
         foreach (var platformString in platforms)
         {
             ct.ThrowIfCancellationRequested();
-            if (!RiotDataHelpers.TryParsePlatform(platformString, out var platform))
+            if (!PlatformId.TryParse(platformString, out var platform))
             {
                 logger.LogWarning("Skipping unknown platform '{Platform}'.", platformString);
                 continue;
             }
 
-            var platformSummary = await ProcessPlatformAsync(platform, options, ct);
+            var platformSummary = await ProcessPlatformAsync(platform.Route, options, ct);
             summaries.Add(platformSummary);
             LogPlatformSummary(platformSummary);
         }

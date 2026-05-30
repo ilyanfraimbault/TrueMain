@@ -11,6 +11,7 @@ using Ingestor.Ranking;
 using Ingestor.Riot;
 using Ingestor.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Npgsql;
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -19,10 +20,9 @@ builder.Services.AddValidatedOptions(builder.Configuration);
 builder.Services.AddOptions<DatabaseOptions>()
     .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName));
 
-builder.Services.AddSingleton<IRiotHttpExecutor, RiotHttpExecutor>();
-builder.Services.AddHttpClient<IRiotMatchClient, RiotMatchClient>();
-builder.Services.AddHttpClient<IRiotPlatformClient, RiotPlatformClient>();
-builder.Services.AddHttpClient<IRiotAccountClient, RiotAccountClient>();
+builder.Services.AddHttpClient<IRiotMatchClient, RiotMatchClient>(ConfigureRiotClient).AddRiotResilienceHandler();
+builder.Services.AddHttpClient<IRiotPlatformClient, RiotPlatformClient>(ConfigureRiotClient).AddRiotResilienceHandler();
+builder.Services.AddHttpClient<IRiotAccountClient, RiotAccountClient>(ConfigureRiotClient).AddRiotResilienceHandler();
 
 builder.Services.AddScoped<ILadderDiscoveryService, LadderDiscoveryService>();
 builder.Services.AddScoped<IAccountUpsertService, AccountUpsertService>();
@@ -76,3 +76,9 @@ builder.Services.AddHostedService<Worker>();
 var host = builder.Build();
 await DatabaseMigrator.ApplyPendingMigrationsAsync(host.Services);
 await host.RunAsync();
+
+static void ConfigureRiotClient(IServiceProvider serviceProvider, HttpClient client)
+{
+    var options = serviceProvider.GetRequiredService<IOptions<RiotOptions>>().Value;
+    client.DefaultRequestHeaders.Add("X-Riot-Token", options.ApiKey);
+}
