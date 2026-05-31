@@ -278,10 +278,15 @@ public sealed class TruemainsLeaderboardQueryService(
         // must stay in lock-step or pagination will drift from the total.
         var scoreExpression = RankScore.OrderBySqlFragment("ls");
 
-        // Use FormattableStringFactory to compose the SQL: scoreExpression is
-        // raw SQL (constants only — no user input) that must NOT be bound as
-        // a parameter, so it goes into the literal portion of the format
-        // string, while the actual parameters keep their interpolation order.
+        // scoreExpression and RankedQueueId are constant raw SQL (no user
+        // input) that must stay literal, so the query is composed via
+        // FormattableStringFactory rather than a plain interpolated
+        // FormattableString. The {N} placeholders are numbered in
+        // first-appearance order and the argument list below is supplied in
+        // that same order — keep them in lock-step and append any new
+        // parameter at the end of both, so an added value can never silently
+        // shift an existing binding. Every {N} binds as a real Npgsql
+        // DbParameter; no user-supplied value is concatenated into the SQL.
         var sqlTemplate = $$"""
             WITH latest_snapshot AS (
                 SELECT DISTINCT ON ("RiotAccountId")
@@ -314,30 +319,30 @@ public sealed class TruemainsLeaderboardQueryService(
                         SELECT 1
                         FROM jsonb_array_elements(m."PositionBreakdown") AS pos
                         WHERE pos->>'Position' = {2}
-                          AND (pos->>'Rate')::float8 >= {6}
+                          AND (pos->>'Rate')::float8 >= {3}
                     ))
               )
-              AND ({5} = 0 OR (
+              AND ({4} = 0 OR (
                   SELECT COUNT(*)::int
                   FROM match_participants p
                   INNER JOIN matches m ON m."Id" = p."MatchId"
                   WHERE p."Puuid" = a."Puuid"
                     AND m."QueueId" = {{RankedQueueId}}
                     AND m."GameMode" <> 'CHERRY'
-              ) >= {5})
+              ) >= {4})
             ORDER BY "Score" DESC NULLS LAST, a."Id"
-            LIMIT {3} OFFSET {4}
+            LIMIT {5} OFFSET {6}
             """;
 
         var sql = System.Runtime.CompilerServices.FormattableStringFactory.Create(
             sqlTemplate,
-            platforms,
-            (object?)championFilter ?? DBNull.Value,
-            (object?)position ?? DBNull.Value,
-            pageSize,
-            offset,
-            minGames,
-            MinPositionShare);
+            platforms, // {0}
+            (object?)championFilter ?? DBNull.Value, // {1}
+            (object?)position ?? DBNull.Value, // {2}
+            MinPositionShare, // {3}
+            minGames, // {4}
+            pageSize, // {5}
+            offset); // {6}
 
         return await db.Database.SqlQuery<PageRow>(sql).ToListAsync(ct);
     }

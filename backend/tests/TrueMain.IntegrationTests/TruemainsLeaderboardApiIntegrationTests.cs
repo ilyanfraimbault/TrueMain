@@ -452,6 +452,37 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IClassFixture<Post
         freshResponse!.Total.Should().Be(2, "a different filter shape must miss the cache");
     }
 
+    [Fact]
+    public async Task List_treats_identity_with_sql_metacharacters_as_data()
+    {
+        // The leaderboard SQL binds every user-derived value as an Npgsql
+        // DbParameter (FetchPageAsync / CountAsync), never string-concatenated.
+        // An account whose identity carries a SQL-injection payload must
+        // therefore round-trip as ordinary data: the row comes back intact and
+        // the payload never executes (a dropped table would surface as a 500).
+        await _fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        // GameName is varchar(32); keep the payload within it (TagLine is
+        // varchar(8), so it is left as the default region tag).
+        const string payload = "'); DROP TABLE riot_accounts;--";
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var evil = Account("evil-1", payload, "EUW1");
+            db.RiotAccounts.Add(evil);
+            db.RankSnapshots.Add(Snapshot(evil, "DIAMOND", "I", 50, now));
+            db.MainChampionStats.Add(MainStat("evil-1", "EUW1", 1, "MIDDLE", isMain: true));
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        var response = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        response!.Total.Should().Be(1);
+        response.Rows.Single().Identity.GameName.Should().Be(payload);
+    }
+
     /// <summary>
     /// Seeds <paramref name="games"/> matches + matching participants for
     /// <paramref name="puuid"/>. Both rows are required because the
