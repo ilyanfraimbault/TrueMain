@@ -27,6 +27,15 @@ public sealed class ChampionSummariesQueryService(
     private static readonly TimeSpan ActivePatchCacheTtl = TimeSpan.FromMinutes(5);
     private const string ActivePatchCacheKey = "champions:summaries:active-patch";
 
+    // Every cache entry must carry a Size because the shared MemoryCache runs
+    // with a SizeLimit (see Program.cs). Without a Size the Set is silently
+    // dropped and the value never caches. Count-based: one entry = one unit.
+    private static MemoryCacheEntryOptions CacheEntry(TimeSpan ttl) => new()
+    {
+        AbsoluteExpirationRelativeToNow = ttl,
+        Size = 1,
+    };
+
     public async Task<IReadOnlyList<ChampionSummaryReadModel>> GetAllSummariesAsync(string? patch, CancellationToken ct)
     {
         var totalSw = Stopwatch.StartNew();
@@ -68,7 +77,7 @@ public sealed class ChampionSummariesQueryService(
         var computeSw = Stopwatch.StartNew();
         var summaries = await ComputeAllSummariesAsync(activePatch, ct);
         computeSw.Stop();
-        cache.Set(cacheKey, summaries, SummariesCacheTtl);
+        cache.Set(cacheKey, summaries, CacheEntry(SummariesCacheTtl));
         totalSw.Stop();
         logger.LogInformation(
             "[champions-summaries] compute elapsed={ComputeMs}ms total={TotalMs}ms result=miss count={Count}",
@@ -103,7 +112,7 @@ public sealed class ChampionSummariesQueryService(
         var resolved = ChampionAggregateScopeResolver.ResolvePatchVersion(distinctPatches, requestedPatch: null);
         if (!string.IsNullOrEmpty(resolved))
         {
-            cache.Set(ActivePatchCacheKey, resolved, ActivePatchCacheTtl);
+            cache.Set(ActivePatchCacheKey, resolved, CacheEntry(ActivePatchCacheTtl));
         }
         return resolved;
     }

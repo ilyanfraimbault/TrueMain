@@ -96,7 +96,7 @@ public sealed class TruemainsLeaderboardQueryService(
             // Cache the empty response — a filter that yields nothing still
             // pays for the Count SQL on every visit, and those are the same
             // requests an attacker / overzealous client would replay.
-            cache.Set(cacheKey, empty, ResponseCacheTtl);
+            cache.Set(cacheKey, empty, CacheEntry(ResponseCacheTtl));
             return empty;
         }
 
@@ -114,7 +114,7 @@ public sealed class TruemainsLeaderboardQueryService(
                 PageSize = clampedPageSize,
                 Total = total,
             };
-            cache.Set(cacheKey, pastEnd, ResponseCacheTtl);
+            cache.Set(cacheKey, pastEnd, CacheEntry(ResponseCacheTtl));
             return pastEnd;
         }
 
@@ -180,7 +180,7 @@ public sealed class TruemainsLeaderboardQueryService(
             PageSize = clampedPageSize,
             Total = total,
         };
-        cache.Set(cacheKey, response, ResponseCacheTtl);
+        cache.Set(cacheKey, response, CacheEntry(ResponseCacheTtl));
 
         totalSw.Stop();
         logger.LogInformation(
@@ -210,6 +210,16 @@ public sealed class TruemainsLeaderboardQueryService(
         var positionPart = position ?? "_";
         return $"truemains:leaderboard:{platformPart}:{championPart}:{positionPart}:{minGames}:{page}:{pageSize}";
     }
+
+    // Every cache entry must carry a Size because the shared MemoryCache runs
+    // with a SizeLimit (see Program.cs). Without a Size the Set is silently
+    // dropped and the value never caches — a cache-miss storm, not an error.
+    // Count-based: one entry counts as one unit.
+    private static MemoryCacheEntryOptions CacheEntry(TimeSpan ttl) => new()
+    {
+        AbsoluteExpirationRelativeToNow = ttl,
+        Size = 1,
+    };
 
     private async Task<int> CountAsync(
         string[] platforms,

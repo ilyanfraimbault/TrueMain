@@ -24,6 +24,19 @@ public sealed class ApiKeyAuthenticationHandler(
         }
 
         var configured = opsOptions.CurrentValue.ApiKey;
+        if (string.IsNullOrEmpty(configured))
+        {
+            // Defence-in-depth: Ops:ApiKey is validated at startup
+            // (ValidateDataAnnotations + ValidateOnStart), so an empty key
+            // normally fails the host boot. Guard here too so the handler can
+            // never authenticate against an empty configured key if that
+            // startup validation is ever weakened or bypassed.
+            Logger.LogError(
+                "Ops API key is not configured; rejecting request from {RemoteIp}.",
+                Context.Connection.RemoteIpAddress);
+            return Task.FromResult(AuthenticateResult.Fail("Ops API key is not configured."));
+        }
+
         // Hash both sides so FixedTimeEquals gets same-length spans even when
         // the provided key differs in length from the configured one —
         // otherwise the early-out on span length re-opens the timing channel.
@@ -31,6 +44,7 @@ public sealed class ApiKeyAuthenticationHandler(
         var configuredHash = SHA256.HashData(Encoding.UTF8.GetBytes(configured));
         if (!CryptographicOperations.FixedTimeEquals(providedHash, configuredHash))
         {
+            Logger.LogWarning("Ops API key rejected for {RemoteIp}.", Context.Connection.RemoteIpAddress);
             return Task.FromResult(AuthenticateResult.Fail("Invalid API key."));
         }
 
