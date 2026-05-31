@@ -71,6 +71,22 @@ public sealed class PipelineHealthApiIntegrationTests : IClassFixture<PostgresFi
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
+    [Fact]
+    public async Task GetPipelineHealthAsync_ShouldRejectInvalidOpsApiKey()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+        client.DefaultRequestHeaders.Add("X-Ops-Key", "wrong-ops-key-0123456789-abcdefghij");
+
+        var response = await client.GetAsync("/ops/pipeline-health");
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
     private async Task SeedPipelineHealthAsync()
     {
         var now = DateTime.UtcNow;
