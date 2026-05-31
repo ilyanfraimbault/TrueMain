@@ -22,6 +22,7 @@ public sealed class PostgresFixture : IAsyncLifetime
         .WithCleanUp(false)
         .Build();
     private NpgsqlDataSource? _dataSource;
+    private string? _truncateSql;
 
     public string ConnectionString => _container.GetConnectionString();
 
@@ -56,8 +57,26 @@ public sealed class PostgresFixture : IAsyncLifetime
     public async Task ResetDatabaseAsync()
     {
         await using var db = CreateDbContext();
-        await db.Database.EnsureDeletedAsync();
-        await db.Database.MigrateAsync();
+
+        // The schema is migrated once in InitializeAsync; between tests only
+        // the *data* needs to go. TRUNCATE ... RESTART IDENTITY CASCADE clears
+        // every mapped table in a single statement — orders of magnitude
+        // cheaper than dropping the database and replaying every migration on
+        // each test — and CASCADE makes FK ordering irrelevant. The table list
+        // comes from the EF model so new migrations are covered automatically.
+        _truncateSql ??= BuildTruncateSql(db);
+        await db.Database.ExecuteSqlRawAsync(_truncateSql);
+    }
+
+    private static string BuildTruncateSql(TrueMainDbContext db)
+    {
+        var tables = db.Model.GetEntityTypes()
+            .Select(entity => (Schema: entity.GetSchema() ?? "public", Name: entity.GetTableName()))
+            .Where(table => table.Name is not null)
+            .Distinct()
+            .Select(table => $"\"{table.Schema}\".\"{table.Name}\"");
+
+        return $"TRUNCATE {string.Join(", ", tables)} RESTART IDENTITY CASCADE;";
     }
 
     public IDataSessionFactory CreateSessionFactory()
