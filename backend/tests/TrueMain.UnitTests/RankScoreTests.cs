@@ -1,5 +1,5 @@
 using AwesomeAssertions;
-using TrueMain.Services.Truemains;
+using Core.Lol.Ranking;
 
 namespace TrueMain.UnitTests;
 
@@ -86,18 +86,5 @@ public sealed class RankScoreTests
 
         withDivision.Should().Be(blankDivision);
         withDivision.Should().Be(nullDivision);
-    }
-
-    [Fact]
-    public void OrderBySqlFragment_uses_supplied_alias()
-    {
-        var fragment = RankScore.OrderBySqlFragment("s");
-
-        fragment.Should().Contain("s.\"Tier\"");
-        fragment.Should().Contain("s.\"Division\"");
-        fragment.Should().Contain("s.\"LeaguePoints\"");
-        fragment.Should().Contain("'MASTER'");
-        fragment.Should().Contain("* 400");
-        fragment.Should().Contain("* 100");
     }
 }

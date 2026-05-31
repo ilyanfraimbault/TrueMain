@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using Core.Lol.Ranking;
 using Data;
 using Data.Entities;
 using AwesomeAssertions;
@@ -515,7 +516,11 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IClassFixture<Post
         };
 
     private static RankSnapshot Snapshot(RiotAccount account, string tier, string division, int leaguePoints, DateTime now)
-        => new()
+    {
+        // Mirror the ingestion writer: a snapshot's rank determines the
+        // account's denormalised leaderboard Score, which the query orders on.
+        account.Score = RankScore.Compute(tier, division, leaguePoints);
+        return new()
         {
             Id = Guid.NewGuid(),
             // Setting the nav property lets EF resolve the FK on SaveChanges
@@ -529,6 +534,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IClassFixture<Post
             Wins = 50,
             Losses = 50,
         };
+    }
 
     private static MainChampionStat MainStat(string puuid, string platformId, int championId, string primaryPosition, bool isMain)
         => new()
