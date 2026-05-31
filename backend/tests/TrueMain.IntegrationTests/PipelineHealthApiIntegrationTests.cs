@@ -10,7 +10,8 @@ using Microsoft.Extensions.Configuration;
 
 namespace TrueMain.IntegrationTests;
 
-public sealed class PipelineHealthApiIntegrationTests : IClassFixture<PostgresFixture>
+[Collection(IntegrationCollection.Name)]
+public sealed class PipelineHealthApiIntegrationTests
 {
     private const string OpsApiKey = "test-ops-key-0123456789-abcdefghijklmnop";
     private readonly PostgresFixture _fixture;

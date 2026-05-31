@@ -5,7 +5,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace TrueMain.IntegrationTests;
 
-public sealed class AccountValidationIntegrationTests : IClassFixture<PostgresFixture>
+[Collection(IntegrationCollection.Name)]
+public sealed class AccountValidationIntegrationTests
 {
     private readonly PostgresFixture _fixture;
 

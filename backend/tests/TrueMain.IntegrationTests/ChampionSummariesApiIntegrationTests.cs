@@ -10,7 +10,8 @@ using TrueMain.TestKit.EntityBuilders;
 
 namespace TrueMain.IntegrationTests;
 
-public sealed class ChampionSummariesApiIntegrationTests : IClassFixture<PostgresFixture>
+[Collection(IntegrationCollection.Name)]
+public sealed class ChampionSummariesApiIntegrationTests
 {
     private readonly PostgresFixture _fixture;
 

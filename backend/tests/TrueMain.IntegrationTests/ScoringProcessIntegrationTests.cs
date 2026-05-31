@@ -6,7 +6,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace TrueMain.IntegrationTests;
 
-public sealed class ScoringProcessIntegrationTests : IClassFixture<PostgresFixture>
+[Collection(IntegrationCollection.Name)]
+public sealed class ScoringProcessIntegrationTests
 {
     private readonly PostgresFixture _fixture;
 

@@ -12,7 +12,8 @@ using NSubstitute;
 
 namespace TrueMain.IntegrationTests;
 
-public sealed class RankSnapshotIngestionTests : IClassFixture<PostgresFixture>
+[Collection(IntegrationCollection.Name)]
+public sealed class RankSnapshotIngestionTests
 {
     private const string Platform = "KR";
 

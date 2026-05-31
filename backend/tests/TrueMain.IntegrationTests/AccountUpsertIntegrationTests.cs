@@ -6,7 +6,8 @@ using Ingestor.Riot.Dto;
 
 namespace TrueMain.IntegrationTests;
 
-public sealed class AccountUpsertIntegrationTests : IClassFixture<PostgresFixture>
+[Collection(IntegrationCollection.Name)]
+public sealed class AccountUpsertIntegrationTests
 {
     private readonly PostgresFixture _fixture;
 

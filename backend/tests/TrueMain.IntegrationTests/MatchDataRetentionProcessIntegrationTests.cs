@@ -10,7 +10,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace TrueMain.IntegrationTests;
 
-public sealed class MatchDataRetentionProcessIntegrationTests : IClassFixture<PostgresFixture>
+[Collection(IntegrationCollection.Name)]
+public sealed class MatchDataRetentionProcessIntegrationTests
 {
     private readonly PostgresFixture _fixture;
 

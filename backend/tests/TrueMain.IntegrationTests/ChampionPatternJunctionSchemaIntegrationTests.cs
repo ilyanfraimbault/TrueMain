@@ -13,7 +13,8 @@ namespace TrueMain.IntegrationTests;
 /// the phase rely on these contracts (UNIQUE-driven get-or-create,
 /// cascade vs restrict semantics) so they're worth pinning explicitly.
 /// </summary>
-public sealed class ChampionPatternJunctionSchemaIntegrationTests : IClassFixture<PostgresFixture>
+[Collection(IntegrationCollection.Name)]
+public sealed class ChampionPatternJunctionSchemaIntegrationTests
 {
     private const string UniqueViolationSqlState = "23505";
     private const string ForeignKeyViolationSqlState = "23503";

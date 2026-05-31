@@ -15,7 +15,8 @@ namespace TrueMain.IntegrationTests;
 /// unique index, and re-key stale singletons whose stored key isn't yet
 /// canonical (price-desc, id-asc).
 /// </summary>
-public sealed class CanonicalizeStarterItemsKeysMigrationIntegrationTests : IClassFixture<PostgresFixture>
+[Collection(IntegrationCollection.Name)]
+public sealed class CanonicalizeStarterItemsKeysMigrationIntegrationTests
 {
     // Deterministic GUIDs so we can predict which dim row wins each merge
     // (the migration picks MIN(Id) as the canonical row of each duplicate

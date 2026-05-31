@@ -9,9 +9,10 @@ namespace TrueMain.TestKit;
 
 /// <summary>
 /// Spawns a throwaway Postgres container, runs the migrations once, and
-/// hands out <see cref="TrueMainDbContext"/> instances bound to it. Tests
-/// share this fixture via <see cref="IClassFixture{TFixture}"/> so the
-/// container setup cost is amortised across a whole class of tests.
+/// hands out <see cref="TrueMainDbContext"/> instances bound to it. Shared
+/// across the whole integration test assembly via an xUnit collection fixture,
+/// so a single container is started once and reused; tests reset data between
+/// runs with <see cref="ResetDatabaseAsync"/>.
 /// </summary>
 public sealed class PostgresFixture : IAsyncLifetime
 {
@@ -19,6 +20,13 @@ public sealed class PostgresFixture : IAsyncLifetime
         .WithDatabase("truemain_test")
         .WithUsername("postgres")
         .WithPassword("postgres")
+        // Keep Testcontainers' Ryuk reaper disabled: its image
+        // (testcontainers/ryuk) is not pullable in our CI / dev environment
+        // (Docker Hub returns 401), so enabling cleanup makes the container
+        // fail to start. The container-leak this fixture used to cause is now
+        // addressed by sharing a single container per assembly (see
+        // IntegrationCollection) instead of one per class; DisposeAsync removes
+        // that single container on normal test-run completion.
         .WithCleanUp(false)
         .Build();
     private NpgsqlDataSource? _dataSource;
