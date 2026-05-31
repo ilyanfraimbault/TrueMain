@@ -1,11 +1,10 @@
 name: Publish QA Docker Images
 
 on:
-  pull_request:
-    types:
-      - closed
+  push:
     branches:
       - develop
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -19,8 +18,7 @@ env:
 jobs:
   publish-qa:
     name: Publish QA Images
-    runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
