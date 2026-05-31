@@ -2,9 +2,8 @@
 // handlers under `server/api/truemains/Sheiden-1234/` to short-circuit the
 // API proxy and serve a deterministic Master → Grandmaster → Challenger
 // climb so the unified ranked card can be eyeballed without a live backend.
-// Not gated to dev — the path is specific enough that a real Riot account
-// with this exact GameName + TagLine colliding here is vanishingly rare in
-// the contexts where this app runs.
+// The handlers return 404 outside dev (`import.meta.dev`), so this fixture
+// data never reaches a deployed (production / QA) environment.
 
 import type { MatchSummariesResponse } from '~~/shared/types/matches'
 import type { ProfileResponse } from '~~/shared/types/profile'
