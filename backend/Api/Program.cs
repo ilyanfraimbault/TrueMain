@@ -20,7 +20,13 @@ builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
-builder.Services.AddMemoryCache();
+// Bound the shared response cache so a crafted fan-out of distinct request
+// shapes (the /truemains leaderboard key includes region/champion/position/
+// page) can't grow it without limit. Entries are counted (Size = 1 each, set
+// at every call site) rather than weighed by bytes: the growth axis here is
+// key cardinality, not payload size, and 1024 distinct live entries sits far
+// above any legitimate working set within the 30s TTL.
+builder.Services.AddMemoryCache(options => options.SizeLimit = 1024);
 
 var healthConnectionString = builder.Configuration.GetConnectionString("TrueMain");
 var healthChecks = builder.Services.AddHealthChecks();
