@@ -37,4 +37,12 @@ public class RiotAccount
     public MatchIngestStatus MatchIngestStatus { get; set; } = MatchIngestStatus.Idle;
 
     public DateTime? MatchIngestClaimedAtUtc { get; set; }
+
+    /// <summary>
+    /// Denormalised leaderboard sort key derived from the account's latest
+    /// rank (tier/division/LP), maintained by the rank ingestion writer. Null
+    /// when the account has no known/ranked tier (sorts last). This is an
+    /// ordering key, not a displayed rank.
+    /// </summary>
+    public int? Score { get; set; }
 }

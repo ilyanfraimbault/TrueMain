@@ -1,4 +1,4 @@
-namespace TrueMain.Services.Truemains;
+namespace Core.Lol.Ranking;
 
 /// <summary>
 /// Maps a Riot ranked tuple <c>(tier, division, leaguePoints)</c> to a single
@@ -13,9 +13,6 @@ namespace TrueMain.Services.Truemains;
 /// the apex tier name. So a Master with 2625 LP outranks a Challenger with
 /// 800 LP — that matches what u.gg / op.gg ladders show and what users
 /// expect from the screenshot.
-///
-/// The same coefficients are used by the SQL <see cref="OrderBySqlFragment"/>
-/// to produce the same ranking inside the database for pagination.
 /// </summary>
 public static class RankScore
 {
@@ -42,46 +39,6 @@ public static class RankScore
 
         var divisionWeight = IsApex(tier) ? 0 : DivisionWeight(division);
         return tierWeight.Value * TierMultiplier + divisionWeight * DivisionMultiplier + leaguePoints;
-    }
-
-    /// <summary>
-    /// Postgres-friendly expression that evaluates to the same score as
-    /// <see cref="Compute"/> for the columns of <c>rank_snapshots</c> aliased
-    /// as <paramref name="snapshotAlias"/>. Used inside hand-written SQL
-    /// queries so the database can ORDER BY the score before slicing the
-    /// page. Returns <c>NULL</c> for unknown tiers so the caller can append
-    /// <c>NULLS LAST</c>.
-    /// </summary>
-    public static string OrderBySqlFragment(string snapshotAlias)
-    {
-        var tier = $"{snapshotAlias}.\"Tier\"";
-        var division = $"{snapshotAlias}.\"Division\"";
-        var lp = $"{snapshotAlias}.\"LeaguePoints\"";
-
-        var tierWeightCase =
-            $"(CASE {tier} " +
-            "WHEN 'IRON' THEN 0 " +
-            "WHEN 'BRONZE' THEN 1 " +
-            "WHEN 'SILVER' THEN 2 " +
-            "WHEN 'GOLD' THEN 3 " +
-            "WHEN 'PLATINUM' THEN 4 " +
-            "WHEN 'EMERALD' THEN 5 " +
-            "WHEN 'DIAMOND' THEN 6 " +
-            "WHEN 'MASTER' THEN 7 " +
-            "WHEN 'GRANDMASTER' THEN 7 " +
-            "WHEN 'CHALLENGER' THEN 7 " +
-            "ELSE NULL END)";
-
-        var divisionWeightCase =
-            $"(CASE WHEN {tier} IN ('MASTER', 'GRANDMASTER', 'CHALLENGER') THEN 0 " +
-            $"ELSE (CASE {division} " +
-            "WHEN 'I' THEN 3 " +
-            "WHEN 'II' THEN 2 " +
-            "WHEN 'III' THEN 1 " +
-            "WHEN 'IV' THEN 0 " +
-            "ELSE 0 END) END)";
-
-        return $"({tierWeightCase} * {TierMultiplier} + {divisionWeightCase} * {DivisionMultiplier} + {lp})";
     }
 
     private static int? TierWeight(string tier) => tier.Trim().ToUpperInvariant() switch

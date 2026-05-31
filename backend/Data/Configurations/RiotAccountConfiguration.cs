@@ -54,6 +54,8 @@ public sealed class RiotAccountConfiguration : IEntityTypeConfiguration<RiotAcco
 
         entity.Property(e => e.LastRankSyncAtUtc);
 
+        entity.Property(e => e.Score);
+
         entity.Property(e => e.LastMainCalcAtUtc);
 
         entity.Property(e => e.LastMatchIngestAtUtc);
@@ -74,6 +76,10 @@ public sealed class RiotAccountConfiguration : IEntityTypeConfiguration<RiotAcco
 
         entity.HasIndex(e => new { e.MatchIngestStatus, e.MatchIngestClaimedAtUtc, e.LastMatchIngestAtUtc })
             .HasDatabaseName("IX_riot_accounts_ingest_claim_lease");
+
+        // Serves the leaderboard's ORDER BY Score DESC NULLS LAST pagination.
+        entity.HasIndex(e => e.Score)
+            .HasDatabaseName("IX_riot_accounts_score");
 
         entity.HasOne(e => e.Persona)
             .WithMany(p => p.RiotAccounts)
