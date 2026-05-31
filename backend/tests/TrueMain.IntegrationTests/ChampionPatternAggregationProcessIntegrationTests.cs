@@ -9,7 +9,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace TrueMain.IntegrationTests;
 
-public sealed class ChampionPatternAggregationProcessIntegrationTests : IClassFixture<PostgresFixture>
+[Collection(IntegrationCollection.Name)]
+public sealed class ChampionPatternAggregationProcessIntegrationTests
 {
     private readonly PostgresFixture _fixture;
     private readonly Guid _riotAccountId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");

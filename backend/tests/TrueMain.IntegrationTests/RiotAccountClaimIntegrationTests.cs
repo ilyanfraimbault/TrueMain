@@ -4,7 +4,8 @@ using AwesomeAssertions;
 
 namespace TrueMain.IntegrationTests;
 
-public sealed class RiotAccountClaimIntegrationTests : IClassFixture<PostgresFixture>
+[Collection(IntegrationCollection.Name)]
+public sealed class RiotAccountClaimIntegrationTests
 {
     private readonly PostgresFixture _fixture;
 

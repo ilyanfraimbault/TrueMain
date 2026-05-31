@@ -4,7 +4,8 @@ using AwesomeAssertions;
 
 namespace TrueMain.IntegrationTests;
 
-public sealed class AccountRefreshFairMixTests : IClassFixture<PostgresFixture>
+[Collection(IntegrationCollection.Name)]
+public sealed class AccountRefreshFairMixTests
 {
     private const string Platform = "KR";
 

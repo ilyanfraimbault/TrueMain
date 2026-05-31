@@ -9,7 +9,8 @@ using TrueMain.ReadModels.Truemains;
 
 namespace TrueMain.IntegrationTests;
 
-public sealed class TruemainsProfileApiIntegrationTests : IClassFixture<PostgresFixture>
+[Collection(IntegrationCollection.Name)]
+public sealed class TruemainsProfileApiIntegrationTests
 {
     private readonly PostgresFixture _fixture;
 

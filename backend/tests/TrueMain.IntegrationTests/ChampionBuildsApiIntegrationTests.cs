@@ -11,7 +11,8 @@ using TrueMain.TestKit.EntityBuilders;
 
 namespace TrueMain.IntegrationTests;
 
-public sealed class ChampionBuildsApiIntegrationTests : IClassFixture<PostgresFixture>
+[Collection(IntegrationCollection.Name)]
+public sealed class ChampionBuildsApiIntegrationTests
 {
     private readonly PostgresFixture _fixture;
 

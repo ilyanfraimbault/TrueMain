@@ -11,7 +11,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace TrueMain.IntegrationTests;
 
-public sealed class DiscoveryProcessIntegrationTests : IClassFixture<PostgresFixture>
+[Collection(IntegrationCollection.Name)]
+public sealed class DiscoveryProcessIntegrationTests
 {
     private readonly PostgresFixture _fixture;
 

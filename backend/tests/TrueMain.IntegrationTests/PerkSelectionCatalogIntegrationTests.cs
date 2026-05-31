@@ -8,7 +8,8 @@ using Npgsql;
 
 namespace TrueMain.IntegrationTests;
 
-public sealed class PerkSelectionCatalogIntegrationTests : IClassFixture<PostgresFixture>
+[Collection(IntegrationCollection.Name)]
+public sealed class PerkSelectionCatalogIntegrationTests
 {
     private const string PreNormalizationMigration = "20260209140655_AddMatchIngestLeaseAndTimelineIngested";
     private readonly PostgresFixture _fixture;

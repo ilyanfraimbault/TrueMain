@@ -9,7 +9,8 @@ using Ingestor.Riot.Dto;
 
 namespace TrueMain.IntegrationTests;
 
-public sealed class MatchTimelineRecoveryIntegrationTests : IClassFixture<PostgresFixture>
+[Collection(IntegrationCollection.Name)]
+public sealed class MatchTimelineRecoveryIntegrationTests
 {
     private readonly PostgresFixture _fixture;
 

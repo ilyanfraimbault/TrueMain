@@ -8,7 +8,8 @@ using Ingestor.Riot.Dto;
 
 namespace TrueMain.IntegrationTests;
 
-public sealed class MatchSnapshotWriterIntegrationTests : IClassFixture<PostgresFixture>
+[Collection(IntegrationCollection.Name)]
+public sealed class MatchSnapshotWriterIntegrationTests
 {
     private readonly PostgresFixture _fixture;
 
