@@ -56,4 +56,26 @@ export default defineNuxtConfig({
       ?? 'http://localhost:5008',
     public: {},
   },
+  // Production-only overrides. `$production` applies on `nuxt build` and is
+  // skipped under `nuxt dev`, so the dev playground stays available locally.
+  $production: {
+    hooks: {
+      // Drop the `/dev/*` playground pages from the build entirely — they
+      // exercise components with mock data and must never reach end users.
+      'pages:extend'(pages) {
+        const stripDev = (list: typeof pages) => {
+          for (let i = list.length - 1; i >= 0; i--) {
+            const page = list[i]!
+            if (page.path === '/dev' || page.path.startsWith('/dev/')) {
+              list.splice(i, 1)
+            }
+            else if (page.children?.length) {
+              stripDev(page.children)
+            }
+          }
+        }
+        stripDev(pages)
+      },
+    },
+  },
 })
