@@ -4,9 +4,7 @@ using Core.Lol.Ranking;
 using Data;
 using Data.Entities;
 using AwesomeAssertions;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Configuration;
 using TrueMain.ReadModels.Truemains;
 
 namespace TrueMain.IntegrationTests;
@@ -584,48 +582,26 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
             BaseAddress = new Uri("https://localhost"),
         });
 
-    private sealed class ApiWebApplicationFactory(PostgresFixture fixture) : WebApplicationFactory<Program>
-    {
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureAppConfiguration((_, configurationBuilder) =>
-            {
-                configurationBuilder.AddInMemoryCollection(
-                [
-                    new KeyValuePair<string, string?>("ConnectionStrings:TrueMain", fixture.ConnectionString),
-                    new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420"),
-                    new KeyValuePair<string, string?>("Ops:ApiKey", "integration-tests-ops-key-0123456789-padding"),
-                    // The production default (20 games) is exercised by the
-                    // dedicated MinRankedGames test below; every other test
-                    // here seeds rank rows without participants and needs
-                    // the filter disabled to keep the assertions narrow.
-                    new KeyValuePair<string, string?>("TruemainsLeaderboard:MinRankedGames", "0"),
-                ]);
-            });
-        }
-    }
+    private sealed class ApiWebApplicationFactory(PostgresFixture fixture)
+        : TrueMainWebApplicationFactory<Program>(
+            fixture,
+            [
+                new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420"),
+                // Most tests seed rank rows without participants, so the
+                // MinRankedGames filter is disabled to keep assertions narrow;
+                // the dedicated test below uses a non-zero threshold.
+                new KeyValuePair<string, string?>("TruemainsLeaderboard:MinRankedGames", "0"),
+            ]);
 
     /// <summary>
     /// Same factory but with a non-zero MinRankedGames threshold so the
     /// dedicated test can verify the filter actually drops low-game rows.
     /// </summary>
     private sealed class ApiWebApplicationFactoryWithMinGames(PostgresFixture fixture, int minRankedGames)
-        : WebApplicationFactory<Program>
-    {
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureAppConfiguration((_, configurationBuilder) =>
-            {
-                configurationBuilder.AddInMemoryCollection(
-                [
-                    new KeyValuePair<string, string?>("ConnectionStrings:TrueMain", fixture.ConnectionString),
-                    new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420"),
-                    new KeyValuePair<string, string?>("Ops:ApiKey", "integration-tests-ops-key-0123456789-padding"),
-                    new KeyValuePair<string, string?>("TruemainsLeaderboard:MinRankedGames", minRankedGames.ToString()),
-                ]);
-            });
-        }
-    }
+        : TrueMainWebApplicationFactory<Program>(
+            fixture,
+            [
+                new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420"),
+                new KeyValuePair<string, string?>("TruemainsLeaderboard:MinRankedGames", minRankedGames.ToString()),
+            ]);
 }

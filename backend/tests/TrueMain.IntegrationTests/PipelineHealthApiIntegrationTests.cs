@@ -4,16 +4,14 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Data.Entities;
 using AwesomeAssertions;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Configuration;
 
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
 public sealed class PipelineHealthApiIntegrationTests
 {
-    private const string OpsApiKey = "test-ops-key-0123456789-abcdefghijklmnop";
+    private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
     private readonly PostgresFixture _fixture;
 
     public PipelineHealthApiIntegrationTests(PostgresFixture fixture)
@@ -352,22 +350,9 @@ public sealed class PipelineHealthApiIntegrationTests
         };
     }
 
-    private sealed class ApiWebApplicationFactory(PostgresFixture fixture) : WebApplicationFactory<Program>
-    {
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureAppConfiguration((_, configurationBuilder) =>
-            {
-                configurationBuilder.AddInMemoryCollection(
-                [
-                    new KeyValuePair<string, string?>("ConnectionStrings:TrueMain", fixture.ConnectionString),
-                    new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420"),
-                    new KeyValuePair<string, string?>("Ops:ApiKey", OpsApiKey)
-                ]);
-            });
-        }
-    }
+    private sealed class ApiWebApplicationFactory(PostgresFixture fixture)
+        : TrueMainWebApplicationFactory<Program>(
+            fixture, [new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420")]);
 
     private sealed class PipelineHealthResponseTestContract
     {
