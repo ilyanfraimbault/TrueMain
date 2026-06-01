@@ -180,25 +180,26 @@ public sealed class MatchSummariesQueryService(
                 .Select(a => new { a.Id, a.GameName, a.TagLine })
                 .ToDictionaryAsync(a => a.Id, a => (a.GameName, a.TagLine), ct);
 
-        // Keystone per (matchId, participantId, styleId): slot 0 of the
-        // primary tree. We pull every slot-0 row for the page in one shot
-        // and look up by the self participant's primary style.
-        var keystoneRows = await (
-            from pps in db.ParticipantPerkSelections.AsNoTracking()
+        // Keystone for the SELF participant only: slot 0 of the primary tree.
+        // We join through MatchParticipants filtered to account.Puuid so the
+        // DB returns at most one row per match instead of one per participant,
+        // eliminating the ~10× fan-out from pulling every participant's perks.
+        var keystoneByKey = await (
+            from mp in db.MatchParticipants.AsNoTracking()
+            join pps in db.ParticipantPerkSelections.AsNoTracking()
+                on new { mp.MatchId, mp.ParticipantId } equals new { pps.MatchId, pps.ParticipantId }
             join cat in db.PerkSelectionCatalogs.AsNoTracking()
                 on pps.PerkSelectionCatalogId equals cat.Id
-            where matchIds.Contains(pps.MatchId) && cat.SelectionIndex == 0
+            where matchIds.Contains(mp.MatchId)
+                  && mp.Puuid == account.Puuid
+                  && cat.SelectionIndex == 0
             select new
             {
-                pps.MatchId,
-                pps.ParticipantId,
+                mp.MatchId,
+                mp.ParticipantId,
                 cat.StyleId,
                 cat.PerkId,
-            }).ToListAsync(ct);
-
-        var keystoneByKey = keystoneRows
-            .GroupBy(k => (k.MatchId, k.ParticipantId, k.StyleId))
-            .ToDictionary(g => g.Key, g => g.First().PerkId);
+            }).ToDictionaryAsync(r => (r.MatchId, r.ParticipantId, r.StyleId), r => r.PerkId, ct);
 
         var participantsByMatch = participants
             .GroupBy(p => p.MatchId)
