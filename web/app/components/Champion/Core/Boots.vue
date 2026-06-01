@@ -20,21 +20,18 @@ const items = computed<StaticItemData[]>(() => {
     <h2 class="text-sm font-medium text-muted">
       Boots
     </h2>
-    <div class="mt-2 flex flex-wrap gap-1">
+    <!-- Fixed: 2 items × 36 px + 1 gap × 4 px = 76 px wide, 36 px tall.
+         Boots rarely have more than 1 item, but 2 is the realistic max.
+         Height is pinned so the "no data" state occupies the same box. -->
+    <div class="mt-2 flex h-9 w-[76px] shrink-0 items-center gap-1 overflow-hidden">
       <GameTooltipItemIcon
         v-for="(item, index) in items"
         :key="`boots-${item.id}-${index}`"
         :item="item"
         :width="36"
         :height="36"
-        class="size-9 rounded"
+        class="size-9 shrink-0 rounded"
       />
-      <span
-        v-if="!items.length"
-        class="text-sm text-muted"
-      >
-        No data
-      </span>
     </div>
   </div>
 </template>

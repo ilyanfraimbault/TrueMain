@@ -17,15 +17,17 @@ function spellByKey(key: string) {
     <h2 class="text-sm font-medium text-muted">
       Skill order
     </h2>
-    <div
-      v-if="skillOrder"
-      class="mt-2 flex flex-wrap items-center gap-1"
-    >
+    <!-- Fixed: 4 icons × 36 px + 3 chevrons × 16 px + 6 gaps × 4 px = 216 px wide,
+         36 px tall. Width locks at the 4-key worst case so the A2a row never
+         shifts when builds have fewer keys. No-flex-wrap + overflow-hidden clips
+         any unexpected overflow rather than reflowing the layout. -->
+    <div class="mt-2 flex h-9 w-[216px] shrink-0 items-center gap-1 overflow-hidden">
       <template
+        v-if="skillOrder"
         v-for="(key, index) in skillOrder.sequence"
         :key="`${key}-${index}`"
       >
-        <div class="relative size-9">
+        <div class="relative size-9 shrink-0">
           <GameTooltipChampionSpellIcon
             :spell="spellByKey(key)"
             :fallback-label="key"
@@ -40,15 +42,9 @@ function spellByKey(key: string) {
         <UIcon
           v-if="index < skillOrder.sequence.length - 1"
           name="i-lucide-chevron-right"
-          class="size-4 text-dimmed"
+          class="size-4 shrink-0 text-dimmed"
         />
       </template>
     </div>
-    <p
-      v-else
-      class="mt-2 text-sm text-muted"
-    >
-      No data
-    </p>
   </div>
 </template>

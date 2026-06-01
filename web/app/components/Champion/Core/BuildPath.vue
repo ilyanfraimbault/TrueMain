@@ -16,20 +16,16 @@ const items = computed<StaticItemData[]>(() => {
 </script>
 
 <template>
-  <!-- From sm: reserve room for the worst case (6 items + 5 chevrons) on
-       the outer block so the BuildPath footprint stays constant across
-       tabs. items-center keeps the actual items centred inside that
-       footprint — without it a shorter chain hugs the left edge of the
-       wider block and visually drifts off the A2 midpoint between tabs.
-       The min-width is gated behind sm: because 336px > most mobile
-       viewports (375px iPhone SE, 360px most Android) once the outer
-       UCard padding is subtracted, so on mobile we let the path wrap
-       naturally inside the parent's available width. -->
-  <div class="flex flex-col items-center sm:min-w-[336px]">
+  <!-- Fixed from sm: 6 items × 36 px + 5 chevrons × 16 px + 10 gaps × 4 px = 336 px
+       wide, 36 px tall. Width locks at the 6-item worst case; height is pinned
+       so no-data state doesn't collapse the row. On mobile (< sm) the fixed
+       width is removed and items can wrap naturally inside available width.
+       justify-center keeps a short chain centred in its parent's A2 area. -->
+  <div class="flex flex-col items-center">
     <h2 class="text-sm font-medium text-muted">
       Build path
     </h2>
-    <div class="mt-2 flex flex-wrap items-center gap-1">
+    <div class="mt-2 flex h-9 items-center gap-1 overflow-hidden sm:w-[336px]">
       <template
         v-for="(item, index) in items"
         :key="`bp-${item.id}-${index}`"
@@ -38,20 +34,14 @@ const items = computed<StaticItemData[]>(() => {
           :item="item"
           :width="36"
           :height="36"
-          class="size-9 rounded"
+          class="size-9 shrink-0 rounded"
         />
         <UIcon
           v-if="index < items.length - 1"
           name="i-lucide-chevron-right"
-          class="size-4 text-dimmed"
+          class="size-4 shrink-0 text-dimmed"
         />
       </template>
-      <span
-        v-if="!items.length"
-        class="text-sm text-muted"
-      >
-        No data
-      </span>
     </div>
   </div>
 </template>
