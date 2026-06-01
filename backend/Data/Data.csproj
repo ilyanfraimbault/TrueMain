@@ -5,11 +5,20 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <UserSecretsId>truemain-data</UserSecretsId>
+    <!-- Regenerate the compiled model automatically whenever the Data project is built.
+         The generated files live in CompiledModels/ and are committed to source control.
+         EF Core 9+ auto-discovers the model via the [DbContextModel] assembly attribute,
+         so no UseModel() call is required in any host's Program.cs. -->
+    <EFOptimizeContext>true</EFOptimizeContext>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tasks">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
