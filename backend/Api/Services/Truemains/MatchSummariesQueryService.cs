@@ -184,6 +184,9 @@ public sealed class MatchSummariesQueryService(
         // We join through MatchParticipants filtered to account.Puuid so the
         // DB returns at most one row per match instead of one per participant,
         // eliminating the ~10× fan-out from pulling every participant's perks.
+        // Restricting to cat.StyleId == mp.PrimaryStyleId keeps just the primary
+        // tree's keystone — the slot-0 row of the sub tree is skipped since
+        // downstream only looks up (…, self.PrimaryStyleId).
         var keystoneByKey = await (
             from mp in db.MatchParticipants.AsNoTracking()
             join pps in db.ParticipantPerkSelections.AsNoTracking()
@@ -193,6 +196,7 @@ public sealed class MatchSummariesQueryService(
             where matchIds.Contains(mp.MatchId)
                   && mp.Puuid == account.Puuid
                   && cat.SelectionIndex == 0
+                  && cat.StyleId == mp.PrimaryStyleId
             select new
             {
                 mp.MatchId,
