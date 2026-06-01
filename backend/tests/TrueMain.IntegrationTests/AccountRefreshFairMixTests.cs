@@ -214,6 +214,51 @@ public sealed class AccountRefreshFairMixTests
             "accounts with incomplete identity come before stale-but-complete ones");
     }
 
+    [Fact]
+    public async Task GetAccountsForRefreshAsync_OrdersByRankScoreDescWithinBucket_WhenUpdatedAtIsEqual()
+    {
+        // #194: within a bucket, after the identity-missing prefix, accounts
+        // are ordered by rank Score DESC (NULLS LAST) before the UpdatedAtUtc
+        // tiebreaker. With all three truemains sharing the same UpdatedAtUtc
+        // and a complete identity, Challenger (highest score) must come back
+        // first, Diamond next, and the unranked (null score) last.
+        await _fixture.ResetDatabaseAsync();
+
+        // Same timestamp for all three so Score is the only discriminator.
+        var sharedUpdatedAt = DateTime.UtcNow.AddDays(-1);
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var challenger = NewAccount("puuid-truemain-challenger", "chall", "KR1", sharedUpdatedAt);
+            challenger.Score = Core.Lol.Ranking.RankScore.Compute("CHALLENGER", null, 800);
+
+            var diamond = NewAccount("puuid-truemain-diamond", "diamond", "KR1", sharedUpdatedAt);
+            diamond.Score = Core.Lol.Ranking.RankScore.Compute("DIAMOND", "I", 50);
+
+            var unranked = NewAccount("puuid-truemain-unranked", "unranked", "KR1", sharedUpdatedAt);
+            unranked.Score = null;
+
+            db.RiotAccounts.AddRange(challenger, diamond, unranked);
+            db.MainChampionStats.AddRange(
+                NewMainStat(challenger.Puuid),
+                NewMainStat(diamond.Puuid),
+                NewMainStat(unranked.Puuid));
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var verify = _fixture.CreateDbContext();
+        var repo = new RiotAccountRepository(verify);
+
+        var batch = await repo.GetAccountsForRefreshAsync(3, CancellationToken.None);
+
+        batch.Should().HaveCount(3);
+        batch.Select(a => a.Puuid).Should().ContainInOrder(
+            "puuid-truemain-challenger",
+            "puuid-truemain-diamond",
+            "puuid-truemain-unranked");
+    }
+
     private async Task SeedAccountsAsync(int truemainCount, int otherCount)
     {
         await using var db = _fixture.CreateDbContext();

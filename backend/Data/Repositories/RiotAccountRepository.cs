@@ -68,11 +68,29 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
             .Where(s => s.IsMain)
             .Select(s => new { s.PlatformId, s.Puuid });
 
+        // Ordering within each bucket below (#194):
+        //   1. identity-missing prefix (incomplete GameName/TagLine first, #188)
+        //   2. rank score DESCENDING, NULLS LAST — Challenger > … > Iron IV,
+        //      unranked / no-snapshot accounts (Score == null) sort last so they
+        //      stay eligible but yield to ranked accounts.
+        //   3. UpdatedAtUtc ASCENDING (final tiebreaker, prevents starvation).
+        // The score is the denormalised riot_accounts."Score" column, kept in
+        // lock-step with each account's latest rank by the rank ingestion writer
+        // (Ingestor.Ranking.RankSnapshotWriter -> Core.Lol.Ranking.RankScore —
+        // the single source of truth for the CASE coefficients). The Data layer
+        // only reads it, so there is no Data -> Api/Core dependency and no inline
+        // score CASE here.
+        // EF's ThenByDescending on a nullable column emits plain DESC, which on
+        // Postgres sorts NULLs FIRST; the leading `a.Score == null` key flips
+        // that to NULLS LAST without needing a raw NULLS LAST clause.
+
         // ── Priority 0 ───────────────────────────────────────────────────
         var incompleteTruemains = await db.RiotAccounts
             .Where(a => (string.IsNullOrEmpty(a.GameName) || string.IsNullOrEmpty(a.TagLine))
                         && truemainKeys.Any(m => m.PlatformId == a.PlatformId && m.Puuid == a.Puuid))
-            .OrderBy(a => a.UpdatedAtUtc)
+            .OrderBy(a => a.Score == null)
+            .ThenByDescending(a => a.Score)
+            .ThenBy(a => a.UpdatedAtUtc)
             .Take(safe)
             .ToListAsync(ct);
 
@@ -93,6 +111,8 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
                 (string.IsNullOrEmpty(a.GameName) || string.IsNullOrEmpty(a.TagLine))
                     ? 0
                     : 1)
+            .ThenBy(a => a.Score == null)
+            .ThenByDescending(a => a.Score)
             .ThenBy(a => a.UpdatedAtUtc)
             .Take(truemainQuota)
             .ToListAsync(ct);
@@ -117,6 +137,8 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
                 (string.IsNullOrEmpty(a.GameName) || string.IsNullOrEmpty(a.TagLine))
                     ? 0
                     : 1)
+            .ThenBy(a => a.Score == null)
+            .ThenByDescending(a => a.Score)
             .ThenBy(a => a.UpdatedAtUtc)
             .Take(leftover)
             .ToListAsync(ct);
