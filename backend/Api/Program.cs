@@ -113,6 +113,28 @@ builder.Services.AddDbContext<TrueMainDbContext>(options =>
 
     options.UseNpgsql(dataSource);
 });
+// IDbContextFactory is registered so services that need to fire concurrent
+// queries (e.g. ProfileQueryService) can create short-lived, independently
+// owned contexts per parallel branch. The factory shares the same Npgsql
+// data source and EF model as the scoped TrueMainDbContext; registering it
+// with ServiceLifetime.Scoped does NOT replace or affect that registration —
+// all other services continue to receive the scoped context as before.
+builder.Services.AddDbContextFactory<TrueMainDbContext>(options =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("TrueMain");
+
+    if (string.IsNullOrWhiteSpace(connectionString))
+    {
+        throw new InvalidOperationException(
+            "Missing connection string. Add ConnectionStrings:TrueMain to user secrets.");
+    }
+
+    var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
+    dataSourceBuilder.EnableDynamicJson();
+    var dataSource = dataSourceBuilder.Build();
+
+    options.UseNpgsql(dataSource);
+}, ServiceLifetime.Scoped);
 var app = builder.Build();
 await DatabaseMigrator.ApplyPendingMigrationsAsync(app.Services);
 
