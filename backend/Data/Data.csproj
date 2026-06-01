@@ -5,6 +5,17 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <UserSecretsId>truemain-data</UserSecretsId>
+    <!-- The EF Core compiled model lives in CompiledModels/ and is committed to source
+         control. EF Core 9+ auto-discovers it at runtime via the [DbContextModel] assembly
+         attribute, so no UseModel() call is required in any host's Program.cs, and the
+         cold-start cost of building the model is avoided.
+
+         The model is regenerated manually (not at build/publish) to keep the Docker image
+         build and CI deterministic and free of a design-time database/connection-string
+         requirement. After changing the entity model, regenerate it from the Data project
+         with `dotnet ef dbcontext optimize` targeting output dir CompiledModels and namespace
+         Data.CompiledModels. A stale compiled model makes EF throw at startup, which the
+         integration tests catch. -->
   </PropertyGroup>
 
   <ItemGroup>
