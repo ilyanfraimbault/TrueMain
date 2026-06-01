@@ -17,10 +17,11 @@ function summonerName(id: number): string {
     <h2 class="text-sm font-medium text-muted">
       Summoners
     </h2>
-    <!-- Fixed: 2 spells × 36 px + 1 gap × 4 px = 76 px wide, 36 px tall.
+    <!-- Fixed from sm: 2 spells × 36 px + 1 gap × 4 px = 76 px wide, 36 px tall.
          Height and width are pinned so the A1 column never shifts when data
-         is absent — the "No data" state occupies the same box. -->
-    <div class="mt-2 flex h-9 w-[76px] shrink-0 items-center gap-1 overflow-hidden">
+         is absent — the "No data" state occupies the same box. Mobile stays
+         fluid (w-full). -->
+    <div class="mt-2 flex h-9 w-full shrink-0 items-center gap-1 overflow-hidden sm:w-[76px]">
       <template v-if="summoners">
         <GameTooltipSummonerSpellIcon
           v-for="spellId in [summoners.spell1Id, summoners.spell2Id]"
@@ -32,6 +33,12 @@ function summonerName(id: number): string {
           class="size-9 shrink-0 rounded"
         />
       </template>
+      <span
+        v-else
+        class="text-sm text-muted"
+      >
+        No data
+      </span>
     </div>
   </div>
 </template>

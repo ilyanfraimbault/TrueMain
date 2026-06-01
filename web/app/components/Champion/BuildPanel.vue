@@ -64,10 +64,12 @@ defineProps<{
             </div>
           </div>
         </div>
-        <!-- Runes column — fixed 201 px wrapper keeps the left column stable.
+        <!-- Runes column — fixed 201 px wrapper at lg+ keeps the left column
+             stable in the two-column layout. Below lg the core view is a single
+             column, so the wrapper stays full-width to avoid regressing mobile.
              The wrapper is always present (even with no rune data) so the grid
              track doesn't collapse and cause a reflow. -->
-        <div class="w-[201px] shrink-0 overflow-hidden">
+        <div class="w-full shrink-0 overflow-hidden lg:w-[201px]">
           <ChampionCoreRunes
             v-if="build.core.runePage && runeTree"
             :page="build.core.runePage"
