@@ -156,6 +156,7 @@ public sealed class ChampionBuildsQueryService(
                     joined.Pattern.Wins
                 })
             .Where(row => row.BuildItem0 > 0 && row.PrimaryKeystoneId > 0)
+            .AsSplitQuery()
             .ToListAsync(ct);
 
         return raw
