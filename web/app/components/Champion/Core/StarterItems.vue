@@ -20,17 +20,18 @@ const items = computed<StaticItemData[]>(() => {
     <h2 class="text-sm font-medium text-muted">
       Starter
     </h2>
-    <!-- Reserve room for the worst case (3 starter items + 2 gaps) so the
-         A1 column width stays constant when a tab only carries 2 items.
-         Otherwise A1 shrinks, A2 widens, and the rest of the row shifts. -->
-    <div class="mt-2 flex min-w-[116px] flex-wrap gap-1">
+    <!-- Fixed from sm: 3 items × 36 px + 2 gaps × 4 px = 116 px wide, 36 px tall.
+         Width is capped at the 3-item worst case; height is pinned so the
+         "no data" state occupies the same box without collapsing the row.
+         Mobile stays fluid (w-full). -->
+    <div class="mt-2 flex h-9 w-full shrink-0 items-center gap-1 overflow-hidden sm:w-[116px]">
       <GameTooltipItemIcon
         v-for="(item, index) in items"
         :key="`starter-${item.id}-${index}`"
         :item="item"
         :width="36"
         :height="36"
-        class="size-9 rounded"
+        class="size-9 shrink-0 rounded"
       />
       <span
         v-if="!items.length"

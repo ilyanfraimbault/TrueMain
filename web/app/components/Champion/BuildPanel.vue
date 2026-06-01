@@ -20,10 +20,16 @@ defineProps<{
   <div class="space-y-6 pt-4">
     <!-- Section 1: Core view -->
     <UCard>
-      <div class="grid gap-x-6 gap-y-5 lg:grid-cols-[minmax(0,1fr)_max-content]">
+      <!-- Outer grid: left column is flexible, right Runes column is a fixed
+           201 px (3 keystones × 35 px + 2 × 2 px gap + 24 px gutter + right
+           column 3 × 20 px + 2 × 4 px gap = 201 px).  Pinning the right
+           column width ensures the left column never resizes when rune layouts
+           change between builds/positions. -->
+      <div class="grid gap-x-6 gap-y-5 lg:grid-cols-[minmax(0,1fr)_201px]">
         <!-- Section A: everything except runes -->
         <div class="flex flex-col gap-5 sm:flex-row sm:items-start">
-          <!-- A1: Summoners + Starter, stacked, left-aligned -->
+          <!-- A1: Summoners + Starter, stacked, left-aligned.
+               Width is the wider of the two cards (116 px for Starter). -->
           <div class="flex flex-col gap-5">
             <ChampionCoreSpells
               :summoners="build.core.summonerSpells"
@@ -34,12 +40,11 @@ defineProps<{
               :items-map="itemsMap"
             />
           </div>
-          <!-- A2: Skill order + Boots on the same row (evenly spaced via
-               justify-around — see A2a), Build path centred below. A2
-               grows to fill the row so the spacing + centring happen on
-               the full available width. -->
+          <!-- A2: Skill order + Boots side-by-side, Build path below.
+               A2 grows to fill the remainder of Section A. justify-around
+               distributes the two fixed-width cards evenly inside A2. -->
           <div class="flex flex-1 flex-col gap-5">
-            <!-- A2a: Skill order and Boots evenly spaced across the row -->
+            <!-- A2a: Skill order (216 px) and Boots (76 px) evenly spaced -->
             <div class="flex flex-wrap items-start justify-around gap-6">
               <ChampionCoreSkillOrder
                 :skill-order="build.core.skillOrder"
@@ -50,7 +55,7 @@ defineProps<{
                 :items-map="itemsMap"
               />
             </div>
-            <!-- A2b: Build path centered horizontally -->
+            <!-- A2b: Build path (336 px from sm) centered in A2 -->
             <div class="flex justify-center">
               <ChampionCoreBuildPath
                 :path="build.core.itemPath"
@@ -59,9 +64,14 @@ defineProps<{
             </div>
           </div>
         </div>
-        <!-- Runes column -->
-        <div v-if="build.core.runePage && runeTree">
+        <!-- Runes column — fixed 201 px wrapper at lg+ keeps the left column
+             stable in the two-column layout. Below lg the core view is a single
+             column, so the wrapper stays full-width to avoid regressing mobile.
+             The wrapper is always present (even with no rune data) so the grid
+             track doesn't collapse and cause a reflow. -->
+        <div class="w-full shrink-0 overflow-hidden lg:w-[201px]">
           <ChampionCoreRunes
+            v-if="build.core.runePage && runeTree"
             :page="build.core.runePage"
             :tree="runeTree"
             :keystone-size="35"
