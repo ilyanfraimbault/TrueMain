@@ -98,6 +98,14 @@ public sealed class TruemainsLeaderboardQueryService(
             // pays for the Count SQL on every visit, and those are the same
             // requests an attacker / overzealous client would replay.
             cache.Set(cacheKey, empty, CacheEntry(ResponseCacheTtl));
+            // An empty result is exactly when countMs is worth seeing: an
+            // over-restrictive filter or a misconfigured MinRankedGames is
+            // diagnosed here, not on the populated path.
+            totalSw.Stop();
+            logger.LogInformation(
+                "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} rows=0 total=0 countMs={CountMs:F1} elapsed={ElapsedMs}ms result=empty",
+                clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames,
+                countMs, totalSw.ElapsedMilliseconds);
             return empty;
         }
 
@@ -116,6 +124,11 @@ public sealed class TruemainsLeaderboardQueryService(
                 Total = total,
             };
             cache.Set(cacheKey, pastEnd, CacheEntry(ResponseCacheTtl));
+            totalSw.Stop();
+            logger.LogInformation(
+                "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} rows=0 total={Total} countMs={CountMs:F1} pageMs={PageMs:F1} elapsed={ElapsedMs}ms result=past_end",
+                clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames,
+                total, countMs, pageMs, totalSw.ElapsedMilliseconds);
             return pastEnd;
         }
 
