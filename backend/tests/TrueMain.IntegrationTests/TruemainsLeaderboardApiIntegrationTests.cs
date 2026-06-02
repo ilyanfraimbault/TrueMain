@@ -495,7 +495,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
             ChampionId = championId,
             TotalMatches = totalMatches,
             ChampionMatches = Math.Min(50, totalMatches),
-            PlayRate = 0.5d,
+            PlayRate = totalMatches > 0 ? Math.Min(50, totalMatches) / (double)totalMatches : 0d,
             IsMain = isMain,
             IsOtp = false,
             PrimaryPosition = primaryPosition,

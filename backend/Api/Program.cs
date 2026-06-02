@@ -3,6 +3,7 @@ using Core.Options;
 using Data;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Npgsql;
 using Scalar.AspNetCore;
 using TrueMain.Authentication;
@@ -61,7 +62,16 @@ builder.Services.AddOptions<OpsOptions>()
     .ValidateOnStart();
 builder.Services.AddOptions<TruemainsLeaderboardOptions>()
     .Bind(builder.Configuration.GetSection(TruemainsLeaderboardOptions.SectionName))
-    .ValidateDataAnnotations()
+    // MinRankedGames is compared against main_champion_stats.TotalMatches,
+    // which saturates at MainAnalysis.MatchesToConsider — so the real upper
+    // bound is that option, not a constant. Cross-validate the two instead of
+    // hard-coding 50: above the cap the TotalMatches predicate could never
+    // match and the leaderboard would silently empty out.
+    .Validate<IOptions<MainAnalysisOptions>>(
+        (leaderboard, mainAnalysis) =>
+            leaderboard.MinRankedGames >= 0
+            && leaderboard.MinRankedGames <= mainAnalysis.Value.MatchesToConsider,
+        "TruemainsLeaderboard:MinRankedGames must be between 0 and MainAnalysis:MatchesToConsider.")
     .ValidateOnStart();
 builder.Services.AddOptions<DatabaseOptions>()
     .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName));
