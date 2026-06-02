@@ -205,17 +205,20 @@ public sealed class MatchSummariesQueryService(
                 cat.PerkId,
             }).ToListAsync(ct);
 
-        // GroupBy + First keeps the dictionary build duplicate-tolerant. The
-        // self-only join already returns ~1 row per match, but
+        // GroupBy keeps the dictionary build duplicate-tolerant. The self-only
+        // join already returns ~1 row per match, but
         // (MatchId, ParticipantId, StyleId) is not unique at the schema level:
         // PerkSelectionCatalog only enforces uniqueness on
         // (StyleId, SelectionIndex, PerkId, StyleDescription), so two slot-0 rows
         // for the same style with distinct PerkId are permitted. A direct
         // ToDictionary would throw ArgumentException (HTTP 500) on such anomalous
-        // data; First() picks one deterministically instead.
+        // data. The query has no ORDER BY, so the duplicates come back in
+        // Postgres' arbitrary row order; ordering each group by PerkId before
+        // First() makes the tiebreak deterministic instead of letting the shown
+        // keystone vary between identical requests.
         var keystoneByKey = keystoneRows
             .GroupBy(r => (r.MatchId, r.ParticipantId, r.StyleId))
-            .ToDictionary(g => g.Key, g => g.First().PerkId);
+            .ToDictionary(g => g.Key, g => g.OrderBy(r => r.PerkId).First().PerkId);
 
         var participantsByMatch = participants
             .GroupBy(p => p.MatchId)
