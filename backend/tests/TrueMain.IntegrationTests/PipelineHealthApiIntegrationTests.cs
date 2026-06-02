@@ -4,15 +4,14 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Data.Entities;
 using AwesomeAssertions;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Configuration;
 
 namespace TrueMain.IntegrationTests;
 
-public sealed class PipelineHealthApiIntegrationTests : IClassFixture<PostgresFixture>
+[Collection(IntegrationCollection.Name)]
+public sealed class PipelineHealthApiIntegrationTests
 {
-    private const string OpsApiKey = "test-ops-key-0123456789-abcdefghijklmnop";
+    private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
     private readonly PostgresFixture _fixture;
 
     public PipelineHealthApiIntegrationTests(PostgresFixture fixture)
@@ -66,6 +65,22 @@ public sealed class PipelineHealthApiIntegrationTests : IClassFixture<PostgresFi
         {
             BaseAddress = new Uri("https://localhost")
         });
+
+        var response = await client.GetAsync("/ops/pipeline-health");
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task GetPipelineHealthAsync_ShouldRejectInvalidOpsApiKey()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+        client.DefaultRequestHeaders.Add("X-Ops-Key", "wrong-ops-key-0123456789-abcdefghij");
 
         var response = await client.GetAsync("/ops/pipeline-health");
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -335,22 +350,9 @@ public sealed class PipelineHealthApiIntegrationTests : IClassFixture<PostgresFi
         };
     }
 
-    private sealed class ApiWebApplicationFactory(PostgresFixture fixture) : WebApplicationFactory<Program>
-    {
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureAppConfiguration((_, configurationBuilder) =>
-            {
-                configurationBuilder.AddInMemoryCollection(
-                [
-                    new KeyValuePair<string, string?>("ConnectionStrings:TrueMain", fixture.ConnectionString),
-                    new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420"),
-                    new KeyValuePair<string, string?>("Ops:ApiKey", OpsApiKey)
-                ]);
-            });
-        }
-    }
+    private sealed class ApiWebApplicationFactory(PostgresFixture fixture)
+        : TrueMainWebApplicationFactory<Program>(
+            fixture, [new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420")]);
 
     private sealed class PipelineHealthResponseTestContract
     {

@@ -20,7 +20,13 @@ builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
-builder.Services.AddMemoryCache();
+// Bound the shared response cache so a crafted fan-out of distinct request
+// shapes (the /truemains leaderboard key includes region/champion/position/
+// page) can't grow it without limit. Entries are counted (Size = 1 each, set
+// at every call site) rather than weighed by bytes: the growth axis here is
+// key cardinality, not payload size, and 1024 distinct live entries sits far
+// above any legitimate working set within the 30s TTL.
+builder.Services.AddMemoryCache(options => options.SizeLimit = 1024);
 
 var healthConnectionString = builder.Configuration.GetConnectionString("TrueMain");
 var healthChecks = builder.Services.AddHealthChecks();
@@ -107,6 +113,17 @@ builder.Services.AddDbContext<TrueMainDbContext>(options =>
 
     options.UseNpgsql(dataSource);
 });
+// IDbContextFactory lets services that fire concurrent queries (e.g.
+// ProfileQueryService) create short-lived, independently owned contexts per
+// parallel branch. No options lambda on purpose: AddDbContext above already
+// registered DbContextOptions<TrueMainDbContext> (via TryAdd), so the factory
+// reuses that exact registration — same NpgsqlDataSource, connection pool and
+// EF model. Passing an options lambda here would be dead code (its own TryAdd
+// is a no-op once AddDbContext has run) and would risk silently building a
+// second data source if the two registrations were ever reordered. The Scoped
+// lifetime matches AddDbContext's options lifetime and leaves the scoped
+// TrueMainDbContext registration untouched.
+builder.Services.AddDbContextFactory<TrueMainDbContext>(lifetime: ServiceLifetime.Scoped);
 var app = builder.Build();
 await DatabaseMigrator.ApplyPendingMigrationsAsync(app.Services);
 

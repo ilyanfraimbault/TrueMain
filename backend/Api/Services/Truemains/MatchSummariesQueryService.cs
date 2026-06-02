@@ -180,25 +180,45 @@ public sealed class MatchSummariesQueryService(
                 .Select(a => new { a.Id, a.GameName, a.TagLine })
                 .ToDictionaryAsync(a => a.Id, a => (a.GameName, a.TagLine), ct);
 
-        // Keystone per (matchId, participantId, styleId): slot 0 of the
-        // primary tree. We pull every slot-0 row for the page in one shot
-        // and look up by the self participant's primary style.
+        // Keystone for the SELF participant only: slot 0 of the primary tree.
+        // We join through MatchParticipants filtered to account.Puuid so the
+        // DB returns at most one row per match instead of one per participant,
+        // eliminating the ~10× fan-out from pulling every participant's perks.
+        // Restricting to cat.StyleId == mp.PrimaryStyleId keeps just the primary
+        // tree's keystone — the slot-0 row of the sub tree is skipped since
+        // downstream only looks up (…, self.PrimaryStyleId).
         var keystoneRows = await (
-            from pps in db.ParticipantPerkSelections.AsNoTracking()
+            from mp in db.MatchParticipants.AsNoTracking()
+            join pps in db.ParticipantPerkSelections.AsNoTracking()
+                on new { mp.MatchId, mp.ParticipantId } equals new { pps.MatchId, pps.ParticipantId }
             join cat in db.PerkSelectionCatalogs.AsNoTracking()
                 on pps.PerkSelectionCatalogId equals cat.Id
-            where matchIds.Contains(pps.MatchId) && cat.SelectionIndex == 0
+            where matchIds.Contains(mp.MatchId)
+                  && mp.Puuid == account.Puuid
+                  && cat.SelectionIndex == 0
+                  && cat.StyleId == mp.PrimaryStyleId
             select new
             {
-                pps.MatchId,
-                pps.ParticipantId,
+                mp.MatchId,
+                mp.ParticipantId,
                 cat.StyleId,
                 cat.PerkId,
             }).ToListAsync(ct);
 
+        // GroupBy keeps the dictionary build duplicate-tolerant. The self-only
+        // join already returns ~1 row per match, but
+        // (MatchId, ParticipantId, StyleId) is not unique at the schema level:
+        // PerkSelectionCatalog only enforces uniqueness on
+        // (StyleId, SelectionIndex, PerkId, StyleDescription), so two slot-0 rows
+        // for the same style with distinct PerkId are permitted. A direct
+        // ToDictionary would throw ArgumentException (HTTP 500) on such anomalous
+        // data. The query has no ORDER BY, so the duplicates come back in
+        // Postgres' arbitrary row order; ordering each group by PerkId before
+        // First() makes the tiebreak deterministic instead of letting the shown
+        // keystone vary between identical requests.
         var keystoneByKey = keystoneRows
-            .GroupBy(k => (k.MatchId, k.ParticipantId, k.StyleId))
-            .ToDictionary(g => g.Key, g => g.First().PerkId);
+            .GroupBy(r => (r.MatchId, r.ParticipantId, r.StyleId))
+            .ToDictionary(g => g.Key, g => g.OrderBy(r => r.PerkId).First().PerkId);
 
         var participantsByMatch = participants
             .GroupBy(p => p.MatchId)

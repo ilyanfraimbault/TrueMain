@@ -27,6 +27,15 @@ public sealed class ChampionSummariesQueryService(
     private static readonly TimeSpan ActivePatchCacheTtl = TimeSpan.FromMinutes(5);
     private const string ActivePatchCacheKey = "champions:summaries:active-patch";
 
+    // Every cache entry must carry a Size because the shared MemoryCache runs
+    // with a SizeLimit (see Program.cs). Without a Size the Set is silently
+    // dropped and the value never caches. Count-based: one entry = one unit.
+    private static MemoryCacheEntryOptions CacheEntry(TimeSpan ttl) => new()
+    {
+        AbsoluteExpirationRelativeToNow = ttl,
+        Size = 1,
+    };
+
     public async Task<IReadOnlyList<ChampionSummaryReadModel>> GetAllSummariesAsync(string? patch, CancellationToken ct)
     {
         var totalSw = Stopwatch.StartNew();
@@ -68,7 +77,7 @@ public sealed class ChampionSummariesQueryService(
         var computeSw = Stopwatch.StartNew();
         var summaries = await ComputeAllSummariesAsync(activePatch, ct);
         computeSw.Stop();
-        cache.Set(cacheKey, summaries, SummariesCacheTtl);
+        cache.Set(cacheKey, summaries, CacheEntry(SummariesCacheTtl));
         totalSw.Stop();
         logger.LogInformation(
             "[champions-summaries] compute elapsed={ComputeMs}ms total={TotalMs}ms result=miss count={Count}",
@@ -103,37 +112,43 @@ public sealed class ChampionSummariesQueryService(
         var resolved = ChampionAggregateScopeResolver.ResolvePatchVersion(distinctPatches, requestedPatch: null);
         if (!string.IsNullOrEmpty(resolved))
         {
-            cache.Set(ActivePatchCacheKey, resolved, ActivePatchCacheTtl);
+            cache.Set(ActivePatchCacheKey, resolved, CacheEntry(ActivePatchCacheTtl));
         }
         return resolved;
     }
 
     private async Task<IReadOnlyList<ChampionSummaryReadModel>> ComputeAllSummariesAsync(string activePatch, CancellationToken ct)
     {
-        var rowsSw = Stopwatch.StartNew();
-        var rows = await db.ChampionAggregateScopes
+        // Aggregate per (champion, position) in SQL: a single GROUP BY with
+        // SUM(games)/SUM(wins), MAX(aggregated_at) and COUNT(DISTINCT
+        // riot_account_id) for the main population. Only the aggregated rows
+        // (one per champion/lane, a few hundred at most) cross the wire,
+        // instead of one row per (account, champion, lane) slice. The blank
+        // Position filter runs server-side too: empty string is the
+        // "no position" sentinel (Position is non-nullable, defaults to "").
+        // Trim() != "" preserves the previous IsNullOrWhiteSpace semantics
+        // and translates to Postgres btrim(...) <> '' under Npgsql.
+        var groupsSw = Stopwatch.StartNew();
+        var groups = await db.ChampionAggregateScopes
             .AsNoTracking()
             .Where(scope => scope.QueueId == options.Value.QueueId)
             .Where(scope => scope.GameVersion == activePatch)
-            .Select(scope => new ChampionSummaryRow(
-                scope.ChampionId,
-                scope.GameVersion,
-                scope.Position,
-                scope.Games,
-                scope.Wins,
-                scope.RiotAccountId,
-                scope.AggregatedAtUtc))
+            .Where(scope => scope.Position.Trim() != string.Empty)
+            .GroupBy(scope => new { scope.ChampionId, scope.Position })
+            .Select(group => new ChampionSummaryGroup(
+                group.Key.ChampionId,
+                group.Key.Position,
+                group.Sum(scope => scope.Games),
+                group.Sum(scope => scope.Wins),
+                group.Select(scope => scope.RiotAccountId).Distinct().Count(),
+                group.Max(scope => scope.AggregatedAtUtc)))
             .ToListAsync(ct);
-        rowsSw.Stop();
+        groupsSw.Stop();
         logger.LogInformation(
-            "[champions-summaries] sql=scope_rows rows={Rows} elapsed={ElapsedMs}ms",
-            rows.Count, rowsSw.ElapsedMilliseconds);
+            "[champions-summaries] sql=scope_groups groups={Groups} elapsed={ElapsedMs}ms",
+            groups.Count, groupsSw.ElapsedMilliseconds);
 
-        var scoped = rows
-            .Where(row => !string.IsNullOrWhiteSpace(row.Position))
-            .ToList();
-
-        if (scoped.Count == 0)
+        if (groups.Count == 0)
         {
             return [];
         }
@@ -145,43 +160,42 @@ public sealed class ChampionSummariesQueryService(
             "[champions-summaries] load_top_builds buckets={Buckets} elapsed={ElapsedMs}ms",
             topBuilds.Count, topBuildsSw.ElapsedMilliseconds);
 
-        // Denominators come from the already-loaded scope rows: lane totals
-        // for PickRate and champion totals for LanePlayRate. PickRate is the
-        // share of TrueMain games at this lane that picked this champion —
-        // a main-population signal, not a meta-wide one (the meta-wide ratio
+        // Denominators are derived from the already-aggregated groups: lane
+        // totals for PickRate and champion totals for LanePlayRate. Each group
+        // already carries its per-(champion,lane) games sum, so re-summing the
+        // groups by lane / by champion is exactly equivalent to summing the
+        // raw scope rows — but over a handful of rows. PickRate is the share of
+        // TrueMain games at this lane that picked this champion — a
+        // main-population signal, not a meta-wide one (the meta-wide ratio
         // would need a full match_participants scan, which doesn't scale).
-        // Sum as long up-front: lane totals fan in over every scoped row on
-        // the patch, so this is the widest accumulator in the method — the
-        // only one with any plausible long-term risk of int overflow.
-        var laneTotals = scoped
-            .GroupBy(row => row.Position, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => group.Sum(row => (long)row.Games), StringComparer.Ordinal);
-        var championTotals = scoped
-            .GroupBy(row => row.ChampionId)
-            .ToDictionary(group => group.Key, group => group.Sum(row => row.Games));
+        // Sum lane totals as long: they fan in over every group on the patch,
+        // the widest accumulator with any plausible long-term int-overflow risk.
+        var laneTotals = groups
+            .GroupBy(group => group.Position, StringComparer.Ordinal)
+            .ToDictionary(lane => lane.Key, lane => lane.Sum(group => (long)group.Games), StringComparer.Ordinal);
+        var championTotals = groups
+            .GroupBy(group => group.ChampionId)
+            .ToDictionary(champion => champion.Key, champion => champion.Sum(group => group.Games));
 
-        return scoped
-            .GroupBy(row => (row.ChampionId, row.Position))
+        return groups
             .Select(group =>
             {
-                var games = group.Sum(row => row.Games);
-                var wins = group.Sum(row => row.Wins);
-                var championTotal = championTotals.GetValueOrDefault(group.Key.ChampionId);
-                var laneTotal = laneTotals.GetValueOrDefault(group.Key.Position, 0L);
+                var championTotal = championTotals.GetValueOrDefault(group.ChampionId);
+                var laneTotal = laneTotals.GetValueOrDefault(group.Position, 0L);
 
-                topBuilds.TryGetValue((group.Key.ChampionId, group.Key.Position), out var topBuild);
+                topBuilds.TryGetValue((group.ChampionId, group.Position), out var topBuild);
                 return new ChampionSummaryReadModel
                 {
-                    ChampionId = group.Key.ChampionId,
-                    Games = games,
-                    Wins = wins,
-                    WinRate = games == 0 ? 0 : (double)wins / games,
-                    PickRate = laneTotal == 0 ? 0 : (double)games / laneTotal,
-                    LanePlayRate = championTotal == 0 ? 0 : (double)games / championTotal,
-                    TrueMainCount = group.Select(row => row.RiotAccountId).Distinct().Count(),
-                    Position = group.Key.Position,
+                    ChampionId = group.ChampionId,
+                    Games = group.Games,
+                    Wins = group.Wins,
+                    WinRate = group.Games == 0 ? 0 : (double)group.Wins / group.Games,
+                    PickRate = laneTotal == 0 ? 0 : (double)group.Games / laneTotal,
+                    LanePlayRate = championTotal == 0 ? 0 : (double)group.Games / championTotal,
+                    TrueMainCount = group.TrueMainCount,
+                    Position = group.Position,
                     PatchVersion = activePatch,
-                    LastUpdatedAtUtc = group.Max(row => row.AggregatedAtUtc),
+                    LastUpdatedAtUtc = group.LastUpdatedAtUtc,
                     TopBuild = topBuild,
                 };
             })
@@ -191,14 +205,13 @@ public sealed class ChampionSummariesQueryService(
             .ToList();
     }
 
-    private sealed record ChampionSummaryRow(
+    private sealed record ChampionSummaryGroup(
         int ChampionId,
-        string GameVersion,
         string Position,
         int Games,
         int Wins,
-        Guid RiotAccountId,
-        DateTime AggregatedAtUtc);
+        int TrueMainCount,
+        DateTime LastUpdatedAtUtc);
 
     /// <summary>
     /// Resolves the dominant <c>(firstItem, primaryKeystone)</c> bucket for

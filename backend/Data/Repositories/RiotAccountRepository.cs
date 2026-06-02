@@ -68,7 +68,31 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
             .Where(s => s.IsMain)
             .Select(s => new { s.PlatformId, s.Puuid });
 
+        // Rank-score ordering (#194) is scoped to the P1 truemain bucket only.
+        // Within that bucket, after the identity-missing prefix (#188), accounts
+        // are ordered by:
+        //   1. identity-missing prefix (incomplete GameName/TagLine first, #188)
+        //   2. rank score DESCENDING, NULLS LAST — Challenger > … > Iron IV,
+        //      unranked / no-snapshot accounts (Score == null) sort last so they
+        //      stay eligible but yield to ranked accounts.
+        //   3. UpdatedAtUtc ASCENDING (final tiebreaker, prevents starvation).
+        // The score is the denormalised riot_accounts."Score" column, kept in
+        // lock-step with each account's latest rank by the rank ingestion writer
+        // (Ingestor.Ranking.RankSnapshotWriter -> Core.Lol.Ranking.RankScore —
+        // the single source of truth for the CASE coefficients). The Data layer
+        // only reads it, so there is no Data -> Api/Core dependency and no inline
+        // score CASE here.
+        // EF's ThenByDescending on a nullable column emits plain DESC, which on
+        // Postgres sorts NULLs FIRST; the leading `a.Score == null` key flips
+        // that to NULLS LAST without needing a raw NULLS LAST clause.
+        // Priority 0 (incomplete-truemain backlog, #188) and the P1 non-truemain
+        // bucket keep their UpdatedAtUtc oldest-first drain order and are NOT
+        // reordered by score.
+
         // ── Priority 0 ───────────────────────────────────────────────────
+        // Drain the identity backlog oldest-first (#188). Every row here is
+        // identity-incomplete, so score is intentionally not a sort key — a
+        // recently-updated high-rank account must not jump ahead of older ones.
         var incompleteTruemains = await db.RiotAccounts
             .Where(a => (string.IsNullOrEmpty(a.GameName) || string.IsNullOrEmpty(a.TagLine))
                         && truemainKeys.Any(m => m.PlatformId == a.PlatformId && m.Puuid == a.Puuid))
@@ -93,6 +117,8 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
                 (string.IsNullOrEmpty(a.GameName) || string.IsNullOrEmpty(a.TagLine))
                     ? 0
                     : 1)
+            .ThenBy(a => a.Score == null)
+            .ThenByDescending(a => a.Score)
             .ThenBy(a => a.UpdatedAtUtc)
             .Take(truemainQuota)
             .ToListAsync(ct);
@@ -110,6 +136,8 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
         }
 
         // ── Priority 1: 25 % non-truemains (absorbs any truemain underflow) ─
+        // Not the truemain bucket: keep identity-missing-first then oldest-first
+        // (#188). Score ordering (#194) is intentionally scoped to truemains only.
         var others = await db.RiotAccounts
             .Where(a => !pickedIds.Contains(a.Id)
                         && !truemainKeys.Any(m => m.PlatformId == a.PlatformId && m.Puuid == a.Puuid))

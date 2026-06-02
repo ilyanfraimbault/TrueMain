@@ -3,15 +3,14 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Data.Entities;
 using AwesomeAssertions;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Configuration;
 using TrueMain.ReadModels.Champions;
 using TrueMain.TestKit.EntityBuilders;
 
 namespace TrueMain.IntegrationTests;
 
-public sealed class ChampionBuildsApiIntegrationTests : IClassFixture<PostgresFixture>
+[Collection(IntegrationCollection.Name)]
+public sealed class ChampionBuildsApiIntegrationTests
 {
     private readonly PostgresFixture _fixture;
 
@@ -185,20 +184,7 @@ public sealed class ChampionBuildsApiIntegrationTests : IClassFixture<PostgresFi
         }
     }
 
-    private sealed class ApiWebApplicationFactory(PostgresFixture fixture) : WebApplicationFactory<Program>
-    {
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureAppConfiguration((_, configurationBuilder) =>
-            {
-                configurationBuilder.AddInMemoryCollection(
-                [
-                    new KeyValuePair<string, string?>("ConnectionStrings:TrueMain", fixture.ConnectionString),
-                    new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420"),
-                    new KeyValuePair<string, string?>("Ops:ApiKey", "integration-tests-ops-key-0123456789-padding")
-                ]);
-            });
-        }
-    }
+    private sealed class ApiWebApplicationFactory(PostgresFixture fixture)
+        : TrueMainWebApplicationFactory<Program>(
+            fixture, [new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420")]);
 }

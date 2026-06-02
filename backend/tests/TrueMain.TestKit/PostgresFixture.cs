@@ -9,9 +9,10 @@ namespace TrueMain.TestKit;
 
 /// <summary>
 /// Spawns a throwaway Postgres container, runs the migrations once, and
-/// hands out <see cref="TrueMainDbContext"/> instances bound to it. Tests
-/// share this fixture via <see cref="IClassFixture{TFixture}"/> so the
-/// container setup cost is amortised across a whole class of tests.
+/// hands out <see cref="TrueMainDbContext"/> instances bound to it. Shared
+/// across the whole integration test assembly via an xUnit collection fixture,
+/// so a single container is started once and reused; tests reset data between
+/// runs with <see cref="ResetDatabaseAsync"/>.
 /// </summary>
 public sealed class PostgresFixture : IAsyncLifetime
 {
@@ -19,9 +20,17 @@ public sealed class PostgresFixture : IAsyncLifetime
         .WithDatabase("truemain_test")
         .WithUsername("postgres")
         .WithPassword("postgres")
+        // Keep Testcontainers' Ryuk reaper disabled: its image
+        // (testcontainers/ryuk) is not pullable in our CI / dev environment
+        // (Docker Hub returns 401), so enabling cleanup makes the container
+        // fail to start. The container-leak this fixture used to cause is now
+        // addressed by sharing a single container per assembly (see
+        // IntegrationCollection) instead of one per class; DisposeAsync removes
+        // that single container on normal test-run completion.
         .WithCleanUp(false)
         .Build();
     private NpgsqlDataSource? _dataSource;
+    private string? _truncateSql;
 
     public string ConnectionString => _container.GetConnectionString();
 
@@ -56,8 +65,26 @@ public sealed class PostgresFixture : IAsyncLifetime
     public async Task ResetDatabaseAsync()
     {
         await using var db = CreateDbContext();
-        await db.Database.EnsureDeletedAsync();
-        await db.Database.MigrateAsync();
+
+        // The schema is migrated once in InitializeAsync; between tests only
+        // the *data* needs to go. TRUNCATE ... RESTART IDENTITY CASCADE clears
+        // every mapped table in a single statement — orders of magnitude
+        // cheaper than dropping the database and replaying every migration on
+        // each test — and CASCADE makes FK ordering irrelevant. The table list
+        // comes from the EF model so new migrations are covered automatically.
+        _truncateSql ??= BuildTruncateSql(db);
+        await db.Database.ExecuteSqlRawAsync(_truncateSql);
+    }
+
+    private static string BuildTruncateSql(TrueMainDbContext db)
+    {
+        var tables = db.Model.GetEntityTypes()
+            .Select(entity => (Schema: entity.GetSchema() ?? "public", Name: entity.GetTableName()))
+            .Where(table => table.Name is not null)
+            .Distinct()
+            .Select(table => $"\"{table.Schema}\".\"{table.Name}\"");
+
+        return $"TRUNCATE {string.Join(", ", tables)} RESTART IDENTITY CASCADE;";
     }
 
     public IDataSessionFactory CreateSessionFactory()

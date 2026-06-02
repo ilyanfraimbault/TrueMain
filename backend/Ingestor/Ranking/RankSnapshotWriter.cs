@@ -1,3 +1,4 @@
+using Core.Lol.Ranking;
 using Data.Entities;
 using Data.Repositories;
 
@@ -31,6 +32,10 @@ public sealed class RankSnapshotWriter : IRankSnapshotWriter
         DateTime nowUtc)
     {
         account.LastRankSyncAtUtc = nowUtc;
+        // Denormalised leaderboard sort key — kept in lock-step with the latest
+        // rank so the leaderboard can ORDER BY it without recomputing in SQL.
+        // Idempotent: EF only writes when the value actually changes.
+        account.Score = RankScore.Compute(input.Tier, input.Division, input.LeaguePoints);
 
         var unchanged = latest is not null
             && string.Equals(latest.Tier, input.Tier, StringComparison.Ordinal)

@@ -2,10 +2,15 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches:
       - develop
       - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -14,7 +19,10 @@ concurrency:
 jobs:
   backend:
     name: Backend Build and Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    # Skip on draft PRs (marking ready re-triggers the workflow). Always run on
+    # develop/master pushes, where github.event.pull_request is null.
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
 
     defaults:
       run:
@@ -52,7 +60,8 @@ jobs:
 
   frontend:
     name: Frontend Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
 
     defaults:
       run:
@@ -80,7 +89,8 @@ jobs:
 
   compose-config:
     name: Compose Config Validation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
 
     steps:
       - name: Checkout
@@ -132,7 +142,8 @@ jobs:
 
   docker-build:
     name: Docker Build Sanity (${{ matrix.name }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     strategy:
       fail-fast: false
       matrix:

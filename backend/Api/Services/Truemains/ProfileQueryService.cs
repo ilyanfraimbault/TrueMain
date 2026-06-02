@@ -1,4 +1,5 @@
 using Data;
+using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using TrueMain.ReadModels.Truemains;
 
@@ -6,9 +7,26 @@ namespace TrueMain.Services.Truemains;
 
 public sealed class ProfileQueryService(
     TrueMainDbContext db,
+    IDbContextFactory<TrueMainDbContext> dbFactory,
     ILogger<ProfileQueryService> logger) : IProfileQueryService
 {
     private const int MainChampionsCap = 6;
+
+    // Private DTOs used to carry query results out of factory-owned contexts.
+    private sealed record SnapshotDto(
+        string Tier,
+        string Division,
+        int LeaguePoints,
+        int? Wins,
+        int? Losses);
+
+    private sealed record MainDto(
+        int ChampionId,
+        int ChampionMatches,
+        double PlayRate,
+        string PrimaryPosition,
+        bool IsOtp,
+        List<PositionStat> PositionBreakdown);
 
     public async Task<ProfileReadModel?> GetAsync(string nameTag, CancellationToken ct)
     {
@@ -44,39 +62,17 @@ public sealed class ProfileQueryService(
             return null;
         }
 
-        var snapshot = await db.RankSnapshots
-            .AsNoTracking()
-            .Where(s => s.RiotAccountId == account.Id)
-            .OrderByDescending(s => s.CapturedAtUtc)
-            .Select(s => new
-            {
-                s.Tier,
-                s.Division,
-                s.LeaguePoints,
-                s.Wins,
-                s.Losses,
-            })
-            .FirstOrDefaultAsync(ct);
+        // snapshot and mains are both keyed on the resolved account but are
+        // otherwise independent of each other, so they can run concurrently.
+        // A single DbContext is not thread-safe, so each concurrent branch
+        // gets its own short-lived context created from the factory.
+        var snapshotTask = FetchSnapshotAsync(account.Id, ct);
+        var mainsTask = FetchMainsAsync(account.PlatformId, account.Puuid, ct);
 
-        // The repository's helper is keyed on (platformId, puuid) — we
-        // intentionally use the same identity here instead of RiotAccountId
-        // because that's the natural key the ingestor writes against.
-        var mains = await db.MainChampionStats
-            .AsNoTracking()
-            .Where(m => m.PlatformId == account.PlatformId && m.Puuid == account.Puuid && m.IsMain)
-            .OrderByDescending(m => m.PlayRate)
-            .ThenByDescending(m => m.ChampionMatches)
-            .Take(MainChampionsCap)
-            .Select(m => new
-            {
-                m.ChampionId,
-                m.ChampionMatches,
-                m.PlayRate,
-                m.PrimaryPosition,
-                m.IsOtp,
-                m.PositionBreakdown,
-            })
-            .ToListAsync(ct);
+        await Task.WhenAll(snapshotTask, mainsTask);
+
+        var snapshot = await snapshotTask;
+        var mains = await mainsTask;
 
         // Aggregate position breakdown across the top mains. The per-champion
         // entries already sum to that champion's games, so summing the
@@ -145,6 +141,39 @@ public sealed class ProfileQueryService(
                 .ToList(),
             Positions = positions,
         };
+    }
+
+    private async Task<SnapshotDto?> FetchSnapshotAsync(Guid accountId, CancellationToken ct)
+    {
+        await using var ctx = await dbFactory.CreateDbContextAsync(ct);
+        return await ctx.RankSnapshots
+            .AsNoTracking()
+            .Where(s => s.RiotAccountId == accountId)
+            .OrderByDescending(s => s.CapturedAtUtc)
+            .Select(s => new SnapshotDto(s.Tier, s.Division, s.LeaguePoints, s.Wins, s.Losses))
+            .FirstOrDefaultAsync(ct);
+    }
+
+    private async Task<List<MainDto>> FetchMainsAsync(string platformId, string puuid, CancellationToken ct)
+    {
+        await using var ctx = await dbFactory.CreateDbContextAsync(ct);
+        // The repository's helper is keyed on (platformId, puuid) — we
+        // intentionally use the same identity here instead of RiotAccountId
+        // because that's the natural key the ingestor writes against.
+        return await ctx.MainChampionStats
+            .AsNoTracking()
+            .Where(m => m.PlatformId == platformId && m.Puuid == puuid && m.IsMain)
+            .OrderByDescending(m => m.PlayRate)
+            .ThenByDescending(m => m.ChampionMatches)
+            .Take(MainChampionsCap)
+            .Select(m => new MainDto(
+                m.ChampionId,
+                m.ChampionMatches,
+                m.PlayRate,
+                m.PrimaryPosition,
+                m.IsOtp,
+                m.PositionBreakdown))
+            .ToListAsync(ct);
     }
 
     private static double? ComputeWinRate(int? wins, int? losses)

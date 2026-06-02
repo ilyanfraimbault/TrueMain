@@ -96,7 +96,7 @@ public sealed class TruemainsLeaderboardQueryService(
             // Cache the empty response — a filter that yields nothing still
             // pays for the Count SQL on every visit, and those are the same
             // requests an attacker / overzealous client would replay.
-            cache.Set(cacheKey, empty, ResponseCacheTtl);
+            cache.Set(cacheKey, empty, CacheEntry(ResponseCacheTtl));
             return empty;
         }
 
@@ -114,18 +114,19 @@ public sealed class TruemainsLeaderboardQueryService(
                 PageSize = clampedPageSize,
                 Total = total,
             };
-            cache.Set(cacheKey, pastEnd, ResponseCacheTtl);
+            cache.Set(cacheKey, pastEnd, CacheEntry(ResponseCacheTtl));
             return pastEnd;
         }
 
-        // Hydrate the page slice with derived stats. Two batched queries — one
-        // for the top-3 champions (main_champion_stats), one for KDA / W-L
-        // (match_participants joined to matches for the queue filter). Both
-        // are keyed by puuid because that's the natural identifier for those
-        // tables (RiotAccountId is nullable on match_participants).
+        // Hydrate the page slice with derived data. Three batched queries — the
+        // top-3 champions (main_champion_stats) and KDA / W-L (match_participants)
+        // keyed by puuid, plus the latest rank cells (tier/div/LP) keyed by
+        // account id. The heavy ordering + pagination already happened on
+        // riot_accounts."Score", so these only touch the ~25 rows on the page.
         var puuids = pageRows.Select(r => r.Puuid).ToArray();
         var topChampionsByPuuid = await FetchTopChampionsAsync(puuids, ct);
         var statsByPuuid = await FetchStatsAsync(puuids, ct);
+        var ranksByAccount = await FetchLatestRanksAsync(pageRows.Select(r => r.Id).ToArray(), ct);
 
         var rank = offset + 1;
         var rows = new List<LeaderboardRowReadModel>(pageRows.Count);
@@ -134,6 +135,7 @@ public sealed class TruemainsLeaderboardQueryService(
             var topChamps = topChampionsByPuuid.GetValueOrDefault(row.Puuid)
                             ?? new List<LeaderboardTopChampionReadModel>();
             var stats = statsByPuuid.GetValueOrDefault(row.Puuid);
+            var latestRank = ranksByAccount.GetValueOrDefault(row.Id);
 
             // platformId → region slug. RouteToSlug can return null for
             // platforms we don't expose (JP1/SEA); the platforms filter
@@ -154,9 +156,9 @@ public sealed class TruemainsLeaderboardQueryService(
                 Region = regionSlug,
                 Ranked = new LeaderboardRankedReadModel
                 {
-                    Tier = row.Tier,
-                    Division = row.Division,
-                    LeaguePoints = row.LeaguePoints,
+                    Tier = latestRank?.Tier ?? string.Empty,
+                    Division = latestRank?.Division ?? string.Empty,
+                    LeaguePoints = latestRank?.LeaguePoints ?? 0,
                     Score = row.Score,
                 },
                 Stats = new LeaderboardStatsReadModel
@@ -180,7 +182,7 @@ public sealed class TruemainsLeaderboardQueryService(
             PageSize = clampedPageSize,
             Total = total,
         };
-        cache.Set(cacheKey, response, ResponseCacheTtl);
+        cache.Set(cacheKey, response, CacheEntry(ResponseCacheTtl));
 
         totalSw.Stop();
         logger.LogInformation(
@@ -211,6 +213,16 @@ public sealed class TruemainsLeaderboardQueryService(
         return $"truemains:leaderboard:{platformPart}:{championPart}:{positionPart}:{minGames}:{page}:{pageSize}";
     }
 
+    // Every cache entry must carry a Size because the shared MemoryCache runs
+    // with a SizeLimit (see Program.cs). Without a Size the Set is silently
+    // dropped and the value never caches — a cache-miss storm, not an error.
+    // Count-based: one entry counts as one unit.
+    private static MemoryCacheEntryOptions CacheEntry(TimeSpan ttl) => new()
+    {
+        AbsoluteExpirationRelativeToNow = ttl,
+        Size = 1,
+    };
+
     private async Task<int> CountAsync(
         string[] platforms,
         int? championFilter,
@@ -228,10 +240,7 @@ public sealed class TruemainsLeaderboardQueryService(
             SELECT COUNT(*)::int AS "Value"
             FROM riot_accounts a
             WHERE a."PlatformId" = ANY ({platforms})
-              AND EXISTS (
-                  SELECT 1 FROM rank_snapshots rs
-                  WHERE rs."RiotAccountId" = a."Id"
-              )
+              AND a."Score" IS NOT NULL
               AND EXISTS (
                   SELECT 1 FROM main_champion_stats m
                   WHERE m."PlatformId" = a."PlatformId"
@@ -255,7 +264,11 @@ public sealed class TruemainsLeaderboardQueryService(
               ) >= {minGames})
             """;
 
-        return await db.Database.SqlQuery<int>(sql).FirstAsync(ct);
+        // SqlQuery wraps this as a subquery; the COUNT always yields exactly one
+        // row, so SingleAsync states that invariant — and avoids EF's spurious
+        // "First/FirstOrDefault without OrderBy" warning (event 10103) that the
+        // wrapper query otherwise triggers.
+        return await db.Database.SqlQuery<int>(sql).SingleAsync(ct);
     }
 
     private async Task<List<PageRow>> FetchPageAsync(
@@ -267,28 +280,12 @@ public sealed class TruemainsLeaderboardQueryService(
         int pageSize,
         CancellationToken ct)
     {
-        // DISTINCT ON gives us the latest snapshot per account in a single
-        // pass (uses IX_rank_snapshots_account_captured). INNER JOIN drops
-        // never-ranked accounts — those are out of scope for V1. The score
-        // CASE is computed inline so ORDER BY happens server-side over the
-        // full filtered set, allowing real pagination.
-        //
-        // The IsMain=true EXISTS is unconditional — see CountAsync for the
-        // rationale. The two EXISTS clauses (CountAsync + FetchPageAsync)
-        // must stay in lock-step or pagination will drift from the total.
-        var scoreExpression = RankScore.OrderBySqlFragment("ls");
-
-        // Use FormattableStringFactory to compose the SQL: scoreExpression is
-        // raw SQL (constants only — no user input) that must NOT be bound as
-        // a parameter, so it goes into the literal portion of the format
-        // string, while the actual parameters keep their interpolation order.
-        var sqlTemplate = $$"""
-            WITH latest_snapshot AS (
-                SELECT DISTINCT ON ("RiotAccountId")
-                    "RiotAccountId", "Tier", "Division", "LeaguePoints", "Wins", "Losses"
-                FROM rank_snapshots
-                ORDER BY "RiotAccountId", "CapturedAtUtc" DESC
-            )
+        // Order + paginate directly on the denormalised riot_accounts."Score"
+        // (maintained by RankSnapshotWriter) — no DISTINCT ON, no inline score
+        // CASE. "Score IS NOT NULL" is the is-ranked gate and must stay in
+        // lock-step with CountAsync or pagination drifts from the total. The
+        // tier/div/LP display cells are hydrated per page in GetAsync.
+        FormattableString sql = $"""
             SELECT
                 a."Id" AS "Id",
                 a."Puuid" AS "Puuid",
@@ -297,49 +294,61 @@ public sealed class TruemainsLeaderboardQueryService(
                 a."PlatformId" AS "PlatformId",
                 a."ProfileIconId" AS "ProfileIconId",
                 a."SummonerLevel" AS "SummonerLevel",
-                ls."Tier" AS "Tier",
-                ls."Division" AS "Division",
-                ls."LeaguePoints" AS "LeaguePoints",
-                {{scoreExpression}} AS "Score"
+                a."Score" AS "Score"
             FROM riot_accounts a
-            INNER JOIN latest_snapshot ls ON ls."RiotAccountId" = a."Id"
-            WHERE a."PlatformId" = ANY ({0})
+            WHERE a."PlatformId" = ANY ({platforms})
+              AND a."Score" IS NOT NULL
               AND EXISTS (
                   SELECT 1 FROM main_champion_stats m
                   WHERE m."PlatformId" = a."PlatformId"
                     AND m."Puuid" = a."Puuid"
                     AND m."IsMain" = true
-                    AND ({1}::int IS NULL OR m."ChampionId" = {1})
-                    AND ({2}::text IS NULL OR EXISTS (
+                    AND ({championFilter}::int IS NULL OR m."ChampionId" = {championFilter})
+                    AND ({position}::text IS NULL OR EXISTS (
                         SELECT 1
                         FROM jsonb_array_elements(m."PositionBreakdown") AS pos
-                        WHERE pos->>'Position' = {2}
-                          AND (pos->>'Rate')::float8 >= {6}
+                        WHERE pos->>'Position' = {position}
+                          AND (pos->>'Rate')::float8 >= {MinPositionShare}
                     ))
               )
-              AND ({5} = 0 OR (
+              AND ({minGames} = 0 OR (
                   SELECT COUNT(*)::int
                   FROM match_participants p
                   INNER JOIN matches m ON m."Id" = p."MatchId"
                   WHERE p."Puuid" = a."Puuid"
-                    AND m."QueueId" = {{RankedQueueId}}
+                    AND m."QueueId" = {RankedQueueId}
                     AND m."GameMode" <> 'CHERRY'
-              ) >= {5})
-            ORDER BY "Score" DESC NULLS LAST, a."Id"
-            LIMIT {3} OFFSET {4}
+              ) >= {minGames})
+            ORDER BY a."Score" DESC, a."Id"
+            LIMIT {pageSize} OFFSET {offset}
             """;
 
-        var sql = System.Runtime.CompilerServices.FormattableStringFactory.Create(
-            sqlTemplate,
-            platforms,
-            (object?)championFilter ?? DBNull.Value,
-            (object?)position ?? DBNull.Value,
-            pageSize,
-            offset,
-            minGames,
-            MinPositionShare);
-
         return await db.Database.SqlQuery<PageRow>(sql).ToListAsync(ct);
+    }
+
+    private async Task<Dictionary<Guid, RankRow>> FetchLatestRanksAsync(Guid[] accountIds, CancellationToken ct)
+    {
+        if (accountIds.Length == 0)
+        {
+            return new Dictionary<Guid, RankRow>();
+        }
+
+        // Latest rank per page account for the display cells (tier/div/LP).
+        // Only the page's ~25 accounts — the heavy ordering + pagination already
+        // happened on riot_accounts."Score" — so this DISTINCT ON is cheap.
+        FormattableString sql = $"""
+            SELECT DISTINCT ON (rs."RiotAccountId")
+                rs."RiotAccountId" AS "AccountId",
+                rs."Tier" AS "Tier",
+                rs."Division" AS "Division",
+                rs."LeaguePoints" AS "LeaguePoints"
+            FROM rank_snapshots rs
+            WHERE rs."RiotAccountId" = ANY ({accountIds})
+            ORDER BY rs."RiotAccountId", rs."CapturedAtUtc" DESC
+            """;
+
+        var rows = await db.Database.SqlQuery<RankRow>(sql).ToListAsync(ct);
+        return rows.ToDictionary(r => r.AccountId);
     }
 
     private async Task<Dictionary<string, List<LeaderboardTopChampionReadModel>>> FetchTopChampionsAsync(
@@ -475,10 +484,9 @@ public sealed class TruemainsLeaderboardQueryService(
         string PlatformId,
         int ProfileIconId,
         int SummonerLevel,
-        string Tier,
-        string Division,
-        int LeaguePoints,
         int Score);
+
+    private sealed record RankRow(Guid AccountId, string Tier, string Division, int LeaguePoints);
 
     private sealed record TopChampionRow(string Puuid, int ChampionId, int Games);
 

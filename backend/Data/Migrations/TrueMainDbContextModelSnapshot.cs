@@ -20,7 +20,7 @@ namespace Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.4")
+                .HasAnnotation("ProductVersion", "10.0.8")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -596,9 +596,10 @@ namespace Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("MatchId");
-
                     b.HasIndex("RiotAccountId");
+
+                    b.HasIndex("MatchId", "ParticipantId")
+                        .IsUnique();
 
                     b.HasIndex("Puuid", "MatchId")
                         .HasDatabaseName("IX_match_participants_puuid_match");
@@ -818,6 +819,9 @@ namespace Data.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
+                    b.Property<int?>("Score")
+                        .HasColumnType("integer");
+
                     b.Property<string>("SummonerId")
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
@@ -840,6 +844,9 @@ namespace Data.Migrations
 
                     b.HasIndex("Puuid")
                         .IsUnique();
+
+                    b.HasIndex("Score")
+                        .HasDatabaseName("IX_riot_accounts_score");
 
                     b.HasIndex("GameName", "TagLine", "PlatformId")
                         .IsUnique();
@@ -937,11 +944,13 @@ namespace Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Data.Entities.PerkSelectionCatalog", null)
+                    b.HasOne("Data.Entities.PerkSelectionCatalog", "Catalog")
                         .WithMany()
                         .HasForeignKey("PerkSelectionCatalogId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Catalog");
                 });
 
             modelBuilder.Entity("Data.Entities.RankSnapshot", b =>
