@@ -69,9 +69,24 @@ builder.Services.AddOptions<TruemainsLeaderboardOptions>()
     // match and the leaderboard would silently empty out.
     .Validate<IOptions<MainAnalysisOptions>>(
         (leaderboard, mainAnalysis) =>
-            leaderboard.MinRankedGames >= 0
-            && leaderboard.MinRankedGames <= mainAnalysis.Value.MatchesToConsider,
-        "TruemainsLeaderboard:MinRankedGames must be between 0 and MainAnalysis:MatchesToConsider.")
+        {
+            var cap = mainAnalysis.Value.MatchesToConsider;
+            if (leaderboard.MinRankedGames >= 0 && leaderboard.MinRankedGames <= cap)
+            {
+                return true;
+            }
+
+            // Validate's failure message is a static string; throw so the boot
+            // log names the actual values instead of a generic range.
+            throw new OptionsValidationException(
+                TruemainsLeaderboardOptions.SectionName,
+                typeof(TruemainsLeaderboardOptions),
+                [
+                    $"TruemainsLeaderboard:MinRankedGames ({leaderboard.MinRankedGames}) must be "
+                    + $"between 0 and MainAnalysis:MatchesToConsider ({cap})."
+                ]);
+        },
+        "TruemainsLeaderboard:MinRankedGames is out of range.")
     .ValidateOnStart();
 builder.Services.AddOptions<DatabaseOptions>()
     .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName));
