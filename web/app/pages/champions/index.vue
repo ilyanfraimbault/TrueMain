@@ -439,8 +439,13 @@ function staticItem(id: number | undefined) {
                 v-if="row.topBuild && row.topBuild.itemPath.length > 0"
                 class="flex shrink-0 items-center gap-1"
               >
+                <!-- Render the full consensus path, not a fixed 5. itemPath is
+                     the same ChampionBuildPathAnalyzer.WalkPath output the
+                     detail page renders (up to 6 items — ADC cores routinely
+                     reach 6), so an artificial slice(0, 5) dropped the last
+                     item here while the detail Build path showed it. -->
                 <template
-                  v-for="(itemId, idx) in row.topBuild.itemPath.slice(0, 5)"
+                  v-for="(itemId, idx) in row.topBuild.itemPath"
                   :key="`${row.championId}-${row.position}-bp-${idx}`"
                 >
                   <GameTooltipItemIcon
@@ -450,7 +455,7 @@ function staticItem(id: number | undefined) {
                     class="size-7 rounded"
                   />
                   <UIcon
-                    v-if="idx < Math.min(row.topBuild.itemPath.length, 5) - 1"
+                    v-if="idx < row.topBuild.itemPath.length - 1"
                     name="i-lucide-chevron-right"
                     class="size-3 text-dimmed"
                   />
