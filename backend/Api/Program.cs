@@ -113,28 +113,17 @@ builder.Services.AddDbContext<TrueMainDbContext>(options =>
 
     options.UseNpgsql(dataSource);
 });
-// IDbContextFactory is registered so services that need to fire concurrent
-// queries (e.g. ProfileQueryService) can create short-lived, independently
-// owned contexts per parallel branch. The factory shares the same Npgsql
-// data source and EF model as the scoped TrueMainDbContext; registering it
-// with ServiceLifetime.Scoped does NOT replace or affect that registration —
-// all other services continue to receive the scoped context as before.
-builder.Services.AddDbContextFactory<TrueMainDbContext>(options =>
-{
-    var connectionString = builder.Configuration.GetConnectionString("TrueMain");
-
-    if (string.IsNullOrWhiteSpace(connectionString))
-    {
-        throw new InvalidOperationException(
-            "Missing connection string. Add ConnectionStrings:TrueMain to user secrets.");
-    }
-
-    var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
-    dataSourceBuilder.EnableDynamicJson();
-    var dataSource = dataSourceBuilder.Build();
-
-    options.UseNpgsql(dataSource);
-}, ServiceLifetime.Scoped);
+// IDbContextFactory lets services that fire concurrent queries (e.g.
+// ProfileQueryService) create short-lived, independently owned contexts per
+// parallel branch. No options lambda on purpose: AddDbContext above already
+// registered DbContextOptions<TrueMainDbContext> (via TryAdd), so the factory
+// reuses that exact registration — same NpgsqlDataSource, connection pool and
+// EF model. Passing an options lambda here would be dead code (its own TryAdd
+// is a no-op once AddDbContext has run) and would risk silently building a
+// second data source if the two registrations were ever reordered. The Scoped
+// lifetime matches AddDbContext's options lifetime and leaves the scoped
+// TrueMainDbContext registration untouched.
+builder.Services.AddDbContextFactory<TrueMainDbContext>(lifetime: ServiceLifetime.Scoped);
 var app = builder.Build();
 await DatabaseMigrator.ApplyPendingMigrationsAsync(app.Services);
 

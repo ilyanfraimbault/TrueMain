@@ -187,7 +187,7 @@ public sealed class MatchSummariesQueryService(
         // Restricting to cat.StyleId == mp.PrimaryStyleId keeps just the primary
         // tree's keystone — the slot-0 row of the sub tree is skipped since
         // downstream only looks up (…, self.PrimaryStyleId).
-        var keystoneByKey = await (
+        var keystoneRows = await (
             from mp in db.MatchParticipants.AsNoTracking()
             join pps in db.ParticipantPerkSelections.AsNoTracking()
                 on new { mp.MatchId, mp.ParticipantId } equals new { pps.MatchId, pps.ParticipantId }
@@ -203,7 +203,22 @@ public sealed class MatchSummariesQueryService(
                 mp.ParticipantId,
                 cat.StyleId,
                 cat.PerkId,
-            }).ToDictionaryAsync(r => (r.MatchId, r.ParticipantId, r.StyleId), r => r.PerkId, ct);
+            }).ToListAsync(ct);
+
+        // GroupBy keeps the dictionary build duplicate-tolerant. The self-only
+        // join already returns ~1 row per match, but
+        // (MatchId, ParticipantId, StyleId) is not unique at the schema level:
+        // PerkSelectionCatalog only enforces uniqueness on
+        // (StyleId, SelectionIndex, PerkId, StyleDescription), so two slot-0 rows
+        // for the same style with distinct PerkId are permitted. A direct
+        // ToDictionary would throw ArgumentException (HTTP 500) on such anomalous
+        // data. The query has no ORDER BY, so the duplicates come back in
+        // Postgres' arbitrary row order; ordering each group by PerkId before
+        // First() makes the tiebreak deterministic instead of letting the shown
+        // keystone vary between identical requests.
+        var keystoneByKey = keystoneRows
+            .GroupBy(r => (r.MatchId, r.ParticipantId, r.StyleId))
+            .ToDictionary(g => g.Key, g => g.OrderBy(r => r.PerkId).First().PerkId);
 
         var participantsByMatch = participants
             .GroupBy(p => p.MatchId)
