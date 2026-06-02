@@ -264,7 +264,11 @@ public sealed class TruemainsLeaderboardQueryService(
               ) >= {minGames})
             """;
 
-        return await db.Database.SqlQuery<int>(sql).FirstAsync(ct);
+        // SqlQuery wraps this as a subquery; the COUNT always yields exactly one
+        // row, so SingleAsync states that invariant — and avoids EF's spurious
+        // "First/FirstOrDefault without OrderBy" warning (event 10103) that the
+        // wrapper query otherwise triggers.
+        return await db.Database.SqlQuery<int>(sql).SingleAsync(ct);
     }
 
     private async Task<List<PageRow>> FetchPageAsync(
