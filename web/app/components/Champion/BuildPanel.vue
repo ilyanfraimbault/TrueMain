@@ -21,11 +21,15 @@ defineProps<{
     <!-- Section 1: Core view -->
     <UCard>
       <!-- Outer grid: left column is flexible, right Runes column is a fixed
-           201 px (3 keystones × 35 px + 2 × 2 px gap + 24 px gutter + right
-           column 3 × 20 px + 2 × 4 px gap = 201 px).  Pinning the right
-           column width ensures the left column never resizes when rune layouts
-           change between builds/positions. -->
-      <div class="grid gap-x-6 gap-y-5 lg:grid-cols-[minmax(0,1fr)_201px]">
+           240 px so the left column never resizes when rune layouts change
+           between builds/positions. 240 px fits the widest primary tree
+           (4 keystones, e.g. Precision): 4 × 35 px keystones + 3 × 2 px gaps =
+           146 px, + 24 px gutter + 68 px secondary/shard column (3 × 20 px +
+           2 × 4 px gaps) = 238 px, plus a 2 px safety margin. Trees with only
+           3 keystones leave a little trailing space — the trade-off for a
+           stable, non-shifting layout (sizing to content would shift the left
+           column when switching builds/positions). -->
+      <div class="grid gap-x-6 gap-y-5 lg:grid-cols-[minmax(0,1fr)_240px]">
         <!-- Section A: everything except runes -->
         <div class="flex flex-col gap-5 sm:flex-row sm:items-start">
           <!-- A1: Summoners + Starter, stacked, left-aligned.
@@ -64,12 +68,12 @@ defineProps<{
             </div>
           </div>
         </div>
-        <!-- Runes column — fixed 201 px wrapper at lg+ keeps the left column
+        <!-- Runes column — fixed 240 px wrapper at lg+ keeps the left column
              stable in the two-column layout. Below lg the core view is a single
              column, so the wrapper stays full-width to avoid regressing mobile.
              The wrapper is always present (even with no rune data) so the grid
              track doesn't collapse and cause a reflow. -->
-        <div class="w-full shrink-0 overflow-hidden lg:w-[201px]">
+        <div class="w-full shrink-0 overflow-hidden lg:w-[240px]">
           <ChampionCoreRunes
             v-if="build.core.runePage && runeTree"
             :page="build.core.runePage"
