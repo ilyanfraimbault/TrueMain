@@ -89,7 +89,8 @@ public sealed class TruemainsLeaderboardQueryService(
             return cached;
         }
 
-        var total = await CountAsync(platforms, championFilter, normalizedPosition, minGames, ct);
+        var (total, countMs) = await TimedAsync(() =>
+            CountAsync(platforms, championFilter, normalizedPosition, minGames, ct));
         if (total == 0)
         {
             var empty = Empty(clampedPage, clampedPageSize);
@@ -100,8 +101,8 @@ public sealed class TruemainsLeaderboardQueryService(
             return empty;
         }
 
-        var pageRows = await FetchPageAsync(
-            platforms, championFilter, normalizedPosition, minGames, offset, clampedPageSize, ct);
+        var (pageRows, pageMs) = await TimedAsync(() => FetchPageAsync(
+            platforms, championFilter, normalizedPosition, minGames, offset, clampedPageSize, ct));
         if (pageRows.Count == 0)
         {
             // The caller asked for a page past the end. Return an empty slice
@@ -124,9 +125,10 @@ public sealed class TruemainsLeaderboardQueryService(
         // account id. The heavy ordering + pagination already happened on
         // riot_accounts."Score", so these only touch the ~25 rows on the page.
         var puuids = pageRows.Select(r => r.Puuid).ToArray();
-        var topChampionsByPuuid = await FetchTopChampionsAsync(puuids, ct);
-        var statsByPuuid = await FetchStatsAsync(puuids, ct);
-        var ranksByAccount = await FetchLatestRanksAsync(pageRows.Select(r => r.Id).ToArray(), ct);
+        var accountIds = pageRows.Select(r => r.Id).ToArray();
+        var (topChampionsByPuuid, topChampMs) = await TimedAsync(() => FetchTopChampionsAsync(puuids, ct));
+        var (statsByPuuid, statsMs) = await TimedAsync(() => FetchStatsAsync(puuids, ct));
+        var (ranksByAccount, ranksMs) = await TimedAsync(() => FetchLatestRanksAsync(accountIds, ct));
 
         var rank = offset + 1;
         var rows = new List<LeaderboardRowReadModel>(pageRows.Count);
@@ -186,9 +188,9 @@ public sealed class TruemainsLeaderboardQueryService(
 
         totalSw.Stop();
         logger.LogInformation(
-            "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} rows={Rows} total={Total} elapsed={ElapsedMs}ms result=miss",
+            "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} rows={Rows} total={Total} countMs={CountMs:F1} pageMs={PageMs:F1} topChampMs={TopChampMs:F1} statsMs={StatsMs:F1} ranksMs={RanksMs:F1} elapsed={ElapsedMs}ms result=miss",
             clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames,
-            rows.Count, total, totalSw.ElapsedMilliseconds);
+            rows.Count, total, countMs, pageMs, topChampMs, statsMs, ranksMs, totalSw.ElapsedMilliseconds);
 
         return response;
     }
@@ -223,6 +225,20 @@ public sealed class TruemainsLeaderboardQueryService(
         Size = 1,
     };
 
+    // Times a single sub-query so the cache-miss log line can carry a per-phase
+    // latency breakdown (countMs/pageMs/topChampMs/statsMs/ranksMs). The whole
+    // point of #195 is knowing which of the independent SQL round trips
+    // dominates on prod-shaped data, so the breakdown is part of the structured
+    // log, not throwaway debug. TotalMilliseconds (fractional) because a warm
+    // index scan over the page's ~25 rows can finish well under 1ms.
+    private static async Task<(T Result, double ElapsedMs)> TimedAsync<T>(Func<Task<T>> query)
+    {
+        var sw = Stopwatch.StartNew();
+        var result = await query();
+        sw.Stop();
+        return (result, sw.Elapsed.TotalMilliseconds);
+    }
+
     private async Task<int> CountAsync(
         string[] platforms,
         int? championFilter,
@@ -236,6 +252,15 @@ public sealed class TruemainsLeaderboardQueryService(
         // scope until they do. The `championFilter` / `position` parameters
         // degrade to "any champion / any position" via IS NULL so they
         // compose inside the same EXISTS clause without an outer toggle.
+        //
+        // The ranked-games floor reads main_champion_stats."TotalMatches"
+        // rather than a correlated COUNT(*) over match_participants: that
+        // subquery ran once per candidate account and dominated the whole
+        // query, yet filtered nothing — main analysis only sets IsMain when
+        // TotalMatches >= MinMatchesToEvaluate (20), so every row the EXISTS
+        // already admits clears the same bar. TotalMatches saturates at
+        // MainAnalysis.MatchesToConsider (50), so minGames must stay <= 50 to
+        // remain meaningful.
         FormattableString sql = $"""
             SELECT COUNT(*)::int AS "Value"
             FROM riot_accounts a
@@ -246,6 +271,7 @@ public sealed class TruemainsLeaderboardQueryService(
                   WHERE m."PlatformId" = a."PlatformId"
                     AND m."Puuid" = a."Puuid"
                     AND m."IsMain" = true
+                    AND m."TotalMatches" >= {minGames}
                     AND ({championFilter}::int IS NULL OR m."ChampionId" = {championFilter})
                     AND ({position}::text IS NULL OR EXISTS (
                         SELECT 1
@@ -254,14 +280,6 @@ public sealed class TruemainsLeaderboardQueryService(
                           AND (pos->>'Rate')::float8 >= {MinPositionShare}
                     ))
               )
-              AND ({minGames} = 0 OR (
-                  SELECT COUNT(*)::int
-                  FROM match_participants p
-                  INNER JOIN matches m ON m."Id" = p."MatchId"
-                  WHERE p."Puuid" = a."Puuid"
-                    AND m."QueueId" = {RankedQueueId}
-                    AND m."GameMode" <> 'CHERRY'
-              ) >= {minGames})
             """;
 
         // SqlQuery wraps this as a subquery; the COUNT always yields exactly one
@@ -303,6 +321,7 @@ public sealed class TruemainsLeaderboardQueryService(
                   WHERE m."PlatformId" = a."PlatformId"
                     AND m."Puuid" = a."Puuid"
                     AND m."IsMain" = true
+                    AND m."TotalMatches" >= {minGames}
                     AND ({championFilter}::int IS NULL OR m."ChampionId" = {championFilter})
                     AND ({position}::text IS NULL OR EXISTS (
                         SELECT 1
@@ -311,14 +330,6 @@ public sealed class TruemainsLeaderboardQueryService(
                           AND (pos->>'Rate')::float8 >= {MinPositionShare}
                     ))
               )
-              AND ({minGames} = 0 OR (
-                  SELECT COUNT(*)::int
-                  FROM match_participants p
-                  INNER JOIN matches m ON m."Id" = p."MatchId"
-                  WHERE p."Puuid" = a."Puuid"
-                    AND m."QueueId" = {RankedQueueId}
-                    AND m."GameMode" <> 'CHERRY'
-              ) >= {minGames})
             ORDER BY a."Score" DESC, a."Id"
             LIMIT {pageSize} OFFSET {offset}
             """;

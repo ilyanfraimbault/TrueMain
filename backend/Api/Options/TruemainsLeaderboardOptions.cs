@@ -10,11 +10,14 @@ public sealed class TruemainsLeaderboardOptions
     public const string SectionName = "TruemainsLeaderboard";
 
     /// <summary>
-    /// Minimum number of ranked solo games (QueueId=420) an account must
-    /// have on file to appear on the leaderboard. Filters out one-off
-    /// accounts and noise from rank snapshots that don't reflect real
-    /// activity. Set to 0 to disable the filter (used in integration tests
-    /// that don't seed match_participants).
+    /// Minimum number of ranked solo games (QueueId=420) an account must have
+    /// in its main-analysis window to appear on the leaderboard. Filters out
+    /// one-off accounts and rank-snapshot noise that doesn't reflect real
+    /// activity. Compared against <c>main_champion_stats.TotalMatches</c>,
+    /// which is capped at <c>MainAnalysis.MatchesToConsider</c> (50) — so keep
+    /// this at or below that cap. Because main analysis only sets
+    /// <c>IsMain = true</c> when <c>TotalMatches &gt;= MainAnalysis.MinMatchesToEvaluate</c>,
+    /// any value at or below that threshold is a no-op. Set to 0 to disable.
     /// </summary>
     public int MinRankedGames { get; set; } = 20;
 }
