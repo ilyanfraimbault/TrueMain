@@ -56,5 +56,12 @@ public sealed class MainChampionStatConfiguration : IEntityTypeConfiguration<Mai
 
         entity.HasIndex(e => new { e.PlatformId, e.Puuid });
 
+        // Covering index for MainChampionStatRepository.GetMainAccountsAsync,
+        // which filters on (IsMain, PlatformId) and projects only Puuid.
+        // Including Puuid lets Postgres serve the main-account roster as an
+        // index-only scan instead of probing the heap per row.
+        entity.HasIndex(e => new { e.PlatformId, e.IsMain })
+            .IncludeProperties(e => e.Puuid);
+
     }
 }
