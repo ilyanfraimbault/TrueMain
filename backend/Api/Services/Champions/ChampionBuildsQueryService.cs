@@ -24,7 +24,7 @@ public sealed class ChampionBuildsQueryService(
         CancellationToken ct)
     {
         var scopes = await ChampionScopeLoader.LoadAsync(
-            db, options.Value.QueueId, championId, patch, position, ct);
+            db, (int)options.Value.QueueId, championId, patch, position, ct);
         if (scopes is null)
         {
             return null;

@@ -42,7 +42,7 @@ public sealed class MatchDataRetentionProcess(
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
         var retainedPatchCount = Math.Max(1, retentionOptions.Value.RetainedPatchCount);
-        var queueId = mainAnalysisOptions.Value.QueueId;
+        var queueId = (int)mainAnalysisOptions.Value.QueueId;
         var observedMatches = await LoadObservedPatchesAsync(db, queueId, ct);
         var retainedPatchesByPlatform = ComputeRetainedPatchesByPlatform(observedMatches, retainedPatchCount);
         var deletableMatchIds = retainedPatchesByPlatform.Count == 0

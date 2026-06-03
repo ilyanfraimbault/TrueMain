@@ -12,8 +12,8 @@ public sealed class MatchBuilder
 {
     private string _id = "MATCH_" + Guid.NewGuid().ToString("N")[..8];
     private string _platformId = "KR";
-    private int _queueId = LolQueueIds.RankedSoloDuo;
-    private int _mapId = LolMapIds.SummonersRift;
+    private int _queueId = (int)LolQueueId.RankedSoloDuo;
+    private int _mapId = (int)LolMapId.SummonersRift;
     private string _gameMode = "CLASSIC";
     private string _gameType = "MATCHED_GAME";
     private DateTime _gameStartTimeUtc = DateTime.UtcNow.AddHours(-1);

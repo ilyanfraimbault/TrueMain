@@ -165,7 +165,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
         var dbContextFactory = new TestDbContextFactory(_fixture);
         return new ChampionPatternAggregationProcess(
             NullLogger<ChampionPatternAggregationProcess>.Instance,
-            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueIds.RankedSoloDuo }),
+            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
             new ChampionPatternSourceRowReader(dbContextFactory),
             new ChampionPatternAggregateBuilder(new FakeItemMetadataProvider()),
             new ChampionPatternAggregatePersister(
@@ -212,8 +212,8 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
             {
                 Id = "KR_AGG_1",
                 PlatformId = "KR",
-                QueueId = LolQueueIds.RankedSoloDuo,
-                MapId = LolMapIds.SummonersRift,
+                QueueId = (int)LolQueueId.RankedSoloDuo,
+                MapId = (int)LolMapId.SummonersRift,
                 GameMode = "CLASSIC",
                 GameType = "MATCHED_GAME",
                 GameStartTimeUtc = now.AddHours(-2),
@@ -226,8 +226,8 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
             {
                 Id = "KR_AGG_2",
                 PlatformId = "KR",
-                QueueId = LolQueueIds.RankedSoloDuo,
-                MapId = LolMapIds.SummonersRift,
+                QueueId = (int)LolQueueId.RankedSoloDuo,
+                MapId = (int)LolMapId.SummonersRift,
                 GameMode = "CLASSIC",
                 GameType = "MATCHED_GAME",
                 GameStartTimeUtc = now.AddHours(-1),
@@ -243,8 +243,8 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
             {
                 Id = "KR_AGG_3",
                 PlatformId = "KR",
-                QueueId = LolQueueIds.RankedSoloDuo,
-                MapId = LolMapIds.SummonersRift,
+                QueueId = (int)LolQueueId.RankedSoloDuo,
+                MapId = (int)LolMapId.SummonersRift,
                 GameMode = "CLASSIC",
                 GameType = "MATCHED_GAME",
                 GameStartTimeUtc = now.AddMinutes(-30),
