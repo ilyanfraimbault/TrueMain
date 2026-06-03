@@ -62,6 +62,26 @@
   --color-stat-true: #f5f5f5;            /* true damage */
   --color-stat-adaptive: #48c4b7;        /* adaptive damage (verified) */
 
+  /*
+   * Champion performance-tier scale (S → D) for the champions-list tier
+   * column. This is the one sanctioned exception to the emerald-only surface
+   * rule: a tier badge has to read as a ranked scale at a glance, so it runs
+   * warm-good → cool-bad. Emerald still anchors the top (S) so the cue stays
+   * on-brand. Tailwind v4 auto-generates `text-tier-*` / `bg-tier-*` /
+   * `ring-tier-*` utilities from these vars; TierBadge.vue maps a letter to
+   * the matching trio.
+   *   S — emerald   (best)
+   *   A — lime
+   *   B — amber
+   *   C — orange
+   *   D — rose      (worst)
+   */
+  --color-tier-s: #34d399;               /* emerald-400 */
+  --color-tier-a: #a3e635;               /* lime-400 */
+  --color-tier-b: #fbbf24;               /* amber-400 */
+  --color-tier-c: #fb923c;               /* orange-400 */
+  --color-tier-d: #fb7185;               /* rose-400 */
+
   /* Misc / structural */
   --color-stat-status: #9366a9;          /* status / CC keywords (Slowing, Immobilizing, Airborne, Stun) — muted violet */
   --color-stat-stealth: #b472a6;         /* stealth keywords (Invisible, Camouflage, Stealth) — pink-violet */

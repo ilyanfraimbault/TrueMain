@@ -35,6 +35,16 @@ public sealed record ChampionSummaryReadModel
 
     public int TrueMainCount { get; init; }
 
+    /// <summary>
+    /// OPGG-style performance tier (<c>S</c> / <c>A</c> / <c>B</c> / <c>C</c> /
+    /// <c>D</c>) for this <c>(champion, position)</c> on the active patch.
+    /// Computed by <see cref="Services.Champions.ChampionTierCalculator"/> from
+    /// a winRate + pickRate blend, then bucketed by patch-wide percentile — so
+    /// it is always relative to the current patch's field, not an absolute
+    /// winrate cutoff. Defaults to <see cref="string.Empty"/> until assigned.
+    /// </summary>
+    public string Tier { get; init; } = string.Empty;
+
     public string Position { get; init; } = string.Empty;
 
     public string PatchVersion { get; init; } = string.Empty;

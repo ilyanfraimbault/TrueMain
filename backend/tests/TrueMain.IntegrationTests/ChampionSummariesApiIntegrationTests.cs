@@ -114,6 +114,20 @@ public sealed class ChampionSummariesApiIntegrationTests
             "MAX(AggregatedAtUtc) over the single seeded scope for champion 100/TOP");
 
         slice.PatchVersion.Should().Be("16.5", "the slice belongs to the active patch the seed wrote");
+
+        // Tier is computed server-side and bucketed by patch-wide percentile,
+        // so every row of a populated patch carries one of the five letters.
+        // Assert the whole payload (not just this slice) so a serialization or
+        // wiring regression that drops the field surfaces here.
+        var validTiers = new[] { "S", "A", "B", "C", "D" };
+        summaries!.Should().OnlyContain(item => validTiers.Contains(item.Tier),
+            "ChampionTierCalculator stamps every row with an S/A/B/C/D tier");
+
+        // The seed's Games (and thus winRate / pickRate) climb with i, so the
+        // strongest rows must reach the top tier and the weakest the bottom —
+        // proof the percentile bucketing actually spread the field.
+        summaries.Select(item => item.Tier).Should().Contain("S")
+            .And.Contain("D", "a 60-row patch spans the full pyramid");
     }
 
     private ApiWebApplicationFactory CreateFactory() => new(_fixture);

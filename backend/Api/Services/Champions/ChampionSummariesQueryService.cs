@@ -177,7 +177,7 @@ public sealed class ChampionSummariesQueryService(
             .GroupBy(group => group.ChampionId)
             .ToDictionary(champion => champion.Key, champion => champion.Sum(group => group.Games));
 
-        return groups
+        var summaries = groups
             .Select(group =>
             {
                 var championTotal = championTotals.GetValueOrDefault(group.ChampionId);
@@ -203,6 +203,26 @@ public sealed class ChampionSummariesQueryService(
             .ThenBy(summary => summary.ChampionId)
             .ThenBy(summary => summary.Position, StringComparer.Ordinal)
             .ToList();
+
+        // Tier is a patch-relative ranking, so it can only be assigned once the
+        // whole patch's rows exist. Compute it in a single pass over the ordered
+        // list and stamp each row in place — the list order itself is unchanged.
+        return AssignTiers(summaries);
+    }
+
+    private static IReadOnlyList<ChampionSummaryReadModel> AssignTiers(List<ChampionSummaryReadModel> summaries)
+    {
+        var inputs = summaries
+            .Select(summary => new ChampionTierCalculator.TierInput(summary.WinRate, summary.PickRate))
+            .ToList();
+        var tiers = ChampionTierCalculator.Assign(inputs);
+
+        for (var i = 0; i < summaries.Count; i++)
+        {
+            summaries[i] = summaries[i] with { Tier = tiers[i] };
+        }
+
+        return summaries;
     }
 
     private sealed record ChampionSummaryGroup(

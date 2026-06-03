@@ -463,10 +463,18 @@ function staticItem(id: number | undefined) {
                 </template>
               </div>
 
+              <!-- Tier: colour-coded S→D badge, sits in column order between the
+                   lane and the win-rate. Computed server-side and bucketed by
+                   patch-wide percentile (see ChampionTierCalculator). -->
+              <div class="ml-auto flex min-w-[3rem] shrink-0 flex-col items-center">
+                <TierBadge :tier="row.tier" />
+                <span class="mt-0.5 text-xs text-muted">Tier</span>
+              </div>
+
               <!-- Rates: bold whole-percent on top, small muted label below.
                    Numbers stay default-coloured — colour-coding tested too
                    noisy against the rest of the row. -->
-              <div class="ml-auto flex shrink-0 items-center gap-5 tabular-nums">
+              <div class="flex shrink-0 items-center gap-5 tabular-nums">
                 <div class="flex min-w-[3rem] flex-col items-center">
                   <span class="text-lg font-bold leading-none">{{ pct(row.winRate) }}</span>
                   <span class="mt-0.5 text-xs text-muted">WR</span>
