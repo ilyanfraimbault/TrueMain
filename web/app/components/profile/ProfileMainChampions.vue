@@ -32,11 +32,12 @@ function formatPlayRate(rate: number): string {
         :key="main.championId"
         class="flex items-center gap-3 px-3 py-2"
       >
-        <SkeletonImage
-          :src="lookupChampionIcon(main.championId)"
-          :alt="lookupChampionName(main.championId)"
-          :title="lookupChampionName(main.championId)"
-          class="size-9 shrink-0 rounded"
+        <ChampionLink
+          :champion-id="main.championId"
+          :name="lookupChampionName(main.championId)"
+          :icon-url="lookupChampionIcon(main.championId)"
+          :position="main.primaryPosition"
+          class="size-9"
         />
         <div class="flex min-w-0 flex-1 flex-col">
           <div class="flex items-center gap-1.5">
