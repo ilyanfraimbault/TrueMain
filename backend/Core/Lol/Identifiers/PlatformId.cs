@@ -1,3 +1,5 @@
+using System.Collections.Frozen;
+
 namespace Core.Lol.Identifiers;
 
 /// <summary>
@@ -11,8 +13,16 @@ namespace Core.Lol.Identifiers;
 /// </summary>
 public readonly record struct PlatformId
 {
-    private PlatformRoute RouteOrDefault { get; }
-    private bool Initialized { get; }
+    // Per-route display strings, precomputed once so Value / ToString never
+    // allocate a fresh string via Enum.ToString() on the hot path (~16 routes).
+    private static readonly FrozenDictionary<PlatformRoute, string> RouteNames =
+        Enum.GetValues<PlatformRoute>().ToFrozenDictionary(route => route, route => route.ToString());
+
+    // One backing field instead of (route, initialized): store route + 1 so
+    // default(PlatformId) — backing 0 — reads back as uninitialized while BR1
+    // (enum value 0) stays representable. Saves the bool + its padding on every
+    // struct copy, and keeps record-struct equality keyed on the route.
+    private readonly int _routePlusOne;
 
     public PlatformId(PlatformRoute route)
     {
@@ -21,15 +31,14 @@ public readonly record struct PlatformId
             throw new ArgumentException($"Unknown platform route: {route}.", nameof(route));
         }
 
-        RouteOrDefault = route;
-        Initialized = true;
+        _routePlusOne = (int)route + 1;
     }
 
-    public PlatformRoute Route => Initialized
-        ? RouteOrDefault
+    public PlatformRoute Route => _routePlusOne != 0
+        ? (PlatformRoute)(_routePlusOne - 1)
         : throw new InvalidOperationException("Default PlatformId is not a valid platform.");
 
-    public string Value => Route.ToString();
+    public string Value => RouteNames[Route];
 
     public static PlatformId Parse(string value)
     {
