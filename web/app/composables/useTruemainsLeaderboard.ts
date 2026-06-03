@@ -13,6 +13,18 @@ interface UseTruemainsLeaderboardOptions {
  * plus the total count so the caller can drive a <c>UPagination</c> control.
  * Refetches whenever the page or any filter ref changes.
  *
+ * The initial render is server-side: this uses `useAsyncData` with
+ * `server: true`, so the first page of rows is baked into the SSR'd HTML and
+ * reused verbatim on hydration (Nuxt serializes the resolved payload, so the
+ * server markup and the client's first render are identical — no `<!-- -->`
+ * vs `<div>` mismatch). Subsequent filter / page changes only fire the watcher
+ * after hydration, so those refetches run client-side as required.
+ *
+ * Unlike pages/champions/index.vue (which deliberately stays `server: false`),
+ * the leaderboard is a single keyed source with server-side pagination, so
+ * there is no second async source whose resolve timing could diverge between
+ * the server and the client and bake a different `v-if` branch into each.
+ *
  * No `notFound` flag — the endpoint is global and always returns an envelope
  * (empty rows array when the filter matches no accounts).
  */
@@ -37,46 +49,55 @@ export function useTruemainsLeaderboard(
     return typeof value === 'number' && value > 0 ? value : null
   })
 
-  const rows = ref<LeaderboardRowResponse[]>([])
-  const total = ref(0)
-  const pageSize = ref(options.pageSize ?? 25)
-  const isLoading = ref(false)
-  const isInitialLoading = ref(true)
-  const error = ref<unknown>(null)
-
-  async function fetchPage() {
-    isLoading.value = true
-    error.value = null
-    try {
-      const query: Record<string, string | number> = {
-        page: pageRef.value,
-      }
-      if (options.pageSize != null) query.pageSize = options.pageSize
-      if (regionRef.value) query.region = regionRef.value
-      if (positionRef.value) query.position = positionRef.value
-      if (championIdRef.value) query.championId = championIdRef.value
-
-      const response = await $fetch<LeaderboardResponse>('/api/truemains', { query })
-
-      rows.value = response.rows ?? []
-      total.value = response.total ?? 0
-      pageSize.value = response.pageSize ?? pageSize.value
+  function buildQuery() {
+    const query: Record<string, string | number> = {
+      page: pageRef.value,
     }
-    catch (err) {
-      error.value = err
-      rows.value = []
-      total.value = 0
-    }
-    finally {
-      isLoading.value = false
-      isInitialLoading.value = false
-    }
+    if (options.pageSize != null) query.pageSize = options.pageSize
+    if (regionRef.value) query.region = regionRef.value
+    if (positionRef.value) query.position = positionRef.value
+    if (championIdRef.value) query.championId = championIdRef.value
+    return query
   }
 
-  watch(
-    [pageRef, regionRef, positionRef, championIdRef],
-    () => { void fetchPage() },
-    { immediate: true },
+  const fallbackPageSize = options.pageSize ?? 25
+
+  // `useAsyncData` (not `useFetch`) so the cache key is the page + filter
+  // signature rather than the request URL — keeps the key stable and explicit,
+  // and the watcher list below drives the refetch. The key is shared across
+  // the SSR payload and the client so hydration reuses the server's rows.
+  const { data, status, error, refresh } = useAsyncData<LeaderboardResponse>(
+    () => {
+      const region = regionRef.value ?? 'all'
+      const position = positionRef.value ?? 'all'
+      const championId = championIdRef.value ?? 'all'
+      return `truemains-leaderboard-${pageRef.value}-${region}-${position}-${championId}`
+    },
+    () => $fetch<LeaderboardResponse>('/api/truemains', { query: buildQuery() }),
+    {
+      server: true,
+      watch: [pageRef, regionRef, positionRef, championIdRef],
+      // Deterministic placeholder so `rows` is always an array (never
+      // `undefined`) on both the server and the client's first render.
+      default: (): LeaderboardResponse => ({
+        rows: [],
+        page: pageRef.value,
+        pageSize: fallbackPageSize,
+        total: 0,
+      }),
+    },
+  )
+
+  const rows = computed<LeaderboardRowResponse[]>(() => data.value?.rows ?? [])
+  const total = computed(() => data.value?.total ?? 0)
+  const pageSize = computed(() => data.value?.pageSize ?? fallbackPageSize)
+
+  const isLoading = computed(() => status.value === 'pending')
+  // True only until the first response settles. After SSR the payload is
+  // already `success`, so the client hydrates with this `false` — the skeleton
+  // branch is skipped identically on the server and the client.
+  const isInitialLoading = computed(
+    () => status.value === 'idle' || (status.value === 'pending' && (data.value?.rows.length ?? 0) === 0),
   )
 
   return {
@@ -86,6 +107,6 @@ export function useTruemainsLeaderboard(
     isLoading,
     isInitialLoading,
     error,
-    refresh: fetchPage,
+    refresh,
   }
 }
