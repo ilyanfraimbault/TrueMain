@@ -10,6 +10,7 @@ namespace TrueMain.Services.Truemains;
 
 public sealed class TruemainsLeaderboardQueryService(
     TrueMainDbContext db,
+    IDbContextFactory<TrueMainDbContext> dbFactory,
     IOptions<TruemainsLeaderboardOptions> options,
     IMemoryCache cache,
     ILogger<TruemainsLeaderboardQueryService> logger) : ITruemainsLeaderboardQueryService
@@ -137,11 +138,27 @@ public sealed class TruemainsLeaderboardQueryService(
         // keyed by puuid, plus the latest rank cells (tier/div/LP) keyed by
         // account id. The heavy ordering + pagination already happened on
         // riot_accounts."Score", so these only touch the ~25 rows on the page.
+        //
+        // The three queries share only the page's id/puuid arrays and have no
+        // inter-dependency, so they run concurrently. A single DbContext is not
+        // thread-safe, so each Fetch creates its own short-lived context from
+        // the factory (mirrors ProfileQueryService). Each task still times its
+        // own body via TimedAsync so the cache-miss log keeps the per-phase
+        // breakdown; under concurrency those spans overlap, so they sum to more
+        // than the wall-clock hydration time — that's expected and the point
+        // (it shows which round trip dominates, not how long the phase took).
         var puuids = pageRows.Select(r => r.Puuid).ToArray();
         var accountIds = pageRows.Select(r => r.Id).ToArray();
-        var (topChampionsByPuuid, topChampMs) = await TimedAsync(() => FetchTopChampionsAsync(puuids, ct));
-        var (statsByPuuid, statsMs) = await TimedAsync(() => FetchStatsAsync(puuids, ct));
-        var (ranksByAccount, ranksMs) = await TimedAsync(() => FetchLatestRanksAsync(accountIds, ct));
+
+        var topChampionsTask = TimedAsync(() => FetchTopChampionsAsync(puuids, ct));
+        var statsTask = TimedAsync(() => FetchStatsAsync(puuids, ct));
+        var ranksTask = TimedAsync(() => FetchLatestRanksAsync(accountIds, ct));
+
+        await Task.WhenAll(topChampionsTask, statsTask, ranksTask);
+
+        var (topChampionsByPuuid, topChampMs) = await topChampionsTask;
+        var (statsByPuuid, statsMs) = await statsTask;
+        var (ranksByAccount, ranksMs) = await ranksTask;
 
         var rank = offset + 1;
         var rows = new List<LeaderboardRowReadModel>(pageRows.Count);
@@ -357,6 +374,10 @@ public sealed class TruemainsLeaderboardQueryService(
             return new Dictionary<Guid, RankRow>();
         }
 
+        // Own short-lived context: this runs concurrently with FetchTopChampions
+        // and FetchStats, and a single DbContext is not thread-safe.
+        await using var ctx = await dbFactory.CreateDbContextAsync(ct);
+
         // Latest rank per page account for the display cells (tier/div/LP).
         // Only the page's ~25 accounts — the heavy ordering + pagination already
         // happened on riot_accounts."Score" — so this DISTINCT ON is cheap.
@@ -371,7 +392,7 @@ public sealed class TruemainsLeaderboardQueryService(
             ORDER BY rs."RiotAccountId", rs."CapturedAtUtc" DESC
             """;
 
-        var rows = await db.Database.SqlQuery<RankRow>(sql).ToListAsync(ct);
+        var rows = await ctx.Database.SqlQuery<RankRow>(sql).ToListAsync(ct);
         return rows.ToDictionary(r => r.AccountId);
     }
 
@@ -383,6 +404,10 @@ public sealed class TruemainsLeaderboardQueryService(
         {
             return new Dictionary<string, List<LeaderboardTopChampionReadModel>>();
         }
+
+        // Own short-lived context: this runs concurrently with FetchStats and
+        // FetchLatestRanks, and a single DbContext is not thread-safe.
+        await using var ctx = await dbFactory.CreateDbContextAsync(ct);
 
         var take = TopChampionsPerRow;
         // ROW_NUMBER per puuid keeps the top-3 cap inside the database so we
@@ -409,7 +434,7 @@ public sealed class TruemainsLeaderboardQueryService(
             ORDER BY "Puuid", rn
             """;
 
-        var rows = await db.Database.SqlQuery<TopChampionRow>(sql).ToListAsync(ct);
+        var rows = await ctx.Database.SqlQuery<TopChampionRow>(sql).ToListAsync(ct);
 
         return rows
             .GroupBy(r => r.Puuid)
@@ -430,6 +455,10 @@ public sealed class TruemainsLeaderboardQueryService(
         {
             return new Dictionary<string, StatsRow>();
         }
+
+        // Own short-lived context: this runs concurrently with FetchTopChampions
+        // and FetchLatestRanks, and a single DbContext is not thread-safe.
+        await using var ctx = await dbFactory.CreateDbContextAsync(ct);
 
         var queue = RankedQueueId;
         // Lifetime ranked-solo stats per puuid. Joining to matches lets us
@@ -453,7 +482,7 @@ public sealed class TruemainsLeaderboardQueryService(
             GROUP BY p."Puuid"
             """;
 
-        var rows = await db.Database.SqlQuery<StatsAggregateRow>(sql).ToListAsync(ct);
+        var rows = await ctx.Database.SqlQuery<StatsAggregateRow>(sql).ToListAsync(ct);
 
         return rows.ToDictionary(
             r => r.Puuid,
