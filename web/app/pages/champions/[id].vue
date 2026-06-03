@@ -24,6 +24,13 @@ const activePatch = computed(() => champion.value?.patch || filters.value.patch 
 const { data: staticData, status: staticStatus } = useChampionStatic(championId, activePatch)
 const { data: versions } = useDDragonVersions()
 
+// Winrate/pickrate trend across recent patches (issue #89). Follows the
+// resolved lane so it tracks whatever slice the page is showing; the
+// composable forwards only the position, not the pinned patch, so the series
+// spans history instead of collapsing to one point.
+const trendPosition = computed(() => champion.value?.position || filters.value.position || null)
+const { data: championTrend, status: trendStatus } = useChampionTrend(championId, trendPosition)
+
 // Share keys with /champions so the patch-keyed maps stay deduped across the
 // list→detail→list round-trip. The list page issues these same fetches with
 // the same keys; without that alignment Nuxt would re-resolve them on mount.
@@ -192,6 +199,11 @@ const isRefetching = computed(() =>
         :items-map="itemsMap ?? {}"
         :summoners-map="summonersMap ?? {}"
         :rune-tree="runeTree ?? null"
+      />
+
+      <ChampionTrendChart
+        :points="championTrend?.points ?? []"
+        :loading="isLoadingStatus(trendStatus)"
       />
     </template>
   </main>
