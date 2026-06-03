@@ -54,7 +54,7 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddOptions<MainAnalysisOptions>()
     .Bind(builder.Configuration.GetSection("MainAnalysis"))
-    .Validate(options => options.QueueId > 0, "MainAnalysis:QueueId must be greater than 0.")
+    .Validate(options => Enum.IsDefined(options.QueueId), "MainAnalysis:QueueId must be a defined LolQueueId.")
     .ValidateOnStart();
 builder.Services.AddOptions<OpsOptions>()
     .Bind(builder.Configuration.GetSection("Ops"))
