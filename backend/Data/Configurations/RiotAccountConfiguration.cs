@@ -74,8 +74,13 @@ public sealed class RiotAccountConfiguration : IEntityTypeConfiguration<RiotAcco
         entity.HasIndex(e => new { e.GameName, e.TagLine, e.PlatformId })
             .IsUnique();
 
+        // Partial index: the match-ingest claim/lease scan only looks at
+        // non-Idle rows, but ~99% of accounts sit at Idle. Filtering Idle out
+        // keeps the index small and hot for the claim query. The filter is raw
+        // SQL, so MatchIngestStatus.Idle is spelled as its backing value (0).
         entity.HasIndex(e => new { e.MatchIngestStatus, e.MatchIngestClaimedAtUtc, e.LastMatchIngestAtUtc })
-            .HasDatabaseName("IX_riot_accounts_ingest_claim_lease");
+            .HasDatabaseName("IX_riot_accounts_ingest_claim_lease")
+            .HasFilter("\"MatchIngestStatus\" <> 0");
 
         // Serves the leaderboard's ORDER BY Score DESC NULLS LAST pagination.
         entity.HasIndex(e => e.Score)

@@ -202,6 +202,7 @@ namespace Data.CompiledModels
 
             var index3 = runtimeEntityType.AddIndex(
                 new[] { matchIngestStatus, matchIngestClaimedAtUtc, lastMatchIngestAtUtc });
+            index3.AddAnnotation("Relational:Filter", "\"MatchIngestStatus\" <> 0");
             index3.AddAnnotation("Relational:Name", "IX_riot_accounts_ingest_claim_lease");
 
             return runtimeEntityType;
