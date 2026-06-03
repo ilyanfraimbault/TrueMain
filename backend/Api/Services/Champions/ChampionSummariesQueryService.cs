@@ -100,7 +100,7 @@ public sealed class ChampionSummariesQueryService(
         var sw = Stopwatch.StartNew();
         var distinctPatches = await db.ChampionAggregateScopes
             .AsNoTracking()
-            .Where(scope => scope.QueueId == options.Value.QueueId)
+            .Where(scope => scope.QueueId == (int)options.Value.QueueId)
             .Select(scope => scope.GameVersion)
             .Distinct()
             .ToListAsync(ct);
@@ -131,7 +131,7 @@ public sealed class ChampionSummariesQueryService(
         var groupsSw = Stopwatch.StartNew();
         var groups = await db.ChampionAggregateScopes
             .AsNoTracking()
-            .Where(scope => scope.QueueId == options.Value.QueueId)
+            .Where(scope => scope.QueueId == (int)options.Value.QueueId)
             .Where(scope => scope.GameVersion == activePatch)
             .Where(scope => scope.Position.Trim() != string.Empty)
             .GroupBy(scope => new { scope.ChampionId, scope.Position })
@@ -226,7 +226,7 @@ public sealed class ChampionSummariesQueryService(
         string activePatch,
         CancellationToken ct)
     {
-        var queueId = options.Value.QueueId;
+        var queueId = (int)options.Value.QueueId;
 
         var groupedSw = Stopwatch.StartNew();
         var grouped = await db.ChampionAggregatePatterns

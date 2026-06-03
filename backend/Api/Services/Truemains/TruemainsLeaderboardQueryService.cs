@@ -10,6 +10,7 @@ namespace TrueMain.Services.Truemains;
 
 public sealed class TruemainsLeaderboardQueryService(
     TrueMainDbContext db,
+    IDbContextFactory<TrueMainDbContext> dbFactory,
     IOptions<TruemainsLeaderboardOptions> options,
     IMemoryCache cache,
     ILogger<TruemainsLeaderboardQueryService> logger) : ITruemainsLeaderboardQueryService
@@ -89,7 +90,8 @@ public sealed class TruemainsLeaderboardQueryService(
             return cached;
         }
 
-        var total = await CountAsync(platforms, championFilter, normalizedPosition, minGames, ct);
+        var (total, countMs) = await TimedAsync(() =>
+            CountAsync(platforms, championFilter, normalizedPosition, minGames, ct));
         if (total == 0)
         {
             var empty = Empty(clampedPage, clampedPageSize);
@@ -97,11 +99,19 @@ public sealed class TruemainsLeaderboardQueryService(
             // pays for the Count SQL on every visit, and those are the same
             // requests an attacker / overzealous client would replay.
             cache.Set(cacheKey, empty, CacheEntry(ResponseCacheTtl));
+            // An empty result is exactly when countMs is worth seeing: an
+            // over-restrictive filter or a misconfigured MinRankedGames is
+            // diagnosed here, not on the populated path.
+            totalSw.Stop();
+            logger.LogInformation(
+                "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} rows=0 total=0 countMs={CountMs:F1} elapsed={ElapsedMs}ms result=empty",
+                clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames,
+                countMs, totalSw.ElapsedMilliseconds);
             return empty;
         }
 
-        var pageRows = await FetchPageAsync(
-            platforms, championFilter, normalizedPosition, minGames, offset, clampedPageSize, ct);
+        var (pageRows, pageMs) = await TimedAsync(() => FetchPageAsync(
+            platforms, championFilter, normalizedPosition, minGames, offset, clampedPageSize, ct));
         if (pageRows.Count == 0)
         {
             // The caller asked for a page past the end. Return an empty slice
@@ -115,6 +125,11 @@ public sealed class TruemainsLeaderboardQueryService(
                 Total = total,
             };
             cache.Set(cacheKey, pastEnd, CacheEntry(ResponseCacheTtl));
+            totalSw.Stop();
+            logger.LogInformation(
+                "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} rows=0 total={Total} countMs={CountMs:F1} pageMs={PageMs:F1} elapsed={ElapsedMs}ms result=past_end",
+                clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames,
+                total, countMs, pageMs, totalSw.ElapsedMilliseconds);
             return pastEnd;
         }
 
@@ -123,10 +138,27 @@ public sealed class TruemainsLeaderboardQueryService(
         // keyed by puuid, plus the latest rank cells (tier/div/LP) keyed by
         // account id. The heavy ordering + pagination already happened on
         // riot_accounts."Score", so these only touch the ~25 rows on the page.
+        //
+        // The three queries share only the page's id/puuid arrays and have no
+        // inter-dependency, so they run concurrently. A single DbContext is not
+        // thread-safe, so each Fetch creates its own short-lived context from
+        // the factory (mirrors ProfileQueryService). Each task still times its
+        // own body via TimedAsync so the cache-miss log keeps the per-phase
+        // breakdown; under concurrency those spans overlap, so they sum to more
+        // than the wall-clock hydration time — that's expected and the point
+        // (it shows which round trip dominates, not how long the phase took).
         var puuids = pageRows.Select(r => r.Puuid).ToArray();
-        var topChampionsByPuuid = await FetchTopChampionsAsync(puuids, ct);
-        var statsByPuuid = await FetchStatsAsync(puuids, ct);
-        var ranksByAccount = await FetchLatestRanksAsync(pageRows.Select(r => r.Id).ToArray(), ct);
+        var accountIds = pageRows.Select(r => r.Id).ToArray();
+
+        var topChampionsTask = TimedAsync(() => FetchTopChampionsAsync(puuids, ct));
+        var statsTask = TimedAsync(() => FetchStatsAsync(puuids, ct));
+        var ranksTask = TimedAsync(() => FetchLatestRanksAsync(accountIds, ct));
+
+        await Task.WhenAll(topChampionsTask, statsTask, ranksTask);
+
+        var (topChampionsByPuuid, topChampMs) = await topChampionsTask;
+        var (statsByPuuid, statsMs) = await statsTask;
+        var (ranksByAccount, ranksMs) = await ranksTask;
 
         var rank = offset + 1;
         var rows = new List<LeaderboardRowReadModel>(pageRows.Count);
@@ -186,9 +218,9 @@ public sealed class TruemainsLeaderboardQueryService(
 
         totalSw.Stop();
         logger.LogInformation(
-            "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} rows={Rows} total={Total} elapsed={ElapsedMs}ms result=miss",
+            "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} rows={Rows} total={Total} countMs={CountMs:F1} pageMs={PageMs:F1} topChampMs={TopChampMs:F1} statsMs={StatsMs:F1} ranksMs={RanksMs:F1} elapsed={ElapsedMs}ms result=miss",
             clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames,
-            rows.Count, total, totalSw.ElapsedMilliseconds);
+            rows.Count, total, countMs, pageMs, topChampMs, statsMs, ranksMs, totalSw.ElapsedMilliseconds);
 
         return response;
     }
@@ -223,6 +255,20 @@ public sealed class TruemainsLeaderboardQueryService(
         Size = 1,
     };
 
+    // Times a single sub-query so the cache-miss log line can carry a per-phase
+    // latency breakdown (countMs/pageMs/topChampMs/statsMs/ranksMs). The whole
+    // point of #195 is knowing which of the independent SQL round trips
+    // dominates on prod-shaped data, so the breakdown is part of the structured
+    // log, not throwaway debug. TotalMilliseconds (fractional) because a warm
+    // index scan over the page's ~25 rows can finish well under 1ms.
+    private static async Task<(T Result, double ElapsedMs)> TimedAsync<T>(Func<Task<T>> query)
+    {
+        var sw = Stopwatch.StartNew();
+        var result = await query();
+        sw.Stop();
+        return (result, sw.Elapsed.TotalMilliseconds);
+    }
+
     private async Task<int> CountAsync(
         string[] platforms,
         int? championFilter,
@@ -236,6 +282,15 @@ public sealed class TruemainsLeaderboardQueryService(
         // scope until they do. The `championFilter` / `position` parameters
         // degrade to "any champion / any position" via IS NULL so they
         // compose inside the same EXISTS clause without an outer toggle.
+        //
+        // The ranked-games floor reads main_champion_stats."TotalMatches"
+        // rather than a correlated COUNT(*) over match_participants: that
+        // subquery ran once per candidate account and dominated the whole
+        // query, yet filtered nothing — main analysis only sets IsMain when
+        // TotalMatches >= MinMatchesToEvaluate (20), so every row the EXISTS
+        // already admits clears the same bar. TotalMatches saturates at
+        // MainAnalysis.MatchesToConsider (50), so minGames must stay <= 50 to
+        // remain meaningful.
         FormattableString sql = $"""
             SELECT COUNT(*)::int AS "Value"
             FROM riot_accounts a
@@ -246,6 +301,7 @@ public sealed class TruemainsLeaderboardQueryService(
                   WHERE m."PlatformId" = a."PlatformId"
                     AND m."Puuid" = a."Puuid"
                     AND m."IsMain" = true
+                    AND m."TotalMatches" >= {minGames}
                     AND ({championFilter}::int IS NULL OR m."ChampionId" = {championFilter})
                     AND ({position}::text IS NULL OR EXISTS (
                         SELECT 1
@@ -254,14 +310,6 @@ public sealed class TruemainsLeaderboardQueryService(
                           AND (pos->>'Rate')::float8 >= {MinPositionShare}
                     ))
               )
-              AND ({minGames} = 0 OR (
-                  SELECT COUNT(*)::int
-                  FROM match_participants p
-                  INNER JOIN matches m ON m."Id" = p."MatchId"
-                  WHERE p."Puuid" = a."Puuid"
-                    AND m."QueueId" = {RankedQueueId}
-                    AND m."GameMode" <> 'CHERRY'
-              ) >= {minGames})
             """;
 
         // SqlQuery wraps this as a subquery; the COUNT always yields exactly one
@@ -303,6 +351,7 @@ public sealed class TruemainsLeaderboardQueryService(
                   WHERE m."PlatformId" = a."PlatformId"
                     AND m."Puuid" = a."Puuid"
                     AND m."IsMain" = true
+                    AND m."TotalMatches" >= {minGames}
                     AND ({championFilter}::int IS NULL OR m."ChampionId" = {championFilter})
                     AND ({position}::text IS NULL OR EXISTS (
                         SELECT 1
@@ -311,14 +360,6 @@ public sealed class TruemainsLeaderboardQueryService(
                           AND (pos->>'Rate')::float8 >= {MinPositionShare}
                     ))
               )
-              AND ({minGames} = 0 OR (
-                  SELECT COUNT(*)::int
-                  FROM match_participants p
-                  INNER JOIN matches m ON m."Id" = p."MatchId"
-                  WHERE p."Puuid" = a."Puuid"
-                    AND m."QueueId" = {RankedQueueId}
-                    AND m."GameMode" <> 'CHERRY'
-              ) >= {minGames})
             ORDER BY a."Score" DESC, a."Id"
             LIMIT {pageSize} OFFSET {offset}
             """;
@@ -332,6 +373,10 @@ public sealed class TruemainsLeaderboardQueryService(
         {
             return new Dictionary<Guid, RankRow>();
         }
+
+        // Own short-lived context: this runs concurrently with FetchTopChampions
+        // and FetchStats, and a single DbContext is not thread-safe.
+        await using var ctx = await dbFactory.CreateDbContextAsync(ct);
 
         // Latest rank per page account for the display cells (tier/div/LP).
         // Only the page's ~25 accounts — the heavy ordering + pagination already
@@ -347,7 +392,7 @@ public sealed class TruemainsLeaderboardQueryService(
             ORDER BY rs."RiotAccountId", rs."CapturedAtUtc" DESC
             """;
 
-        var rows = await db.Database.SqlQuery<RankRow>(sql).ToListAsync(ct);
+        var rows = await ctx.Database.SqlQuery<RankRow>(sql).ToListAsync(ct);
         return rows.ToDictionary(r => r.AccountId);
     }
 
@@ -359,6 +404,10 @@ public sealed class TruemainsLeaderboardQueryService(
         {
             return new Dictionary<string, List<LeaderboardTopChampionReadModel>>();
         }
+
+        // Own short-lived context: this runs concurrently with FetchStats and
+        // FetchLatestRanks, and a single DbContext is not thread-safe.
+        await using var ctx = await dbFactory.CreateDbContextAsync(ct);
 
         var take = TopChampionsPerRow;
         // ROW_NUMBER per puuid keeps the top-3 cap inside the database so we
@@ -385,7 +434,7 @@ public sealed class TruemainsLeaderboardQueryService(
             ORDER BY "Puuid", rn
             """;
 
-        var rows = await db.Database.SqlQuery<TopChampionRow>(sql).ToListAsync(ct);
+        var rows = await ctx.Database.SqlQuery<TopChampionRow>(sql).ToListAsync(ct);
 
         return rows
             .GroupBy(r => r.Puuid)
@@ -406,6 +455,10 @@ public sealed class TruemainsLeaderboardQueryService(
         {
             return new Dictionary<string, StatsRow>();
         }
+
+        // Own short-lived context: this runs concurrently with FetchTopChampions
+        // and FetchLatestRanks, and a single DbContext is not thread-safe.
+        await using var ctx = await dbFactory.CreateDbContextAsync(ct);
 
         var queue = RankedQueueId;
         // Lifetime ranked-solo stats per puuid. Joining to matches lets us
@@ -429,7 +482,7 @@ public sealed class TruemainsLeaderboardQueryService(
             GROUP BY p."Puuid"
             """;
 
-        var rows = await db.Database.SqlQuery<StatsAggregateRow>(sql).ToListAsync(ct);
+        var rows = await ctx.Database.SqlQuery<StatsAggregateRow>(sql).ToListAsync(ct);
 
         return rows.ToDictionary(
             r => r.Puuid,

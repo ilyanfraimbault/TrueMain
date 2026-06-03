@@ -56,4 +56,26 @@ public sealed class PlatformIdTests
 
         parsed.Should().BeFalse();
     }
+
+    [Fact]
+    public void Default_does_not_equal_BR1()
+    {
+        // The +1 backing-field encoding exists so default(PlatformId) stays
+        // structurally distinct from a real BR1 (the zero-value route).
+        var br1 = new PlatformId(PlatformRoute.BR1);
+
+        default(PlatformId).Should().NotBe(br1);
+    }
+
+    [Theory]
+    [InlineData(PlatformRoute.BR1, "BR1")]   // zero-value route — the tricky case
+    [InlineData(PlatformRoute.EUW1, "EUW1")]
+    [InlineData(PlatformRoute.KR, "KR")]
+    public void Value_and_ToString_return_the_canonical_route_name(PlatformRoute route, string expected)
+    {
+        var platformId = new PlatformId(route);
+
+        platformId.Value.Should().Be(expected);
+        platformId.ToString().Should().Be(expected);
+    }
 }

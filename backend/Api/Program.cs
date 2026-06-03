@@ -3,6 +3,7 @@ using Core.Options;
 using Data;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Npgsql;
 using Scalar.AspNetCore;
 using TrueMain.Authentication;
@@ -53,14 +54,40 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddOptions<MainAnalysisOptions>()
     .Bind(builder.Configuration.GetSection("MainAnalysis"))
-    .Validate(options => options.QueueId > 0, "MainAnalysis:QueueId must be greater than 0.")
+    .Validate(options => Enum.IsDefined(options.QueueId), "MainAnalysis:QueueId must be a defined LolQueueId.")
     .ValidateOnStart();
 builder.Services.AddOptions<OpsOptions>()
     .Bind(builder.Configuration.GetSection("Ops"))
     .ValidateDataAnnotations()
     .ValidateOnStart();
 builder.Services.AddOptions<TruemainsLeaderboardOptions>()
-    .Bind(builder.Configuration.GetSection(TruemainsLeaderboardOptions.SectionName));
+    .Bind(builder.Configuration.GetSection(TruemainsLeaderboardOptions.SectionName))
+    // MinRankedGames is compared against main_champion_stats.TotalMatches,
+    // which saturates at MainAnalysis.MatchesToConsider — so the real upper
+    // bound is that option, not a constant. Cross-validate the two instead of
+    // hard-coding 50: above the cap the TotalMatches predicate could never
+    // match and the leaderboard would silently empty out.
+    .Validate<IOptions<MainAnalysisOptions>>(
+        (leaderboard, mainAnalysis) =>
+        {
+            var cap = mainAnalysis.Value.MatchesToConsider;
+            if (leaderboard.MinRankedGames >= 0 && leaderboard.MinRankedGames <= cap)
+            {
+                return true;
+            }
+
+            // Validate's failure message is a static string; throw so the boot
+            // log names the actual values instead of a generic range.
+            throw new OptionsValidationException(
+                TruemainsLeaderboardOptions.SectionName,
+                typeof(TruemainsLeaderboardOptions),
+                [
+                    $"TruemainsLeaderboard:MinRankedGames ({leaderboard.MinRankedGames}) must be "
+                    + $"between 0 and MainAnalysis:MatchesToConsider ({cap})."
+                ]);
+        },
+        "TruemainsLeaderboard:MinRankedGames is out of range.")
+    .ValidateOnStart();
 builder.Services.AddOptions<DatabaseOptions>()
     .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName));
 

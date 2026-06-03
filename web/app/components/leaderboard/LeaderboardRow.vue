@@ -4,9 +4,10 @@ import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { getProfileIconUrl } from '~~/shared/utils/ddragon'
 import { isApexTier } from '~/utils/tiers'
 
-// One row of the leaderboard. The whole row is a NuxtLink to the profile so
-// keyboard / screen-reader navigation lands on a single focusable target
-// rather than scattering tab stops across the cells.
+// One row of the leaderboard. The whole row navigates to the player's profile
+// via a stretched overlay link, while the top-champion icons are their own
+// links to each champion's build page — siblings of the overlay, never nested
+// <a> inside <a>.
 const props = defineProps<{
   row: LeaderboardRowResponse
   championsById: Map<number, ChampionStaticListItem>
@@ -18,6 +19,13 @@ const profileHref = computed(() => {
   return tag
     ? `/truemains/${encodeURIComponent(`${props.row.identity.gameName}-${tag}`)}`
     : `/truemains/${encodeURIComponent(props.row.identity.gameName)}`
+})
+
+// The stretched profile link is an empty overlay (no text), so it needs an
+// explicit accessible name.
+const profileAriaLabel = computed(() => {
+  const { gameName, tagLine } = props.row.identity
+  return tagLine ? `${gameName} #${tagLine}` : gameName
 })
 
 const profileIconUrl = computed(() =>
@@ -44,10 +52,18 @@ function championIcon(id: number): string | null {
 </script>
 
 <template>
-  <NuxtLink
-    :to="profileHref"
-    class="group flex items-center gap-3 rounded-md border border-default/60 bg-elevated/40 px-3 py-2 transition-colors hover:bg-elevated/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+  <div
+    class="group relative flex items-center gap-3 rounded-md border border-default/60 bg-elevated/40 px-3 py-2 transition-colors hover:bg-elevated/80"
   >
+    <!-- Stretched profile link: a sibling overlay (not a wrapper) so the
+         champion icons can be their own links without nesting <a> in <a>.
+         Static content falls through to it; the top-champion links opt out
+         with `relative z-10`. -->
+    <NuxtLink
+      :to="profileHref"
+      :aria-label="profileAriaLabel"
+      class="absolute inset-0 z-[1] rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+    />
     <!-- Rank -->
     <span class="w-10 shrink-0 text-center text-sm font-semibold tabular-nums text-muted">
       #{{ row.rank }}
@@ -89,17 +105,16 @@ function championIcon(id: number): string | null {
          stats block slides left, which keeps the row visually honest. -->
     <div
       v-if="row.topChampions.length > 0"
-      class="hidden shrink-0 items-center gap-1 md:flex"
+      class="relative z-10 hidden shrink-0 items-center gap-1 md:flex"
     >
       <template v-for="champ in row.topChampions" :key="champ.championId">
-        <SkeletonImage
+        <ChampionLink
           v-if="championIcon(champ.championId)"
-          :src="championIcon(champ.championId)!"
-          :alt="championName(champ.championId)"
+          :champion-id="champ.championId"
+          :name="championName(champ.championId)"
+          :icon-url="championIcon(champ.championId)"
           :title="`${championName(champ.championId)} · ${champ.games} games`"
-          class="size-7 rounded"
-          width="28"
-          height="28"
+          class="size-7"
         />
         <div
           v-else
@@ -125,5 +140,5 @@ function championIcon(id: number): string | null {
         <span class="text-[10px] uppercase tracking-wide text-muted">wr</span>
       </div>
     </div>
-  </NuxtLink>
+  </div>
 </template>

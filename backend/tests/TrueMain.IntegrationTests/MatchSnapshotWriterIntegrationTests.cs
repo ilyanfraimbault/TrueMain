@@ -268,8 +268,8 @@ public sealed class MatchSnapshotWriterIntegrationTests
                 },
                 Info = new RiotMatchInfoDto
                 {
-                    QueueId = LolQueueIds.RankedSoloDuo,
-                    MapId = LolMapIds.SummonersRift,
+                    QueueId = (int)LolQueueId.RankedSoloDuo,
+                    MapId = (int)LolMapId.SummonersRift,
                     GameMode = "CLASSIC",
                     GameType = "MATCHED_GAME",
                     GameStartTimestamp = new DateTimeOffset(2026, 3, 10, 20, 15, 0, TimeSpan.Zero).ToUnixTimeMilliseconds(),

@@ -51,7 +51,7 @@ public static class OptionsConfigurationExtensions
             .Validate(options => options.BatchSize > 0, "MainAnalysis:BatchSize must be greater than 0.")
             .Validate(options => options.ProcessingBatchSize > 0, "MainAnalysis:ProcessingBatchSize must be greater than 0.")
             .Validate(options => options.MatchesToConsider > 0, "MainAnalysis:MatchesToConsider must be greater than 0.")
-            .Validate(options => options.QueueId > 0, "MainAnalysis:QueueId must be greater than 0.")
+            .Validate(options => Enum.IsDefined(options.QueueId), "MainAnalysis:QueueId must be a defined LolQueueId.")
             .Validate(options => options.PlayRateThreshold is >= 0 and <= 1, "MainAnalysis:PlayRateThreshold must be in [0, 1].")
             .Validate(options => options.CriticalPlayRateThreshold is >= 0 and <= 1,
                 "MainAnalysis:CriticalPlayRateThreshold must be in [0, 1].")

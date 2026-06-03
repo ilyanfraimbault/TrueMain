@@ -36,9 +36,7 @@ function spellByKey(key: string) {
               :height="36"
               class="size-9 rounded"
             />
-            <span class="absolute bottom-0 left-1/2 inline-flex h-3 min-w-3 -translate-x-1/2 items-center justify-center rounded bg-default/85 px-0.5 text-[8px] font-bold uppercase ring-1 ring-default backdrop-blur-sm">
-              {{ key }}
-            </span>
+            <ItemRankBadge :value="key" />
           </div>
           <UIcon
             v-if="index < skillOrder.sequence.length - 1"
