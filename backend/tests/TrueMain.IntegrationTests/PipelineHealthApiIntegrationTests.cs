@@ -119,8 +119,8 @@ public sealed class PipelineHealthApiIntegrationTests
             {
                 Id = "OPS_1",
                 PlatformId = "KR",
-                QueueId = LolQueueIds.RankedSoloDuo,
-                MapId = LolMapIds.SummonersRift,
+                QueueId = (int)LolQueueId.RankedSoloDuo,
+                MapId = (int)LolMapId.SummonersRift,
                 GameMode = "CLASSIC",
                 GameType = "MATCHED_GAME",
                 GameStartTimeUtc = now.AddHours(-2),
@@ -133,8 +133,8 @@ public sealed class PipelineHealthApiIntegrationTests
             {
                 Id = "OPS_2",
                 PlatformId = "KR",
-                QueueId = LolQueueIds.RankedSoloDuo,
-                MapId = LolMapIds.SummonersRift,
+                QueueId = (int)LolQueueId.RankedSoloDuo,
+                MapId = (int)LolMapId.SummonersRift,
                 GameMode = "CLASSIC",
                 GameType = "MATCHED_GAME",
                 GameStartTimeUtc = now.AddHours(-1),
@@ -147,8 +147,8 @@ public sealed class PipelineHealthApiIntegrationTests
             {
                 Id = "OPS_3",
                 PlatformId = "EUW1",
-                QueueId = LolQueueIds.RankedSoloDuo,
-                MapId = LolMapIds.SummonersRift,
+                QueueId = (int)LolQueueId.RankedSoloDuo,
+                MapId = (int)LolMapId.SummonersRift,
                 GameMode = "CLASSIC",
                 GameType = "MATCHED_GAME",
                 GameStartTimeUtc = now.AddMinutes(-45),

@@ -61,8 +61,8 @@ public sealed class MatchTimelineRecoveryIntegrationTests
         {
             Id = matchId,
             PlatformId = "KR",
-            QueueId = LolQueueIds.RankedSoloDuo,
-            MapId = LolMapIds.SummonersRift,
+            QueueId = (int)LolQueueId.RankedSoloDuo,
+            MapId = (int)LolMapId.SummonersRift,
             GameMode = "CLASSIC",
             GameType = "MATCHED_GAME",
             GameStartTimeUtc = now,

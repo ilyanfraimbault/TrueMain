@@ -15,7 +15,7 @@ public sealed class ChampionPatternAggregationProcess(
 
     public async Task<object?> RunCoreAsync(CancellationToken ct)
     {
-        var queueId = analysisOptions.Value.QueueId;
+        var queueId = (int)analysisOptions.Value.QueueId;
         var aggregationInputs = await sourceRowReader.LoadAggregationInputsAsync(queueId, ct);
         if (aggregationInputs.SourceRows.Count == 0 && aggregationInputs.ExistingAggregateScopes.Count == 0)
         {

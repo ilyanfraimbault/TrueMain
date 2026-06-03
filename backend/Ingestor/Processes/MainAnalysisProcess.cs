@@ -87,7 +87,7 @@ public sealed class MainAnalysisProcess(
         var existingStatsByAccount = await session.MainChampionStats.GetByAccountsAsync(batch, ct);
         var accountEntitiesByKey = await session.RiotAccounts.GetByKeysAsync(batch, ct);
         var participantRowsByAccount = await session.MatchParticipants
-            .GetRecentParticipantsByAccountsAsync(batch, options.QueueId, Math.Max(1, options.MatchesToConsider), ct);
+            .GetRecentParticipantsByAccountsAsync(batch, (int)options.QueueId, Math.Max(1, options.MatchesToConsider), ct);
 
         foreach (var account in batch)
         {
