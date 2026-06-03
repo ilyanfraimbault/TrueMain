@@ -24,10 +24,11 @@ const activePatch = computed(() => champion.value?.patch || filters.value.patch 
 const { data: staticData, status: staticStatus } = useChampionStatic(championId, activePatch)
 const { data: versions } = useDDragonVersions()
 
-// Winrate/pickrate trend across recent patches (issue #89). Follows the
-// resolved lane so it tracks whatever slice the page is showing; the
-// composable forwards only the position, not the pinned patch, so the series
-// spans history instead of collapsing to one point.
+// Winrate/pickrate trend across the last five patches (issues #89, #112).
+// Follows the resolved lane so it tracks whatever slice the page is showing,
+// but is deliberately cross-patch: the composable forwards only the position,
+// never the pinned patch, so the active patch filter never scopes the chart
+// and the series always spans recent history.
 const trendPosition = computed(() => champion.value?.position || filters.value.position || null)
 const { data: championTrend, status: trendStatus } = useChampionTrend(championId, trendPosition)
 

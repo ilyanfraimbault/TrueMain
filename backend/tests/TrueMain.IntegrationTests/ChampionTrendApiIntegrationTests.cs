@@ -89,6 +89,31 @@ public sealed class ChampionTrendApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetChampionTrendAsync_CapsSeriesToFiveMostRecentPatches()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedSevenMiddlePatchesAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var response = await client.GetAsync($"/champions/{ChampionId}/trend?position=middle");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var trend = await response.Content.ReadFromJsonAsync<ChampionTrendReadModel>();
+        trend.Should().NotBeNull();
+
+        // Seven patches seeded (16.1 … 16.7); the window keeps the five newest
+        // and re-sorts them oldest → newest. The two oldest (16.1, 16.2) drop.
+        trend!.Points.Select(point => point.Patch).Should().Equal(
+            ["16.3", "16.4", "16.5", "16.6", "16.7"],
+            "the trend window keeps the five most recent patches, oldest → newest");
+    }
+
+    [Fact]
     public async Task GetChampionTrendAsync_ReturnsEmptySeriesForUnknownChampion()
     {
         await _fixture.ResetDatabaseAsync();
@@ -163,6 +188,45 @@ public sealed class ChampionTrendApiIntegrationTests
                 buildItems: [3142, 3006, 3814], bootsItemId: 3006,
                 primaryStyleId: 8100, primaryKeystoneId: 8112, secondaryStyleId: 8000,
                 games: games, wins: games / 2, aggregatedAtUtc: now);
+        }
+
+        await seeder.SaveAsync(db);
+    }
+
+    // Seven consecutive MIDDLE patches for the champion under test so the
+    // five-patch cap has something to trim. Seeded in release order; the cap
+    // test asserts only the newest five survive.
+    private async Task SeedSevenMiddlePatchesAsync()
+    {
+        var now = DateTime.UtcNow;
+        var accountId = Guid.Parse("55555555-5555-5555-5555-555555555555");
+
+        await using var db = _fixture.CreateDbContext();
+        db.RiotAccounts.Add(new RiotAccount
+        {
+            Id = accountId,
+            PlatformId = "KR",
+            Puuid = "trend-puuid-2",
+            GameName = "trend-two",
+            SummonerId = "trend-two-summoner",
+            ProfileIconId = 1,
+            SummonerLevel = 100,
+            LastProfileSyncAtUtc = now,
+            CreatedAtUtc = now.AddDays(-10),
+            UpdatedAtUtc = now.AddDays(-1),
+        });
+        await db.SaveChangesAsync();
+
+        var seeder = new ChampionAggregateSeeder();
+        string[] patches = ["16.1", "16.2", "16.3", "16.4", "16.5", "16.6", "16.7"];
+        foreach (var patch in patches)
+        {
+            seeder.AddPatternWithRune(
+                accountId, ChampionId, patch, "KR", 420, "MIDDLE",
+                summoner1Id: 4, summoner2Id: 12, skillOrderKey: "Q-W-E",
+                buildItems: [3153, 3006, 3031], bootsItemId: 3006,
+                primaryStyleId: 8000, primaryKeystoneId: 8008, secondaryStyleId: 8400,
+                games: 50, wins: 25, aggregatedAtUtc: now);
         }
 
         await seeder.SaveAsync(db);

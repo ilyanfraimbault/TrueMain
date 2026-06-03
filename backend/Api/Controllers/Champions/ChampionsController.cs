@@ -45,10 +45,12 @@ public sealed class ChampionsController(
     }
 
     /// <summary>
-    /// Winrate / pickrate evolution across recent patches for a champion on a
-    /// single position. Always 200 with a (possibly empty) series so the
-    /// chart can render its own "not enough data" state — a champion the
-    /// directory never observed simply yields no points.
+    /// Winrate / pickrate evolution across the last five patches for a champion
+    /// on a single position. Intentionally cross-patch — it takes no patch
+    /// filter, so the directory's active patch never scopes the series. Always
+    /// 200 with a (possibly empty) series so the chart can render its own "not
+    /// enough data" state — a champion the directory never observed simply
+    /// yields no points.
     /// </summary>
     [HttpGet("{championId:int}/trend")]
     [ProducesResponseType(typeof(ChampionTrendReadModel), StatusCodes.Status200OK)]

@@ -12,11 +12,13 @@ public sealed class ChampionTrendQueryService(
     IOptions<MainAnalysisOptions> options)
     : IChampionTrendQueryService
 {
-    // Trend window: the chart reads at a glance, so cap it at the most recent
-    // dozen patches that carry data. Fewer patches simply render a shorter
+    // Trend window: the chart reads at a glance, so cap it at the five most
+    // recent patches that carry data. Fewer patches simply render a shorter
     // line — the take happens after ordering by release so we always keep the
-    // newest end of the history.
-    private const int MaxPatches = 12;
+    // newest end of the history. This window is deliberately cross-patch: the
+    // endpoint takes no patch filter, so the page's active patch never scopes
+    // the series.
+    private const int MaxPatches = 5;
 
     public async Task<ChampionTrendReadModel> GetTrendAsync(
         int championId,

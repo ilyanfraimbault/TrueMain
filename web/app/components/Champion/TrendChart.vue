@@ -9,11 +9,10 @@ const props = withDefaults(defineProps<{
   loading: false,
 })
 
-// Winrate and pickrate live on very different scales (≈45–55% vs a few
-// percent), so a shared Y axis would flatten the pickrate line into the
-// floor. We render two compact single-series charts instead — same emerald
-// wrapper the rest of the app uses (see ChartsLineChart), stacked so the
-// patch axis reads once down the left for both.
+// One chart, two series, two Y axes. Win rate (≈50%) reads off the left
+// axis at its real scale; pick rate (a few %) reads off the right axis on
+// its own scale, so a buff that lifts both is visible at a glance and the
+// per-patch win-rate movement (issue #112) is read straight off the line.
 interface ChartRow extends Record<string, unknown> {
   patch: string
   winRate: number
@@ -36,11 +35,16 @@ const hasData = computed(() => rows.value.length > 0)
 // rather than a one-point line that reads as a flat bar.
 const hasTrend = computed(() => rows.value.length > 1)
 
-const winRateCategories = { winRate: { name: 'Win rate', color: '#34d399' } } // emerald-400
-const pickRateCategories = { pickRate: { name: 'Pick rate', color: '#34d399' } }
+// Two emerald-family shades so the lines stay on-palette but distinct:
+// the bright primary for win rate, a deeper emerald for pick rate.
+const categories = {
+  winRate: { name: 'Win rate', color: '#34d399' }, // emerald-400
+  pickRate: { name: 'Pick rate', color: '#0f766e' }, // emerald-700
+}
 
 const xFormatter = (tick: number): string => rows.value[tick]?.patch ?? ''
-const yFormatter = (tick: number): string => formatPercentage(tick, 0)
+const winRateFormatter = (value: number): string => formatPercentage(value, 0)
+const pickRateFormatter = (value: number): string => formatPercentage(value, 1)
 </script>
 
 <template>
@@ -50,13 +54,13 @@ const yFormatter = (tick: number): string => formatPercentage(tick, 0)
         Trend by patch
       </h2>
       <p class="text-xs text-muted">
-        Win rate and pick rate over the most recent patches with data.
+        Win rate and pick rate over the last five patches with data.
       </p>
     </header>
 
     <USkeleton
       v-if="loading"
-      class="h-[360px] w-full rounded-lg"
+      class="h-[300px] w-full rounded-lg"
     />
 
     <p
@@ -68,37 +72,16 @@ const yFormatter = (tick: number): string => formatPercentage(tick, 0)
         : 'No patch history yet for this champion and lane.' }}
     </p>
 
-    <div
+    <ChartsDualAxisLineChart
       v-else
-      class="grid gap-4 md:grid-cols-2"
-    >
-      <div class="flex flex-col gap-2 rounded-lg bg-elevated/40 p-4">
-        <span class="text-xs font-medium uppercase tracking-wide text-muted">
-          Win rate
-        </span>
-        <ChartsLineChart
-          :data="rows"
-          :categories="winRateCategories"
-          :height="200"
-          :x-formatter="xFormatter"
-          :y-formatter="yFormatter"
-          hide-legend
-        />
-      </div>
-
-      <div class="flex flex-col gap-2 rounded-lg bg-elevated/40 p-4">
-        <span class="text-xs font-medium uppercase tracking-wide text-muted">
-          Pick rate
-        </span>
-        <ChartsLineChart
-          :data="rows"
-          :categories="pickRateCategories"
-          :height="200"
-          :x-formatter="xFormatter"
-          :y-formatter="yFormatter"
-          hide-legend
-        />
-      </div>
-    </div>
+      :data="rows"
+      :categories="categories"
+      primary-key="winRate"
+      secondary-key="pickRate"
+      :height="300"
+      :x-formatter="xFormatter"
+      :primary-formatter="winRateFormatter"
+      :secondary-formatter="pickRateFormatter"
+    />
   </section>
 </template>
