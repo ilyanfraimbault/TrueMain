@@ -160,6 +160,17 @@ public sealed class ChampionSummariesQueryService(
             "[champions-summaries] load_top_builds buckets={Buckets} elapsed={ElapsedMs}ms",
             topBuilds.Count, topBuildsSw.ElapsedMilliseconds);
 
+        // Second pass: previous-patch win rate per (champion, lane), used for
+        // the list's win-rate delta arrow. Resolved as the next-most-recent
+        // GameVersion below the active patch; a missing slice on the previous
+        // patch leaves that row's delta hidden (WinRatePrevious stays null).
+        var previousSw = Stopwatch.StartNew();
+        var previousWinRates = await LoadPreviousPatchWinRatesAsync(activePatch, ct);
+        previousSw.Stop();
+        logger.LogInformation(
+            "[champions-summaries] load_previous_winrates slices={Slices} elapsed={ElapsedMs}ms",
+            previousWinRates.Count, previousSw.ElapsedMilliseconds);
+
         // Denominators are derived from the already-aggregated groups: lane
         // totals for PickRate and champion totals for LanePlayRate. Each group
         // already carries its per-(champion,lane) games sum, so re-summing the
@@ -184,12 +195,16 @@ public sealed class ChampionSummariesQueryService(
                 var laneTotal = laneTotals.GetValueOrDefault(group.Position, 0L);
 
                 topBuilds.TryGetValue((group.ChampionId, group.Position), out var topBuild);
+                var winRatePrevious = previousWinRates.TryGetValue((group.ChampionId, group.Position), out var previous)
+                    ? previous
+                    : (double?)null;
                 return new ChampionSummaryReadModel
                 {
                     ChampionId = group.ChampionId,
                     Games = group.Games,
                     Wins = group.Wins,
                     WinRate = group.Games == 0 ? 0 : (double)group.Wins / group.Games,
+                    WinRatePrevious = winRatePrevious,
                     PickRate = laneTotal == 0 ? 0 : (double)group.Games / laneTotal,
                     LanePlayRate = championTotal == 0 ? 0 : (double)group.Games / championTotal,
                     TrueMainCount = group.TrueMainCount,
@@ -212,6 +227,69 @@ public sealed class ChampionSummariesQueryService(
         int Wins,
         int TrueMainCount,
         DateTime LastUpdatedAtUtc);
+
+    /// <summary>
+    /// Win rate per <c>(champion, position)</c> on the patch immediately
+    /// preceding <paramref name="activePatch"/> — the next-most-recent
+    /// <c>GameVersion</c> below it. Backs the win-rate delta on the list.
+    /// Returns an empty map when there is no earlier patch in the data; slices
+    /// absent from the map (or with no games on the previous patch) leave the
+    /// delta hidden, so the UI never invents a 0% baseline.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<(int ChampionId, string Position), double>> LoadPreviousPatchWinRatesAsync(
+        string activePatch,
+        CancellationToken ct)
+    {
+        var empty = new Dictionary<(int, string), double>();
+        var queueId = (int)options.Value.QueueId;
+
+        var patchesSw = Stopwatch.StartNew();
+        var distinctPatches = await db.ChampionAggregateScopes
+            .AsNoTracking()
+            .Where(scope => scope.QueueId == queueId)
+            .Select(scope => scope.GameVersion)
+            .Distinct()
+            .ToListAsync(ct);
+        patchesSw.Stop();
+        logger.LogInformation(
+            "[champions-summaries] sql=previous_distinct_patches rows={Rows} elapsed={ElapsedMs}ms",
+            distinctPatches.Count, patchesSw.ElapsedMilliseconds);
+
+        var previousPatch = ChampionAggregateScopeResolver.ResolvePreviousPatchVersion(distinctPatches, activePatch);
+        if (string.IsNullOrEmpty(previousPatch))
+        {
+            return empty;
+        }
+
+        // Same per-(champion, lane) GROUP BY as the active pass, but only the
+        // games/wins needed for the win-rate baseline — no builds, no rune
+        // join, no distinct-account count.
+        var groupsSw = Stopwatch.StartNew();
+        var groups = await db.ChampionAggregateScopes
+            .AsNoTracking()
+            .Where(scope => scope.QueueId == queueId)
+            .Where(scope => scope.GameVersion == previousPatch)
+            .Where(scope => scope.Position.Trim() != string.Empty)
+            .GroupBy(scope => new { scope.ChampionId, scope.Position })
+            .Select(group => new
+            {
+                group.Key.ChampionId,
+                group.Key.Position,
+                Games = group.Sum(scope => scope.Games),
+                Wins = group.Sum(scope => scope.Wins),
+            })
+            .ToListAsync(ct);
+        groupsSw.Stop();
+        logger.LogInformation(
+            "[champions-summaries] sql=previous_scope_groups patch={PreviousPatch} groups={Groups} elapsed={ElapsedMs}ms",
+            previousPatch, groups.Count, groupsSw.ElapsedMilliseconds);
+
+        return groups
+            .Where(group => group.Games > 0)
+            .ToDictionary(
+                group => (group.ChampionId, group.Position),
+                group => (double)group.Wins / group.Games);
+    }
 
     /// <summary>
     /// Resolves the dominant <c>(firstItem, primaryKeystone)</c> bucket for

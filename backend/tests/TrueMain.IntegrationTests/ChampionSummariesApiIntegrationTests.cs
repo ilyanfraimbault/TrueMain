@@ -114,6 +114,18 @@ public sealed class ChampionSummariesApiIntegrationTests
             "MAX(AggregatedAtUtc) over the single seeded scope for champion 100/TOP");
 
         slice.PatchVersion.Should().Be("16.5", "the slice belongs to the active patch the seed wrote");
+
+        // WinRatePrevious comes from the 16.4 slice seeded only for champion
+        // 100 / TOP: 8 wins / 20 games = 0.4, versus 0.5 on the active patch.
+        slice.WinRatePrevious.Should().NotBeNull("champion 100 / TOP has a previous-patch (16.4) slice");
+        slice.WinRatePrevious!.Value.Should().BeApproximately(0.4, 1e-9, "Wins / Games = 8 / 20 on patch 16.4");
+
+        // A champion with no 16.4 row must surface a null delta baseline rather
+        // than a fabricated 0% — champion 101 / JUNGLE (i = 1) was only seeded
+        // on the active patch.
+        var noPreviousSlice = summaries!.SingleOrDefault(item => item.ChampionId == 101 && item.Position == "JUNGLE");
+        noPreviousSlice.Should().NotBeNull("the seed writes a (champion 101, JUNGLE) slice on the active patch");
+        noPreviousSlice!.WinRatePrevious.Should().BeNull("champion 101 has no previous-patch data, so the delta is hidden");
     }
 
     private ApiWebApplicationFactory CreateFactory() => new(_fixture);
@@ -156,6 +168,19 @@ public sealed class ChampionSummariesApiIntegrationTests
                 games: 10 + i, wins: 5 + (i % 4),
                 aggregatedAtUtc: now.AddMinutes(-i));
         }
+
+        // Previous-patch (16.4) slice for champion 100 / TOP only, with a win
+        // rate (8/20 = 40%) distinct from its active-patch one (5/10 = 50%) so
+        // the win-rate delta is non-zero and unambiguous. Every other champion
+        // keeps no 16.4 row, so their WinRatePrevious must serialize as null —
+        // exercising both the populated and absent delta paths in one seed.
+        seeder.AddPatternWithRune(
+            accountId, championId: 100, "16.4", "KR", 420, "TOP",
+            summoner1Id: 4, summoner2Id: 12, skillOrderKey: "Q-W-E",
+            buildItems: [3153, 3006, 3031], bootsItemId: 3006,
+            primaryStyleId: 8000, primaryKeystoneId: 8008, secondaryStyleId: 8400,
+            games: 20, wins: 8,
+            aggregatedAtUtc: now.AddMinutes(-120));
 
         await seeder.SaveAsync(db);
         return now;

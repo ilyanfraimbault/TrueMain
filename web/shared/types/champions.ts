@@ -3,6 +3,9 @@ export interface ChampionSummaryResponse {
   games: number
   wins: number
   winRate: number
+  // Win rate on the previous patch for this (champion, lane); null when there
+  // is no previous-patch data for the slice. Drives the list's WR delta arrow.
+  winRatePrevious: number | null
   pickRate: number
   lanePlayRate: number
   trueMainCount: number

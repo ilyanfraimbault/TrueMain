@@ -32,6 +32,32 @@ internal static class ChampionAggregateScopeResolver
             .FirstOrDefault();
     }
 
+    /// <summary>
+    /// Resolves the patch immediately preceding <paramref name="activePatch"/>:
+    /// the highest <c>GameVersion</c> in <paramref name="gameVersions"/> that is
+    /// strictly below it. Used to back the win-rate delta on the champion list.
+    /// Returns <c>null</c> when <paramref name="activePatch"/> is unparseable or
+    /// no earlier patch exists in the set.
+    /// </summary>
+    public static string? ResolvePreviousPatchVersion(
+        IEnumerable<string> gameVersions,
+        string activePatch)
+    {
+        if (!PatchVersion.TryParse(activePatch, out var active))
+        {
+            return null;
+        }
+
+        return gameVersions
+            .Distinct(StringComparer.Ordinal)
+            .Select(version => (Version: version, Parsed: ParsePatchVersion(version)))
+            .Where(candidate => candidate.Parsed.Major != 0 || candidate.Parsed.Minor != 0)
+            .Where(candidate => new PatchVersion(candidate.Parsed.Major, candidate.Parsed.Minor) < active)
+            .OrderByDescending(candidate => candidate.Parsed)
+            .Select(candidate => candidate.Version)
+            .FirstOrDefault();
+    }
+
     public static string ResolveDominantPosition(IEnumerable<ChampionAggregateScope> scopes)
         => ResolveDominantPosition(scopes.Select(scope => (scope.Position, scope.Games)));
 

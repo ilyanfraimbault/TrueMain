@@ -17,6 +17,15 @@ public sealed record ChampionSummaryReadModel
     public double WinRate { get; init; }
 
     /// <summary>
+    /// Win rate for this <c>(champion, position)</c> on the patch immediately
+    /// preceding the active one (the next-most-recent <c>GameVersion</c> below
+    /// the active patch). Powers the win-rate delta arrow on the champion list.
+    /// <c>null</c> when there is no previous patch, or no aggregate for this
+    /// <c>(champion, position)</c> slice on it — the UI then renders no delta.
+    /// </summary>
+    public double? WinRatePrevious { get; init; }
+
+    /// <summary>
     /// Share of TrueMain games on this position taken by this champion —
     /// a main-population pickrate, derived from the same
     /// <c>champion_aggregate_scopes</c> rows as <see cref="Games"/> /

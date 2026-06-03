@@ -9,6 +9,17 @@ function pct(value: number): string {
   return `${Math.round(value * 100)}%`
 }
 
+// Win-rate delta vs the previous patch, in percentage points rounded to one
+// decimal (e.g. +2.1 / -1.4). Returns null when there is no previous-patch
+// baseline, or when the rounded delta is exactly 0.0 — a flat result carries
+// no signal and the arrow would just be noise. Both win rates are fractions
+// (0..1), so the difference is scaled to points here.
+function winRateDelta(current: number, previous: number | null): number | null {
+  if (previous === null) return null
+  const delta = Math.round((current - previous) * 1000) / 10
+  return delta === 0 ? null : delta
+}
+
 // Mirrors the backend default; the page size is fixed in the UI (no
 // per-page selector) so the only stateful pagination value carried in the
 // URL is the page number.
@@ -246,6 +257,9 @@ const baseRows = computed(() => {
     ...summary,
     name: nameById.get(summary.championId)?.name ?? `Champion ${summary.championId}`,
     iconUrl: nameById.get(summary.championId)?.iconUrl ?? '',
+    // Precompute the WR delta once per row so the template reads a plain value
+    // instead of recomputing the same fraction maths across three bindings.
+    winRateDelta: winRateDelta(summary.winRate, summary.winRatePrevious),
   }))
 })
 
@@ -467,9 +481,25 @@ function staticItem(id: number | undefined) {
                    Numbers stay default-coloured — colour-coding tested too
                    noisy against the rest of the row. -->
               <div class="ml-auto flex shrink-0 items-center gap-5 tabular-nums">
-                <div class="flex min-w-[3rem] flex-col items-center">
+                <div class="flex min-w-[3.5rem] flex-col items-center">
                   <span class="text-lg font-bold leading-none">{{ pct(row.winRate) }}</span>
-                  <span class="mt-0.5 text-xs text-muted">WR</span>
+                  <!-- Delta vs previous patch: trending arrow + signed points,
+                       emerald for a gain / red for a loss, matching the LP
+                       deltas on the profile ranked card. Hidden (falls back to
+                       the plain "WR" label) when there is no previous-patch
+                       baseline or the change rounds to zero. -->
+                  <span
+                    v-if="row.winRateDelta !== null"
+                    class="mt-0.5 inline-flex items-center gap-0.5 text-xs font-medium leading-none"
+                    :class="row.winRateDelta > 0 ? 'text-emerald-400' : 'text-red-400'"
+                  >
+                    <UIcon
+                      :name="row.winRateDelta > 0 ? 'i-lucide-trending-up' : 'i-lucide-trending-down'"
+                      class="size-3"
+                    />
+                    {{ row.winRateDelta > 0 ? '+' : '' }}{{ row.winRateDelta }}%
+                  </span>
+                  <span v-else class="mt-0.5 text-xs text-muted">WR</span>
                 </div>
                 <div class="flex min-w-[3rem] flex-col items-center">
                   <span class="text-lg font-bold leading-none">{{ pct(row.pickRate) }}</span>
