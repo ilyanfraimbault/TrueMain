@@ -229,7 +229,10 @@ public sealed class ChampionSummariesQueryService(
             summaries[i] = summaries[i] with { Tier = tiers[i] };
         }
 
-        return summaries;
+        // Wrap before returning: this list is cached in the singleton IMemoryCache,
+        // so handing back the bare List<T> would let any caster mutate the shared
+        // entry for every request inside the TTL.
+        return summaries.AsReadOnly();
     }
 
     private sealed record ChampionSummaryGroup(

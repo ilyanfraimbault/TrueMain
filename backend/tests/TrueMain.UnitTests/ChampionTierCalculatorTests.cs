@@ -19,6 +19,15 @@ public sealed class ChampionTierCalculatorTests
         var tiers = ChampionTierCalculator.Assign(inputs);
 
         tiers.Should().HaveCount(inputs.Count);
+
+        // Guard the scatter-back: tiers come out indexed by the *original* input
+        // position, not by sorted rank, so the input with the highest winRate must
+        // land on a tier at least as good as the one with the lowest. A bug that
+        // mapped tiers to sorted order instead would slip past the count check above.
+        var maxWrIndex = inputs.IndexOf(inputs.MaxBy(input => input.WinRate)!);
+        var minWrIndex = inputs.IndexOf(inputs.MinBy(input => input.WinRate)!);
+        TierRank(tiers[maxWrIndex]).Should().BeLessThanOrEqualTo(TierRank(tiers[minWrIndex]),
+            "the highest winRate is re-indexed to its original slot with a tier >= the lowest winRate's");
     }
 
     [Fact]

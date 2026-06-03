@@ -67,7 +67,7 @@ internal static class ChampionTierCalculator
     /// as <see cref="ReadModels.Champions.ChampionSummaryReadModel"/> —
     /// fractions in <c>[0, 1]</c>.
     /// </summary>
-    public readonly record struct TierInput(double WinRate, double PickRate);
+    internal readonly record struct TierInput(double WinRate, double PickRate);
 
     /// <summary>
     /// Returns the tier letter for each input, in the same order as
