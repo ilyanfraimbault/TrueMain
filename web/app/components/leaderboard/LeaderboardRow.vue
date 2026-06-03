@@ -6,8 +6,8 @@ import { isApexTier } from '~/utils/tiers'
 
 // One row of the leaderboard. The whole row navigates to the player's profile
 // via a stretched overlay link, while the top-champion icons are their own
-// links to each champion's build page — siblings of the overlay, never nested
-// <a> inside <a>.
+// links to that champion's player-scoped build page — siblings of the overlay,
+// never nested <a> inside <a>.
 const props = defineProps<{
   row: LeaderboardRowResponse
   championsById: Map<number, ChampionStaticListItem>
@@ -19,6 +19,14 @@ const profileHref = computed(() => {
   return tag
     ? `/truemains/${encodeURIComponent(`${props.row.identity.gameName}-${tag}`)}`
     : `/truemains/${encodeURIComponent(props.row.identity.gameName)}`
+})
+
+// Slug for this player's truemain pages — `{gameName}-{tagLine}` (or just the
+// name when untagged). Drives the player-scoped champion links below; the slug
+// is URL-encoded by <ChampionLink>.
+const rowNameTag = computed(() => {
+  const { gameName, tagLine } = props.row.identity
+  return tagLine ? `${gameName}-${tagLine}` : gameName
 })
 
 // The stretched profile link is an empty overlay (no text), so it needs an
@@ -113,6 +121,7 @@ function championIcon(id: number): string | null {
           :champion-id="champ.championId"
           :name="championName(champ.championId)"
           :icon-url="championIcon(champ.championId)"
+          :name-tag="rowNameTag"
           :title="`${championName(champ.championId)} · ${champ.games} games`"
           class="size-7"
         />
