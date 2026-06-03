@@ -93,12 +93,31 @@ export function useTruemainsLeaderboard(
   const pageSize = computed(() => data.value?.pageSize ?? fallbackPageSize)
 
   const isLoading = computed(() => status.value === 'pending')
-  // True only until the first response settles. After SSR the payload is
-  // already `success`, so the client hydrates with this `false` — the skeleton
-  // branch is skipped identically on the server and the client.
-  const isInitialLoading = computed(
-    () => status.value === 'idle' || (status.value === 'pending' && (data.value?.rows.length ?? 0) === 0),
+
+  // One-way latch: the skeleton shows only until the very first response
+  // settles, then never again. Deriving this purely from `status` (e.g.
+  // `pending && rows.length === 0`) wrongly re-shows the full skeleton on a
+  // *later* refetch that starts from an empty result set — paging away from a
+  // zero-match filter, say — because that refetch is `pending` with no current
+  // rows. Latching reproduces the old one-shot flag.
+  //
+  // SSR-safe: on the server `server: true` resolves the payload (via Suspense)
+  // before render, so the skeleton must never appear there — seed the latch
+  // `true` with `import.meta.server`. Seeding from `status` instead would read
+  // `pending` at synchronous setup (the fetch settles later, and watchers don't
+  // run during SSR), baking the skeleton into the server HTML while the client
+  // hydrates `status` to `success` synchronously and renders rows — a hydration
+  // mismatch. On the client the same synchronous `success`/`error` seeds the
+  // ref `true`, so the branch matches the server. Only a fresh client-side
+  // navigation seeds `false` and shows the skeleton once, until the first
+  // response settles.
+  const hasEverLoaded = ref(
+    import.meta.server || status.value === 'success' || status.value === 'error',
   )
+  watch(status, (s) => {
+    if (s === 'success' || s === 'error') hasEverLoaded.value = true
+  })
+  const isInitialLoading = computed(() => !hasEverLoaded.value)
 
   return {
     rows,
