@@ -30,6 +30,19 @@ export interface ChampionResponse {
   builds: ChampionBuild[]
 }
 
+export interface ChampionTrendResponse {
+  championId: number
+  position: string
+  points: ChampionTrendPoint[]
+}
+
+export interface ChampionTrendPoint {
+  patch: string
+  winRate: number
+  pickRate: number
+  games: number
+}
+
 export interface ChampionBuild {
   firstItemId: number
   primaryKeystoneId: number
