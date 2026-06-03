@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using TrueMain.Controllers.Champions;
+using TrueMain.ReadModels.Champions;
 using TrueMain.ReadModels.Truemains;
 using TrueMain.Services.Truemains;
 
@@ -9,6 +11,7 @@ namespace TrueMain.Controllers.Truemains;
 public sealed class TruemainsController(
     IMatchSummariesQueryService matchSummariesQueryService,
     IProfileQueryService profileQueryService,
+    IPlayerChampionBuildsQueryService playerChampionBuildsQueryService,
     IRankHistoryQueryService rankHistoryQueryService,
     ITruemainsLeaderboardQueryService leaderboardQueryService) : ControllerBase
 {
@@ -52,6 +55,37 @@ public sealed class TruemainsController(
         CancellationToken ct = default)
     {
         var response = await profileQueryService.GetAsync(nameTag, ct);
+        return response is null ? NotFound() : Ok(response);
+    }
+
+    /// <summary>
+    /// Player-scoped champion page: the same <see cref="ChampionResponse"/>
+    /// contract as <c>GET /champions/{championId}</c>, but every aggregate is
+    /// computed only from this player's games on the champion. 404 when the
+    /// account is unknown or the player has too few games on the champion to
+    /// draw a build (see <c>PlayerChampionBuildsQueryService.MinPlayerGames</c>).
+    /// </summary>
+    [HttpGet("{nameTag}/champions/{championId:int}")]
+    [ProducesResponseType(typeof(ChampionResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<ChampionResponse>> GetPlayerChampionAsync(
+        string nameTag,
+        int championId,
+        [FromQuery] string? patch,
+        [FromQuery] string? position,
+        CancellationToken ct = default)
+    {
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+
+        var response = await playerChampionBuildsQueryService.GetAsync(
+            nameTag,
+            championId,
+            normalizedPatch,
+            normalizedPosition,
+            ct);
+
         return response is null ? NotFound() : Ok(response);
     }
 

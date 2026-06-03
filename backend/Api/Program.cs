@@ -121,6 +121,7 @@ builder.Services.AddScoped<IChampionSummariesQueryService, ChampionSummariesQuer
 builder.Services.AddScoped<IChampionBuildsQueryService, ChampionBuildsQueryService>();
 builder.Services.AddScoped<IMatchSummariesQueryService, MatchSummariesQueryService>();
 builder.Services.AddScoped<IProfileQueryService, ProfileQueryService>();
+builder.Services.AddScoped<IPlayerChampionBuildsQueryService, PlayerChampionBuildsQueryService>();
 builder.Services.AddScoped<IRankHistoryQueryService, RankHistoryQueryService>();
 builder.Services.AddScoped<ITruemainsLeaderboardQueryService, TruemainsLeaderboardQueryService>();
 builder.Services.AddScoped<IPipelineHealthQueryService, PipelineHealthQueryService>();

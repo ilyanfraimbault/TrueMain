@@ -231,6 +231,7 @@ const staticBundleReady = computed(() =>
           v-else-if="profile.mains.length > 0"
           :mains="profile.mains"
           :champions="champions"
+          :name-tag="nameTag"
         />
 
         <ProfilePositionBreakdownSkeleton v-if="profileLoading || !profile" />

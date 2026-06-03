@@ -211,7 +211,7 @@ const mockMatches = computed<MatchSummaryResponse[]>(() => [
 
     <ProfileHeader :identity="mockProfile.identity" :patch="latestPatch" />
     <ProfileRankedCard :ranked="mockProfile.ranked" :history="mockRankHistory" />
-    <ProfileMainChampions :mains="mockProfile.mains" :champions="champions" />
+    <ProfileMainChampions :mains="mockProfile.mains" :champions="champions" name-tag="Phantasm-EUW1" />
     <ProfilePositionBreakdown :positions="mockProfile.positions" />
 
     <section class="flex flex-col gap-3">
