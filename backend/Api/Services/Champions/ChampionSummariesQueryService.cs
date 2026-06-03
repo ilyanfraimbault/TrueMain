@@ -4,6 +4,7 @@ using Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using TrueMain.Options;
 using TrueMain.ReadModels.Champions;
 
 namespace TrueMain.Services.Champions;
@@ -11,6 +12,7 @@ namespace TrueMain.Services.Champions;
 public sealed class ChampionSummariesQueryService(
     TrueMainDbContext db,
     IOptions<MainAnalysisOptions> options,
+    IOptions<ChampionsListOptions> championsOptions,
     IMemoryCache cache,
     ILogger<ChampionSummariesQueryService> logger) : IChampionSummariesQueryService
 {
@@ -199,6 +201,11 @@ public sealed class ChampionSummariesQueryService(
                     TopBuild = topBuild,
                 };
             })
+            // Drop low-sample lines: a (champion, lane) with too few games is
+            // statistical noise — keep it out of the list and the tier ranking
+            // (otherwise a 1-game 100%-WR off-role pick flukes to the top of the
+            // percentile field). Floor is a product knob (ChampionsList options).
+            .Where(summary => summary.Games >= championsOptions.Value.MinSampleGames)
             .OrderByDescending(summary => summary.PickRate)
             .ThenBy(summary => summary.ChampionId)
             .ThenBy(summary => summary.Position, StringComparer.Ordinal)
