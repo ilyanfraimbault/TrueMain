@@ -25,7 +25,10 @@ public sealed class ChampionTrendQueryService(
         string? position,
         CancellationToken ct)
     {
-        var queueId = options.Value.QueueId;
+        // Cast the configured queue (a LolQueueId) to the int the persisted
+        // scope stores, matching ChampionSummariesQueryService so both read the
+        // same rows.
+        var queueId = (int)options.Value.QueueId;
         var normalizedPosition = string.IsNullOrWhiteSpace(position)
             ? null
             : position;
@@ -33,12 +36,14 @@ public sealed class ChampionTrendQueryService(
         // Pull every positioned scope for this champion in one round-trip and
         // fold the per-(patch, position) totals in memory. A champion spans a
         // handful of patches × at most five lanes, so the row set is tiny and
-        // re-querying per patch would only add latency. Empty positions are
-        // the "no lane" sentinel and never belong on a per-lane trend.
+        // re-querying per patch would only add latency. Blank positions are
+        // the "no lane" sentinel and never belong on a per-lane trend; Trim()
+        // mirrors the directory's scope filter so a whitespace-only position
+        // can't leak a phantom lane the directory hides.
         var champRows = await db.ChampionAggregateScopes
             .AsNoTracking()
             .Where(scope => scope.ChampionId == championId && scope.QueueId == queueId)
-            .Where(scope => scope.Position != string.Empty)
+            .Where(scope => scope.Position.Trim() != string.Empty)
             .GroupBy(scope => new { scope.GameVersion, scope.Position })
             .Select(group => new ChampionPatchRow(
                 group.Key.GameVersion,
