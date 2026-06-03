@@ -6,6 +6,8 @@ export interface ChampionSummaryResponse {
   pickRate: number
   lanePlayRate: number
   trueMainCount: number
+  /** OPGG-style performance tier: 'S' | 'A' | 'B' | 'C' | 'D' (patch-relative). */
+  tier: string
   position: string
   patchVersion: string
   lastUpdatedAtUtc: string

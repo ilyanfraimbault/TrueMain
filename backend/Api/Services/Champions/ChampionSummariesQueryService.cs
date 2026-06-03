@@ -4,6 +4,7 @@ using Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using TrueMain.Options;
 using TrueMain.ReadModels.Champions;
 
 namespace TrueMain.Services.Champions;
@@ -11,6 +12,7 @@ namespace TrueMain.Services.Champions;
 public sealed class ChampionSummariesQueryService(
     TrueMainDbContext db,
     IOptions<MainAnalysisOptions> options,
+    IOptions<ChampionsListOptions> championsOptions,
     IMemoryCache cache,
     ILogger<ChampionSummariesQueryService> logger) : IChampionSummariesQueryService
 {
@@ -177,7 +179,7 @@ public sealed class ChampionSummariesQueryService(
             .GroupBy(group => group.ChampionId)
             .ToDictionary(champion => champion.Key, champion => champion.Sum(group => group.Games));
 
-        return groups
+        var summaries = groups
             .Select(group =>
             {
                 var championTotal = championTotals.GetValueOrDefault(group.ChampionId);
@@ -199,10 +201,38 @@ public sealed class ChampionSummariesQueryService(
                     TopBuild = topBuild,
                 };
             })
+            // Drop low-sample lines: a (champion, lane) with too few games is
+            // statistical noise — keep it out of the list and the tier ranking
+            // (otherwise a 1-game 100%-WR off-role pick flukes to the top of the
+            // percentile field). Floor is a product knob (ChampionsList options).
+            .Where(summary => summary.Games >= championsOptions.Value.MinSampleGames)
             .OrderByDescending(summary => summary.PickRate)
             .ThenBy(summary => summary.ChampionId)
             .ThenBy(summary => summary.Position, StringComparer.Ordinal)
             .ToList();
+
+        // Tier is a patch-relative ranking, so it can only be assigned once the
+        // whole patch's rows exist. Compute it in a single pass over the ordered
+        // list and stamp each row in place — the list order itself is unchanged.
+        return AssignTiers(summaries);
+    }
+
+    private static IReadOnlyList<ChampionSummaryReadModel> AssignTiers(List<ChampionSummaryReadModel> summaries)
+    {
+        var inputs = summaries
+            .Select(summary => new ChampionTierCalculator.TierInput(summary.WinRate, summary.PickRate))
+            .ToList();
+        var tiers = ChampionTierCalculator.Assign(inputs);
+
+        for (var i = 0; i < summaries.Count; i++)
+        {
+            summaries[i] = summaries[i] with { Tier = tiers[i] };
+        }
+
+        // Wrap before returning: this list is cached in the singleton IMemoryCache,
+        // so handing back the bare List<T> would let any caster mutate the shared
+        // entry for every request inside the TTL.
+        return summaries.AsReadOnly();
     }
 
     private sealed record ChampionSummaryGroup(

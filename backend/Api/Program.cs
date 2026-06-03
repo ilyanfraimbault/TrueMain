@@ -88,6 +88,10 @@ builder.Services.AddOptions<TruemainsLeaderboardOptions>()
         },
         "TruemainsLeaderboard:MinRankedGames is out of range.")
     .ValidateOnStart();
+builder.Services.AddOptions<ChampionsListOptions>()
+    .Bind(builder.Configuration.GetSection(ChampionsListOptions.SectionName))
+    .Validate(options => options.MinSampleGames >= 0, "ChampionsList:MinSampleGames must be >= 0.")
+    .ValidateOnStart();
 builder.Services.AddOptions<DatabaseOptions>()
     .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName));
 

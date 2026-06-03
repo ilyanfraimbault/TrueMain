@@ -114,9 +114,90 @@ public sealed class ChampionSummariesApiIntegrationTests
             "MAX(AggregatedAtUtc) over the single seeded scope for champion 100/TOP");
 
         slice.PatchVersion.Should().Be("16.5", "the slice belongs to the active patch the seed wrote");
+
+        // Tier is computed server-side and bucketed by patch-wide percentile,
+        // so every row of a populated patch carries one of the five letters.
+        // Assert the whole payload (not just this slice) so a serialization or
+        // wiring regression that drops the field surfaces here.
+        var validTiers = new[] { "S", "A", "B", "C", "D" };
+        summaries!.Should().OnlyContain(item => validTiers.Contains(item.Tier),
+            "ChampionTierCalculator stamps every row with an S/A/B/C/D tier");
+
+        // The seed's Games (and thus winRate / pickRate) climb with i, so the
+        // strongest rows must reach the top tier and the weakest the bottom —
+        // proof the percentile bucketing actually spread the field.
+        summaries.Select(item => item.Tier).Should().Contain("S")
+            .And.Contain("D", "a 60-row patch spans the full pyramid");
     }
 
-    private ApiWebApplicationFactory CreateFactory() => new(_fixture);
+    [Fact]
+    public async Task ListChampionsAsync_DropsLinesBelowTheSampleFloor()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        // One well-sampled (champion, lane) line and one below the 20-game floor.
+        // Only the well-sampled one should surface: a 3-game line is noise that
+        // would otherwise fluke to the top/bottom of the tier percentiles.
+        var now = DateTime.UtcNow;
+        var accountId = Guid.Parse("44444444-4444-4444-4444-444444444444");
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            db.RiotAccounts.Add(new RiotAccount
+            {
+                Id = accountId,
+                PlatformId = "KR",
+                Puuid = "summaries-puuid-floor",
+                GameName = "summaries-floor",
+                SummonerId = "summaries-floor-summoner",
+                ProfileIconId = 1,
+                SummonerLevel = 100,
+                LastProfileSyncAtUtc = now,
+                CreatedAtUtc = now.AddDays(-10),
+                UpdatedAtUtc = now.AddDays(-1),
+            });
+            await db.SaveChangesAsync();
+
+            var seeder = new ChampionAggregateSeeder();
+            // Comfortably above the floor.
+            seeder.AddPatternWithRune(
+                accountId, 200, "16.5", "KR", 420, "MIDDLE",
+                summoner1Id: 4, summoner2Id: 12, skillOrderKey: "Q-W-E",
+                buildItems: [3153, 3006, 3031], bootsItemId: 3006,
+                primaryStyleId: 8000, primaryKeystoneId: 8008, secondaryStyleId: 8400,
+                games: 40, wins: 22, aggregatedAtUtc: now);
+            // Below the floor.
+            seeder.AddPatternWithRune(
+                accountId, 201, "16.5", "KR", 420, "MIDDLE",
+                summoner1Id: 4, summoner2Id: 12, skillOrderKey: "Q-W-E",
+                buildItems: [3153, 3006, 3031], bootsItemId: 3006,
+                primaryStyleId: 8000, primaryKeystoneId: 8008, secondaryStyleId: 8400,
+                games: 3, wins: 3, aggregatedAtUtc: now);
+            await seeder.SaveAsync(db);
+        }
+
+        await using var factory = new ApiWebApplicationFactory(_fixture, minSampleGames: 20);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var response = await client.GetAsync("/champions");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var summaries = await response.Content.ReadFromJsonAsync<IReadOnlyList<ChampionSummaryReadModel>>();
+        summaries.Should().NotBeNull();
+
+        var championIds = summaries!.Select(item => item.ChampionId).ToHashSet();
+        championIds.Should().Contain(200, "40 games clears the 20-game sample floor");
+        championIds.Should().NotContain(201,
+            "a 3-game line is below the floor, so it is dropped from the list and the ranking");
+    }
+
+    // The two aggregation tests above seed a few low-game slices on purpose, so
+    // they disable the sample floor (0) to assert over every seeded row. The
+    // dedicated floor test drives it at a real threshold instead.
+    private ApiWebApplicationFactory CreateFactory() => new(_fixture, minSampleGames: 0);
 
     private async Task<DateTime> SeedSummariesAcrossManyChampionsAsync()
     {
@@ -161,7 +242,11 @@ public sealed class ChampionSummariesApiIntegrationTests
         return now;
     }
 
-    private sealed class ApiWebApplicationFactory(PostgresFixture fixture)
+    private sealed class ApiWebApplicationFactory(PostgresFixture fixture, int minSampleGames)
         : TrueMainWebApplicationFactory<Program>(
-            fixture, [new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420")]);
+            fixture,
+            [
+                new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420"),
+                new KeyValuePair<string, string?>("ChampionsList:MinSampleGames", minSampleGames.ToString()),
+            ]);
 }
