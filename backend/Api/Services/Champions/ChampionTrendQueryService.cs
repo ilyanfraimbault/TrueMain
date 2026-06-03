@@ -29,9 +29,6 @@ public sealed class ChampionTrendQueryService(
         // scope stores, matching ChampionSummariesQueryService so both read the
         // same rows.
         var queueId = (int)options.Value.QueueId;
-        var normalizedPosition = string.IsNullOrWhiteSpace(position)
-            ? null
-            : position;
 
         // Pull every positioned scope for this champion in one round-trip and
         // fold the per-(patch, position) totals in memory. A champion spans a
@@ -57,7 +54,10 @@ public sealed class ChampionTrendQueryService(
             return new ChampionTrendReadModel { ChampionId = championId };
         }
 
-        var resolvedPosition = ResolvePosition(champRows, normalizedPosition);
+        // `position` is already canonicalised by the controller's
+        // NormalizePosition (null or a Riot lane string), and ResolvePosition +
+        // the empty-result guard below tolerate null/empty, so no second pass.
+        var resolvedPosition = ResolvePosition(champRows, position);
         if (string.IsNullOrEmpty(resolvedPosition))
         {
             return new ChampionTrendReadModel { ChampionId = championId };

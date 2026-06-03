@@ -133,7 +133,7 @@ const escapeHtml = (value: string): string =>
 
 const tooltipRow = (label: string | number, color: string | undefined, value: string): string =>
   `<li class="flex items-center gap-2">`
-  + `<span class="size-2 shrink-0 rounded-full" style="background-color:${color ?? 'transparent'}"></span>`
+  + `<span class="size-2 shrink-0 rounded-full" style="background-color:${escapeHtml(color ?? 'transparent')}"></span>`
   + `<span class="text-muted">${escapeHtml(String(label))}</span>`
   + `<span class="ml-auto font-medium text-default">${escapeHtml(value)}</span>`
   + `</li>`
