@@ -28,9 +28,12 @@ const { data: versions } = useDDragonVersions()
 // Follows the resolved lane so it tracks whatever slice the page is showing,
 // but is deliberately cross-patch: the composable forwards only the position,
 // never the pinned patch, so the active patch filter never scopes the chart
-// and the series always spans recent history.
+// and the series always spans recent history. Gated on the champion fetch so
+// it fires once with the resolved lane instead of twice (an initial call with
+// a null lane, then a refetch the moment the champion's position lands).
+const trendReady = computed(() => champion.value !== null)
 const trendPosition = computed(() => champion.value?.position || filters.value.position || null)
-const { data: championTrend, status: trendStatus } = useChampionTrend(championId, trendPosition)
+const { data: championTrend, status: trendStatus } = useChampionTrend(championId, trendPosition, trendReady)
 
 // Share keys with /champions so the patch-keyed maps stay deduped across the
 // list→detail→list round-trip. The list page issues these same fetches with
@@ -152,7 +155,8 @@ const isRefetching = computed(() =>
   || isLoadingStatus(staticListStatus.value)
   || isLoadingStatus(runeTreeStatus.value)
   || isLoadingStatus(itemsStatus.value)
-  || isLoadingStatus(summonersStatus.value),
+  || isLoadingStatus(summonersStatus.value)
+  || isLoadingStatus(trendStatus.value),
 )
 </script>
 
