@@ -64,7 +64,6 @@ public sealed class ChampionMatchupQueryService(
                 m.Id == p1.MatchId
                 && m.QueueId == queueId
                 && (normalizedPatch == null
-                    || m.GameVersion == normalizedPatch
                     || EF.Functions.Like(m.GameVersion, patchPrefix!))))
             .Where(p1 => db.MatchParticipants.Any(p2 =>
                 p2.MatchId == p1.MatchId
@@ -72,11 +71,16 @@ public sealed class ChampionMatchupQueryService(
                 && p2.TeamId != p1.TeamId
                 && p2.ChampionId == opponentChampionId));
 
-        // Two SQL COUNTs over that set — games (all rows) and wins (Win rows).
-        // Scalar aggregates the translator handles without the read-model
-        // projection limits the build / summary reads have to dance around.
-        var games = await matchupRows.CountAsync(ct);
-        var wins = games == 0 ? 0 : await matchupRows.CountAsync(p1 => p1.Win, ct);
+        // One SQL round-trip: COUNT(*) and SUM(win) over the matchup set in a
+        // single grouped aggregate. Scalar aggregates the translator handles
+        // without the read-model projection limits the build / summary reads
+        // have to dance around.
+        var totals = await matchupRows
+            .GroupBy(_ => 1)
+            .Select(g => new { Games = g.Count(), Wins = g.Sum(p => p.Win ? 1 : 0) })
+            .FirstOrDefaultAsync(ct);
+        var games = totals?.Games ?? 0;
+        var wins = totals?.Wins ?? 0;
 
         // Minimum-games floor: a thin head-to-head sample is noise, so report
         // "not enough data" (null → 404) rather than a win rate inferred from a
@@ -95,7 +99,9 @@ public sealed class ChampionMatchupQueryService(
             Patch = normalizedPatch,
             Games = games,
             Wins = wins,
-            WinRate = games == 0 ? 0.0 : (double)wins / games,
+            // games is guaranteed >= MinMatchupGames here (the floor returned
+            // null above), so no divide-by-zero guard is needed.
+            WinRate = (double)wins / games,
         };
     }
 }

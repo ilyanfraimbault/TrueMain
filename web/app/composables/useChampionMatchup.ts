@@ -69,18 +69,22 @@ export function useChampionMatchup(
         ? `/api/truemains/${encodeURIComponent(nameTag)}/champions/${championIdRef.value}/matchup`
         : `/api/champions/${championIdRef.value}/matchup`
 
-      const response = await $fetch<ChampionMatchup | null>(path, {
-        query,
-        ignoreResponseError: true,
-      })
-      // 404 (too few games / unknown player) → null body under
-      // `ignoreResponseError`. The reliable "no data" tell is the absence of
-      // the championId field.
-      if (!response || typeof response !== 'object' || typeof response.championId !== 'number') {
-        notEnoughData.value = true
-        return null
+      try {
+        return await $fetch<ChampionMatchup>(path, { query })
       }
-      return response
+      catch (error: unknown) {
+        const status = (error as { statusCode?: number, response?: { status?: number } }).statusCode
+          ?? (error as { response?: { status?: number } }).response?.status
+        // A 404 is the "too few games / unknown player" signal — an empty
+        // state, not a failure. Anything else (400 / 429 / 5xx) is a real
+        // error: rethrow so the card can surface it instead of masking it as
+        // "not enough data".
+        if (status === 404) {
+          notEnoughData.value = true
+          return null
+        }
+        throw error
+      }
     },
     {
       watch: [championIdRef, positionRef, opponentIdRef, patchRef, nameTagRef],

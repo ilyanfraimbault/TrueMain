@@ -25,7 +25,7 @@ const opponentOptions = computed(() =>
 const {
   data: matchup,
   status,
-  notEnoughData,
+  error,
 } = useChampionMatchup(
   () => props.championId,
   () => props.position,
@@ -80,16 +80,17 @@ const delta = computed(() => {
 
     <USkeleton v-else-if="isLoading" class="h-[68px] w-full rounded-lg" />
 
+    <!-- A real failure (not a 404 "no data") — surface it rather than mask it. -->
     <p
-      v-else-if="notEnoughData || !matchup"
+      v-else-if="error"
       class="rounded-lg bg-elevated/40 px-4 py-6 text-center text-sm text-muted"
     >
-      Not enough games against {{ opponent?.name ?? 'this opponent' }} on this lane yet.
+      Couldn't load this matchup. Please try again.
     </p>
 
     <!-- The matchup card: opponent, sample size, win rate + delta vs overall. -->
     <div
-      v-else
+      v-else-if="matchup"
       class="flex items-center gap-4 rounded-lg bg-elevated/40 px-4 py-3"
     >
       <SkeletonImage
@@ -126,5 +127,13 @@ const delta = computed(() => {
         </span>
       </div>
     </div>
+
+    <!-- 404 / no matchup: too few games for this pairing to be meaningful. -->
+    <p
+      v-else
+      class="rounded-lg bg-elevated/40 px-4 py-6 text-center text-sm text-muted"
+    >
+      Not enough games against {{ opponent?.name ?? 'this opponent' }} on this lane yet.
+    </p>
   </section>
 </template>
