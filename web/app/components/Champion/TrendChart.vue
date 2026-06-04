@@ -9,10 +9,10 @@ const props = withDefaults(defineProps<{
   loading: false,
 })
 
-// One chart, two series, two Y axes. Win rate (≈50%) reads off the left
-// axis at its real scale; pick rate (a few %) reads off the right axis on
-// its own scale, so a buff that lifts both is visible at a glance and the
-// per-patch win-rate movement (issue #112) is read straight off the line.
+// Two charts side by side: win rate and pick rate, each on its own clear
+// scale. A combined dual-axis made the small pick-rate line look taller than
+// the win-rate one, so they read better split. The per-patch win-rate
+// movement (issue #112) is read straight off the left chart's line.
 interface ChartRow extends Record<string, unknown> {
   patch: string
   winRate: number
@@ -60,7 +60,7 @@ const pickRateFormatter = (value: number): string => formatPercentage(value, 1)
 
     <USkeleton
       v-if="loading"
-      class="h-[300px] w-full rounded-lg"
+      class="h-[220px] w-full rounded-lg"
     />
 
     <p
@@ -72,16 +72,35 @@ const pickRateFormatter = (value: number): string => formatPercentage(value, 1)
         : 'No patch history yet for this champion and lane.' }}
     </p>
 
-    <ChartsDualAxisLineChart
-      v-else
-      :data="rows"
-      :categories="categories"
-      primary-key="winRate"
-      secondary-key="pickRate"
-      :height="300"
-      :x-formatter="xFormatter"
-      :primary-formatter="winRateFormatter"
-      :secondary-formatter="pickRateFormatter"
-    />
+    <div v-else class="grid gap-4 sm:grid-cols-2">
+      <div class="flex flex-col gap-1.5">
+        <h3 class="text-xs font-medium text-muted">
+          Win rate
+        </h3>
+        <ChartsLineChart
+          :data="rows"
+          :categories="{ winRate: categories.winRate }"
+          :height="220"
+          :x-formatter="xFormatter"
+          :y-formatter="winRateFormatter"
+          :y-grid-line="false"
+          hide-legend
+        />
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <h3 class="text-xs font-medium text-muted">
+          Pick rate
+        </h3>
+        <ChartsLineChart
+          :data="rows"
+          :categories="{ pickRate: categories.pickRate }"
+          :height="220"
+          :x-formatter="xFormatter"
+          :y-formatter="pickRateFormatter"
+          :y-grid-line="false"
+          hide-legend
+        />
+      </div>
+    </div>
   </section>
 </template>

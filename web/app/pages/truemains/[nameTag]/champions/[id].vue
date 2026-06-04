@@ -153,6 +153,37 @@ const isRefetching = computed(() =>
   || isLoadingStatus(itemsStatus.value)
   || isLoadingStatus(summonersStatus.value),
 )
+
+// Patch for the profile icon in the player header.
+const latestPatch = computed(() => versions.value?.[0] ?? null)
+
+// ─── Match history ─────────────────────────────────────────────────────────
+// This player's recent games on THIS champion. The champion is fixed to the
+// page; the lane filter is its OWN control, independent of the build's position
+// filter, so you can browse games on any lane without re-scoping the build.
+const matchesPage = ref(1)
+const matchPosition = ref<ChampionPosition | null>(null)
+const {
+  matches,
+  total: matchesTotal,
+  pageSize: matchesPageSize,
+  isInitialLoading: matchesInitialLoading,
+  notFound: matchesNotFound,
+} = useTruemainMatches(nameTag, matchesPage, {
+  championId,
+  position: matchPosition,
+})
+function setMatchesPage(next: number) {
+  matchesPage.value = Math.max(1, Math.floor(next))
+}
+function setMatchPosition(next: ChampionPosition | null) {
+  matchPosition.value = next
+  matchesPage.value = 1
+}
+
+const staticBundleReady = computed(() =>
+  Boolean(staticList.value && itemsMap.value && summonersMap.value && runeTree.value),
+)
 </script>
 
 <template>
@@ -176,6 +207,15 @@ const isRefetching = computed(() =>
         </li>
       </ol>
     </nav>
+
+    <!-- Player identity up top so it's obvious this is the truemain's page,
+         not the global champion page. -->
+    <ProfileHeaderSkeleton v-if="!profile" />
+    <ProfileHeader
+      v-else
+      :identity="profile.identity"
+      :patch="latestPatch"
+    />
 
     <div class="h-0.5">
       <UProgress
@@ -255,6 +295,55 @@ const isRefetching = computed(() =>
         :summoners-map="summonersMap ?? {}"
         :rune-tree="runeTree ?? null"
       />
+
+      <!-- This player's recent games on this champion. The champion is fixed;
+           the lane filter is its own RolePicker, independent of the build's
+           position filter above. -->
+      <section class="flex min-w-0 flex-col gap-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
+            Recent {{ displayName ?? '' }} games
+          </h2>
+          <RolePicker
+            :position="matchPosition"
+            @update:position="setMatchPosition"
+          />
+        </div>
+
+        <template v-if="matchesInitialLoading || !staticBundleReady">
+          <MatchRowSkeleton v-for="i in 5" :key="`match-skel-${i}`" />
+        </template>
+        <template v-else-if="matchesNotFound || matches.length === 0">
+          <MatchHistoryEmpty :not-found="matchesNotFound" />
+        </template>
+        <template v-else>
+          <MatchRow
+            v-for="match in matches"
+            :key="match.matchId"
+            :match="match"
+            :champions="staticList ?? []"
+            :items="itemsMap ?? {}"
+            :summoner-spells="summonersMap ?? {}"
+            :rune-tree="runeTree!"
+          />
+          <div
+            v-if="matchesTotal > matchesPageSize"
+            class="flex justify-center pt-2"
+          >
+            <UPagination
+              :page="matchesPage"
+              :total="matchesTotal"
+              :items-per-page="matchesPageSize"
+              :sibling-count="1"
+              color="neutral"
+              variant="ghost"
+              active-color="primary"
+              active-variant="soft"
+              @update:page="setMatchesPage"
+            />
+          </div>
+        </template>
+      </section>
     </template>
   </main>
 </template>
