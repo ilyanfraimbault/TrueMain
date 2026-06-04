@@ -2,9 +2,9 @@ name: Claude Code Review
 
 on:
   pull_request:
-    # Only review PRs targeting the long-lived branches.
-    branches: [master, develop]
-    types: [opened, synchronize, reopened, ready_for_review]
+    # On-demand only: the review runs when Claude is explicitly assigned as a
+    # reviewer, not on every push. Re-request a review to re-run it.
+    types: [review_requested]
 
 permissions:
   contents: read
@@ -20,8 +20,9 @@ jobs:
   review:
     name: Claude Review
     runs-on: ubuntu-24.04
-    # Skip draft PRs; marking ready for review re-triggers the workflow.
-    if: github.event.pull_request.draft == false
+    # Only when *Claude* is the requested reviewer — assigning a human reviewer
+    # must not trigger this. `claude[bot]` is the Claude GitHub App's bot user.
+    if: github.event.requested_reviewer.login == 'claude[bot]'
 
     steps:
       - name: Checkout
@@ -37,22 +38,28 @@ jobs:
             REPO : ${{ github.repository }}
             PR : ${{ github.event.pull_request.number }}
 
-            Relis le diff de cette pull request et laisse une review.
+            Tu as été assigné comme reviewer sur cette pull request. Relis le
+            diff et soumets une review FORMELLE (pas un simple commentaire).
             Concentre-toi sur :
             - les bugs et erreurs de logique
             - les problèmes de sécurité
             - la qualité et la lisibilité du code
             - les tests manquants
 
-            Pour chaque point précis et actionnable, poste un commentaire inline
-            sur la ligne concernée.
+            Déroulé :
+            1. Pour chaque point précis et actionnable, poste un commentaire
+               inline sur la ligne concernée.
+            2. Termine TOUJOURS par une review formelle soumise avec
+               `gh pr review`, jamais par un simple `gh pr comment` :
+               - s'il n'y a RIEN à corriger, APPROUVE :
+                 `gh pr review ${{ github.event.pull_request.number }} --approve --body "..."`
+                 avec une courte justification (par ex.
+                 « ✅ Relu, rien à signaler — <raison> »).
+               - s'il y a des points à corriger, DEMANDE DES CHANGEMENTS :
+                 `gh pr review ${{ github.event.pull_request.number }} --request-changes --body "..."`
+                 avec une synthèse des points soulevés.
 
-            Termine TOUJOURS par un unique commentaire de synthèse sur la PR,
-            posté avec `gh pr comment`, même quand il n'y a rien à corriger. Dans
-            ce cas, dis-le explicitement — par ex. « ✅ Relu, rien à signaler »
-            suivi d'une phrase de justification. Ne termine JAMAIS la review sans
-            avoir posté ce commentaire de synthèse.
-
-            Sois concis et n'invente pas de problèmes.
+            N'approuve QUE si tu n'as vraiment rien à signaler. Sois concis et
+            n'invente pas de problèmes.
           claude_args: |
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr review:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
