@@ -12,6 +12,7 @@ public sealed class TruemainsController(
     IMatchSummariesQueryService matchSummariesQueryService,
     IProfileQueryService profileQueryService,
     IPlayerChampionBuildsQueryService playerChampionBuildsQueryService,
+    IPlayerChampionMatchupQueryService playerChampionMatchupQueryService,
     IRankHistoryQueryService rankHistoryQueryService,
     ITruemainsLeaderboardQueryService leaderboardQueryService) : ControllerBase
 {
@@ -84,6 +85,46 @@ public sealed class TruemainsController(
             championId,
             normalizedPatch,
             normalizedPosition,
+            ct);
+
+        return response is null ? NotFound() : Ok(response);
+    }
+
+    /// <summary>
+    /// Player-scoped lane matchup: the same <see cref="ChampionMatchupResponse"/>
+    /// contract as <c>GET /champions/{championId}/matchup</c>, but the slice is
+    /// computed only from this player's games on the champion. 400 for an
+    /// unrecognised position; 404 when the account is unknown or the player has
+    /// too few games in the matchup (see
+    /// <c>ChampionsListOptions.MinMatchupGames</c>).
+    /// </summary>
+    [HttpGet("{nameTag}/champions/{championId:int}/matchup")]
+    [ProducesResponseType(typeof(ChampionMatchupResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<ChampionMatchupResponse>> GetPlayerChampionMatchupAsync(
+        string nameTag,
+        int championId,
+        [FromQuery] string? position,
+        [FromQuery] int opponentId,
+        [FromQuery] string? patch,
+        CancellationToken ct = default)
+    {
+        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+        if (normalizedPosition is null)
+        {
+            return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+        }
+
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+
+        var response = await playerChampionMatchupQueryService.GetAsync(
+            nameTag,
+            championId,
+            normalizedPosition,
+            opponentId,
+            normalizedPatch,
             ct);
 
         return response is null ? NotFound() : Ok(response);
