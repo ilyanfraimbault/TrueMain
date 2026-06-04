@@ -9,10 +9,10 @@ const props = withDefaults(defineProps<{
   loading: false,
 })
 
-// Two charts side by side: win rate and pick rate, each on its own clear
+// Two area charts side by side: win rate and pick rate, each on its own clear
 // scale. A combined dual-axis made the small pick-rate line look taller than
 // the win-rate one, so they read better split. The per-patch win-rate
-// movement (issue #112) is read straight off the left chart's line.
+// movement (issue #112) is read straight off the left chart.
 interface ChartRow extends Record<string, unknown> {
   patch: string
   winRate: number
@@ -35,12 +35,17 @@ const hasData = computed(() => rows.value.length > 0)
 // rather than a one-point line that reads as a flat bar.
 const hasTrend = computed(() => rows.value.length > 1)
 
-// Two emerald-family shades so the lines stay on-palette but distinct:
-// the bright primary for win rate, a deeper emerald for pick rate.
-const categories = {
-  winRate: { name: 'Win rate', color: '#34d399' }, // emerald-400
-  pickRate: { name: 'Pick rate', color: '#0f766e' }, // emerald-700
-}
+// Both series in the app primary (emerald-400). The charts sit side by side
+// and never share a plot, so they don't need different hues to be told apart.
+const PRIMARY = '#34d399' // emerald-400 (CHART_SERIES_PALETTE[0])
+const winRateCategories = { winRate: { name: 'Win rate', color: PRIMARY } }
+const pickRateCategories = { pickRate: { name: 'Pick rate', color: PRIMARY } }
+
+// Soft top-down fade for the filled area, matching ProfileRankedCard.
+const gradientStops = [
+  { offset: '0%', stopOpacity: 0.4 },
+  { offset: '100%', stopOpacity: 0.04 },
+]
 
 const xFormatter = (tick: number): string => rows.value[tick]?.patch ?? ''
 const winRateFormatter = (value: number): string => formatPercentage(value, 0)
@@ -77,29 +82,59 @@ const pickRateFormatter = (value: number): string => formatPercentage(value, 1)
         <h3 class="text-xs font-medium text-muted">
           Win rate
         </h3>
-        <ChartsLineChart
+        <ChartsAreaChart
           :data="rows"
-          :categories="{ winRate: categories.winRate }"
+          :categories="winRateCategories"
           :height="220"
           :x-formatter="xFormatter"
           :y-formatter="winRateFormatter"
+          :gradient-stops="gradientStops"
           :y-grid-line="false"
           hide-legend
-        />
+        >
+          <template #tooltip="{ values }">
+            <div
+              v-if="values"
+              class="rounded-md border border-default bg-elevated px-2 py-1.5 text-xs shadow-md"
+            >
+              <p class="font-semibold tabular-nums text-default">
+                {{ winRateFormatter(values.winRate) }}
+              </p>
+              <p class="mt-0.5 text-muted">
+                Patch {{ values.patch }}
+              </p>
+            </div>
+          </template>
+        </ChartsAreaChart>
       </div>
       <div class="flex flex-col gap-1.5">
         <h3 class="text-xs font-medium text-muted">
           Pick rate
         </h3>
-        <ChartsLineChart
+        <ChartsAreaChart
           :data="rows"
-          :categories="{ pickRate: categories.pickRate }"
+          :categories="pickRateCategories"
           :height="220"
           :x-formatter="xFormatter"
           :y-formatter="pickRateFormatter"
+          :gradient-stops="gradientStops"
           :y-grid-line="false"
           hide-legend
-        />
+        >
+          <template #tooltip="{ values }">
+            <div
+              v-if="values"
+              class="rounded-md border border-default bg-elevated px-2 py-1.5 text-xs shadow-md"
+            >
+              <p class="font-semibold tabular-nums text-default">
+                {{ pickRateFormatter(values.pickRate) }}
+              </p>
+              <p class="mt-0.5 text-muted">
+                Patch {{ values.patch }}
+              </p>
+            </div>
+          </template>
+        </ChartsAreaChart>
       </div>
     </div>
   </section>
