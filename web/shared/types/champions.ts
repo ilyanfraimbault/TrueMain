@@ -43,19 +43,24 @@ export interface ChampionTrendPoint {
   games: number
 }
 
-/**
- * One lane-matchup slice: how a champion performs at a position against a
- * single opponent in the same lane. Computed live from match participants;
- * the delta vs the champion's overall win rate is derived on the client.
- */
-export interface ChampionMatchup {
-  championId: number
+/** One lane-matchup row: the champion's record against a single opponent. */
+export interface ChampionMatchupEntry {
   opponentChampionId: number
-  position: string
-  patch: string | null
   games: number
   wins: number
   winRate: number
+}
+
+/**
+ * All of a champion's lane matchups at a position, computed live from match
+ * participants. The client slices a best/worst leaderboard out of it and
+ * filters it for the opponent search.
+ */
+export interface ChampionMatchups {
+  championId: number
+  position: string
+  patch: string | null
+  matchups: ChampionMatchupEntry[]
 }
 
 export interface ChampionBuild {

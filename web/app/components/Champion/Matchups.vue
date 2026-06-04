@@ -1,139 +1,171 @@
 <script setup lang="ts">
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
+import type { ChampionMatchupEntry } from '~~/shared/types/champions'
 import type { ChampionPosition } from '~/utils/positions'
-import { formatPercentage } from '~~/shared/utils/ddragon'
 
 const props = defineProps<{
   championId: number
   position: ChampionPosition | null
+  /** The page's active patch — used when the "This patch" toggle is on. */
   patch: string | null
   champions: ChampionStaticListItem[]
-  /** The champion's overall win rate (0..1) on this slice, for the delta. */
-  overallWinRate: number | null
-  /** When set, scope the matchup to this player's games. */
+  /** When set, scope the matchups to this player's games. */
   nameTag?: string
 }>()
 
+const TOP_N = 5
+// Mirror of the backend ChampionsListOptions.MinMatchupGames, for copy only.
+const MIN_GAMES = 10
+
+// Patch toggle: default to the page's current patch, widen to all history on
+// demand (more games per matchup → a steadier best/worst ranking).
+const scopeToPatch = ref(true)
+const effectivePatch = computed(() => (scopeToPatch.value ? props.patch : null))
+
 const selectedOpponentId = ref<number | null>(null)
 
-// Exclude the champion itself — a "vs yourself" row isn't a useful matchup to
-// surface in the picker.
+const { data, status, error } = useChampionMatchups(
+  () => props.championId,
+  () => props.position,
+  { patch: () => effectivePatch.value, nameTag: () => props.nameTag },
+)
+
+// Skeleton only on the first load — keep the table on screen while a patch
+// switch refetches so toggling This patch / All patches doesn't flash.
+const isLoading = computed(() => status.value === 'pending' && !data.value)
+
+// Champion id → static entry for icon + name lookups.
+const championById = computed(() => {
+  const map = new Map<number, ChampionStaticListItem>()
+  for (const c of props.champions) map.set(c.championId, c)
+  return map
+})
+
+// Exclude the champion itself from the opponent search.
 const opponentOptions = computed(() =>
   props.champions.filter(c => c.championId !== props.championId),
 )
 
-const {
-  data: matchup,
-  status,
-  error,
-} = useChampionMatchup(
-  () => props.championId,
-  () => props.position,
-  selectedOpponentId,
-  {
-    patch: () => props.patch,
-    nameTag: () => props.nameTag,
-  },
+const sorted = computed<ChampionMatchupEntry[]>(() =>
+  [...(data.value?.matchups ?? [])].sort((a, b) => b.winRate - a.winRate),
+)
+const hasAny = computed(() => sorted.value.length > 0)
+
+const best = computed(() => sorted.value.slice(0, TOP_N))
+// Bottom TOP_N, worst (lowest win rate) first, never overlapping `best`.
+const worst = computed(() =>
+  sorted.value.slice(Math.max(TOP_N, sorted.value.length - TOP_N)).reverse(),
 )
 
-const opponent = computed(() =>
-  props.champions.find(c => c.championId === selectedOpponentId.value) ?? null,
+// Opponent search: the picked champion's row, if it cleared the games floor.
+const searched = computed<ChampionMatchupEntry | null>(() =>
+  selectedOpponentId.value === null
+    ? null
+    : sorted.value.find(m => m.opponentChampionId === selectedOpponentId.value) ?? null,
 )
-
-const isLoading = computed(() => selectedOpponentId.value !== null && status.value === 'pending')
-
-// Delta against the champion's overall win rate (issue #90). Null until both
-// the matchup and the overall are known.
-const delta = computed(() => {
-  if (!matchup.value || props.overallWinRate === null) return null
-  return matchup.value.winRate - props.overallWinRate
-})
+const searchedOpponent = computed(() =>
+  selectedOpponentId.value === null ? null : championById.value.get(selectedOpponentId.value) ?? null,
+)
 </script>
 
 <template>
   <section class="flex flex-col gap-3">
-    <header class="flex flex-wrap items-center justify-between gap-2">
+    <header class="flex flex-wrap items-center gap-3">
       <div class="flex flex-col gap-0.5">
         <h2 class="text-sm font-semibold">
           Matchups
         </h2>
         <p class="text-xs text-muted">
-          How this champion does against a chosen lane opponent.
+          Best and worst lane matchups (min {{ MIN_GAMES }} games).
         </p>
       </div>
-      <ChampionPicker
-        :champions="opponentOptions"
-        :champion-id="selectedOpponentId"
-        placeholder="Pick an opponent"
-        trigger-class="w-56"
-        @update:champion-id="value => (selectedOpponentId = value)"
-      />
+      <div class="ml-auto flex items-center gap-2">
+        <ChampionPicker
+          :champions="opponentOptions"
+          :champion-id="selectedOpponentId"
+          placeholder="Search for a champion"
+          trigger-class="w-48"
+          @update:champion-id="value => (selectedOpponentId = value)"
+        />
+        <!-- Patch scope toggle: current page patch vs all history. -->
+        <div class="flex shrink-0 rounded-md bg-elevated/60 p-0.5 text-xs font-medium">
+          <button
+            type="button"
+            class="rounded px-2 py-1 transition-colors"
+            :class="scopeToPatch ? 'bg-primary/15 text-primary' : 'text-muted hover:text-default'"
+            @click="scopeToPatch = true"
+          >
+            This patch
+          </button>
+          <button
+            type="button"
+            class="rounded px-2 py-1 transition-colors"
+            :class="!scopeToPatch ? 'bg-primary/15 text-primary' : 'text-muted hover:text-default'"
+            @click="scopeToPatch = false"
+          >
+            All patches
+          </button>
+        </div>
+      </div>
     </header>
 
-    <!-- Before any selection: a quiet prompt rather than an empty box. -->
-    <p
-      v-if="selectedOpponentId === null"
-      class="rounded-lg bg-elevated/40 px-4 py-6 text-center text-sm text-muted"
-    >
-      Pick an opponent to see the lane matchup.
-    </p>
+    <template v-if="isLoading">
+      <USkeleton v-for="i in 6" :key="`mu-skel-${i}`" class="h-11 w-full rounded-md" />
+    </template>
 
-    <USkeleton v-else-if="isLoading" class="h-[68px] w-full rounded-lg" />
-
-    <!-- A real failure (not a 404 "no data") — surface it rather than mask it. -->
     <p
       v-else-if="error"
       class="rounded-lg bg-elevated/40 px-4 py-6 text-center text-sm text-muted"
     >
-      Couldn't load this matchup. Please try again.
+      Couldn't load matchups. Please try again.
     </p>
 
-    <!-- The matchup card: opponent, sample size, win rate + delta vs overall. -->
-    <div
-      v-else-if="matchup"
-      class="flex items-center gap-4 rounded-lg bg-elevated/40 px-4 py-3"
-    >
-      <SkeletonImage
-        v-if="opponent?.iconUrl"
-        :src="opponent.iconUrl"
-        :alt="opponent.name"
-        width="48"
-        height="48"
-        class="size-12 shrink-0 rounded"
+    <!-- Opponent search: just the picked champion's row (or a games-floor note). -->
+    <template v-else-if="selectedOpponentId !== null">
+      <ChampionMatchupRow
+        v-if="searched"
+        :entry="searched"
+        :opponent="searchedOpponent"
       />
-      <div class="flex min-w-0 flex-col">
-        <span class="truncate text-sm font-medium text-default">
-          vs {{ opponent?.name ?? `Champion ${matchup.opponentChampionId}` }}
-        </span>
-        <span class="text-xs tabular-nums text-muted">
-          {{ matchup.games.toLocaleString() }} games
-        </span>
-      </div>
-      <div class="ml-auto flex items-center gap-3">
-        <span class="text-xl font-bold tabular-nums text-default">
-          {{ formatPercentage(matchup.winRate, 0) }}
-        </span>
-        <span
-          v-if="delta !== null"
-          class="inline-flex items-center gap-1 text-xs font-semibold tabular-nums"
-          :class="delta >= 0 ? 'text-emerald-400' : 'text-red-400'"
-          title="vs the champion's overall win rate"
-        >
-          <UIcon
-            :name="delta >= 0 ? 'i-lucide-trending-up' : 'i-lucide-trending-down'"
-            class="size-3.5"
-          />
-          {{ formatPercentage(Math.abs(delta), 1) }}
-        </span>
-      </div>
-    </div>
+      <p
+        v-else
+        class="rounded-lg bg-elevated/40 px-4 py-6 text-center text-sm text-muted"
+      >
+        Not enough games against {{ searchedOpponent?.name ?? 'this opponent' }} on this lane yet.
+      </p>
+    </template>
 
-    <!-- 404 / no matchup: too few games for this pairing to be meaningful. -->
     <p
-      v-else
+      v-else-if="!hasAny"
       class="rounded-lg bg-elevated/40 px-4 py-6 text-center text-sm text-muted"
     >
-      Not enough games against {{ opponent?.name ?? 'this opponent' }} on this lane yet.
+      No matchups with enough games on this lane yet.
     </p>
+
+    <!-- Default: best / worst leaderboard. -->
+    <template v-else>
+      <div class="flex flex-col gap-1">
+        <p class="px-2 text-xs font-semibold uppercase tracking-wide text-emerald-400/80">
+          Best matchups
+        </p>
+        <ChampionMatchupRow
+          v-for="m in best"
+          :key="`best-${m.opponentChampionId}`"
+          :entry="m"
+          :opponent="championById.get(m.opponentChampionId) ?? null"
+        />
+      </div>
+      <div v-if="worst.length" class="flex flex-col gap-1">
+        <p class="px-2 text-xs font-semibold uppercase tracking-wide text-red-400/80">
+          Worst matchups
+        </p>
+        <ChampionMatchupRow
+          v-for="m in worst"
+          :key="`worst-${m.opponentChampionId}`"
+          :entry="m"
+          :opponent="championById.get(m.opponentChampionId) ?? null"
+        />
+      </div>
+    </template>
   </section>
 </template>

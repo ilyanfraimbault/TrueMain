@@ -211,7 +211,6 @@ const isRefetching = computed(() =>
         :position="selectedPosition"
         :patch="activePatch"
         :champions="staticList ?? []"
-        :overall-win-rate="champion.totalGames > 0 ? champion.totalWins / champion.totalGames : null"
       />
 
       <ChampionTrendChart
