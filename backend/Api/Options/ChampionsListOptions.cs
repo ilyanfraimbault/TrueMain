@@ -21,13 +21,13 @@ public sealed class ChampionsListOptions
 
     /// <summary>
     /// Minimum games a champion-vs-opponent lane matchup needs before the
-    /// matchup endpoints return a win rate. A handful of games against a
-    /// specific opponent is noise — a single lucky game would read as a 100%
-    /// matchup — so below this floor the slice is reported as "not enough data"
-    /// (the service yields <see langword="null"/> → the controller returns
-    /// 404). Ten is the smallest sample where the head-to-head win rate starts
-    /// to carry signal rather than echoing one or two games. Set to 0 to
-    /// disable the floor.
+    /// matchup endpoints include it. A handful of games against a specific
+    /// opponent is noise — a single lucky game would read as a 100% matchup —
+    /// so opponents below this floor are dropped from the list in SQL (a HAVING
+    /// on the grouped game count); the endpoint still returns 200 with the
+    /// qualifying entries (an empty list when none clear the floor). Ten is the
+    /// smallest sample where the head-to-head win rate starts to carry signal
+    /// rather than echoing one or two games. Set to 0 to disable the floor.
     /// </summary>
     public int MinMatchupGames { get; set; } = 10;
 }
