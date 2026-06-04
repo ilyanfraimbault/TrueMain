@@ -57,10 +57,14 @@ public sealed class ChampionMatchupQueryService(
                 && (normalizedPatch == null
                     || EF.Functions.Like(m.GameVersion, patchPrefix!))));
 
-        if (riotAccountId is { } accountId)
-        {
-            championRows = championRows.Where(p1 => p1.RiotAccountId == accountId);
-        }
+        // Scope the champion side to tracked accounts so the matchup pool matches
+        // the champion page's aggregation, which only counts tracked truemains —
+        // never the untracked random players who merely shared a truemain's game.
+        // Including them drags in off-meta lane picks and inflates the counts past
+        // the champion's own total. A player-scoped call narrows to one account.
+        championRows = riotAccountId is { } accountId
+            ? championRows.Where(p1 => p1.RiotAccountId == accountId)
+            : championRows.Where(p1 => p1.RiotAccountId != null);
 
         // One SQL round-trip: correlate each champion row to its lane opponent
         // (same match + position, opposite team), group by the opponent
