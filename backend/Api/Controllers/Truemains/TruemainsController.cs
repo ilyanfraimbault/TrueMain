@@ -91,23 +91,22 @@ public sealed class TruemainsController(
     }
 
     /// <summary>
-    /// Player-scoped lane matchup: the same <see cref="ChampionMatchupResponse"/>
-    /// contract as <c>GET /champions/{championId}/matchup</c>, but the slice is
+    /// Player-scoped lane matchups: the same <see cref="ChampionMatchupsResponse"/>
+    /// contract as <c>GET /champions/{championId}/matchups</c>, but every line is
     /// computed only from this player's games on the champion. 400 for an
-    /// unrecognised position; 404 when the account is unknown or the player has
-    /// too few games in the matchup (see
-    /// <c>ChampionsListOptions.MinMatchupGames</c>).
+    /// unrecognised position; 404 when the account is unknown. A known player
+    /// with no opponent above the minimum-games floor (see
+    /// <c>ChampionsListOptions.MinMatchupGames</c>) gets a 200 with an empty list.
     /// </summary>
-    [HttpGet("{nameTag}/champions/{championId:int}/matchup")]
-    [ProducesResponseType(typeof(ChampionMatchupResponse), StatusCodes.Status200OK)]
+    [HttpGet("{nameTag}/champions/{championId:int}/matchups")]
+    [ProducesResponseType(typeof(ChampionMatchupsResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
-    public async Task<ActionResult<ChampionMatchupResponse>> GetPlayerChampionMatchupAsync(
+    public async Task<ActionResult<ChampionMatchupsResponse>> GetPlayerChampionMatchupsAsync(
         string nameTag,
         int championId,
         [FromQuery] string? position,
-        [FromQuery] int opponentId,
         [FromQuery] string? patch,
         CancellationToken ct = default)
     {
@@ -123,7 +122,6 @@ public sealed class TruemainsController(
             nameTag,
             championId,
             normalizedPosition,
-            opponentId,
             normalizedPatch,
             ct);
 

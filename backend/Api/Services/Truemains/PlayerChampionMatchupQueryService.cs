@@ -9,11 +9,10 @@ public sealed class PlayerChampionMatchupQueryService(
     TrueMainDbContext db,
     IChampionMatchupQueryService matchupQueryService) : IPlayerChampionMatchupQueryService
 {
-    public async Task<ChampionMatchupResponse?> GetAsync(
+    public async Task<ChampionMatchupsResponse?> GetAsync(
         string nameTag,
         int championId,
         string position,
-        int opponentChampionId,
         string? patch,
         CancellationToken ct)
     {
@@ -40,7 +39,6 @@ public sealed class PlayerChampionMatchupQueryService(
         return await matchupQueryService.GetAsync(
             championId,
             position,
-            opponentChampionId,
             patch,
             accountId,
             ct);

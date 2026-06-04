@@ -66,23 +66,22 @@ public sealed class ChampionsController(
     }
 
     /// <summary>
-    /// Lane-matchup win rate and game count for a champion at a position
-    /// against a single opponent, computed live from <c>match_participants</c>.
-    /// <paramref name="position"/> is the required Riot team position and
-    /// <paramref name="opponentId"/> the required opponent champion id; an
-    /// unrecognised position is a 400. 404 when the matchup has fewer than the
-    /// configured minimum games (the "not enough data" case). The frontend
-    /// derives the delta against the champion's overall win rate itself.
+    /// Lane matchups for a champion at a position: every lane opponent it met
+    /// (above the configured minimum-games floor) with its head-to-head game
+    /// count, win count and win rate, computed live from
+    /// <c>match_participants</c>. <paramref name="position"/> is the required
+    /// Riot team position; an unrecognised position is a 400. Always 200 with a
+    /// (possibly empty) list — a champion with no opponent above the floor just
+    /// yields no entries. The frontend slices the best / worst opponents and
+    /// filters by a searched opponent itself.
     /// </summary>
-    [HttpGet("{championId:int}/matchup")]
-    [ProducesResponseType(typeof(ChampionMatchupResponse), StatusCodes.Status200OK)]
+    [HttpGet("{championId:int}/matchups")]
+    [ProducesResponseType(typeof(ChampionMatchupsResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
-    public async Task<ActionResult<ChampionMatchupResponse>> GetChampionMatchupAsync(
+    public async Task<ActionResult<ChampionMatchupsResponse>> GetChampionMatchupsAsync(
         int championId,
         [FromQuery] string? position,
-        [FromQuery] int opponentId,
         [FromQuery] string? patch,
         CancellationToken ct = default)
     {
@@ -97,11 +96,10 @@ public sealed class ChampionsController(
         var response = await matchupQueryService.GetAsync(
             championId,
             normalizedPosition,
-            opponentId,
             normalizedPatch,
             riotAccountId: null,
             ct);
 
-        return response is null ? NotFound() : Ok(response);
+        return Ok(response);
     }
 }

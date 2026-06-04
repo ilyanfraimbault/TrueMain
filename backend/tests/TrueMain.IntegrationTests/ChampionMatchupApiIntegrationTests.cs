@@ -25,7 +25,7 @@ public sealed class ChampionMatchupApiIntegrationTests
     }
 
     [Fact]
-    public async Task GetChampionMatchupAsync_CountsOnlyLaneOpponentGames()
+    public async Task GetChampionMatchupsAsync_CountsOnlyLaneOpponentGames()
     {
         await _fixture.ResetDatabaseAsync();
         await SeedMatchupSampleAsync();
@@ -34,26 +34,31 @@ public sealed class ChampionMatchupApiIntegrationTests
         using var client = CreateClient(factory);
 
         var response = await client.GetAsync(
-            $"/champions/{Champion}/matchup?position={Position}&opponentId={Opponent}");
+            $"/champions/{Champion}/matchups?position={Position}");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var matchup = await response.Content.ReadFromJsonAsync<ChampionMatchupResponse>();
-        matchup.Should().NotBeNull();
-        matchup!.ChampionId.Should().Be(Champion);
-        matchup.OpponentChampionId.Should().Be(Opponent);
-        matchup.Position.Should().Be(Position);
-        matchup.Patch.Should().BeNull("no patch was pinned, so the slice spans every patch");
+        var matchups = await response.Content.ReadFromJsonAsync<ChampionMatchupsResponse>();
+        matchups.Should().NotBeNull();
+        matchups!.ChampionId.Should().Be(Champion);
+        matchups.Position.Should().Be(Position);
+        matchups.Patch.Should().BeNull("no patch was pinned, so the slice spans every patch");
 
         // 12 lane-vs-Zed games seeded (7 won). The seeder also adds Zed on the
         // same team, Zed in another lane, a wrong-queue Yone-vs-Zed game, and a
-        // Yone-vs-Talon game — none of which may count.
-        matchup.Games.Should().Be(12);
-        matchup.Wins.Should().Be(7);
-        matchup.WinRate.Should().BeApproximately(7d / 12d, 1e-9);
+        // single Yone-vs-Talon game — none of which may count toward Zed, and
+        // the Talon line sits below the floor so it never appears at all.
+        var zed = matchups.Matchups.Should().ContainSingle(m => m.OpponentChampionId == Opponent).Subject;
+        zed.Games.Should().Be(12);
+        zed.Wins.Should().Be(7);
+        zed.WinRate.Should().BeApproximately(7d / 12d, 1e-9);
+
+        matchups.Matchups.Should().NotContain(
+            m => m.OpponentChampionId == OtherOpponent,
+            "the single Yone-vs-Talon game is below the MinMatchupGames floor");
     }
 
     [Fact]
-    public async Task GetChampionMatchupAsync_FiltersToRequestedPatch()
+    public async Task GetChampionMatchupsAsync_FiltersToRequestedPatch()
     {
         await _fixture.ResetDatabaseAsync();
         await SeedMatchupSampleAsync();
@@ -64,20 +69,22 @@ public sealed class ChampionMatchupApiIntegrationTests
         // 10 of the 12 Yone-vs-Zed games are on 16.4 (full GameVersion
         // "16.4.521.123"); the patch filter must match the major.minor prefix.
         var response = await client.GetAsync(
-            $"/champions/{Champion}/matchup?position={Position}&opponentId={Opponent}&patch=16.4");
+            $"/champions/{Champion}/matchups?position={Position}&patch=16.4");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var matchup = await response.Content.ReadFromJsonAsync<ChampionMatchupResponse>();
-        matchup.Should().NotBeNull();
-        matchup!.Patch.Should().Be("16.4");
-        matchup.Games.Should().Be(10, "only the 16.4 games count; the two 16.5 games drop");
+        var matchups = await response.Content.ReadFromJsonAsync<ChampionMatchupsResponse>();
+        matchups.Should().NotBeNull();
+        matchups!.Patch.Should().Be("16.4");
+
+        var zed = matchups.Matchups.Should().ContainSingle(m => m.OpponentChampionId == Opponent).Subject;
+        zed.Games.Should().Be(10, "only the 16.4 games count; the two 16.5 games drop");
         // The 7 wins are games i=0..6, all on 16.4 (i<10); the two dropped 16.5
         // games (i=10,11) were losses, so every seeded win survives the filter.
-        matchup.Wins.Should().Be(7);
+        zed.Wins.Should().Be(7);
     }
 
     [Fact]
-    public async Task GetChampionMatchupAsync_ReturnsNotFoundBelowMinGames()
+    public async Task GetChampionMatchupsAsync_ExcludesOpponentsBelowMinGames()
     {
         await _fixture.ResetDatabaseAsync();
         await SeedMatchupSampleAsync();
@@ -85,15 +92,21 @@ public sealed class ChampionMatchupApiIntegrationTests
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
-        // Only one Yone-vs-Talon game is seeded — below the default
-        // MinMatchupGames floor of 10, so the endpoint reports "not enough data".
         var response = await client.GetAsync(
-            $"/champions/{Champion}/matchup?position={Position}&opponentId={OtherOpponent}");
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+            $"/champions/{Champion}/matchups?position={Position}");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var matchups = await response.Content.ReadFromJsonAsync<ChampionMatchupsResponse>();
+        matchups.Should().NotBeNull();
+
+        // Only one Yone-vs-Talon game is seeded — below the default
+        // MinMatchupGames floor of 10 — so Talon must not appear, while the
+        // 12-game Zed line (above the floor) is the only entry returned.
+        matchups!.Matchups.Should().OnlyContain(m => m.OpponentChampionId == Opponent);
     }
 
     [Fact]
-    public async Task GetChampionMatchupAsync_ReturnsBadRequestForInvalidPosition()
+    public async Task GetChampionMatchupsAsync_ReturnsBadRequestForInvalidPosition()
     {
         await _fixture.ResetDatabaseAsync();
 
@@ -101,12 +114,12 @@ public sealed class ChampionMatchupApiIntegrationTests
         using var client = CreateClient(factory);
 
         var response = await client.GetAsync(
-            $"/champions/{Champion}/matchup?position=NOTALANE&opponentId={Opponent}");
+            $"/champions/{Champion}/matchups?position=NOTALANE");
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     [Fact]
-    public async Task GetPlayerChampionMatchupAsync_ScopesToThatPlayersGames()
+    public async Task GetPlayerChampionMatchupsAsync_ScopesToThatPlayersGames()
     {
         await _fixture.ResetDatabaseAsync();
         var (nameTag, accountId) = await SeedScopedMatchupSampleAsync();
@@ -117,19 +130,21 @@ public sealed class ChampionMatchupApiIntegrationTests
         // The account owns 11 of the global Yone-vs-Zed games (6 won); the
         // remaining anonymous ones must not leak into the player slice.
         var response = await client.GetAsync(
-            $"/truemains/{nameTag}/champions/{Champion}/matchup?position={Position}&opponentId={Opponent}");
+            $"/truemains/{nameTag}/champions/{Champion}/matchups?position={Position}");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var matchup = await response.Content.ReadFromJsonAsync<ChampionMatchupResponse>();
-        matchup.Should().NotBeNull();
-        matchup!.Games.Should().Be(11, "only this account's Yone-vs-Zed games count");
-        matchup.Wins.Should().Be(6);
+        var matchups = await response.Content.ReadFromJsonAsync<ChampionMatchupsResponse>();
+        matchups.Should().NotBeNull();
+
+        var zed = matchups!.Matchups.Should().ContainSingle(m => m.OpponentChampionId == Opponent).Subject;
+        zed.Games.Should().Be(11, "only this account's Yone-vs-Zed games count");
+        zed.Wins.Should().Be(6);
 
         accountId.Should().NotBeEmpty();
     }
 
     [Fact]
-    public async Task GetPlayerChampionMatchupAsync_ReturnsNotFoundForUnknownNameTag()
+    public async Task GetPlayerChampionMatchupsAsync_ReturnsNotFoundForUnknownNameTag()
     {
         await _fixture.ResetDatabaseAsync();
 
@@ -137,7 +152,7 @@ public sealed class ChampionMatchupApiIntegrationTests
         using var client = CreateClient(factory);
 
         var response = await client.GetAsync(
-            $"/truemains/Nobody-KR1/champions/{Champion}/matchup?position={Position}&opponentId={Opponent}");
+            $"/truemains/Nobody-KR1/champions/{Champion}/matchups?position={Position}");
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
