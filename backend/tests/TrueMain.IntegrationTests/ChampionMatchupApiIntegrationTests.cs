@@ -122,13 +122,13 @@ public sealed class ChampionMatchupApiIntegrationTests
     public async Task GetPlayerChampionMatchupsAsync_ScopesToThatPlayersGames()
     {
         await _fixture.ResetDatabaseAsync();
-        var (nameTag, accountId) = await SeedScopedMatchupSampleAsync();
+        var nameTag = await SeedScopedMatchupSampleAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
-        // The account owns 11 of the global Yone-vs-Zed games (6 won); the
-        // remaining anonymous ones must not leak into the player slice.
+        // The account owns 11 of the Yone-vs-Zed games (6 won); a second tracked
+        // account's 5 games and the 3 anonymous games must not leak into its slice.
         var response = await client.GetAsync(
             $"/truemains/{nameTag}/champions/{Champion}/matchups?position={Position}");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -140,7 +140,14 @@ public sealed class ChampionMatchupApiIntegrationTests
         zed.Games.Should().Be(11, "only this account's Yone-vs-Zed games count");
         zed.Wins.Should().Be(6);
 
-        accountId.Should().NotBeEmpty();
+        // The global pool keeps both tracked accounts (11 + 5) yet still drops
+        // the anonymous games — so the player slice is a strict subset of it.
+        var globalResponse = await client.GetAsync(
+            $"/champions/{Champion}/matchups?position={Position}");
+        globalResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var global = await globalResponse.Content.ReadFromJsonAsync<ChampionMatchupsResponse>();
+        var globalZed = global!.Matchups.Should().ContainSingle(m => m.OpponentChampionId == Opponent).Subject;
+        globalZed.Games.Should().Be(16, "both tracked accounts count globally; the anonymous games never do");
     }
 
     [Fact]
@@ -154,6 +161,21 @@ public sealed class ChampionMatchupApiIntegrationTests
         var response = await client.GetAsync(
             $"/truemains/Nobody-KR1/champions/{Champion}/matchups?position={Position}");
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task GetPlayerChampionMatchupsAsync_ReturnsBadRequestForInvalidPosition()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // Position is validated before the account lookup, so an unknown player
+        // with an unrecognised position is still a 400, not a 404.
+        var response = await client.GetAsync(
+            $"/truemains/Nobody-KR1/champions/{Champion}/matchups?position=NOTALANE");
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     /// <summary>
@@ -207,11 +229,14 @@ public sealed class ChampionMatchupApiIntegrationTests
     }
 
     /// <summary>
-    /// Seeds a player-scoped sample: 11 Yone-vs-Zed lane games owned by one
-    /// account (6 won) plus three anonymous Yone-vs-Zed lane games that belong
-    /// to the global pool but not to the account.
+    /// Seeds a player-scoped sample for the account under test: 11 Yone-vs-Zed
+    /// lane games it owns (6 won), plus two kinds of games its slice must drop
+    /// while the global pool keeps the tracked one — 5 Yone-vs-Zed games owned
+    /// by a <em>second tracked account</em> (these exercise real inter-account
+    /// isolation, not just the null-account filter) and 3 anonymous Yone-vs-Zed
+    /// games (counted by neither scope).
     /// </summary>
-    private async Task<(string NameTag, Guid AccountId)> SeedScopedMatchupSampleAsync()
+    private async Task<string> SeedScopedMatchupSampleAsync()
     {
         await using var db = _fixture.CreateDbContext();
 
@@ -222,19 +247,35 @@ public sealed class ChampionMatchupApiIntegrationTests
             .Build();
         db.RiotAccounts.Add(account);
 
+        var otherAccount = new RiotAccountBuilder()
+            .WithGameName("MatchupOther")
+            .WithTagLine("KR1")
+            .WithPuuid("matchup-other-puuid")
+            .Build();
+        db.RiotAccounts.Add(otherAccount);
+
         for (var i = 0; i < 11; i++)
         {
             AddLaneMatchup(db, $"ms-owned-{i}", "16.4.521.123", QueueId, yoneWins: i < 6, Opponent,
                 yoneAccountId: account.Id);
         }
 
+        // A second tracked account's games: part of the global pool, never this
+        // player's slice.
+        for (var i = 0; i < 5; i++)
+        {
+            AddLaneMatchup(db, $"ms-other-{i}", "16.4.521.123", QueueId, yoneWins: true, Opponent,
+                yoneAccountId: otherAccount.Id);
+        }
+
+        // Anonymous games: counted by neither scope (no tracked account).
         for (var i = 0; i < 3; i++)
         {
             AddLaneMatchup(db, $"ms-anon-{i}", "16.4.521.123", QueueId, yoneWins: true, Opponent);
         }
 
         await db.SaveChangesAsync();
-        return ($"{account.GameName}-{account.TagLine}", account.Id);
+        return $"{account.GameName}-{account.TagLine}";
     }
 
     /// <summary>

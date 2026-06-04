@@ -34,9 +34,12 @@ public sealed class ChampionMatchupQueryService(
         var queueId = (int)options.Value.QueueId;
 
         // Canonicalise to major.minor (e.g. "16.4.521.123" → "16.4"). The
-        // matches table stores the full Riot GameVersion, so an exact compare
-        // would never hit; the LIKE prefix below bridges the two forms. Null /
-        // unparseable input means "every patch".
+        // interface contract accepts either form, so the service normalises its
+        // own input and stays correct standalone — both controllers happen to
+        // pre-normalise, but the service doesn't rely on that. The matches table
+        // stores the full Riot GameVersion, so an exact compare would never hit;
+        // the LIKE prefix below bridges the two forms. Null / unparseable input
+        // means "every patch".
         var normalizedPatch = string.IsNullOrWhiteSpace(patch)
             ? null
             : PatchVersion.TryParse(patch, out var parsed) ? parsed.ToString() : null;
