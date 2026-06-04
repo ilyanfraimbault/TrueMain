@@ -9,7 +9,8 @@ namespace TrueMain.Controllers.Champions;
 public sealed class ChampionsController(
     IChampionSummariesQueryService summariesQueryService,
     IChampionBuildsQueryService buildsQueryService,
-    IChampionTrendQueryService trendQueryService) : ControllerBase
+    IChampionTrendQueryService trendQueryService,
+    IChampionMatchupQueryService matchupQueryService) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<ChampionSummaryReadModel>), StatusCodes.Status200OK)]
@@ -62,5 +63,43 @@ public sealed class ChampionsController(
         var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
         var trend = await trendQueryService.GetTrendAsync(championId, normalizedPosition, ct);
         return Ok(trend);
+    }
+
+    /// <summary>
+    /// Lane matchups for a champion at a position: every lane opponent it met
+    /// (above the configured minimum-games floor) with its head-to-head game
+    /// count, win count and win rate, computed live from
+    /// <c>match_participants</c>. <paramref name="position"/> is the required
+    /// Riot team position; an unrecognised position is a 400. Always 200 with a
+    /// (possibly empty) list — a champion with no opponent above the floor just
+    /// yields no entries. The frontend slices the best / worst opponents and
+    /// filters by a searched opponent itself.
+    /// </summary>
+    [HttpGet("{championId:int}/matchups")]
+    [ProducesResponseType(typeof(ChampionMatchupsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<ChampionMatchupsResponse>> GetChampionMatchupsAsync(
+        int championId,
+        [FromQuery] string? position,
+        [FromQuery] string? patch,
+        CancellationToken ct = default)
+    {
+        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+        if (normalizedPosition is null)
+        {
+            return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+        }
+
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+
+        var response = await matchupQueryService.GetAsync(
+            championId,
+            normalizedPosition,
+            normalizedPatch,
+            riotAccountId: null,
+            ct);
+
+        return Ok(response);
     }
 }

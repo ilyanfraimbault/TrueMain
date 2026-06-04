@@ -296,6 +296,14 @@ const staticBundleReady = computed(() =>
         :rune-tree="runeTree ?? null"
       />
 
+      <ChampionMatchups
+        :champion-id="championId"
+        :position="selectedPosition"
+        :patch="activePatch"
+        :champions="staticList ?? []"
+        :name-tag="nameTag"
+      />
+
       <!-- This player's recent games on this champion. The champion is fixed;
            the lane filter is its own RolePicker, independent of the build's
            position filter above. -->

@@ -206,6 +206,13 @@ const isRefetching = computed(() =>
         :rune-tree="runeTree ?? null"
       />
 
+      <ChampionMatchups
+        :champion-id="championId"
+        :position="selectedPosition"
+        :patch="activePatch"
+        :champions="staticList ?? []"
+      />
+
       <ChampionTrendChart
         :points="championTrend?.points ?? []"
         :loading="isLoadingStatus(trendStatus)"
