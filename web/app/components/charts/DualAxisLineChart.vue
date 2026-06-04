@@ -197,7 +197,7 @@ const crosshairTemplate = (datum: TItem, xValue: number): string => {
           <VisAxis
             type="y"
             :tick-format="primaryTickFormat"
-            :grid-line="true"
+            :grid-line="false"
             :domain-line="false"
           />
           <VisCrosshair

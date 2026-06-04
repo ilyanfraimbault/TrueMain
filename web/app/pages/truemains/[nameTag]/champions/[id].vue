@@ -153,6 +153,34 @@ const isRefetching = computed(() =>
   || isLoadingStatus(itemsStatus.value)
   || isLoadingStatus(summonersStatus.value),
 )
+
+// Patch for the profile icon in the player header.
+const latestPatch = computed(() => versions.value?.[0] ?? null)
+
+// ─── Match history ─────────────────────────────────────────────────────────
+// This player's recent games on THIS champion. The champion is fixed to the
+// page; the lane filter is shared with the build's position filter, so the
+// build and the recent games always stay on the same lane.
+const matchesPage = ref(1)
+const {
+  matches,
+  total: matchesTotal,
+  pageSize: matchesPageSize,
+  isInitialLoading: matchesInitialLoading,
+  notFound: matchesNotFound,
+} = useTruemainMatches(nameTag, matchesPage, {
+  championId,
+  position: () => filters.value.position || null,
+})
+function setMatchesPage(next: number) {
+  matchesPage.value = Math.max(1, Math.floor(next))
+}
+// Reset to page 1 whenever the lane filter changes the result set under us.
+watch(() => filters.value.position, () => { matchesPage.value = 1 })
+
+const staticBundleReady = computed(() =>
+  Boolean(staticList.value && itemsMap.value && summonersMap.value && runeTree.value),
+)
 </script>
 
 <template>
@@ -176,6 +204,15 @@ const isRefetching = computed(() =>
         </li>
       </ol>
     </nav>
+
+    <!-- Player identity up top so it's obvious this is the truemain's page,
+         not the global champion page. -->
+    <ProfileHeaderSkeleton v-if="!profile" />
+    <ProfileHeader
+      v-else
+      :identity="profile.identity"
+      :patch="latestPatch"
+    />
 
     <div class="h-0.5">
       <UProgress
@@ -255,6 +292,49 @@ const isRefetching = computed(() =>
         :summoners-map="summonersMap ?? {}"
         :rune-tree="runeTree ?? null"
       />
+
+      <!-- This player's recent games on this champion. Champion is fixed; the
+           lane filter is the same ChampionFilters position above, so build and
+           games stay on one lane. -->
+      <section class="flex min-w-0 flex-col gap-3">
+        <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
+          Recent {{ displayName ?? '' }} games
+        </h2>
+
+        <template v-if="matchesInitialLoading || !staticBundleReady">
+          <MatchRowSkeleton v-for="i in 5" :key="`match-skel-${i}`" />
+        </template>
+        <template v-else-if="matchesNotFound || matches.length === 0">
+          <MatchHistoryEmpty :not-found="matchesNotFound" />
+        </template>
+        <template v-else>
+          <MatchRow
+            v-for="match in matches"
+            :key="match.matchId"
+            :match="match"
+            :champions="staticList ?? []"
+            :items="itemsMap ?? {}"
+            :summoner-spells="summonersMap ?? {}"
+            :rune-tree="runeTree!"
+          />
+          <div
+            v-if="matchesTotal > matchesPageSize"
+            class="flex justify-center pt-2"
+          >
+            <UPagination
+              :page="matchesPage"
+              :total="matchesTotal"
+              :items-per-page="matchesPageSize"
+              :sibling-count="1"
+              color="neutral"
+              variant="ghost"
+              active-color="primary"
+              active-variant="soft"
+              @update:page="setMatchesPage"
+            />
+          </div>
+        </template>
+      </section>
     </template>
   </main>
 </template>
