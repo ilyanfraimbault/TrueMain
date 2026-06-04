@@ -46,13 +46,17 @@ const opponentOptions = computed(() =>
   props.champions.filter(c => c.championId !== props.championId),
 )
 
+// The API already returns matchups by win rate descending; this re-sort is a
+// defensive copy so the best/worst slicing below never depends on response order.
 const sorted = computed<ChampionMatchupEntry[]>(() =>
   [...(data.value?.matchups ?? [])].sort((a, b) => b.winRate - a.winRate),
 )
 const hasAny = computed(() => sorted.value.length > 0)
 
 const best = computed(() => sorted.value.slice(0, TOP_N))
-// Bottom TOP_N, worst (lowest win rate) first, never overlapping `best`.
+// Bottom TOP_N, worst (lowest win rate) first, never overlapping `best`: the
+// `Math.max` start clamp means that with 6–9 entries `worst` holds only the
+// rows past `best` (fewer than TOP_N) rather than re-showing best's rows.
 const worst = computed(() =>
   sorted.value.slice(Math.max(TOP_N, sorted.value.length - TOP_N)).reverse(),
 )
