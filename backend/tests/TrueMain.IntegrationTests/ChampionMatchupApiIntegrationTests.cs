@@ -157,7 +157,7 @@ public sealed class ChampionMatchupApiIntegrationTests
     }
 
     /// <summary>
-    /// Seeds a global (account-less) matchup sample: 12 Yone-vs-Zed lane games
+    /// Seeds a global matchup sample (one tracked account): 12 Yone-vs-Zed lane games
     /// (10 on 16.4, 2 on 16.5; 7 won overall), plus four kinds of decoys that
     /// must never count — Zed on Yone's own team, Zed in another lane, a
     /// wrong-queue Yone-vs-Zed game, and a single Yone-vs-Talon lane game.
@@ -166,30 +166,42 @@ public sealed class ChampionMatchupApiIntegrationTests
     {
         await using var db = _fixture.CreateDbContext();
 
+        // The global matchups query counts only tracked accounts (RiotAccountId
+        // set) to match the champion page's aggregation, so the Yone side must
+        // belong to a tracked account for any of these games to be counted. The
+        // decoys share that account too, so each is still excluded by its own
+        // rule (team / lane / queue / opponent), not merely by this filter.
+        var account = new RiotAccountBuilder()
+            .WithGameName("MatchupGlobal")
+            .WithTagLine("KR1")
+            .WithPuuid("matchup-global-puuid")
+            .Build();
+        db.RiotAccounts.Add(account);
+
         for (var i = 0; i < 12; i++)
         {
             var patch = i < 10 ? "16.4.521.123" : "16.5.1";
-            AddLaneMatchup(db, $"m-zed-{i}", patch, QueueId, yoneWins: i < 7, Opponent);
+            AddLaneMatchup(db, $"m-zed-{i}", patch, QueueId, yoneWins: i < 7, Opponent, yoneAccountId: account.Id);
         }
 
         // Decoy 1: Zed on the SAME team as Yone (opposite-team rule excludes it).
         var sameTeam = new MatchBuilder().WithId("m-sameteam").WithQueueId(QueueId).Build();
         db.Matches.Add(sameTeam);
-        db.MatchParticipants.Add(Participant(sameTeam.Id, 1, Champion, teamId: 100, Position, win: true));
+        db.MatchParticipants.Add(Participant(sameTeam.Id, 1, Champion, teamId: 100, Position, win: true, riotAccountId: account.Id));
         db.MatchParticipants.Add(Participant(sameTeam.Id, 2, Opponent, teamId: 100, Position, win: true));
 
         // Decoy 2: Zed present but in a different lane (same-position rule excludes it).
         var otherLane = new MatchBuilder().WithId("m-otherlane").WithQueueId(QueueId).Build();
         db.Matches.Add(otherLane);
-        db.MatchParticipants.Add(Participant(otherLane.Id, 1, Champion, teamId: 100, Position, win: true));
+        db.MatchParticipants.Add(Participant(otherLane.Id, 1, Champion, teamId: 100, Position, win: true, riotAccountId: account.Id));
         db.MatchParticipants.Add(Participant(otherLane.Id, 2, Opponent, teamId: 200, "TOP", win: true));
 
         // Decoy 3: a Yone-vs-Zed lane game on a different queue (queue filter excludes it).
-        AddLaneMatchup(db, "m-wrongqueue", "16.4.521.123", queueId: 400, yoneWins: true, Opponent);
+        AddLaneMatchup(db, "m-wrongqueue", "16.4.521.123", queueId: 400, yoneWins: true, Opponent, yoneAccountId: account.Id);
 
         // Decoy 4: a single Yone-vs-Talon lane game (different opponent; also
         // below the floor on its own, used by the not-enough-data test).
-        AddLaneMatchup(db, "m-talon", "16.4.521.123", QueueId, yoneWins: true, OtherOpponent);
+        AddLaneMatchup(db, "m-talon", "16.4.521.123", QueueId, yoneWins: true, OtherOpponent, yoneAccountId: account.Id);
 
         await db.SaveChangesAsync();
     }
