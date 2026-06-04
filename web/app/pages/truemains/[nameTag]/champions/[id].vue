@@ -296,9 +296,9 @@ const staticBundleReady = computed(() =>
         :rune-tree="runeTree ?? null"
       />
 
-      <!-- This player's recent games on this champion. Champion is fixed; the
-           lane filter is the same ChampionFilters position above, so build and
-           games stay on one lane. -->
+      <!-- This player's recent games on this champion. The champion is fixed;
+           the lane filter is its own RolePicker, independent of the build's
+           position filter above. -->
       <section class="flex min-w-0 flex-col gap-3">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
