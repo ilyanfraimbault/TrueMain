@@ -59,8 +59,11 @@ export function useChampionMatchups(
         return await $fetch<ChampionMatchups>(path, { query })
       }
       catch (error: unknown) {
-        // ofetch raises a FetchError carrying the HTTP status on `statusCode`.
-        const status = (error as { statusCode?: number }).statusCode
+        // ofetch raises a FetchError carrying the HTTP status on `statusCode`;
+        // guard the shape so a non-FetchError throw can't masquerade as a 404.
+        const status = error instanceof Error && 'statusCode' in error
+          ? (error as { statusCode?: number }).statusCode
+          : undefined
         // Unknown player (player-scoped route) → empty state, not an error.
         if (status === 404) return null
         throw error
