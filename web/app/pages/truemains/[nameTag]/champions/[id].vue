@@ -159,9 +159,10 @@ const latestPatch = computed(() => versions.value?.[0] ?? null)
 
 // ─── Match history ─────────────────────────────────────────────────────────
 // This player's recent games on THIS champion. The champion is fixed to the
-// page; the lane filter is shared with the build's position filter, so the
-// build and the recent games always stay on the same lane.
+// page; the lane filter is its OWN control, independent of the build's position
+// filter, so you can browse games on any lane without re-scoping the build.
 const matchesPage = ref(1)
+const matchPosition = ref<ChampionPosition | null>(null)
 const {
   matches,
   total: matchesTotal,
@@ -170,13 +171,15 @@ const {
   notFound: matchesNotFound,
 } = useTruemainMatches(nameTag, matchesPage, {
   championId,
-  position: () => filters.value.position || null,
+  position: matchPosition,
 })
 function setMatchesPage(next: number) {
   matchesPage.value = Math.max(1, Math.floor(next))
 }
-// Reset to page 1 whenever the lane filter changes the result set under us.
-watch(() => filters.value.position, () => { matchesPage.value = 1 })
+function setMatchPosition(next: ChampionPosition | null) {
+  matchPosition.value = next
+  matchesPage.value = 1
+}
 
 const staticBundleReady = computed(() =>
   Boolean(staticList.value && itemsMap.value && summonersMap.value && runeTree.value),
@@ -297,9 +300,15 @@ const staticBundleReady = computed(() =>
            lane filter is the same ChampionFilters position above, so build and
            games stay on one lane. -->
       <section class="flex min-w-0 flex-col gap-3">
-        <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
-          Recent {{ displayName ?? '' }} games
-        </h2>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
+            Recent {{ displayName ?? '' }} games
+          </h2>
+          <RolePicker
+            :position="matchPosition"
+            @update:position="setMatchPosition"
+          />
+        </div>
 
         <template v-if="matchesInitialLoading || !staticBundleReady">
           <MatchRowSkeleton v-for="i in 5" :key="`match-skel-${i}`" />
