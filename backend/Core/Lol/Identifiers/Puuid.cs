@@ -106,8 +106,13 @@ internal sealed class PuuidJsonConverter : JsonConverter<Puuid>
 {
     public override Puuid Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        var value = reader.GetString();
-        return value is null ? default : Puuid.Parse(value);
+        // A non-nullable Puuid still routes a JSON null through here (the
+        // serializer only short-circuits null for reference types and Puuid?).
+        // Returning default(Puuid) would smuggle in the invalid sentinel whose
+        // Value/ToString both throw on first use, so reject it at the boundary.
+        var value = reader.GetString()
+            ?? throw new JsonException("PUUID cannot be null.");
+        return Puuid.Parse(value);
     }
 
     public override void Write(Utf8JsonWriter writer, Puuid value, JsonSerializerOptions options)
