@@ -83,4 +83,12 @@ public sealed class PuuidTests
 
         act.Should().Throw<JsonException>();
     }
+
+    [Fact]
+    public void Json_nullable_puuid_still_accepts_null()
+    {
+        // STJ short-circuits null for Nullable<T> before the converter runs, so
+        // rejecting null in the converter must not break optional Puuid? fields.
+        JsonSerializer.Deserialize<Puuid?>("null").Should().BeNull();
+    }
 }

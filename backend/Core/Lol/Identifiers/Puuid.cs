@@ -111,7 +111,7 @@ internal sealed class PuuidJsonConverter : JsonConverter<Puuid>
         // Returning default(Puuid) would smuggle in the invalid sentinel whose
         // Value/ToString both throw on first use, so reject it at the boundary.
         var value = reader.GetString()
-            ?? throw new JsonException("PUUID cannot be null.");
+            ?? throw new JsonException("Puuid cannot be null.");
         return Puuid.Parse(value);
     }
 
