@@ -73,4 +73,22 @@ public sealed class PuuidTests
         json.Should().Be($"\"{ValidPuuid}\"");
         JsonSerializer.Deserialize<Puuid>(json).Should().Be(puuid);
     }
+
+    [Fact]
+    public void Json_rejects_null_rather_than_yielding_the_invalid_default()
+    {
+        // A null would otherwise deserialize to default(Puuid), whose Value and
+        // ToString both throw — the converter rejects it at the boundary.
+        var act = () => JsonSerializer.Deserialize<Puuid>("null");
+
+        act.Should().Throw<JsonException>();
+    }
+
+    [Fact]
+    public void Json_nullable_puuid_still_accepts_null()
+    {
+        // STJ short-circuits null for Nullable<T> before the converter runs, so
+        // rejecting null in the converter must not break optional Puuid? fields.
+        JsonSerializer.Deserialize<Puuid?>("null").Should().BeNull();
+    }
 }
