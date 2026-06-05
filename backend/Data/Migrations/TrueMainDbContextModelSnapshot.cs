@@ -392,6 +392,10 @@ namespace Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("PlatformId", "IsMain");
+
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("PlatformId", "IsMain"), new[] { "Puuid" });
+
                     b.HasIndex("PlatformId", "Puuid");
 
                     b.HasIndex("PlatformId", "Puuid", "ChampionId")
@@ -852,7 +856,8 @@ namespace Data.Migrations
                         .IsUnique();
 
                     b.HasIndex("MatchIngestStatus", "MatchIngestClaimedAtUtc", "LastMatchIngestAtUtc")
-                        .HasDatabaseName("IX_riot_accounts_ingest_claim_lease");
+                        .HasDatabaseName("IX_riot_accounts_ingest_claim_lease")
+                        .HasFilter("\"MatchIngestStatus\" <> 0");
 
                     b.ToTable("riot_accounts", (string)null);
                 });

@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
 using Core.Lol.Ranking;
-using Data;
 using Data.Entities;
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -316,32 +315,36 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
         await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
-        // Three accounts at the same rank, with 1 / 4 / 6 ranked games. The
-        // dedicated factory below sets MinRankedGames=5 so only the 6-game
-        // account should appear.
+        // Four accounts at the same rank, with 1 / 4 / 5 / 6 valid-position
+        // games. The dedicated factory below sets MinRankedGames=5, so "five"
+        // (== the threshold) and "six" appear while "one" and "four" don't —
+        // the equal-to-threshold row guards the floor's `>=` against an
+        // off-by-one slip to `>`.
         await using (var db = _fixture.CreateDbContext())
         {
             var oneGame = Account("one", "OneGame", "EUW1");
             var fourGames = Account("four", "FourGames", "EUW1");
+            var fiveGames = Account("five", "FiveGames", "EUW1");
             var sixGames = Account("six", "SixGames", "EUW1");
 
-            db.RiotAccounts.AddRange(oneGame, fourGames, sixGames);
+            db.RiotAccounts.AddRange(oneGame, fourGames, fiveGames, sixGames);
             db.RankSnapshots.AddRange(
                 Snapshot(oneGame, "DIAMOND", "I", 50, now),
                 Snapshot(fourGames, "DIAMOND", "I", 50, now),
+                Snapshot(fiveGames, "DIAMOND", "I", 50, now),
                 Snapshot(sixGames, "DIAMOND", "I", 50, now));
-            // Strict truemain filter (issue #184): the min-games filter runs
-            // alongside the IsMain=true requirement, so all three candidates
-            // need a main_champion_stats row even though the assertion only
-            // expects "six" to survive the MinRankedGames cut-off.
+            // Strict truemain filter (issue #184): the min-games floor runs
+            // alongside the IsMain=true requirement inside the same EXISTS, so
+            // every candidate needs a main_champion_stats row. The floor is
+            // measured on main_champion_stats.TotalMatches (the ranked-solo
+            // analysis-window count), not a match_participants COUNT — see
+            // TruemainsLeaderboardQueryService.CountAsync. "five" and "six"
+            // (>= 5) clear the MinRankedGames=5 cut-off; "one" and "four" don't.
             db.MainChampionStats.AddRange(
-                MainStat("one", "EUW1", 1, "MIDDLE", isMain: true),
-                MainStat("four", "EUW1", 1, "MIDDLE", isMain: true),
-                MainStat("six", "EUW1", 1, "MIDDLE", isMain: true));
-
-            SeedRankedGames(db, "one", 1, now);
-            SeedRankedGames(db, "four", 4, now);
-            SeedRankedGames(db, "six", 6, now);
+                MainStat("one", "EUW1", 1, "MIDDLE", isMain: true, totalMatches: 1),
+                MainStat("four", "EUW1", 1, "MIDDLE", isMain: true, totalMatches: 4),
+                MainStat("five", "EUW1", 1, "MIDDLE", isMain: true, totalMatches: 5),
+                MainStat("six", "EUW1", 1, "MIDDLE", isMain: true, totalMatches: 6));
 
             await db.SaveChangesAsync();
         }
@@ -353,8 +356,9 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
         });
 
         var response = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
-        response!.Total.Should().Be(1, "only the account with >= 5 games should appear");
-        response.Rows.Single().Identity.GameName.Should().Be("SixGames");
+        response!.Total.Should().Be(2, "accounts with TotalMatches >= 5 should appear (5 sits on the boundary)");
+        response.Rows.Select(r => r.Identity.GameName)
+            .Should().BeEquivalentTo(["FiveGames", "SixGames"]);
     }
 
     [Fact]
@@ -452,53 +456,6 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
         freshResponse!.Total.Should().Be(2, "a different filter shape must miss the cache");
     }
 
-    /// <summary>
-    /// Seeds <paramref name="games"/> matches + matching participants for
-    /// <paramref name="puuid"/>. Both rows are required because the
-    /// leaderboard counts participants joined to matches with queueId=420.
-    /// </summary>
-    private static void SeedRankedGames(TrueMainDbContext db, string puuid, int games, DateTime now)
-    {
-        for (var i = 0; i < games; i++)
-        {
-            // matches.Id is varchar(32); pack puuid + index + a short random
-            // suffix so the id stays unique across tests without overflowing.
-            var matchId = $"{puuid[..Math.Min(8, puuid.Length)]}_{i:D3}_{Guid.NewGuid():N}"[..32];
-            db.Matches.Add(new Match
-            {
-                Id = matchId,
-                PlatformId = "EUW1",
-                QueueId = 420,
-                MapId = 11,
-                GameMode = "CLASSIC",
-                GameType = "MATCHED_GAME",
-                GameStartTimeUtc = now.AddMinutes(-i * 30),
-                GameDurationSeconds = 1800,
-                GameVersion = "16.5.123.456",
-                CreatedAtUtc = now,
-            });
-            db.MatchParticipants.Add(new MatchParticipant
-            {
-                Id = Guid.NewGuid(),
-                MatchId = matchId,
-                ParticipantId = 1,
-                Puuid = puuid,
-                SummonerName = puuid,
-                SummonerLevel = 100,
-                ChampionId = 1,
-                TeamId = 100,
-                TeamPosition = "MIDDLE",
-                IndividualPosition = "MIDDLE",
-                Lane = "MIDDLE",
-                Role = "SOLO",
-                Win = i % 2 == 0,
-                Kills = 5,
-                Deaths = 3,
-                Assists = 7,
-            });
-        }
-    }
-
     private static RiotAccount Account(string puuid, string gameName, string platformId, string? tagLine = null)
         => new()
         {
@@ -535,16 +492,19 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
         };
     }
 
-    private static MainChampionStat MainStat(string puuid, string platformId, int championId, string primaryPosition, bool isMain)
+    private static MainChampionStat MainStat(string puuid, string platformId, int championId, string primaryPosition, bool isMain, int totalMatches = 100)
         => new()
         {
             Id = Guid.NewGuid(),
             PlatformId = platformId,
             Puuid = puuid,
             ChampionId = championId,
-            TotalMatches = 100,
-            ChampionMatches = 50,
-            PlayRate = 0.5d,
+            TotalMatches = totalMatches,
+            // Seed rows model a single-champion main: that champion accounts
+            // for all of TotalMatches (PlayRate 1.0). Avoids a hard-coded cap
+            // that would silently drift from MainAnalysis.MatchesToConsider.
+            ChampionMatches = totalMatches,
+            PlayRate = totalMatches > 0 ? 1d : 0d,
             IsMain = isMain,
             IsOtp = false,
             PrimaryPosition = primaryPosition,

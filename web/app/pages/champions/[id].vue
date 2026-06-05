@@ -6,6 +6,7 @@ import type {
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
 import { isChampionPosition, type ChampionPosition } from '~/utils/positions'
+import { describeFetchError } from '~/utils/errors'
 
 const route = useRoute()
 const championId = computed(() => Number.parseInt(String(route.params.id), 10))
@@ -19,10 +20,25 @@ const {
   status: championStatus,
 } = useChampion(championId, filters)
 
+// Real load failures (429/500/network) surface as a toast as well as the
+// inline alert below — both read the same line via describeFetchError.
+useErrorToast(championError, { title: 'Failed to load champion' })
+
 const activePatch = computed(() => champion.value?.patch || filters.value.patch || null)
 
 const { data: staticData, status: staticStatus } = useChampionStatic(championId, activePatch)
 const { data: versions } = useDDragonVersions()
+
+// Winrate/pickrate trend across the last five patches (issues #89, #112).
+// Follows the resolved lane so it tracks whatever slice the page is showing,
+// but is deliberately cross-patch: the composable forwards only the position,
+// never the pinned patch, so the active patch filter never scopes the chart
+// and the series always spans recent history. Gated on the champion fetch so
+// it fires once with the resolved lane instead of twice (an initial call with
+// a null lane, then a refetch the moment the champion's position lands).
+const trendReady = computed(() => champion.value !== null)
+const trendPosition = computed(() => champion.value?.position || filters.value.position || null)
+const { data: championTrend, status: trendStatus } = useChampionTrend(championId, trendPosition, trendReady)
 
 // Share keys with /champions so the patch-keyed maps stay deduped across the
 // list→detail→list round-trip. The list page issues these same fetches with
@@ -144,7 +160,8 @@ const isRefetching = computed(() =>
   || isLoadingStatus(staticListStatus.value)
   || isLoadingStatus(runeTreeStatus.value)
   || isLoadingStatus(itemsStatus.value)
-  || isLoadingStatus(summonersStatus.value),
+  || isLoadingStatus(summonersStatus.value)
+  || isLoadingStatus(trendStatus.value),
 )
 </script>
 
@@ -164,7 +181,7 @@ const isRefetching = computed(() =>
       color="error"
       variant="soft"
       title="Failed to load champion"
-      :description="championError.message"
+      :description="describeFetchError(championError)"
     />
 
     <template v-else-if="champion && staticData">
@@ -192,6 +209,18 @@ const isRefetching = computed(() =>
         :items-map="itemsMap ?? {}"
         :summoners-map="summonersMap ?? {}"
         :rune-tree="runeTree ?? null"
+      />
+
+      <ChampionMatchups
+        :champion-id="championId"
+        :position="selectedPosition"
+        :patch="activePatch"
+        :champions="staticList ?? []"
+      />
+
+      <ChampionTrendChart
+        :points="championTrend?.points ?? []"
+        :loading="isLoadingStatus(trendStatus)"
       />
     </template>
   </main>

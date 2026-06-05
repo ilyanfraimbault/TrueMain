@@ -2,7 +2,9 @@ name: Claude Code Review
 
 on:
   pull_request:
-    # Only review PRs targeting the long-lived branches.
+    # Automatic review on the long-lived branches. The earlier on-demand trigger
+    # (`review_requested` for `claude[bot]`, #387) was unusable — a GitHub App
+    # bot can't be requested as a PR reviewer — so it never fired.
     branches: [master, develop]
     types: [opened, synchronize, reopened, ready_for_review]
 
@@ -20,7 +22,7 @@ jobs:
   review:
     name: Claude Review
     runs-on: ubuntu-24.04
-    # Skip draft PRs; marking ready for review re-triggers the workflow.
+    # Skip drafts; marking a PR ready for review re-triggers the workflow.
     if: github.event.pull_request.draft == false
 
     steps:
@@ -34,14 +36,34 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
-            Relis le diff de cette pull request et laisse une review.
+            REPO : ${{ github.repository }}
+            PR : ${{ github.event.pull_request.number }}
+
+            Cette pull request vient d'être ouverte ou mise à jour. Relis le
+            diff et soumets une review FORMELLE (pas un simple commentaire).
             Concentre-toi sur :
             - les bugs et erreurs de logique
             - les problèmes de sécurité
             - la qualité et la lisibilité du code
             - les tests manquants
-            Poste des commentaires inline sur les lignes concernées et termine
-            par un court résumé. Sois concis et n'invente pas de problèmes :
-            s'il n'y a rien à signaler, dis-le simplement.
+
+            Déroulé :
+            1. Pour chaque point précis et actionnable, poste un commentaire
+               inline sur la ligne concernée.
+            2. Termine TOUJOURS par une review formelle soumise avec
+               `gh pr review`, jamais par un simple `gh pr comment` :
+               - s'il n'y a RIEN à corriger, APPROUVE :
+                 `gh pr review ${{ github.event.pull_request.number }} --approve --body "..."`
+                 avec une courte justification (par ex.
+                 « ✅ Relu, rien à signaler — <raison> »).
+               - s'il y a des points à corriger, DEMANDE DES CHANGEMENTS :
+                 `gh pr review ${{ github.event.pull_request.number }} --request-changes --body "..."`
+                 avec une synthèse des points soulevés.
+
+            Soumettre une review formelle à chaque run est volontaire : une
+            approbation explicite évite qu'un run « silencieux » (aucun problème
+            trouvé) soit pris pour un échec de la review. N'approuve QUE si tu
+            n'as vraiment rien à signaler. Sois concis et n'invente pas de
+            problèmes.
           claude_args: |
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(git diff:*),Bash(git log:*)"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr review:*),Bash(gh pr diff:*),Bash(gh pr view:*)"

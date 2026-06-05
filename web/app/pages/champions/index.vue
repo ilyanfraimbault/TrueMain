@@ -439,8 +439,14 @@ function staticItem(id: number | undefined) {
                 v-if="row.topBuild && row.topBuild.itemPath.length > 0"
                 class="flex shrink-0 items-center gap-1"
               >
+                <!-- Show the consensus path capped at 6 — the full ADC core
+                     (Draven et al. reach 6) and the same worst case the detail
+                     page's BuildPath lays out. ChampionBuildPathAnalyzer.WalkPath
+                     can technically emit up to 7 (BuildItem0..6); the cap keeps
+                     this shrink-0 row from widening on that rare case while
+                     restoring the 6th item the old slice(0, 5) dropped. -->
                 <template
-                  v-for="(itemId, idx) in row.topBuild.itemPath.slice(0, 5)"
+                  v-for="(itemId, idx) in row.topBuild.itemPath.slice(0, 6)"
                   :key="`${row.championId}-${row.position}-bp-${idx}`"
                 >
                   <GameTooltipItemIcon
@@ -450,17 +456,24 @@ function staticItem(id: number | undefined) {
                     class="size-7 rounded"
                   />
                   <UIcon
-                    v-if="idx < Math.min(row.topBuild.itemPath.length, 5) - 1"
+                    v-if="idx < Math.min(row.topBuild.itemPath.length, 6) - 1"
                     name="i-lucide-chevron-right"
                     class="size-3 text-dimmed"
                   />
                 </template>
               </div>
 
+              <!-- Tier: colour-coded S→D badge, sits in column order between the
+                   lane and the win-rate. Computed server-side and bucketed by
+                   patch-wide percentile (see ChampionTierCalculator). -->
+              <div class="ml-auto flex min-w-[3rem] shrink-0 items-center justify-center">
+                <TierBadge :tier="row.tier" />
+              </div>
+
               <!-- Rates: bold whole-percent on top, small muted label below.
                    Numbers stay default-coloured — colour-coding tested too
                    noisy against the rest of the row. -->
-              <div class="ml-auto flex shrink-0 items-center gap-5 tabular-nums">
+              <div class="flex shrink-0 items-center gap-5 tabular-nums">
                 <div class="flex min-w-[3rem] flex-col items-center">
                   <span class="text-lg font-bold leading-none">{{ pct(row.winRate) }}</span>
                   <span class="mt-0.5 text-xs text-muted">WR</span>

@@ -11,14 +11,14 @@ namespace TrueMain.UnitTests;
 /// </summary>
 public sealed class SummonerSpellPairTests
 {
-    private const int Flash = SummonerSpellIds.Flash;
-    private const int Smite = SummonerSpellIds.Smite;
-    private const int Heal = SummonerSpellIds.Heal;
-    private const int Ignite = SummonerSpellIds.Ignite;
-    private const int Teleport = SummonerSpellIds.Teleport;
-    private const int Ghost = SummonerSpellIds.Ghost;
-    private const int Cleanse = SummonerSpellIds.Cleanse;
-    private const int Exhaust = SummonerSpellIds.Exhaust;
+    private const int Flash = (int)SummonerSpellId.Flash;
+    private const int Smite = (int)SummonerSpellId.Smite;
+    private const int Heal = (int)SummonerSpellId.Heal;
+    private const int Ignite = (int)SummonerSpellId.Ignite;
+    private const int Teleport = (int)SummonerSpellId.Teleport;
+    private const int Ghost = (int)SummonerSpellId.Ghost;
+    private const int Cleanse = (int)SummonerSpellId.Cleanse;
+    private const int Exhaust = (int)SummonerSpellId.Exhaust;
 
     public static TheoryData<int, int, int, int> DisplayOrderingCases() => new()
     {

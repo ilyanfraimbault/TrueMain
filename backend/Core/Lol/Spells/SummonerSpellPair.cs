@@ -13,14 +13,17 @@ public readonly record struct SummonerSpellPair(int Spell1Id, int Spell2Id)
 
     public SummonerSpellPair OrderedForDisplay()
     {
-        if (Spell1Id == SummonerSpellIds.Flash || Spell2Id == SummonerSpellIds.Flash)
+        const int flash = (int)SummonerSpellId.Flash;
+        const int smite = (int)SummonerSpellId.Smite;
+
+        if (Spell1Id == flash || Spell2Id == flash)
         {
-            return Spell1Id == SummonerSpellIds.Flash ? this : new SummonerSpellPair(Spell2Id, Spell1Id);
+            return Spell1Id == flash ? this : new SummonerSpellPair(Spell2Id, Spell1Id);
         }
 
-        if (Spell1Id == SummonerSpellIds.Smite || Spell2Id == SummonerSpellIds.Smite)
+        if (Spell1Id == smite || Spell2Id == smite)
         {
-            return Spell1Id == SummonerSpellIds.Smite ? this : new SummonerSpellPair(Spell2Id, Spell1Id);
+            return Spell1Id == smite ? this : new SummonerSpellPair(Spell2Id, Spell1Id);
         }
 
         return Canonical();

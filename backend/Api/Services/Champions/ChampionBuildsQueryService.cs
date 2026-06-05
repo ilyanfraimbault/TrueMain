@@ -21,19 +21,33 @@ public sealed class ChampionBuildsQueryService(
         int championId,
         string? patch,
         string? position,
-        CancellationToken ct)
+        CancellationToken ct,
+        ChampionBuildsScope? scope = null)
     {
         var scopes = await ChampionScopeLoader.LoadAsync(
-            db, options.Value.QueueId, championId, patch, position, ct);
+            db, (int)options.Value.QueueId, championId, patch, position, ct,
+            riotAccountId: scope?.RiotAccountId,
+            platformId: scope?.PlatformId);
         if (scopes is null)
         {
             return null;
         }
 
-        var scopeIds = scopes.Select(scope => scope.Id).ToList();
+        var scopeIds = scopes.Select(s => s.Id).ToList();
         var rows = await FetchRowsAsync(scopeIds, ct);
         var totalGames = rows.Sum(row => row.Games);
         var totalWins = rows.Sum(row => row.Wins);
+
+        // Player-scoped requests carry a minimum-games floor: a champion the
+        // player has barely touched would produce a sparse, misleading build,
+        // so we report "no data" (null → 404 → empty state) rather than a
+        // thin payload. The floor is evaluated against the resolved
+        // patch+position slice — the same denominator the page renders.
+        // Global callers pass no scope, so no floor applies.
+        if (scope is not null && totalGames < scope.MinGames)
+        {
+            return null;
+        }
 
         var resolvedPatch = scopes.First().GameVersion;
         var resolvedPosition = scopes.First().Position;

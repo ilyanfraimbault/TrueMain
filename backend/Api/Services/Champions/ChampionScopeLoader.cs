@@ -12,6 +12,12 @@ namespace TrueMain.Services.Champions;
 /// unspecified, second pass re-queries with the resolved values pinned in
 /// SQL via <c>WhereChampionScope</c>. Shared by every service that needs
 /// to project pattern data for a single champion view.
+///
+/// When a <c>riotAccountId</c> is supplied the loader narrows the
+/// scope to a single player (their games on that champion) instead of the
+/// global pool — every other step (patch / position resolution, SQL pinning)
+/// is identical, because the aggregate schema already stores one scope row
+/// per (account, champion, patch, platform, queue, position).
 /// </summary>
 internal static class ChampionScopeLoader
 {
@@ -21,7 +27,9 @@ internal static class ChampionScopeLoader
         int championId,
         string? patch,
         string? position,
-        CancellationToken ct)
+        CancellationToken ct,
+        Guid? riotAccountId = null,
+        string? platformId = null)
     {
         var normalizedPatch = string.IsNullOrWhiteSpace(patch)
             ? null
@@ -29,7 +37,7 @@ internal static class ChampionScopeLoader
 
         var baseQuery = db.ChampionAggregateScopes
             .AsNoTracking()
-            .WhereChampionScope(championId, queueId, riotAccountId: null, normalizedPatch, platformId: null, position);
+            .WhereChampionScope(championId, queueId, riotAccountId, normalizedPatch, platformId, position);
 
         var resolutionRows = await baseQuery
             .Select(scope => new ScopeResolutionRow(scope.GameVersion, scope.Position, scope.Games))
@@ -59,9 +67,9 @@ internal static class ChampionScopeLoader
             .WhereChampionScope(
                 championId,
                 queueId,
-                riotAccountId: null,
+                riotAccountId,
                 selectedPatch,
-                platformId: null,
+                platformId,
                 string.IsNullOrWhiteSpace(effectivePosition) ? null : effectivePosition)
             .ToListAsync(ct);
 

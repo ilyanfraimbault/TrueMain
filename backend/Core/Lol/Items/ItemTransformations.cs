@@ -1,3 +1,5 @@
+using System.Collections.Frozen;
+
 namespace Core.Lol.Items;
 
 /// <summary>
@@ -10,9 +12,9 @@ public static class ItemTransformations
     /// Source item id → final item id, for transformations that happen in the
     /// player inventory rather than via a shop purchase.
     /// </summary>
-    public static readonly IReadOnlyDictionary<int, int> Map = new Dictionary<int, int>
+    public static readonly FrozenDictionary<int, int> Map = new Dictionary<int, int>
     {
         [LolItemIds.Manamune] = LolItemIds.Muramana,
         [LolItemIds.TearOfTheGoddess] = LolItemIds.Seraphs
-    };
+    }.ToFrozenDictionary();
 }

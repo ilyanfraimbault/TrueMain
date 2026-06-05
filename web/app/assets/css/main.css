@@ -62,6 +62,26 @@
   --color-stat-true: #f5f5f5;            /* true damage */
   --color-stat-adaptive: #48c4b7;        /* adaptive damage (verified) */
 
+  /*
+   * Champion performance-tier scale (S → D) for the champions-list tier
+   * column. A sanctioned exception to the emerald-only surface rule: a blue→red
+   * ramp where a better tier is a lighter blue and a worse tier a darker red,
+   * so the badge reads as a ranked scale at a glance. Kept saturated enough to
+   * stay legible on the dark surface — a washed-out scale just reads as noise.
+   * Tailwind v4 auto-generates `text-tier-*` utilities from these vars;
+   * TierBadge.vue colours the bare letter with the matching one.
+   *   S — light blue   (best)
+   *   A — blue
+   *   B — violet
+   *   C — red
+   *   D — dark red      (worst)
+   */
+  --color-tier-s: #6bb4f7;               /* light blue (best) */
+  --color-tier-a: #4f8fe0;               /* blue */
+  --color-tier-b: #a06ec4;               /* violet */
+  --color-tier-c: #cc5f60;               /* red */
+  --color-tier-d: #9a2f33;               /* dark red (worst) */
+
   /* Misc / structural */
   --color-stat-status: #9366a9;          /* status / CC keywords (Slowing, Immobilizing, Airborne, Stun) — muted violet */
   --color-stat-stealth: #b472a6;         /* stealth keywords (Invisible, Camouflage, Stealth) — pink-violet */

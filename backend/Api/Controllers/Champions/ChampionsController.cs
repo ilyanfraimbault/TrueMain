@@ -8,7 +8,9 @@ namespace TrueMain.Controllers.Champions;
 [Route("champions")]
 public sealed class ChampionsController(
     IChampionSummariesQueryService summariesQueryService,
-    IChampionBuildsQueryService buildsQueryService) : ControllerBase
+    IChampionBuildsQueryService buildsQueryService,
+    IChampionTrendQueryService trendQueryService,
+    IChampionMatchupQueryService matchupQueryService) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<ChampionSummaryReadModel>), StatusCodes.Status200OK)]
@@ -41,5 +43,63 @@ public sealed class ChampionsController(
             ct);
 
         return response is null ? NotFound() : Ok(response);
+    }
+
+    /// <summary>
+    /// Winrate / pickrate evolution across the last five patches for a champion
+    /// on a single position. Intentionally cross-patch — it takes no patch
+    /// filter, so the directory's active patch never scopes the series. Always
+    /// 200 with a (possibly empty) series so the chart can render its own "not
+    /// enough data" state — a champion the directory never observed simply
+    /// yields no points.
+    /// </summary>
+    [HttpGet("{championId:int}/trend")]
+    [ProducesResponseType(typeof(ChampionTrendReadModel), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ChampionTrendReadModel>> GetChampionTrendAsync(
+        int championId,
+        [FromQuery] string? position,
+        CancellationToken ct = default)
+    {
+        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+        var trend = await trendQueryService.GetTrendAsync(championId, normalizedPosition, ct);
+        return Ok(trend);
+    }
+
+    /// <summary>
+    /// Lane matchups for a champion at a position: every lane opponent it met
+    /// (above the configured minimum-games floor) with its head-to-head game
+    /// count, win count and win rate, computed live from
+    /// <c>match_participants</c>. <paramref name="position"/> is the required
+    /// Riot team position; an unrecognised position is a 400. Always 200 with a
+    /// (possibly empty) list — a champion with no opponent above the floor just
+    /// yields no entries. The frontend slices the best / worst opponents and
+    /// filters by a searched opponent itself.
+    /// </summary>
+    [HttpGet("{championId:int}/matchups")]
+    [ProducesResponseType(typeof(ChampionMatchupsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<ChampionMatchupsResponse>> GetChampionMatchupsAsync(
+        int championId,
+        [FromQuery] string? position,
+        [FromQuery] string? patch,
+        CancellationToken ct = default)
+    {
+        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+        if (normalizedPosition is null)
+        {
+            return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+        }
+
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+
+        var response = await matchupQueryService.GetAsync(
+            championId,
+            normalizedPosition,
+            normalizedPatch,
+            riotAccountId: null,
+            ct);
+
+        return Ok(response);
     }
 }

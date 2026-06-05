@@ -1,3 +1,5 @@
+using System.Collections.Frozen;
+
 namespace Core.Lol.Items;
 
 /// <summary>
@@ -21,13 +23,13 @@ public static class LolItemIds
         public const int OracleLens = 3364;
         public const int ScryingOrb = 3330;
 
-        public static readonly IReadOnlySet<int> All = new HashSet<int>
+        public static readonly FrozenSet<int> All = new HashSet<int>
         {
             StealthWard,
             FarsightAlteration,
             OracleLens,
             ScryingOrb
-        };
+        }.ToFrozenSet();
     }
 
     public static class TierTwoBoots
@@ -41,7 +43,7 @@ public static class LolItemIds
         public const int SymbioticSoles = 3013;
         public const int SynchronizedSouls = 3117;
 
-        public static readonly IReadOnlySet<int> All = new HashSet<int>
+        public static readonly FrozenSet<int> All = new HashSet<int>
         {
             BerserkersGreaves,
             PlatedSteelcaps,
@@ -51,7 +53,7 @@ public static class LolItemIds
             SynchronizedSouls,
             BootsOfSwiftness,
             SymbioticSoles
-        };
+        }.ToFrozenSet();
     }
 
     public static class RequiredBuffCurrency

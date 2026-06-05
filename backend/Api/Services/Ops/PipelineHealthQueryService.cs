@@ -26,7 +26,7 @@ public sealed class PipelineHealthQueryService(
 
     public async Task<PipelineHealthReadModel> GetAsync(CancellationToken ct)
     {
-        var queueId = mainAnalysisOptions.Value.QueueId;
+        var queueId = (int)mainAnalysisOptions.Value.QueueId;
 
         // Postgres DISTINCT ON keeps the first row per ProcessName under the
         // ORDER BY, giving us the latest run per process in a single pass. This
