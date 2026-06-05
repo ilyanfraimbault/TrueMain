@@ -1,4 +1,5 @@
 import type { ChampionResponse } from '~~/shared/types/champions'
+import { fetchErrorStatus } from '~/utils/errors'
 
 type Filters = ReturnType<typeof useChampionFilters>['filters']
 
@@ -48,18 +49,25 @@ export function useChampion(
       notEnoughData.value = false
 
       if (nameTag) {
-        const response = await $fetch<ChampionResponse | null>(
-          `/api/truemains/${encodeURIComponent(nameTag)}/champions/${id}`,
-          { query: f, ignoreResponseError: true },
-        )
-        // The controller returns 404 (→ null body under `ignoreResponseError`)
-        // for an unknown player or a champion below the min-games floor. The
-        // only reliable "no data" tell is the absence of the championId field.
-        if (!response || typeof response !== 'object' || typeof response.championId !== 'number') {
-          notEnoughData.value = true
-          return null
+        try {
+          return await $fetch<ChampionResponse>(
+            `/api/truemains/${encodeURIComponent(nameTag)}/champions/${id}`,
+            { query: f },
+          )
         }
-        return response
+        catch (error: unknown) {
+          // The controller returns 404 for an unknown player or a champion
+          // below the min-games floor — that's an empty state, not an error,
+          // so swallow it into `notEnoughData`. Every other status (429, 500,
+          // problem responses) is a real failure and must propagate so the
+          // page can surface it (inline alert + toast) instead of pretending
+          // the player simply hasn't played enough.
+          if (fetchErrorStatus(error) === 404) {
+            notEnoughData.value = true
+            return null
+          }
+          throw error
+        }
       }
 
       try {

@@ -6,6 +6,7 @@ import type {
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
 import { isChampionPosition, type ChampionPosition } from '~/utils/positions'
+import { describeFetchError } from '~/utils/errors'
 
 // Player-scoped mirror of pages/champions/[id].vue. The static-data fetches,
 // loading bar and build tabs are intentionally identical so the page looks
@@ -32,6 +33,11 @@ const {
   status: championStatus,
   notEnoughData,
 } = useChampion(championId, filters, { nameTag })
+
+// A 404 here is the expected "not enough games" empty state (handled below),
+// so useChampion never raises it. Anything that does reach championError is a
+// real failure — surface it as a toast on top of the inline alert.
+useErrorToast(championError, { title: 'Failed to load champion' })
 
 // Identity for the breadcrumb / header fallback. Cheap and client-cached —
 // the profile page primes the same request, so this rarely hits the network.
@@ -231,7 +237,7 @@ const staticBundleReady = computed(() =>
       color="error"
       variant="soft"
       title="Failed to load champion"
-      :description="championError.message"
+      :description="describeFetchError(championError)"
     />
 
     <!--
