@@ -33,5 +33,9 @@ export function useErrorToast(
         icon: 'i-lucide-circle-alert',
       })
     },
+    // Fire on the initial value too: an error can already be present at mount
+    // (a cached error key on SPA navigation). The `if (!value) return` guard
+    // makes immediate evaluation a no-op when there's nothing to report.
+    { immediate: true },
   )
 }
