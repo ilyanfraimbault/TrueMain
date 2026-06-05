@@ -14,8 +14,6 @@ const props = defineProps<{
 }>()
 
 const TOP_N = 5
-// Mirror of the backend ChampionsListOptions.MinMatchupGames, for copy only.
-const MIN_GAMES = 10
 
 // Patch toggle: default to the page's current patch, widen to all history on
 // demand (more games per matchup → a steadier best/worst ranking).
@@ -80,7 +78,7 @@ const searchedOpponent = computed(() =>
           Matchups
         </h2>
         <p class="text-xs text-muted">
-          Best and worst lane matchups (min {{ MIN_GAMES }} games).
+          Best and worst lane matchups.
         </p>
       </div>
       <div class="ml-auto flex items-center gap-2">

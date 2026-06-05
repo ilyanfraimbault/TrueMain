@@ -1,5 +1,6 @@
 import type { ChampionMatchups } from '~~/shared/types/champions'
 import type { ChampionPosition } from '~/utils/positions'
+import { fetchErrorStatus } from '~/utils/errors'
 
 export interface UseChampionMatchupsOptions {
   /** Patch to scope to (major.minor). Omit / null for all patches. */
@@ -59,13 +60,9 @@ export function useChampionMatchups(
         return await $fetch<ChampionMatchups>(path, { query })
       }
       catch (error: unknown) {
-        // ofetch raises a FetchError carrying the HTTP status on `statusCode`;
-        // guard the shape so a non-FetchError throw can't masquerade as a 404.
-        const status = error instanceof Error && 'statusCode' in error
-          ? (error as { statusCode?: number }).statusCode
-          : undefined
         // Unknown player (player-scoped route) → empty state, not an error.
-        if (status === 404) return null
+        // Any other status propagates so callers can surface it.
+        if (fetchErrorStatus(error) === 404) return null
         throw error
       }
     },

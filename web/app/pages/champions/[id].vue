@@ -6,6 +6,7 @@ import type {
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
 import { isChampionPosition, type ChampionPosition } from '~/utils/positions'
+import { describeFetchError } from '~/utils/errors'
 
 const route = useRoute()
 const championId = computed(() => Number.parseInt(String(route.params.id), 10))
@@ -18,6 +19,10 @@ const {
   error: championError,
   status: championStatus,
 } = useChampion(championId, filters)
+
+// Real load failures (429/500/network) surface as a toast as well as the
+// inline alert below — both read the same line via describeFetchError.
+useErrorToast(championError, { title: 'Failed to load champion' })
 
 const activePatch = computed(() => champion.value?.patch || filters.value.patch || null)
 
@@ -176,7 +181,7 @@ const isRefetching = computed(() =>
       color="error"
       variant="soft"
       title="Failed to load champion"
-      :description="championError.message"
+      :description="describeFetchError(championError)"
     />
 
     <template v-else-if="champion && staticData">
