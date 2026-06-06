@@ -6,8 +6,6 @@ import type { ChampionPosition } from '~/utils/positions'
 const props = defineProps<{
   championId: number
   position: ChampionPosition | null
-  /** The page's active patch — used when the "This patch" toggle is on. */
-  patch: string | null
   champions: ChampionStaticListItem[]
   /** When set, scope the matchups to this player's games. */
   nameTag?: string
@@ -15,26 +13,19 @@ const props = defineProps<{
 
 const TOP_N = 5
 
-// Patch toggle: the global page has ample per-patch data and defaults to the
-// current patch; a single player's per-patch sample is thin, so player pages
-// (nameTag set) default to all history so the best/worst ranking isn't empty.
-const scopeToPatch = ref(!props.nameTag)
-const effectivePatch = computed(() => (scopeToPatch.value ? props.patch : null))
-
 const selectedOpponentId = ref<number | null>(null)
 
 const { data, status, error } = useChampionMatchups(
   () => props.championId,
   () => props.position,
   {
-    patch: () => effectivePatch.value,
     nameTag: () => props.nameTag,
     opponentChampionId: () => selectedOpponentId.value,
   },
 )
 
-// Skeleton only on the first load — keep the table on screen while a patch
-// switch refetches so toggling This patch / All patches doesn't flash.
+// Skeleton only on the first load — keep the table on screen while an opponent
+// search refetches so the rows don't flash out.
 const isLoading = computed(() => status.value === 'pending' && !data.value)
 
 // Champion id → static entry for icon + name lookups.
@@ -95,25 +86,6 @@ const searchedOpponent = computed(() =>
           trigger-class="w-48"
           @update:champion-id="value => (selectedOpponentId = value)"
         />
-        <!-- Patch scope toggle: current page patch vs all history. -->
-        <div class="flex shrink-0 rounded-md bg-elevated/60 p-0.5 text-xs font-medium">
-          <button
-            type="button"
-            class="rounded px-2 py-1 transition-colors"
-            :class="scopeToPatch ? 'bg-primary/15 text-primary' : 'text-muted hover:text-default'"
-            @click="scopeToPatch = true"
-          >
-            This patch
-          </button>
-          <button
-            type="button"
-            class="rounded px-2 py-1 transition-colors"
-            :class="!scopeToPatch ? 'bg-primary/15 text-primary' : 'text-muted hover:text-default'"
-            @click="scopeToPatch = false"
-          >
-            All patches
-          </button>
-        </div>
       </div>
     </header>
 
