@@ -106,6 +106,31 @@ public sealed class ChampionMatchupApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetChampionMatchupsAsync_WithOpponent_ReturnsThatMatchupBelowTheFloor()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedMatchupSampleAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // Only one Yone-vs-Talon game is seeded — far below the leaderboard
+        // floor, so it never appears in the unfiltered list. A deliberate
+        // ?opponent lookup drops the floor to one game and returns just that
+        // head-to-head (and nothing else, not even the above-floor Zed line).
+        var response = await client.GetAsync(
+            $"/champions/{Champion}/matchups?position={Position}&opponent={OtherOpponent}");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var matchups = await response.Content.ReadFromJsonAsync<ChampionMatchupsResponse>();
+        matchups.Should().NotBeNull();
+        var talon = matchups!.Matchups.Should().ContainSingle().Subject;
+        talon.OpponentChampionId.Should().Be(OtherOpponent);
+        talon.Games.Should().Be(1);
+        talon.Wins.Should().Be(1);
+    }
+
+    [Fact]
     public async Task GetChampionMatchupsAsync_ReturnsBadRequestForInvalidPosition()
     {
         await _fixture.ResetDatabaseAsync();
@@ -115,6 +140,23 @@ public sealed class ChampionMatchupApiIntegrationTests
 
         var response = await client.GetAsync(
             $"/champions/{Champion}/matchups?position=NOTALANE");
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-7)]
+    public async Task GetChampionMatchupsAsync_ReturnsBadRequestForNonPositiveOpponent(int opponent)
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // A champion id is always positive; 0 / negative must be a 400, not a 200
+        // with an empty list ([Range] on the opponent query param).
+        var response = await client.GetAsync(
+            $"/champions/{Champion}/matchups?position={Position}&opponent={opponent}");
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
@@ -151,6 +193,61 @@ public sealed class ChampionMatchupApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetPlayerChampionMatchupsAsync_UsesLowerPerPlayerFloor()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var nameTag = await SeedPlayerFloorSampleAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // Five owned Yone-vs-Zed games: above the per-player floor (3) yet below
+        // the global floor (10). The player slice lists Zed...
+        var playerResponse = await client.GetAsync(
+            $"/truemains/{nameTag}/champions/{Champion}/matchups?position={Position}");
+        playerResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var player = await playerResponse.Content.ReadFromJsonAsync<ChampionMatchupsResponse>();
+        var zed = player!.Matchups.Should().ContainSingle(m => m.OpponentChampionId == Opponent).Subject;
+        zed.Games.Should().Be(5);
+
+        // ...while the global pool (this lone account) drops the same games.
+        var globalResponse = await client.GetAsync(
+            $"/champions/{Champion}/matchups?position={Position}");
+        var global = await globalResponse.Content.ReadFromJsonAsync<ChampionMatchupsResponse>();
+        global!.Matchups.Should().BeEmpty(
+            "five games clears the per-player floor but not the global MinMatchupGames floor of 10");
+    }
+
+    [Fact]
+    public async Task GetPlayerChampionMatchupsAsync_WithOpponent_StaysScopedToThePlayer()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var nameTag = await SeedOpponentScopeSampleAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // The opponent-lookup branch drops the floor to one but must keep the
+        // player narrowing: this account owns 1 Yone-vs-Talon game, a second
+        // tracked account owns 2, and one game is anonymous. The player slice
+        // must see only its own — not 3 — even on a below-global-floor opponent.
+        var player = await client.GetAsync(
+            $"/truemains/{nameTag}/champions/{Champion}/matchups?position={Position}&opponent={OtherOpponent}");
+        player.StatusCode.Should().Be(HttpStatusCode.OK);
+        var playerMatchups = await player.Content.ReadFromJsonAsync<ChampionMatchupsResponse>();
+        var talon = playerMatchups!.Matchups.Should().ContainSingle(m => m.OpponentChampionId == OtherOpponent).Subject;
+        talon.Games.Should().Be(1, "the opponent lookup stays scoped to this player's games");
+
+        // The same lookup on the global route counts both tracked accounts (1 + 2)
+        // and still drops the anonymous game.
+        var global = await client.GetAsync(
+            $"/champions/{Champion}/matchups?position={Position}&opponent={OtherOpponent}");
+        var globalMatchups = await global.Content.ReadFromJsonAsync<ChampionMatchupsResponse>();
+        var globalTalon = globalMatchups!.Matchups.Should().ContainSingle().Subject;
+        globalTalon.Games.Should().Be(3, "both tracked accounts count globally; the anonymous game never does");
+    }
+
+    [Fact]
     public async Task GetPlayerChampionMatchupsAsync_ReturnsNotFoundForUnknownNameTag()
     {
         await _fixture.ResetDatabaseAsync();
@@ -175,6 +272,23 @@ public sealed class ChampionMatchupApiIntegrationTests
         // with an unrecognised position is still a 400, not a 404.
         var response = await client.GetAsync(
             $"/truemains/Nobody-KR1/champions/{Champion}/matchups?position=NOTALANE");
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-7)]
+    public async Task GetPlayerChampionMatchupsAsync_ReturnsBadRequestForNonPositiveOpponent(int opponent)
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // [Range] runs at model binding, before the account lookup — so a
+        // non-positive opponent is a 400 even for an unknown player.
+        var response = await client.GetAsync(
+            $"/truemains/Nobody-KR1/champions/{Champion}/matchups?position={Position}&opponent={opponent}");
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
@@ -279,6 +393,70 @@ public sealed class ChampionMatchupApiIntegrationTests
     }
 
     /// <summary>
+    /// Seeds one tracked account with five Yone-vs-Zed lane games — above the
+    /// per-player floor (<c>MinPlayerMatchupGames</c>) but below the global floor
+    /// (<c>MinMatchupGames</c>) — so the player slice lists Zed while the global
+    /// pool (this lone account) drops it. Returns the player's name tag.
+    /// </summary>
+    private async Task<string> SeedPlayerFloorSampleAsync()
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        var account = new RiotAccountBuilder()
+            .WithGameName("MatchupFloor")
+            .WithTagLine("KR1")
+            .WithPuuid("matchup-floor-puuid")
+            .Build();
+        db.RiotAccounts.Add(account);
+
+        for (var i = 0; i < 5; i++)
+        {
+            AddLaneMatchup(db, $"mf-zed-{i}", "16.4.521.123", QueueId, yoneWins: i < 3, Opponent,
+                yoneAccountId: account.Id);
+        }
+
+        await db.SaveChangesAsync();
+        return $"{account.GameName}-{account.TagLine}";
+    }
+
+    /// <summary>
+    /// Seeds one below-global-floor opponent (Talon) split across scopes so the
+    /// player-scoped <c>?opponent=</c> path can be checked: the account under test
+    /// owns 1 Yone-vs-Talon game, a second tracked account owns 2, and one is
+    /// anonymous. The player slice must see 1, the global pool 3. Returns the tag.
+    /// </summary>
+    private async Task<string> SeedOpponentScopeSampleAsync()
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        var account = new RiotAccountBuilder()
+            .WithGameName("MatchupOppMain")
+            .WithTagLine("KR1")
+            .WithPuuid("matchup-oppmain-puuid")
+            .Build();
+        db.RiotAccounts.Add(account);
+
+        var otherAccount = new RiotAccountBuilder()
+            .WithGameName("MatchupOppOther")
+            .WithTagLine("KR1")
+            .WithPuuid("matchup-oppother-puuid")
+            .Build();
+        db.RiotAccounts.Add(otherAccount);
+
+        AddLaneMatchup(db, "mo-owned-0", "16.4.521.123", QueueId, yoneWins: true, OtherOpponent,
+            yoneAccountId: account.Id);
+        for (var i = 0; i < 2; i++)
+        {
+            AddLaneMatchup(db, $"mo-other-{i}", "16.4.521.123", QueueId, yoneWins: true, OtherOpponent,
+                yoneAccountId: otherAccount.Id);
+        }
+        AddLaneMatchup(db, "mo-anon-0", "16.4.521.123", QueueId, yoneWins: true, OtherOpponent);
+
+        await db.SaveChangesAsync();
+        return $"{account.GameName}-{account.TagLine}";
+    }
+
+    /// <summary>
     /// Adds one match with Yone on team 100 and the opponent on team 200, both
     /// at <see cref="Position"/> — the lane-opponent shape the query counts.
     /// </summary>
@@ -361,5 +539,10 @@ public sealed class ChampionMatchupApiIntegrationTests
 
     private sealed class ApiWebApplicationFactory(PostgresFixture fixture)
         : TrueMainWebApplicationFactory<Program>(
-            fixture, [new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420")]);
+            fixture,
+            [
+                new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420"),
+                new KeyValuePair<string, string?>("ChampionsList:MinMatchupGames", "10"),
+                new KeyValuePair<string, string?>("ChampionsList:MinPlayerMatchupGames", "3"),
+            ]);
 }

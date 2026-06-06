@@ -26,6 +26,11 @@ public interface IChampionMatchupQueryService
     /// Optional player narrowing. When omitted the slice aggregates the global
     /// pool; when supplied only that account's games on the champion count.
     /// </param>
+    /// <param name="opponentChampionId">
+    /// Optional opponent narrowing. When set, only the head-to-head against this
+    /// one champion is returned (a single entry, or none) and the minimum-games
+    /// floor drops to one — a deliberate lookup, not a ranked list.
+    /// </param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>
     /// The matchups list, ordered by win rate descending. Only opponents with
@@ -39,5 +44,6 @@ public interface IChampionMatchupQueryService
         string position,
         string? patch,
         Guid? riotAccountId,
+        int? opponentChampionId,
         CancellationToken ct);
 }

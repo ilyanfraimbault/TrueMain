@@ -14,6 +14,7 @@ public sealed class PlayerChampionMatchupQueryService(
         int championId,
         string position,
         string? patch,
+        int? opponentChampionId,
         CancellationToken ct)
     {
         if (!NameTagParser.TryParse(nameTag, out var parsed))
@@ -41,6 +42,7 @@ public sealed class PlayerChampionMatchupQueryService(
             position,
             patch,
             accountId,
+            opponentChampionId,
             ct);
     }
 }

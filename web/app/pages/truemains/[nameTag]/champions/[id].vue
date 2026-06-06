@@ -305,7 +305,6 @@ const staticBundleReady = computed(() =>
       <ChampionMatchups
         :champion-id="championId"
         :position="selectedPosition"
-        :patch="activePatch"
         :champions="staticList ?? []"
         :name-tag="nameTag"
       />

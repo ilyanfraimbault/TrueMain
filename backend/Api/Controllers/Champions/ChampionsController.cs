@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using TrueMain.ReadModels.Champions;
 using TrueMain.Services.Champions;
@@ -72,8 +73,9 @@ public sealed class ChampionsController(
     /// <c>match_participants</c>. <paramref name="position"/> is the required
     /// Riot team position; an unrecognised position is a 400. Always 200 with a
     /// (possibly empty) list — a champion with no opponent above the floor just
-    /// yields no entries. The frontend slices the best / worst opponents and
-    /// filters by a searched opponent itself.
+    /// yields no entries. With <paramref name="opponent"/> set, only that single
+    /// head-to-head is returned and the floor drops to one game (a deliberate
+    /// lookup); otherwise the frontend slices the best / worst from the list.
     /// </summary>
     [HttpGet("{championId:int}/matchups")]
     [ProducesResponseType(typeof(ChampionMatchupsResponse), StatusCodes.Status200OK)]
@@ -83,6 +85,7 @@ public sealed class ChampionsController(
         int championId,
         [FromQuery] string? position,
         [FromQuery] string? patch,
+        [FromQuery][Range(1, int.MaxValue)] int? opponent,
         CancellationToken ct = default)
     {
         var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
@@ -98,6 +101,7 @@ public sealed class ChampionsController(
             normalizedPosition,
             normalizedPatch,
             riotAccountId: null,
+            opponentChampionId: opponent,
             ct);
 
         return Ok(response);
