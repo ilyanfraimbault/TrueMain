@@ -95,8 +95,10 @@ public sealed class TruemainsController(
     /// contract as <c>GET /champions/{championId}/matchups</c>, but every line is
     /// computed only from this player's games on the champion. 400 for an
     /// unrecognised position; 404 when the account is unknown. A known player
-    /// with no opponent above the minimum-games floor (see
-    /// <c>ChampionsListOptions.MinMatchupGames</c>) gets a 200 with an empty list.
+    /// with no opponent above the per-player floor (see
+    /// <c>ChampionsListOptions.MinPlayerMatchupGames</c>) gets a 200 with an empty
+    /// list; <paramref name="opponent"/> narrows to a single head-to-head at a
+    /// floor of one game.
     /// </summary>
     [HttpGet("{nameTag}/champions/{championId:int}/matchups")]
     [ProducesResponseType(typeof(ChampionMatchupsResponse), StatusCodes.Status200OK)]
@@ -108,6 +110,7 @@ public sealed class TruemainsController(
         int championId,
         [FromQuery] string? position,
         [FromQuery] string? patch,
+        [FromQuery] int? opponent,
         CancellationToken ct = default)
     {
         var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
@@ -123,6 +126,7 @@ public sealed class TruemainsController(
             championId,
             normalizedPosition,
             normalizedPatch,
+            opponent,
             ct);
 
         return response is null ? NotFound() : Ok(response);

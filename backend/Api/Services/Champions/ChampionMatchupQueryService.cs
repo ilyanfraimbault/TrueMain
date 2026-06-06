@@ -27,6 +27,7 @@ public sealed class ChampionMatchupQueryService(
         string position,
         string? patch,
         Guid? riotAccountId,
+        int? opponentChampionId,
         CancellationToken ct)
     {
         // Same queue cast the sibling champion reads use, so the matchup slice
@@ -45,7 +46,15 @@ public sealed class ChampionMatchupQueryService(
             : PatchVersion.TryParse(patch, out var parsed) ? parsed.ToString() : null;
         var patchPrefix = normalizedPatch is null ? null : $"{normalizedPatch}.%";
 
-        var minGames = championsOptions.Value.MinMatchupGames;
+        // Floor matrix. A deliberate opponent lookup shows the head-to-head from
+        // a single game up (floor 1); the best/worst leaderboard keeps a sample
+        // floor so a one-game fluke never tops it — the lower per-player floor
+        // for a player slice, the global floor otherwise.
+        var minGames = opponentChampionId is not null
+            ? 1
+            : riotAccountId is not null
+                ? championsOptions.Value.MinPlayerMatchupGames
+                : championsOptions.Value.MinMatchupGames;
 
         // The champion side of the lane: rows for this champion at this
         // position, on the configured queue (matched via the correlated
@@ -81,7 +90,8 @@ public sealed class ChampionMatchupQueryService(
                 p1 => db.MatchParticipants.Where(p2 =>
                     p2.MatchId == p1.MatchId
                     && p2.TeamPosition == p1.TeamPosition
-                    && p2.TeamId != p1.TeamId),
+                    && p2.TeamId != p1.TeamId
+                    && (opponentChampionId == null || p2.ChampionId == opponentChampionId)),
                 (p1, p2) => new { Opponent = p2.ChampionId, p1.Win })
             .GroupBy(x => x.Opponent)
             .Select(g => new
