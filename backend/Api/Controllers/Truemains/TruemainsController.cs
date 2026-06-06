@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using TrueMain.Controllers.Champions;
 using TrueMain.ReadModels.Champions;
@@ -110,7 +111,7 @@ public sealed class TruemainsController(
         int championId,
         [FromQuery] string? position,
         [FromQuery] string? patch,
-        [FromQuery] int? opponent,
+        [FromQuery][Range(1, int.MaxValue)] int? opponent,
         CancellationToken ct = default)
     {
         var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);

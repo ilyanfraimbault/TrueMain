@@ -143,6 +143,23 @@ public sealed class ChampionMatchupApiIntegrationTests
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-7)]
+    public async Task GetChampionMatchupsAsync_ReturnsBadRequestForNonPositiveOpponent(int opponent)
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // A champion id is always positive; 0 / negative must be a 400, not a 200
+        // with an empty list ([Range] on the opponent query param).
+        var response = await client.GetAsync(
+            $"/champions/{Champion}/matchups?position={Position}&opponent={opponent}");
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
     [Fact]
     public async Task GetPlayerChampionMatchupsAsync_ScopesToThatPlayersGames()
     {
