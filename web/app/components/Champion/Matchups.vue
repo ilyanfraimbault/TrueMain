@@ -15,9 +15,10 @@ const props = defineProps<{
 
 const TOP_N = 5
 
-// Patch toggle: default to the page's current patch, widen to all history on
-// demand (more games per matchup → a steadier best/worst ranking).
-const scopeToPatch = ref(true)
+// Patch toggle: the global page has ample per-patch data and defaults to the
+// current patch; a single player's per-patch sample is thin, so player pages
+// (nameTag set) default to all history so the best/worst ranking isn't empty.
+const scopeToPatch = ref(!props.nameTag)
 const effectivePatch = computed(() => (scopeToPatch.value ? props.patch : null))
 
 const selectedOpponentId = ref<number | null>(null)
@@ -25,7 +26,11 @@ const selectedOpponentId = ref<number | null>(null)
 const { data, status, error } = useChampionMatchups(
   () => props.championId,
   () => props.position,
-  { patch: () => effectivePatch.value, nameTag: () => props.nameTag },
+  {
+    patch: () => effectivePatch.value,
+    nameTag: () => props.nameTag,
+    opponentChampionId: () => selectedOpponentId.value,
+  },
 )
 
 // Skeleton only on the first load — keep the table on screen while a patch
@@ -59,7 +64,8 @@ const worst = computed(() =>
   sorted.value.slice(Math.max(TOP_N, sorted.value.length - TOP_N)).reverse(),
 )
 
-// Opponent search: the picked champion's row, if it cleared the games floor.
+// Opponent search: the backend returns just this opponent's head-to-head (one
+// entry or none), so the row is that entry when the player has met them.
 const searched = computed<ChampionMatchupEntry | null>(() =>
   selectedOpponentId.value === null
     ? null
@@ -133,7 +139,7 @@ const searchedOpponent = computed(() =>
         v-else
         class="rounded-lg bg-elevated/40 px-4 py-6 text-center text-sm text-muted"
       >
-        Not enough games against {{ searchedOpponent?.name ?? 'this opponent' }} on this lane yet.
+        No recorded games against {{ searchedOpponent?.name ?? 'this opponent' }} on this lane yet.
       </p>
     </template>
 
