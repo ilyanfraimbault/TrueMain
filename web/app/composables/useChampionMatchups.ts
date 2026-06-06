@@ -3,8 +3,6 @@ import type { ChampionPosition } from '~/utils/positions'
 import { fetchErrorStatus } from '~/utils/errors'
 
 export interface UseChampionMatchupsOptions {
-  /** Patch to scope to (major.minor). Omit / null for all patches. */
-  patch?: MaybeRefOrGetter<string | null | undefined>
   /**
    * When set, scope to a single player via
    * `GET /api/truemains/{nameTag}/champions/{id}/matchups` instead of the
@@ -33,10 +31,6 @@ export function useChampionMatchups(
 ) {
   const championIdRef = computed(() => toValue(championId))
   const positionRef = computed(() => toValue(position))
-  const patchRef = computed(() => {
-    const value = toValue(options.patch)
-    return value && value.length > 0 ? value : undefined
-  })
   const nameTagRef = computed(() => {
     const value = toValue(options.nameTag)
     return value && value.length > 0 ? value : undefined
@@ -52,7 +46,6 @@ export function useChampionMatchups(
       nameTagRef.value ?? 'global',
       championIdRef.value,
       positionRef.value ?? '',
-      patchRef.value ?? '',
       opponentRef.value ?? '',
     ].join('-'),
     async () => {
@@ -60,7 +53,6 @@ export function useChampionMatchups(
       if (!position) return null
 
       const query: Record<string, string> = { position }
-      if (patchRef.value) query.patch = patchRef.value
       if (opponentRef.value != null) query.opponent = String(opponentRef.value)
 
       const nameTag = nameTagRef.value
@@ -79,7 +71,7 @@ export function useChampionMatchups(
       }
     },
     {
-      watch: [championIdRef, positionRef, patchRef, nameTagRef, opponentRef],
+      watch: [championIdRef, positionRef, nameTagRef, opponentRef],
       server: false,
     },
   )
