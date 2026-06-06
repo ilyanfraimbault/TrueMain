@@ -275,6 +275,23 @@ public sealed class ChampionMatchupApiIntegrationTests
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-7)]
+    public async Task GetPlayerChampionMatchupsAsync_ReturnsBadRequestForNonPositiveOpponent(int opponent)
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // [Range] runs at model binding, before the account lookup — so a
+        // non-positive opponent is a 400 even for an unknown player.
+        var response = await client.GetAsync(
+            $"/truemains/Nobody-KR1/champions/{Champion}/matchups?position={Position}&opponent={opponent}");
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
     /// <summary>
     /// Seeds a global matchup sample (one tracked account): 12 Yone-vs-Zed lane games
     /// (10 on 16.4, 2 on 16.5; 7 won overall), plus four kinds of decoys that
