@@ -202,6 +202,35 @@ public sealed class ChampionMatchupApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetPlayerChampionMatchupsAsync_WithOpponent_StaysScopedToThePlayer()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var nameTag = await SeedOpponentScopeSampleAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // The opponent-lookup branch drops the floor to one but must keep the
+        // player narrowing: this account owns 1 Yone-vs-Talon game, a second
+        // tracked account owns 2, and one game is anonymous. The player slice
+        // must see only its own — not 3 — even on a below-global-floor opponent.
+        var player = await client.GetAsync(
+            $"/truemains/{nameTag}/champions/{Champion}/matchups?position={Position}&opponent={OtherOpponent}");
+        player.StatusCode.Should().Be(HttpStatusCode.OK);
+        var playerMatchups = await player.Content.ReadFromJsonAsync<ChampionMatchupsResponse>();
+        var talon = playerMatchups!.Matchups.Should().ContainSingle(m => m.OpponentChampionId == OtherOpponent).Subject;
+        talon.Games.Should().Be(1, "the opponent lookup stays scoped to this player's games");
+
+        // The same lookup on the global route counts both tracked accounts (1 + 2)
+        // and still drops the anonymous game.
+        var global = await client.GetAsync(
+            $"/champions/{Champion}/matchups?position={Position}&opponent={OtherOpponent}");
+        var globalMatchups = await global.Content.ReadFromJsonAsync<ChampionMatchupsResponse>();
+        var globalTalon = globalMatchups!.Matchups.Should().ContainSingle().Subject;
+        globalTalon.Games.Should().Be(3, "both tracked accounts count globally; the anonymous game never does");
+    }
+
+    [Fact]
     public async Task GetPlayerChampionMatchupsAsync_ReturnsNotFoundForUnknownNameTag()
     {
         await _fixture.ResetDatabaseAsync();
@@ -351,6 +380,43 @@ public sealed class ChampionMatchupApiIntegrationTests
             AddLaneMatchup(db, $"mf-zed-{i}", "16.4.521.123", QueueId, yoneWins: i < 3, Opponent,
                 yoneAccountId: account.Id);
         }
+
+        await db.SaveChangesAsync();
+        return $"{account.GameName}-{account.TagLine}";
+    }
+
+    /// <summary>
+    /// Seeds one below-global-floor opponent (Talon) split across scopes so the
+    /// player-scoped <c>?opponent=</c> path can be checked: the account under test
+    /// owns 1 Yone-vs-Talon game, a second tracked account owns 2, and one is
+    /// anonymous. The player slice must see 1, the global pool 3. Returns the tag.
+    /// </summary>
+    private async Task<string> SeedOpponentScopeSampleAsync()
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        var account = new RiotAccountBuilder()
+            .WithGameName("MatchupOppMain")
+            .WithTagLine("KR1")
+            .WithPuuid("matchup-oppmain-puuid")
+            .Build();
+        db.RiotAccounts.Add(account);
+
+        var otherAccount = new RiotAccountBuilder()
+            .WithGameName("MatchupOppOther")
+            .WithTagLine("KR1")
+            .WithPuuid("matchup-oppother-puuid")
+            .Build();
+        db.RiotAccounts.Add(otherAccount);
+
+        AddLaneMatchup(db, "mo-owned-0", "16.4.521.123", QueueId, yoneWins: true, OtherOpponent,
+            yoneAccountId: account.Id);
+        for (var i = 0; i < 2; i++)
+        {
+            AddLaneMatchup(db, $"mo-other-{i}", "16.4.521.123", QueueId, yoneWins: true, OtherOpponent,
+                yoneAccountId: otherAccount.Id);
+        }
+        AddLaneMatchup(db, "mo-anon-0", "16.4.521.123", QueueId, yoneWins: true, OtherOpponent);
 
         await db.SaveChangesAsync();
         return $"{account.GameName}-{account.TagLine}";
