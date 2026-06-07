@@ -32,6 +32,29 @@ internal static class ChampionAggregateScopeResolver
             .FirstOrDefault();
     }
 
+    /// <summary>
+    /// Picks the most recent patch whose dominant-position game count clears
+    /// <paramref name="minGames"/>. For player-scoped views: a player's latest
+    /// patch is often too thin to rank, so resolving to the newest patch where
+    /// they actually have enough games beats defaulting to the global latest
+    /// (which would render an empty "not enough games" state). Returns null when
+    /// no patch clears the floor.
+    /// </summary>
+    public static string? ResolveLatestPatchAboveFloor(
+        IEnumerable<(string GameVersion, string Position, int Games)> rows,
+        int minGames)
+        => rows
+            .GroupBy(row => row.GameVersion, StringComparer.Ordinal)
+            .Where(patchRows => patchRows
+                .Where(row => !string.IsNullOrWhiteSpace(row.Position))
+                .GroupBy(row => row.Position)
+                .Select(positionRows => positionRows.Sum(row => row.Games))
+                .DefaultIfEmpty(0)
+                .Max() >= minGames)
+            .Select(patchRows => patchRows.Key)
+            .OrderByDescending(ParsePatchVersion)
+            .FirstOrDefault();
+
     public static string ResolveDominantPosition(IEnumerable<ChampionAggregateScope> scopes)
         => ResolveDominantPosition(scopes.Select(scope => (scope.Position, scope.Games)));
 

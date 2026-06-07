@@ -27,7 +27,8 @@ public sealed class ChampionBuildsQueryService(
         var scopes = await ChampionScopeLoader.LoadAsync(
             db, (int)options.Value.QueueId, championId, patch, position, ct,
             riotAccountId: scope?.RiotAccountId,
-            platformId: scope?.PlatformId);
+            platformId: scope?.PlatformId,
+            minGames: scope?.MinGames);
         if (scopes is null)
         {
             return null;
