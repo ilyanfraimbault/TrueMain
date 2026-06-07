@@ -44,4 +44,18 @@ public sealed class ChampionAggregateScopeResolverTests
 
         ChampionAggregateScopeResolver.ResolveLatestPatchAboveFloor(rows, 5).Should().Be("16.8");
     }
+
+    [Fact]
+    public void ResolveLatestPatchAboveFloor_excludes_a_patch_with_no_valid_position()
+    {
+        // Defensive branch: a patch whose only rows have a blank position can't
+        // form a rankable slice, so it's skipped for the newest patch that can.
+        (string GameVersion, string Position, int Games)[] rows =
+        [
+            ("16.9", "", 10),
+            ("16.8", "MIDDLE", 6),
+        ];
+
+        ChampionAggregateScopeResolver.ResolveLatestPatchAboveFloor(rows, 5).Should().Be("16.8");
+    }
 }
