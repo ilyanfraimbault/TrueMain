@@ -102,8 +102,10 @@ public sealed class ScoringProcessNoOpTests
     {
         // Same candidate scored under an under-covered snapshot (champion 22 has 0 mains,
         // deficit = 1) must outscore the neutral baseline where the scarcity term is 0.
+        // Champion 22 is absent from this populated snapshot (the WHERE IsMain query never
+        // returns a 0 count), so its deficit is 1 — exercising the realistic absent-key path.
         var scarceScore = await ScoreSingleCandidateAsync(
-            new ChampionCoverageSnapshot(new Dictionary<int, int> { [22] = 0 }, targetMainsPerChampion: 20));
+            new ChampionCoverageSnapshot(new Dictionary<int, int> { [99] = 5 }, targetMainsPerChampion: 20));
         var neutralScore = await ScoreSingleCandidateAsync(ChampionCoverageSnapshot.Empty);
 
         // scarcityWeight 0.25, deficit 1, weight-sum 1.25 => a ~20-point bonus

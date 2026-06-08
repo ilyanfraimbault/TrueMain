@@ -16,7 +16,18 @@ public sealed class ChampionCoverageSnapshot
 
     public ChampionCoverageSnapshot(IReadOnlyDictionary<int, int> mainsByChampion, int targetMainsPerChampion)
     {
-        _mainsByChampion = mainsByChampion ?? throw new ArgumentNullException(nameof(mainsByChampion));
+        ArgumentNullException.ThrowIfNull(mainsByChampion);
+
+        // An empty dictionary is NOT the neutral case — it would make Deficit() return 1.0 for
+        // every champion (the opposite of Empty). Force callers to use Empty for "no signal".
+        if (mainsByChampion.Count == 0)
+        {
+            throw new ArgumentException(
+                "Use ChampionCoverageSnapshot.Empty for the no-signal case instead of an empty dictionary.",
+                nameof(mainsByChampion));
+        }
+
+        _mainsByChampion = mainsByChampion;
         _targetMainsPerChampion = Math.Max(1, targetMainsPerChampion);
     }
 

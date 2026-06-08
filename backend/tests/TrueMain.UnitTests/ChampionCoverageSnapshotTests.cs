@@ -47,4 +47,12 @@ public sealed class ChampionCoverageSnapshotTests
 
         snapshot.Deficit(1).Should().Be(1);
     }
+
+    [Fact]
+    public void Constructor_Throws_ForEmptyDictionary()
+    {
+        var act = () => new ChampionCoverageSnapshot(new Dictionary<int, int>(), targetMainsPerChampion: 20);
+
+        act.Should().Throw<ArgumentException>();
+    }
 }
