@@ -29,7 +29,8 @@ internal static class ChampionScopeLoader
         string? position,
         CancellationToken ct,
         Guid? riotAccountId = null,
-        string? platformId = null)
+        string? platformId = null,
+        int? minGames = null)
     {
         var normalizedPatch = string.IsNullOrWhiteSpace(patch)
             ? null
@@ -47,9 +48,17 @@ internal static class ChampionScopeLoader
             return null;
         }
 
-        var selectedPatch = ChampionAggregateScopeResolver.ResolvePatchVersion(
-            resolutionRows.Select(row => row.GameVersion),
-            normalizedPatch);
+        // Player-scoped views (minGames set) default to the most recent patch
+        // where the player actually has enough games, not the global latest — a
+        // champion main whose newest patch is thin would otherwise render an
+        // empty "not enough games" state. An explicit patch request still wins.
+        var selectedPatch = normalizedPatch is null && minGames is { } floor
+            ? ChampionAggregateScopeResolver.ResolveLatestPatchAboveFloor(
+                resolutionRows.Select(row => (row.GameVersion, row.Position, row.Games)),
+                floor)
+            : ChampionAggregateScopeResolver.ResolvePatchVersion(
+                resolutionRows.Select(row => row.GameVersion),
+                normalizedPatch);
         if (string.IsNullOrWhiteSpace(selectedPatch))
         {
             return null;
