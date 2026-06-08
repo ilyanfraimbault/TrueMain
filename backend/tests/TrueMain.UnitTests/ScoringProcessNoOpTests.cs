@@ -93,6 +93,7 @@ public sealed class ScoringProcessNoOpTests
         await process.RunRecordedAsync(runRecorder);
 
         await sessionFactory.Received(1).CreateAsync(Arg.Any<CancellationToken>());
+        await coverageProvider.Received(1).GetSnapshotAsync(session, Arg.Any<CancellationToken>());
         await mainCandidates.Received(1).GetScoredByPlatformAsync("KR", Arg.Any<int>(), Arg.Any<CancellationToken>());
     }
 
