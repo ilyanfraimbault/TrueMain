@@ -1,6 +1,7 @@
 using Core.Options;
 using Data.Entities;
 using Data.Repositories;
+using Ingestor.Processes.Components.Coverage;
 
 namespace Ingestor.Processes.Components.MainAnalysis;
 
@@ -11,6 +12,7 @@ public sealed class MainStatsCalculator : IMainStatsCalculator
         string puuid,
         IReadOnlyCollection<ParticipantRow> participantRows,
         MainAnalysisOptions options,
+        ChampionCoverageSnapshot coverage,
         DateTime calculatedAtUtc)
     {
         var validParticipants = participantRows
@@ -26,7 +28,7 @@ public sealed class MainStatsCalculator : IMainStatsCalculator
 
         return validParticipants
             .GroupBy(row => row.ChampionId)
-            .Select(group => BuildStat(platformId, puuid, group, totalMatches, options, calculatedAtUtc))
+            .Select(group => BuildStat(platformId, puuid, group, totalMatches, options, coverage, calculatedAtUtc))
             .ToList();
     }
 
@@ -36,6 +38,7 @@ public sealed class MainStatsCalculator : IMainStatsCalculator
         IGrouping<int, ParticipantRow> group,
         int totalMatches,
         MainAnalysisOptions options,
+        ChampionCoverageSnapshot coverage,
         DateTime calculatedAtUtc)
     {
         var championMatches = group.Count();
@@ -58,8 +61,10 @@ public sealed class MainStatsCalculator : IMainStatsCalculator
             .ToList();
 
         var primaryPosition = positions.Count > 0 ? positions[0].Position : string.Empty;
-        var isMain = eligibleForClassification && playRate >= options.PlayRateThreshold;
+        var mainThreshold = ResolveMainThreshold(group.Key, options, coverage);
+        var isMain = eligibleForClassification && playRate >= mainThreshold;
         var isOtp = isMain && playRate >= options.OtpPlayRateThreshold;
+        var isExtendedSample = isMain && playRate < options.PlayRateThreshold;
 
         return new MainChampionStat
         {
@@ -71,10 +76,26 @@ public sealed class MainStatsCalculator : IMainStatsCalculator
             PlayRate = playRate,
             IsMain = isMain,
             IsOtp = isOtp,
+            IsExtendedSample = isExtendedSample,
             PrimaryPosition = primaryPosition,
             PositionBreakdown = positions,
             CalculatedAtUtc = calculatedAtUtc
         };
+    }
+
+    /// <summary>
+    /// Per-champion main threshold, interpolated from the coverage deficit:
+    /// covered champions keep <see cref="MainAnalysisOptions.PlayRateThreshold"/>,
+    /// maximally under-covered champions drop to <see cref="MainAnalysisOptions.PlayRateFloor"/>.
+    /// </summary>
+    private static double ResolveMainThreshold(
+        int championId,
+        MainAnalysisOptions options,
+        ChampionCoverageSnapshot coverage)
+    {
+        var floor = Math.Min(options.PlayRateFloor, options.PlayRateThreshold);
+        var deficit = coverage.Deficit(championId);
+        return options.PlayRateThreshold - (options.PlayRateThreshold - floor) * deficit;
     }
 
     private static bool IsValidTeamPosition(string? position)

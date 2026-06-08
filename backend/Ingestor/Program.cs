@@ -3,6 +3,7 @@ using Data.Repositories;
 using Ingestor;
 using Ingestor.Options;
 using Ingestor.Processes;
+using Ingestor.Processes.Components.Coverage;
 using Ingestor.Processes.Components.Discovery;
 using Ingestor.Processes.Components.MainAnalysis;
 using Ingestor.Processes.Components.MatchIngestion;
@@ -36,6 +37,7 @@ builder.Services.AddScoped<IAccountValidationService, AccountValidationService>(
 
 builder.Services.AddScoped<IMainStatsCalculator, MainStatsCalculator>();
 builder.Services.AddScoped<IMainDemotionPolicy, MainDemotionPolicy>();
+builder.Services.AddScoped<IChampionCoverageProvider, ChampionCoverageProvider>();
 builder.Services.AddHttpClient<IItemMetadataProvider, CommunityDragonItemMetadataProvider>();
 builder.Services.AddScoped<ChampionPatternSourceRowReader>();
 builder.Services.AddScoped<ChampionPatternAggregateBuilder>();

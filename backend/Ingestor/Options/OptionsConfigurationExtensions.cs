@@ -33,8 +33,15 @@ public static class OptionsConfigurationExtensions
             .Validate(options => options.RecencyWeight >= 0, "Scoring:RecencyWeight must be >= 0.")
             .Validate(options => options.RankWeight >= 0, "Scoring:RankWeight must be >= 0.")
             .Validate(options => options.PointsWeight >= 0, "Scoring:PointsWeight must be >= 0.")
+            .Validate(options => options.ScarcityWeight >= 0, "Scoring:ScarcityWeight must be >= 0.")
             .Validate(options => options.RecencyWeight + options.RankWeight + options.PointsWeight > 0,
                 "Scoring weights sum must be greater than 0.")
+            .ValidateOnStart();
+
+        services.AddOptions<CoverageOptions>()
+            .Bind(configuration.GetSection(CoverageOptions.SectionName))
+            .Validate(options => options.TargetMainsPerChampion > 0,
+                "Coverage:TargetMainsPerChampion must be greater than 0.")
             .ValidateOnStart();
 
         services.AddOptions<MatchIngestionOptions>()
@@ -53,6 +60,9 @@ public static class OptionsConfigurationExtensions
             .Validate(options => options.MatchesToConsider > 0, "MainAnalysis:MatchesToConsider must be greater than 0.")
             .Validate(options => Enum.IsDefined(options.QueueId), "MainAnalysis:QueueId must be a defined LolQueueId.")
             .Validate(options => options.PlayRateThreshold is >= 0 and <= 1, "MainAnalysis:PlayRateThreshold must be in [0, 1].")
+            .Validate(options => options.PlayRateFloor is >= 0 and <= 1, "MainAnalysis:PlayRateFloor must be in [0, 1].")
+            .Validate(options => options.PlayRateFloor <= options.PlayRateThreshold,
+                "MainAnalysis:PlayRateFloor must be <= PlayRateThreshold.")
             .Validate(options => options.CriticalPlayRateThreshold is >= 0 and <= 1,
                 "MainAnalysis:CriticalPlayRateThreshold must be in [0, 1].")
             .Validate(options => options.MinMatchesToEvaluate > 0, "MainAnalysis:MinMatchesToEvaluate must be greater than 0.")

@@ -40,6 +40,10 @@ public sealed class MainChampionStatConfiguration : IEntityTypeConfiguration<Mai
         entity.Property(e => e.IsOtp)
             .IsRequired();
 
+        entity.Property(e => e.IsExtendedSample)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         entity.Property(e => e.PrimaryPosition)
             .IsRequired()
             .HasMaxLength(32);

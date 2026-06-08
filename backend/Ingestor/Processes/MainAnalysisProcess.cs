@@ -1,6 +1,7 @@
 using Core.Options;
 using Data.Entities;
 using Data.Repositories;
+using Ingestor.Processes.Components.Coverage;
 using Ingestor.Processes.Components.MainAnalysis;
 using Microsoft.Extensions.Options;
 
@@ -11,6 +12,7 @@ public sealed class MainAnalysisProcess(
     IDataSessionFactory sessionFactory,
     IMainStatsCalculator mainStatsCalculator,
     IMainDemotionPolicy mainDemotionPolicy,
+    IChampionCoverageProvider coverageProvider,
     IOptions<MainAnalysisOptions> analysisOptions) : IIngestorProcess
 {
     public string Name => "MainAnalysis";
@@ -26,7 +28,8 @@ public sealed class MainAnalysisProcess(
             return new { reason = "No accounts eligible for main analysis.", selected = 0 };
         }
 
-        var summary = await AnalyzeAccountsInBatchesAsync(accounts, options, nowUtc, ct);
+        var coverage = await LoadCoverageAsync(ct);
+        var summary = await AnalyzeAccountsInBatchesAsync(accounts, options, coverage, nowUtc, ct);
         logger.LogInformation(
             "Main analysis summary: accountsProcessed={Accounts}, statsUpserted={Upserted}, statsRemoved={Removed}.",
             summary.Processed,
@@ -50,9 +53,16 @@ public sealed class MainAnalysisProcess(
             .GetAccountsForMainAnalysisAsync(cutoff, Math.Max(1, options.BatchSize), ct);
     }
 
+    private async Task<ChampionCoverageSnapshot> LoadCoverageAsync(CancellationToken ct)
+    {
+        await using var session = await sessionFactory.CreateAsync(ct);
+        return await coverageProvider.GetSnapshotAsync(session, ct);
+    }
+
     private async Task<AnalysisSummary> AnalyzeAccountsInBatchesAsync(
         IReadOnlyList<AccountKey> accounts,
         MainAnalysisOptions options,
+        ChampionCoverageSnapshot coverage,
         DateTime nowUtc,
         CancellationToken ct)
     {
@@ -62,7 +72,7 @@ public sealed class MainAnalysisProcess(
         for (var i = 0; i < accounts.Count; i += processingBatchSize)
         {
             var batch = accounts.Skip(i).Take(processingBatchSize).ToList();
-            var batchResult = await AnalyzeBatchAsync(batch, options, nowUtc, ct);
+            var batchResult = await AnalyzeBatchAsync(batch, options, coverage, nowUtc, ct);
             summary.Merge(batchResult);
 
             logger.LogDebug(
@@ -78,6 +88,7 @@ public sealed class MainAnalysisProcess(
     private async Task<AnalysisSummary> AnalyzeBatchAsync(
         IReadOnlyList<AccountKey> batch,
         MainAnalysisOptions options,
+        ChampionCoverageSnapshot coverage,
         DateTime nowUtc,
         CancellationToken ct)
     {
@@ -99,6 +110,7 @@ public sealed class MainAnalysisProcess(
                 existingStatsByAccount,
                 accountEntitiesByKey,
                 options,
+                coverage,
                 nowUtc,
                 ct);
             summary.Merge(accountResult);
@@ -116,6 +128,7 @@ public sealed class MainAnalysisProcess(
         IReadOnlyDictionary<AccountKey, List<MainChampionStat>> existingStatsByAccount,
         IReadOnlyDictionary<AccountKey, RiotAccount> accountEntitiesByKey,
         MainAnalysisOptions options,
+        ChampionCoverageSnapshot coverage,
         DateTime nowUtc,
         CancellationToken ct)
     {
@@ -133,6 +146,7 @@ public sealed class MainAnalysisProcess(
             account.Puuid,
             participantRows,
             options,
+            coverage,
             nowUtc);
 
         var newStatsByChampion = newStats.ToDictionary(stat => stat.ChampionId);
@@ -230,6 +244,7 @@ public sealed class MainAnalysisProcess(
                 existing.PlayRate = stat.PlayRate;
                 existing.IsMain = stat.IsMain;
                 existing.IsOtp = stat.IsOtp;
+                existing.IsExtendedSample = stat.IsExtendedSample;
                 existing.PrimaryPosition = stat.PrimaryPosition;
                 existing.PositionBreakdown = stat.PositionBreakdown;
                 existing.CalculatedAtUtc = stat.CalculatedAtUtc;
