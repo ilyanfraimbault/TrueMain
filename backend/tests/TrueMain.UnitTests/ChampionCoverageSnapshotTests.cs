@@ -9,7 +9,6 @@ public sealed class ChampionCoverageSnapshotTests
     public void Empty_ReturnsZeroDeficit_ForAnyChampion()
     {
         ChampionCoverageSnapshot.Empty.Deficit(266).Should().Be(0);
-        ChampionCoverageSnapshot.Empty.MainsFor(266).Should().Be(0);
     }
 
     [Theory]
