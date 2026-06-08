@@ -2,6 +2,7 @@ using Core.Options;
 using Data.Entities;
 using Data.Repositories;
 using AwesomeAssertions;
+using Ingestor.Processes.Components.Coverage;
 using Ingestor.Processes.Components.MainAnalysis;
 
 namespace TrueMain.UnitTests;
@@ -30,7 +31,7 @@ public sealed class MainAnalysisComponentsTests
             new(1, "NONE")
         };
 
-        var result = calculator.Calculate("KR", "puuid-1", participants, options, DateTime.UtcNow);
+        var result = calculator.Calculate("KR", "puuid-1", participants, options, ChampionCoverageSnapshot.Empty, DateTime.UtcNow);
 
         result.Should().HaveCount(2);
 
@@ -70,7 +71,7 @@ public sealed class MainAnalysisComponentsTests
             new(2, "MID")
         };
 
-        var result = calculator.Calculate("KR", "puuid-1", participants, options, DateTime.UtcNow);
+        var result = calculator.Calculate("KR", "puuid-1", participants, options, ChampionCoverageSnapshot.Empty, DateTime.UtcNow);
 
         var champion1 = result.Single(stat => stat.ChampionId == 1);
         champion1.PlayRate.Should().BeApproximately(5d / 6d, 0.0001);
@@ -98,7 +99,7 @@ public sealed class MainAnalysisComponentsTests
             new(2, "MID")
         };
 
-        var result = calculator.Calculate("KR", "puuid-1", participants, options, DateTime.UtcNow);
+        var result = calculator.Calculate("KR", "puuid-1", participants, options, ChampionCoverageSnapshot.Empty, DateTime.UtcNow);
 
         var champion1 = result.Single(stat => stat.ChampionId == 1);
         champion1.PlayRate.Should().BeApproximately(0.6, 0.0001);
@@ -125,5 +126,71 @@ public sealed class MainAnalysisComponentsTests
         var shouldDemote = policy.ShouldDemote(existing, newStats, 0.1);
 
         shouldDemote.Should().BeTrue();
+    }
+
+    [Fact]
+    public void MainStatsCalculator_RelaxesThresholdAndFlagsExtendedSample_ForUnderCoveredChampion()
+    {
+        var calculator = new MainStatsCalculator();
+        var options = new MainAnalysisOptions
+        {
+            MinMatchesToEvaluate = 5,
+            PlayRateThreshold = 0.2,
+            PlayRateFloor = 0.12,
+            OtpPlayRateThreshold = 0.85
+        };
+
+        // Champion 1 has no mains (deficit = 1) => threshold relaxes to the 0.12 floor.
+        var coverage = new ChampionCoverageSnapshot(
+            new Dictionary<int, int> { [1] = 0, [2] = 30 },
+            targetMainsPerChampion: 20);
+
+        // Champion 1 is played 1/8 = 0.125: below base 0.2 but above the relaxed 0.12.
+        var participants = new List<ParticipantRow>
+        {
+            new(1, "TOP"),
+            new(2, "MID"), new(2, "MID"), new(2, "MID"),
+            new(2, "MID"), new(2, "MID"), new(2, "MID"), new(2, "MID")
+        };
+
+        var result = calculator.Calculate("KR", "puuid-1", participants, options, coverage, DateTime.UtcNow);
+
+        var champion1 = result.Single(stat => stat.ChampionId == 1);
+        champion1.PlayRate.Should().BeApproximately(0.125, 0.0001);
+        champion1.IsMain.Should().BeTrue();
+        champion1.IsExtendedSample.Should().BeTrue();
+        champion1.IsOtp.Should().BeFalse();
+    }
+
+    [Fact]
+    public void MainStatsCalculator_KeepsBaseThreshold_ForCoveredChampion()
+    {
+        var calculator = new MainStatsCalculator();
+        var options = new MainAnalysisOptions
+        {
+            MinMatchesToEvaluate = 5,
+            PlayRateThreshold = 0.2,
+            PlayRateFloor = 0.12,
+            OtpPlayRateThreshold = 0.85
+        };
+
+        // Champion 1 is already at target (deficit = 0) => threshold stays at 0.2.
+        var coverage = new ChampionCoverageSnapshot(
+            new Dictionary<int, int> { [1] = 30, [2] = 30 },
+            targetMainsPerChampion: 20);
+
+        var participants = new List<ParticipantRow>
+        {
+            new(1, "TOP"),
+            new(2, "MID"), new(2, "MID"), new(2, "MID"),
+            new(2, "MID"), new(2, "MID"), new(2, "MID"), new(2, "MID")
+        };
+
+        var result = calculator.Calculate("KR", "puuid-1", participants, options, coverage, DateTime.UtcNow);
+
+        var champion1 = result.Single(stat => stat.ChampionId == 1);
+        champion1.PlayRate.Should().BeApproximately(0.125, 0.0001);
+        champion1.IsMain.Should().BeFalse();
+        champion1.IsExtendedSample.Should().BeFalse();
     }
 }

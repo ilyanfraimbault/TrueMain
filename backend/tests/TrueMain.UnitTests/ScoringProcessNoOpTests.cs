@@ -2,6 +2,7 @@ using Data.Entities;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes;
+using Ingestor.Processes.Components.Coverage;
 using Ingestor.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -18,6 +19,9 @@ public sealed class ScoringProcessNoOpTests
         var session = Substitute.For<IDataSession>();
         var mainCandidates = Substitute.For<IMainCandidateRepository>();
         var runRecorder = Substitute.For<IProcessRunRecorder>();
+        var coverageProvider = Substitute.For<IChampionCoverageProvider>();
+        coverageProvider.GetSnapshotAsync(Arg.Any<IDataSession>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(ChampionCoverageSnapshot.Empty));
 
         mainCandidates.GetNewBatchAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new List<MainCandidate>()));
@@ -29,6 +33,7 @@ public sealed class ScoringProcessNoOpTests
         var process = new ScoringProcess(
             NullLogger<ScoringProcess>.Instance,
             sessionFactory,
+            coverageProvider,
             Microsoft.Extensions.Options.Options.Create(new ScoringOptions()));
 
         await process.RunRecordedAsync(runRecorder);
@@ -52,6 +57,9 @@ public sealed class ScoringProcessNoOpTests
         var session = Substitute.For<IDataSession>();
         var mainCandidates = Substitute.For<IMainCandidateRepository>();
         var runRecorder = Substitute.For<IProcessRunRecorder>();
+        var coverageProvider = Substitute.For<IChampionCoverageProvider>();
+        coverageProvider.GetSnapshotAsync(Arg.Any<IDataSession>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(ChampionCoverageSnapshot.Empty));
         var candidate = new MainCandidate
         {
             PlatformId = "KR",
@@ -78,6 +86,7 @@ public sealed class ScoringProcessNoOpTests
         var process = new ScoringProcess(
             NullLogger<ScoringProcess>.Instance,
             sessionFactory,
+            coverageProvider,
             Microsoft.Extensions.Options.Options.Create(new ScoringOptions()));
 
         await process.RunRecordedAsync(runRecorder);

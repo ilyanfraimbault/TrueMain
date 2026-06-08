@@ -2,7 +2,9 @@ using Core.Lol.Map;
 using Core.Options;
 using Data.Entities;
 using AwesomeAssertions;
+using Ingestor.Options;
 using Ingestor.Processes;
+using Ingestor.Processes.Components.Coverage;
 using Ingestor.Processes.Components.MainAnalysis;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -29,6 +31,7 @@ public sealed class MainAnalysisProcessIntegrationTests
             _fixture.CreateSessionFactory(),
             new MainStatsCalculator(),
             new MainDemotionPolicy(),
+            new ChampionCoverageProvider(Microsoft.Extensions.Options.Options.Create(new CoverageOptions())),
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions
             {
                 BatchSize = 10,
