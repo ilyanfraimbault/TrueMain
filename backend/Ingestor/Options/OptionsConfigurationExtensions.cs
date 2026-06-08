@@ -33,7 +33,8 @@ public static class OptionsConfigurationExtensions
             .Validate(options => options.RecencyWeight >= 0, "Scoring:RecencyWeight must be >= 0.")
             .Validate(options => options.RankWeight >= 0, "Scoring:RankWeight must be >= 0.")
             .Validate(options => options.PointsWeight >= 0, "Scoring:PointsWeight must be >= 0.")
-            .Validate(options => options.ScarcityWeight >= 0, "Scoring:ScarcityWeight must be >= 0.")
+            .Validate(options => options.ScarcityWeight is >= 0 and <= 1,
+                "Scoring:ScarcityWeight must be in [0, 1] (the merit weights sum to 1.0; a larger value would let scarcity outweigh all of them).")
             .Validate(options => options.RecencyWeight + options.RankWeight + options.PointsWeight + options.ScarcityWeight > 0,
                 "Scoring weights sum (recency + rank + points + scarcity) must be greater than 0.")
             .ValidateOnStart();
