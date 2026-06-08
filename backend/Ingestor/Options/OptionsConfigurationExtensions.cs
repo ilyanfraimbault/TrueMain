@@ -63,6 +63,8 @@ public static class OptionsConfigurationExtensions
             .Validate(options => options.PlayRateFloor is >= 0 and <= 1, "MainAnalysis:PlayRateFloor must be in [0, 1].")
             .Validate(options => options.PlayRateFloor <= options.PlayRateThreshold,
                 "MainAnalysis:PlayRateFloor must be <= PlayRateThreshold.")
+            .Validate(options => options.PlayRateFloor >= options.CriticalPlayRateThreshold,
+                "MainAnalysis:PlayRateFloor must be >= CriticalPlayRateThreshold (otherwise extended-sample mains are demoted on the next cycle).")
             .Validate(options => options.CriticalPlayRateThreshold is >= 0 and <= 1,
                 "MainAnalysis:CriticalPlayRateThreshold must be in [0, 1].")
             .Validate(options => options.MinMatchesToEvaluate > 0, "MainAnalysis:MinMatchesToEvaluate must be greater than 0.")

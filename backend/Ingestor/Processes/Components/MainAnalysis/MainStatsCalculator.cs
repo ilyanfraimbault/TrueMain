@@ -64,6 +64,9 @@ public sealed class MainStatsCalculator : IMainStatsCalculator
         var mainThreshold = ResolveMainThreshold(group.Key, options, coverage);
         var isMain = eligibleForClassification && playRate >= mainThreshold;
         var isOtp = isMain && playRate >= options.OtpPlayRateThreshold;
+        // Compared against the base PlayRateThreshold (not the relaxed per-champion
+        // mainThreshold) on purpose: the flag means "a main only because the adaptive
+        // threshold dropped below the normal main bar", whatever the deficit was.
         var isExtendedSample = isMain && playRate < options.PlayRateThreshold;
 
         return new MainChampionStat
