@@ -18,7 +18,6 @@ public sealed class ChampionCoverageSnapshot
     {
         _mainsByChampion = mainsByChampion ?? throw new ArgumentNullException(nameof(mainsByChampion));
         _targetMainsPerChampion = Math.Max(1, targetMainsPerChampion);
-        _isNeutral = false;
     }
 
     private ChampionCoverageSnapshot()

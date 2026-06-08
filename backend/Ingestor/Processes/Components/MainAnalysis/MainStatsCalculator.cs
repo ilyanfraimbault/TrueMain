@@ -93,6 +93,9 @@ public sealed class MainStatsCalculator : IMainStatsCalculator
         MainAnalysisOptions options,
         ChampionCoverageSnapshot coverage)
     {
+        // Defensive: startup validation guarantees PlayRateFloor <= PlayRateThreshold, so this
+        // Min is a no-op in practice. It guards against an inverted (tightening) threshold if the
+        // validator is ever bypassed, mirroring the weightSum guard in ScoringProcess.
         var floor = Math.Min(options.PlayRateFloor, options.PlayRateThreshold);
         var deficit = coverage.Deficit(championId);
         return options.PlayRateThreshold - (options.PlayRateThreshold - floor) * deficit;
