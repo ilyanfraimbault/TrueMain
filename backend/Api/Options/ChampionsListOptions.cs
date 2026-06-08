@@ -15,9 +15,11 @@ public sealed class ChampionsListOptions
     /// 1-0 = 100% win rate) top the patch-wide tier percentiles as a fluke and
     /// crowd every genuinely-played champion into the middle, collapsing the whole
     /// S→D scale to A/B. Lines below this are dropped from the payload (and from
-    /// the ranking). Set to 0 to disable.
+    /// the ranking). Ten is low enough to surface a modestly-played champion at
+    /// the current data volume while still keeping single-game flukes out of the
+    /// percentiles. Set to 0 to disable.
     /// </summary>
-    public int MinSampleGames { get; set; } = 20;
+    public int MinSampleGames { get; set; } = 10;
 
     /// <summary>
     /// Minimum games a champion-vs-opponent lane matchup needs before the
