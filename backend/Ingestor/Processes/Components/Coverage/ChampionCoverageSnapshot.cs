@@ -12,29 +12,40 @@ public sealed class ChampionCoverageSnapshot
 {
     private readonly IReadOnlyDictionary<int, int> _mainsByChampion;
     private readonly int _targetMainsPerChampion;
+    private readonly bool _isNeutral;
 
     public ChampionCoverageSnapshot(IReadOnlyDictionary<int, int> mainsByChampion, int targetMainsPerChampion)
     {
         _mainsByChampion = mainsByChampion ?? throw new ArgumentNullException(nameof(mainsByChampion));
         _targetMainsPerChampion = Math.Max(1, targetMainsPerChampion);
+        _isNeutral = false;
+    }
+
+    private ChampionCoverageSnapshot()
+    {
+        _mainsByChampion = new Dictionary<int, int>();
+        _targetMainsPerChampion = 1;
+        _isNeutral = true;
     }
 
     /// <summary>
-    /// A neutral snapshot carrying no coverage data: every deficit is 0, so callers
-    /// fall back to their default behaviour (no scoring bonus, base threshold).
+    /// Explicit neutral snapshot for when there is no coverage signal to act on
+    /// (cold start before any mains exist, or in tests): every deficit is 0, so callers
+    /// keep their defaults (base threshold, no scoring bonus). This is intentionally a
+    /// distinct state from a populated snapshot, not inferred from an empty dictionary.
     /// </summary>
-    public static ChampionCoverageSnapshot Empty { get; } = new(new Dictionary<int, int>(), 1);
+    public static ChampionCoverageSnapshot Empty { get; } = new();
 
     public int MainsFor(int championId)
         => _mainsByChampion.TryGetValue(championId, out var count) ? count : 0;
 
     /// <summary>
     /// Scarcity in [0, 1]: 1 = no mains at all, 0 = at or above the target.
-    /// Returns 0 when the snapshot carries no data so callers keep their defaults.
+    /// A neutral snapshot always returns 0.
     /// </summary>
     public double Deficit(int championId)
     {
-        if (_mainsByChampion.Count == 0)
+        if (_isNeutral)
         {
             return 0;
         }

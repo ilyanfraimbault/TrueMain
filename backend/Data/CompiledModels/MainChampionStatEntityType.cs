@@ -21,7 +21,7 @@ namespace Data.CompiledModels
                 "Data.Entities.MainChampionStat",
                 typeof(MainChampionStat),
                 baseEntityType,
-                propertyCount: 12,
+                propertyCount: 13,
                 unnamedIndexCount: 3,
                 keyCount: 1);
 
@@ -58,6 +58,16 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(MainChampionStat).GetField("<ChampionMatches>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: 0);
             championMatches.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var isExtendedSample = runtimeEntityType.AddProperty(
+                "IsExtendedSample",
+                typeof(bool),
+                propertyInfo: typeof(MainChampionStat).GetProperty("IsExtendedSample", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MainChampionStat).GetField("<IsExtendedSample>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: false);
+            isExtendedSample.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            isExtendedSample.AddAnnotation("Relational:DefaultValue", false);
 
             var isMain = runtimeEntityType.AddProperty(
                 "IsMain",

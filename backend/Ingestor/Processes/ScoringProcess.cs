@@ -173,6 +173,10 @@ public sealed class ScoringProcess(
         var scarcityScore = coverage.Deficit(candidate.ChampionId);
 
         var weightSum = recencyWeight + rankWeight + pointsWeight + scarcityWeight;
+
+        // Defensive only: startup validation guarantees the base weights sum to > 0,
+        // so this branch is unreachable in practice. It guards against a divide-by-zero
+        // if the validator is ever bypassed (e.g. a future refactor or a direct test).
         if (weightSum <= 0)
         {
             recencyWeight = 0.65;

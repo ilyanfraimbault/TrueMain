@@ -34,8 +34,8 @@ public static class OptionsConfigurationExtensions
             .Validate(options => options.RankWeight >= 0, "Scoring:RankWeight must be >= 0.")
             .Validate(options => options.PointsWeight >= 0, "Scoring:PointsWeight must be >= 0.")
             .Validate(options => options.ScarcityWeight >= 0, "Scoring:ScarcityWeight must be >= 0.")
-            .Validate(options => options.RecencyWeight + options.RankWeight + options.PointsWeight > 0,
-                "Scoring weights sum must be greater than 0.")
+            .Validate(options => options.RecencyWeight + options.RankWeight + options.PointsWeight + options.ScarcityWeight > 0,
+                "Scoring weights sum (recency + rank + points + scarcity) must be greater than 0.")
             .ValidateOnStart();
 
         services.AddOptions<CoverageOptions>()
