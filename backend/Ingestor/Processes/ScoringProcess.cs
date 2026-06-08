@@ -172,6 +172,12 @@ public sealed class ScoringProcess(
         var scarcityWeight = Math.Max(0, scoring.ScarcityWeight);
         var scarcityScore = coverage.Deficit(candidate.ChampionId);
 
+        // Including scarcityWeight in the denominator is deliberate: it normalises the total
+        // while compressing covered-champion scores proportionally, which is what gives
+        // under-covered champions their relative boost. With defaults (0.65+0.20+0.15+0.25=1.25)
+        // a fully-covered champion (deficit 0) tops out at ~80, while an under-covered one
+        // (deficit 1) can reach 100 — so don't set ScarcityWeight so high that covered
+        // champions stop being meaningfully ranked.
         var weightSum = recencyWeight + rankWeight + pointsWeight + scarcityWeight;
 
         // Defensive only: startup validation guarantees the base weights sum to > 0,

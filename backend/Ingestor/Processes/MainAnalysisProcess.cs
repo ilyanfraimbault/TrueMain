@@ -53,6 +53,11 @@ public sealed class MainAnalysisProcess(
             .GetAccountsForMainAnalysisAsync(cutoff, Math.Max(1, options.BatchSize), ct);
     }
 
+    // Coverage is loaded once in its own short-lived session before any batch work, freezing
+    // the snapshot for the whole cycle while each batch opens its own session (AnalyzeBatchAsync).
+    // ScoringProcess reuses a single session for coverage + scoring because both fit one short
+    // transaction; the per-batch lifecycle here makes sharing one session impractical. Don't
+    // "simplify" this into the per-batch sessions.
     private async Task<ChampionCoverageSnapshot> LoadCoverageAsync(CancellationToken ct)
     {
         await using var session = await sessionFactory.CreateAsync(ct);

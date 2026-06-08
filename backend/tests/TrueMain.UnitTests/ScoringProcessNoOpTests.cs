@@ -105,7 +105,9 @@ public sealed class ScoringProcessNoOpTests
             new ChampionCoverageSnapshot(new Dictionary<int, int> { [22] = 0 }, targetMainsPerChampion: 20));
         var neutralScore = await ScoreSingleCandidateAsync(ChampionCoverageSnapshot.Empty);
 
-        scarceScore.Should().BeGreaterThan(neutralScore);
+        // scarcityWeight 0.25, deficit 1, weight-sum 1.25 => a ~20-point bonus
+        // (100 * 0.25 / 1.25). Assert the magnitude, not just the direction.
+        scarceScore.Should().BeGreaterThan(neutralScore + 15);
     }
 
     private static async Task<double> ScoreSingleCandidateAsync(ChampionCoverageSnapshot coverage)
