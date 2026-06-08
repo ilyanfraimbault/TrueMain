@@ -194,4 +194,38 @@ public sealed class MainAnalysisComponentsTests
         champion1.IsMain.Should().BeFalse();
         champion1.IsExtendedSample.Should().BeFalse();
     }
+
+    [Fact]
+    public void MainStatsCalculator_InterpolatesThreshold_ForPartiallyUnderCoveredChampion()
+    {
+        var calculator = new MainStatsCalculator();
+        var options = new MainAnalysisOptions
+        {
+            MinMatchesToEvaluate = 5,
+            PlayRateThreshold = 0.2,
+            PlayRateFloor = 0.12,
+            OtpPlayRateThreshold = 0.85
+        };
+
+        // Champion 1 has 10 mains / target 20 => deficit 0.5 => threshold = 0.2 - (0.2 - 0.12) * 0.5 = 0.16.
+        var coverage = new ChampionCoverageSnapshot(
+            new Dictionary<int, int> { [1] = 10 },
+            targetMainsPerChampion: 20);
+
+        // Champion 1 is played 3/18 ≈ 0.167: above the relaxed 0.16 but below the base 0.2.
+        var participants = new List<ParticipantRow>
+        {
+            new(1, "TOP"), new(1, "TOP"), new(1, "TOP"),
+            new(2, "MID"), new(2, "MID"), new(2, "MID"), new(2, "MID"), new(2, "MID"),
+            new(2, "MID"), new(2, "MID"), new(2, "MID"), new(2, "MID"), new(2, "MID"),
+            new(2, "MID"), new(2, "MID"), new(2, "MID"), new(2, "MID"), new(2, "MID")
+        };
+
+        var result = calculator.Calculate("KR", "puuid-1", participants, options, coverage, DateTime.UtcNow);
+
+        var champion1 = result.Single(stat => stat.ChampionId == 1);
+        champion1.PlayRate.Should().BeApproximately(3d / 18d, 0.0001);
+        champion1.IsMain.Should().BeTrue();           // 0.167 >= relaxed threshold 0.16
+        champion1.IsExtendedSample.Should().BeTrue(); // 0.167 < base threshold 0.20
+    }
 }

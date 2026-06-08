@@ -46,7 +46,9 @@ public sealed class ChampionCoverageSnapshot
     /// </summary>
     public static ChampionCoverageSnapshot Empty { get; } = new();
 
-    public int MainsFor(int championId)
+    // Internal on purpose: consumers should depend on the normalised Deficit() signal,
+    // not on raw counts (where an absent key and a 0 count both mean "no mains").
+    internal int MainsFor(int championId)
         => _mainsByChampion.TryGetValue(championId, out var count) ? count : 0;
 
     /// <summary>
