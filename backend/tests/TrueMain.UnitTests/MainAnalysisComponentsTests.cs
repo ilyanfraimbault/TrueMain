@@ -140,9 +140,10 @@ public sealed class MainAnalysisComponentsTests
             OtpPlayRateThreshold = 0.85
         };
 
-        // Champion 1 has no mains (deficit = 1) => threshold relaxes to the 0.12 floor.
+        // Champion 1 is absent from the snapshot (no mains => the WHERE IsMain query omits it),
+        // so its deficit is 1 and the threshold relaxes to the 0.12 floor.
         var coverage = new ChampionCoverageSnapshot(
-            new Dictionary<int, int> { [1] = 0, [2] = 30 },
+            new Dictionary<int, int> { [2] = 30 },
             targetMainsPerChampion: 20);
 
         // Champion 1 is played 1/8 = 0.125: below base 0.2 but above the relaxed 0.12.

@@ -176,8 +176,8 @@ public sealed class ScoringProcess(
         // while compressing covered-champion scores proportionally, which is what gives
         // under-covered champions their relative boost. With defaults (0.65+0.20+0.15+0.25=1.25)
         // a fully-covered champion (deficit 0) tops out at ~80, while an under-covered one
-        // (deficit 1) can reach 100. ScarcityWeight is capped at 1.0 at startup so it cannot
-        // outweigh the combined merit weights (which sum to 1.0).
+        // (deficit 1) can reach 100. ScarcityWeight is validated at startup to not exceed the
+        // combined merit weights (recency + rank + points), so scarcity cannot outweigh merit.
         var weightSum = recencyWeight + rankWeight + pointsWeight + scarcityWeight;
 
         // Defensive only: startup validation guarantees the base weights sum to > 0,
