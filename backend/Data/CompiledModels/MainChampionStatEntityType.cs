@@ -22,7 +22,7 @@ namespace Data.CompiledModels
                 typeof(MainChampionStat),
                 baseEntityType,
                 propertyCount: 13,
-                unnamedIndexCount: 3,
+                unnamedIndexCount: 4,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -138,12 +138,17 @@ namespace Data.CompiledModels
             runtimeEntityType.SetPrimaryKey(key);
 
             var index = runtimeEntityType.AddIndex(
-                new[] { platformId, isMain });
+                new[] { championId });
+            index.AddAnnotation("Relational:Filter", "\"IsMain\"");
+            index.AddAnnotation("Relational:Name", "IX_main_champion_stats_is_main_champion");
 
             var index0 = runtimeEntityType.AddIndex(
-                new[] { platformId, puuid });
+                new[] { platformId, isMain });
 
             var index1 = runtimeEntityType.AddIndex(
+                new[] { platformId, puuid });
+
+            var index2 = runtimeEntityType.AddIndex(
                 new[] { platformId, puuid, championId },
                 unique: true);
 
