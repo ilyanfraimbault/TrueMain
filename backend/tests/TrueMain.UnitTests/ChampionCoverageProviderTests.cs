@@ -19,12 +19,15 @@ public sealed class ChampionCoverageProviderTests
     [Fact]
     public async Task GetSnapshotAsync_ReturnsPopulatedSnapshot_WhenMainsExist()
     {
+        // GetMainCountsByChampionAsync runs WHERE IsMain GROUP BY ChampionId, so a champion
+        // with no mains is absent from the dictionary (never a 0 count) — that absence is the
+        // real "no mains" case.
         var snapshot = await GetSnapshotAsync(
-            new Dictionary<int, int> { [266] = 0, [22] = 30 },
+            new Dictionary<int, int> { [22] = 30 },
             targetMainsPerChampion: 20);
 
         snapshot.Should().NotBeSameAs(ChampionCoverageSnapshot.Empty);
-        snapshot.Deficit(266).Should().Be(1); // 0 mains => maximal scarcity
+        snapshot.Deficit(266).Should().Be(1); // absent from the IsMain result => maximal scarcity
         snapshot.Deficit(22).Should().Be(0);  // at/above target => no scarcity
     }
 
