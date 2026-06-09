@@ -40,6 +40,10 @@ public sealed class MainChampionStatConfiguration : IEntityTypeConfiguration<Mai
         entity.Property(e => e.IsOtp)
             .IsRequired();
 
+        entity.Property(e => e.IsExtendedSample)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         entity.Property(e => e.PrimaryPosition)
             .IsRequired()
             .HasMaxLength(32);
@@ -62,6 +66,15 @@ public sealed class MainChampionStatConfiguration : IEntityTypeConfiguration<Mai
         // index-only scan instead of probing the heap per row.
         entity.HasIndex(e => new { e.PlatformId, e.IsMain })
             .IncludeProperties(e => e.Puuid);
+
+        // Partial index for MainChampionStatRepository.GetMainCountsByChampionAsync
+        // (WHERE IsMain GROUP BY ChampionId), the coverage signal recomputed every
+        // scoring/main-analysis cycle. The (PlatformId, IsMain) index above cannot serve
+        // a predicate on IsMain alone because PlatformId leads, so this gives an
+        // index-only scan over just the main rows.
+        entity.HasIndex(e => e.ChampionId)
+            .HasFilter("\"IsMain\"")
+            .HasDatabaseName("IX_main_champion_stats_is_main_champion");
 
     }
 }

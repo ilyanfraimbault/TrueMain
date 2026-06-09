@@ -21,8 +21,8 @@ namespace Data.CompiledModels
                 "Data.Entities.MainChampionStat",
                 typeof(MainChampionStat),
                 baseEntityType,
-                propertyCount: 12,
-                unnamedIndexCount: 3,
+                propertyCount: 13,
+                unnamedIndexCount: 4,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -58,6 +58,16 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(MainChampionStat).GetField("<ChampionMatches>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: 0);
             championMatches.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var isExtendedSample = runtimeEntityType.AddProperty(
+                "IsExtendedSample",
+                typeof(bool),
+                propertyInfo: typeof(MainChampionStat).GetProperty("IsExtendedSample", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MainChampionStat).GetField("<IsExtendedSample>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: false);
+            isExtendedSample.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            isExtendedSample.AddAnnotation("Relational:DefaultValue", false);
 
             var isMain = runtimeEntityType.AddProperty(
                 "IsMain",
@@ -128,12 +138,17 @@ namespace Data.CompiledModels
             runtimeEntityType.SetPrimaryKey(key);
 
             var index = runtimeEntityType.AddIndex(
-                new[] { platformId, isMain });
+                new[] { championId });
+            index.AddAnnotation("Relational:Filter", "\"IsMain\"");
+            index.AddAnnotation("Relational:Name", "IX_main_champion_stats_is_main_champion");
 
             var index0 = runtimeEntityType.AddIndex(
-                new[] { platformId, puuid });
+                new[] { platformId, isMain });
 
             var index1 = runtimeEntityType.AddIndex(
+                new[] { platformId, puuid });
+
+            var index2 = runtimeEntityType.AddIndex(
                 new[] { platformId, puuid, championId },
                 unique: true);
 
