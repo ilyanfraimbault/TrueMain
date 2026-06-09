@@ -1,5 +1,6 @@
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
@@ -7,9 +8,10 @@ namespace Data.Logging;
 
 /// <summary>
 /// Background service that drains the <see cref="DatabaseLogChannel"/> and
-/// batch-inserts records as <see cref="LogEntry"/> rows via
-/// <see cref="IDbContextFactory{TContext}"/> (the only DB-access style both
-/// hosts register). Batches by count (<see cref="LoggingSinkOptions.BatchSize"/>)
+/// batch-inserts records as <see cref="LogEntry"/> rows using a
+/// <see cref="TrueMainDbContext"/> resolved from a fresh DI scope (this sink is a
+/// singleton <see cref="IHostedService"/> and cannot capture the scoped context
+/// factory directly). Batches by count (<see cref="LoggingSinkOptions.BatchSize"/>)
 /// or by time (<see cref="LoggingSinkOptions.FlushInterval"/>), whichever comes
 /// first, so a single error is still persisted promptly.
 /// </summary>
@@ -21,7 +23,7 @@ namespace Data.Logging;
 /// </remarks>
 internal sealed class DatabaseLogSink(
     DatabaseLogChannel channel,
-    IDbContextFactory<TrueMainDbContext> contextFactory,
+    IServiceScopeFactory scopeFactory,
     IOptions<LoggingSinkOptions> options) : BackgroundService
 {
     private readonly LoggingSinkOptions _options = options.Value;
@@ -122,7 +124,11 @@ internal sealed class DatabaseLogSink(
 
         try
         {
-            await using var db = await contextFactory.CreateDbContextAsync(ct);
+            // Resolve the scoped DbContext from a fresh scope: this sink is a
+            // singleton IHostedService and cannot capture the scoped context
+            // factory directly (DI scope validation rejects that at startup).
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<TrueMainDbContext>();
             foreach (var record in records)
             {
                 db.LogEntries.Add(new LogEntry
