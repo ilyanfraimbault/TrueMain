@@ -1,6 +1,7 @@
 using System.Threading.RateLimiting;
 using Core.Options;
 using Data;
+using Data.Logging;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -138,6 +139,7 @@ builder.Services.AddScoped<IOverviewQueryService, OverviewQueryService>();
 builder.Services.AddScoped<IChampionStatsQueryService, ChampionStatsQueryService>();
 builder.Services.AddScoped<ITableStatsQueryService, TableStatsQueryService>();
 builder.Services.AddScoped<IProcessRunsQueryService, ProcessRunsQueryService>();
+builder.Services.AddScoped<ILogsQueryService, LogsQueryService>();
 builder.Services.AddDbContext<TrueMainDbContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("TrueMain");
@@ -165,6 +167,12 @@ builder.Services.AddDbContext<TrueMainDbContext>(options =>
 // lifetime matches AddDbContext's options lifetime and leaves the scoped
 // TrueMainDbContext registration untouched.
 builder.Services.AddDbContextFactory<TrueMainDbContext>(lifetime: ServiceLifetime.Scoped);
+
+// Persist Warning+ logs to Postgres (see Data/Logging) so the /ops/logs admin
+// endpoint can serve them. The sink drains a bounded channel on a background
+// service and never blocks request threads. ProcessName "Api" tags these rows
+// apart from the Ingestor's.
+builder.Services.AddDatabaseLogging(builder.Configuration, processName: "Api");
 var app = builder.Build();
 await DatabaseMigrator.ApplyPendingMigrationsAsync(app.Services);
 

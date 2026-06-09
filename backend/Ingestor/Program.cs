@@ -1,4 +1,5 @@
 using Data;
+using Data.Logging;
 using Data.Repositories;
 using Ingestor;
 using Ingestor.Options;
@@ -72,6 +73,12 @@ builder.Services.AddDbContextFactory<TrueMainDbContext>(options =>
 
 builder.Services.AddSingleton<IDataRepositoryFactory, DataRepositoryFactory>();
 builder.Services.AddSingleton<IDataSessionFactory, DataSessionFactory>();
+
+// Persist Warning+ logs to Postgres (see Data/Logging). This is what makes
+// Ingestor process failures queryable from /ops/logs: a failed run is logged via
+// ILogger.LogError in Worker.RunOnceAsync, which now flows through this provider.
+// ProcessName "Ingestor" tags these rows apart from the API's.
+builder.Services.AddDatabaseLogging(builder.Configuration, processName: "Ingestor");
 
 builder.Services.AddHostedService<Worker>();
 

@@ -14,7 +14,8 @@ public sealed class OpsController(
     IOverviewQueryService overviewQueryService,
     IChampionStatsQueryService championStatsQueryService,
     ITableStatsQueryService tableStatsQueryService,
-    IProcessRunsQueryService processRunsQueryService) : ControllerBase
+    IProcessRunsQueryService processRunsQueryService,
+    ILogsQueryService logsQueryService) : ControllerBase
 {
     [HttpGet("pipeline-health")]
     [ProducesResponseType(typeof(PipelineHealthReadModel), StatusCodes.Status200OK)]
@@ -68,6 +69,22 @@ public sealed class OpsController(
         CancellationToken ct)
     {
         var readModel = await processRunsQueryService.GetAsync(processName, status, since, limit, ct);
+        return Ok(readModel);
+    }
+
+    [HttpGet("logs")]
+    [ProducesResponseType(typeof(LogsReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<LogsReadModel>> GetLogsAsync(
+        [FromQuery] string? level,
+        [FromQuery] string? category,
+        [FromQuery] DateTime? since,
+        [FromQuery] string? search,
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
+        CancellationToken ct)
+    {
+        var readModel = await logsQueryService.GetAsync(level, category, since, search, page, pageSize, ct);
         return Ok(readModel);
     }
 }

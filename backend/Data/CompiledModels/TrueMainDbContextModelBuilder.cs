@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("cecbb13f-70f8-4c22-ad4f-d7f02456eeac"), entityTypeCount: 17)
+            : base(skipDetectChanges: false, modelId: new Guid("28be1b0a-69cc-4f91-adea-55d49c9db8b1"), entityTypeCount: 18)
         {
         }
 
@@ -25,6 +25,7 @@ namespace Data.CompiledModels
             var championDimSkillOrder = ChampionDimSkillOrderEntityType.Create(this);
             var championDimSpellPair = ChampionDimSpellPairEntityType.Create(this);
             var championDimStarterItems = ChampionDimStarterItemsEntityType.Create(this);
+            var logEntry = LogEntryEntityType.Create(this);
             var mainCandidate = MainCandidateEntityType.Create(this);
             var mainChampionStat = MainChampionStatEntityType.Create(this);
             var match = MatchEntityType.Create(this);
@@ -57,6 +58,7 @@ namespace Data.CompiledModels
             ChampionDimSkillOrderEntityType.CreateAnnotations(championDimSkillOrder);
             ChampionDimSpellPairEntityType.CreateAnnotations(championDimSpellPair);
             ChampionDimStarterItemsEntityType.CreateAnnotations(championDimStarterItems);
+            LogEntryEntityType.CreateAnnotations(logEntry);
             MainCandidateEntityType.CreateAnnotations(mainCandidate);
             MainChampionStatEntityType.CreateAnnotations(mainChampionStat);
             MatchEntityType.CreateAnnotations(match);
