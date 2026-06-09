@@ -140,6 +140,8 @@ builder.Services.AddScoped<IChampionStatsQueryService, ChampionStatsQueryService
 builder.Services.AddScoped<ITableStatsQueryService, TableStatsQueryService>();
 builder.Services.AddScoped<IProcessRunsQueryService, ProcessRunsQueryService>();
 builder.Services.AddScoped<ILogsQueryService, LogsQueryService>();
+builder.Services.AddScoped<ISeedRequestService, SeedRequestService>();
+builder.Services.AddScoped<ISeedRequestQueryService, SeedRequestQueryService>();
 builder.Services.AddDbContext<TrueMainDbContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("TrueMain");

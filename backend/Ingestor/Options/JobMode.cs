@@ -4,6 +4,7 @@ public enum JobMode
 {
     Full = 0,
     DiscoveryOnly,
+    ManualSeedOnly,
     ScoringOnly,
     MatchIngestionOnly,
     MainAnalysisOnly,

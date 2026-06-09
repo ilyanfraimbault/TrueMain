@@ -47,6 +47,7 @@ builder.Services.AddScoped<IChampionDimensionResolver, ChampionDimensionResolver
 
 builder.Services.AddSingleton<IProcessRunRecorder, ProcessRunRecorder>();
 builder.Services.AddRecordedProcess<DiscoveryProcess>();
+builder.Services.AddRecordedProcess<ManualSeedProcess>();
 builder.Services.AddRecordedProcess<ScoringProcess>();
 builder.Services.AddRecordedProcess<MatchIngestionProcess>();
 builder.Services.AddRecordedProcess<MainAnalysisProcess>();

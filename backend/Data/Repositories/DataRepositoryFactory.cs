@@ -22,4 +22,7 @@ public sealed class DataRepositoryFactory : IDataRepositoryFactory
 
     public IRankSnapshotRepository CreateRankSnapshotRepository(TrueMainDbContext dbContext)
         => new RankSnapshotRepository(dbContext);
+
+    public ISeedRequestRepository CreateSeedRequestRepository(TrueMainDbContext dbContext)
+        => new SeedRequestRepository(dbContext);
 }

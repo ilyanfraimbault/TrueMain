@@ -37,12 +37,13 @@ public sealed class WorkerResilienceTests
     [Fact]
     public async Task ExecuteAsync_CreatesAFreshScopePerProcess_WhenRunningFullSequence()
     {
-        // The full sequence drives seven processes. Issue #256 requires each one
+        // The full sequence drives eight processes. Issue #256 requires each one
         // to resolve from its own scope (its own DbContext / scoped services)
         // rather than sharing a single scope across the whole run.
         var processNames = new[]
         {
             "Discovery",
+            "ManualSeed",
             "Scoring",
             "MatchIngestion",
             "MainAnalysis",

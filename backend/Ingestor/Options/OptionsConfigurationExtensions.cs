@@ -25,6 +25,13 @@ public static class OptionsConfigurationExtensions
             .Validate(options => options.SaveBatchSize > 0, "Discovery:SaveBatchSize must be greater than 0.")
             .ValidateOnStart();
 
+        services.AddOptions<ManualSeedOptions>()
+            .Bind(configuration.GetSection(ManualSeedOptions.SectionName))
+            .Validate(options => options.BatchSize > 0, "ManualSeed:BatchSize must be greater than 0.")
+            .Validate(options => options.TopChampionsPerAccount > 0, "ManualSeed:TopChampionsPerAccount must be greater than 0.")
+            .Validate(options => options.MaxLastPlayDays >= 0, "ManualSeed:MaxLastPlayDays must be >= 0.")
+            .ValidateOnStart();
+
         services.AddOptions<ScoringOptions>()
             .Bind(configuration.GetSection(ScoringOptions.SectionName))
             .Validate(options => options.TopNPerPlatform > 0, "Scoring:TopNPerPlatform must be greater than 0.")

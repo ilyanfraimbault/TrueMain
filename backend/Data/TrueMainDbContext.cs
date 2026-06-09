@@ -38,6 +38,8 @@ public class TrueMainDbContext : DbContext
 
     public DbSet<RankSnapshot> RankSnapshots => Set<RankSnapshot>();
 
+    public DbSet<SeedRequest> SeedRequests => Set<SeedRequest>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

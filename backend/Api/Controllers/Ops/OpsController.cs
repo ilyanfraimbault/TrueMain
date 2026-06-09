@@ -15,7 +15,9 @@ public sealed class OpsController(
     IChampionStatsQueryService championStatsQueryService,
     ITableStatsQueryService tableStatsQueryService,
     IProcessRunsQueryService processRunsQueryService,
-    ILogsQueryService logsQueryService) : ControllerBase
+    ILogsQueryService logsQueryService,
+    ISeedRequestService seedRequestService,
+    ISeedRequestQueryService seedRequestQueryService) : ControllerBase
 {
     [HttpGet("pipeline-health")]
     [ProducesResponseType(typeof(PipelineHealthReadModel), StatusCodes.Status200OK)]
@@ -87,4 +89,77 @@ public sealed class OpsController(
         var readModel = await logsQueryService.GetAsync(level, category, since, search, page, pageSize, ct);
         return Ok(readModel);
     }
+
+    /// <summary>
+    /// Seeds a single account into the pipeline by its Riot ID (gameName +
+    /// tagLine + platformId), instead of waiting for the ladder Discovery to
+    /// surface it. Records a <c>SeedRequest</c> at <c>Pending</c> and returns 202;
+    /// the Ingestor's ManualSeedProcess does the actual Riot resolution + account
+    /// upsert later. Idempotent: an existing unprocessed (Pending/Resolving)
+    /// request for the same Riot ID on the same platform is returned as-is rather
+    /// than duplicated (still a 202). 400 for a missing name/tag or an unknown
+    /// platform route.
+    /// </summary>
+    [HttpPost("accounts/seed")]
+    [ProducesResponseType(typeof(SeedRequestAcceptedResponse), StatusCodes.Status202Accepted)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<SeedRequestAcceptedResponse>> SeedAccountAsync(
+        [FromBody] SeedAccountRequest request,
+        CancellationToken ct)
+    {
+        var result = await seedRequestService.CreateAsync(
+            new SeedRequestInput(request.GameName, request.TagLine, request.PlatformId),
+            ct);
+
+        if (!result.IsValid)
+        {
+            return ValidationProblem(result.ValidationError!);
+        }
+
+        // 202 whether the row was freshly created or an existing unprocessed one
+        // was returned (idempotency): in both cases the work is accepted and
+        // pending, and the caller polls GET /ops/accounts/seed/{id} for progress.
+        return Accepted(new SeedRequestAcceptedResponse { Id = result.Id, Status = result.Status });
+    }
+
+    [HttpGet("accounts/seed/{id:guid}")]
+    [ProducesResponseType(typeof(SeedRequestReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<SeedRequestReadModel>> GetSeedRequestAsync(Guid id, CancellationToken ct)
+    {
+        var readModel = await seedRequestQueryService.GetByIdAsync(id, ct);
+        return readModel is null ? NotFound() : Ok(readModel);
+    }
+
+    [HttpGet("accounts/seed")]
+    [ProducesResponseType(typeof(IReadOnlyList<SeedRequestReadModel>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<IReadOnlyList<SeedRequestReadModel>>> GetSeedRequestsAsync(
+        [FromQuery] string? status,
+        [FromQuery] int? limit,
+        CancellationToken ct)
+    {
+        var readModels = await seedRequestQueryService.GetRecentAsync(status, limit, ct);
+        return Ok(readModels);
+    }
+}
+
+/// <summary>Request body for <c>POST /ops/accounts/seed</c>.</summary>
+public sealed record SeedAccountRequest
+{
+    public string? GameName { get; init; }
+
+    public string? TagLine { get; init; }
+
+    public string? PlatformId { get; init; }
+}
+
+/// <summary>202 body for an accepted seed request: the row id and its current status.</summary>
+public sealed record SeedRequestAcceptedResponse
+{
+    public Guid Id { get; init; }
+
+    public string Status { get; init; } = string.Empty;
 }
