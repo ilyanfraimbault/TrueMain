@@ -5,6 +5,8 @@ import type {
   DbTableRow,
   LogsFilters,
   LogsResponse,
+  MatchTimeBucket,
+  MatchTimeGranularity,
   OverviewStats,
   ProcessRunsFilters,
   ProcessRunsResponse,
@@ -73,6 +75,20 @@ export function useChampionStats(
   return useOps<ChampionStatsRow[]>(
     '/stats/champions',
     filters ? () => ({ ...toValue(filters) }) : undefined,
+  )
+}
+
+/**
+ * `GET /api/ops/stats/matches-over-time` — match counts bucketed by game date at
+ * the given granularity (week/month/year/patch), returned chronologically. Pass a
+ * reactive ref/getter so the chart re-fetches when the granularity changes.
+ */
+export function useMatchesOverTime(
+  granularity: MaybeRefOrGetter<MatchTimeGranularity>,
+) {
+  return useOps<MatchTimeBucket[]>(
+    '/stats/matches-over-time',
+    () => ({ granularity: toValue(granularity) }),
   )
 }
 

@@ -1,11 +1,50 @@
 <script setup lang="ts">
-// Overview panel — site-wide totals from `GET /api/ops/stats/overview` plus a
-// "top 10 champions by games" breakdown from `GET /api/ops/stats/champions`
+// Overview panel — site-wide totals from `GET /api/ops/stats/overview`, a
+// "matches over time" histogram from `GET /api/ops/stats/matches-over-time`, and
+// a "top 10 champions by games" breakdown from `GET /api/ops/stats/champions`
 // (no filters). Everything is real: empty/zero responses render honest zero
 // states, never fabricated series.
+import type { MatchTimeGranularity } from '~~/shared/types/ops'
 import { formatNumber } from '~~/shared/utils/format'
 
 const { data: stats, pending, error, refresh } = useOverviewStats()
+
+// --- Matches over time -------------------------------------------------------
+// Histogram of match counts by GAME date at a selectable granularity. The select
+// drives a reactive refetch; the x-axis label format follows the granularity.
+const granularityItems: { label: string, value: MatchTimeGranularity }[] = [
+  { label: 'Week', value: 'week' },
+  { label: 'Month', value: 'month' },
+  { label: 'Year', value: 'year' },
+  { label: 'Patch', value: 'patch' },
+]
+const granularity = ref<MatchTimeGranularity>('month')
+
+const {
+  data: matchesOverTime,
+  pending: matchesPending,
+  error: matchesError,
+} = useMatchesOverTime(granularity)
+
+// Map buckets to (label, matches) pairs. Labels are formatted per granularity
+// from the ISO bucket (time) or used as-is (patch).
+const matchesChartData = computed(() =>
+  (matchesOverTime.value ?? []).map(b => ({
+    label: formatBucketLabel(b.bucket, granularity.value),
+    matches: b.matches,
+  })),
+)
+const matchesChartCategories = {
+  matches: { name: 'Matches', color: '#34d399' },
+}
+// nuxt-charts feeds the numeric tick index for a categorical x-axis; map it back
+// to the formatted bucket label. Recomputed so labels track the current data.
+const matchesXFormatter = computed(() =>
+  indexLabelFormatter(matchesChartData.value, row => row.label),
+)
+const matchesTotal = computed(() =>
+  matchesChartData.value.reduce((sum, b) => sum + (b.matches ?? 0), 0),
+)
 
 // Top-10 champions by games (the endpoint already returns games-desc), used for
 // the bar chart at the bottom. Independent request so a champions-stats error
@@ -163,6 +202,68 @@ const topChampionsLoading = computed(
         :description="error.message"
         class="mb-6"
       />
+
+      <!-- Matches over time -->
+      <UCard :ui="{ root: 'overflow-visible' }" class="mb-6">
+        <template #header>
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <p class="text-xs text-muted uppercase mb-1.5">
+                Matches over time
+              </p>
+              <p class="text-sm text-dimmed">
+                New matches by game date.
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              <UBadge
+                v-if="!matchesPending && !matchesError && matchesChartData.length"
+                color="neutral"
+                variant="subtle"
+                :label="`${formatNumber(matchesTotal)} total`"
+              />
+              <USelect
+                v-model="granularity"
+                :items="granularityItems"
+                class="w-32"
+                aria-label="Bucket granularity"
+              />
+            </div>
+          </div>
+        </template>
+
+        <UAlert
+          v-if="matchesError"
+          color="error"
+          variant="subtle"
+          icon="i-lucide-triangle-alert"
+          title="Failed to load matches over time"
+          :description="matchesError.message"
+        />
+        <USkeleton v-else-if="matchesPending" class="h-[260px] w-full" />
+        <div
+          v-else-if="matchesChartData.length === 0"
+          class="h-[260px] flex items-center justify-center text-sm text-muted"
+        >
+          No matches in range.
+        </div>
+        <ClientOnly v-else>
+          <NcBarChart
+            :data="matchesChartData"
+            :height="260"
+            :categories="matchesChartCategories"
+            :y-axis="['matches']"
+            :x-num-ticks="Math.min(matchesChartData.length, 12)"
+            :x-formatter="matchesXFormatter"
+            :y-formatter="formatCount"
+            :radius="4"
+            hide-legend
+          />
+          <template #fallback>
+            <USkeleton class="h-[260px] w-full" />
+          </template>
+        </ClientOnly>
+      </UCard>
 
       <!-- Stat cards -->
       <UPageGrid class="lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-px">

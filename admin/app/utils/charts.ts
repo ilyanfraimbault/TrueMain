@@ -39,3 +39,43 @@ export function indexLabelFormatter<T>(
 export function formatCount(value: number | Date): string {
   return Number(value).toLocaleString('en-US')
 }
+
+// Format a matches-over-time bucket key into an axis/tooltip label per
+// granularity. Time buckets (`week`/`month`/`year`) arrive as ISO-8601 UTC
+// timestamps of the period start and are formatted in UTC so the label matches
+// the bucket boundary regardless of the viewer's timezone; `patch` buckets are
+// already the human "MAJOR.MINOR" string and pass through untouched.
+//   week  -> "2026-06-01" (period start date)
+//   month -> "Jun 2026"
+//   year  -> "2026"
+//   patch -> "16.4"
+export function formatBucketLabel(
+  bucket: string,
+  granularity: 'week' | 'month' | 'year' | 'patch',
+): string {
+  if (granularity === 'patch') {
+    return bucket
+  }
+  const date = new Date(bucket)
+  if (Number.isNaN(date.getTime())) {
+    // Defensive: surface the raw key rather than "Invalid Date" if the backend
+    // ever sends an unparseable bucket.
+    return bucket
+  }
+  switch (granularity) {
+    case 'week':
+      // ISO date (YYYY-MM-DD) in UTC; `sv-SE` yields that exact shape.
+      return date.toLocaleDateString('sv-SE', { timeZone: 'UTC' })
+    case 'month':
+      return date.toLocaleDateString('en-US', {
+        timeZone: 'UTC',
+        month: 'short',
+        year: 'numeric',
+      })
+    case 'year':
+      return date.toLocaleDateString('en-US', {
+        timeZone: 'UTC',
+        year: 'numeric',
+      })
+  }
+}

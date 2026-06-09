@@ -52,6 +52,23 @@ export interface ChampionStatsFilters {
   queue?: number
 }
 
+/** X-axis granularity for `GET /api/ops/stats/matches-over-time`. */
+export type MatchTimeGranularity = 'week' | 'month' | 'year' | 'patch'
+
+/**
+ * One bucket of `GET /api/ops/stats/matches-over-time` (returned in chronological
+ * order). Matches are counted by GAME date (`Match.GameStartTimeUtc`).
+ *
+ * `bucket` shape depends on the requested granularity:
+ *   - week/month/year: ISO-8601 UTC timestamp of the period start
+ *     (e.g. `2026-06-01T00:00:00Z`) — format the label client-side per granularity.
+ *   - patch: the normalized `MAJOR.MINOR` version string (e.g. `16.4`) — use as-is.
+ */
+export interface MatchTimeBucket {
+  bucket: string
+  matches: number
+}
+
 /** One row of `GET /api/ops/db/tables` (sorted by `totalBytes` desc). */
 export interface DbTableRow {
   tableName: string
