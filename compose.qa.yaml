@@ -54,6 +54,26 @@ services:
     networks:
       - truemain_internal
 
+  admin:
+    image: ghcr.io/ilyanfraimbault/truemain-admin:qa
+    container_name: truemain-qa-admin
+    restart: unless-stopped
+    environment:
+      NITRO_HOST: 0.0.0.0
+      NITRO_PORT: 3000
+      NUXT_OPS_API_BASE_URL: http://api:8080
+      NUXT_OPS_KEY: ${OPS_API_KEY}
+      NUXT_SESSION_PASSWORD: ${ADMIN_SESSION_PASSWORD}
+      NUXT_ADMIN_USERNAME: ${ADMIN_USERNAME:-truemain}
+      NUXT_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-truemain}
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "3002:3000"
+    networks:
+      - truemain_internal
+
   ingestor:
     image: ghcr.io/ilyanfraimbault/truemain-ingestor:qa
     container_name: truemain-qa-ingestor
