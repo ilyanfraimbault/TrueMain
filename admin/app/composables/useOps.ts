@@ -8,6 +8,10 @@ import type {
   OverviewStats,
   ProcessRunsFilters,
   ProcessRunsResponse,
+  SeedAccountBody,
+  SeedAccountResponse,
+  SeedRequestReadModel,
+  SeedRequestsFilters,
 } from '~~/shared/types/ops'
 
 /**
@@ -100,4 +104,40 @@ export function useLogs(
     '/logs',
     filters ? () => ({ ...toValue(filters) }) : undefined,
   )
+}
+
+/**
+ * `GET /api/ops/accounts/seed` — recent seed requests, newest first. Pass a
+ * reactive getter so the table re-fetches when the status filter changes; call
+ * `refresh()` after a submit to surface the new request.
+ */
+export function useSeedRequests(
+  filters?: MaybeRefOrGetter<SeedRequestsFilters>,
+) {
+  return useOps<SeedRequestReadModel[]>(
+    '/accounts/seed',
+    filters ? () => ({ ...toValue(filters) }) : undefined,
+  )
+}
+
+/**
+ * `GET /api/ops/accounts/seed/{id}` — a single seed request's current state.
+ * A one-shot `$fetch` (not `useFetch`) because callers poll it imperatively on
+ * a timer until the status is terminal, rather than reactively watching a key.
+ */
+export function getSeedRequest(id: string) {
+  return $fetch<SeedRequestReadModel>(`/api/ops/accounts/seed/${encodeURIComponent(id)}`)
+}
+
+/**
+ * `POST /api/ops/accounts/seed` — queue a Riot ID for ingestion. A mutation, so
+ * it uses `$fetch` rather than `useFetch`. Idempotent on the backend: re-posting
+ * the same (gameName, tagLine, platformId) returns the existing pending request.
+ * Throws an `FetchError` (e.g. 400 on bad input) the caller is expected to catch.
+ */
+export function seedAccount(body: SeedAccountBody) {
+  return $fetch<SeedAccountResponse>('/api/ops/accounts/seed', {
+    method: 'POST',
+    body,
+  })
 }

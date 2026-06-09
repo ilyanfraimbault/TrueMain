@@ -149,3 +149,57 @@ export interface LogsFilters {
   /** Rows per page; backend clamps to [1, 200], default 50. */
   pageSize?: number
 }
+
+/**
+ * Lifecycle of a seed request (`POST /api/ops/accounts/seed`):
+ *   Pending   — accepted, not yet picked up
+ *   Resolving — resolving the Riot ID → PUUID / account
+ *   Ingested  — account + mastery-derived candidates created and queued. NOTE:
+ *               actual match ingestion + main classification happen on the next
+ *               Ingestor cycle, NOT synchronously here.
+ *   Failed    — resolution/queueing failed; see `error`.
+ */
+export type SeedRequestStatus = 'Pending' | 'Resolving' | 'Ingested' | 'Failed'
+
+/** A status that will not change on its own — polling can stop. */
+export const TERMINAL_SEED_STATUSES: readonly SeedRequestStatus[] = ['Ingested', 'Failed']
+
+/**
+ * `GET /api/ops/accounts/seed/{id}` and one row of
+ * `GET /api/ops/accounts/seed`. Resolved identifiers are `null` until the
+ * request reaches `Ingested`.
+ */
+export interface SeedRequestReadModel {
+  id: string
+  gameName: string
+  tagLine: string
+  platformId: string
+  status: SeedRequestStatus
+  error: string | null
+  requestedAtUtc: string
+  processedAtUtc: string | null
+  resolvedPuuid: string | null
+  resolvedRiotAccountId: string | null
+}
+
+/** Body for `POST /api/ops/accounts/seed`. */
+export interface SeedAccountBody {
+  gameName: string
+  tagLine: string
+  /** PlatformId, e.g. `EUW1` / `KR` / `NA1`. */
+  platformId: string
+}
+
+/** `202` response of `POST /api/ops/accounts/seed`. */
+export interface SeedAccountResponse {
+  id: string
+  status: SeedRequestStatus
+}
+
+/** Filters for `GET /api/ops/accounts/seed`. Empty/undefined = no filter. */
+export interface SeedRequestsFilters {
+  /** A `SeedRequestStatus` name. */
+  status?: SeedRequestStatus
+  /** Rows to return; backend default 50, clamp 200. */
+  limit?: number
+}
