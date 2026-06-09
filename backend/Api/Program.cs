@@ -134,6 +134,10 @@ builder.Services.AddScoped<IPlayerChampionMatchupQueryService, PlayerChampionMat
 builder.Services.AddScoped<IRankHistoryQueryService, RankHistoryQueryService>();
 builder.Services.AddScoped<ITruemainsLeaderboardQueryService, TruemainsLeaderboardQueryService>();
 builder.Services.AddScoped<IPipelineHealthQueryService, PipelineHealthQueryService>();
+builder.Services.AddScoped<IOverviewQueryService, OverviewQueryService>();
+builder.Services.AddScoped<IChampionStatsQueryService, ChampionStatsQueryService>();
+builder.Services.AddScoped<ITableStatsQueryService, TableStatsQueryService>();
+builder.Services.AddScoped<IProcessRunsQueryService, ProcessRunsQueryService>();
 builder.Services.AddDbContext<TrueMainDbContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("TrueMain");
