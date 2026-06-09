@@ -1,7 +1,124 @@
 <script setup lang="ts">
-// TODO(panel): Processes panel.
-// Show ingestor / background job status and controls from `/api/ops/*`.
-// Replace <ComingSoon> with the real content; keep the chrome below intact.
+// Processes panel — background-job run health from `GET /api/ops/process-runs`.
+// A per-process rollup (last status / last run / last success / recent failures)
+// plus a filterable runs table. Failed runs are visually distinct (error tint)
+// and each run's `summary` JSON + error is inspectable in a slide-over.
+import type { TableColumn } from '@nuxt/ui'
+import type { ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
+import { formatDateTime, formatDuration, formatNumber } from '~~/shared/utils/format'
+
+// --- Filters -----------------------------------------------------------------
+const processName = ref('')
+const status = ref<'' | ProcessRunStatus>('')
+// Relative window -> ISO `since`. "All" omits the param.
+const sinceWindow = ref<'' | '1h' | '24h' | '7d' | '30d'>('')
+
+const statusItems = [
+  { label: 'All statuses', value: '' },
+  { label: 'Success', value: 'Success' },
+  { label: 'Failed', value: 'Failed' },
+]
+const sinceItems = [
+  { label: 'All time', value: '' },
+  { label: 'Last hour', value: '1h' },
+  { label: 'Last 24 hours', value: '24h' },
+  { label: 'Last 7 days', value: '7d' },
+  { label: 'Last 30 days', value: '30d' },
+]
+
+const WINDOW_MS: Record<string, number> = {
+  '1h': 60 * 60 * 1000,
+  '24h': 24 * 60 * 60 * 1000,
+  '7d': 7 * 24 * 60 * 60 * 1000,
+  '30d': 30 * 24 * 60 * 60 * 1000,
+}
+
+const filters = computed(() => ({
+  processName: processName.value.trim() || undefined,
+  status: status.value || undefined,
+  since: sinceWindow.value
+    ? new Date(Date.now() - WINDOW_MS[sinceWindow.value]!).toISOString()
+    : undefined,
+  limit: 200,
+}))
+
+const hasActiveFilters = computed(() =>
+  Boolean(processName.value.trim() || status.value || sinceWindow.value),
+)
+function resetFilters() {
+  processName.value = ''
+  status.value = ''
+  sinceWindow.value = ''
+}
+
+const { data, pending, error, refresh } = useProcessRuns(filters)
+
+const rollup = computed(() => data.value?.rollup ?? [])
+const runs = computed(() => data.value?.runs ?? [])
+
+function statusColor(s: ProcessRunStatus): 'success' | 'error' {
+  return s === 'Success' ? 'success' : 'error'
+}
+function statusIcon(s: ProcessRunStatus): string {
+  return s === 'Success' ? 'i-lucide-circle-check' : 'i-lucide-circle-x'
+}
+
+// --- Runs table --------------------------------------------------------------
+const columns: TableColumn<ProcessRun>[] = [
+  {
+    accessorKey: 'processName',
+    header: ({ column }) => sortableHeader(column, 'Process'),
+  },
+  {
+    accessorKey: 'status',
+    header: 'Status',
+  },
+  {
+    accessorKey: 'startedAtUtc',
+    header: ({ column }) => sortableHeader(column, 'Started'),
+  },
+  {
+    accessorKey: 'durationMs',
+    header: ({ column }) => sortableHeader(column, 'Duration', 'right'),
+  },
+  {
+    accessorKey: 'host',
+    header: 'Host',
+  },
+  {
+    accessorKey: 'error',
+    header: 'Error',
+  },
+  {
+    id: 'actions',
+    header: '',
+  },
+]
+
+const sorting = ref([{ id: 'startedAtUtc', desc: true }])
+
+// Tint failed rows. `meta.class.tr` is a function evaluated per row.
+const tableMeta = {
+  class: {
+    tr: (row: { original: ProcessRun }) =>
+      row.original.status === 'Failed' ? 'bg-error/5' : '',
+  },
+}
+
+// --- Summary slide-over ------------------------------------------------------
+const detailOpen = ref(false)
+const selectedRun = ref<ProcessRun | null>(null)
+function openDetail(run: ProcessRun) {
+  selectedRun.value = run
+  detailOpen.value = true
+}
+const selectedSummaryJson = computed(() => {
+  const s = selectedRun.value?.summary
+  if (s === null || s === undefined) {
+    return null
+  }
+  return JSON.stringify(s, null, 2)
+})
 </script>
 
 <template>
@@ -11,22 +128,304 @@
         <template #leading>
           <UDashboardSidebarCollapse />
         </template>
+        <template #right>
+          <UButton
+            icon="i-lucide-refresh-cw"
+            color="neutral"
+            variant="ghost"
+            :loading="pending"
+            aria-label="Refresh"
+            @click="refresh()"
+          />
+        </template>
       </UDashboardNavbar>
 
       <UDashboardToolbar>
         <template #left>
-          <!-- TODO(panel): status / type filter placeholders. -->
-          <UInput icon="i-lucide-search" placeholder="Filter processes…" disabled />
+          <UInput
+            v-model="processName"
+            icon="i-lucide-search"
+            placeholder="Process name…"
+            class="w-56"
+          />
+          <USelect
+            v-model="status"
+            :items="statusItems"
+            icon="i-lucide-check-circle"
+            placeholder="Status"
+            class="w-44"
+          />
+          <USelect
+            v-model="sinceWindow"
+            :items="sinceItems"
+            icon="i-lucide-clock"
+            placeholder="Since"
+            class="w-44"
+          />
+        </template>
+        <template #right>
+          <UButton
+            v-if="hasActiveFilters"
+            icon="i-lucide-x"
+            color="neutral"
+            variant="ghost"
+            label="Clear"
+            @click="resetFilters"
+          />
         </template>
       </UDashboardToolbar>
     </template>
 
     <template #body>
-      <ComingSoon
-        title="Processes"
-        icon="i-lucide-activity"
-        description="Background jobs and ingestor run status."
+      <UAlert
+        v-if="error"
+        color="error"
+        variant="subtle"
+        icon="i-lucide-triangle-alert"
+        title="Failed to load process runs"
+        :description="error.message"
+        class="mb-6"
       />
+
+      <!-- Rollup: one card per process -->
+      <div class="mb-6">
+        <p class="text-xs text-muted uppercase mb-3">
+          Process health
+        </p>
+
+        <div
+          v-if="pending"
+          class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+        >
+          <USkeleton v-for="i in 3" :key="i" class="h-28 w-full rounded-lg" />
+        </div>
+        <div
+          v-else-if="rollup.length === 0"
+          class="py-10 text-center text-sm text-muted border border-default rounded-lg"
+        >
+          No process runs recorded yet.
+        </div>
+        <div
+          v-else
+          class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+        >
+          <div
+            v-for="proc in rollup"
+            :key="proc.processName"
+            class="rounded-lg border p-4 bg-elevated/25"
+            :class="proc.lastStatus === 'Failed'
+              ? 'border-error/30'
+              : 'border-default'"
+          >
+            <div class="flex items-center justify-between gap-2 mb-3">
+              <p class="font-medium text-highlighted truncate">
+                {{ proc.processName }}
+              </p>
+              <UBadge
+                :color="statusColor(proc.lastStatus)"
+                :icon="statusIcon(proc.lastStatus)"
+                variant="subtle"
+                size="sm"
+                :label="proc.lastStatus"
+              />
+            </div>
+            <dl class="space-y-1.5 text-sm">
+              <div class="flex justify-between gap-2">
+                <dt class="text-muted">
+                  Last run
+                </dt>
+                <dd class="text-default text-right">
+                  {{ formatDateTime(proc.lastRunAtUtc) }}
+                </dd>
+              </div>
+              <div class="flex justify-between gap-2">
+                <dt class="text-muted">
+                  Last success
+                </dt>
+                <dd class="text-default text-right">
+                  {{ formatDateTime(proc.lastSuccessAtUtc) }}
+                </dd>
+              </div>
+              <div class="flex justify-between gap-2">
+                <dt class="text-muted">
+                  Failures (window)
+                </dt>
+                <dd
+                  class="text-right tabular-nums font-medium"
+                  :class="proc.failureCountInWindow > 0
+                    ? 'text-error'
+                    : 'text-default'"
+                >
+                  {{ formatNumber(proc.failureCountInWindow) }}
+                </dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+      </div>
+
+      <!-- Runs table -->
+      <UCard :ui="{ body: 'p-0 sm:p-0' }">
+        <template #header>
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-sm font-medium text-highlighted">
+              Recent runs
+            </p>
+            <UBadge
+              v-if="!pending"
+              color="neutral"
+              variant="subtle"
+              :label="`${formatNumber(runs.length)} runs`"
+            />
+          </div>
+        </template>
+
+        <UTable
+          v-model:sorting="sorting"
+          :data="runs"
+          :columns="columns"
+          :meta="tableMeta"
+          :loading="pending"
+          loading-color="primary"
+          sticky
+          class="max-h-[640px]"
+          :ui="{ td: 'py-2' }"
+        >
+          <template #processName-cell="{ row }">
+            <span class="font-medium text-highlighted">
+              {{ row.original.processName }}
+            </span>
+          </template>
+          <template #status-cell="{ row }">
+            <UBadge
+              :color="statusColor(row.original.status)"
+              :icon="statusIcon(row.original.status)"
+              variant="subtle"
+              size="sm"
+              :label="row.original.status"
+            />
+          </template>
+          <template #startedAtUtc-cell="{ row }">
+            <span class="text-muted whitespace-nowrap">
+              {{ formatDateTime(row.original.startedAtUtc) }}
+            </span>
+          </template>
+          <template #durationMs-cell="{ row }">
+            <div class="text-right tabular-nums whitespace-nowrap">
+              {{ formatDuration(row.original.durationMs) }}
+            </div>
+          </template>
+          <template #host-cell="{ row }">
+            <span class="text-muted font-mono text-xs">
+              {{ row.original.host ?? '—' }}
+            </span>
+          </template>
+          <template #error-cell="{ row }">
+            <span
+              v-if="row.original.error"
+              class="text-error text-xs line-clamp-1 max-w-xs"
+              :title="row.original.error"
+            >
+              {{ row.original.error }}
+            </span>
+            <span v-else class="text-dimmed">—</span>
+          </template>
+          <template #actions-cell="{ row }">
+            <UButton
+              icon="i-lucide-eye"
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              aria-label="View run details"
+              @click="openDetail(row.original)"
+            />
+          </template>
+
+          <template #empty>
+            <div class="py-10 text-center text-sm text-muted">
+              No runs match these filters.
+            </div>
+          </template>
+        </UTable>
+      </UCard>
+
+      <!-- Run detail slide-over -->
+      <USlideover
+        v-model:open="detailOpen"
+        :title="selectedRun?.processName ?? 'Run details'"
+        :description="selectedRun
+          ? `${selectedRun.status} · ${formatDateTime(selectedRun.startedAtUtc)}`
+          : ''"
+      >
+        <template #body>
+          <div v-if="selectedRun" class="space-y-5">
+            <dl class="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+              <div>
+                <dt class="text-muted text-xs uppercase mb-0.5">
+                  Status
+                </dt>
+                <dd>
+                  <UBadge
+                    :color="statusColor(selectedRun.status)"
+                    :icon="statusIcon(selectedRun.status)"
+                    variant="subtle"
+                    size="sm"
+                    :label="selectedRun.status"
+                  />
+                </dd>
+              </div>
+              <div>
+                <dt class="text-muted text-xs uppercase mb-0.5">
+                  Duration
+                </dt>
+                <dd class="tabular-nums">
+                  {{ formatDuration(selectedRun.durationMs) }}
+                </dd>
+              </div>
+              <div>
+                <dt class="text-muted text-xs uppercase mb-0.5">
+                  Started
+                </dt>
+                <dd>{{ formatDateTime(selectedRun.startedAtUtc) }}</dd>
+              </div>
+              <div>
+                <dt class="text-muted text-xs uppercase mb-0.5">
+                  Finished
+                </dt>
+                <dd>{{ formatDateTime(selectedRun.finishedAtUtc) }}</dd>
+              </div>
+              <div>
+                <dt class="text-muted text-xs uppercase mb-0.5">
+                  Host
+                </dt>
+                <dd class="font-mono text-xs">
+                  {{ selectedRun.host ?? '—' }}
+                </dd>
+              </div>
+            </dl>
+
+            <div v-if="selectedRun.error">
+              <p class="text-muted text-xs uppercase mb-1.5">
+                Error
+              </p>
+              <pre class="text-xs text-error bg-error/5 border border-error/20 rounded-md p-3 overflow-auto whitespace-pre-wrap">{{ selectedRun.error }}</pre>
+            </div>
+
+            <div>
+              <p class="text-muted text-xs uppercase mb-1.5">
+                Summary
+              </p>
+              <pre
+                v-if="selectedSummaryJson"
+                class="text-xs bg-elevated/50 border border-default rounded-md p-3 overflow-auto"
+              >{{ selectedSummaryJson }}</pre>
+              <p v-else class="text-sm text-dimmed">
+                No summary recorded for this run.
+              </p>
+            </div>
+          </div>
+        </template>
+      </USlideover>
     </template>
   </UDashboardPanel>
 </template>

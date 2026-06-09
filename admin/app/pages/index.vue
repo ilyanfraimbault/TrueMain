@@ -1,55 +1,136 @@
 <script setup lang="ts">
-// Overview / landing panel. Stat cards + one example chart wired to SAMPLE
-// data so the shell is demonstrably alive. Real numbers come later from the
-// ops API via `/api/ops/*` — see the TODOs below.
+// Overview panel — site-wide totals from `GET /api/ops/stats/overview` plus a
+// "top 10 champions by games" breakdown from `GET /api/ops/stats/champions`
+// (no filters). Everything is real: empty/zero responses render honest zero
+// states, never fabricated series.
+import { formatNumber } from '~~/shared/utils/format'
 
-interface OverviewStat {
+const { data: stats, pending, error, refresh } = useOverviewStats()
+
+// Top-10 champions by games (the endpoint already returns games-desc), used for
+// the bar chart at the bottom. Independent request so a champions-stats error
+// doesn't blank the totals above.
+const {
+  data: champions,
+  pending: championsPending,
+  error: championsError,
+} = useChampionStats()
+const { nameFor, pending: staticPending } = useChampionStatic()
+
+interface StatCard {
   title: string
   icon: string
   value: string
-  // Percent change vs the previous window. Positive renders success, negative
-  // renders error. Sample only.
-  variation: number
+  hint?: string
 }
 
-// TODO(ops): replace with a real summary endpoint, e.g.
-//   const { data } = await useFetch('/api/ops/overview')
-// and map its fields onto these cards. Placeholder values only.
-const stats: OverviewStat[] = [
-  { title: 'Tracked mains', icon: 'i-lucide-users', value: '—', variation: 0 },
-  { title: 'Matches ingested (24h)', icon: 'i-lucide-swords', value: '—', variation: 0 },
-  { title: 'Queue depth', icon: 'i-lucide-list-checks', value: '—', variation: 0 },
-  { title: 'Last run', icon: 'i-lucide-clock', value: '—', variation: 0 },
-]
+// Map the raw totals onto cards. `formatNumber` renders an em dash when a field
+// is missing so a partial payload never shows a bare "0".
+const cards = computed<StatCard[]>(() => {
+  const s = stats.value
+  return [
+    {
+      title: 'Tracked accounts',
+      icon: 'i-lucide-users',
+      value: formatNumber(s?.trackedAccounts),
+    },
+    {
+      title: 'Total mains',
+      icon: 'i-lucide-user-check',
+      value: formatNumber(s?.totalMains),
+    },
+    {
+      title: 'Total OTPs',
+      icon: 'i-lucide-target',
+      value: formatNumber(s?.totalOtps),
+    },
+    {
+      title: 'Champions with mains',
+      icon: 'i-lucide-swords',
+      value: formatNumber(s?.distinctChampionsWithMains),
+      hint: s
+        ? `of ${formatNumber(s.distinctChampionsWithGames)} with games`
+        : undefined,
+    },
+    {
+      title: 'Total matches',
+      icon: 'i-lucide-database',
+      value: formatNumber(s?.totalMatches),
+      hint: s ? `${formatNumber(s.totalParticipants)} participants` : undefined,
+    },
+    {
+      title: 'Matches · last 7d',
+      icon: 'i-lucide-calendar-clock',
+      value: formatNumber(s?.matchesLast7Days),
+    },
+    {
+      title: 'Matches · last 30d',
+      icon: 'i-lucide-calendar-range',
+      value: formatNumber(s?.matchesLast30Days),
+    },
+    {
+      title: 'Distinct champions',
+      icon: 'i-lucide-list',
+      value: formatNumber(s?.distinctChampionsWithGames),
+      hint: 'with games',
+    },
+  ]
+})
 
-// TODO(ops): replace with a real time-series (e.g. matches ingested per day)
-// from the ops API. Static sample so the chart renders something meaningful.
-interface IngestPoint {
-  date: string
-  matches: number
+// Candidate pipeline buckets as ordered (label, count) pairs. The colors trace
+// the New -> Validated/Rejected flow while staying close to the emerald palette.
+const candidateBuckets = computed(() => {
+  const c = stats.value?.candidatesByStatus
+  if (!c) {
+    return []
+  }
+  return [
+    { label: 'New', count: c.New, color: 'neutral' as const },
+    { label: 'Scored', count: c.Scored, color: 'info' as const },
+    { label: 'Queued', count: c.Queued, color: 'warning' as const },
+    { label: 'Processing', count: c.Processing, color: 'warning' as const },
+    { label: 'Validated', count: c.Validated, color: 'success' as const },
+    { label: 'Rejected', count: c.Rejected, color: 'error' as const },
+  ]
+})
+
+const candidatesTotal = computed(() =>
+  candidateBuckets.value.reduce((sum, b) => sum + (b.count ?? 0), 0),
+)
+
+// Bar-chart series for the candidate pipeline. Emerald single series; x maps the
+// numeric tick index back to the bucket label.
+const candidateChartData = computed(() =>
+  candidateBuckets.value.map(b => ({ label: b.label, count: b.count ?? 0 })),
+)
+const candidateChartCategories = {
+  count: { name: 'Candidates', color: '#34d399' },
 }
+// Wrapped in a computed so the label lookup tracks `candidateChartData`
+// instead of closing over its initial (empty) value before stats load.
+const candidateXFormatter = computed(() =>
+  indexLabelFormatter(candidateChartData.value, row => row.label),
+)
 
-const chartData: IngestPoint[] = [
-  { date: 'Mon', matches: 1240 },
-  { date: 'Tue', matches: 1980 },
-  { date: 'Wed', matches: 1560 },
-  { date: 'Thu', matches: 2210 },
-  { date: 'Fri', matches: 1890 },
-  { date: 'Sat', matches: 2640 },
-  { date: 'Sun', matches: 2310 },
-]
-
-// Emerald-400 to stay on the TrueMain palette.
-const chartCategories = {
-  matches: { name: 'Matches', color: '#34d399' },
+// Top 10 champions by games for the bottom chart.
+const topChampions = computed(() => {
+  const rows = champions.value ?? []
+  return rows.slice(0, 10).map(row => ({
+    label: nameFor(row.championId),
+    games: row.games,
+  }))
+})
+const championChartCategories = {
+  games: { name: 'Games', color: '#34d399' },
 }
+// Recomputed against the current slice so labels track the data.
+const championXFormatter = computed(() =>
+  indexLabelFormatter(topChampions.value, row => row.label),
+)
 
-// x is index-based: the chart feeds the tick's numeric index, which we map
-// back to the day label. y is the raw matches count.
-const xFormatter = (tick: number | Date) =>
-  chartData[Number(tick)]?.date ?? ''
-const yFormatter = (tick: number | Date) =>
-  Number(tick).toLocaleString('en-US')
+const topChampionsLoading = computed(
+  () => championsPending.value || staticPending.value,
+)
 </script>
 
 <template>
@@ -59,29 +140,37 @@ const yFormatter = (tick: number | Date) =>
         <template #leading>
           <UDashboardSidebarCollapse />
         </template>
-      </UDashboardNavbar>
-
-      <UDashboardToolbar>
-        <template #left>
-          <!-- TODO(ops): wire a real date-range / period filter here. -->
+        <template #right>
           <UButton
-            icon="i-lucide-calendar"
+            icon="i-lucide-refresh-cw"
             color="neutral"
-            variant="outline"
-            label="Last 7 days"
-            disabled
+            variant="ghost"
+            :loading="pending"
+            aria-label="Refresh"
+            @click="refresh()"
           />
         </template>
-      </UDashboardToolbar>
+      </UDashboardNavbar>
     </template>
 
     <template #body>
+      <UAlert
+        v-if="error"
+        color="error"
+        variant="subtle"
+        icon="i-lucide-triangle-alert"
+        title="Failed to load overview stats"
+        :description="error.message"
+        class="mb-6"
+      />
+
+      <!-- Stat cards -->
       <UPageGrid class="lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-px">
         <UPageCard
-          v-for="(stat, index) in stats"
+          v-for="(card, index) in cards"
           :key="index"
-          :icon="stat.icon"
-          :title="stat.title"
+          :icon="card.icon"
+          :title="card.title"
           variant="subtle"
           :ui="{
             container: 'gap-y-1.5',
@@ -91,51 +180,123 @@ const yFormatter = (tick: number | Date) =>
           }"
           class="lg:rounded-none first:rounded-l-lg last:rounded-r-lg"
         >
-          <div class="flex items-center gap-2">
-            <span class="text-2xl font-semibold text-highlighted">
-              {{ stat.value }}
+          <div class="flex flex-col gap-0.5">
+            <USkeleton v-if="pending" class="h-8 w-20" />
+            <span v-else class="text-2xl font-semibold text-highlighted">
+              {{ card.value }}
             </span>
-            <UBadge
-              v-if="stat.variation !== 0"
-              :color="stat.variation > 0 ? 'success' : 'error'"
-              variant="subtle"
-              class="text-xs"
-            >
-              {{ stat.variation > 0 ? '+' : '' }}{{ stat.variation }}%
-            </UBadge>
+            <span v-if="card.hint && !pending" class="text-xs text-dimmed">
+              {{ card.hint }}
+            </span>
           </div>
         </UPageCard>
       </UPageGrid>
 
-      <UCard class="mt-6" :ui="{ root: 'overflow-visible' }">
-        <template #header>
-          <div>
-            <p class="text-xs text-muted uppercase mb-1.5">
-              Matches ingested
-            </p>
-            <p class="text-sm text-dimmed">
-              Sample data — replace with a real ops time-series.
-            </p>
-          </div>
-        </template>
-
-        <!-- TODO(ops): swap `chartData` for a real series and drop ClientOnly
-             only if the data is available at SSR time. nuxt-charts renders
-             client-side, hence the ClientOnly + skeleton fallback. -->
-        <ClientOnly>
-          <NcAreaChart
-            :data="chartData"
-            :height="280"
-            :categories="chartCategories"
-            :x-num-ticks="chartData.length"
-            :x-formatter="xFormatter"
-            :y-formatter="yFormatter"
-          />
-          <template #fallback>
-            <USkeleton class="h-[280px] w-full" />
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mt-6">
+        <!-- Candidate pipeline breakdown -->
+        <UCard :ui="{ root: 'overflow-visible' }">
+          <template #header>
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs text-muted uppercase mb-1.5">
+                  Candidate pipeline
+                </p>
+                <p class="text-sm text-dimmed">
+                  Main candidates by status.
+                </p>
+              </div>
+              <UBadge
+                v-if="!pending"
+                color="neutral"
+                variant="subtle"
+                :label="`${formatNumber(candidatesTotal)} total`"
+              />
+            </div>
           </template>
-        </ClientOnly>
-      </UCard>
+
+          <USkeleton v-if="pending" class="h-[220px] w-full" />
+          <div
+            v-else-if="candidatesTotal === 0"
+            class="h-[220px] flex items-center justify-center text-sm text-muted"
+          >
+            No candidates yet.
+          </div>
+          <div v-else class="space-y-4">
+            <div class="flex flex-wrap gap-2">
+              <UBadge
+                v-for="bucket in candidateBuckets"
+                :key="bucket.label"
+                :color="bucket.color"
+                variant="subtle"
+              >
+                {{ bucket.label }}: {{ formatNumber(bucket.count) }}
+              </UBadge>
+            </div>
+            <ClientOnly>
+              <NcBarChart
+                :data="candidateChartData"
+                :height="180"
+                :categories="candidateChartCategories"
+                :y-axis="['count']"
+                :x-num-ticks="candidateChartData.length"
+                :x-formatter="candidateXFormatter"
+                :y-formatter="formatCount"
+                :radius="4"
+                hide-legend
+              />
+              <template #fallback>
+                <USkeleton class="h-[180px] w-full" />
+              </template>
+            </ClientOnly>
+          </div>
+        </UCard>
+
+        <!-- Top champions by games -->
+        <UCard :ui="{ root: 'overflow-visible' }">
+          <template #header>
+            <div>
+              <p class="text-xs text-muted uppercase mb-1.5">
+                Top champions by games
+              </p>
+              <p class="text-sm text-dimmed">
+                Most-played across all tracked data.
+              </p>
+            </div>
+          </template>
+
+          <UAlert
+            v-if="championsError"
+            color="error"
+            variant="subtle"
+            icon="i-lucide-triangle-alert"
+            title="Failed to load champion stats"
+            :description="championsError.message"
+          />
+          <USkeleton v-else-if="topChampionsLoading" class="h-[220px] w-full" />
+          <div
+            v-else-if="topChampions.length === 0"
+            class="h-[220px] flex items-center justify-center text-sm text-muted"
+          >
+            No champion games recorded yet.
+          </div>
+          <ClientOnly v-else>
+            <NcBarChart
+              :data="topChampions"
+              :height="220"
+              :categories="championChartCategories"
+              :y-axis="['games']"
+              :x-num-ticks="topChampions.length"
+              :x-formatter="championXFormatter"
+              :y-formatter="formatCount"
+              :radius="4"
+              hide-legend
+            />
+            <template #fallback>
+              <USkeleton class="h-[220px] w-full" />
+            </template>
+          </ClientOnly>
+        </UCard>
+      </div>
     </template>
   </UDashboardPanel>
 </template>
