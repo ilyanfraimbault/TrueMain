@@ -22,6 +22,12 @@ export default defineNuxtConfig({
   },
   css: ['./app/assets/css/main.css'],
   compatibilityDate: '2026-06-09',
+  // Auth-gated internal tool with no SEO need: render as a client-side SPA.
+  // Disabling SSR removes server/client hydration mismatches entirely (the
+  // client-only data fetches and chart ResizeObserver had no stable server
+  // DOM to hydrate against) and simplifies/​speeds the boot. Nitro still
+  // serves the /api/* proxy + auth routes.
+  ssr: false,
   devtools: { enabled: true },
   colorMode: {
     preference: 'dark',
