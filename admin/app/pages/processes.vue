@@ -8,18 +8,22 @@ import type { ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
 import { formatDateTime, formatDuration, formatNumber } from '~~/shared/utils/format'
 
 // --- Filters -----------------------------------------------------------------
+// Reka UI forbids an empty-string SelectItem value, so "All …" uses the
+// non-empty `'all'` sentinel; `filters` maps it back to `undefined` (param
+// omitted) so the backend still sees "no filter".
+const ALL = 'all'
 const processName = ref('')
-const status = ref<'' | ProcessRunStatus>('')
+const status = ref<'all' | ProcessRunStatus>(ALL)
 // Relative window -> ISO `since`. "All" omits the param.
-const sinceWindow = ref<'' | '1h' | '24h' | '7d' | '30d'>('')
+const sinceWindow = ref<'all' | '1h' | '24h' | '7d' | '30d'>(ALL)
 
 const statusItems = [
-  { label: 'All statuses', value: '' },
+  { label: 'All statuses', value: ALL },
   { label: 'Success', value: 'Success' },
   { label: 'Failed', value: 'Failed' },
 ]
 const sinceItems = [
-  { label: 'All time', value: '' },
+  { label: 'All time', value: ALL },
   { label: 'Last hour', value: '1h' },
   { label: 'Last 24 hours', value: '24h' },
   { label: 'Last 7 days', value: '7d' },
@@ -35,20 +39,24 @@ const WINDOW_MS: Record<string, number> = {
 
 const filters = computed(() => ({
   processName: processName.value.trim() || undefined,
-  status: status.value || undefined,
-  since: sinceWindow.value
-    ? new Date(Date.now() - WINDOW_MS[sinceWindow.value]!).toISOString()
-    : undefined,
+  status: status.value === ALL ? undefined : status.value,
+  since: sinceWindow.value === ALL
+    ? undefined
+    : new Date(Date.now() - WINDOW_MS[sinceWindow.value]!).toISOString(),
   limit: 200,
 }))
 
 const hasActiveFilters = computed(() =>
-  Boolean(processName.value.trim() || status.value || sinceWindow.value),
+  Boolean(
+    processName.value.trim()
+    || status.value !== ALL
+    || sinceWindow.value !== ALL,
+  ),
 )
 function resetFilters() {
   processName.value = ''
-  status.value = ''
-  sinceWindow.value = ''
+  status.value = ALL
+  sinceWindow.value = ALL
 }
 
 const { data, pending, error, refresh } = useProcessRuns(filters)

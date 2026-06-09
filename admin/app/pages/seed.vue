@@ -243,9 +243,12 @@ const activeRank = computed(() =>
 const isFailed = computed(() => tracked.value?.status === 'Failed')
 
 // --- Recent seed requests table ----------------------------------------------
-const statusFilter = ref<'' | SeedRequestStatus>('')
+// Reka UI forbids an empty-string SelectItem value, so "All statuses" uses the
+// non-empty `'all'` sentinel, mapped back to `undefined` (param omitted) below.
+const ALL = 'all'
+const statusFilter = ref<'all' | SeedRequestStatus>(ALL)
 const statusFilterItems = [
-  { label: 'All statuses', value: '' },
+  { label: 'All statuses', value: ALL },
   { label: 'Pending', value: 'Pending' },
   { label: 'Resolving', value: 'Resolving' },
   { label: 'Ingested', value: 'Ingested' },
@@ -253,7 +256,7 @@ const statusFilterItems = [
 ]
 
 const listFilters = computed(() => ({
-  status: statusFilter.value || undefined,
+  status: statusFilter.value === ALL ? undefined : statusFilter.value,
   limit: 50,
 }))
 

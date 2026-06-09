@@ -15,20 +15,24 @@ interface ChampionRowView extends ChampionStatsRow {
   iconUrl: string | null
 }
 
-// --- Filters (empty string = no filter; the composable strips empties) -------
-const region = ref<string>('')
+// --- Filters -----------------------------------------------------------------
+// Reka UI forbids an empty-string SelectItem value, so "All …" uses the
+// non-empty `'all'` sentinel; `filters` maps it back to `undefined` (param
+// omitted) so the backend still sees "no filter".
+const ALL = 'all'
+const region = ref<string>(ALL)
 const patch = ref<string>('')
-const position = ref<string>('')
-const queue = ref<string>('')
+const position = ref<string>(ALL)
+const queue = ref<string>(ALL)
 
 const regionItems = [
-  { label: 'All regions', value: '' },
+  { label: 'All regions', value: ALL },
   { label: 'EUW1', value: 'EUW1' },
   { label: 'KR', value: 'KR' },
   { label: 'NA1', value: 'NA1' },
 ]
 const positionItems = [
-  { label: 'All positions', value: '' },
+  { label: 'All positions', value: ALL },
   { label: 'Top', value: 'TOP' },
   { label: 'Jungle', value: 'JUNGLE' },
   { label: 'Middle', value: 'MIDDLE' },
@@ -37,7 +41,7 @@ const positionItems = [
 ]
 // Common SR queues; "All" leaves the param off.
 const queueItems = [
-  { label: 'All queues', value: '' },
+  { label: 'All queues', value: ALL },
   { label: 'Ranked Solo (420)', value: '420' },
   { label: 'Ranked Flex (440)', value: '440' },
   { label: 'Normal Draft (400)', value: '400' },
@@ -46,20 +50,25 @@ const queueItems = [
 ]
 
 const filters = computed(() => ({
-  region: region.value || undefined,
+  region: region.value === ALL ? undefined : region.value,
   patch: patch.value.trim() || undefined,
-  position: position.value || undefined,
-  queue: queue.value ? Number(queue.value) : undefined,
+  position: position.value === ALL ? undefined : position.value,
+  queue: queue.value === ALL ? undefined : Number(queue.value),
 }))
 
 const hasActiveFilters = computed(() =>
-  Boolean(region.value || patch.value.trim() || position.value || queue.value),
+  Boolean(
+    region.value !== ALL
+    || patch.value.trim()
+    || position.value !== ALL
+    || queue.value !== ALL,
+  ),
 )
 function resetFilters() {
-  region.value = ''
+  region.value = ALL
   patch.value = ''
-  position.value = ''
-  queue.value = ''
+  position.value = ALL
+  queue.value = ALL
 }
 
 const { data, pending, error, refresh } = useChampionStats(filters)

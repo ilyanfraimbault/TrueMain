@@ -10,11 +10,15 @@ import type { LogEntry, LogLevel } from '~~/shared/types/ops'
 import { formatDateTime } from '~~/shared/utils/format'
 
 // --- Filters -----------------------------------------------------------------
+// Reka UI forbids an empty-string SelectItem value, so "All …" uses the
+// non-empty `'all'` sentinel; `filters` maps it back to `undefined` (param
+// omitted) so the backend still sees "no filter".
+const ALL = 'all'
 // `level` is a MINIMUM threshold: Warning returns Warning + Error + Critical.
-const level = ref<'' | LogLevel>('')
+const level = ref<'all' | LogLevel>(ALL)
 const category = ref('')
 // Relative window -> ISO `since`. "All" omits the param.
-const sinceWindow = ref<'' | '1h' | '24h' | '7d' | '30d'>('')
+const sinceWindow = ref<'all' | '1h' | '24h' | '7d' | '30d'>(ALL)
 // Raw search input; debounced before it hits the query so typing doesn't fire a
 // request per keystroke.
 const searchInput = ref('')
@@ -24,7 +28,7 @@ const page = ref(1)
 const pageSize = 50
 
 const levelItems = [
-  { label: 'All levels', value: '' },
+  { label: 'All levels', value: ALL },
   { label: 'Trace', value: 'Trace' },
   { label: 'Debug', value: 'Debug' },
   { label: 'Information', value: 'Information' },
@@ -33,7 +37,7 @@ const levelItems = [
   { label: 'Critical', value: 'Critical' },
 ]
 const sinceItems = [
-  { label: 'All time', value: '' },
+  { label: 'All time', value: ALL },
   { label: 'Last hour', value: '1h' },
   { label: 'Last 24 hours', value: '24h' },
   { label: 'Last 7 days', value: '7d' },
@@ -48,11 +52,11 @@ const WINDOW_MS: Record<string, number> = {
 }
 
 const filters = computed(() => ({
-  level: level.value || undefined,
+  level: level.value === ALL ? undefined : level.value,
   category: category.value.trim() || undefined,
-  since: sinceWindow.value
-    ? new Date(Date.now() - WINDOW_MS[sinceWindow.value]!).toISOString()
-    : undefined,
+  since: sinceWindow.value === ALL
+    ? undefined
+    : new Date(Date.now() - WINDOW_MS[sinceWindow.value]!).toISOString(),
   search: search.value.trim() || undefined,
   page: page.value,
   pageSize,
@@ -60,16 +64,16 @@ const filters = computed(() => ({
 
 const hasActiveFilters = computed(() =>
   Boolean(
-    level.value
+    level.value !== ALL
     || category.value.trim()
-    || sinceWindow.value
+    || sinceWindow.value !== ALL
     || searchInput.value.trim(),
   ),
 )
 function resetFilters() {
-  level.value = ''
+  level.value = ALL
   category.value = ''
-  sinceWindow.value = ''
+  sinceWindow.value = ALL
   searchInput.value = ''
 }
 
@@ -235,7 +239,7 @@ function openDetail(entry: LogEntry) {
       />
 
       <!-- Hint: level is a minimum threshold, not an exact match. -->
-      <p v-if="level" class="text-xs text-dimmed mb-3">
+      <p v-if="level !== ALL" class="text-xs text-dimmed mb-3">
         Showing <span class="font-medium">{{ level }}</span> and above.
       </p>
 
