@@ -99,3 +99,53 @@ export interface ProcessRunsFilters {
   /** Defaults to 100 on the backend. */
   limit?: number
 }
+
+/**
+ * .NET `LogLevel` names, ascending in severity. Used by `GET /api/ops/logs`
+ * where the `level` filter is a MINIMUM threshold (e.g. `Warning` returns
+ * Warning + Error + Critical).
+ */
+export type LogLevel
+  = | 'Trace'
+    | 'Debug'
+    | 'Information'
+    | 'Warning'
+    | 'Error'
+    | 'Critical'
+
+/** One row of `GET /api/ops/logs` → `entries` (newest first). */
+export interface LogEntry {
+  id: number | string
+  timestampUtc: string
+  level: LogLevel
+  category: string
+  message: string
+  exception: string | null
+  processName: string | null
+  host: string | null
+}
+
+/** `GET /api/ops/logs` — server-paginated log entries. */
+export interface LogsResponse {
+  entries: LogEntry[]
+  /** Total rows matching the filters (across all pages). */
+  total: number
+  page: number
+  pageSize: number
+}
+
+/** Filters for `GET /api/ops/logs`. Empty/undefined = no filter. */
+export interface LogsFilters {
+  /** Minimum severity threshold (a `LogLevel` name). */
+  level?: LogLevel
+  /** Exact category (namespace) match. */
+  category?: string
+  /** ISO datetime lower bound. */
+  since?: string
+  /** Case-insensitive substring match on message/exception. */
+  search?: string
+  /** 1-based page index. */
+  page?: number
+  /** Rows per page; backend clamps to [1, 200], default 50. */
+  pageSize?: number
+}

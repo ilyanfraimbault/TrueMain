@@ -3,6 +3,8 @@ import type {
   ChampionStatsFilters,
   ChampionStatsRow,
   DbTableRow,
+  LogsFilters,
+  LogsResponse,
   OverviewStats,
   ProcessRunsFilters,
   ProcessRunsResponse,
@@ -81,6 +83,21 @@ export function useProcessRuns(
 ) {
   return useOps<ProcessRunsResponse>(
     '/process-runs',
+    filters ? () => ({ ...toValue(filters) }) : undefined,
+  )
+}
+
+/**
+ * `GET /api/ops/logs` — server-paginated application logs, newest first. `level`
+ * is a minimum-severity threshold; `search` is a case-insensitive match on
+ * message/exception. Pass a reactive getter so the table re-fetches when a
+ * filter or the page changes.
+ */
+export function useLogs(
+  filters?: MaybeRefOrGetter<LogsFilters>,
+) {
+  return useOps<LogsResponse>(
+    '/logs',
     filters ? () => ({ ...toValue(filters) }) : undefined,
   )
 }
