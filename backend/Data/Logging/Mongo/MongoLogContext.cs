@@ -23,6 +23,12 @@ public sealed class MongoLogContext : IDisposable
     private readonly IMongoClient? _client;
     private readonly IMongoDatabase? _database;
 
+    // Cache the collection wrappers: GetCollection<T>() allocates a fresh wrapper
+    // on every call, and the collections are hit per flush (MongoLogSink) and
+    // several times in EnsureIndexesAsync. Null when the context is inactive.
+    private readonly IMongoCollection<MongoLogDocument>? _logs;
+    private readonly IMongoCollection<AuditEventDocument>? _auditEvents;
+
     public MongoLogContext(IOptions<MongoLoggingOptions> options)
     {
         _options = options.Value;
@@ -34,16 +40,18 @@ public sealed class MongoLogContext : IDisposable
 
         _client = new MongoClient(_options.ConnectionString);
         _database = _client.GetDatabase(_options.Database);
+        _logs = _database.GetCollection<MongoLogDocument>(_options.LogsCollection);
+        _auditEvents = _database.GetCollection<AuditEventDocument>(_options.AuditCollection);
     }
 
     /// <summary>True when a Mongo client was created (logging enabled + connection string present).</summary>
     public bool IsActive => _database is not null;
 
     public IMongoCollection<MongoLogDocument> Logs =>
-        Require().GetCollection<MongoLogDocument>(_options.LogsCollection);
+        _logs ?? throw Inactive();
 
     public IMongoCollection<AuditEventDocument> AuditEvents =>
-        Require().GetCollection<AuditEventDocument>(_options.AuditCollection);
+        _auditEvents ?? throw Inactive();
 
     /// <summary>
     /// Creates the supporting indexes idempotently: a TTL index on the diagnostic
@@ -180,9 +188,8 @@ public sealed class MongoLogContext : IDisposable
         return expire.ToInt64();
     }
 
-    private IMongoDatabase Require() =>
-        _database ?? throw new InvalidOperationException(
-            "MongoLogContext is inactive: MongoLogging is disabled or has no ConnectionString. " +
+    private static InvalidOperationException Inactive() =>
+        new("MongoLogContext is inactive: MongoLogging is disabled or has no ConnectionString. " +
             "Gate on IsActive before accessing collections.");
 
     /// <summary>

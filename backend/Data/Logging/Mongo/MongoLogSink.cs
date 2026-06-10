@@ -31,7 +31,10 @@ internal sealed class MongoLogSink(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!_options.IsActive || !context.IsActive)
+        // context.IsActive already implies _options.IsActive (the context only
+        // builds its database when logging is active), so this single guard covers
+        // both the disabled-config and no-connection-string cases.
+        if (!context.IsActive)
         {
             return;
         }
