@@ -137,8 +137,9 @@ const candidatesTotal = computed(() =>
   candidateBuckets.value.reduce((sum, b) => sum + (b.count ?? 0), 0),
 )
 
-// Bar-chart series for the candidate pipeline. Emerald single series; x maps the
-// numeric tick index back to the bucket label.
+// Horizontal-bar series for the candidate pipeline. Emerald single series.
+// Rendered horizontally, so the bucket label lives on the LEFT (category) axis:
+// `candidateLabelFormatter` looks the label up by bar index for that y-axis.
 const candidateChartData = computed(() =>
   candidateBuckets.value.map(b => ({ label: b.label, count: b.count ?? 0 })),
 )
@@ -147,9 +148,11 @@ const candidateChartCategories = {
 }
 // Wrapped in a computed so the label lookup tracks `candidateChartData`
 // instead of closing over its initial (empty) value before stats load.
-const candidateXFormatter = computed(() =>
+const candidateLabelFormatter = computed(() =>
   indexLabelFormatter(candidateChartData.value, row => row.label),
 )
+// Tooltip title = the hovered bucket's label.
+const candidateTooltipTitle = (d: { label: string }) => d.label
 
 // Top 10 champions by games for the bottom chart.
 const topChampions = computed(() => {
@@ -162,10 +165,13 @@ const topChampions = computed(() => {
 const championChartCategories = {
   games: { name: 'Games', color: '#34d399' },
 }
-// Recomputed against the current slice so labels track the data.
-const championXFormatter = computed(() =>
+// Horizontal bars: champion name lives on the LEFT (category) axis, looked up
+// by bar index. Recomputed against the current slice so labels track the data.
+const championLabelFormatter = computed(() =>
   indexLabelFormatter(topChampions.value, row => row.label),
 )
+// Tooltip title = the hovered champion's name.
+const championTooltipTitle = (d: { label: string }) => d.label
 
 const topChampionsLoading = computed(
   () => championsPending.value || staticPending.value,
@@ -248,18 +254,14 @@ const topChampionsLoading = computed(
           No matches in range.
         </div>
         <ClientOnly v-else>
-          <NcBarChart
+          <NcAreaChart
             :data="matchesChartData"
             :height="260"
             :categories="matchesChartCategories"
-            :y-axis="['matches']"
-            :x-num-ticks="Math.min(matchesChartData.length, 12)"
+            :x-num-ticks="Math.min(matchesChartData.length, 8)"
             :x-formatter="matchesXFormatter"
             :y-formatter="formatCount"
-            :x-axis-config="ROTATED_X_AXIS_CONFIG"
-            :padding="ROTATED_X_AXIS_PADDING"
-            :radius="4"
-            hide-legend
+            v-bind="areaChartProps()"
           />
           <template #fallback>
             <USkeleton class="h-[260px] w-full" />
@@ -338,16 +340,14 @@ const topChampionsLoading = computed(
             <ClientOnly>
               <NcBarChart
                 :data="candidateChartData"
-                :height="200"
+                :height="Math.max(200, candidateChartData.length * 34)"
                 :categories="candidateChartCategories"
                 :y-axis="['count']"
-                :x-num-ticks="candidateChartData.length"
-                :x-formatter="candidateXFormatter"
-                :y-formatter="formatCount"
-                :x-axis-config="ROTATED_X_AXIS_CONFIG"
-                :padding="ROTATED_X_AXIS_PADDING"
-                :radius="4"
-                hide-legend
+                :y-num-ticks="candidateChartData.length"
+                :x-formatter="formatCount"
+                :y-formatter="candidateLabelFormatter"
+                :tooltip-title-formatter="candidateTooltipTitle"
+                v-bind="horizontalBarProps(96)"
               />
               <template #fallback>
                 <USkeleton class="h-[200px] w-full" />
@@ -387,16 +387,14 @@ const topChampionsLoading = computed(
           <ClientOnly v-else>
             <NcBarChart
               :data="topChampions"
-              :height="240"
+              :height="Math.max(240, topChampions.length * 30)"
               :categories="championChartCategories"
               :y-axis="['games']"
-              :x-num-ticks="topChampions.length"
-              :x-formatter="championXFormatter"
-              :y-formatter="formatCount"
-              :x-axis-config="ROTATED_X_AXIS_CONFIG"
-              :padding="ROTATED_X_AXIS_PADDING"
-              :radius="4"
-              hide-legend
+              :y-num-ticks="topChampions.length"
+              :x-formatter="formatCount"
+              :y-formatter="championLabelFormatter"
+              :tooltip-title-formatter="championTooltipTitle"
+              v-bind="horizontalBarProps(120)"
             />
             <template #fallback>
               <USkeleton class="h-[240px] w-full" />

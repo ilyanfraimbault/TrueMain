@@ -132,12 +132,16 @@ const gamesCategories = { games: { name: 'Games', color: '#34d399' } }
 // amber-400 for the secondary metric so the two charts read as distinct series.
 const mainsCategories = { mains: { name: 'Mains', color: '#fbbf24' } }
 
-const gamesXFormatter = computed(() =>
+// Horizontal bars: the champion name lives on the LEFT (category) axis, looked
+// up by bar index, so these feed `:y-formatter` (not `:x-formatter`).
+const gamesLabelFormatter = computed(() =>
   indexLabelFormatter(topByGames.value, r => r.label),
 )
-const mainsXFormatter = computed(() =>
+const mainsLabelFormatter = computed(() =>
   indexLabelFormatter(topByMains.value, r => r.label),
 )
+// Tooltip title = the hovered champion's name.
+const championTooltipTitle = (d: { label: string }) => d.label
 </script>
 
 <template>
@@ -231,16 +235,14 @@ const mainsXFormatter = computed(() =>
           <ClientOnly v-else>
             <NcBarChart
               :data="topByGames"
-              :height="240"
+              :height="Math.max(260, topByGames.length * 28)"
               :categories="gamesCategories"
               :y-axis="['games']"
-              :x-num-ticks="topByGames.length"
-              :x-formatter="gamesXFormatter"
-              :y-formatter="formatCount"
-              :x-axis-config="ROTATED_X_AXIS_CONFIG"
-              :padding="ROTATED_X_AXIS_PADDING"
-              :radius="4"
-              hide-legend
+              :y-num-ticks="topByGames.length"
+              :x-formatter="formatCount"
+              :y-formatter="gamesLabelFormatter"
+              :tooltip-title-formatter="championTooltipTitle"
+              v-bind="horizontalBarProps(120)"
             />
             <template #fallback>
               <USkeleton class="h-[240px] w-full" />
@@ -272,16 +274,14 @@ const mainsXFormatter = computed(() =>
           <ClientOnly v-else>
             <NcBarChart
               :data="topByMains"
-              :height="240"
+              :height="Math.max(260, topByMains.length * 28)"
               :categories="mainsCategories"
               :y-axis="['mains']"
-              :x-num-ticks="topByMains.length"
-              :x-formatter="mainsXFormatter"
-              :y-formatter="formatCount"
-              :x-axis-config="ROTATED_X_AXIS_CONFIG"
-              :padding="ROTATED_X_AXIS_PADDING"
-              :radius="4"
-              hide-legend
+              :y-num-ticks="topByMains.length"
+              :x-formatter="formatCount"
+              :y-formatter="mainsLabelFormatter"
+              :tooltip-title-formatter="championTooltipTitle"
+              v-bind="horizontalBarProps(120)"
             />
             <template #fallback>
               <USkeleton class="h-[240px] w-full" />

@@ -51,7 +51,7 @@ const columns: TableColumn<DbTableRow>[] = [
 ]
 
 // --- Chart: top tables by total size -----------------------------------------
-// Rendered HORIZONTALLY (Orientation.Horizontal): table names are long
+// Rendered HORIZONTALLY via `horizontalBarProps()`: table names are long
 // snake_case strings that collide badly on a vertical x-axis, so the category
 // axis goes on the LEFT where full names fit. In vue-chrts the bar `x` accessor
 // is always the data index and `y` the value; with horizontal orientation
@@ -145,18 +145,14 @@ const sizeTooltipTitle = (d: { label: string }) => d.label
         <ClientOnly v-else>
           <NcBarChart
             :data="topTables"
-            :height="Math.max(260, topTables.length * 26)"
+            :height="Math.max(260, topTables.length * 28)"
             :categories="sizeCategories"
             :y-axis="['bytes']"
-            :orientation="Orientation.Horizontal"
             :x-formatter="sizeValueFormatter"
             :y-formatter="sizeLabelFormatter"
             :y-num-ticks="topTables.length"
             :tooltip-title-formatter="sizeTooltipTitle"
-            :y-axis-config="{ tickTextWidth: 180 }"
-            :padding="{ top: 8, right: 12, bottom: 8, left: 188 }"
-            :radius="4"
-            hide-legend
+            v-bind="horizontalBarProps(180)"
           />
           <template #fallback>
             <USkeleton class="h-[320px] w-full" />
