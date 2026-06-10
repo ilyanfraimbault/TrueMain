@@ -224,6 +224,80 @@ public sealed class DataQualityApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetIncompleteMatches_FiltersByMinAgeHours_ExcludingMatchesYoungerThanTheFloor()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        var now = DateTime.UtcNow;
+        await using (var db = _fixture.CreateDbContext())
+        {
+            // Two zero-duration SR matches straddling a 24h age floor: one played
+            // 2h ago (younger than the floor) and one played 48h ago (older).
+            db.Matches.Add(BuildMatch("DQ_YOUNG", LolQueueId.RankedSoloDuo, now.AddHours(-2), 0, timelineIngested: true));
+            AddFullSrRoster(db, "DQ_YOUNG");
+
+            db.Matches.Add(BuildMatch("DQ_OLD", LolQueueId.RankedSoloDuo, now.AddHours(-48), 0, timelineIngested: true));
+            AddFullSrRoster(db, "DQ_OLD");
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateAuthedClient(factory);
+
+        var payload = await client.GetFromJsonAsync<IncompleteMatchesContract>(
+            "/ops/data-quality/incomplete-matches?minAgeHours=24");
+
+        payload.Should().NotBeNull();
+        var flaggedIds = payload!.Groups.SelectMany(g => g.Matches).Select(m => m.MatchId).ToList();
+
+        // Only the match older than the 24h floor survives; the 2h-old one is gone.
+        flaggedIds.Should().Contain("DQ_OLD");
+        flaggedIds.Should().NotContain("DQ_YOUNG");
+    }
+
+    [Fact]
+    public async Task GetIncompleteMatches_PaginatesEachGroup_ReturningTheExpectedSecondPageSlice()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        var now = DateTime.UtcNow;
+        // Five zero-duration SR matches with strictly descending start times so the
+        // newest-first order is deterministic: DQ_PAGE_0 newest … DQ_PAGE_4 oldest.
+        var expectedNewestFirst = new List<string>();
+        await using (var db = _fixture.CreateDbContext())
+        {
+            for (var i = 0; i < 5; i++)
+            {
+                var id = $"DQ_PAGE_{i}";
+                expectedNewestFirst.Add(id);
+                db.Matches.Add(BuildMatch(id, LolQueueId.RankedSoloDuo, now.AddHours(-i - 1), 0, timelineIngested: true));
+                AddFullSrRoster(db, id);
+            }
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateAuthedClient(factory);
+
+        // pageSize=2 over 5 matches → page 2 is the third+fourth newest. Filter to
+        // the single zero-duration group so the slice is unambiguous.
+        var page2 = await client.GetFromJsonAsync<IncompleteMatchesContract>(
+            "/ops/data-quality/incomplete-matches?issue=zeroDuration&page=2&pageSize=2");
+
+        page2.Should().NotBeNull();
+        var group = page2!.Groups.Single(g => g.IssueType == "zeroDuration");
+        // Full count is reported independent of the page.
+        group.Count.Should().Be(5);
+
+        var page2Ids = group.Matches.Select(m => m.MatchId).ToList();
+        // The Skip/Take offset must yield the 3rd and 4th newest, not page 1's slice
+        // and not a duplicated/empty page.
+        page2Ids.Should().Equal(expectedNewestFirst[2], expectedNewestFirst[3]);
+    }
+
+    [Fact]
     public async Task GetMatchDetail_LaysOutTeamsByPosition_AndHighlightsTheGap()
     {
         await _fixture.ResetDatabaseAsync();
