@@ -23,12 +23,6 @@ public sealed class MongoLogContext : IDisposable
     private readonly IMongoClient? _client;
     private readonly IMongoDatabase? _database;
 
-    // Cache the collection wrappers: GetCollection<T>() allocates a fresh wrapper
-    // on every call, and the collections are hit per flush (MongoLogSink) and
-    // several times in EnsureIndexesAsync. Null when the context is inactive.
-    private readonly IMongoCollection<MongoLogDocument>? _logs;
-    private readonly IMongoCollection<AuditEventDocument>? _auditEvents;
-
     public MongoLogContext(IOptions<MongoLoggingOptions> options)
     {
         _options = options.Value;
@@ -40,37 +34,28 @@ public sealed class MongoLogContext : IDisposable
 
         _client = new MongoClient(_options.ConnectionString);
         _database = _client.GetDatabase(_options.Database);
-        _logs = _database.GetCollection<MongoLogDocument>(_options.LogsCollection);
-        _auditEvents = _database.GetCollection<AuditEventDocument>(_options.AuditCollection);
+        Logs = _database.GetCollection<MongoLogDocument>(_options.LogsCollection);
+        AuditEvents = _database.GetCollection<AuditEventDocument>(_options.AuditCollection);
     }
 
     /// <summary>True when a Mongo client was created (logging enabled + connection string present).</summary>
     public bool IsActive => _database is not null;
 
+    // The collection wrappers are cached in the property backing field (the `field`
+    // keyword): GetCollection<T>() allocates a fresh wrapper on every call, and the
+    // collections are hit per flush (MongoLogSink) and several times in
+    // EnsureIndexesAsync. The backing field stays null when the context is inactive,
+    // so the getter throws to keep the inactive guard.
     public IMongoCollection<MongoLogDocument> Logs
     {
-        get
-        {
-            if (_logs is null)
-            {
-                throw Inactive();
-            }
-
-            return _logs;
-        }
+        get => field ?? throw Inactive();
+        private init;
     }
 
     public IMongoCollection<AuditEventDocument> AuditEvents
     {
-        get
-        {
-            if (_auditEvents is null)
-            {
-                throw Inactive();
-            }
-
-            return _auditEvents;
-        }
+        get => field ?? throw Inactive();
+        private init;
     }
 
     /// <summary>
