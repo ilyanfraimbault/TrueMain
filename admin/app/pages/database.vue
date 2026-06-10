@@ -67,6 +67,10 @@ const topTables = computed(() =>
     .slice(0, TOP_N)
     .map(t => ({ label: t.tableName, bytes: t.totalBytes })),
 )
+// Chart grows with the number of bars; the skeleton mirrors it to avoid CLS.
+const topTablesChartHeight = computed(() =>
+  Math.max(260, topTables.value.length * 28),
+)
 const sizeCategories = { bytes: { name: 'Total size', color: '#34d399' } }
 // Bottom (value) axis — humanized bytes. Also used by the tooltip value.
 const sizeValueFormatter = (tick: number | Date) => humanizeBytes(Number(tick), 0)
@@ -135,17 +139,22 @@ const sizeTooltipTitle = (d: { label: string }) => d.label
             Top {{ TOP_N }} tables by total size
           </p>
         </template>
-        <USkeleton v-if="pending" class="h-[320px] w-full" />
+        <USkeleton
+          v-if="pending"
+          class="w-full"
+          :style="{ height: `${topTablesChartHeight}px` }"
+        />
         <div
           v-else-if="topTables.length === 0"
-          class="h-[320px] flex items-center justify-center text-sm text-muted"
+          class="flex items-center justify-center text-sm text-muted"
+          :style="{ height: `${topTablesChartHeight}px` }"
         >
           No tables reported.
         </div>
         <ClientOnly v-else>
           <NcBarChart
             :data="topTables"
-            :height="Math.max(260, topTables.length * 28)"
+            :height="topTablesChartHeight"
             :categories="sizeCategories"
             :y-axis="['bytes']"
             :x-formatter="sizeValueFormatter"
@@ -155,7 +164,10 @@ const sizeTooltipTitle = (d: { label: string }) => d.label
             v-bind="horizontalBarProps(180)"
           />
           <template #fallback>
-            <USkeleton class="h-[320px] w-full" />
+            <USkeleton
+              class="w-full"
+              :style="{ height: `${topTablesChartHeight}px` }"
+            />
           </template>
         </ClientOnly>
       </UCard>

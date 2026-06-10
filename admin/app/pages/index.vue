@@ -146,6 +146,10 @@ const candidateChartData = computed(() =>
 const candidateChartCategories = {
   count: { name: 'Candidates', color: '#34d399' },
 }
+// Chart grows with the number of bars; the skeleton mirrors it to avoid CLS.
+const candidateChartHeight = computed(() =>
+  Math.max(200, candidateChartData.value.length * 34),
+)
 // Wrapped in a computed so the label lookup tracks `candidateChartData`
 // instead of closing over its initial (empty) value before stats load.
 const candidateLabelFormatter = computed(() =>
@@ -163,6 +167,10 @@ const topChampions = computed(() => {
 const championChartCategories = {
   games: { name: 'Games', color: '#34d399' },
 }
+// Chart grows with the number of bars; the skeleton mirrors it to avoid CLS.
+const topChampionsChartHeight = computed(() =>
+  Math.max(240, topChampions.value.length * 30),
+)
 // Horizontal bars: champion name lives on the LEFT (category) axis, looked up
 // by bar index. Recomputed against the current slice so labels track the data.
 const championLabelFormatter = computed(() =>
@@ -336,7 +344,7 @@ const topChampionsLoading = computed(
             <ClientOnly>
               <NcBarChart
                 :data="candidateChartData"
-                :height="Math.max(200, candidateChartData.length * 34)"
+                :height="candidateChartHeight"
                 :categories="candidateChartCategories"
                 :y-axis="['count']"
                 :y-num-ticks="candidateChartData.length"
@@ -348,7 +356,7 @@ const topChampionsLoading = computed(
               <template #fallback>
                 <USkeleton
                   class="w-full"
-                  :style="{ height: `${Math.max(200, candidateChartData.length * 34)}px` }"
+                  :style="{ height: `${candidateChartHeight}px` }"
                 />
               </template>
             </ClientOnly>
@@ -386,7 +394,7 @@ const topChampionsLoading = computed(
           <ClientOnly v-else>
             <NcBarChart
               :data="topChampions"
-              :height="Math.max(240, topChampions.length * 30)"
+              :height="topChampionsChartHeight"
               :categories="championChartCategories"
               :y-axis="['games']"
               :y-num-ticks="topChampions.length"
@@ -398,7 +406,7 @@ const topChampionsLoading = computed(
             <template #fallback>
               <USkeleton
                 class="w-full"
-                :style="{ height: `${Math.max(240, topChampions.length * 30)}px` }"
+                :style="{ height: `${topChampionsChartHeight}px` }"
               />
             </template>
           </ClientOnly>

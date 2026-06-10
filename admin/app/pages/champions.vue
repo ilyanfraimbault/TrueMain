@@ -128,6 +128,14 @@ const topByMains = computed(() =>
     .map(r => ({ label: r.name, mains: r.mains })),
 )
 
+// Charts grow with the number of bars; the skeletons mirror it to avoid CLS.
+const topByGamesChartHeight = computed(() =>
+  Math.max(260, topByGames.value.length * 28),
+)
+const topByMainsChartHeight = computed(() =>
+  Math.max(260, topByMains.value.length * 28),
+)
+
 const gamesCategories = { games: { name: 'Games', color: '#34d399' } }
 // amber-400 for the secondary metric so the two charts read as distinct series.
 const mainsCategories = { mains: { name: 'Mains', color: '#fbbf24' } }
@@ -233,7 +241,7 @@ const mainsLabelFormatter = computed(() =>
           <ClientOnly v-else>
             <NcBarChart
               :data="topByGames"
-              :height="Math.max(260, topByGames.length * 28)"
+              :height="topByGamesChartHeight"
               :categories="gamesCategories"
               :y-axis="['games']"
               :y-num-ticks="topByGames.length"
@@ -245,7 +253,7 @@ const mainsLabelFormatter = computed(() =>
             <template #fallback>
               <USkeleton
                 class="w-full"
-                :style="{ height: `${Math.max(260, topByGames.length * 28)}px` }"
+                :style="{ height: `${topByGamesChartHeight}px` }"
               />
             </template>
           </ClientOnly>
@@ -275,7 +283,7 @@ const mainsLabelFormatter = computed(() =>
           <ClientOnly v-else>
             <NcBarChart
               :data="topByMains"
-              :height="Math.max(260, topByMains.length * 28)"
+              :height="topByMainsChartHeight"
               :categories="mainsCategories"
               :y-axis="['mains']"
               :y-num-ticks="topByMains.length"
@@ -287,7 +295,7 @@ const mainsLabelFormatter = computed(() =>
             <template #fallback>
               <USkeleton
                 class="w-full"
-                :style="{ height: `${Math.max(260, topByMains.length * 28)}px` }"
+                :style="{ height: `${topByMainsChartHeight}px` }"
               />
             </template>
           </ClientOnly>
