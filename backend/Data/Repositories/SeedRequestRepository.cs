@@ -19,4 +19,14 @@ public sealed class SeedRequestRepository(TrueMainDbContext db) : ISeedRequestRe
     public Task<SeedRequest?> GetByIdAsync(Guid id, CancellationToken ct)
         // Tracked: callers transition Status on the returned instance.
         => db.SeedRequests.FirstOrDefaultAsync(request => request.Id == id, ct);
+
+    public Task<int> ClaimAsync(Guid id, CancellationToken ct)
+        => db.SeedRequests
+            .Where(request => request.Id == id && request.Status == SeedRequestStatus.Pending)
+            .ExecuteUpdateAsync(s => s.SetProperty(request => request.Status, SeedRequestStatus.Resolving), ct);
+
+    public Task<int> ResetResolvingToPendingAsync(Guid id, CancellationToken ct)
+        => db.SeedRequests
+            .Where(request => request.Id == id && request.Status == SeedRequestStatus.Resolving)
+            .ExecuteUpdateAsync(s => s.SetProperty(request => request.Status, SeedRequestStatus.Pending), ct);
 }

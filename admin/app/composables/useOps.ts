@@ -49,13 +49,20 @@ export function useOps<T>(
   path: string,
   query?: MaybeRefOrGetter<Record<string, string | number | undefined>>,
 ) {
+  const queryParams = query
+    ? computed(() => cleanQuery(toValue(query)))
+    : undefined
   return useFetch<T>(`/api/ops${path}`, {
-    query: query
-      ? computed(() => cleanQuery(toValue(query)))
-      : undefined,
+    query: queryParams,
     server: false,
-    // Distinct per path so concurrent panels don't share a cache entry.
-    key: `ops:${path}`,
+    // Distinct per (path, query) so concurrent panels hitting the same path with
+    // different filters don't collide on one cache entry. Without the query in
+    // the key, e.g. the Overview's unfiltered `/stats/champions` and the
+    // Champions panel's region-filtered one would share `ops:/stats/champions`
+    // and clobber each other's data.
+    key: queryParams
+      ? computed(() => `ops:${path}:${JSON.stringify(queryParams.value)}`)
+      : `ops:${path}`,
   })
 }
 

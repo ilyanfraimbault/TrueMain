@@ -31,6 +31,13 @@ public sealed class ManualSeedProcess(
 {
     private const int MaxErrorLength = 2048;
 
+    // Candidate statuses a manual seed promotes to Queued. New = freshly
+    // upserted; Scored = previously discovered but didn't make the competitive
+    // top-N. Queued/Processing/Validated are already in/through the pipeline and
+    // Rejected was an explicit not-a-main decision, so none are requeued here.
+    private static readonly MainCandidateStatus[] RequeueableStatuses =
+        [MainCandidateStatus.New, MainCandidateStatus.Scored];
+
     public string Name => "ManualSeed";
 
     public async Task<object?> RunCoreAsync(CancellationToken ct)
@@ -84,18 +91,25 @@ public sealed class ManualSeedProcess(
         // claim + resolution + terminal state is its own unit of work.
         await using var session = await sessionFactory.CreateAsync(ct);
 
-        var request = await session.SeedRequests.GetByIdAsync(id, ct);
-        if (request is null || request.Status != SeedRequestStatus.Pending)
+        // Atomic claim: flip Pending -> Resolving in a single UPDATE so two
+        // concurrent runs can't both pick the same request (no read-then-write
+        // TOCTOU window). A zero rowcount means another run already claimed it
+        // (or the status changed / row vanished) between our batch scan and now.
+        var claimed = await session.SeedRequests.ClaimAsync(id, ct);
+        if (claimed == 0)
         {
-            // Another run (or a status change) claimed it between our batch scan
-            // and now — skip silently.
             return;
         }
 
-        // Claim: flip to Resolving and persist so a concurrent run won't re-pick it.
-        request.Status = SeedRequestStatus.Resolving;
-        await session.SaveChangesAsync(ct);
         summary.Claimed++;
+
+        // Re-read the now-Resolving row tracked so the resolution path can
+        // transition it to its terminal state and SaveChanges.
+        var request = await session.SeedRequests.GetByIdAsync(id, ct);
+        if (request is null)
+        {
+            return;
+        }
 
         try
         {
@@ -103,6 +117,13 @@ public sealed class ManualSeedProcess(
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
+            // Interrupted (host shutdown / cancellation) after we claimed the
+            // request as Resolving. Reset it to Pending so a later run can
+            // re-claim it: GetPendingAsync only loads Pending rows and
+            // SeedRequestService treats a lingering Resolving row as the
+            // idempotent result, so leaving it Resolving would strand it forever.
+            // Use CancellationToken.None — ct is already cancelled.
+            await ResetToPendingAsync(request.Id, CancellationToken.None);
             throw;
         }
         catch (Exception ex)
@@ -173,11 +194,15 @@ public sealed class ManualSeedProcess(
 
         // Promote this account's candidates straight to Queued, skipping the
         // competitive top-N ScoringProcess — an explicitly-seeded account is
-        // always meant to be ingested.
+        // always meant to be ingested. Requeue from BOTH New (freshly upserted)
+        // and Scored: re-seeding a previously-discovered account whose candidates
+        // already lost competitive scoring must still ingest it, otherwise
+        // MatchIngestionProcess (which only picks Queued candidates) would never
+        // touch it and this request would report success without ingesting.
         var queued = await session.MainCandidates.SetStatusForAccountAsync(
             request.PlatformId,
             account.Puuid,
-            MainCandidateStatus.New,
+            RequeueableStatuses,
             MainCandidateStatus.Queued,
             ct);
         summary.CandidatesQueued += queued;
@@ -207,6 +232,14 @@ public sealed class ManualSeedProcess(
         request.Error = Truncate(message, MaxErrorLength);
         request.ProcessedAtUtc = DateTime.UtcNow;
         await session.SaveChangesAsync(ct);
+    }
+
+    private async Task ResetToPendingAsync(Guid id, CancellationToken ct)
+    {
+        // Own session: the interrupted attempt's session/change tracker may be in
+        // an unusable state, and we must not depend on the (cancelled) ct.
+        await using var session = await sessionFactory.CreateAsync(ct);
+        await session.SeedRequests.ResetResolvingToPendingAsync(id, ct);
     }
 
     private static string? Truncate(string? value, int maxLength)

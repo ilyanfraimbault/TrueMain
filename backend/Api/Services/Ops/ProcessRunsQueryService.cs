@@ -133,10 +133,22 @@ public sealed class ProcessRunsQueryService(TrueMainDbContext db) : IProcessRuns
             .Select(run => new { run.ProcessName, run.StartedAtUtc, run.Status })
             .ToListAsync(ct);
 
+        // The query above filters on the process-name set AND the max-timestamp
+        // set independently, so it can over-fetch when two processes happen to
+        // share an identical max StartedAtUtc (it would return each one's run at
+        // that timestamp for the other too). Pair (ProcessName, LastRunAtUtc)
+        // explicitly here so the latest status is matched to the right process
+        // rather than relying on the OrderByDescending below to compensate.
+        var maxStartByProcess = groups.ToDictionary(group => group.ProcessName, group => group.LastRunAtUtc);
+
         var latestStatusByProcess = latestStatusRows
+            .Where(row => maxStartByProcess.TryGetValue(row.ProcessName, out var max) && row.StartedAtUtc == max)
             .GroupBy(row => row.ProcessName)
             .ToDictionary(
                 group => group.Key,
+                // Ties at the same timestamp are still possible (a process logging
+                // two runs with identical StartedAtUtc); keep the deterministic
+                // pick from before.
                 group => group
                     .OrderByDescending(row => row.StartedAtUtc)
                     .First()

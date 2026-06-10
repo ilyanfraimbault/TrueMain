@@ -44,7 +44,10 @@ namespace Data.Migrations
                 name: "IX_log_entries_TimestampUtc",
                 table: "log_entries",
                 column: "TimestampUtc",
-                descending: new bool[0]);
+                // Descending to match the model config and the LogsQueryService
+                // ordering (TimestampUtc DESC, Id DESC), so Postgres reads the
+                // index forward instead of a backward scan on a large table.
+                descending: [true]);
         }
 
         /// <inheritdoc />

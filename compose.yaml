@@ -76,7 +76,10 @@ services:
       api:
         condition: service_healthy
     ports:
-      - "3001:3000"
+      # Bind to loopback only: the admin dashboard is an internal tool reached
+      # via the reverse proxy on the host, never directly from the public
+      # internet. `3001:3000` would publish on 0.0.0.0.
+      - "127.0.0.1:3001:3000"
     networks:
       - truemain_internal
 
