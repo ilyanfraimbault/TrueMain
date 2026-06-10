@@ -72,9 +72,12 @@ export function areaChartProps() {
     curveType: CurveType.MonotoneX,
     lineWidth: 2,
     // Emerald fill that fades to transparent — the Nuxt UI "revenue" look.
+    // Pin `stopColor` to emerald-400 explicitly: without it the gradient relies
+    // on NcAreaChart injecting the series colour into each stop, and if it ever
+    // doesn't, raw SVG defaults `stop-color` to black → a black→transparent fade.
     gradientStops: [
-      { offset: '0%', stopOpacity: 0.4 },
-      { offset: '100%', stopOpacity: 0 },
+      { offset: '0%', stopColor: '#34d399', stopOpacity: 0.4 },
+      { offset: '100%', stopColor: '#34d399', stopOpacity: 0 },
     ],
     // Quiet axes: keep the labels, drop every line/grid so the area is the focus.
     xGridLine: false,
