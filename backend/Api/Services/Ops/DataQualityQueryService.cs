@@ -37,11 +37,12 @@ public sealed class DataQualityQueryService(TrueMainDbContext db) : IDataQuality
     private const int MinPageSize = 1;
     private const int MaxPageSize = 100;
 
-    // Upper bound on candidate matches pulled per request. The checks need the
-    // per-team participant shape, which doesn't reduce to a single indexed
-    // predicate, so we evaluate a bounded newest-first window in memory rather
-    // than scanning the whole table. Comfortably covers the paged sample.
-    private const int CandidateScanLimit = 2000;
+    // Upper bound on flagged matches materialised per request. Unlike a raw
+    // newest-first window, this caps the set *after* the rule predicates have run
+    // in the database, so it bounds how many genuinely-broken matches we load
+    // (not how far back we look). Old stuck matches stay reachable because the
+    // staleness/shape predicates filter before this Take.
+    private const int CandidateScanLimit = 5000;
 
     public async Task<IncompleteMatchesReadModel> GetIncompleteMatchesAsync(
         string? issue,
@@ -60,7 +61,7 @@ public sealed class DataQualityQueryService(TrueMainDbContext db) : IDataQuality
         // Age floor: a match must be at least this old to be considered at all.
         DateTime? ageCutoff = minAgeHours is > 0 ? now.AddHours(-minAgeHours.Value) : null;
 
-        var candidates = await LoadCandidatesAsync(queueId, ageCutoff, ct);
+        var candidates = await LoadCandidatesAsync(queueId, ageCutoff, staleTimelineCutoff, ct);
 
         // Evaluate every check per match, in memory, against the candidate window.
         var flagged = new List<FlaggedMatch>();
@@ -179,40 +180,55 @@ public sealed class DataQualityQueryService(TrueMainDbContext db) : IDataQuality
     private async Task<IReadOnlyList<MatchSummary>> LoadCandidatesAsync(
         int? queueId,
         DateTime? ageCutoff,
+        DateTime staleTimelineCutoff,
         CancellationToken ct)
     {
-        // Scope to queues we have a profile for (or the single requested queue):
-        // the count/position rules are meaningless outside them, and limiting the
-        // set keeps the in-memory evaluation bounded. The missing-timeline check
-        // is queue-agnostic but still only meaningful for ingested queues.
-        var scopedQueueIds = queueId is { } requested
-            ? new[] { requested }
-            : QueueDataQualityProfile.KnownQueueIds.ToArray();
-
-        var matchesQuery = db.Matches
-            .AsNoTracking()
-            .Where(m => scopedQueueIds.Contains(m.QueueId));
+        // Default to ALL queues: the queue-agnostic checks (missing-timeline,
+        // zero-duration) must be able to flag matches from an unknown/new queue,
+        // and Evaluate already skips the profile-dependent checks for those. When
+        // a specific queue is requested, scope to it.
+        var baseQuery = db.Matches.AsNoTracking();
+        if (queueId is { } requested)
+        {
+            baseQuery = baseQuery.Where(m => m.QueueId == requested);
+        }
 
         if (ageCutoff is not null)
         {
-            matchesQuery = matchesQuery.Where(m => m.GameStartTimeUtc <= ageCutoff.Value);
+            baseQuery = baseQuery.Where(m => m.GameStartTimeUtc <= ageCutoff.Value);
         }
 
-        // Newest-first, bounded window of match headers.
-        var matchHeaders = await matchesQuery
-            .OrderByDescending(m => m.GameStartTimeUtc)
-            .ThenByDescending(m => m.Id)
-            .Take(CandidateScanLimit)
-            .Select(m => new
-            {
-                m.Id,
-                m.PlatformId,
-                m.QueueId,
-                m.GameStartTimeUtc,
-                m.GameDurationSeconds,
-                m.TimelineIngested
-            })
-            .ToListAsync(ct);
+        // Two independent candidate sets, each capped on its OWN newest-first
+        // window, then unioned. Splitting them is what makes old stuck matches
+        // reachable: the header-only checks reduce to indexed predicates, so their
+        // window only ever contains genuinely-broken matches — an OLD stuck match
+        // surfaces even behind an arbitrary number of newer HEALTHY ones. The
+        // shape window can't be reduced to a single predicate, so it scans the
+        // newest profiled-queue matches; saturating it with healthy matches can't
+        // crowd out the header-flagged set because they're capped separately.
+        //
+        //  (a) header-flagged: missing-timeline (age-gated) OR zero-duration —
+        //      queue-agnostic, exact predicate.
+        var headerFlagged = baseQuery
+            .Where(m =>
+                (!m.TimelineIngested && m.GameStartTimeUtc <= staleTimelineCutoff)
+                || m.GameDurationSeconds <= 0);
+
+        //  (b) shape candidates: profiled-queue matches whose per-team shape the
+        //      in-memory Evaluate inspects for wrong-count / missing-lane /
+        //      duplicate-champion. Only profiled queues carry those rules.
+        var profiledQueueIds = QueueDataQualityProfile.KnownQueueIds.ToArray();
+        var shapeCandidates = baseQuery
+            .Where(m => profiledQueueIds.Contains(m.QueueId));
+
+        var headerHeaders = await TakeNewestHeadersAsync(headerFlagged, ct);
+        var shapeHeaders = await TakeNewestHeadersAsync(shapeCandidates, ct);
+
+        var matchHeaders = headerHeaders
+            .Concat(shapeHeaders)
+            .GroupBy(m => m.Id)
+            .Select(g => g.First())
+            .ToList();
 
         if (matchHeaders.Count == 0)
         {
@@ -237,9 +253,9 @@ public sealed class DataQualityQueryService(TrueMainDbContext db) : IDataQuality
                     .Where(pos => pos != null && pos != "")
                     .Distinct()
                     .Count(),
-                // Distinct champions vs total: fewer distinct => a champion repeats.
-                g.Select(p => p.ChampionId).Distinct().Count(),
-                g.Count()))
+                // Distinct champions vs participant count: fewer distinct => a
+                // champion repeats on the team.
+                g.Select(p => p.ChampionId).Distinct().Count()))
             .ToListAsync(ct);
 
         var shapesByMatch = teamShapes
@@ -263,6 +279,23 @@ public sealed class DataQualityQueryService(TrueMainDbContext db) : IDataQuality
             })
             .ToList();
     }
+
+    // Newest-first, capped projection of match headers for one candidate query.
+    private static async Task<List<MatchHeader>> TakeNewestHeadersAsync(
+        IQueryable<Data.Entities.Match> query,
+        CancellationToken ct)
+        => await query
+            .OrderByDescending(m => m.GameStartTimeUtc)
+            .ThenByDescending(m => m.Id)
+            .Take(CandidateScanLimit)
+            .Select(m => new MatchHeader(
+                m.Id,
+                m.PlatformId,
+                m.QueueId,
+                m.GameStartTimeUtc,
+                m.GameDurationSeconds,
+                m.TimelineIngested))
+            .ToListAsync(ct);
 
     // ---- rule evaluation -----------------------------------------------------
 
@@ -395,18 +428,24 @@ public sealed class DataQualityQueryService(TrueMainDbContext db) : IDataQuality
         IReadOnlyList<ParticipantRow> participants,
         QueueDataQualityProfile profile)
     {
-        if (participants.Count == 0)
+        var presentTeamIds = participants.Select(p => p.TeamId).Distinct().ToList();
+
+        // For a known two-team queue (SR/ARAM) always surface BOTH standard team
+        // ids, even when a team has zero ingested rows — otherwise a half-missing
+        // match would hide its absent team entirely, and the operator couldn't see
+        // that team's missing lane slots. Any non-standard team ids actually
+        // present (odd data) are appended after.
+        var includeBothStandardTeams = profile.IsKnown && profile.TeamCount == 2;
+        var teamIds = (includeBothStandardTeams
+                ? QueueDataQualityProfile.StandardTeamIds
+                : QueueDataQualityProfile.StandardTeamIds.Where(presentTeamIds.Contains))
+            .Concat(presentTeamIds.Where(id => !QueueDataQualityProfile.StandardTeamIds.Contains(id)))
+            .ToList();
+
+        if (teamIds.Count == 0)
         {
             return [];
         }
-
-        // Team ids actually present, with the two standard ids first so an
-        // all-empty standard team still surfaces as a fully-gapped team.
-        var presentTeamIds = participants.Select(p => p.TeamId).Distinct().ToList();
-        var teamIds = QueueDataQualityProfile.StandardTeamIds
-            .Where(presentTeamIds.Contains)
-            .Concat(presentTeamIds.Where(id => !QueueDataQualityProfile.StandardTeamIds.Contains(id)))
-            .ToList();
 
         var teams = new List<MatchTeamReadModel>();
         foreach (var teamId in teamIds)
@@ -505,13 +544,20 @@ public sealed class DataQualityQueryService(TrueMainDbContext db) : IDataQuality
 
     // ---- internal projections ------------------------------------------------
 
+    private sealed record MatchHeader(
+        string Id,
+        string PlatformId,
+        int QueueId,
+        DateTime GameStartTimeUtc,
+        int GameDurationSeconds,
+        bool TimelineIngested);
+
     private sealed record TeamShape(
         string MatchId,
         int TeamId,
         int ParticipantCount,
         int DistinctLanePositions,
-        int DistinctChampions,
-        int TotalChampions);
+        int DistinctChampions);
 
     private sealed record ParticipantRow(
         int ParticipantId,
@@ -578,8 +624,7 @@ public sealed class DataQualityQueryService(TrueMainDbContext db) : IDataQuality
                         .Where(pos => !string.IsNullOrEmpty(pos))
                         .Distinct()
                         .Count(),
-                    g.Select(p => p.ChampionId).Distinct().Count(),
-                    g.Count()))
+                    g.Select(p => p.ChampionId).Distinct().Count()))
                 .ToList();
 
             return new MatchSummary
@@ -602,7 +647,7 @@ public sealed class DataQualityQueryService(TrueMainDbContext db) : IDataQuality
 
         /// <summary>True when any team has a champion appearing more than once.</summary>
         public bool AnyTeamDuplicateChampion()
-            => Teams.Any(t => t.DistinctChampions < t.TotalChampions);
+            => Teams.Any(t => t.DistinctChampions < t.ParticipantCount);
     }
 
     private sealed record FlaggedMatch(MatchSummary Match, IReadOnlyList<DataQualityIssueType> Issues);
