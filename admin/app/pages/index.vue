@@ -256,6 +256,8 @@ const topChampionsLoading = computed(
             :x-num-ticks="Math.min(matchesChartData.length, 12)"
             :x-formatter="matchesXFormatter"
             :y-formatter="formatCount"
+            :x-axis-config="ROTATED_X_AXIS_CONFIG"
+            :padding="ROTATED_X_AXIS_PADDING"
             :radius="4"
             hide-legend
           />
@@ -336,17 +338,19 @@ const topChampionsLoading = computed(
             <ClientOnly>
               <NcBarChart
                 :data="candidateChartData"
-                :height="180"
+                :height="200"
                 :categories="candidateChartCategories"
                 :y-axis="['count']"
                 :x-num-ticks="candidateChartData.length"
                 :x-formatter="candidateXFormatter"
                 :y-formatter="formatCount"
+                :x-axis-config="ROTATED_X_AXIS_CONFIG"
+                :padding="ROTATED_X_AXIS_PADDING"
                 :radius="4"
                 hide-legend
               />
               <template #fallback>
-                <USkeleton class="h-[180px] w-full" />
+                <USkeleton class="h-[200px] w-full" />
               </template>
             </ClientOnly>
           </div>
@@ -373,27 +377,29 @@ const topChampionsLoading = computed(
             title="Failed to load champion stats"
             :description="championsError.message"
           />
-          <USkeleton v-else-if="topChampionsLoading" class="h-[220px] w-full" />
+          <USkeleton v-else-if="topChampionsLoading" class="h-[240px] w-full" />
           <div
             v-else-if="topChampions.length === 0"
-            class="h-[220px] flex items-center justify-center text-sm text-muted"
+            class="h-[240px] flex items-center justify-center text-sm text-muted"
           >
             No champion games recorded yet.
           </div>
           <ClientOnly v-else>
             <NcBarChart
               :data="topChampions"
-              :height="220"
+              :height="240"
               :categories="championChartCategories"
               :y-axis="['games']"
               :x-num-ticks="topChampions.length"
               :x-formatter="championXFormatter"
               :y-formatter="formatCount"
+              :x-axis-config="ROTATED_X_AXIS_CONFIG"
+              :padding="ROTATED_X_AXIS_PADDING"
               :radius="4"
               hide-legend
             />
             <template #fallback>
-              <USkeleton class="h-[220px] w-full" />
+              <USkeleton class="h-[240px] w-full" />
             </template>
           </ClientOnly>
         </UCard>

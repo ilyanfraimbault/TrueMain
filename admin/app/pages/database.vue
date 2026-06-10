@@ -51,20 +51,31 @@ const columns: TableColumn<DbTableRow>[] = [
 ]
 
 // --- Chart: top tables by total size -----------------------------------------
+// Rendered HORIZONTALLY (Orientation.Horizontal): table names are long
+// snake_case strings that collide badly on a vertical x-axis, so the category
+// axis goes on the LEFT where full names fit. In vue-chrts the bar `x` accessor
+// is always the data index and `y` the value; with horizontal orientation
+// unovis maps the value to the bottom (x) axis and the data index to the left
+// (y) axis — so the formatters are intentionally "swapped" relative to a
+// vertical chart: `xFormatter` formats the byte VALUE, `yFormatter` looks up the
+// table-name LABEL by index. (Verified against vue-chrts@2.1.4 BarChart.js /
+// @unovis/ts stacked-bar dataScale/valueScale.)
 const TOP_N = 12
 const topTables = computed(() =>
   [...(data.value ?? [])]
     .sort((a, b) => b.totalBytes - a.totalBytes)
     .slice(0, TOP_N)
-    // MB keeps the axis readable for typical table sizes; the tooltip y value
-    // is formatted with the same humanizer for consistency.
     .map(t => ({ label: t.tableName, bytes: t.totalBytes })),
 )
 const sizeCategories = { bytes: { name: 'Total size', color: '#34d399' } }
-const sizeXFormatter = computed(() =>
+// Bottom (value) axis — humanized bytes. Also used by the tooltip value.
+const sizeValueFormatter = (tick: number | Date) => humanizeBytes(Number(tick), 0)
+// Left (category) axis — table name looked up by bar index.
+const sizeLabelFormatter = computed(() =>
   indexLabelFormatter(topTables.value, t => t.label),
 )
-const sizeYFormatter = (tick: number | Date) => humanizeBytes(Number(tick), 0)
+// Tooltip title = the full table name for the hovered bar.
+const sizeTooltipTitle = (d: { label: string }) => d.label
 </script>
 
 <template>
@@ -124,27 +135,31 @@ const sizeYFormatter = (tick: number | Date) => humanizeBytes(Number(tick), 0)
             Top {{ TOP_N }} tables by total size
           </p>
         </template>
-        <USkeleton v-if="pending" class="h-[260px] w-full" />
+        <USkeleton v-if="pending" class="h-[320px] w-full" />
         <div
           v-else-if="topTables.length === 0"
-          class="h-[260px] flex items-center justify-center text-sm text-muted"
+          class="h-[320px] flex items-center justify-center text-sm text-muted"
         >
           No tables reported.
         </div>
         <ClientOnly v-else>
           <NcBarChart
             :data="topTables"
-            :height="260"
+            :height="Math.max(260, topTables.length * 26)"
             :categories="sizeCategories"
             :y-axis="['bytes']"
-            :x-num-ticks="topTables.length"
-            :x-formatter="sizeXFormatter"
-            :y-formatter="sizeYFormatter"
+            :orientation="Orientation.Horizontal"
+            :x-formatter="sizeValueFormatter"
+            :y-formatter="sizeLabelFormatter"
+            :y-num-ticks="topTables.length"
+            :tooltip-title-formatter="sizeTooltipTitle"
+            :y-axis-config="{ tickTextWidth: 180 }"
+            :padding="{ top: 8, right: 12, bottom: 8, left: 188 }"
             :radius="4"
             hide-legend
           />
           <template #fallback>
-            <USkeleton class="h-[260px] w-full" />
+            <USkeleton class="h-[320px] w-full" />
           </template>
         </ClientOnly>
       </UCard>

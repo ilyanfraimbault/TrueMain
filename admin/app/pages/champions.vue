@@ -237,6 +237,8 @@ const mainsXFormatter = computed(() =>
               :x-num-ticks="topByGames.length"
               :x-formatter="gamesXFormatter"
               :y-formatter="formatCount"
+              :x-axis-config="ROTATED_X_AXIS_CONFIG"
+              :padding="ROTATED_X_AXIS_PADDING"
               :radius="4"
               hide-legend
             />
@@ -276,6 +278,8 @@ const mainsXFormatter = computed(() =>
               :x-num-ticks="topByMains.length"
               :x-formatter="mainsXFormatter"
               :y-formatter="formatCount"
+              :x-axis-config="ROTATED_X_AXIS_CONFIG"
+              :padding="ROTATED_X_AXIS_PADDING"
               :radius="4"
               hide-legend
             />

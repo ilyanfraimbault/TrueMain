@@ -22,6 +22,27 @@ export function defaultSeriesColor(index: number): string {
   return CHART_SERIES_PALETTE[index % CHART_SERIES_PALETTE.length]!
 }
 
+// Shared x-axis config for VERTICAL bar charts with categorical labels
+// (champion names, time/patch buckets). Long labels overlap and become
+// illegible when drawn horizontally, so we rotate them ~-40° and trim overly
+// long ones with an ellipsis. `tickTextAlign: 'right'` anchors the (rotated)
+// label's end under its bar so each tick still reads against the correct bar.
+// Pair with extra bottom `padding` on the chart so the rotated text has room.
+// (Keys verified against vue-chrts@2.1.4 `AxisConfig`.)
+export const ROTATED_X_AXIS_CONFIG = {
+  tickTextAngle: -40,
+  tickTextAlign: 'right' as const,
+  tickTextFitMode: 'trim' as const,
+  tickTextTrimType: 'end' as const,
+  // Cap each label so very long champion names (e.g. "Nunu & Willump")
+  // truncate rather than collide with the neighbouring tick.
+  tickTextWidth: 90,
+}
+
+// Bottom padding (px) that pairs with `ROTATED_X_AXIS_CONFIG` to leave room for
+// the angled labels without clipping them.
+export const ROTATED_X_AXIS_PADDING = { top: 8, right: 8, bottom: 56, left: 8 }
+
 // Build an `xFormatter` that maps the chart's numeric tick index back to a
 // label. nuxt-charts feeds the tick's index for categorical x-axes, so we look
 // the label up by position in the source array.
