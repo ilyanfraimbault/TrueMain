@@ -60,13 +60,18 @@ public sealed class SeedRequestService(TrueMainDbContext db, ILogger<SeedRequest
         // Idempotency: if an unprocessed request (Pending or Resolving) for the
         // same Riot ID on the same platform already exists, return it instead of
         // queuing a duplicate. Matching is case-insensitive on name/tag since
-        // Riot IDs are case-insensitive; the platform name is canonical.
+        // Riot IDs are case-insensitive; the platform name is canonical. ILike
+        // treats its pattern as a wildcard expression, so the name/tag MUST be
+        // escaped — otherwise a request for gameName="%" would match (and return)
+        // an arbitrary unrelated pending request on that platform.
+        var gameNamePattern = LikeEscaping.Escape(gameName);
+        var tagLinePattern = LikeEscaping.Escape(tagLine);
         var existing = await db.SeedRequests
             .Where(request =>
                 (request.Status == SeedRequestStatus.Pending || request.Status == SeedRequestStatus.Resolving)
                 && request.PlatformId == platform
-                && EF.Functions.ILike(request.GameName, gameName)
-                && EF.Functions.ILike(request.TagLine, tagLine))
+                && EF.Functions.ILike(request.GameName, gameNamePattern, LikeEscaping.EscapeChar)
+                && EF.Functions.ILike(request.TagLine, tagLinePattern, LikeEscaping.EscapeChar))
             .OrderBy(request => request.RequestedAtUtc)
             .FirstOrDefaultAsync(ct);
 

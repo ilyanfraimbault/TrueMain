@@ -41,7 +41,12 @@ public sealed class LogsQueryService(TrueMainDbContext db) : ILogsQueryService
         var normalizedCategory = string.IsNullOrWhiteSpace(category) ? null : category.Trim();
         if (normalizedCategory is not null)
         {
-            query = query.Where(entry => entry.Category == normalizedCategory);
+            // Case-insensitive prefix match: categories are dotted logger names
+            // (e.g. "Microsoft.EntityFrameworkCore.Database.Command"), so the UI's
+            // free-text "Category…" field is far more useful as a prefix filter
+            // ("Microsoft" → all Microsoft.* categories) than as exact equality.
+            var categoryPattern = $"{LikeEscaping.Escape(normalizedCategory)}%";
+            query = query.Where(entry => EF.Functions.ILike(entry.Category, categoryPattern, LikeEscaping.EscapeChar));
         }
 
         if (since is not null)
@@ -55,7 +60,7 @@ public sealed class LogsQueryService(TrueMainDbContext db) : ILogsQueryService
             // Case-insensitive substring match on message OR exception. The
             // escaped pattern keeps user-supplied % and _ literal so a search
             // term can't turn into a wildcard scan.
-            var pattern = $"%{EscapeLike(normalizedSearch)}%";
+            var pattern = $"%{LikeEscaping.Escape(normalizedSearch)}%";
             query = query.Where(entry =>
                 EF.Functions.ILike(entry.Message, pattern, "\\")
                 || (entry.Exception != null && EF.Functions.ILike(entry.Exception, pattern, "\\")));
@@ -111,10 +116,4 @@ public sealed class LogsQueryService(TrueMainDbContext db) : ILogsQueryService
             .Select(value => value.ToString())
             .ToList();
     }
-
-    private static string EscapeLike(string value)
-        => value
-            .Replace("\\", "\\\\", StringComparison.Ordinal)
-            .Replace("%", "\\%", StringComparison.Ordinal)
-            .Replace("_", "\\_", StringComparison.Ordinal);
 }

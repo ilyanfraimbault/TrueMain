@@ -15,8 +15,19 @@ const MAX_ATTEMPTS = 5
 const WINDOW_MS = 60_000
 const attempts = new Map<string, { count: number, resetAt: number }>()
 
+// Drop entries whose window has elapsed so the map doesn't grow unbounded with
+// one stale record per source IP over the life of the process.
+function evictExpired(now: number): void {
+  for (const [ip, entry] of attempts) {
+    if (now > entry.resetAt) {
+      attempts.delete(ip)
+    }
+  }
+}
+
 function tooManyAttempts(ip: string): boolean {
   const now = Date.now()
+  evictExpired(now)
   const entry = attempts.get(ip)
   if (!entry || now > entry.resetAt) {
     attempts.set(ip, { count: 1, resetAt: now + WINDOW_MS })
@@ -32,13 +43,21 @@ function clearAttempts(ip: string): void {
 
 // Constant-time string comparison. A plain `!==` short-circuits on the first
 // differing byte, leaking length/prefix information through response timing.
-// timingSafeEqual requires equal-length buffers, so pad both sides to a fixed
-// width well above any realistic credential length before comparing.
-const COMPARE_WIDTH = 256
+// timingSafeEqual requires equal byte length, so encode each side into a fixed
+// fixed-size, zero-filled buffer. We size by *bytes* (not characters):
+// `String.padEnd` pads UTF-16 code units, but UTF-8 encoding emits a variable
+// number of bytes per character, so a multi-byte character (accent, emoji)
+// would otherwise yield mismatched lengths and throw a 500.
+const COMPARE_WIDTH = 512
+const sharedEncoder = new TextEncoder()
 function safeEqual(a: string, b: string): boolean {
-  const encoder = new TextEncoder()
-  const bufA = encoder.encode(a.padEnd(COMPARE_WIDTH).slice(0, COMPARE_WIDTH))
-  const bufB = encoder.encode(b.padEnd(COMPARE_WIDTH).slice(0, COMPARE_WIDTH))
+  const bufA = new Uint8Array(COMPARE_WIDTH)
+  const bufB = new Uint8Array(COMPARE_WIDTH)
+  // encodeInto writes UTF-8 into the fixed buffer and silently stops at its end;
+  // the remainder stays zero. Credentials never approach 512 bytes, so no
+  // realistic value is truncated.
+  sharedEncoder.encodeInto(a, bufA)
+  sharedEncoder.encodeInto(b, bufB)
   return timingSafeEqual(bufA, bufB)
 }
 

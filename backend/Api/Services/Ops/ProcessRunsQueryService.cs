@@ -130,7 +130,7 @@ public sealed class ProcessRunsQueryService(TrueMainDbContext db) : IProcessRuns
         var latestStatusRows = await db.ProcessRuns
             .AsNoTracking()
             .Where(run => processNames.Contains(run.ProcessName) && lastRunStarts.Contains(run.StartedAtUtc))
-            .Select(run => new { run.ProcessName, run.StartedAtUtc, run.Status })
+            .Select(run => new { run.ProcessName, run.StartedAtUtc, run.Status, run.Id })
             .ToListAsync(ct);
 
         // The query above filters on the process-name set AND the max-timestamp
@@ -147,10 +147,11 @@ public sealed class ProcessRunsQueryService(TrueMainDbContext db) : IProcessRuns
             .ToDictionary(
                 group => group.Key,
                 // Ties at the same timestamp are still possible (a process logging
-                // two runs with identical StartedAtUtc); keep the deterministic
-                // pick from before.
+                // two runs with identical StartedAtUtc); Id breaks the tie so the
+                // pick is deterministic rather than dependent on row order.
                 group => group
                     .OrderByDescending(row => row.StartedAtUtc)
+                    .ThenByDescending(row => row.Id)
                     .First()
                     .Status);
 

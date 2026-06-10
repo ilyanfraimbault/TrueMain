@@ -115,6 +115,33 @@ public sealed class ManualSeedProcessIntegrationTests
         request.ProcessedAtUtc.Should().NotBeNull();
     }
 
+    [Fact]
+    public async Task RunAsync_CancelledAfterClaim_ResetsRequestToPendingAndRethrows()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        var requestId = Guid.NewGuid();
+        await SeedRequestAsync(requestId, "Phantasm", "EUW1", "EUW1");
+
+        // Cancels the run from inside the resolution step — i.e. after the request
+        // has been claimed (flipped to Resolving) but before it reaches a terminal
+        // state, exercising the OperationCanceledException recovery path.
+        using var cts = new CancellationTokenSource();
+        var process = BuildProcess(
+            new CancellingRiotAccountClient(cts),
+            new FakeRiotPlatformClient(summonerId: "unused", masteries: []));
+
+        var act = async () => await process.RunCoreAsync(cts.Token);
+        await act.Should().ThrowAsync<OperationCanceledException>();
+
+        await using var db = _fixture.CreateDbContext();
+        var request = await db.SeedRequests.SingleAsync(r => r.Id == requestId);
+        // Reset to Pending so a later run can re-claim it, rather than stranded
+        // forever in Resolving.
+        request.Status.Should().Be(SeedRequestStatus.Pending);
+        request.ProcessedAtUtc.Should().BeNull();
+    }
+
     private ManualSeedProcess BuildProcess(IRiotAccountClient accountClient, IRiotPlatformClient platformClient)
         => new(
             NullLogger<ManualSeedProcess>.Instance,
@@ -177,6 +204,19 @@ public sealed class ManualSeedProcessIntegrationTests
     {
         public Task<RiotAccountDto?> GetByRiotIdAsync(string gameName, string tagLine, RegionalRoute regional, CancellationToken ct)
             => throw new InvalidOperationException(message);
+
+        public Task<RiotAccountDto> GetAccountByPuuidAsync(string puuid, RegionalRoute region, CancellationToken ct)
+            => throw new NotSupportedException();
+    }
+
+    private sealed class CancellingRiotAccountClient(CancellationTokenSource cts) : IRiotAccountClient
+    {
+        public Task<RiotAccountDto?> GetByRiotIdAsync(string gameName, string tagLine, RegionalRoute regional, CancellationToken ct)
+        {
+            // Simulate the run being cancelled (host shutdown) mid-resolution.
+            cts.Cancel();
+            throw new OperationCanceledException(cts.Token);
+        }
 
         public Task<RiotAccountDto> GetAccountByPuuidAsync(string puuid, RegionalRoute region, CancellationToken ct)
             => throw new NotSupportedException();
