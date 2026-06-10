@@ -163,13 +163,23 @@ internal sealed class MongoLogSink(
     {
         TimestampUtc = record.TimestampUtc,
         Level = record.Level.ToString(),
-        Category = record.Category,
+        // Truncate the bounded infra fields exactly as the old Postgres
+        // DatabaseLogSink did (Category->256, ProcessName->64, Host->128) so a
+        // runaway category/host name can't bloat a document. Message/Exception are
+        // intentionally left uncapped — a stack trace must be persisted in full.
+        Category = TruncateRequired(record.Category, 256),
         Message = record.Message,
         Exception = record.Exception,
-        ProcessName = record.ProcessName,
-        Host = record.Host,
+        ProcessName = Truncate(record.ProcessName, 64),
+        Host = Truncate(record.Host, 128),
         EventId = record.EventId == 0 ? null : record.EventId
     };
+
+    private static string? Truncate(string? value, int maxLength)
+        => string.IsNullOrEmpty(value) || value.Length <= maxLength ? value : value[..maxLength];
+
+    private static string TruncateRequired(string value, int maxLength)
+        => value.Length <= maxLength ? value : value[..maxLength];
 
     private static void ReportError(string message)
     {
