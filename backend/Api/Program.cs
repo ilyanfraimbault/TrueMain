@@ -141,6 +141,7 @@ builder.Services.AddScoped<IMatchesOverTimeQueryService, MatchesOverTimeQuerySer
 builder.Services.AddScoped<ITableStatsQueryService, TableStatsQueryService>();
 builder.Services.AddScoped<IProcessRunsQueryService, ProcessRunsQueryService>();
 builder.Services.AddScoped<ILogsQueryService, LogsQueryService>();
+builder.Services.AddScoped<IDataQualityQueryService, DataQualityQueryService>();
 builder.Services.AddScoped<ISeedRequestService, SeedRequestService>();
 builder.Services.AddScoped<ISeedRequestQueryService, SeedRequestQueryService>();
 builder.Services.AddDbContext<TrueMainDbContext>(options =>

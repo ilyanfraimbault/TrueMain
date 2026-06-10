@@ -17,6 +17,7 @@ public sealed class OpsController(
     ITableStatsQueryService tableStatsQueryService,
     IProcessRunsQueryService processRunsQueryService,
     ILogsQueryService logsQueryService,
+    IDataQualityQueryService dataQualityQueryService,
     ISeedRequestService seedRequestService,
     ISeedRequestQueryService seedRequestQueryService) : ControllerBase
 {
@@ -124,6 +125,53 @@ public sealed class OpsController(
     {
         var readModel = await logsQueryService.GetAsync(level, category, since, search, page, pageSize, ct);
         return Ok(readModel);
+    }
+
+    /// <summary>
+    /// Lists matches flagged by the data-quality checks, grouped by issue type and
+    /// paged. Each check is queue-scoped so non-applicable rules (e.g. lanes on
+    /// ARAM) don't flood the panel. Read-only diagnostics — no repair.
+    /// </summary>
+    /// <param name="issue">
+    /// Restrict to a single check (case-insensitive name: missingTimeline,
+    /// wrongParticipantCount, missingTeamPosition, zeroDuration, duplicateChampion).
+    /// Omit for all checks.
+    /// </param>
+    /// <param name="queue">Restrict to one queue id (e.g. 420). Omit for all queues.</param>
+    /// <param name="minAgeHours">Only consider matches at least this many hours old.</param>
+    /// <param name="page">1-based page index for each issue group's sample.</param>
+    /// <param name="pageSize">Per-issue sample size (backend clamps to [1, 100], default 25).</param>
+    /// <param name="ct">Request cancellation token.</param>
+    [HttpGet("data-quality/incomplete-matches")]
+    [ProducesResponseType(typeof(IncompleteMatchesReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<IncompleteMatchesReadModel>> GetIncompleteMatchesAsync(
+        [FromQuery] string? issue,
+        [FromQuery] int? queue,
+        [FromQuery] int? minAgeHours,
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
+        CancellationToken ct)
+    {
+        var readModel = await dataQualityQueryService.GetIncompleteMatchesAsync(
+            issue, queue, minAgeHours, page, pageSize, ct);
+        return Ok(readModel);
+    }
+
+    /// <summary>
+    /// Per-match data-quality detail: both teams laid out by position with the
+    /// gaps identified, plus the issue types the match trips. 404 if no such match.
+    /// </summary>
+    [HttpGet("data-quality/match/{id}")]
+    [ProducesResponseType(typeof(MatchDataQualityDetailReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<MatchDataQualityDetailReadModel>> GetMatchDataQualityAsync(
+        string id,
+        CancellationToken ct)
+    {
+        var readModel = await dataQualityQueryService.GetMatchDetailAsync(id, ct);
+        return readModel is null ? NotFound() : Ok(readModel);
     }
 
     /// <summary>
