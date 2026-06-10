@@ -121,8 +121,8 @@ const overviewFilters = computed(() => ({
   pageSize,
 }))
 
-const hasActiveFilters = computed(() =>
-  Boolean(issue.value !== ALL || queue.value !== ALL || ageWindow.value !== ALL),
+const hasActiveFilters = computed(
+  () => issue.value !== ALL || queue.value !== ALL || ageWindow.value !== ALL,
 )
 function resetFilters() {
   issue.value = ALL

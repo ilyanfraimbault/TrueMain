@@ -146,6 +146,7 @@ public sealed class DataQualityQueryService(TrueMainDbContext db) : IDataQuality
         var profile = QueueDataQualityProfile.ForQueue(match.QueueId);
         var summary = MatchSummary.From(
             match.Id,
+            match.PlatformId,
             match.QueueId,
             match.GameStartTimeUtc,
             match.GameDurationSeconds,
@@ -618,6 +619,7 @@ public sealed class DataQualityQueryService(TrueMainDbContext db) : IDataQuality
         // would silently flag every detail match as MissingTimeline + ZeroDuration.
         public static MatchSummary From(
             string matchId,
+            string platformId,
             int queueId,
             DateTime gameStartTimeUtc,
             int gameDurationSeconds,
@@ -641,6 +643,7 @@ public sealed class DataQualityQueryService(TrueMainDbContext db) : IDataQuality
             return new MatchSummary
             {
                 MatchId = matchId,
+                PlatformId = platformId,
                 QueueId = queueId,
                 GameStartTimeUtc = gameStartTimeUtc,
                 GameDurationSeconds = gameDurationSeconds,

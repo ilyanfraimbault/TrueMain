@@ -171,7 +171,12 @@ public sealed class OpsController(
         CancellationToken ct)
     {
         var readModel = await dataQualityQueryService.GetMatchDetailAsync(id, ct);
-        return readModel is null ? NotFound() : Ok(readModel);
+        return readModel is null
+            ? Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Match not found",
+                detail: $"No match with id '{id}' was found.")
+            : Ok(readModel);
     }
 
     /// <summary>
