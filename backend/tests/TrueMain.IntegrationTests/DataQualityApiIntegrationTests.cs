@@ -8,11 +8,13 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace TrueMain.IntegrationTests;
 
 /// <summary>
-/// Covers the data-quality panel endpoints. The seed builds, on Summoner's Rift,
-/// one healthy 10-player match plus four deliberately-broken ones (stuck
-/// timeline, short roster, a team missing a lane, zero duration) and one ARAM
-/// match with no lanes — which must NOT be flagged for a missing position, proving
-/// the queue-scoping.
+/// Covers the data-quality panel endpoints. The shared seed builds, on Summoner's
+/// Rift, one healthy 10-player match plus the deliberately-broken ones (stuck
+/// timeline, short roster, a team missing a lane, zero duration, a duplicate
+/// champion on one team, and a half-team match where team 200 has no rows) plus
+/// one ARAM match with no lanes — which must NOT be flagged for a missing
+/// position, proving the queue-scoping. Other facts seed their own focused data
+/// (old-stuck-behind-newer-healthy, unprofiled-queue zero-duration).
 /// </summary>
 [Collection(IntegrationCollection.Name)]
 public sealed class DataQualityApiIntegrationTests
@@ -67,6 +69,30 @@ public sealed class DataQualityApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetIncompleteMatches_FlagsDuplicateChampionOnALaneTeam()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateAuthedClient(factory);
+
+        var payload = await client.GetFromJsonAsync<IncompleteMatchesContract>(
+            "/ops/data-quality/incomplete-matches");
+
+        payload.Should().NotBeNull();
+        var byIssue = payload!.Groups.ToDictionary(g => g.IssueType);
+
+        // The duplicate-champion match (team 100 has champion 1 twice) is flagged.
+        byIssue.Should().ContainKey("duplicateChampion");
+        byIssue["duplicateChampion"].Matches.Should().Contain(m => m.MatchId == "DQ_DUP_CHAMP");
+
+        // A healthy match (distinct champions everywhere) must NOT be flagged for it.
+        byIssue["duplicateChampion"].Matches
+            .Should().NotContain(m => m.MatchId == "DQ_HEALTHY");
+    }
+
+    [Fact]
     public async Task GetIncompleteMatches_FiltersToASingleIssueType()
     {
         await _fixture.ResetDatabaseAsync();
@@ -82,6 +108,101 @@ public sealed class DataQualityApiIntegrationTests
         payload!.Groups.Should().OnlyContain(g => g.IssueType == "zeroDuration");
         payload.Groups.Should().ContainSingle();
         payload.Groups[0].Matches.Should().Contain(m => m.MatchId == "DQ_ZERO_DUR");
+    }
+
+    [Fact]
+    public async Task GetIncompleteMatches_FindsOldStuckTimeline_BehindManyNewerHealthyMatches()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        var now = DateTime.UtcNow;
+        await using (var db = _fixture.CreateDbContext())
+        {
+            // Many newer, fully-healthy SR matches (timeline ingested, complete
+            // roster, valid duration) ordered ahead of the stuck one.
+            for (var i = 0; i < 50; i++)
+            {
+                var id = $"DQ_NEW_HEALTHY_{i:D3}";
+                db.Matches.Add(BuildMatch(id, LolQueueId.RankedSoloDuo, now.AddHours(-i - 1), 1800, timelineIngested: true));
+                AddFullSrRoster(db, id);
+            }
+
+            // One OLD match whose timeline never ingested — well past the staleness
+            // window and older than every healthy match above. The newest-first
+            // candidate window must still surface it (the predicate is applied in
+            // the DB before any cap), not bury it behind the newer healthy ones.
+            db.Matches.Add(BuildMatch("DQ_OLD_STUCK", LolQueueId.RankedSoloDuo, now.AddDays(-30), 1800, timelineIngested: false));
+            AddFullSrRoster(db, "DQ_OLD_STUCK");
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateAuthedClient(factory);
+
+        var payload = await client.GetFromJsonAsync<IncompleteMatchesContract>(
+            "/ops/data-quality/incomplete-matches");
+
+        payload.Should().NotBeNull();
+        var byIssue = payload!.Groups.ToDictionary(g => g.IssueType);
+
+        byIssue.Should().ContainKey("missingTimeline");
+        byIssue["missingTimeline"].Matches.Should().Contain(m => m.MatchId == "DQ_OLD_STUCK");
+
+        // The newer healthy matches must not be flagged at all.
+        payload.Groups.SelectMany(g => g.Matches)
+            .Should().NotContain(m => m.MatchId.StartsWith("DQ_NEW_HEALTHY"));
+    }
+
+    [Fact]
+    public async Task GetIncompleteMatches_FlagsZeroDuration_OnAnUnprofiledQueue()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        var now = DateTime.UtcNow;
+        await using (var db = _fixture.CreateDbContext())
+        {
+            // A queue id with NO data-quality profile. The queue-agnostic checks
+            // (zero-duration here) must still flag it, even though the count/
+            // position rules don't apply to an unknown queue.
+            const int unprofiledQueueId = 1700; // Arena — not in the profile table.
+            db.Matches.Add(new Match
+            {
+                Id = "DQ_UNKNOWN_QUEUE",
+                PlatformId = "EUW1",
+                QueueId = unprofiledQueueId,
+                MapId = (int)LolMapId.SummonersRift,
+                GameMode = "CHERRY",
+                GameType = "MATCHED_GAME",
+                GameStartTimeUtc = now.AddDays(-1),
+                GameDurationSeconds = 0,
+                GameVersion = "16.4.1",
+                CreatedAtUtc = now.AddDays(-1),
+                TimelineIngested = true
+            });
+            db.MatchParticipants.Add(BuildParticipant("DQ_UNKNOWN_QUEUE", 1, 100, "", championId: 1));
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateAuthedClient(factory);
+
+        var payload = await client.GetFromJsonAsync<IncompleteMatchesContract>(
+            "/ops/data-quality/incomplete-matches");
+
+        payload.Should().NotBeNull();
+        var byIssue = payload!.Groups.ToDictionary(g => g.IssueType);
+
+        byIssue.Should().ContainKey("zeroDuration");
+        byIssue["zeroDuration"].Matches.Should().Contain(m => m.MatchId == "DQ_UNKNOWN_QUEUE");
+
+        // The unknown queue carries no count/position profile, so it must NOT be
+        // flagged for wrong-participant-count just because it has one row.
+        if (byIssue.TryGetValue("wrongParticipantCount", out var wrongCount))
+        {
+            wrongCount.Matches.Should().NotContain(m => m.MatchId == "DQ_UNKNOWN_QUEUE");
+        }
     }
 
     [Fact]
@@ -130,6 +251,30 @@ public sealed class DataQualityApiIntegrationTests
         // The five canonical lanes are always present; the duplicate MIDDLE adds a 6th.
         team100.Slots.Should().HaveCount(6);
         team100.Slots.Count(s => s.Filled).Should().Be(5);
+    }
+
+    [Fact]
+    public async Task GetMatchDetail_RendersBothStandardTeams_WhenOneTeamHasNoRows()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateAuthedClient(factory);
+
+        var detail = await client.GetFromJsonAsync<MatchDetailContract>(
+            "/ops/data-quality/match/DQ_HALF_TEAM");
+
+        detail.Should().NotBeNull();
+        detail!.HasLanes.Should().BeTrue();
+        // Both standard teams are present even though team 200 has zero rows.
+        detail.Teams.Should().HaveCount(2);
+        detail.Teams.Select(t => t.TeamId).Should().BeEquivalentTo(new[] { 100, 200 });
+
+        // Team 200 is fully absent: five canonical lane slots, all unfilled.
+        var team200 = detail.Teams.Single(t => t.TeamId == 200);
+        team200.Slots.Should().HaveCount(5);
+        team200.Slots.Should().OnlyContain(s => !s.Filled);
     }
 
     [Fact]
@@ -208,6 +353,23 @@ public sealed class DataQualityApiIntegrationTests
                 "DQ_ARAM", i, teamId: i <= 5 ? 100 : 200, position: "", championId: 100 + i));
         }
 
+        // 7) Duplicate champion: 10 players across the five lanes per team, but
+        // team 100's TOP and JUNGLE share champion id 1 (impossible in a real
+        // game — a duplicated/garbled participant row). Lane queue, so the
+        // duplicate-champion check applies.
+        db.Matches.Add(BuildMatch("DQ_DUP_CHAMP", LolQueueId.RankedSoloDuo, now.AddDays(-7), 1800, timelineIngested: true));
+        AddSrRosterWithChampions(db, "DQ_DUP_CHAMP",
+            team100: [("TOP", 1), ("JUNGLE", 1), ("MIDDLE", 3), ("BOTTOM", 4), ("UTILITY", 5)],
+            team200: [("TOP", 6), ("JUNGLE", 7), ("MIDDLE", 8), ("BOTTOM", 9), ("UTILITY", 10)]);
+
+        // 8) Half-team: a standard SR match where team 200 has NO ingested rows at
+        // all (only team 100 is present). The detail must still render team 200
+        // with its five missing lane slots, not omit the team entirely.
+        db.Matches.Add(BuildMatch("DQ_HALF_TEAM", LolQueueId.RankedSoloDuo, now.AddDays(-8), 1800, timelineIngested: true));
+        AddSrRoster(db, "DQ_HALF_TEAM",
+            team100Positions: ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"],
+            team200Positions: []);
+
         await db.SaveChangesAsync();
     }
 
@@ -232,6 +394,26 @@ public sealed class DataQualityApiIntegrationTests
         foreach (var position in team200Positions)
         {
             db.MatchParticipants.Add(BuildParticipant(matchId, participantId++, 200, position, championId++));
+        }
+    }
+
+    // Like AddSrRoster but with explicit champion ids per slot, so a roster can
+    // deliberately repeat a champion on one team (duplicate-champion check).
+    private static void AddSrRosterWithChampions(
+        Data.TrueMainDbContext db,
+        string matchId,
+        IReadOnlyList<(string Position, int ChampionId)> team100,
+        IReadOnlyList<(string Position, int ChampionId)> team200)
+    {
+        var participantId = 1;
+        foreach (var (position, championId) in team100)
+        {
+            db.MatchParticipants.Add(BuildParticipant(matchId, participantId++, 100, position, championId));
+        }
+
+        foreach (var (position, championId) in team200)
+        {
+            db.MatchParticipants.Add(BuildParticipant(matchId, participantId++, 200, position, championId));
         }
     }
 
