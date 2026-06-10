@@ -58,6 +58,31 @@ services:
     networks:
       - truemain_internal
 
+  admin:
+    build:
+      context: ./admin
+      dockerfile: Dockerfile
+    container_name: truemain-admin
+    restart: unless-stopped
+    environment:
+      NITRO_HOST: 0.0.0.0
+      NITRO_PORT: 3000
+      NUXT_OPS_API_BASE_URL: http://api:8080
+      NUXT_OPS_KEY: ${OPS_API_KEY}
+      NUXT_SESSION_PASSWORD: ${ADMIN_SESSION_PASSWORD}
+      NUXT_ADMIN_USERNAME: ${ADMIN_USERNAME:-truemain}
+      NUXT_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-truemain}
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      # Bind to loopback only: the admin dashboard is an internal tool reached
+      # via the reverse proxy on the host, never directly from the public
+      # internet. `3001:3000` would publish on 0.0.0.0.
+      - "127.0.0.1:3001:3000"
+    networks:
+      - truemain_internal
+
   ingestor:
     build:
       context: ./backend

@@ -14,6 +14,7 @@ env:
   IMAGE_API: ghcr.io/${{ github.repository_owner }}/truemain-api
   IMAGE_INGESTOR: ghcr.io/${{ github.repository_owner }}/truemain-ingestor
   IMAGE_WEB: ghcr.io/${{ github.repository_owner }}/truemain-web
+  IMAGE_ADMIN: ghcr.io/${{ github.repository_owner }}/truemain-admin
 
 jobs:
   publish-qa:
@@ -63,3 +64,13 @@ jobs:
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
           tags: ${{ env.IMAGE_WEB }}:qa
+
+      - name: Build and push Admin image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./admin
+          file: admin/Dockerfile
+          push: true
+          cache-from: type=gha,scope=admin
+          cache-to: type=gha,mode=max,scope=admin
+          tags: ${{ env.IMAGE_ADMIN }}:qa

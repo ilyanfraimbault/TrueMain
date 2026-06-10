@@ -34,7 +34,11 @@ public class TrueMainDbContext : DbContext
 
     public DbSet<ProcessRun> ProcessRuns => Set<ProcessRun>();
 
+    public DbSet<LogEntry> LogEntries => Set<LogEntry>();
+
     public DbSet<RankSnapshot> RankSnapshots => Set<RankSnapshot>();
+
+    public DbSet<SeedRequest> SeedRequests => Set<SeedRequest>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

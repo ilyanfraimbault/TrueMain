@@ -105,6 +105,39 @@ services:
     networks:
       - truemain_dev_internal
 
+  admin:
+    build:
+      context: ./admin
+      dockerfile: Dockerfile.dev
+    container_name: truemain-dev-admin
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      NITRO_HOST: 0.0.0.0
+      NITRO_PORT: 3000
+      NUXT_OPS_API_BASE_URL: http://api:8080
+      NUXT_OPS_KEY: ${OPS_API_KEY}
+      NUXT_SESSION_PASSWORD: ${ADMIN_SESSION_PASSWORD}
+      NUXT_ADMIN_USERNAME: ${ADMIN_USERNAME:-truemain}
+      NUXT_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-truemain}
+      CHOKIDAR_USEPOLLING: "true"
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./admin:/workspace/admin
+      - truemain_dev_admin_node_modules:/workspace/admin/node_modules
+    develop:
+      watch:
+        - action: rebuild
+          path: ./admin/package.json
+        - action: rebuild
+          path: ./admin/package-lock.json
+    networks:
+      - truemain_dev_internal
+
   ingestor:
     build:
       context: ./backend
@@ -179,6 +212,7 @@ volumes:
   truemain_dev_api_nuget:
   truemain_dev_ingestor_nuget:
   truemain_dev_web_node_modules:
+  truemain_dev_admin_node_modules:
 
 networks:
   truemain_dev_internal:

@@ -22,6 +22,13 @@ public sealed class MainCandidateRepository(TrueMainDbContext db) : IMainCandida
             .ExecuteUpdateAsync(s => s.SetProperty(c => c.Status, to), ct);
     }
 
+    public Task<int> SetStatusForAccountAsync(string platformId, string puuid, IReadOnlyCollection<MainCandidateStatus> from, MainCandidateStatus to, CancellationToken ct)
+    {
+        return db.MainCandidates
+            .Where(c => c.PlatformId == platformId && c.Puuid == puuid && from.Contains(c.Status))
+            .ExecuteUpdateAsync(s => s.SetProperty(c => c.Status, to), ct);
+    }
+
     public Task<List<MainCandidate>> GetByStatusAsync(MainCandidateStatus status, CancellationToken ct)
         => db.MainCandidates.AsNoTracking().Where(c => c.Status == status).ToListAsync(ct);
 

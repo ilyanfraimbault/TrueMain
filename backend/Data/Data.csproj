@@ -30,6 +30,13 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" />
     <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <!-- BackgroundService / IHostedService / AddHostedService for the database
+         logging sink (Data/Logging). Abstractions only: the hosts bring the full
+         hosting stack. -->
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <!-- OptionsBuilder.Bind for binding LoggingSinkOptions from configuration in
+         the shared AddDatabaseLogging registration helper. -->
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
   </ItemGroup>
 
 </Project>

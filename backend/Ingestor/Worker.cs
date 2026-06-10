@@ -87,6 +87,7 @@ public sealed class Worker(
         var sequence = mode switch
         {
             JobMode.DiscoveryOnly => ["Discovery"],
+            JobMode.ManualSeedOnly => ["ManualSeed"],
             JobMode.ScoringOnly => ["Scoring"],
             JobMode.MatchIngestionOnly => ["MatchIngestion"],
             JobMode.MainAnalysisOnly => ["MainAnalysis"],
@@ -96,6 +97,11 @@ public sealed class Worker(
             _ => (string[])
             [
                 "Discovery",
+                // ManualSeed runs right after Discovery and before Scoring: it
+                // queues its candidates directly (skipping the competitive top-N
+                // ScoringProcess), so a seeded account is picked up by the same
+                // downstream MatchIngestion -> MainAnalysis pass in this run.
+                "ManualSeed",
                 "Scoring",
                 "MatchIngestion",
                 "MainAnalysis",

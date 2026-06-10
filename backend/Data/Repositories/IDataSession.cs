@@ -11,6 +11,7 @@ public interface IDataSession : IAsyncDisposable
     IMatchParticipantRepository MatchParticipants { get; }
     IProcessRunRepository ProcessRuns { get; }
     IRankSnapshotRepository RankSnapshots { get; }
+    ISeedRequestRepository SeedRequests { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct);
     Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken ct);
