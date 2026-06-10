@@ -58,10 +58,20 @@ public sealed record QueueDataQualityProfile
         IsKnown = false
     };
 
+    // 5v5 Summoner's Rift — 10 players across 2 teams, 5 lanes each. Shared by
+    // every SR queue, so it's a single allocated instance rather than a property
+    // that builds a fresh record on each read. Declared before Profiles so the
+    // dictionary initialiser (which runs in textual order) sees the value.
+    private static readonly QueueDataQualityProfile SummonersRift5v5 = new()
+    {
+        ExpectedParticipants = 10,
+        TeamCount = 2,
+        HasLanes = true
+    };
+
     private static readonly IReadOnlyDictionary<int, QueueDataQualityProfile> Profiles =
         new Dictionary<int, QueueDataQualityProfile>
         {
-            // 5v5 Summoner's Rift — 10 players across 2 teams, 5 lanes each.
             [(int)LolQueueId.RankedSoloDuo] = SummonersRift5v5,
             [(int)LolQueueId.Normal] = SummonersRift5v5,
             [(int)LolQueueId.RankedFlex] = SummonersRift5v5,
@@ -75,13 +85,6 @@ public sealed record QueueDataQualityProfile
             }
         };
 
-    private static QueueDataQualityProfile SummonersRift5v5 => new()
-    {
-        ExpectedParticipants = 10,
-        TeamCount = 2,
-        HasLanes = true
-    };
-
     /// <summary>
     /// Resolve the profile for a Riot queue id, or <see cref="Unknown"/> if the
     /// queue isn't one the pipeline describes.
@@ -90,5 +93,5 @@ public sealed record QueueDataQualityProfile
         => Profiles.TryGetValue(queueId, out var profile) ? profile : Unknown;
 
     /// <summary>The queue ids that have a profile (i.e. support count/position rules).</summary>
-    public static IReadOnlyCollection<int> KnownQueueIds => (IReadOnlyCollection<int>)Profiles.Keys;
+    public static IReadOnlyCollection<int> KnownQueueIds => Profiles.Keys.ToArray();
 }
