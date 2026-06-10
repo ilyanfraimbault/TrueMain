@@ -143,6 +143,13 @@ export function formatCount(value: number | Date): string {
   return Number(value).toLocaleString('en-US')
 }
 
+// Tooltip title for the horizontal bar charts: the hovered datum's `label`.
+// Shared by every categorical bar chart so the formatter isn't copy-pasted per
+// page (champions, candidate pipeline, top champions).
+export function labelTooltipTitle(d: { label: string }): string {
+  return d.label
+}
+
 // Format a matches-over-time bucket key into an axis/tooltip label per
 // granularity. Time buckets (`week`/`month`/`year`) arrive as ISO-8601 UTC
 // timestamps of the period start and are formatted in UTC so the label matches

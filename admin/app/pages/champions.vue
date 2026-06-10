@@ -140,8 +140,6 @@ const gamesLabelFormatter = computed(() =>
 const mainsLabelFormatter = computed(() =>
   indexLabelFormatter(topByMains.value, r => r.label),
 )
-// Tooltip title = the hovered champion's name.
-const championTooltipTitle = (d: { label: string }) => d.label
 </script>
 
 <template>
@@ -241,11 +239,14 @@ const championTooltipTitle = (d: { label: string }) => d.label
               :y-num-ticks="topByGames.length"
               :x-formatter="formatCount"
               :y-formatter="gamesLabelFormatter"
-              :tooltip-title-formatter="championTooltipTitle"
+              :tooltip-title-formatter="labelTooltipTitle"
               v-bind="horizontalBarProps(120)"
             />
             <template #fallback>
-              <USkeleton class="h-[240px] w-full" />
+              <USkeleton
+                class="w-full"
+                :style="{ height: `${Math.max(260, topByGames.length * 28)}px` }"
+              />
             </template>
           </ClientOnly>
         </UCard>
@@ -280,11 +281,14 @@ const championTooltipTitle = (d: { label: string }) => d.label
               :y-num-ticks="topByMains.length"
               :x-formatter="formatCount"
               :y-formatter="mainsLabelFormatter"
-              :tooltip-title-formatter="championTooltipTitle"
+              :tooltip-title-formatter="labelTooltipTitle"
               v-bind="horizontalBarProps(120)"
             />
             <template #fallback>
-              <USkeleton class="h-[240px] w-full" />
+              <USkeleton
+                class="w-full"
+                :style="{ height: `${Math.max(260, topByMains.length * 28)}px` }"
+              />
             </template>
           </ClientOnly>
         </UCard>

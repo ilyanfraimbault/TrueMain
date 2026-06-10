@@ -151,8 +151,6 @@ const candidateChartCategories = {
 const candidateLabelFormatter = computed(() =>
   indexLabelFormatter(candidateChartData.value, row => row.label),
 )
-// Tooltip title = the hovered bucket's label.
-const candidateTooltipTitle = (d: { label: string }) => d.label
 
 // Top 10 champions by games for the bottom chart.
 const topChampions = computed(() => {
@@ -170,8 +168,6 @@ const championChartCategories = {
 const championLabelFormatter = computed(() =>
   indexLabelFormatter(topChampions.value, row => row.label),
 )
-// Tooltip title = the hovered champion's name.
-const championTooltipTitle = (d: { label: string }) => d.label
 
 const topChampionsLoading = computed(
   () => championsPending.value || staticPending.value,
@@ -346,11 +342,14 @@ const topChampionsLoading = computed(
                 :y-num-ticks="candidateChartData.length"
                 :x-formatter="formatCount"
                 :y-formatter="candidateLabelFormatter"
-                :tooltip-title-formatter="candidateTooltipTitle"
+                :tooltip-title-formatter="labelTooltipTitle"
                 v-bind="horizontalBarProps(96)"
               />
               <template #fallback>
-                <USkeleton class="h-[200px] w-full" />
+                <USkeleton
+                  class="w-full"
+                  :style="{ height: `${Math.max(200, candidateChartData.length * 34)}px` }"
+                />
               </template>
             </ClientOnly>
           </div>
@@ -393,11 +392,14 @@ const topChampionsLoading = computed(
               :y-num-ticks="topChampions.length"
               :x-formatter="formatCount"
               :y-formatter="championLabelFormatter"
-              :tooltip-title-formatter="championTooltipTitle"
+              :tooltip-title-formatter="labelTooltipTitle"
               v-bind="horizontalBarProps(120)"
             />
             <template #fallback>
-              <USkeleton class="h-[240px] w-full" />
+              <USkeleton
+                class="w-full"
+                :style="{ height: `${Math.max(240, topChampions.length * 30)}px` }"
+              />
             </template>
           </ClientOnly>
         </UCard>
