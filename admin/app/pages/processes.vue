@@ -37,13 +37,21 @@ const WINDOW_MS: Record<string, number> = {
   '30d': 30 * 24 * 60 * 60 * 1000,
 }
 
+// Default view = the last 10 runs regardless of recency: request `limit=10` and
+// send NO `since` lower bound. The backend returns the most recent N runs with
+// no time floor unless `since` is explicitly provided, so older-but-real runs
+// still show up (this fixes the misleading "0 runs" when nothing ran recently).
+// The time-window select is purely an OPTIONAL filter: "All time" omits `since`;
+// the relative windows send their computed `since`.
+const DEFAULT_LIMIT = 10
+
 const filters = computed(() => ({
   processName: processName.value.trim() || undefined,
   status: status.value === ALL ? undefined : status.value,
   since: sinceWindow.value === ALL
     ? undefined
     : new Date(Date.now() - WINDOW_MS[sinceWindow.value]!).toISOString(),
-  limit: 200,
+  limit: DEFAULT_LIMIT,
 }))
 
 const hasActiveFilters = computed(() =>
@@ -276,9 +284,16 @@ const selectedSummaryJson = computed(() => {
       <UCard :ui="{ body: 'p-0 sm:p-0' }">
         <template #header>
           <div class="flex items-center justify-between gap-2">
-            <p class="text-sm font-medium text-highlighted">
-              Recent runs
-            </p>
+            <div>
+              <p class="text-sm font-medium text-highlighted">
+                Recent runs
+              </p>
+              <p class="text-xs text-dimmed mt-0.5">
+                {{ sinceWindow === ALL
+                  ? `Last ${DEFAULT_LIMIT} runs across all time.`
+                  : `Last ${DEFAULT_LIMIT} runs in the selected window.` }}
+              </p>
+            </div>
             <UBadge
               v-if="!pending"
               color="neutral"
@@ -351,7 +366,7 @@ const selectedSummaryJson = computed(() => {
 
           <template #empty>
             <div class="py-10 text-center text-sm text-muted">
-              No runs match these filters.
+              {{ hasActiveFilters ? 'No runs match these filters.' : 'No runs recorded yet.' }}
             </div>
           </template>
         </UTable>
