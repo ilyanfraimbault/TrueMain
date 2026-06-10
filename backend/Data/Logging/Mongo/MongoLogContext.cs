@@ -47,11 +47,31 @@ public sealed class MongoLogContext : IDisposable
     /// <summary>True when a Mongo client was created (logging enabled + connection string present).</summary>
     public bool IsActive => _database is not null;
 
-    public IMongoCollection<MongoLogDocument> Logs =>
-        _logs ?? throw Inactive();
+    public IMongoCollection<MongoLogDocument> Logs
+    {
+        get
+        {
+            if (_logs is null)
+            {
+                throw Inactive();
+            }
 
-    public IMongoCollection<AuditEventDocument> AuditEvents =>
-        _auditEvents ?? throw Inactive();
+            return _logs;
+        }
+    }
+
+    public IMongoCollection<AuditEventDocument> AuditEvents
+    {
+        get
+        {
+            if (_auditEvents is null)
+            {
+                throw Inactive();
+            }
+
+            return _auditEvents;
+        }
+    }
 
     /// <summary>
     /// Creates the supporting indexes idempotently: a TTL index on the diagnostic
