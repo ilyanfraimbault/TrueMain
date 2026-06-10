@@ -51,7 +51,7 @@ namespace Data.Migrations
                 name: "IX_log_entries_TimestampUtc",
                 table: "log_entries",
                 column: "TimestampUtc",
-                descending: new bool[0]);
+                descending: new[] { true }); // original index was descending (newest-first)
         }
     }
 }
