@@ -218,9 +218,15 @@ public sealed class DataQualityApiIntegrationTests
             $"/ops/data-quality/incomplete-matches?queue={(int)LolQueueId.Aram}");
 
         payload.Should().NotBeNull();
-        // Only ARAM matches are in scope; the SR broken ones must be absent.
-        payload!.Groups.SelectMany(g => g.Matches)
-            .Should().OnlyContain(m => m.QueueId == (int)LolQueueId.Aram);
+        var flagged = payload!.Groups.SelectMany(g => g.Matches).ToList();
+
+        // The broken ARAM match (zero duration) is in scope and surfaced...
+        flagged.Should().Contain(m => m.MatchId == "DQ_ARAM_BROKEN");
+        // ...while the SR broken matches are filtered out by the queue scope.
+        flagged.Should().NotContain(m => m.MatchId == "DQ_ZERO_DUR");
+        flagged.Should().NotContain(m => m.MatchId == "DQ_STALE_TL");
+        // And every returned match really is ARAM.
+        flagged.Should().OnlyContain(m => m.QueueId == (int)LolQueueId.Aram);
     }
 
     [Fact]
@@ -425,6 +431,16 @@ public sealed class DataQualityApiIntegrationTests
         {
             db.MatchParticipants.Add(BuildParticipant(
                 "DQ_ARAM", i, teamId: i <= 5 ? 100 : 200, position: "", championId: 100 + i));
+        }
+
+        // 6b) Broken ARAM: same NO-lane shape, but zero duration. Zero-duration is
+        // queue-agnostic, so this ARAM match is genuinely flagged — giving the
+        // queue filter an in-scope broken match to actually return.
+        db.Matches.Add(BuildMatch("DQ_ARAM_BROKEN", LolQueueId.Aram, now.AddDays(-6), 0, timelineIngested: true));
+        for (var i = 1; i <= 10; i++)
+        {
+            db.MatchParticipants.Add(BuildParticipant(
+                "DQ_ARAM_BROKEN", i, teamId: i <= 5 ? 100 : 200, position: "", championId: 100 + i));
         }
 
         // 7) Duplicate champion: 10 players across the five lanes per team, but
