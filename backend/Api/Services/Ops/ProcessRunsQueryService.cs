@@ -9,6 +9,7 @@ public sealed class ProcessRunsQueryService(TrueMainDbContext db) : IProcessRuns
 {
     private const int DefaultLimit = 100;
     private const int MaxLimit = 500;
+    private const int FailureWindowDays = 7;
 
     public async Task<ProcessRunsReadModel> GetAsync(
         string? processName,
@@ -18,16 +19,28 @@ public sealed class ProcessRunsQueryService(TrueMainDbContext db) : IProcessRuns
         CancellationToken ct)
     {
         var effectiveLimit = Math.Clamp(limit ?? DefaultLimit, 1, MaxLimit);
-        // The window doubles as the rollup's failure-count window and the lower
-        // bound on the returned runs. Default to the last 7 days when the caller
-        // doesn't pin it.
-        var windowStart = since ?? DateTime.UtcNow.AddDays(-7);
+        // The runs list and the rollup's failure window are independent.
+        //
+        // Runs: return the most recent `limit` runs ordered newest-first with NO
+        // default time lower bound, so the admin panel can always show the last N
+        // runs even when nothing ran recently. A `since` lower bound is applied to
+        // the runs list ONLY when the caller explicitly provides it.
+        //
+        // Failure window: keep a bounded window for the rollup's
+        // FailureCountInWindow with its own default (the last 7 days), independent
+        // of the now-optional runs `since`. When `since` is explicitly provided we
+        // honour it for the failure window too, so an explicit bound narrows both
+        // the runs list and the failure count consistently.
+        var failureWindowStart = since ?? DateTime.UtcNow.AddDays(-FailureWindowDays);
         var normalizedProcessName = string.IsNullOrWhiteSpace(processName) ? null : processName.Trim();
         var statusFilter = ParseStatus(status);
 
-        var runsQuery = db.ProcessRuns
-            .AsNoTracking()
-            .Where(run => run.StartedAtUtc >= windowStart);
+        var runsQuery = db.ProcessRuns.AsNoTracking();
+
+        if (since is not null)
+        {
+            runsQuery = runsQuery.Where(run => run.StartedAtUtc >= since.Value);
+        }
 
         if (normalizedProcessName is not null)
         {
@@ -63,7 +76,7 @@ public sealed class ProcessRunsQueryService(TrueMainDbContext db) : IProcessRuns
             })
             .ToList();
 
-        var rollup = await BuildRollupAsync(normalizedProcessName, windowStart, ct);
+        var rollup = await BuildRollupAsync(normalizedProcessName, failureWindowStart, ct);
 
         return new ProcessRunsReadModel
         {
@@ -74,7 +87,7 @@ public sealed class ProcessRunsQueryService(TrueMainDbContext db) : IProcessRuns
 
     private async Task<IReadOnlyList<ProcessRunRollupReadModel>> BuildRollupAsync(
         string? processName,
-        DateTime windowStart,
+        DateTime failureWindowStart,
         CancellationToken ct)
     {
         var rollupQuery = db.ProcessRuns.AsNoTracking();
@@ -98,7 +111,7 @@ public sealed class ProcessRunsQueryService(TrueMainDbContext db) : IProcessRuns
                     .Where(run => run.Status == ProcessRunStatus.Success)
                     .Max(run => (DateTime?)run.FinishedAtUtc),
                 FailureCountInWindow = group
-                    .Count(run => run.StartedAtUtc >= windowStart && run.Status == ProcessRunStatus.Failed)
+                    .Count(run => run.StartedAtUtc >= failureWindowStart && run.Status == ProcessRunStatus.Failed)
             })
             .ToListAsync(ct);
 
