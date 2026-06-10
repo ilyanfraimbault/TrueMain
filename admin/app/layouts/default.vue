@@ -12,8 +12,7 @@ const items = computed<NavigationMenuItem[]>(() => [
   { label: 'Database', icon: 'i-lucide-database', to: '/database' },
   { label: 'Processes', icon: 'i-lucide-activity', to: '/processes' },
   { label: 'Logs', icon: 'i-lucide-scroll-text', to: '/logs' },
-  { label: 'Seed a main', icon: 'i-lucide-user-plus', to: '/seed' },
-  { label: 'Import OTP', icon: 'i-lucide-list-plus', to: '/import' },
+  { label: 'Add mains', icon: 'i-lucide-user-plus', to: '/seed' },
 ].map(item => ({
   ...item,
   onSelect: () => {
