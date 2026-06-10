@@ -241,6 +241,21 @@ export type DataQualityIssueType
     | 'zeroDuration'
     | 'duplicateChampion'
 
+/** Nuxt UI badge/icon color for an issue type's severity. */
+export type BadgeColor = 'error' | 'warning' | 'info' | 'neutral'
+
+/**
+ * Presentation metadata for one issue type — label, icon and badge color. Drives
+ * the filter select, group headers and badges so the panel stays consistent.
+ * Keyed by `DataQualityIssueType` in `ISSUE_META` on the data-quality page.
+ */
+export interface IssueMeta {
+  label: string
+  icon: string
+  color: BadgeColor
+  description: string
+}
+
 /** A single flagged match row in the list. */
 export interface FlaggedMatch {
   matchId: string

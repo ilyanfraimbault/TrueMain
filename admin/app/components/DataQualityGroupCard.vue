@@ -8,16 +8,9 @@ import type {
   DataQualityIssueType,
   FlaggedMatch,
   IncompleteMatchesFilters,
+  IssueMeta,
 } from '~~/shared/types/ops'
 import { formatDateTime } from '~~/shared/utils/format'
-
-type BadgeColor = 'error' | 'warning' | 'info' | 'neutral'
-interface IssueMeta {
-  label: string
-  icon: string
-  color: BadgeColor
-  description: string
-}
 
 const props = defineProps<{
   issueType: DataQualityIssueType

@@ -7,6 +7,7 @@
 // position and the missing slots highlighted. Read-only diagnostics — no repair.
 import type {
   DataQualityIssueType,
+  IssueMeta,
   MatchDataQualityDetail,
 } from '~~/shared/types/ops'
 import { formatDateTime, formatDuration } from '~~/shared/utils/format'
@@ -28,13 +29,8 @@ const pageSize = 25
 
 // Issue-type metadata: label, icon, badge color — drives the filter select and
 // the group headers/badges so presentation stays consistent across the panel.
-type BadgeColor = 'error' | 'warning' | 'info' | 'neutral'
-interface IssueMeta {
-  label: string
-  icon: string
-  color: BadgeColor
-  description: string
-}
+// `IssueMeta` / `BadgeColor` live in shared/types/ops so this page and
+// DataQualityGroupCard share one definition.
 const ISSUE_META: Record<DataQualityIssueType, IssueMeta> = {
   missingTimeline: {
     label: 'Missing timeline',
@@ -139,10 +135,6 @@ const { data, pending, error, refresh } = useIncompleteMatches(overviewFilters)
 const groups = computed(() => data.value?.groups ?? [])
 const total = computed(() => data.value?.total ?? 0)
 const staleHours = computed(() => data.value?.staleTimelineThresholdHours ?? 6)
-
-function issueMeta(type: DataQualityIssueType): IssueMeta {
-  return ISSUE_META[type]
-}
 
 // --- Match-ID search / deep link --------------------------------------------
 const matchIdInput = ref('')
@@ -453,11 +445,11 @@ function teamLabel(teamId: number, index: number): string {
                 <UBadge
                   v-for="type in detail.issues"
                   :key="type"
-                  :color="issueMeta(type).color"
+                  :color="ISSUE_META[type].color"
                   variant="subtle"
                   size="sm"
-                  :icon="issueMeta(type).icon"
-                  :label="issueMeta(type).label"
+                  :icon="ISSUE_META[type].icon"
+                  :label="ISSUE_META[type].label"
                 />
               </div>
             </div>
