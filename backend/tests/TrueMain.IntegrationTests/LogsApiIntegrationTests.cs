@@ -126,6 +126,35 @@ public sealed class LogsApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetLogsAsync_ShouldFilterBySinceExcludingOlderEntries()
+    {
+        await ResetAsync();
+        await SeedLogsAsync();
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        // The seed spans now-50m .. now-10m. A 25-minute cutoff sits between the
+        // -30m row (excluded) and the -20m row (included), with a wide margin on
+        // both sides so the millisecond drift between the seed's and this test's
+        // DateTime.UtcNow can never flip a row. since is an inclusive lower bound
+        // (TimestampUtc >= since), so only the two newest rows survive.
+        var since = DateTime.UtcNow.AddMinutes(-25);
+        var sinceQuery = Uri.EscapeDataString(since.ToString("o"));
+
+        var payload = await client.GetFromJsonAsync<LogsTestContract>($"/ops/logs?since={sinceQuery}");
+        payload.Should().NotBeNull();
+
+        // Only the Error (-20m) and Critical (-10m) rows are newer than the cutoff;
+        // the three older rows (-50m, -40m, -30m) are filtered out.
+        payload!.Total.Should().Be(2);
+        payload.Entries.Should().HaveCount(2);
+        payload.Entries.Should().OnlyContain(entry => entry.TimestampUtc >= since);
+        payload.Entries.Select(entry => entry.Level)
+            .Should().BeEquivalentTo(["Critical", "Error"]);
+    }
+
+    [Fact]
     public async Task GetLogsAsync_ShouldPageAndReportUnpagedTotal()
     {
         await ResetAsync();
