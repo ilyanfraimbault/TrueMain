@@ -15,8 +15,10 @@ namespace Data.Logging.Mongo;
 /// <see cref="IsActive"/> is false and the collection accessors throw, so callers
 /// must gate on it (the sink/audit writer do).
 /// </remarks>
-public sealed class MongoLogContext
+public sealed class MongoLogContext : IDisposable
 {
+    private const string TtlIndexName = "ttl_timestamp";
+
     private readonly MongoLoggingOptions _options;
     private readonly IMongoClient? _client;
     private readonly IMongoDatabase? _database;
@@ -48,8 +50,19 @@ public sealed class MongoLogContext
     /// <c>logs</c> collection (when a retention window is configured) plus the
     /// equality/range indexes backing the <c>/ops/logs</c> filters, and a
     /// timestamp index on <c>audit_events</c> for newest-first audit reads. Mongo
-    /// <c>CreateOne</c> is a no-op when an identical index already exists, so this
-    /// is safe to call on every startup.
+    /// <c>CreateMany</c>/<c>CreateOne</c> is a no-op when an *identical* index
+    /// already exists, so the non-TTL indexes are safe to recreate on every
+    /// startup.
+    /// <para>
+    /// The TTL index is special: re-issuing it with a different
+    /// <c>expireAfterSeconds</c> would throw <c>IndexOptionsConflict</c> (a
+    /// same-name/keys index with different options), which the sink swallows — so a
+    /// changed <see cref="MongoLoggingOptions.LogsRetention"/> would silently never
+    /// take effect. To make a retention change apply, this reconciles the TTL index
+    /// explicitly (see <see cref="ReconcileTtlIndexAsync"/>): it reads the existing
+    /// index's <c>expireAfterSeconds</c> and, when it differs from the configured
+    /// window, drops and recreates the index.
+    /// </para>
     /// </summary>
     public async Task EnsureIndexesAsync(CancellationToken ct)
     {
@@ -71,21 +84,11 @@ public sealed class MongoLogContext
                 new CreateIndexOptions { Name = "ix_category" })
         };
 
-        if (_options.LogsRetention > TimeSpan.Zero)
-        {
-            // Native TTL index: Mongo's background reaper deletes documents whose
-            // timestampUtc is older than the configured window, replacing the
-            // never-built LogRetentionProcess. Ascending key is required for TTL.
-            logModels.Add(new CreateIndexModel<MongoLogDocument>(
-                Builders<MongoLogDocument>.IndexKeys.Ascending(doc => doc.TimestampUtc),
-                new CreateIndexOptions
-                {
-                    Name = "ttl_timestamp",
-                    ExpireAfter = _options.LogsRetention
-                }));
-        }
-
         await Logs.Indexes.CreateManyAsync(logModels, ct);
+
+        // The TTL index is reconciled separately so a changed retention window
+        // actually re-applies instead of conflicting and being silently swallowed.
+        await ReconcileTtlIndexAsync(ct);
 
         // audit_events: no TTL (retained indefinitely). A descending timestamp
         // index backs the newest-first audit read.
@@ -96,8 +99,104 @@ public sealed class MongoLogContext
             cancellationToken: ct);
     }
 
+    /// <summary>
+    /// Reconciles the native TTL index on <c>logs.timestampUtc</c> with the
+    /// configured <see cref="MongoLoggingOptions.LogsRetention"/>:
+    /// <list type="bullet">
+    /// <item>retention &lt;= 0 → drop the TTL index if present (retain indefinitely);</item>
+    /// <item>no TTL index yet → create it;</item>
+    /// <item>TTL index exists with a different <c>expireAfterSeconds</c> → drop and
+    /// recreate so the new window takes effect (re-creating with the same name and
+    /// different options would otherwise throw <c>IndexOptionsConflict</c>);</item>
+    /// <item>TTL index already matches → no-op.</item>
+    /// </list>
+    /// Mongo's background reaper then deletes documents whose <c>timestampUtc</c> is
+    /// older than the window. Ascending key is required for a TTL index.
+    /// </summary>
+    private async Task ReconcileTtlIndexAsync(CancellationToken ct)
+    {
+        var existing = await GetTtlExpireAfterSecondsAsync(ct);
+
+        if (_options.LogsRetention <= TimeSpan.Zero)
+        {
+            // Retention disabled: tear down any TTL index left from a prior config
+            // so documents are kept indefinitely.
+            if (existing is not null)
+            {
+                await Logs.Indexes.DropOneAsync(TtlIndexName, ct);
+            }
+
+            return;
+        }
+
+        var desiredSeconds = (long)_options.LogsRetention.TotalSeconds;
+
+        // Already present with the same window: nothing to do.
+        if (existing == desiredSeconds)
+        {
+            return;
+        }
+
+        // Present but with a stale window: drop it first, since re-creating a
+        // same-name index with different options would throw IndexOptionsConflict.
+        if (existing is not null)
+        {
+            await Logs.Indexes.DropOneAsync(TtlIndexName, ct);
+        }
+
+        await Logs.Indexes.CreateOneAsync(
+            new CreateIndexModel<MongoLogDocument>(
+                Builders<MongoLogDocument>.IndexKeys.Ascending(doc => doc.TimestampUtc),
+                new CreateIndexOptions
+                {
+                    Name = TtlIndexName,
+                    ExpireAfter = _options.LogsRetention
+                }),
+            cancellationToken: ct);
+    }
+
+    /// <summary>
+    /// Returns the <c>expireAfterSeconds</c> of the existing TTL index on
+    /// <c>logs</c>, or <c>null</c> when no such index exists. Reads the raw index
+    /// document so it works regardless of how the value was originally written.
+    /// </summary>
+    private async Task<long?> GetTtlExpireAfterSecondsAsync(CancellationToken ct)
+    {
+        using var cursor = await Logs.Indexes.ListAsync(ct);
+        var indexes = await cursor.ToListAsync(ct);
+
+        var ttl = indexes.FirstOrDefault(
+            index => index.TryGetValue("name", out var name)
+                     && name.IsString
+                     && name.AsString == TtlIndexName);
+
+        if (ttl is null || !ttl.TryGetValue("expireAfterSeconds", out var expire))
+        {
+            return null;
+        }
+
+        // expireAfterSeconds is typically stored as an Int32/Int64; ToInt64 handles
+        // either numeric representation.
+        return expire.ToInt64();
+    }
+
     private IMongoDatabase Require() =>
         _database ?? throw new InvalidOperationException(
             "MongoLogContext is inactive: MongoLogging is disabled or has no ConnectionString. " +
             "Gate on IsActive before accessing collections.");
+
+    /// <summary>
+    /// Disposes the owned <see cref="IMongoClient"/> so the driver's connection
+    /// pool and background monitoring threads are torn down (CA2213). The DI
+    /// container disposes this singleton on host shutdown.
+    /// </summary>
+    public void Dispose()
+    {
+        // MongoClient implements IDisposable in the modern driver; guard with a
+        // pattern match so we stay correct even if the abstraction doesn't.
+        if (_client is IDisposable disposable)
+        {
+            disposable.Dispose();
+        }
+    }
 }

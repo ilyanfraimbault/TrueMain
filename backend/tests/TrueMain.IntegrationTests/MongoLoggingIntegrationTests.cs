@@ -69,6 +69,56 @@ public sealed class MongoLoggingIntegrationTests
         indexes.Should().Contain(index => index["name"] == "ttl_timestamp");
     }
 
+    [Fact]
+    public async Task EnsureIndexes_RecreatesTtlIndex_WhenRetentionChanges()
+    {
+        await _mongo.ResetAsync();
+
+        var collection = _mongo.GetCollection<MongoLogDocument>(MongoFixture.LogsCollection);
+
+        // First boot: a 30-day TTL window.
+        await EnsureIndexesAsync(TimeSpan.FromDays(30));
+        (await GetTtlExpireSecondsAsync(collection))
+            .Should().Be((long)TimeSpan.FromDays(30).TotalSeconds);
+
+        // Re-boot with a changed retention: the old DatabaseLogSink path would have
+        // thrown IndexOptionsConflict and silently kept the stale 30-day window.
+        // The reconciler must drop and recreate the index so the new window applies.
+        await EnsureIndexesAsync(TimeSpan.FromDays(7));
+        (await GetTtlExpireSecondsAsync(collection))
+            .Should().Be((long)TimeSpan.FromDays(7).TotalSeconds);
+
+        // Disabling retention tears the TTL index down entirely.
+        await EnsureIndexesAsync(TimeSpan.Zero);
+        (await GetTtlExpireSecondsAsync(collection)).Should().BeNull();
+    }
+
+    private async Task EnsureIndexesAsync(TimeSpan retention)
+    {
+        // The context owns an IMongoClient, so dispose it after each boot just as
+        // the DI container would on host shutdown.
+        using var context = new MongoLogContext(Microsoft.Extensions.Options.Options.Create(
+            new MongoLoggingOptions
+            {
+                ConnectionString = _mongo.ConnectionString,
+                Database = MongoFixture.DatabaseName,
+                LogsCollection = MongoFixture.LogsCollection,
+                AuditCollection = MongoFixture.AuditCollection,
+                Enabled = true,
+                LogsRetention = retention
+            }));
+        await context.EnsureIndexesAsync(CancellationToken.None);
+    }
+
+    private static async Task<long?> GetTtlExpireSecondsAsync(IMongoCollection<MongoLogDocument> collection)
+    {
+        var indexes = await collection.Indexes.List().ToListAsync();
+        var ttl = indexes.FirstOrDefault(index => index["name"].AsString == "ttl_timestamp");
+        return ttl is not null && ttl.TryGetValue("expireAfterSeconds", out var expire)
+            ? expire.ToInt64()
+            : null;
+    }
+
     /// <summary>
     /// Polls <paramref name="condition"/> until it is true or the timeout elapses,
     /// so a test can wait on the asynchronous sink without a fixed sleep.
