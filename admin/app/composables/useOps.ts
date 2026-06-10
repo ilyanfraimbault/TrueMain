@@ -150,7 +150,11 @@ export function useIncompleteMatches(
  * `GET /api/ops/data-quality/match/{id}` — per-match detail (both teams by
  * position with gaps highlighted). A one-shot `$fetch` because the slide-over
  * loads it imperatively on row click / deep-link rather than watching a key.
- * Returns null on 404 so callers can treat "no such match" as an empty result.
+ *
+ * Throws a `FetchError` on any non-2xx response (`$fetch` rejects rather than
+ * returning null) — including 404 for an unknown match. Callers must wrap the
+ * call in try/catch and inspect `statusCode === 404` to treat "no such match"
+ * as an empty result, as `openDetail` in `pages/data-quality.vue` does.
  */
 export function getMatchDataQuality(id: string) {
   return $fetch<MatchDataQualityDetail>(

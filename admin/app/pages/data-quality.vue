@@ -5,10 +5,8 @@
 // list only carries genuine problems. Row click (or a match-ID search /
 // deep-link via `?match=ID`) opens a slide-over with the two teams laid out by
 // position and the missing slots highlighted. Read-only diagnostics — no repair.
-import type { TableColumn } from '@nuxt/ui'
 import type {
   DataQualityIssueType,
-  FlaggedMatch,
   MatchDataQualityDetail,
 } from '~~/shared/types/ops'
 import { formatDateTime, formatDuration } from '~~/shared/utils/format'
@@ -26,7 +24,6 @@ const ALL = 'all'
 const issue = ref<'all' | DataQualityIssueType>(ALL)
 const queue = ref<string>(ALL)
 const ageWindow = ref<'all' | '6' | '24' | '72' | '168'>(ALL)
-const page = ref(1)
 const pageSize = 25
 
 // Issue-type metadata: label, icon, badge color — drives the filter select and
@@ -111,11 +108,20 @@ const ageItems = [
   { label: 'Older than 7 days', value: '168' },
 ]
 
-const filters = computed(() => ({
-  issue: issue.value === ALL ? undefined : issue.value,
+// Queue/age filters shared by every group card; each card pins its own `issue`
+// and owns its independent page (see DataQualityGroupCard).
+const baseFilters = computed(() => ({
   queue: queue.value === ALL ? undefined : Number(queue.value),
   minAgeHours: ageWindow.value === ALL ? undefined : Number(ageWindow.value),
-  page: page.value,
+}))
+
+// Overview fetch: discovers which issue groups exist and their full counts under
+// the active filters. The per-group rows it returns are unused — each card
+// re-fetches its own paged slice — so it stays pinned to page 1.
+const overviewFilters = computed(() => ({
+  ...baseFilters.value,
+  issue: issue.value === ALL ? undefined : issue.value,
+  page: 1,
   pageSize,
 }))
 
@@ -128,13 +134,7 @@ function resetFilters() {
   ageWindow.value = ALL
 }
 
-// Any filter change resets to the first page so a narrower filter can't strand
-// us on a now-out-of-range page.
-watch([issue, queue, ageWindow], () => {
-  page.value = 1
-})
-
-const { data, pending, error, refresh } = useIncompleteMatches(filters)
+const { data, pending, error, refresh } = useIncompleteMatches(overviewFilters)
 
 const groups = computed(() => data.value?.groups ?? [])
 const total = computed(() => data.value?.total ?? 0)
@@ -206,16 +206,6 @@ onMounted(() => {
     openDetail(id)
   }
 })
-
-// --- Flagged-match table -----------------------------------------------------
-const columns: TableColumn<FlaggedMatch>[] = [
-  { accessorKey: 'matchId', header: 'Match' },
-  { accessorKey: 'platformId', header: 'Region' },
-  { accessorKey: 'queueId', header: 'Queue' },
-  { accessorKey: 'gameStartTimeUtc', header: 'Played' },
-  { accessorKey: 'participantCount', header: 'Players' },
-  { accessorKey: 'issues', header: 'Also flagged' },
-]
 
 // --- Detail layout helpers ---------------------------------------------------
 const detailTitle = computed(() => detail.value?.matchId ?? detailId.value ?? 'Match detail')
@@ -362,126 +352,19 @@ function teamLabel(teamId: number, index: number): string {
         <USkeleton v-for="n in 3" :key="n" class="h-40 w-full" />
       </div>
 
-      <!-- One card per flagged issue type -->
+      <!-- One card per flagged issue type. Each card fetches and paginates its
+           OWN match slice, so a small group never shows an empty page. -->
       <div v-else class="space-y-6">
-        <UCard
+        <DataQualityGroupCard
           v-for="group in groups"
           :key="group.issueType"
-          :ui="{ body: 'p-0 sm:p-0' }"
-        >
-          <template #header>
-            <div class="flex items-center justify-between gap-3">
-              <div class="flex items-center gap-2.5 min-w-0">
-                <UIcon
-                  :name="issueMeta(group.issueType).icon"
-                  class="size-5 shrink-0"
-                  :class="{
-                    'text-error': issueMeta(group.issueType).color === 'error',
-                    'text-warning': issueMeta(group.issueType).color === 'warning',
-                    'text-info': issueMeta(group.issueType).color === 'info',
-                  }"
-                />
-                <div class="min-w-0">
-                  <p class="text-sm font-medium text-highlighted">
-                    {{ issueMeta(group.issueType).label }}
-                  </p>
-                  <p class="text-xs text-muted line-clamp-1">
-                    {{ issueMeta(group.issueType).description }}
-                  </p>
-                </div>
-              </div>
-              <UBadge
-                :color="issueMeta(group.issueType).color"
-                variant="subtle"
-                :label="`${group.count.toLocaleString('en-US')} ${group.count === 1 ? 'match' : 'matches'}`"
-              />
-            </div>
-          </template>
-
-          <UTable
-            :data="group.matches"
-            :columns="columns"
-            :ui="{ td: 'py-2', tr: 'cursor-pointer' }"
-            class="max-h-[420px]"
-            sticky
-            @select="(_event, row) => openDetail(row.original.matchId)"
-          >
-            <template #matchId-cell="{ row }">
-              <span class="font-mono text-xs text-highlighted">
-                {{ row.original.matchId }}
-              </span>
-            </template>
-            <template #platformId-cell="{ row }">
-              <span class="text-muted font-mono text-xs">
-                {{ row.original.platformId }}
-              </span>
-            </template>
-            <template #queueId-cell="{ row }">
-              <span class="text-muted text-xs">
-                {{ queueLabel(row.original.queueId) }}
-              </span>
-            </template>
-            <template #gameStartTimeUtc-cell="{ row }">
-              <span class="text-muted whitespace-nowrap text-xs tabular-nums">
-                {{ formatDateTime(row.original.gameStartTimeUtc) }}
-              </span>
-            </template>
-            <template #participantCount-cell="{ row }">
-              <span
-                class="tabular-nums text-xs"
-                :class="row.original.expectedParticipantCount !== null
-                  && row.original.participantCount !== row.original.expectedParticipantCount
-                  ? 'text-error font-medium'
-                  : 'text-muted'"
-              >
-                {{ row.original.participantCount }}<template
-                  v-if="row.original.expectedParticipantCount !== null"
-                >&nbsp;/&nbsp;{{ row.original.expectedParticipantCount }}</template>
-              </span>
-            </template>
-            <template #issues-cell="{ row }">
-              <div class="flex flex-wrap gap-1">
-                <UBadge
-                  v-for="other in row.original.issues.filter(i => i !== group.issueType)"
-                  :key="other"
-                  :color="issueMeta(other).color"
-                  variant="soft"
-                  size="sm"
-                  :icon="issueMeta(other).icon"
-                  :label="issueMeta(other).label"
-                />
-                <span
-                  v-if="row.original.issues.length <= 1"
-                  class="text-dimmed text-xs"
-                >—</span>
-              </div>
-            </template>
-
-            <template #empty>
-              <div class="py-8 text-center text-sm text-muted">
-                No matches on this page.
-              </div>
-            </template>
-          </UTable>
-        </UCard>
-      </div>
-
-      <!-- Per-issue pagination: page applies to every group's sample. -->
-      <div
-        v-if="groups.some(g => g.count > pageSize)"
-        class="flex items-center justify-between gap-2 mt-6"
-      >
-        <p class="text-xs text-muted">
-          Each issue shows up to {{ pageSize }} matches per page.
-        </p>
-        <UPagination
-          v-model:page="page"
-          :total="Math.max(...groups.map(g => g.count), 0)"
-          :items-per-page="pageSize"
-          :sibling-count="1"
-          active-color="primary"
-          variant="subtle"
-          :disabled="pending"
+          :issue-type="group.issueType"
+          :count="group.count"
+          :base-filters="baseFilters"
+          :page-size="pageSize"
+          :meta="ISSUE_META"
+          :queue-label="queueLabel"
+          @select="openDetail"
         />
       </div>
 
