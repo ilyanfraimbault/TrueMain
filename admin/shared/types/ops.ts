@@ -220,3 +220,114 @@ export interface SeedRequestsFilters {
   /** Rows to return; backend default 50, clamp 200. */
   limit?: number
 }
+
+// =============================================================================
+// Data quality — `GET /api/ops/data-quality/*`
+// =============================================================================
+
+/**
+ * The data-quality checks, camelCase on the wire. Each check is independently
+ * listable and queue-scoped (lane checks don't fire on ARAM):
+ *   - `missingTimeline`      — TimelineIngested=false past the staleness window
+ *   - `wrongParticipantCount`— row count ≠ the queue's expected count
+ *   - `missingTeamPosition`  — a team missing one of the 5 lanes (SR only)
+ *   - `zeroDuration`         — GameDurationSeconds = 0
+ *   - `duplicateChampion`    — same champion twice on one team (SR only)
+ */
+export type DataQualityIssueType
+  = | 'missingTimeline'
+    | 'wrongParticipantCount'
+    | 'missingTeamPosition'
+    | 'zeroDuration'
+    | 'duplicateChampion'
+
+/** A single flagged match row in the list. */
+export interface FlaggedMatch {
+  matchId: string
+  platformId: string
+  queueId: number
+  gameStartTimeUtc: string
+  gameDurationSeconds: number
+  timelineIngested: boolean
+  participantCount: number
+  /** Expected count for the queue, or null when the queue has no profile. */
+  expectedParticipantCount: number | null
+  /** Every check this match trips (a match can appear in several groups). */
+  issues: DataQualityIssueType[]
+}
+
+/** One issue type's flagged matches: a capped sample plus the full count. */
+export interface DataQualityIssueGroup {
+  issueType: DataQualityIssueType
+  count: number
+  matches: FlaggedMatch[]
+}
+
+/** `GET /api/ops/data-quality/incomplete-matches` — flagged matches by issue. */
+export interface IncompleteMatchesResponse {
+  groups: DataQualityIssueGroup[]
+  /** Distinct matches flagged by at least one active check. */
+  total: number
+  page: number
+  pageSize: number
+  /** Hours a missing timeline must age before it's flagged (vs normally pending). */
+  staleTimelineThresholdHours: number
+}
+
+/** Filters for `GET /api/ops/data-quality/incomplete-matches`. */
+export interface IncompleteMatchesFilters {
+  /** Restrict to a single check; omit for all. */
+  issue?: DataQualityIssueType
+  /** Restrict to one queue id (e.g. 420); omit for all. */
+  queue?: number
+  /** Only consider matches at least this many hours old. */
+  minAgeHours?: number
+  /** 1-based page index for each issue group's sample. */
+  page?: number
+  /** Per-issue sample size; backend clamps to [1, 100], default 25. */
+  pageSize?: number
+}
+
+/**
+ * One position slot on a team. For lane queues `position` is one of the five
+ * canonical lanes and `filled` is false for a gap; for laneless queues
+ * `position` is empty and every slot is filled.
+ */
+export interface MatchSlot {
+  /** Canonical lane name for lane queues; empty for laneless queues. */
+  position: string
+  /** False when this lane slot has no participant (a gap to highlight). */
+  filled: boolean
+  participantId: number | null
+  championId: number | null
+  summonerName: string | null
+  win: boolean | null
+  /** True when this slot shares its champion with another slot on the team. */
+  duplicateChampion: boolean
+}
+
+/** One team's roster, laid out by position with gaps highlighted. */
+export interface MatchTeam {
+  teamId: number
+  slots: MatchSlot[]
+}
+
+/** `GET /api/ops/data-quality/match/{id}` — per-match detail. */
+export interface MatchDataQualityDetail {
+  matchId: string
+  platformId: string
+  queueId: number
+  gameMode: string
+  gameStartTimeUtc: string
+  gameDurationSeconds: number
+  gameVersion: string
+  timelineIngested: boolean
+  participantCount: number
+  expectedParticipantCount: number | null
+  /** True when the queue has a known profile (count/position rules apply). */
+  queueKnown: boolean
+  /** True when TeamPosition is meaningful for this queue. */
+  hasLanes: boolean
+  issues: DataQualityIssueType[]
+  teams: MatchTeam[]
+}

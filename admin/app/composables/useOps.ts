@@ -3,8 +3,11 @@ import type {
   ChampionStatsFilters,
   ChampionStatsRow,
   DbTableRow,
+  IncompleteMatchesFilters,
+  IncompleteMatchesResponse,
   LogsFilters,
   LogsResponse,
+  MatchDataQualityDetail,
   MatchTimeBucket,
   MatchTimeGranularity,
   OverviewStats,
@@ -126,6 +129,32 @@ export function useLogs(
   return useOps<LogsResponse>(
     '/logs',
     filters ? () => ({ ...toValue(filters) }) : undefined,
+  )
+}
+
+/**
+ * `GET /api/ops/data-quality/incomplete-matches` — matches flagged by the
+ * data-quality checks, grouped by issue type and queue-scoped. Pass a reactive
+ * getter so the panel re-fetches when a filter or the page changes.
+ */
+export function useIncompleteMatches(
+  filters?: MaybeRefOrGetter<IncompleteMatchesFilters>,
+) {
+  return useOps<IncompleteMatchesResponse>(
+    '/data-quality/incomplete-matches',
+    filters ? () => ({ ...toValue(filters) }) : undefined,
+  )
+}
+
+/**
+ * `GET /api/ops/data-quality/match/{id}` — per-match detail (both teams by
+ * position with gaps highlighted). A one-shot `$fetch` because the slide-over
+ * loads it imperatively on row click / deep-link rather than watching a key.
+ * Returns null on 404 so callers can treat "no such match" as an empty result.
+ */
+export function getMatchDataQuality(id: string) {
+  return $fetch<MatchDataQualityDetail>(
+    `/api/ops/data-quality/match/${encodeURIComponent(id)}`,
   )
 }
 
