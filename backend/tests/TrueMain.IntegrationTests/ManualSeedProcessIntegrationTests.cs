@@ -150,6 +150,7 @@ public sealed class ManualSeedProcessIntegrationTests
             _fixture.CreateSessionFactory(),
             new AccountUpsertService(),
             new CandidateUpsertService(),
+            new NoOpAuditLog(),
             Microsoft.Extensions.Options.Options.Create(new ManualSeedOptions
             {
                 BatchSize = 25,

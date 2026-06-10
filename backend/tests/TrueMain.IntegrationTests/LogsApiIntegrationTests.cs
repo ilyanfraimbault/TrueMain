@@ -2,29 +2,37 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AwesomeAssertions;
-using Data.Entities;
+using Data.Logging.Mongo;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace TrueMain.IntegrationTests;
 
+/// <summary>
+/// Verifies the <c>GET /ops/logs</c> contract against the MongoDB-backed log
+/// store (logs moved off Postgres in #416). The response shape and filter
+/// semantics are unchanged from the Postgres implementation, so the admin viewer
+/// keeps working without a frontend change.
+/// </summary>
 [Collection(IntegrationCollection.Name)]
 public sealed class LogsApiIntegrationTests
 {
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
-    private readonly PostgresFixture _fixture;
+    private readonly PostgresFixture _postgres;
+    private readonly MongoFixture _mongo;
 
-    public LogsApiIntegrationTests(PostgresFixture fixture)
+    public LogsApiIntegrationTests(PostgresFixture postgres, MongoFixture mongo)
     {
-        _fixture = fixture;
+        _postgres = postgres;
+        _mongo = mongo;
     }
 
     [Fact]
     public async Task GetLogsAsync_ShouldReturnNewestFirstWithStableShape()
     {
-        await _fixture.ResetDatabaseAsync();
+        await ResetAsync();
         await SeedLogsAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
         var response = await client.GetAsync("/ops/logs");
@@ -46,8 +54,8 @@ public sealed class LogsApiIntegrationTests
         var payload = await response.Content.ReadFromJsonAsync<LogsTestContract>();
         payload.Should().NotBeNull();
 
-        // Five rows seeded; the sink is disabled in the test host so the count is
-        // exactly the seed.
+        // Five documents seeded; the diagnostic sink is muted in the test host
+        // (MinimumLevel=None) so the count is exactly the seed.
         payload!.Total.Should().Be(5);
         payload.Page.Should().Be(1);
         payload.PageSize.Should().Be(50);
@@ -56,15 +64,17 @@ public sealed class LogsApiIntegrationTests
         // Newest seeded row is the Critical one.
         payload.Entries[0].Level.Should().Be("Critical");
         payload.Entries[0].Message.Should().Be("database connection lost");
+        // The id is the Mongo ObjectId surfaced as a 24-char hex string.
+        payload.Entries[0].Id.Should().NotBeNullOrWhiteSpace();
     }
 
     [Fact]
     public async Task GetLogsAsync_ShouldFilterByMinimumLevel()
     {
-        await _fixture.ResetDatabaseAsync();
+        await ResetAsync();
         await SeedLogsAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
         // level=Error is a minimum threshold: Error + Critical, not the two
@@ -79,13 +89,13 @@ public sealed class LogsApiIntegrationTests
     [Fact]
     public async Task GetLogsAsync_ShouldSearchMessageAndExceptionCaseInsensitively()
     {
-        await _fixture.ResetDatabaseAsync();
+        await ResetAsync();
         await SeedLogsAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        // "timeout" appears in one message; the search is ILIKE (case-insensitive)
+        // "timeout" appears in one message; the search is a case-insensitive regex
         // and also scans the exception text, where "TimeoutException" lives on a
         // different (Error) row — so both rows match.
         var payload = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs?search=TIMEOUT");
@@ -97,12 +107,31 @@ public sealed class LogsApiIntegrationTests
     }
 
     [Fact]
-    public async Task GetLogsAsync_ShouldPageAndReportUnpagedTotal()
+    public async Task GetLogsAsync_ShouldFilterByCategoryPrefixCaseInsensitively()
     {
-        await _fixture.ResetDatabaseAsync();
+        await ResetAsync();
         await SeedLogsAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        // Prefix match, case-insensitive: "ingestor" matches the two
+        // "TrueMain.Ingestor.*" warning categories (not the "Ingestor.Worker" one,
+        // which does not share the prefix).
+        var payload = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs?category=TrueMain.Ingestor");
+        payload.Should().NotBeNull();
+
+        payload!.Total.Should().Be(2);
+        payload.Entries.Should().OnlyContain(entry => entry.Category.StartsWith("TrueMain.Ingestor"));
+    }
+
+    [Fact]
+    public async Task GetLogsAsync_ShouldPageAndReportUnpagedTotal()
+    {
+        await ResetAsync();
+        await SeedLogsAsync();
+
+        await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
         var firstPage = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs?page=1&pageSize=2");
@@ -126,10 +155,10 @@ public sealed class LogsApiIntegrationTests
     [Fact]
     public async Task GetLogsAsync_ShouldClampPageSizeToCeiling()
     {
-        await _fixture.ResetDatabaseAsync();
+        await ResetAsync();
         await SeedLogsAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
         // Above the 200 ceiling clamps to 200.
@@ -141,9 +170,9 @@ public sealed class LogsApiIntegrationTests
     [Fact]
     public async Task GetLogsAsync_ShouldRequireOpsApiKey()
     {
-        await _fixture.ResetDatabaseAsync();
+        await ResetAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = CreateFactory();
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("https://localhost")
@@ -152,6 +181,14 @@ public sealed class LogsApiIntegrationTests
         var response = await client.GetAsync("/ops/logs");
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
+
+    private async Task ResetAsync()
+    {
+        await _postgres.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
+    }
+
+    private ApiWebApplicationFactory CreateFactory() => new(_postgres, _mongo);
 
     private static HttpClient CreateClient(ApiWebApplicationFactory factory)
     {
@@ -166,26 +203,26 @@ public sealed class LogsApiIntegrationTests
     private async Task SeedLogsAsync()
     {
         var now = DateTime.UtcNow;
-        await using var db = _fixture.CreateDbContext();
+        var collection = _mongo.GetCollection<MongoLogDocument>(MongoFixture.LogsCollection);
 
-        db.LogEntries.AddRange(
+        await collection.InsertManyAsync(
+        [
             // Oldest -> newest by timestamp. Levels span the threshold boundary so
             // a level=Error filter excludes the two Warning rows below.
-            BuildEntry("Information", "TrueMain.Api", "warmup complete", null, now.AddMinutes(-50)),
-            BuildEntry("Warning", "TrueMain.Ingestor.Discovery", "no platforms configured", null, now.AddMinutes(-40)),
-            BuildEntry("Warning", "TrueMain.Ingestor.MatchIngestion", "riot api timeout", null, now.AddMinutes(-30)),
-            BuildEntry(
+            BuildDocument("Information", "TrueMain.Api", "warmup complete", null, now.AddMinutes(-50)),
+            BuildDocument("Warning", "TrueMain.Ingestor.Discovery", "no platforms configured", null, now.AddMinutes(-40)),
+            BuildDocument("Warning", "TrueMain.Ingestor.MatchIngestion", "riot api timeout", null, now.AddMinutes(-30)),
+            BuildDocument(
                 "Error",
                 "Ingestor.Worker",
                 "ingest failed",
                 "System.TimeoutException: The operation timed out.",
                 now.AddMinutes(-20)),
-            BuildEntry("Critical", "TrueMain.Api", "database connection lost", null, now.AddMinutes(-10)));
-
-        await db.SaveChangesAsync();
+            BuildDocument("Critical", "TrueMain.Api", "database connection lost", null, now.AddMinutes(-10))
+        ]);
     }
 
-    private static LogEntry BuildEntry(
+    private static MongoLogDocument BuildDocument(
         string level,
         string category,
         string message,
@@ -202,13 +239,20 @@ public sealed class LogsApiIntegrationTests
             TimestampUtc = timestampUtc
         };
 
-    // Disable the database logging sink in the test host so incidental host
-    // warnings never write extra log_entries rows; the seeded counts then stay
-    // deterministic.
-    private sealed class ApiWebApplicationFactory(PostgresFixture fixture)
+    // Point the host at the test Mongo container and mute the diagnostic sink
+    // (MinimumLevel=None) so incidental host warnings never write extra log
+    // documents; the seeded counts then stay deterministic. The store stays
+    // active (Enabled + connection string), so the read path serves the seed.
+    private sealed class ApiWebApplicationFactory(PostgresFixture postgres, MongoFixture mongo)
         : TrueMainWebApplicationFactory<Program>(
-            fixture,
-            [new KeyValuePair<string, string?>("LoggingSink:Enabled", "false")]);
+            postgres,
+            [
+                new KeyValuePair<string, string?>("MongoLogging:ConnectionString", mongo.ConnectionString),
+                new KeyValuePair<string, string?>("MongoLogging:Database", MongoFixture.DatabaseName),
+                new KeyValuePair<string, string?>("MongoLogging:LogsCollection", MongoFixture.LogsCollection),
+                new KeyValuePair<string, string?>("MongoLogging:AuditCollection", MongoFixture.AuditCollection),
+                new KeyValuePair<string, string?>("MongoLogging:MinimumLevel", "None")
+            ]);
 
     private sealed class LogsTestContract
     {
@@ -223,7 +267,7 @@ public sealed class LogsApiIntegrationTests
 
     private sealed class LogEntryTestContract
     {
-        public Guid Id { get; init; }
+        public string Id { get; init; } = string.Empty;
 
         public DateTime TimestampUtc { get; init; }
 

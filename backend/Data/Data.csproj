@@ -25,17 +25,22 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <!-- MongoDB-backed diagnostic log + operator-action audit store
+         (Data/Logging/Mongo). Logs and audit events moved off Postgres (#416):
+         native TTL indexes for retention and an append-heavy, time-ordered
+         workload that does not belong in the relational model. -->
+    <PackageReference Include="MongoDB.Driver" />
     <PackageReference Include="Microsoft.Extensions.Configuration" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
     <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" />
     <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
-    <!-- BackgroundService / IHostedService / AddHostedService for the database
-         logging sink (Data/Logging). Abstractions only: the hosts bring the full
-         hosting stack. -->
+    <!-- BackgroundService / IHostedService / AddHostedService for the MongoDB
+         diagnostic logging sink (Data/Logging/Mongo). Abstractions only: the hosts
+         bring the full hosting stack. -->
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
-    <!-- OptionsBuilder.Bind for binding LoggingSinkOptions from configuration in
-         the shared AddDatabaseLogging registration helper. -->
+    <!-- OptionsBuilder.Bind for binding MongoLoggingOptions from configuration in
+         the shared AddMongoLogging registration helper. -->
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
   </ItemGroup>
 

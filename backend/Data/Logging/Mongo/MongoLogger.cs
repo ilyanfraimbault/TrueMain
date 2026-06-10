@@ -1,26 +1,25 @@
 using Microsoft.Extensions.Logging;
 
-namespace Data.Logging;
+namespace Data.Logging.Mongo;
 
 /// <summary>
 /// <see cref="ILogger"/> that snapshots qualifying events and hands them to the
-/// shared <see cref="DatabaseLogChannel"/> for the background sink to persist.
-/// One instance per category, created by <see cref="DatabaseLoggerProvider"/>.
+/// shared <see cref="MongoLogChannel"/> for the background sink to persist. One
+/// instance per category, created by <see cref="MongoLoggerProvider"/>.
 /// </summary>
-internal sealed class DatabaseLogger(
+internal sealed class MongoLogger(
     string category,
-    DatabaseLogChannel channel,
-    LoggingSinkOptions options,
+    MongoLogChannel channel,
+    MongoLoggingOptions options,
     string host) : ILogger
 {
     // Categories whose own logging the sink must never re-capture, or it would
-    // feed its own EF/Npgsql writes back into the channel and loop. EF and
-    // Npgsql cover the persistence stack; the sink's namespace covers its own
-    // diagnostics.
+    // feed the Mongo driver's own diagnostics back into the channel it is
+    // draining and loop. The driver namespace covers the persistence client; the
+    // sink's namespace covers its own diagnostics.
     private static readonly string[] ExcludedCategoryPrefixes =
     [
-        "Microsoft.EntityFrameworkCore",
-        "Npgsql",
+        "MongoDB",
         "Data.Logging"
     ];
 
@@ -31,7 +30,7 @@ internal sealed class DatabaseLogger(
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
 
     public bool IsEnabled(LogLevel logLevel)
-        => options.Enabled
+        => options.IsActive
            && !_categoryExcluded
            && logLevel != LogLevel.None
            && logLevel >= options.MinimumLevel;
@@ -54,7 +53,7 @@ internal sealed class DatabaseLogger(
         try
         {
             var message = formatter(state, exception);
-            var record = new LogRecord(
+            var record = new MongoLogRecord(
                 TimestampUtc: DateTime.UtcNow,
                 Level: logLevel,
                 Category: category,
@@ -70,7 +69,7 @@ internal sealed class DatabaseLogger(
         {
             try
             {
-                Console.Error.WriteLine($"[DatabaseLogger] dropped a log record: {ex}");
+                Console.Error.WriteLine($"[MongoLogger] dropped a log record: {ex}");
             }
             catch
             {

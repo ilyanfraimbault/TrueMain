@@ -25,7 +25,12 @@ public sealed record LogsReadModel
 /// </summary>
 public sealed record LogEntryReadModel
 {
-    public Guid Id { get; init; }
+    /// <summary>
+    /// The log document's identifier. A 24-char hex string (the Mongo ObjectId)
+    /// since logs moved off Postgres (#416). The admin viewer already accepts a
+    /// string or numeric id, so the response shape is unchanged.
+    /// </summary>
+    public string Id { get; init; } = string.Empty;
 
     public DateTime TimestampUtc { get; init; }
 

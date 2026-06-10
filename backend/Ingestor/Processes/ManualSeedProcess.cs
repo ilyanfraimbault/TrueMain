@@ -1,6 +1,7 @@
 using Core;
 using Core.Lol.Identifiers;
 using Data.Entities;
+using Data.Logging.Mongo;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Components.Discovery;
@@ -27,6 +28,7 @@ public sealed class ManualSeedProcess(
     IDataSessionFactory sessionFactory,
     IAccountUpsertService accountUpsertService,
     ICandidateUpsertService candidateUpsertService,
+    IAuditLog auditLog,
     IOptions<ManualSeedOptions> manualSeedOptions) : IIngestorProcess
 {
     private const int MaxErrorLength = 2048;
@@ -214,6 +216,25 @@ public sealed class ManualSeedProcess(
         request.ProcessedAtUtc = DateTime.UtcNow;
         await session.SaveChangesAsync(ct);
         summary.Ingested++;
+
+        // Lossless operator-action audit: the seed request the operator submitted
+        // has now resolved to a real account and been queued for ingestion. Record
+        // the terminal outcome with the resolved identity. Synchronous insert,
+        // never the diagnostic-log channel.
+        await auditLog.RecordAsync(
+            action: "seed_account_ingested",
+            actor: "ingestor",
+            targetType: nameof(SeedRequest),
+            targetId: request.Id.ToString(),
+            metadata: new Dictionary<string, string>
+            {
+                ["gameName"] = request.GameName,
+                ["tagLine"] = request.TagLine,
+                ["platformId"] = request.PlatformId,
+                ["resolvedPuuid"] = account.Puuid,
+                ["candidatesQueued"] = queued.ToString()
+            },
+            ct: ct);
     }
 
     private async Task MarkFailedAsync(Guid id, string message, CancellationToken ct)

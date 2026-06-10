@@ -22,6 +22,26 @@ services:
     networks:
       - truemain_dev_internal
 
+  mongo:
+    image: mongo:8.0
+    container_name: truemain-dev-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+    ports:
+      - "27017:27017"
+    volumes:
+      - truemain_dev_mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - truemain_dev_internal
+
   api:
     build:
       context: ./backend
@@ -34,9 +54,12 @@ services:
       DOTNET_USE_POLLING_FILE_WATCHER: "1"
       Database__ApplyMigrationsOnStartup: "true"
       ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300
+      MongoLogging__ConnectionString: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin
       Ops__ApiKey: ${OPS_API_KEY}
     depends_on:
       postgres:
+        condition: service_healthy
+      mongo:
         condition: service_healthy
     ports:
       - "8080:8080"
@@ -148,10 +171,13 @@ services:
       DOTNET_ENVIRONMENT: Development
       DOTNET_USE_POLLING_FILE_WATCHER: "1"
       ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300
+      MongoLogging__ConnectionString: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin
       Riot__ApiKey: ${RIOT_API_KEY}
       Job__Mode: ${INGESTOR_JOB_MODE:-Full}
     depends_on:
       postgres:
+        condition: service_healthy
+      mongo:
         condition: service_healthy
     volumes:
       - truemain_dev_ingestor_nuget:/root/.nuget/packages
@@ -208,6 +234,7 @@ services:
 
 volumes:
   truemain_dev_db_data:
+  truemain_dev_mongo_data:
   truemain_dev_pgadmin_data:
   truemain_dev_api_nuget:
   truemain_dev_ingestor_nuget:
