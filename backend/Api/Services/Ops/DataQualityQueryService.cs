@@ -144,15 +144,19 @@ public sealed class DataQualityQueryService(TrueMainDbContext db) : IDataQuality
             .ToListAsync(ct);
 
         var profile = QueueDataQualityProfile.ForQueue(match.QueueId);
-        var summary = MatchSummary.From(match.Id, match.QueueId, participants, profile);
+        var summary = MatchSummary.From(
+            match.Id,
+            match.QueueId,
+            match.GameStartTimeUtc,
+            match.GameDurationSeconds,
+            match.TimelineIngested,
+            participants,
+            profile);
         var issues = Evaluate(
             summary,
             // Recompute the same staleness cutoff used by the list so detail and
             // list agree on whether the timeline gap is "stuck".
-            DateTime.UtcNow.AddHours(-StaleTimelineThresholdHours),
-            match.TimelineIngested,
-            match.GameStartTimeUtc,
-            match.GameDurationSeconds);
+            DateTime.UtcNow.AddHours(-StaleTimelineThresholdHours));
 
         var teams = BuildTeams(participants, profile);
 
@@ -217,7 +221,7 @@ public sealed class DataQualityQueryService(TrueMainDbContext db) : IDataQuality
         //  (b) shape candidates: profiled-queue matches whose per-team shape the
         //      in-memory Evaluate inspects for wrong-count / missing-lane /
         //      duplicate-champion. Only profiled queues carry those rules.
-        var profiledQueueIds = QueueDataQualityProfile.KnownQueueIds.ToArray();
+        var profiledQueueIds = QueueDataQualityProfile.KnownQueueIds;
         var shapeCandidates = baseQuery
             .Where(m => profiledQueueIds.Contains(m.QueueId));
 
@@ -607,10 +611,17 @@ public sealed class DataQualityQueryService(TrueMainDbContext db) : IDataQuality
             };
 
         // Detail-path overload: derive team shapes from raw participant rows so
-        // the per-team rule inputs match the DB-side GROUP BY exactly.
+        // the per-team rule inputs match the DB-side GROUP BY exactly. The header
+        // facts (start time, duration, timeline flag) are passed through so this
+        // summary is complete and safe to hand to either Evaluate overload — the
+        // 2-arg one reads them off the summary, so leaving them at C# defaults
+        // would silently flag every detail match as MissingTimeline + ZeroDuration.
         public static MatchSummary From(
             string matchId,
             int queueId,
+            DateTime gameStartTimeUtc,
+            int gameDurationSeconds,
+            bool timelineIngested,
             IReadOnlyList<ParticipantRow> participants,
             QueueDataQualityProfile profile)
         {
@@ -631,6 +642,9 @@ public sealed class DataQualityQueryService(TrueMainDbContext db) : IDataQuality
             {
                 MatchId = matchId,
                 QueueId = queueId,
+                GameStartTimeUtc = gameStartTimeUtc,
+                GameDurationSeconds = gameDurationSeconds,
+                TimelineIngested = timelineIngested,
                 ParticipantCount = participants.Count,
                 Teams = teams,
                 Profile = profile

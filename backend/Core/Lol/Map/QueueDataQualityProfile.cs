@@ -93,5 +93,5 @@ public sealed record QueueDataQualityProfile
         => Profiles.TryGetValue(queueId, out var profile) ? profile : Unknown;
 
     /// <summary>The queue ids that have a profile (i.e. support count/position rules).</summary>
-    public static IReadOnlyCollection<int> KnownQueueIds => Profiles.Keys.ToArray();
+    public static readonly IReadOnlyCollection<int> KnownQueueIds = Profiles.Keys.ToArray();
 }
