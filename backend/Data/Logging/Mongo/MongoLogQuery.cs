@@ -111,6 +111,10 @@ public sealed class MongoLogQuery(MongoLogContext context) : IMongoLogQuery
             // Case-insensitive substring match on message OR exception. The escaped
             // term keeps user-supplied metacharacters literal so a search can't turn
             // into a wildcard scan.
+            // TODO: message/exception are unindexed, so this regex forces a
+            // collection scan. If log volume grows enough that search becomes hot,
+            // add a $text (or Atlas Search) index over message/exception and switch
+            // this branch to a $text query.
             var pattern = new BsonRegularExpression(Regex.Escape(normalizedSearch), "i");
             filters.Add(Filter.Or(
                 Filter.Regex(doc => doc.Message, pattern),
