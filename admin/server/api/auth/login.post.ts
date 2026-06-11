@@ -70,11 +70,14 @@ function safeEqual(a: string, b: string): boolean {
  * compared in constant time to avoid timing leaks.
  */
 export default defineEventHandler(async (event) => {
-  // Key the throttle on the real TCP peer IP, NOT X-Forwarded-For: the admin is
-  // deployed direct-host without a reverse proxy, so a client-supplied
-  // X-Forwarded-For would be attacker-controlled and let them cycle IPs to
-  // bypass the limit and brute-force the password.
-  const ip = getRequestIP(event) ?? 'unknown'
+  // Key the throttle on the real client IP. The admin sits behind the Caddy
+  // reverse proxy (which terminates TLS). Caddy sets X-Forwarded-For to the
+  // peer IP it actually sees and DROPS any client-supplied X-Forwarded-For
+  // (the browser is an untrusted peer), so the value read here is the true
+  // browser IP and cannot be spoofed to cycle IPs and brute-force the
+  // password. The admin container is not published on the host, so every
+  // request goes through Caddy — no path bypasses this.
+  const ip = getRequestIP(event, { xForwardedFor: true }) ?? 'unknown'
   if (tooManyAttempts(ip)) {
     throw createError({ statusCode: 429, statusMessage: 'Too many attempts, try again later' })
   }

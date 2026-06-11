@@ -59,15 +59,38 @@ docker compose -f compose.qa.yaml up
 docker compose -f compose.prod.yaml up
 ```
 
-### Accès au dashboard admin (qa / prod)
+### Reverse proxy & HTTPS (prod)
 
-Le dashboard d'administration est publié **directement sur l'hôte**, sans reverse proxy — qa : `http://<hôte>:3002`, prod : `http://<hôte>:3001`. Login via `ADMIN_USERNAME` / `ADMIN_PASSWORD`.
+En prod, tout le trafic public passe par **Caddy**, qui termine le TLS et obtient/renouvelle automatiquement les certificats Let's Encrypt (cf. [`Caddyfile`](Caddyfile)) :
 
-> ⚠️ **Pas de TLS dans ce mode.** Les identifiants et le cookie de session transitent **en clair (HTTP)**. Ne l'exposez pas sur l'Internet public sans, a minima, restreindre le port par firewall :
-> ```bash
-> ufw allow from <IP_de_confiance> to any port 3001   # prod (3002 en qa)
-> ```
-> Mongo et Postgres ne sont pas publiés (réseau interne `truemain_internal` uniquement). Lorsqu'un domaine sera disponible, le mode recommandé est de repasser l'admin en `127.0.0.1:<port>:3000` derrière un reverse proxy qui termine le TLS.
+- Site public : `https://truemain.lol` (et `www` → redirigé vers l'apex)
+- Dashboard admin : `https://admin.truemain.lol` — login via `ADMIN_USERNAME` / `ADMIN_PASSWORD`
+
+`web` et `admin` ne sont plus publiés sur l'hôte : seul Caddy les atteint via le réseau interne `truemain_internal`. Le cookie de session admin est `Secure` (il **exige** HTTPS pour être accepté par le navigateur) — c'est Caddy qui fournit le TLS.
+
+**Prérequis côté serveur :**
+
+1. Enregistrements DNS `A` pointant vers l'IP publique du VPS (en DNS direct, **pas** en proxy Cloudflare, sinon le challenge Let's Encrypt échoue) :
+   ```
+   truemain.lol        A   <IP_du_VPS>
+   www.truemain.lol    A   <IP_du_VPS>
+   admin.truemain.lol  A   <IP_du_VPS>
+   ```
+2. Ports 80 **et** 443 ouverts (challenges HTTP-01 / TLS-ALPN-01) :
+   ```bash
+   ufw allow 80,443/tcp
+   ```
+3. Le [`Caddyfile`](Caddyfile) doit être présent à côté de `compose.prod.yaml` sur le serveur (monté en lecture seule dans le conteneur `caddy`).
+
+> Mongo et Postgres ne sont pas publiés (réseau interne uniquement). Les anciens ports `3000`/`3001` ne sont plus exposés — tu peux fermer les règles firewall correspondantes.
+
+### Accès au dashboard admin (qa)
+
+La stack **qa** reste publiée directement sur l'hôte sans TLS : `http://<hôte>:3002` (login `ADMIN_USERNAME` / `ADMIN_PASSWORD`). Identifiants et cookie en clair — ne l'expose pas sans restreindre le port par firewall :
+```bash
+ufw allow from <IP_de_confiance> to any port 3002
+```
+(Passer la qa derrière le même Caddy est un suivi possible si elle partage l'hôte de la prod.)
 
 ## Build / test séparé
 
@@ -99,7 +122,7 @@ Toutes les valeurs nécessaires sont listées dans `.env.example` (dev/prod) et 
 - `RIOT_API_KEY` — clé Riot Developer (`RGAPI-…`)
 - `OPS_API_KEY` — clé pour `/ops/*` (32+ caractères)
 - `MONGO_USER`, `MONGO_PASSWORD` — credentials MongoDB (logs + audit ; alphanumériques, ils entrent dans l'URI de connexion)
-- `ADMIN_USERNAME`, `ADMIN_PASSWORD` — login du dashboard admin. **Définir un vrai `ADMIN_PASSWORD` est obligatoire** (le dashboard est exposé directement sans TLS, cf. ci-dessus) ; `.env.example` met volontairement `REPLACE_ME`
+- `ADMIN_USERNAME`, `ADMIN_PASSWORD` — login du dashboard admin. **Définir un vrai `ADMIN_PASSWORD` est obligatoire** (seule barrière devant les outils d'ops) ; `.env.example` met volontairement `REPLACE_ME`
 - `ADMIN_SESSION_PASSWORD` — scelle le cookie de session admin (32+ caractères aléatoires, ex. `openssl rand -hex 32`)
 - `PGADMIN_DEFAULT_EMAIL`, `PGADMIN_DEFAULT_PASSWORD`
 - `NUXT_API_BASE_URL` (côté web, généralement `http://api:8080` dans Docker)
