@@ -49,21 +49,32 @@ jobs:
 
             Déroulé :
             1. Pour chaque point précis et actionnable, poste un commentaire
-               inline sur la ligne concernée.
+               inline sur la ligne concernée, en le classant BLOQUANT ou NON
+               BLOQUANT :
+               - BLOQUANT = bug, faille de sécurité, test critique cassé ou
+                 manquant, régression, erreur de logique.
+               - NON BLOQUANT = style, lisibilité, nit, « on pourrait aussi… »,
+                 défense en profondeur, préférence, micro-optimisation.
             2. Termine TOUJOURS par une review formelle soumise avec
-               `gh pr review`, jamais par un simple `gh pr comment` :
-               - s'il n'y a RIEN à corriger, APPROUVE :
+               `gh pr review`, jamais par un simple `gh pr comment`. Le verdict
+               dépend UNIQUEMENT des points BLOQUANTS :
+               - s'il n'y a AUCUN point bloquant, APPROUVE — même s'il reste des
+                 suggestions non bloquantes :
                  `gh pr review ${{ github.event.pull_request.number }} --approve --body "..."`
-                 avec une courte justification (par ex.
-                 « ✅ Relu, rien à signaler — <raison> »).
-               - s'il y a des points à corriger, DEMANDE DES CHANGEMENTS :
+                 en listant le cas échéant les points sous
+                 « Suggestions (non bloquantes) : … ».
+               - s'il y a au moins un point BLOQUANT, DEMANDE DES CHANGEMENTS :
                  `gh pr review ${{ github.event.pull_request.number }} --request-changes --body "..."`
-                 avec une synthèse des points soulevés.
+                 avec une synthèse des points bloquants.
 
-            Soumettre une review formelle à chaque run est volontaire : une
-            approbation explicite évite qu'un run « silencieux » (aucun problème
-            trouvé) soit pris pour un échec de la review. N'approuve QUE si tu
-            n'as vraiment rien à signaler. Sois concis et n'invente pas de
-            problèmes.
+            Règles :
+            - Ne demande JAMAIS de changements pour des points uniquement
+              stylistiques, redondants ou de préférence.
+            - Ne ré-évoque pas une remarque déjà traitée ou correspondant à une
+              décision intentionnelle documentée (commentaire de code, README,
+              réponse dans un fil de discussion).
+            - Soumettre une review formelle à chaque run est volontaire : une
+              approbation explicite évite qu'un run « silencieux » soit pris pour
+              un échec. Sois concis et n'invente pas de problèmes.
           claude_args: |
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr review:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
