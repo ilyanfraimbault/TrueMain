@@ -11,6 +11,7 @@ const items = computed<NavigationMenuItem[]>(() => [
   { label: 'Champions', icon: 'i-lucide-swords', to: '/champions' },
   { label: 'Database', icon: 'i-lucide-database', to: '/database' },
   { label: 'Data Quality', icon: 'i-lucide-shield-alert', to: '/data-quality' },
+  { label: 'Candidates', icon: 'i-lucide-users-round', to: '/candidates' },
   { label: 'Processes', icon: 'i-lucide-activity', to: '/processes' },
   { label: 'Logs', icon: 'i-lucide-scroll-text', to: '/logs' },
   { label: 'Add mains', icon: 'i-lucide-user-plus', to: '/seed' },
