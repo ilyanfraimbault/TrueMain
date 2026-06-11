@@ -23,8 +23,8 @@ services:
     container_name: truemain-mongo
     restart: unless-stopped
     environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+      MONGO_INITDB_ROOT_USERNAME: "${MONGO_USER:?set MONGO_USER before deploying}"
+      MONGO_INITDB_ROOT_PASSWORD: "${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}"
     # No published port: the log/audit store is internal-only and reached by the
     # app containers over the compose network ("mongo:27017").
     volumes:
@@ -48,7 +48,7 @@ services:
       ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300
       Database__ApplyMigrationsOnStartup: "true"
       MongoLogging__ConnectionString: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin
-      Ops__ApiKey: ${OPS_API_KEY}
+      Ops__ApiKey: "${OPS_API_KEY:?set OPS_API_KEY before deploying}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -84,7 +84,7 @@ services:
       NITRO_PORT: 3000
       NUXT_OPS_API_BASE_URL: http://api:8080
       NUXT_OPS_KEY: ${OPS_API_KEY}
-      NUXT_SESSION_PASSWORD: ${ADMIN_SESSION_PASSWORD}
+      NUXT_SESSION_PASSWORD: "${ADMIN_SESSION_PASSWORD:?set ADMIN_SESSION_PASSWORD before deploying}"
       NUXT_ADMIN_USERNAME: ${ADMIN_USERNAME:-truemain}
       NUXT_ADMIN_PASSWORD: "${ADMIN_PASSWORD:?set ADMIN_PASSWORD before deploying - admin is exposed on 0.0.0.0}"
     depends_on:
