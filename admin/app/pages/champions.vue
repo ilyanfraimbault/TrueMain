@@ -128,14 +128,24 @@ const topByMains = computed(() =>
     .map(r => ({ label: r.name, mains: r.mains })),
 )
 
+// Charts grow with the number of bars; the skeletons mirror it to avoid CLS.
+const topByGamesChartHeight = computed(() =>
+  Math.max(260, topByGames.value.length * 28),
+)
+const topByMainsChartHeight = computed(() =>
+  Math.max(260, topByMains.value.length * 28),
+)
+
 const gamesCategories = { games: { name: 'Games', color: '#34d399' } }
 // amber-400 for the secondary metric so the two charts read as distinct series.
 const mainsCategories = { mains: { name: 'Mains', color: '#fbbf24' } }
 
-const gamesXFormatter = computed(() =>
+// Horizontal bars: the champion name lives on the LEFT (category) axis, looked
+// up by bar index, so these feed `:y-formatter` (not `:x-formatter`).
+const gamesLabelFormatter = computed(() =>
   indexLabelFormatter(topByGames.value, r => r.label),
 )
-const mainsXFormatter = computed(() =>
+const mainsLabelFormatter = computed(() =>
   indexLabelFormatter(topByMains.value, r => r.label),
 )
 </script>
@@ -231,19 +241,20 @@ const mainsXFormatter = computed(() =>
           <ClientOnly v-else>
             <NcBarChart
               :data="topByGames"
-              :height="240"
+              :height="topByGamesChartHeight"
               :categories="gamesCategories"
               :y-axis="['games']"
-              :x-num-ticks="topByGames.length"
-              :x-formatter="gamesXFormatter"
-              :y-formatter="formatCount"
-              :x-axis-config="ROTATED_X_AXIS_CONFIG"
-              :padding="ROTATED_X_AXIS_PADDING"
-              :radius="4"
-              hide-legend
+              :y-num-ticks="topByGames.length"
+              :x-formatter="formatCount"
+              :y-formatter="gamesLabelFormatter"
+              :tooltip-title-formatter="labelTooltipTitle"
+              v-bind="horizontalBarProps(120)"
             />
             <template #fallback>
-              <USkeleton class="h-[240px] w-full" />
+              <USkeleton
+                class="w-full"
+                :style="{ height: `${topByGamesChartHeight}px` }"
+              />
             </template>
           </ClientOnly>
         </UCard>
@@ -272,19 +283,20 @@ const mainsXFormatter = computed(() =>
           <ClientOnly v-else>
             <NcBarChart
               :data="topByMains"
-              :height="240"
+              :height="topByMainsChartHeight"
               :categories="mainsCategories"
               :y-axis="['mains']"
-              :x-num-ticks="topByMains.length"
-              :x-formatter="mainsXFormatter"
-              :y-formatter="formatCount"
-              :x-axis-config="ROTATED_X_AXIS_CONFIG"
-              :padding="ROTATED_X_AXIS_PADDING"
-              :radius="4"
-              hide-legend
+              :y-num-ticks="topByMains.length"
+              :x-formatter="formatCount"
+              :y-formatter="mainsLabelFormatter"
+              :tooltip-title-formatter="labelTooltipTitle"
+              v-bind="horizontalBarProps(120)"
             />
             <template #fallback>
-              <USkeleton class="h-[240px] w-full" />
+              <USkeleton
+                class="w-full"
+                :style="{ height: `${topByMainsChartHeight}px` }"
+              />
             </template>
           </ClientOnly>
         </UCard>

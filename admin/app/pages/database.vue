@@ -51,7 +51,7 @@ const columns: TableColumn<DbTableRow>[] = [
 ]
 
 // --- Chart: top tables by total size -----------------------------------------
-// Rendered HORIZONTALLY (Orientation.Horizontal): table names are long
+// Rendered HORIZONTALLY via `horizontalBarProps()`: table names are long
 // snake_case strings that collide badly on a vertical x-axis, so the category
 // axis goes on the LEFT where full names fit. In vue-chrts the bar `x` accessor
 // is always the data index and `y` the value; with horizontal orientation
@@ -66,6 +66,10 @@ const topTables = computed(() =>
     .sort((a, b) => b.totalBytes - a.totalBytes)
     .slice(0, TOP_N)
     .map(t => ({ label: t.tableName, bytes: t.totalBytes })),
+)
+// Chart grows with the number of bars; the skeleton mirrors it to avoid CLS.
+const topTablesChartHeight = computed(() =>
+  Math.max(260, topTables.value.length * 28),
 )
 const sizeCategories = { bytes: { name: 'Total size', color: '#34d399' } }
 // Bottom (value) axis — humanized bytes. Also used by the tooltip value.
@@ -135,31 +139,35 @@ const sizeTooltipTitle = (d: { label: string }) => d.label
             Top {{ TOP_N }} tables by total size
           </p>
         </template>
-        <USkeleton v-if="pending" class="h-[320px] w-full" />
+        <USkeleton
+          v-if="pending"
+          class="w-full"
+          :style="{ height: `${topTablesChartHeight}px` }"
+        />
         <div
           v-else-if="topTables.length === 0"
-          class="h-[320px] flex items-center justify-center text-sm text-muted"
+          class="flex items-center justify-center text-sm text-muted"
+          :style="{ height: `${topTablesChartHeight}px` }"
         >
           No tables reported.
         </div>
         <ClientOnly v-else>
           <NcBarChart
             :data="topTables"
-            :height="Math.max(260, topTables.length * 26)"
+            :height="topTablesChartHeight"
             :categories="sizeCategories"
             :y-axis="['bytes']"
-            :orientation="Orientation.Horizontal"
             :x-formatter="sizeValueFormatter"
             :y-formatter="sizeLabelFormatter"
             :y-num-ticks="topTables.length"
             :tooltip-title-formatter="sizeTooltipTitle"
-            :y-axis-config="{ tickTextWidth: 180 }"
-            :padding="{ top: 8, right: 12, bottom: 8, left: 188 }"
-            :radius="4"
-            hide-legend
+            v-bind="horizontalBarProps(180)"
           />
           <template #fallback>
-            <USkeleton class="h-[320px] w-full" />
+            <USkeleton
+              class="w-full"
+              :style="{ height: `${topTablesChartHeight}px` }"
+            />
           </template>
         </ClientOnly>
       </UCard>
