@@ -1,5 +1,8 @@
 import type { MaybeRefOrGetter } from 'vue'
 import type {
+  CandidateDetail,
+  CandidatesFilters,
+  CandidatesResponse,
   ChampionStatsFilters,
   ChampionStatsRow,
   DbTableRow,
@@ -164,8 +167,9 @@ export function getMatchDataQuality(id: string) {
 
 /**
  * `GET /api/ops/accounts/seed` — recent seed requests, newest first. Pass a
- * reactive getter so the table re-fetches when the status filter changes; call
- * `refresh()` after a submit to surface the new request.
+ * reactive getter so the table re-fetches when the status filter or `search`
+ * (Riot ID gameName/tagLine substring) changes; call `refresh()` after a submit
+ * to surface the new request.
  */
 export function useSeedRequests(
   filters?: MaybeRefOrGetter<SeedRequestsFilters>,
@@ -173,6 +177,33 @@ export function useSeedRequests(
   return useOps<SeedRequestReadModel[]>(
     '/accounts/seed',
     filters ? () => ({ ...toValue(filters) }) : undefined,
+  )
+}
+
+/**
+ * `GET /api/ops/candidates` — the server-paginated main-candidate ingestion
+ * pipeline list, most-relevant first. Pass a reactive getter so the table
+ * re-fetches when a filter (status/region/search) or the page changes.
+ */
+export function useCandidates(
+  filters?: MaybeRefOrGetter<CandidatesFilters>,
+) {
+  return useOps<CandidatesResponse>(
+    '/candidates',
+    filters ? () => ({ ...toValue(filters) }) : undefined,
+  )
+}
+
+/**
+ * `GET /api/ops/candidates/{id}` — one candidate's detail (pipeline fields,
+ * ingested match count, linked seed request). A one-shot `$fetch` because the
+ * slide-over loads it imperatively on row click / deep-link rather than watching
+ * a key. Throws a `FetchError` on any non-2xx (including 404 for an unknown id);
+ * callers must catch and inspect `statusCode === 404`.
+ */
+export function getCandidateDetail(id: string) {
+  return $fetch<CandidateDetail>(
+    `/api/ops/candidates/${encodeURIComponent(id)}`,
   )
 }
 

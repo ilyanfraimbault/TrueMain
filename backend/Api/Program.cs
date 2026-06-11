@@ -144,6 +144,7 @@ builder.Services.AddScoped<ILogsQueryService, LogsQueryService>();
 builder.Services.AddScoped<IDataQualityQueryService, DataQualityQueryService>();
 builder.Services.AddScoped<ISeedRequestService, SeedRequestService>();
 builder.Services.AddScoped<ISeedRequestQueryService, SeedRequestQueryService>();
+builder.Services.AddScoped<ICandidateQueryService, CandidateQueryService>();
 builder.Services.AddDbContext<TrueMainDbContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("TrueMain");

@@ -1,0 +1,37 @@
+# TrueMain — reverse proxy with automatic HTTPS (Caddy).
+#
+# Caddy listens on 80/443, obtains and AUTO-RENEWS a Let's Encrypt certificate
+# for every site address below, and proxies to the app containers over the
+# internal compose network. Certificates and the ACME account live in the
+# `caddy_data` volume so they survive restarts (re-issuing on every boot would
+# hit Let's Encrypt rate limits).
+#
+# Requirements on the host:
+#   - ports 80 AND 443 open to the internet (HTTP-01 / TLS-ALPN-01 challenges)
+#   - DNS A records: truemain.lol, www.truemain.lol, admin.truemain.lol -> VPS IP
+#
+# This file must sit next to compose.prod.yaml on the server (it is bind-mounted
+# read-only into the caddy container).
+
+# Public site
+truemain.lol {
+	reverse_proxy web:3000
+}
+
+# Canonical host: send www -> apex
+www.truemain.lol {
+	redir https://truemain.lol{uri} permanent
+}
+
+# Admin dashboard
+admin.truemain.lol {
+	# Force X-Forwarded-For to the real peer IP, dropping any client-supplied
+	# value. Caddy already does this by default (the browser is an untrusted
+	# peer), but setting it explicitly documents the invariant the admin's
+	# per-IP login throttle relies on (it trusts XFF only when NUXT_TRUST_PROXY
+	# is set, i.e. here in prod) and keeps it robust across Caddy versions. The
+	# admin container is not published on the host — only Caddy reaches it.
+	reverse_proxy admin:3000 {
+		header_up X-Forwarded-For {remote_host}
+	}
+}
