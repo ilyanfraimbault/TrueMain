@@ -70,11 +70,15 @@ function safeEqual(a: string, b: string): boolean {
  * compared in constant time to avoid timing leaks.
  */
 export default defineEventHandler(async (event) => {
-  // Key the throttle on the real TCP peer IP, NOT X-Forwarded-For: the admin is
-  // deployed direct-host without a reverse proxy, so a client-supplied
-  // X-Forwarded-For would be attacker-controlled and let them cycle IPs to
-  // bypass the limit and brute-force the password.
-  const ip = getRequestIP(event) ?? 'unknown'
+  const { adminUsername, adminPassword, trustProxy } = useRuntimeConfig(event)
+
+  // Key the throttle on the real client IP. Trust `X-Forwarded-For` ONLY behind
+  // a TLS-terminating reverse proxy that overwrites it (prod: Caddy, with
+  // NUXT_TRUST_PROXY=true). In a direct-exposure deployment (dev, qa on :3002)
+  // `X-Forwarded-For` is attacker-controlled — a client could send a fresh
+  // value per attempt to cycle past the per-IP limit and brute-force the
+  // password — so fall back to the TCP peer IP, which cannot be spoofed.
+  const ip = getRequestIP(event, { xForwardedFor: trustProxy }) ?? 'unknown'
   if (tooManyAttempts(ip)) {
     throw createError({ statusCode: 429, statusMessage: 'Too many attempts, try again later' })
   }
@@ -82,8 +86,6 @@ export default defineEventHandler(async (event) => {
   const body = await readBody<LoginBody>(event)
   const username = typeof body?.username === 'string' ? body.username : ''
   const password = typeof body?.password === 'string' ? body.password : ''
-
-  const { adminUsername, adminPassword } = useRuntimeConfig(event)
 
   // Evaluate both comparisons unconditionally so a wrong username and a wrong
   // password take the same path.

@@ -71,8 +71,9 @@ services:
     depends_on:
       api:
         condition: service_healthy
-    ports:
-      - "3000:3000"
+    # No host port: the public site is fronted by Caddy (truemain.lol) and
+    # reached over the internal network. To debug from the host, temporarily
+    # add `127.0.0.1:3000:3000`.
     networks:
       - truemain_internal
 
@@ -87,17 +88,37 @@ services:
       NUXT_OPS_KEY: ${OPS_API_KEY}
       NUXT_SESSION_PASSWORD: "${ADMIN_SESSION_PASSWORD:?set ADMIN_SESSION_PASSWORD before deploying}"
       NUXT_ADMIN_USERNAME: ${ADMIN_USERNAME:-truemain}
-      NUXT_ADMIN_PASSWORD: "${ADMIN_PASSWORD:?set ADMIN_PASSWORD before deploying - admin is exposed on 0.0.0.0}"
+      NUXT_ADMIN_PASSWORD: "${ADMIN_PASSWORD:?set a strong ADMIN_PASSWORD before deploying}"
+      # Behind Caddy (TLS termination): mark the session cookie `Secure` and
+      # trust the X-Forwarded-For Caddy sets so the login throttle keys on the
+      # real client IP.
+      NUXT_SESSION_COOKIE_SECURE: "true"
+      NUXT_TRUST_PROXY: "true"
     depends_on:
       api:
         condition: service_healthy
+    # No host port: the admin dashboard is fronted by Caddy over HTTPS
+    # (admin.truemain.lol) and reachable only via the internal network. Its
+    # session cookie is `Secure`, so it requires TLS — which Caddy terminates.
+    # To debug from the host, temporarily add `127.0.0.1:3001:3000`.
+    networks:
+      - truemain_internal
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: truemain-caddy
+    restart: unless-stopped
     ports:
-      # Published directly on the host (no reverse proxy, by request): reachable
-      # at http://<host>:3001 over plain HTTP — NO TLS, so the login and the
-      # session cookie travel in cleartext. Gated only by the operator login:
-      # use a strong ADMIN_PASSWORD and restrict the port with a host firewall
-      # (e.g. `ufw allow from <trusted-ip> to any port 3001`). See README.
-      - "3001:3000"
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - truemain_caddy_data:/data
+      - truemain_caddy_config:/config
+    depends_on:
+      - web
+      - admin
     networks:
       - truemain_internal
 
@@ -123,6 +144,8 @@ services:
 volumes:
   truemain_db_data:
   truemain_mongo_data:
+  truemain_caddy_data:
+  truemain_caddy_config:
 
 networks:
   truemain_internal:
