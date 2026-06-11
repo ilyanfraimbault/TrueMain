@@ -113,6 +113,8 @@ jobs:
           ADMIN_SESSION_PASSWORD: ci-admin-session-min-32-characters-padding
           ADMIN_USERNAME: truemain
           ADMIN_PASSWORD: truemain
+          MONGO_USER: truemain
+          MONGO_PASSWORD: truemain
         run: docker compose -f compose.yaml config
 
       - name: Validate dev watch compose file
@@ -127,6 +129,8 @@ jobs:
           ADMIN_SESSION_PASSWORD: ci-admin-session-min-32-characters-padding
           ADMIN_USERNAME: truemain
           ADMIN_PASSWORD: truemain
+          MONGO_USER: truemain
+          MONGO_PASSWORD: truemain
         run: docker compose -f compose.dev.yaml config
 
       - name: Validate production compose file
@@ -141,6 +145,8 @@ jobs:
           ADMIN_SESSION_PASSWORD: ci-admin-session-min-32-characters-padding
           ADMIN_USERNAME: truemain
           ADMIN_PASSWORD: truemain
+          MONGO_USER: truemain
+          MONGO_PASSWORD: truemain
         run: docker compose -f compose.prod.yaml config
 
       - name: Validate QA compose file
@@ -155,6 +161,8 @@ jobs:
           ADMIN_SESSION_PASSWORD: ci-admin-session-min-32-characters-padding
           ADMIN_USERNAME: truemain
           ADMIN_PASSWORD: truemain
+          MONGO_USER: truemain_qa
+          MONGO_PASSWORD: truemain_qa
         run: docker compose -f compose.qa.yaml config
 
   docker-build:

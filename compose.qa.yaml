@@ -20,6 +20,25 @@ services:
     networks:
       - truemain_internal
 
+  mongo:
+    image: mongo:8.0.24
+    container_name: truemain-qa-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+    # No published port: internal-only, reached by app containers as "mongo:27017".
+    volumes:
+      - truemain_qa_mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - truemain_internal
+
   api:
     image: ghcr.io/ilyanfraimbault/truemain-api:qa
     container_name: truemain-qa-api
@@ -29,9 +48,13 @@ services:
       ASPNETCORE_URLS: http://+:8080
       Database__ApplyMigrationsOnStartup: "true"
       ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300
-      Ops__ApiKey: ${OPS_API_KEY}
+      # MONGO_USER / MONGO_PASSWORD must be alphanumeric — they are interpolated raw into the URI.
+      MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
+      Ops__ApiKey: "${OPS_API_KEY:?set OPS_API_KEY before deploying}"
     depends_on:
       postgres:
+        condition: service_healthy
+      mongo:
         condition: service_healthy
     ports:
       - "8081:8080"
@@ -63,17 +86,19 @@ services:
       NITRO_PORT: 3000
       NUXT_OPS_API_BASE_URL: http://api:8080
       NUXT_OPS_KEY: ${OPS_API_KEY}
-      NUXT_SESSION_PASSWORD: ${ADMIN_SESSION_PASSWORD}
+      NUXT_SESSION_PASSWORD: "${ADMIN_SESSION_PASSWORD:?set ADMIN_SESSION_PASSWORD before deploying}"
       NUXT_ADMIN_USERNAME: ${ADMIN_USERNAME:-truemain}
-      NUXT_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-truemain}
+      NUXT_ADMIN_PASSWORD: "${ADMIN_PASSWORD:?set ADMIN_PASSWORD before deploying - admin is exposed on 0.0.0.0}"
     depends_on:
       api:
         condition: service_healthy
     ports:
-      # Bind to loopback only: the admin dashboard is an internal tool reached
-      # via the reverse proxy on the host, never directly from the public
-      # internet. `3002:3000` would publish on 0.0.0.0.
-      - "127.0.0.1:3002:3000"
+      # Published directly on the host (no reverse proxy, by request): reachable
+      # at http://<host>:3002 over plain HTTP — NO TLS, so the login and the
+      # session cookie travel in cleartext. Gated only by the operator login:
+      # use a strong ADMIN_PASSWORD and restrict the port with a host firewall
+      # (e.g. `ufw allow from <trusted-ip> to any port 3002`). See README.
+      - "3002:3000"
     networks:
       - truemain_internal
 
@@ -84,10 +109,14 @@ services:
     environment:
       DOTNET_ENVIRONMENT: Production
       ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300
+      # MONGO_USER / MONGO_PASSWORD must be alphanumeric — they are interpolated raw into the URI.
+      MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
       Riot__ApiKey: ${RIOT_API_KEY}
       Job__Mode: ${INGESTOR_JOB_MODE:-Full}
     depends_on:
       postgres:
+        condition: service_healthy
+      mongo:
         condition: service_healthy
     networks:
       - truemain_internal
@@ -112,6 +141,8 @@ services:
 volumes:
   truemain_qa_db_data:
     name: truemain_qa_db_data
+  truemain_qa_mongo_data:
+    name: truemain_qa_mongo_data
   truemain_qa_pgadmin_data:
     name: truemain_qa_pgadmin_data
 
