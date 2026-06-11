@@ -18,6 +18,26 @@ services:
     networks:
       - truemain_internal
 
+  mongo:
+    image: mongo:8.0
+    container_name: truemain-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+    # No published port: the log/audit store is internal-only and reached by the
+    # app containers over the compose network ("mongo:27017").
+    volumes:
+      - truemain_mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - truemain_internal
+
   api:
     image: ghcr.io/ilyanfraimbault/truemain-api:latest
     container_name: truemain-api
@@ -27,9 +47,12 @@ services:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300
       Database__ApplyMigrationsOnStartup: "true"
+      MongoLogging__ConnectionString: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin
       Ops__ApiKey: ${OPS_API_KEY}
     depends_on:
       postgres:
+        condition: service_healthy
+      mongo:
         condition: service_healthy
     ports:
       - "8080:8080"
@@ -68,10 +91,10 @@ services:
       api:
         condition: service_healthy
     ports:
-      # Bind to loopback only: the admin dashboard is an internal tool reached
-      # via the reverse proxy on the host, never directly from the public
-      # internet. `3001:3000` would publish on 0.0.0.0.
-      - "127.0.0.1:3001:3000"
+      # Published directly on the host (no reverse proxy, by request): reachable
+      # at http://<host>:3001, gated only by the operator login. Use a strong
+      # ADMIN_PASSWORD and ideally a host firewall / IP allowlist.
+      - "3001:3000"
     networks:
       - truemain_internal
 
@@ -82,16 +105,20 @@ services:
     environment:
       DOTNET_ENVIRONMENT: Production
       ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300
+      MongoLogging__ConnectionString: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin
       Riot__ApiKey: ${RIOT_API_KEY}
       Job__Mode: ${INGESTOR_JOB_MODE:-Full}
     depends_on:
       postgres:
+        condition: service_healthy
+      mongo:
         condition: service_healthy
     networks:
       - truemain_internal
 
 volumes:
   truemain_db_data:
+  truemain_mongo_data:
 
 networks:
   truemain_internal:
