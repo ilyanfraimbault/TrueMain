@@ -8,6 +8,7 @@
  */
 const INSECURE_DEFAULT = 'truemain'
 const MIN_SESSION_PASSWORD_LENGTH = 32
+const MIN_OPS_KEY_LENGTH = 32
 
 export default defineNitroPlugin(() => {
   if (import.meta.dev) {
@@ -25,6 +26,9 @@ export default defineNitroPlugin(() => {
   }
   if (!config.session?.password || config.session.password.length < MIN_SESSION_PASSWORD_LENGTH) {
     problems.push(`NUXT_SESSION_PASSWORD must be set to a random secret of at least ${MIN_SESSION_PASSWORD_LENGTH} characters`)
+  }
+  if (!config.opsKey || config.opsKey.length < MIN_OPS_KEY_LENGTH) {
+    problems.push(`NUXT_OPS_KEY must be set to the ops API key (at least ${MIN_OPS_KEY_LENGTH} characters); otherwise the ops proxy forwards an invalid X-Ops-Key and every backend call 401s`)
   }
 
   if (problems.length > 0) {
