@@ -59,13 +59,18 @@ jobs:
         run: dotnet test tests/TrueMain.IntegrationTests/TrueMain.IntegrationTests.csproj --configuration Release --no-build --verbosity normal
 
   frontend:
-    name: Frontend Build
+    name: Frontend Build (${{ matrix.app }})
     runs-on: ubuntu-24.04
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
 
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [web, admin]
+
     defaults:
       run:
-        working-directory: web
+        working-directory: ${{ matrix.app }}
 
     steps:
       - name: Checkout
@@ -76,7 +81,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: ${{ matrix.app }}/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -105,6 +110,11 @@ jobs:
           OPS_API_KEY: ci-ops-api-key-min-32-characters-padding
           PGADMIN_DEFAULT_EMAIL: admin@truemain.dev
           PGADMIN_DEFAULT_PASSWORD: admin
+          ADMIN_SESSION_PASSWORD: ci-admin-session-min-32-characters-padding
+          ADMIN_USERNAME: truemain
+          ADMIN_PASSWORD: truemain
+          MONGO_USER: truemain
+          MONGO_PASSWORD: truemain
         run: docker compose -f compose.yaml config
 
       - name: Validate dev watch compose file
@@ -116,6 +126,11 @@ jobs:
           OPS_API_KEY: ci-ops-api-key-min-32-characters-padding
           PGADMIN_DEFAULT_EMAIL: admin@truemain.dev
           PGADMIN_DEFAULT_PASSWORD: admin
+          ADMIN_SESSION_PASSWORD: ci-admin-session-min-32-characters-padding
+          ADMIN_USERNAME: truemain
+          ADMIN_PASSWORD: truemain
+          MONGO_USER: truemain
+          MONGO_PASSWORD: truemain
         run: docker compose -f compose.dev.yaml config
 
       - name: Validate production compose file
@@ -127,6 +142,11 @@ jobs:
           OPS_API_KEY: ci-ops-api-key-min-32-characters-padding
           PGADMIN_DEFAULT_EMAIL: admin@truemain.dev
           PGADMIN_DEFAULT_PASSWORD: admin
+          ADMIN_SESSION_PASSWORD: ci-admin-session-min-32-characters-padding
+          ADMIN_USERNAME: truemain
+          ADMIN_PASSWORD: truemain
+          MONGO_USER: truemain
+          MONGO_PASSWORD: truemain
         run: docker compose -f compose.prod.yaml config
 
       - name: Validate QA compose file
@@ -138,6 +158,11 @@ jobs:
           OPS_API_KEY: ci-ops-api-key-min-32-characters-padding
           PGADMIN_DEFAULT_EMAIL: admin@truemain-qa.dev
           PGADMIN_DEFAULT_PASSWORD: admin
+          ADMIN_SESSION_PASSWORD: ci-admin-session-min-32-characters-padding
+          ADMIN_USERNAME: truemain
+          ADMIN_PASSWORD: truemain
+          MONGO_USER: truemain_qa
+          MONGO_PASSWORD: truemain_qa
         run: docker compose -f compose.qa.yaml config
 
   docker-build:
@@ -160,6 +185,10 @@ jobs:
             context: ./web
             file: web/Dockerfile
             scope: web
+          - name: Admin
+            context: ./admin
+            file: admin/Dockerfile
+            scope: admin
 
     steps:
       - name: Checkout

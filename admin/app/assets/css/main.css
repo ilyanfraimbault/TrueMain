@@ -1,0 +1,15 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+/*
+ * Match `web/`'s dark surface tokens so the admin dashboard reads as the same
+ * product: neutral-900 base with slightly lighter elevated/accented layers and
+ * a low-contrast border. Subtle glass over heavy bordered cards.
+ */
+.dark {
+  --ui-bg: var(--ui-color-neutral-900);
+  --ui-bg-muted: var(--ui-color-neutral-800);
+  --ui-bg-elevated: var(--ui-color-neutral-800);
+  --ui-bg-accented: var(--ui-color-neutral-700);
+  --ui-border: var(--ui-color-neutral-800);
+}

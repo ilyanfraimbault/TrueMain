@@ -9,4 +9,5 @@ public interface IDataRepositoryFactory
     IMatchParticipantRepository CreateMatchParticipantRepository(TrueMainDbContext dbContext);
     IProcessRunRepository CreateProcessRunRepository(TrueMainDbContext dbContext);
     IRankSnapshotRepository CreateRankSnapshotRepository(TrueMainDbContext dbContext);
+    ISeedRequestRepository CreateSeedRequestRepository(TrueMainDbContext dbContext);
 }

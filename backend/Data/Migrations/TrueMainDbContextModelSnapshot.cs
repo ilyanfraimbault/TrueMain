@@ -359,6 +359,11 @@ namespace Data.Migrations
                     b.Property<int>("ChampionMatches")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("IsExtendedSample")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<bool>("IsMain")
                         .HasColumnType("boolean");
 
@@ -391,6 +396,10 @@ namespace Data.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ChampionId")
+                        .HasDatabaseName("IX_main_champion_stats_is_main_champion")
+                        .HasFilter("\"IsMain\"");
 
                     b.HasIndex("PlatformId", "IsMain");
 
@@ -860,6 +869,58 @@ namespace Data.Migrations
                         .HasFilter("\"MatchIngestStatus\" <> 0");
 
                     b.ToTable("riot_accounts", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.SeedRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<string>("GameName")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("PlatformId")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<DateTime?>("ProcessedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("RequestedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ResolvedPuuid")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<Guid?>("ResolvedRiotAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("TagLine")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequestedAtUtc");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("seed_requests", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.ChampionAggregatePattern", b =>

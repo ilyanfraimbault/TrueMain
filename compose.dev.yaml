@@ -22,6 +22,29 @@ services:
     networks:
       - truemain_dev_internal
 
+  mongo:
+    image: mongo:8.0
+    container_name: truemain-dev-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+    ports:
+      # Bind to loopback only: the log/audit store must not be reachable from
+      # other hosts on the network. App containers reach it over the compose
+      # network ("mongo:27017"), which does not go through this published port.
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - truemain_dev_mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - truemain_dev_internal
+
   api:
     build:
       context: ./backend
@@ -34,9 +57,12 @@ services:
       DOTNET_USE_POLLING_FILE_WATCHER: "1"
       Database__ApplyMigrationsOnStartup: "true"
       ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300
+      MongoLogging__ConnectionString: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin
       Ops__ApiKey: ${OPS_API_KEY}
     depends_on:
       postgres:
+        condition: service_healthy
+      mongo:
         condition: service_healthy
     ports:
       - "8080:8080"
@@ -105,6 +131,39 @@ services:
     networks:
       - truemain_dev_internal
 
+  admin:
+    build:
+      context: ./admin
+      dockerfile: Dockerfile.dev
+    container_name: truemain-dev-admin
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      NITRO_HOST: 0.0.0.0
+      NITRO_PORT: 3000
+      NUXT_OPS_API_BASE_URL: http://api:8080
+      NUXT_OPS_KEY: ${OPS_API_KEY}
+      NUXT_SESSION_PASSWORD: ${ADMIN_SESSION_PASSWORD}
+      NUXT_ADMIN_USERNAME: ${ADMIN_USERNAME:-truemain}
+      NUXT_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-truemain}
+      CHOKIDAR_USEPOLLING: "true"
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./admin:/workspace/admin
+      - truemain_dev_admin_node_modules:/workspace/admin/node_modules
+    develop:
+      watch:
+        - action: rebuild
+          path: ./admin/package.json
+        - action: rebuild
+          path: ./admin/package-lock.json
+    networks:
+      - truemain_dev_internal
+
   ingestor:
     build:
       context: ./backend
@@ -115,10 +174,13 @@ services:
       DOTNET_ENVIRONMENT: Development
       DOTNET_USE_POLLING_FILE_WATCHER: "1"
       ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300
+      MongoLogging__ConnectionString: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin
       Riot__ApiKey: ${RIOT_API_KEY}
       Job__Mode: ${INGESTOR_JOB_MODE:-Full}
     depends_on:
       postgres:
+        condition: service_healthy
+      mongo:
         condition: service_healthy
     volumes:
       - truemain_dev_ingestor_nuget:/root/.nuget/packages
@@ -175,10 +237,12 @@ services:
 
 volumes:
   truemain_dev_db_data:
+  truemain_dev_mongo_data:
   truemain_dev_pgadmin_data:
   truemain_dev_api_nuget:
   truemain_dev_ingestor_nuget:
   truemain_dev_web_node_modules:
+  truemain_dev_admin_node_modules:
 
 networks:
   truemain_dev_internal:

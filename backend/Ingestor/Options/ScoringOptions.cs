@@ -17,4 +17,11 @@ public class ScoringOptions
     public double RankWeight { get; set; } = 0.20;
 
     public double PointsWeight { get; set; } = 0.15;
+
+    /// <summary>
+    /// Weight of the per-champion scarcity term in candidate scoring. Pulls candidates
+    /// maining under-covered champions up the ranking so they cross the top-N ingestion
+    /// queue, without changing the IsMain definition. Set to 0 to disable the bonus.
+    /// </summary>
+    public double ScarcityWeight { get; set; } = 0.25;
 }

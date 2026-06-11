@@ -1,6 +1,7 @@
 using Data.Entities;
 using Data.Repositories;
 using Ingestor.Options;
+using Ingestor.Processes.Components.Coverage;
 using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
@@ -8,6 +9,7 @@ namespace Ingestor.Processes;
 public sealed class ScoringProcess(
     ILogger<ScoringProcess> logger,
     IDataSessionFactory sessionFactory,
+    IChampionCoverageProvider coverageProvider,
     IOptions<ScoringOptions> scoringOptions) : IIngestorProcess
 {
     /// <summary>
@@ -24,7 +26,8 @@ public sealed class ScoringProcess(
         var scoring = scoringOptions.Value;
 
         await using var session = await sessionFactory.CreateAsync(ct);
-        var scoringResult = await ScoreCandidatesAsync(session, scoring, ct);
+        var coverage = await coverageProvider.GetSnapshotAsync(session, ct);
+        var scoringResult = await ScoreCandidatesAsync(session, scoring, coverage, ct);
         if (scoringResult.TotalScored == 0)
         {
             logger.LogInformation("No new candidates to score.");
@@ -38,6 +41,7 @@ public sealed class ScoringProcess(
     private static async Task<ScoringResult> ScoreCandidatesAsync(
         IDataSession session,
         ScoringOptions scoring,
+        ChampionCoverageSnapshot coverage,
         CancellationToken ct)
     {
         var nowUtc = DateTime.UtcNow;
@@ -46,7 +50,7 @@ public sealed class ScoringProcess(
 
         while (true)
         {
-            var scoredCandidates = await ScoreCandidatesBatchAsync(session, scoring, nowUtc, batchSize, ct);
+            var scoredCandidates = await ScoreCandidatesBatchAsync(session, scoring, coverage, nowUtc, batchSize, ct);
             if (scoredCandidates.Count == 0)
             {
                 return result;
@@ -66,6 +70,7 @@ public sealed class ScoringProcess(
     private static async Task<List<MainCandidate>> ScoreCandidatesBatchAsync(
         IDataSession session,
         ScoringOptions scoring,
+        ChampionCoverageSnapshot coverage,
         DateTime nowUtc,
         int batchSize,
         CancellationToken ct)
@@ -78,7 +83,7 @@ public sealed class ScoringProcess(
 
         foreach (var candidate in candidates)
         {
-            candidate.Score = ComputeScore(candidate, scoring, nowUtc);
+            candidate.Score = ComputeScore(candidate, scoring, coverage, nowUtc);
             candidate.Status = MainCandidateStatus.Scored;
             candidate.ScoredAtUtc = nowUtc;
         }
@@ -144,7 +149,11 @@ public sealed class ScoringProcess(
         public Dictionary<string, int> ScoredByPlatform { get; } = new(StringComparer.OrdinalIgnoreCase);
     }
 
-    private static double ComputeScore(MainCandidate candidate, ScoringOptions scoring, DateTime nowUtc)
+    private static double ComputeScore(
+        MainCandidate candidate,
+        ScoringOptions scoring,
+        ChampionCoverageSnapshot coverage,
+        DateTime nowUtc)
     {
         var maxLastPlayDays = scoring.MaxLastPlayDays <= 0 ? 1 : scoring.MaxLastPlayDays;
         var topN = scoring.TopChampionsPerAccount <= 0 ? 10 : scoring.TopChampionsPerAccount;
@@ -160,19 +169,33 @@ public sealed class ScoringProcess(
         var recencyWeight = scoring.RecencyWeight;
         var rankWeight = scoring.RankWeight;
         var pointsWeight = scoring.PointsWeight;
+        var scarcityWeight = Math.Max(0, scoring.ScarcityWeight);
+        var scarcityScore = coverage.Deficit(candidate.ChampionId);
 
-        var weightSum = recencyWeight + rankWeight + pointsWeight;
+        // Including scarcityWeight in the denominator is deliberate: it normalises the total
+        // while compressing covered-champion scores proportionally, which is what gives
+        // under-covered champions their relative boost. With defaults (0.65+0.20+0.15+0.25=1.25)
+        // a fully-covered champion (deficit 0) tops out at ~80, while an under-covered one
+        // (deficit 1) can reach 100. ScarcityWeight is validated at startup to not exceed the
+        // combined merit weights (recency + rank + points), so scarcity cannot outweigh merit.
+        var weightSum = recencyWeight + rankWeight + pointsWeight + scarcityWeight;
+
+        // Defensive only: startup validation guarantees the base weights sum to > 0,
+        // so this branch is unreachable in practice. It guards against a divide-by-zero
+        // if the validator is ever bypassed (e.g. a future refactor or a direct test).
         if (weightSum <= 0)
         {
             recencyWeight = 0.65;
             rankWeight = 0.20;
             pointsWeight = 0.15;
+            scarcityWeight = 0;
             weightSum = 1.0;
         }
 
         return 100 * ((recencyWeight / weightSum) * recencyScore
                       + (rankWeight / weightSum) * rankScore
-                      + (pointsWeight / weightSum) * pointsScore);
+                      + (pointsWeight / weightSum) * pointsScore
+                      + (scarcityWeight / weightSum) * scarcityScore);
     }
 
     private static double Clamp(double value, double min, double max)

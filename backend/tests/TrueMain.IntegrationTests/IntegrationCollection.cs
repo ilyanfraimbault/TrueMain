@@ -9,7 +9,8 @@ namespace TrueMain.IntegrationTests;
 /// and <c>xunit.runner.json</c> disables cross-collection parallelism too).
 /// </summary>
 [CollectionDefinition(Name)]
-public sealed class IntegrationCollection : ICollectionFixture<PostgresFixture>
+public sealed class IntegrationCollection
+    : ICollectionFixture<PostgresFixture>, ICollectionFixture<MongoFixture>
 {
     public const string Name = "Integration";
 }

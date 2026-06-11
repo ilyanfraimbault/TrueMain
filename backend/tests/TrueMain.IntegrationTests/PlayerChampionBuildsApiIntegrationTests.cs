@@ -131,6 +131,47 @@ public sealed class PlayerChampionBuildsApiIntegrationTests
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
+    [Fact]
+    public async Task GetPlayerChampion_with_no_patch_falls_back_to_the_latest_patch_above_the_floor()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        var now = DateTime.UtcNow;
+        await using (var db = _fixture.CreateDbContext())
+        {
+            db.RiotAccounts.Add(BuildAccount(AccountOneId, "EUW1", "phantasm-puuid", "Phantasm", "EUW1", now));
+            await db.SaveChangesAsync();
+
+            await new ChampionAggregateSeeder()
+                // Latest patch (16.6) is thin — 3 games, below the 5-game floor.
+                .AddPatternWithRune(AccountOneId, 157, "16.6", "EUW1", 420, "MIDDLE",
+                    summoner1Id: 4, summoner2Id: 12, skillOrderKey: "Q-E-W",
+                    buildItems: [3153, 3006, 3031], bootsItemId: 3006,
+                    primaryStyleId: 8000, primaryKeystoneId: 8008, secondaryStyleId: 8400,
+                    games: 3, wins: 2, aggregatedAtUtc: now.AddMinutes(-5))
+                // Previous patch (16.5) has a usable sample — 8 games.
+                .AddPatternWithRune(AccountOneId, 157, "16.5", "EUW1", 420, "MIDDLE",
+                    summoner1Id: 4, summoner2Id: 12, skillOrderKey: "Q-E-W",
+                    buildItems: [3153, 3006, 3031], bootsItemId: 3006,
+                    primaryStyleId: 8000, primaryKeystoneId: 8008, secondaryStyleId: 8400,
+                    games: 8, wins: 5, aggregatedAtUtc: now.AddMinutes(-10))
+                .SaveAsync(db);
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        // No patch requested: the latest patch (16.6) is below the floor, so a
+        // player view falls back to the newest patch that clears it (16.5)
+        // instead of 404-ing as if the main had no data.
+        var response = await client.GetAsync("/truemains/Phantasm-EUW1/champions/157");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var payload = await response.Content.ReadFromJsonAsync<ChampionResponse>();
+        payload!.Patch.Should().Be("16.5");
+        payload.TotalGames.Should().Be(8, "the thin latest patch is skipped for the newest one above the floor");
+    }
+
     private async Task SeedAsync()
     {
         var now = DateTime.UtcNow;

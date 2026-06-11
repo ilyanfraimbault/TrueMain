@@ -214,7 +214,6 @@ const isRefetching = computed(() =>
       <ChampionMatchups
         :champion-id="championId"
         :position="selectedPosition"
-        :patch="activePatch"
         :champions="staticList ?? []"
       />
 

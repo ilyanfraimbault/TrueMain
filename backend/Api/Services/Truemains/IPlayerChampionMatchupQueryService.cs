@@ -23,5 +23,6 @@ public interface IPlayerChampionMatchupQueryService
         int championId,
         string position,
         string? patch,
+        int? opponentChampionId,
         CancellationToken ct);
 }

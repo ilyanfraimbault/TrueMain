@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("dada8802-d932-4532-83a1-2516d5c5cef6"), entityTypeCount: 17)
+            : base(skipDetectChanges: false, modelId: new Guid("cdc6cb11-1fc8-490a-b764-42623f1b0841"), entityTypeCount: 18)
         {
         }
 
@@ -35,6 +35,7 @@ namespace Data.CompiledModels
             var processRun = ProcessRunEntityType.Create(this);
             var rankSnapshot = RankSnapshotEntityType.Create(this);
             var riotAccount = RiotAccountEntityType.Create(this);
+            var seedRequest = SeedRequestEntityType.Create(this);
 
             ChampionAggregatePatternEntityType.CreateForeignKey1(championAggregatePattern, championDimBuild);
             ChampionAggregatePatternEntityType.CreateForeignKey2(championAggregatePattern, championDimRunePage);
@@ -67,6 +68,7 @@ namespace Data.CompiledModels
             ProcessRunEntityType.CreateAnnotations(processRun);
             RankSnapshotEntityType.CreateAnnotations(rankSnapshot);
             RiotAccountEntityType.CreateAnnotations(riotAccount);
+            SeedRequestEntityType.CreateAnnotations(seedRequest);
 
             AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn);
             AddAnnotation("ProductVersion", "10.0.8");

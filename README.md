@@ -59,6 +59,16 @@ docker compose -f compose.qa.yaml up
 docker compose -f compose.prod.yaml up
 ```
 
+### Accès au dashboard admin (qa / prod)
+
+Le dashboard d'administration est publié **directement sur l'hôte**, sans reverse proxy — qa : `http://<hôte>:3002`, prod : `http://<hôte>:3001`. Login via `ADMIN_USERNAME` / `ADMIN_PASSWORD`.
+
+> ⚠️ **Pas de TLS dans ce mode.** Les identifiants et le cookie de session transitent **en clair (HTTP)**. Ne l'exposez pas sur l'Internet public sans, a minima, restreindre le port par firewall :
+> ```bash
+> ufw allow from <IP_de_confiance> to any port 3001   # prod (3002 en qa)
+> ```
+> Mongo et Postgres ne sont pas publiés (réseau interne `truemain_internal` uniquement). Lorsqu'un domaine sera disponible, le mode recommandé est de repasser l'admin en `127.0.0.1:<port>:3000` derrière un reverse proxy qui termine le TLS.
+
 ## Build / test séparé
 
 ### Backend .NET
@@ -88,6 +98,9 @@ Toutes les valeurs nécessaires sont listées dans `.env.example` (dev/prod) et 
 - `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`
 - `RIOT_API_KEY` — clé Riot Developer (`RGAPI-…`)
 - `OPS_API_KEY` — clé pour `/ops/*` (32+ caractères)
+- `MONGO_USER`, `MONGO_PASSWORD` — credentials MongoDB (logs + audit ; alphanumériques, ils entrent dans l'URI de connexion)
+- `ADMIN_USERNAME`, `ADMIN_PASSWORD` — login du dashboard admin. **Définir un vrai `ADMIN_PASSWORD` est obligatoire** (le dashboard est exposé directement sans TLS, cf. ci-dessus) ; `.env.example` met volontairement `REPLACE_ME`
+- `ADMIN_SESSION_PASSWORD` — scelle le cookie de session admin (32+ caractères aléatoires, ex. `openssl rand -hex 32`)
 - `PGADMIN_DEFAULT_EMAIL`, `PGADMIN_DEFAULT_PASSWORD`
 - `NUXT_API_BASE_URL` (côté web, généralement `http://api:8080` dans Docker)
 

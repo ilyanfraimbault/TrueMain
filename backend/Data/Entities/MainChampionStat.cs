@@ -20,6 +20,13 @@ public class MainChampionStat
 
     public bool IsOtp { get; set; }
 
+    /// <summary>
+    /// True when this row is a main only thanks to the coverage-adaptive threshold
+    /// (its play rate is below the base MainAnalysis play-rate threshold). Lets the UI
+    /// label these as an "extended sample" for under-covered champions.
+    /// </summary>
+    public bool IsExtendedSample { get; set; }
+
     public string PrimaryPosition { get; set; } = string.Empty;
 
     public List<PositionStat> PositionBreakdown { get; set; } = new();
