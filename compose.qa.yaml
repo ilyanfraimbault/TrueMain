@@ -93,8 +93,10 @@ services:
         condition: service_healthy
     ports:
       # Published directly on the host (no reverse proxy, by request): reachable
-      # at http://<host>:3002, gated only by the operator login. Use a strong
-      # ADMIN_PASSWORD and ideally a host firewall / IP allowlist.
+      # at http://<host>:3002 over plain HTTP — NO TLS, so the login and the
+      # session cookie travel in cleartext. Gated only by the operator login:
+      # use a strong ADMIN_PASSWORD and restrict the port with a host firewall
+      # (e.g. `ufw allow from <trusted-ip> to any port 3002`). See README.
       - "3002:3000"
     networks:
       - truemain_internal
