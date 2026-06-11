@@ -99,7 +99,7 @@ Toutes les valeurs nécessaires sont listées dans `.env.example` (dev/prod) et 
 - `RIOT_API_KEY` — clé Riot Developer (`RGAPI-…`)
 - `OPS_API_KEY` — clé pour `/ops/*` (32+ caractères)
 - `MONGO_USER`, `MONGO_PASSWORD` — credentials MongoDB (logs + audit ; alphanumériques, ils entrent dans l'URI de connexion)
-- `ADMIN_USERNAME`, `ADMIN_PASSWORD` — login du dashboard admin (défaut `truemain` / `truemain`)
+- `ADMIN_USERNAME`, `ADMIN_PASSWORD` — login du dashboard admin. **Définir un vrai `ADMIN_PASSWORD` est obligatoire** (le dashboard est exposé directement sans TLS, cf. ci-dessus) ; `.env.example` met volontairement `REPLACE_ME`
 - `ADMIN_SESSION_PASSWORD` — scelle le cookie de session admin (32+ caractères aléatoires, ex. `openssl rand -hex 32`)
 - `PGADMIN_DEFAULT_EMAIL`, `PGADMIN_DEFAULT_PASSWORD`
 - `NUXT_API_BASE_URL` (côté web, généralement `http://api:8080` dans Docker)
