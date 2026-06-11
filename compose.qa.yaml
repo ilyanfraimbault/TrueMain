@@ -21,7 +21,7 @@ services:
       - truemain_internal
 
   mongo:
-    image: mongo:8.0
+    image: mongo:8.0.24
     container_name: truemain-qa-mongo
     restart: unless-stopped
     environment:
@@ -87,7 +87,7 @@ services:
       NUXT_OPS_KEY: ${OPS_API_KEY}
       NUXT_SESSION_PASSWORD: ${ADMIN_SESSION_PASSWORD}
       NUXT_ADMIN_USERNAME: ${ADMIN_USERNAME:-truemain}
-      NUXT_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-truemain}
+      NUXT_ADMIN_PASSWORD: "${ADMIN_PASSWORD:?set ADMIN_PASSWORD before deploying - admin is exposed on 0.0.0.0}"
     depends_on:
       api:
         condition: service_healthy
