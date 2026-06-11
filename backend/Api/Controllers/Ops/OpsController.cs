@@ -19,7 +19,8 @@ public sealed class OpsController(
     ILogsQueryService logsQueryService,
     IDataQualityQueryService dataQualityQueryService,
     ISeedRequestService seedRequestService,
-    ISeedRequestQueryService seedRequestQueryService) : ControllerBase
+    ISeedRequestQueryService seedRequestQueryService,
+    ICandidateQueryService candidateQueryService) : ControllerBase
 {
     [HttpGet("pipeline-health")]
     [ProducesResponseType(typeof(PipelineHealthReadModel), StatusCodes.Status200OK)]
@@ -222,16 +223,76 @@ public sealed class OpsController(
         return readModel is null ? NotFound() : Ok(readModel);
     }
 
+    /// <summary>
+    /// Recent manual seed ("add a main") requests, newest-first. <paramref name="status"/>
+    /// is an exact <c>SeedRequestStatus</c> name (case-insensitive; unknown values are
+    /// ignored) and <paramref name="search"/> is a case-insensitive substring match on
+    /// the Riot ID (gameName/tagLine).
+    /// </summary>
     [HttpGet("accounts/seed")]
     [ProducesResponseType(typeof(IReadOnlyList<SeedRequestReadModel>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<IReadOnlyList<SeedRequestReadModel>>> GetSeedRequestsAsync(
         [FromQuery] string? status,
+        [FromQuery] string? search,
         [FromQuery] int? limit,
         CancellationToken ct)
     {
-        var readModels = await seedRequestQueryService.GetRecentAsync(status, limit, ct);
+        var readModels = await seedRequestQueryService.GetRecentAsync(status, search, limit, ct);
         return Ok(readModels);
+    }
+
+    /// <summary>
+    /// Lists main candidates (the ingestion pipeline: New → Scored → Queued →
+    /// Processing → Validated, or Rejected), most-relevant first, paged. Filterable
+    /// by <paramref name="status"/> and <paramref name="region"/> (PlatformId), and
+    /// searchable by <paramref name="search"/> over the joined Riot ID
+    /// (gameName/tagLine), PUUID, or — when numeric — champion id. Read-only.
+    /// </summary>
+    /// <param name="status">
+    /// Restrict to a single <c>MainCandidateStatus</c> (case-insensitive name:
+    /// new, scored, queued, processing, validated, rejected). Omit for all.
+    /// </param>
+    /// <param name="region">Restrict to one PlatformId (e.g. "EUW1"). Omit for all.</param>
+    /// <param name="search">Riot ID / PUUID / champion-id search. Omit for none.</param>
+    /// <param name="page">1-based page index (backend clamps to ≥ 1).</param>
+    /// <param name="pageSize">Rows per page (backend clamps to [1, 100], default 25).</param>
+    /// <param name="ct">Request cancellation token.</param>
+    [HttpGet("candidates")]
+    [ProducesResponseType(typeof(CandidatesReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<CandidatesReadModel>> GetCandidatesAsync(
+        [FromQuery] string? status,
+        [FromQuery] string? region,
+        [FromQuery] string? search,
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
+        CancellationToken ct)
+    {
+        var readModel = await candidateQueryService.GetCandidatesAsync(
+            status, region, search, page, pageSize, ct);
+        return Ok(readModel);
+    }
+
+    /// <summary>
+    /// Detail for one candidate: its pipeline fields + timestamps, the joined
+    /// account identity, the count of ingested matches for its PUUID, and the
+    /// linked manual seed request (matched on ResolvedPuuid + platform) when one
+    /// exists. 404 if no such candidate.
+    /// </summary>
+    [HttpGet("candidates/{id:guid}")]
+    [ProducesResponseType(typeof(CandidateDetailReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<CandidateDetailReadModel>> GetCandidateAsync(Guid id, CancellationToken ct)
+    {
+        var readModel = await candidateQueryService.GetByIdAsync(id, ct);
+        return readModel is null
+            ? Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Candidate not found",
+                detail: $"No candidate with id '{id}' was found.")
+            : Ok(readModel);
     }
 }
 

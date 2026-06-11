@@ -11,5 +11,23 @@ public interface ISeedRequestQueryService
 {
     Task<SeedRequestReadModel?> GetByIdAsync(Guid id, CancellationToken ct);
 
-    Task<IReadOnlyList<SeedRequestReadModel>> GetRecentAsync(string? status, int? limit, CancellationToken ct);
+    /// <summary>
+    /// Recent seed requests, newest-first, optionally filtered by status and a free
+    /// text <paramref name="search"/> over the Riot ID (gameName/tagLine).
+    /// </summary>
+    /// <param name="status">
+    /// Exact <c>SeedRequestStatus</c> name (case-insensitive); null/blank/unknown
+    /// applies no status filter.
+    /// </param>
+    /// <param name="search">
+    /// Case-insensitive substring match on gameName or tagLine; null/blank applies
+    /// no search filter.
+    /// </param>
+    /// <param name="limit">Rows to return (clamped to a safe range).</param>
+    /// <param name="ct">Request cancellation token.</param>
+    Task<IReadOnlyList<SeedRequestReadModel>> GetRecentAsync(
+        string? status,
+        string? search,
+        int? limit,
+        CancellationToken ct);
 }

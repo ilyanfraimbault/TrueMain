@@ -26,7 +26,11 @@ public sealed class SeedRequestQueryService(TrueMainDbContext db) : ISeedRequest
         return entity is null ? null : ToReadModel(entity);
     }
 
-    public async Task<IReadOnlyList<SeedRequestReadModel>> GetRecentAsync(string? status, int? limit, CancellationToken ct)
+    public async Task<IReadOnlyList<SeedRequestReadModel>> GetRecentAsync(
+        string? status,
+        string? search,
+        int? limit,
+        CancellationToken ct)
     {
         var effectiveLimit = Math.Clamp(limit ?? DefaultLimit, MinLimit, MaxLimit);
 
@@ -35,6 +39,14 @@ public sealed class SeedRequestQueryService(TrueMainDbContext db) : ISeedRequest
         if (TryParseStatus(status, out var parsedStatus))
         {
             query = query.Where(request => request.Status == parsedStatus);
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var pattern = $"%{LikeEscaping.Escape(search.Trim())}%";
+            query = query.Where(request =>
+                EF.Functions.ILike(request.GameName, pattern, LikeEscaping.EscapeChar)
+                || EF.Functions.ILike(request.TagLine, pattern, LikeEscaping.EscapeChar));
         }
 
         var entities = await query
