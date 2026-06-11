@@ -20,6 +20,29 @@ services:
     networks:
       - truemain_internal
 
+  mongo:
+    image: mongo:8.0
+    container_name: truemain-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+    ports:
+      # Bind to loopback only: the log/audit store must not be reachable from
+      # other hosts on the network. App containers reach it over the compose
+      # network ("mongo:27017"), which does not go through this published port.
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - truemain_mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - truemain_internal
+
   api:
     build:
       context: ./backend
@@ -31,9 +54,12 @@ services:
       ASPNETCORE_URLS: http://+:8080
       Database__ApplyMigrationsOnStartup: "true"
       ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300
+      MongoLogging__ConnectionString: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin
       Ops__ApiKey: ${OPS_API_KEY}
     depends_on:
       postgres:
+        condition: service_healthy
+      mongo:
         condition: service_healthy
     ports:
       - "8080:8080"
@@ -92,10 +118,13 @@ services:
     environment:
       DOTNET_ENVIRONMENT: Production
       ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300
+      MongoLogging__ConnectionString: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin
       Riot__ApiKey: ${RIOT_API_KEY}
       Job__Mode: ${INGESTOR_JOB_MODE:-Full}
     depends_on:
       postgres:
+        condition: service_healthy
+      mongo:
         condition: service_healthy
     networks:
       - truemain_internal
@@ -119,6 +148,7 @@ services:
 
 volumes:
   truemain_db_data:
+  truemain_mongo_data:
   truemain_pgadmin_data:
 
 networks:

@@ -1,6 +1,7 @@
 using Core;
 using Core.Lol.Identifiers;
 using Data.Entities;
+using Data.Logging.Mongo;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Components.Discovery;
@@ -27,6 +28,7 @@ public sealed class ManualSeedProcess(
     IDataSessionFactory sessionFactory,
     IAccountUpsertService accountUpsertService,
     ICandidateUpsertService candidateUpsertService,
+    IAuditLog auditLog,
     IOptions<ManualSeedOptions> manualSeedOptions) : IIngestorProcess
 {
     private const int MaxErrorLength = 2048;
@@ -214,6 +216,44 @@ public sealed class ManualSeedProcess(
         request.ProcessedAtUtc = DateTime.UtcNow;
         await session.SaveChangesAsync(ct);
         summary.Ingested++;
+
+        // Operator-action audit: the seed request has now resolved to a real
+        // account and been queued for ingestion. Record the terminal outcome with
+        // the resolved identity. Synchronous insert, never the diagnostic-log
+        // channel.
+        //
+        // Best-effort by design, and ISOLATED from the processing-failure path: the
+        // request is already committed as Ingested above. If this audit insert threw
+        // and escaped, ProcessRequestAsync's catch would call MarkFailedAsync and
+        // flip a SUCCESSFUL account to Failed (also double-counting it). So we catch
+        // here and only log a Warning — under a Mongo outage the seed still succeeds
+        // and only the audit event is missed. "Lossless" means the audit channel is
+        // synchronous and unbatched vs the lossy batched diagnostic channel — it is
+        // not a guarantee against a Mongo outage.
+        try
+        {
+            await auditLog.RecordAsync(
+                action: "seed_account_ingested",
+                actor: "ingestor",
+                targetType: nameof(SeedRequest),
+                targetId: request.Id.ToString(),
+                metadata: new Dictionary<string, string>
+                {
+                    ["gameName"] = request.GameName,
+                    ["tagLine"] = request.TagLine,
+                    ["platformId"] = request.PlatformId,
+                    ["resolvedPuuid"] = account.Puuid,
+                    ["candidatesQueued"] = queued.ToString()
+                },
+                ct: ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(
+                ex,
+                "Audit write failed for ingested seed request {SeedRequestId}; the account was ingested, audit event missed.",
+                request.Id);
+        }
     }
 
     private async Task MarkFailedAsync(Guid id, string message, CancellationToken ct)

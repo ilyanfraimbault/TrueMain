@@ -1,7 +1,7 @@
 using System.Threading.RateLimiting;
 using Core.Options;
 using Data;
-using Data.Logging;
+using Data.Logging.Mongo;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -172,11 +172,13 @@ builder.Services.AddDbContext<TrueMainDbContext>(options =>
 // TrueMainDbContext registration untouched.
 builder.Services.AddDbContextFactory<TrueMainDbContext>(lifetime: ServiceLifetime.Scoped);
 
-// Persist Warning+ logs to Postgres (see Data/Logging) so the /ops/logs admin
-// endpoint can serve them. The sink drains a bounded channel on a background
-// service and never blocks request threads. ProcessName "Api" tags these rows
-// apart from the Ingestor's.
-builder.Services.AddDatabaseLogging(builder.Configuration, processName: "Api");
+// Persist Warning+ logs to MongoDB (see Data/Logging/Mongo) so the /ops/logs
+// admin endpoint can serve them, and expose the lossless operator-action audit
+// writer (IAuditLog) used by the seed flow. The diagnostic sink drains a bounded
+// channel on a background service and never blocks request threads; the audit
+// writer inserts synchronously. ProcessName "Api" tags diagnostic rows apart from
+// the Ingestor's.
+builder.Services.AddMongoLogging(builder.Configuration, processName: "Api");
 var app = builder.Build();
 await DatabaseMigrator.ApplyPendingMigrationsAsync(app.Services);
 

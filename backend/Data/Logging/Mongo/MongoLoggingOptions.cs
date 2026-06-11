@@ -1,0 +1,88 @@
+using Microsoft.Extensions.Logging;
+
+namespace Data.Logging.Mongo;
+
+/// <summary>
+/// Configuration for the MongoDB-backed logging store (<c>MongoLoggerProvider</c>
+/// + <c>MongoLogSink</c>) and the operator-action audit writer
+/// (<c>MongoAuditLog</c>). Bound from the <c>MongoLogging</c> configuration
+/// section so the API and the Ingestor read the same keys.
+/// </summary>
+/// <remarks>
+/// Replaces the Postgres <c>LoggingSink</c> options (#416). The diagnostic-log
+/// half keeps the same non-blocking, drop-on-overflow channel knobs the Postgres
+/// sink used; the new bits are the Mongo connection, the two collection names and
+/// the TTL retention windows that native TTL indexes enforce.
+/// </remarks>
+public sealed class MongoLoggingOptions
+{
+    public const string SectionName = "MongoLogging";
+
+    /// <summary>
+    /// MongoDB connection string. Overridable per environment via
+    /// <c>MongoLogging__ConnectionString</c>. When blank the provider is still
+    /// registered but disabled (every record is dropped), so a host with no
+    /// Mongo configured boots cleanly rather than crashing.
+    /// </summary>
+    public string? ConnectionString { get; set; }
+
+    /// <summary>Database the two collections live in.</summary>
+    public string Database { get; set; } = "truemain_logs";
+
+    /// <summary>Collection holding diagnostic <c>ILogger</c> records.</summary>
+    public string LogsCollection { get; set; } = "logs";
+
+    /// <summary>Collection holding lossless operator-action audit events.</summary>
+    public string AuditCollection { get; set; } = "audit_events";
+
+    /// <summary>
+    /// Master switch. When false (or when <see cref="ConnectionString"/> is
+    /// blank) the provider is still registered but drops every record, so
+    /// persisted logging can be turned off without code changes.
+    /// </summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// Diagnostic records below this level are not persisted. Defaults to
+    /// <see cref="LogLevel.Warning"/> so the store stays focused on problems
+    /// (warnings + errors) rather than mirroring every Information line.
+    /// </summary>
+    public LogLevel MinimumLevel { get; set; } = LogLevel.Warning;
+
+    /// <summary>
+    /// Bound on the in-memory channel between the logger and the draining
+    /// background service. When full, the oldest queued record is dropped so a
+    /// logging burst can never exhaust memory or block the caller.
+    /// </summary>
+    public int Capacity { get; set; } = 10_000;
+
+    /// <summary>Maximum records flushed to Mongo in a single batch insert.</summary>
+    public int BatchSize { get; set; } = 100;
+
+    /// <summary>
+    /// How long the drain loop waits to accumulate a batch before flushing a
+    /// partial one, so low-volume errors are still persisted promptly.
+    /// </summary>
+    public TimeSpan FlushInterval { get; set; } = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// Retention window for the diagnostic <c>logs</c> collection, enforced by a
+    /// native Mongo TTL index on <c>timestampUtc</c>. Defaults to 30 days
+    /// (resolved open question, #416). Set to <see cref="TimeSpan.Zero"/> or
+    /// negative to disable the TTL index (retain indefinitely).
+    /// </summary>
+    public TimeSpan LogsRetention { get; set; } = TimeSpan.FromDays(30);
+
+    /// <summary>
+    /// Stamped onto every persisted record's <c>processName</c> so the
+    /// <c>/ops/logs</c> view can tell which host produced a line (e.g. "Api" vs
+    /// "Ingestor"). Null leaves the field empty.
+    /// </summary>
+    public string? ProcessName { get; set; }
+
+    /// <summary>
+    /// True only when logging is enabled <em>and</em> a connection string is
+    /// present — the single gate the provider, sink and audit writer share.
+    /// </summary>
+    public bool IsActive => Enabled && !string.IsNullOrWhiteSpace(ConnectionString);
+}

@@ -1,6 +1,7 @@
 using Core.Lol.Identifiers;
 using Data;
 using Data.Entities;
+using Data.Logging.Mongo;
 using Microsoft.EntityFrameworkCore;
 
 namespace TrueMain.Services.Ops;
@@ -14,7 +15,10 @@ namespace TrueMain.Services.Ops;
 /// fast and avoids putting rate-limited Riot calls on a request thread.
 /// </para>
 /// </summary>
-public sealed class SeedRequestService(TrueMainDbContext db, ILogger<SeedRequestService> logger) : ISeedRequestService
+public sealed class SeedRequestService(
+    TrueMainDbContext db,
+    IAuditLog auditLog,
+    ILogger<SeedRequestService> logger) : ISeedRequestService
 {
     // The platforms the pipeline actively tracks (mirrors Discovery's default
     // platform set). Requests outside this set are still accepted — Riot can
@@ -97,6 +101,42 @@ public sealed class SeedRequestService(TrueMainDbContext db, ILogger<SeedRequest
 
         db.SeedRequests.Add(seedRequest);
         await db.SaveChangesAsync(ct);
+
+        // Operator-action audit: record the intentional "seed a main" action
+        // against the audit trail. Only for a freshly-created request — an
+        // idempotent return above is not a new operator action. The audit writer
+        // is synchronous and never routes through the diagnostic-log channel.
+        //
+        // Best-effort by design: the SeedRequest above is the primary action and
+        // is already committed. The audit write runs AFTER the commit so a Mongo
+        // outage can never block seeding; if it throws (Mongo down, etc.) we log a
+        // Warning and let the operation succeed rather than 500-ing on a request
+        // whose row is already persisted (which a retry would only return
+        // idempotently, never re-auditing). "Lossless" here means the audit channel
+        // is synchronous and unbatched vs the lossy batched diagnostic channel — it
+        // is not a guarantee against a Mongo outage.
+        try
+        {
+            await auditLog.RecordAsync(
+                action: "seed_account",
+                actor: "operator",
+                targetType: nameof(SeedRequest),
+                targetId: seedRequest.Id.ToString(),
+                metadata: new Dictionary<string, string>
+                {
+                    ["gameName"] = gameName,
+                    ["tagLine"] = tagLine,
+                    ["platformId"] = platform
+                },
+                ct: ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(
+                ex,
+                "Audit write failed for seed request {SeedRequestId}; the request was persisted, audit event missed.",
+                seedRequest.Id);
+        }
 
         return new SeedRequestCreateResult
         {
