@@ -26,6 +26,9 @@ export default defineNitroPlugin(() => {
   if (!config.session?.password || config.session.password.length < MIN_SESSION_PASSWORD_LENGTH) {
     problems.push(`NUXT_SESSION_PASSWORD must be set to a random secret of at least ${MIN_SESSION_PASSWORD_LENGTH} characters`)
   }
+  if (!config.opsKey) {
+    problems.push('NUXT_OPS_KEY is unset — the ops proxy would forward an empty X-Ops-Key and every backend call would 401')
+  }
 
   if (problems.length > 0) {
     throw new Error(
