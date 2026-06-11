@@ -69,6 +69,11 @@ export default defineNuxtConfig({
     // (>= 32 chars). Declared so a misconfigured env surfaces clearly.
     session: {
       password: process.env.NUXT_SESSION_PASSWORD ?? '',
+      // The admin is served over plain HTTP (direct host exposure, no reverse
+      // proxy / TLS), and browsers reject a `secure` cookie over HTTP — which
+      // blocks login. Default the session cookie to non-secure; set
+      // NUXT_SESSION_COOKIE_SECURE=true once it sits behind TLS.
+      cookie: { secure: process.env.NUXT_SESSION_COOKIE_SECURE === 'true' },
     },
     public: {},
   },
