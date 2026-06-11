@@ -25,10 +25,13 @@ www.truemain.lol {
 
 # Admin dashboard
 admin.truemain.lol {
-	# Caddy sets X-Forwarded-For to the real peer IP and DROPS any
-	# client-supplied X-Forwarded-For (the browser is an untrusted peer), so
-	# the admin's per-IP brute-force throttle reads a non-spoofable client IP.
-	# The admin container is not published on the host — only Caddy can reach
-	# it — so no request can bypass this.
-	reverse_proxy admin:3000
+	# Force X-Forwarded-For to the real peer IP, dropping any client-supplied
+	# value. Caddy already does this by default (the browser is an untrusted
+	# peer), but setting it explicitly documents the invariant the admin's
+	# per-IP login throttle relies on (it trusts XFF only when NUXT_TRUST_PROXY
+	# is set, i.e. here in prod) and keeps it robust across Caddy versions. The
+	# admin container is not published on the host — only Caddy reaches it.
+	reverse_proxy admin:3000 {
+		header_up X-Forwarded-For {remote_host}
+	}
 }

@@ -66,7 +66,7 @@ En prod, tout le trafic public passe par **Caddy**, qui termine le TLS et obtien
 - Site public : `https://truemain.lol` (et `www` → redirigé vers l'apex)
 - Dashboard admin : `https://admin.truemain.lol` — login via `ADMIN_USERNAME` / `ADMIN_PASSWORD`
 
-`web` et `admin` ne sont plus publiés sur l'hôte : seul Caddy les atteint via le réseau interne `truemain_internal`. Le cookie de session admin est `Secure` (il **exige** HTTPS pour être accepté par le navigateur) — c'est Caddy qui fournit le TLS.
+`web` et `admin` ne sont plus publiés sur l'hôte : seul Caddy les atteint via le réseau interne `truemain_internal`. En prod le service `admin` est lancé avec `NUXT_SESSION_COOKIE_SECURE=true` et `NUXT_TRUST_PROXY=true` : le cookie de session est marqué `Secure` (accepté par le navigateur uniquement sur HTTPS, fourni par Caddy) et le throttle de login fait confiance au `X-Forwarded-For` posé par Caddy.
 
 **Prérequis côté serveur :**
 
@@ -124,6 +124,7 @@ Toutes les valeurs nécessaires sont listées dans `.env.example` (dev/prod) et 
 - `MONGO_USER`, `MONGO_PASSWORD` — credentials MongoDB (logs + audit ; alphanumériques, ils entrent dans l'URI de connexion)
 - `ADMIN_USERNAME`, `ADMIN_PASSWORD` — login du dashboard admin. **Définir un vrai `ADMIN_PASSWORD` est obligatoire** (seule barrière devant les outils d'ops) ; `.env.example` met volontairement `REPLACE_ME`
 - `ADMIN_SESSION_PASSWORD` — scelle le cookie de session admin (32+ caractères aléatoires, ex. `openssl rand -hex 32`)
+- `NUXT_SESSION_COOKIE_SECURE`, `NUXT_TRUST_PROXY` — réglés par environnement dans les fichiers compose (pas via `.env`) : `"true"` en prod (admin derrière Caddy/TLS) → cookie `Secure` + confiance au `X-Forwarded-For` pour le throttle de login ; `false` en qa/local (exposition HTTP directe)
 - `PGADMIN_DEFAULT_EMAIL`, `PGADMIN_DEFAULT_PASSWORD`
 - `NUXT_API_BASE_URL` (côté web, généralement `http://api:8080` dans Docker)
 

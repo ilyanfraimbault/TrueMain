@@ -89,6 +89,12 @@ services:
       NUXT_SESSION_PASSWORD: "${ADMIN_SESSION_PASSWORD:?set ADMIN_SESSION_PASSWORD before deploying}"
       NUXT_ADMIN_USERNAME: ${ADMIN_USERNAME:-truemain}
       NUXT_ADMIN_PASSWORD: "${ADMIN_PASSWORD:?set ADMIN_PASSWORD before deploying - admin is exposed on 0.0.0.0}"
+      # Direct HTTP exposure (no TLS proxy): the session cookie must NOT be
+      # `Secure` (browsers reject it over HTTP) and X-Forwarded-For must NOT be
+      # trusted (attacker-controlled). Both default false; set explicitly to
+      # document the direct-exposure posture.
+      NUXT_SESSION_COOKIE_SECURE: "false"
+      NUXT_TRUST_PROXY: "false"
     depends_on:
       api:
         condition: service_healthy

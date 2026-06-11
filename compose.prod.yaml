@@ -89,6 +89,11 @@ services:
       NUXT_SESSION_PASSWORD: "${ADMIN_SESSION_PASSWORD:?set ADMIN_SESSION_PASSWORD before deploying}"
       NUXT_ADMIN_USERNAME: ${ADMIN_USERNAME:-truemain}
       NUXT_ADMIN_PASSWORD: "${ADMIN_PASSWORD:?set a strong ADMIN_PASSWORD before deploying}"
+      # Behind Caddy (TLS termination): mark the session cookie `Secure` and
+      # trust the X-Forwarded-For Caddy sets so the login throttle keys on the
+      # real client IP.
+      NUXT_SESSION_COOKIE_SECURE: "true"
+      NUXT_TRUST_PROXY: "true"
     depends_on:
       api:
         condition: service_healthy
