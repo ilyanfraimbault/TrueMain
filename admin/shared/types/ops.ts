@@ -217,8 +217,87 @@ export interface SeedAccountResponse {
 export interface SeedRequestsFilters {
   /** A `SeedRequestStatus` name. */
   status?: SeedRequestStatus
+  /** Case-insensitive substring match on the Riot ID (gameName/tagLine). */
+  search?: string
   /** Rows to return; backend default 50, clamp 200. */
   limit?: number
+}
+
+// =============================================================================
+// Candidates — `GET /api/ops/candidates` (the ingestion pipeline list)
+// =============================================================================
+
+/**
+ * Lifecycle of a main candidate (the ingestion pipeline):
+ *   New        — surfaced from mastery, not yet scored
+ *   Scored     — a main-likelihood score has been computed
+ *   Queued     — selected for full ingestion
+ *   Processing — the Ingestor is pulling the account's matches
+ *   Validated  — confirmed as a main and fully ingested
+ *   Rejected   — ruled out (not a main)
+ */
+export type MainCandidateStatus
+  = | 'New'
+    | 'Scored'
+    | 'Queued'
+    | 'Processing'
+    | 'Validated'
+    | 'Rejected'
+
+/**
+ * One row of `GET /api/ops/candidates`. `gameName`/`tagLine` are joined from the
+ * `RiotAccount` on PUUID and are `null` until the account has been resolved (a
+ * candidate is discovered from mastery before its account is upserted).
+ */
+export interface CandidateRow {
+  id: string
+  platformId: string
+  puuid: string
+  gameName: string | null
+  tagLine: string | null
+  championId: number
+  championPoints: number
+  championRankInMasteryTop: number
+  score: number
+  status: MainCandidateStatus
+  discoveredAtUtc: string
+  scoredAtUtc: string | null
+  validatedAtUtc: string | null
+  lastPlayTimeUtc: string
+}
+
+/** `GET /api/ops/candidates` — server-paginated candidate rows, most-relevant first. */
+export interface CandidatesResponse {
+  candidates: CandidateRow[]
+  /** Total rows matching the filters (across all pages). */
+  total: number
+  page: number
+  pageSize: number
+}
+
+/** Filters for `GET /api/ops/candidates`. Empty/undefined = no filter. */
+export interface CandidatesFilters {
+  /** A `MainCandidateStatus` name. */
+  status?: MainCandidateStatus
+  /** PlatformId, e.g. `EUW1` / `KR` / `NA1`. */
+  region?: string
+  /** Riot ID (gameName/tagLine), PUUID, or champion-id search. */
+  search?: string
+  /** 1-based page index. */
+  page?: number
+  /** Rows per page; backend clamps to [1, 100], default 25. */
+  pageSize?: number
+}
+
+/**
+ * `GET /api/ops/candidates/{id}` — one candidate's full detail: its pipeline
+ * fields plus the ingested match count for its PUUID and the linked manual
+ * `seedRequest` (matched on `resolvedPuuid` + platform), `null` when the
+ * candidate was discovered organically by the ladder.
+ */
+export interface CandidateDetail extends CandidateRow {
+  ingestedMatchCount: number
+  seedRequest: SeedRequestReadModel | null
 }
 
 // =============================================================================
