@@ -10,6 +10,7 @@ const items = computed<NavigationMenuItem[]>(() => [
   { label: 'Overview', icon: 'i-lucide-layout-dashboard', to: '/' },
   { label: 'Champions', icon: 'i-lucide-swords', to: '/champions' },
   { label: 'Database', icon: 'i-lucide-database', to: '/database' },
+  { label: 'Data Quality', icon: 'i-lucide-shield-alert', to: '/data-quality' },
   { label: 'Processes', icon: 'i-lucide-activity', to: '/processes' },
   { label: 'Logs', icon: 'i-lucide-scroll-text', to: '/logs' },
   { label: 'Add mains', icon: 'i-lucide-user-plus', to: '/seed' },
