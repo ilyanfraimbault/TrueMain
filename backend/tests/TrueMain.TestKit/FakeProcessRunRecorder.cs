@@ -11,7 +11,11 @@ namespace TrueMain.TestKit;
 /// </summary>
 public sealed class FakeProcessRunRecorder : IProcessRunRecorder
 {
+    public Task<Guid> RecordStartAsync(string processName, DateTime startedAtUtc, CancellationToken ct)
+        => Task.FromResult(Guid.NewGuid());
+
     public Task RecordAsync(
+        Guid runId,
         string processName,
         DateTime startedAtUtc,
         DateTime finishedAtUtc,

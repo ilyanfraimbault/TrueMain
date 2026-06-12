@@ -22,6 +22,7 @@ const sinceWindow = ref<'all' | '1h' | '24h' | '7d' | '30d'>(ALL)
 
 const statusItems = [
   { label: 'All statuses', value: ALL },
+  { label: 'Running', value: 'Running' },
   { label: 'Success', value: 'Success' },
   { label: 'Failed', value: 'Failed' },
 ]
@@ -87,12 +88,26 @@ watch([processName, status, sinceWindow], () => {
   page.value = 1
 })
 
-function statusColor(s: ProcessRunStatus): 'success' | 'error' {
+// Running uses the emerald `primary` accent (in-flight, not yet an outcome);
+// Success is `success`, everything else (Failed) is `error`.
+function statusColor(s: ProcessRunStatus): 'primary' | 'success' | 'error' {
+  if (s === 'Running') {
+    return 'primary'
+  }
   return s === 'Success' ? 'success' : 'error'
 }
 function statusIcon(s: ProcessRunStatus): string {
+  if (s === 'Running') {
+    return 'i-lucide-loader-circle'
+  }
   return s === 'Success' ? 'i-lucide-circle-check' : 'i-lucide-circle-x'
 }
+
+// Whether any process currently has an in-flight (Running) latest run, surfaced
+// as a small banner above the rollup so operators see "what's running now".
+const runningProcesses = computed(() =>
+  rollup.value.filter(proc => proc.lastStatus === 'Running'),
+)
 
 // --- Runs table --------------------------------------------------------------
 const columns: TableColumn<ProcessRun>[] = [
@@ -128,11 +143,19 @@ const columns: TableColumn<ProcessRun>[] = [
 
 const sorting = ref([{ id: 'startedAtUtc', desc: true }])
 
-// Tint failed rows. `meta.class.tr` is a function evaluated per row.
+// Tint rows by status: failed rows get an error tint, in-flight (Running) rows
+// a subtle emerald tint. `meta.class.tr` is a function evaluated per row.
 const tableMeta = {
   class: {
-    tr: (row: { original: ProcessRun }) =>
-      row.original.status === 'Failed' ? 'bg-error/5' : '',
+    tr: (row: { original: ProcessRun }) => {
+      if (row.original.status === 'Failed') {
+        return 'bg-error/5'
+      }
+      if (row.original.status === 'Running') {
+        return 'bg-primary/5'
+      }
+      return ''
+    },
   },
 }
 
@@ -218,6 +241,26 @@ const selectedSummaryJson = computed(() => {
         class="mb-6"
       />
 
+      <!-- Running-now banner: which process(es) are currently in flight. The
+           Running row IS the live state, so this reflects real data only. -->
+      <div
+        v-if="runningProcesses.length > 0"
+        class="mb-6 flex items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 px-4 py-3"
+      >
+        <UIcon
+          name="i-lucide-loader-circle"
+          class="size-5 text-primary animate-spin shrink-0"
+        />
+        <div class="text-sm">
+          <span class="font-medium text-highlighted">
+            {{ runningProcesses.length === 1 ? 'Running now' : `${runningProcesses.length} running now` }}
+          </span>
+          <span class="text-muted">
+            · {{ runningProcesses.map(proc => proc.processName).join(', ') }}
+          </span>
+        </div>
+      </div>
+
       <!-- Rollup: one card per process -->
       <div class="mb-6">
         <p class="text-xs text-muted uppercase mb-3">
@@ -244,9 +287,11 @@ const selectedSummaryJson = computed(() => {
             v-for="proc in rollup"
             :key="proc.processName"
             class="rounded-lg border p-4 bg-elevated/25"
-            :class="proc.lastStatus === 'Failed'
-              ? 'border-error/30'
-              : 'border-default'"
+            :class="{
+              'border-error/30': proc.lastStatus === 'Failed',
+              'border-primary/40': proc.lastStatus === 'Running',
+              'border-default': proc.lastStatus !== 'Failed' && proc.lastStatus !== 'Running',
+            }"
           >
             <div class="flex items-center justify-between gap-2 mb-3">
               <p class="font-medium text-highlighted truncate">
@@ -350,7 +395,12 @@ const selectedSummaryJson = computed(() => {
           </template>
           <template #durationMs-cell="{ row }">
             <div class="text-right tabular-nums whitespace-nowrap">
-              {{ formatDuration(row.original.durationMs) }}
+              <span v-if="row.original.status === 'Running'" class="text-dimmed">
+                —
+              </span>
+              <template v-else>
+                {{ formatDuration(row.original.durationMs) }}
+              </template>
             </div>
           </template>
           <template #host-cell="{ row }">
@@ -437,7 +487,12 @@ const selectedSummaryJson = computed(() => {
                   Duration
                 </dt>
                 <dd class="tabular-nums">
-                  {{ formatDuration(selectedRun.durationMs) }}
+                  <span v-if="selectedRun.status === 'Running'" class="text-dimmed">
+                    In progress…
+                  </span>
+                  <template v-else>
+                    {{ formatDuration(selectedRun.durationMs) }}
+                  </template>
                 </dd>
               </div>
               <div>
@@ -450,7 +505,14 @@ const selectedSummaryJson = computed(() => {
                 <dt class="text-muted text-xs uppercase mb-0.5">
                   Finished
                 </dt>
-                <dd>{{ formatDateTime(selectedRun.finishedAtUtc) }}</dd>
+                <dd>
+                  <span v-if="selectedRun.status === 'Running'" class="text-dimmed">
+                    —
+                  </span>
+                  <template v-else>
+                    {{ formatDateTime(selectedRun.finishedAtUtc) }}
+                  </template>
+                </dd>
               </div>
               <div>
                 <dt class="text-muted text-xs uppercase mb-0.5">

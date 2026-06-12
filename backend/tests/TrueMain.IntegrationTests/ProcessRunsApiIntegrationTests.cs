@@ -91,6 +91,51 @@ public sealed class ProcessRunsApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetProcessRunsAsync_ShouldSurfaceRunningRunAsLatestStatus()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        // A process with an earlier success and a now-in-flight Running row. The
+        // Running row has the newest StartedAtUtc, so it is the latest run and the
+        // rollup must report it as the current status (the "what's running now"
+        // signal). A Running row does not count as a failure or a success.
+        var now = DateTime.UtcNow;
+        await using (var db = _fixture.CreateDbContext())
+        {
+            db.ProcessRuns.AddRange(
+                BuildRun("MatchIngestion", ProcessRunStatus.Success, now.AddMinutes(-30), error: null, summary: null),
+                BuildRunning("MatchIngestion", now.AddMinutes(-1)));
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var response = await client.GetAsync("/ops/process-runs");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var payload = await response.Content.ReadFromJsonAsync<ProcessRunsTestContract>();
+        payload.Should().NotBeNull();
+
+        // The in-flight run is the newest and leads the list with status Running.
+        payload!.Runs[0].ProcessName.Should().Be("MatchIngestion");
+        payload.Runs[0].Status.Should().Be("Running");
+
+        // The rollup reflects the live state: lastStatus is Running, the prior
+        // success still anchors LastSuccessAtUtc, and no failures are counted.
+        var ingestion = payload.Rollup.Single(row => row.ProcessName == "MatchIngestion");
+        ingestion.LastStatus.Should().Be("Running");
+        ingestion.FailureCountInWindow.Should().Be(0);
+        ingestion.LastSuccessAtUtc.Should().NotBeNull();
+
+        // The Running run is filterable like any other status.
+        var runningResponse = await client.GetAsync("/ops/process-runs?status=Running");
+        var runningPayload = await runningResponse.Content.ReadFromJsonAsync<ProcessRunsTestContract>();
+        runningPayload!.Runs.Should().ContainSingle();
+        runningPayload.Runs[0].Status.Should().Be("Running");
+    }
+
+    [Fact]
     public async Task GetProcessRunsAsync_WithoutSince_ShouldReturnOldRunsCappedByLimitNewestFirst()
     {
         await _fixture.ResetDatabaseAsync();
@@ -330,6 +375,21 @@ public sealed class ProcessRunsApiIntegrationTests
             Error = error,
             Host = "test-host",
             Summary = summary is null ? null : JsonDocument.Parse(summary)
+        };
+
+    // An in-flight run: Running status, no finish yet (FinishedAtUtc mirrors the
+    // start as a placeholder), zero duration, no summary/error.
+    private static ProcessRun BuildRunning(string processName, DateTime startedAtUtc)
+        => new()
+        {
+            ProcessName = processName,
+            StartedAtUtc = startedAtUtc,
+            FinishedAtUtc = startedAtUtc,
+            DurationMs = 0,
+            Status = ProcessRunStatus.Running,
+            Error = null,
+            Host = "test-host",
+            Summary = null
         };
 
     private sealed class ApiWebApplicationFactory(PostgresFixture fixture)

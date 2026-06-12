@@ -36,7 +36,13 @@ public sealed class MatchIngestionProcessNoOpTests
 
         await process.RunRecordedAsync(runRecorder);
 
+        await runRecorder.Received(1).RecordStartAsync(
+            "MatchIngestion",
+            Arg.Any<DateTime>(),
+            Arg.Any<CancellationToken>());
+
         await runRecorder.Received(1).RecordAsync(
+            Arg.Any<Guid>(),
             "MatchIngestion",
             Arg.Any<DateTime>(),
             Arg.Any<DateTime>(),

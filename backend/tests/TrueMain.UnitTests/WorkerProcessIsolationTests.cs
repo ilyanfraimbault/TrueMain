@@ -74,7 +74,13 @@ public sealed class WorkerProcessIsolationTests
         await worker.StartAsync(CancellationToken.None);
         await worker.ExecuteTask!;
 
+        await recorder.Received(1).RecordStartAsync(
+            "Discovery",
+            Arg.Any<DateTime>(),
+            Arg.Any<CancellationToken>());
+
         await recorder.Received(1).RecordAsync(
+            Arg.Any<Guid>(),
             "Discovery",
             Arg.Any<DateTime>(),
             Arg.Any<DateTime>(),
