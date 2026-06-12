@@ -111,7 +111,11 @@ export function useChampion(
         // Mirror Nuxt's default getter: never short-circuit an explicit
         // refresh, only the watch/key-change reload the reconciler triggers.
         if (ctx?.cause === 'refresh:manual' || ctx?.cause === 'refresh:hook') return undefined
-        return (nuxtApp.static.data[key] ?? nuxtApp.payload.data[key]) as ChampionResponse | null | undefined
+        // Prefer our stash; fall through only when the key is genuinely absent
+        // (an `in` check, not `??`, so a stashed `null` wouldn't be mistaken for
+        // a miss should the slice type ever allow it).
+        const cached = key in nuxtApp.static.data ? nuxtApp.static.data[key] : nuxtApp.payload.data[key]
+        return cached as ChampionResponse | null | undefined
       },
     },
   )
