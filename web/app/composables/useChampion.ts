@@ -51,6 +51,11 @@ export function useChampion(
       const id = championIdRef.value
       const f = filters.value
       const nameTag = nameTagRef.value
+      // Capture the stash key synchronously, before any `await`: if the user
+      // navigates to another champion while a fetch is in flight, the refs
+      // change underneath us and `buildKey` would otherwise stash this
+      // response under the new champion's key.
+      const unfilteredKey = buildKey('', '')
       notEnoughData.value = false
 
       if (nameTag) {
@@ -88,7 +93,7 @@ export function useChampion(
           // filtered key to `buildKey('', '')`; `getCachedData` below then
           // reuses this identical response instead of triggering a second
           // no-filter fetch (and its loading flash).
-          nuxtApp.static.data[buildKey('', '')] = fallback
+          nuxtApp.static.data[unfilteredKey] = fallback
           return fallback
         }
         throw error
