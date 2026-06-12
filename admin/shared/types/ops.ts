@@ -102,19 +102,32 @@ export interface ProcessRollup {
   failureCountInWindow: number
 }
 
+/** `GET /api/ops/process-runs` — one server-paginated page of runs + the rollup. */
 export interface ProcessRunsResponse {
   runs: ProcessRun[]
+  /** Per-process rollup over the FULL filtered set — unaffected by paging. */
   rollup: ProcessRollup[]
+  /** Total runs matching the filters (across all pages). */
+  total: number
+  page: number
+  pageSize: number
 }
 
-/** Filters for `GET /api/ops/process-runs`. */
+/** Filters for `GET /api/ops/process-runs`. Empty/undefined = no filter. */
 export interface ProcessRunsFilters {
   processName?: string
   status?: ProcessRunStatus
   /** ISO datetime lower bound. */
   since?: string
-  /** Defaults to 100 on the backend. */
+  /**
+   * Legacy page size (pre-pagination): honored as `pageSize` when that param
+   * is absent, superseded by it otherwise. Prefer `pageSize`.
+   */
   limit?: number
+  /** 1-based page index. */
+  page?: number
+  /** Rows per page; backend clamps to [1, 500], default 100. */
+  pageSize?: number
 }
 
 /**

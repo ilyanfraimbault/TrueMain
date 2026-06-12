@@ -1,8 +1,11 @@
 <script setup lang="ts">
 // Processes panel — background-job run health from `GET /api/ops/process-runs`.
 // A per-process rollup (last status / last run / last success / recent failures)
-// plus a filterable runs table. Failed runs are visually distinct (error tint)
-// and each run's `summary` JSON + error is inspectable in a slide-over.
+// plus a filterable, server-paginated runs table. The endpoint paginates, so we
+// only ever hold one page in memory and drive UPagination off the response's
+// `total`/`page`/`pageSize` (the rollup covers the full filtered set, not the
+// page). Failed runs are visually distinct (error tint) and each run's
+// `summary` JSON + error is inspectable in a slide-over.
 import type { TableColumn } from '@nuxt/ui'
 import type { ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
 import { formatDateTime, formatDuration, formatNumber } from '~~/shared/utils/format'
@@ -37,13 +40,14 @@ const WINDOW_MS: Record<string, number> = {
   '30d': 30 * 24 * 60 * 60 * 1000,
 }
 
-// Default view = the last 10 runs regardless of recency: request `limit=10` and
-// send NO `since` lower bound. The backend returns the most recent N runs with
-// no time floor unless `since` is explicitly provided, so older-but-real runs
-// still show up (this fixes the misleading "0 runs" when nothing ran recently).
-// The time-window select is purely an OPTIONAL filter: "All time" omits `since`;
-// the relative windows send their computed `since`.
-const DEFAULT_LIMIT = 10
+// Default view = the most recent runs regardless of recency: send NO `since`
+// lower bound. The backend applies no time floor unless `since` is explicitly
+// provided, so older-but-real runs still show up (this fixes the misleading
+// "0 runs" when nothing ran recently). The time-window select is purely an
+// OPTIONAL filter: "All time" omits `since`; the relative windows send their
+// computed `since`.
+const page = ref(1)
+const pageSize = 50
 
 const filters = computed(() => ({
   processName: processName.value.trim() || undefined,
@@ -51,7 +55,8 @@ const filters = computed(() => ({
   since: sinceWindow.value === ALL
     ? undefined
     : new Date(Date.now() - WINDOW_MS[sinceWindow.value]!).toISOString(),
-  limit: DEFAULT_LIMIT,
+  page: page.value,
+  pageSize,
 }))
 
 const hasActiveFilters = computed(() =>
@@ -71,6 +76,16 @@ const { data, pending, error, refresh } = useProcessRuns(filters)
 
 const rollup = computed(() => data.value?.rollup ?? [])
 const runs = computed(() => data.value?.runs ?? [])
+const total = computed(() => data.value?.total ?? 0)
+// The page the server actually served (its clamp wins over our optimistic ref).
+const serverPage = computed(() => data.value?.page ?? page.value)
+const serverPageSize = computed(() => data.value?.pageSize ?? pageSize)
+
+// Any filter change must reset to the first page — otherwise a narrower filter
+// could leave us stranded on a now-out-of-range page.
+watch([processName, status, sinceWindow], () => {
+  page.value = 1
+})
 
 function statusColor(s: ProcessRunStatus): 'success' | 'error' {
   return s === 'Success' ? 'success' : 'error'
@@ -290,15 +305,15 @@ const selectedSummaryJson = computed(() => {
               </p>
               <p class="text-xs text-dimmed mt-0.5">
                 {{ sinceWindow === ALL
-                  ? `Last ${DEFAULT_LIMIT} runs across all time.`
-                  : `Last ${DEFAULT_LIMIT} runs in the selected window.` }}
+                  ? 'Newest first, across all time.'
+                  : 'Newest first, in the selected window.' }}
               </p>
             </div>
             <UBadge
               v-if="!pending"
               color="neutral"
               variant="subtle"
-              :label="`${formatNumber(runs.length)} runs`"
+              :label="`${formatNumber(total)} ${total === 1 ? 'run' : 'runs'}`"
             />
           </div>
         </template>
@@ -371,6 +386,26 @@ const selectedSummaryJson = computed(() => {
           </template>
         </UTable>
       </UCard>
+
+      <!-- Server-side pagination: total/page/pageSize come from the response. -->
+      <div
+        v-if="total > serverPageSize"
+        class="flex items-center justify-between gap-2 mt-4"
+      >
+        <p class="text-xs text-muted tabular-nums">
+          Page {{ serverPage.toLocaleString('en-US') }} of
+          {{ Math.max(1, Math.ceil(total / serverPageSize)).toLocaleString('en-US') }}
+        </p>
+        <UPagination
+          v-model:page="page"
+          :total="total"
+          :items-per-page="serverPageSize"
+          :sibling-count="1"
+          active-color="primary"
+          variant="subtle"
+          :disabled="pending"
+        />
+      </div>
 
       <!-- Run detail slide-over -->
       <USlideover
