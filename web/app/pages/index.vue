@@ -1,15 +1,94 @@
 <script setup lang="ts">
-import type { ButtonProps } from '@nuxt/ui'
+import type { ChampionSummaryResponse } from '~~/shared/types/champions'
+import type { ChampionStaticListItem } from '~~/shared/types/static-data'
+import type { RegionSlug } from '~~/shared/types/leaderboard'
 
 useSeoMeta({
   title: 'TrueMain — Champion builds from real mains',
   description: 'League of Legends champion builds, runes and skill orders aggregated from true main players — patch by patch.',
 })
 
-const heroLinks: ButtonProps[] = [
-  { label: 'Explore champions', to: '/champions', color: 'primary', size: 'lg', icon: 'i-lucide-swords' },
-  { label: 'See the meta', to: '/meta', color: 'neutral', variant: 'subtle', size: 'lg', icon: 'i-lucide-trending-up' },
-]
+const nuxtApp = useNuxtApp()
+
+// Champion summaries for the active patch — drives both the tier-list panel
+// and the hero stat chips. Client-only (`server: false`) with a homepage-own
+// key: the /champions page keys by filter state, and sharing its key would
+// couple the two pages' cache lifecycles for no gain.
+const {
+  data: summaries,
+  status: summariesStatus,
+} = useLazyAsyncData<ChampionSummaryResponse[]>(
+  'home-champion-summaries',
+  () => $fetch<ChampionSummaryResponse[]>('/api/champions'),
+  { server: false, default: () => [] },
+)
+
+// Same shared static list (and cache key) as the other pages, so navigating
+// home → /champions reuses the payload the prefetch plugin warmed up. The
+// options must match the other callsites exactly (no `default`) — Nuxt warns
+// on divergent options for a shared key.
+const { data: staticList } = useLazyAsyncData<ChampionStaticListItem[]>(
+  'champion-static-list',
+  async () => {
+    const data = await $fetch<ChampionStaticListItem[]>('/api/static/champions')
+    markStaticFetched('champion-static-list', nuxtApp)
+    return data
+  },
+  { getCachedData: key => getStaticCachedData(key, nuxtApp), server: false },
+)
+
+const championsById = computed(() => {
+  const map = new Map<number, ChampionStaticListItem>()
+  for (const champion of staticList.value ?? []) map.set(champion.championId, champion)
+  return map
+})
+
+const { data: versions } = useDDragonVersions()
+const ddragonPatch = computed(() => versions.value?.[0] ?? null)
+
+// ─── Truemains teaser (SSR, like the /truemains page) ─────────────────────
+const region = ref<RegionSlug | null>(null)
+const {
+  rows: truemainRows,
+  total: truemainsTotal,
+  isInitialLoading: truemainsInitialLoading,
+  isLoading: truemainsLoading,
+} = useTruemainsLeaderboard(1, { pageSize: 5, region })
+
+// "Truemains tracked" chip: read the live total while the region filter is
+// off, and fall back to a latched copy once the user flips the region tabs
+// (the filtered total is the region's count, not the global one). The latch
+// is client-only and the computed reads `total` directly — a watcher-set ref
+// would stay null in the SSR HTML (watchers don't flush during SSR) while
+// hydration sets it synchronously, a guaranteed node mismatch.
+const latchedTotal = ref<number | null>(null)
+if (import.meta.client) {
+  watch(truemainsTotal, (value) => {
+    if (region.value === null && value > 0) latchedTotal.value = value
+  }, { immediate: true })
+}
+const trackedTruemains = computed(() =>
+  region.value === null && truemainsTotal.value > 0
+    ? truemainsTotal.value
+    : latchedTotal.value)
+
+// ─── Hero stat chips — every number is derived from a real payload ────────
+const summariesPending = computed(() =>
+  summariesStatus.value === 'idle' || summariesStatus.value === 'pending')
+
+const activePatch = computed(() => summaries.value[0]?.patchVersion ?? '')
+const championCount = computed(() =>
+  new Set(summaries.value.map(summary => summary.championId)).size)
+// Summary rows are per (champion, position); each games count is that
+// sample's main-played games, so the sum is "main games analyzed this patch".
+const gamesAnalyzed = computed(() =>
+  summaries.value.reduce((acc, summary) => acc + summary.games, 0))
+
+// Fixed locale: SSR and the user's browser must format identically or the
+// truemains chip (rendered on the server) would hydration-mismatch.
+function formatCount(value: number): string {
+  return value.toLocaleString('en-US')
+}
 
 const steps = [
   {
@@ -22,65 +101,13 @@ const steps = [
     step: '02',
     icon: 'i-lucide-database',
     title: 'Aggregate every decision',
-    description: 'For each main game, we capture the full item path, rune page, skill order, summoners and final result — then group them into build trees.',
+    description: 'For each main game, we capture the full item path, rune page, skill order and final result — then group them into build trees.',
   },
   {
     step: '03',
     icon: 'i-lucide-sparkles',
     title: 'Surface what wins',
-    description: 'Filter by patch, position or region and instantly see the build paths, rune pages and skill orders with the highest pickRate and winRate.',
-  },
-]
-
-const features = [
-  {
-    icon: 'i-lucide-target',
-    title: 'Main-only sample',
-    description: 'Stats come exclusively from players who main the champion. No casual one-trick noise, no off-role outliers diluting the signal.',
-  },
-  {
-    icon: 'i-lucide-route',
-    title: 'Full build paths',
-    description: 'Browse the most-played item sequences as a tree, with pickRate and winRate at every node — not just the final 6-item core.',
-  },
-  {
-    icon: 'i-lucide-history',
-    title: 'Patch-aware filtering',
-    description: 'Compare current and past patches to spot meta shifts the moment they happen. Every page is filterable by patch and position.',
-  },
-  {
-    icon: 'i-lucide-shield-check',
-    title: 'Honest sample sizes',
-    description: 'Every recommendation surfaces the number of games behind it. No confident-sounding builds backed by three games.',
-  },
-  {
-    icon: 'i-lucide-zap',
-    title: 'Fast, no-fluff UI',
-    description: 'Built on Nuxt with server-side caching. Open a champion page, scan the build, jump to the next one.',
-  },
-  {
-    icon: 'i-lucide-globe',
-    title: 'Region breakdowns',
-    description: 'Filter by platform to see how EUW, KR or NA mains diverge — the meta is rarely the same across regions.',
-  },
-]
-
-const faqs = [
-  {
-    label: 'What counts as a "true main"?',
-    content: 'A player who plays the same champion across multiple ranked games within the recent patch window. The exact threshold adapts to the champion\'s popularity to keep the sample meaningful.',
-  },
-  {
-    label: 'How often is data refreshed?',
-    content: 'Our ingestor pulls fresh ranked games continuously. Build aggregations re-run on every new patch cycle.',
-  },
-  {
-    label: 'Why does the build path matter more than core items?',
-    content: 'Core items tell you "what to buy" but not "in what order, given the matchup". The build tree shows the actual decision tree mains follow, branch by branch.',
-  },
-  {
-    label: 'Do I need an account?',
-    content: 'No. TrueMain is read-only and free to browse. Just open the champion page you care about.',
+    description: 'Filter by patch, position or region and instantly see the build paths, rune pages and skill orders that actually win.',
   },
 ]
 </script>
@@ -88,118 +115,170 @@ const faqs = [
 <template>
   <div>
     <!-- Hero -->
-    <UPageHero
-      headline="Champion intelligence"
-      title="Real builds from real mains."
-      description="TrueMain aggregates ranked games from players who genuinely main each champion, then surfaces the builds, runes and skill orders that actually win — patch by patch."
-      :links="heroLinks"
-      :ui="{
-        container: 'relative py-24 sm:py-32',
-        title: 'sm:text-6xl lg:text-7xl tracking-tighter leading-[1.05]',
-        description: 'mt-5 max-w-2xl mx-auto text-base sm:text-lg leading-relaxed text-default',
-        links: 'gap-3',
-      }"
-    >
-      <template #top>
-        <div
-          aria-hidden="true"
-          class="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[80%]"
-          style="background: radial-gradient(ellipse at top, color-mix(in oklch, var(--ui-color-primary-500) 18%, transparent), transparent 60%);"
-        />
-      </template>
-    </UPageHero>
+    <section class="relative overflow-hidden">
+      <HomeAuroraBackground />
 
-    <!-- How it works -->
-    <UPageSection
-      id="how-it-works"
-      headline="How it works"
-      title="Three steps from raw games to a build you can trust."
-      description="No black-box ranking. Every number you see is grounded in a sample of games we can point to."
-      :ui="{
-        root: 'py-24 sm:py-32',
-        container: 'max-w-5xl',
-        headline: 'font-mono font-medium text-xs text-primary uppercase tracking-[0.12em] text-center',
-        title: 'max-w-2xl mx-auto',
-        description: 'max-w-xl mx-auto text-dimmed',
-      }"
-    >
-      <div class="mt-12 grid gap-6 sm:grid-cols-3">
-        <div
-          v-for="step in steps"
-          :key="step.step"
-          class="space-y-3"
-        >
-          <div class="flex items-center gap-3">
-            <span class="font-mono text-xs tabular-nums text-primary">{{ step.step }}</span>
+      <div class="relative mx-auto flex max-w-3xl flex-col items-center px-6 pb-16 pt-20 text-center sm:pb-24 sm:pt-28">
+        <p class="font-mono text-xs font-medium uppercase tracking-[0.18em] text-primary">
+          Champion intelligence
+        </p>
+        <h1 class="mt-4 text-4xl font-semibold leading-[1.05] tracking-tighter text-highlighted sm:text-6xl">
+          Real builds from<br>
+          <span class="text-primary">real mains</span>.
+        </h1>
+        <p class="mt-5 max-w-xl text-base leading-relaxed text-muted sm:text-lg">
+          Builds, runes and skill orders aggregated from players who genuinely main each champion — patch by patch.
+        </p>
+
+        <HomeChampionSearch
+          :champions="staticList ?? []"
+          class="mt-9 w-full max-w-xl"
+        />
+
+        <!-- Stat chips: real numbers only, skeletons until their source
+             payload resolves. -->
+        <dl class="mt-8 flex flex-wrap items-center justify-center gap-x-7 gap-y-3 text-sm">
+          <div class="flex items-center gap-2">
             <UIcon
-              :name="step.icon"
-              class="size-5 text-primary"
+              name="i-lucide-git-commit-horizontal"
+              class="size-4 text-primary"
             />
+            <USkeleton
+              v-if="summariesPending"
+              class="h-4 w-20"
+            />
+            <template v-else-if="activePatch">
+              <dt class="sr-only">
+                Active patch
+              </dt>
+              <dd class="text-muted">
+                Patch <span class="font-semibold tabular-nums text-default">{{ activePatch }}</span>
+              </dd>
+            </template>
           </div>
-          <h3 class="text-lg font-semibold text-highlighted">
-            {{ step.title }}
-          </h3>
-          <p class="text-sm leading-relaxed text-muted">
-            {{ step.description }}
-          </p>
+
+          <div class="flex items-center gap-2">
+            <UIcon
+              name="i-lucide-swords"
+              class="size-4 text-primary"
+            />
+            <USkeleton
+              v-if="summariesPending"
+              class="h-4 w-28"
+            />
+            <template v-else-if="championCount > 0">
+              <dt class="sr-only">
+                Champions ranked
+              </dt>
+              <dd class="text-muted">
+                <span class="font-semibold tabular-nums text-default">{{ formatCount(championCount) }}</span> champions ranked
+              </dd>
+            </template>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <UIcon
+              name="i-lucide-database"
+              class="size-4 text-primary"
+            />
+            <USkeleton
+              v-if="summariesPending"
+              class="h-4 w-32"
+            />
+            <template v-else-if="gamesAnalyzed > 0">
+              <dt class="sr-only">
+                Main games analyzed
+              </dt>
+              <dd class="text-muted">
+                <span class="font-semibold tabular-nums text-default">{{ formatCount(gamesAnalyzed) }}</span> main games analyzed
+              </dd>
+            </template>
+          </div>
+
+          <div
+            v-if="trackedTruemains !== null"
+            class="flex items-center gap-2"
+          >
+            <UIcon
+              name="i-lucide-users"
+              class="size-4 text-primary"
+            />
+            <dt class="sr-only">
+              Truemains tracked
+            </dt>
+            <dd class="text-muted">
+              <span class="font-semibold tabular-nums text-default">{{ formatCount(trackedTruemains) }}</span> truemains tracked
+            </dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+
+    <!-- Live data panels -->
+    <section class="mx-auto grid max-w-6xl gap-6 px-4 pb-20 md:px-6 lg:grid-cols-5">
+      <HomeTierlistPanel
+        :summaries="summaries"
+        :champions-by-id="championsById"
+        :pending="summariesPending"
+        class="lg:col-span-3"
+      />
+      <HomeTruemainsPanel
+        v-model:region="region"
+        :rows="truemainRows"
+        :initial-loading="truemainsInitialLoading"
+        :loading="truemainsLoading"
+        :patch="ddragonPatch"
+        class="lg:col-span-2"
+      />
+    </section>
+
+    <!-- How it works — kept deliberately flat: three columns, no cards -->
+    <section
+      id="how-it-works"
+      class="border-t border-default/60 bg-elevated/20"
+    >
+      <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
+        <p class="text-center font-mono text-xs font-medium uppercase tracking-[0.12em] text-primary">
+          How it works
+        </p>
+        <h2 class="mx-auto mt-3 max-w-2xl text-center text-2xl font-semibold tracking-tight sm:text-3xl">
+          Three steps from raw games to a build you can trust.
+        </h2>
+
+        <div class="mt-12 grid gap-8 sm:grid-cols-3">
+          <div
+            v-for="step in steps"
+            :key="step.step"
+            class="space-y-3"
+          >
+            <div class="flex items-center gap-3">
+              <span class="font-mono text-xs tabular-nums text-primary">{{ step.step }}</span>
+              <UIcon
+                :name="step.icon"
+                class="size-5 text-primary"
+              />
+            </div>
+            <h3 class="text-lg font-semibold text-highlighted">
+              {{ step.title }}
+            </h3>
+            <p class="text-sm leading-relaxed text-muted">
+              {{ step.description }}
+            </p>
+          </div>
         </div>
       </div>
-    </UPageSection>
-
-    <!-- Features grid -->
-    <UPageSection
-      id="features"
-      headline="Why TrueMain"
-      title="Built to cut through the noise."
-      description="Generalist sites blend every game on the planet. TrueMain narrows to dedicated players, so the signal isn't drowned in casual or off-role data."
-      :ui="{
-        root: 'py-24 sm:py-32 bg-elevated/30',
-        container: 'max-w-5xl',
-        headline: 'font-mono font-medium text-xs text-primary uppercase tracking-[0.12em] text-center',
-        title: 'max-w-lg mx-auto',
-        description: 'max-w-md mx-auto text-dimmed',
-      }"
-    >
-      <UPageGrid class="mt-12 sm:grid-cols-2 lg:grid-cols-3">
-        <UPageCard
-          v-for="feature in features"
-          :key="feature.title"
-          :icon="feature.icon"
-          :title="feature.title"
-          :description="feature.description"
-          variant="subtle"
-        />
-      </UPageGrid>
-    </UPageSection>
-
-    <!-- FAQ -->
-    <UPageSection
-      id="faq"
-      headline="FAQ"
-      title="Questions, answered."
-      :ui="{
-        root: 'py-24 sm:py-32',
-        container: 'max-w-3xl',
-        headline: 'font-mono font-medium text-xs text-primary uppercase tracking-[0.12em] text-center',
-        title: 'mx-auto',
-      }"
-    >
-      <UAccordion
-        :items="faqs"
-        class="mt-12"
-      />
-    </UPageSection>
+    </section>
 
     <!-- CTA -->
-    <section class="border-t border-default">
-      <div class="mx-auto max-w-3xl px-6 py-24 text-center sm:py-32">
-        <h2 class="text-3xl font-semibold tracking-tight sm:text-4xl">
+    <section class="border-t border-default/60">
+      <div class="mx-auto max-w-3xl px-6 py-16 text-center sm:py-20">
+        <h2 class="text-2xl font-semibold tracking-tight sm:text-3xl">
           Find <span class="text-primary">your</span> real build.
         </h2>
-        <p class="mx-auto mt-4 max-w-xl text-base text-muted">
+        <p class="mx-auto mt-3 max-w-xl text-base text-muted">
           Open the champion you actually play and see what their mains are buying this patch.
         </p>
-        <div class="mt-8 flex flex-wrap justify-center gap-3">
+        <div class="mt-7 flex flex-wrap justify-center gap-3">
           <UButton
             to="/champions"
             color="primary"
@@ -208,12 +287,12 @@ const faqs = [
             label="Explore champions"
           />
           <UButton
-            to="/meta"
+            to="/truemains"
             color="neutral"
             variant="subtle"
             size="lg"
-            icon="i-lucide-trending-up"
-            label="See the meta"
+            icon="i-lucide-trophy"
+            label="Truemains leaderboard"
           />
         </div>
       </div>
