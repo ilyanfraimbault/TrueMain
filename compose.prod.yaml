@@ -45,7 +45,11 @@ services:
       MIN_POOL_SIZE: "5"
       RESERVE_POOL_SIZE: "5"
       RESERVE_POOL_TIMEOUT: "3"
-      ADMIN_USERS: ${POSTGRES_USER}
+      # Read-only stats access (SHOW POOLS/STATS) for diagnostics. Deliberately
+      # NOT admin_users: the app user must not be able to SUSPEND/KILL/SHUTDOWN
+      # the pooler. admin_users defaults to the non-existent `postgres` role, so
+      # the app credentials cannot run admin commands at all.
+      STATS_USERS: ${POSTGRES_USER}
     healthcheck:
       # edoburu ships pg_isready; busybox `nc -z` is unreliable in this image.
       test: ["CMD-SHELL", "pg_isready -h localhost -p 6432 || exit 1"]
