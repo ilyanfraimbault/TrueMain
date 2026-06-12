@@ -1,5 +1,7 @@
 using AwesomeAssertions;
+using Data.Logging;
 using Data.Logging.Mongo;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -67,6 +69,96 @@ public sealed class MongoLoggingIntegrationTests
         // The TTL retention index enforces the diagnostic-log retention window.
         var indexes = await collection.Indexes.List().ToListAsync();
         indexes.Should().Contain(index => index["name"] == "ttl_timestamp");
+    }
+
+    [Fact]
+    public async Task DiagnosticSink_PersistsRegisteredOpsEventsBelowMinimumLevel()
+    {
+        await _mongo.ResetAsync();
+
+        using var host = BuildHost();
+        await host.StartAsync();
+
+        var collection = _mongo.GetCollection<MongoLogDocument>(MongoFixture.LogsCollection);
+        var logger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Test.OpsEvents");
+
+        // The floor stays Warning, yet registered ops events (#444) must be
+        // persisted from Information up — and ONLY them: a plain Information line,
+        // an unregistered EventId and a registered name with the wrong id all stay
+        // below the floor and are dropped.
+        logger.LogInformation("plain information, dropped");
+        logger.LogInformation(new EventId(999, "NotAnOpsEvent"), "unregistered event, dropped");
+        logger.LogInformation(
+            new EventId(1, nameof(OpsEvents.CandidateValidated)),
+            "right name, wrong id, dropped");
+        logger.LogInformation(
+            OpsEvents.CandidateValidated,
+            "Validated {Count} candidates for {Platform}/{Puuid}.",
+            2,
+            "EUW1",
+            "puuid-1");
+        // An ops event logged at/above the floor keeps its eventType stamp too.
+        logger.LogWarning(OpsEvents.SeedRequestFailed, "Seed request failed.");
+        logger.LogWarning("plain warning, persisted without eventType");
+
+        await WaitUntilAsync(async () =>
+            await collection.CountDocumentsAsync(FilterDefinition<MongoLogDocument>.Empty) == 3);
+
+        await host.StopAsync();
+
+        var documents = await collection.Find(FilterDefinition<MongoLogDocument>.Empty).ToListAsync();
+        documents.Should().HaveCount(3);
+
+        var candidateValidated = documents.Single(doc => doc.EventType == nameof(OpsEvents.CandidateValidated));
+        candidateValidated.Level.Should().Be("Information");
+        candidateValidated.Message.Should().Be("Validated 2 candidates for EUW1/puuid-1.");
+        candidateValidated.EventId.Should().Be(OpsEvents.CandidateValidated.Id);
+
+        var seedRequestFailed = documents.Single(doc => doc.EventType == nameof(OpsEvents.SeedRequestFailed));
+        seedRequestFailed.Level.Should().Be("Warning");
+
+        var plainWarning = documents.Single(doc => doc.EventType is null);
+        plainWarning.Message.Should().Be("plain warning, persisted without eventType");
+    }
+
+    [Fact]
+    public async Task DiagnosticSink_AppliesPerProviderCategoryRulesFromConfiguration()
+    {
+        await _mongo.ResetAsync();
+
+        // The production appsettings silence Polly resilience telemetry below
+        // Error for the Mongo provider only ("Logging:Mongo:LogLevel:Polly").
+        // The [ProviderAlias("Mongo")] rule is applied by the logging factory
+        // BEFORE MongoLogger is called, so the retry chatter never reaches the
+        // channel. Assert that exact mechanism with the production rule value.
+        using var host = BuildHost(new Dictionary<string, string?>
+        {
+            ["Logging:Mongo:LogLevel:Polly"] = "Error"
+        });
+        await host.StartAsync();
+
+        var collection = _mongo.GetCollection<MongoLogDocument>(MongoFixture.LogsCollection);
+        var pollyLogger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Polly");
+        var otherLogger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Test.Category");
+
+        // The Warning pair every Riot 429 produces today: must NOT be persisted.
+        pollyLogger.LogWarning("Execution attempt. Source: 'IRiotPlatformClient-standard//Standard-Retry'");
+        pollyLogger.LogWarning("Resilience event occurred. EventName: 'OnRetry'");
+        // Error-severity resilience telemetry (e.g. the circuit opening) survives.
+        pollyLogger.LogError("Resilience event occurred. EventName: 'OnCircuitOpened'");
+        // Other categories are untouched by the Polly rule.
+        otherLogger.LogWarning("persisted warning");
+
+        await WaitUntilAsync(async () =>
+            await collection.CountDocumentsAsync(FilterDefinition<MongoLogDocument>.Empty) == 2);
+
+        await host.StopAsync();
+
+        var documents = await collection.Find(FilterDefinition<MongoLogDocument>.Empty).ToListAsync();
+        documents.Should().HaveCount(2);
+        documents.Should().NotContain(doc => doc.Category == "Polly" && doc.Level == "Warning");
+        documents.Single(doc => doc.Category == "Polly").Level.Should().Be("Error");
+        documents.Single(doc => doc.Category == "Test.Category").Level.Should().Be("Warning");
     }
 
     [Fact]
@@ -174,10 +266,22 @@ public sealed class MongoLoggingIntegrationTests
         recorded.TimestampUtc.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
     }
 
-    private IHost BuildHost() =>
-        Host.CreateApplicationBuilder()
+    private IHost BuildHost(IEnumerable<KeyValuePair<string, string?>>? extraConfiguration = null)
+    {
+        var builder = Host.CreateApplicationBuilder();
+
+        // Per-provider filter rules (Logging:Mongo:LogLevel) are read from the
+        // host configuration by the default logging setup, so injecting them here
+        // exercises the exact path the production appsettings use.
+        if (extraConfiguration is not null)
+        {
+            builder.Configuration.AddInMemoryCollection(extraConfiguration);
+        }
+
+        return builder
             .ConfigureMongoLogging(_mongo)
             .Build();
+    }
 }
 
 file static class MongoLoggingTestHostExtensions

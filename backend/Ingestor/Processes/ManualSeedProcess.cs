@@ -1,6 +1,7 @@
 using Core;
 using Core.Lol.Identifiers;
 using Data.Entities;
+using Data.Logging;
 using Data.Logging.Mongo;
 using Data.Repositories;
 using Ingestor.Options;
@@ -133,8 +134,9 @@ public sealed class ManualSeedProcess(
             // Any Riot/DB failure terminates this request as Failed with a
             // (truncated) error, leaving the rest of the batch unaffected. Use a
             // detached save path so a corrupt tracked graph can't block recording
-            // the failure.
-            logger.LogWarning(ex, "Seed request {SeedRequestId} failed.", request.Id);
+            // the failure. Named ops event (#444) so the terminal failure is
+            // filterable on /ops/logs.
+            logger.LogWarning(OpsEvents.SeedRequestFailed, ex, "Seed request {SeedRequestId} failed.", request.Id);
             summary.Failed++;
             await MarkFailedAsync(request.Id, ex.Message, ct);
         }
@@ -158,6 +160,15 @@ public sealed class ManualSeedProcess(
             request.ProcessedAtUtc = DateTime.UtcNow;
             await session.SaveChangesAsync(ct);
             summary.NotFound++;
+
+            // Named ops event (#444): an unresolvable Riot ID is the other
+            // terminal failure of a seed request (typo, renamed account).
+            logger.LogWarning(
+                OpsEvents.SeedRequestFailed,
+                "Seed request {SeedRequestId} failed: Riot ID {GameName}#{TagLine} not found.",
+                request.Id,
+                request.GameName,
+                request.TagLine);
             return;
         }
 
@@ -216,6 +227,19 @@ public sealed class ManualSeedProcess(
         request.ProcessedAtUtc = DateTime.UtcNow;
         await session.SaveChangesAsync(ct);
         summary.Ingested++;
+
+        // Named ops event (#444): the seed request reached its successful terminal
+        // state. Information-level, persisted by the Mongo sink via the OpsEvents
+        // bypass and filterable on /ops/logs (the audit_events record below stays
+        // the lossless operator-action trail).
+        logger.LogInformation(
+            OpsEvents.SeedRequestResolved,
+            "Seed request {SeedRequestId} resolved: {GameName}#{TagLine} on {Platform} ingested, {CandidatesQueued} candidate(s) queued.",
+            request.Id,
+            request.GameName,
+            request.TagLine,
+            request.PlatformId,
+            queued);
 
         // Operator-action audit: the seed request has now resolved to a real
         // account and been queued for ingestion. Record the terminal outcome with

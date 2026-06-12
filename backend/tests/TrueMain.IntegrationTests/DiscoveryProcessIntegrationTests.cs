@@ -156,6 +156,89 @@ public sealed class DiscoveryProcessIntegrationTests
         snapshots.Should().ContainSingle("the ladder rank matches the existing latest snapshot, so no duplicate row is written");
     }
 
+    [Fact]
+    public async Task RunAsync_WhenOnePlatformFails_StillDiscoversRemainingPlatforms()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        var process = new DiscoveryProcess(
+            NullLogger<DiscoveryProcess>.Instance,
+            new FakeRiotPlatformClient(),
+            _fixture.CreateSessionFactory(),
+            new PlatformFailingLadderDiscoveryService(failingPlatform: "EUW1"),
+            new AccountUpsertService(),
+            new NoOpCandidateUpsertService(),
+            new RankSnapshotWriter(),
+            Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
+            {
+                Platforms = ["EUW1", "KR"],
+                SaveBatchSize = 1,
+                NewAccountsTarget = 1
+            }));
+
+        // Issue #443 follow-up: an EUW1 ladder stuck behind a Riot 429 backoff
+        // must not abort KR/NA1 discovery.
+        var payload = await process.RunCoreAsync(CancellationToken.None);
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        var account = verifyDb.RiotAccounts.Single(a => a.Puuid == "puuid-discovered-1");
+        account.PlatformId.Should().Be("KR");
+
+        // The recorded run detail names the failed platform and its error.
+        var json = System.Text.Json.JsonSerializer.Serialize(payload);
+        json.Should().Contain("EUW1").And.Contain("simulated ladder outage");
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenAllPlatformsFail_ThrowsSoTheRunIsRecordedAsFailed()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        var process = new DiscoveryProcess(
+            NullLogger<DiscoveryProcess>.Instance,
+            new FakeRiotPlatformClient(),
+            _fixture.CreateSessionFactory(),
+            new PlatformFailingLadderDiscoveryService(failingPlatform: null),
+            new AccountUpsertService(),
+            new NoOpCandidateUpsertService(),
+            new RankSnapshotWriter(),
+            Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
+            {
+                Platforms = ["EUW1", "KR"],
+                SaveBatchSize = 1,
+                NewAccountsTarget = 1
+            }));
+
+        var act = async () => await process.RunCoreAsync(CancellationToken.None);
+
+        // Nothing was discovered anywhere: surface the failure instead of
+        // recording an empty success.
+        (await act.Should().ThrowAsync<AggregateException>())
+            .Which.Message.Should().Contain("EUW1").And.Contain("KR");
+    }
+
+    /// <summary>
+    /// Throws for the given platform (or every platform when <c>null</c>), and
+    /// otherwise returns the same ladder data as <see cref="FakeLadderDiscoveryService"/>.
+    /// </summary>
+    private sealed class PlatformFailingLadderDiscoveryService(string? failingPlatform) : ILadderDiscoveryService
+    {
+        private readonly FakeLadderDiscoveryService _inner = new();
+
+        public Task<List<DiscoveredSummoner>> DiscoverSummonersAsync(
+            PlatformRoute platform,
+            DiscoveryOptions options,
+            CancellationToken ct)
+        {
+            if (failingPlatform is null || platform.ToString() == failingPlatform)
+            {
+                throw new InvalidOperationException("simulated ladder outage");
+            }
+
+            return _inner.DiscoverSummonersAsync(platform, options, ct);
+        }
+    }
+
     private sealed class NoRankLadderDiscoveryService : ILadderDiscoveryService
     {
         public Task<List<DiscoveredSummoner>> DiscoverSummonersAsync(

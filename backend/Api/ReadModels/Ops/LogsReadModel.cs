@@ -14,6 +14,13 @@ public sealed record LogsReadModel
     public int Page { get; init; }
 
     public int PageSize { get; init; }
+
+    /// <summary>
+    /// Every known ops-event name (the static <c>OpsEvents</c> catalog, #444), so
+    /// the admin Logs panel can populate its event filter without a Mongo
+    /// <c>distinct</c> per load. Independent of the active filters.
+    /// </summary>
+    public IReadOnlyList<string> EventTypes { get; init; } = [];
 }
 
 /// <summary>
@@ -45,4 +52,10 @@ public sealed record LogEntryReadModel
     public string? ProcessName { get; init; }
 
     public string? Host { get; init; }
+
+    /// <summary>
+    /// The registered ops-event name (e.g. <c>CandidateValidated</c>) when this
+    /// row is a named domain event (#444); null for plain diagnostics.
+    /// </summary>
+    public string? EventType { get; init; }
 }

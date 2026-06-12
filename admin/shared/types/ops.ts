@@ -102,19 +102,32 @@ export interface ProcessRollup {
   failureCountInWindow: number
 }
 
+/** `GET /api/ops/process-runs` — one server-paginated page of runs + the rollup. */
 export interface ProcessRunsResponse {
   runs: ProcessRun[]
+  /** Per-process rollup over the FULL filtered set — unaffected by paging. */
   rollup: ProcessRollup[]
+  /** Total runs matching the filters (across all pages). */
+  total: number
+  page: number
+  pageSize: number
 }
 
-/** Filters for `GET /api/ops/process-runs`. */
+/** Filters for `GET /api/ops/process-runs`. Empty/undefined = no filter. */
 export interface ProcessRunsFilters {
   processName?: string
   status?: ProcessRunStatus
   /** ISO datetime lower bound. */
   since?: string
-  /** Defaults to 100 on the backend. */
+  /**
+   * Legacy page size (pre-pagination): honored as `pageSize` when that param
+   * is absent, superseded by it otherwise. Prefer `pageSize`.
+   */
   limit?: number
+  /** 1-based page index. */
+  page?: number
+  /** Rows per page; backend clamps to [1, 500], default 100. */
+  pageSize?: number
 }
 
 /**
@@ -140,6 +153,11 @@ export interface LogEntry {
   exception: string | null
   processName: string | null
   host: string | null
+  /**
+   * Registered ops-event name (e.g. `CandidateValidated`) when the row is a
+   * named domain event; null for plain diagnostics.
+   */
+  eventType: string | null
 }
 
 /** `GET /api/ops/logs` — server-paginated log entries. */
@@ -149,6 +167,11 @@ export interface LogsResponse {
   total: number
   page: number
   pageSize: number
+  /**
+   * Every known ops-event name (static backend catalog, independent of the
+   * active filters) — feeds the event filter select.
+   */
+  eventTypes: string[]
 }
 
 /** Filters for `GET /api/ops/logs`. Empty/undefined = no filter. */
@@ -161,6 +184,8 @@ export interface LogsFilters {
   since?: string
   /** Case-insensitive substring match on message/exception. */
   search?: string
+  /** Exact (case-insensitive) ops-event name; omit for all rows. */
+  eventType?: string
   /** 1-based page index. */
   page?: number
   /** Rows per page; backend clamps to [1, 200], default 50. */
@@ -403,6 +428,18 @@ export interface MatchSlot {
 /** One team's roster, laid out by position with gaps highlighted. */
 export interface MatchTeam {
   teamId: number
+  /** Actual participant rows ingested for this team. */
+  playerCount: number
+  /** Players a complete team should carry, or null when the queue is unknown. */
+  expectedPlayerCount: number | null
+  /**
+   * Members whose position didn't map onto a canonical lane (unknown/duplicate
+   * position). They exist — the team isn't short — so they're reported as
+   * unplaced, never as missing players. Always 0 for laneless queues.
+   */
+  unplacedCount: number
+  /** Team result, or null when the team has no ingested rows. */
+  win: boolean | null
   slots: MatchSlot[]
 }
 

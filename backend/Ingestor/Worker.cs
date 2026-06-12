@@ -128,12 +128,36 @@ public sealed class Worker(
                     + $"Registered: {string.Join(", ", processesByName.Keys.Order(StringComparer.Ordinal))}.");
             }
 
-            await process.RunCoreAsync(stoppingToken);
+            try
+            {
+                await process.RunCoreAsync(stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // One failing process must not starve the rest of the sequence: before
+                // issue #443 a Discovery failure aborted every cycle here, so nothing
+                // downstream (Scoring, MatchIngestion, ...) ever ran. The RecordedProcess
+                // decorator has already persisted the Failed run for this process; log
+                // and move on to the next one.
+                logger.LogError(
+                    ex,
+                    "Process {ProcessName} failed; continuing with the next process in the sequence.",
+                    processName);
+            }
         }
     }
 
     private static IReadOnlyDictionary<string, IIngestorProcess> BuildProcessIndex(IServiceProvider serviceProvider)
     {
+        // The per-process catch in RunModeAsync assumes every production
+        // registration is wrapped in RecordedProcess (via AddRecordedProcess) so a
+        // failure is still persisted as a Failed run. A process registered without
+        // the wrapper still runs and logs, but its runs are invisible to process
+        // health — always register through AddRecordedProcess.
         var index = new Dictionary<string, IIngestorProcess>(StringComparer.Ordinal);
         foreach (var process in serviceProvider.GetRequiredService<IEnumerable<IIngestorProcess>>())
         {

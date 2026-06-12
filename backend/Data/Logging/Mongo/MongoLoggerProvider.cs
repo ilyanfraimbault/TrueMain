@@ -14,7 +14,12 @@ namespace Data.Logging.Mongo;
 /// The <c>[ProviderAlias("Mongo")]</c> attribute lets the standard
 /// <c>Logging:Mongo:LogLevel</c> configuration section target this provider
 /// independently of others, on top of the sink's own
-/// <see cref="MongoLoggingOptions.MinimumLevel"/> gate.
+/// <see cref="MongoLoggingOptions.MinimumLevel"/> gate. Both hosts use it to
+/// silence Polly resilience telemetry below Error (<c>"Polly": "Error"</c>):
+/// retry chatter ("Execution attempt" / "OnRetry" Warnings on every Riot 429) is
+/// dropped before this provider is even called, while Error-severity events such
+/// as the circuit breaker opening are still persisted (#444). Console providers
+/// are unaffected, so the noise can stay visible on stdout.
 /// </remarks>
 [ProviderAlias("Mongo")]
 internal sealed class MongoLoggerProvider : ILoggerProvider

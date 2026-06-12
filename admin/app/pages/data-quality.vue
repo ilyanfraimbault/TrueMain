@@ -9,6 +9,7 @@ import type {
   DataQualityIssueType,
   IssueMeta,
   MatchDataQualityDetail,
+  MatchTeam,
 } from '~~/shared/types/ops'
 import { formatDateTime, formatDuration } from '~~/shared/utils/format'
 
@@ -93,6 +94,12 @@ const QUEUE_LABELS: Record<number, string> = {
   700: 'Clash',
 }
 function queueLabel(queueId: number): string {
+  // Queue id 0 isn't a real queue: Riot returns a stub payload (no queue id,
+  // zero duration) for games that aborted before stats were recorded, and the
+  // ingest stores it verbatim. Name it instead of echoing a bare "Queue 0".
+  if (queueId === 0) {
+    return 'Unknown queue'
+  }
   return QUEUE_LABELS[queueId] ?? `Queue ${queueId}`
 }
 
@@ -202,12 +209,14 @@ onMounted(() => {
 // --- Detail layout helpers ---------------------------------------------------
 const detailTitle = computed(() => detail.value?.matchId ?? detailId.value ?? 'Match detail')
 
-// Win/loss tint for a team header (teams are tinted, not the gaps).
-function teamAccent(win: boolean | null | undefined): string {
-  if (win === true) {
-    return 'text-success'
+// Identity tint for a team header: blue side stays blue, red side stays red,
+// whatever the result — win/loss is conveyed by the Victory/Defeat badge so
+// "Blue team" can never render red. Unknown team ids stay neutral.
+function teamAccent(teamId: number): string {
+  if (teamId === 100) {
+    return 'text-info'
   }
-  if (win === false) {
+  if (teamId === 200) {
     return 'text-error'
   }
   return 'text-muted'
@@ -220,6 +229,16 @@ function teamLabel(teamId: number, index: number): string {
     return 'Red team'
   }
   return `Team ${index + 1}`
+}
+
+// Header count: actual vs expected ("4/5 players") so a short roster reads as
+// short, with members that exist but didn't map onto a lane called out as
+// unplaced instead of being passed off as missing players.
+function teamPlayersLabel(team: MatchTeam): string {
+  const count = team.expectedPlayerCount !== null
+    ? `${team.playerCount}/${team.expectedPlayerCount} players`
+    : `${team.playerCount} ${team.playerCount === 1 ? 'player' : 'players'}`
+  return team.unplacedCount > 0 ? `${count} · ${team.unplacedCount} unplaced` : count
 }
 </script>
 
@@ -392,7 +411,10 @@ function teamLabel(teamId: number, index: number): string {
                 <dt class="text-muted text-xs uppercase mb-0.5">Queue</dt>
                 <dd>
                   {{ queueLabel(detail.queueId) }}
-                  <span class="text-dimmed">({{ detail.queueId }})</span>
+                  <span v-if="detail.queueId !== 0" class="text-dimmed">({{ detail.queueId }})</span>
+                  <span v-else class="block text-xs text-dimmed mt-0.5">
+                    Riot sent no queue id — the game likely aborted before stats were recorded.
+                  </span>
                 </dd>
               </div>
               <div>
@@ -472,13 +494,28 @@ function teamLabel(teamId: number, index: number): string {
                 :key="team.teamId"
                 class="rounded-lg border border-default overflow-hidden"
               >
-                <div class="flex items-center justify-between px-3 py-2 bg-elevated/30">
-                  <p class="text-xs font-medium" :class="teamAccent(team.slots.find(s => s.win !== null)?.win)">
-                    {{ teamLabel(team.teamId, teamIndex) }}
-                    <span class="text-dimmed font-normal">· team {{ team.teamId }}</span>
-                  </p>
-                  <span class="text-xs text-muted">
-                    {{ team.slots.filter(s => s.filled).length }} player(s)
+                <div class="flex items-center justify-between gap-3 px-3 py-2 bg-elevated/30">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <p class="text-xs font-medium truncate" :class="teamAccent(team.teamId)">
+                      {{ teamLabel(team.teamId, teamIndex) }}
+                      <span class="text-dimmed font-normal">· team {{ team.teamId }}</span>
+                    </p>
+                    <UBadge
+                      v-if="team.win !== null"
+                      :color="team.win ? 'success' : 'error'"
+                      variant="subtle"
+                      size="sm"
+                      :label="team.win ? 'Victory' : 'Defeat'"
+                    />
+                  </div>
+                  <span
+                    class="text-xs whitespace-nowrap"
+                    :class="team.expectedPlayerCount !== null
+                      && team.playerCount !== team.expectedPlayerCount
+                      ? 'text-error font-medium'
+                      : 'text-muted'"
+                  >
+                    {{ teamPlayersLabel(team) }}
                   </span>
                 </div>
                 <ul class="divide-y divide-default">

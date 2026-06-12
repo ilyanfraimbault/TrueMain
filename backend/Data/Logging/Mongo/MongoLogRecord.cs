@@ -17,4 +17,5 @@ internal sealed record MongoLogRecord(
     string Message,
     string? Exception,
     string? ProcessName,
-    string Host);
+    string Host,
+    string? EventType);

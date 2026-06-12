@@ -9,5 +9,7 @@ public interface IProcessRunsQueryService
         string? status,
         DateTime? since,
         int? limit,
+        int? page,
+        int? pageSize,
         CancellationToken ct);
 }

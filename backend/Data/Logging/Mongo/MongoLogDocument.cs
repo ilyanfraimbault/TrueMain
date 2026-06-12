@@ -54,4 +54,14 @@ public sealed class MongoLogDocument
     [BsonElement("eventId")]
     [BsonIgnoreIfNull]
     public int? EventId { get; set; }
+
+    /// <summary>
+    /// The registered ops-event name (see <c>Data.Logging.OpsEvents</c>) when this
+    /// record is a named domain event (#444); null for plain diagnostics.
+    /// Optional (<c>BsonIgnoreIfNull</c>) so rows written before the field existed
+    /// keep deserializing.
+    /// </summary>
+    [BsonElement("eventType")]
+    [BsonIgnoreIfNull]
+    public string? EventType { get; set; }
 }

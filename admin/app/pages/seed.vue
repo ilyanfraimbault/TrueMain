@@ -10,9 +10,6 @@
 //      `gameName#tagLine,REGION`). Parsing dedupes, flags malformed lines, and
 //      renders a preview table; "Seed all (N)" POSTs every valid row with
 //      limited concurrency, tracking per-row status + a progress bar + summary.
-//   3. External source — a disabled "Coming soon" stub. Automated import from an
-//      external OTP-list source is planned but the connector is not built — NO
-//      scraping, NO fabricated data. It will reuse the same seed endpoint.
 //
 // A shared "Recent seed requests" history table at the bottom reflects requests
 // from BOTH the single and bulk flows (each submit calls `refresh()`).
@@ -921,62 +918,6 @@ const tableMeta = {
             </template>
           </UTable>
         </UCard>
-      </section>
-
-      <USeparator class="my-8" />
-
-      <!-- 3) External source (pending) -->
-      <section class="max-w-4xl">
-        <div class="flex items-center gap-2 mb-3">
-          <UIcon name="i-lucide-globe" class="size-4 text-muted" />
-          <h2 class="text-sm font-medium text-highlighted">
-            Import from an external source
-          </h2>
-          <UBadge color="neutral" variant="subtle" size="sm" label="Coming soon" />
-        </div>
-
-        <div class="rounded-lg border border-dashed border-default p-5 bg-elevated/10">
-          <div class="flex items-start gap-3">
-            <div class="p-2 rounded-lg bg-elevated/50 ring-1 ring-default shrink-0">
-              <UIcon name="i-lucide-cloud-download" class="size-5 text-dimmed" />
-            </div>
-            <div class="min-w-0">
-              <p class="text-sm text-default">
-                Automated import of the top OTPs per champion per region from an
-                external OTP-list source is planned, but the source connector is
-                not built yet.
-              </p>
-              <p class="text-xs text-muted mt-1">
-                No source is wired up, so there is nothing to pull and no data is
-                shown here. Once a source is confirmed it will reuse the same
-                seed endpoint as the bulk add above.
-              </p>
-              <ul class="mt-3 space-y-1.5 text-xs text-muted">
-                <li class="flex items-start gap-2">
-                  <UIcon name="i-lucide-dot" class="size-4 shrink-0 text-dimmed" />
-                  Pick a region and a per-champion top-N count.
-                </li>
-                <li class="flex items-start gap-2">
-                  <UIcon name="i-lucide-dot" class="size-4 shrink-0 text-dimmed" />
-                  Fetch the candidate Riot IDs from the configured source.
-                </li>
-                <li class="flex items-start gap-2">
-                  <UIcon name="i-lucide-dot" class="size-4 shrink-0 text-dimmed" />
-                  Review them in the same preview table, then seed in bulk.
-                </li>
-              </ul>
-              <div class="mt-4">
-                <UButton
-                  icon="i-lucide-cloud-download"
-                  color="neutral"
-                  variant="subtle"
-                  label="Fetch from source"
-                  disabled
-                />
-              </div>
-            </div>
-          </div>
-        </div>
       </section>
 
       <USeparator class="my-8" />
