@@ -42,9 +42,16 @@ public sealed class ChampionPatternSourceRowReader(
         // the full replace-by-scope semantics (stale scopes still get pruned).
         var livePatchKeys = await LoadLivePatchKeysAsync(db, queueId, ct);
 
+        // Pre-filter on the live GameVersions in SQL so frozen old-patch scopes
+        // never get loaded. The (version, platform) check still runs in memory
+        // because a version can be live on only a subset of platforms (per-
+        // platform retention), and that pair isn't expressible as a simple
+        // server-side IN without round-tripping the tuples.
+        var liveGameVersions = livePatchKeys.Select(key => key.GameVersion).ToHashSet();
+
         var existingScopes = await db.ChampionAggregateScopes
             .AsNoTracking()
-            .Where(scope => scope.QueueId == queueId)
+            .Where(scope => scope.QueueId == queueId && liveGameVersions.Contains(scope.GameVersion))
             .Select(scope => new AggregateScopeKey(
                 scope.ChampionId,
                 scope.GameVersion,
