@@ -13,6 +13,7 @@ public interface IMongoLogQuery
         string? category,
         DateTime? since,
         string? search,
+        string? eventType,
         int? page,
         int? pageSize,
         CancellationToken ct);
@@ -30,7 +31,8 @@ public sealed record MongoLogPage(
 
 /// <summary>
 /// A single diagnostic log row as read from Mongo. <see cref="Id"/> is the
-/// 24-char hex string form of the document's ObjectId.
+/// 24-char hex string form of the document's ObjectId. <see cref="EventType"/> is
+/// the registered ops-event name when the row is a named domain event (#444).
 /// </summary>
 public sealed record MongoLogRow(
     string Id,
@@ -40,4 +42,5 @@ public sealed record MongoLogRow(
     string Message,
     string? Exception,
     string? ProcessName,
-    string? Host);
+    string? Host,
+    string? EventType);

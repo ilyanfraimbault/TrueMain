@@ -16,6 +16,8 @@ namespace Data.Logging.Mongo;
 ///   <item><c>category</c> is a case-insensitive <b>prefix</b> match.</item>
 ///   <item><c>search</c> is a case-insensitive <b>substring</b> match on message OR exception.</item>
 ///   <item><c>since</c> is a lower bound on the timestamp; results are newest-first.</item>
+///   <item><c>eventType</c> is a case-insensitive <b>exact</b> match on the
+///   ops-event name (#444); rows that are not named events never match.</item>
 /// </list>
 /// </summary>
 public sealed class MongoLogQuery(MongoLogContext context) : IMongoLogQuery
@@ -32,6 +34,7 @@ public sealed class MongoLogQuery(MongoLogContext context) : IMongoLogQuery
         string? category,
         DateTime? since,
         string? search,
+        string? eventType,
         int? page,
         int? pageSize,
         CancellationToken ct)
@@ -46,7 +49,7 @@ public sealed class MongoLogQuery(MongoLogContext context) : IMongoLogQuery
             return new MongoLogPage([], 0, effectivePage, effectivePageSize);
         }
 
-        var filter = BuildFilter(level, category, since, search);
+        var filter = BuildFilter(level, category, since, search, eventType);
 
         var total = await context.Logs.CountDocumentsAsync(filter, cancellationToken: ct);
 
@@ -69,7 +72,8 @@ public sealed class MongoLogQuery(MongoLogContext context) : IMongoLogQuery
             doc.Message,
             doc.Exception,
             doc.ProcessName,
-            doc.Host)).ToList();
+            doc.Host,
+            doc.EventType)).ToList();
 
         return new MongoLogPage(rows, total, effectivePage, effectivePageSize);
     }
@@ -78,7 +82,8 @@ public sealed class MongoLogQuery(MongoLogContext context) : IMongoLogQuery
         string? level,
         string? category,
         DateTime? since,
-        string? search)
+        string? search,
+        string? eventType)
     {
         var filters = new List<FilterDefinition<MongoLogDocument>>();
 
@@ -119,6 +124,18 @@ public sealed class MongoLogQuery(MongoLogContext context) : IMongoLogQuery
             filters.Add(Filter.Or(
                 Filter.Regex(doc => doc.Message, pattern),
                 Filter.Regex(doc => doc.Exception, pattern)));
+        }
+
+        var normalizedEventType = string.IsNullOrWhiteSpace(eventType) ? null : eventType.Trim();
+        if (normalizedEventType is not null)
+        {
+            // Exact match, case-insensitive: the UI sends catalog values verbatim,
+            // but a hand-typed query must not fail on casing. Fully anchored and
+            // escaped so the value can't act as a wildcard; rows without an
+            // eventType (plain diagnostics) never match.
+            var pattern = new BsonRegularExpression(
+                $"^{Regex.Escape(normalizedEventType)}$", "i");
+            filters.Add(Filter.Regex(doc => doc.EventType, pattern));
         }
 
         return filters.Count == 0 ? Filter.Empty : Filter.And(filters);

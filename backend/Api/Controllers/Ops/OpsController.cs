@@ -120,11 +120,12 @@ public sealed class OpsController(
         [FromQuery] string? category,
         [FromQuery] DateTime? since,
         [FromQuery] string? search,
+        [FromQuery] string? eventType,
         [FromQuery] int? page,
         [FromQuery] int? pageSize,
         CancellationToken ct)
     {
-        var readModel = await logsQueryService.GetAsync(level, category, since, search, page, pageSize, ct);
+        var readModel = await logsQueryService.GetAsync(level, category, since, search, eventType, page, pageSize, ct);
         return Ok(readModel);
     }
 
