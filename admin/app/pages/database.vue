@@ -194,8 +194,6 @@ const sizeTooltipTitle = (d: { label: string }) => d.label
           :columns="columns"
           :loading="pending"
           loading-color="primary"
-          sticky
-          class="max-h-[640px]"
           :ui="{ td: 'py-2' }"
         >
           <template #tableName-cell="{ row }">

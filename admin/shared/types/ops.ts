@@ -99,7 +99,20 @@ export interface ProcessRollup {
   lastStatus: ProcessRunStatus
   lastRunAtUtc: string
   lastSuccessAtUtc: string | null
+  /**
+   * Failed runs inside the window. The window follows the request's `since`:
+   * when `since` is omitted this is a true all-time total (≥ any narrower
+   * window), not a hidden default.
+   */
   failureCountInWindow: number
+  /** All runs inside the same window — the denominator for `failureRateInWindow`. */
+  runCountInWindow: number
+  /**
+   * Fraction of in-window runs that failed, in `[0, 1]` (0 when no runs fall
+   * inside the window). Derived from real run counts — color failure health by
+   * this rate rather than the always-positive absolute count.
+   */
+  failureRateInWindow: number
 }
 
 /** `GET /api/ops/process-runs` — one server-paginated page of runs + the rollup. */

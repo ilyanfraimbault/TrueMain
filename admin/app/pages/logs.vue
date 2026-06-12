@@ -290,8 +290,6 @@ function openDetail(entry: LogEntry) {
           :meta="tableMeta"
           :loading="pending"
           loading-color="primary"
-          sticky
-          class="max-h-[640px]"
           :ui="{ td: 'py-2', tr: 'cursor-pointer' }"
           @select="(_event, row) => openDetail(row.original)"
         >
