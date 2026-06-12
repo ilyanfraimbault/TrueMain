@@ -140,6 +140,11 @@ export interface LogEntry {
   exception: string | null
   processName: string | null
   host: string | null
+  /**
+   * Registered ops-event name (e.g. `CandidateValidated`) when the row is a
+   * named domain event; null for plain diagnostics.
+   */
+  eventType: string | null
 }
 
 /** `GET /api/ops/logs` — server-paginated log entries. */
@@ -149,6 +154,11 @@ export interface LogsResponse {
   total: number
   page: number
   pageSize: number
+  /**
+   * Every known ops-event name (static backend catalog, independent of the
+   * active filters) — feeds the event filter select.
+   */
+  eventTypes: string[]
 }
 
 /** Filters for `GET /api/ops/logs`. Empty/undefined = no filter. */
@@ -161,6 +171,8 @@ export interface LogsFilters {
   since?: string
   /** Case-insensitive substring match on message/exception. */
   search?: string
+  /** Exact (case-insensitive) ops-event name; omit for all rows. */
+  eventType?: string
   /** 1-based page index. */
   page?: number
   /** Rows per page; backend clamps to [1, 200], default 50. */
