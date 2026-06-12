@@ -130,12 +130,16 @@ public sealed class MongoLogQuery(MongoLogContext context) : IMongoLogQuery
         if (normalizedEventType is not null)
         {
             // Exact match, case-insensitive: the UI sends catalog values verbatim,
-            // but a hand-typed query must not fail on casing. Fully anchored and
-            // escaped so the value can't act as a wildcard; rows without an
+            // but a hand-typed query must not fail on casing. The casing is
+            // resolved against the static catalog in memory so the filter is an
+            // indexable $eq (a case-insensitive regex cannot be served from the
+            // sparse ix_event_type index). An unknown name falls through as-is and
+            // matches nothing — same outcome as the regex; rows without an
             // eventType (plain diagnostics) never match.
-            var pattern = new BsonRegularExpression(
-                $"^{Regex.Escape(normalizedEventType)}$", "i");
-            filters.Add(Filter.Regex(doc => doc.EventType, pattern));
+            var canonical = OpsEvents.KnownEventTypes.FirstOrDefault(name =>
+                    string.Equals(name, normalizedEventType, StringComparison.OrdinalIgnoreCase))
+                ?? normalizedEventType;
+            filters.Add(Filter.Eq(doc => doc.EventType, canonical));
         }
 
         return filters.Count == 0 ? Filter.Empty : Filter.And(filters);
