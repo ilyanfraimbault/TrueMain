@@ -26,7 +26,10 @@ public sealed class ProcessRunsQueryService(TrueMainDbContext db) : IProcessRuns
         // predates paging and meant "the N most recent runs"; that is exactly
         // page 1 with pageSize=N, so it is honoured as the page size when
         // `pageSize` is absent and superseded by `pageSize` when both are sent.
-        var effectivePage = Math.Max(1, page ?? 1);
+        // The upper bound keeps `(page - 1) * pageSize` within int range even at
+        // the maximum page size; pages that deep are far beyond any real data and
+        // simply return an empty slice.
+        var effectivePage = Math.Clamp(page ?? 1, 1, int.MaxValue / MaxPageSize);
         var effectivePageSize = Math.Clamp(pageSize ?? limit ?? DefaultPageSize, MinPageSize, MaxPageSize);
         // The runs list and the rollup's failure window are independent.
         //
