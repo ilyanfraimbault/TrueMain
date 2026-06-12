@@ -65,6 +65,10 @@ public sealed class ChampionPatternSourceRowReader(
     {
         // matches.GameVersion is the raw Riot version (e.g. "16.5.2"); scopes
         // store the normalised patch ("16.5"), so normalise before comparing.
+        // NormalizeGameVersion is C# (PatchVersion.Parse) that EF can't translate
+        // to SQL, hence the materialise-then-normalise in memory. The result set
+        // is the distinct (version, platform) pairs in `matches`, which retention
+        // keeps bounded to a handful of patches — small enough to fold client-side.
         var rawPatchKeys = await db.Matches
             .AsNoTracking()
             .Where(match => match.QueueId == queueId)
