@@ -156,6 +156,29 @@ public sealed record MatchTeamReadModel
     /// <summary>Riot team id (100/200), or a synthetic index for non-standard splits.</summary>
     public int TeamId { get; init; }
 
+    /// <summary>Actual participant rows ingested for this team.</summary>
+    public int PlayerCount { get; init; }
+
+    /// <summary>
+    /// Players a complete team should carry for this queue, or null when the
+    /// queue has no profile (or the team id isn't a standard one). Lets the UI
+    /// report "4/5 players" instead of inferring fullness from the slot list,
+    /// which also contains unfilled lane gaps and appended unplaced members.
+    /// </summary>
+    public int? ExpectedPlayerCount { get; init; }
+
+    /// <summary>
+    /// Members whose <c>TeamPosition</c> didn't map onto a canonical lane
+    /// (unknown/duplicate position) and were appended after the lane slots.
+    /// They exist — the team isn't short — so the UI must report them as
+    /// unplaced rather than implying a missing player. Always 0 for laneless
+    /// queues.
+    /// </summary>
+    public int UnplacedCount { get; init; }
+
+    /// <summary>Team result, or null when the team has no ingested rows.</summary>
+    public bool? Win { get; init; }
+
     public IReadOnlyList<MatchSlotReadModel> Slots { get; init; } = [];
 }
 

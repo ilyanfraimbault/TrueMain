@@ -428,6 +428,18 @@ export interface MatchSlot {
 /** One team's roster, laid out by position with gaps highlighted. */
 export interface MatchTeam {
   teamId: number
+  /** Actual participant rows ingested for this team. */
+  playerCount: number
+  /** Players a complete team should carry, or null when the queue is unknown. */
+  expectedPlayerCount: number | null
+  /**
+   * Members whose position didn't map onto a canonical lane (unknown/duplicate
+   * position). They exist — the team isn't short — so they're reported as
+   * unplaced, never as missing players. Always 0 for laneless queues.
+   */
+  unplacedCount: number
+  /** Team result, or null when the team has no ingested rows. */
+  win: boolean | null
   slots: MatchSlot[]
 }
 

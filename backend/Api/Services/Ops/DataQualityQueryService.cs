@@ -452,6 +452,13 @@ public sealed class DataQualityQueryService(TrueMainDbContext db) : IDataQuality
             return [];
         }
 
+        // Per-team headcount expectation, only meaningful for a profiled queue's
+        // standard teams (a non-standard team id is an anomaly with no expected
+        // size of its own).
+        int? expectedPlayersPerTeam = profile.IsKnown && profile.TeamCount > 0
+            ? profile.ExpectedParticipants / profile.TeamCount
+            : null;
+
         var teams = new List<MatchTeamReadModel>();
         foreach (var teamId in teamIds)
         {
@@ -464,6 +471,7 @@ public sealed class DataQualityQueryService(TrueMainDbContext db) : IDataQuality
                 .Select(g => g.Key)
                 .ToHashSet();
 
+            var unplacedCount = 0;
             List<MatchSlotReadModel> slots;
             if (profile.HasLanes)
             {
@@ -496,8 +504,11 @@ public sealed class DataQualityQueryService(TrueMainDbContext db) : IDataQuality
                     .Where(s => s.ParticipantId is not null)
                     .Select(s => s.ParticipantId!.Value)
                     .ToHashSet();
-                slots.AddRange(members
+                var unplacedMembers = members
                     .Where(m => !placed.Contains(m.ParticipantId))
+                    .ToList();
+                unplacedCount = unplacedMembers.Count;
+                slots.AddRange(unplacedMembers
                     .Select(m => new MatchSlotReadModel
                     {
                         Position = string.IsNullOrWhiteSpace(m.TeamPosition) ? "UNKNOWN" : m.TeamPosition,
@@ -526,7 +537,18 @@ public sealed class DataQualityQueryService(TrueMainDbContext db) : IDataQuality
                     .ToList();
             }
 
-            teams.Add(new MatchTeamReadModel { TeamId = teamId, Slots = slots });
+            teams.Add(new MatchTeamReadModel
+            {
+                TeamId = teamId,
+                PlayerCount = members.Count,
+                ExpectedPlayerCount = QueueDataQualityProfile.StandardTeamIds.Contains(teamId)
+                    ? expectedPlayersPerTeam
+                    : null,
+                UnplacedCount = unplacedCount,
+                // All members of a team share the same result; null when empty.
+                Win = members.Count > 0 ? members[0].Win : null,
+                Slots = slots
+            });
         }
 
         return teams;
