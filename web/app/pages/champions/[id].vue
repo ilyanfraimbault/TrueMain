@@ -163,9 +163,11 @@ const selectedPosition = computed<ChampionPosition | null>(() => {
 // dead patch/position query param lingers in the URL. Once the fetch resolves,
 // reconcile the URL with what was actually loaded so a no-data selection snaps
 // the address bar back to the initial state instead of pinning a stale filter.
-// The watch fires only when champion data changes (never on the optimistic
-// stale-data phase), so a *valid* selection — where the API echoes the request
-// — never triggers a reset.
+// The watch fires when champion data changes (never on the optimistic
+// stale-data phase) and once immediately on mount if champion is already
+// populated (e.g. an SSR payload) — so the dead filter is reconciled on the
+// first render too, not only on the next change. A *valid* selection — where
+// the API echoes the request — never triggers a reset.
 watch(champion, (data) => {
   if (!data) return
   // Only reset when the API actually returned a (truthy) value that differs:
