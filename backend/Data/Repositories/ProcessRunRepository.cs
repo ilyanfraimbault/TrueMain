@@ -11,5 +11,5 @@ public sealed class ProcessRunRepository(TrueMainDbContext db) : IProcessRunRepo
     public Task<ProcessRun?> GetByIdAsync(Guid id, CancellationToken ct)
         // Tracked: the caller mutates Status/FinishedAtUtc on the returned
         // instance and then SaveChanges to finalise the run.
-        => db.ProcessRuns.FirstOrDefaultAsync(run => run.Id == id, ct);
+        => db.ProcessRuns.FindAsync([id], ct);
 }
