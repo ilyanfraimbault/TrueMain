@@ -116,7 +116,8 @@ function failureRateLabel(proc: ProcessRollup): string {
   if (proc.runCountInWindow === 0) {
     return '—'
   }
-  return `${Math.round(proc.failureRateInWindow * 100)}% of ${formatNumber(proc.runCountInWindow)}`
+  // floor, not round: never show 100% while the window still has a success.
+  return `${Math.floor(proc.failureRateInWindow * 100)}% of ${formatNumber(proc.runCountInWindow)}`
 }
 
 // --- Runs table --------------------------------------------------------------
