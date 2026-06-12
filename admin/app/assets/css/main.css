@@ -27,6 +27,6 @@
  * renames/removes either, this rule silently no-ops (no build error), so
  * re-check table-page scrolling whenever Nuxt UI is bumped.
  */
-[id^="dashboard-panel-"] > [class*="overflow-y-auto"] > * {
+[id^="dashboard-panel-"] > [class~="overflow-y-auto"] > * {
   flex-shrink: 0;
 }
