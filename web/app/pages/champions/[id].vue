@@ -166,9 +166,12 @@ const selectedPosition = computed<ChampionPosition | null>(() => {
 // — never triggers a reset.
 watch(champion, (data) => {
   if (!data) return
+  // Only reset when the API actually returned a (truthy) value that differs:
+  // a missing/empty patch or position in the response means "no slice info",
+  // not "your valid filter was dropped", so it must never clear a live filter.
   const updates: { patch?: string | null, position?: ChampionPosition | null } = {}
-  if (filters.value.patch && filters.value.patch !== data.patch) updates.patch = null
-  if (filters.value.position && filters.value.position !== data.position) updates.position = null
+  if (filters.value.patch && data.patch && filters.value.patch !== data.patch) updates.patch = null
+  if (filters.value.position && data.position && filters.value.position !== data.position) updates.position = null
   if (updates.patch !== undefined || updates.position !== undefined) void setFilter(updates)
 })
 
