@@ -176,7 +176,7 @@ watch(champion, (data) => {
   const updates: { patch?: string | null, position?: ChampionPosition | null } = {}
   if (filters.value.patch && data.patch && filters.value.patch !== data.patch) updates.patch = null
   if (filters.value.position && data.position && filters.value.position !== data.position) updates.position = null
-  if (updates.patch !== undefined || updates.position !== undefined) void setFilter(updates)
+  if (updates.patch !== undefined || updates.position !== undefined) setFilter(updates).catch(console.error)
 }, { immediate: true })
 
 // Bound to every async source so the bar covers both the initial lazy load
