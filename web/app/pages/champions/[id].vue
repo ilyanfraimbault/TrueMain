@@ -139,7 +139,16 @@ const patchOptions = computed(() => {
     .sort((a, b) => b.value.localeCompare(a.value, undefined, { numeric: true }))
 })
 
-const selectedPatch = computed(() => filters.value.patch || champion.value?.patch || '')
+// Bind to the API-returned patch once available so the picker reflects what's
+// actually being shown — covers the 404 fallback in useChampion where the URL
+// filter is dropped (no data for the champion on that patch) and the API
+// returns its default patch. Mirrors selectedPosition so a no-data patch
+// snaps the selector back to the loaded patch instead of leaving the dead
+// filter pinned. The URL-filter fallback only applies on the initial load
+// (champion.value still null); on later patch swaps champion.value holds the
+// previous (stale) data, so the selector keeps showing the old patch until the
+// refetch resolves — intentional, and identical to selectedPosition.
+const selectedPatch = computed(() => champion.value?.patch || filters.value.patch || '')
 // Bind to the API-returned position once available so the picker reflects
 // what's actually being shown — covers the 404 fallback in useChampion
 // where the URL filter is dropped and the API returns the default position.
@@ -148,6 +157,27 @@ const selectedPosition = computed<ChampionPosition | null>(() => {
   const value = champion.value?.position || filters.value.position || ''
   return isChampionPosition(value) ? value : null
 })
+
+// When useChampion's 404 fallback drops the URL filters (no data for the
+// champion on that patch/position) the API returns the default slice, but the
+// dead patch/position query param lingers in the URL. Once the fetch resolves,
+// reconcile the URL with what was actually loaded so a no-data selection snaps
+// the address bar back to the initial state instead of pinning a stale filter.
+// The watch fires when champion data changes (never on the optimistic
+// stale-data phase) and once immediately on mount if champion is already
+// populated (e.g. an SSR payload) — so the dead filter is reconciled on the
+// first render too, not only on the next change. A *valid* selection — where
+// the API echoes the request — never triggers a reset.
+watch(champion, (data) => {
+  if (!data) return
+  // Only reset when the API actually returned a (truthy) value that differs:
+  // a missing/empty patch or position in the response means "no slice info",
+  // not "your valid filter was dropped", so it must never clear a live filter.
+  const updates: { patch?: string | null, position?: ChampionPosition | null } = {}
+  if (filters.value.patch && data.patch && filters.value.patch !== data.patch) updates.patch = null
+  if (filters.value.position && data.position && filters.value.position !== data.position) updates.position = null
+  if (updates.patch !== undefined || updates.position !== undefined) setFilter(updates).catch(console.error)
+}, { immediate: true })
 
 // Bound to every async source so the bar covers both the initial lazy load
 // and patch/position swaps where the previous champion's data is still on
