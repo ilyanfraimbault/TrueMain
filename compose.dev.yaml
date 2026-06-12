@@ -50,6 +50,13 @@ services:
       RESERVE_POOL_SIZE: "5"
       RESERVE_POOL_TIMEOUT: "3"
       ADMIN_USERS: ${POSTGRES_USER}
+    healthcheck:
+      # edoburu ships pg_isready; busybox `nc -z` is unreliable in this image.
+      test: ["CMD-SHELL", "pg_isready -h localhost -p 6432 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
     ports:
       # Dev only: publish the pooler on loopback so a host-run API/Ingestor
       # (dotnet run) can reach it at localhost:6432. Prod/QA keep PgBouncer
@@ -107,7 +114,7 @@ services:
       postgres:
         condition: service_healthy
       pgbouncer:
-        condition: service_started
+        condition: service_healthy
       mongo:
         condition: service_healthy
     ports:
@@ -227,7 +234,7 @@ services:
       postgres:
         condition: service_healthy
       pgbouncer:
-        condition: service_started
+        condition: service_healthy
       mongo:
         condition: service_healthy
     volumes:

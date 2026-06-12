@@ -51,8 +51,8 @@ public static class DatabaseMigrator
         // back to the DI-registered context when unset — dev, tests and any
         // single-instance setup with no pooler in front of Postgres.
         var migrationsConnectionString = services
-            .GetService<IConfiguration>()
-            ?.GetConnectionString("TrueMainMigrations");
+            .GetRequiredService<IConfiguration>()
+            .GetConnectionString("TrueMainMigrations");
 
         if (!string.IsNullOrWhiteSpace(migrationsConnectionString))
         {
