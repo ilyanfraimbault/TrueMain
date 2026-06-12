@@ -13,3 +13,15 @@
   --ui-bg-accented: var(--ui-color-neutral-700);
   --ui-border: var(--ui-color-neutral-800);
 }
+
+/*
+ * Dashboard panel bodies are vertical scroll containers (Nuxt UI renders them
+ * as `flex flex-col … overflow-y-auto`). Their direct children default to
+ * `flex-shrink: 1`, so a child that wraps an `overflow-auto` region — every
+ * `UTable` does — collapses to near-zero height: the table is clipped to its
+ * header and the page can't scroll to the rest. Pin the children so they keep
+ * their natural height and the panel body scrolls the whole page instead.
+ */
+[id^="dashboard-panel-"] > [class*="overflow-y-auto"] > * {
+  flex-shrink: 0;
+}
