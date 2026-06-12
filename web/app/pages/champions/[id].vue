@@ -139,7 +139,14 @@ const patchOptions = computed(() => {
     .sort((a, b) => b.value.localeCompare(a.value, undefined, { numeric: true }))
 })
 
-const selectedPatch = computed(() => filters.value.patch || champion.value?.patch || '')
+// Bind to the API-returned patch once available so the picker reflects what's
+// actually being shown — covers the 404 fallback in useChampion where the URL
+// filter is dropped (no data for the champion on that patch) and the API
+// returns its default patch. Mirrors selectedPosition so a no-data patch
+// snaps the selector back to the loaded patch instead of leaving the dead
+// filter pinned. Fall back to the URL filter for the optimistic render before
+// the fetch resolves.
+const selectedPatch = computed(() => champion.value?.patch || filters.value.patch || '')
 // Bind to the API-returned position once available so the picker reflects
 // what's actually being shown — covers the 404 fallback in useChampion
 // where the URL filter is dropped and the API returns the default position.
@@ -147,6 +154,22 @@ const selectedPatch = computed(() => filters.value.patch || champion.value?.patc
 const selectedPosition = computed<ChampionPosition | null>(() => {
   const value = champion.value?.position || filters.value.position || ''
   return isChampionPosition(value) ? value : null
+})
+
+// When useChampion's 404 fallback drops the URL filters (no data for the
+// champion on that patch/position) the API returns the default slice, but the
+// dead patch/position query param lingers in the URL. Once the fetch resolves,
+// reconcile the URL with what was actually loaded so a no-data selection snaps
+// the address bar back to the initial state instead of pinning a stale filter.
+// The watch fires only when champion data changes (never on the optimistic
+// stale-data phase), so a *valid* selection — where the API echoes the request
+// — never triggers a reset.
+watch(champion, (data) => {
+  if (!data) return
+  const updates: { patch?: string | null, position?: ChampionPosition | null } = {}
+  if (filters.value.patch && filters.value.patch !== data.patch) updates.patch = null
+  if (filters.value.position && filters.value.position !== data.position) updates.position = null
+  if (updates.patch !== undefined || updates.position !== undefined) setFilter(updates)
 })
 
 // Bound to every async source so the bar covers both the initial lazy load
