@@ -1,10 +1,11 @@
 <script setup lang="ts">
 // Logs panel — server-paginated application logs from `GET /api/ops/logs`.
-// Filterable by minimum severity (`level`), category, relative time window and a
-// free-text search (matched against message + exception). The endpoint paginates,
-// so we only ever hold one page in memory and drive UPagination off the response's
-// `total`/`page`/`pageSize`. Each row's full detail + exception stack is
-// inspectable in a slide-over.
+// Filterable by minimum severity (`level`), category, named ops event
+// (`eventType`, exact match against the backend's static catalog), relative time
+// window and a free-text search (matched against message + exception). The
+// endpoint paginates, so we only ever hold one page in memory and drive
+// UPagination off the response's `total`/`page`/`pageSize`. Each row's full
+// detail + exception stack is inspectable in a slide-over.
 import type { TableColumn } from '@nuxt/ui'
 import type { LogEntry, LogLevel } from '~~/shared/types/ops'
 import { formatDateTime } from '~~/shared/utils/format'
@@ -16,6 +17,9 @@ import { formatDateTime } from '~~/shared/utils/format'
 const ALL = 'all'
 // `level` is a MINIMUM threshold: Warning returns Warning + Error + Critical.
 const level = ref<'all' | LogLevel>(ALL)
+// Named ops event (exact match); the option list comes from the response's
+// static `eventTypes` catalog.
+const eventType = ref<string>(ALL)
 const category = ref('')
 // Relative window -> ISO `since`. "All" omits the param.
 const sinceWindow = ref<'all' | '1h' | '24h' | '7d' | '30d'>(ALL)
@@ -58,6 +62,7 @@ const filters = computed(() => ({
     ? undefined
     : new Date(Date.now() - WINDOW_MS[sinceWindow.value]!).toISOString(),
   search: search.value.trim() || undefined,
+  eventType: eventType.value === ALL ? undefined : eventType.value,
   page: page.value,
   pageSize,
 }))
@@ -65,6 +70,7 @@ const filters = computed(() => ({
 const hasActiveFilters = computed(() =>
   Boolean(
     level.value !== ALL
+    || eventType.value !== ALL
     || category.value.trim()
     || sinceWindow.value !== ALL
     || searchInput.value.trim(),
@@ -72,6 +78,7 @@ const hasActiveFilters = computed(() =>
 )
 function resetFilters() {
   level.value = ALL
+  eventType.value = ALL
   category.value = ''
   sinceWindow.value = ALL
   searchInput.value = ''
@@ -85,10 +92,18 @@ const total = computed(() => data.value?.total ?? 0)
 const serverPage = computed(() => data.value?.page ?? page.value)
 const serverPageSize = computed(() => data.value?.pageSize ?? pageSize)
 
+// Event filter options: the response carries the backend's static catalog of
+// known event names on every page, so no extra request (or Mongo distinct) is
+// needed. Empty until the first response lands.
+const eventItems = computed(() => [
+  { label: 'All events', value: ALL },
+  ...(data.value?.eventTypes ?? []).map(name => ({ label: name, value: name })),
+])
+
 // Any filter change must reset to the first page — otherwise a narrower filter
 // could leave us stranded on a now-out-of-range page. `search` (debounced) is
 // watched rather than the raw input so the reset lands with the actual query.
-watch([level, category, sinceWindow, search], () => {
+watch([level, eventType, category, sinceWindow, search], () => {
   page.value = 1
 })
 
@@ -132,6 +147,10 @@ const columns: TableColumn<LogEntry>[] = [
   {
     accessorKey: 'level',
     header: 'Level',
+  },
+  {
+    accessorKey: 'eventType',
+    header: 'Event',
   },
   {
     accessorKey: 'category',
@@ -193,6 +212,13 @@ function openDetail(entry: LogEntry) {
             icon="i-lucide-bar-chart-3"
             placeholder="Level"
             class="w-40"
+          />
+          <USelect
+            v-model="eventType"
+            :items="eventItems"
+            icon="i-lucide-zap"
+            placeholder="Event"
+            class="w-52"
           />
           <USelect
             v-model="sinceWindow"
@@ -282,6 +308,16 @@ function openDetail(entry: LogEntry) {
               size="sm"
               :label="row.original.level"
             />
+          </template>
+          <template #eventType-cell="{ row }">
+            <UBadge
+              v-if="row.original.eventType"
+              color="primary"
+              variant="subtle"
+              size="sm"
+              :label="row.original.eventType"
+            />
+            <span v-else class="text-dimmed text-xs">—</span>
           </template>
           <template #category-cell="{ row }">
             <span
@@ -388,6 +424,19 @@ function openDetail(entry: LogEntry) {
                 </dt>
                 <dd class="font-mono text-xs">
                   {{ selectedEntry.host ?? '—' }}
+                </dd>
+              </div>
+              <div v-if="selectedEntry.eventType" class="col-span-2">
+                <dt class="text-muted text-xs uppercase mb-0.5">
+                  Event
+                </dt>
+                <dd>
+                  <UBadge
+                    color="primary"
+                    variant="subtle"
+                    size="sm"
+                    :label="selectedEntry.eventType"
+                  />
                 </dd>
               </div>
             </dl>

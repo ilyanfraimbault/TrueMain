@@ -1,5 +1,6 @@
 using Core.Lol.Identifiers;
 using Data.Entities;
+using Data.Logging;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Common;
@@ -179,7 +180,10 @@ public sealed class DiscoveryProcess(
 
     private void LogPlatformSummary(PlatformSummary platformSummary)
     {
+        // Named ops event (#444): one per platform per discovery run, so the
+        // operator can follow ladder-discovery throughput from /ops/logs.
         logger.LogInformation(
+            OpsEvents.DiscoveryCycleCompleted,
             "Discovery summary for {Platform}: accounts={AccountsProcessed}, newAccounts={NewAccounts}, candidatesInserted={Inserted}, candidatesUpdated={Updated}, rankSnapshotsInserted={RankInserted}, rankSnapshotsUnchanged={RankUnchanged}.",
             platformSummary.PlatformId,
             platformSummary.AccountsProcessed,

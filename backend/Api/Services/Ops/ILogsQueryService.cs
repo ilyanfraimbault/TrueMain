@@ -9,6 +9,7 @@ public interface ILogsQueryService
         string? category,
         DateTime? since,
         string? search,
+        string? eventType,
         int? page,
         int? pageSize,
         CancellationToken ct);

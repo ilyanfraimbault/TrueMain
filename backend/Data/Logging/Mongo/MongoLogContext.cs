@@ -94,7 +94,13 @@ public sealed class MongoLogContext : IDisposable
             new(Builders<MongoLogDocument>.IndexKeys.Ascending(doc => doc.Level),
                 new CreateIndexOptions { Name = "ix_level" }),
             new(Builders<MongoLogDocument>.IndexKeys.Ascending(doc => doc.Category),
-                new CreateIndexOptions { Name = "ix_category" })
+                new CreateIndexOptions { Name = "ix_category" }),
+            // Back the /ops/logs eventType filter. Sparse: only ops-event rows
+            // carry the field (the overwhelming majority of diagnostics don't),
+            // so the index stays tiny while sparing event-filtered reads a full
+            // collection scan.
+            new(Builders<MongoLogDocument>.IndexKeys.Ascending(doc => doc.EventType),
+                new CreateIndexOptions { Name = "ix_event_type", Sparse = true })
         };
 
         await Logs.Indexes.CreateManyAsync(logModels, ct);

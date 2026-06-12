@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AwesomeAssertions;
+using Data.Logging;
 using Data.Logging.Mongo;
 using Microsoft.AspNetCore.Mvc.Testing;
 
@@ -41,14 +42,14 @@ public sealed class LogsApiIntegrationTests
         var json = await response.Content.ReadAsStringAsync();
         using var document = JsonDocument.Parse(json);
         document.RootElement.EnumerateObject().Select(property => property.Name)
-            .Should().BeEquivalentTo(["entries", "total", "page", "pageSize"]);
+            .Should().BeEquivalentTo(["entries", "total", "page", "pageSize", "eventTypes"]);
 
         var firstEntry = document.RootElement.GetProperty("entries")[0];
         firstEntry.EnumerateObject().Select(property => property.Name)
             .Should().BeEquivalentTo(
             [
                 "id", "timestampUtc", "level", "category",
-                "message", "exception", "processName", "host"
+                "message", "exception", "processName", "host", "eventType"
             ]);
 
         var payload = await response.Content.ReadFromJsonAsync<LogsTestContract>();
@@ -182,6 +183,56 @@ public sealed class LogsApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetLogsAsync_ShouldFilterByEventTypeAndExposeKnownEventTypes()
+    {
+        await ResetAsync();
+        await SeedLogsAsync();
+
+        // Two named domain events among the plain diagnostics (#444). The filter
+        // must return exactly the matching event rows — case-insensitively — and
+        // never the plain rows, even when their levels would match.
+        var collection = _mongo.GetCollection<MongoLogDocument>(MongoFixture.LogsCollection);
+        await collection.InsertManyAsync(
+        [
+            BuildDocument(
+                "Information",
+                "Ingestor.Processes.ManualSeedProcess",
+                "seed request resolved",
+                null,
+                DateTime.UtcNow.AddMinutes(-5),
+                eventType: "SeedRequestResolved"),
+            BuildDocument(
+                "Information",
+                "Ingestor.Processes.Components.MatchIngestion.AccountValidationService",
+                "validated 2 candidates",
+                null,
+                DateTime.UtcNow.AddMinutes(-4),
+                eventType: "CandidateValidated")
+        ]);
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        // Lowercase on purpose: eventType is an exact match but case-insensitive.
+        var payload = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs?eventType=seedrequestresolved");
+        payload.Should().NotBeNull();
+
+        payload!.Total.Should().Be(1);
+        var entry = payload.Entries.Should().ContainSingle().Subject;
+        entry.EventType.Should().Be("SeedRequestResolved");
+        entry.Message.Should().Be("seed request resolved");
+
+        // The known-event catalog rides on every response (static OpsEvents list,
+        // no Mongo distinct) so the admin UI can build its filter select.
+        payload.EventTypes.Should().BeEquivalentTo(OpsEvents.KnownEventTypes);
+
+        // Plain diagnostic rows keep a null eventType.
+        var unfiltered = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs");
+        unfiltered!.Total.Should().Be(7);
+        unfiltered.Entries.Where(e => e.EventType is not null).Should().HaveCount(2);
+    }
+
+    [Fact]
     public async Task GetLogsAsync_ShouldClampPageSizeToCeiling()
     {
         await ResetAsync();
@@ -256,7 +307,8 @@ public sealed class LogsApiIntegrationTests
         string category,
         string message,
         string? exception,
-        DateTime timestampUtc)
+        DateTime timestampUtc,
+        string? eventType = null)
         => new()
         {
             Level = level,
@@ -265,7 +317,8 @@ public sealed class LogsApiIntegrationTests
             Exception = exception,
             ProcessName = category.StartsWith("Ingestor", StringComparison.Ordinal) ? "Ingestor" : "Api",
             Host = "test-host",
-            TimestampUtc = timestampUtc
+            TimestampUtc = timestampUtc,
+            EventType = eventType
         };
 
     // Point the host at the test Mongo container and mute the diagnostic sink
@@ -292,6 +345,8 @@ public sealed class LogsApiIntegrationTests
         public int Page { get; init; }
 
         public int PageSize { get; init; }
+
+        public IReadOnlyList<string> EventTypes { get; init; } = [];
     }
 
     private sealed class LogEntryTestContract
@@ -311,5 +366,7 @@ public sealed class LogsApiIntegrationTests
         public string? ProcessName { get; init; }
 
         public string? Host { get; init; }
+
+        public string? EventType { get; init; }
     }
 }

@@ -33,7 +33,14 @@ internal sealed class MongoLogger(
         => options.IsActive
            && !_categoryExcluded
            && logLevel != LogLevel.None
-           && logLevel >= options.MinimumLevel;
+           // Either at/above the configured floor, or a *candidate* for the
+           // ops-event bypass: registered domain events (see OpsEvents) log at
+           // Information, below the usual Warning floor, and must still be
+           // persisted. IsEnabled cannot see the EventId, so it only admits the
+           // level; Log() makes the final call. MinimumLevel=None keeps meaning
+           // "persist nothing" (test hosts rely on it to mute the sink).
+           && (logLevel >= options.MinimumLevel
+               || (options.MinimumLevel != LogLevel.None && logLevel >= OpsEvents.PersistedFloor));
 
     public void Log<TState>(
         LogLevel logLevel,
@@ -43,6 +50,16 @@ internal sealed class MongoLogger(
         Func<TState, Exception?, string> formatter)
     {
         if (!IsEnabled(logLevel))
+        {
+            return;
+        }
+
+        // Ops-event bypass, second half: a record below the configured floor is
+        // persisted only when its EventId is a registered domain event. The name
+        // is resolved for every persisted record (not just sub-floor ones) so an
+        // event logged at Warning+ is still filterable by eventType on /ops/logs.
+        var eventType = OpsEvents.Resolve(eventId);
+        if (logLevel < options.MinimumLevel && eventType is null)
         {
             return;
         }
@@ -61,7 +78,8 @@ internal sealed class MongoLogger(
                 Message: message ?? string.Empty,
                 Exception: exception?.ToString(),
                 ProcessName: options.ProcessName,
-                Host: host);
+                Host: host,
+                EventType: eventType);
 
             channel.TryWrite(record);
         }

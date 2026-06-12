@@ -45,7 +45,11 @@ public sealed class MongoLoggingOptions
     /// <summary>
     /// Diagnostic records below this level are not persisted. Defaults to
     /// <see cref="LogLevel.Warning"/> so the store stays focused on problems
-    /// (warnings + errors) rather than mirroring every Information line.
+    /// (warnings + errors) rather than mirroring every Information line. One
+    /// exception (#444): registered ops events (<see cref="OpsEvents"/>) are
+    /// persisted from Information up, so pipeline milestones reach the admin Logs
+    /// panel without lowering this floor. <see cref="LogLevel.None"/> disables
+    /// persistence entirely, ops events included.
     /// </summary>
     public LogLevel MinimumLevel { get; set; } = LogLevel.Warning;
 
@@ -67,11 +71,12 @@ public sealed class MongoLoggingOptions
 
     /// <summary>
     /// Retention window for the diagnostic <c>logs</c> collection, enforced by a
-    /// native Mongo TTL index on <c>timestampUtc</c>. Defaults to 30 days
-    /// (resolved open question, #416). Set to <see cref="TimeSpan.Zero"/> or
-    /// negative to disable the TTL index (retain indefinitely).
+    /// native Mongo TTL index on <c>timestampUtc</c>. Defaults to 90 days — the
+    /// operator wants up to 3 months of signal-only history (#444; was 30 days
+    /// per #416). Set to <see cref="TimeSpan.Zero"/> or negative to disable the
+    /// TTL index (retain indefinitely).
     /// </summary>
-    public TimeSpan LogsRetention { get; set; } = TimeSpan.FromDays(30);
+    public TimeSpan LogsRetention { get; set; } = TimeSpan.FromDays(90);
 
     /// <summary>
     /// Stamped onto every persisted record's <c>processName</c> so the
