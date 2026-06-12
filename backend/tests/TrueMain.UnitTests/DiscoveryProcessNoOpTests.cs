@@ -41,7 +41,13 @@ public sealed class DiscoveryProcessNoOpTests
 
         await process.RunRecordedAsync(runRecorder);
 
+        await runRecorder.Received(1).RecordStartAsync(
+            "Discovery",
+            Arg.Any<DateTime>(),
+            Arg.Any<CancellationToken>());
+
         await runRecorder.Received(1).RecordAsync(
+            Arg.Any<Guid>(),
             "Discovery",
             Arg.Any<DateTime>(),
             Arg.Any<DateTime>(),

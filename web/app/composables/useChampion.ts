@@ -29,6 +29,8 @@ export function useChampion(
   filters: Filters,
   options: UseChampionOptions = {},
 ) {
+  const nuxtApp = useNuxtApp()
+
   const championIdRef = computed(() => toValue(championId))
   const nameTagRef = computed(() => {
     const value = toValue(options.nameTag)
@@ -37,15 +39,23 @@ export function useChampion(
 
   const notEnoughData = ref(false)
 
+  const buildKey = (patch: string, position: string) =>
+    ['champion', nameTagRef.value ?? 'global', championIdRef.value, patch, position].join('-')
+
   const result = useLazyAsyncData<ChampionResponse | null>(
     () => {
       const f = filters.value
-      return ['champion', nameTagRef.value ?? 'global', championIdRef.value, f.patch ?? '', f.position ?? ''].join('-')
+      return buildKey(f.patch ?? '', f.position ?? '')
     },
     async () => {
       const id = championIdRef.value
       const f = filters.value
       const nameTag = nameTagRef.value
+      // Capture the stash key synchronously, before any `await`: if the user
+      // navigates to another champion while a fetch is in flight, the refs
+      // change underneath us and `buildKey` would otherwise stash this
+      // response under the new champion's key.
+      const unfilteredKey = buildKey('', '')
       notEnoughData.value = false
 
       if (nameTag) {
@@ -77,12 +87,37 @@ export function useChampion(
         const status = (error as { statusCode?: number }).statusCode
         const hadFilters = Boolean(f.patch || f.position)
         if (status === 404 && hadFilters) {
-          return await $fetch<ChampionResponse>(`/api/champions/${id}`)
+          const fallback = await $fetch<ChampionResponse>(`/api/champions/${id}`)
+          // Stash this default slice under the unfiltered key. When the page's
+          // URL reconciler clears the dead filter, the data key flips from the
+          // filtered key to `buildKey('', '')`; `getCachedData` below then
+          // reuses this identical response instead of triggering a second
+          // no-filter fetch (and its loading flash).
+          nuxtApp.static.data[unfilteredKey] = fallback
+          return fallback
         }
         throw error
       }
     },
-    { watch: [championIdRef, nameTagRef, filters], server: false },
+    {
+      watch: [championIdRef, nameTagRef, filters],
+      server: false,
+      // Dedupe only the global, unfiltered slice: after the 404 fallback has
+      // already fetched (and stashed) the default slice, reuse it when the key
+      // flips to the unfiltered one. Filtered keys and the player-scoped
+      // (nameTag) variant always fetch, so their behaviour is unchanged.
+      getCachedData: (key, _app, ctx) => {
+        if (nameTagRef.value || key !== buildKey('', '')) return undefined
+        // Mirror Nuxt's default getter: never short-circuit an explicit
+        // refresh, only the watch/key-change reload the reconciler triggers.
+        if (ctx?.cause === 'refresh:manual' || ctx?.cause === 'refresh:hook') return undefined
+        // Prefer our stash; fall through only when the key is genuinely absent
+        // (an `in` check, not `??`, so a stashed `null` wouldn't be mistaken for
+        // a miss should the slice type ever allow it).
+        const cached = key in nuxtApp.static.data ? nuxtApp.static.data[key] : nuxtApp.payload.data[key]
+        return cached as ChampionResponse | null | undefined
+      },
+    },
   )
 
   return { ...result, notEnoughData }

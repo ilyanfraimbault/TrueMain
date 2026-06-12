@@ -2,6 +2,7 @@ using AwesomeAssertions;
 using Ingestor;
 using Ingestor.Options;
 using Ingestor.Processes;
+using Ingestor.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -23,7 +24,8 @@ public sealed class WorkerResilienceTests
             RunOnce = true
         });
 
-        using var worker = new Worker(NullLogger<Worker>.Instance, serviceProvider, jobOptions, lifetime);
+        using var worker = new Worker(
+            NullLogger<Worker>.Instance, serviceProvider, jobOptions, new IterationContext(), lifetime);
 
         await worker.StartAsync(CancellationToken.None);
         await worker.ExecuteTask!;
@@ -69,7 +71,7 @@ public sealed class WorkerResilienceTests
         });
 
         using var worker = new Worker(
-            NullLogger<Worker>.Instance, countingScopeFactory, jobOptions, lifetime);
+            NullLogger<Worker>.Instance, countingScopeFactory, jobOptions, new IterationContext(), lifetime);
 
         await worker.StartAsync(CancellationToken.None);
         await worker.ExecuteTask!;
@@ -93,7 +95,8 @@ public sealed class WorkerResilienceTests
             IntervalMinutes = 60
         });
 
-        using var worker = new Worker(NullLogger<Worker>.Instance, serviceProvider, jobOptions, lifetime);
+        using var worker = new Worker(
+            NullLogger<Worker>.Instance, serviceProvider, jobOptions, new IterationContext(), lifetime);
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
 
         await worker.StartAsync(cts.Token);

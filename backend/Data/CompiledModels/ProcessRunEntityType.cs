@@ -21,8 +21,8 @@ namespace Data.CompiledModels
                 "Data.Entities.ProcessRun",
                 typeof(ProcessRun),
                 baseEntityType,
-                propertyCount: 9,
-                unnamedIndexCount: 1,
+                propertyCount: 10,
+                unnamedIndexCount: 2,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -69,6 +69,14 @@ namespace Data.CompiledModels
                 maxLength: 128);
             host.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
+            var iterationId = runtimeEntityType.AddProperty(
+                "IterationId",
+                typeof(Guid?),
+                propertyInfo: typeof(ProcessRun).GetProperty("IterationId", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(ProcessRun).GetField("<IterationId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            iterationId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
             var processName = runtimeEntityType.AddProperty(
                 "ProcessName",
                 typeof(string),
@@ -107,6 +115,10 @@ namespace Data.CompiledModels
             runtimeEntityType.SetPrimaryKey(key);
 
             var index = runtimeEntityType.AddIndex(
+                new[] { iterationId, startedAtUtc });
+            index.AddAnnotation("Relational:Filter", "\"IterationId\" IS NOT NULL");
+
+            var index0 = runtimeEntityType.AddIndex(
                 new[] { processName, startedAtUtc });
 
             return runtimeEntityType;

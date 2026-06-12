@@ -380,8 +380,6 @@ function isRejected(status: MainCandidateStatus | undefined): boolean {
           :columns="candidateColumns"
           :loading="candidatePending"
           loading-color="primary"
-          sticky
-          class="max-h-[560px]"
           :ui="{ tr: 'cursor-pointer hover:bg-elevated/40', td: 'py-2' }"
           @select="(_event, row) => openDetail(row.original.id)"
         >
@@ -529,8 +527,6 @@ function isRejected(status: MainCandidateStatus | undefined): boolean {
           :columns="seedColumns"
           :loading="seedPending"
           loading-color="primary"
-          sticky
-          class="max-h-[480px]"
           :ui="{ td: 'py-2' }"
         >
           <template #riotId-cell="{ row }">

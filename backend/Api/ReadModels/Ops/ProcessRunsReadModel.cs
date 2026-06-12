@@ -51,10 +51,16 @@ public sealed record ProcessRunReadModel
 }
 
 /// <summary>
-/// Per-process summary over the rollup window. <see cref="FailureCountInWindow"/>
-/// counts only runs whose <c>StartedAtUtc</c> falls inside the window, while
-/// <see cref="LastSuccessAtUtc"/> is the most recent successful finish regardless of
-/// the window (null if the process has never succeeded).
+/// Per-process summary over the rollup window. The window follows the caller's
+/// <c>since</c>: when <c>since</c> is omitted the window is unbounded, so
+/// <see cref="FailureCountInWindow"/> is a true all-time total (≥ any narrower
+/// window) rather than a hidden default. <see cref="FailureCountInWindow"/> and
+/// <see cref="RunCountInWindow"/> count only runs whose <c>StartedAtUtc</c> falls
+/// inside the window; <see cref="FailureRateInWindow"/> is their ratio (0 when no
+/// runs fall inside the window). <see cref="LastStatus"/> /
+/// <see cref="LastRunAtUtc"/> / <see cref="LastSuccessAtUtc"/> are unbounded, so an
+/// idle process still reports its real last state (<see cref="LastSuccessAtUtc"/> is
+/// null if the process has never succeeded).
 /// </summary>
 public sealed record ProcessRunRollupReadModel
 {
@@ -67,4 +73,14 @@ public sealed record ProcessRunRollupReadModel
     public DateTime? LastSuccessAtUtc { get; init; }
 
     public int FailureCountInWindow { get; init; }
+
+    public int RunCountInWindow { get; init; }
+
+    /// <summary>
+    /// Fraction of in-window runs that failed, in <c>[0, 1]</c>. 0 when no runs
+    /// fall inside the window. Derived from real run counts (not a fabricated
+    /// metric) so the admin can color failure volume by a meaningful rate rather
+    /// than an always-positive absolute count.
+    /// </summary>
+    public double FailureRateInWindow { get; init; }
 }

@@ -1,5 +1,6 @@
 using Ingestor.Options;
 using Ingestor.Processes;
+using Ingestor.Services;
 using Microsoft.Extensions.Options;
 
 namespace Ingestor;
@@ -8,6 +9,7 @@ public sealed class Worker(
     ILogger<Worker> logger,
     IServiceScopeFactory scopeFactory,
     IOptions<JobOptions> jobOptions,
+    IIterationContext iterationContext,
     IHostApplicationLifetime applicationLifetime) : BackgroundService
 {
     private const string HeartbeatEnvironmentVariable = "INGESTOR_HEARTBEAT_PATH";
@@ -110,6 +112,13 @@ public sealed class Worker(
                 "MatchDataRetention"
             ]
         };
+
+        // Open a fresh iteration for this whole pass so every ProcessRun recorded
+        // below (across the per-process scopes) is stamped with the same id and the
+        // admin can group them as one chain. The AsyncLocal id flows into each
+        // awaited process; the scope restores the prior value when the pass ends.
+        using var iteration = iterationContext.BeginIteration();
+        logger.LogInformation("Starting iteration {IterationId}.", iteration.IterationId);
 
         foreach (var processName in sequence)
         {

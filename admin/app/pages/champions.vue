@@ -83,6 +83,15 @@ const rows = computed<ChampionRowView[]>(() =>
   })),
 )
 
+// Client-side champion-name search. Scoped to the TABLE only — the charts keep
+// showing the full top-N so they stay a stable overview while you look one up.
+const search = ref('')
+const tableRows = computed<ChampionRowView[]>(() => {
+  const q = search.value.trim().toLowerCase()
+  if (!q) return rows.value
+  return rows.value.filter(r => r.name.toLowerCase().includes(q))
+})
+
 const loading = computed(() => pending.value || staticPending.value)
 
 // --- Table -------------------------------------------------------------------
@@ -305,7 +314,7 @@ const mainsLabelFormatter = computed(() =>
       <!-- Table -->
       <UCard :ui="{ body: 'p-0 sm:p-0' }">
         <template #header>
-          <div class="flex items-center justify-between gap-2">
+          <div class="flex items-center justify-between gap-3">
             <div>
               <p class="text-sm font-medium text-highlighted">
                 Per-champion stats
@@ -316,23 +325,41 @@ const mainsLabelFormatter = computed(() =>
                 honor region only.
               </p>
             </div>
-            <UBadge
-              v-if="!loading"
-              color="neutral"
-              variant="subtle"
-              :label="`${formatNumber(rows.length)} champions`"
-            />
+            <div class="flex items-center gap-3">
+              <UInput
+                v-model="search"
+                icon="i-lucide-search"
+                placeholder="Search champion"
+                class="w-48"
+                :ui="{ trailing: 'pe-1' }"
+              >
+                <template v-if="search" #trailing>
+                  <UButton
+                    icon="i-lucide-x"
+                    color="neutral"
+                    variant="link"
+                    size="sm"
+                    aria-label="Clear search"
+                    @click="search = ''"
+                  />
+                </template>
+              </UInput>
+              <UBadge
+                v-if="!loading"
+                color="neutral"
+                variant="subtle"
+                :label="`${formatNumber(tableRows.length)} champions`"
+              />
+            </div>
           </div>
         </template>
 
         <UTable
           v-model:sorting="sorting"
-          :data="rows"
+          :data="tableRows"
           :columns="columns"
           :loading="loading"
           loading-color="primary"
-          sticky
-          class="max-h-[640px]"
           :ui="{ td: 'py-2' }"
         >
           <template #name-cell="{ row }">

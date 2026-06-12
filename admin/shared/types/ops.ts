@@ -78,7 +78,7 @@ export interface DbTableRow {
   indexBytes: number
 }
 
-export type ProcessRunStatus = 'Success' | 'Failed'
+export type ProcessRunStatus = 'Success' | 'Failed' | 'Running'
 
 /** One run row of `GET /api/ops/process-runs` → `runs`. */
 export interface ProcessRun {
@@ -99,7 +99,20 @@ export interface ProcessRollup {
   lastStatus: ProcessRunStatus
   lastRunAtUtc: string
   lastSuccessAtUtc: string | null
+  /**
+   * Failed runs inside the window. The window follows the request's `since`:
+   * when `since` is omitted this is a true all-time total (≥ any narrower
+   * window), not a hidden default.
+   */
   failureCountInWindow: number
+  /** All runs inside the same window — the denominator for `failureRateInWindow`. */
+  runCountInWindow: number
+  /**
+   * Fraction of in-window runs that failed, in `[0, 1]` (0 when no runs fall
+   * inside the window). Derived from real run counts — color failure health by
+   * this rate rather than the always-positive absolute count.
+   */
+  failureRateInWindow: number
 }
 
 /** `GET /api/ops/process-runs` — one server-paginated page of runs + the rollup. */
@@ -111,6 +124,54 @@ export interface ProcessRunsResponse {
   total: number
   page: number
   pageSize: number
+}
+
+/**
+ * The canonical ingestor pipeline chain, in execution order — one full pass runs
+ * these processes in sequence (see `backend/Ingestor/Worker.cs`). Drives the
+ * chain view: the ordered links and the per-iteration outcome lookup. Keep in
+ * sync with the Worker's Full-mode sequence.
+ */
+export const PIPELINE_CHAIN: readonly string[] = [
+  'Discovery',
+  'ManualSeed',
+  'Scoring',
+  'MatchIngestion',
+  'MainAnalysis',
+  'ChampionPatternAggregation',
+  'AccountRefresh',
+  'MatchDataRetention',
+]
+
+/**
+ * One pipeline iteration of `GET /api/ops/process-iterations` → `iterations`.
+ * An iteration is one full pass of the chain; `runs` are its process runs in
+ * pipeline order. `isRunning` is true while any run is still `Running` (this is
+ * the pass the pipeline is currently in).
+ */
+export interface ProcessIteration {
+  iterationId: string
+  startedAtUtc: string
+  lastActivityAtUtc: string
+  isRunning: boolean
+  runs: ProcessRun[]
+}
+
+/** `GET /api/ops/process-iterations` — one server-paginated page of iterations. */
+export interface ProcessIterationsResponse {
+  iterations: ProcessIteration[]
+  /** Total iterations across all pages. */
+  total: number
+  page: number
+  pageSize: number
+}
+
+/** Filters for `GET /api/ops/process-iterations`. */
+export interface ProcessIterationsFilters {
+  /** 1-based page index. */
+  page?: number
+  /** Iterations per page; backend clamps to [1, 50], default 10. */
+  pageSize?: number
 }
 
 /** Filters for `GET /api/ops/process-runs`. Empty/undefined = no filter. */

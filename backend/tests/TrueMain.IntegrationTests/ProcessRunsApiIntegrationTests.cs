@@ -47,8 +47,8 @@ public sealed class ProcessRunsApiIntegrationTests
         firstRollup.EnumerateObject().Select(property => property.Name)
             .Should().BeEquivalentTo(
             [
-                "processName", "lastStatus", "lastRunAtUtc",
-                "lastSuccessAtUtc", "failureCountInWindow"
+                "processName", "lastStatus", "lastRunAtUtc", "lastSuccessAtUtc",
+                "failureCountInWindow", "runCountInWindow", "failureRateInWindow"
             ]);
 
         var payload = await response.Content.ReadFromJsonAsync<ProcessRunsTestContract>();
@@ -69,25 +69,119 @@ public sealed class ProcessRunsApiIntegrationTests
         payload.Page.Should().Be(1);
         payload.PageSize.Should().Be(100);
 
-        // The status of the latest MatchIngestion run is Failed, but it has an
-        // earlier success inside the failure window; one failure counted in the
-        // window. The 30-day-old failure is outside the 7-day window, so it is
-        // present in the runs list above but NOT counted here.
+        // No `since` => the failure window is UNBOUNDED, so FailureCountInWindow is
+        // a true all-time total. MatchIngestion has TWO failures (the recent one
+        // and the 30-day-old one), both counted now. The latest run is Failed and
+        // there is an earlier success. Three MatchIngestion runs total (1 success,
+        // 2 failures), so the all-time failure rate is 2/3.
         var ingestion = payload.Rollup.Single(row => row.ProcessName == "MatchIngestion");
         ingestion.LastStatus.Should().Be("Failed");
-        ingestion.FailureCountInWindow.Should().Be(1);
+        ingestion.FailureCountInWindow.Should().Be(2);
+        ingestion.RunCountInWindow.Should().Be(3);
+        ingestion.FailureRateInWindow.Should().BeApproximately(2d / 3d, 0.0001);
         ingestion.LastSuccessAtUtc.Should().NotBeNull();
 
         var mainAnalysis = payload.Rollup.Single(row => row.ProcessName == "MainAnalysis");
         mainAnalysis.LastStatus.Should().Be("Success");
         mainAnalysis.FailureCountInWindow.Should().Be(0);
+        mainAnalysis.RunCountInWindow.Should().Be(1);
+        mainAnalysis.FailureRateInWindow.Should().Be(0);
 
-        // Discovery's only run is 10 days old: it predates the failure window but
-        // still anchors the rollup's unbounded last-run/last-success.
+        // Discovery's only run is 10 days old: with the unbounded all-time window
+        // it is counted (one success, zero failures) and still anchors the
+        // rollup's last-run/last-success.
         var discovery = payload.Rollup.Single(row => row.ProcessName == "Discovery");
         discovery.LastStatus.Should().Be("Success");
         discovery.FailureCountInWindow.Should().Be(0);
+        discovery.RunCountInWindow.Should().Be(1);
         discovery.LastSuccessAtUtc.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task GetProcessRunsAsync_WithSince_ShouldNarrowFailureWindowConsistently()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedProcessRunsAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // An explicit 7-day `since` narrows BOTH the runs list and the rollup's
+        // in-window counts. MatchIngestion's 30-day-old failure now falls outside
+        // the window, so only the recent failure is counted (1 of 2 in-window
+        // runs failed -> 0.5).
+        var since = DateTime.UtcNow.AddDays(-7).ToString("O");
+        var payload = await GetPayloadAsync(client, $"/ops/process-runs?since={Uri.EscapeDataString(since)}");
+
+        // The 30-day-old MatchIngestion failure and the 10-day-old Discovery run
+        // are now excluded from the runs list too. Assert the stale failure by its
+        // age (well outside the window) rather than its seeded error text — a seed
+        // rename could otherwise make this NotContain vacuously pass.
+        payload.Runs.Should().NotContain(run =>
+            run.ProcessName == "MatchIngestion"
+            && run.StartedAtUtc < DateTime.UtcNow.AddDays(-14));
+        payload.Runs.Should().NotContain(run => run.ProcessName == "Discovery");
+
+        var ingestion = payload.Rollup.Single(row => row.ProcessName == "MatchIngestion");
+        ingestion.FailureCountInWindow.Should().Be(1);
+        ingestion.RunCountInWindow.Should().Be(2);
+        ingestion.FailureRateInWindow.Should().BeApproximately(0.5d, 0.0001);
+        // Last-run / last-success stay unbounded regardless of the window.
+        ingestion.LastStatus.Should().Be("Failed");
+        ingestion.LastSuccessAtUtc.Should().NotBeNull();
+
+        // Discovery's only run predates the window: it has no in-window runs, so
+        // the rate is 0 (no division-by-zero), but its unbounded last-run survives.
+        var discovery = payload.Rollup.Single(row => row.ProcessName == "Discovery");
+        discovery.RunCountInWindow.Should().Be(0);
+        discovery.FailureCountInWindow.Should().Be(0);
+        discovery.FailureRateInWindow.Should().Be(0);
+        discovery.LastSuccessAtUtc.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task GetProcessRunsAsync_ShouldSurfaceRunningRunAsLatestStatus()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        // A process with an earlier success and a now-in-flight Running row. The
+        // Running row has the newest StartedAtUtc, so it is the latest run and the
+        // rollup must report it as the current status (the "what's running now"
+        // signal). A Running row does not count as a failure or a success.
+        var now = DateTime.UtcNow;
+        await using (var db = _fixture.CreateDbContext())
+        {
+            db.ProcessRuns.AddRange(
+                BuildRun("MatchIngestion", ProcessRunStatus.Success, now.AddMinutes(-30), error: null, summary: null),
+                BuildRunning("MatchIngestion", now.AddMinutes(-1)));
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var response = await client.GetAsync("/ops/process-runs");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var payload = await response.Content.ReadFromJsonAsync<ProcessRunsTestContract>();
+        payload.Should().NotBeNull();
+
+        // The in-flight run is the newest and leads the list with status Running.
+        payload!.Runs[0].ProcessName.Should().Be("MatchIngestion");
+        payload.Runs[0].Status.Should().Be("Running");
+
+        // The rollup reflects the live state: lastStatus is Running, the prior
+        // success still anchors LastSuccessAtUtc, and no failures are counted.
+        var ingestion = payload.Rollup.Single(row => row.ProcessName == "MatchIngestion");
+        ingestion.LastStatus.Should().Be("Running");
+        ingestion.FailureCountInWindow.Should().Be(0);
+        ingestion.LastSuccessAtUtc.Should().NotBeNull();
+
+        // The Running run is filterable like any other status.
+        var runningResponse = await client.GetAsync("/ops/process-runs?status=Running");
+        var runningPayload = await runningResponse.Content.ReadFromJsonAsync<ProcessRunsTestContract>();
+        runningPayload!.Runs.Should().ContainSingle();
+        runningPayload.Runs[0].Status.Should().Be("Running");
     }
 
     [Fact]
@@ -95,9 +189,10 @@ public sealed class ProcessRunsApiIntegrationTests
     {
         await _fixture.ResetDatabaseAsync();
 
-        // Seed ONLY runs older than the 7-day failure window. The old behaviour
-        // (a default now-7d lower bound on the runs list) would return an empty
-        // list here — the bug. With the fix the runs list is unbounded by default.
+        // Seed ONLY runs older than a week. The old behaviour (a default now-7d
+        // lower bound on the runs list) would return an empty list here — the bug.
+        // With the fix the runs list is unbounded by default, and so is the
+        // rollup's failure window.
         var now = DateTime.UtcNow;
         await using (var db = _fixture.CreateDbContext())
         {
@@ -131,10 +226,12 @@ public sealed class ProcessRunsApiIntegrationTests
         payload.Page.Should().Be(1);
         payload.PageSize.Should().Be(2);
 
-        // The failure window stays bounded at 7 days, independent of the runs list:
-        // the -9d failure is outside it, so no failures are counted.
+        // No `since` => unbounded failure window: the -9d failure IS counted now
+        // (a true all-time total), across all three runs (1 failure / 3 runs).
         var legacy = payload.Rollup.Single(row => row.ProcessName == "LegacyJob");
-        legacy.FailureCountInWindow.Should().Be(0);
+        legacy.FailureCountInWindow.Should().Be(1);
+        legacy.RunCountInWindow.Should().Be(3);
+        legacy.FailureRateInWindow.Should().BeApproximately(1d / 3d, 0.0001);
         legacy.LastStatus.Should().Be("Success");
         legacy.LastSuccessAtUtc.Should().NotBeNull();
     }
@@ -332,6 +429,21 @@ public sealed class ProcessRunsApiIntegrationTests
             Summary = summary is null ? null : JsonDocument.Parse(summary)
         };
 
+    // An in-flight run: Running status, no finish yet (FinishedAtUtc mirrors the
+    // start as a placeholder), zero duration, no summary/error.
+    private static ProcessRun BuildRunning(string processName, DateTime startedAtUtc)
+        => new()
+        {
+            ProcessName = processName,
+            StartedAtUtc = startedAtUtc,
+            FinishedAtUtc = startedAtUtc,
+            DurationMs = 0,
+            Status = ProcessRunStatus.Running,
+            Error = null,
+            Host = "test-host",
+            Summary = null
+        };
+
     private sealed class ApiWebApplicationFactory(PostgresFixture fixture)
         : TrueMainWebApplicationFactory<Program>(fixture);
 
@@ -372,5 +484,9 @@ public sealed class ProcessRunsApiIntegrationTests
         public DateTime? LastSuccessAtUtc { get; init; }
 
         public int FailureCountInWindow { get; init; }
+
+        public int RunCountInWindow { get; init; }
+
+        public double FailureRateInWindow { get; init; }
     }
 }
