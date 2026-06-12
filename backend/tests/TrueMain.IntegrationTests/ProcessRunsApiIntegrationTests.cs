@@ -33,7 +33,7 @@ public sealed class ProcessRunsApiIntegrationTests
         var json = await response.Content.ReadAsStringAsync();
         using var document = JsonDocument.Parse(json);
         document.RootElement.EnumerateObject().Select(property => property.Name)
-            .Should().BeEquivalentTo(["runs", "rollup"]);
+            .Should().BeEquivalentTo(["runs", "rollup", "total", "page", "pageSize"]);
 
         var firstRun = document.RootElement.GetProperty("runs")[0];
         firstRun.EnumerateObject().Select(property => property.Name)
@@ -62,6 +62,12 @@ public sealed class ProcessRunsApiIntegrationTests
         payload.Runs[0].ProcessName.Should().Be("MatchIngestion");
         payload.Runs[0].Status.Should().Be("Failed");
         payload.Runs.Should().BeInDescendingOrder(run => run.StartedAtUtc);
+
+        // No paging params: page 1 at the default page size, with the pre-paging
+        // total so the panel can render a pager.
+        payload.Total.Should().Be(6);
+        payload.Page.Should().Be(1);
+        payload.PageSize.Should().Be(100);
 
         // The status of the latest MatchIngestion run is Failed, but it has an
         // earlier success inside the failure window; one failure counted in the
@@ -119,12 +125,89 @@ public sealed class ProcessRunsApiIntegrationTests
         payload.Runs[0].StartedAtUtc.Should().BeCloseTo(now.AddDays(-8), TimeSpan.FromSeconds(5));
         payload.Runs[1].StartedAtUtc.Should().BeCloseTo(now.AddDays(-9), TimeSpan.FromSeconds(5));
 
+        // Legacy `limit` (no `pageSize`) acts as the page size on page 1, and the
+        // total still counts every matching run beyond the page.
+        payload.Total.Should().Be(3);
+        payload.Page.Should().Be(1);
+        payload.PageSize.Should().Be(2);
+
         // The failure window stays bounded at 7 days, independent of the runs list:
         // the -9d failure is outside it, so no failures are counted.
         var legacy = payload.Rollup.Single(row => row.ProcessName == "LegacyJob");
         legacy.FailureCountInWindow.Should().Be(0);
         legacy.LastStatus.Should().Be("Success");
         legacy.LastSuccessAtUtc.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task GetProcessRunsAsync_WithPaging_ShouldReturnRequestedSliceWithTotals()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        // Five PagedJob runs, one hour apart, newest-first order:
+        // -1h Failed, -2h Success, -3h Failed, -4h Success, -5h Success.
+        var now = DateTime.UtcNow;
+        await using (var db = _fixture.CreateDbContext())
+        {
+            db.ProcessRuns.AddRange(
+                BuildRun("PagedJob", ProcessRunStatus.Failed, now.AddHours(-1), error: "newest failure", summary: null),
+                BuildRun("PagedJob", ProcessRunStatus.Success, now.AddHours(-2), error: null, summary: null),
+                BuildRun("PagedJob", ProcessRunStatus.Failed, now.AddHours(-3), error: "older failure", summary: null),
+                BuildRun("PagedJob", ProcessRunStatus.Success, now.AddHours(-4), error: null, summary: null),
+                BuildRun("PagedJob", ProcessRunStatus.Success, now.AddHours(-5), error: null, summary: null));
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // Page 1: the two newest runs.
+        var pageOne = await GetPayloadAsync(client, "/ops/process-runs?page=1&pageSize=2");
+        pageOne.Runs.Should().HaveCount(2);
+        pageOne.Runs[0].StartedAtUtc.Should().BeCloseTo(now.AddHours(-1), TimeSpan.FromSeconds(5));
+        pageOne.Runs[1].StartedAtUtc.Should().BeCloseTo(now.AddHours(-2), TimeSpan.FromSeconds(5));
+        pageOne.Total.Should().Be(5);
+        pageOne.Page.Should().Be(1);
+        pageOne.PageSize.Should().Be(2);
+
+        // Page 2: the next slice, with the same total.
+        var pageTwo = await GetPayloadAsync(client, "/ops/process-runs?page=2&pageSize=2");
+        pageTwo.Runs.Should().HaveCount(2);
+        pageTwo.Runs[0].StartedAtUtc.Should().BeCloseTo(now.AddHours(-3), TimeSpan.FromSeconds(5));
+        pageTwo.Runs[1].StartedAtUtc.Should().BeCloseTo(now.AddHours(-4), TimeSpan.FromSeconds(5));
+        pageTwo.Total.Should().Be(5);
+        pageTwo.Page.Should().Be(2);
+
+        // The rollup is computed over the FULL filtered set, so it is identical
+        // on every page: both in-window failures are counted even though page 2
+        // shows only one of them.
+        var rollup = pageTwo.Rollup.Single(row => row.ProcessName == "PagedJob");
+        rollup.LastStatus.Should().Be("Failed");
+        rollup.FailureCountInWindow.Should().Be(2);
+
+        // Last page: a partial slice, not an error.
+        var pageThree = await GetPayloadAsync(client, "/ops/process-runs?page=3&pageSize=2");
+        pageThree.Runs.Should().HaveCount(1);
+        pageThree.Runs[0].StartedAtUtc.Should().BeCloseTo(now.AddHours(-5), TimeSpan.FromSeconds(5));
+        pageThree.Total.Should().Be(5);
+
+        // Past the end: empty page, totals intact.
+        var pageFour = await GetPayloadAsync(client, "/ops/process-runs?page=4&pageSize=2");
+        pageFour.Runs.Should().BeEmpty();
+        pageFour.Total.Should().Be(5);
+
+        // When both are sent, `pageSize` supersedes the legacy `limit`.
+        var supersede = await GetPayloadAsync(client, "/ops/process-runs?limit=1&pageSize=3");
+        supersede.Runs.Should().HaveCount(3);
+        supersede.PageSize.Should().Be(3);
+
+        // Filters combine with paging: the failures-only list has its own total
+        // and page 2 (size 1) holds the second-newest failure.
+        var filtered = await GetPayloadAsync(client, "/ops/process-runs?status=Failed&page=2&pageSize=1");
+        filtered.Runs.Should().HaveCount(1);
+        filtered.Runs[0].Error.Should().Be("older failure");
+        filtered.Total.Should().Be(2);
+        filtered.Page.Should().Be(2);
     }
 
     [Fact]
@@ -145,6 +228,7 @@ public sealed class ProcessRunsApiIntegrationTests
         using var document = JsonDocument.Parse(json);
         var runs = document.RootElement.GetProperty("runs");
         runs.GetArrayLength().Should().Be(2);
+        document.RootElement.GetProperty("total").GetInt64().Should().Be(2);
 
         // Newest first: the recent failure carrying the JSON summary leads.
         var failedRun = runs[0];
@@ -187,6 +271,16 @@ public sealed class ProcessRunsApiIntegrationTests
         });
         client.DefaultRequestHeaders.Add("X-Ops-Key", OpsApiKey);
         return client;
+    }
+
+    private static async Task<ProcessRunsTestContract> GetPayloadAsync(HttpClient client, string url)
+    {
+        var response = await client.GetAsync(url);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var payload = await response.Content.ReadFromJsonAsync<ProcessRunsTestContract>();
+        payload.Should().NotBeNull();
+        return payload!;
     }
 
     private async Task SeedProcessRunsAsync()
@@ -246,6 +340,12 @@ public sealed class ProcessRunsApiIntegrationTests
         public IReadOnlyList<ProcessRunTestContract> Runs { get; init; } = [];
 
         public IReadOnlyList<ProcessRunRollupTestContract> Rollup { get; init; } = [];
+
+        public long Total { get; init; }
+
+        public int Page { get; init; }
+
+        public int PageSize { get; init; }
     }
 
     private sealed class ProcessRunTestContract

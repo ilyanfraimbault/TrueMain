@@ -110,7 +110,12 @@ export function useDbTables() {
   return useOps<DbTableRow[]>('/db/tables')
 }
 
-/** `GET /api/ops/process-runs` — recent runs + per-process rollup. */
+/**
+ * `GET /api/ops/process-runs` — server-paginated runs (newest first) plus the
+ * per-process rollup, which covers the full filtered set regardless of paging.
+ * Pass a reactive getter so the table re-fetches when a filter or the page
+ * changes.
+ */
 export function useProcessRuns(
   filters?: MaybeRefOrGetter<ProcessRunsFilters>,
 ) {

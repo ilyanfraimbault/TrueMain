@@ -98,6 +98,21 @@ public sealed class OpsController(
         return Ok(rows);
     }
 
+    /// <summary>
+    /// One page of recorded process runs, newest first, plus the per-process
+    /// rollup (computed over the full filtered set, unaffected by paging).
+    /// </summary>
+    /// <param name="processName">Restrict to a single process. Omit for all.</param>
+    /// <param name="status">A <c>ProcessRunStatus</c> name (case-insensitive). Omit for all.</param>
+    /// <param name="since">Lower bound on <c>StartedAtUtc</c>. Omit for no time floor.</param>
+    /// <param name="limit">
+    /// Legacy page size, kept for backward compatibility: honoured as
+    /// <paramref name="pageSize"/> when that param is absent, superseded by it
+    /// otherwise. Prefer <paramref name="pageSize"/>.
+    /// </param>
+    /// <param name="page">1-based page index (backend clamps to ≥ 1).</param>
+    /// <param name="pageSize">Rows per page (backend clamps to [1, 500], default 100).</param>
+    /// <param name="ct">Request cancellation token.</param>
     [HttpGet("process-runs")]
     [ProducesResponseType(typeof(ProcessRunsReadModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
@@ -106,9 +121,12 @@ public sealed class OpsController(
         [FromQuery] string? status,
         [FromQuery] DateTime? since,
         [FromQuery] int? limit,
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
         CancellationToken ct)
     {
-        var readModel = await processRunsQueryService.GetAsync(processName, status, since, limit, ct);
+        var readModel = await processRunsQueryService.GetAsync(
+            processName, status, since, limit, page, pageSize, ct);
         return Ok(readModel);
     }
 
