@@ -57,6 +57,13 @@ public sealed class WorkerProcessIsolationTests
     {
         var executed = new List<string>();
         var recorder = Substitute.For<IProcessRunRecorder>();
+        // The run id from RecordStartAsync must be threaded through to RecordAsync.
+        // Pin a specific id and assert it below (rather than Arg.Any<Guid>) so an
+        // implementation that minted a fresh Guid for the terminal write would fail.
+        var expectedRunId = Guid.NewGuid();
+        recorder
+            .RecordStartAsync("Discovery", Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(expectedRunId);
         var services = new ServiceCollection();
 
         // Wrap the thrower exactly like production does (RecordedProcess persists
@@ -80,7 +87,7 @@ public sealed class WorkerProcessIsolationTests
             Arg.Any<CancellationToken>());
 
         await recorder.Received(1).RecordAsync(
-            Arg.Any<Guid>(),
+            expectedRunId,
             "Discovery",
             Arg.Any<DateTime>(),
             Arg.Any<DateTime>(),
