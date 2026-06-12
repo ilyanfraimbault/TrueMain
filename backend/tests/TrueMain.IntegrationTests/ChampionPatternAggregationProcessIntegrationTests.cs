@@ -143,6 +143,40 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
     }
 
     [Fact]
+    public async Task RunAsync_ShouldKeepAggregatesForPatchesWhoseMatchesWerePurgedByRetention()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedChampionPatternDataAsync();
+
+        var process = CreateProcess();
+        await process.RunCoreAsync(CancellationToken.None);
+
+        // Simulate MatchDataRetention: the 16.5 matches/participants fall out of
+        // the retention window and are purged, while a fresh 16.6 patch arrives.
+        await using (var mutateDb = _fixture.CreateDbContext())
+        {
+            mutateDb.MatchParticipants.RemoveRange(await mutateDb.MatchParticipants.ToListAsync());
+            mutateDb.Matches.RemoveRange(await mutateDb.Matches.ToListAsync());
+            await mutateDb.SaveChangesAsync();
+        }
+
+        await SeedSecondPatchDataAsync();
+        await process.RunCoreAsync(CancellationToken.None);
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        var scopes = await verifyDb.ChampionAggregateScopes.AsNoTracking().ToListAsync();
+
+        // The 16.5 scope is frozen (its matches are gone so it can't be rebuilt),
+        // and the live 16.6 patch produces its own scope. Neither is wiped.
+        scopes.Should().HaveCount(2);
+        scopes.Select(scope => scope.GameVersion).Should().BeEquivalentTo(["16.5", "16.6"]);
+
+        var frozen = scopes.Single(scope => scope.GameVersion == "16.5");
+        frozen.Games.Should().Be(2);
+        frozen.Wins.Should().Be(1);
+    }
+
+    [Fact]
     public async Task RunAsync_ShouldIgnoreMatchesShorterThanFifteenMinutes()
     {
         await _fixture.ResetDatabaseAsync();
@@ -267,6 +301,36 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
                 true,
                 [6672, 3006, 3031]));
         }
+
+        await db.SaveChangesAsync();
+    }
+
+    private async Task SeedSecondPatchDataAsync()
+    {
+        var now = DateTime.UtcNow;
+
+        await using var db = _fixture.CreateDbContext();
+
+        db.Matches.Add(new Match
+        {
+            Id = "KR_AGG_16_6",
+            PlatformId = "KR",
+            QueueId = (int)LolQueueId.RankedSoloDuo,
+            MapId = (int)LolMapId.SummonersRift,
+            GameMode = "CLASSIC",
+            GameType = "MATCHED_GAME",
+            GameStartTimeUtc = now.AddMinutes(-10),
+            GameDurationSeconds = 1800,
+            GameVersion = "16.6.1",
+            CreatedAtUtc = now.AddMinutes(-10),
+            TimelineIngested = true
+        });
+
+        db.MatchParticipants.Add(BuildParticipant(
+            Guid.Parse("44444444-4444-4444-4444-444444444444"),
+            "KR_AGG_16_6",
+            true,
+            [3153, 3006, 6672]));
 
         await db.SaveChangesAsync();
     }

@@ -25,15 +25,24 @@ public sealed class ChampionPatternSourceRowReader(
         };
     }
 
-    private static Task<List<AggregateScopeKey>> LoadExistingAggregateScopesAsync(
+    private static async Task<List<AggregateScopeKey>> LoadExistingAggregateScopesAsync(
         TrueMainDbContext db,
         int queueId,
         CancellationToken ct)
     {
-        // Phase 6.4: source the cleanup keys from ChampionAggregateScope
-        // since ChampionPatternAggregate is gone. Same semantic — replace
-        // every scope that already exists for this queue.
-        return db.ChampionAggregateScopes
+        // Cleanup keys are the scopes the persister will delete-and-rebuild.
+        // We must only ever touch scopes for patches whose match data is still
+        // present: MatchDataRetention purges match_participants/matches beyond
+        // the last few patches, so once a patch's matches are gone there are no
+        // source rows left to rebuild its scopes. Including such a patch in the
+        // cleanup set would delete its aggregates permanently (the "everything
+        // before patch X vanished" bug). Restrict the cleanup to live patches —
+        // (patch, platform) pairs that still have matches for this queue — so
+        // older patches keep their frozen aggregates while live patches retain
+        // the full replace-by-scope semantics (stale scopes still get pruned).
+        var livePatchKeys = await LoadLivePatchKeysAsync(db, queueId, ct);
+
+        var existingScopes = await db.ChampionAggregateScopes
             .AsNoTracking()
             .Where(scope => scope.QueueId == queueId)
             .Select(scope => new AggregateScopeKey(
@@ -43,6 +52,29 @@ public sealed class ChampionPatternSourceRowReader(
                 scope.QueueId))
             .Distinct()
             .ToListAsync(ct);
+
+        return existingScopes
+            .Where(scope => livePatchKeys.Contains((scope.GameVersion, scope.PlatformId)))
+            .ToList();
+    }
+
+    private static async Task<HashSet<(string GameVersion, string PlatformId)>> LoadLivePatchKeysAsync(
+        TrueMainDbContext db,
+        int queueId,
+        CancellationToken ct)
+    {
+        // matches.GameVersion is the raw Riot version (e.g. "16.5.2"); scopes
+        // store the normalised patch ("16.5"), so normalise before comparing.
+        var rawPatchKeys = await db.Matches
+            .AsNoTracking()
+            .Where(match => match.QueueId == queueId)
+            .Select(match => new { match.GameVersion, match.PlatformId })
+            .Distinct()
+            .ToListAsync(ct);
+
+        return rawPatchKeys
+            .Select(key => (NormalizeGameVersion(key.GameVersion), key.PlatformId))
+            .ToHashSet();
     }
 
     private static async Task<List<AggregateSourceRow>> LoadSourceRowsAsync(
