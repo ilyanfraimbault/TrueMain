@@ -144,8 +144,10 @@ const patchOptions = computed(() => {
 // filter is dropped (no data for the champion on that patch) and the API
 // returns its default patch. Mirrors selectedPosition so a no-data patch
 // snaps the selector back to the loaded patch instead of leaving the dead
-// filter pinned. Fall back to the URL filter for the optimistic render before
-// the fetch resolves.
+// filter pinned. The URL-filter fallback only applies on the initial load
+// (champion.value still null); on later patch swaps champion.value holds the
+// previous (stale) data, so the selector keeps showing the old patch until the
+// refetch resolves — intentional, and identical to selectedPosition.
 const selectedPatch = computed(() => champion.value?.patch || filters.value.patch || '')
 // Bind to the API-returned position once available so the picker reflects
 // what's actually being shown — covers the 404 fallback in useChampion
