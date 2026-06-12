@@ -331,6 +331,41 @@ public sealed class DataQualityApiIntegrationTests
         // The five canonical lanes are always present; the duplicate MIDDLE adds a 6th.
         team100.Slots.Should().HaveCount(6);
         team100.Slots.Count(s => s.Filled).Should().Be(5);
+
+        // All five players exist — one is merely unplaced (the second MIDDLE) —
+        // so the team must report a full headcount plus one unplaced member,
+        // not a missing player.
+        team100.PlayerCount.Should().Be(5);
+        team100.ExpectedPlayerCount.Should().Be(5);
+        team100.UnplacedCount.Should().Be(1);
+
+        // Team result is surfaced per team (seed: team 100 wins, team 200 loses).
+        team100.Win.Should().BeTrue();
+        detail.Teams.Single(t => t.TeamId == 200).Win.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GetMatchDetail_ReportsActualVsExpectedPlayers_WhenARosterIsShort()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateAuthedClient(factory);
+
+        var detail = await client.GetFromJsonAsync<MatchDetailContract>(
+            "/ops/data-quality/match/DQ_SHORT");
+
+        detail.Should().NotBeNull();
+
+        // DQ_SHORT has 4 players per team (no UTILITY rows at all): the team
+        // really is short, so the actual-vs-expected count must say 4 of 5 with
+        // nothing reported as unplaced.
+        var team100 = detail!.Teams.Single(t => t.TeamId == 100);
+        team100.PlayerCount.Should().Be(4);
+        team100.ExpectedPlayerCount.Should().Be(5);
+        team100.UnplacedCount.Should().Be(0);
+        team100.Slots.Count(s => s.Filled).Should().Be(4);
     }
 
     [Fact]
@@ -351,10 +386,15 @@ public sealed class DataQualityApiIntegrationTests
         detail.Teams.Should().HaveCount(2);
         detail.Teams.Select(t => t.TeamId).Should().BeEquivalentTo(new[] { 100, 200 });
 
-        // Team 200 is fully absent: five canonical lane slots, all unfilled.
+        // Team 200 is fully absent: five canonical lane slots, all unfilled,
+        // an explicit 0-of-5 headcount and no result to report.
         var team200 = detail.Teams.Single(t => t.TeamId == 200);
         team200.Slots.Should().HaveCount(5);
         team200.Slots.Should().OnlyContain(s => !s.Filled);
+        team200.PlayerCount.Should().Be(0);
+        team200.ExpectedPlayerCount.Should().Be(5);
+        team200.UnplacedCount.Should().Be(0);
+        team200.Win.Should().BeNull();
     }
 
     [Fact]
@@ -601,6 +641,14 @@ public sealed class DataQualityApiIntegrationTests
     private sealed class TeamContract
     {
         public int TeamId { get; init; }
+
+        public int PlayerCount { get; init; }
+
+        public int? ExpectedPlayerCount { get; init; }
+
+        public int UnplacedCount { get; init; }
+
+        public bool? Win { get; init; }
 
         public IReadOnlyList<SlotContract> Slots { get; init; } = [];
     }
