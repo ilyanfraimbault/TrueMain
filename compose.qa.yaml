@@ -20,6 +20,40 @@ services:
     networks:
       - truemain_internal
 
+  # Transaction-pooling connection multiplexer in front of Postgres. The app
+  # services connect here (pgbouncer:6432) instead of postgres:5432, so a small,
+  # fixed set of real Postgres connections (default_pool_size) serves arbitrarily
+  # large Npgsql pools. This is what keeps Postgres' max_connections from ever
+  # being exhausted (fixes the recurring "53300 too many clients already", #461).
+  # EF migrations must NOT pass through here — see the api's
+  # ConnectionStrings__TrueMainMigrations (direct to Postgres).
+  pgbouncer:
+    image: edoburu/pgbouncer:v1.23.1-p3
+    container_name: truemain-qa-pgbouncer
+    restart: unless-stopped
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
+      # edoburu defaults LISTEN_PORT to 5432 (drop-in for postgres); pin it to
+      # 6432 to match the apps' connection strings and the published port.
+      LISTEN_PORT: "6432"
+      AUTH_TYPE: scram-sha-256
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: "1000"
+      DEFAULT_POOL_SIZE: "25"
+      MIN_POOL_SIZE: "5"
+      RESERVE_POOL_SIZE: "5"
+      RESERVE_POOL_TIMEOUT: "3"
+      ADMIN_USERS: ${POSTGRES_USER}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - truemain_internal
+
   mongo:
     image: mongo:8.0.24
     container_name: truemain-qa-mongo
@@ -47,13 +81,20 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
       Database__ApplyMigrationsOnStartup: "true"
-      ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=50
+      # Runtime queries go through PgBouncer (transaction pooling). No Reset On
+      # Close=true: PgBouncer owns connection cleanup in transaction mode, so
+      # Npgsql must not send DISCARD ALL on close.
+      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=100;No Reset On Close=true;Application Name=truemain-api
+      # Migrations bypass PgBouncer (session-scoped advisory lock; see DatabaseMigrator).
+      ConnectionStrings__TrueMainMigrations: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Application Name=truemain-migrator
       # MONGO_USER / MONGO_PASSWORD must be alphanumeric — they are interpolated raw into the URI.
       MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
       Ops__ApiKey: "${OPS_API_KEY:?set OPS_API_KEY before deploying}"
     depends_on:
       postgres:
         condition: service_healthy
+      pgbouncer:
+        condition: service_started
       mongo:
         condition: service_healthy
     ports:
@@ -114,7 +155,7 @@ services:
     restart: unless-stopped
     environment:
       DOTNET_ENVIRONMENT: Production
-      ConnectionStrings__TrueMain: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=20
+      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=40;No Reset On Close=true;Application Name=truemain-ingestor
       # MONGO_USER / MONGO_PASSWORD must be alphanumeric — they are interpolated raw into the URI.
       MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
       Riot__ApiKey: ${RIOT_API_KEY}
@@ -122,6 +163,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      pgbouncer:
+        condition: service_started
       mongo:
         condition: service_healthy
     networks:
