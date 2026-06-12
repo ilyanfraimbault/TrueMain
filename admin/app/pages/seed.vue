@@ -877,7 +877,6 @@ const tableMeta = {
             :data="previewRows"
             :columns="previewColumns"
             :meta="previewTableMeta"
-            class="max-h-[480px]"
             :ui="{ td: 'py-2' }"
           >
             <template #gameName-cell="{ row }">
@@ -968,8 +967,6 @@ const tableMeta = {
             :meta="tableMeta"
             :loading="pending"
             loading-color="primary"
-            sticky
-            class="max-h-[520px]"
             :ui="{ td: 'py-2' }"
           >
             <template #gameName-cell="{ row }">
