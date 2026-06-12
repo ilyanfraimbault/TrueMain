@@ -175,7 +175,10 @@ internal sealed class MongoLogSink(
         Exception = record.Exception,
         ProcessName = Truncate(record.ProcessName, 64),
         Host = Truncate(record.Host, 128),
-        EventId = record.EventId == 0 ? null : record.EventId
+        EventId = record.EventId == 0 ? null : record.EventId,
+        // Never truncated: the value always comes from the fixed OpsEvents catalog
+        // (MongoLogger.Resolve), so its length is bounded by the catalog itself.
+        EventType = record.EventType
     };
 
     private static string? Truncate(string? value, int maxLength)
