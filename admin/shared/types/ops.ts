@@ -126,6 +126,54 @@ export interface ProcessRunsResponse {
   pageSize: number
 }
 
+/**
+ * The canonical ingestor pipeline chain, in execution order — one full pass runs
+ * these processes in sequence (see `backend/Ingestor/Worker.cs`). Drives the
+ * chain view: the ordered links and the per-iteration outcome lookup. Keep in
+ * sync with the Worker's Full-mode sequence.
+ */
+export const PIPELINE_CHAIN: readonly string[] = [
+  'Discovery',
+  'ManualSeed',
+  'Scoring',
+  'MatchIngestion',
+  'MainAnalysis',
+  'ChampionPatternAggregation',
+  'AccountRefresh',
+  'MatchDataRetention',
+]
+
+/**
+ * One pipeline iteration of `GET /api/ops/process-iterations` → `iterations`.
+ * An iteration is one full pass of the chain; `runs` are its process runs in
+ * pipeline order. `isRunning` is true while any run is still `Running` (this is
+ * the pass the pipeline is currently in).
+ */
+export interface ProcessIteration {
+  iterationId: string
+  startedAtUtc: string
+  lastActivityAtUtc: string
+  isRunning: boolean
+  runs: ProcessRun[]
+}
+
+/** `GET /api/ops/process-iterations` — one server-paginated page of iterations. */
+export interface ProcessIterationsResponse {
+  iterations: ProcessIteration[]
+  /** Total iterations across all pages. */
+  total: number
+  page: number
+  pageSize: number
+}
+
+/** Filters for `GET /api/ops/process-iterations`. */
+export interface ProcessIterationsFilters {
+  /** 1-based page index. */
+  page?: number
+  /** Iterations per page; backend clamps to [1, 50], default 10. */
+  pageSize?: number
+}
+
 /** Filters for `GET /api/ops/process-runs`. Empty/undefined = no filter. */
 export interface ProcessRunsFilters {
   processName?: string

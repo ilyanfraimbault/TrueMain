@@ -40,5 +40,11 @@ public sealed class ProcessRunConfiguration : IEntityTypeConfiguration<ProcessRu
             .HasColumnType("jsonb");
 
         entity.HasIndex(e => new { e.ProcessName, e.StartedAtUtc });
+
+        // Iteration grouping reads "the runs of the newest N iterations": filter
+        // out the un-grouped (null) historical rows and order iterations by their
+        // start. Indexing (IterationId, StartedAtUtc) keeps that grouped lookup off
+        // a full scan as the table grows.
+        entity.HasIndex(e => new { e.IterationId, e.StartedAtUtc });
     }
 }

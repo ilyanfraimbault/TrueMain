@@ -99,6 +99,41 @@ public sealed class WorkerProcessIsolationTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_StampsOneSharedIterationId_AcrossEveryProcessInThePass()
+    {
+        // Every process in a single pass must observe the SAME, non-null iteration
+        // id (the Worker opens it once for the whole sequence), so their recorded
+        // runs group into one chain. A failing process must not break the grouping
+        // for the rest, so include a thrower in the middle.
+        var iterationContext = new IterationContext();
+        var observed = new List<Guid?>();
+        var services = new ServiceCollection();
+        services.AddSingleton<IIngestorProcess>(
+            new IterationObservingProcess("Discovery", iterationContext, observed));
+        services.AddSingleton<IIngestorProcess>(new ThrowingProcess("ManualSeed"));
+        foreach (var name in FullSequence.Skip(2))
+        {
+            services.AddSingleton<IIngestorProcess>(
+                new IterationObservingProcess(name, iterationContext, observed));
+        }
+
+        var lifetime = Substitute.For<IHostApplicationLifetime>();
+        using var worker = BuildFullModeWorker(services, iterationContext, lifetime);
+
+        await worker.StartAsync(CancellationToken.None);
+        await worker.ExecuteTask!;
+
+        // Seven non-thrower processes each observed an iteration id.
+        observed.Should().HaveCount(FullSequence.Length - 1);
+        observed.Should().AllSatisfy(id => id.Should().NotBeNull());
+        observed.Distinct().Should().ContainSingle("every process shares the pass's id");
+        observed[0].Should().NotBe(Guid.Empty);
+
+        // The id is scoped to the pass: once it ends, the context is back to null.
+        iterationContext.CurrentIterationId.Should().BeNull();
+    }
+
+    [Fact]
     public async Task ExecuteAsync_PropagatesCancellation_WhenAProcessObservesShutdown()
     {
         using var cts = new CancellationTokenSource();
@@ -125,6 +160,12 @@ public sealed class WorkerProcessIsolationTests
     }
 
     private static Worker BuildFullModeWorker(ServiceCollection services, IHostApplicationLifetime lifetime)
+        => BuildFullModeWorker(services, new IterationContext(), lifetime);
+
+    private static Worker BuildFullModeWorker(
+        ServiceCollection services,
+        IIterationContext iterationContext,
+        IHostApplicationLifetime lifetime)
     {
         var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
         var jobOptions = Microsoft.Extensions.Options.Options.Create(new JobOptions
@@ -133,7 +174,8 @@ public sealed class WorkerProcessIsolationTests
             RunOnce = true
         });
 
-        return new Worker(NullLogger<Worker>.Instance, scopeFactory, jobOptions, lifetime);
+        return new Worker(
+            NullLogger<Worker>.Instance, scopeFactory, jobOptions, iterationContext, lifetime);
     }
 
     private sealed class RecordingProcess(string name, List<string> executed) : IIngestorProcess
@@ -144,6 +186,23 @@ public sealed class WorkerProcessIsolationTests
         {
             await Task.Yield();
             executed.Add(name);
+            return null;
+        }
+    }
+
+    // Records the iteration id visible on its async flow when it runs, so the test
+    // can assert every process in the pass shares one non-null id.
+    private sealed class IterationObservingProcess(
+        string name,
+        IIterationContext iterationContext,
+        List<Guid?> observed) : IIngestorProcess
+    {
+        public string Name => name;
+
+        public async Task<object?> RunCoreAsync(CancellationToken ct)
+        {
+            await Task.Yield();
+            observed.Add(iterationContext.CurrentIterationId);
             return null;
         }
     }

@@ -45,6 +45,9 @@ builder.Services.AddScoped<ChampionPatternAggregateBuilder>();
 builder.Services.AddScoped<ChampionPatternAggregatePersister>();
 builder.Services.AddScoped<IChampionDimensionResolver, ChampionDimensionResolver>();
 
+// The iteration id is set by the Worker per pass and read by the recorder, both
+// singletons; the AsyncLocal inside keeps the value isolated to each pass's flow.
+builder.Services.AddSingleton<IIterationContext, IterationContext>();
 builder.Services.AddSingleton<IProcessRunRecorder, ProcessRunRecorder>();
 builder.Services.AddRecordedProcess<DiscoveryProcess>();
 builder.Services.AddRecordedProcess<ManualSeedProcess>();

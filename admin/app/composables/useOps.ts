@@ -14,6 +14,8 @@ import type {
   MatchTimeBucket,
   MatchTimeGranularity,
   OverviewStats,
+  ProcessIterationsFilters,
+  ProcessIterationsResponse,
   ProcessRunsFilters,
   ProcessRunsResponse,
   SeedAccountBody,
@@ -121,6 +123,20 @@ export function useProcessRuns(
 ) {
   return useOps<ProcessRunsResponse>(
     '/process-runs',
+    filters ? () => ({ ...toValue(filters) }) : undefined,
+  )
+}
+
+/**
+ * `GET /api/ops/process-iterations` — recent pipeline iterations (newest first),
+ * each carrying its ordered process runs. Feeds the chain view. Pass a reactive
+ * getter so it re-fetches when the page changes.
+ */
+export function useProcessIterations(
+  filters?: MaybeRefOrGetter<ProcessIterationsFilters>,
+) {
+  return useOps<ProcessIterationsResponse>(
+    '/process-iterations',
     filters ? () => ({ ...toValue(filters) }) : undefined,
   )
 }

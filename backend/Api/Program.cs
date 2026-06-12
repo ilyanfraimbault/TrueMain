@@ -140,6 +140,7 @@ builder.Services.AddScoped<IChampionStatsQueryService, ChampionStatsQueryService
 builder.Services.AddScoped<IMatchesOverTimeQueryService, MatchesOverTimeQueryService>();
 builder.Services.AddScoped<ITableStatsQueryService, TableStatsQueryService>();
 builder.Services.AddScoped<IProcessRunsQueryService, ProcessRunsQueryService>();
+builder.Services.AddScoped<IProcessIterationsQueryService, ProcessIterationsQueryService>();
 builder.Services.AddScoped<ILogsQueryService, LogsQueryService>();
 builder.Services.AddScoped<IDataQualityQueryService, DataQualityQueryService>();
 builder.Services.AddScoped<ISeedRequestService, SeedRequestService>();

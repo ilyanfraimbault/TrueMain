@@ -16,6 +16,7 @@ public sealed class OpsController(
     IMatchesOverTimeQueryService matchesOverTimeQueryService,
     ITableStatsQueryService tableStatsQueryService,
     IProcessRunsQueryService processRunsQueryService,
+    IProcessIterationsQueryService processIterationsQueryService,
     ILogsQueryService logsQueryService,
     IDataQualityQueryService dataQualityQueryService,
     ISeedRequestService seedRequestService,
@@ -131,6 +132,28 @@ public sealed class OpsController(
     {
         var readModel = await processRunsQueryService.GetAsync(
             processName, status, since, limit, page, pageSize, ct);
+        return Ok(readModel);
+    }
+
+    /// <summary>
+    /// Recent pipeline iterations for the admin chain view: one full pass of the
+    /// ingestor pipeline per iteration, newest first, each carrying its ordered
+    /// process runs (status / duration / summary). Only iteration-stamped runs are
+    /// grouped; historical un-grouped rows are surfaced through
+    /// <c>GET /ops/process-runs</c> instead.
+    /// </summary>
+    /// <param name="page">1-based page index (backend clamps to ≥ 1).</param>
+    /// <param name="pageSize">Iterations per page (backend clamps to [1, 50], default 10).</param>
+    /// <param name="ct">Request cancellation token.</param>
+    [HttpGet("process-iterations")]
+    [ProducesResponseType(typeof(ProcessIterationsReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<ProcessIterationsReadModel>> GetProcessIterationsAsync(
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
+        CancellationToken ct)
+    {
+        var readModel = await processIterationsQueryService.GetAsync(page, pageSize, ct);
         return Ok(readModel);
     }
 
