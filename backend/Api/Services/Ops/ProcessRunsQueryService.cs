@@ -121,10 +121,13 @@ public sealed class ProcessRunsQueryService(TrueMainDbContext db) : IProcessRuns
         // One grouped pass per process. Latest status/run and last-success are
         // unbounded (so an idle process still reports its real last state), while
         // the in-window counts honour `windowStart`: when it is null the window is
-        // unbounded and the counts are true all-time totals. `run.StartedAtUtc >=
-        // windowStart` evaluates to true for every row when `windowStart` is null
-        // (EF translates the null comparison away), so the same expression serves
-        // both the bounded and unbounded cases without branching the query shape.
+        // unbounded and the counts are true all-time totals. The
+        // `windowStart == null || run.StartedAtUtc >= windowStart` guard is emitted
+        // by EF Core as `@windowStart IS NULL OR "StartedAtUtc" >= @windowStart`,
+        // covering the unbounded case without branching the query shape. That guard
+        // is repeated in both RunCountInWindow and FailureCountInWindow — EF can't
+        // translate a shared Expression factored out of a GroupBy.Select, so keep
+        // the two in sync if the windowing logic changes.
         var groups = await rollupQuery
             .GroupBy(run => run.ProcessName)
             .Select(group => new
