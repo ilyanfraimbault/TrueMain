@@ -175,7 +175,7 @@ watch(champion, (data) => {
   if (filters.value.patch && data.patch && filters.value.patch !== data.patch) updates.patch = null
   if (filters.value.position && data.position && filters.value.position !== data.position) updates.position = null
   if (updates.patch !== undefined || updates.position !== undefined) void setFilter(updates)
-})
+}, { immediate: true })
 
 // Bound to every async source so the bar covers both the initial lazy load
 // and patch/position swaps where the previous champion's data is still on
