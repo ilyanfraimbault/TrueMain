@@ -331,8 +331,6 @@ const mainsLabelFormatter = computed(() =>
           :columns="columns"
           :loading="loading"
           loading-color="primary"
-          sticky
-          class="max-h-[640px]"
           :ui="{ td: 'py-2' }"
         >
           <template #name-cell="{ row }">

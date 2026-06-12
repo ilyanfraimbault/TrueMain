@@ -325,8 +325,6 @@ const selectedSummaryJson = computed(() => {
           :meta="tableMeta"
           :loading="pending"
           loading-color="primary"
-          sticky
-          class="max-h-[640px]"
           :ui="{ td: 'py-2' }"
         >
           <template #processName-cell="{ row }">
