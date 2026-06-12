@@ -10,6 +10,8 @@ public static class OptionsConfigurationExtensions
             .Bind(configuration.GetSection(RiotOptions.SectionName))
             .Validate(options => !string.IsNullOrWhiteSpace(options.ApiKey), "Riot:ApiKey is required.")
             .Validate(options => options.MaxRetryAttempts > 0, "Riot:MaxRetryAttempts must be greater than 0.")
+            .Validate(options => options.AttemptTimeoutSeconds > 0, "Riot:AttemptTimeoutSeconds must be greater than 0.")
+            .Validate(options => options.TotalRequestTimeoutSeconds > 0, "Riot:TotalRequestTimeoutSeconds must be greater than 0.")
             .ValidateOnStart();
 
         services.AddOptions<SeedOptions>()
