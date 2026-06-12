@@ -114,8 +114,12 @@ public sealed class ProcessRunsApiIntegrationTests
         var payload = await GetPayloadAsync(client, $"/ops/process-runs?since={Uri.EscapeDataString(since)}");
 
         // The 30-day-old MatchIngestion failure and the 10-day-old Discovery run
-        // are now excluded from the runs list too.
-        payload.Runs.Should().NotContain(run => run.Error == "stale failure");
+        // are now excluded from the runs list too. Assert the stale failure by its
+        // age (well outside the window) rather than its seeded error text — a seed
+        // rename could otherwise make this NotContain vacuously pass.
+        payload.Runs.Should().NotContain(run =>
+            run.ProcessName == "MatchIngestion"
+            && run.StartedAtUtc < DateTime.UtcNow.AddDays(-14));
         payload.Runs.Should().NotContain(run => run.ProcessName == "Discovery");
 
         var ingestion = payload.Rollup.Single(row => row.ProcessName == "MatchIngestion");
