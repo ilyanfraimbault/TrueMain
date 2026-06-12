@@ -80,7 +80,11 @@ public sealed class DiscoveryProcess(
         if (summaries.Count > 0 && failures.Count == summaries.Count)
         {
             // Nothing was discovered anywhere; surface the failure so the run is
-            // recorded as Failed instead of masquerading as an empty success.
+            // recorded as Failed instead of masquerading as an empty success. The
+            // Count > 0 guard keeps the all-entries-unparseable case from throwing
+            // on 0 == 0: a platform string that fails TryParse is skipped without
+            // a summary, and Discovery:Platforms is validated non-empty at startup,
+            // so an empty list here only ever means "nothing was attempted".
             throw new AggregateException(
                 $"Discovery failed for all {summaries.Count} platform(s): "
                 + $"{string.Join(", ", summaries.Select(summary => summary.PlatformId))}.",

@@ -153,6 +153,11 @@ public sealed class Worker(
 
     private static IReadOnlyDictionary<string, IIngestorProcess> BuildProcessIndex(IServiceProvider serviceProvider)
     {
+        // The per-process catch in RunModeAsync assumes every production
+        // registration is wrapped in RecordedProcess (via AddRecordedProcess) so a
+        // failure is still persisted as a Failed run. A process registered without
+        // the wrapper still runs and logs, but its runs are invisible to process
+        // health — always register through AddRecordedProcess.
         var index = new Dictionary<string, IIngestorProcess>(StringComparer.Ordinal);
         foreach (var process in serviceProvider.GetRequiredService<IEnumerable<IIngestorProcess>>())
         {
