@@ -6,12 +6,14 @@ public static class ProcessRunRecorderExtensions
 {
     public static Task RecordSuccessAsync(
         this IProcessRunRecorder runRecorder,
+        Guid runId,
         string processName,
         DateTime startedAtUtc,
         object? summary,
         CancellationToken ct)
     {
         return runRecorder.RecordAsync(
+            runId,
             processName,
             startedAtUtc,
             DateTime.UtcNow,
@@ -23,12 +25,14 @@ public static class ProcessRunRecorderExtensions
 
     public static Task RecordFailureAsync(
         this IProcessRunRecorder runRecorder,
+        Guid runId,
         string processName,
         DateTime startedAtUtc,
         Exception exception,
         CancellationToken ct)
     {
         return runRecorder.RecordAsync(
+            runId,
             processName,
             startedAtUtc,
             DateTime.UtcNow,
@@ -36,15 +40,5 @@ public static class ProcessRunRecorderExtensions
             null,
             exception.Message,
             ct);
-    }
-
-    public static Task RecordNoOpAsync(
-        this IProcessRunRecorder runRecorder,
-        string processName,
-        DateTime startedAtUtc,
-        object summary,
-        CancellationToken ct)
-    {
-        return runRecorder.RecordSuccessAsync(processName, startedAtUtc, summary, ct);
     }
 }

@@ -78,7 +78,7 @@ export interface DbTableRow {
   indexBytes: number
 }
 
-export type ProcessRunStatus = 'Success' | 'Failed'
+export type ProcessRunStatus = 'Success' | 'Failed' | 'Running'
 
 /** One run row of `GET /api/ops/process-runs` → `runs`. */
 export interface ProcessRun {

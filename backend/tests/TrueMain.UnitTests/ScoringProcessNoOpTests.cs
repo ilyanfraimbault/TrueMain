@@ -39,7 +39,13 @@ public sealed class ScoringProcessNoOpTests
 
         await process.RunRecordedAsync(runRecorder);
 
+        await runRecorder.Received(1).RecordStartAsync(
+            "Scoring",
+            Arg.Any<DateTime>(),
+            Arg.Any<CancellationToken>());
+
         await runRecorder.Received(1).RecordAsync(
+            Arg.Any<Guid>(),
             "Scoring",
             Arg.Any<DateTime>(),
             Arg.Any<DateTime>(),
