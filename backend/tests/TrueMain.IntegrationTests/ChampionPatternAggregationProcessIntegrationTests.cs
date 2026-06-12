@@ -174,6 +174,10 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
         var frozen = scopes.Single(scope => scope.GameVersion == "16.5");
         frozen.Games.Should().Be(2);
         frozen.Wins.Should().Be(1);
+
+        var live = scopes.Single(scope => scope.GameVersion == "16.6");
+        live.Games.Should().Be(1);
+        live.Wins.Should().Be(1);
     }
 
     [Fact]
