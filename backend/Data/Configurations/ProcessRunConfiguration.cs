@@ -45,6 +45,7 @@ public sealed class ProcessRunConfiguration : IEntityTypeConfiguration<ProcessRu
         // out the un-grouped (null) historical rows and order iterations by their
         // start. Indexing (IterationId, StartedAtUtc) keeps that grouped lookup off
         // a full scan as the table grows.
-        entity.HasIndex(e => new { e.IterationId, e.StartedAtUtc });
+        entity.HasIndex(e => new { e.IterationId, e.StartedAtUtc })
+            .HasFilter("\"IterationId\" IS NOT NULL");
     }
 }

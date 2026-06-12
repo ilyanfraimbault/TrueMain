@@ -20,7 +20,8 @@ namespace Data.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_process_runs_IterationId_StartedAtUtc",
                 table: "process_runs",
-                columns: new[] { "IterationId", "StartedAtUtc" });
+                columns: new[] { "IterationId", "StartedAtUtc" },
+                filter: "\"IterationId\" IS NOT NULL");
         }
 
         /// <inheritdoc />

@@ -116,6 +116,7 @@ namespace Data.CompiledModels
 
             var index = runtimeEntityType.AddIndex(
                 new[] { iterationId, startedAtUtc });
+            index.AddAnnotation("Relational:Filter", "\"IterationId\" IS NOT NULL");
 
             var index0 = runtimeEntityType.AddIndex(
                 new[] { processName, startedAtUtc });

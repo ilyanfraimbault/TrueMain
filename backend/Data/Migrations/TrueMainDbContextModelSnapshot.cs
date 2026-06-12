@@ -736,7 +736,8 @@ namespace Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("IterationId", "StartedAtUtc");
+                    b.HasIndex("IterationId", "StartedAtUtc")
+                        .HasFilter("\"IterationId\" IS NOT NULL");
 
                     b.HasIndex("ProcessName", "StartedAtUtc");
 
