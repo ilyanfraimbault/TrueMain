@@ -44,6 +44,7 @@ public sealed class DiscoveryProcess(
         CancellationToken ct)
     {
         var summaries = new List<PlatformSummary>();
+        var failures = new List<Exception>();
 
         foreach (var platformString in platforms)
         {
@@ -54,9 +55,41 @@ public sealed class DiscoveryProcess(
                 continue;
             }
 
-            var platformSummary = await ProcessPlatformAsync(platform.Route, options, ct);
-            summaries.Add(platformSummary);
-            LogPlatformSummary(platformSummary);
+            try
+            {
+                var platformSummary = await ProcessPlatformAsync(platform.Route, options, ct);
+                summaries.Add(platformSummary);
+                LogPlatformSummary(platformSummary);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // One platform hitting a wall (e.g. EUW1 ladder paging stalled behind a
+                // Riot 429 backoff) must not abort discovery for the remaining platforms.
+                logger.LogError(
+                    ex,
+                    "Discovery failed for platform {Platform}; continuing with the remaining platforms.",
+                    platform.Route);
+                failures.Add(ex);
+                summaries.Add(new PlatformSummary(platform.Route.ToString()) { FailureReason = ex.Message });
+            }
+        }
+
+        if (summaries.Count > 0 && failures.Count == summaries.Count)
+        {
+            // Nothing was discovered anywhere; surface the failure so the run is
+            // recorded as Failed instead of masquerading as an empty success. The
+            // Count > 0 guard keeps the all-entries-unparseable case from throwing
+            // on 0 == 0: a platform string that fails TryParse is skipped without
+            // a summary, and Discovery:Platforms is validated non-empty at startup,
+            // so an empty list here only ever means "nothing was attempted".
+            throw new AggregateException(
+                $"Discovery failed for all {summaries.Count} platform(s): "
+                + $"{string.Join(", ", summaries.Select(summary => summary.PlatformId))}.",
+                failures);
         }
 
         return summaries;
@@ -206,7 +239,10 @@ public sealed class DiscoveryProcess(
                 candidatesInserted = summary.CandidatesInserted,
                 candidatesUpdated = summary.CandidatesUpdated,
                 rankSnapshotsInserted = summary.RankSnapshotsInserted,
-                rankSnapshotsUnchanged = summary.RankSnapshotsUnchanged
+                rankSnapshotsUnchanged = summary.RankSnapshotsUnchanged,
+                // Null for platforms that completed; the per-platform error message
+                // otherwise, so a partially failed run says which platform failed and why.
+                error = summary.FailureReason
             })
         };
     }
@@ -220,5 +256,6 @@ public sealed class DiscoveryProcess(
         public int CandidatesUpdated { get; set; }
         public int RankSnapshotsInserted { get; set; }
         public int RankSnapshotsUnchanged { get; set; }
+        public string? FailureReason { get; init; }
     }
 }
