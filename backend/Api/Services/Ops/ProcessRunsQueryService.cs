@@ -10,7 +10,6 @@ public sealed class ProcessRunsQueryService(TrueMainDbContext db) : IProcessRuns
     private const int DefaultPageSize = 100;
     private const int MinPageSize = 1;
     private const int MaxPageSize = 500;
-    private const int FailureWindowDays = 7;
 
     public async Task<ProcessRunsReadModel> GetAsync(
         string? processName,
@@ -31,19 +30,20 @@ public sealed class ProcessRunsQueryService(TrueMainDbContext db) : IProcessRuns
         // simply return an empty slice.
         var effectivePage = Math.Clamp(page ?? 1, 1, int.MaxValue / MaxPageSize);
         var effectivePageSize = Math.Clamp(pageSize ?? limit ?? DefaultPageSize, MinPageSize, MaxPageSize);
-        // The runs list and the rollup's failure window are independent.
+        // The runs list and the rollup's failure window share the SAME `since`.
         //
         // Runs: return the requested page of runs ordered newest-first with NO
         // default time lower bound, so the admin panel can always show the last N
         // runs even when nothing ran recently. A `since` lower bound is applied to
         // the runs list ONLY when the caller explicitly provides it.
         //
-        // Failure window: keep a bounded window for the rollup's
-        // FailureCountInWindow with its own default (the last 7 days), independent
-        // of the now-optional runs `since`. When `since` is explicitly provided we
-        // honour it for the failure window too, so an explicit bound narrows both
-        // the runs list and the failure count consistently.
-        var failureWindowStart = since ?? DateTime.UtcNow.AddDays(-FailureWindowDays);
+        // Failure window: the rollup's in-window counts follow the same `since`,
+        // with NO hidden default. When `since` is omitted the window is unbounded,
+        // so FailureCountInWindow is a true all-time total (≥ any narrower window)
+        // rather than a secret 7-day count that could be smaller than a wider
+        // explicit window. When `since` is provided it narrows the runs list and
+        // the in-window counts consistently.
+        var windowStart = since;
         var normalizedProcessName = string.IsNullOrWhiteSpace(processName) ? null : processName.Trim();
         var statusFilter = ParseStatus(status);
 
@@ -95,7 +95,7 @@ public sealed class ProcessRunsQueryService(TrueMainDbContext db) : IProcessRuns
             })
             .ToList();
 
-        var rollup = await BuildRollupAsync(normalizedProcessName, failureWindowStart, ct);
+        var rollup = await BuildRollupAsync(normalizedProcessName, windowStart, ct);
 
         return new ProcessRunsReadModel
         {
@@ -109,7 +109,7 @@ public sealed class ProcessRunsQueryService(TrueMainDbContext db) : IProcessRuns
 
     private async Task<IReadOnlyList<ProcessRunRollupReadModel>> BuildRollupAsync(
         string? processName,
-        DateTime failureWindowStart,
+        DateTime? windowStart,
         CancellationToken ct)
     {
         var rollupQuery = db.ProcessRuns.AsNoTracking();
@@ -120,9 +120,11 @@ public sealed class ProcessRunsQueryService(TrueMainDbContext db) : IProcessRuns
 
         // One grouped pass per process. Latest status/run and last-success are
         // unbounded (so an idle process still reports its real last state), while
-        // the failure count is scoped to the window. Computing Max over a boolean
-        // projection of "started inside window AND failed" lets EF translate the
-        // whole thing without a second round-trip.
+        // the in-window counts honour `windowStart`: when it is null the window is
+        // unbounded and the counts are true all-time totals. `run.StartedAtUtc >=
+        // windowStart` evaluates to true for every row when `windowStart` is null
+        // (EF translates the null comparison away), so the same expression serves
+        // both the bounded and unbounded cases without branching the query shape.
         var groups = await rollupQuery
             .GroupBy(run => run.ProcessName)
             .Select(group => new
@@ -132,8 +134,12 @@ public sealed class ProcessRunsQueryService(TrueMainDbContext db) : IProcessRuns
                 LastSuccessAtUtc = group
                     .Where(run => run.Status == ProcessRunStatus.Success)
                     .Max(run => (DateTime?)run.FinishedAtUtc),
+                RunCountInWindow = group
+                    .Count(run => windowStart == null || run.StartedAtUtc >= windowStart),
                 FailureCountInWindow = group
-                    .Count(run => run.StartedAtUtc >= failureWindowStart && run.Status == ProcessRunStatus.Failed)
+                    .Count(run =>
+                        (windowStart == null || run.StartedAtUtc >= windowStart)
+                        && run.Status == ProcessRunStatus.Failed)
             })
             .ToListAsync(ct);
 
@@ -187,7 +193,11 @@ public sealed class ProcessRunsQueryService(TrueMainDbContext db) : IProcessRuns
                     : string.Empty,
                 LastRunAtUtc = group.LastRunAtUtc,
                 LastSuccessAtUtc = group.LastSuccessAtUtc,
-                FailureCountInWindow = group.FailureCountInWindow
+                FailureCountInWindow = group.FailureCountInWindow,
+                RunCountInWindow = group.RunCountInWindow,
+                FailureRateInWindow = group.RunCountInWindow == 0
+                    ? 0d
+                    : (double)group.FailureCountInWindow / group.RunCountInWindow
             })
             .ToList();
     }

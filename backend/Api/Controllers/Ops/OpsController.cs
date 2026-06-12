@@ -104,7 +104,11 @@ public sealed class OpsController(
     /// </summary>
     /// <param name="processName">Restrict to a single process. Omit for all.</param>
     /// <param name="status">A <c>ProcessRunStatus</c> name (case-insensitive). Omit for all.</param>
-    /// <param name="since">Lower bound on <c>StartedAtUtc</c>. Omit for no time floor.</param>
+    /// <param name="since">
+    /// Lower bound on <c>StartedAtUtc</c>; also the rollup's in-window cutoff. Omit
+    /// for no time floor, in which case the rollup's in-window counts are true
+    /// all-time totals (no hidden default window).
+    /// </param>
     /// <param name="limit">
     /// Legacy page size, kept for backward compatibility: honoured as
     /// <paramref name="pageSize"/> when that param is absent, superseded by it

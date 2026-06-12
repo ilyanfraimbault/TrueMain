@@ -7,7 +7,7 @@
 // page). Failed runs are visually distinct (error tint) and each run's
 // `summary` JSON + error is inspectable in a slide-over.
 import type { TableColumn } from '@nuxt/ui'
-import type { ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
+import type { ProcessRollup, ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
 import { formatDateTime, formatDuration, formatNumber } from '~~/shared/utils/format'
 
 // --- Filters -----------------------------------------------------------------
@@ -92,6 +92,31 @@ function statusColor(s: ProcessRunStatus): 'success' | 'error' {
 }
 function statusIcon(s: ProcessRunStatus): string {
   return s === 'Success' ? 'i-lucide-circle-check' : 'i-lucide-circle-x'
+}
+
+// Failure-cell coloring. The window always holds thousands of failures, so the
+// raw count is always > 0 and coloring by it would keep the cell permanently
+// red (the bug). Color instead by a meaningful signal:
+//   - the latest run is currently failing  -> error (the process is unhealthy now)
+//   - else a high recent failure *rate*     -> warning (degraded but recovered)
+//   - else                                  -> neutral
+// `failureRateInWindow` is a real ratio (failures / runs in window), not a
+// fabricated metric. The 0.25 threshold is a display cue, not a published stat.
+const HIGH_FAILURE_RATE = 0.25
+function failureTextClass(proc: ProcessRollup): string {
+  if (proc.lastStatus === 'Failed') {
+    return 'text-error'
+  }
+  if (proc.failureRateInWindow >= HIGH_FAILURE_RATE) {
+    return 'text-warning'
+  }
+  return 'text-default'
+}
+function failureRateLabel(proc: ProcessRollup): string {
+  if (proc.runCountInWindow === 0) {
+    return '—'
+  }
+  return `${Math.round(proc.failureRateInWindow * 100)}% of ${formatNumber(proc.runCountInWindow)}`
 }
 
 // --- Runs table --------------------------------------------------------------
@@ -279,15 +304,18 @@ const selectedSummaryJson = computed(() => {
               </div>
               <div class="flex justify-between gap-2">
                 <dt class="text-muted">
-                  Failures (window)
+                  {{ sinceWindow === ALL ? 'Failures (all time)' : 'Failures (window)' }}
                 </dt>
-                <dd
-                  class="text-right tabular-nums font-medium"
-                  :class="proc.failureCountInWindow > 0
-                    ? 'text-error'
-                    : 'text-default'"
-                >
-                  {{ formatNumber(proc.failureCountInWindow) }}
+                <dd class="text-right">
+                  <span
+                    class="tabular-nums font-medium"
+                    :class="failureTextClass(proc)"
+                  >
+                    {{ formatNumber(proc.failureCountInWindow) }}
+                  </span>
+                  <span class="block text-xs text-dimmed tabular-nums">
+                    {{ failureRateLabel(proc) }}
+                  </span>
                 </dd>
               </div>
             </dl>
