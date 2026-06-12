@@ -4,7 +4,9 @@ using Data.Repositories;
 
 namespace Ingestor.Services;
 
-public sealed class ProcessRunRecorder(IDataSessionFactory sessionFactory) : IProcessRunRecorder
+public sealed class ProcessRunRecorder(
+    IDataSessionFactory sessionFactory,
+    IIterationContext iterationContext) : IProcessRunRecorder
 {
     private const int MaxErrorLength = 2048;
 
@@ -15,6 +17,10 @@ public sealed class ProcessRunRecorder(IDataSessionFactory sessionFactory) : IPr
         var run = new ProcessRun
         {
             ProcessName = processName,
+            // Stamp the in-flight row with the iteration the Worker opened for this
+            // pass (null when recorded outside a pass), so every run of the pass
+            // groups under one iteration in the admin chain view.
+            IterationId = iterationContext.CurrentIterationId,
             StartedAtUtc = startedAtUtc,
             // No finish yet; mirror StartedAtUtc as a placeholder (the column is
             // non-nullable) so the row reads as zero-duration until it completes.
@@ -63,6 +69,10 @@ public sealed class ProcessRunRecorder(IDataSessionFactory sessionFactory) : IPr
             session.ProcessRuns.Add(new ProcessRun
             {
                 ProcessName = processName,
+                // The original Running row (which carried the iteration) is gone;
+                // re-stamp from the still-current pass so the recovered terminal
+                // row stays grouped with its iteration.
+                IterationId = iterationContext.CurrentIterationId,
                 StartedAtUtc = startedAtUtc,
                 FinishedAtUtc = finishedAtUtc,
                 DurationMs = durationMs,

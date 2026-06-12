@@ -39,7 +39,7 @@ public sealed class MatchDataRetentionProcessIntegrationTests
             }));
         var recorded = new RecordedProcess<MatchDataRetentionProcess>(
             process,
-            new ProcessRunRecorder(_fixture.CreateSessionFactory()));
+            new ProcessRunRecorder(_fixture.CreateSessionFactory(), new IterationContext()));
 
         await recorded.RunCoreAsync(CancellationToken.None);
 
