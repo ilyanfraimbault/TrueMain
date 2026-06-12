@@ -51,12 +51,12 @@ public sealed class ProcessRunRecorder(IDataSessionFactory sessionFactory) : IPr
         var durationMs = (int)Math.Max(0, (finishedAtUtc - startedAtUtc).TotalMilliseconds);
         var truncatedError = Truncate(error, MaxErrorLength);
 
-        // Finalise the in-flight Running row in place. If it has vanished (e.g.
-        // pruned by retention before completion) fall back to inserting a fresh
-        // terminal row so the outcome is never lost.
-        var existing = runId == Guid.Empty
-            ? null
-            : await session.ProcessRuns.GetByIdAsync(runId, ct);
+        // Finalise the in-flight Running row in place. If the lookup misses (the
+        // row was pruned by retention before completion, or runId isn't a real
+        // id) fall back to inserting a fresh terminal row so the outcome is never
+        // lost. FindAsync returns null for a non-existent key, so no Guid.Empty
+        // special-case is needed.
+        var existing = await session.ProcessRuns.GetByIdAsync(runId, ct);
 
         if (existing is null)
         {
