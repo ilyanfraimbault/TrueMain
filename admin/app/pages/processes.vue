@@ -129,6 +129,18 @@ const iterations = computed<ProcessIteration[]>(() => iterationsData.value?.iter
 const iterationsTotal = computed(() => iterationsData.value?.total ?? 0)
 const iterationsServerPage = computed(() => iterationsData.value?.page ?? iterationsPage.value)
 
+// The top "current chain" block must always reflect the globally most-recent
+// iteration (page 1, item 0), independent of which page of the iterations LIST
+// the operator is viewing. A dedicated `page=1&pageSize=1` fetch keeps it both
+// correct AND live — paginating the list below never moves it.
+const { data: latestIterationData, error: latestIterationError } = useProcessIterations({
+  page: 1,
+  pageSize: 1,
+})
+const latestIteration = computed<ProcessIteration | null>(
+  () => latestIterationData.value?.iterations?.[0] ?? null,
+)
+
 // Per-process outcome within one iteration. `notRun` covers both a process that
 // hasn't started yet in the current pass and one that was skipped this pass.
 type ChainOutcome = ProcessRunStatus | 'notRun'
@@ -153,14 +165,14 @@ function buildChain(runs: ProcessRun[]): ChainLink[] {
   })
 }
 
-// The live chain shown at the top: the newest iteration's outcomes when present,
-// otherwise the bare canonical chain with everything not-yet-run. This is what
-// highlights "where we currently are".
+// The live chain shown at the top: the globally newest iteration's outcomes when
+// present, otherwise the bare canonical chain with everything not-yet-run. This
+// is what highlights "where we currently are". Driven by the dedicated
+// latest-iteration fetch so list pagination never changes it.
 const currentChain = computed<ChainLink[]>(() => {
-  const newest = iterations.value[0]
-  return buildChain(newest?.runs ?? [])
+  return buildChain(latestIteration.value?.runs ?? [])
 })
-const currentIterationRunning = computed(() => iterations.value[0]?.isRunning ?? false)
+const currentIterationRunning = computed(() => latestIteration.value?.isRunning ?? false)
 
 function outcomeColor(outcome: ChainOutcome): 'primary' | 'success' | 'error' | 'neutral' {
   switch (outcome) {
@@ -402,7 +414,7 @@ const selectedSummaryJson = computed(() => {
         </div>
 
         <div
-          v-if="iterationsError"
+          v-if="latestIterationError"
           class="py-6 text-center text-sm text-muted border border-default rounded-lg"
         >
           Failed to load the pipeline chain.
@@ -459,7 +471,13 @@ const selectedSummaryJson = computed(() => {
           Recent iterations
         </p>
 
-        <div v-if="iterationsPending" class="space-y-3">
+        <div
+          v-if="iterationsError"
+          class="py-8 text-center text-sm text-muted border border-default rounded-lg"
+        >
+          Failed to load recent iterations.
+        </div>
+        <div v-else-if="iterationsPending" class="space-y-3">
           <USkeleton v-for="i in 3" :key="i" class="h-16 w-full rounded-lg" />
         </div>
         <div
