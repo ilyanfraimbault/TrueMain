@@ -128,7 +128,26 @@ public sealed class Worker(
                     + $"Registered: {string.Join(", ", processesByName.Keys.Order(StringComparer.Ordinal))}.");
             }
 
-            await process.RunCoreAsync(stoppingToken);
+            try
+            {
+                await process.RunCoreAsync(stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // One failing process must not starve the rest of the sequence: before
+                // issue #443 a Discovery failure aborted every cycle here, so nothing
+                // downstream (Scoring, MatchIngestion, ...) ever ran. The RecordedProcess
+                // decorator has already persisted the Failed run for this process; log
+                // and move on to the next one.
+                logger.LogError(
+                    ex,
+                    "Process {ProcessName} failed; continuing with the next process in the sequence.",
+                    processName);
+            }
         }
     }
 
