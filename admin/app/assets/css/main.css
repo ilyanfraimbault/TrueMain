@@ -21,6 +21,11 @@
  * `UTable` does — collapses to near-zero height: the table is clipped to its
  * header and the page can't scroll to the rest. Pin the children so they keep
  * their natural height and the panel body scrolls the whole page instead.
+ *
+ * Coupled to Nuxt UI's panel markup (the `dashboard-panel-*` id and the body's
+ * `overflow-y-auto` class) — verified against @nuxt/ui 4.8.2. If an upgrade
+ * renames/removes either, this rule silently no-ops (no build error), so
+ * re-check table-page scrolling whenever Nuxt UI is bumped.
  */
 [id^="dashboard-panel-"] > [class*="overflow-y-auto"] > * {
   flex-shrink: 0;
