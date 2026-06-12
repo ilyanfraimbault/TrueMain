@@ -1,4 +1,5 @@
 using Data.Entities;
+using Data.Logging;
 using Data.Repositories;
 
 namespace Ingestor.Processes.Components.MatchIngestion;
@@ -22,7 +23,12 @@ public sealed class AccountValidationService(
 
         if (updated > 0)
         {
-            logger.LogDebug(
+            // Named ops event (#444): an account's candidates surviving ingestion
+            // as Validated is the milestone the operator watches for. Logged at
+            // Information — the Mongo sink persists registered OpsEvents despite
+            // its Warning floor, and /ops/logs can filter on the event name.
+            logger.LogInformation(
+                OpsEvents.CandidateValidated,
                 "Validated {Count} candidates for {Platform}/{Puuid}.",
                 updated,
                 account.PlatformId,
