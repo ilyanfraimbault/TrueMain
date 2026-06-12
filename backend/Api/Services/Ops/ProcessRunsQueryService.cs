@@ -7,8 +7,9 @@ namespace TrueMain.Services.Ops;
 
 public sealed class ProcessRunsQueryService(TrueMainDbContext db) : IProcessRunsQueryService
 {
-    private const int DefaultLimit = 100;
-    private const int MaxLimit = 500;
+    private const int DefaultPageSize = 100;
+    private const int MinPageSize = 1;
+    private const int MaxPageSize = 500;
     private const int FailureWindowDays = 7;
 
     public async Task<ProcessRunsReadModel> GetAsync(
@@ -16,12 +17,20 @@ public sealed class ProcessRunsQueryService(TrueMainDbContext db) : IProcessRuns
         string? status,
         DateTime? since,
         int? limit,
+        int? page,
+        int? pageSize,
         CancellationToken ct)
     {
-        var effectiveLimit = Math.Clamp(limit ?? DefaultLimit, 1, MaxLimit);
+        // Paging mirrors /ops/logs: 1-based `page` (clamped to >= 1) and
+        // `pageSize` (clamped to [1, 500], default 100). The legacy `limit` param
+        // predates paging and meant "the N most recent runs"; that is exactly
+        // page 1 with pageSize=N, so it is honoured as the page size when
+        // `pageSize` is absent and superseded by `pageSize` when both are sent.
+        var effectivePage = Math.Max(1, page ?? 1);
+        var effectivePageSize = Math.Clamp(pageSize ?? limit ?? DefaultPageSize, MinPageSize, MaxPageSize);
         // The runs list and the rollup's failure window are independent.
         //
-        // Runs: return the most recent `limit` runs ordered newest-first with NO
+        // Runs: return the requested page of runs ordered newest-first with NO
         // default time lower bound, so the admin panel can always show the last N
         // runs even when nothing ran recently. A `since` lower bound is applied to
         // the runs list ONLY when the caller explicitly provides it.
@@ -52,10 +61,17 @@ public sealed class ProcessRunsQueryService(TrueMainDbContext db) : IProcessRuns
             runsQuery = runsQuery.Where(run => run.Status == statusFilter);
         }
 
+        // Count before paging so the panel can render a pager; the rollup below
+        // is likewise computed over the full filtered set, not the page.
+        var total = await runsQuery.LongCountAsync(ct);
+
         var runEntities = await runsQuery
+            // Newest first; Id breaks ties so paging is stable when several runs
+            // share a StartedAtUtc.
             .OrderByDescending(run => run.StartedAtUtc)
             .ThenByDescending(run => run.Id)
-            .Take(effectiveLimit)
+            .Skip((effectivePage - 1) * effectivePageSize)
+            .Take(effectivePageSize)
             .ToListAsync(ct);
 
         var runs = runEntities
@@ -81,7 +97,10 @@ public sealed class ProcessRunsQueryService(TrueMainDbContext db) : IProcessRuns
         return new ProcessRunsReadModel
         {
             Runs = runs,
-            Rollup = rollup
+            Rollup = rollup,
+            Total = total,
+            Page = effectivePage,
+            PageSize = effectivePageSize
         };
     }
 
