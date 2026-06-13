@@ -76,7 +76,6 @@ const trackedTruemains = computed(() =>
 const summariesPending = computed(() =>
   summariesStatus.value === 'idle' || summariesStatus.value === 'pending')
 
-const activePatch = computed(() => summaries.value[0]?.patchVersion ?? '')
 const championCount = computed(() =>
   new Set(summaries.value.map(summary => summary.championId)).size)
 // Summary rows are per (champion, position); each games count is that
@@ -94,20 +93,20 @@ const steps = [
   {
     step: '01',
     icon: 'i-lucide-radar',
-    title: 'Identify true mains',
-    description: 'We continuously scan ranked games to flag players who consistently play the same champion across patches — no smurfs, no one-off picks.',
+    title: 'We find the real mains',
+    description: 'Players who actually one-trick a champion game after game — no smurfs, no off-role fill picks.',
   },
   {
     step: '02',
     icon: 'i-lucide-database',
-    title: 'Aggregate every decision',
-    description: 'For each main game, we capture the full item path, rune page, skill order and final result — then group them into build trees.',
+    title: 'We read their games',
+    description: 'Every item, rune and skill order from their ranked games, wins and losses alike.',
   },
   {
     step: '03',
     icon: 'i-lucide-sparkles',
-    title: 'Surface what wins',
-    description: 'Filter by patch, position or region and instantly see the build paths, rune pages and skill orders that actually win.',
+    title: 'You see what wins',
+    description: 'Pick a champion and get the builds, runes and skill orders their best mains are winning with right now.',
   },
 ]
 </script>
@@ -127,7 +126,7 @@ const steps = [
           <span class="text-primary">real mains</span>.
         </h1>
         <p class="mt-5 max-w-xl text-base leading-relaxed text-muted sm:text-lg">
-          Builds, runes and skill orders aggregated from players who genuinely main each champion — patch by patch.
+          See what real mains build, rune and max — straight from their ranked games.
         </p>
 
         <HomeChampionSearch
@@ -138,25 +137,6 @@ const steps = [
         <!-- Stat chips: real numbers only, skeletons until their source
              payload resolves. -->
         <dl class="mt-8 flex flex-wrap items-center justify-center gap-x-7 gap-y-3 text-sm">
-          <div class="flex items-center gap-2">
-            <UIcon
-              name="i-lucide-git-commit-horizontal"
-              class="size-4 text-primary"
-            />
-            <USkeleton
-              v-if="summariesPending"
-              class="h-4 w-20"
-            />
-            <template v-else-if="activePatch">
-              <dt class="sr-only">
-                Active patch
-              </dt>
-              <dd class="text-muted">
-                Patch <span class="font-semibold tabular-nums text-default">{{ activePatch }}</span>
-              </dd>
-            </template>
-          </div>
-
           <div class="flex items-center gap-2">
             <UIcon
               name="i-lucide-swords"
@@ -242,7 +222,7 @@ const steps = [
           How it works
         </p>
         <h2 class="mx-auto mt-3 max-w-2xl text-center text-2xl font-semibold tracking-tight sm:text-3xl">
-          Three steps from raw games to a build you can trust.
+          Real games in, real builds out.
         </h2>
 
         <div class="mt-12 grid gap-8 sm:grid-cols-3">

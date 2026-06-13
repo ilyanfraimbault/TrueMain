@@ -23,11 +23,13 @@ const emit = defineEmits<{
 
 const ROW_COUNT = 5
 
+// `label` doubles as the accessible name + tooltip; the flag SVG carries the
+// visual identity (and renders a globe for the `null` "all regions" tab).
 const REGION_TABS: Array<{ label: string, value: RegionSlug | null }> = [
-  { label: 'All', value: null },
-  { label: 'EU', value: 'europe' },
-  { label: 'AM', value: 'americas' },
-  { label: 'KR', value: 'korea' },
+  { label: 'All regions', value: null },
+  { label: 'Europe', value: 'europe' },
+  { label: 'Americas', value: 'americas' },
+  { label: 'Korea', value: 'korea' },
 ]
 
 function profileHref(row: LeaderboardRowResponse): string {
@@ -63,16 +65,24 @@ function iconUrl(row: LeaderboardRowResponse): string | null {
         role="group"
         aria-label="Filter leaderboard by region"
       >
-        <UButton
+        <button
           v-for="tab in REGION_TABS"
           :key="tab.label"
-          :label="tab.label"
-          size="xs"
-          :color="region === tab.value ? 'primary' : 'neutral'"
-          :variant="region === tab.value ? 'soft' : 'ghost'"
+          type="button"
+          :aria-label="tab.label"
           :aria-pressed="region === tab.value"
+          :title="tab.label"
+          class="inline-flex items-center justify-center rounded-md p-1 ring-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          :class="region === tab.value
+            ? 'bg-primary/10 ring-primary/50'
+            : 'opacity-60 ring-transparent hover:bg-elevated hover:opacity-100'"
           @click="emit('update:region', tab.value)"
-        />
+        >
+          <LeaderboardRegionFlag
+            :region="tab.value"
+            :width="24"
+          />
+        </button>
       </div>
     </header>
 
@@ -84,7 +94,7 @@ function iconUrl(row: LeaderboardRowResponse): string | null {
       <div
         v-for="i in ROW_COUNT"
         :key="i"
-        class="flex items-center gap-3 rounded-lg px-3 py-2"
+        class="-mx-2 flex items-center gap-3 rounded-lg px-2 py-2"
       >
         <USkeleton class="size-9 rounded-lg" />
         <USkeleton class="h-4 w-32" />
@@ -101,12 +111,14 @@ function iconUrl(row: LeaderboardRowResponse): string | null {
         v-for="row in rows"
         :key="`${row.identity.gameName}-${row.identity.tagLine}`"
       >
+        <!-- `-mx-2 px-2`: hover background bleeds into the panel padding while
+             the rank stays flush with the section header (no row indent). -->
         <NuxtLink
           :to="profileHref(row)"
-          class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-elevated/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          class="-mx-2 flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-elevated/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <span
-            class="w-5 shrink-0 text-right font-mono text-xs tabular-nums"
+            class="w-4 shrink-0 text-center font-mono text-xs tabular-nums"
             :class="row.rank <= 3 ? 'text-primary' : 'text-dimmed'"
           >
             {{ row.rank }}

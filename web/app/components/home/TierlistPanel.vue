@@ -68,7 +68,7 @@ const positionByValue = new Map(POSITION_OPTIONS.map(option => [option.value as 
       <div
         v-for="i in ROW_COUNT"
         :key="i"
-        class="flex items-center gap-3 rounded-lg px-3 py-2"
+        class="-mx-2 flex items-center gap-3 rounded-lg px-2 py-2"
       >
         <USkeleton class="size-9 rounded-lg" />
         <USkeleton class="h-4 w-32" />
@@ -84,11 +84,14 @@ const positionByValue = new Map(POSITION_OPTIONS.map(option => [option.value as 
         v-for="(row, index) in rows"
         :key="`${row.championId}-${row.position}`"
       >
+        <!-- `-mx-2 px-2` bleeds the hover background slightly into the panel
+             padding while keeping the rank flush with the section header
+             instead of indenting the whole row. -->
         <NuxtLink
           :to="{ path: `/champions/${row.championId}`, query: { position: row.position } }"
-          class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-elevated/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          class="-mx-2 flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-elevated/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
-          <span class="w-5 shrink-0 text-right font-mono text-xs tabular-nums text-dimmed">
+          <span class="w-4 shrink-0 text-center font-mono text-xs tabular-nums text-dimmed">
             {{ index + 1 }}
           </span>
 
