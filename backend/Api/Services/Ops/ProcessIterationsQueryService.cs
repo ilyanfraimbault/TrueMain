@@ -16,6 +16,11 @@ public sealed class ProcessIterationsQueryService(TrueMainDbContext db) : IProce
         var effectivePage = Math.Clamp(page ?? 1, 1, int.MaxValue / MaxPageSize);
         var effectivePageSize = Math.Clamp(pageSize ?? DefaultPageSize, MinPageSize, MaxPageSize);
 
+        // Single "now" for the whole request so the finishedOnly SQL filter and the
+        // in-memory effective-status mapping below use the exact same instant (the
+        // same convention as ProcessRunsQueryService).
+        var now = DateTime.UtcNow;
+
         // Only iteration-stamped runs group into the chain view; historical
         // un-grouped rows (IterationId == null) stay in the flat runs feed.
         var grouped = db.ProcessRuns
@@ -30,7 +35,7 @@ public sealed class ProcessIterationsQueryService(TrueMainDbContext db) : IProce
         // the count stays correct pre-paging.
         if (finishedOnly)
         {
-            var freshCutoff = DateTime.UtcNow - ProcessRunStaleness.Threshold;
+            var freshCutoff = now - ProcessRunStaleness.Threshold;
             grouped = grouped.Where(run => !db.ProcessRuns.Any(other =>
                 other.IterationId == run.IterationId
                 && other.Status == ProcessRunStatus.Running
@@ -88,9 +93,8 @@ public sealed class ProcessIterationsQueryService(TrueMainDbContext db) : IProce
 
         // Age stale-heartbeat Running rows out to Abandoned in memory (the
         // freshness math can't be expressed in the SQL projection cheaply), so
-        // IsRunning is true only when a run is *genuinely* in flight.
-        var now = DateTime.UtcNow;
-
+        // IsRunning is true only when a run is *genuinely* in flight. Reuses the
+        // single `now` captured above so the page and the finishedOnly filter agree.
         var iterations = pageKeys
             .Select(key =>
             {
