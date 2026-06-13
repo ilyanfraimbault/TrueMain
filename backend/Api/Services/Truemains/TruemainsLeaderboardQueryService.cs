@@ -161,8 +161,11 @@ public sealed class TruemainsLeaderboardQueryService(
         var ranksTask = TimedAsync(() => FetchLatestRanksAsync(accountIds, ct));
 
         // Chain the build fetch off the top-3 result: it resolves the page's
-        // (account, champion) pairs from the selected champions and is timed as
-        // its own phase, but it still runs alongside stats / ranks.
+        // (account, champion) pairs from the selected champions, and still runs
+        // alongside stats / ranks. Note `buildsMs` covers the whole continuation
+        // — the wait on topChampionsTask *plus* the build round trips — since
+        // TimedAsync wraps both, so read it as an upper bound, not the build
+        // query in isolation.
         var topChampionsTask = TimedAsync(() => FetchTopChampionsAsync(puuids, ct));
         var buildsTask = TimedAsync(async () =>
         {
@@ -524,13 +527,15 @@ public sealed class TruemainsLeaderboardQueryService(
         var championIds = pairs.Select(pair => pair.ChampionId).Distinct().ToList();
         var queueId = RankedQueueId;
 
-        // One round trip: join patterns to the player's ranked-solo scopes for the
-        // shown champions, summing each (account, champion, build, runes) combo
-        // across every patch / position. Aggregating over all the player's
-        // patches mirrors the per-player build pages — the dominant build is the
-        // one the player commits to over time, not just on the live patch. The
-        // account×champion id filters over-select the cross product, so the exact
-        // pairs are re-checked in memory below.
+        // Three sequential round trips (one shared context, so not parallel):
+        // this aggregate join, then the build-dim lookup, then the rune-dim
+        // lookup. This first query joins patterns to the player's ranked-solo
+        // scopes for the shown champions, summing each (account, champion, build,
+        // runes) combo across every patch / position. Aggregating over all the
+        // player's patches mirrors the per-player build pages — the dominant
+        // build is the one the player commits to over time, not just on the live
+        // patch. The account×champion id filters over-select the cross product,
+        // so the exact pairs are re-checked in memory below.
         var grouped = await ctx.ChampionAggregatePatterns
             .AsNoTracking()
             .Join(
