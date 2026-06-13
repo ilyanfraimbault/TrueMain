@@ -46,9 +46,7 @@ function statusColor(code: number): 'success' | 'warning' | 'error' | 'neutral' 
   if (code === 0 || code >= 500) {
     return 'error'
   }
-  if (code === 429) {
-    return 'warning'
-  }
+  // 4xx (429 included) — a client/limit problem, not a server fault.
   if (code >= 400) {
     return 'warning'
   }
@@ -57,6 +55,21 @@ function statusColor(code: number): 'success' | 'warning' | 'error' | 'neutral' 
     return 'success'
   }
   return 'neutral'
+}
+
+// Full literal class per status so Tailwind's scanner picks them up (a dynamic
+// `bg-${...}` string would not be generated). Mirrors the badge colours.
+function statusBarClass(code: number): string {
+  switch (statusColor(code)) {
+    case 'error':
+      return 'bg-error'
+    case 'warning':
+      return 'bg-warning'
+    case 'success':
+      return 'bg-success'
+    default:
+      return 'bg-primary'
+  }
 }
 function statusLabel(code: number): string {
   return code === 0 ? 'failed' : String(code)
@@ -200,7 +213,7 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
           <UInput
             v-model="endpoint"
             icon="i-lucide-search"
-            placeholder="Filter endpoint…"
+            placeholder="Exact endpoint key…"
             class="w-56"
           />
           <USelect
@@ -332,7 +345,8 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
               />
               <div class="flex-1 h-1.5 rounded-full bg-elevated overflow-hidden">
                 <div
-                  class="h-full rounded-full bg-primary"
+                  class="h-full rounded-full"
+                  :class="statusBarClass(status.statusCode)"
                   :style="{ width: statusPct(status.count) }"
                 />
               </div>
