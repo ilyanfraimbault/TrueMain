@@ -34,8 +34,35 @@ public sealed class DiscoveryProcess(
             return new { reason = "No platforms configured.", selected = 0 };
         }
 
+        // Reduced cadence (#487): now that the participant harvest is the primary candidate
+        // source, the mastery-backed ladder crawl runs on a maintenance cadence so its Riot
+        // budget can be reallocated to match ingestion. Skip when the last completed run is
+        // within MinRunInterval. The current run is recorded as Running by the recorder, so
+        // GetLastCompletedRunStartAsync excludes it.
+        if (options.MinRunInterval > TimeSpan.Zero && await ShouldSkipForCadenceAsync(options.MinRunInterval, ct) is { } lastRunUtc)
+        {
+            logger.LogInformation(
+                "Discovery skipped: last run {LastRunUtc:o} is within MinRunInterval {Interval}.",
+                lastRunUtc,
+                options.MinRunInterval);
+            return new { reason = "Within MinRunInterval; discovery skipped this iteration.", skipped = true };
+        }
+
         var summaries = await DiscoverAcrossPlatformsAsync(platforms, options, ct);
         return BuildSuccessPayload(summaries);
+    }
+
+    /// <summary>
+    /// Returns the last completed Discovery run time when it is within
+    /// <paramref name="minRunInterval"/> (so this iteration should skip), otherwise null.
+    /// </summary>
+    private async Task<DateTime?> ShouldSkipForCadenceAsync(TimeSpan minRunInterval, CancellationToken ct)
+    {
+        await using var session = await sessionFactory.CreateAsync(ct);
+        var lastRunUtc = await session.ProcessRuns.GetLastCompletedRunStartAsync(Name, ct);
+        return lastRunUtc is not null && DateTime.UtcNow - lastRunUtc.Value < minRunInterval
+            ? lastRunUtc
+            : null;
     }
 
     private async Task<List<PlatformSummary>> DiscoverAcrossPlatformsAsync(
