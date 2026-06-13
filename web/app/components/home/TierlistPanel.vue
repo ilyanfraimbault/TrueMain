@@ -35,12 +35,15 @@ const rows = computed(() =>
       || b.games - a.games,
     )
     .slice(0, ROW_COUNT)
-    .map(summary => ({
-      ...summary,
-      name: props.championsById.get(summary.championId)?.name ?? `Champion ${summary.championId}`,
-      iconUrl: props.championsById.get(summary.championId)?.iconUrl ?? '',
-      positionOption: positionByValue.get(summary.position),
-    })),
+    .map((summary) => {
+      const champ = props.championsById.get(summary.championId)
+      return {
+        ...summary,
+        name: champ?.name ?? `Champion ${summary.championId}`,
+        iconUrl: champ?.iconUrl ?? '',
+        positionOption: positionByValue.get(summary.position),
+      }
+    }),
 )
 </script>
 

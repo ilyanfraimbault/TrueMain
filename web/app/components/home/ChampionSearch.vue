@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { CommandPaletteGroup } from '@nuxt/ui'
+import { isNavigationFailure } from 'vue-router'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 
 // Hero search: a search-field-looking trigger that opens a command palette
@@ -15,9 +16,11 @@ const router = useRouter()
 
 function go(path: string) {
   open.value = false
-  // Internal routes only, but swallow a rejected navigation (route guard,
-  // redirect) instead of leaving an unhandled promise rejection.
-  router.push(path).catch(() => {})
+  // Swallow only aborted/redirected navigations (guards, duplicate pushes);
+  // let an unexpected error surface instead of disappearing silently.
+  router.push(path).catch((error) => {
+    if (!isNavigationFailure(error)) throw error
+  })
 }
 
 const groups = computed<CommandPaletteGroup[]>(() => [

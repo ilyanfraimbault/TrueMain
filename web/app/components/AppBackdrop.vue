@@ -12,6 +12,11 @@
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 
+// Assigned by onMounted once the WebGL context + listeners exist; invoked by
+// the setup-level onBeforeUnmount below. Null when WebGL never initialised
+// (nothing to tear down).
+let teardown: (() => void) | null = null
+
 const VERTEX_SHADER = `
 attribute vec2 a_position;
 void main() {
@@ -221,15 +226,17 @@ onMounted(() => {
 
   syncMotion()
 
-  onBeforeUnmount(() => {
+  teardown = () => {
     stop()
     document.removeEventListener('visibilitychange', onVisibilityChange)
     canvas.removeEventListener('webglcontextlost', onContextLost)
     reducedMotion.removeEventListener('change', syncMotion)
     resizeObserver.disconnect()
     gl.getExtension('WEBGL_lose_context')?.loseContext()
-  })
+  }
 })
+
+onBeforeUnmount(() => teardown?.())
 </script>
 
 <template>
