@@ -42,6 +42,16 @@ public sealed class RecordedProcess<TInner>(
             await recorder.RecordSuccessAsync(runId, Name, startedAt, payload, ct);
             return payload;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Graceful shutdown mid-run is NOT a failure, so don't record one — and
+            // don't call RecordFailureAsync with the already-cancelled token (it
+            // would just throw another OCE). The Running row is left as-is and
+            // surfaces as Abandoned: via the stale-heartbeat read mapping within the
+            // staleness window, then persisted by startup reconciliation on the next
+            // boot. This keeps the Failed status meaningful (real errors only).
+            throw;
+        }
         catch (Exception ex)
         {
             await recorder.RecordFailureAsync(runId, Name, startedAt, ex, ct);
