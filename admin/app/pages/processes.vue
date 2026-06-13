@@ -329,7 +329,9 @@ function hasSummary(summary: ProcessRun['summary']): boolean {
   if (typeof summary === 'object') {
     return Object.keys(summary).length > 0
   }
-  return true
+  // Scalar summary (unusual but tolerated): content unless it's an empty string,
+  // so an empty payload shows "No summary recorded" rather than a blank field.
+  return summary !== ''
 }
 
 function summaryJson(summary: ProcessRun['summary']): string | null {
