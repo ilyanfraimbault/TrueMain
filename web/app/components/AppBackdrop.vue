@@ -57,21 +57,27 @@ void main() {
 
   // Domain-warp the noise so the folds curl and drift instead of sliding.
   vec2 q = vec2(
-    fbm(p * 1.1 + vec2(0.0, t)),
-    fbm(p * 1.1 + vec2(4.0, -t * 0.8)));
-  float field = fbm(p * 1.5 + q * 1.3 + vec2(t * 0.4, -t * 0.25));
+    fbm(p * 1.2 + vec2(0.0, t)),
+    fbm(p * 1.2 + vec2(5.2, -t * 0.8)));
+  float field = fbm(p * 1.6 + q * 1.6 + vec2(t * 0.4, -t * 0.25));
 
-  // Gentle top-weighted gradient — present everywhere, a touch stronger up top.
-  float vgrad = mix(0.55, 1.0, 1.0 - uv.y);
-  float glow = smoothstep(0.22, 0.9, field);
+  // Gentle top-weighted falloff — folds (and the dark gaps between them) live
+  // across the whole height, a touch stronger up top.
+  float vgrad = mix(0.5, 1.0, 1.0 - uv.y);
+
+  // Tight ramp: only the crests of the field light up, the troughs stay
+  // fully transparent. That transparency is what reads as shadow between the
+  // emerald folds — keep it, don't fill it, or the whole thing goes flat green.
+  float glow = smoothstep(0.42, 0.95, field);
 
   vec3 deep = vec3(0.024, 0.306, 0.231);
   vec3 mid = vec3(0.063, 0.725, 0.506);
-  vec3 color = deep * 0.65 + mid * pow(glow, 2.2) * 0.5;
+  vec3 bright = vec3(0.204, 0.827, 0.600);
+  vec3 color = deep * glow * 0.85
+    + mid * pow(glow, 2.0) * 0.5
+    + bright * pow(glow, 4.0) * 0.32;
 
-  // Keep it subtle; the small base term ensures even the dark troughs carry a
-  // faint tint so the field reads as uniform rather than blotchy.
-  float alpha = clamp((glow * 0.30 + 0.05) * vgrad, 0.0, 0.42);
+  float alpha = clamp(glow * 0.6 * vgrad, 0.0, 0.6);
   gl_FragColor = vec4(color, alpha);
 }
 `
@@ -208,11 +214,12 @@ onMounted(() => {
     aria-hidden="true"
     class="pointer-events-none fixed inset-0 -z-10 overflow-hidden opacity-80 dark:opacity-100"
   >
-    <!-- Static wash: the no-WebGL / pre-first-frame baseline, same emerald
-         family as the shader so the canvas fading in over it reads as one. -->
+    <!-- Static wash: the no-WebGL / pre-first-frame baseline only. Kept very
+         faint and short so it doesn't bleed up through the shader's
+         transparent troughs and wash out the shadow zones. -->
     <div
       class="absolute inset-0"
-      style="background: linear-gradient(180deg, color-mix(in oklch, var(--ui-color-primary-500) 9%, transparent), transparent 55%);"
+      style="background: linear-gradient(180deg, color-mix(in oklch, var(--ui-color-primary-500) 5%, transparent), transparent 35%);"
     />
     <canvas
       ref="canvasRef"
