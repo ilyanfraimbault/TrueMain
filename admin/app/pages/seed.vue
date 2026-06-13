@@ -480,8 +480,13 @@ async function seedAll() {
     const ok = okCount.value
     const duplicate = duplicateCount.value
     const failed = failedCount.value
-    // Build the summary from only the non-zero buckets so the toast stays terse.
-    const parts = [`${ok} queued`]
+    // Build the summary from only the non-zero buckets so the toast stays terse
+    // (e.g. no "0 queued" when every row was already seeded). At least one bucket
+    // is always non-zero here, since seedAll runs only with valid rows.
+    const parts: string[] = []
+    if (ok > 0) {
+      parts.push(`${ok} queued`)
+    }
     if (duplicate > 0) {
       parts.push(`${duplicate} already seeded`)
     }
