@@ -415,6 +415,33 @@ const failedCount = computed(() =>
 )
 const hasRun = computed(() => okCount.value > 0 || duplicateCount.value > 0 || failedCount.value > 0)
 
+// Shared run summary, used by BOTH the completion toast and the persistent
+// result banner so they never disagree. A clean run created every row; otherwise
+// some were already seeded and/or failed.
+const summaryClean = computed(() => failedCount.value === 0 && duplicateCount.value === 0)
+const summaryTitle = computed(() =>
+  failedCount.value > 0
+    ? 'Import finished with errors'
+    : duplicateCount.value > 0
+      ? 'Some accounts were already seeded'
+      : 'All rows queued',
+)
+// Only the non-zero buckets, so an all-already-seeded run reads "3 already
+// seeded" rather than "0 queued · 3 already seeded".
+const summaryDescription = computed(() => {
+  const parts: string[] = []
+  if (okCount.value > 0) {
+    parts.push(`${okCount.value} queued`)
+  }
+  if (duplicateCount.value > 0) {
+    parts.push(`${duplicateCount.value} already seeded`)
+  }
+  if (failedCount.value > 0) {
+    parts.push(`${failedCount.value} failed`)
+  }
+  return parts.join(' · ')
+})
+
 const progressPercent = computed(() => {
   const total = validRows.value.length
   return total === 0 ? 0 : Math.round((doneCount.value / total) * 100)
@@ -477,32 +504,11 @@ async function seedAll() {
   }
   finally {
     running.value = false
-    const ok = okCount.value
-    const duplicate = duplicateCount.value
-    const failed = failedCount.value
-    // Build the summary from only the non-zero buckets so the toast stays terse
-    // (e.g. no "0 queued" when every row was already seeded). At least one bucket
-    // is always non-zero here, since seedAll runs only with valid rows.
-    const parts: string[] = []
-    if (ok > 0) {
-      parts.push(`${ok} queued`)
-    }
-    if (duplicate > 0) {
-      parts.push(`${duplicate} already seeded`)
-    }
-    if (failed > 0) {
-      parts.push(`${failed} failed`)
-    }
-    const clean = failed === 0 && duplicate === 0
     toast.add({
-      title: failed > 0
-        ? 'Import finished with errors'
-        : duplicate > 0
-          ? 'Some accounts were already seeded'
-          : 'All rows queued',
-      description: parts.join(' · '),
-      color: clean ? 'success' : 'warning',
-      icon: clean ? 'i-lucide-circle-check' : 'i-lucide-triangle-alert',
+      title: summaryTitle.value,
+      description: summaryDescription.value,
+      color: summaryClean.value ? 'success' : 'warning',
+      icon: summaryClean.value ? 'i-lucide-circle-check' : 'i-lucide-triangle-alert',
     })
     // Surface the newly-queued rows in the shared history below.
     refresh()
@@ -898,11 +904,11 @@ const tableMeta = {
         <!-- Final summary -->
         <UAlert
           v-else-if="hasRun"
-          :color="failedCount === 0 ? 'success' : 'warning'"
+          :color="summaryClean ? 'success' : 'warning'"
           variant="subtle"
-          :icon="failedCount === 0 ? 'i-lucide-circle-check' : 'i-lucide-triangle-alert'"
-          :title="failedCount === 0 ? 'All rows queued' : 'Finished with errors'"
-          :description="`${okCount} queued · ${failedCount} failed. Matches & mains follow on the next ingestion run.`"
+          :icon="summaryClean ? 'i-lucide-circle-check' : 'i-lucide-triangle-alert'"
+          :title="summaryTitle"
+          :description="`${summaryDescription}. Matches & mains follow on the next ingestion run.`"
           class="mb-4"
         />
 
