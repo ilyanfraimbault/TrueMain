@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Npgsql;
 
 namespace Data;
 
@@ -39,21 +41,56 @@ public static class DatabaseMigrator
 
         await using var scope = services.CreateAsyncScope();
 
-        // Some hosts (notably the Ingestor) only register a DbContextFactory.
-        // Resolve through the factory when no scoped context is available so
-        // both wiring styles work.
-        var context = scope.ServiceProvider.GetService<TrueMainDbContext>();
+        // EF Core takes a database lock while migrating (a session-scoped Postgres
+        // advisory lock), which does NOT survive PgBouncer transaction pooling:
+        // the session is not pinned across statements, so the lock could be taken
+        // and released on different backends. When a dedicated direct-to-Postgres
+        // connection string is configured (ConnectionStrings:TrueMainMigrations),
+        // migrate over it so the lock lives on a stable session; the app keeps
+        // using the pooled (pgbouncer) connection for its runtime queries. Falls
+        // back to the DI-registered context when unset — dev, tests and any
+        // single-instance setup with no pooler in front of Postgres.
+        var migrationsConnectionString = services
+            .GetRequiredService<IConfiguration>()
+            .GetConnectionString("TrueMainMigrations");
 
-        // The scope owns and disposes the scoped instance; a factory-created
-        // context is ours to dispose. Track which path produced the context so
-        // the finally block disposes exactly what it must.
-        var contextOwnedHere = context is null;
-        if (context is null)
+        if (!string.IsNullOrWhiteSpace(migrationsConnectionString))
         {
-            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<TrueMainDbContext>>();
-            context = await factory.CreateDbContextAsync(cancellationToken);
+            // Mirror the hosts' data source wiring (dynamic JSON) so the migration
+            // context maps the same types as the runtime one. We own both the
+            // data source and the context here, so `await using` disposes them.
+            var dataSourceBuilder = new NpgsqlDataSourceBuilder(migrationsConnectionString);
+            dataSourceBuilder.EnableDynamicJson();
+            await using var dataSource = dataSourceBuilder.Build();
+
+            var contextOptions = new DbContextOptionsBuilder<TrueMainDbContext>()
+                .UseNpgsql(dataSource)
+                .Options;
+            await using var context = new TrueMainDbContext(contextOptions);
+            await MigrateAsync(context, logger, cancellationToken);
+            return;
         }
 
+        // A scoped context, when registered, is owned and disposed by the scope.
+        var scopedContext = scope.ServiceProvider.GetService<TrueMainDbContext>();
+        if (scopedContext is not null)
+        {
+            await MigrateAsync(scopedContext, logger, cancellationToken);
+            return;
+        }
+
+        // Some hosts (notably the Ingestor) only register a DbContextFactory; a
+        // factory-created context is ours to dispose.
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<TrueMainDbContext>>();
+        await using var factoryContext = await factory.CreateDbContextAsync(cancellationToken);
+        await MigrateAsync(factoryContext, logger, cancellationToken);
+    }
+
+    private static async Task MigrateAsync(
+        TrueMainDbContext context,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
         try
         {
             logger.LogInformation("[db-migrator] applying pending migrations on startup.");
@@ -70,13 +107,6 @@ public static class DatabaseMigrator
                 "If this is production, disable ApplyMigrationsOnStartup and apply " +
                 "migrations via an idempotent SQL script (see docs/production-migrations.md).");
             throw;
-        }
-        finally
-        {
-            if (contextOwnedHere)
-            {
-                await context.DisposeAsync();
-            }
         }
     }
 }

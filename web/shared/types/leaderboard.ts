@@ -53,4 +53,10 @@ export interface LeaderboardStats {
 export interface LeaderboardTopChampion {
   championId: number
   games: number
+  /** Player's authoritative play rate for this champion (0..1), from main-champion stats. */
+  playRate: number
+  /** Player's most-played build on this champion — null when no aggregated build exists yet. */
+  primaryKeystoneId: number | null
+  secondaryStyleId: number | null
+  firstItemId: number | null
 }

@@ -10,7 +10,15 @@
 const IPX_IMAGE_CACHE_SECONDS = 60 * 60 * 24 * 7 // 7 days
 
 export default defineNuxtConfig({
-  modules: ['@nuxt/ui', '@nuxt/image', 'nuxt-charts'],
+  modules: ['@nuxt/ui', '@nuxt/image', '@nuxt/fonts', 'nuxt-charts'],
+  // Self-host a single family — Inter — used across the whole app (see the
+  // `--font-*` vars in main.css). Declared explicitly so the download doesn't
+  // rely on CSS scanning of the theme vars.
+  fonts: {
+    families: [
+      { name: 'Inter', provider: 'google' },
+    ],
+  },
   // Namespace upstream nuxt-charts components under `Nc*` so our own
   // wrappers (e.g. `components/charts/LineChart.vue` → `<ChartsLineChart>`)
   // can use the upstream chart in their template without colliding with

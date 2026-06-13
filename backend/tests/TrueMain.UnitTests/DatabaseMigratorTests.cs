@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -45,6 +46,11 @@ public sealed class DatabaseMigratorTests
         var services = new ServiceCollection();
         services.AddSingleton<IOptions<DatabaseOptions>>(
             Microsoft.Extensions.Options.Options.Create(new DatabaseOptions { ApplyMigrationsOnStartup = applyOnStartup }));
+
+        // The migrator resolves IConfiguration to look up the optional
+        // direct-to-Postgres migrations connection string. An empty config leaves
+        // it unset, so the migrator falls through to the factory path below.
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
 
         // Register only the factory (the Ingestor wiring style). Creating a
         // context throws so the test never touches a real database while still

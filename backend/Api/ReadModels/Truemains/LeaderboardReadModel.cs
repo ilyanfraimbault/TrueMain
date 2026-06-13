@@ -57,6 +57,18 @@ public sealed record LeaderboardTopChampionReadModel
     public int ChampionId { get; init; }
 
     public int Games { get; init; }
+
+    /// <summary>The player's authoritative play rate for this champion (0..1), as stored by main analysis (<c>games / total games on the account</c>).</summary>
+    public double PlayRate { get; init; }
+
+    /// <summary>Keystone rune of the player's dominant build for this champion. Null when no aggregated build exists for the player on this champion.</summary>
+    public int? PrimaryKeystoneId { get; init; }
+
+    /// <summary>Secondary rune tree of the player's dominant build for this champion. Null when no aggregated build exists.</summary>
+    public int? SecondaryStyleId { get; init; }
+
+    /// <summary>First completed item of the player's dominant build for this champion. Null when no aggregated build exists.</summary>
+    public int? FirstItemId { get; init; }
 }
 
 /// <summary>
