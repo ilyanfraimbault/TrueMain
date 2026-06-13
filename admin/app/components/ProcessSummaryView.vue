@@ -15,7 +15,13 @@
 // own name), so arbitrarily deep payloads stay readable.
 import { formatNumber } from '~~/shared/utils/format'
 
-const props = defineProps<{ value: unknown }>()
+// `depth` is internal recursion bookkeeping (callers pass only `value`). Past
+// MAX_DEPTH we stop recursing and fall back to a raw JSON block, so a
+// pathologically deep payload can't blow the render stack.
+const props = withDefaults(defineProps<{ value: unknown, depth?: number }>(), {
+  depth: 0,
+})
+const MAX_DEPTH = 8
 
 function humanizeKey(key: string): string {
   return key
@@ -25,8 +31,13 @@ function humanizeKey(key: string): string {
     .trim()
 }
 
+// Strictly a `{}`-literal-shaped object: rejects arrays and exotic objects
+// (Date/Map/Set/RegExp/null-prototype). JSON-sourced summaries never contain
+// those, but the stricter guard keeps a changing data source from being
+// mis-detected as a tabular row or an object field list.
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+    && Object.getPrototypeOf(value) === Object.prototype
 }
 
 // A "scalar" is anything we render as a single line of text rather than a
@@ -116,12 +127,30 @@ const tableRows = computed<Record<string, unknown>[]>(() =>
 function cellValue(row: Record<string, unknown>, key: string): unknown {
   return Object.prototype.hasOwnProperty.call(row, key) ? row[key] : undefined
 }
+
+// Past the cap we stop recursing and dump the remaining subtree as raw JSON.
+const tooDeep = computed(() => props.depth >= MAX_DEPTH)
+const rawJson = computed(() => {
+  try {
+    return JSON.stringify(props.value, null, 2)
+  }
+  catch {
+    return String(props.value)
+  }
+})
 </script>
 
 <template>
+  <!-- Depth cap: pathologically deep payloads fall back to raw JSON instead of
+       recursing further. -->
+  <pre
+    v-if="tooDeep"
+    class="text-xs bg-elevated/50 border border-default rounded-md p-3 overflow-auto"
+  >{{ rawJson }}</pre>
+
   <!-- Scalar -->
   <span
-    v-if="kind === 'scalar'"
+    v-else-if="kind === 'scalar'"
     class="text-sm text-highlighted tabular-nums break-all"
   >{{ formatScalar(props.value) }}</span>
 
@@ -156,7 +185,7 @@ function cellValue(row: Record<string, unknown>, key: string): unknown {
           {{ entry.label }}
         </dt>
         <dd>
-          <ProcessSummaryView :value="entry.value" />
+          <ProcessSummaryView :value="entry.value" :depth="props.depth + 1" />
         </dd>
       </template>
     </div>
@@ -201,7 +230,7 @@ function cellValue(row: Record<string, unknown>, key: string): unknown {
                  don't call cellValue() twice. -->
             <template v-for="cell in [cellValue(row, col.key)]" :key="col.key">
               <span v-if="isScalar(cell)" class="break-all">{{ formatScalar(cell) }}</span>
-              <ProcessSummaryView v-else :value="cell" />
+              <ProcessSummaryView v-else :value="cell" :depth="props.depth + 1" />
             </template>
           </td>
         </tr>
@@ -231,7 +260,7 @@ function cellValue(row: Record<string, unknown>, key: string): unknown {
       <p class="text-muted text-xs">
         #{{ index + 1 }}
       </p>
-      <ProcessSummaryView :value="item" />
+      <ProcessSummaryView :value="item" :depth="props.depth + 1" />
     </div>
   </div>
 </template>
