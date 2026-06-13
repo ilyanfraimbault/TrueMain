@@ -78,6 +78,46 @@ public sealed class ProcessIterationsApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetProcessIterationsAsync_FinishedOnly_ExcludesTheInFlightIteration()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        var now = DateTime.UtcNow;
+        var finished = Guid.NewGuid();
+        var running = Guid.NewGuid();
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            // An older completed pass and a newer in-flight one (MatchIngestion is
+            // Running with a fresh heartbeat, so it reads as genuinely running).
+            db.ProcessRuns.AddRange(
+                BuildRun(finished, "Discovery", ProcessRunStatus.Success, now.AddMinutes(-30)),
+                BuildRun(finished, "Scoring", ProcessRunStatus.Success, now.AddMinutes(-28)),
+                BuildRun(running, "Discovery", ProcessRunStatus.Success, now.AddMinutes(-2)),
+                BuildRunning(running, "MatchIngestion", now.AddMinutes(-1)));
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // Default: the in-flight pass is included and leads the list.
+        var all = await GetPayloadAsync(client, "/ops/process-iterations");
+        all.Total.Should().Be(2);
+        all.Iterations.Should().HaveCount(2);
+        all.Iterations[0].IterationId.Should().Be(running);
+        all.Iterations[0].IsRunning.Should().BeTrue();
+
+        // finishedOnly: the in-flight pass is dropped from BOTH the page and the
+        // total, so a completed-history list paginates without an off-by-one.
+        var finishedOnly = await GetPayloadAsync(client, "/ops/process-iterations?finishedOnly=true");
+        finishedOnly.Total.Should().Be(1);
+        finishedOnly.Iterations.Should().ContainSingle();
+        finishedOnly.Iterations[0].IterationId.Should().Be(finished);
+        finishedOnly.Iterations[0].IsRunning.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task GetProcessIterationsAsync_PagesIterations()
     {
         await _fixture.ResetDatabaseAsync();
@@ -161,6 +201,9 @@ public sealed class ProcessIterationsApiIntegrationTests
             Host = "test-host"
         };
 
+    // Fresh heartbeat (mirrors the start, as RecordStartAsync does in production)
+    // so the read query reports this as Running rather than mapping a stale beat
+    // to Abandoned.
     private static ProcessRun BuildRunning(Guid? iterationId, string processName, DateTime startedAtUtc)
         => new()
         {
@@ -170,7 +213,8 @@ public sealed class ProcessIterationsApiIntegrationTests
             FinishedAtUtc = startedAtUtc,
             DurationMs = 0,
             Status = ProcessRunStatus.Running,
-            Host = "test-host"
+            Host = "test-host",
+            LastHeartbeatAtUtc = startedAtUtc
         };
 
     private sealed class ApiWebApplicationFactory(PostgresFixture fixture)

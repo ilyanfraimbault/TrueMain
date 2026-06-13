@@ -28,4 +28,22 @@ public interface IProcessRunRecorder
         object? summary,
         string? error,
         CancellationToken ct);
+
+    /// <summary>
+    /// Refreshes the liveness heartbeat of the in-flight run identified by
+    /// <paramref name="runId"/>. No-op when the row is missing (pruned) or already
+    /// terminal — only a <see cref="ProcessRunStatus.Running"/> row is touched.
+    /// Called periodically by <c>RecordedProcess</c> so read queries can tell a
+    /// genuinely-running row from an abandoned one.
+    /// </summary>
+    Task HeartbeatAsync(Guid runId, CancellationToken ct);
+
+    /// <summary>
+    /// Flips every row still in <see cref="ProcessRunStatus.Running"/> to
+    /// <see cref="ProcessRunStatus.Abandoned"/> (stamping finish time, duration and
+    /// an explanatory error) and returns how many were reconciled. Run once at
+    /// ingestor startup: on the single-instance ingestor any row still running at
+    /// boot was orphaned by the previous process and can never complete.
+    /// </summary>
+    Task<int> ReconcileOrphanedRunsAsync(CancellationToken ct);
 }

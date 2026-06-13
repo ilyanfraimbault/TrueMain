@@ -77,6 +77,11 @@ public sealed class ProcessRunsQueryService(TrueMainDbContext db) : IProcessRuns
             .Take(effectivePageSize)
             .ToListAsync(ct);
 
+        // Age stale-heartbeat Running rows out to Abandoned in memory (the
+        // freshness math can't be expressed cheaply in SQL), so a run whose host
+        // died surfaces as Abandoned rather than perpetually Running.
+        var now = DateTime.UtcNow;
+
         var runs = runEntities
             .Select(run => new ProcessRunReadModel
             {
@@ -85,9 +90,10 @@ public sealed class ProcessRunsQueryService(TrueMainDbContext db) : IProcessRuns
                 StartedAtUtc = run.StartedAtUtc,
                 FinishedAtUtc = run.FinishedAtUtc,
                 DurationMs = run.DurationMs,
-                Status = run.Status.ToString(),
+                Status = ProcessRunStaleness.EffectiveStatus(run.Status, run.LastHeartbeatAtUtc, now).ToString(),
                 Error = run.Error,
                 Host = run.Host,
+                LastHeartbeatAtUtc = run.LastHeartbeatAtUtc,
                 // Clone the root element so the value is detached from the
                 // JsonDocument's lifetime; System.Text.Json then writes it as
                 // raw JSON in the response.
@@ -95,7 +101,7 @@ public sealed class ProcessRunsQueryService(TrueMainDbContext db) : IProcessRuns
             })
             .ToList();
 
-        var rollup = await BuildRollupAsync(normalizedProcessName, windowStart, ct);
+        var rollup = await BuildRollupAsync(normalizedProcessName, windowStart, now, ct);
 
         return new ProcessRunsReadModel
         {
@@ -110,6 +116,7 @@ public sealed class ProcessRunsQueryService(TrueMainDbContext db) : IProcessRuns
     private async Task<IReadOnlyList<ProcessRunRollupReadModel>> BuildRollupAsync(
         string? processName,
         DateTime? windowStart,
+        DateTime now,
         CancellationToken ct)
     {
         var rollupQuery = db.ProcessRuns.AsNoTracking();
@@ -161,7 +168,7 @@ public sealed class ProcessRunsQueryService(TrueMainDbContext db) : IProcessRuns
         var latestStatusRows = await db.ProcessRuns
             .AsNoTracking()
             .Where(run => processNames.Contains(run.ProcessName) && lastRunStarts.Contains(run.StartedAtUtc))
-            .Select(run => new { run.ProcessName, run.StartedAtUtc, run.Status, run.Id })
+            .Select(run => new { run.ProcessName, run.StartedAtUtc, run.Status, run.LastHeartbeatAtUtc, run.Id })
             .ToListAsync(ct);
 
         // The query above filters on the process-name set AND the max-timestamp
@@ -179,12 +186,17 @@ public sealed class ProcessRunsQueryService(TrueMainDbContext db) : IProcessRuns
                 group => group.Key,
                 // Ties at the same timestamp are still possible (a process logging
                 // two runs with identical StartedAtUtc); Id breaks the tie so the
-                // pick is deterministic rather than dependent on row order.
-                group => group
-                    .OrderByDescending(row => row.StartedAtUtc)
-                    .ThenByDescending(row => row.Id)
-                    .First()
-                    .Status);
+                // pick is deterministic rather than dependent on row order. Map the
+                // pick through ProcessRunStaleness so a stale Running latest-run
+                // shows as Abandoned, consistent with the runs list.
+                group =>
+                {
+                    var latest = group
+                        .OrderByDescending(row => row.StartedAtUtc)
+                        .ThenByDescending(row => row.Id)
+                        .First();
+                    return ProcessRunStaleness.EffectiveStatus(latest.Status, latest.LastHeartbeatAtUtc, now);
+                });
 
         return groups
             .OrderBy(group => group.ProcessName)

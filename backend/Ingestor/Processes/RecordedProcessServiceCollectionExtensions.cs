@@ -18,7 +18,8 @@ public static class RecordedProcessServiceCollectionExtensions
         services.AddScoped<IIngestorProcess, RecordedProcess<TProcess>>(sp =>
             new RecordedProcess<TProcess>(
                 sp.GetRequiredService<TProcess>(),
-                sp.GetRequiredService<IProcessRunRecorder>()));
+                sp.GetRequiredService<IProcessRunRecorder>(),
+                sp.GetRequiredService<ILogger<RecordedProcess<TProcess>>>()));
         return services;
     }
 }

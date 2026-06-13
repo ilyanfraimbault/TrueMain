@@ -30,9 +30,9 @@ import type {
  * absent param as "no filter"). Numbers — including `0` — are preserved.
  */
 function cleanQuery(
-  filters: Record<string, string | number | undefined>,
-): Record<string, string | number> {
-  const out: Record<string, string | number> = {}
+  filters: Record<string, string | number | boolean | undefined>,
+): Record<string, string | number | boolean> {
+  const out: Record<string, string | number | boolean> = {}
   for (const [key, value] of Object.entries(filters)) {
     if (value === undefined || value === null || value === '') {
       continue
@@ -55,7 +55,7 @@ function cleanQuery(
  */
 export function useOps<T>(
   path: string,
-  query?: MaybeRefOrGetter<Record<string, string | number | undefined>>,
+  query?: MaybeRefOrGetter<Record<string, string | number | boolean | undefined>>,
 ) {
   const queryParams = query
     ? computed(() => cleanQuery(toValue(query)))
