@@ -401,6 +401,21 @@ const selectedIterationLinks = computed<ChainLink[]>(() =>
     : [],
 )
 
+// Precompute each entry's formatted summary once per iteration, so the template
+// doesn't recompute summaryFields/summaryJson twice per row on every render.
+interface IterationEntry {
+  link: ChainLink
+  fields: SummaryField[]
+  json: string | null
+}
+const selectedIterationEntries = computed<IterationEntry[]>(() =>
+  selectedIterationLinks.value.map(link => ({
+    link,
+    fields: summaryFields(link.run?.summary ?? null),
+    json: summaryJson(link.run?.summary ?? null),
+  })),
+)
+
 // Per-iteration outcome tallies for the detail header.
 const selectedIterationTally = computed(() => {
   const runs = selectedIteration.value?.runs ?? []
@@ -1015,54 +1030,54 @@ const selectedIterationTally = computed(() => {
 
             <!-- One collapsible entry per process that ran -->
             <details
-              v-for="link in selectedIterationLinks"
-              :key="link.processName"
+              v-for="entry in selectedIterationEntries"
+              :key="entry.link.processName"
               class="rounded-lg border border-default bg-elevated/25 overflow-hidden"
             >
               <summary class="flex items-center justify-between gap-2 px-3 py-2.5 cursor-pointer hover:bg-elevated/40">
                 <span class="flex items-center gap-2 min-w-0">
                   <UIcon
-                    :name="outcomeIcon(link.outcome)"
+                    :name="outcomeIcon(entry.link.outcome)"
                     class="size-4 shrink-0"
                     :class="{
-                      'text-primary': link.outcome === 'Running',
-                      'text-success': link.outcome === 'Success',
-                      'text-error': link.outcome === 'Failed',
-                      'text-warning': link.outcome === 'Abandoned',
+                      'text-primary': entry.link.outcome === 'Running',
+                      'text-success': entry.link.outcome === 'Success',
+                      'text-error': entry.link.outcome === 'Failed',
+                      'text-warning': entry.link.outcome === 'Abandoned',
                     }"
                   />
                   <span class="text-sm font-medium text-highlighted truncate">
-                    {{ chainLabel(link.processName) }}
+                    {{ chainLabel(entry.link.processName) }}
                   </span>
                 </span>
                 <span class="flex items-center gap-2 shrink-0">
                   <span class="text-xs text-dimmed tabular-nums">
-                    {{ link.run && link.outcome !== 'Running' ? formatDuration(link.run.durationMs) : '—' }}
+                    {{ entry.link.run && entry.link.outcome !== 'Running' ? formatDuration(entry.link.run.durationMs) : '—' }}
                   </span>
                   <UBadge
-                    v-if="link.run"
-                    :color="statusColor(link.run.status)"
+                    v-if="entry.link.run"
+                    :color="statusColor(entry.link.run.status)"
                     variant="subtle"
                     size="sm"
-                    :label="link.run.status"
+                    :label="entry.link.run.status"
                   />
                 </span>
               </summary>
 
-              <div v-if="link.run" class="px-3 pb-3 pt-1 space-y-3 border-t border-default">
-                <div v-if="link.run.error">
+              <div v-if="entry.link.run" class="px-3 pb-3 pt-1 space-y-3 border-t border-default">
+                <div v-if="entry.link.run.error">
                   <p class="text-muted text-xs uppercase mb-1.5">
                     Error
                   </p>
-                  <pre class="text-xs text-error bg-error/5 border border-error/20 rounded-md p-2.5 overflow-auto whitespace-pre-wrap">{{ link.run.error }}</pre>
+                  <pre class="text-xs text-error bg-error/5 border border-error/20 rounded-md p-2.5 overflow-auto whitespace-pre-wrap">{{ entry.link.run.error }}</pre>
                 </div>
 
                 <dl
-                  v-if="summaryFields(link.run.summary).length > 0"
+                  v-if="entry.fields.length > 0"
                   class="text-sm border border-default rounded-md divide-y divide-default"
                 >
                   <div
-                    v-for="field in summaryFields(link.run.summary)"
+                    v-for="field in entry.fields"
                     :key="field.key"
                     class="flex justify-between gap-3 px-3 py-1.5"
                   >
@@ -1075,10 +1090,10 @@ const selectedIterationTally = computed(() => {
                   </div>
                 </dl>
                 <pre
-                  v-else-if="summaryJson(link.run.summary)"
+                  v-else-if="entry.json"
                   class="text-xs bg-elevated/50 border border-default rounded-md p-3 overflow-auto"
-                >{{ summaryJson(link.run.summary) }}</pre>
-                <p v-else-if="!link.run.error" class="text-sm text-dimmed">
+                >{{ entry.json }}</pre>
+                <p v-else-if="!entry.link.run.error" class="text-sm text-dimmed">
                   No summary recorded.
                 </p>
               </div>

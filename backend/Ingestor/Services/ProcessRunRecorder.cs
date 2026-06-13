@@ -57,7 +57,9 @@ public sealed class ProcessRunRecorder(
             summaryDoc = JsonDocument.Parse(JsonSerializer.Serialize(summary));
         }
 
-        var durationMs = (int)Math.Max(0, (finishedAtUtc - startedAtUtc).TotalMilliseconds);
+        // Clamp before the int cast: an extreme span (e.g. a very stale run) could
+        // exceed int.MaxValue ms (~24.8 days) and overflow into a negative duration.
+        var durationMs = (int)Math.Clamp((finishedAtUtc - startedAtUtc).TotalMilliseconds, 0, int.MaxValue);
         var truncatedError = Truncate(error, MaxErrorLength);
 
         // Finalise the in-flight Running row in place. If the lookup misses (the
@@ -126,7 +128,9 @@ public sealed class ProcessRunRecorder(
         foreach (var run in orphaned)
         {
             run.FinishedAtUtc = finishedAtUtc;
-            run.DurationMs = (int)Math.Max(0, (finishedAtUtc - run.StartedAtUtc).TotalMilliseconds);
+            // Clamp before the int cast: an orphaned run can be arbitrarily old, and
+            // a span over int.MaxValue ms (~24.8 days) would overflow to negative.
+            run.DurationMs = (int)Math.Clamp((finishedAtUtc - run.StartedAtUtc).TotalMilliseconds, 0, int.MaxValue);
             run.Status = ProcessRunStatus.Abandoned;
             run.Error = "Abandoned: ingestor restarted while this run was in flight.";
         }
