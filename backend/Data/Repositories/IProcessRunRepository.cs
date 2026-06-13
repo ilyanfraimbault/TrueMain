@@ -12,4 +12,12 @@ public interface IProcessRunRepository
     /// <c>Success</c>/<c>Failed</c> state on completion.
     /// </summary>
     Task<ProcessRun?> GetByIdAsync(Guid id, CancellationToken ct);
+
+    /// <summary>
+    /// Loads every run still in <c>Running</c> (tracked) so the caller can flip
+    /// orphaned in-flight rows to <c>Abandoned</c>. Used by startup reconciliation
+    /// on the single-instance ingestor, where anything still <c>Running</c> at boot
+    /// is by definition orphaned.
+    /// </summary>
+    Task<IReadOnlyList<ProcessRun>> GetRunningAsync(CancellationToken ct);
 }

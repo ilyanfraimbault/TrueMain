@@ -1,4 +1,5 @@
 using Data;
+using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using TrueMain.ReadModels.Ops;
 
@@ -9,6 +10,11 @@ public sealed class ProcessIterationsQueryService(TrueMainDbContext db) : IProce
     private const int DefaultPageSize = 10;
     private const int MinPageSize = 1;
     private const int MaxPageSize = 50;
+
+    // A Running row whose heartbeat (refreshed every 30s) is older than this — or
+    // missing entirely — is treated as Abandoned: its owner died without
+    // finalising it. Four missed beats keeps a healthy-but-slow run from flapping.
+    private static readonly TimeSpan StaleRunningThreshold = TimeSpan.FromMinutes(2);
 
     public async Task<ProcessIterationsReadModel> GetAsync(int? page, int? pageSize, CancellationToken ct)
     {
@@ -69,6 +75,11 @@ public sealed class ProcessIterationsQueryService(TrueMainDbContext db) : IProce
             .GroupBy(run => run.IterationId!.Value)
             .ToDictionary(group => group.Key, group => group.ToList());
 
+        // Age stale-heartbeat Running rows out to Abandoned in memory (the
+        // freshness math can't be expressed in the SQL projection cheaply), so
+        // IsRunning is true only when a run is *genuinely* in flight.
+        var now = DateTime.UtcNow;
+
         var iterations = pageKeys
             .Select(key =>
             {
@@ -80,7 +91,7 @@ public sealed class ProcessIterationsQueryService(TrueMainDbContext db) : IProce
                     LastActivityAtUtc = runs.Count == 0
                         ? key.StartedAtUtc
                         : runs.Max(run => run.FinishedAtUtc),
-                    IsRunning = runs.Any(run => run.Status == Data.Entities.ProcessRunStatus.Running),
+                    IsRunning = runs.Any(run => EffectiveStatus(run, now) == ProcessRunStatus.Running),
                     Runs = runs
                         .Select(run => new ProcessRunReadModel
                         {
@@ -89,9 +100,10 @@ public sealed class ProcessIterationsQueryService(TrueMainDbContext db) : IProce
                             StartedAtUtc = run.StartedAtUtc,
                             FinishedAtUtc = run.FinishedAtUtc,
                             DurationMs = run.DurationMs,
-                            Status = run.Status.ToString(),
+                            Status = EffectiveStatus(run, now).ToString(),
                             Error = run.Error,
                             Host = run.Host,
+                            LastHeartbeatAtUtc = run.LastHeartbeatAtUtc,
                             // Clone so the value outlives the JsonDocument; written as raw JSON.
                             Summary = run.Summary?.RootElement.Clone()
                         })
@@ -107,5 +119,21 @@ public sealed class ProcessIterationsQueryService(TrueMainDbContext db) : IProce
             Page = effectivePage,
             PageSize = effectivePageSize
         };
+    }
+
+    // A Running row reads as Abandoned once its heartbeat is missing or older than
+    // the stale threshold; every other status passes through unchanged. The
+    // single-instance ingestor abandons orphans at startup too, but this covers a
+    // run whose host is still up but died/hung between restarts.
+    private static ProcessRunStatus EffectiveStatus(ProcessRun run, DateTime now)
+    {
+        if (run.Status != ProcessRunStatus.Running)
+        {
+            return run.Status;
+        }
+
+        var stale = run.LastHeartbeatAtUtc is null
+            || run.LastHeartbeatAtUtc < now - StaleRunningThreshold;
+        return stale ? ProcessRunStatus.Abandoned : ProcessRunStatus.Running;
     }
 }

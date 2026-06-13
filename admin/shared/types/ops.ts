@@ -78,7 +78,13 @@ export interface DbTableRow {
   indexBytes: number
 }
 
-export type ProcessRunStatus = 'Success' | 'Failed' | 'Running'
+/**
+ * `Abandoned` is a run that started but never recorded an outcome: its owning
+ * ingestor died mid-flight. The backend assigns it either at startup (orphaned
+ * `Running` rows are reconciled) or on read (a `Running` row whose heartbeat has
+ * gone stale). It is a terminal state, distinct from `Failed`.
+ */
+export type ProcessRunStatus = 'Success' | 'Failed' | 'Running' | 'Abandoned'
 
 /** One run row of `GET /api/ops/process-runs` → `runs`. */
 export interface ProcessRun {
@@ -90,6 +96,12 @@ export interface ProcessRun {
   status: ProcessRunStatus
   error: string | null
   host: string | null
+  /**
+   * Last liveness beat while the run was `Running` (null for legacy rows and
+   * terminal runs that never beat). A `Running` run whose beat is older than the
+   * backend's stale threshold is reported as `Abandoned`.
+   */
+  lastHeartbeatAtUtc: string | null
   summary: Record<string, unknown> | unknown[] | null
 }
 
@@ -297,6 +309,12 @@ export interface SeedAccountBody {
 export interface SeedAccountResponse {
   id: string
   status: SeedRequestStatus
+  /**
+   * `true` when this call created a new seed request; `false` when an existing
+   * (still-unprocessed) request for the same Riot ID + platform was returned
+   * idempotently — i.e. the account was already queued/seeded.
+   */
+  created: boolean
 }
 
 /** Filters for `GET /api/ops/accounts/seed`. Empty/undefined = no filter. */

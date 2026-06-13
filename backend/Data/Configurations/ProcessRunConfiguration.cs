@@ -36,6 +36,10 @@ public sealed class ProcessRunConfiguration : IEntityTypeConfiguration<ProcessRu
         entity.Property(e => e.Host)
             .HasMaxLength(128);
 
+        // Nullable: legacy rows predate heartbeats. Refreshed while a run is in
+        // flight so read queries can age out a stale Running row to Abandoned.
+        entity.Property(e => e.LastHeartbeatAtUtc);
+
         entity.Property(e => e.Summary)
             .HasColumnType("jsonb");
 

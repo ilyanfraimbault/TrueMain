@@ -19,6 +19,8 @@ public sealed class Worker(
         var options = jobOptions.Value;
         var mode = JobModeParser.Parse(options.Mode);
 
+        await ReconcileOrphanedRunsAsync(stoppingToken);
+
         do
         {
             TouchHeartbeat();
@@ -41,6 +43,35 @@ public sealed class Worker(
                 delayMinutes);
             await Task.Delay(TimeSpan.FromMinutes(delayMinutes), stoppingToken);
         } while (!stoppingToken.IsCancellationRequested);
+    }
+
+    private async Task ReconcileOrphanedRunsAsync(CancellationToken stoppingToken)
+    {
+        // Single-instance ingestor: any ProcessRun still Running at boot was
+        // orphaned by the previous process (a crash, OOM-kill or redeploy) and can
+        // never complete, so it would otherwise read as a ghost "Running" forever.
+        // Reconcile once before the main loop. A failure here must never stop the
+        // worker from starting, so it is caught and logged.
+        try
+        {
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var recorder = scope.ServiceProvider.GetRequiredService<IProcessRunRecorder>();
+            var abandoned = await recorder.ReconcileOrphanedRunsAsync(stoppingToken);
+            if (abandoned > 0)
+            {
+                logger.LogWarning(
+                    "Reconciled {AbandonedCount} orphaned Running process run(s) to Abandoned at startup.",
+                    abandoned);
+            }
+            else
+            {
+                logger.LogInformation("No orphaned Running process runs to reconcile at startup.");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Startup reconciliation of orphaned process runs failed; continuing to start the worker.");
+        }
     }
 
     private void TouchHeartbeat()
