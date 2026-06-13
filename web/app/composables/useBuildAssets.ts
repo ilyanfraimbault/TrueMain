@@ -1,6 +1,30 @@
 import type { RuneTreeResponse, StaticItemData, StaticPerkData, StaticPerkStyleData } from '~~/shared/types/static-data'
 
 /**
+ * Turns build ids (keystone / secondary style / first item) into the icon
+ * objects the `GameTooltip*` components render, given an already-fetched rune
+ * tree + item map. Split out from {@link useBuildAssets} so components that
+ * receive the maps as props (LeaderboardRow, the homepage teaser) resolve them
+ * the exact same way the fetching composable does, without copy-pasting the
+ * three lookups.
+ */
+export function useBuildResolvers(
+  runeTree: MaybeRefOrGetter<RuneTreeResponse | null | undefined>,
+  itemsMap: MaybeRefOrGetter<Record<number, StaticItemData> | undefined>,
+) {
+  function perk(id: number | null | undefined): StaticPerkData | null {
+    return id ? toValue(runeTree)?.perks?.[id] ?? null : null
+  }
+  function perkStyle(id: number | null | undefined): StaticPerkStyleData | null {
+    return id ? toValue(runeTree)?.perkStyles?.[id] ?? null : null
+  }
+  function item(id: number | null | undefined): StaticItemData | null {
+    return id ? toValue(itemsMap)?.[id] ?? null : null
+  }
+  return { perk, perkStyle, item }
+}
+
+/**
  * Fetches the static rune tree + item map for a patch and exposes resolvers
  * that turn build ids (keystone / secondary style / first item) into the icon
  * objects the `GameTooltip*` components render. Client-only and TTL-cached the
@@ -44,18 +68,7 @@ export function useBuildAssets(patch: MaybeRefOrGetter<string | null | undefined
     { watch: [patchRef], server: false, default: () => ({}), getCachedData: key => getStaticCachedData(key, nuxtApp) },
   )
 
-  function perk(id: number | null | undefined): StaticPerkData | null {
-    if (!id) return null
-    return runeTree.value?.perks?.[id] ?? null
-  }
-  function perkStyle(id: number | null | undefined): StaticPerkStyleData | null {
-    if (!id) return null
-    return runeTree.value?.perkStyles?.[id] ?? null
-  }
-  function item(id: number | null | undefined): StaticItemData | null {
-    if (!id) return null
-    return itemsMap.value?.[id] ?? null
-  }
+  const { perk, perkStyle, item } = useBuildResolvers(runeTree, itemsMap)
 
   return { runeTree, itemsMap, perk, perkStyle, item }
 }

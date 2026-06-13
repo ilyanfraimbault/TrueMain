@@ -93,6 +93,10 @@ void main() {
 
 const FRAME_INTERVAL_MS = 1000 / 30
 const MAX_DPR = 1.5
+// Arbitrary mid-animation timestamp for the single frame drawn when motion is
+// off (reduced-motion / pre-loop resize) — far enough in that the folds are
+// developed rather than the near-empty t=0 field.
+const STATIC_FRAME_SECONDS = 120
 
 onMounted(() => {
   const canvas = canvasRef.value
@@ -198,7 +202,7 @@ onMounted(() => {
   function syncMotion() {
     if (reducedMotion.matches) {
       stop()
-      draw(120)
+      draw(STATIC_FRAME_SECONDS)
     }
     else {
       start()
@@ -206,7 +210,12 @@ onMounted(() => {
   }
 
   const resizeObserver = new ResizeObserver(() => {
-    if (!rafId) draw(reducedMotion.matches ? 120 : performance.now() / 1000)
+    // Only repaint when the loop is parked, and keep the timestamp consistent
+    // with the loop (relative to the first frame) rather than raw page time.
+    if (rafId) return
+    draw(reducedMotion.matches
+      ? STATIC_FRAME_SECONDS
+      : startTime ? (performance.now() - startTime) / 1000 : 0)
   })
   resizeObserver.observe(canvas)
 

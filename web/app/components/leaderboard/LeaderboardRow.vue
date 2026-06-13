@@ -54,15 +54,9 @@ const kdaLabel = computed(() => {
   return kda === null ? null : kda.toFixed(1)
 })
 
-function perk(id: number | null | undefined) {
-  return id ? props.runeTree?.perks?.[id] ?? null : null
-}
-function perkStyle(id: number | null | undefined) {
-  return id ? props.runeTree?.perkStyles?.[id] ?? null : null
-}
-function buildItem(id: number | null | undefined) {
-  return id ? props.itemsMap?.[id] ?? null : null
-}
+// Shared with the homepage teaser — resolve build ids the same way the
+// fetching composable does.
+const { perk, perkStyle, item: buildItem } = useBuildResolvers(() => props.runeTree, () => props.itemsMap)
 
 function championName(id: number): string {
   return props.championsById.get(id)?.name ?? `#${id}`
