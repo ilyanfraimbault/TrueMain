@@ -68,16 +68,16 @@ void main() {
   // Tight ramp: only the crests of the field light up, the troughs stay
   // fully transparent. That transparency is what reads as shadow between the
   // emerald folds — keep it, don't fill it, or the whole thing goes flat green.
-  float glow = smoothstep(0.42, 0.95, field);
+  float glow = smoothstep(0.40, 0.95, field);
 
   vec3 deep = vec3(0.024, 0.306, 0.231);
   vec3 mid = vec3(0.063, 0.725, 0.506);
   vec3 bright = vec3(0.204, 0.827, 0.600);
-  vec3 color = deep * glow * 0.85
-    + mid * pow(glow, 2.0) * 0.5
-    + bright * pow(glow, 4.0) * 0.32;
+  vec3 color = deep * glow * 0.9
+    + mid * pow(glow, 2.0) * 0.55
+    + bright * pow(glow, 4.0) * 0.35;
 
-  float alpha = clamp(glow * 0.6 * vgrad, 0.0, 0.6);
+  float alpha = clamp(glow * 0.74 * vgrad, 0.0, 0.74);
   gl_FragColor = vec4(color, alpha);
 }
 `
