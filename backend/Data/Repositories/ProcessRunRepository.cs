@@ -19,4 +19,11 @@ public sealed class ProcessRunRepository(TrueMainDbContext db) : IProcessRunRepo
         => await db.ProcessRuns
             .Where(run => run.Status == ProcessRunStatus.Running)
             .ToListAsync(ct);
+
+    public async Task<int> TouchHeartbeatAsync(Guid id, DateTime nowUtc, CancellationToken ct)
+        // Set-based UPDATE: no entity load, no SaveChanges. The Status guard makes
+        // it a no-op for a missing or already-terminal row.
+        => await db.ProcessRuns
+            .Where(run => run.Id == id && run.Status == ProcessRunStatus.Running)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(run => run.LastHeartbeatAtUtc, nowUtc), ct);
 }

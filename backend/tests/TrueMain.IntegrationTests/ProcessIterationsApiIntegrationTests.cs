@@ -161,6 +161,9 @@ public sealed class ProcessIterationsApiIntegrationTests
             Host = "test-host"
         };
 
+    // Fresh heartbeat (mirrors the start, as RecordStartAsync does in production)
+    // so the read query reports this as Running rather than mapping a stale beat
+    // to Abandoned.
     private static ProcessRun BuildRunning(Guid? iterationId, string processName, DateTime startedAtUtc)
         => new()
         {
@@ -170,7 +173,8 @@ public sealed class ProcessIterationsApiIntegrationTests
             FinishedAtUtc = startedAtUtc,
             DurationMs = 0,
             Status = ProcessRunStatus.Running,
-            Host = "test-host"
+            Host = "test-host",
+            LastHeartbeatAtUtc = startedAtUtc
         };
 
     private sealed class ApiWebApplicationFactory(PostgresFixture fixture)

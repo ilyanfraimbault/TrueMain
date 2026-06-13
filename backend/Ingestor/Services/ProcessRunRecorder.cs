@@ -101,17 +101,11 @@ public sealed class ProcessRunRecorder(
     {
         await using var session = await sessionFactory.CreateAsync(ct);
 
-        // No-op when the row is gone (pruned) or already terminal: only an
+        // Set-based UPDATE guarded on Status == Running: no read round-trip, and a
+        // no-op when the row is gone (pruned) or already terminal — only an
         // in-flight Running row carries a meaningful heartbeat, and refreshing a
         // finished row would resurrect it as "fresh".
-        var existing = await session.ProcessRuns.GetByIdAsync(runId, ct);
-        if (existing is null || existing.Status != ProcessRunStatus.Running)
-        {
-            return;
-        }
-
-        existing.LastHeartbeatAtUtc = DateTime.UtcNow;
-        await session.SaveChangesAsync(ct);
+        await session.ProcessRuns.TouchHeartbeatAsync(runId, DateTime.UtcNow, ct);
     }
 
     public async Task<int> ReconcileOrphanedRunsAsync(CancellationToken ct)

@@ -20,4 +20,13 @@ public interface IProcessRunRepository
     /// is by definition orphaned.
     /// </summary>
     Task<IReadOnlyList<ProcessRun>> GetRunningAsync(CancellationToken ct);
+
+    /// <summary>
+    /// Refreshes the liveness heartbeat of a single still-<c>Running</c> run to
+    /// <paramref name="nowUtc"/> with a set-based UPDATE — no read round-trip and
+    /// no change tracking. Guarded on <c>Status == Running</c> so it is a no-op
+    /// when the row is missing or already terminal (refreshing a finished row would
+    /// wrongly resurrect it as "fresh"). Returns the number of rows updated.
+    /// </summary>
+    Task<int> TouchHeartbeatAsync(Guid id, DateTime nowUtc, CancellationToken ct);
 }
