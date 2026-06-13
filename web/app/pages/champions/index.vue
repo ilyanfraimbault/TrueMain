@@ -384,7 +384,7 @@ function staticItem(id: number | undefined) {
               role="button"
               tabindex="0"
               :aria-label="`View ${row.name} builds`"
-              class="flex cursor-pointer items-center gap-4 rounded-md border border-default/60 bg-elevated/40 px-3 py-2 transition-colors hover:bg-elevated/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-default"
+              class="glass-hover flex cursor-pointer items-center gap-4 rounded-md border border-default/60 bg-elevated/40 px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-default"
               @click="onRowActivate(row)"
               @keydown.enter.prevent="onRowActivate(row)"
               @keydown.space.prevent="onRowActivate(row)"

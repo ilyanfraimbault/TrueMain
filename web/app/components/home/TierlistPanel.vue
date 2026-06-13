@@ -49,7 +49,7 @@ const rows = computed(() =>
 
 <template>
   <section
-    class="rounded-2xl border border-default/60 bg-elevated/30 p-4 backdrop-blur-sm sm:p-5"
+    class="glass rounded-2xl p-3 sm:p-4"
     aria-labelledby="home-tierlist-title"
   >
     <header class="flex items-center justify-between gap-3 pb-3">
@@ -98,7 +98,7 @@ const rows = computed(() =>
              instead of indenting the whole row. -->
         <NuxtLink
           :to="{ path: `/champions/${row.championId}`, query: { position: row.position } }"
-          class="-mx-2 flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-elevated/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          class="glass-hover -mx-2 flex items-center gap-3 rounded-lg px-2 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <span class="w-4 shrink-0 text-center text-xs tabular-nums text-dimmed">
             {{ index + 1 }}

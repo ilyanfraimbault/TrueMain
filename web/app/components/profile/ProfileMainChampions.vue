@@ -37,7 +37,7 @@ function championLink(championId: number) {
     <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
       Main champions
     </h2>
-    <ul class="flex flex-col divide-y divide-default/40 overflow-hidden rounded-lg bg-elevated/40">
+    <ul class="flex flex-col divide-y divide-default/40 overflow-hidden glass rounded-lg">
       <li
         v-for="main in mains"
         :key="main.championId"
