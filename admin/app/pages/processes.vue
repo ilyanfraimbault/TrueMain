@@ -416,15 +416,15 @@ const selectedIterationEntries = computed<IterationEntry[]>(() =>
   })),
 )
 
-// Per-iteration outcome tallies for the detail header.
+// Per-iteration outcome tallies for the detail header. Only finished iterations
+// reach this view (the in-flight one is excluded from the list), so there is no
+// `running` bucket — every run has settled to Success/Failed/Abandoned.
 const selectedIterationTally = computed(() => {
   const runs = selectedIteration.value?.runs ?? []
   return {
-    total: runs.length,
     success: runs.filter(run => run.status === 'Success').length,
     failed: runs.filter(run => run.status === 'Failed').length,
     abandoned: runs.filter(run => run.status === 'Abandoned').length,
-    running: runs.filter(run => run.status === 'Running').length,
   }
 })
 </script>
@@ -1011,13 +1011,6 @@ const selectedIterationTally = computed(() => {
                 variant="subtle"
                 size="sm"
                 :label="`${selectedIterationTally.abandoned} abandoned`"
-              />
-              <UBadge
-                v-if="selectedIterationTally.running > 0"
-                color="primary"
-                variant="subtle"
-                size="sm"
-                :label="`${selectedIterationTally.running} running`"
               />
             </div>
 
