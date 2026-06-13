@@ -162,10 +162,10 @@ public sealed class TruemainsLeaderboardQueryService(
 
         // Chain the build fetch off the top-3 result: it resolves the page's
         // (account, champion) pairs from the selected champions, and still runs
-        // alongside stats / ranks. Note `buildsMs` covers the whole continuation
-        // — the wait on topChampionsTask *plus* the build round trips — since
-        // TimedAsync wraps both, so read it as an upper bound, not the build
-        // query in isolation.
+        // alongside stats / ranks. The metric is named `buildsContinuationMs`
+        // because TimedAsync wraps the whole continuation — the wait on
+        // topChampionsTask *plus* the build round trips — so it is an upper
+        // bound, not the build query in isolation.
         var topChampionsTask = TimedAsync(() => FetchTopChampionsAsync(puuids, ct));
         var buildsTask = TimedAsync(async () =>
         {
@@ -178,7 +178,7 @@ public sealed class TruemainsLeaderboardQueryService(
         var (topChampionsByPuuid, topChampMs) = await topChampionsTask;
         var (statsByPuuid, statsMs) = await statsTask;
         var (ranksByAccount, ranksMs) = await ranksTask;
-        var (buildsByPuuidChampion, buildsMs) = await buildsTask;
+        var (buildsByPuuidChampion, buildsContinuationMs) = await buildsTask;
 
         var rank = offset + 1;
         var rows = new List<LeaderboardRowReadModel>(pageRows.Count);
@@ -254,9 +254,9 @@ public sealed class TruemainsLeaderboardQueryService(
 
         totalSw.Stop();
         logger.LogInformation(
-            "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} rows={Rows} total={Total} countMs={CountMs:F1} pageMs={PageMs:F1} topChampMs={TopChampMs:F1} statsMs={StatsMs:F1} ranksMs={RanksMs:F1} buildsMs={BuildsMs:F1} elapsed={ElapsedMs}ms result=miss",
+            "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} rows={Rows} total={Total} countMs={CountMs:F1} pageMs={PageMs:F1} topChampMs={TopChampMs:F1} statsMs={StatsMs:F1} ranksMs={RanksMs:F1} buildsContinuationMs={BuildsContinuationMs:F1} elapsed={ElapsedMs}ms result=miss",
             clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames,
-            rows.Count, total, countMs, pageMs, topChampMs, statsMs, ranksMs, buildsMs, totalSw.ElapsedMilliseconds);
+            rows.Count, total, countMs, pageMs, topChampMs, statsMs, ranksMs, buildsContinuationMs, totalSw.ElapsedMilliseconds);
 
         return response;
     }
