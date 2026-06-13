@@ -51,10 +51,20 @@ public sealed class RiotApiUsageQuery(MongoLogContext context) : IRiotApiUsageQu
             filter &= Filter.Eq(doc => doc.Endpoint, normalizedEndpoint);
         }
 
-        var endpoints = await AggregateEndpointsAsync(filter, ct);
-        var statusCodes = await AggregateStatusCodesAsync(filter, ct);
-        var timeSeries = await AggregateTimeSeriesAsync(filter, unit, binSize, ct);
-        var rateLimit = await LatestRateLimitAsync(filter, ct);
+        // The four reads are independent, so run them concurrently — the Mongo
+        // driver is thread-safe and pools connections, so this cuts the panel's
+        // latency to the slowest single aggregation instead of their sum.
+        var endpointsTask = AggregateEndpointsAsync(filter, ct);
+        var statusCodesTask = AggregateStatusCodesAsync(filter, ct);
+        var timeSeriesTask = AggregateTimeSeriesAsync(filter, unit, binSize, ct);
+        var rateLimitTask = LatestRateLimitAsync(filter, ct);
+
+        await Task.WhenAll(endpointsTask, statusCodesTask, timeSeriesTask, rateLimitTask);
+
+        var endpoints = await endpointsTask;
+        var statusCodes = await statusCodesTask;
+        var timeSeries = await timeSeriesTask;
+        var rateLimit = await rateLimitTask;
 
         // Totals are derived from the per-endpoint rollup so the collection is only
         // grouped once for them (avoids a redundant whole-window aggregation).

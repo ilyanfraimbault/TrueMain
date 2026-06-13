@@ -17,11 +17,12 @@ const WINDOW_ITEMS: { label: string, value: RiotUsageWindow }[] = [
   { label: 'Last 7 days', value: '7d' },
 ]
 
-const window = ref<RiotUsageWindow>('24h')
+// `selectedWindow` (not `window`) to avoid shadowing the browser global.
+const selectedWindow = ref<RiotUsageWindow>('24h')
 const endpoint = ref('')
 
 const filters = computed(() => ({
-  window: window.value,
+  window: selectedWindow.value,
   endpoint: endpoint.value.trim() || undefined,
 }))
 
@@ -51,7 +52,8 @@ function statusColor(code: number): 'success' | 'warning' | 'error' | 'neutral' 
   if (code >= 400) {
     return 'warning'
   }
-  if (code >= 200 && code < 400) {
+  // Everything left is 2xx/3xx (all >= 400 already handled above).
+  if (code >= 200) {
     return 'success'
   }
   return 'neutral'
@@ -144,7 +146,7 @@ function formatBucketLabel(iso: string): string {
   if (Number.isNaN(date.getTime())) {
     return iso
   }
-  if (window.value === '7d') {
+  if (selectedWindow.value === '7d') {
     return date.toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -200,7 +202,7 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
             class="w-56"
           />
           <USelect
-            v-model="window"
+            v-model="selectedWindow"
             :items="WINDOW_ITEMS"
             class="w-40"
           />

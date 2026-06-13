@@ -19,4 +19,9 @@
         <ProjectReference Include="..\Core\Core.csproj"/>
         <ProjectReference Include="..\Data\Data.csproj"/>
     </ItemGroup>
+
+    <ItemGroup>
+        <!-- Expose internal helpers (e.g. RiotEndpointClassifier) to the unit tests. -->
+        <InternalsVisibleTo Include="TrueMain.UnitTests"/>
+    </ItemGroup>
 </Project>
