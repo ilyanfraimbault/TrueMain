@@ -10,7 +10,18 @@
 const IPX_IMAGE_CACHE_SECONDS = 60 * 60 * 24 * 7 // 7 days
 
 export default defineNuxtConfig({
-  modules: ['@nuxt/ui', '@nuxt/image', 'nuxt-charts'],
+  modules: ['@nuxt/ui', '@nuxt/image', '@nuxt/fonts', 'nuxt-charts'],
+  // Self-host Inter (UI/body) + JetBrains Mono (numeric + eyebrow accents) via
+  // @nuxt/fonts so the app stops falling back to the platform sans/mono stacks
+  // (which rendered differently — and worse — across macOS/Windows). Families
+  // are declared explicitly so the download doesn't rely on CSS scanning of the
+  // `--font-*` theme vars.
+  fonts: {
+    families: [
+      { name: 'Inter', provider: 'google' },
+      { name: 'JetBrains Mono', provider: 'google' },
+    ],
+  },
   // Namespace upstream nuxt-charts components under `Nc*` so our own
   // wrappers (e.g. `components/charts/LineChart.vue` → `<ChartsLineChart>`)
   // can use the upstream chart in their template without colliding with
