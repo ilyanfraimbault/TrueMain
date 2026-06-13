@@ -27,6 +27,9 @@ public sealed class ProcessRunRecorder(
             FinishedAtUtc = startedAtUtc,
             DurationMs = 0,
             Status = ProcessRunStatus.Running,
+            // Seed the heartbeat at start so a run that dies before its first
+            // refresh still ages out to Abandoned via the staleness threshold.
+            LastHeartbeatAtUtc = startedAtUtc,
             Host = Environment.MachineName
         };
 
@@ -54,7 +57,9 @@ public sealed class ProcessRunRecorder(
             summaryDoc = JsonDocument.Parse(JsonSerializer.Serialize(summary));
         }
 
-        var durationMs = (int)Math.Max(0, (finishedAtUtc - startedAtUtc).TotalMilliseconds);
+        // Clamp before the int cast: an extreme span (e.g. a very stale run) could
+        // exceed int.MaxValue ms (~24.8 days) and overflow into a negative duration.
+        var durationMs = (int)Math.Clamp((finishedAtUtc - startedAtUtc).TotalMilliseconds, 0, int.MaxValue);
         var truncatedError = Truncate(error, MaxErrorLength);
 
         // Finalise the in-flight Running row in place. If the lookup misses (the
@@ -92,6 +97,46 @@ public sealed class ProcessRunRecorder(
         }
 
         await session.SaveChangesAsync(ct);
+    }
+
+    public async Task HeartbeatAsync(Guid runId, CancellationToken ct)
+    {
+        await using var session = await sessionFactory.CreateAsync(ct);
+
+        // Set-based UPDATE guarded on Status == Running: no read round-trip, and a
+        // no-op when the row is gone (pruned) or already terminal — only an
+        // in-flight Running row carries a meaningful heartbeat, and refreshing a
+        // finished row would resurrect it as "fresh".
+        await session.ProcessRuns.TouchHeartbeatAsync(runId, DateTime.UtcNow, ct);
+    }
+
+    public async Task<int> ReconcileOrphanedRunsAsync(CancellationToken ct)
+    {
+        await using var session = await sessionFactory.CreateAsync(ct);
+
+        // Single-instance ingestor: anything still Running at startup was owned by
+        // the previous process that is now gone, so it can never complete. Flip
+        // every such row to Abandoned with a real finish time and duration so it
+        // stops reading as perpetually in-flight.
+        var orphaned = await session.ProcessRuns.GetRunningAsync(ct);
+        if (orphaned.Count == 0)
+        {
+            return 0;
+        }
+
+        var finishedAtUtc = DateTime.UtcNow;
+        foreach (var run in orphaned)
+        {
+            run.FinishedAtUtc = finishedAtUtc;
+            // Clamp before the int cast: an orphaned run can be arbitrarily old, and
+            // a span over int.MaxValue ms (~24.8 days) would overflow to negative.
+            run.DurationMs = (int)Math.Clamp((finishedAtUtc - run.StartedAtUtc).TotalMilliseconds, 0, int.MaxValue);
+            run.Status = ProcessRunStatus.Abandoned;
+            run.Error = "Abandoned: ingestor restarted while this run was in flight.";
+        }
+
+        await session.SaveChangesAsync(ct);
+        return orphaned.Count;
     }
 
     private static string? Truncate(string? value, int maxLength)

@@ -144,6 +144,10 @@ public sealed class OpsController(
     /// </summary>
     /// <param name="page">1-based page index (backend clamps to ≥ 1).</param>
     /// <param name="pageSize">Iterations per page (backend clamps to [1, 50], default 10).</param>
+    /// <param name="finishedOnly">
+    /// When true, excludes the in-flight iteration from both the page and the total
+    /// so a completed-history list paginates correctly. Default false.
+    /// </param>
     /// <param name="ct">Request cancellation token.</param>
     [HttpGet("process-iterations")]
     [ProducesResponseType(typeof(ProcessIterationsReadModel), StatusCodes.Status200OK)]
@@ -151,9 +155,10 @@ public sealed class OpsController(
     public async Task<ActionResult<ProcessIterationsReadModel>> GetProcessIterationsAsync(
         [FromQuery] int? page,
         [FromQuery] int? pageSize,
+        [FromQuery] bool? finishedOnly,
         CancellationToken ct)
     {
-        var readModel = await processIterationsQueryService.GetAsync(page, pageSize, ct);
+        var readModel = await processIterationsQueryService.GetAsync(page, pageSize, finishedOnly ?? false, ct);
         return Ok(readModel);
     }
 
@@ -256,7 +261,12 @@ public sealed class OpsController(
         // 202 whether the row was freshly created or an existing unprocessed one
         // was returned (idempotency): in both cases the work is accepted and
         // pending, and the caller polls GET /ops/accounts/seed/{id} for progress.
-        return Accepted(new SeedRequestAcceptedResponse { Id = result.Id, Status = result.Status });
+        return Accepted(new SeedRequestAcceptedResponse
+        {
+            Id = result.Id,
+            Status = result.Status,
+            Created = result.Created
+        });
     }
 
     [HttpGet("accounts/seed/{id:guid}")]
@@ -352,10 +362,18 @@ public sealed record SeedAccountRequest
     public string? PlatformId { get; init; }
 }
 
-/// <summary>202 body for an accepted seed request: the row id and its current status.</summary>
+/// <summary>
+/// 202 body for an accepted seed request: the row id, its current status, and
+/// whether it was created by this call. <see cref="Created"/> is <c>true</c> for a
+/// freshly-inserted request and <c>false</c> when an existing unprocessed request
+/// was returned instead (idempotency) — letting the caller tell a brand-new seed
+/// apart from an "already seeded" hit.
+/// </summary>
 public sealed record SeedRequestAcceptedResponse
 {
     public Guid Id { get; init; }
 
     public string Status { get; init; } = string.Empty;
+
+    public bool Created { get; init; }
 }

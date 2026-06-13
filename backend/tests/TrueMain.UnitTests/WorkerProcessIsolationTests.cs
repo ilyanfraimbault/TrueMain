@@ -69,7 +69,10 @@ public sealed class WorkerProcessIsolationTests
         // Wrap the thrower exactly like production does (RecordedProcess persists
         // the Failed run before rethrowing into the worker loop).
         services.AddSingleton<IIngestorProcess>(
-            new RecordedProcess<ThrowingProcess>(new ThrowingProcess("Discovery"), recorder));
+            new RecordedProcess<ThrowingProcess>(
+                new ThrowingProcess("Discovery"),
+                recorder,
+                NullLogger<RecordedProcess<ThrowingProcess>>.Instance));
         foreach (var name in FullSequence.Skip(1))
         {
             services.AddSingleton<IIngestorProcess>(new RecordingProcess(name, executed));

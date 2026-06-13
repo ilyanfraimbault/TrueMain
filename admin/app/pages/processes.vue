@@ -26,6 +26,7 @@ const statusItems = [
   { label: 'Running', value: 'Running' },
   { label: 'Success', value: 'Success' },
   { label: 'Failed', value: 'Failed' },
+  { label: 'Abandoned', value: 'Abandoned' },
 ]
 const sinceItems = [
   { label: 'All time', value: ALL },
@@ -90,34 +91,46 @@ watch([processName, status, sinceWindow], () => {
 })
 
 // Running uses the emerald `primary` accent (in-flight, not yet an outcome);
-// Success is `success`, everything else (Failed) is `error`.
-function statusColor(s: ProcessRunStatus): 'primary' | 'success' | 'error' {
-  if (s === 'Running') {
-    return 'primary'
+// Success is `success`, Abandoned is `warning` (orphaned, not a clean fail),
+// Failed is `error`.
+function statusColor(s: ProcessRunStatus): 'primary' | 'success' | 'error' | 'warning' {
+  switch (s) {
+    case 'Running':
+      return 'primary'
+    case 'Success':
+      return 'success'
+    case 'Abandoned':
+      return 'warning'
+    default:
+      return 'error'
   }
-  return s === 'Success' ? 'success' : 'error'
 }
 function statusIcon(s: ProcessRunStatus): string {
-  if (s === 'Running') {
-    return 'i-lucide-loader-circle'
+  switch (s) {
+    case 'Running':
+      return 'i-lucide-loader-circle'
+    case 'Success':
+      return 'i-lucide-circle-check'
+    case 'Abandoned':
+      return 'i-lucide-circle-slash'
+    default:
+      return 'i-lucide-circle-x'
   }
-  return s === 'Success' ? 'i-lucide-circle-check' : 'i-lucide-circle-x'
 }
-
-// Whether any process currently has an in-flight (Running) latest run, surfaced
-// as a small banner above the rollup so operators see "what's running now".
-const runningProcesses = computed(() =>
-  rollup.value.filter(proc => proc.lastStatus === 'Running'),
-)
 
 // --- Pipeline chain + iterations ---------------------------------------------
 // Recent iterations (one full pass of the chain each), newest first, with their
 // per-process runs. Paged independently of the runs table below.
 const iterationsPage = ref(1)
 const iterationsPageSize = 8
+// `finishedOnly` makes the API exclude the in-flight pass from BOTH the page and
+// the total, so this list is purely completed history and its pagination stays
+// consistent (the running pass is shown by the pipeline chain above, fetched
+// separately). Filtering client-side instead would desync `total` from the rows.
 const iterationsFilters = computed(() => ({
   page: iterationsPage.value,
   pageSize: iterationsPageSize,
+  finishedOnly: true,
 }))
 const {
   data: iterationsData,
@@ -125,7 +138,7 @@ const {
   error: iterationsError,
 } = useProcessIterations(iterationsFilters)
 
-const iterations = computed<ProcessIteration[]>(() => iterationsData.value?.iterations ?? [])
+const finishedIterations = computed<ProcessIteration[]>(() => iterationsData.value?.iterations ?? [])
 const iterationsTotal = computed(() => iterationsData.value?.total ?? 0)
 const iterationsServerPage = computed(() => iterationsData.value?.page ?? iterationsPage.value)
 
@@ -174,7 +187,7 @@ const currentChain = computed<ChainLink[]>(() => {
 })
 const currentIterationRunning = computed(() => latestIteration.value?.isRunning ?? false)
 
-function outcomeColor(outcome: ChainOutcome): 'primary' | 'success' | 'error' | 'neutral' {
+function outcomeColor(outcome: ChainOutcome): 'primary' | 'success' | 'error' | 'warning' | 'neutral' {
   switch (outcome) {
     case 'Running':
       return 'primary'
@@ -182,6 +195,8 @@ function outcomeColor(outcome: ChainOutcome): 'primary' | 'success' | 'error' | 
       return 'success'
     case 'Failed':
       return 'error'
+    case 'Abandoned':
+      return 'warning'
     default:
       return 'neutral'
   }
@@ -194,6 +209,8 @@ function outcomeIcon(outcome: ChainOutcome): string {
       return 'i-lucide-circle-check'
     case 'Failed':
       return 'i-lucide-circle-x'
+    case 'Abandoned':
+      return 'i-lucide-circle-slash'
     default:
       return 'i-lucide-circle-dashed'
   }
@@ -286,6 +303,9 @@ const tableMeta = {
       if (row.original.status === 'Failed') {
         return 'bg-error/5'
       }
+      if (row.original.status === 'Abandoned') {
+        return 'bg-warning/5'
+      }
       if (row.original.status === 'Running') {
         return 'bg-primary/5'
       }
@@ -294,19 +314,116 @@ const tableMeta = {
   },
 }
 
-// --- Summary slide-over ------------------------------------------------------
+// --- Summary formatting ------------------------------------------------------
+// Process summaries are free-form JSON objects (e.g. `{ candidatesFound: 12,
+// queued: 3 }`). Render top-level scalar entries as a readable label/value list
+// instead of dumping raw JSON; keep the raw JSON available as a fallback for
+// nested shapes and for operators who want the exact payload.
+interface SummaryField {
+  key: string
+  label: string
+  value: string
+}
+
+function humanizeKey(key: string): string {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/^./, char => char.toUpperCase())
+    .trim()
+}
+
+function formatSummaryValue(value: unknown): string {
+  if (value === null || value === undefined) {
+    return '—'
+  }
+  if (typeof value === 'number') {
+    return formatNumber(value)
+  }
+  if (typeof value === 'boolean') {
+    return value ? 'Yes' : 'No'
+  }
+  if (typeof value === 'string') {
+    return value
+  }
+  // Nested object/array: compact JSON so the field stays a one-liner.
+  return JSON.stringify(value)
+}
+
+// Top-level scalar/nested fields of a summary object. Returns [] when the
+// summary is absent or not a plain object (arrays/primitives fall back to JSON).
+function summaryFields(summary: ProcessRun['summary']): SummaryField[] {
+  if (!summary || typeof summary !== 'object' || Array.isArray(summary)) {
+    return []
+  }
+  return Object.entries(summary).map(([key, value]) => ({
+    key,
+    label: humanizeKey(key),
+    value: formatSummaryValue(value),
+  }))
+}
+
+function summaryJson(summary: ProcessRun['summary']): string | null {
+  if (summary === null || summary === undefined) {
+    return null
+  }
+  return JSON.stringify(summary, null, 2)
+}
+
+// --- Run slide-over ----------------------------------------------------------
 const detailOpen = ref(false)
 const selectedRun = ref<ProcessRun | null>(null)
 function openDetail(run: ProcessRun) {
   selectedRun.value = run
   detailOpen.value = true
 }
-const selectedSummaryJson = computed(() => {
-  const s = selectedRun.value?.summary
-  if (s === null || s === undefined) {
-    return null
+const selectedSummaryFields = computed(() => summaryFields(selectedRun.value?.summary ?? null))
+const selectedSummaryJson = computed(() => summaryJson(selectedRun.value?.summary ?? null))
+
+// --- Iteration slide-over ----------------------------------------------------
+// Clicking a (finished) iteration opens a formatted breakdown: one entry per
+// process that ran, with its outcome, duration, summary fields and any error —
+// rather than the raw per-run JSON.
+const iterationDetailOpen = ref(false)
+const selectedIteration = ref<ProcessIteration | null>(null)
+function openIterationDetail(iteration: ProcessIteration) {
+  selectedIteration.value = iteration
+  iterationDetailOpen.value = true
+}
+
+// The iteration's runs in canonical chain order, keeping only processes that
+// actually ran this pass (skip `notRun` placeholders in the detail view).
+const selectedIterationLinks = computed<ChainLink[]>(() =>
+  selectedIteration.value
+    ? buildChain(selectedIteration.value.runs).filter(link => link.run)
+    : [],
+)
+
+// Precompute each entry's formatted summary once per iteration, so the template
+// doesn't recompute summaryFields/summaryJson twice per row on every render.
+interface IterationEntry {
+  link: ChainLink
+  fields: SummaryField[]
+  json: string | null
+}
+const selectedIterationEntries = computed<IterationEntry[]>(() =>
+  selectedIterationLinks.value.map(link => ({
+    link,
+    fields: summaryFields(link.run?.summary ?? null),
+    json: summaryJson(link.run?.summary ?? null),
+  })),
+)
+
+// Per-iteration outcome tallies for the detail header. Only finished iterations
+// reach this view (the in-flight one is excluded from the list), so there is no
+// `running` bucket — every run has settled to Success/Failed/Abandoned.
+const selectedIterationTally = computed(() => {
+  const runs = selectedIteration.value?.runs ?? []
+  return {
+    success: runs.filter(run => run.status === 'Success').length,
+    failed: runs.filter(run => run.status === 'Failed').length,
+    abandoned: runs.filter(run => run.status === 'Abandoned').length,
   }
-  return JSON.stringify(s, null, 2)
 })
 </script>
 
@@ -376,26 +493,6 @@ const selectedSummaryJson = computed(() => {
         class="mb-6"
       />
 
-      <!-- Running-now banner: which process(es) are currently in flight. The
-           Running row IS the live state, so this reflects real data only. -->
-      <div
-        v-if="runningProcesses.length > 0"
-        class="mb-6 flex items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 px-4 py-3"
-      >
-        <UIcon
-          name="i-lucide-loader-circle"
-          class="size-5 text-primary animate-spin shrink-0"
-        />
-        <div class="text-sm">
-          <span class="font-medium text-highlighted">
-            {{ runningProcesses.length === 1 ? 'Running now' : `${runningProcesses.length} running now` }}
-          </span>
-          <span class="text-muted">
-            · {{ runningProcesses.map(proc => proc.processName).join(', ') }}
-          </span>
-        </div>
-      </div>
-
       <!-- Pipeline chain: the canonical ordered chain with the current position
            highlighted (the Running link). Reflects the newest iteration's
            per-process outcomes, or a bare not-yet-run chain when none exist. -->
@@ -431,6 +528,7 @@ const selectedSummaryJson = computed(() => {
                 'border-primary/50 bg-primary/10': link.outcome === 'Running',
                 'border-success/30 bg-success/5': link.outcome === 'Success',
                 'border-error/40 bg-error/10': link.outcome === 'Failed',
+                'border-warning/40 bg-warning/10': link.outcome === 'Abandoned',
                 'border-default bg-default opacity-60': link.outcome === 'notRun',
                 'cursor-default': !link.run,
               }"
@@ -445,6 +543,7 @@ const selectedSummaryJson = computed(() => {
                   'text-primary animate-spin': link.outcome === 'Running',
                   'text-success': link.outcome === 'Success',
                   'text-error': link.outcome === 'Failed',
+                  'text-warning': link.outcome === 'Abandoned',
                   'text-dimmed': link.outcome === 'notRun',
                 }"
               />
@@ -481,36 +580,25 @@ const selectedSummaryJson = computed(() => {
           <USkeleton v-for="i in 3" :key="i" class="h-16 w-full rounded-lg" />
         </div>
         <div
-          v-else-if="iterations.length === 0"
+          v-else-if="finishedIterations.length === 0"
           class="py-8 text-center text-sm text-muted border border-default rounded-lg"
         >
-          No pipeline iterations recorded yet.
+          No finished iterations yet.
         </div>
         <div v-else class="space-y-3">
-          <div
-            v-for="iteration in iterations"
+          <button
+            v-for="iteration in finishedIterations"
             :key="iteration.iterationId"
-            class="rounded-lg border p-4 bg-elevated/25"
-            :class="iteration.isRunning ? 'border-primary/40' : 'border-default'"
+            type="button"
+            class="block w-full text-left rounded-lg border border-default p-4 bg-elevated/25 transition-colors hover:bg-elevated/50 hover:border-primary/40"
+            title="View iteration summary"
+            @click="openIterationDetail(iteration)"
           >
             <div class="flex items-center justify-between gap-2 mb-3">
-              <div class="flex items-center gap-2 text-sm">
-                <UIcon
-                  v-if="iteration.isRunning"
-                  name="i-lucide-loader-circle"
-                  class="size-4 text-primary animate-spin shrink-0"
-                />
-                <span class="text-muted">
-                  {{ formatDateTime(iteration.startedAtUtc) }}
-                </span>
-              </div>
-              <UBadge
-                v-if="iteration.isRunning"
-                color="primary"
-                variant="subtle"
-                size="sm"
-                label="Running"
-              />
+              <span class="text-sm text-muted">
+                {{ formatDateTime(iteration.startedAtUtc) }}
+              </span>
+              <UIcon name="i-lucide-chevron-right" class="size-4 text-dimmed shrink-0" />
             </div>
 
             <div class="flex flex-wrap items-center gap-y-2">
@@ -518,19 +606,16 @@ const selectedSummaryJson = computed(() => {
                 v-for="(link, i) in buildChain(iteration.runs)"
                 :key="link.processName"
               >
-                <button
-                  type="button"
-                  class="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 transition-colors"
+                <span
+                  class="inline-flex items-center gap-1.5 rounded-md border px-2 py-1"
                   :class="{
                     'border-primary/50 bg-primary/10': link.outcome === 'Running',
                     'border-success/30 bg-success/5': link.outcome === 'Success',
                     'border-error/40 bg-error/10': link.outcome === 'Failed',
+                    'border-warning/40 bg-warning/10': link.outcome === 'Abandoned',
                     'border-default bg-default opacity-50': link.outcome === 'notRun',
-                    'cursor-default': !link.run,
                   }"
-                  :disabled="!link.run"
                   :title="`${link.processName} · ${outcomeLabel(link.outcome)}`"
-                  @click="link.run && openDetail(link.run)"
                 >
                   <UIcon
                     :name="outcomeIcon(link.outcome)"
@@ -539,6 +624,7 @@ const selectedSummaryJson = computed(() => {
                       'text-primary animate-spin': link.outcome === 'Running',
                       'text-success': link.outcome === 'Success',
                       'text-error': link.outcome === 'Failed',
+                      'text-warning': link.outcome === 'Abandoned',
                       'text-dimmed': link.outcome === 'notRun',
                     }"
                   />
@@ -548,7 +634,7 @@ const selectedSummaryJson = computed(() => {
                   >
                     {{ chainLabel(link.processName) }}
                   </span>
-                </button>
+                </span>
                 <UIcon
                   v-if="i < PIPELINE_CHAIN.length - 1"
                   name="i-lucide-chevron-right"
@@ -556,7 +642,7 @@ const selectedSummaryJson = computed(() => {
                 />
               </template>
             </div>
-          </div>
+          </button>
         </div>
 
         <!-- Iteration pagination -->
@@ -855,14 +941,154 @@ const selectedSummaryJson = computed(() => {
               <p class="text-muted text-xs uppercase mb-1.5">
                 Summary
               </p>
+              <dl
+                v-if="selectedSummaryFields.length > 0"
+                class="text-sm border border-default rounded-md divide-y divide-default"
+              >
+                <div
+                  v-for="field in selectedSummaryFields"
+                  :key="field.key"
+                  class="flex justify-between gap-3 px-3 py-1.5"
+                >
+                  <dt class="text-muted">
+                    {{ field.label }}
+                  </dt>
+                  <dd class="text-highlighted text-right tabular-nums break-all">
+                    {{ field.value }}
+                  </dd>
+                </div>
+              </dl>
               <pre
-                v-if="selectedSummaryJson"
+                v-else-if="selectedSummaryJson"
                 class="text-xs bg-elevated/50 border border-default rounded-md p-3 overflow-auto"
               >{{ selectedSummaryJson }}</pre>
               <p v-else class="text-sm text-dimmed">
                 No summary recorded for this run.
               </p>
+
+              <!-- Raw payload stays available for nested shapes / exact values. -->
+              <details v-if="selectedSummaryFields.length > 0 && selectedSummaryJson" class="mt-2">
+                <summary class="text-xs text-muted cursor-pointer hover:text-default">
+                  Raw JSON
+                </summary>
+                <pre class="mt-1.5 text-xs bg-elevated/50 border border-default rounded-md p-3 overflow-auto">{{ selectedSummaryJson }}</pre>
+              </details>
             </div>
+          </div>
+        </template>
+      </USlideover>
+
+      <!-- Iteration detail slide-over: a formatted per-process breakdown of one
+           finished pass (outcome, duration, summary fields, error) instead of
+           raw JSON. -->
+      <USlideover
+        v-model:open="iterationDetailOpen"
+        :title="selectedIteration ? 'Iteration summary' : 'Iteration'"
+        :description="selectedIteration ? formatDateTime(selectedIteration.startedAtUtc) : ''"
+      >
+        <template #body>
+          <div v-if="selectedIteration" class="space-y-5">
+            <!-- Outcome tally -->
+            <div class="flex flex-wrap gap-2">
+              <UBadge
+                color="success"
+                variant="subtle"
+                size="sm"
+                :label="`${selectedIterationTally.success} ok`"
+              />
+              <UBadge
+                v-if="selectedIterationTally.failed > 0"
+                color="error"
+                variant="subtle"
+                size="sm"
+                :label="`${selectedIterationTally.failed} failed`"
+              />
+              <UBadge
+                v-if="selectedIterationTally.abandoned > 0"
+                color="warning"
+                variant="subtle"
+                size="sm"
+                :label="`${selectedIterationTally.abandoned} abandoned`"
+              />
+            </div>
+
+            <p
+              v-if="selectedIterationLinks.length === 0"
+              class="text-sm text-dimmed"
+            >
+              No processes ran in this iteration.
+            </p>
+
+            <!-- One collapsible entry per process that ran -->
+            <details
+              v-for="entry in selectedIterationEntries"
+              :key="entry.link.processName"
+              class="rounded-lg border border-default bg-elevated/25 overflow-hidden"
+            >
+              <summary class="flex items-center justify-between gap-2 px-3 py-2.5 cursor-pointer hover:bg-elevated/40">
+                <span class="flex items-center gap-2 min-w-0">
+                  <UIcon
+                    :name="outcomeIcon(entry.link.outcome)"
+                    class="size-4 shrink-0"
+                    :class="{
+                      'text-primary': entry.link.outcome === 'Running',
+                      'text-success': entry.link.outcome === 'Success',
+                      'text-error': entry.link.outcome === 'Failed',
+                      'text-warning': entry.link.outcome === 'Abandoned',
+                    }"
+                  />
+                  <span class="text-sm font-medium text-highlighted truncate">
+                    {{ chainLabel(entry.link.processName) }}
+                  </span>
+                </span>
+                <span class="flex items-center gap-2 shrink-0">
+                  <span class="text-xs text-dimmed tabular-nums">
+                    {{ entry.link.run && entry.link.outcome !== 'Running' ? formatDuration(entry.link.run.durationMs) : '—' }}
+                  </span>
+                  <UBadge
+                    v-if="entry.link.run"
+                    :color="statusColor(entry.link.run.status)"
+                    variant="subtle"
+                    size="sm"
+                    :label="entry.link.run.status"
+                  />
+                </span>
+              </summary>
+
+              <div v-if="entry.link.run" class="px-3 pb-3 pt-1 space-y-3 border-t border-default">
+                <div v-if="entry.link.run.error">
+                  <p class="text-muted text-xs uppercase mb-1.5">
+                    Error
+                  </p>
+                  <pre class="text-xs text-error bg-error/5 border border-error/20 rounded-md p-2.5 overflow-auto whitespace-pre-wrap">{{ entry.link.run.error }}</pre>
+                </div>
+
+                <dl
+                  v-if="entry.fields.length > 0"
+                  class="text-sm border border-default rounded-md divide-y divide-default"
+                >
+                  <div
+                    v-for="field in entry.fields"
+                    :key="field.key"
+                    class="flex justify-between gap-3 px-3 py-1.5"
+                  >
+                    <dt class="text-muted">
+                      {{ field.label }}
+                    </dt>
+                    <dd class="text-highlighted text-right tabular-nums break-all">
+                      {{ field.value }}
+                    </dd>
+                  </div>
+                </dl>
+                <pre
+                  v-else-if="entry.json"
+                  class="text-xs bg-elevated/50 border border-default rounded-md p-3 overflow-auto"
+                >{{ entry.json }}</pre>
+                <p v-else-if="!entry.link.run.error" class="text-sm text-dimmed">
+                  No summary recorded.
+                </p>
+              </div>
+            </details>
           </div>
         </template>
       </USlideover>

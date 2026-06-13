@@ -115,6 +115,32 @@ html {
   font-family: var(--font-sans);
 }
 
+/*
+ * Glass surface — the translucent, blurred panel material used across the app
+ * (home panels, search box, tooltips). Material only: choose your own radius
+ * and padding at the call site. Built on the Nuxt UI bg/border tokens so it
+ * tracks both colour modes automatically.
+ *
+ * `.glass-hover` adds an emerald-tinted hover/focus wash for interactive rows
+ * and tiles — deliberately *not* the neutral `bg-elevated` grey, which reads
+ * as a dead "disabled" hover against the emerald surface.
+ */
+@utility glass {
+  border: 1px solid color-mix(in oklch, var(--ui-border) 65%, transparent);
+  background-color: color-mix(in oklch, var(--ui-bg-elevated) 35%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+@utility glass-hover {
+  transition: background-color 150ms ease;
+
+  &:hover,
+  &:focus-visible {
+    background-color: color-mix(in oklch, var(--ui-color-primary-500) 12%, transparent);
+  }
+}
+
 .dark {
   --ui-bg: var(--ui-color-neutral-900);
   --ui-bg-muted: var(--ui-color-neutral-800);

@@ -1,4 +1,5 @@
 using Data;
+using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using TrueMain.ReadModels.Ops;
 
@@ -10,16 +11,37 @@ public sealed class ProcessIterationsQueryService(TrueMainDbContext db) : IProce
     private const int MinPageSize = 1;
     private const int MaxPageSize = 50;
 
-    public async Task<ProcessIterationsReadModel> GetAsync(int? page, int? pageSize, CancellationToken ct)
+    public async Task<ProcessIterationsReadModel> GetAsync(int? page, int? pageSize, bool finishedOnly, CancellationToken ct)
     {
         var effectivePage = Math.Clamp(page ?? 1, 1, int.MaxValue / MaxPageSize);
         var effectivePageSize = Math.Clamp(pageSize ?? DefaultPageSize, MinPageSize, MaxPageSize);
+
+        // Capture "now" once, up front, so the finishedOnly SQL filter and the
+        // in-memory effective-status mapping below judge staleness against the exact
+        // same instant — capturing it twice could disagree by the query's duration.
+        var now = DateTime.UtcNow;
 
         // Only iteration-stamped runs group into the chain view; historical
         // un-grouped rows (IterationId == null) stay in the flat runs feed.
         var grouped = db.ProcessRuns
             .AsNoTracking()
             .Where(run => run.IterationId != null);
+
+        // `finishedOnly` drops the in-flight pass from BOTH the page and the total,
+        // so the completed-history list paginates without an off-by-one (the chain
+        // view fetches the running iteration separately). An iteration is in flight
+        // when it has a Running run with a still-fresh heartbeat — the same
+        // staleness rule the read mapping uses, expressed here as a NOT EXISTS so
+        // the count stays correct pre-paging.
+        if (finishedOnly)
+        {
+            var freshCutoff = now - ProcessRunStaleness.Threshold;
+            grouped = grouped.Where(run => !db.ProcessRuns.Any(other =>
+                other.IterationId == run.IterationId
+                && other.Status == ProcessRunStatus.Running
+                && other.LastHeartbeatAtUtc != null
+                && other.LastHeartbeatAtUtc >= freshCutoff));
+        }
 
         // One header row per iteration, ordered newest-first by when the pass
         // began, paged before any per-run materialisation so a deep history stays
@@ -69,6 +91,10 @@ public sealed class ProcessIterationsQueryService(TrueMainDbContext db) : IProce
             .GroupBy(run => run.IterationId!.Value)
             .ToDictionary(group => group.Key, group => group.ToList());
 
+        // Age stale-heartbeat Running rows out to Abandoned in memory (the
+        // freshness math can't be expressed in the SQL projection cheaply), so
+        // IsRunning is true only when a run is *genuinely* in flight. Reuses the
+        // single `now` captured above so the page and the finishedOnly filter agree.
         var iterations = pageKeys
             .Select(key =>
             {
@@ -80,7 +106,7 @@ public sealed class ProcessIterationsQueryService(TrueMainDbContext db) : IProce
                     LastActivityAtUtc = runs.Count == 0
                         ? key.StartedAtUtc
                         : runs.Max(run => run.FinishedAtUtc),
-                    IsRunning = runs.Any(run => run.Status == Data.Entities.ProcessRunStatus.Running),
+                    IsRunning = runs.Any(run => ProcessRunStaleness.EffectiveStatus(run.Status, run.LastHeartbeatAtUtc, now) == ProcessRunStatus.Running),
                     Runs = runs
                         .Select(run => new ProcessRunReadModel
                         {
@@ -89,9 +115,10 @@ public sealed class ProcessIterationsQueryService(TrueMainDbContext db) : IProce
                             StartedAtUtc = run.StartedAtUtc,
                             FinishedAtUtc = run.FinishedAtUtc,
                             DurationMs = run.DurationMs,
-                            Status = run.Status.ToString(),
+                            Status = ProcessRunStaleness.EffectiveStatus(run.Status, run.LastHeartbeatAtUtc, now).ToString(),
                             Error = run.Error,
                             Host = run.Host,
+                            LastHeartbeatAtUtc = run.LastHeartbeatAtUtc,
                             // Clone so the value outlives the JsonDocument; written as raw JSON.
                             Summary = run.Summary?.RootElement.Clone()
                         })
@@ -108,4 +135,5 @@ public sealed class ProcessIterationsQueryService(TrueMainDbContext db) : IProce
             PageSize = effectivePageSize
         };
     }
+
 }

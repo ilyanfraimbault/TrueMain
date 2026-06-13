@@ -270,7 +270,10 @@ const bulkRegionItems = TRACKED_REGIONS.map(r => ({ label: r, value: r }))
 // Per-row seeding outcome, kept separate from the parsed-row identity so a
 // re-parse (editing the textarea) doesn't wipe an in-flight/finished run until
 // the user actually changes the rows.
-type RowOutcome = 'pending' | 'queued' | 'ok' | 'failed'
+// `duplicate` = the backend returned an existing (still-unprocessed) request
+// instead of creating one, i.e. this account was already seeded. It's a soft
+// outcome (no work lost), distinct from a hard `failed`.
+type RowOutcome = 'pending' | 'queued' | 'ok' | 'duplicate' | 'failed'
 
 interface ParsedRow {
   // Stable identity for dedupe + outcome tracking (lowercased triple).
@@ -404,10 +407,40 @@ watch(validSignature, () => {
 const okCount = computed(() =>
   Object.values(outcomes.value).filter(o => o.outcome === 'ok').length,
 )
+const duplicateCount = computed(() =>
+  Object.values(outcomes.value).filter(o => o.outcome === 'duplicate').length,
+)
 const failedCount = computed(() =>
   Object.values(outcomes.value).filter(o => o.outcome === 'failed').length,
 )
-const hasRun = computed(() => okCount.value > 0 || failedCount.value > 0)
+const hasRun = computed(() => okCount.value > 0 || duplicateCount.value > 0 || failedCount.value > 0)
+
+// Shared run summary, used by BOTH the completion toast and the persistent
+// result banner so they never disagree. A clean run created every row; otherwise
+// some were already seeded and/or failed.
+const summaryClean = computed(() => failedCount.value === 0 && duplicateCount.value === 0)
+const summaryTitle = computed(() =>
+  failedCount.value > 0
+    ? 'Import finished with errors'
+    : duplicateCount.value > 0
+      ? 'Some accounts were already seeded'
+      : 'All rows queued',
+)
+// Only the non-zero buckets, so an all-already-seeded run reads "3 already
+// seeded" rather than "0 queued · 3 already seeded".
+const summaryDescription = computed(() => {
+  const parts: string[] = []
+  if (okCount.value > 0) {
+    parts.push(`${okCount.value} queued`)
+  }
+  if (duplicateCount.value > 0) {
+    parts.push(`${duplicateCount.value} already seeded`)
+  }
+  if (failedCount.value > 0) {
+    parts.push(`${failedCount.value} failed`)
+  }
+  return parts.join(' · ')
+})
 
 const progressPercent = computed(() => {
   const total = validRows.value.length
@@ -447,7 +480,13 @@ async function seedAll() {
           tagLine: row.tagLine,
           platformId: row.region,
         })
-        outcomes.value[row.key] = { outcome: 'ok', status: res.status, error: null }
+        // `created === false` means the backend returned an existing request
+        // for this Riot ID + platform — already seeded, nothing new queued.
+        outcomes.value[row.key] = {
+          outcome: res.created ? 'ok' : 'duplicate',
+          status: res.status,
+          error: null,
+        }
       }
       catch (err: unknown) {
         outcomes.value[row.key] = { outcome: 'failed', status: null, error: extractError(err) }
@@ -465,13 +504,11 @@ async function seedAll() {
   }
   finally {
     running.value = false
-    const ok = okCount.value
-    const failed = failedCount.value
     toast.add({
-      title: failed === 0 ? 'All rows queued' : 'Import finished with errors',
-      description: `${ok} queued · ${failed} failed`,
-      color: failed === 0 ? 'success' : 'warning',
-      icon: failed === 0 ? 'i-lucide-circle-check' : 'i-lucide-triangle-alert',
+      title: summaryTitle.value,
+      description: summaryDescription.value,
+      color: summaryClean.value ? 'success' : 'warning',
+      icon: summaryClean.value ? 'i-lucide-circle-check' : 'i-lucide-triangle-alert',
     })
     // Surface the newly-queued rows in the shared history below.
     refresh()
@@ -497,8 +534,15 @@ const previewColumns: TableColumn<PreviewRow>[] = [
 
 const previewTableMeta = {
   class: {
-    tr: (row: { original: PreviewRow }) =>
-      !row.original.valid || row.original.outcome === 'failed' ? 'bg-error/5' : '',
+    tr: (row: { original: PreviewRow }) => {
+      if (!row.original.valid || row.original.outcome === 'failed') {
+        return 'bg-error/5'
+      }
+      if (row.original.outcome === 'duplicate') {
+        return 'bg-warning/5'
+      }
+      return ''
+    },
   },
 }
 
@@ -510,6 +554,8 @@ function outcomeBadge(row: PreviewRow): { color: BadgeColor, icon: string, label
   switch (row.outcome) {
     case 'ok':
       return { color: 'success', icon: 'i-lucide-circle-check', label: 'Queued' }
+    case 'duplicate':
+      return { color: 'warning', icon: 'i-lucide-circle-alert', label: 'Already seeded' }
     case 'failed':
       return { color: 'error', icon: 'i-lucide-circle-x', label: 'Failed' }
     case 'queued':
@@ -767,8 +813,9 @@ const tableMeta = {
 
       <USeparator class="my-8" />
 
-      <!-- 2) Bulk add -->
-      <section class="max-w-4xl">
+      <!-- 2) Bulk add — full-width so the preview table uses all available space.
+           (The single-add form above stays narrow; this section drives a table.) -->
+      <section>
         <div class="flex items-center gap-2 mb-1">
           <UIcon name="i-lucide-clipboard-list" class="size-4 text-primary" />
           <h2 class="text-sm font-medium text-highlighted">
@@ -857,11 +904,11 @@ const tableMeta = {
         <!-- Final summary -->
         <UAlert
           v-else-if="hasRun"
-          :color="failedCount === 0 ? 'success' : 'warning'"
+          :color="summaryClean ? 'success' : 'warning'"
           variant="subtle"
-          :icon="failedCount === 0 ? 'i-lucide-circle-check' : 'i-lucide-triangle-alert'"
-          :title="failedCount === 0 ? 'All rows queued' : 'Finished with errors'"
-          :description="`${okCount} queued · ${failedCount} failed. Matches & mains follow on the next ingestion run.`"
+          :icon="summaryClean ? 'i-lucide-circle-check' : 'i-lucide-triangle-alert'"
+          :title="summaryTitle"
+          :description="`${summaryDescription}. Matches & mains follow on the next ingestion run.`"
           class="mb-4"
         />
 

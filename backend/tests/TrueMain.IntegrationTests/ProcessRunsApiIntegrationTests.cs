@@ -40,7 +40,7 @@ public sealed class ProcessRunsApiIntegrationTests
             .Should().BeEquivalentTo(
             [
                 "id", "processName", "startedAtUtc", "finishedAtUtc",
-                "durationMs", "status", "error", "host", "summary"
+                "durationMs", "status", "error", "host", "lastHeartbeatAtUtc", "summary"
             ]);
 
         var firstRollup = document.RootElement.GetProperty("rollup")[0];
@@ -430,7 +430,10 @@ public sealed class ProcessRunsApiIntegrationTests
         };
 
     // An in-flight run: Running status, no finish yet (FinishedAtUtc mirrors the
-    // start as a placeholder), zero duration, no summary/error.
+    // start as a placeholder), zero duration, no summary/error. The heartbeat is
+    // fresh (mirrors the start, as RecordStartAsync does in production) so the
+    // read query reports it as Running rather than mapping a stale beat to
+    // Abandoned.
     private static ProcessRun BuildRunning(string processName, DateTime startedAtUtc)
         => new()
         {
@@ -441,6 +444,7 @@ public sealed class ProcessRunsApiIntegrationTests
             Status = ProcessRunStatus.Running,
             Error = null,
             Host = "test-host",
+            LastHeartbeatAtUtc = startedAtUtc,
             Summary = null
         };
 

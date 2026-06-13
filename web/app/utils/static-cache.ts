@@ -26,7 +26,7 @@ function readTimestamp(key: string, host: PayloadHost): number | undefined {
  * resolved value across navigations, expiring after {@link STATIC_CACHE_TTL_MS}.
  *
  * Without this, `useFetch` re-issues its request every time the composable
- * mounts on a new page (`/champions` -> `/meta` -> `/champions` triggers two
+ * mounts on a new page (`/champions` -> `/truemains` -> `/champions` triggers two
  * fetches). The Nitro layer already caches the upstream response for 1h, so
  * we mirror that on the client to skip the round trip entirely.
  *

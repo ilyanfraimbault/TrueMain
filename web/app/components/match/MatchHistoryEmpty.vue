@@ -10,7 +10,7 @@ defineProps<{
 </script>
 
 <template>
-  <div class="rounded-lg bg-elevated/30 px-6 py-12 text-center">
+  <div class="glass rounded-lg px-6 py-12 text-center">
     <p class="text-base font-semibold">
       {{ notFound ? 'Player not found' : 'No matches yet' }}
     </p>

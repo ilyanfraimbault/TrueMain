@@ -25,9 +25,11 @@ public sealed record ProcessRunsReadModel
 
 /// <summary>
 /// A single recorded process run. <see cref="Status"/> is the
-/// <c>ProcessRunStatus</c> name ("Success"/"Failed"); <see cref="Error"/> is the
-/// stored failure text (may be null) and <see cref="Summary"/> is the run's JSONB
-/// payload surfaced verbatim, or null when none was recorded.
+/// <c>ProcessRunStatus</c> name ("Success"/"Failed"/"Running"/"Abandoned"); a
+/// stale-heartbeat <c>Running</c> row is reported as "Abandoned" here even though
+/// its stored status is still <c>Running</c>. <see cref="Error"/> is the stored
+/// failure text (may be null) and <see cref="Summary"/> is the run's JSONB payload
+/// surfaced verbatim, or null when none was recorded.
 /// </summary>
 public sealed record ProcessRunReadModel
 {
@@ -46,6 +48,13 @@ public sealed record ProcessRunReadModel
     public string? Error { get; init; }
 
     public string? Host { get; init; }
+
+    /// <summary>
+    /// Last liveness heartbeat of an in-flight run, or null for legacy rows / runs
+    /// that never beat. The frontend can surface how fresh a <c>Running</c> row is;
+    /// the API has already aged a stale one out to "Abandoned" in <see cref="Status"/>.
+    /// </summary>
+    public DateTime? LastHeartbeatAtUtc { get; init; }
 
     public JsonElement? Summary { get; init; }
 }

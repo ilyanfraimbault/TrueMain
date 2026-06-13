@@ -52,7 +52,7 @@ const championTitle = computed(() => `${props.name} · ${props.champion.games} g
     :to="championHref"
     :aria-label="nameTag ? `${name} — view ${name} build` : undefined"
     class="flex items-center gap-2 rounded-lg"
-    :class="nameTag ? '-mx-1 px-1 py-0.5 transition-colors hover:bg-elevated/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary' : ''"
+    :class="nameTag ? 'glass-hover -mx-1 px-1 py-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary' : ''"
   >
     <SkeletonImage
       :src="iconUrl"

@@ -76,9 +76,12 @@ public sealed class WorkerResilienceTests
         await worker.StartAsync(CancellationToken.None);
         await worker.ExecuteTask!;
 
-        // One scope is created and disposed per process in the sequence.
-        countingScopeFactory.ScopesCreated.Should().Be(processNames.Length);
-        countingScopeFactory.ScopesDisposed.Should().Be(processNames.Length);
+        // One scope is created and disposed per process in the sequence, plus one
+        // up front for the startup orphaned-run reconciliation (which runs once
+        // before the main loop, in its own scope).
+        const int reconciliationScopes = 1;
+        countingScopeFactory.ScopesCreated.Should().Be(processNames.Length + reconciliationScopes);
+        countingScopeFactory.ScopesDisposed.Should().Be(processNames.Length + reconciliationScopes);
         lifetime.Received(1).StopApplication();
     }
 

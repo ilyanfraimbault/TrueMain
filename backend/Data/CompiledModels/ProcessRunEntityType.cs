@@ -21,7 +21,7 @@ namespace Data.CompiledModels
                 "Data.Entities.ProcessRun",
                 typeof(ProcessRun),
                 baseEntityType,
-                propertyCount: 10,
+                propertyCount: 11,
                 unnamedIndexCount: 2,
                 keyCount: 1);
 
@@ -76,6 +76,14 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(ProcessRun).GetField("<IterationId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 nullable: true);
             iterationId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var lastHeartbeatAtUtc = runtimeEntityType.AddProperty(
+                "LastHeartbeatAtUtc",
+                typeof(DateTime?),
+                propertyInfo: typeof(ProcessRun).GetProperty("LastHeartbeatAtUtc", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(ProcessRun).GetField("<LastHeartbeatAtUtc>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            lastHeartbeatAtUtc.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var processName = runtimeEntityType.AddProperty(
                 "ProcessName",
