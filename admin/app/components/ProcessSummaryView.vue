@@ -93,13 +93,16 @@ interface Column {
   label: string
 }
 const columns = computed<Column[]>(() => {
+  // First-seen order, deduped via a Set for O(1) membership.
   const keys: string[] = []
+  const seen = new Set<string>()
   for (const row of arrayItems.value) {
     if (!isPlainObject(row)) {
       continue
     }
     for (const key of Object.keys(row)) {
-      if (!keys.includes(key)) {
+      if (!seen.has(key)) {
+        seen.add(key)
         keys.push(key)
       }
     }
