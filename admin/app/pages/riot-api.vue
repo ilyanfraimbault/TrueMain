@@ -85,7 +85,9 @@ function parsePairs(raw: string | null | undefined): Map<number, number> {
   }
   for (const pair of raw.split(',')) {
     const [value, win] = pair.split(':').map(part => Number(part.trim()))
-    if (Number.isFinite(value) && Number.isFinite(win)) {
+    // Guard win > 0: a malformed header like "20:" yields Number("") === 0, which
+    // would otherwise surface as a bogus "per 0s" bucket.
+    if (Number.isFinite(value) && Number.isFinite(win) && win! > 0) {
       out.set(win!, value!)
     }
   }
