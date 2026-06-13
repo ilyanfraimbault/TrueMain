@@ -13,13 +13,13 @@ export function useBuildResolvers(
   itemsMap: MaybeRefOrGetter<Record<number, StaticItemData> | undefined>,
 ) {
   function perk(id: number | null | undefined): StaticPerkData | null {
-    return id ? toValue(runeTree)?.perks?.[id] ?? null : null
+    return id != null ? toValue(runeTree)?.perks?.[id] ?? null : null
   }
   function perkStyle(id: number | null | undefined): StaticPerkStyleData | null {
-    return id ? toValue(runeTree)?.perkStyles?.[id] ?? null : null
+    return id != null ? toValue(runeTree)?.perkStyles?.[id] ?? null : null
   }
   function item(id: number | null | undefined): StaticItemData | null {
-    return id ? toValue(itemsMap)?.[id] ?? null : null
+    return id != null ? toValue(itemsMap)?.[id] ?? null : null
   }
   return { perk, perkStyle, item }
 }
