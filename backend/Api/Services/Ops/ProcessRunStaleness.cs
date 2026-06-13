@@ -11,9 +11,12 @@ namespace TrueMain.Services.Ops;
 internal static class ProcessRunStaleness
 {
     /// <summary>
-    /// A Running row whose heartbeat (refreshed every 30s) is older than this — or
-    /// missing entirely — is treated as Abandoned: its owner died without
-    /// finalising it. Four missed beats keeps a healthy-but-slow run from flapping.
+    /// A Running row whose heartbeat is older than this — or missing entirely — is
+    /// treated as Abandoned: its owner died without finalising it. Kept comfortably
+    /// larger than the ingestor's heartbeat interval (see
+    /// <c>RecordedProcess.HeartbeatInterval</c>) so a healthy-but-slow run that
+    /// misses a beat or two doesn't flap to Abandoned. Not coupled to that exact
+    /// value on purpose — it only needs to be a few intervals' worth of slack.
     /// </summary>
     public static readonly TimeSpan Threshold = TimeSpan.FromMinutes(2);
 

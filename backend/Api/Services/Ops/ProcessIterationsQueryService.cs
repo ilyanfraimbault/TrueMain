@@ -16,9 +16,9 @@ public sealed class ProcessIterationsQueryService(TrueMainDbContext db) : IProce
         var effectivePage = Math.Clamp(page ?? 1, 1, int.MaxValue / MaxPageSize);
         var effectivePageSize = Math.Clamp(pageSize ?? DefaultPageSize, MinPageSize, MaxPageSize);
 
-        // Single "now" for the whole request so the finishedOnly SQL filter and the
-        // in-memory effective-status mapping below use the exact same instant (the
-        // same convention as ProcessRunsQueryService).
+        // Capture "now" once, up front, so the finishedOnly SQL filter and the
+        // in-memory effective-status mapping below judge staleness against the exact
+        // same instant — capturing it twice could disagree by the query's duration.
         var now = DateTime.UtcNow;
 
         // Only iteration-stamped runs group into the chain view; historical
