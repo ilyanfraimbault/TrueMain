@@ -46,6 +46,9 @@ const championsById = computed(() => {
 const { data: versions } = useDDragonVersions()
 const ddragonPatch = computed(() => versions.value?.[0] ?? null)
 
+// Rune tree + item icons for the truemains teaser's main-champion builds.
+const { runeTree, itemsMap } = useBuildAssets(ddragonPatch)
+
 // ─── Truemains teaser (SSR, like the /truemains page) ─────────────────────
 const region = ref<RegionSlug | null>(null)
 const {
@@ -207,17 +210,20 @@ const steps = [
         v-model:region="region"
         :rows="truemainRows"
         :champions-by-id="championsById"
+        :rune-tree="runeTree"
+        :items-map="itemsMap"
         :initial-loading="truemainsInitialLoading"
         :loading="truemainsLoading"
         :patch="ddragonPatch"
       />
     </section>
 
-    <!-- How it works — three columns, no cards. A barely-there emerald wash
-         (not flat grey) separates it from the panels above. -->
+    <!-- How it works — three columns, no cards. Transparent so the global
+         AppBackdrop reads through; a hairline divider is all the separation
+         it needs. -->
     <section
       id="how-it-works"
-      class="border-t border-default/60 bg-gradient-to-b from-primary/[0.04] to-transparent"
+      class="border-t border-default/60"
     >
       <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
         <p class="text-center font-mono text-xs font-medium uppercase tracking-[0.12em] text-primary">

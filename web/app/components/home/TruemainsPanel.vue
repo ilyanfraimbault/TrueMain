@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { LeaderboardRowResponse, RegionSlug } from '~~/shared/types/leaderboard'
-import type { ChampionStaticListItem } from '~~/shared/types/static-data'
+import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
 import { getProfileIconUrl } from '~~/shared/utils/ddragon'
 import { formatTier, isApexTier } from '~/utils/tiers'
 
@@ -12,6 +12,9 @@ const props = defineProps<{
   rows: LeaderboardRowResponse[]
   /** championId → static name/icon, for rendering each player's top picks. */
   championsById: Map<number, ChampionStaticListItem>
+  /** Static rune tree + item map, to draw each main champion's keystone + first item. */
+  runeTree: RuneTreeResponse | null
+  itemsMap: Record<number, StaticItemData>
   /** Skeleton state — true until the very first page resolves. */
   initialLoading: boolean
   /** Refetch-in-flight state — dims the current rows during a region switch. */
@@ -56,14 +59,14 @@ function championIcon(id: number): string | null {
   return props.championsById.get(id)?.iconUrl ?? null
 }
 
-// Share of the player's tracked games spent on their #1 champion — the
-// "play rate" the dpm/op.gg leaderboards surface next to the main pick.
-// Clamped because a filtered `stats.games` can occasionally trail the
-// per-champion total.
-function mainPlayRate(row: LeaderboardRowResponse): number | null {
-  const main = row.topChampions[0]
-  if (!main || row.stats.games <= 0) return null
-  return Math.min(100, Math.round((main.games / row.stats.games) * 100))
+function perk(id: number | null | undefined) {
+  return id ? props.runeTree?.perks?.[id] ?? null : null
+}
+function perkStyle(id: number | null | undefined) {
+  return id ? props.runeTree?.perkStyles?.[id] ?? null : null
+}
+function buildItem(id: number | null | undefined) {
+  return id ? props.itemsMap?.[id] ?? null : null
 }
 </script>
 
@@ -187,27 +190,20 @@ function mainPlayRate(row: LeaderboardRowResponse): number | null {
             />
           </div>
 
-          <!-- Main champion + its play rate (the dpm-style "this is what they
-               main" cue). Plain icon, not a link — the whole row already
-               navigates to the profile, and nesting an <a> here would be
-               invalid. Hidden on the narrowest widths. -->
-          <div
+          <!-- Main champion: icon + play rate + keystone + first item. Plain
+               (non-link) icon — the whole row already navigates to the
+               profile. Hidden on the narrowest widths. -->
+          <LeaderboardChampionBuild
             v-if="row.topChampions[0]"
-            class="hidden shrink-0 items-center gap-1.5 sm:flex"
-          >
-            <SkeletonImage
-              :src="championIcon(row.topChampions[0].championId)"
-              :alt="championName(row.topChampions[0].championId)"
-              :title="`${championName(row.topChampions[0].championId)} · ${row.topChampions[0].games} games`"
-              width="28"
-              height="28"
-              class="size-7 rounded-md ring-1 ring-default/40"
-            />
-            <span
-              v-if="mainPlayRate(row) !== null"
-              class="w-9 text-xs tabular-nums text-muted"
-            >{{ mainPlayRate(row) }}%</span>
-          </div>
+            compact
+            class="hidden shrink-0 sm:flex"
+            :champion="row.topChampions[0]"
+            :name="championName(row.topChampions[0].championId)"
+            :icon-url="championIcon(row.topChampions[0].championId)"
+            :keystone="perk(row.topChampions[0].primaryKeystoneId)"
+            :secondary-style="perkStyle(row.topChampions[0].secondaryStyleId)"
+            :first-item="buildItem(row.topChampions[0].firstItemId)"
+          />
 
           <div
             v-if="row.ranked"

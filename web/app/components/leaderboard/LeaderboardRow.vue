@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { LeaderboardRowResponse } from '~~/shared/types/leaderboard'
-import type { ChampionStaticListItem } from '~~/shared/types/static-data'
+import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
 import { getProfileIconUrl } from '~~/shared/utils/ddragon'
 import { isApexTier } from '~/utils/tiers'
 
@@ -11,6 +11,9 @@ import { isApexTier } from '~/utils/tiers'
 const props = defineProps<{
   row: LeaderboardRowResponse
   championsById: Map<number, ChampionStaticListItem>
+  /** Static rune tree + item map, to draw the main champion's keystone + first item. */
+  runeTree: RuneTreeResponse | null
+  itemsMap: Record<number, StaticItemData>
   patch: string | null
 }>()
 
@@ -51,14 +54,15 @@ const kdaLabel = computed(() => {
   return kda === null ? null : kda.toFixed(1)
 })
 
-// Share of tracked games spent on the #1 champion — the "play rate" shown
-// next to the main pick on dpm/op.gg leaderboards. Clamped because a filtered
-// `stats.games` can occasionally trail the per-champion total.
-const mainPlayRate = computed(() => {
-  const main = props.row.topChampions[0]
-  if (!main || props.row.stats.games <= 0) return null
-  return Math.min(100, Math.round((main.games / props.row.stats.games) * 100))
-})
+function perk(id: number | null | undefined) {
+  return id ? props.runeTree?.perks?.[id] ?? null : null
+}
+function perkStyle(id: number | null | undefined) {
+  return id ? props.runeTree?.perkStyles?.[id] ?? null : null
+}
+function buildItem(id: number | null | undefined) {
+  return id ? props.itemsMap?.[id] ?? null : null
+}
 
 function championName(id: number): string {
   return props.championsById.get(id)?.name ?? `#${id}`
@@ -117,40 +121,29 @@ function championIcon(id: number): string | null {
       </span>
     </div>
 
-    <!-- Top champions. The #1 pick is shown larger with its play rate (the
-         dpm/op.gg "this is what they main" cue); the next two ride alongside
-         as smaller icons. No placeholders when the player has no
-         main-champion stats — the column simply collapses and the right
-         stats block slides left, which keeps the row visually honest. -->
+    <!-- Main champion: icon + play rate + keystone (with secondary overlay) +
+         first item — the dpm/op.gg "this is what they main" block. The other
+         mained champions ride alongside as plain icon links. Wrapped in
+         `relative z-10` so the champion links sit above the stretched profile
+         overlay instead of nesting inside it. No placeholders when the player
+         has no main-champion stats — the column simply collapses. -->
     <div
       v-if="row.topChampions.length > 0"
-      class="relative z-10 hidden shrink-0 items-center gap-2 md:flex"
+      class="relative z-10 hidden shrink-0 items-center gap-3 md:flex"
     >
-      <div class="flex items-center gap-1.5">
-        <ChampionLink
-          v-if="championIcon(row.topChampions[0]!.championId)"
-          :champion-id="row.topChampions[0]!.championId"
-          :name="championName(row.topChampions[0]!.championId)"
-          :icon-url="championIcon(row.topChampions[0]!.championId)"
-          :name-tag="rowNameTag"
-          :title="`${championName(row.topChampions[0]!.championId)} · ${row.topChampions[0]!.games} games`"
-          class="size-9"
-        />
-        <div
-          v-else
-          class="size-9 rounded bg-elevated/60"
-          :title="`#${row.topChampions[0]!.championId} · ${row.topChampions[0]!.games} games`"
-          aria-hidden="true"
-        />
-        <span
-          v-if="mainPlayRate !== null"
-          class="w-9 text-xs tabular-nums text-muted"
-        >{{ mainPlayRate }}%</span>
-      </div>
+      <LeaderboardChampionBuild
+        :champion="row.topChampions[0]!"
+        :name="championName(row.topChampions[0]!.championId)"
+        :icon-url="championIcon(row.topChampions[0]!.championId)"
+        :name-tag="rowNameTag"
+        :keystone="perk(row.topChampions[0]!.primaryKeystoneId)"
+        :secondary-style="perkStyle(row.topChampions[0]!.secondaryStyleId)"
+        :first-item="buildItem(row.topChampions[0]!.firstItemId)"
+      />
 
       <div
         v-if="row.topChampions.length > 1"
-        class="flex items-center gap-1"
+        class="hidden items-center gap-1 lg:flex"
       >
         <template v-for="champ in row.topChampions.slice(1)" :key="champ.championId">
           <ChampionLink
