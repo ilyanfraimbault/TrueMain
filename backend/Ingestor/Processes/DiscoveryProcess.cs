@@ -102,15 +102,41 @@ public sealed class DiscoveryProcess(
     {
         var platformId = platform.ToString();
         var summary = new PlatformSummary(platformId);
-        var discovered = await ladderDiscoveryService.DiscoverSummonersAsync(platform, options, ct);
+
+        await using var session = await sessionFactory.CreateAsync(ct);
+
+        // Sliding window (#486): resume from the persisted per-platform offset so
+        // successive runs sweep the whole ladder instead of re-scanning the top.
+        var offset = options.SlidingWindowEnabled
+            ? await session.DiscoveryCursors.GetOffsetAsync(platformId, ct) ?? 0
+            : 0;
+
+        var result = await ladderDiscoveryService.DiscoverSummonersAsync(platform, options, offset, ct);
+        var discovered = result.Discovered;
+
+        // Advance the cursor past this window for the next run, wrapping at the ladder
+        // end. Tracked here and persisted by the SaveChanges calls below.
+        if (options.SlidingWindowEnabled && result.LadderSize > 0)
+        {
+            var window = Math.Max(1, options.MaxAccountsPerPlatformPerRun);
+            var nextOffset = result.AppliedOffset + window;
+            if (nextOffset >= result.LadderSize)
+            {
+                nextOffset = 0;
+            }
+
+            await session.DiscoveryCursors.UpsertOffsetAsync(platformId, nextOffset, DateTime.UtcNow, ct);
+        }
 
         if (discovered.Count == 0)
         {
             logger.LogInformation("No ladder entries for platform {Platform}.", platformId);
+            // Persist the cursor advance even when this window resolved no summoners,
+            // so the next run still moves forward rather than re-scanning the same slice.
+            await session.SaveChangesAsync(ct);
             return summary;
         }
 
-        await using var session = await sessionFactory.CreateAsync(ct);
         var saveBatchSize = Math.Max(1, options.SaveBatchSize);
         var newAccountsTarget = Math.Max(0, options.NewAccountsTarget);
 

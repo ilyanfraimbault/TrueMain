@@ -10,15 +10,30 @@ public sealed class LadderDiscoveryService(IRiotPlatformClient riotPlatformClien
 {
     private const string RankedSoloQueue = "RANKED_SOLO_5x5";
 
-    public async Task<List<DiscoveredSummoner>> DiscoverSummonersAsync(
+    public async Task<LadderDiscoveryResult> DiscoverSummonersAsync(
         PlatformRoute platform,
         DiscoveryOptions options,
+        int offset,
         CancellationToken ct)
     {
         var ladderEntries = await FetchLadderEntriesAsync(platform, options, ct);
-        var boundedEntries = ladderEntries
+        var distinctEntries = ladderEntries
             .DistinctBy(entry => entry.Key, StringComparer.OrdinalIgnoreCase)
-            .Take(Math.Max(0, options.MaxAccountsPerPlatformPerRun))
+            .ToList();
+
+        var ladderSize = distinctEntries.Count;
+        var window = Math.Max(0, options.MaxAccountsPerPlatformPerRun);
+
+        // Sliding window (#486): start the window at the persisted offset and wrap with
+        // a modulo so a stale cursor (ladder shrank between runs) can't skip past the end
+        // and return nothing. Disabled -> always the top of the ladder (offset 0).
+        var appliedOffset = options.SlidingWindowEnabled && ladderSize > 0
+            ? offset % ladderSize
+            : 0;
+
+        var boundedEntries = distinctEntries
+            .Skip(appliedOffset)
+            .Take(window)
             .ToList();
 
         var discovered = new List<DiscoveredSummoner>(boundedEntries.Count);
@@ -35,7 +50,7 @@ public sealed class LadderDiscoveryService(IRiotPlatformClient riotPlatformClien
             discovered.Add(new DiscoveredSummoner(summoner, entry.Rank));
         }
 
-        return discovered;
+        return new LadderDiscoveryResult(discovered, ladderSize, appliedOffset);
     }
 
     private async Task<List<LadderEntry>> FetchLadderEntriesAsync(

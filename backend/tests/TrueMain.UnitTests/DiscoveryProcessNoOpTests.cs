@@ -57,6 +57,6 @@ public sealed class DiscoveryProcessNoOpTests
             Arg.Any<CancellationToken>());
 
         await ladderDiscoveryService.DidNotReceive()
-            .DiscoverSummonersAsync(Arg.Any<PlatformRoute>(), Arg.Any<DiscoveryOptions>(), Arg.Any<CancellationToken>());
+            .DiscoverSummonersAsync(Arg.Any<PlatformRoute>(), Arg.Any<DiscoveryOptions>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
     }
 }

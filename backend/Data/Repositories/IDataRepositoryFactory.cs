@@ -10,4 +10,5 @@ public interface IDataRepositoryFactory
     IProcessRunRepository CreateProcessRunRepository(TrueMainDbContext dbContext);
     IRankSnapshotRepository CreateRankSnapshotRepository(TrueMainDbContext dbContext);
     ISeedRequestRepository CreateSeedRequestRepository(TrueMainDbContext dbContext);
+    IDiscoveryCursorRepository CreateDiscoveryCursorRepository(TrueMainDbContext dbContext);
 }
