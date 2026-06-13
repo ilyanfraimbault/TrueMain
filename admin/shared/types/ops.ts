@@ -184,6 +184,11 @@ export interface ProcessIterationsFilters {
   page?: number
   /** Iterations per page; backend clamps to [1, 50], default 10. */
   pageSize?: number
+  /**
+   * When true, the in-flight iteration is excluded from both the page and the
+   * total, so a completed-history list paginates correctly. Default false.
+   */
+  finishedOnly?: boolean
 }
 
 /** Filters for `GET /api/ops/process-runs`. Empty/undefined = no filter. */

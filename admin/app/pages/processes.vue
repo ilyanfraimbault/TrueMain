@@ -123,9 +123,14 @@ function statusIcon(s: ProcessRunStatus): string {
 // per-process runs. Paged independently of the runs table below.
 const iterationsPage = ref(1)
 const iterationsPageSize = 8
+// `finishedOnly` makes the API exclude the in-flight pass from BOTH the page and
+// the total, so this list is purely completed history and its pagination stays
+// consistent (the running pass is shown by the pipeline chain above, fetched
+// separately). Filtering client-side instead would desync `total` from the rows.
 const iterationsFilters = computed(() => ({
   page: iterationsPage.value,
   pageSize: iterationsPageSize,
+  finishedOnly: true,
 }))
 const {
   data: iterationsData,
@@ -133,14 +138,7 @@ const {
   error: iterationsError,
 } = useProcessIterations(iterationsFilters)
 
-// Recent iterations lists only FINISHED passes — the in-flight one is shown by
-// the pipeline chain above, so repeating it here would be redundant (and, before
-// stale-run reconciliation, could stack ghost "Running" rows). With the backend
-// now mapping a stale-heartbeat run to `Abandoned`, only a genuinely live pass
-// has `isRunning`, so this filter leaves exactly the completed history.
-const finishedIterations = computed<ProcessIteration[]>(() =>
-  (iterationsData.value?.iterations ?? []).filter(iteration => !iteration.isRunning),
-)
+const finishedIterations = computed<ProcessIteration[]>(() => iterationsData.value?.iterations ?? [])
 const iterationsTotal = computed(() => iterationsData.value?.total ?? 0)
 const iterationsServerPage = computed(() => iterationsData.value?.page ?? iterationsPage.value)
 

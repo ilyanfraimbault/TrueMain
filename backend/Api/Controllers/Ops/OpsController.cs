@@ -144,6 +144,10 @@ public sealed class OpsController(
     /// </summary>
     /// <param name="page">1-based page index (backend clamps to ≥ 1).</param>
     /// <param name="pageSize">Iterations per page (backend clamps to [1, 50], default 10).</param>
+    /// <param name="finishedOnly">
+    /// When true, excludes the in-flight iteration from both the page and the total
+    /// so a completed-history list paginates correctly. Default false.
+    /// </param>
     /// <param name="ct">Request cancellation token.</param>
     [HttpGet("process-iterations")]
     [ProducesResponseType(typeof(ProcessIterationsReadModel), StatusCodes.Status200OK)]
@@ -151,9 +155,10 @@ public sealed class OpsController(
     public async Task<ActionResult<ProcessIterationsReadModel>> GetProcessIterationsAsync(
         [FromQuery] int? page,
         [FromQuery] int? pageSize,
+        [FromQuery] bool? finishedOnly,
         CancellationToken ct)
     {
-        var readModel = await processIterationsQueryService.GetAsync(page, pageSize, ct);
+        var readModel = await processIterationsQueryService.GetAsync(page, pageSize, finishedOnly ?? false, ct);
         return Ok(readModel);
     }
 
