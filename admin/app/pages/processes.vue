@@ -1020,7 +1020,7 @@ const selectedIterationTally = computed(() => {
 
                 <ProcessSummaryView
                   v-if="entry.hasSummary"
-                  :value="entry.link.run.summary"
+                  :value="entry.link.run?.summary"
                 />
                 <p v-else-if="!entry.link.run.error" class="text-sm text-dimmed">
                   No summary recorded.
