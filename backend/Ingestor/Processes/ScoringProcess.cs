@@ -161,16 +161,33 @@ public sealed class ScoringProcess(
         var recencyDays = Math.Max(0, (nowUtc - candidate.LastPlayTimeUtc).TotalDays);
         var recencyScore = Clamp(1 - recencyDays / maxLastPlayDays, 0, 1);
 
-        var rankScore = (topN + 1 - candidate.ChampionRankInMasteryTop) / (double)topN;
-        rankScore = Clamp(rankScore, 0, 1);
-
-        var pointsScore = Clamp(Math.Log10(candidate.ChampionPoints + 1) / ChampionPointsLogNormalizer, 0, 1);
-
         var recencyWeight = scoring.RecencyWeight;
         var rankWeight = scoring.RankWeight;
         var pointsWeight = scoring.PointsWeight;
         var scarcityWeight = Math.Max(0, scoring.ScarcityWeight);
         var scarcityScore = coverage.Deficit(candidate.ChampionId);
+
+        // Harvested candidates (#485) have no mastery rank/points — only observed games
+        // from orphan participant rows. They reuse the combined rank+points weight as a
+        // single observed-games merit term, keeping the same weight denominator (and so the
+        // same 0-100 scale) as ladder candidates. The sample is a biased prior, not a main
+        // verdict; final confirmation still comes from history ingestion + MainAnalysis.
+        if (candidate.Source == MainCandidateSource.Harvest)
+        {
+            var normalizer = scoring.HarvestObservedGamesLogNormalizer <= 0 ? 1.5 : scoring.HarvestObservedGamesLogNormalizer;
+            var observedScore = Clamp(Math.Log10(candidate.ObservedGames + 1) / normalizer, 0, 1);
+            var meritWeight = rankWeight + pointsWeight;
+
+            return ComputeWeightedScore(
+                recencyWeight, recencyScore,
+                meritWeight, observedScore,
+                scarcityWeight, scarcityScore);
+        }
+
+        var rankScore = (topN + 1 - candidate.ChampionRankInMasteryTop) / (double)topN;
+        rankScore = Clamp(rankScore, 0, 1);
+
+        var pointsScore = Clamp(Math.Log10(candidate.ChampionPoints + 1) / ChampionPointsLogNormalizer, 0, 1);
 
         // Including scarcityWeight in the denominator is deliberate: it normalises the total
         // while compressing covered-champion scores proportionally, which is what gives
@@ -195,6 +212,27 @@ public sealed class ScoringProcess(
         return 100 * ((recencyWeight / weightSum) * recencyScore
                       + (rankWeight / weightSum) * rankScore
                       + (pointsWeight / weightSum) * pointsScore
+                      + (scarcityWeight / weightSum) * scarcityScore);
+    }
+
+    // Weighted blend of (recency, merit, scarcity) on a 0-100 scale, normalised by the
+    // weight sum so harvested candidates land on the same scale as the ladder formula
+    // above (whose weight denominator is recency + rank + points + scarcity — here
+    // merit = rank + points). Startup validation guarantees the sum is > 0; the guard
+    // is defensive only, mirroring the ladder branch.
+    private static double ComputeWeightedScore(
+        double recencyWeight, double recencyScore,
+        double meritWeight, double meritScore,
+        double scarcityWeight, double scarcityScore)
+    {
+        var weightSum = recencyWeight + meritWeight + scarcityWeight;
+        if (weightSum <= 0)
+        {
+            return 0;
+        }
+
+        return 100 * ((recencyWeight / weightSum) * recencyScore
+                      + (meritWeight / weightSum) * meritScore
                       + (scarcityWeight / weightSum) * scarcityScore);
     }
 

@@ -31,6 +31,18 @@ public sealed class MainCandidateConfiguration : IEntityTypeConfiguration<MainCa
         entity.Property(e => e.ChampionPoints)
             .IsRequired();
 
+        entity.Property(e => e.Source)
+            .IsRequired()
+            .HasDefaultValue(MainCandidateSource.Ladder);
+
+        entity.Property(e => e.ObservedGames)
+            .IsRequired()
+            .HasDefaultValue(0);
+
+        entity.Property(e => e.ObservedWins)
+            .IsRequired()
+            .HasDefaultValue(0);
+
         entity.Property(e => e.LastPlayTimeUtc)
             .IsRequired();
 

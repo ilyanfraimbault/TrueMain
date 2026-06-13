@@ -121,6 +121,7 @@ public sealed class Worker(
         {
             JobMode.DiscoveryOnly => ["Discovery"],
             JobMode.ManualSeedOnly => ["ManualSeed"],
+            JobMode.HarvestOnly => ["Harvest"],
             JobMode.ScoringOnly => ["Scoring"],
             JobMode.MatchIngestionOnly => ["MatchIngestion"],
             JobMode.MainAnalysisOnly => ["MainAnalysis"],
@@ -135,6 +136,10 @@ public sealed class Worker(
                 // ScoringProcess), so a seeded account is picked up by the same
                 // downstream MatchIngestion -> MainAnalysis pass in this run.
                 "ManualSeed",
+                // Harvest generates candidates from orphan match_participants rows at
+                // near-zero Riot cost (#485). It runs before Scoring so harvested
+                // candidates compete in the same per-platform top-N as ladder/manual ones.
+                "Harvest",
                 "Scoring",
                 "MatchIngestion",
                 "MainAnalysis",

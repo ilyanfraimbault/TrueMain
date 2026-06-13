@@ -29,6 +29,7 @@ builder.Services.AddHttpClient<IRiotAccountClient, RiotAccountClient>(ConfigureR
 builder.Services.AddScoped<ILadderDiscoveryService, LadderDiscoveryService>();
 builder.Services.AddScoped<IAccountUpsertService, AccountUpsertService>();
 builder.Services.AddScoped<ICandidateUpsertService, CandidateUpsertService>();
+builder.Services.AddScoped<IParticipantHarvestService, ParticipantHarvestService>();
 builder.Services.AddScoped<IRankSnapshotWriter, RankSnapshotWriter>();
 
 builder.Services.AddScoped<IMatchClaimService, MatchClaimService>();
@@ -51,6 +52,7 @@ builder.Services.AddSingleton<IIterationContext, IterationContext>();
 builder.Services.AddSingleton<IProcessRunRecorder, ProcessRunRecorder>();
 builder.Services.AddRecordedProcess<DiscoveryProcess>();
 builder.Services.AddRecordedProcess<ManualSeedProcess>();
+builder.Services.AddRecordedProcess<HarvestProcess>();
 builder.Services.AddRecordedProcess<ScoringProcess>();
 builder.Services.AddRecordedProcess<MatchIngestionProcess>();
 builder.Services.AddRecordedProcess<MainAnalysisProcess>();

@@ -13,8 +13,31 @@ public interface IMatchParticipantRepository
         int take,
         CancellationToken ct);
     Task<Dictionary<PerkCatalogKey, int>> GetOrCreatePerkCatalogIdsAsync(IReadOnlyCollection<PerkCatalogKey> keys, CancellationToken ct);
+
+    /// <summary>
+    /// Aggregates orphan participant rows (<c>RiotAccountId IS NULL</c> — untracked
+    /// players) grouped by (platform, puuid, champion) over the retained match window,
+    /// gated on a minimum observed-games count. Near-zero cost: reads only data already
+    /// persisted by match ingestion, makes no Riot API calls. Feeds the participant
+    /// harvest candidate generator (#485).
+    /// </summary>
+    Task<List<HarvestedCandidateRow>> GetHarvestCandidatesAsync(
+        IReadOnlyCollection<string> platformIds,
+        int queueId,
+        int minObservedGames,
+        int maxRows,
+        CancellationToken ct);
+
     void AddRange(IEnumerable<MatchParticipant> participants);
     void AddPerkSelections(IEnumerable<ParticipantPerkSelection> selections);
 }
 
 public sealed record ParticipantRow(int ChampionId, string TeamPosition);
+
+public sealed record HarvestedCandidateRow(
+    string PlatformId,
+    string Puuid,
+    int ChampionId,
+    int ObservedGames,
+    int ObservedWins,
+    DateTime LastSeenUtc);

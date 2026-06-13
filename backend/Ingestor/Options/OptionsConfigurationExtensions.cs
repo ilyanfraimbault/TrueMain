@@ -52,6 +52,16 @@ public static class OptionsConfigurationExtensions
             // merit-weight configuration (not just the defaults that happen to sum to 1.0).
             .Validate(options => options.ScarcityWeight <= options.RecencyWeight + options.RankWeight + options.PointsWeight,
                 "Scoring:ScarcityWeight must not exceed recency + rank + points, so scarcity cannot outweigh the combined merit signal.")
+            .Validate(options => options.HarvestObservedGamesLogNormalizer > 0,
+                "Scoring:HarvestObservedGamesLogNormalizer must be greater than 0.")
+            .ValidateOnStart();
+
+        services.AddOptions<HarvestOptions>()
+            .Bind(configuration.GetSection(HarvestOptions.SectionName))
+            .Validate(options => HasNonEmptyItems(options.Platforms), "Harvest:Platforms must contain at least one value.")
+            .Validate(options => options.MinObservedGames > 0, "Harvest:MinObservedGames must be greater than 0.")
+            .Validate(options => options.MaxCandidatesPerRun > 0, "Harvest:MaxCandidatesPerRun must be greater than 0.")
+            .Validate(options => options.SaveBatchSize > 0, "Harvest:SaveBatchSize must be greater than 0.")
             .ValidateOnStart();
 
         services.AddOptions<CoverageOptions>()
