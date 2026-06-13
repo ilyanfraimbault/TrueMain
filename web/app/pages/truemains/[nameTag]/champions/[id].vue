@@ -248,7 +248,7 @@ const staticBundleReady = computed(() =>
     -->
     <div
       v-else-if="notEnoughData && !isRefetching"
-      class="flex flex-col items-center gap-3 rounded-lg bg-elevated/40 px-6 py-12 text-center"
+      class="flex flex-col items-center gap-3 glass rounded-lg px-6 py-12 text-center"
     >
       <SkeletonImage
         v-if="displayIconUrl"

@@ -103,7 +103,7 @@ function onRegionKeydown(event: KeyboardEvent) {
 
 <template>
   <section
-    class="flex flex-col rounded-2xl border border-default/60 bg-elevated/30 p-4 backdrop-blur-sm sm:p-5"
+    class="glass flex flex-col rounded-2xl p-3 sm:p-4"
     aria-labelledby="home-truemains-title"
   >
     <header class="flex flex-wrap items-center justify-between gap-3 pb-3">
@@ -132,7 +132,7 @@ function onRegionKeydown(event: KeyboardEvent) {
           class="inline-flex h-7 w-9 items-center justify-center rounded-md ring-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           :class="region === tab.value
             ? 'bg-primary/10 ring-primary/50'
-            : 'opacity-55 ring-transparent hover:bg-elevated hover:opacity-100'"
+            : 'opacity-55 ring-transparent hover:bg-primary/10 hover:opacity-100'"
           @click="emit('update:region', tab.value)"
         >
           <LeaderboardRegionFlag
@@ -178,7 +178,7 @@ function onRegionKeydown(event: KeyboardEvent) {
              the rank stays flush with the section header (no row indent). -->
         <NuxtLink
           :to="href"
-          class="-mx-2 flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-elevated/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          class="glass-hover -mx-2 flex items-center gap-3 rounded-lg px-2 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <span
             class="w-4 shrink-0 text-center text-xs tabular-nums"

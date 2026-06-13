@@ -73,7 +73,7 @@ function championIcon(id: number): string | null {
        (champion build, LP, stats) is a fixed width that lines up across
        every row. -->
   <div
-    class="group relative flex items-center gap-3 rounded-md border border-default/60 bg-elevated/40 px-3 py-2 transition-colors hover:bg-elevated/80"
+    class="glass-hover group relative flex items-center gap-3 rounded-md border border-default/60 bg-elevated/40 px-3 py-2"
   >
     <!-- Stretched profile link: a sibling overlay (not a wrapper) so the
          champion icons can be their own links without nesting <a> in <a>.
