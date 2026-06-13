@@ -12,8 +12,12 @@ export default defineAppConfig({
     // translucent `bg-elevated/50` + divider, which `glass` layers cleanly
     // on top of (blur + single border, no double ring).
     card: {
+      // No `overflow-hidden` on the root: combined with the `glass` utility's
+      // `backdrop-filter` it triggers a WebKit bug where the blur ignores the
+      // border-radius and bleeds past the rounded corners on Safari/iOS. The
+      // body/header padding keeps content off the corners anyway.
       slots: {
-        root: 'glass rounded-xl overflow-hidden',
+        root: 'glass rounded-xl',
         header: 'p-3 sm:px-4 sm:py-3.5',
         body: 'p-3 sm:p-4',
         footer: 'p-3 sm:px-4',

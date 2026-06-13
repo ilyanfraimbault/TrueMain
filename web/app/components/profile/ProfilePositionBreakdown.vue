@@ -43,7 +43,9 @@ const sorted = computed<RoleRow[]>(() =>
     <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
       Role distribution
     </h2>
-    <ul class="flex flex-col divide-y divide-default/40 overflow-hidden glass rounded-lg">
+    <!-- No `overflow-hidden` alongside `glass`'s backdrop-filter (WebKit clips
+         the blur past the radius); the rows have no edge background to clip. -->
+    <ul class="flex flex-col divide-y divide-default/40 glass rounded-lg">
       <li
         v-for="role in sorted"
         :key="role.position"

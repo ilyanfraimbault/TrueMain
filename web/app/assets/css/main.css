@@ -133,9 +133,10 @@ html {
 }
 
 @utility glass-hover {
-  transition: background-color 150ms ease, border-color 150ms ease;
+  transition: background-color 150ms ease;
 
-  &:hover {
+  &:hover,
+  &:focus-visible {
     background-color: color-mix(in oklch, var(--ui-color-primary-500) 12%, transparent);
   }
 }
