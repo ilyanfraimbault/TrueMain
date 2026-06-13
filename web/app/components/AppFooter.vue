@@ -1,9 +1,7 @@
 <script setup lang="ts">
 const links = [
   { label: 'Champions', to: '/champions' },
-  { label: 'Meta', to: '/meta' },
-  { label: 'Mains', to: '/mains' },
-  { label: 'Patches', to: '/patches' },
+  { label: 'Truemains', to: '/truemains' },
 ]
 
 const year = new Date().getUTCFullYear()

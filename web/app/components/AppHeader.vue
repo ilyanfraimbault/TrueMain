@@ -22,24 +22,6 @@ const items = computed<NavigationMenuItem[]>(() => [
     // shouldn't light up the leaderboard entry in the nav.
     active: route.path === '/truemains',
   },
-  {
-    label: 'Meta',
-    icon: 'i-lucide-trending-up',
-    to: '/meta',
-    active: isActive('/meta'),
-  },
-  {
-    label: 'Mains',
-    icon: 'i-lucide-users',
-    to: '/mains',
-    active: isActive('/mains'),
-  },
-  {
-    label: 'Patches',
-    icon: 'i-lucide-history',
-    to: '/patches',
-    active: isActive('/patches'),
-  },
 ])
 </script>
 
