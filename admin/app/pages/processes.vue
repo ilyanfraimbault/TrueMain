@@ -315,52 +315,21 @@ const tableMeta = {
 }
 
 // --- Summary formatting ------------------------------------------------------
-// Process summaries are free-form JSON objects (e.g. `{ candidatesFound: 12,
-// queued: 3 }`). Render top-level scalar entries as a readable label/value list
-// instead of dumping raw JSON; keep the raw JSON available as a fallback for
-// nested shapes and for operators who want the exact payload.
-interface SummaryField {
-  key: string
-  label: string
-  value: string
-}
-
-function humanizeKey(key: string): string {
-  return key
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/[_-]+/g, ' ')
-    .replace(/^./, char => char.toUpperCase())
-    .trim()
-}
-
-function formatSummaryValue(value: unknown): string {
-  if (value === null || value === undefined) {
-    return '—'
+// Process summaries are free-form JSON (flat scalar maps, nested objects, or
+// arrays of per-platform rows). `ProcessSummaryView` renders any of those shapes
+// as readable fields/tables; here we only decide whether a summary has content
+// to show and keep the raw JSON available as a collapsible fallback.
+function hasSummary(summary: ProcessRun['summary']): boolean {
+  if (summary === null || summary === undefined) {
+    return false
   }
-  if (typeof value === 'number') {
-    return formatNumber(value)
+  if (Array.isArray(summary)) {
+    return summary.length > 0
   }
-  if (typeof value === 'boolean') {
-    return value ? 'Yes' : 'No'
+  if (typeof summary === 'object') {
+    return Object.keys(summary).length > 0
   }
-  if (typeof value === 'string') {
-    return value
-  }
-  // Nested object/array: compact JSON so the field stays a one-liner.
-  return JSON.stringify(value)
-}
-
-// Top-level scalar/nested fields of a summary object. Returns [] when the
-// summary is absent or not a plain object (arrays/primitives fall back to JSON).
-function summaryFields(summary: ProcessRun['summary']): SummaryField[] {
-  if (!summary || typeof summary !== 'object' || Array.isArray(summary)) {
-    return []
-  }
-  return Object.entries(summary).map(([key, value]) => ({
-    key,
-    label: humanizeKey(key),
-    value: formatSummaryValue(value),
-  }))
+  return true
 }
 
 function summaryJson(summary: ProcessRun['summary']): string | null {
@@ -377,7 +346,7 @@ function openDetail(run: ProcessRun) {
   selectedRun.value = run
   detailOpen.value = true
 }
-const selectedSummaryFields = computed(() => summaryFields(selectedRun.value?.summary ?? null))
+const selectedSummaryHasContent = computed(() => hasSummary(selectedRun.value?.summary ?? null))
 const selectedSummaryJson = computed(() => summaryJson(selectedRun.value?.summary ?? null))
 
 // --- Iteration slide-over ----------------------------------------------------
@@ -399,17 +368,18 @@ const selectedIterationLinks = computed<ChainLink[]>(() =>
     : [],
 )
 
-// Precompute each entry's formatted summary once per iteration, so the template
-// doesn't recompute summaryFields/summaryJson twice per row on every render.
+// Precompute each entry's summary state once per iteration, so the template
+// doesn't recompute hasSummary/summaryJson twice per row on every render. The
+// run's `summary` is handed straight to `ProcessSummaryView` for rendering.
 interface IterationEntry {
   link: ChainLink
-  fields: SummaryField[]
+  hasSummary: boolean
   json: string | null
 }
 const selectedIterationEntries = computed<IterationEntry[]>(() =>
   selectedIterationLinks.value.map(link => ({
     link,
-    fields: summaryFields(link.run?.summary ?? null),
+    hasSummary: hasSummary(link.run?.summary ?? null),
     json: summaryJson(link.run?.summary ?? null),
   })),
 )
@@ -941,33 +911,16 @@ const selectedIterationTally = computed(() => {
               <p class="text-muted text-xs uppercase mb-1.5">
                 Summary
               </p>
-              <dl
-                v-if="selectedSummaryFields.length > 0"
-                class="text-sm border border-default rounded-md divide-y divide-default"
-              >
-                <div
-                  v-for="field in selectedSummaryFields"
-                  :key="field.key"
-                  class="flex justify-between gap-3 px-3 py-1.5"
-                >
-                  <dt class="text-muted">
-                    {{ field.label }}
-                  </dt>
-                  <dd class="text-highlighted text-right tabular-nums break-all">
-                    {{ field.value }}
-                  </dd>
-                </div>
-              </dl>
-              <pre
-                v-else-if="selectedSummaryJson"
-                class="text-xs bg-elevated/50 border border-default rounded-md p-3 overflow-auto"
-              >{{ selectedSummaryJson }}</pre>
+              <ProcessSummaryView
+                v-if="selectedSummaryHasContent"
+                :value="selectedRun.summary"
+              />
               <p v-else class="text-sm text-dimmed">
                 No summary recorded for this run.
               </p>
 
-              <!-- Raw payload stays available for nested shapes / exact values. -->
-              <details v-if="selectedSummaryFields.length > 0 && selectedSummaryJson" class="mt-2">
+              <!-- Raw payload stays available for exact values / debugging. -->
+              <details v-if="selectedSummaryHasContent && selectedSummaryJson" class="mt-2">
                 <summary class="text-xs text-muted cursor-pointer hover:text-default">
                   Raw JSON
                 </summary>
@@ -1063,30 +1016,21 @@ const selectedIterationTally = computed(() => {
                   <pre class="text-xs text-error bg-error/5 border border-error/20 rounded-md p-2.5 overflow-auto whitespace-pre-wrap">{{ entry.link.run.error }}</pre>
                 </div>
 
-                <dl
-                  v-if="entry.fields.length > 0"
-                  class="text-sm border border-default rounded-md divide-y divide-default"
-                >
-                  <div
-                    v-for="field in entry.fields"
-                    :key="field.key"
-                    class="flex justify-between gap-3 px-3 py-1.5"
-                  >
-                    <dt class="text-muted">
-                      {{ field.label }}
-                    </dt>
-                    <dd class="text-highlighted text-right tabular-nums break-all">
-                      {{ field.value }}
-                    </dd>
-                  </div>
-                </dl>
-                <pre
-                  v-else-if="entry.json"
-                  class="text-xs bg-elevated/50 border border-default rounded-md p-3 overflow-auto"
-                >{{ entry.json }}</pre>
+                <ProcessSummaryView
+                  v-if="entry.hasSummary"
+                  :value="entry.link.run.summary"
+                />
                 <p v-else-if="!entry.link.run.error" class="text-sm text-dimmed">
                   No summary recorded.
                 </p>
+
+                <!-- Raw payload stays available for exact values / debugging. -->
+                <details v-if="entry.hasSummary && entry.json" class="mt-1">
+                  <summary class="text-xs text-muted cursor-pointer hover:text-default">
+                    Raw JSON
+                  </summary>
+                  <pre class="mt-1.5 text-xs bg-elevated/50 border border-default rounded-md p-3 overflow-auto">{{ entry.json }}</pre>
+                </details>
               </div>
             </details>
           </div>
