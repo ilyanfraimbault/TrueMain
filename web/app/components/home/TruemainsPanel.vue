@@ -72,21 +72,13 @@ function buildItem(id: number | null | undefined) {
 
 <template>
   <section
-    class="relative flex flex-col overflow-hidden rounded-2xl border border-default/60 bg-elevated/30 p-4 backdrop-blur-sm sm:p-5"
+    class="flex flex-col rounded-2xl border border-default/60 bg-elevated/30 p-4 backdrop-blur-sm sm:p-5"
     aria-labelledby="home-truemains-title"
   >
-    <!-- Subtle emerald sheen so the panel reads as a lit surface, not a flat
-         grey slab. -->
-    <div
-      aria-hidden="true"
-      class="pointer-events-none absolute inset-x-0 top-0 h-32"
-      style="background: radial-gradient(80% 100% at 50% 0%, color-mix(in oklch, var(--ui-color-primary-500) 8%, transparent), transparent 70%);"
-    />
-
-    <header class="relative flex flex-wrap items-center justify-between gap-3 pb-3">
+    <header class="flex flex-wrap items-center justify-between gap-3 pb-3">
       <h2
         id="home-truemains-title"
-        class="text-sm font-semibold uppercase tracking-[0.12em] text-default"
+        class="text-sm font-semibold text-default"
       >
         Top truemains
       </h2>
@@ -125,7 +117,7 @@ function buildItem(id: number | null | undefined) {
 
     <div
       v-if="initialLoading"
-      class="relative space-y-1"
+      class="space-y-1"
       aria-hidden="true"
     >
       <div
@@ -141,7 +133,7 @@ function buildItem(id: number | null | undefined) {
 
     <ul
       v-else-if="rows.length > 0"
-      class="relative flex flex-1 flex-col justify-evenly gap-1 transition-opacity"
+      class="flex flex-1 flex-col justify-evenly gap-1 transition-opacity"
       :class="loading ? 'opacity-50' : 'opacity-100'"
     >
       <li
@@ -155,7 +147,7 @@ function buildItem(id: number | null | undefined) {
           class="-mx-2 flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-elevated/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <span
-            class="w-4 shrink-0 text-center font-mono text-xs tabular-nums"
+            class="w-4 shrink-0 text-center text-xs tabular-nums"
             :class="row.rank <= 3 ? 'text-primary' : 'text-dimmed'"
           >
             {{ row.rank }}
@@ -237,12 +229,12 @@ function buildItem(id: number | null | undefined) {
 
     <p
       v-else
-      class="relative px-3 py-8 text-center text-sm text-muted"
+      class="px-3 py-8 text-center text-sm text-muted"
     >
       No ranked truemains for this region yet.
     </p>
 
-    <footer class="relative mt-auto flex justify-end pt-2">
+    <footer class="mt-auto flex justify-end pt-2">
       <UButton
         to="/truemains"
         color="neutral"

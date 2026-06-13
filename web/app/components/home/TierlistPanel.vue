@@ -40,21 +40,13 @@ const positionByValue = new Map(POSITION_OPTIONS.map(option => [option.value as 
 
 <template>
   <section
-    class="relative overflow-hidden rounded-2xl border border-default/60 bg-elevated/30 p-4 backdrop-blur-sm sm:p-5"
+    class="rounded-2xl border border-default/60 bg-elevated/30 p-4 backdrop-blur-sm sm:p-5"
     aria-labelledby="home-tierlist-title"
   >
-    <!-- Subtle emerald sheen so the panel reads as a lit surface, not a flat
-         grey slab. Matches HomeTruemainsPanel. -->
-    <div
-      aria-hidden="true"
-      class="pointer-events-none absolute inset-x-0 top-0 h-32"
-      style="background: radial-gradient(80% 100% at 50% 0%, color-mix(in oklch, var(--ui-color-primary-500) 8%, transparent), transparent 70%);"
-    />
-
-    <header class="relative flex items-center justify-between gap-3 pb-3">
+    <header class="flex items-center justify-between gap-3 pb-3">
       <h2
         id="home-tierlist-title"
-        class="text-sm font-semibold uppercase tracking-[0.12em] text-default"
+        class="text-sm font-semibold text-default"
       >
         Tier list
       </h2>
@@ -70,7 +62,7 @@ const positionByValue = new Map(POSITION_OPTIONS.map(option => [option.value as 
 
     <div
       v-if="pending"
-      class="relative space-y-1"
+      class="space-y-1"
       aria-hidden="true"
     >
       <div
@@ -86,7 +78,7 @@ const positionByValue = new Map(POSITION_OPTIONS.map(option => [option.value as 
 
     <ul
       v-else-if="rows.length > 0"
-      class="relative space-y-1"
+      class="space-y-1"
     >
       <li
         v-for="(row, index) in rows"
@@ -99,7 +91,7 @@ const positionByValue = new Map(POSITION_OPTIONS.map(option => [option.value as 
           :to="{ path: `/champions/${row.championId}`, query: { position: row.position } }"
           class="-mx-2 flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-elevated/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
-          <span class="w-4 shrink-0 text-center font-mono text-xs tabular-nums text-dimmed">
+          <span class="w-4 shrink-0 text-center text-xs tabular-nums text-dimmed">
             {{ index + 1 }}
           </span>
 
@@ -141,7 +133,7 @@ const positionByValue = new Map(POSITION_OPTIONS.map(option => [option.value as 
 
     <p
       v-else
-      class="relative px-3 py-8 text-center text-sm text-muted"
+      class="px-3 py-8 text-center text-sm text-muted"
     >
       No champion stats for this patch yet.
     </p>

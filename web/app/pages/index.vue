@@ -116,12 +116,11 @@ const steps = [
 
 <template>
   <div>
-    <!-- Hero -->
-    <section class="relative overflow-hidden">
-      <HomeAuroraBackground />
-
+    <!-- Hero — the global AppBackdrop shader shows through; no per-section
+         background of its own. -->
+    <section class="relative">
       <div class="relative mx-auto flex max-w-3xl flex-col items-center px-6 pb-16 pt-20 text-center sm:pb-24 sm:pt-28">
-        <p class="font-mono text-xs font-medium uppercase tracking-[0.18em] text-primary">
+        <p class="text-sm font-medium text-primary">
           Champion intelligence
         </p>
         <h1 class="mt-4 text-4xl font-semibold leading-[1.05] tracking-tighter text-highlighted sm:text-6xl">
@@ -226,7 +225,7 @@ const steps = [
       class="border-t border-default/60"
     >
       <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
-        <p class="text-center font-mono text-xs font-medium uppercase tracking-[0.12em] text-primary">
+        <p class="text-center text-sm font-medium text-primary">
           How it works
         </p>
         <h2 class="mx-auto mt-3 max-w-2xl text-center text-2xl font-semibold tracking-tight sm:text-3xl">
@@ -240,7 +239,7 @@ const steps = [
             class="space-y-3"
           >
             <div class="flex items-center gap-3">
-              <span class="font-mono text-xs tabular-nums text-primary">{{ step.step }}</span>
+              <span class="text-sm font-semibold tabular-nums text-primary">{{ step.step }}</span>
               <UIcon
                 :name="step.icon"
                 class="size-5 text-primary"
