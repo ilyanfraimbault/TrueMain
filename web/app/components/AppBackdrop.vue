@@ -134,7 +134,14 @@ onMounted(() => {
   gl.attachShader(program, vertex)
   gl.attachShader(program, fragment)
   gl.linkProgram(program)
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    // Free everything allocated so far before bailing — symmetric with the
+    // deleteShader() compile() does on its own failures.
+    gl.deleteProgram(program)
+    gl.deleteShader(vertex)
+    gl.deleteShader(fragment)
+    return
+  }
   gl.useProgram(program)
   // The shaders are linked into the program now; free the standalone objects.
   gl.detachShader(program, vertex)
