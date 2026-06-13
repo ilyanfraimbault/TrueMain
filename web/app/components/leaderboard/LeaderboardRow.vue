@@ -73,6 +73,11 @@ function championIcon(id: number): string | null {
 </script>
 
 <template>
+  <!-- Fixed column rhythm so the row never reflows with the number of
+       sub-mains a player has: the name absorbs slack on the left, a flex
+       spacer absorbs it on the right, and every data column in between
+       (champion build, LP, stats) is a fixed width that lines up across
+       every row. -->
   <div
     class="group relative flex items-center gap-3 rounded-md border border-default/60 bg-elevated/40 px-3 py-2 transition-colors hover:bg-elevated/80"
   >
@@ -101,83 +106,92 @@ function championIcon(id: number): string | null {
     />
     <div v-else class="size-10 shrink-0 rounded bg-elevated/60" aria-hidden="true" />
 
-    <!-- Name + tag, region flag sits under the name as a small badge. -->
-    <div class="min-w-0 flex-1">
+    <!-- Name + tag, region flag sits under the name as a small badge. Capped on
+         wide screens so it doesn't crowd the centred champion; flexes to absorb
+         slack on narrow ones. -->
+    <div class="min-w-0 flex-1 md:max-w-48">
       <div class="flex items-baseline gap-1 truncate">
         <span class="truncate font-bold text-default">{{ row.identity.gameName }}</span>
-        <span v-if="row.identity.tagLine" class="text-xs text-muted">#{{ row.identity.tagLine }}</span>
+        <span v-if="row.identity.tagLine" class="shrink-0 text-xs text-muted">#{{ row.identity.tagLine }}</span>
       </div>
       <LeaderboardRegionFlag :region="row.region" :width="18" class="mt-0.5" />
     </div>
 
-    <!-- Rank emblem. Division is shown as a small Roman numeral next to
-         the icon for non-apex tiers (Master+ ignore division). LP is
-         intentionally omitted — rows are already sorted by it, the number
-         itself was noise. -->
-    <div v-if="ranked" class="flex shrink-0 items-center gap-1.5">
-      <RankIcon :tier="ranked.tier" :size="28" />
-      <span v-if="showDivision" class="text-xs uppercase tracking-wide text-muted">
-        {{ ranked.division }}
+    <!-- Left spacer: with the right spacer below, the two centre the champion
+         column between the name and the stat block on wide screens. -->
+    <div class="hidden flex-1 md:block" />
+
+    <!-- Champion build (fixed-width slot, centred). Always reserved so the LP
+         and stat columns stay put whether or not the player has sub-mains;
+         the cluster + any extra champions clip inside it. -->
+    <div class="relative z-10 hidden w-64 shrink-0 items-center justify-center gap-3 overflow-hidden md:flex">
+      <template v-if="row.topChampions.length > 0">
+        <LeaderboardChampionBuild
+          :champion="row.topChampions[0]!"
+          :name="championName(row.topChampions[0]!.championId)"
+          :icon-url="championIcon(row.topChampions[0]!.championId)"
+          :name-tag="rowNameTag"
+          :keystone="perk(row.topChampions[0]!.primaryKeystoneId)"
+          :secondary-style="perkStyle(row.topChampions[0]!.secondaryStyleId)"
+          :first-item="buildItem(row.topChampions[0]!.firstItemId)"
+        />
+
+        <div
+          v-if="row.topChampions.length > 1"
+          class="hidden items-center gap-1 xl:flex"
+        >
+          <template v-for="champ in row.topChampions.slice(1)" :key="champ.championId">
+            <ChampionLink
+              v-if="championIcon(champ.championId)"
+              :champion-id="champ.championId"
+              :name="championName(champ.championId)"
+              :icon-url="championIcon(champ.championId)"
+              :name-tag="rowNameTag"
+              :title="`${championName(champ.championId)} · ${champ.games} games`"
+              class="size-6"
+            />
+            <div
+              v-else
+              class="size-6 rounded bg-elevated/60"
+              :title="`#${champ.championId} · ${champ.games} games`"
+              aria-hidden="true"
+            />
+          </template>
+        </div>
+      </template>
+    </div>
+
+    <!-- LP + rank emblem. LP is shown (matches the homepage teaser); the
+         division replaces it for the few non-apex rows. -->
+    <div
+      v-if="ranked"
+      class="flex w-24 shrink-0 items-center justify-end gap-1.5"
+      :title="`${ranked.tier}${showDivision ? ' ' + ranked.division : ''} · ${ranked.leaguePoints.toLocaleString('en-US')} LP`"
+    >
+      <RankIcon :tier="ranked.tier" :size="26" />
+      <span class="text-sm font-semibold tabular-nums">
+        {{ showDivision ? ranked.division : `${ranked.leaguePoints.toLocaleString('en-US')} LP` }}
       </span>
     </div>
+    <div v-else class="w-24 shrink-0" />
 
-    <!-- Main champion: icon + play rate + keystone (with secondary overlay) +
-         first item — the dpm/op.gg "this is what they main" block. The other
-         mained champions ride alongside as plain icon links. Wrapped in
-         `relative z-10` so the champion links sit above the stretched profile
-         overlay instead of nesting inside it. No placeholders when the player
-         has no main-champion stats — the column simply collapses. -->
-    <div
-      v-if="row.topChampions.length > 0"
-      class="relative z-10 hidden shrink-0 items-center gap-3 md:flex"
-    >
-      <LeaderboardChampionBuild
-        :champion="row.topChampions[0]!"
-        :name="championName(row.topChampions[0]!.championId)"
-        :icon-url="championIcon(row.topChampions[0]!.championId)"
-        :name-tag="rowNameTag"
-        :keystone="perk(row.topChampions[0]!.primaryKeystoneId)"
-        :secondary-style="perkStyle(row.topChampions[0]!.secondaryStyleId)"
-        :first-item="buildItem(row.topChampions[0]!.firstItemId)"
-      />
+    <!-- Flex spacer pushes the stat block to the far right while the columns
+         above stay fixed. -->
+    <div class="hidden flex-1 sm:block" />
 
-      <div
-        v-if="row.topChampions.length > 1"
-        class="hidden items-center gap-1 lg:flex"
-      >
-        <template v-for="champ in row.topChampions.slice(1)" :key="champ.championId">
-          <ChampionLink
-            v-if="championIcon(champ.championId)"
-            :champion-id="champ.championId"
-            :name="championName(champ.championId)"
-            :icon-url="championIcon(champ.championId)"
-            :name-tag="rowNameTag"
-            :title="`${championName(champ.championId)} · ${champ.games} games`"
-            class="size-6"
-          />
-          <div
-            v-else
-            class="size-6 rounded bg-elevated/60"
-            :title="`#${champ.championId} · ${champ.games} games`"
-            aria-hidden="true"
-          />
-        </template>
-      </div>
-    </div>
-
-    <!-- Games / KDA / WR -->
-    <div class="ml-auto hidden shrink-0 items-center gap-5 sm:flex">
+    <!-- Games / KDA / WR (far right, fixed widths). -->
+    <div class="hidden shrink-0 items-center gap-4 sm:flex">
       <div class="flex w-12 flex-col items-end">
         <span class="text-sm font-semibold tabular-nums text-default">{{ row.stats.games.toLocaleString() }}</span>
-        <span class="text-[10px] uppercase tracking-wide text-muted">games</span>
+        <span class="text-[10px] text-muted">games</span>
       </div>
       <div v-if="kdaLabel !== null" class="flex w-12 flex-col items-end">
         <span class="text-sm font-semibold tabular-nums text-default">{{ kdaLabel }}</span>
-        <span class="text-[10px] uppercase tracking-wide text-muted">kda</span>
+        <span class="text-[10px] text-muted">KDA</span>
       </div>
       <div v-if="winRateLabel !== null" class="flex w-12 flex-col items-end">
         <span class="text-sm font-semibold tabular-nums text-default">{{ winRateLabel }}</span>
-        <span class="text-[10px] uppercase tracking-wide text-muted">wr</span>
+        <span class="text-[10px] text-muted">WR</span>
       </div>
     </div>
   </div>

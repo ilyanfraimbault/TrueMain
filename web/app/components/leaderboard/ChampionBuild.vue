@@ -68,7 +68,7 @@ const championTitle = computed(() => `${props.name} · ${props.champion.games} g
       >{{ playRatePct }}%</span>
       <span
         v-if="!compact"
-        class="mt-0.5 text-[10px] uppercase tracking-wide text-muted"
+        class="mt-0.5 text-[11px] text-muted"
       >play rate</span>
     </div>
 
@@ -87,11 +87,12 @@ const championTitle = computed(() => `${props.name} · ${props.champion.games} g
         :style="{ width: `${buildSize}px`, height: `${buildSize}px` }"
       />
       <GameTooltipPerkStyleIcon
-        v-if="secondaryStyle && !compact"
+        v-if="secondaryStyle"
         :style="secondaryStyle"
-        :width="15"
-        :height="15"
-        class="absolute -bottom-1 -right-1.5 size-[15px]"
+        :width="compact ? 13 : 15"
+        :height="compact ? 13 : 15"
+        class="absolute -bottom-1 -right-1.5"
+        :class="compact ? 'size-[13px]' : 'size-[15px]'"
       />
     </div>
 
