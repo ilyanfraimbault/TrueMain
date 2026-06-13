@@ -40,10 +40,18 @@ const positionByValue = new Map(POSITION_OPTIONS.map(option => [option.value as 
 
 <template>
   <section
-    class="rounded-2xl border border-default/60 bg-elevated/30 p-4 backdrop-blur-sm sm:p-5"
+    class="relative overflow-hidden rounded-2xl border border-default/60 bg-elevated/30 p-4 backdrop-blur-sm sm:p-5"
     aria-labelledby="home-tierlist-title"
   >
-    <header class="flex items-center justify-between gap-3 pb-3">
+    <!-- Subtle emerald sheen so the panel reads as a lit surface, not a flat
+         grey slab. Matches HomeTruemainsPanel. -->
+    <div
+      aria-hidden="true"
+      class="pointer-events-none absolute inset-x-0 top-0 h-32"
+      style="background: radial-gradient(80% 100% at 50% 0%, color-mix(in oklch, var(--ui-color-primary-500) 8%, transparent), transparent 70%);"
+    />
+
+    <header class="relative flex items-center justify-between gap-3 pb-3">
       <h2
         id="home-tierlist-title"
         class="text-sm font-semibold uppercase tracking-[0.12em] text-default"
@@ -62,7 +70,7 @@ const positionByValue = new Map(POSITION_OPTIONS.map(option => [option.value as 
 
     <div
       v-if="pending"
-      class="space-y-1"
+      class="relative space-y-1"
       aria-hidden="true"
     >
       <div
@@ -78,7 +86,7 @@ const positionByValue = new Map(POSITION_OPTIONS.map(option => [option.value as 
 
     <ul
       v-else-if="rows.length > 0"
-      class="space-y-1"
+      class="relative space-y-1"
     >
       <li
         v-for="(row, index) in rows"
@@ -133,7 +141,7 @@ const positionByValue = new Map(POSITION_OPTIONS.map(option => [option.value as 
 
     <p
       v-else
-      class="px-3 py-8 text-center text-sm text-muted"
+      class="relative px-3 py-8 text-center text-sm text-muted"
     >
       No champion stats for this patch yet.
     </p>

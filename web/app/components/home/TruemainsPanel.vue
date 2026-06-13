@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { LeaderboardRowResponse, RegionSlug } from '~~/shared/types/leaderboard'
+import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { getProfileIconUrl } from '~~/shared/utils/ddragon'
 import { formatTier, isApexTier } from '~/utils/tiers'
 
@@ -9,6 +10,8 @@ import { formatTier, isApexTier } from '~/utils/tiers'
 // one place.
 const props = defineProps<{
   rows: LeaderboardRowResponse[]
+  /** championId → static name/icon, for rendering each player's top picks. */
+  championsById: Map<number, ChampionStaticListItem>
   /** Skeleton state — true until the very first page resolves. */
   initialLoading: boolean
   /** Refetch-in-flight state — dims the current rows during a region switch. */
@@ -24,7 +27,7 @@ const emit = defineEmits<{
 const ROW_COUNT = 5
 
 // `label` doubles as the accessible name + tooltip; the flag SVG carries the
-// visual identity (and renders a globe for the `null` "all regions" tab).
+// visual identity, and the `null` "all regions" tab renders a globe glyph.
 const REGION_TABS: Array<{ label: string, value: RegionSlug | null }> = [
   { label: 'All regions', value: null },
   { label: 'Europe', value: 'europe' },
@@ -45,14 +48,39 @@ function winRateLabel(row: LeaderboardRowResponse): string | null {
 function iconUrl(row: LeaderboardRowResponse): string | null {
   return getProfileIconUrl(row.identity.profileIconId, props.patch)
 }
+
+function championName(id: number): string {
+  return props.championsById.get(id)?.name ?? `#${id}`
+}
+function championIcon(id: number): string | null {
+  return props.championsById.get(id)?.iconUrl ?? null
+}
+
+// Share of the player's tracked games spent on their #1 champion — the
+// "play rate" the dpm/op.gg leaderboards surface next to the main pick.
+// Clamped because a filtered `stats.games` can occasionally trail the
+// per-champion total.
+function mainPlayRate(row: LeaderboardRowResponse): number | null {
+  const main = row.topChampions[0]
+  if (!main || row.stats.games <= 0) return null
+  return Math.min(100, Math.round((main.games / row.stats.games) * 100))
+}
 </script>
 
 <template>
   <section
-    class="flex flex-col rounded-2xl border border-default/60 bg-elevated/30 p-4 backdrop-blur-sm sm:p-5"
+    class="relative flex flex-col overflow-hidden rounded-2xl border border-default/60 bg-elevated/30 p-4 backdrop-blur-sm sm:p-5"
     aria-labelledby="home-truemains-title"
   >
-    <header class="flex flex-wrap items-center justify-between gap-3 pb-3">
+    <!-- Subtle emerald sheen so the panel reads as a lit surface, not a flat
+         grey slab. -->
+    <div
+      aria-hidden="true"
+      class="pointer-events-none absolute inset-x-0 top-0 h-32"
+      style="background: radial-gradient(80% 100% at 50% 0%, color-mix(in oklch, var(--ui-color-primary-500) 8%, transparent), transparent 70%);"
+    />
+
+    <header class="relative flex flex-wrap items-center justify-between gap-3 pb-3">
       <h2
         id="home-truemains-title"
         class="text-sm font-semibold uppercase tracking-[0.12em] text-default"
@@ -72,15 +100,21 @@ function iconUrl(row: LeaderboardRowResponse): string | null {
           :aria-label="tab.label"
           :aria-pressed="region === tab.value"
           :title="tab.label"
-          class="inline-flex items-center justify-center rounded-md p-1 ring-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          class="inline-flex h-7 w-9 items-center justify-center rounded-md ring-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           :class="region === tab.value
             ? 'bg-primary/10 ring-primary/50'
-            : 'opacity-60 ring-transparent hover:bg-elevated hover:opacity-100'"
+            : 'opacity-55 ring-transparent hover:bg-elevated hover:opacity-100'"
           @click="emit('update:region', tab.value)"
         >
           <LeaderboardRegionFlag
+            v-if="tab.value"
             :region="tab.value"
-            :width="24"
+            :width="22"
+          />
+          <UIcon
+            v-else
+            name="i-lucide-globe"
+            class="size-[18px]"
           />
         </button>
       </div>
@@ -88,7 +122,7 @@ function iconUrl(row: LeaderboardRowResponse): string | null {
 
     <div
       v-if="initialLoading"
-      class="space-y-1"
+      class="relative space-y-1"
       aria-hidden="true"
     >
       <div
@@ -104,7 +138,7 @@ function iconUrl(row: LeaderboardRowResponse): string | null {
 
     <ul
       v-else-if="rows.length > 0"
-      class="flex flex-1 flex-col justify-evenly gap-1 transition-opacity"
+      class="relative flex flex-1 flex-col justify-evenly gap-1 transition-opacity"
       :class="loading ? 'opacity-50' : 'opacity-100'"
     >
       <li
@@ -153,6 +187,28 @@ function iconUrl(row: LeaderboardRowResponse): string | null {
             />
           </div>
 
+          <!-- Main champion + its play rate (the dpm-style "this is what they
+               main" cue). Plain icon, not a link — the whole row already
+               navigates to the profile, and nesting an <a> here would be
+               invalid. Hidden on the narrowest widths. -->
+          <div
+            v-if="row.topChampions[0]"
+            class="hidden shrink-0 items-center gap-1.5 sm:flex"
+          >
+            <SkeletonImage
+              :src="championIcon(row.topChampions[0].championId)"
+              :alt="championName(row.topChampions[0].championId)"
+              :title="`${championName(row.topChampions[0].championId)} · ${row.topChampions[0].games} games`"
+              width="28"
+              height="28"
+              class="size-7 rounded-md ring-1 ring-default/40"
+            />
+            <span
+              v-if="mainPlayRate(row) !== null"
+              class="w-9 text-xs tabular-nums text-muted"
+            >{{ mainPlayRate(row) }}%</span>
+          </div>
+
           <div
             v-if="row.ranked"
             class="flex shrink-0 items-center gap-1.5"
@@ -185,12 +241,12 @@ function iconUrl(row: LeaderboardRowResponse): string | null {
 
     <p
       v-else
-      class="px-3 py-8 text-center text-sm text-muted"
+      class="relative px-3 py-8 text-center text-sm text-muted"
     >
       No ranked truemains for this region yet.
     </p>
 
-    <footer class="mt-auto flex justify-end pt-2">
+    <footer class="relative mt-auto flex justify-end pt-2">
       <UButton
         to="/truemains"
         color="neutral"

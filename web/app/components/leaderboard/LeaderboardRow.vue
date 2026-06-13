@@ -51,6 +51,15 @@ const kdaLabel = computed(() => {
   return kda === null ? null : kda.toFixed(1)
 })
 
+// Share of tracked games spent on the #1 champion — the "play rate" shown
+// next to the main pick on dpm/op.gg leaderboards. Clamped because a filtered
+// `stats.games` can occasionally trail the per-champion total.
+const mainPlayRate = computed(() => {
+  const main = props.row.topChampions[0]
+  if (!main || props.row.stats.games <= 0) return null
+  return Math.min(100, Math.round((main.games / props.row.stats.games) * 100))
+})
+
 function championName(id: number): string {
   return props.championsById.get(id)?.name ?? `#${id}`
 }
@@ -108,30 +117,59 @@ function championIcon(id: number): string | null {
       </span>
     </div>
 
-    <!-- Top champions (up to 3). No placeholders when the player has no
+    <!-- Top champions. The #1 pick is shown larger with its play rate (the
+         dpm/op.gg "this is what they main" cue); the next two ride alongside
+         as smaller icons. No placeholders when the player has no
          main-champion stats — the column simply collapses and the right
          stats block slides left, which keeps the row visually honest. -->
     <div
       v-if="row.topChampions.length > 0"
-      class="relative z-10 hidden shrink-0 items-center gap-1 md:flex"
+      class="relative z-10 hidden shrink-0 items-center gap-2 md:flex"
     >
-      <template v-for="champ in row.topChampions" :key="champ.championId">
+      <div class="flex items-center gap-1.5">
         <ChampionLink
-          v-if="championIcon(champ.championId)"
-          :champion-id="champ.championId"
-          :name="championName(champ.championId)"
-          :icon-url="championIcon(champ.championId)"
+          v-if="championIcon(row.topChampions[0]!.championId)"
+          :champion-id="row.topChampions[0]!.championId"
+          :name="championName(row.topChampions[0]!.championId)"
+          :icon-url="championIcon(row.topChampions[0]!.championId)"
           :name-tag="rowNameTag"
-          :title="`${championName(champ.championId)} · ${champ.games} games`"
-          class="size-7"
+          :title="`${championName(row.topChampions[0]!.championId)} · ${row.topChampions[0]!.games} games`"
+          class="size-9"
         />
         <div
           v-else
-          class="size-7 rounded bg-elevated/60"
-          :title="`#${champ.championId} · ${champ.games} games`"
+          class="size-9 rounded bg-elevated/60"
+          :title="`#${row.topChampions[0]!.championId} · ${row.topChampions[0]!.games} games`"
           aria-hidden="true"
         />
-      </template>
+        <span
+          v-if="mainPlayRate !== null"
+          class="w-9 text-xs tabular-nums text-muted"
+        >{{ mainPlayRate }}%</span>
+      </div>
+
+      <div
+        v-if="row.topChampions.length > 1"
+        class="flex items-center gap-1"
+      >
+        <template v-for="champ in row.topChampions.slice(1)" :key="champ.championId">
+          <ChampionLink
+            v-if="championIcon(champ.championId)"
+            :champion-id="champ.championId"
+            :name="championName(champ.championId)"
+            :icon-url="championIcon(champ.championId)"
+            :name-tag="rowNameTag"
+            :title="`${championName(champ.championId)} · ${champ.games} games`"
+            class="size-6"
+          />
+          <div
+            v-else
+            class="size-6 rounded bg-elevated/60"
+            :title="`#${champ.championId} · ${champ.games} games`"
+            aria-hidden="true"
+          />
+        </template>
+      </div>
     </div>
 
     <!-- Games / KDA / WR -->

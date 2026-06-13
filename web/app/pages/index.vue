@@ -194,28 +194,30 @@ const steps = [
       </div>
     </section>
 
-    <!-- Live data panels -->
-    <section class="mx-auto grid max-w-6xl gap-6 px-4 pb-20 md:px-6 lg:grid-cols-5">
+    <!-- Live data panels — equal-width halves so the two read as a balanced
+         pair and the truemains rows have room for champion + play-rate
+         without truncating names. -->
+    <section class="mx-auto grid max-w-6xl gap-6 px-4 pb-20 md:px-6 lg:grid-cols-2">
       <HomeTierlistPanel
         :summaries="summaries"
         :champions-by-id="championsById"
         :pending="summariesPending"
-        class="lg:col-span-3"
       />
       <HomeTruemainsPanel
         v-model:region="region"
         :rows="truemainRows"
+        :champions-by-id="championsById"
         :initial-loading="truemainsInitialLoading"
         :loading="truemainsLoading"
         :patch="ddragonPatch"
-        class="lg:col-span-2"
       />
     </section>
 
-    <!-- How it works — kept deliberately flat: three columns, no cards -->
+    <!-- How it works — three columns, no cards. A barely-there emerald wash
+         (not flat grey) separates it from the panels above. -->
     <section
       id="how-it-works"
-      class="border-t border-default/60 bg-elevated/20"
+      class="border-t border-default/60 bg-gradient-to-b from-primary/[0.04] to-transparent"
     >
       <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
         <p class="text-center font-mono text-xs font-medium uppercase tracking-[0.12em] text-primary">
