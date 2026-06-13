@@ -4,6 +4,5 @@ export default defineAppConfig({
       primary: 'emerald',
       neutral: 'zinc',
     },
-    fonts: false,
   },
 })

@@ -71,7 +71,10 @@ export function useTruemainsLeaderboard(
       const region = regionRef.value ?? 'all'
       const position = positionRef.value ?? 'all'
       const championId = championIdRef.value ?? 'all'
-      return `truemains-leaderboard-${pageRef.value}-${region}-${position}-${championId}`
+      // pageSize is part of the key: the homepage teaser (pageSize 5) and the
+      // /truemains page (pageSize 25) both request page 1, and a shared key
+      // would hydrate the full leaderboard from the teaser's 5 cached rows.
+      return `truemains-leaderboard-${pageRef.value}-${fallbackPageSize}-${region}-${position}-${championId}`
     },
     () => $fetch<LeaderboardResponse>('/api/truemains', { query: buildQuery() }),
     {

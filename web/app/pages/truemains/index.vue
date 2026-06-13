@@ -111,6 +111,9 @@ const { data: champions } = useLazyAsyncData<ChampionStaticListItem[]>(
 const { data: versions } = useDDragonVersions()
 const latestPatch = computed(() => versions.value?.[0] ?? null)
 
+// Rune tree + item icons for each row's main-champion build.
+const { runeTree, itemsMap } = useBuildAssets(latestPatch)
+
 // Map keyed lookup for the row's top-3 — avoids a linear scan per icon.
 const championsById = computed(() => {
   const map = new Map<number, ChampionStaticListItem>()
@@ -171,6 +174,8 @@ const championsById = computed(() => {
         :key="row.rank"
         :row="row"
         :champions-by-id="championsById"
+        :rune-tree="runeTree"
+        :items-map="itemsMap"
         :patch="latestPatch"
       />
     </div>
