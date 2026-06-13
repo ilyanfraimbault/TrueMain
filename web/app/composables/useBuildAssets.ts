@@ -3,10 +3,10 @@ import type { RuneTreeResponse, StaticItemData, StaticPerkData, StaticPerkStyleD
 /**
  * Turns build ids (keystone / secondary style / first item) into the icon
  * objects the `GameTooltip*` components render, given an already-fetched rune
- * tree + item map. Split out from {@link useBuildAssets} so components that
- * receive the maps as props (LeaderboardRow, the homepage teaser) resolve them
- * the exact same way the fetching composable does, without copy-pasting the
- * three lookups.
+ * tree + item map. The shared primitive: {@link useBuildAssets} uses it after
+ * fetching, and the components that receive those maps as props (LeaderboardRow,
+ * the homepage teaser) use it directly — so every call site resolves ids the
+ * exact same way without copy-pasting the three lookups.
  */
 export function useBuildResolvers(
   runeTree: MaybeRefOrGetter<RuneTreeResponse | null | undefined>,
