@@ -8,8 +8,12 @@ import type { StaticItemData, StaticPerkData, StaticPerkStyleData } from '~~/sha
 // renders a top build. Build ids are resolved to icon objects by the caller
 // (via useBuildAssets) so this component stays free of data fetching.
 //
-// `nameTag` makes the champion icon a link to the player-scoped build page;
-// omit it (homepage, where the whole row is already a link) for a plain icon.
+// When `nameTag` is set the whole cluster becomes one link to that player's
+// scoped champion page (`/truemains/{nameTag}/champions/{id}`) — clicking
+// anywhere on it (icon, play rate, runes, item) navigates there. The inner
+// rune/item tooltips resolve to non-button spans, so the click still bubbles
+// to the link. Omit `nameTag` (homepage, where the whole row is already a
+// link) to render a plain, non-interactive cluster.
 const props = withDefaults(defineProps<{
   champion: LeaderboardTopChampion
   name: string
@@ -25,6 +29,13 @@ const props = withDefaults(defineProps<{
   compact: false,
 })
 
+const NuxtLinkComponent = resolveComponent('NuxtLink')
+
+const championHref = computed(() =>
+  props.nameTag
+    ? `/truemains/${encodeURIComponent(props.nameTag)}/champions/${props.champion.championId}`
+    : undefined)
+
 const playRatePct = computed(() => {
   const rate = props.champion.playRate
   return Number.isFinite(rate) ? Math.round(rate * 100) : null
@@ -36,19 +47,14 @@ const championTitle = computed(() => `${props.name} · ${props.champion.games} g
 </script>
 
 <template>
-  <div class="flex items-center gap-2">
-    <ChampionLink
-      v-if="nameTag"
-      :champion-id="champion.championId"
-      :name="name"
-      :icon-url="iconUrl"
-      :name-tag="nameTag"
-      :title="championTitle"
-      class="rounded-md ring-1 ring-default/40"
-      :style="{ width: `${iconSize}px`, height: `${iconSize}px` }"
-    />
+  <component
+    :is="nameTag ? NuxtLinkComponent : 'div'"
+    :to="championHref"
+    :aria-label="nameTag ? `${name} — view ${name} build` : undefined"
+    class="flex items-center gap-2 rounded-lg"
+    :class="nameTag ? '-mx-1 px-1 py-0.5 transition-colors hover:bg-elevated/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary' : ''"
+  >
     <SkeletonImage
-      v-else
       :src="iconUrl"
       :alt="name"
       :title="championTitle"
@@ -104,5 +110,5 @@ const championTitle = computed(() => `${props.name} · ${props.champion.games} g
       class="shrink-0 rounded"
       :style="{ width: `${buildSize}px`, height: `${buildSize}px` }"
     />
-  </div>
+  </component>
 </template>

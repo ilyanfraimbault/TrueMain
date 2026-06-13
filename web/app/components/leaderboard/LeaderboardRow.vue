@@ -106,10 +106,12 @@ function championIcon(id: number): string | null {
     />
     <div v-else class="size-10 shrink-0 rounded bg-elevated/60" aria-hidden="true" />
 
-    <!-- Name + tag, region flag sits under the name as a small badge. Capped on
-         wide screens so it doesn't crowd the centred champion; flexes to absorb
-         slack on narrow ones. -->
-    <div class="min-w-0 flex-1 md:max-w-48">
+    <!-- Name + tag, region flag sits under the name as a small badge. Given a
+         heavier flex-grow than the centring spacers so the Riot ID claims
+         roughly half the free space (fitting untruncated) while the spacers
+         still keep the champion roughly centred. Capped so it can't run away on
+         ultra-wide screens. -->
+    <div class="min-w-0 flex-[3] md:max-w-72 lg:max-w-80 xl:max-w-96">
       <div class="flex items-baseline gap-1 truncate">
         <span class="truncate font-bold text-default">{{ row.identity.gameName }}</span>
         <span v-if="row.identity.tagLine" class="shrink-0 text-xs text-muted">#{{ row.identity.tagLine }}</span>
