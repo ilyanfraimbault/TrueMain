@@ -28,7 +28,7 @@ const groups = computed<CommandPaletteGroup[]>(() => [
     id: 'champions',
     label: 'Champions',
     items: [...props.champions]
-      .sort((a, b) => a.name.localeCompare(b.name))
+      .sort((a, b) => a.name.localeCompare(b.name, 'en'))
       .map(champion => ({
         label: champion.name,
         avatar: { src: champion.iconUrl, alt: champion.name },

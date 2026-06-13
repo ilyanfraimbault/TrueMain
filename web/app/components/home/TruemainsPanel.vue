@@ -71,6 +71,34 @@ function championIcon(id: number): string | null {
 // Shared with the leaderboard row — resolve build ids the same way the
 // fetching composable does.
 const { perk, perkStyle, item: buildItem } = useBuildResolvers(() => props.runeTree, () => props.itemsMap)
+
+// Roving-tabindex keyboard nav for the region radiogroup: arrows / Home / End
+// move the selection (and focus) the way an exclusive radio group should.
+function onRegionKeydown(event: KeyboardEvent) {
+  const moves: Record<string, number | 'first' | 'last'> = {
+    ArrowRight: 1,
+    ArrowDown: 1,
+    ArrowLeft: -1,
+    ArrowUp: -1,
+    Home: 'first',
+    End: 'last',
+  }
+  const move = moves[event.key]
+  if (move === undefined) return
+  event.preventDefault()
+
+  const count = REGION_TABS.length
+  const current = Math.max(0, REGION_TABS.findIndex(tab => tab.value === props.region))
+  const next = move === 'first'
+    ? 0
+    : move === 'last'
+      ? count - 1
+      : (current + move + count) % count
+
+  emit('update:region', REGION_TABS[next]!.value)
+  const radios = (event.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="radio"]')
+  radios[next]?.focus()
+}
 </script>
 
 <template>
@@ -88,15 +116,18 @@ const { perk, perkStyle, item: buildItem } = useBuildResolvers(() => props.runeT
 
       <div
         class="flex items-center gap-1"
-        role="group"
+        role="radiogroup"
         aria-label="Filter leaderboard by region"
+        @keydown="onRegionKeydown"
       >
         <button
           v-for="tab in REGION_TABS"
           :key="tab.label"
           type="button"
+          role="radio"
           :aria-label="tab.label"
-          :aria-pressed="region === tab.value"
+          :aria-checked="region === tab.value"
+          :tabindex="region === tab.value ? 0 : -1"
           :title="tab.label"
           class="inline-flex h-7 w-9 items-center justify-center rounded-md ring-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           :class="region === tab.value
