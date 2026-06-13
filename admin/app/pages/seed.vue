@@ -270,7 +270,10 @@ const bulkRegionItems = TRACKED_REGIONS.map(r => ({ label: r, value: r }))
 // Per-row seeding outcome, kept separate from the parsed-row identity so a
 // re-parse (editing the textarea) doesn't wipe an in-flight/finished run until
 // the user actually changes the rows.
-type RowOutcome = 'pending' | 'queued' | 'ok' | 'failed'
+// `duplicate` = the backend returned an existing (still-unprocessed) request
+// instead of creating one, i.e. this account was already seeded. It's a soft
+// outcome (no work lost), distinct from a hard `failed`.
+type RowOutcome = 'pending' | 'queued' | 'ok' | 'duplicate' | 'failed'
 
 interface ParsedRow {
   // Stable identity for dedupe + outcome tracking (lowercased triple).
@@ -404,10 +407,13 @@ watch(validSignature, () => {
 const okCount = computed(() =>
   Object.values(outcomes.value).filter(o => o.outcome === 'ok').length,
 )
+const duplicateCount = computed(() =>
+  Object.values(outcomes.value).filter(o => o.outcome === 'duplicate').length,
+)
 const failedCount = computed(() =>
   Object.values(outcomes.value).filter(o => o.outcome === 'failed').length,
 )
-const hasRun = computed(() => okCount.value > 0 || failedCount.value > 0)
+const hasRun = computed(() => okCount.value > 0 || duplicateCount.value > 0 || failedCount.value > 0)
 
 const progressPercent = computed(() => {
   const total = validRows.value.length
@@ -447,7 +453,13 @@ async function seedAll() {
           tagLine: row.tagLine,
           platformId: row.region,
         })
-        outcomes.value[row.key] = { outcome: 'ok', status: res.status, error: null }
+        // `created === false` means the backend returned an existing request
+        // for this Riot ID + platform — already seeded, nothing new queued.
+        outcomes.value[row.key] = {
+          outcome: res.created ? 'ok' : 'duplicate',
+          status: res.status,
+          error: null,
+        }
       }
       catch (err: unknown) {
         outcomes.value[row.key] = { outcome: 'failed', status: null, error: extractError(err) }
@@ -466,12 +478,26 @@ async function seedAll() {
   finally {
     running.value = false
     const ok = okCount.value
+    const duplicate = duplicateCount.value
     const failed = failedCount.value
+    // Build the summary from only the non-zero buckets so the toast stays terse.
+    const parts = [`${ok} queued`]
+    if (duplicate > 0) {
+      parts.push(`${duplicate} already seeded`)
+    }
+    if (failed > 0) {
+      parts.push(`${failed} failed`)
+    }
+    const clean = failed === 0 && duplicate === 0
     toast.add({
-      title: failed === 0 ? 'All rows queued' : 'Import finished with errors',
-      description: `${ok} queued · ${failed} failed`,
-      color: failed === 0 ? 'success' : 'warning',
-      icon: failed === 0 ? 'i-lucide-circle-check' : 'i-lucide-triangle-alert',
+      title: failed > 0
+        ? 'Import finished with errors'
+        : duplicate > 0
+          ? 'Some accounts were already seeded'
+          : 'All rows queued',
+      description: parts.join(' · '),
+      color: clean ? 'success' : 'warning',
+      icon: clean ? 'i-lucide-circle-check' : 'i-lucide-triangle-alert',
     })
     // Surface the newly-queued rows in the shared history below.
     refresh()
@@ -497,8 +523,15 @@ const previewColumns: TableColumn<PreviewRow>[] = [
 
 const previewTableMeta = {
   class: {
-    tr: (row: { original: PreviewRow }) =>
-      !row.original.valid || row.original.outcome === 'failed' ? 'bg-error/5' : '',
+    tr: (row: { original: PreviewRow }) => {
+      if (!row.original.valid || row.original.outcome === 'failed') {
+        return 'bg-error/5'
+      }
+      if (row.original.outcome === 'duplicate') {
+        return 'bg-warning/5'
+      }
+      return ''
+    },
   },
 }
 
@@ -510,6 +543,8 @@ function outcomeBadge(row: PreviewRow): { color: BadgeColor, icon: string, label
   switch (row.outcome) {
     case 'ok':
       return { color: 'success', icon: 'i-lucide-circle-check', label: 'Queued' }
+    case 'duplicate':
+      return { color: 'warning', icon: 'i-lucide-circle-alert', label: 'Already seeded' }
     case 'failed':
       return { color: 'error', icon: 'i-lucide-circle-x', label: 'Failed' }
     case 'queued':
@@ -767,8 +802,9 @@ const tableMeta = {
 
       <USeparator class="my-8" />
 
-      <!-- 2) Bulk add -->
-      <section class="max-w-4xl">
+      <!-- 2) Bulk add — full-width so the preview table uses all available space.
+           (The single-add form above stays narrow; this section drives a table.) -->
+      <section>
         <div class="flex items-center gap-2 mb-1">
           <UIcon name="i-lucide-clipboard-list" class="size-4 text-primary" />
           <h2 class="text-sm font-medium text-highlighted">
