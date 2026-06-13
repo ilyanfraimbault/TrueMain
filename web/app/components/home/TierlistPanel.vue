@@ -1,7 +1,14 @@
+<script lang="ts">
+import { POSITION_OPTIONS } from '~/utils/positions'
+
+// Hoisted to module scope — it depends only on the POSITION_OPTIONS constant,
+// so there's no need to rebuild the lookup on every component instantiation.
+const positionByValue = new Map(POSITION_OPTIONS.map(option => [option.value as string, option]))
+</script>
+
 <script setup lang="ts">
 import type { ChampionSummaryResponse } from '~~/shared/types/champions'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
-import { POSITION_OPTIONS } from '~/utils/positions'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 
 // Homepage teaser of the champion tier list: the strongest rows of the
@@ -32,10 +39,9 @@ const rows = computed(() =>
       ...summary,
       name: props.championsById.get(summary.championId)?.name ?? `Champion ${summary.championId}`,
       iconUrl: props.championsById.get(summary.championId)?.iconUrl ?? '',
+      positionOption: positionByValue.get(summary.position),
     })),
 )
-
-const positionByValue = new Map(POSITION_OPTIONS.map(option => [option.value as string, option]))
 </script>
 
 <template>
@@ -106,9 +112,9 @@ const positionByValue = new Map(POSITION_OPTIONS.map(option => [option.value as 
           <span class="min-w-0 flex-1 truncate font-medium">{{ row.name }}</span>
 
           <SkeletonImage
-            v-if="positionByValue.get(row.position)?.iconUrl"
-            :src="positionByValue.get(row.position)!.iconUrl"
-            :alt="positionByValue.get(row.position)!.label"
+            v-if="row.positionOption?.iconUrl"
+            :src="row.positionOption.iconUrl"
+            :alt="row.positionOption.label"
             :width="18"
             :height="18"
             class="size-[18px] shrink-0 opacity-80"

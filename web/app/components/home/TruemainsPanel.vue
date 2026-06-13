@@ -52,6 +52,15 @@ function iconUrl(row: LeaderboardRowResponse): string | null {
   return getProfileIconUrl(row.identity.profileIconId, props.patch)
 }
 
+// Precompute the per-row derived values so the template doesn't evaluate the
+// same helper twice (once in a `v-if`, once for display).
+const displayRows = computed(() => props.rows.map(row => ({
+  row,
+  href: profileHref(row),
+  iconUrl: iconUrl(row),
+  winRateLabel: winRateLabel(row),
+})))
+
 function championName(id: number): string {
   return props.championsById.get(id)?.name ?? `#${id}`
 }
@@ -137,13 +146,13 @@ function buildItem(id: number | null | undefined) {
       :class="loading ? 'opacity-50' : 'opacity-100'"
     >
       <li
-        v-for="row in rows"
+        v-for="{ row, href, iconUrl, winRateLabel } in displayRows"
         :key="`${row.identity.gameName}-${row.identity.tagLine}`"
       >
         <!-- `-mx-2 px-2`: hover background bleeds into the panel padding while
              the rank stays flush with the section header (no row indent). -->
         <NuxtLink
-          :to="profileHref(row)"
+          :to="href"
           class="-mx-2 flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-elevated/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <span
@@ -154,8 +163,8 @@ function buildItem(id: number | null | undefined) {
           </span>
 
           <SkeletonImage
-            v-if="iconUrl(row)"
-            :src="iconUrl(row)!"
+            v-if="iconUrl"
+            :src="iconUrl"
             :alt="row.identity.gameName"
             width="36"
             height="36"
@@ -217,10 +226,10 @@ function buildItem(id: number | null | undefined) {
           </div>
 
           <span
-            v-if="winRateLabel(row)"
+            v-if="winRateLabel"
             class="w-10 shrink-0 text-right text-sm font-semibold tabular-nums"
           >
-            {{ winRateLabel(row) }}
+            {{ winRateLabel }}
             <span class="block text-[10px] font-normal uppercase tracking-wide text-muted">WR</span>
           </span>
         </NuxtLink>

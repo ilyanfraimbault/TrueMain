@@ -20,7 +20,11 @@ void main() {
 `
 
 const FRAGMENT_SHADER = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
 precision mediump float;
+#endif
 uniform vec2 u_resolution;
 uniform float u_time;
 
@@ -105,6 +109,7 @@ onMounted(() => {
     gl!.shaderSource(shader, source)
     gl!.compileShader(shader)
     if (!gl!.getShaderParameter(shader, gl!.COMPILE_STATUS)) {
+      if (import.meta.dev) console.warn('[AppBackdrop] shader compile failed:', gl!.getShaderInfoLog(shader))
       gl!.deleteShader(shader)
       return null
     }
@@ -122,6 +127,11 @@ onMounted(() => {
   gl.linkProgram(program)
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return
   gl.useProgram(program)
+  // The shaders are linked into the program now; free the standalone objects.
+  gl.detachShader(program, vertex)
+  gl.deleteShader(vertex)
+  gl.detachShader(program, fragment)
+  gl.deleteShader(fragment)
 
   const buffer = gl.createBuffer()
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
@@ -156,12 +166,17 @@ onMounted(() => {
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
   let rafId = 0
   let lastFrameAt = 0
+  // Time fed to the shader is measured from the first frame, not the page's
+  // navigation start, so `u_time` stays small — `mediump` builds lose enough
+  // precision around ~4h of `performance.now()` to freeze the animation.
+  let startTime = 0
 
   function loop(now: number) {
     rafId = requestAnimationFrame(loop)
     if (now - lastFrameAt < FRAME_INTERVAL_MS) return
     lastFrameAt = now
-    draw(now / 1000)
+    if (!startTime) startTime = now
+    draw((now - startTime) / 1000)
   }
 
   function start() {
@@ -194,7 +209,14 @@ onMounted(() => {
     if (document.hidden) stop()
     else start()
   }
+  // If the GPU reclaims the context, the loop would keep firing no-op GL
+  // calls — park it.
+  function onContextLost(event: Event) {
+    event.preventDefault()
+    stop()
+  }
   document.addEventListener('visibilitychange', onVisibilityChange)
+  canvas.addEventListener('webglcontextlost', onContextLost)
   reducedMotion.addEventListener('change', syncMotion)
 
   syncMotion()
@@ -202,6 +224,7 @@ onMounted(() => {
   onBeforeUnmount(() => {
     stop()
     document.removeEventListener('visibilitychange', onVisibilityChange)
+    canvas.removeEventListener('webglcontextlost', onContextLost)
     reducedMotion.removeEventListener('change', syncMotion)
     resizeObserver.disconnect()
     gl.getExtension('WEBGL_lose_context')?.loseContext()

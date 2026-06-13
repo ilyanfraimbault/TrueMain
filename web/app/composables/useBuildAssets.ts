@@ -14,27 +14,31 @@ export function useBuildAssets(patch: MaybeRefOrGetter<string | null | undefined
   const nuxtApp = useNuxtApp()
   const patchRef = computed(() => toValue(patch) || null)
 
+  // Single source for each cache key — reused as the useAsyncData key and by
+  // markStaticFetched, so the two can't drift out of sync (a mismatch would
+  // make getStaticCachedData miss the stored entry every time).
+  const runeTreeKey = computed(() => `rune-tree-${patchRef.value || 'latest'}`)
+  const itemsKey = computed(() => `static-items-${patchRef.value || 'latest'}`)
+
   const { data: runeTree } = useLazyAsyncData<RuneTreeResponse | null>(
-    () => `rune-tree-${patchRef.value || 'latest'}`,
+    () => runeTreeKey.value,
     async () => {
-      const key = `rune-tree-${patchRef.value || 'latest'}`
       const data = await $fetch<RuneTreeResponse>('/api/static/rune-tree', {
         query: patchRef.value ? { patch: patchRef.value } : {},
       })
-      markStaticFetched(key, nuxtApp)
+      markStaticFetched(runeTreeKey.value, nuxtApp)
       return data
     },
     { watch: [patchRef], server: false, default: () => null, getCachedData: key => getStaticCachedData(key, nuxtApp) },
   )
 
   const { data: itemsMap } = useLazyAsyncData<Record<number, StaticItemData>>(
-    () => `static-items-${patchRef.value || 'latest'}`,
+    () => itemsKey.value,
     async () => {
-      const key = `static-items-${patchRef.value || 'latest'}`
       const data = await $fetch<Record<number, StaticItemData>>('/api/static/items', {
         query: patchRef.value ? { patch: patchRef.value } : {},
       })
-      markStaticFetched(key, nuxtApp)
+      markStaticFetched(itemsKey.value, nuxtApp)
       return data
     },
     { watch: [patchRef], server: false, default: () => ({}), getCachedData: key => getStaticCachedData(key, nuxtApp) },

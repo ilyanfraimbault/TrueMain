@@ -15,7 +15,9 @@ const router = useRouter()
 
 function go(path: string) {
   open.value = false
-  void router.push(path)
+  // Internal routes only, but swallow a rejected navigation (route guard,
+  // redirect) instead of leaving an unhandled promise rejection.
+  router.push(path).catch(() => {})
 }
 
 const groups = computed<CommandPaletteGroup[]>(() => [
