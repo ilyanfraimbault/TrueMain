@@ -197,10 +197,12 @@ function cellValue(row: Record<string, unknown>, key: string): unknown {
             :key="col.key"
             class="px-3 py-1.5 align-top text-highlighted tabular-nums"
           >
-            <span v-if="isScalar(cellValue(row, col.key))" class="break-all">
-              {{ formatScalar(cellValue(row, col.key)) }}
-            </span>
-            <ProcessSummaryView v-else :value="cellValue(row, col.key)" />
+            <!-- Bind the cell once via a single-item v-for so scalar cells
+                 don't call cellValue() twice. -->
+            <template v-for="cell in [cellValue(row, col.key)]" :key="col.key">
+              <span v-if="isScalar(cell)" class="break-all">{{ formatScalar(cell) }}</span>
+              <ProcessSummaryView v-else :value="cell" />
+            </template>
           </td>
         </tr>
       </tbody>
