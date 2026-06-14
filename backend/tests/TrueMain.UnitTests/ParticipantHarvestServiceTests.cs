@@ -175,10 +175,10 @@ public sealed class ParticipantHarvestServiceTests
     private sealed class Harness
     {
         private readonly IDataSession _session = Substitute.For<IDataSession>();
-        private readonly IMatchParticipantRepository _participants = Substitute.For<IMatchParticipantRepository>();
         private readonly IRiotAccountRepository _accounts = Substitute.For<IRiotAccountRepository>();
         private readonly IMainCandidateRepository _candidates = Substitute.For<IMainCandidateRepository>();
 
+        public IMatchParticipantRepository Participants { get; } = Substitute.For<IMatchParticipantRepository>();
         public List<MainCandidate> AddedCandidates { get; } = [];
         public List<RiotAccount> AddedAccounts { get; } = [];
         public List<MainCandidate> ExistingCandidates { get; } = [];
@@ -186,7 +186,7 @@ public sealed class ParticipantHarvestServiceTests
 
         public Harness()
         {
-            _session.MatchParticipants.Returns(_participants);
+            _session.MatchParticipants.Returns(Participants);
             _session.RiotAccounts.Returns(_accounts);
             _session.MainCandidates.Returns(_candidates);
 
@@ -202,10 +202,8 @@ public sealed class ParticipantHarvestServiceTests
                 .Do(call => AddedCandidates.Add(call.Arg<MainCandidate>()));
         }
 
-        public IMatchParticipantRepository Participants => _participants;
-
         public void SetRows(params HarvestedCandidateRow[] rows)
-            => _participants.GetHarvestCandidatesAsync(
+            => Participants.GetHarvestCandidatesAsync(
                     Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
                 .Returns(Task.FromResult(rows.ToList()));
 
