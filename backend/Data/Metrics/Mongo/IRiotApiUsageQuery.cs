@@ -29,8 +29,19 @@ public interface IRiotApiUsageQuery
     /// totals, a per-endpoint breakdown, a status-code breakdown, a bucketed
     /// time-series, and the most recent rate-limit header snapshot.
     /// </summary>
+    /// <remarks>
+    /// The per-endpoint breakdown is unbounded by design but bounded in practice:
+    /// keys come from <c>RiotEndpointClassifier</c>, a fixed finite set, and every
+    /// unrecognised path collapses to the single <c>"unknown"</c> key — so the
+    /// group never grows with traffic and needs no <c>$limit</c>.
+    /// <para>
+    /// The rate-limit snapshot is <em>window-scoped only</em>: <paramref name="endpoint"/>
+    /// restricts the breakdowns but not the snapshot, because
+    /// <c>X-App-Rate-Limit[-Count]</c> is app-wide rather than per endpoint.
+    /// </para>
+    /// </remarks>
     /// <param name="window">Relative window (also fixes the bucket size).</param>
-    /// <param name="endpoint">Optional exact endpoint key to restrict to.</param>
+    /// <param name="endpoint">Optional exact endpoint key to restrict the breakdowns to.</param>
     /// <param name="ct">Cancellation token.</param>
     Task<RiotApiUsage> GetAsync(RiotUsageWindow window, string? endpoint, CancellationToken ct);
 }

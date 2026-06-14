@@ -76,13 +76,19 @@ public sealed class RiotApiUsageQueryIntegrationTests
         await SeedAsync(
             Call("match-v5.match", 200, 100, minutesAgo: 3),
             Call("match-v5.match", 200, 100, minutesAgo: 4),
-            Call("league-v4.challenger", 200, 100, minutesAgo: 5));
+            // Most recent, different endpoint, carries the app rate-limit headers.
+            Call("league-v4.challenger", 200, 100, minutesAgo: 1, appLimit: "20:1", appCount: "5:1"));
 
         var usage = await QueryAsync(RiotUsageWindow.LastHour, endpoint: "match-v5.match");
 
+        // Breakdowns are restricted to the filtered endpoint...
         usage.TotalCalls.Should().Be(2);
         usage.Endpoints.Should().ContainSingle()
             .Which.Endpoint.Should().Be("match-v5.match");
+        // ...but the app-wide rate-limit snapshot is window-scoped, so it still
+        // surfaces the league call's headers despite the match-only filter.
+        usage.RateLimit.Should().NotBeNull();
+        usage.RateLimit!.AppRateLimitCount.Should().Be("5:1");
     }
 
     [Fact]

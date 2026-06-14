@@ -45,7 +45,8 @@ public sealed class RiotApiUsageQuery(MongoLogContext context) : IRiotApiUsageQu
         }
 
         var normalizedEndpoint = string.IsNullOrWhiteSpace(endpoint) ? null : endpoint.Trim();
-        var filter = Filter.Gte(doc => doc.TimestampUtc, since);
+        var windowFilter = Filter.Gte(doc => doc.TimestampUtc, since);
+        var filter = windowFilter;
         if (normalizedEndpoint is not null)
         {
             filter &= Filter.Eq(doc => doc.Endpoint, normalizedEndpoint);
@@ -57,7 +58,11 @@ public sealed class RiotApiUsageQuery(MongoLogContext context) : IRiotApiUsageQu
         var endpointsTask = AggregateEndpointsAsync(filter, ct);
         var statusCodesTask = AggregateStatusCodesAsync(filter, ct);
         var timeSeriesTask = AggregateTimeSeriesAsync(filter, unit, binSize, ct);
-        var rateLimitTask = LatestRateLimitAsync(filter, ct);
+        // The rate-limit snapshot uses the window-only filter, NOT the endpoint
+        // filter: X-App-Rate-Limit[-Count] is app-wide (not per endpoint), so the
+        // freshest snapshot in the window reflects true current app consumption
+        // regardless of which endpoint the user is inspecting.
+        var rateLimitTask = LatestRateLimitAsync(windowFilter, ct);
 
         await Task.WhenAll(endpointsTask, statusCodesTask, timeSeriesTask, rateLimitTask);
 
