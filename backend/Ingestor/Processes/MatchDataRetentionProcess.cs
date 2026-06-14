@@ -11,17 +11,22 @@ public sealed class MatchDataRetentionProcess(
     ILogger<MatchDataRetentionProcess> logger,
     IDbContextFactory<TrueMainDbContext> dbContextFactory,
     IOptions<MatchDataRetentionOptions> retentionOptions,
-    IOptions<MainAnalysisOptions> mainAnalysisOptions) : IIngestorProcess
+    IOptions<MainAnalysisOptions> mainAnalysisOptions,
+    IOptions<CandidatePruningOptions> candidatePruningOptions) : IIngestorProcess
 {
     public string Name => "MatchDataRetention";
 
     public async Task<object?> RunCoreAsync(CancellationToken ct)
     {
+        // Prune stale never-promoted candidates first (#487) — independent of match
+        // retention, so it runs even when there is nothing to delete below.
+        var prunedCandidates = await PruneStaleCandidatesAsync(ct);
+
         var retentionPlan = await LoadRetentionPlanAsync(ct);
         if (retentionPlan.RetainedPatchesByPlatform.Count == 0
             || retentionPlan.DeletableMatchIds.Count == 0)
         {
-            return BuildRetentionPayload(retentionPlan, 0, 0);
+            return BuildRetentionPayload(retentionPlan, 0, 0, prunedCandidates);
         }
 
         var deletionResult = await DeleteExpiredMatchDataAsync(retentionPlan.DeletableMatchIds, ct);
@@ -35,7 +40,31 @@ public sealed class MatchDataRetentionProcess(
                     .OrderBy(entry => entry.Key)
                     .Select(entry => $"{entry.Key}=[{string.Join("|", entry.Value.Order())}]")));
 
-        return BuildRetentionPayload(retentionPlan, deletionResult.DeletedMatches, deletionResult.DeletedParticipants);
+        return BuildRetentionPayload(retentionPlan, deletionResult.DeletedMatches, deletionResult.DeletedParticipants, prunedCandidates);
+    }
+
+    private async Task<int> PruneStaleCandidatesAsync(CancellationToken ct)
+    {
+        var options = candidatePruningOptions.Value;
+        if (!options.Enabled || options.PruneAfterDays <= 0)
+        {
+            return 0;
+        }
+
+        var cutoffUtc = DateTime.UtcNow - TimeSpan.FromDays(options.PruneAfterDays);
+        await using var db = await dbContextFactory.CreateDbContextAsync(ct);
+        var pruned = await new Data.Repositories.MainCandidateRepository(db)
+            .PruneStaleNeverPromotedAsync(cutoffUtc, ct);
+
+        if (pruned > 0)
+        {
+            logger.LogInformation(
+                "Candidate pruning removed {PrunedCandidates} stale never-promoted candidate(s) inactive since before {Cutoff:o}.",
+                pruned,
+                cutoffUtc);
+        }
+
+        return pruned;
     }
 
     private async Task<RetentionPlan> LoadRetentionPlanAsync(CancellationToken ct)
@@ -135,7 +164,8 @@ public sealed class MatchDataRetentionProcess(
     private static object BuildRetentionPayload(
         RetentionPlan retentionPlan,
         int deletedMatches,
-        int deletedParticipants)
+        int deletedParticipants,
+        int prunedCandidates)
     {
         return new
         {
@@ -143,6 +173,7 @@ public sealed class MatchDataRetentionProcess(
             queueId = retentionPlan.QueueId,
             deletedMatches,
             deletedParticipants,
+            prunedCandidates,
             retainedPatchesByPlatform = retentionPlan.RetainedPatchesByPlatform
                 .OrderBy(entry => entry.Key)
                 .Select(entry => new
