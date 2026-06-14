@@ -18,6 +18,7 @@ public sealed class OpsController(
     IProcessRunsQueryService processRunsQueryService,
     IProcessIterationsQueryService processIterationsQueryService,
     ILogsQueryService logsQueryService,
+    IRiotApiUsageQueryService riotApiUsageQueryService,
     IDataQualityQueryService dataQualityQueryService,
     ISeedRequestService seedRequestService,
     ISeedRequestQueryService seedRequestQueryService,
@@ -176,6 +177,26 @@ public sealed class OpsController(
         CancellationToken ct)
     {
         var readModel = await logsQueryService.GetAsync(level, category, since, search, eventType, page, pageSize, ct);
+        return Ok(readModel);
+    }
+
+    /// <summary>
+    /// Riot API usage metrics for the admin panel (#93): call counts per endpoint,
+    /// status-code breakdown, a bucketed call-volume series and the latest
+    /// rate-limit header snapshot, over a relative window.
+    /// </summary>
+    /// <param name="window">Relative window: <c>1h</c>, <c>24h</c> (default) or <c>7d</c>.</param>
+    /// <param name="endpoint">Optional exact endpoint key (e.g. <c>match-v5.match</c>) to restrict to.</param>
+    /// <param name="ct">Request cancellation token.</param>
+    [HttpGet("riot-usage")]
+    [ProducesResponseType(typeof(RiotApiUsageReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<RiotApiUsageReadModel>> GetRiotApiUsageAsync(
+        [FromQuery] string? window,
+        [FromQuery] string? endpoint,
+        CancellationToken ct)
+    {
+        var readModel = await riotApiUsageQueryService.GetAsync(window, endpoint, ct);
         return Ok(readModel);
     }
 
