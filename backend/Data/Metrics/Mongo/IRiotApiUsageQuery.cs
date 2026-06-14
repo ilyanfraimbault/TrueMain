@@ -61,13 +61,19 @@ public sealed record RiotApiUsage(
     IReadOnlyList<RiotApiUsageBucket> TimeSeries,
     RiotApiRateLimitSnapshot? RateLimit);
 
-/// <summary>Per-endpoint rollup, ordered by <see cref="Calls"/> descending.</summary>
+/// <summary>
+/// Per-endpoint rollup, ordered by <see cref="Calls"/> descending.
+/// <see cref="SumLatencyMs"/> is the unrounded latency total kept so the
+/// window-wide mean can be derived exactly (Σ sum / Σ calls) without re-weighting
+/// the already-divided <see cref="AvgLatencyMs"/>.
+/// </summary>
 public sealed record RiotApiEndpointUsage(
     string Endpoint,
     long Calls,
     long Successes,
     long Errors,
     double AvgLatencyMs,
+    long SumLatencyMs,
     DateTime LastCalledAtUtc);
 
 /// <summary>One row of the status-code histogram. <c>0</c> means a transport fault (no response).</summary>

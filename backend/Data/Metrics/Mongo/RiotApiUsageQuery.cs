@@ -72,11 +72,13 @@ public sealed class RiotApiUsageQuery(MongoLogContext context) : IRiotApiUsageQu
         var rateLimit = await rateLimitTask;
 
         // Totals are derived from the per-endpoint rollup so the collection is only
-        // grouped once for them (avoids a redundant whole-window aggregation).
+        // grouped once for them (avoids a redundant whole-window aggregation). The
+        // mean uses the unrounded latency sums (Σ sum / Σ calls), not a re-weighting
+        // of the per-endpoint averages, so no floating-point error accumulates.
         var totalCalls = endpoints.Sum(e => e.Calls);
         var totalErrors = endpoints.Sum(e => e.Errors);
-        var weightedLatency = endpoints.Sum(e => e.AvgLatencyMs * e.Calls);
-        var avgLatency = totalCalls > 0 ? weightedLatency / totalCalls : 0;
+        var totalLatency = endpoints.Sum(e => e.SumLatencyMs);
+        var avgLatency = totalCalls > 0 ? (double)totalLatency / totalCalls : 0;
 
         return new RiotApiUsage(
             since,
@@ -120,6 +122,7 @@ public sealed class RiotApiUsageQuery(MongoLogContext context) : IRiotApiUsageQu
                 calls - errors,
                 errors,
                 calls > 0 ? (double)sumLatency / calls : 0,
+                sumLatency,
                 row["lastCalledAtUtc"].ToUniversalTime());
         }).ToList();
     }
