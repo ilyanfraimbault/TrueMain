@@ -54,6 +54,29 @@ public sealed class MainCandidateRepository(TrueMainDbContext db) : IMainCandida
             .Take(Math.Max(0, take))
             .ToListAsync(ct);
 
+    public Task<List<MainCandidate>> GetByPlatformsAndPuuidsAsync(
+        IReadOnlyCollection<string> platformIds,
+        IReadOnlyCollection<string> puuids,
+        CancellationToken ct)
+    {
+        if (platformIds.Count == 0 || puuids.Count == 0)
+        {
+            return Task.FromResult(new List<MainCandidate>());
+        }
+
+        var platformArray = platformIds.ToArray();
+        var puuidArray = puuids.ToArray();
+
+        // Cartesian filter (platform IN ... AND puuid IN ...), not exact (platform, puuid)
+        // pair matching — a deliberate trade-off. Riot puuids are globally unique, so a puuid
+        // never recurs under another platform and no spurious cross-platform rows are loaded;
+        // even if the data ever diverged, the caller keys on the exact (platform, puuid,
+        // champion) tuple, so extras are ignored. Keeps the query a single index-friendly IN.
+        return db.MainCandidates
+            .Where(c => platformArray.Contains(c.PlatformId) && puuidArray.Contains(c.Puuid))
+            .ToListAsync(ct);
+    }
+
     private static readonly MainCandidateStatus[] NeverPromotedStatuses =
         [MainCandidateStatus.New, MainCandidateStatus.Scored, MainCandidateStatus.Rejected];
 
