@@ -66,6 +66,12 @@ public sealed class MainCandidateRepository(TrueMainDbContext db) : IMainCandida
 
         var platformArray = platformIds.ToArray();
         var puuidArray = puuids.ToArray();
+
+        // Cartesian filter (platform IN ... AND puuid IN ...), not exact (platform, puuid)
+        // pair matching — a deliberate trade-off. Riot puuids are globally unique, so a puuid
+        // never recurs under another platform and no spurious cross-platform rows are loaded;
+        // even if the data ever diverged, the caller keys on the exact (platform, puuid,
+        // champion) tuple, so extras are ignored. Keeps the query a single index-friendly IN.
         return db.MainCandidates
             .Where(c => platformArray.Contains(c.PlatformId) && puuidArray.Contains(c.Puuid))
             .ToListAsync(ct);
