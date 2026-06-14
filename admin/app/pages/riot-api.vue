@@ -19,7 +19,10 @@ const WINDOW_ITEMS: { label: string, value: RiotUsageWindow }[] = [
 
 // `selectedWindow` (not `window`) to avoid shadowing the browser global.
 const selectedWindow = ref<RiotUsageWindow>('24h')
-const endpoint = ref('')
+// Debounce the free-text endpoint filter so typing doesn't fire a request per
+// keystroke (matches the logs/candidates panels).
+const endpointInput = ref('')
+const endpoint = refDebounced(endpointInput, 300)
 
 const filters = computed(() => ({
   window: selectedWindow.value,
@@ -211,7 +214,7 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
       <UDashboardToolbar>
         <template #left>
           <UInput
-            v-model="endpoint"
+            v-model="endpointInput"
             icon="i-lucide-search"
             placeholder="Exact endpoint key…"
             class="w-56"
