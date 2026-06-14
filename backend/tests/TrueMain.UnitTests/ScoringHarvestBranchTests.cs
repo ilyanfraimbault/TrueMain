@@ -11,6 +11,8 @@ namespace TrueMain.UnitTests;
 
 public sealed class ScoringHarvestBranchTests
 {
+    private static readonly DateTime Now = new(2026, 6, 14, 12, 0, 0, DateTimeKind.Utc);
+
     [Fact]
     public async Task HarvestCandidate_ScoresFromObservedGames_WithoutMasteryData()
     {
@@ -43,8 +45,8 @@ public sealed class ScoringHarvestBranchTests
             Source = MainCandidateSource.Harvest,
             ObservedGames = observedGames,
             ObservedWins = observedGames / 2,
-            LastPlayTimeUtc = DateTime.UtcNow.AddDays(-lastPlayDaysAgo),
-            DiscoveredAtUtc = DateTime.UtcNow.AddHours(-1),
+            LastPlayTimeUtc = Now.AddDays(-lastPlayDaysAgo),
+            DiscoveredAtUtc = Now.AddHours(-1),
             Status = MainCandidateStatus.New
         };
 

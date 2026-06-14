@@ -174,6 +174,9 @@ public sealed class ScoringProcess(
         // verdict; final confirmation still comes from history ingestion + MainAnalysis.
         if (candidate.Source == MainCandidateSource.Harvest)
         {
+            // Defensive only: startup validation guarantees HarvestObservedGamesLogNormalizer > 0,
+            // so the 1.5 fallback is unreachable in production (matches the topN/maxLastPlayDays
+            // guards above). It keeps a direct unit test that bypasses validation from dividing by 0.
             var normalizer = scoring.HarvestObservedGamesLogNormalizer <= 0 ? 1.5 : scoring.HarvestObservedGamesLogNormalizer;
             var observedScore = Clamp(Math.Log10(candidate.ObservedGames + 1) / normalizer, 0, 1);
             var meritWeight = rankWeight + pointsWeight;

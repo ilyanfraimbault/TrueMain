@@ -19,7 +19,8 @@ internal static class MatchParticipantSeed
         string puuid,
         int championId,
         bool win,
-        Guid? riotAccountId = null)
+        Guid? riotAccountId = null,
+        int participantId = 1)
     {
         db.Matches.Add(new Match
         {
@@ -40,7 +41,7 @@ internal static class MatchParticipantSeed
         {
             Id = Guid.NewGuid(),
             MatchId = matchId,
-            ParticipantId = 1,
+            ParticipantId = participantId,
             RiotAccountId = riotAccountId,
             Puuid = puuid,
             SummonerName = puuid,
