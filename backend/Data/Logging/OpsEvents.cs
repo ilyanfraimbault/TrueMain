@@ -40,6 +40,9 @@ public static class OpsEvents
     /// <summary>A discovery pass over one platform's ladder completed, with its counters.</summary>
     public static readonly EventId DiscoveryCycleCompleted = new(1003, nameof(DiscoveryCycleCompleted));
 
+    /// <summary>A participant harvest pass completed, with its candidate/account counters.</summary>
+    public static readonly EventId HarvestCycleCompleted = new(1004, nameof(HarvestCycleCompleted));
+
     // Single source for the lookup + the UI-facing list, so a new event only has
     // to be added in two places (its field above and this array).
     private static readonly EventId[] All =
@@ -47,7 +50,8 @@ public static class OpsEvents
         CandidateValidated,
         SeedRequestResolved,
         SeedRequestFailed,
-        DiscoveryCycleCompleted
+        DiscoveryCycleCompleted,
+        HarvestCycleCompleted
     ];
 
     private static readonly Dictionary<string, int> IdByName =

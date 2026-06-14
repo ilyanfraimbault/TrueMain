@@ -22,6 +22,7 @@ public sealed class WorkerProcessIsolationTests
     [
         "Discovery",
         "ManualSeed",
+        "Harvest",
         "Scoring",
         "MatchIngestion",
         "MainAnalysis",

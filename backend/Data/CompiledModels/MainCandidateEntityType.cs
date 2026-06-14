@@ -20,7 +20,7 @@ namespace Data.CompiledModels
                 "Data.Entities.MainCandidate",
                 typeof(MainCandidate),
                 baseEntityType,
-                propertyCount: 12,
+                propertyCount: 15,
                 unnamedIndexCount: 4,
                 keyCount: 1);
 
@@ -76,6 +76,26 @@ namespace Data.CompiledModels
                 sentinel: new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified));
             lastPlayTimeUtc.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
+            var observedGames = runtimeEntityType.AddProperty(
+                "ObservedGames",
+                typeof(int),
+                propertyInfo: typeof(MainCandidate).GetProperty("ObservedGames", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MainCandidate).GetField("<ObservedGames>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: 0);
+            observedGames.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            observedGames.AddAnnotation("Relational:DefaultValue", 0);
+
+            var observedWins = runtimeEntityType.AddProperty(
+                "ObservedWins",
+                typeof(int),
+                propertyInfo: typeof(MainCandidate).GetProperty("ObservedWins", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MainCandidate).GetField("<ObservedWins>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: 0);
+            observedWins.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            observedWins.AddAnnotation("Relational:DefaultValue", 0);
+
             var platformId = runtimeEntityType.AddProperty(
                 "PlatformId",
                 typeof(string),
@@ -107,6 +127,16 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(MainCandidate).GetField("<ScoredAtUtc>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 nullable: true);
             scoredAtUtc.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var source = runtimeEntityType.AddProperty(
+                "Source",
+                typeof(MainCandidateSource),
+                propertyInfo: typeof(MainCandidate).GetProperty("Source", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MainCandidate).GetField("<Source>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd);
+            source.SetSentinelFromProviderValue(0);
+            source.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            source.AddAnnotation("Relational:DefaultValue", MainCandidateSource.Ladder);
 
             var status = runtimeEntityType.AddProperty(
                 "Status",

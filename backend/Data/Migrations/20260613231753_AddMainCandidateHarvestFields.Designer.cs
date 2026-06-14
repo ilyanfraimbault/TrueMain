@@ -6,6 +6,7 @@ using Data;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -14,9 +15,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Data.Migrations
 {
     [DbContext(typeof(TrueMainDbContext))]
-    partial class TrueMainDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260613231753_AddMainCandidateHarvestFields")]
+    partial class AddMainCandidateHarvestFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -283,25 +286,6 @@ namespace Data.Migrations
                         .IsUnique();
 
                     b.ToTable("champion_dim_starter_items", (string)null);
-                });
-
-            modelBuilder.Entity("Data.Entities.DiscoveryCursor", b =>
-                {
-                    b.Property<string>("PlatformId")
-                        .HasMaxLength(8)
-                        .HasColumnType("character varying(8)");
-
-                    b.Property<int>("Offset")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAtUtc")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("now()");
-
-                    b.HasKey("PlatformId");
-
-                    b.ToTable("discovery_cursors", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.MainCandidate", b =>
