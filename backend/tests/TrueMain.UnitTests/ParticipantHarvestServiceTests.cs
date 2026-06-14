@@ -134,6 +134,34 @@ public sealed class ParticipantHarvestServiceTests
     }
 
     [Fact]
+    public async Task HarvestAsync_DoesNotResetProcessingHarvestCandidate()
+    {
+        var harness = new Harness();
+        var existing = new MainCandidate
+        {
+            PlatformId = "KR",
+            Puuid = "puuid-processing",
+            ChampionId = 22,
+            Source = MainCandidateSource.Harvest,
+            ObservedGames = 6,
+            ObservedWins = 3,
+            LastPlayTimeUtc = Now.AddDays(-2),
+            Status = MainCandidateStatus.Processing
+        };
+        harness.ExistingCandidates.Add(existing);
+        harness.ExistingAccountPuuids.Add("puuid-processing");
+        harness.SetRows(new HarvestedCandidateRow("KR", "puuid-processing", 22, 12, 8, Now.AddHours(-1)));
+
+        await harness.RunAsync();
+
+        // Mid-ingestion candidates keep their place; only the observed stats refresh.
+        existing.Status.Should().Be(MainCandidateStatus.Processing);
+        existing.ObservedGames.Should().Be(12);
+        existing.ObservedWins.Should().Be(8);
+        existing.LastPlayTimeUtc.Should().Be(Now.AddHours(-1));
+    }
+
+    [Fact]
     public async Task HarvestAsync_DoesNotResurrectRejectedCandidate()
     {
         var harness = new Harness();
