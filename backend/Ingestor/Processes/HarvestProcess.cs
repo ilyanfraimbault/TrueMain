@@ -44,7 +44,9 @@ public sealed class HarvestProcess(
         // participant-harvest arm from /ops/logs alongside ladder discovery.
         logger.LogInformation(
             OpsEvents.HarvestCycleCompleted,
-            "Harvest summary: minObservedGames={MinObservedGames}, candidatesInserted={Inserted}, candidatesUpdated={Updated}, accountsCreated={AccountsCreated}.",
+            "Harvest summary: lookbackDays={LookbackDays}, maxCandidatesPerRun={MaxCandidatesPerRun}, minObservedGames={MinObservedGames}, candidatesInserted={Inserted}, candidatesUpdated={Updated}, accountsCreated={AccountsCreated}.",
+            options.LookbackDays,
+            options.MaxCandidatesPerRun,
             options.MinObservedGames,
             result.CandidatesInserted,
             result.CandidatesUpdated,
