@@ -146,6 +146,32 @@ public sealed class ParticipantHarvestServiceTests
         harness.AddedAccounts.Should().ContainSingle();
     }
 
+    [Fact]
+    public async Task HarvestAsync_PassesLookbackCutoff_RelativeToNow()
+    {
+        var harness = new Harness();
+        harness.SetRows();
+
+        await harness.RunAsync(lookbackDays: 30);
+
+        await harness.Participants.Received(1).GetHarvestCandidatesAsync(
+            Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<int>(),
+            Now.AddDays(-30), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task HarvestAsync_PassesEpochCutoff_WhenLookbackDisabled()
+    {
+        var harness = new Harness();
+        harness.SetRows();
+
+        await harness.RunAsync(lookbackDays: 0);
+
+        await harness.Participants.Received(1).GetHarvestCandidatesAsync(
+            Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<int>(),
+            DateTime.UnixEpoch, Arg.Any<CancellationToken>());
+    }
+
     private sealed class Harness
     {
         private readonly IDataSession _session = Substitute.For<IDataSession>();
@@ -176,15 +202,17 @@ public sealed class ParticipantHarvestServiceTests
                 .Do(call => AddedCandidates.Add(call.Arg<MainCandidate>()));
         }
 
+        public IMatchParticipantRepository Participants => _participants;
+
         public void SetRows(params HarvestedCandidateRow[] rows)
             => _participants.GetHarvestCandidatesAsync(
                     Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
                 .Returns(Task.FromResult(rows.ToList()));
 
-        public Task<HarvestResult> RunAsync()
+        public Task<HarvestResult> RunAsync(int lookbackDays = 0)
             => new ParticipantHarvestService().HarvestAsync(
                 _session,
-                new HarvestOptions { Platforms = ["KR"], MinObservedGames = 5 },
+                new HarvestOptions { Platforms = ["KR"], MinObservedGames = 5, LookbackDays = lookbackDays },
                 Now,
                 CancellationToken.None);
     }

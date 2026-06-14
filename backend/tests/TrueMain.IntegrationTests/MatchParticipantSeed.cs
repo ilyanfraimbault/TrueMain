@@ -10,6 +10,8 @@ namespace TrueMain.IntegrationTests;
 /// </summary>
 internal static class MatchParticipantSeed
 {
+    private static int _nextParticipantId;
+
     public static void AddMatchWithParticipant(
         TrueMainDbContext db,
         string matchId,
@@ -20,8 +22,13 @@ internal static class MatchParticipantSeed
         int championId,
         bool win,
         Guid? riotAccountId = null,
-        int participantId = 1)
+        int? participantId = null)
     {
+        // Default to a process-unique id so two participants seeded into the same match never
+        // collide on the (MatchId, ParticipantId) unique index, even if a caller forgets to
+        // pass distinct ids. Callers can still pin an explicit value when they assert on it.
+        var resolvedParticipantId = participantId ?? Interlocked.Increment(ref _nextParticipantId);
+
         db.Matches.Add(new Match
         {
             Id = matchId,
@@ -41,7 +48,7 @@ internal static class MatchParticipantSeed
         {
             Id = Guid.NewGuid(),
             MatchId = matchId,
-            ParticipantId = participantId,
+            ParticipantId = resolvedParticipantId,
             RiotAccountId = riotAccountId,
             Puuid = puuid,
             SummonerName = puuid,

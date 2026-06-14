@@ -63,6 +63,9 @@ public sealed class ParticipantHarvestService : IParticipantHarvestService
         var inserted = 0;
         var updated = 0;
         var accountsCreated = 0;
+        // Counts entities written since the last flush — a new puuid contributes both an
+        // account and a candidate, so a single row can add 2. A Skipped candidate adds 0
+        // (or 1 when its puuid was new and only the account was created).
         var pendingWrites = 0;
 
         foreach (var row in rows)
@@ -162,8 +165,15 @@ public sealed class ParticipantHarvestService : IParticipantHarvestService
         // Re-score on the refreshed sample: a harvested candidate that was Scored but never
         // promoted should compete again now that it has accumulated more observed games (its
         // stored score is stale otherwise). Reset to New so the same-pass ScoringProcess
-        // re-scores it. In-flight (Queued/Processing), Validated and Rejected candidates keep
-        // their state — they are already in or through the pipeline / explicitly decided.
+        // re-scores it. In-flight (Queued/Processing) and Validated candidates keep their
+        // state — they are already in or through the pipeline.
+        //
+        // Rejected stays rejected by design: a rejection is a verdict from real history
+        // ingestion + MainAnalysis (play-rate over the account's actual ~50 games), not from
+        // this biased participant sample. A bigger observed sample here is still a prior, so
+        // it must not resurrect an account real history already ruled out — re-queuing would
+        // just re-ingest and re-reject. (If we ever want to reconsider rejections past a much
+        // higher observed threshold, that is a separate, explicit policy change.)
         if (existing.Status == MainCandidateStatus.Scored)
         {
             existing.Status = MainCandidateStatus.New;
