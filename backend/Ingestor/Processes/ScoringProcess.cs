@@ -172,6 +172,11 @@ public sealed class ScoringProcess(
         // single observed-games merit term, keeping the same weight denominator (and so the
         // same 0-100 scale) as ladder candidates. The sample is a biased prior, not a main
         // verdict; final confirmation still comes from history ingestion + MainAnalysis.
+        //
+        // Only ObservedGames feeds the merit here. ObservedWins is persisted as the observed
+        // winrate signal (per #485) for completeness and the candidate read model, but is
+        // intentionally NOT a scoring input yet — winrate weighting is a deliberate future
+        // refinement, kept out of this first scorer to avoid over-fitting a biased sample.
         if (candidate.Source == MainCandidateSource.Harvest)
         {
             // Defensive only: startup validation guarantees HarvestObservedGamesLogNormalizer > 0,
