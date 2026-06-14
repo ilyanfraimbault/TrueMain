@@ -40,15 +40,23 @@ public sealed class ParticipantHarvestService : IParticipantHarvestService
 
         var saveBatchSize = Math.Max(1, options.SaveBatchSize);
 
-        // Puuids appear once per champion (the aggregation groups by puuid+champion),
-        // so a single puuid can yield several rows. GetByPuuidAsync queries the DB and
-        // won't see an account we Added but haven't saved yet, so track ensured puuids
-        // in-process to avoid a duplicate insert against the unique Puuid index.
-        var ensuredPuuids = new HashSet<string>(StringComparer.Ordinal);
+        // Preload everything the loop would otherwise read per row, turning an O(N) chain
+        // of round-trips into two queries: the candidates we might refresh and the puuids
+        // that already have an account. Both are keyed for O(1) in-loop lookups; the
+        // ensured set then also absorbs accounts we Add this run (the unique Puuid index
+        // would otherwise reject a second insert for a puuid seen on another champion).
+        var platformIds = rows.Select(row => row.PlatformId).Distinct(StringComparer.Ordinal).ToArray();
+        var puuids = rows.Select(row => row.Puuid).Distinct(StringComparer.Ordinal).ToArray();
+
+        var existingCandidates = (await session.MainCandidates
+                .GetByPlatformsAndPuuidsAsync(platformIds, puuids, ct))
+            .ToDictionary(CandidateKey, candidate => candidate);
+        var ensuredPuuids = await session.RiotAccounts.GetExistingPuuidsAsync(puuids, ct);
+
         var inserted = 0;
         var updated = 0;
         var accountsCreated = 0;
-        var pendingChanges = 0;
+        var pendingWrites = 0;
 
         foreach (var row in rows)
         {
@@ -56,30 +64,33 @@ public sealed class ParticipantHarvestService : IParticipantHarvestService
 
             if (ensuredPuuids.Add(row.Puuid))
             {
-                if (await EnsureAccountAsync(session, row, nowUtc, ct))
-                {
-                    accountsCreated++;
-                }
+                AddMinimalAccount(session, row, nowUtc);
+                accountsCreated++;
+                pendingWrites++;
             }
 
-            if (await UpsertCandidateAsync(session, row, nowUtc, ct))
+            switch (UpsertCandidate(session, existingCandidates, row, nowUtc))
             {
-                inserted++;
-            }
-            else
-            {
-                updated++;
+                case UpsertOutcome.Inserted:
+                    inserted++;
+                    pendingWrites++;
+                    break;
+                case UpsertOutcome.Updated:
+                    updated++;
+                    pendingWrites++;
+                    break;
+                case UpsertOutcome.Skipped:
+                    break;
             }
 
-            pendingChanges++;
-            if (pendingChanges >= saveBatchSize)
+            if (pendingWrites >= saveBatchSize)
             {
                 await session.SaveChangesAsync(ct);
-                pendingChanges = 0;
+                pendingWrites = 0;
             }
         }
 
-        if (pendingChanges > 0)
+        if (pendingWrites > 0)
         {
             await session.SaveChangesAsync(ct);
         }
@@ -87,18 +98,8 @@ public sealed class ParticipantHarvestService : IParticipantHarvestService
         return new HarvestResult(inserted, updated, accountsCreated);
     }
 
-    private static async Task<bool> EnsureAccountAsync(
-        IDataSession session,
-        HarvestedCandidateRow row,
-        DateTime nowUtc,
-        CancellationToken ct)
+    private static void AddMinimalAccount(IDataSession session, HarvestedCandidateRow row, DateTime nowUtc)
     {
-        var existing = await session.RiotAccounts.GetByPuuidAsync(row.Puuid, ct);
-        if (existing is not null)
-        {
-            return false;
-        }
-
         // Minimal account: puuid + platform only. GameName/TagLine left blank so the
         // account is priority-0 for AccountRefreshProcess (identity backfill via
         // account-v1). CreatedAtUtc/UpdatedAtUtc fall back to their now() DB defaults.
@@ -110,22 +111,17 @@ public sealed class ParticipantHarvestService : IParticipantHarvestService
             UpdatedAtUtc = nowUtc,
             MatchIngestStatus = MatchIngestStatus.Idle
         });
-        return true;
     }
 
-    private static async Task<bool> UpsertCandidateAsync(
+    private static UpsertOutcome UpsertCandidate(
         IDataSession session,
+        Dictionary<(string, string, int), MainCandidate> existingCandidates,
         HarvestedCandidateRow row,
-        DateTime nowUtc,
-        CancellationToken ct)
+        DateTime nowUtc)
     {
-        var existing = (await session.MainCandidates
-                .GetByPlatformPuuidAndChampionsAsync(row.PlatformId, row.Puuid, [row.ChampionId], ct))
-            .FirstOrDefault();
-
-        if (existing is null)
+        if (!existingCandidates.TryGetValue(CandidateKey(row), out var existing))
         {
-            session.MainCandidates.Add(new MainCandidate
+            var candidate = new MainCandidate
             {
                 PlatformId = row.PlatformId,
                 Puuid = row.Puuid,
@@ -136,21 +132,39 @@ public sealed class ParticipantHarvestService : IParticipantHarvestService
                 LastPlayTimeUtc = row.LastSeenUtc,
                 DiscoveredAtUtc = nowUtc,
                 Status = MainCandidateStatus.New
-            });
-            return true;
+            };
+            session.MainCandidates.Add(candidate);
+            // Guard against a duplicate insert if the same (platform, puuid, champion)
+            // somehow recurs in this run (it should not — the aggregation groups by it).
+            existingCandidates[CandidateKey(row)] = candidate;
+            return UpsertOutcome.Inserted;
         }
 
-        // Refresh the observed signal so scoring stays fresh. Never touch a non-harvest
-        // candidate's mastery fields/recency (LastPlayTimeUtc is mastery last-play there),
-        // and never change Status/Source — a candidate already past New keeps its place
-        // in the pipeline (mirrors ManualSeed's status discipline).
+        // Only harvested candidates carry observed stats — leave a ladder/manual candidate's
+        // fields untouched so the "observed stats are 0 outside Harvest" invariant holds and
+        // its mastery recency (LastPlayTimeUtc) is not clobbered. Status/Source never change:
+        // a candidate already past New keeps its place (mirrors ManualSeed's discipline).
+        if (existing.Source != MainCandidateSource.Harvest)
+        {
+            return UpsertOutcome.Skipped;
+        }
+
         existing.ObservedGames = row.ObservedGames;
         existing.ObservedWins = row.ObservedWins;
-        if (existing.Source == MainCandidateSource.Harvest)
-        {
-            existing.LastPlayTimeUtc = row.LastSeenUtc;
-        }
+        existing.LastPlayTimeUtc = row.LastSeenUtc;
+        return UpsertOutcome.Updated;
+    }
 
-        return false;
+    private static (string, string, int) CandidateKey(MainCandidate candidate)
+        => (candidate.PlatformId, candidate.Puuid, candidate.ChampionId);
+
+    private static (string, string, int) CandidateKey(HarvestedCandidateRow row)
+        => (row.PlatformId, row.Puuid, row.ChampionId);
+
+    private enum UpsertOutcome
+    {
+        Inserted,
+        Updated,
+        Skipped
     }
 }

@@ -54,7 +54,7 @@ public sealed class ParticipantHarvestServiceTests
             LastPlayTimeUtc = Now.AddDays(-5),
             Status = MainCandidateStatus.Scored
         };
-        harness.ExistingCandidate = existing;
+        harness.ExistingCandidates.Add(existing);
         harness.ExistingAccountPuuids.Add("puuid-known");
         harness.SetRows(new HarvestedCandidateRow("KR", "puuid-known", 22, 11, 7, Now.AddHours(-2)));
 
@@ -73,7 +73,7 @@ public sealed class ParticipantHarvestServiceTests
     }
 
     [Fact]
-    public async Task HarvestAsync_DoesNotClobberLadderRecency_WhenRefreshingNonHarvestCandidate()
+    public async Task HarvestAsync_LeavesNonHarvestCandidateUntouched()
     {
         var harness = new Harness();
         var ladderLastPlay = Now.AddDays(-3);
@@ -85,18 +85,21 @@ public sealed class ParticipantHarvestServiceTests
             Source = MainCandidateSource.Ladder,
             ChampionRankInMasteryTop = 1,
             ChampionPoints = 500_000,
+            ObservedGames = 0,
+            ObservedWins = 0,
             LastPlayTimeUtc = ladderLastPlay,
             Status = MainCandidateStatus.Scored
         };
-        harness.ExistingCandidate = existing;
+        harness.ExistingCandidates.Add(existing);
         harness.ExistingAccountPuuids.Add("puuid-ladder");
         harness.SetRows(new HarvestedCandidateRow("KR", "puuid-ladder", 22, 9, 4, Now.AddHours(-1)));
 
-        await harness.RunAsync();
+        var result = await harness.RunAsync();
 
-        // Observed signal is enriched, but mastery recency/fields stay untouched.
-        existing.ObservedGames.Should().Be(9);
-        existing.ObservedWins.Should().Be(4);
+        // Invariant: observed stats stay 0 outside Harvest, and mastery recency is untouched.
+        result.CandidatesUpdated.Should().Be(0);
+        existing.ObservedGames.Should().Be(0);
+        existing.ObservedWins.Should().Be(0);
         existing.LastPlayTimeUtc.Should().Be(ladderLastPlay);
         existing.Source.Should().Be(MainCandidateSource.Ladder);
     }
@@ -125,7 +128,7 @@ public sealed class ParticipantHarvestServiceTests
 
         public List<MainCandidate> AddedCandidates { get; } = [];
         public List<RiotAccount> AddedAccounts { get; } = [];
-        public MainCandidate? ExistingCandidate { get; set; }
+        public List<MainCandidate> ExistingCandidates { get; } = [];
         public HashSet<string> ExistingAccountPuuids { get; } = new(StringComparer.Ordinal);
 
         public Harness()
@@ -134,26 +137,14 @@ public sealed class ParticipantHarvestServiceTests
             _session.RiotAccounts.Returns(_accounts);
             _session.MainCandidates.Returns(_candidates);
 
-            _accounts.GetByPuuidAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-                .Returns(call => Task.FromResult(
-                    ExistingAccountPuuids.Contains(call.Arg<string>())
-                        ? new RiotAccount { Puuid = call.Arg<string>() }
-                        : null));
+            _accounts.GetExistingPuuidsAsync(Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
+                .Returns(_ => Task.FromResult(new HashSet<string>(ExistingAccountPuuids, StringComparer.Ordinal)));
             _accounts.When(a => a.Add(Arg.Any<RiotAccount>()))
                 .Do(call => AddedAccounts.Add(call.Arg<RiotAccount>()));
 
-            _candidates.GetByPlatformPuuidAndChampionsAsync(
-                    Arg.Any<string>(), Arg.Any<string>(), Arg.Any<List<int>>(), Arg.Any<CancellationToken>())
-                .Returns(call =>
-                {
-                    var championIds = call.ArgAt<List<int>>(2);
-                    var match = ExistingCandidate is not null
-                                && ExistingCandidate.Puuid == call.ArgAt<string>(1)
-                                && championIds.Contains(ExistingCandidate.ChampionId)
-                        ? new List<MainCandidate> { ExistingCandidate }
-                        : new List<MainCandidate>();
-                    return Task.FromResult(match);
-                });
+            _candidates.GetByPlatformsAndPuuidsAsync(
+                    Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
+                .Returns(_ => Task.FromResult(ExistingCandidates.ToList()));
             _candidates.When(c => c.Add(Arg.Any<MainCandidate>()))
                 .Do(call => AddedCandidates.Add(call.Arg<MainCandidate>()));
         }

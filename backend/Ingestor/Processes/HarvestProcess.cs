@@ -25,9 +25,11 @@ public sealed class HarvestProcess(
     public async Task<object?> RunCoreAsync(CancellationToken ct)
     {
         var options = harvestOptions.Value;
-        var platforms = PlatformNormalizer.Normalize(options.Platforms);
 
-        if (platforms.Count == 0)
+        // Guard only: the repository normalizes Harvest:Platforms (trim/upper/distinct)
+        // before the SQL filter, so it is the single source of truth — no need to rebuild
+        // options with a pre-normalized list here.
+        if (PlatformNormalizer.Normalize(options.Platforms).Count == 0)
         {
             logger.LogWarning("No platforms configured (Harvest:Platforms).");
             return new { reason = "No platforms configured.", candidatesInserted = 0 };
@@ -36,23 +38,14 @@ public sealed class HarvestProcess(
         await using var session = await sessionFactory.CreateAsync(ct);
         var nowUtc = DateTime.UtcNow;
 
-        var effectiveOptions = new HarvestOptions
-        {
-            Platforms = platforms,
-            QueueId = options.QueueId,
-            MinObservedGames = options.MinObservedGames,
-            MaxCandidatesPerRun = options.MaxCandidatesPerRun,
-            SaveBatchSize = options.SaveBatchSize
-        };
-
-        var result = await harvestService.HarvestAsync(session, effectiveOptions, nowUtc, ct);
+        var result = await harvestService.HarvestAsync(session, options, nowUtc, ct);
 
         // Named ops event (#444): one per harvest run, so the operator can follow the
         // participant-harvest arm from /ops/logs alongside ladder discovery.
         logger.LogInformation(
             OpsEvents.HarvestCycleCompleted,
             "Harvest summary: minObservedGames={MinObservedGames}, candidatesInserted={Inserted}, candidatesUpdated={Updated}, accountsCreated={AccountsCreated}.",
-            effectiveOptions.MinObservedGames,
+            options.MinObservedGames,
             result.CandidatesInserted,
             result.CandidatesUpdated,
             result.AccountsCreated);

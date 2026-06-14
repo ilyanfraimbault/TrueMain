@@ -1,5 +1,4 @@
 using AwesomeAssertions;
-using Data;
 using Data.Entities;
 using Ingestor.Options;
 using Ingestor.Processes;
@@ -32,7 +31,8 @@ public sealed class HarvestProcessIntegrationTests
             // 6 orphan ranked-solo games on champ 22 for an untracked puuid, 4 wins.
             for (var i = 0; i < 6; i++)
             {
-                AddMatchWithParticipant(db, $"H_{i}", "KR", now.AddDays(-i), "harvest-puuid", 22, win: i < 4);
+                MatchParticipantSeed.AddMatchWithParticipant(
+                    db, $"H_{i}", "KR", RankedSolo, now.AddDays(-i), "harvest-puuid", 22, win: i < 4);
             }
 
             await db.SaveChangesAsync();
@@ -68,65 +68,5 @@ public sealed class HarvestProcessIntegrationTests
         account.PlatformId.Should().Be("KR");
         account.GameName.Should().BeEmpty();
         account.MatchIngestStatus.Should().Be(MatchIngestStatus.Idle);
-    }
-
-    private static void AddMatchWithParticipant(
-        TrueMainDbContext db,
-        string matchId,
-        string platformId,
-        DateTime gameStartTimeUtc,
-        string puuid,
-        int championId,
-        bool win)
-    {
-        db.Matches.Add(new Match
-        {
-            Id = matchId,
-            PlatformId = platformId,
-            QueueId = RankedSolo,
-            MapId = 11,
-            GameMode = "CLASSIC",
-            GameType = "MATCHED_GAME",
-            GameStartTimeUtc = gameStartTimeUtc,
-            GameDurationSeconds = 1800,
-            GameVersion = "16.6.1",
-            CreatedAtUtc = gameStartTimeUtc,
-            TimelineIngested = true
-        });
-
-        db.MatchParticipants.Add(new MatchParticipant
-        {
-            Id = Guid.NewGuid(),
-            MatchId = matchId,
-            ParticipantId = 1,
-            RiotAccountId = null,
-            Puuid = puuid,
-            SummonerName = puuid,
-            SummonerLevel = 100,
-            ChampionId = championId,
-            TeamId = 100,
-            TeamPosition = "BOTTOM",
-            IndividualPosition = "BOTTOM",
-            Lane = "BOTTOM",
-            Role = "CARRY",
-            Win = win,
-            Kills = 1,
-            Deaths = 1,
-            Assists = 1,
-            GoldEarned = 10000,
-            TotalMinionsKilled = 100,
-            NeutralMinionsKilled = 0,
-            ChampLevel = 14,
-            Item0 = 6672,
-            Item1 = 3006,
-            Item6 = 3363,
-            TrinketItemId = 3363,
-            PrimaryStyleId = 8000,
-            SubStyleId = 8200,
-            Summoner1Id = 4,
-            Summoner2Id = 7,
-            ItemEvents = [],
-            SkillEvents = []
-        });
     }
 }
