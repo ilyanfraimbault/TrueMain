@@ -26,11 +26,13 @@ public sealed class ParticipantHarvestService : IParticipantHarvestService
         DateTime nowUtc,
         CancellationToken ct)
     {
+        // MinObservedGames/MaxCandidatesPerRun are validated > 0 at startup and clamped by
+        // the repository, so pass them through here — the repository is the single guard.
         var rows = await session.MatchParticipants.GetHarvestCandidatesAsync(
             options.Platforms,
             options.QueueId,
-            Math.Max(1, options.MinObservedGames),
-            Math.Max(1, options.MaxCandidatesPerRun),
+            options.MinObservedGames,
+            options.MaxCandidatesPerRun,
             ct);
 
         if (rows.Count == 0)
