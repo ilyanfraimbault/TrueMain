@@ -52,6 +52,8 @@ public sealed class ParticipantHarvestServiceTests
             ObservedGames = 3,
             ObservedWins = 1,
             LastPlayTimeUtc = Now.AddDays(-5),
+            Score = 42,
+            ScoredAtUtc = Now.AddDays(-5),
             Status = MainCandidateStatus.Scored
         };
         harness.ExistingCandidates.Add(existing);
@@ -69,9 +71,10 @@ public sealed class ParticipantHarvestServiceTests
         existing.ObservedWins.Should().Be(7);
         existing.LastPlayTimeUtc.Should().Be(Now.AddHours(-2));
         // A Scored-but-unpromoted harvest candidate is reset to New so the refreshed
-        // observed sample is re-scored on the same pass.
+        // observed sample is re-scored on the same pass; the stale score is cleared.
         existing.Status.Should().Be(MainCandidateStatus.New);
         existing.ScoredAtUtc.Should().BeNull();
+        existing.Score.Should().Be(0);
     }
 
     [Fact]

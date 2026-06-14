@@ -118,6 +118,9 @@ public sealed class ParticipantHarvestService : IParticipantHarvestService
             Id = Guid.NewGuid(),
             Puuid = row.Puuid,
             PlatformId = row.PlatformId,
+            // Explicit rather than relying on the entity default: a NOT NULL column, so an
+            // implicit null would only surface as a DbUpdateException at save time.
+            GameName = string.Empty,
             UpdatedAtUtc = nowUtc,
             MatchIngestStatus = MatchIngestStatus.Idle
         });
@@ -178,6 +181,9 @@ public sealed class ParticipantHarvestService : IParticipantHarvestService
         {
             existing.Status = MainCandidateStatus.New;
             existing.ScoredAtUtc = null;
+            // Clear the now-stale score too, so a row read between this pass and the next
+            // ScoringProcess pass reflects "not yet scored" rather than the old value.
+            existing.Score = 0;
         }
 
         return UpsertOutcome.Updated;
