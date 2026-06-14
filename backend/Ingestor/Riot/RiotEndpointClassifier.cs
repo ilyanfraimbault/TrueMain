@@ -52,7 +52,8 @@ internal static class RiotEndpointClassifier
             return "match-v5.matchIdsByPuuid";
         }
 
-        if (path.EndsWith("/timeline", StringComparison.Ordinal))
+        if (path.StartsWith("/lol/match/v5/matches/", StringComparison.Ordinal)
+            && path.EndsWith("/timeline", StringComparison.Ordinal))
         {
             return "match-v5.timeline";
         }
