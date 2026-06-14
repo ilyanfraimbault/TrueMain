@@ -25,7 +25,7 @@ public sealed class HarvestCandidatesQueryIntegrationTests
 
         await using var session = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None);
         var rows = await session.MatchParticipants.GetHarvestCandidatesAsync(
-            ["KR"], RankedSolo, minObservedGames: 5, maxRows: 100, CancellationToken.None);
+            ["KR"], RankedSolo, minObservedGames: 5, maxRows: 100, DateTime.UnixEpoch, CancellationToken.None);
 
         // P1 (6 orphan ranked-solo games on champ 22) is the only one above the gate.
         // Excluded: P2 (3 games < 5), P3 (tracked — RiotAccountId set), P4 (ARAM queue).
@@ -59,11 +59,38 @@ public sealed class HarvestCandidatesQueryIntegrationTests
 
         await using var session = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None);
         var rows = await session.MatchParticipants.GetHarvestCandidatesAsync(
-            ["KR"], RankedSolo, minObservedGames: 5, maxRows: 100, CancellationToken.None);
+            ["KR"], RankedSolo, minObservedGames: 5, maxRows: 100, DateTime.UnixEpoch, CancellationToken.None);
 
         rows.Should().HaveCount(2);
         rows.Select(r => r.ChampionId).Should().BeEquivalentTo([22, 64]);
         rows.Should().OnlyContain(r => r.Puuid == "PX" && r.ObservedGames == 5);
+    }
+
+    [Fact]
+    public async Task GetHarvestCandidatesAsync_ExcludesMatchesBeforeSinceUtc()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var now = new DateTime(2026, 6, 14, 12, 0, 0, DateTimeKind.Utc);
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            // PR: 6 recent orphan games (within the window). POLD: 6 games all older than the
+            // cutoff -> excluded entirely by the date filter.
+            for (var i = 0; i < 6; i++)
+            {
+                MatchParticipantSeed.AddMatchWithParticipant(db, $"REC_{i}", "KR", RankedSolo, now.AddDays(-i), "PR", 22, win: true);
+                MatchParticipantSeed.AddMatchWithParticipant(db, $"OLD_{i}", "KR", RankedSolo, now.AddDays(-30 - i), "POLD", 22, win: true);
+            }
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var session = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None);
+        var rows = await session.MatchParticipants.GetHarvestCandidatesAsync(
+            ["KR"], RankedSolo, minObservedGames: 5, maxRows: 100, sinceUtc: now.AddDays(-10), CancellationToken.None);
+
+        rows.Should().ContainSingle();
+        rows.Single().Puuid.Should().Be("PR");
     }
 
     private async Task SeedAsync(DateTime now)

@@ -112,6 +112,7 @@ public sealed class MatchParticipantRepository(TrueMainDbContext db) : IMatchPar
         int queueId,
         int minObservedGames,
         int maxRows,
+        DateTime sinceUtc,
         CancellationToken ct)
     {
         var normalizedPlatforms = platformIds
@@ -129,9 +130,11 @@ public sealed class MatchParticipantRepository(TrueMainDbContext db) : IMatchPar
         var safeMaxRows = Math.Max(1, maxRows);
 
         // Index-friendly GROUP BY over orphan participant rows (RiotAccountId IS NULL =
-        // untracked players). The scan is bounded by MatchDataRetention (~2 patches), and
-        // the (Puuid, MatchId) index supports the join. SUM over the bool Win column needs
-        // an explicit CASE for Postgres. Columns are aliased to match HarvestedCandidateRow.
+        // untracked players). The GameStartTimeUtc >= sinceUtc predicate bounds the scan
+        // explicitly (a caller-supplied lookback) instead of relying on MatchDataRetention
+        // having physically deleted older rows. The (Puuid, MatchId) index supports the
+        // join. SUM over the bool Win column needs an explicit CASE for Postgres. Columns
+        // are aliased to match HarvestedCandidateRow.
         return await db.Database
             .SqlQuery<HarvestedCandidateRow>(
                 $"""
@@ -147,6 +150,7 @@ public sealed class MatchParticipantRepository(TrueMainDbContext db) : IMatchPar
                 WHERE p."RiotAccountId" IS NULL
                   AND m."PlatformId" = ANY ({normalizedPlatforms})
                   AND m."QueueId" = {queueId}
+                  AND m."GameStartTimeUtc" >= {sinceUtc}
                 GROUP BY m."PlatformId", p."Puuid", p."ChampionId"
                 HAVING COUNT(*) >= {safeMinGames}
                 ORDER BY COUNT(*) DESC, MAX(m."GameStartTimeUtc") DESC

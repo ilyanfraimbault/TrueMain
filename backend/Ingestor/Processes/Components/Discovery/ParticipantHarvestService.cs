@@ -26,6 +26,10 @@ public sealed class ParticipantHarvestService : IParticipantHarvestService
         DateTime nowUtc,
         CancellationToken ct)
     {
+        // Bound the scan to the configured lookback window (0 disables → scan all). UnixEpoch
+        // is a safe far-past UTC sentinel for the "no filter" case (LoL predates nothing here).
+        var sinceUtc = options.LookbackDays > 0 ? nowUtc.AddDays(-options.LookbackDays) : DateTime.UnixEpoch;
+
         // MinObservedGames/MaxCandidatesPerRun are validated > 0 at startup and clamped by
         // the repository, so pass them through here — the repository is the single guard.
         var rows = await session.MatchParticipants.GetHarvestCandidatesAsync(
@@ -33,6 +37,7 @@ public sealed class ParticipantHarvestService : IParticipantHarvestService
             options.QueueId,
             options.MinObservedGames,
             options.MaxCandidatesPerRun,
+            sinceUtc,
             ct);
 
         if (rows.Count == 0)
@@ -144,8 +149,7 @@ public sealed class ParticipantHarvestService : IParticipantHarvestService
 
         // Only harvested candidates carry observed stats — leave a ladder/manual candidate's
         // fields untouched so the "observed stats are 0 outside Harvest" invariant holds and
-        // its mastery recency (LastPlayTimeUtc) is not clobbered. Status/Source never change:
-        // a candidate already past New keeps its place (mirrors ManualSeed's discipline).
+        // its mastery recency (LastPlayTimeUtc) is not clobbered.
         if (existing.Source != MainCandidateSource.Harvest)
         {
             return UpsertOutcome.Skipped;
@@ -154,6 +158,18 @@ public sealed class ParticipantHarvestService : IParticipantHarvestService
         existing.ObservedGames = row.ObservedGames;
         existing.ObservedWins = row.ObservedWins;
         existing.LastPlayTimeUtc = row.LastSeenUtc;
+
+        // Re-score on the refreshed sample: a harvested candidate that was Scored but never
+        // promoted should compete again now that it has accumulated more observed games (its
+        // stored score is stale otherwise). Reset to New so the same-pass ScoringProcess
+        // re-scores it. In-flight (Queued/Processing), Validated and Rejected candidates keep
+        // their state — they are already in or through the pipeline / explicitly decided.
+        if (existing.Status == MainCandidateStatus.Scored)
+        {
+            existing.Status = MainCandidateStatus.New;
+            existing.ScoredAtUtc = null;
+        }
+
         return UpsertOutcome.Updated;
     }
 

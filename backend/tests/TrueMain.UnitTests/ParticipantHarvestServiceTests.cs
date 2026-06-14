@@ -68,8 +68,35 @@ public sealed class ParticipantHarvestServiceTests
         existing.ObservedGames.Should().Be(11);
         existing.ObservedWins.Should().Be(7);
         existing.LastPlayTimeUtc.Should().Be(Now.AddHours(-2));
-        // Status must not be reset by a refresh.
-        existing.Status.Should().Be(MainCandidateStatus.Scored);
+        // A Scored-but-unpromoted harvest candidate is reset to New so the refreshed
+        // observed sample is re-scored on the same pass.
+        existing.Status.Should().Be(MainCandidateStatus.New);
+        existing.ScoredAtUtc.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task HarvestAsync_DoesNotResetInFlightHarvestCandidate()
+    {
+        var harness = new Harness();
+        var existing = new MainCandidate
+        {
+            PlatformId = "KR",
+            Puuid = "puuid-queued",
+            ChampionId = 22,
+            Source = MainCandidateSource.Harvest,
+            ObservedGames = 6,
+            LastPlayTimeUtc = Now.AddDays(-2),
+            Status = MainCandidateStatus.Queued
+        };
+        harness.ExistingCandidates.Add(existing);
+        harness.ExistingAccountPuuids.Add("puuid-queued");
+        harness.SetRows(new HarvestedCandidateRow("KR", "puuid-queued", 22, 12, 8, Now.AddHours(-1)));
+
+        await harness.RunAsync();
+
+        // In-flight candidates keep their place; only the observed stats refresh.
+        existing.Status.Should().Be(MainCandidateStatus.Queued);
+        existing.ObservedGames.Should().Be(12);
     }
 
     [Fact]
@@ -151,7 +178,7 @@ public sealed class ParticipantHarvestServiceTests
 
         public void SetRows(params HarvestedCandidateRow[] rows)
             => _participants.GetHarvestCandidatesAsync(
-                    Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+                    Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
                 .Returns(Task.FromResult(rows.ToList()));
 
         public Task<HarvestResult> RunAsync()

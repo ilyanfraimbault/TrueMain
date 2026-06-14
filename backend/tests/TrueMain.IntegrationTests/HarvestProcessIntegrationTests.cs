@@ -46,7 +46,11 @@ public sealed class HarvestProcessIntegrationTests
             {
                 Platforms = ["KR"],
                 QueueId = RankedSolo,
-                MinObservedGames = 5
+                MinObservedGames = 5,
+                // Disable the date filter: this suite seeds at a fixed timestamp while the
+                // process stamps the cutoff from the wall clock. The lookback is covered by
+                // HarvestCandidatesQueryIntegrationTests.
+                LookbackDays = 0
             }));
 
         await process.RunCoreAsync(CancellationToken.None);

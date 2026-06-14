@@ -24,6 +24,14 @@ public class HarvestOptions
     /// <summary>Upper bound on harvested rows processed per run, to cap scan/work.</summary>
     public int MaxCandidatesPerRun { get; set; } = 5000;
 
+    /// <summary>
+    /// Only aggregate participant rows from matches started within this many days. Bounds the
+    /// scan explicitly rather than relying on <c>MatchDataRetention</c> having physically
+    /// deleted older rows, and focuses the harvest on currently-active players. Should roughly
+    /// cover the retained window (~2 patches). <c>0</c> disables the date filter (scan all).
+    /// </summary>
+    public int LookbackDays { get; set; } = 30;
+
     /// <summary>Pending changes flushed to the DB per batch while upserting.</summary>
     public int SaveBatchSize { get; set; } = 200;
 }

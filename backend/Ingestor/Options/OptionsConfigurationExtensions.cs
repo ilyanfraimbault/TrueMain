@@ -62,6 +62,7 @@ public static class OptionsConfigurationExtensions
             .Validate(options => options.MinObservedGames > 0, "Harvest:MinObservedGames must be greater than 0.")
             .Validate(options => options.MaxCandidatesPerRun > 0, "Harvest:MaxCandidatesPerRun must be greater than 0.")
             .Validate(options => options.SaveBatchSize > 0, "Harvest:SaveBatchSize must be greater than 0.")
+            .Validate(options => options.LookbackDays >= 0, "Harvest:LookbackDays must be >= 0.")
             .ValidateOnStart();
 
         services.AddOptions<CoverageOptions>()
