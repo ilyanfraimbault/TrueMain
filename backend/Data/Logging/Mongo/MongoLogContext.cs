@@ -1,13 +1,17 @@
+using System.Linq.Expressions;
+using Data.Metrics.Mongo;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 
 namespace Data.Logging.Mongo;
 
 /// <summary>
-/// Singleton holder of the shared <see cref="IMongoClient"/> and the two log
-/// collections (diagnostic <c>logs</c> and operator-action <c>audit_events</c>).
-/// Registered once so the diagnostic sink, the audit writer and the read query
-/// all reuse the same driver client (which owns an internal connection pool).
+/// Singleton holder of the shared <see cref="IMongoClient"/> and the Mongo
+/// collections backing TrueMain's observability stores: the diagnostic
+/// <c>logs</c>, the operator-action <c>audit_events</c>, and the Riot API usage
+/// metrics <c>riot_api_calls</c> (#93). Registered once so every sink, writer and
+/// read query reuses the same driver client (which owns an internal connection
+/// pool).
 /// </summary>
 /// <remarks>
 /// The client is created lazily and only when logging
@@ -36,6 +40,7 @@ public sealed class MongoLogContext : IDisposable
         _database = _client.GetDatabase(_options.Database);
         Logs = _database.GetCollection<MongoLogDocument>(_options.LogsCollection);
         AuditEvents = _database.GetCollection<AuditEventDocument>(_options.AuditCollection);
+        RiotApiCalls = _database.GetCollection<RiotApiCallDocument>(_options.RiotApiCallsCollection);
     }
 
     /// <summary>True when a Mongo client was created (logging enabled + connection string present).</summary>
@@ -53,6 +58,16 @@ public sealed class MongoLogContext : IDisposable
     }
 
     public IMongoCollection<AuditEventDocument> AuditEvents
+    {
+        get => field ?? throw Inactive();
+        private init;
+    }
+
+    /// <summary>
+    /// Per-call Riot API usage metrics collection (#93). Written by the Ingestor's
+    /// <c>RiotApiMetricsSink</c> and read by the admin <c>/ops/riot-usage</c> panel.
+    /// </summary>
+    public IMongoCollection<RiotApiCallDocument> RiotApiCalls
     {
         get => field ?? throw Inactive();
         private init;
@@ -107,7 +122,7 @@ public sealed class MongoLogContext : IDisposable
 
         // The TTL index is reconciled separately so a changed retention window
         // actually re-applies instead of conflicting and being silently swallowed.
-        await ReconcileTtlIndexAsync(ct);
+        await ReconcileTtlIndexAsync(Logs, doc => doc.TimestampUtc, _options.LogsRetention, ct);
 
         // audit_events: no TTL (retained indefinitely). A descending timestamp
         // index backs the newest-first audit read.
@@ -119,8 +134,47 @@ public sealed class MongoLogContext : IDisposable
     }
 
     /// <summary>
-    /// Reconciles the native TTL index on <c>logs.timestampUtc</c> with the
-    /// configured <see cref="MongoLoggingOptions.LogsRetention"/>:
+    /// Creates the supporting indexes for the <c>riot_api_calls</c> metrics
+    /// collection idempotently (#93): a descending timestamp index for window
+    /// scans, an <c>(endpoint, timestamp)</c> compound for the per-endpoint
+    /// rollup, and the reconciled TTL index enforcing
+    /// <see cref="MongoLoggingOptions.RiotApiCallsRetention"/>. Called once on
+    /// <c>RiotApiMetricsSink</c> startup; safe to re-run.
+    /// </summary>
+    public async Task EnsureRiotApiCallIndexesAsync(CancellationToken ct)
+    {
+        if (!IsActive)
+        {
+            return;
+        }
+
+        var models = new List<CreateIndexModel<RiotApiCallDocument>>
+        {
+            // The window lower bound (timestamp >= since) is on every read; a
+            // descending timestamp index serves it and the newest-first rate-limit
+            // lookup.
+            new(Builders<RiotApiCallDocument>.IndexKeys.Descending(doc => doc.TimestampUtc),
+                new CreateIndexOptions { Name = "ix_timestamp_desc" }),
+            // Back the per-endpoint rollup and the optional endpoint filter: group
+            // by endpoint within a time window.
+            new(Builders<RiotApiCallDocument>.IndexKeys
+                    .Ascending(doc => doc.Endpoint)
+                    .Descending(doc => doc.TimestampUtc),
+                new CreateIndexOptions { Name = "ix_endpoint_timestamp" })
+        };
+
+        await RiotApiCalls.Indexes.CreateManyAsync(models, ct);
+
+        await ReconcileTtlIndexAsync(
+            RiotApiCalls, doc => doc.TimestampUtc, _options.RiotApiCallsRetention, ct);
+    }
+
+    /// <summary>
+    /// Reconciles the native TTL index on <paramref name="collection"/>'s
+    /// timestamp field with the configured <paramref name="retention"/> window
+    /// (e.g. <see cref="MongoLoggingOptions.LogsRetention"/> for <c>logs</c>,
+    /// <see cref="MongoLoggingOptions.RiotApiCallsRetention"/> for
+    /// <c>riot_api_calls</c>):
     /// <list type="bullet">
     /// <item>retention &lt;= 0 → drop the TTL index if present (retain indefinitely);</item>
     /// <item>no TTL index yet → create it;</item>
@@ -132,23 +186,27 @@ public sealed class MongoLogContext : IDisposable
     /// Mongo's background reaper then deletes documents whose <c>timestampUtc</c> is
     /// older than the window. Ascending key is required for a TTL index.
     /// </summary>
-    private async Task ReconcileTtlIndexAsync(CancellationToken ct)
+    private static async Task ReconcileTtlIndexAsync<TDoc>(
+        IMongoCollection<TDoc> collection,
+        Expression<Func<TDoc, object?>> timestampField,
+        TimeSpan retention,
+        CancellationToken ct)
     {
-        var existing = await GetTtlExpireAfterSecondsAsync(ct);
+        var existing = await GetTtlExpireAfterSecondsAsync(collection, ct);
 
-        if (_options.LogsRetention <= TimeSpan.Zero)
+        if (retention <= TimeSpan.Zero)
         {
             // Retention disabled: tear down any TTL index left from a prior config
             // so documents are kept indefinitely.
             if (existing is not null)
             {
-                await Logs.Indexes.DropOneAsync(TtlIndexName, ct);
+                await collection.Indexes.DropOneAsync(TtlIndexName, ct);
             }
 
             return;
         }
 
-        var desiredSeconds = (long)_options.LogsRetention.TotalSeconds;
+        var desiredSeconds = (long)retention.TotalSeconds;
 
         // Already present with the same window: nothing to do.
         if (existing == desiredSeconds)
@@ -160,28 +218,31 @@ public sealed class MongoLogContext : IDisposable
         // same-name index with different options would throw IndexOptionsConflict.
         if (existing is not null)
         {
-            await Logs.Indexes.DropOneAsync(TtlIndexName, ct);
+            await collection.Indexes.DropOneAsync(TtlIndexName, ct);
         }
 
-        await Logs.Indexes.CreateOneAsync(
-            new CreateIndexModel<MongoLogDocument>(
-                Builders<MongoLogDocument>.IndexKeys.Ascending(doc => doc.TimestampUtc),
+        await collection.Indexes.CreateOneAsync(
+            new CreateIndexModel<TDoc>(
+                Builders<TDoc>.IndexKeys.Ascending(timestampField),
                 new CreateIndexOptions
                 {
                     Name = TtlIndexName,
-                    ExpireAfter = _options.LogsRetention
+                    ExpireAfter = retention
                 }),
             cancellationToken: ct);
     }
 
     /// <summary>
     /// Returns the <c>expireAfterSeconds</c> of the existing TTL index on
-    /// <c>logs</c>, or <c>null</c> when no such index exists. Reads the raw index
-    /// document so it works regardless of how the value was originally written.
+    /// <paramref name="collection"/>, or <c>null</c> when no such index exists.
+    /// Reads the raw index document so it works regardless of how the value was
+    /// originally written.
     /// </summary>
-    private async Task<long?> GetTtlExpireAfterSecondsAsync(CancellationToken ct)
+    private static async Task<long?> GetTtlExpireAfterSecondsAsync<TDoc>(
+        IMongoCollection<TDoc> collection,
+        CancellationToken ct)
     {
-        using var cursor = await Logs.Indexes.ListAsync(ct);
+        using var cursor = await collection.Indexes.ListAsync(ct);
         var indexes = await cursor.ToListAsync(ct);
 
         var ttl = indexes.FirstOrDefault(

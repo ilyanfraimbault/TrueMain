@@ -22,9 +22,17 @@ builder.Services.AddValidatedOptions(builder.Configuration);
 builder.Services.AddOptions<DatabaseOptions>()
     .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName));
 
-builder.Services.AddHttpClient<IRiotMatchClient, RiotMatchClient>(ConfigureRiotClient).AddRiotResilienceHandler();
-builder.Services.AddHttpClient<IRiotPlatformClient, RiotPlatformClient>(ConfigureRiotClient).AddRiotResilienceHandler();
-builder.Services.AddHttpClient<IRiotAccountClient, RiotAccountClient>(ConfigureRiotClient).AddRiotResilienceHandler();
+// RiotApiMetricsHandler is added AFTER the resilience handler so it sits inside
+// it in the pipeline: it then records every physical attempt, including the
+// retried 429s the resilience handler backs off on — which is what the
+// /ops/riot-usage rate-limit and status-code views need (#93).
+builder.Services.AddTransient<RiotApiMetricsHandler>();
+builder.Services.AddHttpClient<IRiotMatchClient, RiotMatchClient>(ConfigureRiotClient)
+    .AddRiotResilienceHandler().AddHttpMessageHandler<RiotApiMetricsHandler>();
+builder.Services.AddHttpClient<IRiotPlatformClient, RiotPlatformClient>(ConfigureRiotClient)
+    .AddRiotResilienceHandler().AddHttpMessageHandler<RiotApiMetricsHandler>();
+builder.Services.AddHttpClient<IRiotAccountClient, RiotAccountClient>(ConfigureRiotClient)
+    .AddRiotResilienceHandler().AddHttpMessageHandler<RiotApiMetricsHandler>();
 
 builder.Services.AddScoped<ILadderDiscoveryService, LadderDiscoveryService>();
 builder.Services.AddScoped<IAccountUpsertService, AccountUpsertService>();
