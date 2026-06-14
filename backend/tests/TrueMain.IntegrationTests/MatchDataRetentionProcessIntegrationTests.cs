@@ -36,6 +36,10 @@ public sealed class MatchDataRetentionProcessIntegrationTests
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions
             {
                 QueueId = LolQueueId.RankedSoloDuo
+            }),
+            Microsoft.Extensions.Options.Options.Create(new CandidatePruningOptions
+            {
+                Enabled = false
             }));
         var recorded = new RecordedProcess<MatchDataRetentionProcess>(
             process,

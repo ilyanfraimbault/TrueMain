@@ -11,6 +11,23 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
     public Task<RiotAccount?> GetByKeyAsync(string platformId, string puuid, CancellationToken ct)
         => db.RiotAccounts.AsNoTracking().FirstOrDefaultAsync(a => a.PlatformId == platformId && a.Puuid == puuid, ct);
 
+    public async Task<HashSet<string>> GetExistingPuuidsAsync(IReadOnlyCollection<string> puuids, CancellationToken ct)
+    {
+        if (puuids.Count == 0)
+        {
+            return new HashSet<string>(StringComparer.Ordinal);
+        }
+
+        var puuidArray = puuids.Distinct(StringComparer.Ordinal).ToArray();
+        var found = await db.RiotAccounts
+            .AsNoTracking()
+            .Where(a => puuidArray.Contains(a.Puuid))
+            .Select(a => a.Puuid)
+            .ToListAsync(ct);
+
+        return found.ToHashSet(StringComparer.Ordinal);
+    }
+
     public async Task<Dictionary<AccountKey, RiotAccount>> GetByKeysAsync(
         IReadOnlyCollection<AccountKey> accounts,
         CancellationToken ct)

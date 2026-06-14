@@ -38,6 +38,8 @@ public class TrueMainDbContext : DbContext
 
     public DbSet<SeedRequest> SeedRequests => Set<SeedRequest>();
 
+    public DbSet<DiscoveryCursor> DiscoveryCursors => Set<DiscoveryCursor>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

@@ -285,6 +285,25 @@ namespace Data.Migrations
                     b.ToTable("champion_dim_starter_items", (string)null);
                 });
 
+            modelBuilder.Entity("Data.Entities.DiscoveryCursor", b =>
+                {
+                    b.Property<string>("PlatformId")
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<int>("Offset")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("PlatformId");
+
+                    b.ToTable("discovery_cursors", (string)null);
+                });
+
             modelBuilder.Entity("Data.Entities.MainCandidate", b =>
                 {
                     b.Property<Guid>("Id")
@@ -308,6 +327,16 @@ namespace Data.Migrations
                     b.Property<DateTime>("LastPlayTimeUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("ObservedGames")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("ObservedWins")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("PlatformId")
                         .IsRequired()
                         .HasMaxLength(8)
@@ -323,6 +352,11 @@ namespace Data.Migrations
 
                     b.Property<DateTime?>("ScoredAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Source")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");

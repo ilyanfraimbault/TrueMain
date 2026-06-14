@@ -29,4 +29,13 @@ public interface IProcessRunRepository
     /// wrongly resurrect it as "fresh"). Returns the number of rows updated.
     /// </summary>
     Task<int> TouchHeartbeatAsync(Guid id, DateTime nowUtc, CancellationToken ct);
+
+    /// <summary>
+    /// Start time of the most recent <em>completed</em> run (Status != Running) for the
+    /// process, or <see langword="null"/> if it has never completed one. Excludes the
+    /// in-flight row so a process can read its own last cadence without seeing the run
+    /// the recorder just opened for the current iteration. Used by the Discovery cadence
+    /// gate (#487).
+    /// </summary>
+    Task<DateTime?> GetLastCompletedRunStartAsync(string processName, CancellationToken ct);
 }

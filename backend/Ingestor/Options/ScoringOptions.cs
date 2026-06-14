@@ -24,4 +24,13 @@ public class ScoringOptions
     /// queue, without changing the IsMain definition. Set to 0 to disable the bonus.
     /// </summary>
     public double ScarcityWeight { get; set; } = 0.25;
+
+    /// <summary>
+    /// Log10 normalizer for the observed-games merit of harvested candidates (#485),
+    /// which have no mastery rank/points. With the default 1.5, ~30 observed games
+    /// reaches a full merit score and the harvest threshold of 5 games scores ~0.5.
+    /// Harvested candidates reuse the combined rank+points weight as their merit weight,
+    /// so they stay on the same 0-100 scale as ladder candidates in the top-N.
+    /// </summary>
+    public double HarvestObservedGamesLogNormalizer { get; set; } = 1.5;
 }

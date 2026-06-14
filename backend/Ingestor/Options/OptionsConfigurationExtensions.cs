@@ -52,6 +52,18 @@ public static class OptionsConfigurationExtensions
             // merit-weight configuration (not just the defaults that happen to sum to 1.0).
             .Validate(options => options.ScarcityWeight <= options.RecencyWeight + options.RankWeight + options.PointsWeight,
                 "Scoring:ScarcityWeight must not exceed recency + rank + points, so scarcity cannot outweigh the combined merit signal.")
+            .Validate(options => options.HarvestObservedGamesLogNormalizer > 0,
+                "Scoring:HarvestObservedGamesLogNormalizer must be greater than 0.")
+            .ValidateOnStart();
+
+        services.AddOptions<HarvestOptions>()
+            .Bind(configuration.GetSection(HarvestOptions.SectionName))
+            .Validate(options => HasNonEmptyItems(options.Platforms), "Harvest:Platforms must contain at least one value.")
+            .Validate(options => options.QueueId > 0, "Harvest:QueueId must be greater than 0.")
+            .Validate(options => options.MinObservedGames > 0, "Harvest:MinObservedGames must be greater than 0.")
+            .Validate(options => options.MaxCandidatesPerRun > 0, "Harvest:MaxCandidatesPerRun must be greater than 0.")
+            .Validate(options => options.SaveBatchSize > 0, "Harvest:SaveBatchSize must be greater than 0.")
+            .Validate(options => options.LookbackDays >= 0, "Harvest:LookbackDays must be >= 0.")
             .ValidateOnStart();
 
         services.AddOptions<CoverageOptions>()
@@ -97,6 +109,11 @@ public static class OptionsConfigurationExtensions
         services.AddOptions<MatchDataRetentionOptions>()
             .Bind(configuration.GetSection(MatchDataRetentionOptions.SectionName))
             .Validate(options => options.RetainedPatchCount > 0, "MatchDataRetention:RetainedPatchCount must be greater than 0.")
+            .ValidateOnStart();
+
+        services.AddOptions<CandidatePruningOptions>()
+            .Bind(configuration.GetSection(CandidatePruningOptions.SectionName))
+            .Validate(options => options.PruneAfterDays >= 0, "CandidatePruning:PruneAfterDays must be >= 0.")
             .ValidateOnStart();
 
         services.AddOptions<JobOptions>()

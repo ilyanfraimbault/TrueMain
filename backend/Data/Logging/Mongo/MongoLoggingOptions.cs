@@ -36,6 +36,15 @@ public sealed class MongoLoggingOptions
     public string AuditCollection { get; set; } = "audit_events";
 
     /// <summary>
+    /// Collection holding per-call Riot API usage metrics (#93), written by the
+    /// Ingestor's HTTP metrics handler and read by the admin
+    /// <c>/ops/riot-usage</c> panel. Lives in the same Mongo database as the logs
+    /// so it reuses one connection; the section name stays <c>MongoLogging</c> for
+    /// that reason rather than being split out.
+    /// </summary>
+    public string RiotApiCallsCollection { get; set; } = "riot_api_calls";
+
+    /// <summary>
     /// Master switch. When false (or when <see cref="ConnectionString"/> is
     /// blank) the provider is still registered but drops every record, so
     /// persisted logging can be turned off without code changes.
@@ -77,6 +86,15 @@ public sealed class MongoLoggingOptions
     /// TTL index (retain indefinitely).
     /// </summary>
     public TimeSpan LogsRetention { get; set; } = TimeSpan.FromDays(90);
+
+    /// <summary>
+    /// Retention window for the <c>riot_api_calls</c> metrics collection (#93),
+    /// enforced by a native Mongo TTL index on <c>timestampUtc</c>. Defaults to 14
+    /// days — the panel's widest window is 7 days, so a fortnight gives headroom
+    /// while keeping the per-call collection bounded. Set to
+    /// <see cref="TimeSpan.Zero"/> or negative to disable the TTL index.
+    /// </summary>
+    public TimeSpan RiotApiCallsRetention { get; set; } = TimeSpan.FromDays(14);
 
     /// <summary>
     /// Stamped onto every persisted record's <c>processName</c> so the

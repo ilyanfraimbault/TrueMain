@@ -107,6 +107,58 @@ public sealed class MatchParticipantRepository(TrueMainDbContext db) : IMatchPar
         return result;
     }
 
+    public async Task<List<HarvestedCandidateRow>> GetHarvestCandidatesAsync(
+        IReadOnlyCollection<string> platformIds,
+        int queueId,
+        int minObservedGames,
+        int maxRows,
+        DateTime sinceUtc,
+        CancellationToken ct)
+    {
+        var normalizedPlatforms = platformIds
+            .Where(platform => !string.IsNullOrWhiteSpace(platform))
+            .Select(platform => platform.Trim().ToUpperInvariant())
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        if (normalizedPlatforms.Length == 0)
+        {
+            return [];
+        }
+
+        var safeMinGames = Math.Max(1, minObservedGames);
+        var safeMaxRows = Math.Max(1, maxRows);
+
+        // Index-friendly GROUP BY over orphan participant rows (RiotAccountId IS NULL =
+        // untracked players). The GameStartTimeUtc >= sinceUtc predicate bounds the scan
+        // explicitly (a caller-supplied lookback) instead of relying on MatchDataRetention
+        // having physically deleted older rows. The (Puuid, MatchId) index supports the
+        // join. SUM over the bool Win column needs an explicit CASE for Postgres. Columns
+        // are aliased to match HarvestedCandidateRow.
+        return await db.Database
+            .SqlQuery<HarvestedCandidateRow>(
+                $"""
+                SELECT
+                    m."PlatformId" AS "PlatformId",
+                    p."Puuid" AS "Puuid",
+                    p."ChampionId" AS "ChampionId",
+                    COUNT(*)::int AS "ObservedGames",
+                    SUM(CASE WHEN p."Win" THEN 1 ELSE 0 END)::int AS "ObservedWins",
+                    MAX(m."GameStartTimeUtc") AS "LastSeenUtc"
+                FROM "match_participants" AS p
+                INNER JOIN "matches" AS m ON p."MatchId" = m."Id"
+                WHERE p."RiotAccountId" IS NULL
+                  AND m."PlatformId" = ANY ({normalizedPlatforms})
+                  AND m."QueueId" = {queueId}
+                  AND m."GameStartTimeUtc" >= {sinceUtc}
+                GROUP BY m."PlatformId", p."Puuid", p."ChampionId"
+                HAVING COUNT(*) >= {safeMinGames}
+                ORDER BY COUNT(*) DESC, MAX(m."GameStartTimeUtc") DESC
+                LIMIT {safeMaxRows}
+                """)
+            .ToListAsync(ct);
+    }
+
     public void AddRange(IEnumerable<MatchParticipant> participants)
         => db.MatchParticipants.AddRange(participants);
 

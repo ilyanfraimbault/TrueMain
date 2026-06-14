@@ -26,4 +26,12 @@ public sealed class ProcessRunRepository(TrueMainDbContext db) : IProcessRunRepo
         => await db.ProcessRuns
             .Where(run => run.Id == id && run.Status == ProcessRunStatus.Running)
             .ExecuteUpdateAsync(setters => setters.SetProperty(run => run.LastHeartbeatAtUtc, nowUtc), ct);
+
+    public async Task<DateTime?> GetLastCompletedRunStartAsync(string processName, CancellationToken ct)
+        => await db.ProcessRuns
+            .AsNoTracking()
+            .Where(run => run.ProcessName == processName && run.Status != ProcessRunStatus.Running)
+            .OrderByDescending(run => run.StartedAtUtc)
+            .Select(run => (DateTime?)run.StartedAtUtc)
+            .FirstOrDefaultAsync(ct);
 }
