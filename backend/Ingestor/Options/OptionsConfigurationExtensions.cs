@@ -111,6 +111,11 @@ public static class OptionsConfigurationExtensions
             .Validate(options => options.RetainedPatchCount > 0, "MatchDataRetention:RetainedPatchCount must be greater than 0.")
             .ValidateOnStart();
 
+        services.AddOptions<CandidatePruningOptions>()
+            .Bind(configuration.GetSection(CandidatePruningOptions.SectionName))
+            .Validate(options => options.PruneAfterDays >= 0, "CandidatePruning:PruneAfterDays must be >= 0.")
+            .ValidateOnStart();
+
         services.AddOptions<JobOptions>()
             .Bind(configuration.GetSection(JobOptions.SectionName))
             .Validate(options => JobModeParser.TryParse(options.Mode, out _),

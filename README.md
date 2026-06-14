@@ -121,7 +121,7 @@ Toutes les valeurs nécessaires sont listées dans `.env.example` (dev/prod) et 
 - `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`
 - `RIOT_API_KEY` — clé Riot Developer (`RGAPI-…`)
 - `OPS_API_KEY` — clé pour `/ops/*` (32+ caractères)
-- `MONGO_USER`, `MONGO_PASSWORD` — credentials MongoDB (logs + audit ; alphanumériques, ils entrent dans l'URI de connexion)
+- `MONGO_USER`, `MONGO_PASSWORD` — credentials MongoDB (logs + audit + métriques d'usage Riot ; alphanumériques, ils entrent dans l'URI de connexion). **MongoDB 5.0+ requis** — le panneau d'usage Riot agrège avec `$dateTrunc` ; les images compose épinglent `mongo:8.0`/`8.0.24`
 - `ADMIN_USERNAME`, `ADMIN_PASSWORD` — login du dashboard admin. **Définir un vrai `ADMIN_PASSWORD` est obligatoire** (seule barrière devant les outils d'ops) ; `.env.example` met volontairement `REPLACE_ME`
 - `ADMIN_SESSION_PASSWORD` — scelle le cookie de session admin (32+ caractères aléatoires, ex. `openssl rand -hex 32`)
 - `NUXT_SESSION_COOKIE_SECURE`, `NUXT_TRUST_PROXY` — réglés par environnement dans les fichiers compose (pas via `.env`) : `"true"` en prod (admin derrière Caddy/TLS) → cookie `Secure` + confiance au `X-Forwarded-For` pour le throttle de login ; `false` en qa/local (exposition HTTP directe)

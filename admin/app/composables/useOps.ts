@@ -18,6 +18,8 @@ import type {
   ProcessIterationsResponse,
   ProcessRunsFilters,
   ProcessRunsResponse,
+  RiotApiUsage,
+  RiotUsageFilters,
   SeedAccountBody,
   SeedAccountResponse,
   SeedRequestReadModel,
@@ -152,6 +154,21 @@ export function useLogs(
 ) {
   return useOps<LogsResponse>(
     '/logs',
+    filters ? () => ({ ...toValue(filters) }) : undefined,
+  )
+}
+
+/**
+ * `GET /api/ops/riot-usage` — Riot API usage metrics over a relative window
+ * (`1h`/`24h`/`7d`): totals, per-endpoint breakdown, status-code histogram,
+ * call-volume time-series and the latest rate-limit snapshot. Pass a reactive
+ * getter so the panel re-fetches when the window or endpoint filter changes.
+ */
+export function useRiotUsage(
+  filters?: MaybeRefOrGetter<RiotUsageFilters>,
+) {
+  return useOps<RiotApiUsage>(
+    '/riot-usage',
     filters ? () => ({ ...toValue(filters) }) : undefined,
   )
 }

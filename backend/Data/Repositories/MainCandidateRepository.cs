@@ -77,6 +77,16 @@ public sealed class MainCandidateRepository(TrueMainDbContext db) : IMainCandida
             .ToListAsync(ct);
     }
 
+    private static readonly MainCandidateStatus[] NeverPromotedStatuses =
+        [MainCandidateStatus.New, MainCandidateStatus.Scored, MainCandidateStatus.Rejected];
+
+    public Task<int> PruneStaleNeverPromotedAsync(DateTime lastPlayCutoffUtc, CancellationToken ct)
+        => db.MainCandidates
+            .Where(c => NeverPromotedStatuses.Contains(c.Status)
+                        && c.ValidatedAtUtc == null
+                        && c.LastPlayTimeUtc < lastPlayCutoffUtc)
+            .ExecuteDeleteAsync(ct);
+
     public void Add(MainCandidate candidate)
         => db.MainCandidates.Add(candidate);
 }

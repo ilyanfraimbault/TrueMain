@@ -1,3 +1,4 @@
+using Data.Metrics.Mongo;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -6,11 +7,13 @@ using Microsoft.Extensions.Logging;
 namespace Data.Logging.Mongo;
 
 /// <summary>
-/// Registration helpers for the MongoDB-backed logging store so the API and the
-/// Ingestor wire it up identically: bind <see cref="MongoLoggingOptions"/>, share
-/// one <see cref="MongoLogContext"/> + <see cref="MongoLogChannel"/>, plug the
-/// <see cref="MongoLoggerProvider"/> into the logging pipeline, run the draining
-/// <see cref="MongoLogSink"/>, and expose the lossless <see cref="IAuditLog"/>.
+/// Registration helpers for the MongoDB-backed observability stores so the API
+/// and the Ingestor wire them up identically: bind <see cref="MongoLoggingOptions"/>,
+/// share one <see cref="MongoLogContext"/> + <see cref="MongoLogChannel"/>, plug
+/// the <see cref="MongoLoggerProvider"/> into the logging pipeline, run the
+/// draining <see cref="MongoLogSink"/>, expose the lossless <see cref="IAuditLog"/>,
+/// and wire the Riot API usage metrics store (#93): its channel, recorder, draining
+/// <see cref="RiotApiMetricsSink"/> and the <see cref="IRiotApiUsageQuery"/> read.
 /// </summary>
 public static class MongoLoggingServiceCollectionExtensions
 {
@@ -53,6 +56,17 @@ public static class MongoLoggingServiceCollectionExtensions
             ServiceDescriptor.Singleton<ILoggerProvider, MongoLoggerProvider>());
 
         services.AddHostedService<MongoLogSink>();
+
+        // Riot API usage metrics (#93): a separate non-blocking channel + draining
+        // sink writing per-call documents to riot_api_calls, the recorder the
+        // Ingestor's HTTP handler calls, and the read query for /ops/riot-usage.
+        // All reuse the singleton MongoLogContext (same Mongo client/database).
+        // Registered in both hosts like the log sink: the Ingestor produces the
+        // records, the Api only reads, but a host with no producers just idles.
+        services.TryAddSingleton<RiotApiMetricsChannel>();
+        services.TryAddSingleton<IRiotApiCallRecorder, RiotApiCallRecorder>();
+        services.TryAddSingleton<IRiotApiUsageQuery, RiotApiUsageQuery>();
+        services.AddHostedService<RiotApiMetricsSink>();
 
         return services;
     }
