@@ -59,6 +59,7 @@ public static class OptionsConfigurationExtensions
         services.AddOptions<HarvestOptions>()
             .Bind(configuration.GetSection(HarvestOptions.SectionName))
             .Validate(options => HasNonEmptyItems(options.Platforms), "Harvest:Platforms must contain at least one value.")
+            .Validate(options => options.QueueId > 0, "Harvest:QueueId must be greater than 0.")
             .Validate(options => options.MinObservedGames > 0, "Harvest:MinObservedGames must be greater than 0.")
             .Validate(options => options.MaxCandidatesPerRun > 0, "Harvest:MaxCandidatesPerRun must be greater than 0.")
             .Validate(options => options.SaveBatchSize > 0, "Harvest:SaveBatchSize must be greater than 0.")

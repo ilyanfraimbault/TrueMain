@@ -21,7 +21,13 @@ public class HarvestOptions
     /// </summary>
     public int MinObservedGames { get; set; } = 5;
 
-    /// <summary>Upper bound on harvested rows processed per run, to cap scan/work.</summary>
+    /// <summary>
+    /// Upper bound on harvested rows processed per run, to cap scan/work. The cap is a single
+    /// global LIMIT applied to the cross-platform result ordered by observed games desc, so a
+    /// high-traffic region (e.g. KR) can consume most of the quota and starve smaller regions
+    /// on an imbalanced run. Acceptable for now; a per-platform quota is a future refinement
+    /// tracked alongside the harvest-fairness follow-up (#495).
+    /// </summary>
     public int MaxCandidatesPerRun { get; set; } = 5000;
 
     /// <summary>
