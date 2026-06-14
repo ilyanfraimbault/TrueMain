@@ -9,7 +9,13 @@ public class HarvestOptions
 {
     public const string SectionName = "Harvest";
 
-    /// <summary>Platforms to harvest. Matches the platforms we ingest matches for.</summary>
+    /// <summary>
+    /// Platforms to harvest. Should mirror <c>MatchIngestion:Platforms</c> (the harvest can
+    /// only see matches we ingest) and <c>Discovery:Platforms</c>. This list is duplicated
+    /// per section by the existing convention, so adding a region in one place but not here
+    /// silently skips it — keeping the lists consistent (or cross-validating them) is tracked
+    /// in #496.
+    /// </summary>
     public List<string> Platforms { get; set; } = new() { "KR", "EUW1", "NA1" };
 
     /// <summary>Queue to aggregate over. 420 = ranked solo, the main-detection queue.</summary>

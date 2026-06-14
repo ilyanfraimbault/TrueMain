@@ -10,6 +10,11 @@ namespace TrueMain.IntegrationTests;
 /// </summary>
 internal static class MatchParticipantSeed
 {
+    // Process-wide counter, never reset between tests: it only guarantees distinct
+    // ParticipantIds within a match (the unique constraint), which holds as long as the
+    // value keeps increasing. Integration tests share one serial [Collection], so there is
+    // no parallel race. Callers must NOT assert on the absolute ParticipantId — pin an
+    // explicit value via the parameter if a test needs a specific one.
     private static int _nextParticipantId;
 
     public static void AddMatchWithParticipant(
