@@ -25,4 +25,7 @@ public sealed class DataRepositoryFactory : IDataRepositoryFactory
 
     public ISeedRequestRepository CreateSeedRequestRepository(TrueMainDbContext dbContext)
         => new SeedRequestRepository(dbContext);
+
+    public IDiscoveryCursorRepository CreateDiscoveryCursorRepository(TrueMainDbContext dbContext)
+        => new DiscoveryCursorRepository(dbContext);
 }

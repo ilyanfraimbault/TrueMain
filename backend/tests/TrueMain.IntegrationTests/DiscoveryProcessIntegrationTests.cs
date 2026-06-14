@@ -68,6 +68,48 @@ public sealed class DiscoveryProcessIntegrationTests
     }
 
     [Fact]
+    public async Task RunAsync_AdvancesAndWrapsTheSlidingWindowCursor_AcrossRuns()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        var sessionFactory = _fixture.CreateSessionFactory();
+
+        DiscoveryProcess BuildProcess() => new(
+            NullLogger<DiscoveryProcess>.Instance,
+            new FakeRiotPlatformClient(),
+            sessionFactory,
+            new FixedSizeLadderDiscoveryService(ladderSize: 5),
+            new AccountUpsertService(),
+            new NoOpCandidateUpsertService(),
+            new RankSnapshotWriter(),
+            Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
+            {
+                Platforms = ["KR"],
+                SaveBatchSize = 1,
+                NewAccountsTarget = 0,
+                MaxAccountsPerPlatformPerRun = 2,
+                SlidingWindowEnabled = true
+            }));
+
+        // Window 2 over a ladder of 5: 0 -> 2 -> 4 -> wraps to 0.
+        await BuildProcess().RunCoreAsync(CancellationToken.None);
+        (await ReadCursorOffsetAsync("KR")).Should().Be(2);
+
+        await BuildProcess().RunCoreAsync(CancellationToken.None);
+        (await ReadCursorOffsetAsync("KR")).Should().Be(4);
+
+        await BuildProcess().RunCoreAsync(CancellationToken.None);
+        (await ReadCursorOffsetAsync("KR")).Should().Be(0);
+    }
+
+    private async Task<int?> ReadCursorOffsetAsync(string platformId)
+    {
+        await using var db = _fixture.CreateDbContext();
+        var cursor = await db.DiscoveryCursors.AsNoTracking().SingleOrDefaultAsync(c => c.PlatformId == platformId);
+        return cursor?.Offset;
+    }
+
+    [Fact]
     public async Task RunAsync_WhenLadderEntryHasNoRank_DoesNotWriteSnapshot()
     {
         await _fixture.ResetDatabaseAsync();
@@ -225,9 +267,10 @@ public sealed class DiscoveryProcessIntegrationTests
     {
         private readonly FakeLadderDiscoveryService _inner = new();
 
-        public Task<List<DiscoveredSummoner>> DiscoverSummonersAsync(
+        public Task<LadderDiscoveryResult> DiscoverSummonersAsync(
             PlatformRoute platform,
             DiscoveryOptions options,
+            int offset,
             CancellationToken ct)
         {
             if (failingPlatform is null || platform.ToString() == failingPlatform)
@@ -235,18 +278,19 @@ public sealed class DiscoveryProcessIntegrationTests
                 throw new InvalidOperationException("simulated ladder outage");
             }
 
-            return _inner.DiscoverSummonersAsync(platform, options, ct);
+            return _inner.DiscoverSummonersAsync(platform, options, offset, ct);
         }
     }
 
     private sealed class NoRankLadderDiscoveryService : ILadderDiscoveryService
     {
-        public Task<List<DiscoveredSummoner>> DiscoverSummonersAsync(
+        public Task<LadderDiscoveryResult> DiscoverSummonersAsync(
             PlatformRoute platform,
             DiscoveryOptions options,
+            int offset,
             CancellationToken ct)
         {
-            return Task.FromResult(new List<DiscoveredSummoner>
+            var discovered = new List<DiscoveredSummoner>
             {
                 new(
                     new RiotSummonerDto
@@ -258,18 +302,21 @@ public sealed class DiscoveryProcessIntegrationTests
                         SummonerLevel = 50
                     },
                     Rank: null)
-            });
+            };
+
+            return Task.FromResult(new LadderDiscoveryResult(discovered, discovered.Count, offset));
         }
     }
 
     private sealed class FakeLadderDiscoveryService : ILadderDiscoveryService
     {
-        public Task<List<DiscoveredSummoner>> DiscoverSummonersAsync(
+        public Task<LadderDiscoveryResult> DiscoverSummonersAsync(
             PlatformRoute platform,
             DiscoveryOptions options,
+            int offset,
             CancellationToken ct)
         {
-            return Task.FromResult(new List<DiscoveredSummoner>
+            var discovered = new List<DiscoveredSummoner>
             {
                 new(
                     new RiotSummonerDto
@@ -281,7 +328,40 @@ public sealed class DiscoveryProcessIntegrationTests
                         SummonerLevel = 201
                     },
                     new RankSnapshotInput("MASTER", "I", 42, Wins: 7, Losses: 3))
-            });
+            };
+
+            return Task.FromResult(new LadderDiscoveryResult(discovered, discovered.Count, offset));
+        }
+    }
+
+    /// <summary>
+    /// Returns one summoner per run but reports a fixed ladder size and the applied
+    /// offset (offset % size), so the cursor advance/wrap math in DiscoveryProcess can
+    /// be exercised without a real ladder.
+    /// </summary>
+    private sealed class FixedSizeLadderDiscoveryService(int ladderSize) : ILadderDiscoveryService
+    {
+        public Task<LadderDiscoveryResult> DiscoverSummonersAsync(
+            PlatformRoute platform,
+            DiscoveryOptions options,
+            int offset,
+            CancellationToken ct)
+        {
+            var discovered = new List<DiscoveredSummoner>
+            {
+                new(
+                    new RiotSummonerDto
+                    {
+                        Id = "summoner-cursor",
+                        Puuid = "puuid-cursor",
+                        ProfileIconId = 1,
+                        SummonerLevel = 30
+                    },
+                    Rank: null)
+            };
+
+            var applied = options.SlidingWindowEnabled && ladderSize > 0 ? offset % ladderSize : 0;
+            return Task.FromResult(new LadderDiscoveryResult(discovered, ladderSize, applied));
         }
     }
 
