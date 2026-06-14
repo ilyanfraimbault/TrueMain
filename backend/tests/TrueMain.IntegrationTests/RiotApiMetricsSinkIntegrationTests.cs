@@ -42,7 +42,9 @@ public sealed class RiotApiMetricsSinkIntegrationTests
             var names = (await collection.Indexes.List().ToListAsync())
                 .Select(index => index["name"].AsString)
                 .ToList();
-            return names.Contains("ix_endpoint_timestamp") && names.Contains("ttl_timestamp");
+            return names.Contains("ix_timestamp_desc")
+                && names.Contains("ix_endpoint_timestamp")
+                && names.Contains("ttl_timestamp");
         });
 
         var recorder = host.Services.GetRequiredService<IRiotApiCallRecorder>();

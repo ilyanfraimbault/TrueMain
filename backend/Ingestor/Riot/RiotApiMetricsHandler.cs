@@ -83,7 +83,9 @@ internal sealed class RiotApiMetricsHandler(IRiotApiCallRecorder recorder) : Del
         var delta = response?.Headers.RetryAfter?.Delta;
         if (delta is not null)
         {
-            return (int)delta.Value.TotalSeconds;
+            // Clamp before the cast: a multi-week Delta would otherwise overflow
+            // int (Riot only ever sends seconds/minutes, but stay defensive).
+            return (int)Math.Min(delta.Value.TotalSeconds, int.MaxValue);
         }
 
         var raw = Header(response, "Retry-After");
