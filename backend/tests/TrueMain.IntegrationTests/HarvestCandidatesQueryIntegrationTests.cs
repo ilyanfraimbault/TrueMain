@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Data;
 using Data.Entities;
 
 namespace TrueMain.IntegrationTests;
@@ -91,6 +92,40 @@ public sealed class HarvestCandidatesQueryIntegrationTests
 
         rows.Should().ContainSingle();
         rows.Single().Puuid.Should().Be("PR");
+    }
+
+    [Fact]
+    public async Task GetHarvestCandidatesAsync_RespectsMaxRows_OrderedByObservedGamesDesc()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var now = new DateTime(2026, 6, 14, 12, 0, 0, DateTimeKind.Utc);
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            // Three eligible (puuid, champion): 8, 7 and 6 observed games respectively.
+            SeedGames(db, "PA", gameCount: 8, now);
+            SeedGames(db, "PB", gameCount: 7, now);
+            SeedGames(db, "PC", gameCount: 6, now);
+            await db.SaveChangesAsync();
+        }
+
+        await using var session = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None);
+        var rows = await session.MatchParticipants.GetHarvestCandidatesAsync(
+            ["KR"], RankedSolo, minObservedGames: 5, maxRows: 2, DateTime.UnixEpoch, CancellationToken.None);
+
+        // Truncated to the top 2 by observed games (PC with 6 drops off).
+        rows.Should().HaveCount(2);
+        rows.Select(r => r.ObservedGames).Should().Equal(8, 7);
+        rows.Select(r => r.Puuid).Should().Equal("PA", "PB");
+    }
+
+    private static void SeedGames(TrueMainDbContext db, string puuid, int gameCount, DateTime now)
+    {
+        for (var i = 0; i < gameCount; i++)
+        {
+            MatchParticipantSeed.AddMatchWithParticipant(
+                db, $"{puuid}_{i}", "KR", RankedSolo, now.AddDays(-i), puuid, 22, win: true);
+        }
     }
 
     private async Task SeedAsync(DateTime now)

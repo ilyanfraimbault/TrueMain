@@ -100,6 +100,32 @@ public sealed class ParticipantHarvestServiceTests
     }
 
     [Fact]
+    public async Task HarvestAsync_DoesNotResurrectRejectedCandidate()
+    {
+        var harness = new Harness();
+        var existing = new MainCandidate
+        {
+            PlatformId = "KR",
+            Puuid = "puuid-rejected",
+            ChampionId = 22,
+            Source = MainCandidateSource.Harvest,
+            ObservedGames = 5,
+            LastPlayTimeUtc = Now.AddDays(-2),
+            Status = MainCandidateStatus.Rejected
+        };
+        harness.ExistingCandidates.Add(existing);
+        harness.ExistingAccountPuuids.Add("puuid-rejected");
+        harness.SetRows(new HarvestedCandidateRow("KR", "puuid-rejected", 22, 80, 50, Now.AddHours(-1)));
+
+        await harness.RunAsync();
+
+        // A rejection is a verdict from real history + MainAnalysis, not from this biased
+        // sample, so a much larger observed count must not re-queue it. Stats still refresh.
+        existing.Status.Should().Be(MainCandidateStatus.Rejected);
+        existing.ObservedGames.Should().Be(80);
+    }
+
+    [Fact]
     public async Task HarvestAsync_LeavesNonHarvestCandidateUntouched()
     {
         var harness = new Harness();
