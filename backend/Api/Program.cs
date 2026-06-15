@@ -12,6 +12,7 @@ using TrueMain.Options;
 using TrueMain.Services.Champions;
 using TrueMain.Services.Ops;
 using TrueMain.Services.Truemains;
+using AspNetCorsOptions = Microsoft.AspNetCore.Cors.Infrastructure.CorsOptions;
 
 var builder = WebApplication.CreateBuilder(args);
 const string frontendCorsPolicy = "FrontendCors";
@@ -58,7 +59,7 @@ builder.Services.AddCors();
 // Build the FrontendCors policy from the bound FrontendCorsOptions (single
 // source — no separate config read) so the validated origins are the ones the
 // policy uses.
-builder.Services.AddOptions<Microsoft.AspNetCore.Cors.Infrastructure.CorsOptions>()
+builder.Services.AddOptions<AspNetCorsOptions>()
     .Configure<IOptions<FrontendCorsOptions>>((corsPolicies, appCors) =>
         corsPolicies.AddPolicy(frontendCorsPolicy, policy =>
         {
@@ -210,8 +211,7 @@ if (app.Environment.IsDevelopment()
     && app.Services.GetRequiredService<IOptions<FrontendCorsOptions>>().Value.Origins.Length == 0)
 {
     app.Logger.LogWarning(
-        "Cors:Origins is empty; the {Policy} policy allows no cross-origin browser request. "
-        + "Set Cors:Origins in configuration to let the frontend reach the API.",
+        "Cors:Origins is empty; the {Policy} policy allows no cross-origin browser request. Set Cors:Origins in configuration to let the frontend reach the API.",
         frontendCorsPolicy);
 }
 

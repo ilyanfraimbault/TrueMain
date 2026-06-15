@@ -1,3 +1,4 @@
+using System.Net;
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -23,7 +24,7 @@ public sealed class CorsStartupIntegrationTests
     }
 
     [Fact]
-    public void Startup_InNonDevelopment_FailsWhenCorsOriginsEmpty()
+    public async Task Startup_InNonDevelopment_FailsWhenCorsOriginsEmpty()
     {
         // appsettings.json ships "Cors:Origins": [], so withholding the override
         // leaves the list empty. Testing is non-Development, so ValidateOnStart
@@ -31,7 +32,7 @@ public sealed class CorsStartupIntegrationTests
         // (Testing, not Production: the readiness-health-check guard fails fast on
         // a missing connection string only under Production, and the test host
         // injects that string after Program reads it.)
-        using var factory = new CorsStartupFactory(_fixture, environment: "Testing", origin: null);
+        await using var factory = new CorsStartupFactory(_fixture, environment: "Testing", origin: null);
 
         var startup = () => factory.CreateClient();
 
@@ -60,6 +61,8 @@ public sealed class CorsStartupIntegrationTests
 
         var response = await client.SendAsync(preflight);
 
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent,
+            "a handled CORS preflight is short-circuited by the middleware with 204 No Content");
         response.Headers.GetValues("Access-Control-Allow-Origin").Should().ContainSingle()
             .Which.Should().Be(allowedOrigin,
                 "the configured origin must be echoed back so the browser accepts the cross-origin response");
