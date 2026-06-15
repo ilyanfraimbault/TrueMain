@@ -192,10 +192,18 @@ public sealed class MatchParticipantRepository(TrueMainDbContext db) : IMatchPar
         // any pending changes the caller had staged on this context (a lost-update
         // anti-pattern). The insert never touches the change tracker; IDs are
         // reloaded by key below for both pre-existing and freshly inserted rows.
-        var styleIds = missingKeys.Select(key => key.StyleId).ToArray();
-        var selectionIndexes = missingKeys.Select(key => key.SelectionIndex).ToArray();
-        var perkIds = missingKeys.Select(key => key.PerkId).ToArray();
-        var styleDescriptions = missingKeys.Select(key => key.StyleDescription).ToArray();
+        var styleIds = new int[missingKeys.Length];
+        var selectionIndexes = new int[missingKeys.Length];
+        var perkIds = new int[missingKeys.Length];
+        var styleDescriptions = new string[missingKeys.Length];
+        for (var i = 0; i < missingKeys.Length; i++)
+        {
+            var key = missingKeys[i];
+            styleIds[i] = key.StyleId;
+            selectionIndexes[i] = key.SelectionIndex;
+            perkIds[i] = key.PerkId;
+            styleDescriptions[i] = key.StyleDescription;
+        }
 
         await db.Database.ExecuteSqlAsync(
             $"""
