@@ -25,7 +25,7 @@ public sealed class HealthCheckBootstrapIntegrationTests
 
         // Touching Services forces the host to build, running Program's
         // configuration up to the health-check branch.
-        var act = () => _ = factory.Services;
+        var act = () => factory.Services;
 
         act.Should().Throw<InvalidOperationException>()
             .WithMessage("*ConnectionStrings:TrueMain is required outside Development*");
