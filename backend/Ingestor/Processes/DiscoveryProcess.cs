@@ -187,7 +187,7 @@ public sealed class DiscoveryProcess(
             if (item.Rank is not null)
             {
                 latestByAccountId.TryGetValue(upsertResult.Account.Id, out var latest);
-                var outcome = rankSnapshotWriter.Write(session, upsertResult.Account, item.Rank, latest, nowUtc);
+                var outcome = rankSnapshotWriter.Ingest(session, upsertResult.Account, item.Rank, latest, nowUtc);
                 if (outcome == RankSnapshotOutcome.Inserted)
                 {
                     summary.RankSnapshotsInserted++;

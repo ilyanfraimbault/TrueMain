@@ -157,7 +157,7 @@ public sealed class AccountRefreshProcess(
             }
 
             latestByAccountId.TryGetValue(account.Id, out var last);
-            var outcome = rankSnapshotWriter.Write(
+            var outcome = rankSnapshotWriter.Ingest(
                 session,
                 account,
                 new RankSnapshotInput(solo.Tier, solo.Rank, solo.LeaguePoints, solo.Wins, solo.Losses),
