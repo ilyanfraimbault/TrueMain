@@ -137,7 +137,7 @@ public sealed class ChampionPatternSourceRowReader(
     }
 
     private static string NormalizeGameVersion(string gameVersion)
-        => PatchVersion.TryParse(gameVersion, out var patch) ? $"{patch.Major}.{patch.Minor}" : gameVersion;
+        => PatchVersion.TryParse(gameVersion, out var patch) ? patch.ToMajorMinor() : gameVersion;
 
     private static async Task HydratePerkSelectionsAsync(
         TrueMainDbContext db,

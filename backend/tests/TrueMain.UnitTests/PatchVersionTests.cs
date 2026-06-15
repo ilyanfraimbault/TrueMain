@@ -102,5 +102,6 @@ public sealed class PatchVersionTests
         (basePatch == hotfix).Should().BeFalse();
         hotfix.Should().Be(new PatchVersion(16, 4, 521));
         (hotfix == new PatchVersion(16, 4, 521)).Should().BeTrue();
+        new PatchVersion(16, 4).Should().Be(new PatchVersion(16, 4, null));
     }
 }

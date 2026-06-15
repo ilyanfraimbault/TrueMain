@@ -43,7 +43,7 @@ public sealed class ChampionMatchupQueryService(
         // means "every patch".
         var normalizedPatch = string.IsNullOrWhiteSpace(patch)
             ? null
-            : PatchVersion.TryParse(patch, out var parsed) ? $"{parsed.Major}.{parsed.Minor}" : null;
+            : PatchVersion.TryParse(patch, out var parsed) ? parsed.ToMajorMinor() : null;
         var patchPrefix = normalizedPatch is null ? null : $"{normalizedPatch}.%";
 
         // Floor matrix. A deliberate opponent lookup shows the head-to-head from

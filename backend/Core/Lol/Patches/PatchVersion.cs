@@ -78,6 +78,14 @@ public readonly record struct PatchVersion(int Major, int Minor, int? Build = nu
             ? string.Create(CultureInfo.InvariantCulture, $"{Major}.{Minor}.{build}")
             : string.Create(CultureInfo.InvariantCulture, $"{Major}.{Minor}");
 
+    /// <summary>
+    /// Returns only the canonical "MAJOR.MINOR" form, ignoring any build
+    /// segment. Used by callers that key on the patch (scopes, CDN URLs,
+    /// LIKE prefixes) where the hotfix build must not appear.
+    /// </summary>
+    public string ToMajorMinor()
+        => string.Create(CultureInfo.InvariantCulture, $"{Major}.{Minor}");
+
     public int CompareTo(PatchVersion other)
     {
         var majorComparison = Major.CompareTo(other.Major);
