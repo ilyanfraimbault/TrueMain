@@ -26,9 +26,12 @@ public sealed class CorsStartupIntegrationTests
     public void Startup_InNonDevelopment_FailsWhenCorsOriginsEmpty()
     {
         // appsettings.json ships "Cors:Origins": [], so withholding the override
-        // leaves the list empty. Production is non-Development, so ValidateOnStart
+        // leaves the list empty. Testing is non-Development, so ValidateOnStart
         // must reject the boot rather than silently run with a no-op policy.
-        using var factory = new CorsStartupFactory(_fixture, environment: "Production", origin: null);
+        // (Testing, not Production: the readiness-health-check guard fails fast on
+        // a missing connection string only under Production, and the test host
+        // injects that string after Program reads it.)
+        using var factory = new CorsStartupFactory(_fixture, environment: "Testing", origin: null);
 
         var startup = () => factory.CreateClient();
 
@@ -41,7 +44,7 @@ public sealed class CorsStartupIntegrationTests
     public async Task Startup_InNonDevelopment_AllowsConfiguredOriginWhenPresent()
     {
         const string allowedOrigin = "https://app.truemain.test";
-        await using var factory = new CorsStartupFactory(_fixture, environment: "Production", origin: allowedOrigin);
+        await using var factory = new CorsStartupFactory(_fixture, environment: "Testing", origin: allowedOrigin);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("https://localhost")
