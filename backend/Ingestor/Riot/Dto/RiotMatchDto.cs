@@ -88,6 +88,12 @@ public class RiotParticipantDto
     [JsonPropertyName("assists")]
     public int Assists { get; set; }
 
+    [JsonPropertyName("totalDamageDealtToChampions")]
+    public int TotalDamageDealtToChampions { get; set; }
+
+    [JsonPropertyName("visionScore")]
+    public int VisionScore { get; set; }
+
     [JsonPropertyName("goldEarned")]
     public int GoldEarned { get; set; }
 

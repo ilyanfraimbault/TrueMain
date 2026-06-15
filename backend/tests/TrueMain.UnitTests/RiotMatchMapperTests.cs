@@ -92,6 +92,33 @@ public sealed class RiotMatchMapperTests
     }
 
     [Fact]
+    public void Map_CopiesDamageDealtToChampionsAndVisionScore()
+    {
+        var dto = BuildMatch();
+        var participantDto = BuildParticipant(participantId: 1, puuid: "p-1");
+        participantDto.TotalDamageDealtToChampions = 27431;
+        participantDto.VisionScore = 42;
+        dto.Info.Participants.Add(participantDto);
+
+        var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap());
+
+        result.Participants[0].TotalDamageDealtToChampions.Should().Be(27431);
+        result.Participants[0].VisionScore.Should().Be(42);
+    }
+
+    [Fact]
+    public void Map_DefaultsDamageAndVisionScore_WhenAbsentFromDto()
+    {
+        var dto = BuildMatch();
+        dto.Info.Participants.Add(BuildParticipant(participantId: 1, puuid: "p-1"));
+
+        var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap());
+
+        result.Participants[0].TotalDamageDealtToChampions.Should().Be(0);
+        result.Participants[0].VisionScore.Should().Be(0);
+    }
+
+    [Fact]
     public void Map_AssignsRiotAccountId_WhenParticipantPuuidMatchesPlatformAndPuuid()
     {
         var accountId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
