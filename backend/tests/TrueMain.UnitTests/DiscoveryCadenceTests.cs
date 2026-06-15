@@ -7,15 +7,21 @@ using Ingestor.Ranking;
 using Ingestor.Riot;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using TrueMain.UnitTests.Fixtures;
 
 namespace TrueMain.UnitTests;
 
 public sealed class DiscoveryCadenceTests
 {
+    // Pin the clock so the cadence comparison (now - lastRun < interval) is fully
+    // deterministic: both the process's "now" and lastCompletedRunUtc derive from
+    // this same instant, leaving no wall-clock window between the two captures.
+    private static readonly DateTime FixedNow = new(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+
     [Fact]
     public async Task RunCoreAsync_SkipsDiscovery_WhenLastRunWithinMinRunInterval()
     {
-        var harness = new Harness(lastCompletedRunUtc: DateTime.UtcNow.AddHours(-1));
+        var harness = new Harness(lastCompletedRunUtc: FixedNow.AddHours(-1));
 
         await harness.Process(minRunInterval: TimeSpan.FromDays(1)).RunCoreAsync(CancellationToken.None);
 
@@ -26,7 +32,7 @@ public sealed class DiscoveryCadenceTests
     [Fact]
     public async Task RunCoreAsync_RunsDiscovery_WhenLastRunOlderThanMinRunInterval()
     {
-        var harness = new Harness(lastCompletedRunUtc: DateTime.UtcNow.AddDays(-2));
+        var harness = new Harness(lastCompletedRunUtc: FixedNow.AddDays(-2));
 
         await harness.Process(minRunInterval: TimeSpan.FromDays(1)).RunCoreAsync(CancellationToken.None);
 
@@ -37,7 +43,7 @@ public sealed class DiscoveryCadenceTests
     [Fact]
     public async Task RunCoreAsync_RunsDiscovery_WhenMinRunIntervalIsZero()
     {
-        var harness = new Harness(lastCompletedRunUtc: DateTime.UtcNow);
+        var harness = new Harness(lastCompletedRunUtc: FixedNow);
 
         await harness.Process(minRunInterval: TimeSpan.Zero).RunCoreAsync(CancellationToken.None);
 
@@ -74,7 +80,7 @@ public sealed class DiscoveryCadenceTests
             Substitute.For<IAccountUpsertService>(),
             Substitute.For<ICandidateUpsertService>(),
             Substitute.For<IRankSnapshotWriter>(),
-            TimeProvider.System,
+            new FixedTimeProvider(FixedNow),
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
                 Platforms = ["KR"],
