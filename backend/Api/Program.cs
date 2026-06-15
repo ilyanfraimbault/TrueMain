@@ -39,6 +39,19 @@ if (!string.IsNullOrWhiteSpace(healthConnectionString))
         name: "postgres",
         tags: ["ready"]);
 }
+else if (builder.Environment.IsProduction())
+{
+    // In Production a missing connection string would silently drop the "ready"
+    // check, leaving /readyz green while the app can't reach Postgres. Fail fast
+    // at boot instead so a misconfigured deployment never reports ready (all
+    // deployments run as Production — see compose*.yaml). Development keeps the
+    // soft path so the app still starts before user secrets are wired up, and
+    // the integration-test "Testing" host injects the connection string after
+    // this point (via ConfigureAppConfiguration), so it must not trip here.
+    throw new InvalidOperationException(
+        "Missing connection string. Add ConnectionStrings:TrueMain so the Postgres "
+        + "readiness health check can be registered in Production.");
+}
 
 var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>
