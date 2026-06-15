@@ -1,4 +1,3 @@
-using System.Net.Http.Json;
 using Core;
 using Core.Lol.Identifiers;
 using Ingestor.Riot.Dto;
@@ -41,10 +40,9 @@ public sealed class RiotMatchClient : IRiotMatchClient
         return GetAsync<List<string>>(uri, ct);
     }
 
-    private async Task<T> GetAsync<T>(Uri uri, CancellationToken ct)
+    private Task<T> GetAsync<T>(Uri uri, CancellationToken ct)
     {
-        return await _httpClient.GetFromJsonAsync<T>(uri, ct)
-            ?? throw new InvalidOperationException($"Empty response from Riot API ({uri}).");
+        return _httpClient.GetFromJsonStreamingAsync<T>(uri, ct);
     }
 
     private static Uri BuildRegionalUri(RegionalRoute region, string path)

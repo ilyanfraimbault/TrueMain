@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Json;
 using Core;
 using Core.Lol.Identifiers;
 using Ingestor.Riot.Dto;
@@ -18,8 +17,7 @@ public sealed class RiotAccountClient : IRiotAccountClient
     public async Task<RiotAccountDto> GetAccountByPuuidAsync(string puuid, RegionalRoute region, CancellationToken ct)
     {
         var uri = BuildRegionalUri(region, $"/riot/account/v1/accounts/by-puuid/{puuid}");
-        return await _httpClient.GetFromJsonAsync<RiotAccountDto>(uri, ct)
-            ?? throw new InvalidOperationException($"Empty response from Riot API ({uri}).");
+        return await _httpClient.GetFromJsonStreamingAsync<RiotAccountDto>(uri, ct);
     }
 
     public async Task<RiotAccountDto?> GetByRiotIdAsync(string gameName, string tagLine, RegionalRoute regional, CancellationToken ct)
@@ -31,7 +29,7 @@ public sealed class RiotAccountClient : IRiotAccountClient
         var encodedTag = Uri.EscapeDataString(tagLine);
         var uri = BuildRegionalUri(regional, $"/riot/account/v1/accounts/by-riot-id/{encodedName}/{encodedTag}");
 
-        using var response = await _httpClient.GetAsync(uri, ct);
+        using var response = await _httpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, ct);
 
         // A 404 means Riot has no account for this Riot ID — a normal "not found"
         // outcome the seed flow surfaces to the caller, not a fault. Any other
@@ -42,8 +40,7 @@ public sealed class RiotAccountClient : IRiotAccountClient
         }
 
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<RiotAccountDto>(ct)
-            ?? throw new InvalidOperationException($"Empty response from Riot API ({uri}).");
+        return await response.ReadFromJsonStreamingAsync<RiotAccountDto>(uri, ct);
     }
 
     private static Uri BuildRegionalUri(RegionalRoute region, string path)
