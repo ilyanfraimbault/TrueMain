@@ -94,6 +94,13 @@ public sealed class MatchIngestionProcess(
         {
             await accountValidationService.RevertAsync(account, ct);
         }
+        catch (OperationCanceledException)
+        {
+            // A cancellation is a cooperative shutdown signal, not a revert failure.
+            // Let it propagate so the loop stops instead of logging it for every
+            // remaining account and swallowing the shutdown.
+            throw;
+        }
         catch (Exception revertException)
         {
             // The revert that should return the claim to Queued failed too. Swallowing
