@@ -4,6 +4,8 @@ namespace TrueMain.Options;
 /// Cross-origin policy for the public API, bound from <c>Cors:*</c>. The single
 /// <see cref="Origins"/> list drives the <c>FrontendCors</c> policy: the browser
 /// receives <c>Access-Control-Allow-Origin</c> only for the hosts listed here.
+/// Named <c>FrontendCorsOptions</c> (not <c>CorsOptions</c>) to avoid colliding
+/// with ASP.NET Core's own <c>Microsoft.AspNetCore.Cors.Infrastructure.CorsOptions</c>.
 /// </summary>
 /// <remarks>
 /// An empty list is a silent-failure trap — the policy still builds, but with no
@@ -14,7 +16,7 @@ namespace TrueMain.Options;
 /// list: empty fails the boot in every non-Development environment (see
 /// <c>Program.cs</c>) and only logs a warning under Development.
 /// </remarks>
-public sealed class CorsOptions
+public sealed class FrontendCorsOptions
 {
     public const string SectionName = "Cors";
 
