@@ -25,6 +25,27 @@ public sealed class MatchParticipantRepository(TrueMainDbContext db) : IMatchPar
             .ToListAsync(ct);
     }
 
+    public Task<int> BackfillRiotAccountIdAsync(
+        IReadOnlyCollection<string> matchIds,
+        string puuid,
+        Guid riotAccountId,
+        CancellationToken ct)
+    {
+        if (matchIds.Count == 0)
+        {
+            return Task.FromResult(0);
+        }
+
+        return db.MatchParticipants
+            .Where(participant =>
+                matchIds.Contains(participant.MatchId) &&
+                participant.RiotAccountId == null &&
+                participant.Puuid == puuid)
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(participant => participant.RiotAccountId, riotAccountId),
+                ct);
+    }
+
     public Task<List<ParticipantRow>> GetRecentParticipantsAsync(string platformId, string puuid, int queueId, int take, CancellationToken ct)
     {
         return (
