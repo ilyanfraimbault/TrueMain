@@ -28,7 +28,7 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
 
         if (trackedAccount is not null)
         {
-            await MatchAccountBackfiller.BackfillAsync(session, scan.Existing, puuid, trackedAccount.Id, batchSize, ct);
+            await MatchAccountBackfiller.BackfillAsync(session, scan.Existing, puuid, trackedAccount.Id, ct);
         }
 
         var inserted = 0;
