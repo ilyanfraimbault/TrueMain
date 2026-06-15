@@ -1,5 +1,6 @@
 using Core;
 using Core.Lol.Identifiers;
+using Data.Logging;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Common;
@@ -80,11 +81,34 @@ public sealed class MatchIngestionProcess(
                     "Match ingestion failed for {Platform}/{Puuid}. Reverting to queued.",
                     account.PlatformId,
                     account.Puuid);
-                await accountValidationService.RevertAsync(account, ct);
+                await RevertClaimAsync(account, ex, ct);
             }
         }
 
         return summary;
+    }
+
+    private async Task RevertClaimAsync(AccountKey account, Exception ingestionException, CancellationToken ct)
+    {
+        try
+        {
+            await accountValidationService.RevertAsync(account, ct);
+        }
+        catch (Exception revertException)
+        {
+            // The revert that should return the claim to Queued failed too. Swallowing
+            // it here keeps the batch going for the remaining accounts, but the claim
+            // now stays Processing until its lease expires with no other signal, so we
+            // surface it as a named ops event (#263) carrying both the revert failure
+            // and the original ingestion failure as its cause.
+            logger.LogError(
+                OpsEvents.MatchRevertFailed,
+                new AggregateException(revertException, ingestionException),
+                "Failed to revert claim for {Platform}/{Puuid} after ingestion error; "
+                + "candidates remain Processing until the claim lease expires.",
+                account.PlatformId,
+                account.Puuid);
+        }
     }
 
     private static void UpdatePlatformSummary(
