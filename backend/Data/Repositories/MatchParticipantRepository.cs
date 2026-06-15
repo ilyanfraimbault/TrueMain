@@ -206,24 +206,38 @@ public sealed class MatchParticipantRepository(TrueMainDbContext db) : IMatchPar
             return existingMap;
         }
 
-        db.PerkSelectionCatalogs.AddRange(
-            missingKeys.Select(key => new PerkSelectionCatalog
-            {
-                StyleId = key.StyleId,
-                SelectionIndex = key.SelectionIndex,
-                PerkId = key.PerkId,
-                StyleDescription = key.StyleDescription
-            }));
+        // Insert the missing rows with a raw ON CONFLICT DO NOTHING so the unique
+        // index collisions that occur under concurrent ingestion are absorbed by
+        // Postgres instead of surfacing as a DbUpdateException. This avoids the
+        // previous catch + ChangeTracker.Clear() recovery, which silently discarded
+        // any pending changes the caller had staged on this context (a lost-update
+        // anti-pattern). The insert never touches the change tracker; IDs are
+        // reloaded by key below for both pre-existing and freshly inserted rows.
+        var styleIds = new int[missingKeys.Length];
+        var selectionIndexes = new int[missingKeys.Length];
+        var perkIds = new int[missingKeys.Length];
+        var styleDescriptions = new string[missingKeys.Length];
+        for (var i = 0; i < missingKeys.Length; i++)
+        {
+            var key = missingKeys[i];
+            styleIds[i] = key.StyleId;
+            selectionIndexes[i] = key.SelectionIndex;
+            perkIds[i] = key.PerkId;
+            styleDescriptions[i] = key.StyleDescription;
+        }
 
-        try
-        {
-            await db.SaveChangesAsync(ct);
-        }
-        catch (DbUpdateException)
-        {
-            // Unique index collisions can occur under concurrent ingestion.
-            db.ChangeTracker.Clear();
-        }
+        await db.Database.ExecuteSqlAsync(
+            $"""
+            INSERT INTO "perk_selection_catalog"
+                ("StyleId", "SelectionIndex", "PerkId", "StyleDescription")
+            SELECT * FROM unnest(
+                {styleIds},
+                {selectionIndexes},
+                {perkIds},
+                {styleDescriptions})
+            ON CONFLICT ("StyleId", "SelectionIndex", "PerkId", "StyleDescription") DO NOTHING
+            """,
+            ct);
 
         return await LoadCatalogIdsByKeysAsync(distinctKeys, ct);
     }
