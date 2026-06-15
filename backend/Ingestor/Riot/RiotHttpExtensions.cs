@@ -36,7 +36,9 @@ internal static class RiotHttpExtensions
             return;
         }
 
-        await response.Content.ReadAsByteArrayAsync(ct);
+        // CopyToAsync(Stream.Null) drains the body without allocating a throwaway
+        // buffer the way ReadAsByteArrayAsync would.
+        await response.Content.CopyToAsync(Stream.Null, ct);
         response.EnsureSuccessStatusCode();
     }
 

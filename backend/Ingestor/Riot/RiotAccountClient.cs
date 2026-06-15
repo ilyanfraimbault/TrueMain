@@ -38,7 +38,7 @@ public sealed class RiotAccountClient : IRiotAccountClient
         // rather than being abandoned (the response was read headers-only).
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
-            await response.Content.ReadAsByteArrayAsync(ct);
+            await response.Content.CopyToAsync(Stream.Null, ct);
             return null;
         }
 
