@@ -16,7 +16,8 @@ public sealed class CommunityDragonItemMetadataProvider(
 
     public Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemsAsync(string gameVersion, CancellationToken ct)
     {
-        var patch = PatchVersion.Parse(gameVersion).ToString();
+        var parsed = PatchVersion.Parse(gameVersion);
+        var patch = $"{parsed.Major}.{parsed.Minor}";
         var lazyTask = _cache.GetOrAdd(patch, static (normalizedPatch, provider) =>
             new Lazy<Task<IReadOnlyDictionary<int, ItemMetadata>>>(
                 () => provider.LoadPatchItemsAsync(normalizedPatch, CancellationToken.None),

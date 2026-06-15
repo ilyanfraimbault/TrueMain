@@ -21,7 +21,7 @@ internal static class ChampionQueryParameterNormalizer
     /// doesn't parse to a valid <see cref="PatchVersion"/>.
     /// </summary>
     public static string? NormalizePatch(string? raw)
-        => PatchVersion.TryParse(raw, out var patch) ? patch.ToString() : null;
+        => PatchVersion.TryParse(raw, out var patch) ? $"{patch.Major}.{patch.Minor}" : null;
 
     /// <summary>
     /// Normalises a platform identifier to the canonical Riot upper-case

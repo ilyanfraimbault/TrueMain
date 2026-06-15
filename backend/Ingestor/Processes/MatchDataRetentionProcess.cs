@@ -104,7 +104,7 @@ public sealed class MatchDataRetentionProcess(
                 group => group.Key,
                 group => group
                     .Select(match => PatchVersion.TryParse(match.GameVersion, out var patch)
-                        ? patch.ToString()
+                        ? $"{patch.Major}.{patch.Minor}"
                         : null)
                     .Where(patch => !string.IsNullOrWhiteSpace(patch))
                     .Select(patch => patch!)
