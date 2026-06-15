@@ -47,8 +47,6 @@ if (!string.IsNullOrWhiteSpace(healthConnectionString))
 // appsettings.json ships an empty array. Fail the boot when empty in any
 // non-Development environment; only warn under Development (handled after build).
 var isDevelopment = builder.Environment.IsDevelopment();
-var corsOptions = builder.Configuration.GetSection(CorsOptions.SectionName).Get<CorsOptions>()
-    ?? new CorsOptions();
 builder.Services.AddOptions<CorsOptions>()
     .Bind(builder.Configuration.GetSection(CorsOptions.SectionName))
     .Validate(
@@ -56,17 +54,19 @@ builder.Services.AddOptions<CorsOptions>()
         "Cors:Origins must contain at least one origin outside the Development environment; "
         + "an empty list ships a no-op CORS policy that silently rejects the frontend.")
     .ValidateOnStart();
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy(frontendCorsPolicy, policy =>
-    {
-        var builderPolicy = policy.AllowAnyHeader().AllowAnyMethod();
-        if (corsOptions.Origins.Length > 0)
+builder.Services.AddCors();
+// Build the FrontendCors policy from the bound CorsOptions (single source — no
+// separate config read) so the validated origins are the ones the policy uses.
+builder.Services.AddOptions<Microsoft.AspNetCore.Cors.Infrastructure.CorsOptions>()
+    .Configure<IOptions<CorsOptions>>((corsPolicies, appCors) =>
+        corsPolicies.AddPolicy(frontendCorsPolicy, policy =>
         {
-            builderPolicy.WithOrigins(corsOptions.Origins);
-        }
-    });
-});
+            var builderPolicy = policy.AllowAnyHeader().AllowAnyMethod();
+            if (appCors.Value.Origins.Length > 0)
+            {
+                builderPolicy.WithOrigins(appCors.Value.Origins);
+            }
+        }));
 
 builder.Services.AddOptions<MainAnalysisOptions>()
     .Bind(builder.Configuration.GetSection("MainAnalysis"))
@@ -202,7 +202,8 @@ var app = builder.Build();
 // Non-Development boots already fail in ValidateOnStart when Origins is empty;
 // this only fires under Development, where an empty list is tolerated but still
 // worth flagging so a missing local override doesn't read as a working CORS setup.
-if (app.Environment.IsDevelopment() && corsOptions.Origins.Length == 0)
+if (app.Environment.IsDevelopment()
+    && app.Services.GetRequiredService<IOptions<CorsOptions>>().Value.Origins.Length == 0)
 {
     app.Logger.LogWarning(
         "Cors:Origins is empty; the {Policy} policy allows no cross-origin browser request. "

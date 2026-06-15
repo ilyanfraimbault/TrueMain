@@ -1,10 +1,8 @@
-using System.Net;
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
-using TrueMain.TestKit;
 
 namespace TrueMain.IntegrationTests;
 
@@ -42,8 +40,6 @@ public sealed class CorsStartupIntegrationTests
     [Fact]
     public async Task Startup_InNonDevelopment_AllowsConfiguredOriginWhenPresent()
     {
-        await _fixture.ResetDatabaseAsync();
-
         const string allowedOrigin = "https://app.truemain.test";
         await using var factory = new CorsStartupFactory(_fixture, environment: "Production", origin: allowedOrigin);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -51,12 +47,16 @@ public sealed class CorsStartupIntegrationTests
             BaseAddress = new Uri("https://localhost")
         });
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/champions");
-        request.Headers.Add("Origin", allowedOrigin);
+        // A CORS preflight exercises the policy directly through the CORS
+        // middleware, so the assertion stays on the header that matters
+        // (Access-Control-Allow-Origin) without coupling to any endpoint's
+        // business logic or status code.
+        using var preflight = new HttpRequestMessage(HttpMethod.Options, "/champions");
+        preflight.Headers.Add("Origin", allowedOrigin);
+        preflight.Headers.Add("Access-Control-Request-Method", "GET");
 
-        var response = await client.SendAsync(request);
+        var response = await client.SendAsync(preflight);
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
         response.Headers.GetValues("Access-Control-Allow-Origin").Should().ContainSingle()
             .Which.Should().Be(allowedOrigin,
                 "the configured origin must be echoed back so the browser accepts the cross-origin response");
@@ -66,8 +66,8 @@ public sealed class CorsStartupIntegrationTests
     /// A <see cref="WebApplicationFactory{TEntryPoint}"/> that — unlike
     /// <see cref="TrueMainWebApplicationFactory{TEntryPoint}"/> — does not inject a
     /// default <c>Cors:Origins</c>, so a test can drive the host with the origin
-    /// list either empty (<paramref name="origin"/> null) or populated, and pick
-    /// the environment that decides whether the guard fails or warns.
+    /// list either empty (a null origin argument) or populated, and pick the
+    /// environment that decides whether the guard fails or warns.
     /// </summary>
     private sealed class CorsStartupFactory : WebApplicationFactory<Program>
     {
