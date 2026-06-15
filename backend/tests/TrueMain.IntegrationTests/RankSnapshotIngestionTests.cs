@@ -237,7 +237,7 @@ public sealed class RankSnapshotIngestionTests
     }
 
     [Fact]
-    public async Task RunCoreAsync_SuccessfulRankWrite_BumpsLastRankSyncAtUtc()
+    public async Task RunCoreAsync_SuccessfulRankIngest_BumpsLastRankSyncAtUtc()
     {
         await _fixture.ResetDatabaseAsync();
         var account = await SeedAccountAsync("puuid-bump");
