@@ -40,15 +40,30 @@ if (!string.IsNullOrWhiteSpace(healthConnectionString))
         tags: ["ready"]);
 }
 
-var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [];
+// CORS origins must be present outside Development: an empty list still builds a
+// valid (but no-op) policy, so without this guard production silently ships a
+// CORS policy that allows no cross-origin browser request — the frontend appears
+// to work locally (Development ships real origins) but breaks in prod, where
+// appsettings.json ships an empty array. Fail the boot when empty in any
+// non-Development environment; only warn under Development (handled after build).
+var isDevelopment = builder.Environment.IsDevelopment();
+var corsOptions = builder.Configuration.GetSection(CorsOptions.SectionName).Get<CorsOptions>()
+    ?? new CorsOptions();
+builder.Services.AddOptions<CorsOptions>()
+    .Bind(builder.Configuration.GetSection(CorsOptions.SectionName))
+    .Validate(
+        options => isDevelopment || options.Origins.Length > 0,
+        "Cors:Origins must contain at least one origin outside the Development environment; "
+        + "an empty list ships a no-op CORS policy that silently rejects the frontend.")
+    .ValidateOnStart();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(frontendCorsPolicy, policy =>
     {
         var builderPolicy = policy.AllowAnyHeader().AllowAnyMethod();
-        if (corsOrigins.Length > 0)
+        if (corsOptions.Origins.Length > 0)
         {
-            builderPolicy.WithOrigins(corsOrigins);
+            builderPolicy.WithOrigins(corsOptions.Origins);
         }
     });
 });
@@ -183,6 +198,18 @@ builder.Services.AddDbContextFactory<TrueMainDbContext>(lifetime: ServiceLifetim
 // the Ingestor's.
 builder.Services.AddMongoLogging(builder.Configuration, processName: "Api");
 var app = builder.Build();
+
+// Non-Development boots already fail in ValidateOnStart when Origins is empty;
+// this only fires under Development, where an empty list is tolerated but still
+// worth flagging so a missing local override doesn't read as a working CORS setup.
+if (app.Environment.IsDevelopment() && corsOptions.Origins.Length == 0)
+{
+    app.Logger.LogWarning(
+        "Cors:Origins is empty; the {Policy} policy allows no cross-origin browser request. "
+        + "Set Cors:Origins in configuration to let the frontend reach the API.",
+        frontendCorsPolicy);
+}
+
 await DatabaseMigrator.ApplyPendingMigrationsAsync(app.Services);
 
 // Wrap unhandled exceptions in RFC 7807 ProblemDetails so clients
