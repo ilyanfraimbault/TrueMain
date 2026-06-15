@@ -19,6 +19,7 @@ public sealed class DiscoveryProcess(
     IAccountUpsertService accountUpsertService,
     ICandidateUpsertService candidateUpsertService,
     IRankSnapshotWriter rankSnapshotWriter,
+    TimeProvider timeProvider,
     IOptions<DiscoveryOptions> discoveryOptions) : IIngestorProcess
 {
     public string Name => "Discovery";
@@ -60,7 +61,7 @@ public sealed class DiscoveryProcess(
     {
         await using var session = await sessionFactory.CreateAsync(ct);
         var lastRunUtc = await session.ProcessRuns.GetLastCompletedRunStartAsync(Name, ct);
-        return lastRunUtc is not null && DateTime.UtcNow - lastRunUtc.Value < minRunInterval
+        return lastRunUtc is not null && timeProvider.GetUtcNow().UtcDateTime - lastRunUtc.Value < minRunInterval
             ? lastRunUtc
             : null;
     }
@@ -152,7 +153,7 @@ public sealed class DiscoveryProcess(
                 nextOffset = 0;
             }
 
-            await session.DiscoveryCursors.UpsertOffsetAsync(platformId, nextOffset, DateTime.UtcNow, ct);
+            await session.DiscoveryCursors.UpsertOffsetAsync(platformId, nextOffset, timeProvider.GetUtcNow().UtcDateTime, ct);
         }
 
         if (discovered.Count == 0)
@@ -176,7 +177,7 @@ public sealed class DiscoveryProcess(
         {
             ct.ThrowIfCancellationRequested();
 
-            var nowUtc = DateTime.UtcNow;
+            var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
             var upsertResult = await accountUpsertService.UpsertAsync(session, platform, item.Summoner, nowUtc, ct);
             if (upsertResult.IsNew)
             {

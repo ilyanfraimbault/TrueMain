@@ -6,7 +6,9 @@ using Ingestor.Riot.Dto;
 
 namespace Ingestor.Processes.Components.MatchIngestion;
 
-public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMatchSnapshotWriter
+public sealed class MatchSnapshotWriter(
+    IRiotMatchClient riotMatchClient,
+    TimeProvider timeProvider) : IMatchSnapshotWriter
 {
     public async Task<SnapshotIngestionResult> IngestSnapshotsAsync(
         IDataSession session,
@@ -68,9 +70,10 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
                 .ToArray();
             var catalogIds = await session.MatchParticipants.GetOrCreatePerkCatalogIdsAsync(catalogKeys, ct);
 
+            var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
             foreach (var (_, dto) in fetched)
             {
-                await PersistMatchAsync(session, dto, platformId, catalogIds, ct);
+                await PersistMatchAsync(session, dto, platformId, catalogIds, nowUtc, ct);
                 inserted++;
             }
 
@@ -85,6 +88,7 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
         RiotMatchDto matchDto,
         string platformId,
         IReadOnlyDictionary<PerkCatalogKey, int> catalogIds,
+        DateTime nowUtc,
         CancellationToken ct)
     {
         var participantAccounts = await session.RiotAccounts.GetByKeysAsync(
@@ -94,7 +98,7 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
                 .ToArray(),
             ct);
 
-        var mapped = RiotMatchMapper.Map(matchDto, platformId, participantAccounts);
+        var mapped = RiotMatchMapper.Map(matchDto, platformId, participantAccounts, nowUtc);
 
         session.Matches.Add(mapped.Match);
         session.MatchParticipants.AddRange(mapped.Participants);

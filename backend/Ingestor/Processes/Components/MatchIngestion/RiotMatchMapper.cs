@@ -9,7 +9,8 @@ internal static class RiotMatchMapper
     public static MappedMatch Map(
         RiotMatchDto matchDto,
         string platformId,
-        IReadOnlyDictionary<AccountKey, RiotAccount> participantAccounts)
+        IReadOnlyDictionary<AccountKey, RiotAccount> participantAccounts,
+        DateTime nowUtc)
     {
         var matchId = matchDto.Metadata.MatchId;
         var gameStartUtc = RiotValueConverters.ToUtcDateTime(matchDto.Info.GameStartTimestamp);
@@ -22,10 +23,10 @@ internal static class RiotMatchMapper
             MapId = matchDto.Info.MapId,
             GameMode = matchDto.Info.GameMode,
             GameType = matchDto.Info.GameType,
-            GameStartTimeUtc = gameStartUtc ?? DateTime.UtcNow,
+            GameStartTimeUtc = gameStartUtc ?? nowUtc,
             GameDurationSeconds = RiotValueConverters.ToIntSafe(matchDto.Info.GameDuration),
             GameVersion = matchDto.Info.GameVersion,
-            CreatedAtUtc = DateTime.UtcNow,
+            CreatedAtUtc = nowUtc,
             TimelineIngested = false
         };
 
