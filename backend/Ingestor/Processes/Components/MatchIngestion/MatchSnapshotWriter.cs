@@ -15,6 +15,7 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
         RegionalRoute region,
         int matchesPerAccount,
         int saveBatchSize,
+        int maxFetchConcurrency,
         CancellationToken ct)
     {
         var allMatchIds = (await riotMatchClient.GetMatchIdsAsync(puuid, region, matchesPerAccount, ct))
@@ -25,6 +26,7 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
         var trackedAccount = await session.RiotAccounts.GetByKeyAsync(platformId, puuid, ct);
         var scan = await ExistingMatchScanner.ScanAsync(session, allMatchIds, ct);
         var batchSize = Math.Max(1, saveBatchSize);
+        var fetchConcurrency = Math.Max(1, maxFetchConcurrency);
 
         if (trackedAccount is not null)
         {
@@ -35,11 +37,22 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
         for (var i = 0; i < scan.Fresh.Count; i += batchSize)
         {
             var batchIds = scan.Fresh.Skip(i).Take(batchSize).ToList();
-            var fetched = new List<(string Id, RiotMatchDto Dto)>(batchIds.Count);
-            foreach (var matchId in batchIds)
-            {
-                fetched.Add((matchId, await riotMatchClient.GetMatchAsync(matchId, region, ct)));
-            }
+
+            // Fetch the batch's matches in parallel. Each result is written to
+            // its own slot so the array stays ordered and the concurrent writes
+            // never collide. The resilience handler enforces per-region rate
+            // limiting, so MaxDegreeOfParallelism only caps the in-flight count.
+            var fetchedSlots = new (string Id, RiotMatchDto Dto)[batchIds.Count];
+            await Parallel.ForEachAsync(
+                Enumerable.Range(0, batchIds.Count),
+                new ParallelOptions { MaxDegreeOfParallelism = fetchConcurrency, CancellationToken = ct },
+                async (index, token) =>
+                {
+                    var matchId = batchIds[index];
+                    fetchedSlots[index] = (matchId, await riotMatchClient.GetMatchAsync(matchId, region, token));
+                });
+
+            var fetched = fetchedSlots.ToList();
 
             // Pre-resolve perk catalog ids for the whole batch BEFORE we add
             // any match/participant entities to the change tracker. The

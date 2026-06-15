@@ -12,6 +12,7 @@ public interface IMatchSnapshotWriter
         RegionalRoute region,
         int matchesPerAccount,
         int saveBatchSize,
+        int maxFetchConcurrency,
         CancellationToken ct);
 }
 
