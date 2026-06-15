@@ -74,6 +74,7 @@ public sealed class DiscoveryCadenceTests
             Substitute.For<IAccountUpsertService>(),
             Substitute.For<ICandidateUpsertService>(),
             Substitute.For<IRankSnapshotWriter>(),
+            TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
                 Platforms = ["KR"],
