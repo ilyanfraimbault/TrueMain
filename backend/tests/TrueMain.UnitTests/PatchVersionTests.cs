@@ -6,17 +6,20 @@ namespace TrueMain.UnitTests;
 public sealed class PatchVersionTests
 {
     [Theory]
-    [InlineData("16.4", 16, 4)]
-    [InlineData("16.4.521", 16, 4)]
-    [InlineData("16.4.521.123", 16, 4)]
-    [InlineData(" 16 . 4 ", 16, 4)]
-    public void Parse_returns_major_minor(string input, int major, int minor)
+    [InlineData("16.4", 16, 4, null)]
+    [InlineData("16.4.521", 16, 4, 521)]
+    [InlineData("16.4.521.123", 16, 4, 521)]
+    [InlineData("16.4.x", 16, 4, null)]
+    [InlineData(" 16 . 4 ", 16, 4, null)]
+    [InlineData(" 16 . 4 . 521 ", 16, 4, 521)]
+    public void Parse_returns_major_minor_build(string input, int major, int minor, int? build)
     {
         var version = PatchVersion.Parse(input);
 
         version.Major.Should().Be(major);
         version.Minor.Should().Be(minor);
-        version.ToString().Should().Be($"{major}.{minor}");
+        version.Build.Should().Be(build);
+        version.ToString().Should().Be(build is null ? $"{major}.{minor}" : $"{major}.{minor}.{build}");
     }
 
     [Theory]
@@ -74,5 +77,31 @@ public sealed class PatchVersionTests
         (b == new PatchVersion(16, 1)).Should().BeTrue();
         (c >= b).Should().BeTrue();
         (a <= b).Should().BeTrue();
+    }
+
+    [Fact]
+    public void Comparison_orders_base_patch_before_its_hotfix()
+    {
+        var basePatch = new PatchVersion(16, 4);
+        var hotfix = new PatchVersion(16, 4, 521);
+        var laterHotfix = new PatchVersion(16, 4, 530);
+
+        (basePatch < hotfix).Should().BeTrue();
+        (hotfix < laterHotfix).Should().BeTrue();
+        (basePatch < new PatchVersion(16, 5)).Should().BeTrue();
+        (hotfix > basePatch).Should().BeTrue();
+    }
+
+    [Fact]
+    public void Equality_distinguishes_build_segment()
+    {
+        var basePatch = new PatchVersion(16, 4);
+        var hotfix = new PatchVersion(16, 4, 521);
+
+        basePatch.Should().NotBe(hotfix);
+        (basePatch == hotfix).Should().BeFalse();
+        hotfix.Should().Be(new PatchVersion(16, 4, 521));
+        (hotfix == new PatchVersion(16, 4, 521)).Should().BeTrue();
+        new PatchVersion(16, 4).Should().Be(new PatchVersion(16, 4, null));
     }
 }
