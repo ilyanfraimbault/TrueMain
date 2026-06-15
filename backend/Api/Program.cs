@@ -201,6 +201,15 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
 }
 
+// Emit Strict-Transport-Security in production so browsers pin HTTPS for
+// future visits. Skipped in Development where the dev host is plain HTTP and
+// an HSTS header would needlessly stick the loopback name to TLS. Per the
+// canonical ASP.NET Core middleware order, HSTS runs before HTTPS redirection.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
+
 app.UseHttpsRedirection();
 app.UseCors(frontendCorsPolicy);
 
