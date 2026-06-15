@@ -39,6 +39,18 @@ if (!string.IsNullOrWhiteSpace(healthConnectionString))
         name: "postgres",
         tags: ["ready"]);
 }
+else if (!builder.Environment.IsDevelopment())
+{
+    // Fail fast: outside Development a missing connection string must not be
+    // tolerated. Without the Npgsql check the "ready" tag has no registrations,
+    // so /readyz returns Healthy on an empty predicate and silently reports the
+    // service as ready while it can't reach Postgres. Throwing at boot surfaces
+    // the misconfiguration instead. Development stays lenient so the app can
+    // start without a database wired up.
+    throw new InvalidOperationException(
+        "Missing connection string. ConnectionStrings:TrueMain is required outside Development "
+        + "so the readiness probe can verify Postgres connectivity.");
+}
 
 var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>
