@@ -24,8 +24,11 @@ public sealed class HealthCheckBootstrapIntegrationTests
         using var factory = new MissingConnectionStringFactory(environment);
 
         // Touching Services forces the host to build, running Program's
-        // configuration up to the health-check branch.
-        var act = () => factory.Services;
+        // configuration up to the health-check branch. The discard keeps this an
+        // Action: a bare property access can't be a statement-bodied lambda, so
+        // dropping it would infer Func<IServiceProvider> and bind a different
+        // assertion overload that doesn't observe the startup throw.
+        var act = () => _ = factory.Services;
 
         act.Should().Throw<InvalidOperationException>()
             .WithMessage("*ConnectionStrings:TrueMain is required outside Development*");
