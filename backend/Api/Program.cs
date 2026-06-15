@@ -39,6 +39,17 @@ if (!string.IsNullOrWhiteSpace(healthConnectionString))
         name: "postgres",
         tags: ["ready"]);
 }
+else if (!builder.Environment.IsDevelopment())
+{
+    // Outside Development a missing connection string would silently drop the
+    // "ready" check, leaving /readyz green while the app can't reach Postgres.
+    // Fail fast at boot instead so a misconfigured deployment never reports
+    // ready. Development keeps the soft path so the app still starts before
+    // user secrets are wired up.
+    throw new InvalidOperationException(
+        "Missing connection string. Add ConnectionStrings:TrueMain so the Postgres "
+        + "readiness health check can be registered outside Development.");
+}
 
 var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>
