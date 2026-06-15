@@ -15,6 +15,7 @@ public sealed class AccountRefreshProcess(
     IRiotPlatformClient riotPlatformClient,
     IDataSessionFactory sessionFactory,
     IRankSnapshotWriter rankSnapshotWriter,
+    TimeProvider timeProvider,
     IOptions<AccountRefreshOptions> refreshOptions) : IIngestorProcess
 {
     private const string SoloQueueType = "RANKED_SOLO_5x5";
@@ -62,7 +63,7 @@ public sealed class AccountRefreshProcess(
     {
         await using var session = await sessionFactory.CreateAsync(ct);
         var accountsByKey = await session.RiotAccounts.GetByKeysAsync(accounts, ct);
-        var nowUtc = DateTime.UtcNow;
+        var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
         var summary = new RefreshSummary { Selected = accounts.Count };
 
         var accountIds = accountsByKey.Values.Select(a => a.Id).ToList();

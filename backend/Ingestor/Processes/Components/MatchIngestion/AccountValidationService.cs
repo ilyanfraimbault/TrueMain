@@ -6,12 +6,13 @@ namespace Ingestor.Processes.Components.MatchIngestion;
 
 public sealed class AccountValidationService(
     IDataSessionFactory sessionFactory,
+    TimeProvider timeProvider,
     ILogger<AccountValidationService> logger) : IAccountValidationService
 {
     public async Task ValidateAsync(AccountKey account, CancellationToken ct)
     {
         await using var session = await sessionFactory.CreateAsync(ct);
-        var nowUtc = DateTime.UtcNow;
+        var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
 
         var updated = await session.MainCandidates
             .SetStatusForAccountAsync(

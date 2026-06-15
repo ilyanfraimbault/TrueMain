@@ -29,7 +29,7 @@ public sealed class MatchIngestionProcessIntegrationTests
             NullLogger<MatchIngestionProcess>.Instance,
             _fixture.CreateSessionFactory(),
             new FakeMatchClaimService(),
-            new MatchSnapshotWriter(new FakeRiotMatchClient()),
+            new MatchSnapshotWriter(new FakeRiotMatchClient(), TimeProvider.System),
             new TimelineIngestionService(new FakeRiotMatchClient()),
             validationService,
             Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions

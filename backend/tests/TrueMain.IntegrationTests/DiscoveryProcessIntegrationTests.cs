@@ -34,6 +34,7 @@ public sealed class DiscoveryProcessIntegrationTests
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
+            TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
                 Platforms = ["KR"],
@@ -82,6 +83,7 @@ public sealed class DiscoveryProcessIntegrationTests
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
+            TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
                 Platforms = ["KR"],
@@ -122,6 +124,7 @@ public sealed class DiscoveryProcessIntegrationTests
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
+            TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
                 Platforms = ["KR"],
@@ -180,6 +183,7 @@ public sealed class DiscoveryProcessIntegrationTests
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
+            TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
                 Platforms = ["KR"],
@@ -211,6 +215,7 @@ public sealed class DiscoveryProcessIntegrationTests
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
+            TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
                 Platforms = ["EUW1", "KR"],
@@ -244,6 +249,7 @@ public sealed class DiscoveryProcessIntegrationTests
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
+            TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
                 Platforms = ["EUW1", "KR"],

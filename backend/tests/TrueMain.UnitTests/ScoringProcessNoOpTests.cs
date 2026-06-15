@@ -35,6 +35,7 @@ public sealed class ScoringProcessNoOpTests
             NullLogger<ScoringProcess>.Instance,
             sessionFactory,
             coverageProvider,
+            TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new ScoringOptions()));
 
         await process.RunRecordedAsync(runRecorder);
@@ -94,6 +95,7 @@ public sealed class ScoringProcessNoOpTests
             NullLogger<ScoringProcess>.Instance,
             sessionFactory,
             coverageProvider,
+            TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new ScoringOptions()));
 
         await process.RunRecordedAsync(runRecorder);
@@ -155,6 +157,7 @@ public sealed class ScoringProcessNoOpTests
             NullLogger<ScoringProcess>.Instance,
             sessionFactory,
             coverageProvider,
+            TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new ScoringOptions()));
 
         await process.RunCoreAsync(CancellationToken.None);

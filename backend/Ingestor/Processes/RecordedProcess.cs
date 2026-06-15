@@ -17,6 +17,7 @@ namespace Ingestor.Processes;
 public sealed class RecordedProcess<TInner>(
     TInner inner,
     IProcessRunRecorder recorder,
+    TimeProvider timeProvider,
     ILogger<RecordedProcess<TInner>> logger) : IIngestorProcess
     where TInner : IIngestorProcess
 {
@@ -26,7 +27,7 @@ public sealed class RecordedProcess<TInner>(
 
     public async Task<object?> RunCoreAsync(CancellationToken ct)
     {
-        var startedAt = DateTime.UtcNow;
+        var startedAt = timeProvider.GetUtcNow().UtcDateTime;
         var runId = await recorder.RecordStartAsync(Name, startedAt, ct);
 
         // Refresh the heartbeat on a background loop for as long as the inner
@@ -39,7 +40,7 @@ public sealed class RecordedProcess<TInner>(
         try
         {
             var payload = await inner.RunCoreAsync(ct);
-            await recorder.RecordSuccessAsync(runId, Name, startedAt, payload, ct);
+            await recorder.RecordSuccessAsync(runId, Name, startedAt, timeProvider.GetUtcNow().UtcDateTime, payload, ct);
             return payload;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -54,7 +55,7 @@ public sealed class RecordedProcess<TInner>(
         }
         catch (Exception ex)
         {
-            await recorder.RecordFailureAsync(runId, Name, startedAt, ex, ct);
+            await recorder.RecordFailureAsync(runId, Name, startedAt, timeProvider.GetUtcNow().UtcDateTime, ex, ct);
             throw;
         }
         finally

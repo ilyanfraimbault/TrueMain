@@ -19,6 +19,7 @@ public static class RecordedProcessServiceCollectionExtensions
             new RecordedProcess<TProcess>(
                 sp.GetRequiredService<TProcess>(),
                 sp.GetRequiredService<IProcessRunRecorder>(),
+                sp.GetRequiredService<TimeProvider>(),
                 sp.GetRequiredService<ILogger<RecordedProcess<TProcess>>>()));
         return services;
     }
