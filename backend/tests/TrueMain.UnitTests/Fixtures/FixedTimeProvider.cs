@@ -7,7 +7,5 @@ namespace TrueMain.UnitTests.Fixtures;
 /// </summary>
 internal sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
 {
-    public DateTimeOffset UtcNow { get; set; } = utcNow;
-
-    public override DateTimeOffset GetUtcNow() => UtcNow;
+    public override DateTimeOffset GetUtcNow() => utcNow;
 }
