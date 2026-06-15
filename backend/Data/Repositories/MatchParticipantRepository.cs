@@ -185,24 +185,30 @@ public sealed class MatchParticipantRepository(TrueMainDbContext db) : IMatchPar
             return existingMap;
         }
 
-        db.PerkSelectionCatalogs.AddRange(
-            missingKeys.Select(key => new PerkSelectionCatalog
-            {
-                StyleId = key.StyleId,
-                SelectionIndex = key.SelectionIndex,
-                PerkId = key.PerkId,
-                StyleDescription = key.StyleDescription
-            }));
+        // Insert the missing rows with a raw ON CONFLICT DO NOTHING so the unique
+        // index collisions that occur under concurrent ingestion are absorbed by
+        // Postgres instead of surfacing as a DbUpdateException. This avoids the
+        // previous catch + ChangeTracker.Clear() recovery, which silently discarded
+        // any pending changes the caller had staged on this context (a lost-update
+        // anti-pattern). The insert never touches the change tracker; IDs are
+        // reloaded by key below for both pre-existing and freshly inserted rows.
+        var styleIds = missingKeys.Select(key => key.StyleId).ToArray();
+        var selectionIndexes = missingKeys.Select(key => key.SelectionIndex).ToArray();
+        var perkIds = missingKeys.Select(key => key.PerkId).ToArray();
+        var styleDescriptions = missingKeys.Select(key => key.StyleDescription).ToArray();
 
-        try
-        {
-            await db.SaveChangesAsync(ct);
-        }
-        catch (DbUpdateException)
-        {
-            // Unique index collisions can occur under concurrent ingestion.
-            db.ChangeTracker.Clear();
-        }
+        await db.Database.ExecuteSqlAsync(
+            $"""
+            INSERT INTO "perk_selection_catalog"
+                ("StyleId", "SelectionIndex", "PerkId", "StyleDescription")
+            SELECT * FROM unnest(
+                {styleIds},
+                {selectionIndexes},
+                {perkIds},
+                {styleDescriptions})
+            ON CONFLICT ("StyleId", "SelectionIndex", "PerkId", "StyleDescription") DO NOTHING
+            """,
+            ct);
 
         return await LoadCatalogIdsByKeysAsync(distinctKeys, ct);
     }
