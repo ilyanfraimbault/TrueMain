@@ -9,7 +9,9 @@ namespace TrueMain.TestKit;
 /// against a <see cref="PostgresFixture"/>: sets the <c>Testing</c>
 /// environment, injects <c>ConnectionStrings:TrueMain</c>, a test
 /// <c>Ops:ApiKey</c> that satisfies the <c>[MinLength(32)]</c> validation,
-/// plus any additional overrides the test wants to add.
+/// a default <c>Cors:Origins</c> entry (Testing is non-Development, so the
+/// startup CORS guard fails the boot when the list is empty), plus any
+/// additional overrides the test wants to add.
 /// </summary>
 public class TrueMainWebApplicationFactory<TEntryPoint>(
     PostgresFixture fixture,
@@ -24,6 +26,13 @@ public class TrueMainWebApplicationFactory<TEntryPoint>(
     /// </summary>
     public const string DefaultOpsApiKey = "test-kit-ops-key-0123456789-abcdefghijklmnop";
 
+    /// <summary>
+    /// A single allowed origin so the startup CORS guard (which fails the boot
+    /// outside Development when <c>Cors:Origins</c> is empty) is satisfied for
+    /// the <c>Testing</c> environment tests run under.
+    /// </summary>
+    public const string DefaultCorsOrigin = "https://frontend.test.truemain.local";
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
@@ -32,7 +41,8 @@ public class TrueMainWebApplicationFactory<TEntryPoint>(
             var baseline = new List<KeyValuePair<string, string?>>
             {
                 new("ConnectionStrings:TrueMain", fixture.ConnectionString),
-                new("Ops:ApiKey", DefaultOpsApiKey)
+                new("Ops:ApiKey", DefaultOpsApiKey),
+                new("Cors:Origins:0", DefaultCorsOrigin)
             };
 
             if (extraConfiguration is { Count: > 0 })
