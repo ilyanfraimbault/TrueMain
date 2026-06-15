@@ -34,12 +34,15 @@ public sealed class RiotAccountClient : IRiotAccountClient
         // A 404 means Riot has no account for this Riot ID — a normal "not found"
         // outcome the seed flow surfaces to the caller, not a fault. Any other
         // non-success status is a transport/auth/rate-limit problem and must throw.
+        // Drain the body before returning so the connection returns to the pool
+        // rather than being abandoned (the response was read headers-only).
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
+            await response.Content.ReadAsByteArrayAsync(ct);
             return null;
         }
 
-        response.EnsureSuccessStatusCode();
+        await response.EnsureSuccessDrainingAsync(ct);
         return await response.ReadFromJsonStreamingAsync<RiotAccountDto>(uri, ct);
     }
 

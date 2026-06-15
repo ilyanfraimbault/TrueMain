@@ -18,8 +18,26 @@ internal static class RiotHttpExtensions
         this HttpClient httpClient, Uri uri, CancellationToken ct)
     {
         using var response = await httpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, ct);
-        response.EnsureSuccessStatusCode();
+        await response.EnsureSuccessDrainingAsync(ct);
         return await response.ReadFromJsonStreamingAsync<T>(uri, ct);
+    }
+
+    // EnsureSuccessStatusCode-equivalent that is safe under ResponseHeadersRead:
+    // the body is still unread on error paths, and disposing the response before
+    // consuming it makes HttpClient abandon the socket instead of returning it to
+    // the connection pool. Draining the (short) error body first lets the
+    // connection be reused — relevant when Riot serves a sustained 429/5xx stream
+    // — then we surface the failure exactly as EnsureSuccessStatusCode would.
+    public static async Task EnsureSuccessDrainingAsync(
+        this HttpResponseMessage response, CancellationToken ct)
+    {
+        if (response.IsSuccessStatusCode)
+        {
+            return;
+        }
+
+        await response.Content.ReadAsByteArrayAsync(ct);
+        response.EnsureSuccessStatusCode();
     }
 
     // Deserializes an already-fetched response body as a stream. Used by callers
