@@ -132,6 +132,7 @@ public sealed class MatchIngestionProcess(
             region,
             options.MatchesPerAccount,
             options.SaveBatchSizeMatches,
+            options.MaxMatchFetchConcurrency,
             ct);
 
         var timelineUpdated = await timelineIngestionService.IngestTimelinesAsync(

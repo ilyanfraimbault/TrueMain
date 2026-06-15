@@ -33,6 +33,7 @@ public sealed class MatchSnapshotWriterIntegrationTests
             RegionalRoute.Asia,
             matchesPerAccount: 10,
             saveBatchSize: 10,
+            maxFetchConcurrency: 4,
             CancellationToken.None);
 
         result.Inserted.Should().Be(1);
@@ -89,6 +90,7 @@ public sealed class MatchSnapshotWriterIntegrationTests
                 RegionalRoute.Asia,
                 matchesPerAccount: 10,
                 saveBatchSize: 10,
+                maxFetchConcurrency: 4,
                 CancellationToken.None);
 
             first.Inserted.Should().Be(1);
@@ -102,6 +104,7 @@ public sealed class MatchSnapshotWriterIntegrationTests
             RegionalRoute.Asia,
             matchesPerAccount: 10,
             saveBatchSize: 10,
+            maxFetchConcurrency: 4,
             CancellationToken.None);
 
         second.Inserted.Should().Be(0);
@@ -160,6 +163,7 @@ public sealed class MatchSnapshotWriterIntegrationTests
                 RegionalRoute.Asia,
                 matchesPerAccount: 10,
                 saveBatchSize: 10,
+                maxFetchConcurrency: 4,
                 CancellationToken.None);
 
             first.Inserted.Should().Be(1);
@@ -174,6 +178,7 @@ public sealed class MatchSnapshotWriterIntegrationTests
                 RegionalRoute.Asia,
                 matchesPerAccount: 10,
                 saveBatchSize: 10,
+                maxFetchConcurrency: 4,
                 CancellationToken.None);
 
             second.Inserted.Should().Be(0);
@@ -238,6 +243,7 @@ public sealed class MatchSnapshotWriterIntegrationTests
                 RegionalRoute.Asia,
                 matchesPerAccount: 10,
                 saveBatchSize: 10,
+                maxFetchConcurrency: 4,
                 CancellationToken.None);
 
             result.Inserted.Should().Be(1);
