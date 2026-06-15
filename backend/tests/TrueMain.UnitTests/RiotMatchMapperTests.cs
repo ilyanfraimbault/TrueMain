@@ -110,7 +110,7 @@ public sealed class RiotMatchMapperTests
     }
 
     [Fact]
-    public void Map_DefaultsDamageAndVisionScore_WhenAbsentFromDto()
+    public void Map_DefaultsDamageAndVisionScore_ToZero()
     {
         var dto = BuildMatch();
         dto.Info.Participants.Add(BuildParticipant(participantId: 1, puuid: "p-1"));
