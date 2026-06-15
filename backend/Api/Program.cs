@@ -39,18 +39,6 @@ if (!string.IsNullOrWhiteSpace(healthConnectionString))
         name: "postgres",
         tags: ["ready"]);
 }
-else if (!builder.Environment.IsDevelopment())
-{
-    // Fail fast: outside Development a missing connection string must not be
-    // tolerated. Without the Npgsql check the "ready" tag has no registrations,
-    // so /readyz returns Healthy on an empty predicate and silently reports the
-    // service as ready while it can't reach Postgres. Throwing at boot surfaces
-    // the misconfiguration instead. Development stays lenient so the app can
-    // start without a database wired up.
-    throw new InvalidOperationException(
-        "Missing connection string. ConnectionStrings:TrueMain is required outside Development "
-        + "so the readiness probe can verify Postgres connectivity.");
-}
 
 var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>
@@ -195,6 +183,26 @@ builder.Services.AddDbContextFactory<TrueMainDbContext>(lifetime: ServiceLifetim
 // the Ingestor's.
 builder.Services.AddMongoLogging(builder.Configuration, processName: "Api");
 var app = builder.Build();
+
+// Fail fast: outside Development a missing connection string must not be
+// tolerated. Without the Npgsql registration above the "ready" tag has no
+// checks, so /readyz returns Healthy on an empty predicate and silently reports
+// the service as ready while it can't reach Postgres. The guard lives here,
+// after Build(), rather than beside the registration because test hosts inject
+// ConnectionStrings:TrueMain through IWebHostBuilder.ConfigureAppConfiguration,
+// which is only merged into configuration at Build() time — reading it during
+// service registration would see a null string under test even when one is
+// configured. It also runs before the migrator below so the misconfiguration
+// surfaces with this message rather than the DbContext's. Development stays
+// lenient so the app can start without a database wired up.
+if (!app.Environment.IsDevelopment()
+    && string.IsNullOrWhiteSpace(app.Configuration.GetConnectionString("TrueMain")))
+{
+    throw new InvalidOperationException(
+        "Missing connection string. ConnectionStrings:TrueMain is required outside Development "
+        + "so the readiness probe can verify Postgres connectivity.");
+}
+
 await DatabaseMigrator.ApplyPendingMigrationsAsync(app.Services);
 
 // Wrap unhandled exceptions in RFC 7807 ProblemDetails so clients
