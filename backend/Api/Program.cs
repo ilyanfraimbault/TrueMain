@@ -201,6 +201,15 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
 }
 
+// HSTS instructs browsers to only reach the API over HTTPS. Skip it in
+// Development (localhost is typically HTTP and a cached HSTS policy would
+// wedge local debugging); enable it everywhere else, ahead of the HTTPS
+// redirect, matching the canonical ASP.NET Core middleware order behind TLS.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
+
 app.UseHttpsRedirection();
 app.UseCors(frontendCorsPolicy);
 
