@@ -40,6 +40,10 @@ public class MatchParticipant
 
     public int Assists { get; set; }
 
+    public int TotalDamageDealtToChampions { get; set; }
+
+    public int VisionScore { get; set; }
+
     public int GoldEarned { get; set; }
 
     public int TotalMinionsKilled { get; set; }

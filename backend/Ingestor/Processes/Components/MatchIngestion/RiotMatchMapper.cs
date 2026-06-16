@@ -71,6 +71,8 @@ internal static class RiotMatchMapper
                 Kills = participant.Kills,
                 Deaths = participant.Deaths,
                 Assists = participant.Assists,
+                TotalDamageDealtToChampions = participant.TotalDamageDealtToChampions,
+                VisionScore = participant.VisionScore,
                 GoldEarned = participant.GoldEarned,
                 TotalMinionsKilled = participant.TotalMinionsKilled,
                 NeutralMinionsKilled = participant.NeutralMinionsKilled,

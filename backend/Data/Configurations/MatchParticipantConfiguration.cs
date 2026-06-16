@@ -68,6 +68,14 @@ public sealed class MatchParticipantConfiguration : IEntityTypeConfiguration<Mat
         entity.Property(e => e.Assists)
             .IsRequired();
 
+        entity.Property(e => e.TotalDamageDealtToChampions)
+            .IsRequired()
+            .HasDefaultValue(0);
+
+        entity.Property(e => e.VisionScore)
+            .IsRequired()
+            .HasDefaultValue(0);
+
         entity.Property(e => e.GoldEarned)
             .IsRequired();
 
