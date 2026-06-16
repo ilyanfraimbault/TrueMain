@@ -103,7 +103,7 @@ public sealed class RiotMatchMapperTests
         participantDto.VisionScore = 42;
         dto.Info.Participants.Add(participantDto);
 
-        var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap());
+        var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow);
 
         result.Participants[0].TotalDamageDealtToChampions.Should().Be(27431);
         result.Participants[0].VisionScore.Should().Be(42);
@@ -115,7 +115,7 @@ public sealed class RiotMatchMapperTests
         var dto = BuildMatch();
         dto.Info.Participants.Add(BuildParticipant(participantId: 1, puuid: "p-1"));
 
-        var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap());
+        var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow);
 
         result.Participants[0].TotalDamageDealtToChampions.Should().Be(0);
         result.Participants[0].VisionScore.Should().Be(0);
