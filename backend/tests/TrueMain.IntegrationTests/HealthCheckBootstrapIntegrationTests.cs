@@ -22,12 +22,9 @@ public sealed class HealthCheckBootstrapIntegrationTests
     {
         using var factory = new MissingConnectionStringFactory();
 
-        // Touching Services forces the host to build, running Program's
-        // configuration up to the health-check branch. The discard keeps this an
-        // Action: a bare property access can't be a statement-bodied lambda, so
-        // dropping it would infer Func<IServiceProvider> and bind a different
-        // assertion overload that doesn't observe the startup throw.
-        var act = () => _ = factory.Services;
+        // CreateClient() builds the host, running Program's configuration up to
+        // the health-check branch (same trigger pattern as CorsStartupIntegrationTests).
+        var act = () => factory.CreateClient();
 
         act.Should().Throw<InvalidOperationException>()
             .WithMessage("*readiness health check can be registered in Production*");
