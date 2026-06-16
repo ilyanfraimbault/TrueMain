@@ -18,9 +18,9 @@ namespace TrueMain.IntegrationTests;
 public sealed class HealthCheckBootstrapIntegrationTests
 {
     [Fact]
-    public void Build_ShouldThrow_WhenConnectionStringMissingInProduction()
+    public async Task Build_ShouldThrow_WhenConnectionStringMissingInProduction()
     {
-        using var factory = new MissingConnectionStringFactory();
+        await using var factory = new MissingConnectionStringFactory();
 
         // CreateClient() builds the host, running Program's configuration up to
         // the health-check branch (same trigger pattern as CorsStartupIntegrationTests).
