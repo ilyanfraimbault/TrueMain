@@ -39,9 +39,10 @@ public sealed class HealthCheckBootstrapIntegrationTests
             builder.ConfigureAppConfiguration((_, configurationBuilder) =>
             {
                 // Null out the connection string in the highest-precedence source
-                // so any value inherited from earlier providers is overridden, and
-                // satisfy OpsOptions' [MinLength(32)] so the missing-connection
-                // branch is the only thing left to fail the boot.
+                // so any value inherited from earlier providers is overridden.
+                // Ops:ApiKey is provided defensively (satisfies [MinLength(32)]) even
+                // though the health-check throw fires during service registration — before
+                // builder.Build() and therefore before ValidateOnStart() runs for any option.
                 configurationBuilder.AddInMemoryCollection(new Dictionary<string, string?>
                 {
                     ["ConnectionStrings:TrueMain"] = null,
