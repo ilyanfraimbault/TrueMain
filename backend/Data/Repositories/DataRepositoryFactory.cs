@@ -17,6 +17,9 @@ public sealed class DataRepositoryFactory : IDataRepositoryFactory
     public IMatchParticipantRepository CreateMatchParticipantRepository(TrueMainDbContext dbContext)
         => new MatchParticipantRepository(dbContext);
 
+    public IMatchParticipantTimelineSnapshotRepository CreateMatchParticipantTimelineSnapshotRepository(TrueMainDbContext dbContext)
+        => new MatchParticipantTimelineSnapshotRepository(dbContext);
+
     public IProcessRunRepository CreateProcessRunRepository(TrueMainDbContext dbContext)
         => new ProcessRunRepository(dbContext);
 

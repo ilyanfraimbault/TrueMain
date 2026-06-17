@@ -12,6 +12,7 @@ public class TrueMainDbContext : DbContext
     public DbSet<RiotAccount> RiotAccounts => Set<RiotAccount>();
     public DbSet<Persona> Personas => Set<Persona>();
     public DbSet<MatchParticipant> MatchParticipants => Set<MatchParticipant>();
+    public DbSet<MatchParticipantTimelineSnapshot> MatchParticipantTimelineSnapshots => Set<MatchParticipantTimelineSnapshot>();
     public DbSet<ParticipantPerkSelection> ParticipantPerkSelections => Set<ParticipantPerkSelection>();
     public DbSet<PerkSelectionCatalog> PerkSelectionCatalogs => Set<PerkSelectionCatalog>();
     public DbSet<MainCandidate> MainCandidates => Set<MainCandidate>();

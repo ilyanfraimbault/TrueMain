@@ -15,6 +15,7 @@ public sealed class DataSession : IDataSession
         RiotAccounts = repositoryFactory.CreateRiotAccountRepository(_db);
         Matches = repositoryFactory.CreateMatchRepository(_db);
         MatchParticipants = repositoryFactory.CreateMatchParticipantRepository(_db);
+        MatchParticipantTimelineSnapshots = repositoryFactory.CreateMatchParticipantTimelineSnapshotRepository(_db);
         ProcessRuns = repositoryFactory.CreateProcessRunRepository(_db);
         RankSnapshots = repositoryFactory.CreateRankSnapshotRepository(_db);
         SeedRequests = repositoryFactory.CreateSeedRequestRepository(_db);
@@ -26,6 +27,7 @@ public sealed class DataSession : IDataSession
     public IRiotAccountRepository RiotAccounts { get; }
     public IMatchRepository Matches { get; }
     public IMatchParticipantRepository MatchParticipants { get; }
+    public IMatchParticipantTimelineSnapshotRepository MatchParticipantTimelineSnapshots { get; }
     public IProcessRunRepository ProcessRuns { get; }
     public IRankSnapshotRepository RankSnapshots { get; }
     public ISeedRequestRepository SeedRequests { get; }

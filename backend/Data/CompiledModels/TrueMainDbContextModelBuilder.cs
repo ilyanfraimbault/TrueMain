@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("702c4d54-4eba-4005-a2cb-80421b1882ad"), entityTypeCount: 19)
+            : base(skipDetectChanges: false, modelId: new Guid("e5f2082b-7266-4e53-8328-8f773064454d"), entityTypeCount: 20)
         {
         }
 
@@ -30,6 +30,7 @@ namespace Data.CompiledModels
             var mainChampionStat = MainChampionStatEntityType.Create(this);
             var match = MatchEntityType.Create(this);
             var matchParticipant = MatchParticipantEntityType.Create(this);
+            var matchParticipantTimelineSnapshot = MatchParticipantTimelineSnapshotEntityType.Create(this);
             var participantPerkSelection = ParticipantPerkSelectionEntityType.Create(this);
             var perkSelectionCatalog = PerkSelectionCatalogEntityType.Create(this);
             var persona = PersonaEntityType.Create(this);
@@ -47,6 +48,7 @@ namespace Data.CompiledModels
             ChampionAggregateScopeEntityType.CreateForeignKey1(championAggregateScope, riotAccount);
             MatchParticipantEntityType.CreateForeignKey1(matchParticipant, match);
             MatchParticipantEntityType.CreateForeignKey2(matchParticipant, riotAccount);
+            MatchParticipantTimelineSnapshotEntityType.CreateForeignKey1(matchParticipantTimelineSnapshot, match);
             ParticipantPerkSelectionEntityType.CreateForeignKey1(participantPerkSelection, match);
             ParticipantPerkSelectionEntityType.CreateForeignKey2(participantPerkSelection, perkSelectionCatalog);
             RankSnapshotEntityType.CreateForeignKey1(rankSnapshot, riotAccount);
@@ -64,6 +66,7 @@ namespace Data.CompiledModels
             MainChampionStatEntityType.CreateAnnotations(mainChampionStat);
             MatchEntityType.CreateAnnotations(match);
             MatchParticipantEntityType.CreateAnnotations(matchParticipant);
+            MatchParticipantTimelineSnapshotEntityType.CreateAnnotations(matchParticipantTimelineSnapshot);
             ParticipantPerkSelectionEntityType.CreateAnnotations(participantPerkSelection);
             PerkSelectionCatalogEntityType.CreateAnnotations(perkSelectionCatalog);
             PersonaEntityType.CreateAnnotations(persona);
