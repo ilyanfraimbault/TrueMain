@@ -31,17 +31,18 @@ internal static class TimelineSnapshotBuilder
 
         foreach (var timelineEvent in timeline.Events)
         {
-            switch (timelineEvent.Type.ToUpperInvariant())
+            var type = timelineEvent.Type;
+            if (timelineEvent.KillerId is > 0 && type.Equals("CHAMPION_KILL", StringComparison.OrdinalIgnoreCase))
             {
-                case "CHAMPION_KILL" when timelineEvent.KillerId is > 0:
-                    Record(killTimestamps, timelineEvent.KillerId.Value, timelineEvent.TimestampMs);
-                    break;
-                case "WARD_PLACED" when timelineEvent.CreatorId is > 0:
-                    Record(wardPlacedTimestamps, timelineEvent.CreatorId.Value, timelineEvent.TimestampMs);
-                    break;
-                case "WARD_KILL" when timelineEvent.KillerId is > 0:
-                    Record(wardKilledTimestamps, timelineEvent.KillerId.Value, timelineEvent.TimestampMs);
-                    break;
+                Record(killTimestamps, timelineEvent.KillerId.Value, timelineEvent.TimestampMs);
+            }
+            else if (timelineEvent.CreatorId is > 0 && type.Equals("WARD_PLACED", StringComparison.OrdinalIgnoreCase))
+            {
+                Record(wardPlacedTimestamps, timelineEvent.CreatorId.Value, timelineEvent.TimestampMs);
+            }
+            else if (timelineEvent.KillerId is > 0 && type.Equals("WARD_KILL", StringComparison.OrdinalIgnoreCase))
+            {
+                Record(wardKilledTimestamps, timelineEvent.KillerId.Value, timelineEvent.TimestampMs);
             }
         }
 
@@ -85,11 +86,13 @@ internal static class TimelineSnapshotBuilder
         foreach (var frame in frames)
         {
             var delta = Math.Abs(frame.TimestampMs - targetMs);
-            if (delta < bestDelta)
+            if (delta > bestDelta)
             {
-                bestDelta = delta;
-                best = frame;
+                break; // frames are ascending, so the distance to target only grows from here
             }
+
+            bestDelta = delta;
+            best = frame;
         }
 
         return bestDelta <= FrameMatchToleranceMs ? best : null;
