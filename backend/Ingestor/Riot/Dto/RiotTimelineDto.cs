@@ -112,6 +112,9 @@ public class RiotTimelineEventDto
     [JsonPropertyName("victimId")]
     public int? VictimId { get; set; }
 
+    [JsonPropertyName("creatorId")]
+    public int? CreatorId { get; set; }
+
     [JsonPropertyName("assistingParticipantIds")]
     public List<int>? AssistingParticipantIds { get; set; }
 
