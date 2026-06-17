@@ -39,6 +39,10 @@ public class MatchParticipantTimelineSnapshot
     /// <summary>Wards placed by this participant up to <see cref="TimestampMs"/> (vision proxy).</summary>
     public int WardsPlaced { get; set; }
 
-    /// <summary>Enemy wards cleared by this participant up to <see cref="TimestampMs"/>.</summary>
+    /// <summary>
+    /// Enemy wards cleared by this participant up to <see cref="TimestampMs"/>. Counts every
+    /// WARD_KILL with a killer, which includes vision-plant (Scryer's Bloom) destructions —
+    /// accepted as part of the vision proxy rather than filtered.
+    /// </summary>
     public int WardsKilled { get; set; }
 }

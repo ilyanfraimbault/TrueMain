@@ -61,6 +61,18 @@ public sealed class TimelineSnapshotBuilderTests
     public void Build_ReturnsEmpty_WhenNoFrames()
         => TimelineSnapshotBuilder.Build(MatchId, new MatchTimelineDto()).Should().BeEmpty();
 
+    [Theory]
+    [InlineData(330_000, true)]  // exactly +30s from the 5-minute mark -> within tolerance
+    [InlineData(330_001, false)] // 1ms past tolerance -> no snapshot
+    public void Build_RespectsFrameToleranceBoundary(int frameTimestampMs, bool expectSnapshot)
+    {
+        var timeline = new MatchTimelineDto { Frames = [Frame(frameTimestampMs, Participant(1, gold: 100))] };
+
+        var snapshots = TimelineSnapshotBuilder.Build(MatchId, timeline);
+
+        snapshots.Any(s => s.IntervalMinute == 5).Should().Be(expectSnapshot);
+    }
+
     private static MatchTimelineFrameDto Frame(int timestampMs, params MatchParticipantFrameDto[] participants)
         => new() { TimestampMs = timestampMs, ParticipantFrames = [.. participants] };
 
