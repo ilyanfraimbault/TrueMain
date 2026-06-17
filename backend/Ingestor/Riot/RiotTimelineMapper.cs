@@ -50,6 +50,7 @@ internal static class RiotTimelineMapper
             LevelUpType = evt.LevelUpType,
             KillerId = evt.KillerId,
             VictimId = evt.VictimId,
+            CreatorId = evt.CreatorId,
             AssistingParticipantIds = evt.AssistingParticipantIds ?? [],
             PositionX = evt.Position?.X,
             PositionY = evt.Position?.Y

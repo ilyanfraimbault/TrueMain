@@ -64,6 +64,8 @@ public class MatchTimelineEventDto
 
     public int? VictimId { get; set; }
 
+    public int? CreatorId { get; set; }
+
     public IReadOnlyList<int> AssistingParticipantIds { get; set; } = [];
 
     public int? PositionX { get; set; }

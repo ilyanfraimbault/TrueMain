@@ -91,6 +91,12 @@ public sealed class TimelineIngestionService(IRiotMatchClient riotMatchClient) :
                 : [];
         }
 
+        // Replace any existing per-interval snapshots so re-ingesting a timeline is
+        // idempotent (delete is immediate to avoid the unique-index race; the fresh
+        // inserts flush with the participant updates on the caller's SaveChanges).
+        await session.MatchParticipantTimelineSnapshots.DeleteByMatchIdAsync(matchId, ct);
+        session.MatchParticipantTimelineSnapshots.AddRange(TimelineSnapshotBuilder.Build(matchId, timeline));
+
         return true;
     }
 
