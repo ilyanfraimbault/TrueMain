@@ -78,6 +78,9 @@ internal static class TimelineSnapshotBuilder
         return snapshots;
     }
 
+    // Precondition: frames are ordered by ascending TimestampMs — Riot's timeline
+    // guarantee, preserved verbatim by RiotTimelineMapper. The |delta| to a fixed
+    // target is therefore V-shaped, so once it grows past the minimum we can stop.
     private static MatchTimelineFrameDto? SelectFrame(List<MatchTimelineFrameDto> frames, int targetMs)
     {
         MatchTimelineFrameDto? best = null;

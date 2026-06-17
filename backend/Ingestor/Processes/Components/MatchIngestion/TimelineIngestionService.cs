@@ -94,6 +94,9 @@ public sealed class TimelineIngestionService(IRiotMatchClient riotMatchClient) :
         // Replace any existing per-interval snapshots so re-ingesting a timeline is
         // idempotent (delete is immediate to avoid the unique-index race; the fresh
         // inserts flush with the participant updates on the caller's SaveChanges).
+        // The delete commits before that SaveChanges, so if the save fails the
+        // TimelineIngested flag is rolled back with it: the match stays pending and is
+        // re-ingested (delete + reinsert again) — a transient empty window, not lost data.
         await session.MatchParticipantTimelineSnapshots.DeleteByMatchIdAsync(matchId, ct);
         session.MatchParticipantTimelineSnapshots.AddRange(TimelineSnapshotBuilder.Build(matchId, timeline));
 

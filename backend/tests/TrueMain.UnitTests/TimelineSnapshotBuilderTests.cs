@@ -20,7 +20,7 @@ public sealed class TimelineSnapshotBuilderTests
             Frames =
             [
                 Frame(0, Participant(1, gold: 500), Participant(2, gold: 500)),
-                Frame(300_000, Participant(1, gold: 1500, cs: 30, level: 6, dmg: 2000), Participant(2, gold: 1400)),
+                Frame(300_000, Participant(1, gold: 1500, cs: 30, jungleCs: 5, level: 6, xp: 3000, dmg: 2000), Participant(2, gold: 1400)),
                 Frame(600_000, Participant(1, gold: 4000, cs: 70, level: 11, dmg: 8000), Participant(2, gold: 3500))
             ],
             Events =
@@ -43,7 +43,9 @@ public sealed class TimelineSnapshotBuilderTests
         p1At5.TimestampMs.Should().Be(300_000);
         p1At5.TotalGold.Should().Be(1500);
         p1At5.MinionsKilled.Should().Be(30);
+        p1At5.JungleMinionsKilled.Should().Be(5);
         p1At5.Level.Should().Be(6);
+        p1At5.Xp.Should().Be(3000);
         p1At5.DamageToChampions.Should().Be(2000);
         p1At5.Kills.Should().Be(1);        // kill at 250s counted, 400s not yet
         p1At5.WardsPlaced.Should().Be(1);  // ward at 200s
@@ -63,13 +65,15 @@ public sealed class TimelineSnapshotBuilderTests
         => new() { TimestampMs = timestampMs, ParticipantFrames = [.. participants] };
 
     private static MatchParticipantFrameDto Participant(
-        int participantId, int gold = 0, int cs = 0, int level = 1, int dmg = 0)
+        int participantId, int gold = 0, int cs = 0, int jungleCs = 0, int level = 1, int xp = 0, int dmg = 0)
         => new()
         {
             ParticipantId = participantId,
             TotalGold = gold,
             MinionsKilled = cs,
+            JungleMinionsKilled = jungleCs,
             Level = level,
+            Xp = xp,
             TotalDamageToChampions = dmg
         };
 }
