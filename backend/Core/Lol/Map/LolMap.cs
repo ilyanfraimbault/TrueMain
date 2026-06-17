@@ -78,7 +78,9 @@ public static class LolMap
 
     /// <summary>
     /// Blue team occupies the bottom-left half of the map (below the river
-    /// anti-diagonal); red occupies the top-right half.
+    /// anti-diagonal); red occupies the top-right half. The river boundary itself
+    /// (nx + ny == 1) resolves to red side — an academic tie-break, since exact
+    /// equality on real integer coordinates effectively never occurs.
     /// </summary>
     public static bool IsBlueSide(int x, int y)
         => Normalize(x, MaxX) + Normalize(y, MaxY) < 1.0;

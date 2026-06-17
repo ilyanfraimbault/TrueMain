@@ -59,8 +59,8 @@ internal static class RiotTimelineMapper
         => new()
         {
             ParticipantId = frame.ParticipantId,
-            X = frame.Position?.X ?? 0,
-            Y = frame.Position?.Y ?? 0,
+            X = frame.Position?.X,
+            Y = frame.Position?.Y,
             CurrentGold = frame.CurrentGold,
             TotalGold = frame.TotalGold,
             Level = frame.Level,

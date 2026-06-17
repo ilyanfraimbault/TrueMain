@@ -18,9 +18,11 @@ public class MatchParticipantFrameDto
 {
     public int ParticipantId { get; set; }
 
-    public int X { get; set; }
+    // Null when the frame carries no position, kept distinct from a real (0, 0)
+    // coordinate so pathing/heatmap consumers (#535) can drop GPS-less frames.
+    public int? X { get; set; }
 
-    public int Y { get; set; }
+    public int? Y { get; set; }
 
     public int CurrentGold { get; set; }
 
@@ -34,6 +36,9 @@ public class MatchParticipantFrameDto
 
     public int JungleMinionsKilled { get; set; }
 
+    // Only the total is propagated. The Riot payload also splits magic/physical/true
+    // damage to champions (deserialized in RiotTimelineDamageStatsDto) — intentionally
+    // not mapped here (YAGNI); add them if a downstream analytic needs the breakdown.
     public int TotalDamageToChampions { get; set; }
 }
 

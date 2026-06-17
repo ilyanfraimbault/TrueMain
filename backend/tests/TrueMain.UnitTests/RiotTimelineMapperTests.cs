@@ -111,7 +111,7 @@ public sealed class RiotTimelineMapperTests
     }
 
     [Fact]
-    public void Map_DefaultsMissingPositionsAndAssists()
+    public void Map_LeavesMissingPositionsNull_AndAssistsEmpty()
     {
         var timeline = new RiotTimelineDto
         {
@@ -135,8 +135,8 @@ public sealed class RiotTimelineMapperTests
         var result = RiotTimelineMapper.Map(timeline);
 
         result.Frames[0].TimestampMs.Should().Be(0);
-        result.Frames[0].ParticipantFrames[0].X.Should().Be(0);
-        result.Frames[0].ParticipantFrames[0].Y.Should().Be(0);
+        result.Frames[0].ParticipantFrames[0].X.Should().BeNull();
+        result.Frames[0].ParticipantFrames[0].Y.Should().BeNull();
 
         var evt = result.Events.Should().ContainSingle().Subject;
         evt.PositionX.Should().BeNull();
