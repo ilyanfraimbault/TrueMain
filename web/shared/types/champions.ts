@@ -61,6 +61,7 @@ export interface ChampionTimelineLeadsInterval {
   goldDiff: number
   csDiff: number
   killsDiff: number
+  /** Not surfaced in the chart selector — level leads are too coarse to read at a glance. */
   levelDiff: number
   xpDiff: number
   damageDiff: number

@@ -25,7 +25,7 @@ export function useChampionTimelineLeads(
   const enabledRef = computed(() => toValue(enabled))
 
   return useLazyAsyncData<ChampionTimelineLeadsResponse>(
-    () => ['champion-timeline-leads', championIdRef.value, positionRef.value ?? '', patchRef.value ?? ''].join('-'),
+    () => `champion-timeline-leads|${championIdRef.value}|${positionRef.value ?? ''}|${patchRef.value ?? ''}`,
     () => {
       if (!enabledRef.value || !positionRef.value) {
         return Promise.resolve({
