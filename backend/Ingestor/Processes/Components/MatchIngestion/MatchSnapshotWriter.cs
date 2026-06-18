@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Core.Lol.Identifiers;
 using Data.Entities;
 using Data.Repositories;
@@ -40,21 +41,21 @@ public sealed class MatchSnapshotWriter(
         {
             var batchIds = scan.Fresh.Skip(i).Take(batchSize).ToList();
 
-            // Fetch the batch's matches in parallel. Each result is written to
-            // its own slot so the array stays ordered and the concurrent writes
-            // never collide. The resilience handler enforces per-region rate
-            // limiting, so MaxDegreeOfParallelism only caps the in-flight count.
-            var fetchedSlots = new (string Id, RiotMatchDto Dto)[batchIds.Count];
+            // Fetch the batch's matches in parallel into a concurrent collection.
+            // Downstream order is irrelevant (catalog keys are deduplicated, and
+            // each match persists independently), so a ConcurrentBag avoids a
+            // pre-sized slot array whose uninitialized entries would surface as a
+            // NullReferenceException if a future caller ever swallowed a fetch
+            // exception. The resilience handler enforces per-region rate limiting,
+            // so MaxDegreeOfParallelism only caps the in-flight count.
+            var fetched = new ConcurrentBag<(string Id, RiotMatchDto Dto)>();
             await Parallel.ForEachAsync(
-                Enumerable.Range(0, batchIds.Count),
+                batchIds,
                 new ParallelOptions { MaxDegreeOfParallelism = fetchConcurrency, CancellationToken = ct },
-                async (index, token) =>
+                async (matchId, token) =>
                 {
-                    var matchId = batchIds[index];
-                    fetchedSlots[index] = (matchId, await riotMatchClient.GetMatchAsync(matchId, region, token));
+                    fetched.Add((matchId, await riotMatchClient.GetMatchAsync(matchId, region, token)));
                 });
-
-            var fetched = fetchedSlots.ToList();
 
             // Pre-resolve perk catalog ids for the whole batch BEFORE we add
             // any match/participant entities to the change tracker. The
