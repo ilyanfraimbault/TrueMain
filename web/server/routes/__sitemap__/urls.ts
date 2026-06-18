@@ -1,6 +1,6 @@
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import type { LeaderboardResponse } from '~~/shared/types/leaderboard'
-import { defineEventHandler } from 'h3'
+import { defineEventHandler, setResponseHeader } from 'h3'
 
 /**
  * Dynamic sitemap entries for @nuxtjs/sitemap. Static pages are discovered
@@ -34,9 +34,18 @@ async function championUrls(): Promise<SitemapUrl[]> {
 async function truemainUrls(): Promise<SitemapUrl[]> {
   const urls: SitemapUrl[] = []
   for (let page = 1; page <= MAX_TRUEMAIN_PAGES; page++) {
-    const response = await $fetch<LeaderboardResponse>('/api/truemains', {
-      query: { page, pageSize: TRUEMAIN_PAGE_SIZE },
-    })
+    let response: LeaderboardResponse
+    try {
+      response = await $fetch<LeaderboardResponse>('/api/truemains', {
+        query: { page, pageSize: TRUEMAIN_PAGE_SIZE },
+      })
+    }
+    catch {
+      // A transient failure on an intermediate page would otherwise bubble to
+      // the caller's catch and discard the pages already collected. Keep the
+      // partial list instead — a sitemap with most players beats an empty one.
+      break
+    }
     const rows = response.rows ?? []
     for (const row of rows) {
       const { gameName, tagLine } = row.identity
@@ -52,7 +61,13 @@ async function truemainUrls(): Promise<SitemapUrl[]> {
   return urls
 }
 
-export default defineEventHandler(async (): Promise<SitemapUrl[]> => {
+export default defineEventHandler(async (event): Promise<SitemapUrl[]> => {
+  // @nuxtjs/sitemap caches the rendered sitemap, so this source is normally
+  // hit rarely — but the route is publicly reachable and each uncached call
+  // fans out to up to MAX_TRUEMAIN_PAGES backend requests. A short shared-cache
+  // TTL blunts trivial direct-hit abuse without staling the data meaningfully.
+  setResponseHeader(event, 'Cache-Control', 'max-age=3600, s-maxage=3600')
+
   const [champions, truemains] = await Promise.all([
     championUrls().catch(() => [] as SitemapUrl[]),
     truemainUrls().catch(() => [] as SitemapUrl[]),
