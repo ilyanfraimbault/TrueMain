@@ -13,7 +13,8 @@ public sealed class ChampionsController(
     IChampionTrendQueryService trendQueryService,
     IChampionMatchupQueryService matchupQueryService,
     IChampionTimelineLeadsQueryService timelineLeadsQueryService,
-    IChampionScalingQueryService scalingQueryService) : ControllerBase
+    IChampionScalingQueryService scalingQueryService,
+    IChampionItemTimingsQueryService itemTimingsQueryService) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<ChampionSummaryReadModel>), StatusCodes.Status200OK)]
@@ -172,6 +173,41 @@ public sealed class ChampionsController(
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
 
         var response = await scalingQueryService.GetAsync(
+            championId,
+            normalizedPosition,
+            normalizedPatch,
+            ct);
+
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Average first-purchase time of each item for a champion at a position — the
+    /// "power spike" timeline, computed live from the participants' item-purchase
+    /// events. <paramref name="position"/> is the required Riot team position; an
+    /// unrecognised position is a 400. Always 200 with a (possibly empty) list
+    /// ordered earliest-first; items below the sample floor are dropped. The caller
+    /// classifies items (core / boots / consumable) from static item data.
+    /// </summary>
+    [HttpGet("{championId:int}/item-timings")]
+    [ProducesResponseType(typeof(ChampionItemTimingsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<ChampionItemTimingsResponse>> GetChampionItemTimingsAsync(
+        int championId,
+        [FromQuery] string? position,
+        [FromQuery] string? patch,
+        CancellationToken ct = default)
+    {
+        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+        if (normalizedPosition is null)
+        {
+            return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+        }
+
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+
+        var response = await itemTimingsQueryService.GetAsync(
             championId,
             normalizedPosition,
             normalizedPatch,
