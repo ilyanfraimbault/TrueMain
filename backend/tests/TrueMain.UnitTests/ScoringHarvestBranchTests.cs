@@ -68,6 +68,7 @@ public sealed class ScoringHarvestBranchTests
             NullLogger<ScoringProcess>.Instance,
             sessionFactory,
             coverageProvider,
+            TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new ScoringOptions()));
 
         await process.RunCoreAsync(CancellationToken.None);

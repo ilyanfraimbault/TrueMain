@@ -34,6 +34,7 @@ public sealed class DiscoveryProcessNoOpTests
             accountUpsertService,
             candidateUpsertService,
             rankSnapshotWriter,
+            TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
                 Platforms = [" ", "  "]

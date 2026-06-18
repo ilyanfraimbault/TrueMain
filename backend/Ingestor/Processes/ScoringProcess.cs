@@ -10,6 +10,7 @@ public sealed class ScoringProcess(
     ILogger<ScoringProcess> logger,
     IDataSessionFactory sessionFactory,
     IChampionCoverageProvider coverageProvider,
+    TimeProvider timeProvider,
     IOptions<ScoringOptions> scoringOptions) : IIngestorProcess
 {
     /// <summary>
@@ -27,7 +28,8 @@ public sealed class ScoringProcess(
 
         await using var session = await sessionFactory.CreateAsync(ct);
         var coverage = await coverageProvider.GetSnapshotAsync(session, ct);
-        var scoringResult = await ScoreCandidatesAsync(session, scoring, coverage, ct);
+        var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
+        var scoringResult = await ScoreCandidatesAsync(session, scoring, coverage, nowUtc, ct);
         if (scoringResult.TotalScored == 0)
         {
             logger.LogInformation("No new candidates to score.");
@@ -42,9 +44,9 @@ public sealed class ScoringProcess(
         IDataSession session,
         ScoringOptions scoring,
         ChampionCoverageSnapshot coverage,
+        DateTime nowUtc,
         CancellationToken ct)
     {
-        var nowUtc = DateTime.UtcNow;
         var batchSize = Math.Max(1, scoring.BatchSize);
         var result = new ScoringResult();
 

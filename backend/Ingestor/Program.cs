@@ -34,6 +34,11 @@ builder.Services.AddHttpClient<IRiotPlatformClient, RiotPlatformClient>(Configur
 builder.Services.AddHttpClient<IRiotAccountClient, RiotAccountClient>(ConfigureRiotClient)
     .AddRiotResilienceHandler().AddHttpMessageHandler<RiotApiMetricsHandler>();
 
+// Single clock source for the whole ingestor: every process and component that
+// needs "now" injects TimeProvider and calls GetUtcNow().UtcDateTime instead of
+// DateTime.UtcNow, so time-dependent business logic can be frozen under test (#270).
+builder.Services.AddSingleton(TimeProvider.System);
+
 builder.Services.AddScoped<ILadderDiscoveryService, LadderDiscoveryService>();
 builder.Services.AddScoped<IAccountUpsertService, AccountUpsertService>();
 builder.Services.AddScoped<ICandidateUpsertService, CandidateUpsertService>();

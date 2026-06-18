@@ -43,6 +43,12 @@ public static class OpsEvents
     /// <summary>A participant harvest pass completed, with its candidate/account counters.</summary>
     public static readonly EventId HarvestCycleCompleted = new(1004, nameof(HarvestCycleCompleted));
 
+    /// <summary>
+    /// Reverting a claim back to Queued after an ingestion failure itself failed, so
+    /// the account's candidates remain Processing until the claim lease expires (#263).
+    /// </summary>
+    public static readonly EventId MatchRevertFailed = new(1005, nameof(MatchRevertFailed));
+
     // Single source for the lookup + the UI-facing list, so a new event only has
     // to be added in two places (its field above and this array).
     private static readonly EventId[] All =
@@ -51,7 +57,8 @@ public static class OpsEvents
         SeedRequestResolved,
         SeedRequestFailed,
         DiscoveryCycleCompleted,
-        HarvestCycleCompleted
+        HarvestCycleCompleted,
+        MatchRevertFailed
     ];
 
     private static readonly Dictionary<string, int> IdByName =

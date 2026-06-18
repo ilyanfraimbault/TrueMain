@@ -32,6 +32,7 @@ public sealed class MainAnalysisProcessIntegrationTests
             new MainStatsCalculator(),
             new MainDemotionPolicy(),
             new ChampionCoverageProvider(Microsoft.Extensions.Options.Options.Create(new CoverageOptions())),
+            TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions
             {
                 BatchSize = 10,
@@ -84,6 +85,7 @@ public sealed class MainAnalysisProcessIntegrationTests
             new MainDemotionPolicy(),
             new ChampionCoverageProvider(
                 Microsoft.Extensions.Options.Options.Create(new CoverageOptions { TargetMainsPerChampion = 20 })),
+            TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions
             {
                 BatchSize = 10,

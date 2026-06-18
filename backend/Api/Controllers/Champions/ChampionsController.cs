@@ -11,7 +11,11 @@ public sealed class ChampionsController(
     IChampionSummariesQueryService summariesQueryService,
     IChampionBuildsQueryService buildsQueryService,
     IChampionTrendQueryService trendQueryService,
-    IChampionMatchupQueryService matchupQueryService) : ControllerBase
+    IChampionMatchupQueryService matchupQueryService,
+    IChampionTimelineLeadsQueryService timelineLeadsQueryService,
+    IChampionScalingQueryService scalingQueryService,
+    IChampionItemTimingsQueryService itemTimingsQueryService,
+    IChampionRoamQueryService roamQueryService) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<ChampionSummaryReadModel>), StatusCodes.Status200OK)]
@@ -102,6 +106,146 @@ public sealed class ChampionsController(
             normalizedPatch,
             riotAccountId: null,
             opponentChampionId: opponent,
+            ct);
+
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Average lead vs the lane opponent at each minute mark (5/10/15/20/30) for a
+    /// champion at a position: gold / CS / kills / level / xp / damage diffs,
+    /// averaged across games above the sample floor and computed live from the
+    /// per-interval timeline snapshots. <paramref name="position"/> is the required
+    /// Riot team position; an unrecognised position is a 400. Always 200 with a
+    /// (possibly empty) list — intervals below the floor (or before snapshots have
+    /// been ingested) simply yield no entries.
+    /// </summary>
+    [HttpGet("{championId:int}/timeline-leads")]
+    [ProducesResponseType(typeof(ChampionTimelineLeadsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<ChampionTimelineLeadsResponse>> GetChampionTimelineLeadsAsync(
+        int championId,
+        [FromQuery] string? position,
+        [FromQuery] string? patch,
+        CancellationToken ct = default)
+    {
+        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+        if (normalizedPosition is null)
+        {
+            return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+        }
+
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+
+        var response = await timelineLeadsQueryService.GetAsync(
+            championId,
+            normalizedPosition,
+            normalizedPatch,
+            ct);
+
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// How a champion's win rate scales with game length at a position: win rate
+    /// bucketed by game duration plus a single scaling index (long-game win rate
+    /// minus short-game win rate; positive = scales late), computed live from
+    /// match participants. <paramref name="position"/> is the required Riot team
+    /// position; an unrecognised position is a 400. Always 200 with a (possibly
+    /// empty) bucket list — buckets below the sample floor are dropped.
+    /// </summary>
+    [HttpGet("{championId:int}/scaling")]
+    [ProducesResponseType(typeof(ChampionScalingResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<ChampionScalingResponse>> GetChampionScalingAsync(
+        int championId,
+        [FromQuery] string? position,
+        [FromQuery] string? patch,
+        CancellationToken ct = default)
+    {
+        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+        if (normalizedPosition is null)
+        {
+            return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+        }
+
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+
+        var response = await scalingQueryService.GetAsync(
+            championId,
+            normalizedPosition,
+            normalizedPatch,
+            ct);
+
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Average first-purchase time of each item for a champion at a position — the
+    /// "power spike" timeline, computed live from the participants' item-purchase
+    /// events. <paramref name="position"/> is the required Riot team position; an
+    /// unrecognised position is a 400. Always 200 with a (possibly empty) list
+    /// ordered earliest-first; items below the sample floor are dropped. The caller
+    /// classifies items (core / boots / consumable) from static item data.
+    /// </summary>
+    [HttpGet("{championId:int}/item-timings")]
+    [ProducesResponseType(typeof(ChampionItemTimingsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<ChampionItemTimingsResponse>> GetChampionItemTimingsAsync(
+        int championId,
+        [FromQuery] string? position,
+        [FromQuery] string? patch,
+        CancellationToken ct = default)
+    {
+        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+        if (normalizedPosition is null)
+        {
+            return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+        }
+
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+
+        var response = await itemTimingsQueryService.GetAsync(
+            championId,
+            normalizedPosition,
+            normalizedPatch,
+            ct);
+
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// How much a champion roams at a position: the share of its early-game kill
+    /// participations that happened outside its own lane, computed live from the
+    /// stored kill positions. <paramref name="position"/> is the required Riot team
+    /// position; an unrecognised position is a 400. Always 200; the out-of-lane
+    /// share is null below the sample floor.
+    /// </summary>
+    [HttpGet("{championId:int}/roam")]
+    [ProducesResponseType(typeof(ChampionRoamResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<ChampionRoamResponse>> GetChampionRoamAsync(
+        int championId,
+        [FromQuery] string? position,
+        [FromQuery] string? patch,
+        CancellationToken ct = default)
+    {
+        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+        if (normalizedPosition is null)
+        {
+            return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+        }
+
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+
+        var response = await roamQueryService.GetAsync(
+            championId,
+            normalizedPosition,
+            normalizedPatch,
             ct);
 
         return Ok(response);

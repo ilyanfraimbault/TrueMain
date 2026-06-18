@@ -24,7 +24,7 @@ public sealed class MatchSnapshotWriterIntegrationTests
         await _fixture.ResetDatabaseAsync();
 
         await using var session = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None);
-        var service = new MatchSnapshotWriter(new FakeRiotMatchClient());
+        var service = new MatchSnapshotWriter(new FakeRiotMatchClient(), TimeProvider.System);
 
         var result = await service.IngestSnapshotsAsync(
             session,
@@ -33,6 +33,7 @@ public sealed class MatchSnapshotWriterIntegrationTests
             RegionalRoute.Asia,
             matchesPerAccount: 10,
             saveBatchSize: 10,
+            maxFetchConcurrency: 4,
             CancellationToken.None);
 
         result.Inserted.Should().Be(1);
@@ -78,7 +79,7 @@ public sealed class MatchSnapshotWriterIntegrationTests
     public async Task IngestSnapshotsAsync_ShouldSkipAlreadyPersistedMatches()
     {
         await _fixture.ResetDatabaseAsync();
-        var service = new MatchSnapshotWriter(new FakeRiotMatchClient());
+        var service = new MatchSnapshotWriter(new FakeRiotMatchClient(), TimeProvider.System);
 
         await using (var firstSession = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None))
         {
@@ -89,6 +90,7 @@ public sealed class MatchSnapshotWriterIntegrationTests
                 RegionalRoute.Asia,
                 matchesPerAccount: 10,
                 saveBatchSize: 10,
+                maxFetchConcurrency: 4,
                 CancellationToken.None);
 
             first.Inserted.Should().Be(1);
@@ -102,6 +104,7 @@ public sealed class MatchSnapshotWriterIntegrationTests
             RegionalRoute.Asia,
             matchesPerAccount: 10,
             saveBatchSize: 10,
+            maxFetchConcurrency: 4,
             CancellationToken.None);
 
         second.Inserted.Should().Be(0);
@@ -116,7 +119,7 @@ public sealed class MatchSnapshotWriterIntegrationTests
     public async Task IngestSnapshotsAsync_ShouldBackfillTrackedRiotAccountIdForExistingMatches()
     {
         await _fixture.ResetDatabaseAsync();
-        var service = new MatchSnapshotWriter(new FakeRiotMatchClient());
+        var service = new MatchSnapshotWriter(new FakeRiotMatchClient(), TimeProvider.System);
         var now = DateTime.UtcNow;
 
         await using (var seedDb = _fixture.CreateDbContext())
@@ -160,6 +163,7 @@ public sealed class MatchSnapshotWriterIntegrationTests
                 RegionalRoute.Asia,
                 matchesPerAccount: 10,
                 saveBatchSize: 10,
+                maxFetchConcurrency: 4,
                 CancellationToken.None);
 
             first.Inserted.Should().Be(1);
@@ -174,6 +178,7 @@ public sealed class MatchSnapshotWriterIntegrationTests
                 RegionalRoute.Asia,
                 matchesPerAccount: 10,
                 saveBatchSize: 10,
+                maxFetchConcurrency: 4,
                 CancellationToken.None);
 
             second.Inserted.Should().Be(0);
@@ -194,7 +199,7 @@ public sealed class MatchSnapshotWriterIntegrationTests
     public async Task IngestSnapshotsAsync_ShouldAssignKnownRiotAccountIdsForAllKnownParticipantsInANewMatch()
     {
         await _fixture.ResetDatabaseAsync();
-        var service = new MatchSnapshotWriter(new FakeRiotMatchClient());
+        var service = new MatchSnapshotWriter(new FakeRiotMatchClient(), TimeProvider.System);
         var now = DateTime.UtcNow;
 
         await using (var seedDb = _fixture.CreateDbContext())
@@ -238,6 +243,7 @@ public sealed class MatchSnapshotWriterIntegrationTests
                 RegionalRoute.Asia,
                 matchesPerAccount: 10,
                 saveBatchSize: 10,
+                maxFetchConcurrency: 4,
                 CancellationToken.None);
 
             result.Inserted.Should().Be(1);

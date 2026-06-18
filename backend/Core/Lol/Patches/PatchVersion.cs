@@ -3,9 +3,11 @@ using System.Globalization;
 namespace Core.Lol.Patches;
 
 /// <summary>
-/// Value object representing a League of Legends patch in canonical "MAJOR.MINOR" form.
+/// Value object representing a League of Legends patch in canonical
+/// "MAJOR.MINOR" form, optionally carrying Riot's hotfix build segment
+/// (the "521" in "16.4.521") when one is present.
 /// </summary>
-public readonly record struct PatchVersion(int Major, int Minor) : IComparable<PatchVersion>
+public readonly record struct PatchVersion(int Major, int Minor, int? Build = null) : IComparable<PatchVersion>
 {
     public static PatchVersion Parse(string value)
     {
@@ -33,7 +35,17 @@ public readonly record struct PatchVersion(int Major, int Minor) : IComparable<P
             return false;
         }
 
-        version = new PatchVersion(major, minor);
+        // Riot appends a hotfix build ("16.4.521.x"); capture the third segment
+        // when it is numeric. A non-numeric third segment is ignored rather than
+        // failing the parse, preserving the legacy "major.minor wins" behaviour.
+        int? build = null;
+        if (segments.Length >= 3
+            && int.TryParse(segments[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedBuild))
+        {
+            build = parsedBuild;
+        }
+
+        version = new PatchVersion(major, minor, build);
         return true;
     }
 
@@ -62,12 +74,30 @@ public readonly record struct PatchVersion(int Major, int Minor) : IComparable<P
     }
 
     public override string ToString()
+        => Build is { } build
+            ? string.Create(CultureInfo.InvariantCulture, $"{Major}.{Minor}.{build}")
+            : string.Create(CultureInfo.InvariantCulture, $"{Major}.{Minor}");
+
+    /// <summary>
+    /// Returns only the canonical "MAJOR.MINOR" form, ignoring any build
+    /// segment. Used by callers that key on the patch (scopes, CDN URLs,
+    /// LIKE prefixes) where the hotfix build must not appear.
+    /// </summary>
+    public string ToMajorMinor()
         => string.Create(CultureInfo.InvariantCulture, $"{Major}.{Minor}");
 
     public int CompareTo(PatchVersion other)
     {
         var majorComparison = Major.CompareTo(other.Major);
-        return majorComparison != 0 ? majorComparison : Minor.CompareTo(other.Minor);
+        if (majorComparison != 0)
+        {
+            return majorComparison;
+        }
+
+        var minorComparison = Minor.CompareTo(other.Minor);
+        // A patch without a build sorts before its hotfixes; Nullable.Compare
+        // treats null as the smallest value, matching that "base before hotfix".
+        return minorComparison != 0 ? minorComparison : Nullable.Compare(Build, other.Build);
     }
 
     public static bool operator <(PatchVersion left, PatchVersion right) => left.CompareTo(right) < 0;

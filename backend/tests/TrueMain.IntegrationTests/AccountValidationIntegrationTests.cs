@@ -25,6 +25,7 @@ public sealed class AccountValidationIntegrationTests
 
         var service = new AccountValidationService(
             _fixture.CreateSessionFactory(),
+            TimeProvider.System,
             NullLogger<AccountValidationService>.Instance);
 
         await service.ValidateAsync(accountKey, CancellationToken.None);

@@ -5,6 +5,7 @@ using Ingestor.Processes.Components.MatchIngestion;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using TrueMain.UnitTests.Fixtures;
 
 namespace TrueMain.UnitTests;
 
@@ -14,6 +15,8 @@ public sealed class MatchClaimServiceTests
     public async Task ClaimAsync_PassesLeaseToRepositoryAndUpdatesCandidateStatus()
     {
         var lease = TimeSpan.FromMinutes(30);
+        var nowUtc = new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+        var timeProvider = new FixedTimeProvider(nowUtc);
 
         var sessionFactory = Substitute.For<IDataSessionFactory>();
         var session = Substitute.For<IDataSession>();
@@ -44,7 +47,7 @@ public sealed class MatchClaimServiceTests
         sessionFactory.CreateAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(session));
 
-        var service = new MatchClaimService(sessionFactory, NullLogger<MatchClaimService>.Instance);
+        var service = new MatchClaimService(sessionFactory, timeProvider, NullLogger<MatchClaimService>.Instance);
 
         var result = await service.ClaimAsync(new[] { "KR" }, 10, lease, CancellationToken.None);
 
@@ -53,7 +56,7 @@ public sealed class MatchClaimServiceTests
         await riotAccounts.Received(1).ClaimAccountsForMatchIngestAtomicallyAsync(
             Arg.Any<IReadOnlyCollection<string>>(),
             10,
-            Arg.Any<DateTime>(),
+            nowUtc,
             lease,
             Arg.Any<CancellationToken>());
 

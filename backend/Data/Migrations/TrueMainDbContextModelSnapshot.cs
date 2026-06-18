@@ -632,11 +632,21 @@ namespace Data.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
+                    b.Property<int>("TotalDamageDealtToChampions")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<int>("TotalMinionsKilled")
                         .HasColumnType("integer");
 
                     b.Property<int>("TrinketItemId")
                         .HasColumnType("integer");
+
+                    b.Property<int>("VisionScore")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
 
                     b.Property<bool>("Win")
                         .HasColumnType("boolean");
@@ -652,6 +662,91 @@ namespace Data.Migrations
                         .HasDatabaseName("IX_match_participants_puuid_match");
 
                     b.ToTable("match_participants", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.MatchParticipantKillPosition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("MatchId")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int>("ParticipantId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TimestampMs")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("X")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Y")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MatchId", "ParticipantId");
+
+                    b.ToTable("match_participant_kill_positions", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.MatchParticipantTimelineSnapshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("DamageToChampions")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("IntervalMinute")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("JungleMinionsKilled")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Kills")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Level")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("MatchId")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int>("MinionsKilled")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ParticipantId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TimestampMs")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TotalGold")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("WardsKilled")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("WardsPlaced")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Xp")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MatchId", "ParticipantId", "IntervalMinute")
+                        .IsUnique();
+
+                    b.ToTable("match_participant_timeline_snapshots", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.ParticipantPerkSelection", b =>
@@ -1043,6 +1138,24 @@ namespace Data.Migrations
                     b.Navigation("Match");
 
                     b.Navigation("RiotAccount");
+                });
+
+            modelBuilder.Entity("Data.Entities.MatchParticipantKillPosition", b =>
+                {
+                    b.HasOne("Data.Entities.Match", null)
+                        .WithMany()
+                        .HasForeignKey("MatchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Data.Entities.MatchParticipantTimelineSnapshot", b =>
+                {
+                    b.HasOne("Data.Entities.Match", null)
+                        .WithMany()
+                        .HasForeignKey("MatchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Data.Entities.ParticipantPerkSelection", b =>

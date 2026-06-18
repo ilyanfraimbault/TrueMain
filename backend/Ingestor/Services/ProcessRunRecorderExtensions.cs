@@ -9,6 +9,7 @@ public static class ProcessRunRecorderExtensions
         Guid runId,
         string processName,
         DateTime startedAtUtc,
+        DateTime finishedAtUtc,
         object? summary,
         CancellationToken ct)
     {
@@ -16,7 +17,7 @@ public static class ProcessRunRecorderExtensions
             runId,
             processName,
             startedAtUtc,
-            DateTime.UtcNow,
+            finishedAtUtc,
             ProcessRunStatus.Success,
             summary,
             null,
@@ -28,6 +29,7 @@ public static class ProcessRunRecorderExtensions
         Guid runId,
         string processName,
         DateTime startedAtUtc,
+        DateTime finishedAtUtc,
         Exception exception,
         CancellationToken ct)
     {
@@ -35,7 +37,7 @@ public static class ProcessRunRecorderExtensions
             runId,
             processName,
             startedAtUtc,
-            DateTime.UtcNow,
+            finishedAtUtc,
             ProcessRunStatus.Failed,
             null,
             exception.Message,

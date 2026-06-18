@@ -18,13 +18,17 @@ public sealed class RiotMatchMapperTests
     private const string TestPlatform = "KR";
     private const string TestMatchId = "KR_1234567890";
 
+    // Fixed "now" passed into Map() so the CreatedAtUtc stamp and the
+    // GameStartTimeUtc fallback are deterministic instead of wall-clock driven.
+    private static readonly DateTime FixedNow = new(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+
     [Fact]
     public void Map_TranslatesMatchHeaderFields()
     {
         var dto = BuildMatch(gameVersion: "16.4.1", queueId: 420, mapId: 11, gameDuration: 1800,
             startTimestampMs: 1577836800000); // 2020-01-01 00:00:00 UTC
 
-        var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap());
+        var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow);
 
         result.Match.Id.Should().Be(TestMatchId);
         result.Match.PlatformId.Should().Be(TestPlatform);
@@ -37,15 +41,14 @@ public sealed class RiotMatchMapperTests
     }
 
     [Fact]
-    public void Map_FallsBackToUtcNow_WhenStartTimestampIsZero()
+    public void Map_FallsBackToProvidedNow_WhenStartTimestampIsZero()
     {
         var dto = BuildMatch(startTimestampMs: 0);
-        var before = DateTime.UtcNow;
 
-        var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap());
+        var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow);
 
-        result.Match.GameStartTimeUtc.Should().BeOnOrAfter(before);
-        result.Match.GameStartTimeUtc.Should().BeOnOrBefore(DateTime.UtcNow);
+        result.Match.GameStartTimeUtc.Should().Be(FixedNow);
+        result.Match.CreatedAtUtc.Should().Be(FixedNow);
     }
 
     [Fact]
@@ -55,7 +58,7 @@ public sealed class RiotMatchMapperTests
         dto.Info.Participants.Add(BuildParticipant(participantId: 1, puuid: "p-1",
             primaryStyleId: 8000, subStyleId: 8400));
 
-        var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap());
+        var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow);
 
         result.Participants.Should().ContainSingle();
         var participant = result.Participants[0];
@@ -71,7 +74,7 @@ public sealed class RiotMatchMapperTests
         participantDto.Perks.Styles.Clear();
         dto.Info.Participants.Add(participantDto);
 
-        var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap());
+        var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow);
 
         result.Participants[0].PrimaryStyleId.Should().Be(0);
         result.Participants[0].SubStyleId.Should().Be(0);
@@ -85,10 +88,37 @@ public sealed class RiotMatchMapperTests
         participantDto.Item6 = 3340;
         dto.Info.Participants.Add(participantDto);
 
-        var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap());
+        var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow);
 
         result.Participants[0].Item6.Should().Be(3340);
         result.Participants[0].TrinketItemId.Should().Be(3340);
+    }
+
+    [Fact]
+    public void Map_CopiesDamageDealtToChampionsAndVisionScore()
+    {
+        var dto = BuildMatch();
+        var participantDto = BuildParticipant(participantId: 1, puuid: "p-1");
+        participantDto.TotalDamageDealtToChampions = 27431;
+        participantDto.VisionScore = 42;
+        dto.Info.Participants.Add(participantDto);
+
+        var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow);
+
+        result.Participants[0].TotalDamageDealtToChampions.Should().Be(27431);
+        result.Participants[0].VisionScore.Should().Be(42);
+    }
+
+    [Fact]
+    public void Map_DefaultsDamageAndVisionScore_ToZero()
+    {
+        var dto = BuildMatch();
+        dto.Info.Participants.Add(BuildParticipant(participantId: 1, puuid: "p-1"));
+
+        var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow);
+
+        result.Participants[0].TotalDamageDealtToChampions.Should().Be(0);
+        result.Participants[0].VisionScore.Should().Be(0);
     }
 
     [Fact]
@@ -109,7 +139,7 @@ public sealed class RiotMatchMapperTests
             }
         };
 
-        var result = RiotMatchMapper.Map(dto, TestPlatform, accounts);
+        var result = RiotMatchMapper.Map(dto, TestPlatform, accounts, FixedNow);
 
         result.Participants.Should().HaveCount(2);
         result.Participants.Single(p => p.Puuid == "matched-puuid").RiotAccountId.Should().Be(accountId);
@@ -122,7 +152,7 @@ public sealed class RiotMatchMapperTests
         var dto = BuildMatch();
         dto.Info.Participants.Add(BuildParticipant(participantId: 1, puuid: "p-1"));
 
-        var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap());
+        var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow);
 
         result.Participants[0].ItemEvents.Should().BeEmpty();
         result.Participants[0].SkillEvents.Should().BeEmpty();
@@ -137,7 +167,7 @@ public sealed class RiotMatchMapperTests
             dto.Info.Participants.Add(BuildParticipant(participantId: i, puuid: $"puuid-{i}"));
         }
 
-        var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap());
+        var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow);
 
         result.Participants.Should().HaveCount(10);
         result.Participants.Select(p => p.ParticipantId).Should().BeInAscendingOrder();

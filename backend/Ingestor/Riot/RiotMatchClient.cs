@@ -1,4 +1,3 @@
-using System.Net.Http.Json;
 using Core;
 using Core.Lol.Identifiers;
 using Ingestor.Riot.Dto;
@@ -24,7 +23,7 @@ public sealed class RiotMatchClient : IRiotMatchClient
     {
         var uri = BuildRegionalUri(region, $"/lol/match/v5/matches/{matchId}/timeline");
         var riotTimeline = await GetAsync<RiotTimelineDto>(uri, ct);
-        return MapTimeline(riotTimeline);
+        return RiotTimelineMapper.Map(riotTimeline);
     }
 
     public Task<List<string>> GetMatchIdsAsync(string puuid, RegionalRoute region, int count, CancellationToken ct)
@@ -41,55 +40,14 @@ public sealed class RiotMatchClient : IRiotMatchClient
         return GetAsync<List<string>>(uri, ct);
     }
 
-    private async Task<T> GetAsync<T>(Uri uri, CancellationToken ct)
+    private Task<T> GetAsync<T>(Uri uri, CancellationToken ct)
     {
-        return await _httpClient.GetFromJsonAsync<T>(uri, ct)
-            ?? throw new InvalidOperationException($"Empty response from Riot API ({uri}).");
+        return _httpClient.GetFromJsonStreamingAsync<T>(uri, ct);
     }
 
     private static Uri BuildRegionalUri(RegionalRoute region, string path)
     {
         var host = region.ToRegionalHost();
         return new Uri($"https://{host}.api.riotgames.com{path}");
-    }
-
-    private static MatchTimelineDto MapTimeline(RiotTimelineDto timeline)
-    {
-        var events = new List<MatchTimelineEventDto>();
-
-        foreach (var frame in timeline.Info.Frames)
-        {
-            foreach (var evt in frame.Events)
-            {
-                if (evt.ParticipantId is null)
-                {
-                    continue;
-                }
-
-                events.Add(new MatchTimelineEventDto
-                {
-                    ParticipantId = evt.ParticipantId.Value,
-                    TimestampMs = ToTimestamp(evt.Timestamp),
-                    Type = evt.Type,
-                    ItemId = evt.ItemId,
-                    BeforeId = evt.BeforeId,
-                    AfterId = evt.AfterId,
-                    SkillSlot = evt.SkillSlot,
-                    LevelUpType = evt.LevelUpType
-                });
-            }
-        }
-
-        return new MatchTimelineDto { Events = events };
-    }
-
-    private static int ToTimestamp(long timestamp)
-    {
-        if (timestamp <= 0)
-        {
-            return 0;
-        }
-
-        return timestamp > int.MaxValue ? int.MaxValue : (int)timestamp;
     }
 }

@@ -208,7 +208,8 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
             new ChampionPatternAggregateBuilder(new FakeItemMetadataProvider()),
             new ChampionPatternAggregatePersister(
                 dbContextFactory,
-                new ChampionDimensionResolver(dbContextFactory)));
+                new ChampionDimensionResolver(dbContextFactory)),
+            TimeProvider.System);
     }
 
     private async Task SeedChampionPatternDataAsync(bool includeShortMatch = false)
