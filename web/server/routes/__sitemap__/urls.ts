@@ -45,7 +45,7 @@ async function truemainUrls(): Promise<SitemapUrl[]> {
     }
     // Last page reached: the service returned fewer rows than requested, or we
     // have collected every row the envelope reports.
-    if (rows.length < TRUEMAIN_PAGE_SIZE || urls.length >= (response.total ?? 0)) {
+    if (rows.length < TRUEMAIN_PAGE_SIZE || urls.length >= response.total) {
       break
     }
   }
