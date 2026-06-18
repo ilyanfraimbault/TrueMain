@@ -49,10 +49,14 @@ const gradientStops = [
 ]
 
 // Signed so the reader sees "ahead" vs "behind" at a glance; zero stays unsigned.
+// Thousands (gold / xp / damage) abbreviate to keep the axis and tooltip compact.
 function formatSigned(value: number, digits: number): string {
-  const fixed = value.toFixed(digits)
-  return value > 0 ? `+${fixed}` : fixed
+  const sign = value > 0 ? '+' : ''
+  if (Math.abs(value) >= 1000) return `${sign}${(value / 1000).toFixed(1)}K`
+  return `${sign}${value.toFixed(digits)}`
 }
+
+const formatGames = (count: number): string => count.toLocaleString('en-US')
 
 const xFormatter = (tick: number): string => {
   const row = rows.value[tick]
@@ -122,7 +126,7 @@ const yFormatter = (value: number): string => formatSigned(value, activeMetric.v
             {{ activeMetric.label }}: {{ formatSigned(values.value, activeMetric.digits) }}
           </p>
           <p class="mt-0.5 text-muted">
-            {{ values.minute }} min · {{ values.games }} games
+            {{ values.minute }} min · {{ formatGames(values.games) }} games
           </p>
         </div>
       </template>
