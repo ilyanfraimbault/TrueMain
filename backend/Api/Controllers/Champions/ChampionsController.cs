@@ -14,7 +14,8 @@ public sealed class ChampionsController(
     IChampionMatchupQueryService matchupQueryService,
     IChampionTimelineLeadsQueryService timelineLeadsQueryService,
     IChampionScalingQueryService scalingQueryService,
-    IChampionItemTimingsQueryService itemTimingsQueryService) : ControllerBase
+    IChampionItemTimingsQueryService itemTimingsQueryService,
+    IChampionRoamQueryService roamQueryService) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<ChampionSummaryReadModel>), StatusCodes.Status200OK)]
@@ -208,6 +209,40 @@ public sealed class ChampionsController(
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
 
         var response = await itemTimingsQueryService.GetAsync(
+            championId,
+            normalizedPosition,
+            normalizedPatch,
+            ct);
+
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// How much a champion roams at a position: the share of its early-game kill
+    /// participations that happened outside its own lane, computed live from the
+    /// stored kill positions. <paramref name="position"/> is the required Riot team
+    /// position; an unrecognised position is a 400. Always 200; the out-of-lane
+    /// share is null below the sample floor.
+    /// </summary>
+    [HttpGet("{championId:int}/roam")]
+    [ProducesResponseType(typeof(ChampionRoamResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<ChampionRoamResponse>> GetChampionRoamAsync(
+        int championId,
+        [FromQuery] string? position,
+        [FromQuery] string? patch,
+        CancellationToken ct = default)
+    {
+        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+        if (normalizedPosition is null)
+        {
+            return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+        }
+
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+
+        var response = await roamQueryService.GetAsync(
             championId,
             normalizedPosition,
             normalizedPatch,

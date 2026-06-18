@@ -163,6 +163,7 @@ builder.Services.AddScoped<IChampionMatchupQueryService, ChampionMatchupQuerySer
 builder.Services.AddScoped<IChampionTimelineLeadsQueryService, ChampionTimelineLeadsQueryService>();
 builder.Services.AddScoped<IChampionScalingQueryService, ChampionScalingQueryService>();
 builder.Services.AddScoped<IChampionItemTimingsQueryService, ChampionItemTimingsQueryService>();
+builder.Services.AddScoped<IChampionRoamQueryService, ChampionRoamQueryService>();
 builder.Services.AddScoped<IChampionTrendQueryService, ChampionTrendQueryService>();
 builder.Services.AddScoped<IMatchSummariesQueryService, MatchSummariesQueryService>();
 builder.Services.AddScoped<IProfileQueryService, ProfileQueryService>();
