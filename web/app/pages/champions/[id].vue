@@ -158,6 +158,17 @@ const selectedPosition = computed<ChampionPosition | null>(() => {
   return isChampionPosition(value) ? value : null
 })
 
+// Average per-interval lead vs the lane opponent (issue #525). Follows the
+// resolved lane like the trend chart, but is patch-scoped: the active patch
+// filter narrows the slice. Gated on the champion fetch so it fires once with
+// the resolved lane. Empty until matches are (re-)ingested with snapshots.
+const { data: championLeads, status: leadsStatus } = useChampionTimelineLeads(
+  championId,
+  trendPosition,
+  selectedPatch,
+  trendReady,
+)
+
 // When useChampion's 404 fallback drops the URL filters (no data for the
 // champion on that patch/position) the API returns the default slice, but the
 // dead patch/position query param lingers in the URL. Once the fetch resolves,
@@ -191,7 +202,8 @@ const isRefetching = computed(() =>
   || isLoadingStatus(runeTreeStatus.value)
   || isLoadingStatus(itemsStatus.value)
   || isLoadingStatus(summonersStatus.value)
-  || isLoadingStatus(trendStatus.value),
+  || isLoadingStatus(trendStatus.value)
+  || isLoadingStatus(leadsStatus.value),
 )
 </script>
 
@@ -250,6 +262,11 @@ const isRefetching = computed(() =>
       <ChampionTrendChart
         :points="championTrend?.points ?? []"
         :loading="isLoadingStatus(trendStatus)"
+      />
+
+      <ChampionTimelineLeadsChart
+        :intervals="championLeads?.intervals ?? []"
+        :loading="isLoadingStatus(leadsStatus)"
       />
     </template>
   </main>

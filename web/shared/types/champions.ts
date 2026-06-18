@@ -43,6 +43,29 @@ export interface ChampionTrendPoint {
   games: number
 }
 
+/**
+ * A champion's average lead vs its lane opponent at each minute mark
+ * (5/10/15/20/30), computed live from per-interval timeline snapshots. Positive
+ * diffs mean the champion is ahead of the opposing lane at that interval.
+ */
+export interface ChampionTimelineLeadsResponse {
+  championId: number
+  position: string
+  patch: string | null
+  intervals: ChampionTimelineLeadsInterval[]
+}
+
+export interface ChampionTimelineLeadsInterval {
+  intervalMinute: number
+  games: number
+  goldDiff: number
+  csDiff: number
+  killsDiff: number
+  levelDiff: number
+  xpDiff: number
+  damageDiff: number
+}
+
 /** One lane-matchup row: the champion's record against a single opponent. */
 export interface ChampionMatchupEntry {
   opponentChampionId: number
