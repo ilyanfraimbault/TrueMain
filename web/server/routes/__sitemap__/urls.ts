@@ -46,7 +46,7 @@ async function truemainUrls(): Promise<SitemapUrl[]> {
       // partial list instead — a sitemap with most players beats an empty one.
       break
     }
-    const rows = response.rows ?? []
+    const rows = response.rows
     for (const row of rows) {
       const { gameName, tagLine } = row.identity
       const slug = tagLine ? `${gameName}-${tagLine}` : gameName
@@ -66,7 +66,7 @@ export default defineEventHandler(async (event): Promise<SitemapUrl[]> => {
   // hit rarely — but the route is publicly reachable and each uncached call
   // fans out to up to MAX_TRUEMAIN_PAGES backend requests. A short shared-cache
   // TTL blunts trivial direct-hit abuse without staling the data meaningfully.
-  setResponseHeader(event, 'Cache-Control', 'max-age=3600, s-maxage=3600')
+  setResponseHeader(event, 'Cache-Control', 'public, max-age=3600, s-maxage=3600')
 
   const [champions, truemains] = await Promise.all([
     championUrls().catch(() => [] as SitemapUrl[]),
