@@ -36,6 +36,9 @@ internal static class KillPositionBuilder
                 continue;
             }
 
+            // Only the killer and assists are recorded — they chose to be at this
+            // location to make a play (the roam signal). The victim is deliberately
+            // skipped: dying somewhere isn't roaming to it.
             if (timelineEvent.KillerId is > 0)
             {
                 positions.Add(Position(matchId, timelineEvent.KillerId.Value, timelineEvent.TimestampMs, x, y));
