@@ -107,6 +107,21 @@ export interface ChampionItemTiming {
   avgSeconds: number
 }
 
+/**
+ * How much a champion roams at a position: the share of its early-game kill
+ * participations that happened outside its own lane. `outOfLaneShare` is null
+ * below the sample floor.
+ */
+export interface ChampionRoamResponse {
+  championId: number
+  position: string
+  patch: string | null
+  games: number
+  killParticipations: number
+  outOfLaneParticipations: number
+  outOfLaneShare: number | null
+}
+
 /** One lane-matchup row: the champion's record against a single opponent. */
 export interface ChampionMatchupEntry {
   opponentChampionId: number
