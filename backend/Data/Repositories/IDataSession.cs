@@ -10,6 +10,7 @@ public interface IDataSession : IAsyncDisposable
     IMatchRepository Matches { get; }
     IMatchParticipantRepository MatchParticipants { get; }
     IMatchParticipantTimelineSnapshotRepository MatchParticipantTimelineSnapshots { get; }
+    IMatchParticipantKillPositionRepository MatchParticipantKillPositions { get; }
     IProcessRunRepository ProcessRuns { get; }
     IRankSnapshotRepository RankSnapshots { get; }
     ISeedRequestRepository SeedRequests { get; }
