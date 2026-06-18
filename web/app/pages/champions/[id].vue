@@ -169,6 +169,16 @@ const { data: championLeads, status: leadsStatus } = useChampionTimelineLeads(
   trendReady,
 )
 
+// Win rate by game duration (issue #537). Same lane/patch scoping and gating as
+// the leads chart; computed from match outcomes, so it has data even before any
+// timeline snapshots are ingested.
+const { data: championScaling, status: scalingStatus } = useChampionScaling(
+  championId,
+  trendPosition,
+  selectedPatch,
+  trendReady,
+)
+
 // When useChampion's 404 fallback drops the URL filters (no data for the
 // champion on that patch/position) the API returns the default slice, but the
 // dead patch/position query param lingers in the URL. Once the fetch resolves,
@@ -203,7 +213,8 @@ const isRefetching = computed(() =>
   || isLoadingStatus(itemsStatus.value)
   || isLoadingStatus(summonersStatus.value)
   || isLoadingStatus(trendStatus.value)
-  || isLoadingStatus(leadsStatus.value),
+  || isLoadingStatus(leadsStatus.value)
+  || isLoadingStatus(scalingStatus.value),
 )
 </script>
 
@@ -267,6 +278,12 @@ const isRefetching = computed(() =>
       <ChampionTimelineLeadsChart
         :intervals="championLeads?.intervals ?? []"
         :loading="isLoadingStatus(leadsStatus)"
+      />
+
+      <ChampionScalingChart
+        :buckets="championScaling?.buckets ?? []"
+        :scaling-index="championScaling?.scalingIndex ?? null"
+        :loading="isLoadingStatus(scalingStatus)"
       />
     </template>
   </main>

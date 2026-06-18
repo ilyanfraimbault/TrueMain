@@ -67,6 +67,27 @@ export interface ChampionTimelineLeadsInterval {
   damageDiff: number
 }
 
+/**
+ * How a champion's win rate changes with game length, at a position. Win rate is
+ * bucketed by game duration; `scalingIndex` is the win-rate gap between the
+ * longest and shortest qualifying bucket (positive = scales into the late game).
+ */
+export interface ChampionScalingResponse {
+  championId: number
+  position: string
+  patch: string | null
+  buckets: ChampionScalingBucket[]
+  scalingIndex: number | null
+}
+
+export interface ChampionScalingBucket {
+  /** Duration bucket index, 0 (shortest) to 4 (longest). */
+  bucket: number
+  label: string
+  games: number
+  winRate: number
+}
+
 /** One lane-matchup row: the champion's record against a single opponent. */
 export interface ChampionMatchupEntry {
   opponentChampionId: number
