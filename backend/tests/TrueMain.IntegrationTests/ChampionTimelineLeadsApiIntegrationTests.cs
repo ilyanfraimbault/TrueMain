@@ -80,6 +80,25 @@ public sealed class ChampionTimelineLeadsApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetChampionTimelineLeadsAsync_FiltersToRequestedPatch()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedLeadSampleAsync(games: 12); // all seeded on GameVersion 16.4.521.123
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var onPatch = await client.GetAsync($"/champions/{Champion}/timeline-leads?position={Position}&patch=16.4");
+        var matched = await onPatch.Content.ReadFromJsonAsync<ChampionTimelineLeadsResponse>();
+        matched!.Patch.Should().Be("16.4");
+        matched.Intervals.Should().HaveCount(Intervals.Length, "the 16.4 prefix matches the seeded GameVersion");
+
+        var offPatch = await client.GetAsync($"/champions/{Champion}/timeline-leads?position={Position}&patch=16.5");
+        var missed = await offPatch.Content.ReadFromJsonAsync<ChampionTimelineLeadsResponse>();
+        missed!.Intervals.Should().BeEmpty("no games were seeded on 16.5");
+    }
+
+    [Fact]
     public async Task GetChampionTimelineLeadsAsync_ReturnsBadRequestForInvalidPosition()
     {
         await _fixture.ResetDatabaseAsync();

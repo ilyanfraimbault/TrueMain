@@ -44,6 +44,10 @@ public sealed class ChampionTimelineLeadsQueryService(
 
         var queueId = (int)options.Value.QueueId;
         var patchPrefix = normalizedPatch is null ? null : $"{normalizedPatch}.%";
+
+        // Reuses the matchup sample floor deliberately: timeline leads are drawn
+        // from the same champion-aggregate population. Extract a dedicated
+        // MinTimelineGames only if the two ever need independent tuning.
         var minGames = championsOptions.Value.MinMatchupGames;
 
         // Champion side: this champion at this position, on the configured queue
