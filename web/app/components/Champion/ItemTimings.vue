@@ -29,7 +29,10 @@ const items = computed<TimedItem[]>(() =>
       avgSeconds: timing.avgSeconds,
       games: timing.games,
     }))
-    .filter((entry): entry is TimedItem => Boolean(entry.item) && entry.item.totalGold >= MIN_GOLD)
+    .filter((entry): entry is TimedItem => entry.item !== undefined && entry.item.totalGold >= MIN_GOLD)
+    // Endpoint already returns earliest-first; sort defensively so the strip stays
+    // ordered even if that ever changes.
+    .sort((left, right) => left.avgSeconds - right.avgSeconds)
     .slice(0, MAX_ITEMS),
 )
 
