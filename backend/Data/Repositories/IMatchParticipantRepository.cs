@@ -6,6 +6,18 @@ public interface IMatchParticipantRepository
 {
     Task<List<MatchParticipant>> GetByMatchIdAsync(string matchId, CancellationToken ct);
     Task<List<MatchParticipant>> GetByMatchIdsAsync(IReadOnlyCollection<string> matchIds, CancellationToken ct);
+
+    /// <summary>
+    /// Fills <see cref="MatchParticipant.RiotAccountId"/> for the orphan rows
+    /// (<c>RiotAccountId IS NULL</c>) belonging to <paramref name="puuid"/> across
+    /// <paramref name="matchIds"/> in a single set-based <c>UPDATE</c> round trip.
+    /// Returns the number of rows affected.
+    /// </summary>
+    Task<int> BackfillRiotAccountIdAsync(
+        IReadOnlyCollection<string> matchIds,
+        string puuid,
+        Guid riotAccountId,
+        CancellationToken ct);
     Task<List<ParticipantRow>> GetRecentParticipantsAsync(string platformId, string puuid, int queueId, int take, CancellationToken ct);
     Task<Dictionary<AccountKey, List<ParticipantRow>>> GetRecentParticipantsByAccountsAsync(
         IReadOnlyCollection<AccountKey> accounts,

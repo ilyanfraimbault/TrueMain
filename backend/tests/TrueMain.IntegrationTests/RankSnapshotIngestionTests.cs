@@ -237,7 +237,7 @@ public sealed class RankSnapshotIngestionTests
     }
 
     [Fact]
-    public async Task RunCoreAsync_SuccessfulRankWrite_BumpsLastRankSyncAtUtc()
+    public async Task RunCoreAsync_SuccessfulRankIngest_BumpsLastRankSyncAtUtc()
     {
         await _fixture.ResetDatabaseAsync();
         var account = await SeedAccountAsync("puuid-bump");
@@ -352,6 +352,7 @@ public sealed class RankSnapshotIngestionTests
             platformClient,
             _fixture.CreateSessionFactory(),
             new RankSnapshotWriter(),
+            TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new AccountRefreshOptions { BatchSize = 200 }));
 
     private async Task<RiotAccount> SeedAccountAsync(string puuid)

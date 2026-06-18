@@ -73,6 +73,7 @@ public sealed class WorkerProcessIsolationTests
             new RecordedProcess<ThrowingProcess>(
                 new ThrowingProcess("Discovery"),
                 recorder,
+                TimeProvider.System,
                 NullLogger<RecordedProcess<ThrowingProcess>>.Instance));
         foreach (var name in FullSequence.Skip(1))
         {

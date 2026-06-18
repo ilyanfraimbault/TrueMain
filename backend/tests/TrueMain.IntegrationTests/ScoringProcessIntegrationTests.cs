@@ -27,6 +27,7 @@ public sealed class ScoringProcessIntegrationTests
             NullLogger<ScoringProcess>.Instance,
             _fixture.CreateSessionFactory(),
             new ChampionCoverageProvider(Microsoft.Extensions.Options.Options.Create(new CoverageOptions())),
+            TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new ScoringOptions
             {
                 BatchSize = 10,
@@ -64,6 +65,7 @@ public sealed class ScoringProcessIntegrationTests
             NullLogger<ScoringProcess>.Instance,
             _fixture.CreateSessionFactory(),
             new ChampionCoverageProvider(Microsoft.Extensions.Options.Options.Create(new CoverageOptions())),
+            TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new ScoringOptions
             {
                 BatchSize = 1,

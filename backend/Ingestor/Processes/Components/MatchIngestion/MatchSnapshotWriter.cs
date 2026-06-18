@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Core.Lol.Identifiers;
 using Data.Entities;
 using Data.Repositories;
@@ -6,7 +7,9 @@ using Ingestor.Riot.Dto;
 
 namespace Ingestor.Processes.Components.MatchIngestion;
 
-public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMatchSnapshotWriter
+public sealed class MatchSnapshotWriter(
+    IRiotMatchClient riotMatchClient,
+    TimeProvider timeProvider) : IMatchSnapshotWriter
 {
     public async Task<SnapshotIngestionResult> IngestSnapshotsAsync(
         IDataSession session,
@@ -15,6 +18,7 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
         RegionalRoute region,
         int matchesPerAccount,
         int saveBatchSize,
+        int maxFetchConcurrency,
         CancellationToken ct)
     {
         var allMatchIds = (await riotMatchClient.GetMatchIdsAsync(puuid, region, matchesPerAccount, ct))
@@ -25,21 +29,33 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
         var trackedAccount = await session.RiotAccounts.GetByKeyAsync(platformId, puuid, ct);
         var scan = await ExistingMatchScanner.ScanAsync(session, allMatchIds, ct);
         var batchSize = Math.Max(1, saveBatchSize);
+        var fetchConcurrency = Math.Max(1, maxFetchConcurrency);
 
         if (trackedAccount is not null)
         {
-            await MatchAccountBackfiller.BackfillAsync(session, scan.Existing, puuid, trackedAccount.Id, batchSize, ct);
+            await MatchAccountBackfiller.BackfillAsync(session, scan.Existing, puuid, trackedAccount.Id, ct);
         }
 
         var inserted = 0;
         for (var i = 0; i < scan.Fresh.Count; i += batchSize)
         {
             var batchIds = scan.Fresh.Skip(i).Take(batchSize).ToList();
-            var fetched = new List<(string Id, RiotMatchDto Dto)>(batchIds.Count);
-            foreach (var matchId in batchIds)
-            {
-                fetched.Add((matchId, await riotMatchClient.GetMatchAsync(matchId, region, ct)));
-            }
+
+            // Fetch the batch's matches in parallel into a concurrent collection.
+            // Downstream order is irrelevant (catalog keys are deduplicated, and
+            // each match persists independently), so a ConcurrentBag avoids a
+            // pre-sized slot array whose uninitialized entries would surface as a
+            // NullReferenceException if a future caller ever swallowed a fetch
+            // exception. The resilience handler enforces per-region rate limiting,
+            // so MaxDegreeOfParallelism only caps the in-flight count.
+            var fetched = new ConcurrentBag<(string Id, RiotMatchDto Dto)>();
+            await Parallel.ForEachAsync(
+                batchIds,
+                new ParallelOptions { MaxDegreeOfParallelism = fetchConcurrency, CancellationToken = ct },
+                async (matchId, token) =>
+                {
+                    fetched.Add((matchId, await riotMatchClient.GetMatchAsync(matchId, region, token)));
+                });
 
             // Pre-resolve perk catalog ids for the whole batch BEFORE we add
             // any match/participant entities to the change tracker. The
@@ -55,9 +71,10 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
                 .ToArray();
             var catalogIds = await session.MatchParticipants.GetOrCreatePerkCatalogIdsAsync(catalogKeys, ct);
 
+            var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
             foreach (var (_, dto) in fetched)
             {
-                await PersistMatchAsync(session, dto, platformId, catalogIds, ct);
+                await PersistMatchAsync(session, dto, platformId, catalogIds, nowUtc, ct);
                 inserted++;
             }
 
@@ -72,6 +89,7 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
         RiotMatchDto matchDto,
         string platformId,
         IReadOnlyDictionary<PerkCatalogKey, int> catalogIds,
+        DateTime nowUtc,
         CancellationToken ct)
     {
         var participantAccounts = await session.RiotAccounts.GetByKeysAsync(
@@ -81,7 +99,7 @@ public sealed class MatchSnapshotWriter(IRiotMatchClient riotMatchClient) : IMat
                 .ToArray(),
             ct);
 
-        var mapped = RiotMatchMapper.Map(matchDto, platformId, participantAccounts);
+        var mapped = RiotMatchMapper.Map(matchDto, platformId, participantAccounts, nowUtc);
 
         session.Matches.Add(mapped.Match);
         session.MatchParticipants.AddRange(mapped.Participants);

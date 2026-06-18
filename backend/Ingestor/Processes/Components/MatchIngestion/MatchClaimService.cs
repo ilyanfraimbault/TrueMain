@@ -5,6 +5,7 @@ namespace Ingestor.Processes.Components.MatchIngestion;
 
 public sealed class MatchClaimService(
     IDataSessionFactory sessionFactory,
+    TimeProvider timeProvider,
     ILogger<MatchClaimService> logger) : IMatchClaimService
 {
     public async Task<List<AccountKey>> ClaimAsync(
@@ -19,7 +20,7 @@ public sealed class MatchClaimService(
         var accounts = await session.RiotAccounts.ClaimAccountsForMatchIngestAtomicallyAsync(
             platforms,
             batchSize,
-            DateTime.UtcNow,
+            timeProvider.GetUtcNow().UtcDateTime,
             lease,
             ct);
 

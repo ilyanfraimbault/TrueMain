@@ -9,7 +9,8 @@ public sealed class ChampionPatternAggregationProcess(
     IOptions<MainAnalysisOptions> analysisOptions,
     ChampionPatternSourceRowReader sourceRowReader,
     ChampionPatternAggregateBuilder aggregateBuilder,
-    ChampionPatternAggregatePersister aggregatePersister) : IIngestorProcess
+    ChampionPatternAggregatePersister aggregatePersister,
+    TimeProvider timeProvider) : IIngestorProcess
 {
     public string Name => "ChampionPatternAggregation";
 
@@ -25,7 +26,7 @@ public sealed class ChampionPatternAggregationProcess(
 
         var aggregationResult = await aggregateBuilder.BuildAggregatesAsync(
             aggregationInputs.SourceRows,
-            DateTime.UtcNow,
+            timeProvider.GetUtcNow().UtcDateTime,
             ct);
         await aggregatePersister.ReplaceAggregatesAsync(
             aggregationInputs.ExistingAggregateScopes,

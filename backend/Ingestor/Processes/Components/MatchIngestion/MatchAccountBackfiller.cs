@@ -4,44 +4,25 @@ namespace Ingestor.Processes.Components.MatchIngestion;
 
 internal static class MatchAccountBackfiller
 {
-    public static async Task BackfillAsync(
+    public static Task BackfillAsync(
         IDataSession session,
         IReadOnlyCollection<string> existingMatchIds,
         string trackedPuuid,
         Guid trackedRiotAccountId,
-        int batchSize,
         CancellationToken ct)
     {
         if (existingMatchIds.Count == 0)
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        var participantsToUpdate = (await session.MatchParticipants.GetByMatchIdsAsync(existingMatchIds, ct))
-            .Where(participant =>
-                participant.RiotAccountId == null &&
-                string.Equals(participant.Puuid, trackedPuuid, StringComparison.Ordinal))
-            .ToList();
-
-        var pendingUpdates = 0;
-
-        foreach (var trackedParticipant in participantsToUpdate)
-        {
-            trackedParticipant.RiotAccountId = trackedRiotAccountId;
-            pendingUpdates++;
-
-            if (pendingUpdates < batchSize)
-            {
-                continue;
-            }
-
-            await session.SaveChangesAsync(ct);
-            pendingUpdates = 0;
-        }
-
-        if (pendingUpdates > 0)
-        {
-            await session.SaveChangesAsync(ct);
-        }
+        // Single set-based UPDATE instead of loading every participant row and
+        // issuing per-batch SaveChangesAsync — one round trip fills the orphan
+        // RiotAccountId values for the tracked puuid across all existing matches.
+        return session.MatchParticipants.BackfillRiotAccountIdAsync(
+            existingMatchIds,
+            trackedPuuid,
+            trackedRiotAccountId,
+            ct);
     }
 }

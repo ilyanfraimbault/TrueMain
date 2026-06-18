@@ -13,6 +13,7 @@ public sealed class MainAnalysisProcess(
     IMainStatsCalculator mainStatsCalculator,
     IMainDemotionPolicy mainDemotionPolicy,
     IChampionCoverageProvider coverageProvider,
+    TimeProvider timeProvider,
     IOptions<MainAnalysisOptions> analysisOptions) : IIngestorProcess
 {
     public string Name => "MainAnalysis";
@@ -20,7 +21,7 @@ public sealed class MainAnalysisProcess(
     public async Task<object?> RunCoreAsync(CancellationToken ct)
     {
         var options = analysisOptions.Value;
-        var nowUtc = DateTime.UtcNow;
+        var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
         var accounts = await LoadEligibleAccountsAsync(options, nowUtc, ct);
         if (accounts.Count == 0)
         {

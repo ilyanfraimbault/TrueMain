@@ -91,6 +91,20 @@ public sealed class TimelineIngestionService(IRiotMatchClient riotMatchClient) :
                 : [];
         }
 
+        // Replace any existing per-interval snapshots so re-ingesting a timeline is
+        // idempotent: the delete runs first as SQL (clearing the unique-index slots),
+        // then the fresh inserts flush with the participant updates on the caller's
+        // SaveChanges. MatchIngestionProcess wraps this in a transaction, so the delete
+        // and the reinserts commit together (or roll back together on failure) — no
+        // window where the match is left without snapshots.
+        await session.MatchParticipantTimelineSnapshots.DeleteByMatchIdAsync(matchId, ct);
+        session.MatchParticipantTimelineSnapshots.AddRange(TimelineSnapshotBuilder.Build(matchId, timeline));
+
+        // Bounded early-game kill-participation positions for the roam metric (#536),
+        // replaced idempotently the same way.
+        await session.MatchParticipantKillPositions.DeleteByMatchIdAsync(matchId, ct);
+        session.MatchParticipantKillPositions.AddRange(KillPositionBuilder.Build(matchId, timeline));
+
         return true;
     }
 

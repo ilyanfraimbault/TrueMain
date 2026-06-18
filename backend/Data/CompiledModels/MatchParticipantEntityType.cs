@@ -22,10 +22,10 @@ namespace Data.CompiledModels
                 "Data.Entities.MatchParticipant",
                 typeof(MatchParticipant),
                 baseEntityType,
-                propertyCount: 38,
+                propertyCount: 40,
                 navigationCount: 2,
                 foreignKeyCount: 2,
-                unnamedIndexCount: 3,
+                unnamedIndexCount: 4,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -310,6 +310,16 @@ namespace Data.CompiledModels
                 maxLength: 32);
             teamPosition.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
+            var totalDamageDealtToChampions = runtimeEntityType.AddProperty(
+                "TotalDamageDealtToChampions",
+                typeof(int),
+                propertyInfo: typeof(MatchParticipant).GetProperty("TotalDamageDealtToChampions", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MatchParticipant).GetField("<TotalDamageDealtToChampions>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: 0);
+            totalDamageDealtToChampions.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            totalDamageDealtToChampions.AddAnnotation("Relational:DefaultValue", 0);
+
             var totalMinionsKilled = runtimeEntityType.AddProperty(
                 "TotalMinionsKilled",
                 typeof(int),
@@ -325,6 +335,16 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(MatchParticipant).GetField("<TrinketItemId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: 0);
             trinketItemId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var visionScore = runtimeEntityType.AddProperty(
+                "VisionScore",
+                typeof(int),
+                propertyInfo: typeof(MatchParticipant).GetProperty("VisionScore", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MatchParticipant).GetField("<VisionScore>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: 0);
+            visionScore.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            visionScore.AddAnnotation("Relational:DefaultValue", 0);
 
             var win = runtimeEntityType.AddProperty(
                 "Win",
@@ -342,12 +362,17 @@ namespace Data.CompiledModels
                 new[] { riotAccountId });
 
             var index0 = runtimeEntityType.AddIndex(
+                new[] { championId, teamPosition });
+            index0.AddAnnotation("Relational:Filter", "\"RiotAccountId\" IS NOT NULL");
+            index0.AddAnnotation("Relational:Name", "IX_match_participants_champion_position_tracked");
+
+            var index1 = runtimeEntityType.AddIndex(
                 new[] { matchId, participantId },
                 unique: true);
 
-            var index1 = runtimeEntityType.AddIndex(
+            var index2 = runtimeEntityType.AddIndex(
                 new[] { puuid, matchId });
-            index1.AddAnnotation("Relational:Name", "IX_match_participants_puuid_match");
+            index2.AddAnnotation("Relational:Name", "IX_match_participants_puuid_match");
 
             return runtimeEntityType;
         }

@@ -77,6 +77,7 @@ public static class OptionsConfigurationExtensions
             .Validate(options => options.BatchSize > 0, "MatchIngestion:BatchSize must be greater than 0.")
             .Validate(options => options.MatchesPerAccount > 0, "MatchIngestion:MatchesPerAccount must be greater than 0.")
             .Validate(options => options.SaveBatchSizeMatches > 0, "MatchIngestion:SaveBatchSizeMatches must be greater than 0.")
+            .Validate(options => options.MaxMatchFetchConcurrency > 0, "MatchIngestion:MaxMatchFetchConcurrency must be greater than 0.")
             .Validate(options => options.ClaimLeaseMinutes > 0, "MatchIngestion:ClaimLeaseMinutes must be greater than 0.")
             .Validate(options => HasNonEmptyItems(options.Platforms), "MatchIngestion:Platforms must contain at least one value.")
             .ValidateOnStart();

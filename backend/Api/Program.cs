@@ -12,6 +12,7 @@ using TrueMain.Options;
 using TrueMain.Services.Champions;
 using TrueMain.Services.Ops;
 using TrueMain.Services.Truemains;
+using AspNetCorsOptions = Microsoft.AspNetCore.Cors.Infrastructure.CorsOptions;
 
 var builder = WebApplication.CreateBuilder(args);
 const string frontendCorsPolicy = "FrontendCors";
@@ -39,19 +40,51 @@ if (!string.IsNullOrWhiteSpace(healthConnectionString))
         name: "postgres",
         tags: ["ready"]);
 }
-
-var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [];
-builder.Services.AddCors(options =>
+else if (builder.Environment.IsProduction())
 {
-    options.AddPolicy(frontendCorsPolicy, policy =>
-    {
-        var builderPolicy = policy.AllowAnyHeader().AllowAnyMethod();
-        if (corsOrigins.Length > 0)
+    // In Production a missing connection string would silently drop the "ready"
+    // check, leaving /readyz green while the app can't reach Postgres. Fail fast
+    // at boot instead so a misconfigured deployment never reports ready (all
+    // deployments run as Production — see compose*.yaml). Development keeps the
+    // soft path so the app still starts before user secrets are wired up, and
+    // the integration-test "Testing" host injects the connection string after
+    // this point (via ConfigureAppConfiguration), so it must not trip here.
+    throw new InvalidOperationException(
+        "Missing connection string. Add ConnectionStrings:TrueMain so the Postgres "
+        + "readiness health check can be registered in Production.");
+}
+
+// CORS origins must be present outside Development: an empty list still builds a
+// valid (but no-op) policy, so without this guard production silently ships a
+// CORS policy that allows no cross-origin browser request — the frontend appears
+// to work locally (Development ships real origins) but breaks in prod, where
+// appsettings.json ships an empty array. Fail the boot when empty in any
+// non-Development environment; only warn under Development (handled after build).
+var isDevelopment = builder.Environment.IsDevelopment();
+builder.Services.AddOptions<FrontendCorsOptions>()
+    .Bind(builder.Configuration.GetSection(FrontendCorsOptions.SectionName))
+    .Validate(
+        options => isDevelopment || options.Origins.Length > 0,
+        "Cors:Origins must contain at least one origin outside the Development environment; "
+        + "an empty list ships a no-op CORS policy that silently rejects the frontend.")
+    .ValidateOnStart();
+builder.Services.AddCors();
+// Build the FrontendCors policy from the bound FrontendCorsOptions (single
+// source — no separate config read) so the validated origins are the ones the
+// policy uses.
+builder.Services.AddOptions<AspNetCorsOptions>()
+    .Configure<IOptions<FrontendCorsOptions>>((corsPolicies, appCors) =>
+        corsPolicies.AddPolicy(frontendCorsPolicy, policy =>
         {
-            builderPolicy.WithOrigins(corsOrigins);
-        }
-    });
-});
+            var builderPolicy = policy.AllowAnyHeader().AllowAnyMethod();
+            // Origins is guaranteed non-empty outside Development by
+            // ValidateOnStart; this guard only matters under Development, where an
+            // empty list is tolerated (and the policy then allows no origin).
+            if (appCors.Value.Origins.Length > 0)
+            {
+                builderPolicy.WithOrigins(appCors.Value.Origins);
+            }
+        }));
 
 builder.Services.AddOptions<MainAnalysisOptions>()
     .Bind(builder.Configuration.GetSection("MainAnalysis"))
@@ -127,6 +160,10 @@ builder.Services.AddRateLimiter(options =>
 builder.Services.AddScoped<IChampionSummariesQueryService, ChampionSummariesQueryService>();
 builder.Services.AddScoped<IChampionBuildsQueryService, ChampionBuildsQueryService>();
 builder.Services.AddScoped<IChampionMatchupQueryService, ChampionMatchupQueryService>();
+builder.Services.AddScoped<IChampionTimelineLeadsQueryService, ChampionTimelineLeadsQueryService>();
+builder.Services.AddScoped<IChampionScalingQueryService, ChampionScalingQueryService>();
+builder.Services.AddScoped<IChampionItemTimingsQueryService, ChampionItemTimingsQueryService>();
+builder.Services.AddScoped<IChampionRoamQueryService, ChampionRoamQueryService>();
 builder.Services.AddScoped<IChampionTrendQueryService, ChampionTrendQueryService>();
 builder.Services.AddScoped<IMatchSummariesQueryService, MatchSummariesQueryService>();
 builder.Services.AddScoped<IProfileQueryService, ProfileQueryService>();
@@ -183,6 +220,18 @@ builder.Services.AddDbContextFactory<TrueMainDbContext>(lifetime: ServiceLifetim
 // the Ingestor's.
 builder.Services.AddMongoLogging(builder.Configuration, processName: "Api");
 var app = builder.Build();
+
+// Non-Development boots already fail in ValidateOnStart when Origins is empty;
+// this only fires under Development, where an empty list is tolerated but still
+// worth flagging so a missing local override doesn't read as a working CORS setup.
+if (app.Environment.IsDevelopment()
+    && app.Services.GetRequiredService<IOptions<FrontendCorsOptions>>().Value.Origins.Length == 0)
+{
+    app.Logger.LogWarning(
+        "Cors:Origins is empty; the {Policy} policy allows no cross-origin browser request. Set Cors:Origins in configuration to let the frontend reach the API.",
+        frontendCorsPolicy);
+}
+
 await DatabaseMigrator.ApplyPendingMigrationsAsync(app.Services);
 
 // Wrap unhandled exceptions in RFC 7807 ProblemDetails so clients
@@ -199,6 +248,15 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.MapScalarApiReference();
+}
+
+// HSTS instructs browsers to only reach the API over HTTPS. Skip it in
+// Development (localhost is typically HTTP and a cached HSTS policy would
+// wedge local debugging); enable it everywhere else, ahead of the HTTPS
+// redirect, matching the canonical ASP.NET Core middleware order behind TLS.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
 }
 
 app.UseHttpsRedirection();

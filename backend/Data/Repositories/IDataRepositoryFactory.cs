@@ -7,6 +7,8 @@ public interface IDataRepositoryFactory
     IRiotAccountRepository CreateRiotAccountRepository(TrueMainDbContext dbContext);
     IMatchRepository CreateMatchRepository(TrueMainDbContext dbContext);
     IMatchParticipantRepository CreateMatchParticipantRepository(TrueMainDbContext dbContext);
+    IMatchParticipantTimelineSnapshotRepository CreateMatchParticipantTimelineSnapshotRepository(TrueMainDbContext dbContext);
+    IMatchParticipantKillPositionRepository CreateMatchParticipantKillPositionRepository(TrueMainDbContext dbContext);
     IProcessRunRepository CreateProcessRunRepository(TrueMainDbContext dbContext);
     IRankSnapshotRepository CreateRankSnapshotRepository(TrueMainDbContext dbContext);
     ISeedRequestRepository CreateSeedRequestRepository(TrueMainDbContext dbContext);

@@ -68,6 +68,14 @@ public sealed class MatchParticipantConfiguration : IEntityTypeConfiguration<Mat
         entity.Property(e => e.Assists)
             .IsRequired();
 
+        entity.Property(e => e.TotalDamageDealtToChampions)
+            .IsRequired()
+            .HasDefaultValue(0);
+
+        entity.Property(e => e.VisionScore)
+            .IsRequired()
+            .HasDefaultValue(0);
+
         entity.Property(e => e.GoldEarned)
             .IsRequired();
 
@@ -129,6 +137,15 @@ public sealed class MatchParticipantConfiguration : IEntityTypeConfiguration<Mat
             .IsUnique();
 
         entity.HasIndex(e => e.RiotAccountId);
+
+        // The champion-page reads (builds, matchups, scaling, leads, item-timings,
+        // roam) all filter the tracked-account rows by champion + lane. A partial
+        // index on those columns (only the tracked rows, ~1/10 of the table) turns
+        // those filters into an index seek instead of a scan of the full 35 GB
+        // match_participants table.
+        entity.HasIndex(e => new { e.ChampionId, e.TeamPosition })
+            .HasFilter("\"RiotAccountId\" IS NOT NULL")
+            .HasDatabaseName("IX_match_participants_champion_position_tracked");
 
         entity.HasOne(e => e.RiotAccount)
             .WithMany()

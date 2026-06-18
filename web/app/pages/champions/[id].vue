@@ -158,6 +158,45 @@ const selectedPosition = computed<ChampionPosition | null>(() => {
   return isChampionPosition(value) ? value : null
 })
 
+// Average per-interval lead vs the lane opponent (issue #525). Follows the
+// resolved lane like the trend chart, but is patch-scoped: the active patch
+// filter narrows the slice. Gated on the champion fetch so it fires once with
+// the resolved lane. Empty until matches are (re-)ingested with snapshots.
+const { data: championLeads, status: leadsStatus } = useChampionTimelineLeads(
+  championId,
+  trendPosition,
+  selectedPatch,
+  trendReady,
+)
+
+// Win rate by game duration (issue #537). Same lane/patch scoping and gating as
+// the leads chart; computed from match outcomes, so it has data even before any
+// timeline snapshots are ingested.
+const { data: championScaling, status: scalingStatus } = useChampionScaling(
+  championId,
+  trendPosition,
+  selectedPatch,
+  trendReady,
+)
+
+// Average item-purchase times — power spikes (issue #524). Same lane/patch scoping
+// and gating; rendered against the page's static item map.
+const { data: championItemTimings, status: itemTimingsStatus } = useChampionItemTimings(
+  championId,
+  trendPosition,
+  selectedPatch,
+  trendReady,
+)
+
+// Roam metric — out-of-lane early kill participations (issue #536). Same lane/patch
+// scoping and gating as the other timeline-derived stats.
+const { data: championRoam, status: roamStatus } = useChampionRoam(
+  championId,
+  trendPosition,
+  selectedPatch,
+  trendReady,
+)
+
 // When useChampion's 404 fallback drops the URL filters (no data for the
 // champion on that patch/position) the API returns the default slice, but the
 // dead patch/position query param lingers in the URL. Once the fetch resolves,
@@ -191,7 +230,11 @@ const isRefetching = computed(() =>
   || isLoadingStatus(runeTreeStatus.value)
   || isLoadingStatus(itemsStatus.value)
   || isLoadingStatus(summonersStatus.value)
-  || isLoadingStatus(trendStatus.value),
+  || isLoadingStatus(trendStatus.value)
+  || isLoadingStatus(leadsStatus.value)
+  || isLoadingStatus(scalingStatus.value)
+  || isLoadingStatus(itemTimingsStatus.value)
+  || isLoadingStatus(roamStatus.value),
 )
 </script>
 
@@ -250,6 +293,29 @@ const isRefetching = computed(() =>
       <ChampionTrendChart
         :points="championTrend?.points ?? []"
         :loading="isLoadingStatus(trendStatus)"
+      />
+
+      <ChampionTimelineLeadsChart
+        :intervals="championLeads?.intervals ?? []"
+        :loading="isLoadingStatus(leadsStatus)"
+      />
+
+      <ChampionScalingChart
+        :buckets="championScaling?.buckets ?? []"
+        :scaling-index="championScaling?.scalingIndex ?? null"
+        :loading="isLoadingStatus(scalingStatus)"
+      />
+
+      <ChampionItemTimings
+        :timings="championItemTimings?.items ?? []"
+        :items-map="itemsMap ?? {}"
+        :loading="isLoadingStatus(itemTimingsStatus)"
+      />
+
+      <ChampionRoam
+        :share="championRoam?.outOfLaneShare ?? null"
+        :games="championRoam?.games ?? 0"
+        :loading="isLoadingStatus(roamStatus)"
       />
     </template>
   </main>

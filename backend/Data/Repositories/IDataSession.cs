@@ -9,6 +9,8 @@ public interface IDataSession : IAsyncDisposable
     IRiotAccountRepository RiotAccounts { get; }
     IMatchRepository Matches { get; }
     IMatchParticipantRepository MatchParticipants { get; }
+    IMatchParticipantTimelineSnapshotRepository MatchParticipantTimelineSnapshots { get; }
+    IMatchParticipantKillPositionRepository MatchParticipantKillPositions { get; }
     IProcessRunRepository ProcessRuns { get; }
     IRankSnapshotRepository RankSnapshots { get; }
     ISeedRequestRepository SeedRequests { get; }

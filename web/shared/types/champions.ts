@@ -43,6 +43,85 @@ export interface ChampionTrendPoint {
   games: number
 }
 
+/**
+ * A champion's average lead vs its lane opponent at each minute mark
+ * (5/10/15/20/30), computed live from per-interval timeline snapshots. Positive
+ * diffs mean the champion is ahead of the opposing lane at that interval.
+ */
+export interface ChampionTimelineLeadsResponse {
+  championId: number
+  position: string
+  patch: string | null
+  intervals: ChampionTimelineLeadsInterval[]
+}
+
+export interface ChampionTimelineLeadsInterval {
+  intervalMinute: number
+  games: number
+  goldDiff: number
+  csDiff: number
+  killsDiff: number
+  /** Not surfaced in the chart selector — level leads are too coarse to read at a glance. */
+  levelDiff: number
+  xpDiff: number
+  damageDiff: number
+}
+
+/**
+ * How a champion's win rate changes with game length, at a position. Win rate is
+ * bucketed by game duration; `scalingIndex` is the win-rate gap between the
+ * longest and shortest qualifying bucket (positive = scales into the late game).
+ */
+export interface ChampionScalingResponse {
+  championId: number
+  position: string
+  patch: string | null
+  buckets: ChampionScalingBucket[]
+  scalingIndex: number | null
+}
+
+export interface ChampionScalingBucket {
+  /** Duration bucket index, 0 (shortest) to 4 (longest). */
+  bucket: number
+  label: string
+  games: number
+  winRate: number
+}
+
+/**
+ * When a champion buys each item on average, at a position — the "power spike"
+ * timeline. Items are ordered earliest-first; the caller filters/labels them
+ * from static item data (e.g. by total gold to drop consumables/components).
+ */
+export interface ChampionItemTimingsResponse {
+  championId: number
+  position: string
+  patch: string | null
+  items: ChampionItemTiming[]
+}
+
+export interface ChampionItemTiming {
+  itemId: number
+  games: number
+  /** Average game time of the first purchase of this item, in seconds. */
+  avgSeconds: number
+}
+
+/**
+ * How much a champion roams at a position: the share of its early-game kill
+ * participations that happened outside its own lane. `outOfLaneShare` is null
+ * below the sample floor.
+ */
+export interface ChampionRoamResponse {
+  championId: number
+  position: string
+  patch: string | null
+  games: number
+  killParticipations: number
+  outOfLaneParticipations: number
+  outOfLaneShare: number | null
+}
+
 /** One lane-matchup row: the champion's record against a single opponent. */
 export interface ChampionMatchupEntry {
   opponentChampionId: number
