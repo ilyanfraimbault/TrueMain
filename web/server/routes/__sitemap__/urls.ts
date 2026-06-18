@@ -58,16 +58,28 @@ async function truemainUrls(): Promise<SitemapUrl[]> {
   return urls
 }
 
-export default defineEventHandler(async (event): Promise<SitemapUrl[]> => {
-  // @nuxtjs/sitemap caches the rendered sitemap, so this source is normally
-  // hit rarely — but the route is publicly reachable and each uncached call
-  // fans out to up to MAX_TRUEMAIN_PAGES backend requests. A short shared-cache
-  // TTL blunts trivial direct-hit abuse without staling the data meaningfully.
-  setResponseHeader(event, 'Cache-Control', 'public, max-age=3600, s-maxage=3600')
+// Cache the fan-out at the origin (not just via downstream CDNs): @nuxtjs/sitemap
+// caches the rendered sitemap, but this route is publicly reachable and a single
+// uncached call fans out to up to MAX_TRUEMAIN_PAGES backend requests. Wrapping
+// the work in Nitro's function cache caps that fan-out to once per maxAge
+// regardless of request volume, so a direct-hit flood can't amplify 1 request
+// into 100 backend calls. Mirrors server/api/static/champions.get.ts. The cache
+// wraps the function (not the handler) so the handler keeps full control of the
+// response Cache-Control header below.
+const loadSitemapUrls = defineCachedFunction(
+  async (): Promise<SitemapUrl[]> => {
+    const [champions, truemains] = await Promise.all([
+      championUrls().catch(() => [] as SitemapUrl[]),
+      truemainUrls().catch(() => [] as SitemapUrl[]),
+    ])
+    return [...champions, ...truemains]
+  },
+  { maxAge: 60 * 60, name: 'sitemap-urls', getKey: () => 'all' },
+)
 
-  const [champions, truemains] = await Promise.all([
-    championUrls().catch(() => [] as SitemapUrl[]),
-    truemainUrls().catch(() => [] as SitemapUrl[]),
-  ])
-  return [...champions, ...truemains]
+export default defineEventHandler(async (event): Promise<SitemapUrl[]> => {
+  // Let shared caches absorb repeats too (defense in depth alongside the
+  // origin function cache above).
+  setResponseHeader(event, 'Cache-Control', 'public, max-age=3600, s-maxage=3600')
+  return loadSitemapUrls()
 })
