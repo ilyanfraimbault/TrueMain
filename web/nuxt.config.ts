@@ -18,7 +18,7 @@ export default defineNuxtConfig({
   site: {
     url: 'https://truemain.lol',
     name: 'TrueMain',
-    description: 'League of Legends champion builds, runes and skill orders aggregated from true main players — patch by patch.',
+    description: 'League of Legends champion builds, runes and skill orders from true main players.',
   },
   sitemap: {
     // Static pages are auto-discovered from the file-based routes; the dynamic
