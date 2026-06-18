@@ -5,7 +5,7 @@ import type { RegionSlug } from '~~/shared/types/leaderboard'
 
 useSeoMeta({
   title: 'TrueMain — Champion builds from real mains',
-  description: 'League of Legends champion builds, runes and skill orders aggregated from true main players — patch by patch.',
+  description: 'League of Legends champion builds, runes and skill orders from true main players.',
 })
 
 const nuxtApp = useNuxtApp()
