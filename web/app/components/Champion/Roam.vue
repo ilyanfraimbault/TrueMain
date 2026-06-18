@@ -13,6 +13,8 @@ const hasData = computed(() => props.share !== null)
 const widthPercent = computed(() => Math.round((props.share ?? 0) * 100))
 
 // 40%+ of early kills out of lane reads as a roamer; 20% or less is lane-bound.
+// Only roamers get the accent tone; the other two stay muted on purpose (the
+// label text carries the distinction) so the emphasis lands on the roamers.
 const verdict = computed<{ label: string, tone: string } | null>(() => {
   if (props.share === null) return null
   if (props.share >= 0.4) return { label: 'High roamer', tone: 'text-primary' }
@@ -69,7 +71,7 @@ const PRIMARY = '#34d399' // emerald-400 (CHART_SERIES_PALETTE[0])
         />
       </div>
       <p class="text-xs text-muted">
-        of early kill participations were out of lane
+        of early kill participations were out of lane · {{ games.toLocaleString('en-US') }} games
       </p>
     </div>
   </section>
