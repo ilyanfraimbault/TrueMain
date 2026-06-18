@@ -89,11 +89,13 @@ public sealed class ChampionTimelineLeadsApiIntegrationTests
         using var client = CreateClient(factory);
 
         var onPatch = await client.GetAsync($"/champions/{Champion}/timeline-leads?position={Position}&patch=16.4");
+        onPatch.StatusCode.Should().Be(HttpStatusCode.OK);
         var matched = await onPatch.Content.ReadFromJsonAsync<ChampionTimelineLeadsResponse>();
         matched!.Patch.Should().Be("16.4");
         matched.Intervals.Should().HaveCount(Intervals.Length, "the 16.4 prefix matches the seeded GameVersion");
 
         var offPatch = await client.GetAsync($"/champions/{Champion}/timeline-leads?position={Position}&patch=16.5");
+        offPatch.StatusCode.Should().Be(HttpStatusCode.OK);
         var missed = await offPatch.Content.ReadFromJsonAsync<ChampionTimelineLeadsResponse>();
         missed!.Intervals.Should().BeEmpty("no games were seeded on 16.5");
     }
