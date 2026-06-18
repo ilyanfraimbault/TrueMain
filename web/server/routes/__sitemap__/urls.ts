@@ -31,27 +31,29 @@ async function championUrls(): Promise<SitemapUrl[]> {
 async function truemainUrls(): Promise<SitemapUrl[]> {
   const urls: SitemapUrl[] = []
   for (let page = 1; page <= MAX_TRUEMAIN_PAGES; page++) {
-    let response: LeaderboardResponse
     try {
-      response = await $fetch<LeaderboardResponse>('/api/truemains', {
+      const response = await $fetch<LeaderboardResponse>('/api/truemains', {
         query: { page, pageSize: TRUEMAIN_PAGE_SIZE },
       })
+      const rows = response.rows
+      for (const row of rows) {
+        const { gameName, tagLine } = row.identity
+        const slug = tagLine ? `${gameName}-${tagLine}` : gameName
+        urls.push({ loc: `/truemains/${encodeURIComponent(slug)}` })
+      }
+      // Last page reached: the service returned fewer rows than requested, or
+      // we have collected every row the envelope reports.
+      if (rows.length < TRUEMAIN_PAGE_SIZE || urls.length >= response.total) {
+        break
+      }
     }
     catch {
-      // A transient failure on an intermediate page would otherwise bubble to
-      // the caller's catch and discard the pages already collected. Keep the
-      // partial list instead — a sitemap with most players beats an empty one.
-      break
-    }
-    const rows = response.rows
-    for (const row of rows) {
-      const { gameName, tagLine } = row.identity
-      const slug = tagLine ? `${gameName}-${tagLine}` : gameName
-      urls.push({ loc: `/truemains/${encodeURIComponent(slug)}` })
-    }
-    // Last page reached: the service returned fewer rows than requested, or we
-    // have collected every row the envelope reports.
-    if (rows.length < TRUEMAIN_PAGE_SIZE || urls.length >= response.total) {
+      // Any failure — a transient network error or a malformed payload (e.g.
+      // `rows` missing, which would throw on the for...of above) — stops the
+      // walk and keeps the pages already collected, rather than bubbling to the
+      // caller's catch and discarding them. Reading `rows` inside the try is
+      // what makes the contract-violation case degrade gracefully too, so no
+      // defensive `?? []` is needed.
       break
     }
   }
