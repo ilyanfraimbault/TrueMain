@@ -129,11 +129,19 @@ public sealed class ChampionItemTimingsApiIntegrationTests
                 Purchase(CoreItem, 600_000),
             };
             // First game re-buys the boots later — MIN must keep the 300s purchase.
-            if (i == 0) events.Add(Purchase(Boots, 900_000));
+            if (i == 0)
+            {
+                events.Add(Purchase(Boots, 900_000));
+            }
+
             // A destroy event must never be counted as a purchase.
             events.Add(new ItemEvent { TimestampMs = 650_000, EventType = "ITEM_DESTROYED", ItemId = CoreItem });
+
             // The rare item is bought in only the first 5 games — below the floor.
-            if (i < 5) events.Add(Purchase(RareItem, 120_000));
+            if (i < 5)
+            {
+                events.Add(Purchase(RareItem, 120_000));
+            }
 
             db.MatchParticipants.Add(Participant(matchId, account.Id, events));
         }
