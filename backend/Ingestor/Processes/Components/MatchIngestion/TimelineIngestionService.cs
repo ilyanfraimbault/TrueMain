@@ -100,6 +100,11 @@ public sealed class TimelineIngestionService(IRiotMatchClient riotMatchClient) :
         await session.MatchParticipantTimelineSnapshots.DeleteByMatchIdAsync(matchId, ct);
         session.MatchParticipantTimelineSnapshots.AddRange(TimelineSnapshotBuilder.Build(matchId, timeline));
 
+        // Bounded early-game kill-participation positions for the roam metric (#536),
+        // replaced idempotently the same way.
+        await session.MatchParticipantKillPositions.DeleteByMatchIdAsync(matchId, ct);
+        session.MatchParticipantKillPositions.AddRange(KillPositionBuilder.Build(matchId, timeline));
+
         return true;
     }
 

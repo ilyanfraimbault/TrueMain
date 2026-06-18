@@ -16,6 +16,7 @@ public sealed class DataSession : IDataSession
         Matches = repositoryFactory.CreateMatchRepository(_db);
         MatchParticipants = repositoryFactory.CreateMatchParticipantRepository(_db);
         MatchParticipantTimelineSnapshots = repositoryFactory.CreateMatchParticipantTimelineSnapshotRepository(_db);
+        MatchParticipantKillPositions = repositoryFactory.CreateMatchParticipantKillPositionRepository(_db);
         ProcessRuns = repositoryFactory.CreateProcessRunRepository(_db);
         RankSnapshots = repositoryFactory.CreateRankSnapshotRepository(_db);
         SeedRequests = repositoryFactory.CreateSeedRequestRepository(_db);
@@ -28,6 +29,7 @@ public sealed class DataSession : IDataSession
     public IMatchRepository Matches { get; }
     public IMatchParticipantRepository MatchParticipants { get; }
     public IMatchParticipantTimelineSnapshotRepository MatchParticipantTimelineSnapshots { get; }
+    public IMatchParticipantKillPositionRepository MatchParticipantKillPositions { get; }
     public IProcessRunRepository ProcessRuns { get; }
     public IRankSnapshotRepository RankSnapshots { get; }
     public ISeedRequestRepository SeedRequests { get; }
