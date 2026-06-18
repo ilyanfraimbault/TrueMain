@@ -10,7 +10,30 @@
 const IPX_IMAGE_CACHE_SECONDS = 60 * 60 * 24 * 7 // 7 days
 
 export default defineNuxtConfig({
-  modules: ['@nuxt/ui', '@nuxt/image', '@nuxt/fonts', 'nuxt-charts'],
+  modules: ['@nuxt/ui', '@nuxt/image', '@nuxt/fonts', 'nuxt-charts', '@nuxtjs/seo'],
+  // Canonical site identity for SEO (canonical links, sitemap, robots, OG/
+  // schema.org defaults). `url` is the production default; override per
+  // environment with `NUXT_PUBLIC_SITE_URL` (nuxt-site-config reads it
+  // automatically) so preview/staging deploys don't advertise the prod host.
+  site: {
+    url: 'https://truemain.lol',
+    name: 'TrueMain',
+    description: 'League of Legends champion builds, runes and skill orders aggregated from true main players — patch by patch.',
+  },
+  sitemap: {
+    // Static pages are auto-discovered from the file-based routes; the dynamic
+    // champion and truemain URLs come from this endpoint (see
+    // server/routes/__sitemap__/urls.ts). `/dev/*` is stripped from the prod
+    // build entirely (hook below) but exclude it here too so a dev-mode
+    // sitemap stays clean.
+    sources: ['/__sitemap__/urls'],
+    exclude: ['/dev/**'],
+  },
+  // No dedicated social-share artwork yet — skip the on-demand OG image
+  // renderer (it would pull a Satori/resvg toolchain into the build for no
+  // benefit). seo-utils still derives og:title/og:description/twitter:card
+  // from each page's useSeoMeta() title + description.
+  ogImage: { enabled: false },
   // Self-host a single family — Inter — used across the whole app (see the
   // `--font-*` vars in main.css). Declared explicitly so the download doesn't
   // rely on CSS scanning of the theme vars.
