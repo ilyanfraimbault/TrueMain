@@ -88,6 +88,25 @@ export interface ChampionScalingBucket {
   winRate: number
 }
 
+/**
+ * When a champion buys each item on average, at a position — the "power spike"
+ * timeline. Items are ordered earliest-first; the caller filters/labels them
+ * from static item data (e.g. by total gold to drop consumables/components).
+ */
+export interface ChampionItemTimingsResponse {
+  championId: number
+  position: string
+  patch: string | null
+  items: ChampionItemTiming[]
+}
+
+export interface ChampionItemTiming {
+  itemId: number
+  games: number
+  /** Average game time of the first purchase of this item, in seconds. */
+  avgSeconds: number
+}
+
 /** One lane-matchup row: the champion's record against a single opponent. */
 export interface ChampionMatchupEntry {
   opponentChampionId: number
