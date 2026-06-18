@@ -188,6 +188,15 @@ const { data: championItemTimings, status: itemTimingsStatus } = useChampionItem
   trendReady,
 )
 
+// Roam metric — out-of-lane early kill participations (issue #536). Same lane/patch
+// scoping and gating as the other timeline-derived stats.
+const { data: championRoam, status: roamStatus } = useChampionRoam(
+  championId,
+  trendPosition,
+  selectedPatch,
+  trendReady,
+)
+
 // When useChampion's 404 fallback drops the URL filters (no data for the
 // champion on that patch/position) the API returns the default slice, but the
 // dead patch/position query param lingers in the URL. Once the fetch resolves,
@@ -224,7 +233,8 @@ const isRefetching = computed(() =>
   || isLoadingStatus(trendStatus.value)
   || isLoadingStatus(leadsStatus.value)
   || isLoadingStatus(scalingStatus.value)
-  || isLoadingStatus(itemTimingsStatus.value),
+  || isLoadingStatus(itemTimingsStatus.value)
+  || isLoadingStatus(roamStatus.value),
 )
 </script>
 
@@ -300,6 +310,12 @@ const isRefetching = computed(() =>
         :timings="championItemTimings?.items ?? []"
         :items-map="itemsMap ?? {}"
         :loading="isLoadingStatus(itemTimingsStatus)"
+      />
+
+      <ChampionRoam
+        :share="championRoam?.outOfLaneShare ?? null"
+        :games="championRoam?.games ?? 0"
+        :loading="isLoadingStatus(roamStatus)"
       />
     </template>
   </main>
