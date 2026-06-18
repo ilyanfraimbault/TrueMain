@@ -106,6 +106,9 @@ services:
       ConnectionStrings__TrueMainMigrations: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Application Name=truemain-migrator
       MongoLogging__ConnectionString: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin
       Ops__ApiKey: ${OPS_API_KEY}
+      # Validated non-empty at startup outside Development (see FrontendCorsOptions).
+      # The local prod-like stack publishes the web app on host port 3000.
+      Cors__Origins__0: "http://localhost:3000"
     depends_on:
       postgres:
         condition: service_healthy

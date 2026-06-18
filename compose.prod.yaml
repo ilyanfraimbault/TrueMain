@@ -100,6 +100,13 @@ services:
       # MONGO_USER / MONGO_PASSWORD must be alphanumeric — they are interpolated raw into the URI.
       MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
       Ops__ApiKey: "${OPS_API_KEY:?set OPS_API_KEY before deploying}"
+      # Browser origins allowed to call the API cross-origin. Validated non-empty
+      # at startup outside Development (see FrontendCorsOptions / Program.cs): an
+      # empty list fails the boot. The public site is same-origin via the web SSR
+      # proxy, but the policy must still list every real frontend host.
+      Cors__Origins__0: "https://truemain.lol"
+      Cors__Origins__1: "https://www.truemain.lol"
+      Cors__Origins__2: "https://admin.truemain.lol"
     depends_on:
       postgres:
         condition: service_healthy
