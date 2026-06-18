@@ -38,6 +38,12 @@ async function truemainUrls(): Promise<SitemapUrl[]> {
       const rows = response.rows
       for (const row of rows) {
         const { gameName, tagLine } = row.identity
+        // `{gameName}-{tagLine}` is the app-wide profile slug (see
+        // TruemainsPanel / LeaderboardRow); the `[nameTag]` route passes it
+        // opaque to the backend, which resolves it. The `-` separator is
+        // unambiguous because Riot tagLines never contain a hyphen, and matching
+        // the existing links verbatim guarantees the sitemap URL hits a real
+        // page (no 404 / duplicate-content split).
         const slug = tagLine ? `${gameName}-${tagLine}` : gameName
         urls.push({ loc: `/truemains/${encodeURIComponent(slug)}` })
       }

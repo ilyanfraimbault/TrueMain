@@ -67,6 +67,12 @@ public sealed class ChampionTimelineLeadsQueryService(
         // snapshots on the same interval, average the per-interval diffs, and
         // drop intervals below the sample floor — all in one SQL round-trip.
         var rows = await championRows
+            // Exactly one opponent per champion row: the population is scoped to
+            // the ranked queue (QueueId above), where Riot assigns each
+            // TeamPosition to exactly one player per team, so (same match, same
+            // TeamPosition, opposite TeamId) resolves to a single row. No Take(1)
+            // is needed to keep Games honest — adding one would only force a
+            // LATERAL join for a case this queue can't produce.
             .SelectMany(
                 p1 => db.MatchParticipants.Where(p2 =>
                     p2.MatchId == p1.MatchId
