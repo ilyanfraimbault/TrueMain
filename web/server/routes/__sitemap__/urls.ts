@@ -1,3 +1,4 @@
+import type { SitemapUrl } from '#sitemap/types'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import type { LeaderboardResponse } from '~~/shared/types/leaderboard'
 import { defineEventHandler, setResponseHeader } from 'h3'
@@ -15,10 +16,6 @@ import { defineEventHandler, setResponseHeader } from 'h3'
  * if one upstream is unavailable the other still contributes its URLs rather
  * than failing the whole sitemap.
  */
-
-interface SitemapUrl {
-  loc: string
-}
 
 // Cap the leaderboard walk so a pathological `total` can never spin the
 // sitemap into hundreds of upstream calls. 100 pages × 100 rows = 10k players,
