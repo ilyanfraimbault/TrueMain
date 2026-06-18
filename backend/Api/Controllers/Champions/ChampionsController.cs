@@ -11,7 +11,8 @@ public sealed class ChampionsController(
     IChampionSummariesQueryService summariesQueryService,
     IChampionBuildsQueryService buildsQueryService,
     IChampionTrendQueryService trendQueryService,
-    IChampionMatchupQueryService matchupQueryService) : ControllerBase
+    IChampionMatchupQueryService matchupQueryService,
+    IChampionTimelineLeadsQueryService timelineLeadsQueryService) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<ChampionSummaryReadModel>), StatusCodes.Status200OK)]
@@ -102,6 +103,42 @@ public sealed class ChampionsController(
             normalizedPatch,
             riotAccountId: null,
             opponentChampionId: opponent,
+            ct);
+
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Average lead vs the lane opponent at each minute mark (5/10/15/20/30) for a
+    /// champion at a position: gold / CS / kills / level / xp / damage diffs,
+    /// averaged across games above the sample floor and computed live from the
+    /// per-interval timeline snapshots. <paramref name="position"/> is the required
+    /// Riot team position; an unrecognised position is a 400. Always 200 with a
+    /// (possibly empty) list — intervals below the floor (or before snapshots have
+    /// been ingested) simply yield no entries.
+    /// </summary>
+    [HttpGet("{championId:int}/timeline-leads")]
+    [ProducesResponseType(typeof(ChampionTimelineLeadsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<ChampionTimelineLeadsResponse>> GetChampionTimelineLeadsAsync(
+        int championId,
+        [FromQuery] string? position,
+        [FromQuery] string? patch,
+        CancellationToken ct = default)
+    {
+        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+        if (normalizedPosition is null)
+        {
+            return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+        }
+
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+
+        var response = await timelineLeadsQueryService.GetAsync(
+            championId,
+            normalizedPosition,
+            normalizedPatch,
             ct);
 
         return Ok(response);
