@@ -12,7 +12,8 @@ public sealed class ChampionsController(
     IChampionBuildsQueryService buildsQueryService,
     IChampionTrendQueryService trendQueryService,
     IChampionMatchupQueryService matchupQueryService,
-    IChampionTimelineLeadsQueryService timelineLeadsQueryService) : ControllerBase
+    IChampionTimelineLeadsQueryService timelineLeadsQueryService,
+    IChampionScalingQueryService scalingQueryService) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<ChampionSummaryReadModel>), StatusCodes.Status200OK)]
@@ -136,6 +137,41 @@ public sealed class ChampionsController(
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
 
         var response = await timelineLeadsQueryService.GetAsync(
+            championId,
+            normalizedPosition,
+            normalizedPatch,
+            ct);
+
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// How a champion's win rate scales with game length at a position: win rate
+    /// bucketed by game duration plus a single scaling index (long-game win rate
+    /// minus short-game win rate; positive = scales late), computed live from
+    /// match participants. <paramref name="position"/> is the required Riot team
+    /// position; an unrecognised position is a 400. Always 200 with a (possibly
+    /// empty) bucket list — buckets below the sample floor are dropped.
+    /// </summary>
+    [HttpGet("{championId:int}/scaling")]
+    [ProducesResponseType(typeof(ChampionScalingResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<ChampionScalingResponse>> GetChampionScalingAsync(
+        int championId,
+        [FromQuery] string? position,
+        [FromQuery] string? patch,
+        CancellationToken ct = default)
+    {
+        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+        if (normalizedPosition is null)
+        {
+            return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+        }
+
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+
+        var response = await scalingQueryService.GetAsync(
             championId,
             normalizedPosition,
             normalizedPatch,
