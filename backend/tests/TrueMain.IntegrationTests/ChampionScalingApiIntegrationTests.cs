@@ -77,6 +77,45 @@ public sealed class ChampionScalingApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetChampionScalingAsync_FiltersToRequestedPatch()
+    {
+        await _fixture.ResetDatabaseAsync();
+        // 12 short games, all on 16.4.521.123 (no long games seeded).
+        await SeedScalingSampleAsync(shortGames: 12, shortWins: 6, longGames: 0, longWins: 0);
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var onPatch = await client.GetAsync($"/champions/{Champion}/scaling?position={Position}&patch=16.4");
+        onPatch.StatusCode.Should().Be(HttpStatusCode.OK);
+        var matched = await onPatch.Content.ReadFromJsonAsync<ChampionScalingResponse>();
+        matched!.Patch.Should().Be("16.4");
+        matched.Buckets.Should().ContainSingle(b => b.Bucket == 0);
+
+        var offPatch = await client.GetAsync($"/champions/{Champion}/scaling?position={Position}&patch=16.5");
+        offPatch.StatusCode.Should().Be(HttpStatusCode.OK);
+        var missed = await offPatch.Content.ReadFromJsonAsync<ChampionScalingResponse>();
+        missed!.Buckets.Should().BeEmpty("no games were seeded on 16.5");
+        missed.ScalingIndex.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetChampionScalingAsync_ReturnsEmptyWhenNoGames()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var response = await client.GetAsync($"/champions/{Champion}/scaling?position={Position}");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var scaling = await response.Content.ReadFromJsonAsync<ChampionScalingResponse>();
+        scaling!.Buckets.Should().BeEmpty();
+        scaling.ScalingIndex.Should().BeNull();
+    }
+
+    [Fact]
     public async Task GetChampionScalingAsync_ReturnsBadRequestForInvalidPosition()
     {
         await _fixture.ResetDatabaseAsync();
