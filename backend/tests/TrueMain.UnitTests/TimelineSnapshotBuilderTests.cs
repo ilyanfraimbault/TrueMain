@@ -59,6 +59,23 @@ public sealed class TimelineSnapshotBuilderTests
     }
 
     [Fact]
+    public void Build_EmitsRowForEveryMinuteCoveredByFrames()
+    {
+        // A frame exactly on each minute mark from 1 to 10: per-minute sampling
+        // (issue #567) must emit a snapshot for every one of those minutes, and
+        // nothing past minute 10 where no frame sits within tolerance.
+        var timeline = new MatchTimelineDto
+        {
+            Frames = [.. Enumerable.Range(1, 10).Select(minute => Frame(minute * 60_000, Participant(1, gold: minute * 100)))]
+        };
+
+        var snapshots = TimelineSnapshotBuilder.Build(MatchId, timeline);
+
+        snapshots.Select(s => s.IntervalMinute).Should().BeEquivalentTo(Enumerable.Range(1, 10));
+        snapshots.Single(s => s.IntervalMinute == 7).TotalGold.Should().Be(700);
+    }
+
+    [Fact]
     public void Build_ReturnsEmpty_WhenNoFrames()
         => TimelineSnapshotBuilder.Build(MatchId, new MatchTimelineDto()).Should().BeEmpty();
 
