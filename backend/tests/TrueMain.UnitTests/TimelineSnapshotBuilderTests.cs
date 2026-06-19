@@ -34,7 +34,8 @@ public sealed class TimelineSnapshotBuilderTests
 
         var snapshots = TimelineSnapshotBuilder.Build(MatchId, timeline);
 
-        // Only the 5- and 10-minute marks have a frame within tolerance; 15/20/30 do not.
+        // Every minute 1..30 is scanned, but these sparse frames only sit within
+        // tolerance of the 5- and 10-minute marks, so only those produce rows.
         snapshots.Select(s => s.IntervalMinute).Distinct().Should().BeEquivalentTo([5, 10]);
         snapshots.Should().HaveCount(4); // 2 participants x 2 intervals
         snapshots.Should().OnlyContain(s => s.MatchId == MatchId);

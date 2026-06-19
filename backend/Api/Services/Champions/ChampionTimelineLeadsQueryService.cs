@@ -26,6 +26,13 @@ public sealed class ChampionTimelineLeadsQueryService(
 {
     private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(60);
 
+    // Snapshots are now sampled every minute (issue #567), but games ingested
+    // before that change only have these canonical marks. Pin the read to them so
+    // the curve is identical across cohorts and every interval draws on the full
+    // game population (off-grid minutes would otherwise be backed only by newer
+    // games and fall foul of the per-interval sample floor).
+    private static readonly int[] LeadIntervalMinutes = [5, 10, 15, 20, 30];
+
     public async Task<ChampionTimelineLeadsResponse> GetAsync(
         int championId,
         string position,
@@ -81,7 +88,9 @@ public sealed class ChampionTimelineLeadsQueryService(
                 (p1, p2) => new { p1, p2 })
             .SelectMany(
                 pair => db.MatchParticipantTimelineSnapshots.Where(s1 =>
-                    s1.MatchId == pair.p1.MatchId && s1.ParticipantId == pair.p1.ParticipantId),
+                    s1.MatchId == pair.p1.MatchId
+                    && s1.ParticipantId == pair.p1.ParticipantId
+                    && LeadIntervalMinutes.Contains(s1.IntervalMinute)),
                 (pair, s1) => new { pair.p2, s1 })
             .SelectMany(
                 self => db.MatchParticipantTimelineSnapshots.Where(s2 =>
