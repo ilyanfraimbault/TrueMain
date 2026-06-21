@@ -85,9 +85,11 @@ public sealed class SearchQueryService(
         var rows = await accounts
             // Exact (case-insensitive) name first, then ranked accounts by
             // descending sort key, then alphabetically as a stable tiebreak.
+            // The name tiebreak is lower()'d so it's case-insensitive (the
+            // column's default collation would otherwise sort 'A' before 'a').
             .OrderByDescending(a => a.GameName.ToLower() == nameLower)
             .ThenByDescending(a => a.Score)
-            .ThenBy(a => a.GameName)
+            .ThenBy(a => a.GameName.ToLower())
             .Take(clampedLimit)
             .Select(a => new AccountRow(
                 a.Id,

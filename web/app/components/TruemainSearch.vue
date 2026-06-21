@@ -134,7 +134,7 @@ const displayResults = computed(() => results.value.map(result => ({
 
           <!-- Searched, nothing matched. -->
           <p
-            v-else-if="status === 'success' && results.length === 0"
+            v-else-if="status === 'success' && displayResults.length === 0"
             class="px-1 py-6 text-center text-sm text-muted"
           >
             No truemain matches that name.
