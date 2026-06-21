@@ -142,7 +142,7 @@ const displayResults = computed(() => results.value.map(result => ({
 
           <!-- Results. -->
           <ul v-else-if="displayResults.length > 0" class="flex max-h-80 flex-col gap-1 overflow-y-auto">
-            <li v-for="{ result, iconUrl } in displayResults" :key="`${result.identity.gameName}-${result.identity.tagLine}-${result.identity.platformId}`">
+            <li v-for="{ result, iconUrl } in displayResults" :key="`${result.identity.gameName}|${result.identity.tagLine}|${result.identity.platformId}`">
               <NuxtLink
                 :to="profilePath(result)"
                 class="glass-hover flex items-center gap-3 rounded-md px-2 py-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
