@@ -34,12 +34,13 @@ const hasTrend = computed(() => rows.value.length > 1)
 // (which anchors near 0) flattens the line and hides the tier-to-tier gaps.
 // Zoom the axis to the actual range plus padding so each bucket reads as a
 // notable step; a 2-point floor keeps near-flat data from becoming a hairline.
+const MIN_PAD = 0.02
 const yDomain = computed<[number, number] | undefined>(() => {
   if (!hasTrend.value) return undefined
   const values = rows.value.map(row => row.winRate)
-  const min = Math.min(...values)
-  const max = Math.max(...values)
-  const pad = Math.max((max - min) * 0.25, 0.02)
+  const min = values.reduce((a, b) => Math.min(a, b))
+  const max = values.reduce((a, b) => Math.max(a, b))
+  const pad = Math.max((max - min) * 0.25, MIN_PAD)
   return [Math.max(0, min - pad), Math.min(1, max + pad)]
 })
 
