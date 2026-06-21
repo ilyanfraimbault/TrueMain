@@ -3,6 +3,9 @@ import { isNavigationFailure } from 'vue-router'
 import { getProfileIconUrl } from '~~/shared/utils/ddragon'
 import type { SearchResult } from '~~/shared/types/search'
 import { formatTier } from '~/utils/tiers'
+// Explicit (over Nuxt auto-import) so the template's {{ SEARCH_MIN_LENGTH }}
+// has a visible source.
+import { SEARCH_MIN_LENGTH } from '~/composables/useTruemainSearch'
 
 // Truemain name/tag search. A trigger (a search-field look on the page, a
 // compact icon button in the header) opens a modal with a debounced lookup
