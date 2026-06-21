@@ -47,10 +47,13 @@ public sealed class TruemainsSearchApiIntegrationTests
         using var client = CreateClient(factory);
 
         // Lowercase substring "phant" matches both Phantasm and PhantomLord but
-        // not Garen — case-insensitive, served by the trigram index.
+        // not Garen — case-insensitive, served by the trigram index. Neither is
+        // an exact name match, so the secondary sort decides the order: higher
+        // score first, i.e. PhantomLord (MASTER) ahead of Phantasm (DIAMOND).
+        // Asserting the order (not just the set) locks the ThenByDescending(Score).
         var response = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=phant");
         response!.Results.Select(r => r.Identity.GameName)
-            .Should().BeEquivalentTo(["Phantasm", "PhantomLord"]);
+            .Should().Equal("PhantomLord", "Phantasm");
 
         // An exact (case-insensitive) name match sorts ahead of mere substring
         // hits, even when the substring hit is higher ranked.
