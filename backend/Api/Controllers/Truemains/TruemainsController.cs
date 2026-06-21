@@ -25,6 +25,14 @@ public sealed class TruemainsController(
     /// tag). Always 200 with a (possibly empty) list — a too-short or no-match
     /// query is a normal empty result, not an error.
     /// </summary>
+    /// <param name="q">The search term: a partial game name, or a full <c>Name#TAG</c> Riot id.</param>
+    /// <param name="limit">
+    /// Maximum results to return. Omitted or <c>0</c> means "use the default":
+    /// the service treats <c>limit &lt;= 0</c> as its default page size — the
+    /// same 0-as-sentinel convention <c>GET /truemains</c> uses for
+    /// <c>pageSize</c> — and clamps values above its cap down to it.
+    /// </param>
+    /// <param name="ct">Request cancellation token.</param>
     [HttpGet("search")]
     [ProducesResponseType(typeof(SearchResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
