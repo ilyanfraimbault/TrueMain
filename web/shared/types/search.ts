@@ -10,7 +10,12 @@ export interface SearchResponse {
 
 export interface SearchResult {
   identity: ProfileIdentity
-  /** One of `europe`, `americas`, `korea` — same slug the leaderboard uses. The search population is exposed-region only, so it's always a known slug. */
+  /**
+   * One of `europe`, `americas`, `korea` — same slug the leaderboard uses.
+   * Typed as a known slug rather than `string`: the search population is
+   * filtered to the exposed regions, so the backend's `?? ''` fallback for an
+   * unknown platform can't actually be reached here.
+   */
   region: RegionSlug
   /** Latest tier/division/LP, or null when the account has no rank snapshot yet. */
   ranked: SearchRanked | null

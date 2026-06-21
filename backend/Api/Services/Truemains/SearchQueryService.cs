@@ -11,10 +11,12 @@ public sealed class SearchQueryService(
     private const int DefaultLimit = 10;
     private const int MaxLimit = 25;
 
-    // The trigram index only earns its keep from two characters up; a single
-    // letter would match a huge slice of the table and the planner would fall
-    // back to a scan anyway. Below this we return nothing rather than paying
-    // for that — the frontend keeps showing its "keep typing" hint.
+    // Minimum searchable length. pg_trgm only extracts usable trigrams from 3+
+    // literal characters, so at 2 the GIN index isn't selective on its own —
+    // but the Score / platform / IsMain filters narrow the candidate set before
+    // the ILIKE is evaluated, so 2 is a fine floor in practice. A single
+    // character would match a huge slice and isn't worth serving — below this we
+    // return nothing and the frontend keeps showing its "keep typing" hint.
     // Keep in sync with SEARCH_MIN_LENGTH in
     // web/app/composables/useTruemainSearch.ts (no shared contract enforces it).
     private const int MinQueryLength = 2;
