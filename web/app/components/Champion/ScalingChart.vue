@@ -30,6 +30,19 @@ const hasData = computed(() => rows.value.length > 0)
 // bucket is a lone point, so fall back to the empty-state copy like TrendChart.
 const hasTrend = computed(() => rows.value.length > 1)
 
+// Win rates cluster in a narrow band (≈45–55%), so the library's auto-domain
+// (which anchors near 0) flattens the line and hides the tier-to-tier gaps.
+// Zoom the axis to the actual range plus padding so each bucket reads as a
+// notable step; a 2-point floor keeps near-flat data from becoming a hairline.
+const yDomain = computed<[number, number] | undefined>(() => {
+  if (!hasTrend.value) return undefined
+  const values = rows.value.map(row => row.winRate)
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const pad = Math.max((max - min) * 0.25, 0.02)
+  return [Math.max(0, min - pad), Math.min(1, max + pad)]
+})
+
 // Qualitative read of the index (a win-rate gap, e.g. 0.04 = +4 points). Three
 // points either way is the "meaningfully scales / fades" line; inside it is flat.
 const SCALING_THRESHOLD = 0.03
@@ -99,6 +112,7 @@ const winRateFormatter = (value: number): string => formatPercentage(value, 0)
       :height="220"
       :x-formatter="xFormatter"
       :y-formatter="winRateFormatter"
+      :y-domain="yDomain"
       :gradient-stops="gradientStops"
       :y-grid-line="false"
       hide-legend
