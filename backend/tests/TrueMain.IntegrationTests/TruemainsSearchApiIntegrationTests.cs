@@ -227,6 +227,44 @@ public sealed class TruemainsSearchApiIntegrationTests
         exact.Results[0].Identity.TagLine.Should().Be("NA1");
     }
 
+    [Fact]
+    public async Task Search_clamps_the_result_limit()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        // 30 eligible accounts that all share the "Clamp" substring — enough to
+        // exercise both the explicit-limit cap and the MaxLimit ceiling.
+        await using (var db = _fixture.CreateDbContext())
+        {
+            for (var i = 0; i < 30; i++)
+            {
+                var id = $"clamp-{i}";
+                var account = Account(id, $"Clamp{i:D2}", "EUW1");
+                db.RiotAccounts.Add(account);
+                db.RankSnapshots.Add(Snapshot(account, "DIAMOND", "I", 50 + i, now));
+                db.MainChampionStats.Add(MainStat(id, "EUW1", 157, isMain: true));
+            }
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        // Explicit small limit caps the slice.
+        var three = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=Clamp&limit=3");
+        three!.Results.Should().HaveCount(3);
+
+        // An over-large limit is clamped to MaxLimit (25), not honoured verbatim.
+        var hundred = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=Clamp&limit=100");
+        hundred!.Results.Should().HaveCount(25);
+
+        // No limit falls back to the default (10).
+        var noLimit = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=Clamp");
+        noLimit!.Results.Should().HaveCount(10);
+    }
+
     private static RiotAccount Account(string puuid, string gameName, string platformId, string? tagLine = null)
         => new()
         {
