@@ -53,13 +53,16 @@ public sealed class SearchQueryService(
 
         if (tag is not null)
         {
-            // Tag is matched exactly (case-insensitive): it carries no wildcards,
-            // so ILike here is an equality test, just routed through the same
-            // PostgreSQL operator as the GameName match for consistency. Riot tag
-            // lines are short fixed strings (e.g. "EUW", "NA1"), so a partial /
-            // prefix tag adds noise without much benefit — revisit if users ask
-            // for it. The name half stays a substring match.
-            accounts = accounts.Where(a => a.TagLine != null && EF.Functions.ILike(a.TagLine, tag));
+            // Exact, case-insensitive tag match via lower() equality —
+            // deliberately NOT ILike. The tag is raw user input (everything
+            // after '#'), and EF's 2-arg ILike emits ESCAPE '' (escaping off),
+            // so a `Name#%` query would turn the tag into a bare wildcard and
+            // match every tag line. A lower() equality sidesteps LIKE
+            // metacharacters entirely. Riot tag lines are short fixed strings
+            // (e.g. "EUW", "NA1"), so exact match is the right contract anyway;
+            // the name half stays a substring search.
+            var tagLower = tag.ToLowerInvariant();
+            accounts = accounts.Where(a => a.TagLine != null && a.TagLine.ToLower() == tagLower);
         }
 
         var rows = await accounts

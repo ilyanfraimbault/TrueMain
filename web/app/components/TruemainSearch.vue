@@ -2,7 +2,6 @@
 import { isNavigationFailure } from 'vue-router'
 import { getProfileIconUrl } from '~~/shared/utils/ddragon'
 import type { SearchResult } from '~~/shared/types/search'
-import type { RegionSlug } from '~~/shared/types/leaderboard'
 import { formatTier } from '~/utils/tiers'
 
 // Truemain name/tag search. A trigger (a search-field look on the page, a
@@ -158,7 +157,7 @@ const displayResults = computed(() => results.value.map(result => ({
                   </div>
                   <LeaderboardRegionFlag
                     v-if="result.region"
-                    :region="result.region as RegionSlug"
+                    :region="result.region"
                     :width="16"
                     class="mt-0.5"
                   />

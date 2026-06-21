@@ -185,6 +185,45 @@ public sealed class TruemainsSearchApiIntegrationTests
         response.Results[0].Identity.GameName.Should().Be("100%Real");
     }
 
+    [Fact]
+    public async Task Search_tag_metacharacters_are_treated_as_literals()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        // Two "Zed"s on different tags. A `Zed#%` query must match neither —
+        // no tag line is literally "%". If the tag were fed to a LIKE without
+        // escaping, '%' would act as a wildcard and pull in both, so the second
+        // account is what makes this assertion bite.
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var euw = Account("zed-euw", "Zed", "EUW1", tagLine: "EUW");
+            var na = Account("zed-na", "Zed", "NA1", tagLine: "NA1");
+
+            db.RiotAccounts.AddRange(euw, na);
+            db.RankSnapshots.AddRange(
+                Snapshot(euw, "DIAMOND", "I", 50, now),
+                Snapshot(na, "DIAMOND", "I", 50, now));
+            db.MainChampionStats.AddRange(
+                MainStat("zed-euw", "EUW1", 238, isMain: true),
+                MainStat("zed-na", "NA1", 238, isMain: true));
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        // Wildcard tag must not widen the filter…
+        var wildcard = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=Zed%23%25");
+        wildcard!.Results.Should().BeEmpty("a literal '%' tag matches no real tag line");
+
+        // …while an exact tag still resolves to the one account.
+        var exact = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=Zed%23NA1");
+        exact!.Results.Should().ContainSingle();
+        exact.Results[0].Identity.TagLine.Should().Be("NA1");
+    }
+
     private static RiotAccount Account(string puuid, string gameName, string platformId, string? tagLine = null)
         => new()
         {
