@@ -295,16 +295,18 @@ const isRefetching = computed(() =>
         :loading="isLoadingStatus(trendStatus)"
       />
 
-      <ChampionTimelineLeadsChart
-        :intervals="championLeads?.intervals ?? []"
-        :loading="isLoadingStatus(leadsStatus)"
-      />
+      <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <ChampionTimelineLeadsChart
+          :intervals="championLeads?.intervals ?? []"
+          :loading="isLoadingStatus(leadsStatus)"
+        />
 
-      <ChampionScalingChart
-        :buckets="championScaling?.buckets ?? []"
-        :scaling-index="championScaling?.scalingIndex ?? null"
-        :loading="isLoadingStatus(scalingStatus)"
-      />
+        <ChampionScalingChart
+          :buckets="championScaling?.buckets ?? []"
+          :scaling-index="championScaling?.scalingIndex ?? null"
+          :loading="isLoadingStatus(scalingStatus)"
+        />
+      </div>
 
       <ChampionItemTimings
         :timings="championItemTimings?.items ?? []"
