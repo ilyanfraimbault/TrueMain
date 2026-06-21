@@ -35,7 +35,7 @@ const layout = computed(() => {
   // the edge into each successive item. Driving the highlight from itemPath
   // (instead of re-deriving a "most popular child" walk here) keeps the solid
   // line in sync with the core build and, crucially, stops it exactly where the
-  // core stops: a child can clear the tree's 5% prune yet sit below the path's
+  // core stops: a child can clear the tree's prune yet sit below the path's
   // 20% gate, so it stays visible but un-highlighted.
   function wrapChildren(
     nodes: BuildTreeNode[],
