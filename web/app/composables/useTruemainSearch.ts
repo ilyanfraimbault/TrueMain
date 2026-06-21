@@ -19,7 +19,17 @@ export function useTruemainSearch(term: MaybeRefOrGetter<string>) {
   const status = ref<SearchStatus>('idle')
 
   const normalized = computed(() => toValue(term).trim())
-  const tooShort = computed(() => normalized.value.length < SEARCH_MIN_LENGTH)
+
+  // The backend only searches the game-name part — the bit before '#' — so the
+  // "too short" guard must measure that, not the whole Name#TAG string.
+  // Otherwise "a#NA1" (5 chars) slips past, fires a request the backend answers
+  // empty, and the user sees "no match" instead of the "keep typing" hint.
+  const namePart = computed(() => {
+    const value = normalized.value
+    const hash = value.indexOf('#')
+    return (hash >= 0 ? value.slice(0, hash) : value).trim()
+  })
+  const tooShort = computed(() => namePart.value.length < SEARCH_MIN_LENGTH)
 
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
   let latestToken = 0
@@ -48,12 +58,14 @@ export function useTruemainSearch(term: MaybeRefOrGetter<string>) {
     latestToken += 1
     const token = latestToken
 
-    if (value.length < SEARCH_MIN_LENGTH) {
+    if (namePart.value.length < SEARCH_MIN_LENGTH) {
       results.value = []
       status.value = 'idle'
       return
     }
 
+    // Send the full term (tag included) — the gate is on the name part, but
+    // the backend still uses the tag to narrow.
     debounceTimer = setTimeout(() => { void run(value, token) }, 250)
   })
 
@@ -61,5 +73,5 @@ export function useTruemainSearch(term: MaybeRefOrGetter<string>) {
     if (debounceTimer) clearTimeout(debounceTimer)
   })
 
-  return { results, status, normalized, tooShort }
+  return { results, status, tooShort }
 }

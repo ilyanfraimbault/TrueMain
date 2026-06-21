@@ -51,8 +51,10 @@ public sealed class SearchQueryService(
 
         if (tag is not null)
         {
-            var tagLower = tag.ToLowerInvariant();
-            accounts = accounts.Where(a => a.TagLine != null && a.TagLine.ToLower() == tagLower);
+            // ILike (case-insensitive, no wildcards in a tag line) keeps the tag
+            // filter consistent with the GameName match above — both go through
+            // the same PostgreSQL operator rather than a LINQ ToLower compare.
+            accounts = accounts.Where(a => a.TagLine != null && EF.Functions.ILike(a.TagLine, tag));
         }
 
         var rows = await accounts
