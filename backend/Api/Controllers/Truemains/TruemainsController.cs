@@ -15,8 +15,28 @@ public sealed class TruemainsController(
     IPlayerChampionBuildsQueryService playerChampionBuildsQueryService,
     IPlayerChampionMatchupQueryService playerChampionMatchupQueryService,
     IRankHistoryQueryService rankHistoryQueryService,
-    ITruemainsLeaderboardQueryService leaderboardQueryService) : ControllerBase
+    ITruemainsLeaderboardQueryService leaderboardQueryService,
+    ISearchQueryService searchQueryService) : ControllerBase
 {
+    /// <summary>
+    /// Name/tag lookup for the search box: returns a short, ranked list of
+    /// truemains whose Riot id matches <paramref name="q"/> (case-insensitive
+    /// substring on the game name; a <c>Name#TAG</c> query also narrows by
+    /// tag). Always 200 with a (possibly empty) list — a too-short or no-match
+    /// query is a normal empty result, not an error.
+    /// </summary>
+    [HttpGet("search")]
+    [ProducesResponseType(typeof(SearchResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<SearchResponse>> SearchAsync(
+        [FromQuery] string? q,
+        [FromQuery] int? limit,
+        CancellationToken ct = default)
+    {
+        var response = await searchQueryService.SearchAsync(q, limit ?? 0, ct);
+        return Ok(response);
+    }
+
     [HttpGet("")]
     [ProducesResponseType(typeof(LeaderboardResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
