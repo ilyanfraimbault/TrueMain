@@ -133,6 +133,8 @@ const championsById = computed(() => {
       </p>
     </header>
 
+    <TruemainSearch variant="field" />
+
     <LeaderboardFilters
       :champions="champions"
       :region="filterRegion"
