@@ -33,6 +33,12 @@ public sealed class SearchQueryService(
         var parsed = ParseQuery(query);
         if (parsed is null)
         {
+            // Symmetric with the result-count logs below: a query rejected as
+            // unsearchable (too short, too long, or empty) still leaves a trace,
+            // so a "search not responding" report can tell a server-side
+            // rejection from a request that never left the client. Length only —
+            // not the raw term — to keep the line cheap and noise-free.
+            logger.LogDebug("[truemain-search] query rejected as unsearchable (length={Length})", query?.Length ?? 0);
             return Empty;
         }
 
