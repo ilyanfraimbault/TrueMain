@@ -138,6 +138,9 @@ public sealed class TruemainsSearchApiIntegrationTests
     [InlineData("/truemains/search")]
     [InlineData("/truemains/search?q=")]
     [InlineData("/truemains/search?q=a")]
+    // Name part below the floor even though a tag is present — a tag must not
+    // smuggle the query past the min-length guard.
+    [InlineData("/truemains/search?q=a%23NA1")]
     [InlineData("/truemains/search?q=%20%20")]
     public async Task Search_returns_empty_200_for_too_short_or_missing_query(string url)
     {
