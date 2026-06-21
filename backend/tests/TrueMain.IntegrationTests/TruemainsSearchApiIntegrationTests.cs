@@ -207,6 +207,40 @@ public sealed class TruemainsSearchApiIntegrationTests
     }
 
     [Fact]
+    public async Task Search_treats_underscore_metacharacter_as_literal()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        // EscapeLike neutralises '_' as well as '%'. "100_Real" has a literal
+        // '_'; "100XReal" is a decoy where the 'X' would be caught by an
+        // unescaped '_' (LIKE's single-char wildcard). A "100_Real" query must
+        // match only the literal one — the decoy is what makes this bite.
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var literal = Account("underscore", "100_Real", "EUW1");
+            var decoy = Account("wildcard", "100XReal", "EUW1");
+
+            db.RiotAccounts.AddRange(literal, decoy);
+            db.RankSnapshots.AddRange(
+                Snapshot(literal, "GOLD", "I", 20, now),
+                Snapshot(decoy, "GOLD", "I", 20, now));
+            db.MainChampionStats.AddRange(
+                MainStat("underscore", "EUW1", 157, isMain: true),
+                MainStat("wildcard", "EUW1", 86, isMain: true));
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        var response = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=100_Real");
+        response!.Results.Should().ContainSingle("a literal '_' must not act as a single-char wildcard");
+        response.Results[0].Identity.GameName.Should().Be("100_Real");
+    }
+
+    [Fact]
     public async Task Search_tag_metacharacters_are_treated_as_literals()
     {
         await _fixture.ResetDatabaseAsync();

@@ -33,6 +33,9 @@ public sealed class TruemainsController(
         [FromQuery] int? limit,
         CancellationToken ct = default)
     {
+        // An omitted limit maps to 0, which the service reads as "use the
+        // default" (it clamps limit <= 0 to DefaultLimit) — same 0-as-sentinel
+        // convention the leaderboard endpoint uses for pageSize.
         var response = await searchQueryService.SearchAsync(q, limit ?? 0, ct);
         return Ok(response);
     }
