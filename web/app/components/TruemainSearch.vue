@@ -22,6 +22,11 @@ const router = useRouter()
 
 const { results, status, tooShort } = useTruemainSearch(term)
 
+// Only nudge "type more" once the user has actually started typing — an empty
+// box (modal just opened) shows nothing under the input, the placeholder
+// already says what to enter.
+const hasTyped = computed(() => term.value.trim().length > 0)
+
 const { data: versions } = useDDragonVersions()
 const latestPatch = computed(() => versions.value?.[0] ?? null)
 
@@ -108,9 +113,9 @@ const displayResults = computed(() => results.value.map(result => ({
             @keydown.enter="onEnter"
           />
 
-          <!-- Hint until the query is long enough to search. -->
+          <!-- Hint once typing starts but the query is still too short. -->
           <p
-            v-if="tooShort"
+            v-if="hasTyped && tooShort"
             class="px-1 py-6 text-center text-sm text-muted"
           >
             Type at least {{ SEARCH_MIN_LENGTH }} characters to search.
