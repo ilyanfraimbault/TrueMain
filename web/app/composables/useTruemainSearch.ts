@@ -40,11 +40,12 @@ export function useTruemainSearch(term: MaybeRefOrGetter<string>) {
 
   async function run(query: string, token: number) {
     controller = new AbortController()
+    const { signal } = controller
     status.value = 'pending'
     try {
       const data = await $fetch<SearchResponse>('/api/truemains/search', {
         query: { q: query },
-        signal: controller.signal,
+        signal,
       })
       // Drop the response if a newer keystroke has since fired — only the
       // most recent request is allowed to write the results.
@@ -52,10 +53,15 @@ export function useTruemainSearch(term: MaybeRefOrGetter<string>) {
       results.value = data.results
       status.value = 'success'
     }
-    catch {
-      // An aborted request lands here too, but its token is already stale, so
-      // the guard returns before touching state — no spurious error flash.
-      if (token !== latestToken) return
+    catch (error) {
+      // A request superseded by a newer keystroke is already filtered by the
+      // token guard. The remaining abort case is scope disposal (the modal
+      // closed mid-flight), which keeps the current token — `signal.aborted`
+      // catches it regardless of how $fetch wraps the abort, so swallow it.
+      // Anything else is a real failure: surface it to the user and log it so
+      // prod network/parse errors aren't lost in a silent catch.
+      if (token !== latestToken || signal.aborted) return
+      console.error('[truemain-search] request failed', error)
       results.value = []
       status.value = 'error'
     }
