@@ -54,9 +54,12 @@ watch(open, (isOpen) => {
   if (!isOpen) term.value = ''
 })
 
-function iconUrl(result: SearchResult): string | null {
-  return getProfileIconUrl(result.identity.profileIconId, latestPatch.value)
-}
+// Resolve each result's profile-icon URL once, up front, so the template
+// doesn't call the resolver twice per row (v-if + :src).
+const displayResults = computed(() => results.value.map(result => ({
+  result,
+  iconUrl: getProfileIconUrl(result.identity.profileIconId, latestPatch.value),
+})))
 </script>
 
 <template>
@@ -131,16 +134,16 @@ function iconUrl(result: SearchResult): string | null {
           </p>
 
           <!-- Results. -->
-          <ul v-else-if="results.length > 0" class="flex max-h-80 flex-col gap-1 overflow-y-auto">
-            <li v-for="result in results" :key="`${result.identity.gameName}-${result.identity.tagLine}-${result.identity.platformId}`">
+          <ul v-else-if="displayResults.length > 0" class="flex max-h-80 flex-col gap-1 overflow-y-auto">
+            <li v-for="{ result, iconUrl } in displayResults" :key="`${result.identity.gameName}-${result.identity.tagLine}-${result.identity.platformId}`">
               <NuxtLink
                 :to="profilePath(result)"
                 class="glass-hover flex items-center gap-3 rounded-md px-2 py-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 @click="open = false"
               >
                 <SkeletonImage
-                  v-if="iconUrl(result)"
-                  :src="iconUrl(result)!"
+                  v-if="iconUrl"
+                  :src="iconUrl"
                   :alt="result.identity.gameName"
                   class="size-9 shrink-0 rounded"
                   width="36"

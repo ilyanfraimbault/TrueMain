@@ -33,11 +33,16 @@ export function useTruemainSearch(term: MaybeRefOrGetter<string>) {
 
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
   let latestToken = 0
+  let controller: AbortController | null = null
 
   async function run(query: string, token: number) {
+    controller = new AbortController()
     status.value = 'pending'
     try {
-      const data = await $fetch<SearchResponse>('/api/truemains/search', { query: { q: query } })
+      const data = await $fetch<SearchResponse>('/api/truemains/search', {
+        query: { q: query },
+        signal: controller.signal,
+      })
       // Drop the response if a newer keystroke has since fired — only the
       // most recent request is allowed to write the results.
       if (token !== latestToken) return
@@ -45,6 +50,8 @@ export function useTruemainSearch(term: MaybeRefOrGetter<string>) {
       status.value = 'success'
     }
     catch {
+      // An aborted request lands here too, but its token is already stale, so
+      // the guard returns before touching state — no spurious error flash.
       if (token !== latestToken) return
       results.value = []
       status.value = 'error'
@@ -54,8 +61,12 @@ export function useTruemainSearch(term: MaybeRefOrGetter<string>) {
   watch(normalized, (value) => {
     if (debounceTimer) clearTimeout(debounceTimer)
 
-    // Invalidate any in-flight request — its response must not land.
+    // Invalidate any in-flight request and abort it: the token guard already
+    // ignores its response, but aborting also frees the wasted round trip so
+    // fast typing on a slow link doesn't pile up concurrent requests.
     latestToken += 1
+    controller?.abort()
+    controller = null
     const token = latestToken
 
     if (namePart.value.length < SEARCH_MIN_LENGTH) {
@@ -71,6 +82,7 @@ export function useTruemainSearch(term: MaybeRefOrGetter<string>) {
 
   onScopeDispose(() => {
     if (debounceTimer) clearTimeout(debounceTimer)
+    controller?.abort()
   })
 
   return { results, status, tooShort }

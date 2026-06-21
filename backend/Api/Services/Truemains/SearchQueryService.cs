@@ -37,7 +37,9 @@ public sealed class SearchQueryService(
         // gin_trgm_ops index on riot_accounts."GameName" (see the
         // AddRiotAccountGameNameTrgmIndex migration). The wildcards in the
         // user's input are escaped so a literal '%' or '_' can't widen the
-        // match; ILIKE uses '\' as its escape character by default.
+        // match. The escape character is passed explicitly to ILike below:
+        // EF's 2-arg form emits ESCAPE '' (escaping disabled), which would make
+        // our '\' a literal and break the match, so we use the 3-arg overload.
         var pattern = $"%{EscapeLike(name)}%";
         var nameLower = name.ToLowerInvariant();
 
@@ -45,15 +47,18 @@ public sealed class SearchQueryService(
             .AsNoTracking()
             .Where(a => a.Score != null
                         && platforms.Contains(a.PlatformId)
-                        && EF.Functions.ILike(a.GameName, pattern)
+                        && EF.Functions.ILike(a.GameName, pattern, "\\")
                         && db.MainChampionStats.Any(m =>
                             m.PlatformId == a.PlatformId && m.Puuid == a.Puuid && m.IsMain));
 
         if (tag is not null)
         {
-            // ILike (case-insensitive, no wildcards in a tag line) keeps the tag
-            // filter consistent with the GameName match above — both go through
-            // the same PostgreSQL operator rather than a LINQ ToLower compare.
+            // Tag is matched exactly (case-insensitive): it carries no wildcards,
+            // so ILike here is an equality test, just routed through the same
+            // PostgreSQL operator as the GameName match for consistency. Riot tag
+            // lines are short fixed strings (e.g. "EUW", "NA1"), so a partial /
+            // prefix tag adds noise without much benefit — revisit if users ask
+            // for it. The name half stays a substring match.
             accounts = accounts.Where(a => a.TagLine != null && EF.Functions.ILike(a.TagLine, tag));
         }
 

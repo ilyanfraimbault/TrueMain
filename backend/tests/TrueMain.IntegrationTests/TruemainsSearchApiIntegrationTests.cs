@@ -150,6 +150,41 @@ public sealed class TruemainsSearchApiIntegrationTests
         payload!.Results.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Search_treats_like_metacharacters_as_literals()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        // "100%Real" contains a literal '%'; "RealDeal" is a decoy that shares
+        // the "Real" substring but not "%Real". A query of "%Real" must match
+        // only the first — if the '%' leaked through unescaped it would act as a
+        // wildcard and pull in the decoy too, so the decoy is what makes this
+        // assertion meaningful rather than a single-row tautology.
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var literal = Account("literal", "100%Real", "EUW1");
+            var decoy = Account("decoy", "RealDeal", "EUW1");
+
+            db.RiotAccounts.AddRange(literal, decoy);
+            db.RankSnapshots.AddRange(
+                Snapshot(literal, "GOLD", "I", 20, now),
+                Snapshot(decoy, "GOLD", "I", 20, now));
+            db.MainChampionStats.AddRange(
+                MainStat("literal", "EUW1", 157, isMain: true),
+                MainStat("decoy", "EUW1", 86, isMain: true));
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        var response = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=%25Real");
+        response!.Results.Should().ContainSingle("the literal '%' must not widen the match to the decoy");
+        response.Results[0].Identity.GameName.Should().Be("100%Real");
+    }
+
     private static RiotAccount Account(string puuid, string gameName, string platformId, string? tagLine = null)
         => new()
         {
