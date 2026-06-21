@@ -17,6 +17,11 @@ public sealed class SearchQueryService(
     // for that — the frontend keeps showing its "keep typing" hint.
     private const int MinQueryLength = 2;
 
+    // Upper bound on the query length. A real Riot id slug ("Name#TAG") is well
+    // under this — the DB caps GameName at 32 and TagLine at 8 — so anything
+    // longer is junk or abuse; reject it before it reaches EscapeLike / ILIKE.
+    private const int MaxQueryLength = 64;
+
     // The exposed-region platform list is static, so materialise it once rather
     // than rebuilding the array on every search.
     private static readonly string[] ExposedPlatforms = RegionFilterParser.AllExposedPlatforms().ToArray();
@@ -144,6 +149,11 @@ public sealed class SearchQueryService(
         }
 
         var trimmed = raw.Trim();
+        if (trimmed.Length > MaxQueryLength)
+        {
+            return null;
+        }
+
         var hashIdx = trimmed.IndexOf('#');
 
         string name;

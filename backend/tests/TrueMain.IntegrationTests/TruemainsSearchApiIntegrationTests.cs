@@ -154,6 +154,24 @@ public sealed class TruemainsSearchApiIntegrationTests
     }
 
     [Fact]
+    public async Task Search_returns_empty_200_for_an_over_long_query()
+    {
+        // A query far longer than any real Riot id is rejected before it reaches
+        // EscapeLike / the ILIKE — a normal empty 200, never a 500.
+        await _fixture.ResetDatabaseAsync();
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        var longQuery = new string('a', 100);
+        var response = await client.GetAsync($"/truemains/search?q={longQuery}");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var payload = await response.Content.ReadFromJsonAsync<SearchResponse>();
+        payload!.Results.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Search_treats_like_metacharacters_as_literals()
     {
         await _fixture.ResetDatabaseAsync();
