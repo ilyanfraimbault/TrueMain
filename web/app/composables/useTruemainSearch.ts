@@ -1,6 +1,11 @@
 import type { SearchResponse, SearchResult } from '~~/shared/types/search'
 
-/** Below this many characters the backend won't search, so neither do we. */
+/**
+ * Below this many characters the backend won't search, so neither do we.
+ * Keep in sync with `MinQueryLength` in the backend's SearchQueryService.cs —
+ * there's no shared contract enforcing it, so a change on one side must be
+ * mirrored on the other.
+ */
 export const SEARCH_MIN_LENGTH = 2
 
 /** Idle time after the last keystroke before a search fires. */

@@ -15,6 +15,8 @@ public sealed class SearchQueryService(
     // letter would match a huge slice of the table and the planner would fall
     // back to a scan anyway. Below this we return nothing rather than paying
     // for that — the frontend keeps showing its "keep typing" hint.
+    // Keep in sync with SEARCH_MIN_LENGTH in
+    // web/app/composables/useTruemainSearch.ts (no shared contract enforces it).
     private const int MinQueryLength = 2;
 
     // Upper bound on the query length. A real Riot id slug ("Name#TAG") is well
