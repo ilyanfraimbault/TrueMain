@@ -3,6 +3,9 @@ import type { SearchResponse, SearchResult } from '~~/shared/types/search'
 /** Below this many characters the backend won't search, so neither do we. */
 export const SEARCH_MIN_LENGTH = 2
 
+/** Idle time after the last keystroke before a search fires. */
+export const SEARCH_DEBOUNCE_MS = 250
+
 type SearchStatus = 'idle' | 'pending' | 'success' | 'error'
 
 /**
@@ -77,7 +80,7 @@ export function useTruemainSearch(term: MaybeRefOrGetter<string>) {
 
     // Send the full term (tag included) — the gate is on the name part, but
     // the backend still uses the tag to narrow.
-    debounceTimer = setTimeout(() => { void run(value, token) }, 250)
+    debounceTimer = setTimeout(() => { void run(value, token) }, SEARCH_DEBOUNCE_MS)
   })
 
   onScopeDispose(() => {

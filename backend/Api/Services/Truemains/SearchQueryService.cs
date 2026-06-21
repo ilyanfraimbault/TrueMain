@@ -17,6 +17,10 @@ public sealed class SearchQueryService(
     // for that — the frontend keeps showing its "keep typing" hint.
     private const int MinQueryLength = 2;
 
+    // The exposed-region platform list is static, so materialise it once rather
+    // than rebuilding the array on every search.
+    private static readonly string[] ExposedPlatforms = RegionFilterParser.AllExposedPlatforms().ToArray();
+
     public async Task<SearchResponse> SearchAsync(string? query, int limit, CancellationToken ct)
     {
         var parsed = ParseQuery(query);
@@ -31,7 +35,7 @@ public sealed class SearchQueryService(
         // Mirror the leaderboard population: only ranked main accounts on the
         // exposed regions are "truemains", so search is a faster path into the
         // same list rather than a window onto every discovered account.
-        var platforms = RegionFilterParser.AllExposedPlatforms().ToArray();
+        var platforms = ExposedPlatforms;
 
         // Case-insensitive substring match on GameName, served by the
         // gin_trgm_ops index on riot_accounts."GameName" (see the
