@@ -50,8 +50,11 @@ function go(path: string) {
 }
 
 // Enter jumps to the first result — the fast path for "type the name, hit
-// enter". No-op while the list is empty.
+// enter". Only acts once the current query has settled (status 'success'); a
+// 'pending' status means a newer keystroke is still debouncing/in-flight and
+// the visible list is stale, so Enter waits rather than opening the old top hit.
 function onEnter() {
+  if (status.value !== 'success') return
   const first = results.value[0]
   if (first) go(profilePath(first))
 }
@@ -116,7 +119,10 @@ const displayResults = computed(() => results.value.map(result => ({
             @keydown.enter="onEnter"
           />
 
-          <!-- Hint once typing starts but the query is still too short. -->
+          <!-- Live region so screen readers announce each dynamic state
+               (hint / error / no-match / results) as it swaps in. -->
+          <div aria-live="polite">
+            <!-- Hint once typing starts but the query is still too short. -->
           <p
             v-if="hasTyped && tooShort"
             class="px-1 py-6 text-center text-sm text-muted"
@@ -178,6 +184,7 @@ const displayResults = computed(() => results.value.map(result => ({
               </NuxtLink>
             </li>
           </ul>
+          </div>
         </div>
       </template>
     </UModal>

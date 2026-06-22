@@ -89,6 +89,12 @@ export function useTruemainSearch(term: MaybeRefOrGetter<string>) {
       return
     }
 
+    // Go pending from the keystroke, not just when the fetch fires: during the
+    // debounce window the previous query's results are still on screen, and
+    // marking them stale here is what lets the UI gate actions (e.g. Enter)
+    // until the current query settles instead of acting on the old top hit.
+    status.value = 'pending'
+
     // Send the full term (tag included) — the gate is on the name part, but
     // the backend still uses the tag to narrow.
     debounceTimer = setTimeout(() => { void run(value, token) }, SEARCH_DEBOUNCE_MS)
