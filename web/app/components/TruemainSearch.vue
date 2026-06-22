@@ -123,67 +123,67 @@ const displayResults = computed(() => results.value.map(result => ({
                (hint / error / no-match / results) as it swaps in. -->
           <div aria-live="polite">
             <!-- Hint once typing starts but the query is still too short. -->
-          <p
-            v-if="hasTyped && tooShort"
-            class="px-1 py-6 text-center text-sm text-muted"
-          >
-            Type at least {{ SEARCH_MIN_LENGTH }} characters to search.
-          </p>
+            <p
+              v-if="hasTyped && tooShort"
+              class="px-1 py-6 text-center text-sm text-muted"
+            >
+              Type at least {{ SEARCH_MIN_LENGTH }} characters to search.
+            </p>
 
-          <!-- Request failed. -->
-          <p
-            v-else-if="status === 'error'"
-            class="px-1 py-6 text-center text-sm text-error"
-          >
-            Search failed — try again.
-          </p>
+            <!-- Request failed. -->
+            <p
+              v-else-if="status === 'error'"
+              class="px-1 py-6 text-center text-sm text-error"
+            >
+              Search failed — try again.
+            </p>
 
-          <!-- Searched, nothing matched. -->
-          <p
-            v-else-if="status === 'success' && displayResults.length === 0"
-            class="px-1 py-6 text-center text-sm text-muted"
-          >
-            No truemain matches that name.
-          </p>
+            <!-- Searched, nothing matched. -->
+            <p
+              v-else-if="status === 'success' && displayResults.length === 0"
+              class="px-1 py-6 text-center text-sm text-muted"
+            >
+              No truemain matches that name.
+            </p>
 
-          <!-- Results. -->
-          <ul v-else-if="displayResults.length > 0" class="flex max-h-80 flex-col gap-1 overflow-y-auto">
-            <li v-for="{ result, iconUrl } in displayResults" :key="`${result.identity.gameName}|${result.identity.tagLine}|${result.identity.platformId}`">
-              <NuxtLink
-                :to="profilePath(result)"
-                class="glass-hover flex items-center gap-3 rounded-md px-2 py-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                @click="open = false"
-              >
-                <SkeletonImage
-                  v-if="iconUrl"
-                  :src="iconUrl"
-                  :alt="result.identity.gameName"
-                  class="size-9 shrink-0 rounded"
-                  width="36"
-                  height="36"
-                />
-                <div v-else class="size-9 shrink-0 rounded bg-elevated/60" aria-hidden="true" />
-
-                <div class="min-w-0 flex-1">
-                  <div class="flex items-baseline gap-1 truncate">
-                    <span class="truncate font-semibold text-default">{{ result.identity.gameName }}</span>
-                    <span v-if="result.identity.tagLine" class="shrink-0 text-xs text-muted">#{{ result.identity.tagLine }}</span>
-                  </div>
-                  <LeaderboardRegionFlag
-                    v-if="result.region"
-                    :region="result.region"
-                    :width="16"
-                    class="mt-0.5"
+            <!-- Results. -->
+            <ul v-else-if="displayResults.length > 0" class="flex max-h-80 flex-col gap-1 overflow-y-auto">
+              <li v-for="{ result, iconUrl } in displayResults" :key="`${result.identity.gameName}|${result.identity.tagLine}|${result.identity.platformId}`">
+                <NuxtLink
+                  :to="profilePath(result)"
+                  class="glass-hover flex items-center gap-3 rounded-md px-2 py-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  @click="open = false"
+                >
+                  <SkeletonImage
+                    v-if="iconUrl"
+                    :src="iconUrl"
+                    :alt="result.identity.gameName"
+                    class="size-9 shrink-0 rounded"
+                    width="36"
+                    height="36"
                   />
-                </div>
+                  <div v-else class="size-9 shrink-0 rounded bg-elevated/60" aria-hidden="true" />
 
-                <div v-if="result.ranked" class="flex shrink-0 items-center gap-1.5 text-sm text-muted">
-                  <RankIcon :tier="result.ranked.tier" :size="22" />
-                  <span class="tabular-nums">{{ formatTier(result.ranked.tier, result.ranked.division) }}</span>
-                </div>
-              </NuxtLink>
-            </li>
-          </ul>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-baseline gap-1 truncate">
+                      <span class="truncate font-semibold text-default">{{ result.identity.gameName }}</span>
+                      <span v-if="result.identity.tagLine" class="shrink-0 text-xs text-muted">#{{ result.identity.tagLine }}</span>
+                    </div>
+                    <LeaderboardRegionFlag
+                      v-if="result.region"
+                      :region="result.region"
+                      :width="16"
+                      class="mt-0.5"
+                    />
+                  </div>
+
+                  <div v-if="result.ranked" class="flex shrink-0 items-center gap-1.5 text-sm text-muted">
+                    <RankIcon :tier="result.ranked.tier" :size="22" />
+                    <span class="tabular-nums">{{ formatTier(result.ranked.tier, result.ranked.division) }}</span>
+                  </div>
+                </NuxtLink>
+              </li>
+            </ul>
           </div>
         </div>
       </template>
