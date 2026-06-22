@@ -11,6 +11,21 @@ export const SEARCH_MIN_LENGTH = 2
 /** Idle time after the last keystroke before a search fires. */
 export const SEARCH_DEBOUNCE_MS = 250
 
+/**
+ * The game-name portion of a query — the part before `#`, trimmed. Pure so the
+ * min-length logic is unit-testable without the Nuxt runtime.
+ */
+export function searchNamePart(term: string): string {
+  const trimmed = term.trim()
+  const hash = trimmed.indexOf('#')
+  return (hash >= 0 ? trimmed.slice(0, hash) : trimmed).trim()
+}
+
+/** Whether a query's name part is below the searchable floor. */
+export function isQueryTooShort(term: string): boolean {
+  return searchNamePart(term).length < SEARCH_MIN_LENGTH
+}
+
 type SearchStatus = 'idle' | 'pending' | 'success' | 'error'
 
 /**
@@ -32,12 +47,8 @@ export function useTruemainSearch(term: MaybeRefOrGetter<string>) {
   // "too short" guard must measure that, not the whole Name#TAG string.
   // Otherwise "a#NA1" (5 chars) slips past, fires a request the backend answers
   // empty, and the user sees "no match" instead of the "keep typing" hint.
-  const namePart = computed(() => {
-    const value = normalized.value
-    const hash = value.indexOf('#')
-    return (hash >= 0 ? value.slice(0, hash) : value).trim()
-  })
-  const tooShort = computed(() => namePart.value.length < SEARCH_MIN_LENGTH)
+  const namePart = computed(() => searchNamePart(normalized.value))
+  const tooShort = computed(() => isQueryTooShort(normalized.value))
 
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
   let latestToken = 0
