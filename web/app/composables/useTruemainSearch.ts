@@ -1,0 +1,120 @@
+import type { SearchResponse, SearchResult } from '~~/shared/types/search'
+
+/**
+ * Below this many characters the backend won't search, so neither do we.
+ * Keep in sync with `MinQueryLength` in the backend's SearchQueryService.cs —
+ * there's no shared contract enforcing it, so a change on one side must be
+ * mirrored on the other.
+ */
+export const SEARCH_MIN_LENGTH = 2
+
+/** Idle time after the last keystroke before a search fires. */
+export const SEARCH_DEBOUNCE_MS = 250
+
+/**
+ * The game-name portion of a query — the part before `#`, trimmed. Pure so the
+ * min-length logic is unit-testable without the Nuxt runtime.
+ */
+export function searchNamePart(term: string): string {
+  const trimmed = term.trim()
+  const hash = trimmed.indexOf('#')
+  return (hash >= 0 ? trimmed.slice(0, hash) : trimmed).trim()
+}
+
+/** Whether a query's name part is below the searchable floor. */
+export function isQueryTooShort(term: string): boolean {
+  return searchNamePart(term).length < SEARCH_MIN_LENGTH
+}
+
+type SearchStatus = 'idle' | 'pending' | 'success' | 'error'
+
+/**
+ * Debounced truemain name/tag lookup. Watches a reactive search term, waits
+ * for typing to settle, then hits `GET /api/truemains/search`. Stale responses
+ * (a slow request that resolves after a newer keystroke) are dropped via a
+ * monotonic request token so the list never flickers back to an old result.
+ *
+ * Purely client-side — there's no SSR value to hydrate for a search box, and
+ * the term only exists once the user starts typing.
+ */
+export function useTruemainSearch(term: MaybeRefOrGetter<string>) {
+  const results = ref<SearchResult[]>([])
+  const status = ref<SearchStatus>('idle')
+
+  const normalized = computed(() => toValue(term).trim())
+
+  // The backend only searches the game-name part — the bit before '#' — so the
+  // "too short" guard must measure that, not the whole Name#TAG string.
+  // Otherwise "a#NA1" (5 chars) slips past, fires a request the backend answers
+  // empty, and the user sees "no match" instead of the "keep typing" hint.
+  const namePart = computed(() => searchNamePart(normalized.value))
+  const tooShort = computed(() => isQueryTooShort(normalized.value))
+
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null
+  let latestToken = 0
+  let controller: AbortController | null = null
+
+  async function run(query: string, token: number) {
+    controller = new AbortController()
+    const { signal } = controller
+    status.value = 'pending'
+    try {
+      const data = await $fetch<SearchResponse>('/api/truemains/search', {
+        query: { q: query },
+        signal,
+      })
+      // Drop the response if a newer keystroke has since fired — only the
+      // most recent request is allowed to write the results.
+      if (token !== latestToken) return
+      results.value = data.results
+      status.value = 'success'
+    }
+    catch (error) {
+      // A request superseded by a newer keystroke is already filtered by the
+      // token guard. The remaining abort case is scope disposal (the modal
+      // closed mid-flight), which keeps the current token — `signal.aborted`
+      // catches it regardless of how $fetch wraps the abort, so swallow it.
+      // Anything else is a real failure: surface it to the user and log it so
+      // prod network/parse errors aren't lost in a silent catch.
+      if (token !== latestToken || signal.aborted) return
+      console.error('[truemain-search] request failed', error)
+      results.value = []
+      status.value = 'error'
+    }
+  }
+
+  watch(normalized, (value) => {
+    if (debounceTimer) clearTimeout(debounceTimer)
+
+    // Invalidate any in-flight request and abort it: the token guard already
+    // ignores its response, but aborting also frees the wasted round trip so
+    // fast typing on a slow link doesn't pile up concurrent requests.
+    latestToken += 1
+    controller?.abort()
+    controller = null
+    const token = latestToken
+
+    if (namePart.value.length < SEARCH_MIN_LENGTH) {
+      results.value = []
+      status.value = 'idle'
+      return
+    }
+
+    // Go pending from the keystroke, not just when the fetch fires: during the
+    // debounce window the previous query's results are still on screen, and
+    // marking them stale here is what lets the UI gate actions (e.g. Enter)
+    // until the current query settles instead of acting on the old top hit.
+    status.value = 'pending'
+
+    // Send the full term (tag included) — the gate is on the name part, but
+    // the backend still uses the tag to narrow.
+    debounceTimer = setTimeout(() => { void run(value, token) }, SEARCH_DEBOUNCE_MS)
+  })
+
+  onScopeDispose(() => {
+    if (debounceTimer) clearTimeout(debounceTimer)
+    controller?.abort()
+  })
+
+  return { results, status, tooShort }
+}

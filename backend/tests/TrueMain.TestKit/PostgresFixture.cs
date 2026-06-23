@@ -20,6 +20,15 @@ public sealed class PostgresFixture : IAsyncLifetime
         .WithDatabase("truemain_test")
         .WithUsername("postgres")
         .WithPassword("postgres")
+        // Raise max_connections above the Postgres default (100). The whole
+        // assembly shares one container, and every WebApplicationFactory a test
+        // spins up opens its own Npgsql pool against it; a server-side backend
+        // lingers briefly after a factory is disposed, so a fast back-to-back
+        // run can transiently stack more than 100 connections and fail an
+        // unrelated test's OpenAsync with a 500. The headroom keeps the suite
+        // robust as it grows. (The entrypoint prepends `postgres` to a `-c …`
+        // command, so the server still boots normally.)
+        .WithCommand("-c", "max_connections=300")
         // Keep Testcontainers' Ryuk reaper disabled: its image
         // (testcontainers/ryuk) is not pullable in our CI / dev environment
         // (Docker Hub returns 401), so enabling cleanup makes the container
