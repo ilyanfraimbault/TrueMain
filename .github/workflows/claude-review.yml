@@ -35,6 +35,9 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Dependabot ouvre des PR en tant que bot ; sans cette liste l'action
+          # échoue avec « Workflow initiated by non-human actor ».
+          allowed_bots: "dependabot[bot]"
           prompt: |
             REPO : ${{ github.repository }}
             PR : ${{ github.event.pull_request.number }}
