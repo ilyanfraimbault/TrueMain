@@ -198,8 +198,9 @@ public sealed class RiotApiUsageQuery(MongoLogContext context) : IRiotApiUsageQu
     {
         // The app rate-limit count is on (almost) every Riot response, so the rollup
         // with the freshest last-called timestamp carries the most recent "current"
-        // consumption seen in the window.
-        var withHeaders = filter & Filter.Exists(doc => doc.AppRateLimitCount);
+        // consumption seen in the window. $ne null (not $exists) so a rollup whose
+        // field is present-but-null can never mask an older rollup with a real value.
+        var withHeaders = filter & Filter.Ne(doc => doc.AppRateLimitCount, (string?)null);
 
         var doc = await context.RiotApiCallRollups
             .Find(withHeaders)

@@ -91,6 +91,45 @@ public sealed class RiotApiMetricsSinkIntegrationTests
         faulted.Count.Should().Be(1);
     }
 
+    [Fact]
+    public async Task Sink_LaterCallWithoutHeaders_KeepsEarlierStoredValues()
+    {
+        await _mongo.ResetAsync();
+
+        using var host = BuildHost();
+        await host.StartAsync();
+
+        var collection = _mongo.GetCollection<RiotApiCallRollupDocument>(MongoFixture.RiotApiCallsCollection);
+        var at = DateTime.UtcNow;
+        var recorder = host.Services.GetRequiredService<IRiotApiCallRecorder>();
+
+        // A 429 carrying Retry-After + app rate-limit headers persists first.
+        recorder.Record(Record("match-v5.timeline", 429, 30, at, appLimit: "20:1", appCount: "9:1", retryAfter: 5));
+        await WaitUntilAsync(async () =>
+        {
+            var doc = await collection.Find(FilterDefinition<RiotApiCallRollupDocument>.Empty).FirstOrDefaultAsync();
+            return doc is { Count: 1, RetryAfterSeconds: 5 };
+        });
+
+        // A later 429 in the same minute whose response had no Retry-After / headers
+        // must fold into the same rollup (count 2) without a $set:null erasing the
+        // values the first call stored.
+        recorder.Record(Record("match-v5.timeline", 429, 40, at));
+        await WaitUntilAsync(async () =>
+        {
+            var doc = await collection.Find(FilterDefinition<RiotApiCallRollupDocument>.Empty).FirstOrDefaultAsync();
+            return doc is { Count: 2 };
+        });
+
+        await host.StopAsync();
+
+        var rollup = await collection.Find(FilterDefinition<RiotApiCallRollupDocument>.Empty).SingleAsync();
+        rollup.Count.Should().Be(2);
+        rollup.SumLatencyMs.Should().Be(70);
+        rollup.RetryAfterSeconds.Should().Be(5);
+        rollup.AppRateLimitCount.Should().Be("9:1");
+    }
+
     private IHost BuildHost()
     {
         var builder = Host.CreateApplicationBuilder();

@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using System.Threading.Channels;
 using Data.Logging.Mongo;
 using Microsoft.Extensions.Hosting;
@@ -32,6 +33,8 @@ internal sealed class RiotApiMetricsSink(
     // Unordered: one failed upsert (e.g. a transient duplicate-key race on insert)
     // must not abort the rest of the batch.
     private static readonly BulkWriteOptions UnorderedBulk = new() { IsOrdered = false };
+    private static readonly UpdateDefinitionBuilder<RiotApiCallRollupDocument> Update =
+        Builders<RiotApiCallRollupDocument>.Update;
     private readonly MongoLoggingOptions _options = options.Value;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -169,12 +172,16 @@ internal sealed class RiotApiMetricsSink(
     /// <summary>
     /// Groups a batch by <c>(minute, endpoint, statusCode)</c> and builds one upsert
     /// per group: <c>$inc</c> the count and latency sum, <c>$max</c> the last-called
-    /// timestamp, and <c>$set</c> the last-seen descriptive/rate-limit fields from
-    /// the freshest call in the group. Because the channel drains in FIFO (roughly
-    /// timestamp) order, successive flushes for the same minute carry
-    /// non-decreasing timestamps, so the last-seen rate-limit headers stay the
-    /// freshest in the bucket.
+    /// timestamp, and <c>$set</c> the last-seen descriptive/rate-limit fields.
     /// </summary>
+    /// <remarks>
+    /// Only <em>non-null</em> field values are <c>$set</c>: a later call in the same
+    /// minute whose Riot response omitted a header (e.g. a 429 with no
+    /// <c>Retry-After</c>) must not erase a value an earlier call stored — a
+    /// <c>$set: null</c> would overwrite it unconditionally. The accumulator keeps
+    /// the last-seen non-null value per field; because the channel drains in FIFO
+    /// (roughly timestamp) order, that is the freshest value in the bucket.
+    /// </remarks>
     private List<WriteModel<RiotApiCallRollupDocument>> Fold(IReadOnlyList<RiotApiCallRecord> records)
     {
         var accumulators = new Dictionary<(DateTime Bucket, string Endpoint, int StatusCode), Accumulator>();
@@ -199,7 +206,6 @@ internal sealed class RiotApiMetricsSink(
         var writes = new List<WriteModel<RiotApiCallRollupDocument>>(accumulators.Count);
         foreach (var ((bucket, endpoint, statusCode), acc) in accumulators)
         {
-            var latest = acc.Latest!;
             var filter = Builders<RiotApiCallRollupDocument>.Filter.And(
                 Builders<RiotApiCallRollupDocument>.Filter.Eq(doc => doc.BucketStartUtc, bucket),
                 Builders<RiotApiCallRollupDocument>.Filter.Eq(doc => doc.Endpoint, endpoint),
@@ -208,48 +214,87 @@ internal sealed class RiotApiMetricsSink(
             // Key fields (bucket/endpoint/statusCode) come from the filter on insert,
             // so they are intentionally not in the update — setting them too would
             // conflict with the filter-implied values.
-            var update = Builders<RiotApiCallRollupDocument>.Update
-                .Inc(doc => doc.Count, acc.Count)
-                .Inc(doc => doc.SumLatencyMs, acc.SumLatencyMs)
-                .Max(doc => doc.LastCalledAtUtc, acc.LastCalledAtUtc)
-                .Set(doc => doc.Method, Truncate(latest.Method, 16))
-                .Set(doc => doc.Route, Truncate(latest.Route, 32))
-                .Set(doc => doc.AppRateLimit, Truncate(latest.AppRateLimit, 128))
-                .Set(doc => doc.AppRateLimitCount, Truncate(latest.AppRateLimitCount, 128))
-                .Set(doc => doc.MethodRateLimit, Truncate(latest.MethodRateLimit, 128))
-                .Set(doc => doc.MethodRateLimitCount, Truncate(latest.MethodRateLimitCount, 128))
-                .Set(doc => doc.RetryAfterSeconds, latest.RetryAfterSeconds)
-                .Set(doc => doc.RateLimitType, Truncate(latest.RateLimitType, 32))
-                // Host-level tag, stamped from config rather than carried per record.
-                .Set(doc => doc.ProcessName, Truncate(_options.ProcessName, 64));
+            var updates = new List<UpdateDefinition<RiotApiCallRollupDocument>>
+            {
+                Update.Inc(doc => doc.Count, acc.Count),
+                Update.Inc(doc => doc.SumLatencyMs, acc.SumLatencyMs),
+                Update.Max(doc => doc.LastCalledAtUtc, acc.LastCalledAtUtc)
+            };
 
-            writes.Add(new UpdateOneModel<RiotApiCallRollupDocument>(filter, update) { IsUpsert = true });
+            // Last-seen non-null wins; a null is skipped so it never clobbers a
+            // value an earlier flush persisted for the same bucket.
+            SetIfPresent(updates, doc => doc.Method, Truncate(acc.Method, 16));
+            SetIfPresent(updates, doc => doc.Route, Truncate(acc.Route, 32));
+            SetIfPresent(updates, doc => doc.AppRateLimit, Truncate(acc.AppRateLimit, 128));
+            SetIfPresent(updates, doc => doc.AppRateLimitCount, Truncate(acc.AppRateLimitCount, 128));
+            SetIfPresent(updates, doc => doc.MethodRateLimit, Truncate(acc.MethodRateLimit, 128));
+            SetIfPresent(updates, doc => doc.MethodRateLimitCount, Truncate(acc.MethodRateLimitCount, 128));
+            SetIfPresent(updates, doc => doc.RateLimitType, Truncate(acc.RateLimitType, 32));
+            // Host-level tag, stamped from config rather than carried per record.
+            SetIfPresent(updates, doc => doc.ProcessName, Truncate(_options.ProcessName, 64));
+            if (acc.RetryAfterSeconds is int retryAfter)
+            {
+                updates.Add(Update.Set(doc => doc.RetryAfterSeconds, retryAfter));
+            }
+
+            writes.Add(new UpdateOneModel<RiotApiCallRollupDocument>(filter, Update.Combine(updates))
+            {
+                IsUpsert = true
+            });
         }
 
         return writes;
     }
 
+    private static void SetIfPresent(
+        List<UpdateDefinition<RiotApiCallRollupDocument>> updates,
+        Expression<Func<RiotApiCallRollupDocument, string?>> field,
+        string? value)
+    {
+        if (value is not null)
+        {
+            updates.Add(Update.Set(field, value));
+        }
+    }
+
     /// <summary>
     /// In-memory fold state for one <c>(minute, endpoint, statusCode)</c> group:
-    /// running count and latency sum, plus the freshest record seen (for the
-    /// last-seen descriptive/rate-limit fields and the max timestamp).
+    /// running count and latency sum, the max timestamp, and the last-seen non-null
+    /// value of each descriptive/rate-limit field.
     /// </summary>
     private sealed class Accumulator
     {
         public long Count { get; private set; }
         public long SumLatencyMs { get; private set; }
         public DateTime LastCalledAtUtc { get; private set; }
-        public RiotApiCallRecord? Latest { get; private set; }
+        public string? Method { get; private set; }
+        public string? Route { get; private set; }
+        public string? AppRateLimit { get; private set; }
+        public string? AppRateLimitCount { get; private set; }
+        public string? MethodRateLimit { get; private set; }
+        public string? MethodRateLimitCount { get; private set; }
+        public int? RetryAfterSeconds { get; private set; }
+        public string? RateLimitType { get; private set; }
 
         public void Add(RiotApiCallRecord record)
         {
             Count++;
             SumLatencyMs += record.LatencyMs;
-            if (Latest is null || record.TimestampUtc >= LastCalledAtUtc)
+            if (record.TimestampUtc >= LastCalledAtUtc)
             {
                 LastCalledAtUtc = record.TimestampUtc;
-                Latest = record;
             }
+
+            // Coalesce: keep the last non-null value seen for each field so a header
+            // a call omitted doesn't drop one an earlier call in the batch provided.
+            Method = record.Method ?? Method;
+            Route = record.Route ?? Route;
+            AppRateLimit = record.AppRateLimit ?? AppRateLimit;
+            AppRateLimitCount = record.AppRateLimitCount ?? AppRateLimitCount;
+            MethodRateLimit = record.MethodRateLimit ?? MethodRateLimit;
+            MethodRateLimitCount = record.MethodRateLimitCount ?? MethodRateLimitCount;
+            RetryAfterSeconds = record.RetryAfterSeconds ?? RetryAfterSeconds;
+            RateLimitType = record.RateLimitType ?? RateLimitType;
         }
     }
 
