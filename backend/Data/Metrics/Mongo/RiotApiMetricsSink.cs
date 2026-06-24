@@ -149,11 +149,9 @@ internal sealed class RiotApiMetricsSink(
             return;
         }
 
+        // Fold always yields at least one write here: records is non-empty (guarded
+        // above) and every record maps to an accumulator, every accumulator to a write.
         var rollups = Fold(records);
-        if (rollups.Count == 0)
-        {
-            return;
-        }
 
         try
         {

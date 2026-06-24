@@ -196,17 +196,20 @@ public sealed class RiotApiUsageQuery(MongoLogContext context) : IRiotApiUsageQu
         FilterDefinition<RiotApiCallRollupDocument> filter,
         CancellationToken ct)
     {
-        // The app rate-limit count is on (almost) every Riot response, so the rollup
-        // with the freshest last-called timestamp carries the most recent "current"
-        // consumption seen in the window. $ne null (not $exists) so a rollup whose
-        // field is present-but-null can never mask an older rollup with a real value.
+        // The app rate-limit count is on (almost) every Riot response, so the newest
+        // rollup carries the most recent "current" consumption seen in the window.
+        // $ne null (not $exists) so a rollup whose field is present-but-null can never
+        // mask an older rollup with a real value.
         var withHeaders = filter & Filter.Ne(doc => doc.AppRateLimitCount, (string?)null);
 
+        // Sort on BucketStartUtc (not LastCalledAtUtc) so the ix_timestamp_desc index
+        // serves both the range filter and the sort — no in-memory sort. The two are
+        // always in the same minute, far below the 5-minute display bin, so the
+        // sub-minute skew is immaterial; ObservedAtUtc below still reports the precise
+        // last-call time.
         var doc = await context.RiotApiCallRollups
             .Find(withHeaders)
-            .Sort(Builders<RiotApiCallRollupDocument>.Sort
-                .Descending(d => d.LastCalledAtUtc)
-                .Descending(d => d.Id))
+            .Sort(Builders<RiotApiCallRollupDocument>.Sort.Descending(d => d.BucketStartUtc))
             .Limit(1)
             .FirstOrDefaultAsync(ct);
 
