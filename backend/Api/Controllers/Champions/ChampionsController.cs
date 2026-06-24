@@ -15,7 +15,8 @@ public sealed class ChampionsController(
     IChampionTimelineLeadsQueryService timelineLeadsQueryService,
     IChampionScalingQueryService scalingQueryService,
     IChampionItemTimingsQueryService itemTimingsQueryService,
-    IChampionRoamQueryService roamQueryService) : ControllerBase
+    IChampionRoamQueryService roamQueryService,
+    IChampionPowerspikesQueryService powerspikesQueryService) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<ChampionSummaryReadModel>), StatusCodes.Status200OK)]
@@ -243,6 +244,41 @@ public sealed class ChampionsController(
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
 
         var response = await roamQueryService.GetAsync(
+            championId,
+            normalizedPosition,
+            normalizedPatch,
+            ct);
+
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Power curve and event spikes for a champion at a position: the mean
+    /// opponent-relative power per minute, with the completed build items and
+    /// level milestones (6/11/16) marked by how much the curve accelerates
+    /// around them. <paramref name="position"/> is the required Riot team
+    /// position; an unrecognised position is a 400. Always 200; the curve and
+    /// events are empty until the per-minute data has accumulated.
+    /// </summary>
+    [HttpGet("{championId:int}/powerspikes")]
+    [ProducesResponseType(typeof(ChampionPowerspikesResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<ChampionPowerspikesResponse>> GetChampionPowerspikesAsync(
+        int championId,
+        [FromQuery] string? position,
+        [FromQuery] string? patch,
+        CancellationToken ct = default)
+    {
+        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+        if (normalizedPosition is null)
+        {
+            return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+        }
+
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+
+        var response = await powerspikesQueryService.GetAsync(
             championId,
             normalizedPosition,
             normalizedPatch,
