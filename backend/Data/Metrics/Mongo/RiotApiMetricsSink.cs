@@ -163,6 +163,13 @@ internal sealed class RiotApiMetricsSink(
         {
             // Shutdown raced the flush; drop this batch rather than blocking exit.
         }
+        catch (MongoBulkWriteException<RiotApiCallRollupDocument> ex)
+        {
+            // Unordered bulk: the successful upserts are already persisted, so report
+            // only the count that actually failed (e.g. a duplicate-key collision)
+            // rather than the whole batch size.
+            ReportError($"[RiotApiMetricsSink] failed to persist {ex.WriteErrors.Count}/{rollups.Count} rollup(s): {ex.Message}");
+        }
         catch (Exception ex)
         {
             ReportError($"[RiotApiMetricsSink] failed to persist {rollups.Count} rollup(s): {ex}");
@@ -287,7 +294,8 @@ internal sealed class RiotApiMetricsSink(
 
             // Coalesce: keep the last non-null value seen for each field so a header
             // a call omitted doesn't drop one an earlier call in the batch provided.
-            Method = record.Method ?? Method;
+            // Method is non-nullable on the record, so coalesce on emptiness instead.
+            Method = record.Method.Length > 0 ? record.Method : Method;
             Route = record.Route ?? Route;
             AppRateLimit = record.AppRateLimit ?? AppRateLimit;
             AppRateLimitCount = record.AppRateLimitCount ?? AppRateLimitCount;

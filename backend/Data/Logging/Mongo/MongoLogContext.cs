@@ -9,7 +9,7 @@ namespace Data.Logging.Mongo;
 /// Singleton holder of the shared <see cref="IMongoClient"/> and the Mongo
 /// collections backing TrueMain's observability stores: the diagnostic
 /// <c>logs</c>, the operator-action <c>audit_events</c>, and the Riot API usage
-/// metrics <c>riot_api_calls</c> (#93). Registered once so every sink, writer and
+/// rollups <c>riot_api_call_rollups</c> (#93). Registered once so every sink, writer and
 /// read query reuses the same driver client (which owns an internal connection
 /// pool).
 /// </summary>
@@ -182,7 +182,7 @@ public sealed class MongoLogContext : IDisposable
     /// timestamp field with the configured <paramref name="retention"/> window
     /// (e.g. <see cref="MongoLoggingOptions.LogsRetention"/> for <c>logs</c>,
     /// <see cref="MongoLoggingOptions.RiotApiCallsRetention"/> for
-    /// <c>riot_api_calls</c>):
+    /// <c>riot_api_call_rollups</c>):
     /// <list type="bullet">
     /// <item>retention &lt;= 0 → drop the TTL index if present (retain indefinitely);</item>
     /// <item>no TTL index yet → create it;</item>
