@@ -18,13 +18,6 @@ services:
     networks:
       - truemain_internal
 
-  # Transaction-pooling connection multiplexer in front of Postgres. The app
-  # services connect here (pgbouncer:6432) instead of postgres:5432, so a small,
-  # fixed set of real Postgres connections (default_pool_size) serves arbitrarily
-  # large Npgsql pools. This is what keeps Postgres' max_connections from ever
-  # being exhausted (fixes the recurring "53300 too many clients already", #461).
-  # EF migrations must NOT pass through here — see the api's
-  # ConnectionStrings__TrueMainMigrations (direct to Postgres).
   pgbouncer:
     image: edoburu/pgbouncer:v1.23.1-p3
     container_name: truemain-pgbouncer
@@ -35,8 +28,6 @@ services:
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_NAME: ${POSTGRES_DB}
-      # edoburu defaults LISTEN_PORT to 5432 (drop-in for postgres); pin it to
-      # 6432 to match the apps' connection strings and the published port.
       LISTEN_PORT: "6432"
       AUTH_TYPE: scram-sha-256
       POOL_MODE: transaction
@@ -45,13 +36,8 @@ services:
       MIN_POOL_SIZE: "5"
       RESERVE_POOL_SIZE: "5"
       RESERVE_POOL_TIMEOUT: "3"
-      # Read-only stats access (SHOW POOLS/STATS) for diagnostics. Deliberately
-      # NOT admin_users: the app user must not be able to SUSPEND/KILL/SHUTDOWN
-      # the pooler. admin_users defaults to the non-existent `postgres` role, so
-      # the app credentials cannot run admin commands at all.
       STATS_USERS: ${POSTGRES_USER}
     healthcheck:
-      # edoburu ships pg_isready; busybox `nc -z` is unreliable in this image.
       test: ["CMD-SHELL", "pg_isready -h localhost -p 6432 || exit 1"]
       interval: 5s
       timeout: 3s
@@ -70,8 +56,6 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
-    # No published port: the log/audit store is internal-only and reached by the
-    # app containers over the compose network ("mongo:27017").
     volumes:
       - truemain_mongo_data:/data/db
     healthcheck:
@@ -90,20 +74,11 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
-      # Runtime queries go through PgBouncer (transaction pooling). No Reset On
-      # Close=true: PgBouncer owns connection cleanup in transaction mode, so
-      # Npgsql must not send DISCARD ALL on close.
       ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=100;No Reset On Close=true;Application Name=truemain-api
-      # Migrations bypass PgBouncer (session-scoped advisory lock; see DatabaseMigrator).
       ConnectionStrings__TrueMainMigrations: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Application Name=truemain-migrator
       Database__ApplyMigrationsOnStartup: "true"
-      # MONGO_USER / MONGO_PASSWORD must be alphanumeric — they are interpolated raw into the URI.
       MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
       Ops__ApiKey: "${OPS_API_KEY:?set OPS_API_KEY before deploying}"
-      # Browser origins allowed to call the API cross-origin. Validated non-empty
-      # at startup outside Development (see FrontendCorsOptions / Program.cs): an
-      # empty list fails the boot. The public site is same-origin via the web SSR
-      # proxy, but the policy must still list every real frontend host.
       Cors__Origins__0: "https://truemain.lol"
       Cors__Origins__1: "https://www.truemain.lol"
       Cors__Origins__2: "https://admin.truemain.lol"
@@ -130,9 +105,6 @@ services:
     depends_on:
       api:
         condition: service_healthy
-    # No host port: the public site is fronted by Caddy (truemain.lol) and
-    # reached over the internal network. To debug from the host, temporarily
-    # add `127.0.0.1:3000:3000`.
     networks:
       - truemain_internal
 
@@ -148,18 +120,11 @@ services:
       NUXT_SESSION_PASSWORD: "${ADMIN_SESSION_PASSWORD:?set ADMIN_SESSION_PASSWORD before deploying}"
       NUXT_ADMIN_USERNAME: ${ADMIN_USERNAME:-truemain}
       NUXT_ADMIN_PASSWORD: "${ADMIN_PASSWORD:?set a strong ADMIN_PASSWORD before deploying}"
-      # Behind Caddy (TLS termination): mark the session cookie `Secure` and
-      # trust the X-Forwarded-For Caddy sets so the login throttle keys on the
-      # real client IP.
       NUXT_SESSION_COOKIE_SECURE: "true"
       NUXT_TRUST_PROXY: "true"
     depends_on:
       api:
         condition: service_healthy
-    # No host port: the admin dashboard is fronted by Caddy over HTTPS
-    # (admin.truemain.lol) and reachable only via the internal network. Its
-    # session cookie is `Secure`, so it requires TLS — which Caddy terminates.
-    # To debug from the host, temporarily add `127.0.0.1:3001:3000`.
     networks:
       - truemain_internal
 
@@ -170,7 +135,7 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      - "443:443/udp" # HTTP/3
+      - "443:443/udp"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - truemain_caddy_data:/data
@@ -188,7 +153,6 @@ services:
     environment:
       DOTNET_ENVIRONMENT: Production
       ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=40;No Reset On Close=true;Application Name=truemain-ingestor
-      # MONGO_USER / MONGO_PASSWORD must be alphanumeric — they are interpolated raw into the URI.
       MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
       Riot__ApiKey: ${RIOT_API_KEY}
       Job__Mode: ${INGESTOR_JOB_MODE:-Full}
