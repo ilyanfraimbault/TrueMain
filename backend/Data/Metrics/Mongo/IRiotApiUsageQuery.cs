@@ -18,7 +18,7 @@ public enum RiotUsageWindow
 }
 
 /// <summary>
-/// Read query over the <c>riot_api_calls</c> collection backing the admin
+/// Read query over the <c>riot_api_call_rollups</c> collection backing the admin
 /// <c>/ops/riot-usage</c> panel (#93). Lives in the Data layer so the Api stays
 /// persistence-ignorant and consumes the <see cref="RiotApiUsage"/> read-model.
 /// </summary>

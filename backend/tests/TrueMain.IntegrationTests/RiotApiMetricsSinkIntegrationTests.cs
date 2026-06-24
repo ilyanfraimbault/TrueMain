@@ -11,9 +11,10 @@ namespace TrueMain.IntegrationTests;
 /// Exercises the Riot metrics write path against a real Mongo container: the
 /// <see cref="IRiotApiCallRecorder"/> enqueues onto the channel and the hosted
 /// <see cref="RiotApiMetricsSink"/> drains it, creates the collection indexes on
-/// startup and batch-inserts the records. Mirrors the diagnostic-sink integration
-/// test (the codebase tests sinks against Mongo rather than with mocked
-/// collections) (#93).
+/// startup and folds the records into per-minute rollups (calls sharing a
+/// minute/endpoint/status collapse into one <c>$inc</c>-upserted document).
+/// Mirrors the diagnostic-sink integration test (the codebase tests sinks against
+/// Mongo rather than with mocked collections) (#93).
 /// </summary>
 [Collection(IntegrationCollection.Name)]
 public sealed class RiotApiMetricsSinkIntegrationTests
@@ -26,53 +27,68 @@ public sealed class RiotApiMetricsSinkIntegrationTests
     }
 
     [Fact]
-    public async Task Sink_DrainsRecordedCalls_PersistsThemAndCreatesIndexes()
+    public async Task Sink_FoldsRecordedCalls_IntoPerMinuteRollupsAndCreatesIndexes()
     {
         await _mongo.ResetAsync();
 
         using var host = BuildHost();
         await host.StartAsync();
 
-        var collection = _mongo.GetCollection<RiotApiCallDocument>(MongoFixture.RiotApiCallsCollection);
+        var collection = _mongo.GetCollection<RiotApiCallRollupDocument>(MongoFixture.RiotApiCallsCollection);
 
         // The sink creates its indexes once on startup; wait for the supporting
-        // indexes so the assertion below is not racing startup.
+        // indexes (including the unique upsert key) so the assertion below is not
+        // racing startup.
         await WaitUntilAsync(async () =>
         {
             var names = (await collection.Indexes.List().ToListAsync())
                 .Select(index => index["name"].AsString)
                 .ToList();
-            return names.Contains("ix_timestamp_desc")
+            return names.Contains("ux_bucket_endpoint_status")
+                && names.Contains("ix_timestamp_desc")
                 && names.Contains("ix_endpoint_timestamp")
                 && names.Contains("ttl_timestamp");
         });
 
+        // Pin a single minute so the two match calls share a bucket and must fold
+        // into one rollup (count 2) rather than two documents.
+        var at = DateTime.UtcNow;
         var recorder = host.Services.GetRequiredService<IRiotApiCallRecorder>();
-        recorder.Record(Record("match-v5.match", 200, 120, appLimit: "20:1,100:120", appCount: "3:1,57:120"));
-        recorder.Record(Record("match-v5.timeline", 429, 30, retryAfter: 5));
-        recorder.Record(Record("summoner-v4.byPuuid", 0, 1000));
+        recorder.Record(Record("match-v5.match", 200, 120, at, appLimit: "20:1,100:120", appCount: "1:1,40:120"));
+        recorder.Record(Record("match-v5.match", 200, 80, at, appLimit: "20:1,100:120", appCount: "3:1,57:120"));
+        recorder.Record(Record("match-v5.timeline", 429, 30, at, retryAfter: 5));
+        recorder.Record(Record("summoner-v4.byPuuid", 0, 1000, at));
 
-        // The sink flushes on its short window; poll until the three records land.
+        // The sink flushes on its short window; poll until the two match calls have
+        // folded into a single count-2 rollup and all three rollups are present.
         await WaitUntilAsync(async () =>
-            await collection.CountDocumentsAsync(FilterDefinition<RiotApiCallDocument>.Empty) == 3);
+        {
+            var docs = await collection.Find(FilterDefinition<RiotApiCallRollupDocument>.Empty).ToListAsync();
+            var match = docs.FirstOrDefault(doc => doc.Endpoint == "match-v5.match");
+            return docs.Count == 3 && match is { Count: 2 };
+        });
 
         await host.StopAsync();
 
-        var documents = await collection.Find(FilterDefinition<RiotApiCallDocument>.Empty).ToListAsync();
+        var documents = await collection.Find(FilterDefinition<RiotApiCallRollupDocument>.Empty).ToListAsync();
         documents.Should().HaveCount(3);
         documents.Should().OnlyContain(doc => doc.ProcessName == "Test");
 
         var match = documents.Single(doc => doc.Endpoint == "match-v5.match");
         match.StatusCode.Should().Be(200);
-        match.LatencyMs.Should().Be(120);
+        match.Count.Should().Be(2);
+        match.SumLatencyMs.Should().Be(200);
+        // Last-seen rate-limit headers win within the bucket.
         match.AppRateLimitCount.Should().Be("3:1,57:120");
 
         var throttled = documents.Single(doc => doc.Endpoint == "match-v5.timeline");
         throttled.StatusCode.Should().Be(429);
+        throttled.Count.Should().Be(1);
         throttled.RetryAfterSeconds.Should().Be(5);
 
         var faulted = documents.Single(doc => doc.Endpoint == "summoner-v4.byPuuid");
         faulted.StatusCode.Should().Be(0);
+        faulted.Count.Should().Be(1);
     }
 
     private IHost BuildHost()
@@ -94,11 +110,12 @@ public sealed class RiotApiMetricsSinkIntegrationTests
         string endpoint,
         int statusCode,
         long latencyMs,
+        DateTime at,
         string? appLimit = null,
         string? appCount = null,
         int? retryAfter = null)
         => new(
-            DateTime.UtcNow,
+            at,
             endpoint,
             "GET",
             statusCode,

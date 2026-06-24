@@ -7,13 +7,16 @@ using MongoDB.Driver;
 namespace Data.Metrics.Mongo;
 
 /// <summary>
-/// Background service that drains the <see cref="RiotApiMetricsChannel"/> and
-/// batch-inserts records as <see cref="RiotApiCallDocument"/>s into the
-/// <c>riot_api_calls</c> collection. Batches by count
+/// Background service that drains the <see cref="RiotApiMetricsChannel"/> and folds
+/// each batch into per-minute <see cref="RiotApiCallRollupDocument"/> rollups in the
+/// <c>riot_api_call_rollups</c> collection, one <c>$inc</c>-upsert per
+/// <c>(minute, endpoint, statusCode)</c> key. Batches by count
 /// (<see cref="MongoLoggingOptions.BatchSize"/>) or time
 /// (<see cref="MongoLoggingOptions.FlushInterval"/>), whichever comes first.
 /// A trimmed-down sibling of <c>MongoLogSink</c> sharing its bounded-channel,
-/// batch-insert, graceful-degradation and re-entry-safe shape.
+/// graceful-degradation and re-entry-safe shape — but rolling up instead of
+/// inserting one document per call, so the collection (and the panel's
+/// whole-window aggregations) no longer scale with raw call volume.
 /// </summary>
 /// <remarks>
 /// Like the log sink, this never logs through <c>ILogger</c> on its failure path
@@ -26,7 +29,9 @@ internal sealed class RiotApiMetricsSink(
     MongoLogContext context,
     IOptions<MongoLoggingOptions> options) : BackgroundService
 {
-    private static readonly InsertManyOptions UnorderedInsert = new() { IsOrdered = false };
+    // Unordered: one failed upsert (e.g. a transient duplicate-key race on insert)
+    // must not abort the rest of the batch.
+    private static readonly BulkWriteOptions UnorderedBulk = new() { IsOrdered = false };
     private readonly MongoLoggingOptions _options = options.Value;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -61,7 +66,7 @@ internal sealed class RiotApiMetricsSink(
         var flushInterval = _options.FlushInterval > TimeSpan.Zero
             ? _options.FlushInterval
             : TimeSpan.FromSeconds(2);
-        var buffer = new List<RiotApiCallDocument>(batchSize);
+        var buffer = new List<RiotApiCallRecord>(batchSize);
 
         try
         {
@@ -72,7 +77,7 @@ internal sealed class RiotApiMetricsSink(
                     stoppingToken, batchWindow.Token);
 
                 buffer.Clear();
-                buffer.Add(ToDocument(await reader.ReadAsync(stoppingToken)));
+                buffer.Add(await reader.ReadAsync(stoppingToken));
 
                 try
                 {
@@ -80,7 +85,7 @@ internal sealed class RiotApiMetricsSink(
                            && await reader.WaitToReadAsync(linked.Token)
                            && reader.TryRead(out var next))
                     {
-                        buffer.Add(ToDocument(next));
+                        buffer.Add(next);
                     }
                 }
                 catch (OperationCanceledException) when (batchWindow.IsCancellationRequested
@@ -109,10 +114,10 @@ internal sealed class RiotApiMetricsSink(
 
     private async Task DrainRemainingAsync(ChannelReader<RiotApiCallRecord> reader, int batchSize)
     {
-        var buffer = new List<RiotApiCallDocument>(batchSize);
+        var buffer = new List<RiotApiCallRecord>(batchSize);
         while (reader.TryRead(out var record))
         {
-            buffer.Add(ToDocument(record));
+            buffer.Add(record);
             if (buffer.Count >= batchSize)
             {
                 await PersistAsync(buffer, CancellationToken.None);
@@ -126,16 +131,30 @@ internal sealed class RiotApiMetricsSink(
         }
     }
 
-    private async Task PersistAsync(IReadOnlyList<RiotApiCallDocument> documents, CancellationToken ct)
+    /// <summary>
+    /// Folds the drained <paramref name="records"/> into per-minute rollups and
+    /// applies them as one unordered <c>$inc</c>-upsert per
+    /// <c>(bucketStartUtc, endpoint, statusCode)</c> key. The unique index on that
+    /// triple (see <c>MongoLogContext.EnsureRiotApiCallIndexesAsync</c>) makes each
+    /// upsert target exactly one document; the filter supplies the key fields on
+    /// insert, so they are not re-set in the update.
+    /// </summary>
+    private async Task PersistAsync(IReadOnlyList<RiotApiCallRecord> records, CancellationToken ct)
     {
-        if (documents.Count == 0)
+        if (records.Count == 0)
+        {
+            return;
+        }
+
+        var rollups = Fold(records);
+        if (rollups.Count == 0)
         {
             return;
         }
 
         try
         {
-            await context.RiotApiCalls.InsertManyAsync(documents, UnorderedInsert, ct);
+            await context.RiotApiCallRollups.BulkWriteAsync(rollups, UnorderedBulk, ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -143,27 +162,96 @@ internal sealed class RiotApiMetricsSink(
         }
         catch (Exception ex)
         {
-            ReportError($"[RiotApiMetricsSink] failed to persist {documents.Count} record(s): {ex}");
+            ReportError($"[RiotApiMetricsSink] failed to persist {rollups.Count} rollup(s): {ex}");
         }
     }
 
-    private RiotApiCallDocument ToDocument(RiotApiCallRecord record) => new()
+    /// <summary>
+    /// Groups a batch by <c>(minute, endpoint, statusCode)</c> and builds one upsert
+    /// per group: <c>$inc</c> the count and latency sum, <c>$max</c> the last-called
+    /// timestamp, and <c>$set</c> the last-seen descriptive/rate-limit fields from
+    /// the freshest call in the group. Because the channel drains in FIFO (roughly
+    /// timestamp) order, successive flushes for the same minute carry
+    /// non-decreasing timestamps, so the last-seen rate-limit headers stay the
+    /// freshest in the bucket.
+    /// </summary>
+    private List<WriteModel<RiotApiCallRollupDocument>> Fold(IReadOnlyList<RiotApiCallRecord> records)
     {
-        TimestampUtc = record.TimestampUtc,
-        Endpoint = Truncate(record.Endpoint, 128) ?? string.Empty,
-        Method = Truncate(record.Method, 16) ?? string.Empty,
-        StatusCode = record.StatusCode,
-        LatencyMs = record.LatencyMs,
-        Route = Truncate(record.Route, 32),
-        AppRateLimit = Truncate(record.AppRateLimit, 128),
-        AppRateLimitCount = Truncate(record.AppRateLimitCount, 128),
-        MethodRateLimit = Truncate(record.MethodRateLimit, 128),
-        MethodRateLimitCount = Truncate(record.MethodRateLimitCount, 128),
-        RetryAfterSeconds = record.RetryAfterSeconds,
-        RateLimitType = Truncate(record.RateLimitType, 32),
-        // Host-level tag, stamped here from config rather than carried per record.
-        ProcessName = Truncate(_options.ProcessName, 64)
-    };
+        var accumulators = new Dictionary<(DateTime Bucket, string Endpoint, int StatusCode), Accumulator>();
+
+        foreach (var record in records)
+        {
+            var bucket = new DateTime(
+                record.TimestampUtc.Year, record.TimestampUtc.Month, record.TimestampUtc.Day,
+                record.TimestampUtc.Hour, record.TimestampUtc.Minute, 0, DateTimeKind.Utc);
+            var endpoint = Truncate(record.Endpoint, 128) ?? string.Empty;
+            var key = (bucket, endpoint, record.StatusCode);
+
+            if (!accumulators.TryGetValue(key, out var acc))
+            {
+                acc = new Accumulator();
+                accumulators[key] = acc;
+            }
+
+            acc.Add(record);
+        }
+
+        var writes = new List<WriteModel<RiotApiCallRollupDocument>>(accumulators.Count);
+        foreach (var ((bucket, endpoint, statusCode), acc) in accumulators)
+        {
+            var latest = acc.Latest!;
+            var filter = Builders<RiotApiCallRollupDocument>.Filter.And(
+                Builders<RiotApiCallRollupDocument>.Filter.Eq(doc => doc.BucketStartUtc, bucket),
+                Builders<RiotApiCallRollupDocument>.Filter.Eq(doc => doc.Endpoint, endpoint),
+                Builders<RiotApiCallRollupDocument>.Filter.Eq(doc => doc.StatusCode, statusCode));
+
+            // Key fields (bucket/endpoint/statusCode) come from the filter on insert,
+            // so they are intentionally not in the update — setting them too would
+            // conflict with the filter-implied values.
+            var update = Builders<RiotApiCallRollupDocument>.Update
+                .Inc(doc => doc.Count, acc.Count)
+                .Inc(doc => doc.SumLatencyMs, acc.SumLatencyMs)
+                .Max(doc => doc.LastCalledAtUtc, acc.LastCalledAtUtc)
+                .Set(doc => doc.Method, Truncate(latest.Method, 16))
+                .Set(doc => doc.Route, Truncate(latest.Route, 32))
+                .Set(doc => doc.AppRateLimit, Truncate(latest.AppRateLimit, 128))
+                .Set(doc => doc.AppRateLimitCount, Truncate(latest.AppRateLimitCount, 128))
+                .Set(doc => doc.MethodRateLimit, Truncate(latest.MethodRateLimit, 128))
+                .Set(doc => doc.MethodRateLimitCount, Truncate(latest.MethodRateLimitCount, 128))
+                .Set(doc => doc.RetryAfterSeconds, latest.RetryAfterSeconds)
+                .Set(doc => doc.RateLimitType, Truncate(latest.RateLimitType, 32))
+                // Host-level tag, stamped from config rather than carried per record.
+                .Set(doc => doc.ProcessName, Truncate(_options.ProcessName, 64));
+
+            writes.Add(new UpdateOneModel<RiotApiCallRollupDocument>(filter, update) { IsUpsert = true });
+        }
+
+        return writes;
+    }
+
+    /// <summary>
+    /// In-memory fold state for one <c>(minute, endpoint, statusCode)</c> group:
+    /// running count and latency sum, plus the freshest record seen (for the
+    /// last-seen descriptive/rate-limit fields and the max timestamp).
+    /// </summary>
+    private sealed class Accumulator
+    {
+        public long Count { get; private set; }
+        public long SumLatencyMs { get; private set; }
+        public DateTime LastCalledAtUtc { get; private set; }
+        public RiotApiCallRecord? Latest { get; private set; }
+
+        public void Add(RiotApiCallRecord record)
+        {
+            Count++;
+            SumLatencyMs += record.LatencyMs;
+            if (Latest is null || record.TimestampUtc >= LastCalledAtUtc)
+            {
+                LastCalledAtUtc = record.TimestampUtc;
+                Latest = record;
+            }
+        }
+    }
 
     private static string? Truncate(string? value, int maxLength)
         => string.IsNullOrEmpty(value) || value.Length <= maxLength ? value : value[..maxLength];
