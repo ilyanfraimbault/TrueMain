@@ -1,5 +1,6 @@
 import type { ChampionResponse } from '~~/shared/types/champions'
 import { fetchErrorStatus } from '~/utils/errors'
+import { resolveGlobalChampion } from '~/utils/champion-fetch'
 
 type Filters = ReturnType<typeof useChampionFilters>['filters']
 
@@ -85,42 +86,20 @@ export function useChampion(
         }
       }
 
-      try {
-        return await $fetch<ChampionResponse>(`/api/champions/${id}`, { query: f })
-      }
-      catch (error: unknown) {
-        // Anything other than a 404 (429, 500, network, problem responses) is a
-        // real failure and must propagate so the page can surface it.
-        if (fetchErrorStatus(error) !== 404) throw error
-
-        const hadFilters = Boolean(f.patch || f.position)
-        if (hadFilters) {
-          // A 404 on a filtered slice usually just means that patch/position is
-          // empty — retry the champion's default slice before concluding there's
-          // no data at all.
-          try {
-            const fallback = await $fetch<ChampionResponse>(`/api/champions/${id}`)
-            // Stash this default slice under the unfiltered key. When the page's
-            // URL reconciler clears the dead filter, the data key flips from the
-            // filtered key to `buildKey('', '')`; `getCachedData` below then
-            // reuses this identical response instead of triggering a second
-            // no-filter fetch (and its loading flash).
-            nuxtApp.static.data[unfilteredKey] = fallback
-            return fallback
-          }
-          catch (fallbackError: unknown) {
-            if (fetchErrorStatus(fallbackError) !== 404) throw fallbackError
-            // Even the unfiltered fetch 404s: we hold no aggregate for this
-            // champion at all. Fall through to the no-data empty state.
-          }
-        }
-
-        // A 404 with no filters (or whose unfiltered fallback also 404s) means
-        // we genuinely have no data on this champion yet — an empty state, not
-        // an error, so swallow it into `notEnoughData` instead of throwing.
-        notEnoughData.value = true
-        return null
-      }
+      // Global variant: a 404 means "no data for this champion" rather than an
+      // error. resolveGlobalChampion runs the fetch + unfiltered fallback and
+      // classifies the result; non-404 failures still throw. The fallback
+      // callback stashes the default slice under the unfiltered key so that when
+      // the page's URL reconciler clears a dead filter (flipping the data key to
+      // `buildKey('', '')`) `getCachedData` reuses this identical response
+      // instead of triggering a second no-filter fetch (and its loading flash).
+      const outcome = await resolveGlobalChampion(
+        query => $fetch<ChampionResponse>(`/api/champions/${id}`, query ? { query } : {}),
+        f,
+        (fallback) => { nuxtApp.static.data[unfilteredKey] = fallback },
+      )
+      notEnoughData.value = outcome.notEnoughData
+      return outcome.data
     },
     {
       watch: [championIdRef, nameTagRef, filters],
