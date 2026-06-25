@@ -98,7 +98,7 @@ export function useChampion(
         query => $fetch<ChampionResponse>(`/api/champions/${id}`, { query }),
         f,
       )
-      if (outcome.fallbackData) nuxtApp.static.data[unfilteredKey] = outcome.fallbackData
+      if (outcome.fallbackData !== null) nuxtApp.static.data[unfilteredKey] = outcome.fallbackData
       return outcome.data
     },
     {
