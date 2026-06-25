@@ -18,11 +18,16 @@ export interface UseChampionOptions {
  * `options.nameTag` to scope every aggregate to that player's games on the
  * champion (used by `/truemains/{nameTag}/champions/{id}`).
  *
- * For the player-scoped variant a 404 is meaningful — the account is unknown
- * or the player has too few games on the champion — so it surfaces as
- * `notEnoughData = true` (with `data` left null) instead of throwing, letting
- * the page render an empty state. The global variant keeps its historical
- * behaviour of retrying once without filters on a 404.
+ * A 404 is always meaningful — for the player-scoped variant it means the
+ * account is unknown or the player has too few games on the champion; for the
+ * global variant it means we simply hold no aggregate for that champion yet (a
+ * brand-new champion, or one nobody in the dataset has played). Either way it
+ * surfaces as `notEnoughData = true` (with `data` left null) instead of
+ * throwing, so the page can render a clear "no data" empty state rather than a
+ * generic, retry-looking failure. The global variant still retries once
+ * without filters first: a 404 on a filtered slice usually just means that
+ * patch/position is empty, so we fall back to the champion's default slice and
+ * only treat it as "no data" when even the unfiltered fetch 404s.
  */
 export function useChampion(
   championId: MaybeRefOrGetter<number>,
@@ -84,19 +89,37 @@ export function useChampion(
         return await $fetch<ChampionResponse>(`/api/champions/${id}`, { query: f })
       }
       catch (error: unknown) {
-        const status = (error as { statusCode?: number }).statusCode
+        // Anything other than a 404 (429, 500, network, problem responses) is a
+        // real failure and must propagate so the page can surface it.
+        if (fetchErrorStatus(error) !== 404) throw error
+
         const hadFilters = Boolean(f.patch || f.position)
-        if (status === 404 && hadFilters) {
-          const fallback = await $fetch<ChampionResponse>(`/api/champions/${id}`)
-          // Stash this default slice under the unfiltered key. When the page's
-          // URL reconciler clears the dead filter, the data key flips from the
-          // filtered key to `buildKey('', '')`; `getCachedData` below then
-          // reuses this identical response instead of triggering a second
-          // no-filter fetch (and its loading flash).
-          nuxtApp.static.data[unfilteredKey] = fallback
-          return fallback
+        if (hadFilters) {
+          // A 404 on a filtered slice usually just means that patch/position is
+          // empty — retry the champion's default slice before concluding there's
+          // no data at all.
+          try {
+            const fallback = await $fetch<ChampionResponse>(`/api/champions/${id}`)
+            // Stash this default slice under the unfiltered key. When the page's
+            // URL reconciler clears the dead filter, the data key flips from the
+            // filtered key to `buildKey('', '')`; `getCachedData` below then
+            // reuses this identical response instead of triggering a second
+            // no-filter fetch (and its loading flash).
+            nuxtApp.static.data[unfilteredKey] = fallback
+            return fallback
+          }
+          catch (fallbackError: unknown) {
+            if (fetchErrorStatus(fallbackError) !== 404) throw fallbackError
+            // Even the unfiltered fetch 404s: we hold no aggregate for this
+            // champion at all. Fall through to the no-data empty state.
+          }
         }
-        throw error
+
+        // A 404 with no filters (or whose unfiltered fallback also 404s) means
+        // we genuinely have no data on this champion yet — an empty state, not
+        // an error, so swallow it into `notEnoughData` instead of throwing.
+        notEnoughData.value = true
+        return null
       }
     },
     {
