@@ -121,6 +121,52 @@ public sealed class RiotApiUsageQueryIntegrationTests
         usage.RateLimit.Should().BeNull();
     }
 
+    [Fact]
+    public async Task GetAsync_SumsRollupCounts_NotDocumentCount()
+    {
+        await _mongo.ResetAsync();
+        var at = DateTime.UtcNow.AddMinutes(-3);
+        var bucket = new DateTime(at.Year, at.Month, at.Day, at.Hour, at.Minute, 0, DateTimeKind.Utc);
+        // One rollup standing for 10 attempts (4 of them 429 errors), 5000ms total.
+        await SeedAsync(new RiotApiCallRollupDocument
+        {
+            BucketStartUtc = bucket,
+            Endpoint = "match-v5.match",
+            StatusCode = 200,
+            Count = 6,
+            SumLatencyMs = 3000,
+            LastCalledAtUtc = at
+        });
+        await SeedAsync(new RiotApiCallRollupDocument
+        {
+            BucketStartUtc = bucket,
+            Endpoint = "match-v5.match",
+            StatusCode = 429,
+            Count = 4,
+            SumLatencyMs = 2000,
+            LastCalledAtUtc = at
+        });
+
+        var usage = await QueryAsync(RiotUsageWindow.LastHour);
+
+        // Totals reflect the rolled-up counts (10 attempts), not the 2 documents.
+        usage.TotalCalls.Should().Be(10);
+        usage.TotalErrors.Should().Be(4);
+        usage.AvgLatencyMs.Should().BeApproximately(5000d / 10, 0.01);
+
+        var endpoint = usage.Endpoints.Should().ContainSingle().Subject;
+        endpoint.Calls.Should().Be(10);
+        endpoint.Successes.Should().Be(6);
+        endpoint.Errors.Should().Be(4);
+
+        usage.StatusCodes.Should().BeEquivalentTo(new[]
+        {
+            new RiotApiStatusCount(200, 6),
+            new RiotApiStatusCount(429, 4)
+        });
+        usage.TimeSeries.Sum(b => b.Calls).Should().Be(10);
+    }
+
     private async Task<RiotApiUsage> QueryAsync(RiotUsageWindow window, string? endpoint = null)
     {
         // A fresh context per call mirrors the DI singleton's lifetime; dispose it
@@ -130,9 +176,9 @@ public sealed class RiotApiUsageQueryIntegrationTests
         return await query.GetAsync(window, endpoint, CancellationToken.None);
     }
 
-    private async Task SeedAsync(params RiotApiCallDocument[] documents)
+    private async Task SeedAsync(params RiotApiCallRollupDocument[] documents)
     {
-        var collection = _mongo.GetCollection<RiotApiCallDocument>(MongoFixture.RiotApiCallsCollection);
+        var collection = _mongo.GetCollection<RiotApiCallRollupDocument>(MongoFixture.RiotApiCallsCollection);
         await collection.InsertManyAsync(documents);
     }
 
@@ -145,21 +191,30 @@ public sealed class RiotApiUsageQueryIntegrationTests
             Enabled = true
         }));
 
-    private static RiotApiCallDocument Call(
+    // A single call expressed as a one-attempt rollup (Count = 1): each helper call
+    // is in its own minute, so the query's per-endpoint / status / time-series
+    // groups sum these the same way the sink's upserts would have folded them.
+    private static RiotApiCallRollupDocument Call(
         string endpoint,
         int statusCode,
         long latencyMs,
         int minutesAgo,
         string? appLimit = null,
         string? appCount = null)
-        => new()
+    {
+        var at = DateTime.UtcNow.AddMinutes(-minutesAgo);
+        var bucket = new DateTime(at.Year, at.Month, at.Day, at.Hour, at.Minute, 0, DateTimeKind.Utc);
+        return new RiotApiCallRollupDocument
         {
-            TimestampUtc = DateTime.UtcNow.AddMinutes(-minutesAgo),
+            BucketStartUtc = bucket,
             Endpoint = endpoint,
-            Method = "GET",
             StatusCode = statusCode,
-            LatencyMs = latencyMs,
+            Count = 1,
+            SumLatencyMs = latencyMs,
+            LastCalledAtUtc = at,
+            Method = "GET",
             AppRateLimit = appLimit,
             AppRateLimitCount = appCount
         };
+    }
 }

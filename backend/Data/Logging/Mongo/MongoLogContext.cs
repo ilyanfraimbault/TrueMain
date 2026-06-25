@@ -9,7 +9,7 @@ namespace Data.Logging.Mongo;
 /// Singleton holder of the shared <see cref="IMongoClient"/> and the Mongo
 /// collections backing TrueMain's observability stores: the diagnostic
 /// <c>logs</c>, the operator-action <c>audit_events</c>, and the Riot API usage
-/// metrics <c>riot_api_calls</c> (#93). Registered once so every sink, writer and
+/// rollups <c>riot_api_call_rollups</c> (#93). Registered once so every sink, writer and
 /// read query reuses the same driver client (which owns an internal connection
 /// pool).
 /// </summary>
@@ -40,7 +40,7 @@ public sealed class MongoLogContext : IDisposable
         _database = _client.GetDatabase(_options.Database);
         Logs = _database.GetCollection<MongoLogDocument>(_options.LogsCollection);
         AuditEvents = _database.GetCollection<AuditEventDocument>(_options.AuditCollection);
-        RiotApiCalls = _database.GetCollection<RiotApiCallDocument>(_options.RiotApiCallsCollection);
+        RiotApiCallRollups = _database.GetCollection<RiotApiCallRollupDocument>(_options.RiotApiCallsCollection);
     }
 
     /// <summary>True when a Mongo client was created (logging enabled + connection string present).</summary>
@@ -64,10 +64,11 @@ public sealed class MongoLogContext : IDisposable
     }
 
     /// <summary>
-    /// Per-call Riot API usage metrics collection (#93). Written by the Ingestor's
-    /// <c>RiotApiMetricsSink</c> and read by the admin <c>/ops/riot-usage</c> panel.
+    /// Per-minute Riot API usage rollup collection (#93). Written by the Ingestor's
+    /// <c>RiotApiMetricsSink</c> (one <c>$inc</c>-upsert per minute/endpoint/status)
+    /// and read by the admin <c>/ops/riot-usage</c> panel.
     /// </summary>
-    public IMongoCollection<RiotApiCallDocument> RiotApiCalls
+    public IMongoCollection<RiotApiCallRollupDocument> RiotApiCallRollups
     {
         get => field ?? throw Inactive();
         private init;
@@ -134,10 +135,12 @@ public sealed class MongoLogContext : IDisposable
     }
 
     /// <summary>
-    /// Creates the supporting indexes for the <c>riot_api_calls</c> metrics
-    /// collection idempotently (#93): a descending timestamp index for window
-    /// scans, an <c>(endpoint, timestamp)</c> compound for the per-endpoint
-    /// rollup, and the reconciled TTL index enforcing
+    /// Creates the supporting indexes for the <c>riot_api_call_rollups</c> metrics
+    /// collection idempotently (#93): a unique <c>(bucketStartUtc, endpoint,
+    /// statusCode)</c> compound so each <c>$inc</c>-upsert targets exactly one
+    /// rollup, a descending <c>bucketStartUtc</c> index for window scans, an
+    /// <c>(endpoint, bucketStartUtc)</c> compound for the per-endpoint filter, and
+    /// the reconciled TTL index on <c>bucketStartUtc</c> enforcing
     /// <see cref="MongoLoggingOptions.RiotApiCallsRetention"/>. Called once on
     /// <c>RiotApiMetricsSink</c> startup; safe to re-run.
     /// </summary>
@@ -148,25 +151,30 @@ public sealed class MongoLogContext : IDisposable
             return;
         }
 
-        var models = new List<CreateIndexModel<RiotApiCallDocument>>
+        var models = new List<CreateIndexModel<RiotApiCallRollupDocument>>
         {
-            // The window lower bound (timestamp >= since) is on every read; a
-            // descending timestamp index serves it and the newest-first rate-limit
-            // lookup.
-            new(Builders<RiotApiCallDocument>.IndexKeys.Descending(doc => doc.TimestampUtc),
-                new CreateIndexOptions { Name = "ix_timestamp_desc" }),
-            // Back the per-endpoint rollup and the optional endpoint filter: group
-            // by endpoint within a time window.
-            new(Builders<RiotApiCallDocument>.IndexKeys
+            // The upsert key: one rollup per minute/endpoint/status. Unique so a
+            // concurrency race can't split a bucket into duplicate documents.
+            new(Builders<RiotApiCallRollupDocument>.IndexKeys
+                    .Ascending(doc => doc.BucketStartUtc)
                     .Ascending(doc => doc.Endpoint)
-                    .Descending(doc => doc.TimestampUtc),
+                    .Ascending(doc => doc.StatusCode),
+                new CreateIndexOptions { Name = "ux_bucket_endpoint_status", Unique = true }),
+            // The window lower bound (bucketStartUtc >= since) is on every read; a
+            // descending index serves it and the newest-first rate-limit lookup.
+            new(Builders<RiotApiCallRollupDocument>.IndexKeys.Descending(doc => doc.BucketStartUtc),
+                new CreateIndexOptions { Name = "ix_timestamp_desc" }),
+            // Back the optional endpoint filter: scan one endpoint within a window.
+            new(Builders<RiotApiCallRollupDocument>.IndexKeys
+                    .Ascending(doc => doc.Endpoint)
+                    .Descending(doc => doc.BucketStartUtc),
                 new CreateIndexOptions { Name = "ix_endpoint_timestamp" })
         };
 
-        await RiotApiCalls.Indexes.CreateManyAsync(models, ct);
+        await RiotApiCallRollups.Indexes.CreateManyAsync(models, ct);
 
         await ReconcileTtlIndexAsync(
-            RiotApiCalls, doc => doc.TimestampUtc, _options.RiotApiCallsRetention, ct);
+            RiotApiCallRollups, doc => doc.BucketStartUtc, _options.RiotApiCallsRetention, ct);
     }
 
     /// <summary>
@@ -174,7 +182,7 @@ public sealed class MongoLogContext : IDisposable
     /// timestamp field with the configured <paramref name="retention"/> window
     /// (e.g. <see cref="MongoLoggingOptions.LogsRetention"/> for <c>logs</c>,
     /// <see cref="MongoLoggingOptions.RiotApiCallsRetention"/> for
-    /// <c>riot_api_calls</c>):
+    /// <c>riot_api_call_rollups</c>):
     /// <list type="bullet">
     /// <item>retention &lt;= 0 → drop the TTL index if present (retain indefinitely);</item>
     /// <item>no TTL index yet → create it;</item>

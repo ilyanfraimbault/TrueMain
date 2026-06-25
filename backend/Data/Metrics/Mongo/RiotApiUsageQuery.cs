@@ -5,21 +5,25 @@ using MongoDB.Driver;
 namespace Data.Metrics.Mongo;
 
 /// <summary>
-/// Purpose-built read query over the <c>riot_api_calls</c> collection backing the
-/// admin <c>/ops/riot-usage</c> panel (#93). Keeps Mongo concerns in the Data
-/// layer: the Api stays persistence-ignorant and consumes the
+/// Purpose-built read query over the <c>riot_api_call_rollups</c> collection
+/// backing the admin <c>/ops/riot-usage</c> panel (#93). Keeps Mongo concerns in
+/// the Data layer: the Api stays persistence-ignorant and consumes the
 /// <see cref="RiotApiUsage"/> read-model. Reuses the shared
 /// <see cref="MongoLogContext"/> Mongo client (the metrics collection lives in the
-/// same database as the diagnostic logs).
+/// same database as the diagnostic logs). Each document already aggregates a
+/// minute of calls, so the group stages sum <c>count</c>/<c>sumLatencyMs</c>
+/// instead of counting raw documents.
 /// </summary>
 public sealed class RiotApiUsageQuery(MongoLogContext context) : IRiotApiUsageQuery
 {
-    private static readonly FilterDefinitionBuilder<RiotApiCallDocument> Filter =
-        Builders<RiotApiCallDocument>.Filter;
+    private static readonly FilterDefinitionBuilder<RiotApiCallRollupDocument> Filter =
+        Builders<RiotApiCallRollupDocument>.Filter;
 
-    // error = NOT (200 <= statusCode < 400): transport faults (0), 429 and 5xx all
-    // count. Reused across every group stage so the breakdowns stay consistent.
-    private static readonly BsonDocument ErrorCond = new("$cond", new BsonArray
+    // Errored-call count contributed by a rollup: 0 when the status is a success
+    // (200 <= statusCode < 400), else the whole rollup's count — transport faults
+    // (0), 429 and 5xx all count. Reused across every group stage so the breakdowns
+    // stay consistent.
+    private static readonly BsonDocument ErrorCount = new("$cond", new BsonArray
     {
         new BsonDocument("$and", new BsonArray
         {
@@ -27,7 +31,7 @@ public sealed class RiotApiUsageQuery(MongoLogContext context) : IRiotApiUsageQu
             new BsonDocument("$lt", new BsonArray { "$statusCode", 400 })
         }),
         0,
-        1
+        "$count"
     });
 
     public async Task<RiotApiUsage> GetAsync(
@@ -45,7 +49,7 @@ public sealed class RiotApiUsageQuery(MongoLogContext context) : IRiotApiUsageQu
         }
 
         var normalizedEndpoint = string.IsNullOrWhiteSpace(endpoint) ? null : endpoint.Trim();
-        var windowFilter = Filter.Gte(doc => doc.TimestampUtc, since);
+        var windowFilter = Filter.Gte(doc => doc.BucketStartUtc, since);
         var filter = windowFilter;
         if (normalizedEndpoint is not null)
         {
@@ -92,19 +96,19 @@ public sealed class RiotApiUsageQuery(MongoLogContext context) : IRiotApiUsageQu
     }
 
     private async Task<IReadOnlyList<RiotApiEndpointUsage>> AggregateEndpointsAsync(
-        FilterDefinition<RiotApiCallDocument> filter,
+        FilterDefinition<RiotApiCallRollupDocument> filter,
         CancellationToken ct)
     {
         var group = new BsonDocument
         {
             { "_id", "$endpoint" },
-            { "calls", new BsonDocument("$sum", 1) },
-            { "errors", new BsonDocument("$sum", ErrorCond) },
-            { "sumLatency", new BsonDocument("$sum", "$latencyMs") },
-            { "lastCalledAtUtc", new BsonDocument("$max", "$timestampUtc") }
+            { "calls", new BsonDocument("$sum", "$count") },
+            { "errors", new BsonDocument("$sum", ErrorCount) },
+            { "sumLatency", new BsonDocument("$sum", "$sumLatencyMs") },
+            { "lastCalledAtUtc", new BsonDocument("$max", "$lastCalledAtUtc") }
         };
 
-        var rows = await context.RiotApiCalls
+        var rows = await context.RiotApiCallRollups
             .Aggregate()
             .Match(filter)
             .Group<BsonDocument>(group)
@@ -128,16 +132,16 @@ public sealed class RiotApiUsageQuery(MongoLogContext context) : IRiotApiUsageQu
     }
 
     private async Task<IReadOnlyList<RiotApiStatusCount>> AggregateStatusCodesAsync(
-        FilterDefinition<RiotApiCallDocument> filter,
+        FilterDefinition<RiotApiCallRollupDocument> filter,
         CancellationToken ct)
     {
         var group = new BsonDocument
         {
             { "_id", "$statusCode" },
-            { "count", new BsonDocument("$sum", 1) }
+            { "count", new BsonDocument("$sum", "$count") }
         };
 
-        var rows = await context.RiotApiCalls
+        var rows = await context.RiotApiCallRollups
             .Aggregate()
             .Match(filter)
             .Group<BsonDocument>(group)
@@ -150,16 +154,18 @@ public sealed class RiotApiUsageQuery(MongoLogContext context) : IRiotApiUsageQu
     }
 
     private async Task<IReadOnlyList<RiotApiUsageBucket>> AggregateTimeSeriesAsync(
-        FilterDefinition<RiotApiCallDocument> filter,
+        FilterDefinition<RiotApiCallRollupDocument> filter,
         string unit,
         int binSize,
         CancellationToken ct)
     {
-        // $dateTrunc (Mongo 5.0+) snaps each timestamp down to the bucket boundary
-        // so calls group into fixed windows for the volume chart.
+        // $dateTrunc (Mongo 5.0+) snaps each minute-rollup down to the display
+        // bucket boundary so calls group into fixed windows for the volume chart.
+        // The display bins (5 min / 1 h / 6 h) are all multiples of the 1-minute
+        // rollup granularity, so re-bucketing stays exact.
         var bucket = new BsonDocument("$dateTrunc", new BsonDocument
         {
-            { "date", "$timestampUtc" },
+            { "date", "$bucketStartUtc" },
             { "unit", unit },
             { "binSize", binSize }
         });
@@ -167,11 +173,11 @@ public sealed class RiotApiUsageQuery(MongoLogContext context) : IRiotApiUsageQu
         var group = new BsonDocument
         {
             { "_id", bucket },
-            { "calls", new BsonDocument("$sum", 1) },
-            { "errors", new BsonDocument("$sum", ErrorCond) }
+            { "calls", new BsonDocument("$sum", "$count") },
+            { "errors", new BsonDocument("$sum", ErrorCount) }
         };
 
-        var rows = await context.RiotApiCalls
+        var rows = await context.RiotApiCallRollups
             .Aggregate()
             .Match(filter)
             .Group<BsonDocument>(group)
@@ -187,18 +193,23 @@ public sealed class RiotApiUsageQuery(MongoLogContext context) : IRiotApiUsageQu
     }
 
     private async Task<RiotApiRateLimitSnapshot?> LatestRateLimitAsync(
-        FilterDefinition<RiotApiCallDocument> filter,
+        FilterDefinition<RiotApiCallRollupDocument> filter,
         CancellationToken ct)
     {
-        // The app rate-limit count is on (almost) every Riot response, so the most
-        // recent call in the window carries the freshest "current" consumption.
-        var withHeaders = filter & Filter.Exists(doc => doc.AppRateLimitCount);
+        // The app rate-limit count is on (almost) every Riot response, so the newest
+        // rollup carries the most recent "current" consumption seen in the window.
+        // $ne null (not $exists) so a rollup whose field is present-but-null can never
+        // mask an older rollup with a real value.
+        var withHeaders = filter & Filter.Ne(doc => doc.AppRateLimitCount, (string?)null);
 
-        var doc = await context.RiotApiCalls
+        // Sort on BucketStartUtc (not LastCalledAtUtc) so the ix_timestamp_desc index
+        // serves both the range filter and the sort — no in-memory sort. The two are
+        // always in the same minute, far below the 5-minute display bin, so the
+        // sub-minute skew is immaterial; ObservedAtUtc below still reports the precise
+        // last-call time.
+        var doc = await context.RiotApiCallRollups
             .Find(withHeaders)
-            .Sort(Builders<RiotApiCallDocument>.Sort
-                .Descending(d => d.TimestampUtc)
-                .Descending(d => d.Id))
+            .Sort(Builders<RiotApiCallRollupDocument>.Sort.Descending(d => d.BucketStartUtc))
             .Limit(1)
             .FirstOrDefaultAsync(ct);
 
@@ -208,7 +219,7 @@ public sealed class RiotApiUsageQuery(MongoLogContext context) : IRiotApiUsageQu
         }
 
         return new RiotApiRateLimitSnapshot(
-            doc.TimestampUtc,
+            doc.LastCalledAtUtc,
             doc.AppRateLimit,
             doc.AppRateLimitCount,
             doc.MethodRateLimit,
