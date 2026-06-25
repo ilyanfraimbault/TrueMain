@@ -122,6 +122,10 @@ const displayName = computed(() =>
 const displayIconUrl = computed(() =>
   staticData.value?.championIconUrl || championListEntry.value?.iconUrl || null,
 )
+// Reused by the no-data empty state below; falls back to a generic noun when
+// the static list hasn't resolved the champion's name (e.g. a brand-new
+// champion DDragon doesn't list yet).
+const noDataLabel = computed(() => displayName.value ?? 'this champion')
 
 useSeoMeta({
   title: () => displayName.value ?? 'TrueMain',
@@ -267,8 +271,16 @@ const isRefetching = computed(() =>
       in the dataset has played). This is deliberately distinct from the error
       alert above: a 404 is "no data", not a transient failure to retry.
     -->
+    <!--
+      Deliberately gated on `notEnoughData` alone, NOT `!isRefetching`: this
+      block depends on no secondary data, and `isRefetching` stays true while
+      the static fetches (rune tree, items, summoners…) run — which they do even
+      for a champion we hold no data on — so anding it in would blank the page
+      behind the progress bar until those resolve. The bar already signals that
+      background activity.
+    -->
     <div
-      v-else-if="notEnoughData && !isRefetching"
+      v-else-if="notEnoughData"
       class="flex flex-col items-center gap-3 glass rounded-lg px-6 py-12 text-center"
     >
       <SkeletonImage
@@ -281,10 +293,10 @@ const isRefetching = computed(() =>
       />
       <div class="space-y-1">
         <p class="text-sm font-medium text-default">
-          No data yet for {{ displayName ?? 'this champion' }}
+          No data yet for {{ noDataLabel }}
         </p>
         <p class="text-sm text-muted">
-          We don't have any games on {{ displayName ?? 'this champion' }} yet — once it's
+          We don't have any games on {{ noDataLabel }} yet — once it's
           been played enough, its builds, runes and stats will show up here.
         </p>
       </div>
