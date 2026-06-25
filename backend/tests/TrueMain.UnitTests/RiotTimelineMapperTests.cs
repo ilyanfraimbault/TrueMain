@@ -144,6 +144,36 @@ public sealed class RiotTimelineMapperTests
         evt.AssistingParticipantIds.Should().BeEmpty();
     }
 
+    [Fact]
+    public void Map_DoesNotThrow_WhenRiotSendsNullCollections()
+    {
+        // Riot occasionally sends an explicit null for a frame's collections; System.Text.Json
+        // honours it over the DTO `= new()` default. The mapper must degrade to empty rather than
+        // NRE and poison the ingestion queue (reverting the match to queued forever).
+        var timeline = new RiotTimelineDto
+        {
+            Info = new RiotTimelineInfoDto
+            {
+                Frames =
+                [
+                    new RiotTimelineFrameDto
+                    {
+                        Timestamp = 60_000,
+                        Events = null!,
+                        ParticipantFrames = null!
+                    }
+                ]
+            }
+        };
+
+        var result = ((Func<MatchTimelineDto>)(() => RiotTimelineMapper.Map(timeline)))
+            .Should().NotThrow().Subject;
+
+        result.Frames.Should().ContainSingle();
+        result.Frames[0].ParticipantFrames.Should().BeEmpty();
+        result.Events.Should().BeEmpty();
+    }
+
     private static RiotTimelineDto SingleEventTimeline(RiotTimelineEventDto evt)
         => new()
         {
