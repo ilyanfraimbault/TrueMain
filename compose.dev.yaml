@@ -5,6 +5,7 @@ services:
     image: postgres:17.2
     container_name: truemain-dev-postgres
     restart: unless-stopped
+    shm_size: "256m"
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
