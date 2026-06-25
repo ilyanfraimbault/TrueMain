@@ -15,7 +15,7 @@ public sealed class MongoFixture : IAsyncLifetime
     public const string DatabaseName = "truemain_logs_test";
     public const string LogsCollection = "logs";
     public const string AuditCollection = "audit_events";
-    public const string RiotApiCallsCollection = "riot_api_calls";
+    public const string RiotApiCallsCollection = "riot_api_call_rollups";
 
     private readonly MongoDbContainer _container = new MongoDbBuilder("mongo:8.0")
         // Match PostgresFixture's reasoning: keep Testcontainers' Ryuk reaper

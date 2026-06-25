@@ -58,8 +58,9 @@ public static class MongoLoggingServiceCollectionExtensions
         services.AddHostedService<MongoLogSink>();
 
         // Riot API usage metrics (#93): a separate non-blocking channel + draining
-        // sink writing per-call documents to riot_api_calls, the recorder the
-        // Ingestor's HTTP handler calls, and the read query for /ops/riot-usage.
+        // sink folding calls into per-minute rollups in riot_api_call_rollups, the
+        // recorder the Ingestor's HTTP handler calls, and the read query for
+        // /ops/riot-usage.
         // All reuse the singleton MongoLogContext (same Mongo client/database).
         // Registered in both hosts like the log sink: the Ingestor produces the
         // records, the Api only reads, but a host with no producers just idles.

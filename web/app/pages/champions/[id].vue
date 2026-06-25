@@ -18,10 +18,13 @@ const {
   data: champion,
   error: championError,
   status: championStatus,
+  notEnoughData,
 } = useChampion(championId, filters)
 
 // Real load failures (429/500/network) surface as a toast as well as the
-// inline alert below — both read the same line via describeFetchError.
+// inline alert below — both read the same line via describeFetchError. A 404
+// (no data for this champion) is not an error: useChampion swallows it into
+// notEnoughData and we render a dedicated empty state instead.
 useErrorToast(championError, { title: 'Failed to load champion' })
 
 const activePatch = computed(() => champion.value?.patch || filters.value.patch || null)
@@ -257,6 +260,44 @@ const isRefetching = computed(() =>
       :description="describeFetchError(championError)"
     />
 
+    <!--
+      No-data empty state: the API returned 404 for this champion (and, if a
+      patch/position was pinned, the unfiltered fallback 404'd too) — we simply
+      don't hold any aggregate for them yet (a brand-new champion, or one nobody
+      in the dataset has played). This is deliberately distinct from the error
+      alert above: a 404 is "no data", not a transient failure to retry.
+    -->
+    <!--
+      Deliberately gated on `notEnoughData` alone, NOT `!isRefetching`: this
+      block depends on no secondary data, and `isRefetching` stays true while
+      the static fetches (rune tree, items, summoners…) run — which they do even
+      for a champion we hold no data on — so anding it in would blank the page
+      behind the progress bar until those resolve. The bar already signals that
+      background activity.
+    -->
+    <div
+      v-else-if="notEnoughData"
+      class="flex flex-col items-center gap-3 glass rounded-lg px-6 py-12 text-center"
+    >
+      <SkeletonImage
+        v-if="displayIconUrl"
+        :src="displayIconUrl"
+        :alt="displayName ?? ''"
+        width="64"
+        height="64"
+        class="size-16 rounded opacity-80"
+      />
+      <div class="space-y-1">
+        <p class="text-sm font-medium text-default">
+          No data yet for {{ displayName ?? 'this champion' }}
+        </p>
+        <p class="text-sm text-muted">
+          We don't have any games on {{ displayName ?? 'this champion' }} yet — once it's
+          been played enough, its builds, runes and stats will show up here.
+        </p>
+      </div>
+    </div>
+
     <template v-else-if="champion && staticData">
       <header class="flex flex-wrap items-center gap-4">
         <ChampionHeader
@@ -295,16 +336,18 @@ const isRefetching = computed(() =>
         :loading="isLoadingStatus(trendStatus)"
       />
 
-      <ChampionTimelineLeadsChart
-        :intervals="championLeads?.intervals ?? []"
-        :loading="isLoadingStatus(leadsStatus)"
-      />
+      <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <ChampionTimelineLeadsChart
+          :intervals="championLeads?.intervals ?? []"
+          :loading="isLoadingStatus(leadsStatus)"
+        />
 
-      <ChampionScalingChart
-        :buckets="championScaling?.buckets ?? []"
-        :scaling-index="championScaling?.scalingIndex ?? null"
-        :loading="isLoadingStatus(scalingStatus)"
-      />
+        <ChampionScalingChart
+          :buckets="championScaling?.buckets ?? []"
+          :scaling-index="championScaling?.scalingIndex ?? null"
+          :loading="isLoadingStatus(scalingStatus)"
+        />
+      </div>
 
       <ChampionItemTimings
         :timings="championItemTimings?.items ?? []"

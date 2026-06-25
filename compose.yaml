@@ -3,6 +3,7 @@ services:
     image: postgres:17.2
     container_name: truemain-postgres
     restart: unless-stopped
+    shm_size: "256m"
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -20,13 +21,6 @@ services:
     networks:
       - truemain_internal
 
-  # Transaction-pooling connection multiplexer in front of Postgres. The app
-  # services connect here (pgbouncer:6432) instead of postgres:5432, so a small,
-  # fixed set of real Postgres connections (default_pool_size) serves arbitrarily
-  # large Npgsql pools. This is what keeps Postgres' max_connections from ever
-  # being exhausted (fixes the recurring "53300 too many clients already", #461).
-  # EF migrations must NOT pass through here — see the api's
-  # ConnectionStrings__TrueMainMigrations (direct to Postgres).
   pgbouncer:
     image: edoburu/pgbouncer:v1.23.1-p3
     container_name: truemain-pgbouncer
@@ -37,8 +31,6 @@ services:
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_NAME: ${POSTGRES_DB}
-      # edoburu defaults LISTEN_PORT to 5432 (drop-in for postgres); pin it to
-      # 6432 to match the apps' connection strings and the published port.
       LISTEN_PORT: "6432"
       AUTH_TYPE: scram-sha-256
       POOL_MODE: transaction
@@ -47,13 +39,8 @@ services:
       MIN_POOL_SIZE: "5"
       RESERVE_POOL_SIZE: "5"
       RESERVE_POOL_TIMEOUT: "3"
-      # Read-only stats access (SHOW POOLS/STATS) for diagnostics. Deliberately
-      # NOT admin_users: the app user must not be able to SUSPEND/KILL/SHUTDOWN
-      # the pooler. admin_users defaults to the non-existent `postgres` role, so
-      # the app credentials cannot run admin commands at all.
       STATS_USERS: ${POSTGRES_USER}
     healthcheck:
-      # edoburu ships pg_isready; busybox `nc -z` is unreliable in this image.
       test: ["CMD-SHELL", "pg_isready -h localhost -p 6432 || exit 1"]
       interval: 5s
       timeout: 3s
@@ -73,9 +60,6 @@ services:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
     ports:
-      # Bind to loopback only: the log/audit store must not be reachable from
-      # other hosts on the network. App containers reach it over the compose
-      # network ("mongo:27017"), which does not go through this published port.
       - "127.0.0.1:27017:27017"
     volumes:
       - truemain_mongo_data:/data/db
@@ -98,16 +82,10 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
       Database__ApplyMigrationsOnStartup: "true"
-      # Runtime queries go through PgBouncer (transaction pooling). No Reset On
-      # Close=true: PgBouncer owns connection cleanup in transaction mode, so
-      # Npgsql must not send DISCARD ALL on close.
       ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=100;No Reset On Close=true;Application Name=truemain-api
-      # Migrations bypass PgBouncer (session-scoped advisory lock; see DatabaseMigrator).
       ConnectionStrings__TrueMainMigrations: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Application Name=truemain-migrator
       MongoLogging__ConnectionString: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin
       Ops__ApiKey: ${OPS_API_KEY}
-      # Validated non-empty at startup outside Development (see FrontendCorsOptions).
-      # The local prod-like stack publishes the web app on host port 3000.
       Cors__Origins__0: "http://localhost:3000"
     depends_on:
       postgres:
@@ -157,9 +135,6 @@ services:
       api:
         condition: service_healthy
     ports:
-      # Bind to loopback only: the admin dashboard is an internal tool reached
-      # via the reverse proxy on the host, never directly from the public
-      # internet. `3001:3000` would publish on 0.0.0.0.
       - "127.0.0.1:3001:3000"
     networks:
       - truemain_internal

@@ -4,8 +4,8 @@ namespace TrueMain.ReadModels.Ops;
 /// Riot API usage metrics over a relative window for the admin
 /// <c>/ops/riot-usage</c> panel (#93): totals, a per-endpoint breakdown, a
 /// status-code histogram, a bucketed call-volume series, and the most recent
-/// rate-limit header snapshot. Sourced from the per-call <c>riot_api_calls</c>
-/// Mongo collection.
+/// rate-limit header snapshot. Sourced from the per-minute
+/// <c>riot_api_call_rollups</c> Mongo collection.
 /// </summary>
 public sealed record RiotApiUsageReadModel
 {

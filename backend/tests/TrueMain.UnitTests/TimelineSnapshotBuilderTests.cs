@@ -34,7 +34,8 @@ public sealed class TimelineSnapshotBuilderTests
 
         var snapshots = TimelineSnapshotBuilder.Build(MatchId, timeline);
 
-        // Only the 5- and 10-minute marks have a frame within tolerance; 15/20/30 do not.
+        // Every minute 1..30 is scanned, but these sparse frames only sit within
+        // tolerance of the 5- and 10-minute marks, so only those produce rows.
         snapshots.Select(s => s.IntervalMinute).Distinct().Should().BeEquivalentTo([5, 10]);
         snapshots.Should().HaveCount(4); // 2 participants x 2 intervals
         snapshots.Should().OnlyContain(s => s.MatchId == MatchId);
@@ -55,6 +56,23 @@ public sealed class TimelineSnapshotBuilderTests
         p1At10.TotalGold.Should().Be(4000);
         p1At10.Kills.Should().Be(2);       // both kills now counted
         p1At10.WardsKilled.Should().Be(1); // ward kill at 350s now counted
+    }
+
+    [Fact]
+    public void Build_EmitsRowForEveryMinuteCoveredByFrames()
+    {
+        // A frame exactly on each minute mark from 1 to 10: per-minute sampling
+        // (issue #567) must emit a snapshot for every one of those minutes, and
+        // nothing past minute 10 where no frame sits within tolerance.
+        var timeline = new MatchTimelineDto
+        {
+            Frames = [.. Enumerable.Range(1, 10).Select(minute => Frame(minute * 60_000, Participant(1, gold: minute * 100)))]
+        };
+
+        var snapshots = TimelineSnapshotBuilder.Build(MatchId, timeline);
+
+        snapshots.Select(s => s.IntervalMinute).Should().BeEquivalentTo(Enumerable.Range(1, 10));
+        snapshots.Single(s => s.IntervalMinute == 7).TotalGold.Should().Be(700);
     }
 
     [Fact]

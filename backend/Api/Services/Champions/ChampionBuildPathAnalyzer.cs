@@ -21,7 +21,7 @@ internal static class ChampionBuildPathAnalyzer
     public const int BuildTreeMaxDepth = 6;
     public const int BuildTreeMaxChildrenPerNode = 6;
     public const int BuildTreeMinGames = 2;
-    public const double BuildTreeMinPickRate = 0.05;
+    public const double BuildTreeMinPickRate = 0.10;
 
     /// <summary>
     /// One observed item progression inside a slice. Maps 1:1 onto

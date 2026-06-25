@@ -1,5 +1,6 @@
 import type { ChampionResponse } from '~~/shared/types/champions'
 import { fetchErrorStatus } from '~/utils/errors'
+import { resolveGlobalChampion } from '~/utils/champion-fetch'
 
 type Filters = ReturnType<typeof useChampionFilters>['filters']
 
@@ -18,11 +19,23 @@ export interface UseChampionOptions {
  * `options.nameTag` to scope every aggregate to that player's games on the
  * champion (used by `/truemains/{nameTag}/champions/{id}`).
  *
- * For the player-scoped variant a 404 is meaningful — the account is unknown
- * or the player has too few games on the champion — so it surfaces as
- * `notEnoughData = true` (with `data` left null) instead of throwing, letting
- * the page render an empty state. The global variant keeps its historical
- * behaviour of retrying once without filters on a 404.
+ * A 404 is always meaningful — for the player-scoped variant it means the
+ * account is unknown or the player has too few games on the champion; for the
+ * global variant it means we simply hold no aggregate for that champion yet (a
+ * brand-new champion, or one nobody in the dataset has played). Either way the
+ * handler resolves to `data = null` (instead of throwing), and the returned
+ * `notEnoughData` flag surfaces that so the page can render a clear "no data"
+ * empty state rather than a generic, retry-looking failure. The global variant
+ * still retries once without filters first: a 404 on a filtered slice usually
+ * just means that patch/position is empty, so we fall back to the champion's
+ * default slice and only treat it as "no data" when even the unfiltered fetch
+ * 404s.
+ *
+ * `notEnoughData` is derived from useAsyncData's own state (`data === null` on a
+ * settled fetch), NOT set imperatively inside the handler: `getCachedData`
+ * short-circuits the handler on a cache hit, so a handler-set ref would go
+ * stale across navigations (e.g. open a no-data champion, then a cached one —
+ * the flag would wrongly stick on `true`).
  */
 export function useChampion(
   championId: MaybeRefOrGetter<number>,
@@ -36,8 +49,6 @@ export function useChampion(
     const value = toValue(options.nameTag)
     return value && value.length > 0 ? value : undefined
   })
-
-  const notEnoughData = ref(false)
 
   const buildKey = (patch: string, position: string) =>
     ['champion', nameTagRef.value ?? 'global', championIdRef.value, patch, position].join('-')
@@ -56,7 +67,6 @@ export function useChampion(
       // change underneath us and `buildKey` would otherwise stash this
       // response under the new champion's key.
       const unfilteredKey = buildKey('', '')
-      notEnoughData.value = false
 
       if (nameTag) {
         try {
@@ -67,37 +77,29 @@ export function useChampion(
         }
         catch (error: unknown) {
           // The controller returns 404 for an unknown player or a champion
-          // below the min-games floor — that's an empty state, not an error,
-          // so swallow it into `notEnoughData`. Every other status (429, 500,
-          // problem responses) is a real failure and must propagate so the
-          // page can surface it (inline alert + toast) instead of pretending
-          // the player simply hasn't played enough.
-          if (fetchErrorStatus(error) === 404) {
-            notEnoughData.value = true
-            return null
-          }
+          // below the min-games floor — that's an empty state, not an error, so
+          // resolve to null (surfaced as `notEnoughData`). Every other status
+          // (429, 500, problem responses) is a real failure and must propagate
+          // so the page can surface it (inline alert + toast) instead of
+          // pretending the player simply hasn't played enough.
+          if (fetchErrorStatus(error) === 404) return null
           throw error
         }
       }
 
-      try {
-        return await $fetch<ChampionResponse>(`/api/champions/${id}`, { query: f })
-      }
-      catch (error: unknown) {
-        const status = (error as { statusCode?: number }).statusCode
-        const hadFilters = Boolean(f.patch || f.position)
-        if (status === 404 && hadFilters) {
-          const fallback = await $fetch<ChampionResponse>(`/api/champions/${id}`)
-          // Stash this default slice under the unfiltered key. When the page's
-          // URL reconciler clears the dead filter, the data key flips from the
-          // filtered key to `buildKey('', '')`; `getCachedData` below then
-          // reuses this identical response instead of triggering a second
-          // no-filter fetch (and its loading flash).
-          nuxtApp.static.data[unfilteredKey] = fallback
-          return fallback
-        }
-        throw error
-      }
+      // Global variant: a 404 means "no data for this champion" rather than an
+      // error. resolveGlobalChampion runs the fetch + unfiltered fallback and
+      // classifies the result (null = no data); non-404 failures still throw.
+      // Stash any fallback slice under the unfiltered key so that when the
+      // page's URL reconciler clears a dead filter (flipping the data key to
+      // `buildKey('', '')`) `getCachedData` reuses this identical response
+      // instead of triggering a second no-filter fetch (and its loading flash).
+      const outcome = await resolveGlobalChampion(
+        query => $fetch<ChampionResponse>(`/api/champions/${id}`, { query }),
+        f,
+      )
+      if (outcome.fallbackData !== null) nuxtApp.static.data[unfilteredKey] = outcome.fallbackData
+      return outcome.data
     },
     {
       watch: [championIdRef, nameTagRef, filters],
@@ -118,6 +120,14 @@ export function useChampion(
         return cached as ChampionResponse | null | undefined
       },
     },
+  )
+
+  // Derived, not imperative: a `null` payload on a settled (success) fetch is
+  // the "no data" signal for both variants (the handler returns null on a 404
+  // and throws on every other failure). Reading useAsyncData's own state keeps
+  // this correct even when `getCachedData` skips the handler on a cache hit.
+  const notEnoughData = computed(
+    () => result.data.value === null && result.status.value === 'success',
   )
 
   return { ...result, notEnoughData }

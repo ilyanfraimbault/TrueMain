@@ -164,6 +164,7 @@ builder.Services.AddScoped<IChampionTimelineLeadsQueryService, ChampionTimelineL
 builder.Services.AddScoped<IChampionScalingQueryService, ChampionScalingQueryService>();
 builder.Services.AddScoped<IChampionItemTimingsQueryService, ChampionItemTimingsQueryService>();
 builder.Services.AddScoped<IChampionRoamQueryService, ChampionRoamQueryService>();
+builder.Services.AddScoped<IChampionPowerspikesQueryService, ChampionPowerspikesQueryService>();
 builder.Services.AddScoped<IChampionTrendQueryService, ChampionTrendQueryService>();
 builder.Services.AddScoped<IMatchSummariesQueryService, MatchSummariesQueryService>();
 builder.Services.AddScoped<IProfileQueryService, ProfileQueryService>();
@@ -171,6 +172,7 @@ builder.Services.AddScoped<IPlayerChampionBuildsQueryService, PlayerChampionBuil
 builder.Services.AddScoped<IPlayerChampionMatchupQueryService, PlayerChampionMatchupQueryService>();
 builder.Services.AddScoped<IRankHistoryQueryService, RankHistoryQueryService>();
 builder.Services.AddScoped<ITruemainsLeaderboardQueryService, TruemainsLeaderboardQueryService>();
+builder.Services.AddScoped<ISearchQueryService, SearchQueryService>();
 builder.Services.AddScoped<IPipelineHealthQueryService, PipelineHealthQueryService>();
 builder.Services.AddScoped<IOverviewQueryService, OverviewQueryService>();
 builder.Services.AddScoped<IChampionStatsQueryService, ChampionStatsQueryService>();
