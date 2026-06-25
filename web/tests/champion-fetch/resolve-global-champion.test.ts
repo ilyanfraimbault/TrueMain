@@ -13,23 +13,23 @@ function champion(patch: string): ChampionResponse {
 }
 
 describe('resolveGlobalChampion', () => {
-  it('returns the slice and notEnoughData=false on success', async () => {
+  it('returns the slice with no fallback on success', async () => {
     const payload = champion('14.1')
     const fetcher = vi.fn().mockResolvedValue(payload)
 
     const outcome = await resolveGlobalChampion(fetcher, { patch: '14.1' })
 
-    expect(outcome).toEqual({ data: payload, notEnoughData: false })
+    expect(outcome).toEqual({ data: payload, fallbackData: null })
     expect(fetcher).toHaveBeenCalledTimes(1)
     expect(fetcher).toHaveBeenCalledWith({ patch: '14.1' })
   })
 
-  it('flags notEnoughData (no throw) on a 404 with no filters', async () => {
+  it('resolves to null data (no throw) on a 404 with no filters', async () => {
     const fetcher = vi.fn().mockRejectedValue(fetchError(404))
 
     const outcome = await resolveGlobalChampion(fetcher, {})
 
-    expect(outcome).toEqual({ data: null, notEnoughData: true })
+    expect(outcome).toEqual({ data: null, fallbackData: null })
     // No filters → no unfiltered fallback, just the one (failing) call.
     expect(fetcher).toHaveBeenCalledTimes(1)
   })
@@ -40,28 +40,25 @@ describe('resolveGlobalChampion', () => {
       .fn()
       .mockRejectedValueOnce(fetchError(404))
       .mockResolvedValueOnce(fallback)
-    const onFallback = vi.fn()
 
-    const outcome = await resolveGlobalChampion(fetcher, { position: 'MIDDLE' }, onFallback)
+    const outcome = await resolveGlobalChampion(fetcher, { position: 'MIDDLE' })
 
-    expect(outcome).toEqual({ data: fallback, notEnoughData: false })
+    // data and fallbackData are the same slice — the caller stashes fallbackData.
+    expect(outcome).toEqual({ data: fallback, fallbackData: fallback })
     expect(fetcher).toHaveBeenCalledTimes(2)
     expect(fetcher).toHaveBeenLastCalledWith() // unfiltered retry
-    expect(onFallback).toHaveBeenCalledWith(fallback)
   })
 
-  it('flags notEnoughData when both the filtered and unfiltered slices 404', async () => {
+  it('resolves to null data when both the filtered and unfiltered slices 404', async () => {
     const fetcher = vi
       .fn()
       .mockRejectedValueOnce(fetchError(404))
       .mockRejectedValueOnce(fetchError(404))
-    const onFallback = vi.fn()
 
-    const outcome = await resolveGlobalChampion(fetcher, { patch: '14.1', position: 'TOP' }, onFallback)
+    const outcome = await resolveGlobalChampion(fetcher, { patch: '14.1', position: 'TOP' })
 
-    expect(outcome).toEqual({ data: null, notEnoughData: true })
+    expect(outcome).toEqual({ data: null, fallbackData: null })
     expect(fetcher).toHaveBeenCalledTimes(2)
-    expect(onFallback).not.toHaveBeenCalled()
   })
 
   it('propagates non-404 failures instead of swallowing them', async () => {
