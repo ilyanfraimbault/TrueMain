@@ -56,6 +56,8 @@ export async function resolveGlobalChampion(
     // real failure and must propagate so the page can surface it.
     if (fetchErrorStatus(error) !== 404) throw error
 
+    // Widen this check alongside ChampionSliceFilters (and the JSDoc above)
+    // when adding a new filter, so a pinned value still triggers the fallback.
     const hadFilters = Boolean(filters.patch || filters.position)
     if (hadFilters) {
       // A 404 on a filtered slice usually just means that patch/position is
