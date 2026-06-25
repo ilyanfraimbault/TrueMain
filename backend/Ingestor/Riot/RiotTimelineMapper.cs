@@ -13,11 +13,16 @@ internal static class RiotTimelineMapper
     public static MatchTimelineDto Map(RiotTimelineDto timeline)
     {
         var events = new List<MatchTimelineEventDto>();
-        var frames = new List<MatchTimelineFrameDto>(timeline.Info.Frames.Count);
 
-        foreach (var frame in timeline.Info.Frames)
+        // Riot can send an explicit null for any collection (e.g. "participantFrames": null),
+        // which System.Text.Json honours over the DTO's `= new()` default. Guard every nested
+        // collection so a single degenerate frame/match can't NRE and poison the ingestion queue.
+        var sourceFrames = timeline.Info?.Frames ?? [];
+        var frames = new List<MatchTimelineFrameDto>(sourceFrames.Count);
+
+        foreach (var frame in sourceFrames)
         {
-            foreach (var evt in frame.Events)
+            foreach (var evt in frame.Events ?? [])
             {
                 events.Add(MapEvent(evt));
             }
@@ -25,10 +30,12 @@ internal static class RiotTimelineMapper
             frames.Add(new MatchTimelineFrameDto
             {
                 TimestampMs = ToTimestamp(frame.Timestamp),
-                ParticipantFrames = frame.ParticipantFrames.Values
-                    .Select(MapParticipantFrame)
-                    .OrderBy(participantFrame => participantFrame.ParticipantId)
-                    .ToList()
+                ParticipantFrames = frame.ParticipantFrames is { Count: > 0 }
+                    ? frame.ParticipantFrames.Values
+                        .Select(MapParticipantFrame)
+                        .OrderBy(participantFrame => participantFrame.ParticipantId)
+                        .ToList()
+                    : []
             });
         }
 
