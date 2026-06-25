@@ -122,10 +122,6 @@ const displayName = computed(() =>
 const displayIconUrl = computed(() =>
   staticData.value?.championIconUrl || championListEntry.value?.iconUrl || null,
 )
-// Reused by the no-data empty state below; falls back to a generic noun when
-// the static list hasn't resolved the champion's name (e.g. a brand-new
-// champion DDragon doesn't list yet).
-const noDataLabel = computed(() => displayName.value ?? 'this champion')
 
 useSeoMeta({
   title: () => displayName.value ?? 'TrueMain',
@@ -293,10 +289,10 @@ const isRefetching = computed(() =>
       />
       <div class="space-y-1">
         <p class="text-sm font-medium text-default">
-          No data yet for {{ noDataLabel }}
+          No data yet for {{ displayName ?? 'this champion' }}
         </p>
         <p class="text-sm text-muted">
-          We don't have any games on {{ noDataLabel }} yet — once it's
+          We don't have any games on {{ displayName ?? 'this champion' }} yet — once it's
           been played enough, its builds, runes and stats will show up here.
         </p>
       </div>

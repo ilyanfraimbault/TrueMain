@@ -94,7 +94,7 @@ export function useChampion(
       // `buildKey('', '')`) `getCachedData` reuses this identical response
       // instead of triggering a second no-filter fetch (and its loading flash).
       const outcome = await resolveGlobalChampion(
-        query => $fetch<ChampionResponse>(`/api/champions/${id}`, query ? { query } : {}),
+        query => $fetch<ChampionResponse>(`/api/champions/${id}`, { query }),
         f,
         (fallback) => { nuxtApp.static.data[unfilteredKey] = fallback },
       )
