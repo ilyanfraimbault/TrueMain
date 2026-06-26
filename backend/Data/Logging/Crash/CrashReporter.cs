@@ -57,9 +57,6 @@ internal sealed class CrashReporter(
                 {
                     return;
                 }
-
-                _lastException = exception;
-                _lastReportUtc = DateTime.UtcNow;
             }
         }
 
@@ -73,6 +70,17 @@ internal sealed class CrashReporter(
             // Building the report must never be what kills the dying process.
             ReportError($"[CrashReporter] failed to build crash report: {ex}");
             return;
+        }
+
+        // Record the dedupe key only after a successful build, so a throwing build
+        // can't permanently suppress the retry with the same exception object.
+        if (exception is not null)
+        {
+            lock (_dedupeGate)
+            {
+                _lastException = exception;
+                _lastReportUtc = DateTime.UtcNow;
+            }
         }
 
         WriteToFile(report);
