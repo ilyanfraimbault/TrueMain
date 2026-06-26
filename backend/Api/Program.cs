@@ -1,6 +1,7 @@
 using System.Threading.RateLimiting;
 using Core.Options;
 using Data;
+using Data.Logging.Crash;
 using Data.Logging.Mongo;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
@@ -181,6 +182,7 @@ builder.Services.AddScoped<ITableStatsQueryService, TableStatsQueryService>();
 builder.Services.AddScoped<IProcessRunsQueryService, ProcessRunsQueryService>();
 builder.Services.AddScoped<IProcessIterationsQueryService, ProcessIterationsQueryService>();
 builder.Services.AddScoped<ILogsQueryService, LogsQueryService>();
+builder.Services.AddScoped<ICrashesQueryService, CrashesQueryService>();
 builder.Services.AddScoped<IRiotApiUsageQueryService, RiotApiUsageQueryService>();
 builder.Services.AddScoped<IDataQualityQueryService, DataQualityQueryService>();
 builder.Services.AddScoped<ISeedRequestService, SeedRequestService>();
@@ -221,7 +223,16 @@ builder.Services.AddDbContextFactory<TrueMainDbContext>(lifetime: ServiceLifetim
 // writer inserts synchronously. ProcessName "Api" tags diagnostic rows apart from
 // the Ingestor's.
 builder.Services.AddMongoLogging(builder.Configuration, processName: "Api");
+// Durable crash capture (file first, then Mongo) layered on the Mongo logging it
+// depends on, so a crash is recorded even when the restart:unless-stopped policy
+// would otherwise hide it — and even if Mongo itself is down.
+builder.Services.AddCrashReporting();
 var app = builder.Build();
+
+// Wire the process-level crash hooks (AppDomain / TaskScheduler) and the
+// unclean-shutdown sentinel before anything runs, so a fault during startup or on a
+// background thread is still captured.
+app.Services.UseProcessCrashCapture();
 
 // Non-Development boots already fail in ValidateOnStart when Origins is empty;
 // this only fires under Development, where an empty list is tolerated but still
@@ -233,8 +244,6 @@ if (app.Environment.IsDevelopment()
         "Cors:Origins is empty; the {Policy} policy allows no cross-origin browser request. Set Cors:Origins in configuration to let the frontend reach the API.",
         frontendCorsPolicy);
 }
-
-await DatabaseMigrator.ApplyPendingMigrationsAsync(app.Services);
 
 // Wrap unhandled exceptions in RFC 7807 ProblemDetails so clients
 // always see a structured payload instead of HTML stack traces, and
@@ -278,6 +287,24 @@ app.MapHealthChecks("/readyz", new Microsoft.AspNetCore.Diagnostics.HealthChecks
 }).DisableRateLimiting();
 app.MapControllers();
 
-app.Run();
+// Resolved before Run: a failed start disposes the provider, so resolving inside the
+// catch would throw ObjectDisposedException and mask the real fault.
+var crashReporter = app.Services.GetRequiredService<ICrashReporter>();
+try
+{
+    await DatabaseMigrator.ApplyPendingMigrationsAsync(app.Services);
+    app.Run();
+}
+catch (Microsoft.Extensions.Hosting.HostAbortedException)
+{
+    // Deliberate host abort (WebApplicationFactory / EF tooling), not a crash.
+    throw;
+}
+catch (Exception ex)
+{
+    try { crashReporter.Report(CrashSource.HostRun, ex); }
+    catch { /* never let crash reporting mask the original failure */ }
+    throw;
+}
 
 public partial class Program;
