@@ -245,8 +245,6 @@ if (app.Environment.IsDevelopment()
         frontendCorsPolicy);
 }
 
-await DatabaseMigrator.ApplyPendingMigrationsAsync(app.Services);
-
 // Wrap unhandled exceptions in RFC 7807 ProblemDetails so clients
 // always see a structured payload instead of HTML stack traces, and
 // emit StatusCodePages for 4xx/5xx responses without a body so things
@@ -294,6 +292,7 @@ app.MapControllers();
 var crashReporter = app.Services.GetRequiredService<ICrashReporter>();
 try
 {
+    await DatabaseMigrator.ApplyPendingMigrationsAsync(app.Services);
     app.Run();
 }
 catch (Microsoft.Extensions.Hosting.HostAbortedException)

@@ -17,6 +17,8 @@ namespace Data.Logging.Crash;
 /// </summary>
 public static class CrashCaptureExtensions
 {
+    private static int _hooksRegistered;
+
     public static IServiceCollection AddCrashReporting(this IServiceCollection services)
     {
         // One ring-buffer provider instance, registered both as the concrete type
@@ -51,14 +53,18 @@ public static class CrashCaptureExtensions
     /// </summary>
     public static void UseProcessCrashCapture(this IServiceProvider services)
     {
+        // Wire the process-global hooks + sentinel exactly once per process:
+        // integration tests build many hosts in one AppDomain, and re-registering
+        // would accumulate stale handlers bound to disposed DI containers.
+        if (Interlocked.CompareExchange(ref _hooksRegistered, 1, 0) != 0)
+        {
+            return;
+        }
+
         var options = services.GetRequiredService<IOptions<MongoLoggingOptions>>().Value;
         var reporter = services.GetRequiredService<ICrashReporter>();
         var processName = CrashSentinel.ResolveProcessName(options);
 
-        // 1) Process-level hooks. AppDomain.UnhandledException catches unhandled
-        //    throws on any thread; it does NOT stop termination in .NET — we only get
-        //    to record before the process dies. (StackOverflowException and
-        //    Environment.FailFast bypass it entirely; only the sentinel reflects those.)
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
             reporter.Report(CrashSource.AppDomainUnhandled, e.ExceptionObject as Exception
                 ?? new Exception(e.ExceptionObject?.ToString() ?? "Unknown non-CLR exception"));
@@ -66,12 +72,10 @@ public static class CrashCaptureExtensions
         TaskScheduler.UnobservedTaskException += (_, e) =>
         {
             reporter.Report(CrashSource.TaskSchedulerUnobserved, e.Exception);
-            // Non-terminal: mark observed so the runtime does not escalate the fault.
             e.SetObserved();
         };
 
-        // 2) Detect an unclean death of the previous run BEFORE overwriting its
-        //    sentinel: a "running" status means it vanished with no graceful stop.
+        // A previous run that died uncleanly left its sentinel at "running".
         var previous = CrashSentinel.ReadPrevious(options, processName);
         if (previous is not null
             && string.Equals(previous.Status, CrashSentinel.StatusRunning, StringComparison.Ordinal))
@@ -79,12 +83,8 @@ public static class CrashCaptureExtensions
             reporter.ReportUncleanShutdown(previous);
         }
 
-        // 3) Mark THIS run running (the refresh service keeps it current).
         CrashSentinel.MarkRunning(options, processName);
 
-        // 4) A graceful shutdown (SIGTERM / docker stop / StopApplication drives
-        //    ApplicationStopping) flips the sentinel to "stopped", so a normal
-        //    restart/redeploy never reads as a false unclean death next boot.
         var lifetime = services.GetService<IHostApplicationLifetime>();
         lifetime?.ApplicationStopping.Register(() => CrashSentinel.MarkStopped(options, processName));
     }

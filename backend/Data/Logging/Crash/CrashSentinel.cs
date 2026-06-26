@@ -56,9 +56,14 @@ internal static class CrashSentinel
     private static string? _lastContext;
 
     public static string ResolveProcessName(MongoLoggingOptions options)
-        => string.IsNullOrWhiteSpace(options.ProcessName)
+    {
+        var name = string.IsNullOrWhiteSpace(options.ProcessName)
             ? Assembly.GetEntryAssembly()?.GetName().Name ?? "Process"
             : options.ProcessName;
+        // The name becomes part of a file path; strip any directory components.
+        var safe = Path.GetFileName(name);
+        return string.IsNullOrEmpty(safe) ? "Process" : safe;
+    }
 
     /// <summary>Reads the PREVIOUS run's sentinel. Call before <see cref="MarkRunning"/> overwrites it.</summary>
     public static CrashSentinelState? ReadPrevious(MongoLoggingOptions options, string processName)

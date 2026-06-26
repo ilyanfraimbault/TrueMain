@@ -29,7 +29,9 @@ internal sealed class RecentLogTailProvider : ILoggerProvider
     private static readonly string[] ExcludedCategoryPrefixes =
     [
         "MongoDB",
-        "Data.Logging"
+        "Data.Logging",
+        // Durable, long-retention store: keep request/response logging out of it.
+        "Microsoft.AspNetCore.HttpLogging"
     ];
 
     private readonly int _capacity;

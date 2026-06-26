@@ -116,9 +116,9 @@ host.Services.UseProcessCrashCapture();
 // Resolved before Run: a failed start disposes the provider, so resolving inside the
 // catch would throw ObjectDisposedException and mask the real fault.
 var crashReporter = host.Services.GetRequiredService<ICrashReporter>();
-await DatabaseMigrator.ApplyPendingMigrationsAsync(host.Services);
 try
 {
+    await DatabaseMigrator.ApplyPendingMigrationsAsync(host.Services);
     await host.RunAsync();
 }
 catch (Microsoft.Extensions.Hosting.HostAbortedException)

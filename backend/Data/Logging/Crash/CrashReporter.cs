@@ -41,9 +41,7 @@ internal sealed class CrashReporter(
 
     public bool IsEnabled => true;
 
-    private string ProcessName => string.IsNullOrWhiteSpace(_options.ProcessName)
-        ? Assembly.GetEntryAssembly()?.GetName().Name ?? "Process"
-        : _options.ProcessName;
+    private string ProcessName => CrashSentinel.ResolveProcessName(_options);
 
     public void Report(CrashSource source, Exception? exception, int? exitCode = null)
     {
