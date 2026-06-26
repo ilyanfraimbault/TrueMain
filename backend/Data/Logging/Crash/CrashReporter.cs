@@ -228,12 +228,9 @@ internal sealed class CrashReporter(
                 : TimeSpan.FromSeconds(3);
 
             using var cts = new CancellationTokenSource(timeout);
-            // Synchronous, single-document insert (lossless, like MongoAuditLog). The
-            // token bounds it so a Mongo outage times out instead of hanging exit; we
-            // already have the durable file copy by this point.
-            context.Crashes.InsertOneAsync(ToDocument(report), options: null, cts.Token)
-                .GetAwaiter()
-                .GetResult();
+            // Native sync insert (lossless, like MongoAuditLog), time-bounded so a
+            // Mongo outage can't hang exit; the durable file copy is already written.
+            context.Crashes.InsertOne(ToDocument(report), options: null, cts.Token);
         }
         catch (Exception ex)
         {

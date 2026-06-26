@@ -191,6 +191,10 @@ const tableMeta = {
 // --- Detail slide-over -------------------------------------------------------
 const detailOpen = ref(false)
 const selectedEntry = ref<LogEntry | null>(null)
+// Close any open detail when switching tabs so it doesn't reopen on return.
+watch(view, () => {
+  detailOpen.value = false
+})
 function openDetail(entry: LogEntry) {
   selectedEntry.value = entry
   detailOpen.value = true

@@ -35,12 +35,17 @@ const WINDOW_MS: Record<string, number> = {
   '30d': 30 * 24 * 60 * 60 * 1000,
 }
 
+// Freeze `since` when the window changes, not on every filters recompute — otherwise
+// paging would re-sample Date.now() and drift the window forward between pages.
+const sinceFrom = ref<string | undefined>(undefined)
+watch(sinceWindow, (w) => {
+  sinceFrom.value = w === ALL ? undefined : new Date(Date.now() - WINDOW_MS[w]!).toISOString()
+}, { immediate: true })
+
 const filters = computed(() => ({
   process: processFilter.value === ALL ? undefined : processFilter.value,
   source: sourceFilter.value === ALL ? undefined : (sourceFilter.value as CrashSource),
-  since: sinceWindow.value === ALL
-    ? undefined
-    : new Date(Date.now() - WINDOW_MS[sinceWindow.value]!).toISOString(),
+  since: sinceFrom.value,
   search: search.value.trim() || undefined,
   page: page.value,
   pageSize,

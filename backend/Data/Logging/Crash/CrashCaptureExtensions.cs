@@ -60,7 +60,8 @@ public static class CrashCaptureExtensions
         //    to record before the process dies. (StackOverflowException and
         //    Environment.FailFast bypass it entirely; only the sentinel reflects those.)
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
-            reporter.Report(CrashSource.AppDomainUnhandled, e.ExceptionObject as Exception);
+            reporter.Report(CrashSource.AppDomainUnhandled, e.ExceptionObject as Exception
+                ?? new Exception(e.ExceptionObject?.ToString() ?? "Unknown non-CLR exception"));
 
         TaskScheduler.UnobservedTaskException += (_, e) =>
         {
