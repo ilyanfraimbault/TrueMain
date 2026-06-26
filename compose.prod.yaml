@@ -87,6 +87,11 @@ services:
       Cors__Origins__0: "https://truemain.lol"
       Cors__Origins__1: "https://www.truemain.lol"
       Cors__Origins__2: "https://admin.truemain.lol"
+      MongoLogging__CrashFilePath: /home/app/crashes
+    volumes:
+      # Durable crash logs survive container recreation. Named volume so it inherits
+      # the app-user ownership prepared in the image (a bind mount would not).
+      - truemain_api_crashes:/home/app/crashes
     depends_on:
       postgres:
         condition: service_healthy
@@ -161,6 +166,9 @@ services:
       MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
       Riot__ApiKey: ${RIOT_API_KEY}
       Job__Mode: ${INGESTOR_JOB_MODE:-Full}
+      MongoLogging__CrashFilePath: /home/app/crashes
+    volumes:
+      - truemain_ingestor_crashes:/home/app/crashes
     depends_on:
       postgres:
         condition: service_healthy
@@ -176,6 +184,8 @@ volumes:
   truemain_mongo_data:
   truemain_caddy_data:
   truemain_caddy_config:
+  truemain_api_crashes:
+  truemain_ingestor_crashes:
 
 networks:
   truemain_internal:

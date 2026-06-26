@@ -14,6 +14,11 @@ RUN dotnet publish "Ingestor.csproj" -c Release -o /app/publish /p:UseAppHost=fa
 FROM mcr.microsoft.com/dotnet/runtime:10.0 AS final
 WORKDIR /app
 COPY --from=build /app/publish .
+# CrashReporter writes durable crash files + sentinels here. Create the directory
+# owned by the non-root app user (while still root) so a named Docker volume mounted
+# at this path inherits app ownership — a root-owned mount point would make the file
+# sink silently fail (writes denied).
+RUN mkdir -p /home/app/crashes && chown app:app /home/app/crashes
 USER app
 
 # Liveness: the Worker rewrites /tmp/ingestor-heartbeat at the top of every

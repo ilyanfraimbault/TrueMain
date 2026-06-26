@@ -99,6 +99,48 @@ public sealed class MongoLoggingOptions
     public TimeSpan RiotApiCallsRetention { get; set; } = TimeSpan.FromDays(14);
 
     /// <summary>
+    /// Collection holding lossless crash reports (one per process crash), written
+    /// synchronously by <c>CrashReporter</c> (never the batched diagnostic channel)
+    /// and read by the admin Crashes panel.
+    /// </summary>
+    public string CrashesCollection { get; set; } = "crashes";
+
+    /// <summary>
+    /// Retention window for the <c>crashes</c> collection, enforced by a native Mongo
+    /// TTL index on <c>timestampUtc</c>. Defaults to 365 days — crashes are rare and
+    /// high-value, so they are kept far longer than the diagnostic <c>logs</c>. Set to
+    /// <see cref="TimeSpan.Zero"/> or negative to disable the TTL index.
+    /// </summary>
+    public TimeSpan CrashesRetention { get; set; } = TimeSpan.FromDays(365);
+
+    /// <summary>
+    /// Directory the durable crash files (<c>{Process}.crash.jsonl</c>) and per-process
+    /// sentinels are written to. Must be writable by the container's non-root
+    /// <c>app</c> user and mounted on a Docker volume so it survives container
+    /// recreation (see compose). Blank disables the file sink (the Mongo copy still works).
+    /// </summary>
+    public string CrashFilePath { get; set; } = "/home/app/crashes";
+
+    /// <summary>
+    /// Size cap for a per-process crash file before it is rolled to
+    /// <c>{Process}.crash.1.jsonl</c> (one generation kept). Defaults to ~5 MB.
+    /// </summary>
+    public long CrashFileMaxBytes { get; set; } = 5_000_000;
+
+    /// <summary>
+    /// How many recent log records (Information and above) the in-memory ring buffer
+    /// retains to attach to a crash report as the "what led up to it" trail.
+    /// </summary>
+    public int CrashLogTailSize { get; set; } = 200;
+
+    /// <summary>
+    /// Upper bound on the synchronous Mongo write of a crash report. Keeps a Mongo
+    /// outage from hanging a dying process — the durable file copy is written first,
+    /// so a timed-out Mongo write loses nothing.
+    /// </summary>
+    public TimeSpan CrashMongoWriteTimeout { get; set; } = TimeSpan.FromSeconds(3);
+
+    /// <summary>
     /// Stamped onto every persisted record's <c>processName</c> so the
     /// <c>/ops/logs</c> view can tell which host produced a line (e.g. "Api" vs
     /// "Ingestor"). Null leaves the field empty.

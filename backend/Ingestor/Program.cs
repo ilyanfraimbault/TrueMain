@@ -1,4 +1,5 @@
 using Data;
+using Data.Logging.Crash;
 using Data.Logging.Mongo;
 using Data.Repositories;
 using Ingestor;
@@ -99,12 +100,31 @@ builder.Services.AddSingleton<IDataSessionFactory, DataSessionFactory>();
 // Also exposes the lossless IAuditLog used by ManualSeedProcess. ProcessName
 // "Ingestor" tags diagnostic rows apart from the API's.
 builder.Services.AddMongoLogging(builder.Configuration, processName: "Ingestor");
+// Durable crash capture (file first, then Mongo) layered on the Mongo logging it
+// depends on. This is what makes a silent ingestor crash visible: a fault that
+// escapes the worker, or an OOM/SIGKILL the restart policy hides, leaves a record.
+builder.Services.AddCrashReporting();
 
 builder.Services.AddHostedService<Worker>();
 
 var host = builder.Build();
+
+// Wire the process-level crash hooks and the unclean-shutdown sentinel before the
+// host runs, so a startup/migration fault or a background-thread throw is captured.
+host.Services.UseProcessCrashCapture();
+
 await DatabaseMigrator.ApplyPendingMigrationsAsync(host.Services);
-await host.RunAsync();
+try
+{
+    await host.RunAsync();
+}
+catch (Exception ex)
+{
+    // A fault that escapes the host run loop is recorded durably before the process
+    // exits non-zero (and restarts). The rethrow preserves the existing exit code.
+    host.Services.GetRequiredService<ICrashReporter>().Report(CrashSource.HostRun, ex);
+    throw;
+}
 
 static void ConfigureRiotClient(IServiceProvider serviceProvider, HttpClient client)
 {

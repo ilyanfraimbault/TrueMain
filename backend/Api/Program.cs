@@ -1,6 +1,7 @@
 using System.Threading.RateLimiting;
 using Core.Options;
 using Data;
+using Data.Logging.Crash;
 using Data.Logging.Mongo;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
@@ -181,6 +182,7 @@ builder.Services.AddScoped<ITableStatsQueryService, TableStatsQueryService>();
 builder.Services.AddScoped<IProcessRunsQueryService, ProcessRunsQueryService>();
 builder.Services.AddScoped<IProcessIterationsQueryService, ProcessIterationsQueryService>();
 builder.Services.AddScoped<ILogsQueryService, LogsQueryService>();
+builder.Services.AddScoped<ICrashesQueryService, CrashesQueryService>();
 builder.Services.AddScoped<IRiotApiUsageQueryService, RiotApiUsageQueryService>();
 builder.Services.AddScoped<IDataQualityQueryService, DataQualityQueryService>();
 builder.Services.AddScoped<ISeedRequestService, SeedRequestService>();
@@ -221,7 +223,16 @@ builder.Services.AddDbContextFactory<TrueMainDbContext>(lifetime: ServiceLifetim
 // writer inserts synchronously. ProcessName "Api" tags diagnostic rows apart from
 // the Ingestor's.
 builder.Services.AddMongoLogging(builder.Configuration, processName: "Api");
+// Durable crash capture (file first, then Mongo) layered on the Mongo logging it
+// depends on, so a crash is recorded even when the restart:unless-stopped policy
+// would otherwise hide it — and even if Mongo itself is down.
+builder.Services.AddCrashReporting();
 var app = builder.Build();
+
+// Wire the process-level crash hooks (AppDomain / TaskScheduler) and the
+// unclean-shutdown sentinel before anything runs, so a fault during startup or on a
+// background thread is still captured.
+app.Services.UseProcessCrashCapture();
 
 // Non-Development boots already fail in ValidateOnStart when Origins is empty;
 // this only fires under Development, where an empty list is tolerated but still
@@ -278,6 +289,16 @@ app.MapHealthChecks("/readyz", new Microsoft.AspNetCore.Diagnostics.HealthChecks
 }).DisableRateLimiting();
 app.MapControllers();
 
-app.Run();
+try
+{
+    app.Run();
+}
+catch (Exception ex)
+{
+    // A fault that escapes the host run loop is recorded durably before the process
+    // exits non-zero (and restarts). The rethrow preserves the existing exit code.
+    app.Services.GetRequiredService<ICrashReporter>().Report(CrashSource.HostRun, ex);
+    throw;
+}
 
 public partial class Program;
