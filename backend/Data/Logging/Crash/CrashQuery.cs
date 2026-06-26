@@ -48,6 +48,10 @@ public sealed class CrashQuery(MongoLogContext context) : ICrashQuery
         var filter = BuildFilter(since, processName, source, search);
 
         var total = await context.Crashes.CountDocumentsAsync(filter, cancellationToken: ct);
+        if (total == 0)
+        {
+            return new CrashPage([], 0, effectivePage, effectivePageSize);
+        }
 
         var documents = await context.Crashes
             .Find(filter)

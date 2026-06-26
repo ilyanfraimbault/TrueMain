@@ -113,16 +113,22 @@ var host = builder.Build();
 // host runs, so a startup/migration fault or a background-thread throw is captured.
 host.Services.UseProcessCrashCapture();
 
+// Resolved before Run: a failed start disposes the provider, so resolving inside the
+// catch would throw ObjectDisposedException and mask the real fault.
+var crashReporter = host.Services.GetRequiredService<ICrashReporter>();
 await DatabaseMigrator.ApplyPendingMigrationsAsync(host.Services);
 try
 {
     await host.RunAsync();
 }
+catch (Microsoft.Extensions.Hosting.HostAbortedException)
+{
+    throw;
+}
 catch (Exception ex)
 {
-    // A fault that escapes the host run loop is recorded durably before the process
-    // exits non-zero (and restarts). The rethrow preserves the existing exit code.
-    host.Services.GetRequiredService<ICrashReporter>().Report(CrashSource.HostRun, ex);
+    try { crashReporter.Report(CrashSource.HostRun, ex); }
+    catch { /* never let crash reporting mask the original failure */ }
     throw;
 }
 

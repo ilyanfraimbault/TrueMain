@@ -35,6 +35,10 @@ internal sealed class CrashReporter(
     private Exception? _lastException;
     private DateTime _lastReportUtc;
 
+    // Report can run on several threads at once; serialize the crash-file write so
+    // concurrent appends can't collide and lose a line.
+    private readonly object _fileGate = new();
+
     public bool IsEnabled => true;
 
     private string ProcessName => string.IsNullOrWhiteSpace(_options.ProcessName)
@@ -163,12 +167,14 @@ internal sealed class CrashReporter(
                 return;
             }
 
-            Directory.CreateDirectory(dir);
-            var path = Path.Combine(dir, $"{report.ProcessName}.crash.jsonl");
-            RotateIfNeeded(dir, report.ProcessName, path);
-
             var line = JsonSerializer.Serialize(report, JsonOptions) + "\n";
-            File.AppendAllText(path, line);
+            lock (_fileGate)
+            {
+                Directory.CreateDirectory(dir);
+                var path = Path.Combine(dir, $"{report.ProcessName}.crash.jsonl");
+                RotateIfNeeded(dir, report.ProcessName, path);
+                File.AppendAllText(path, line);
+            }
         }
         catch (Exception ex)
         {
