@@ -12,6 +12,9 @@ namespace Data.Migrations
         private const string IndexName =
             "IX_match_participant_timeline_snapshots_MatchId_ParticipantId_~";
 
+        private const string TempCoveringName = "IX_mp_timeline_snapshots_lookup_covering";
+        private const string TempPlainName = "IX_mp_timeline_snapshots_lookup_plain";
+
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
@@ -26,8 +29,18 @@ namespace Data.Migrations
             // suppressTransaction on every statement. Build the covering index under
             // a temp name first, then drop the old index and rename into place, so
             // the uniqueness / dedup guard is never absent.
+            //
+            // Pre-drop the temp index so the build is self-healing: an interrupted
+            // CREATE INDEX CONCURRENTLY (OOM kill, pod restart) leaves an INVALID
+            // index under the temp name that IF NOT EXISTS would silently keep —
+            // and the later RENAME would then promote that invalid index to the
+            // production name, losing both the index-only scan and the uniqueness
+            // guard. Dropping first guarantees we always rebuild a valid index.
             migrationBuilder.Sql(
-                "CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS \"IX_mp_timeline_snapshots_lookup_covering\" " +
+                $"DROP INDEX CONCURRENTLY IF EXISTS \"{TempCoveringName}\";",
+                suppressTransaction: true);
+            migrationBuilder.Sql(
+                $"CREATE UNIQUE INDEX CONCURRENTLY \"{TempCoveringName}\" " +
                 "ON match_participant_timeline_snapshots (\"MatchId\", \"ParticipantId\", \"IntervalMinute\") " +
                 "INCLUDE (\"TotalGold\", \"MinionsKilled\", \"JungleMinionsKilled\", \"Kills\", \"Level\", \"Xp\", \"DamageToChampions\");",
                 suppressTransaction: true);
@@ -35,23 +48,27 @@ namespace Data.Migrations
                 $"DROP INDEX CONCURRENTLY IF EXISTS \"{IndexName}\";",
                 suppressTransaction: true);
             migrationBuilder.Sql(
-                $"ALTER INDEX \"IX_mp_timeline_snapshots_lookup_covering\" RENAME TO \"{IndexName}\";",
+                $"ALTER INDEX \"{TempCoveringName}\" RENAME TO \"{IndexName}\";",
                 suppressTransaction: true);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            // Symmetric rebuild back to the plain (non-covering) unique index.
+            // Symmetric rebuild back to the plain (non-covering) unique index, with
+            // the same self-healing pre-drop of the temp index.
             migrationBuilder.Sql(
-                "CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS \"IX_mp_timeline_snapshots_lookup_plain\" " +
+                $"DROP INDEX CONCURRENTLY IF EXISTS \"{TempPlainName}\";",
+                suppressTransaction: true);
+            migrationBuilder.Sql(
+                $"CREATE UNIQUE INDEX CONCURRENTLY \"{TempPlainName}\" " +
                 "ON match_participant_timeline_snapshots (\"MatchId\", \"ParticipantId\", \"IntervalMinute\");",
                 suppressTransaction: true);
             migrationBuilder.Sql(
                 $"DROP INDEX CONCURRENTLY IF EXISTS \"{IndexName}\";",
                 suppressTransaction: true);
             migrationBuilder.Sql(
-                $"ALTER INDEX \"IX_mp_timeline_snapshots_lookup_plain\" RENAME TO \"{IndexName}\";",
+                $"ALTER INDEX \"{TempPlainName}\" RENAME TO \"{IndexName}\";",
                 suppressTransaction: true);
         }
     }
