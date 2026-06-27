@@ -22,23 +22,23 @@ public sealed class ChampionPatternSourceRowReader(
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
 
-        // Champions that still have qualifying source rows on a live patch...
-        var sourceChampionIds = await (
-            from participant in db.MatchParticipants.AsNoTracking()
-            join match in db.Matches.AsNoTracking() on participant.MatchId equals match.Id
-            join stat in db.MainChampionStats.AsNoTracking()
-                on new { match.PlatformId, participant.Puuid, participant.ChampionId }
-                equals new { stat.PlatformId, stat.Puuid, stat.ChampionId }
-            where stat.IsMain
-                && participant.RiotAccountId != null
-                && match.QueueId == queueId
-                && match.TimelineIngested
-            select participant.ChampionId)
+        // Champions with at least one "main" account — a superset of the champions
+        // that can produce source rows. The per-champion source query re-applies
+        // the full IsMain + queue + timeline filter, so a champion with no
+        // qualifying rows just yields a cheap empty iteration. Derived from
+        // main_champion_stats (small: one row per tracked account/champion)
+        // rather than a DISTINCT over the match_participants 3-way join, which
+        // scanned the whole table and hit the 300s command timeout now that
+        // parallel query is disabled (max_parallel_workers_per_gather=0, #589).
+        var mainChampionIds = await db.MainChampionStats
+            .AsNoTracking()
+            .Where(stat => stat.IsMain)
+            .Select(stat => stat.ChampionId)
             .Distinct()
             .ToListAsync(ct);
 
-        // ...union champions that already have aggregate scopes, so a champion
-        // that lost all its qualifying rows still gets a pass and has its stale
+        // Union champions that already have aggregate scopes, so a champion that
+        // lost all its qualifying rows still gets a pass and has its stale
         // live-patch scopes pruned (replace-by-scope down to zero).
         var scopeChampionIds = await db.ChampionAggregateScopes
             .AsNoTracking()
@@ -47,7 +47,7 @@ public sealed class ChampionPatternSourceRowReader(
             .Distinct()
             .ToListAsync(ct);
 
-        return sourceChampionIds.Union(scopeChampionIds).ToList();
+        return mainChampionIds.Union(scopeChampionIds).ToList();
     }
 
     internal async Task<IReadOnlySet<(string GameVersion, string PlatformId)>> LoadLivePatchKeysAsync(
