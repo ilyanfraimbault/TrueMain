@@ -750,8 +750,6 @@ namespace Data.Migrations
                     b.HasIndex("MatchId", "ParticipantId", "IntervalMinute")
                         .IsUnique();
 
-                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("MatchId", "ParticipantId", "IntervalMinute"), new[] { "TotalGold", "MinionsKilled", "JungleMinionsKilled", "Kills", "Level", "Xp", "DamageToChampions" });
-
                     b.ToTable("match_participant_timeline_snapshots", (string)null);
                 });
 
