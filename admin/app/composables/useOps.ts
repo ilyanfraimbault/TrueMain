@@ -5,6 +5,8 @@ import type {
   CandidatesResponse,
   ChampionStatsFilters,
   ChampionStatsRow,
+  CrashesFilters,
+  CrashesResponse,
   DbTableRow,
   IncompleteMatchesFilters,
   IncompleteMatchesResponse,
@@ -154,6 +156,21 @@ export function useLogs(
 ) {
   return useOps<LogsResponse>(
     '/logs',
+    filters ? () => ({ ...toValue(filters) }) : undefined,
+  )
+}
+
+/**
+ * `GET /api/ops/crashes` — server-paginated crash reports, newest first. Each row
+ * carries the full report (exception chain, environment + memory snapshot, and the
+ * recent log tail), so no separate detail request is needed. Pass a reactive getter
+ * so the table re-fetches when a filter or the page changes.
+ */
+export function useCrashes(
+  filters?: MaybeRefOrGetter<CrashesFilters>,
+) {
+  return useOps<CrashesResponse>(
+    '/crashes',
     filters ? () => ({ ...toValue(filters) }) : undefined,
   )
 }

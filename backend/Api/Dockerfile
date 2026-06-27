@@ -19,6 +19,11 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/publish .
+# CrashReporter writes durable crash files + sentinels here. Create the directory
+# owned by the non-root app user (while still root) so a named Docker volume mounted
+# at this path inherits app ownership — a root-owned mount point would make the file
+# sink silently fail (writes denied) and defeat the "don't lose crash info" goal.
+RUN mkdir -p /home/app/crashes && chown app:app /home/app/crashes
 # Drop privileges to the non-root user provided by the .NET base image
 # (uid 1654, see Microsoft's documentation). Container escape via the API
 # process then no longer grants root on the host.

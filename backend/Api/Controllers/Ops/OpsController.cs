@@ -22,7 +22,8 @@ public sealed class OpsController(
     IDataQualityQueryService dataQualityQueryService,
     ISeedRequestService seedRequestService,
     ISeedRequestQueryService seedRequestQueryService,
-    ICandidateQueryService candidateQueryService) : ControllerBase
+    ICandidateQueryService candidateQueryService,
+    ICrashesQueryService crashesQueryService) : ControllerBase
 {
     [HttpGet("pipeline-health")]
     [ProducesResponseType(typeof(PipelineHealthReadModel), StatusCodes.Status200OK)]
@@ -177,6 +178,31 @@ public sealed class OpsController(
         CancellationToken ct)
     {
         var readModel = await logsQueryService.GetAsync(level, category, since, search, eventType, page, pageSize, ct);
+        return Ok(readModel);
+    }
+
+    /// <summary>
+    /// One page of recorded process crashes, newest-first. Each row carries the full
+    /// report (exception chain, environment + memory/GC snapshot, and the last log
+    /// lines before the crash), so the admin Crashes panel needs no separate detail
+    /// call. <paramref name="process"/> ("Api"/"Ingestor") and <paramref name="source"/>
+    /// (a <c>CrashSource</c> name, case-insensitive) are exact filters;
+    /// <paramref name="search"/> matches message/stack-trace case-insensitively;
+    /// <paramref name="since"/> is a lower bound on the crash time.
+    /// </summary>
+    [HttpGet("crashes")]
+    [ProducesResponseType(typeof(CrashesReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<CrashesReadModel>> GetCrashesAsync(
+        [FromQuery] DateTime? since,
+        [FromQuery] string? process,
+        [FromQuery] string? source,
+        [FromQuery] string? search,
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
+        CancellationToken ct)
+    {
+        var readModel = await crashesQueryService.GetAsync(since, process, source, search, page, pageSize, ct);
         return Ok(readModel);
     }
 

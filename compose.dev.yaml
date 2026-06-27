@@ -6,6 +6,10 @@ services:
     container_name: truemain-dev-postgres
     restart: unless-stopped
     shm_size: "256m"
+    # Disable parallel query: parallel workers allocate DSM segments in /dev/shm,
+    # and concurrent aggregate queries exhausted it (53100: could not resize shared
+    # memory segment / No space left on device), crashing the API and ingestor.
+    command: ["postgres", "-c", "max_parallel_workers_per_gather=0"]
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -91,6 +95,7 @@ services:
       ConnectionStrings__TrueMainMigrations: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Application Name=truemain-migrator
       MongoLogging__ConnectionString: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin
       Ops__ApiKey: ${OPS_API_KEY}
+      MongoLogging__CrashFilePath: /home/app/crashes
     depends_on:
       postgres:
         condition: service_healthy
@@ -102,6 +107,7 @@ services:
       - "8080:8080"
     volumes:
       - truemain_dev_api_nuget:/root/.nuget/packages
+      - truemain_dev_api_crashes:/home/app/crashes
     develop:
       watch:
         - action: sync
@@ -211,6 +217,7 @@ services:
       MongoLogging__ConnectionString: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin
       Riot__ApiKey: ${RIOT_API_KEY}
       Job__Mode: ${INGESTOR_JOB_MODE:-Full}
+      MongoLogging__CrashFilePath: /home/app/crashes
     depends_on:
       postgres:
         condition: service_healthy
@@ -220,6 +227,7 @@ services:
         condition: service_healthy
     volumes:
       - truemain_dev_ingestor_nuget:/root/.nuget/packages
+      - truemain_dev_ingestor_crashes:/home/app/crashes
     develop:
       watch:
         - action: sync
@@ -279,6 +287,8 @@ volumes:
   truemain_dev_ingestor_nuget:
   truemain_dev_web_node_modules:
   truemain_dev_admin_node_modules:
+  truemain_dev_api_crashes:
+  truemain_dev_ingestor_crashes:
 
 networks:
   truemain_dev_internal:

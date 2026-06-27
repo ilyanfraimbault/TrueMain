@@ -4,6 +4,10 @@ services:
     container_name: truemain-qa-postgres
     restart: unless-stopped
     shm_size: "256m"
+    # Disable parallel query: parallel workers allocate DSM segments in /dev/shm,
+    # and concurrent aggregate queries exhausted it (53100: could not resize shared
+    # memory segment / No space left on device), crashing the API and ingestor.
+    command: ["postgres", "-c", "max_parallel_workers_per_gather=0"]
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -83,6 +87,9 @@ services:
       MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
       Ops__ApiKey: "${OPS_API_KEY:?set OPS_API_KEY before deploying}"
       Cors__Origins__0: "http://localhost:3001"
+      MongoLogging__CrashFilePath: /home/app/crashes
+    volumes:
+      - truemain_qa_api_crashes:/home/app/crashes
     depends_on:
       postgres:
         condition: service_healthy
@@ -143,6 +150,9 @@ services:
       MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
       Riot__ApiKey: ${RIOT_API_KEY}
       Job__Mode: ${INGESTOR_JOB_MODE:-Full}
+      MongoLogging__CrashFilePath: /home/app/crashes
+    volumes:
+      - truemain_qa_ingestor_crashes:/home/app/crashes
     depends_on:
       postgres:
         condition: service_healthy
@@ -177,6 +187,10 @@ volumes:
     name: truemain_qa_mongo_data
   truemain_qa_pgadmin_data:
     name: truemain_qa_pgadmin_data
+  truemain_qa_api_crashes:
+    name: truemain_qa_api_crashes
+  truemain_qa_ingestor_crashes:
+    name: truemain_qa_ingestor_crashes
 
 networks:
   truemain_internal:
