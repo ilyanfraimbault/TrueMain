@@ -15,8 +15,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Data.Migrations
 {
     [DbContext(typeof(TrueMainDbContext))]
-    [Migration("20260627143907_AddTimelineSnapshotCoveringIndex")]
-    partial class AddTimelineSnapshotCoveringIndex
+    [Migration("20260627152458_DropOrphanTimelineCoveringTempIndex")]
+    partial class DropOrphanTimelineCoveringTempIndex
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -752,8 +752,6 @@ namespace Data.Migrations
 
                     b.HasIndex("MatchId", "ParticipantId", "IntervalMinute")
                         .IsUnique();
-
-                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("MatchId", "ParticipantId", "IntervalMinute"), new[] { "TotalGold", "MinionsKilled", "JungleMinionsKilled", "Kills", "Level", "Xp", "DamageToChampions" });
 
                     b.ToTable("match_participant_timeline_snapshots", (string)null);
                 });
