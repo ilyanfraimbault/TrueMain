@@ -10,13 +10,65 @@ public sealed class ChampionPatternSourceRowReader(
 {
     private const int MinimumAggregatedGameDurationSeconds = 15 * 60;
 
-    internal async Task<ChampionPatternAggregationInputs> LoadAggregationInputsAsync(
+    // The aggregation is chunked one champion at a time so the in-memory working
+    // set is bounded by a single champion's match rows rather than the whole
+    // live-patch table. Materialising every match_participant (each carrying its
+    // full item/skill timeline) at once ballooned the managed heap to ~6 GB and
+    // got the process OOM-killed. The (patch, platform) live keys are computed
+    // once by the caller and threaded into each per-champion load.
+    internal async Task<IReadOnlyList<int>> LoadChampionIdsAsync(
         int queueId,
         CancellationToken ct)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
-        var existingAggregateScopes = await LoadExistingAggregateScopesAsync(db, queueId, ct);
-        var sourceRows = await LoadSourceRowsAsync(db, queueId, ct);
+
+        // Champions that still have qualifying source rows on a live patch...
+        var sourceChampionIds = await (
+            from participant in db.MatchParticipants.AsNoTracking()
+            join match in db.Matches.AsNoTracking() on participant.MatchId equals match.Id
+            join stat in db.MainChampionStats.AsNoTracking()
+                on new { match.PlatformId, participant.Puuid, participant.ChampionId }
+                equals new { stat.PlatformId, stat.Puuid, stat.ChampionId }
+            where stat.IsMain
+                && participant.RiotAccountId != null
+                && match.QueueId == queueId
+                && match.TimelineIngested
+            select participant.ChampionId)
+            .Distinct()
+            .ToListAsync(ct);
+
+        // ...union champions that already have aggregate scopes, so a champion
+        // that lost all its qualifying rows still gets a pass and has its stale
+        // live-patch scopes pruned (replace-by-scope down to zero).
+        var scopeChampionIds = await db.ChampionAggregateScopes
+            .AsNoTracking()
+            .Where(scope => scope.QueueId == queueId)
+            .Select(scope => scope.ChampionId)
+            .Distinct()
+            .ToListAsync(ct);
+
+        return sourceChampionIds.Union(scopeChampionIds).ToList();
+    }
+
+    internal async Task<IReadOnlySet<(string GameVersion, string PlatformId)>> LoadLivePatchKeysAsync(
+        int queueId,
+        CancellationToken ct)
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync(ct);
+        return await LoadLivePatchKeysCoreAsync(db, queueId, ct);
+    }
+
+    internal async Task<ChampionPatternAggregationInputs> LoadAggregationInputsAsync(
+        int queueId,
+        int championId,
+        IReadOnlySet<(string GameVersion, string PlatformId)> livePatchKeys,
+        CancellationToken ct)
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync(ct);
+        var existingAggregateScopes = LoadExistingAggregateScopes(
+            await LoadExistingScopeKeysAsync(db, queueId, championId, ct),
+            livePatchKeys);
+        var sourceRows = await LoadSourceRowsAsync(db, queueId, championId, ct);
 
         return new ChampionPatternAggregationInputs
         {
@@ -25,11 +77,25 @@ public sealed class ChampionPatternSourceRowReader(
         };
     }
 
-    private static async Task<List<AggregateScopeKey>> LoadExistingAggregateScopesAsync(
+    private static async Task<List<AggregateScopeKey>> LoadExistingScopeKeysAsync(
         TrueMainDbContext db,
         int queueId,
+        int championId,
         CancellationToken ct)
-    {
+        => await db.ChampionAggregateScopes
+            .AsNoTracking()
+            .Where(scope => scope.QueueId == queueId && scope.ChampionId == championId)
+            .Select(scope => new AggregateScopeKey(
+                scope.ChampionId,
+                scope.GameVersion,
+                scope.PlatformId,
+                scope.QueueId))
+            .Distinct()
+            .ToListAsync(ct);
+
+    private static List<AggregateScopeKey> LoadExistingAggregateScopes(
+        IReadOnlyCollection<AggregateScopeKey> existingScopes,
+        IReadOnlySet<(string GameVersion, string PlatformId)> livePatchKeys)
         // Cleanup keys are the scopes the persister will delete-and-rebuild.
         // We must only ever touch scopes for patches whose match data is still
         // present: MatchDataRetention purges match_participants/matches beyond
@@ -40,25 +106,11 @@ public sealed class ChampionPatternSourceRowReader(
         // (patch, platform) pairs that still have matches for this queue — so
         // older patches keep their frozen aggregates while live patches retain
         // the full replace-by-scope semantics (stale scopes still get pruned).
-        var livePatchKeys = await LoadLivePatchKeysAsync(db, queueId, ct);
-
-        var existingScopes = await db.ChampionAggregateScopes
-            .AsNoTracking()
-            .Where(scope => scope.QueueId == queueId)
-            .Select(scope => new AggregateScopeKey(
-                scope.ChampionId,
-                scope.GameVersion,
-                scope.PlatformId,
-                scope.QueueId))
-            .Distinct()
-            .ToListAsync(ct);
-
-        return existingScopes
+        => existingScopes
             .Where(scope => livePatchKeys.Contains((scope.GameVersion, scope.PlatformId)))
             .ToList();
-    }
 
-    private static async Task<HashSet<(string GameVersion, string PlatformId)>> LoadLivePatchKeysAsync(
+    private static async Task<HashSet<(string GameVersion, string PlatformId)>> LoadLivePatchKeysCoreAsync(
         TrueMainDbContext db,
         int queueId,
         CancellationToken ct)
@@ -84,6 +136,7 @@ public sealed class ChampionPatternSourceRowReader(
     private static async Task<List<AggregateSourceRow>> LoadSourceRowsAsync(
         TrueMainDbContext db,
         int queueId,
+        int championId,
         CancellationToken ct)
     {
         var sourceRows = await (
@@ -93,6 +146,7 @@ public sealed class ChampionPatternSourceRowReader(
                 on new { match.PlatformId, participant.Puuid, participant.ChampionId }
                 equals new { stat.PlatformId, stat.Puuid, stat.ChampionId }
             where stat.IsMain
+                && participant.ChampionId == championId
                 && participant.RiotAccountId != null
                 && match.QueueId == queueId
                 && match.TimelineIngested
