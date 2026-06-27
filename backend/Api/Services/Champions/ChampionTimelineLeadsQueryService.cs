@@ -96,6 +96,14 @@ public sealed class ChampionTimelineLeadsQueryService(
                 self => db.MatchParticipantTimelineSnapshots.Where(s2 =>
                     s2.MatchId == self.p2.MatchId
                     && s2.ParticipantId == self.p2.ParticipantId
+                    // Redundant with the equality below (s1 is already pinned to
+                    // LeadIntervalMinutes), but stating it as a sargable IN lets
+                    // Postgres restrict the opponent-snapshot side to the five
+                    // marks up front instead of scanning the whole table and
+                    // filtering only after the join. With parallel query disabled
+                    // (#589) the unpruned side was a single-threaded seq scan of a
+                    // multi-GB table — the cause of the 300s timeouts (#594).
+                    && LeadIntervalMinutes.Contains(s2.IntervalMinute)
                     && s2.IntervalMinute == self.s1.IntervalMinute),
                 (self, s2) => new
                 {

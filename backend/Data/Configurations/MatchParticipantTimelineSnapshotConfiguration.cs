@@ -32,9 +32,25 @@ public sealed class MatchParticipantTimelineSnapshotConfiguration : IEntityTypeC
             .HasPrincipalKey(m => m.Id)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // One snapshot per participant per interval; also the natural lookup key
-        // and the dedup guard for timeline re-ingestion.
+        // One snapshot per participant per interval: the dedup guard for timeline
+        // re-ingestion and the lookup key for the champion timeline-leads read,
+        // which joins this table twice (champion + lane opponent) by
+        // (MatchId, ParticipantId, IntervalMinute). INCLUDE the measured columns
+        // so those joins are index-only scans instead of one random heap fetch
+        // per matched row — the heap traffic that made the read time out at scale
+        // once parallel query was disabled (#594). Uniqueness still keys on the
+        // three columns only; the included payload is not part of the key.
         entity.HasIndex(e => new { e.MatchId, e.ParticipantId, e.IntervalMinute })
-            .IsUnique();
+            .IsUnique()
+            .IncludeProperties(e => new
+            {
+                e.TotalGold,
+                e.MinionsKilled,
+                e.JungleMinionsKilled,
+                e.Kills,
+                e.Level,
+                e.Xp,
+                e.DamageToChampions
+            });
     }
 }
