@@ -47,7 +47,7 @@ const router = useRouter()
 const { data: champions } = useChampionStaticList()
 
 // Truemains — debounced server search, reusing the existing composable.
-const { results, status } = useTruemainSearch(term)
+const { results, status, tooShort } = useTruemainSearch(term)
 
 const { data: versions } = useDDragonVersions()
 const latestPatch = computed(() => versions.value?.[0] ?? null)
@@ -96,23 +96,37 @@ const groups = computed<CommandPaletteGroup<SearchItem>[]>(() => {
     },
   ]
 
-  // Player group only once there's a query — an empty box shows champions +
-  // browse, matching the former ChampionSearch's open state.
-  if (term.value.trim().length > 0) {
-    list.push({
-      id: 'truemains',
-      label: 'Truemains',
-      // Already filtered by the backend — keep Fuse out of it.
-      ignoreFilter: true,
-      items: results.value.map(result => ({
+  // Player group — only with a real query (name part ≥ SEARCH_MIN_LENGTH); an
+  // empty box shows champions + browse, matching the former ChampionSearch.
+  // Each non-result state becomes a disabled synthetic item so it stays
+  // distinguishable: without it, `error` (backend failed) and `success` with no
+  // hits both render an empty group and read as a silent "no match" — the
+  // regression vs the former TruemainSearch, which surfaced the failure.
+  if (term.value.trim().length > 0 && !tooShort.value) {
+    let truemainItems: SearchItem[]
+    if (status.value === 'error') {
+      truemainItems = [{ label: 'Search failed — try again.', icon: 'i-lucide-alert-triangle', disabled: true }]
+    }
+    else if (status.value === 'success' && results.value.length === 0) {
+      truemainItems = [{ label: 'No truemain matches that name.', icon: 'i-lucide-search-x', disabled: true }]
+    }
+    else {
+      // Pending with no prior results shows nothing here — the input's loading
+      // spinner covers that; otherwise the live results.
+      truemainItems = results.value.map(result => ({
         label: result.identity.gameName,
         suffix: result.identity.tagLine ? `#${result.identity.tagLine}` : undefined,
         avatar: { src: getProfileIconUrl(result.identity.profileIconId, latestPatch.value) ?? undefined, alt: result.identity.gameName },
         slot: 'truemain',
         truemain: result,
         onSelect: () => go(profilePath(result)),
-      })),
-    })
+      }))
+    }
+
+    // Already filtered by the backend — keep Fuse out of it.
+    if (truemainItems.length > 0) {
+      list.push({ id: 'truemains', label: 'Truemains', ignoreFilter: true, items: truemainItems })
+    }
   }
 
   list.push({
