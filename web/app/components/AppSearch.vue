@@ -4,6 +4,9 @@ import { isNavigationFailure } from 'vue-router'
 import { getProfileIconUrl } from '~~/shared/utils/ddragon'
 import type { SearchResult } from '~~/shared/types/search'
 import { formatTier } from '~/utils/tiers'
+// Explicit (over Nuxt auto-import) so the template's {{ SEARCH_MIN_LENGTH }} has
+// a visible source.
+import { SEARCH_MIN_LENGTH } from '~/composables/useTruemainSearch'
 
 // Unified search: one command palette over both the champion roster (filtered
 // locally by Fuse) and the truemain database (server search, debounced). A
@@ -100,23 +103,28 @@ const groups = computed<CommandPaletteGroup<SearchItem>[]>(() => {
     { id: 'champions', label: 'Champions', items: championItems.value },
   ]
 
-  // Player group — only with a real query (name part ≥ SEARCH_MIN_LENGTH); an
-  // empty box shows champions + browse, matching the former ChampionSearch.
-  // Each non-result state becomes a disabled synthetic item so it stays
-  // distinguishable: without it, `error` (backend failed) and `success` with no
-  // hits both render an empty group and read as a silent "no match" — the
-  // regression vs the former TruemainSearch, which surfaced the failure.
-  if (term.value.trim().length > 0 && !tooShort.value) {
+  // Player group — shown with any query; an empty box shows champions + browse,
+  // matching the former ChampionSearch. Each non-result state is a disabled,
+  // non-selectable synthetic item (too-short hint / error / no match) so the
+  // group never reads as a silent failure. While a newer query is in flight
+  // (`pending`) the previous results are dropped, so a stale row can't be
+  // clicked onto the wrong profile — the input's loading spinner signals work.
+  const query = term.value.trim()
+  if (query.length > 0) {
     let truemainItems: SearchItem[]
-    if (status.value === 'error') {
+    if (tooShort.value) {
+      truemainItems = [{ label: `Type at least ${SEARCH_MIN_LENGTH} characters to search truemains.`, icon: 'i-lucide-info', disabled: true }]
+    }
+    else if (status.value === 'error') {
       truemainItems = [{ label: 'Search failed — try again.', icon: 'i-lucide-alert-triangle', disabled: true }]
     }
-    else if (status.value === 'success' && results.value.length === 0) {
+    else if (status.value === 'pending') {
+      truemainItems = []
+    }
+    else if (results.value.length === 0) {
       truemainItems = [{ label: 'No truemain matches that name.', icon: 'i-lucide-search-x', disabled: true }]
     }
     else {
-      // Pending with no prior results shows nothing here — the input's loading
-      // spinner covers that; otherwise the live results.
       truemainItems = results.value.map(result => ({
         label: result.identity.gameName,
         suffix: result.identity.tagLine ? `#${result.identity.tagLine}` : undefined,
@@ -157,6 +165,23 @@ const groups = computed<CommandPaletteGroup<SearchItem>[]>(() => {
 // does (navigate). On the leaderboard field (filter mode) ⌘K opens the header's
 // navigate-mode search, so advertising it here would be misleading.
 const showKbd = computed(() => props.variant === 'field' && props.championMode === 'navigate')
+
+// Screen-reader announcement for the async truemain search: UCommandPalette
+// emits no aria-live region of its own, so without this the loading / no-match
+// / error / results transitions are silent (the former TruemainSearch wrapped
+// them in an aria-live="polite" block). Champions filter locally and need no
+// announcement.
+const truemainAnnouncement = computed(() => {
+  if (term.value.trim().length === 0) return ''
+  if (tooShort.value) return `Type at least ${SEARCH_MIN_LENGTH} characters to search truemains.`
+  if (status.value === 'pending') return 'Searching truemains…'
+  if (status.value === 'error') return 'Truemain search failed. Try again.'
+  if (status.value === 'success') {
+    const n = results.value.length
+    return n === 0 ? 'No truemain matches that name.' : `${n} truemain${n > 1 ? 's' : ''} found.`
+  }
+  return ''
+})
 
 // Start each open from a clean slate so a stale term never flashes old results.
 watch(open, (isOpen) => {
@@ -212,6 +237,11 @@ defineShortcuts(computed(() => ({
       :ui="{ content: 'sm:max-w-xl' }"
     >
       <template #content>
+        <!-- Announces the async truemain search state — UCommandPalette has no
+             live region of its own. -->
+        <div class="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          {{ truemainAnnouncement }}
+        </div>
         <UCommandPalette
           v-model:search-term="term"
           :groups="groups"
