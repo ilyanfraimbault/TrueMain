@@ -13,7 +13,7 @@ const visiblePages = computed(() => filterByPickRate(props.runePages))
 </script>
 
 <template>
-  <SectionCard title="Rune variations">
+  <SectionCard :level="2" title="Rune variations">
     <div
       v-if="visiblePages.length"
       class="flex flex-wrap items-start justify-around gap-y-4"

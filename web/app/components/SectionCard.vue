@@ -1,6 +1,7 @@
 <script setup lang="ts">
 withDefaults(defineProps<{
   title?: string
+  /** Ignored when the #title slot is provided. */
   subtitle?: string
   /**
    * Heading level for the default title. Page-level sections pass `2` so the
