@@ -21,7 +21,7 @@ const headingId = useId()
 <template>
   <UCard
     as="section"
-    :aria-labelledby="title ? headingId : undefined"
+    :aria-labelledby="title && !$slots.title ? headingId : undefined"
   >
     <template #header>
       <div class="flex flex-wrap items-center justify-between gap-3">
