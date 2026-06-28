@@ -31,11 +31,18 @@ const props = withDefaults(defineProps<{
    * also render a field instance (home, leaderboard).
    */
   shortcut?: boolean
+  /**
+   * Field trigger size: `md` (default, e.g. the leaderboard) or `lg` for the
+   * homepage hero — taller, more rounded, larger text + a soft shadow. Ignored
+   * for the `button` variant.
+   */
+  size?: 'md' | 'lg'
 }>(), {
   variant: 'field',
   championMode: 'navigate',
   placeholder: 'Search a champion or player…',
   shortcut: false,
+  size: 'md',
 })
 
 // Set-only by design: `filterChampion` always carries a champion id, never
@@ -190,6 +197,13 @@ const truemainAnnouncement = computed(() => {
   return ''
 })
 
+// Field trigger sizing: `lg` restores the homepage hero's larger, more rounded,
+// shadowed look (matching the former ChampionSearch); `md` is the compact
+// default used elsewhere (e.g. the leaderboard).
+const fieldSizeClass = computed(() => props.size === 'lg'
+  ? 'h-14 rounded-2xl px-5 text-base shadow-lg shadow-black/5 dark:shadow-black/20'
+  : 'h-12 rounded-xl px-4 text-sm')
+
 // Start each open from a clean slate so a stale term never flashes old results.
 watch(open, (isOpen) => {
   if (!isOpen) term.value = ''
@@ -210,7 +224,8 @@ defineShortcuts(computed(() => ({
     <button
       v-if="props.variant === 'field'"
       type="button"
-      class="group flex h-12 w-full items-center gap-3 rounded-xl border border-default bg-default/60 px-4 text-left backdrop-blur-md transition-colors hover:border-primary/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      class="group flex w-full items-center gap-3 border border-default bg-default/60 text-left backdrop-blur-md transition-colors hover:border-primary/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      :class="fieldSizeClass"
       aria-label="Search a champion or player"
       @click="open = true"
     >
@@ -218,7 +233,7 @@ defineShortcuts(computed(() => ({
         name="i-lucide-search"
         class="size-5 shrink-0 text-dimmed transition-colors group-hover:text-primary"
       />
-      <span class="flex-1 truncate text-sm text-dimmed">
+      <span class="flex-1 truncate text-dimmed">
         {{ props.placeholder }}
       </span>
       <span v-if="showKbd" class="hidden items-center gap-0.5 sm:flex">

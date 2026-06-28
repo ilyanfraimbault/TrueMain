@@ -121,6 +121,7 @@ const steps = [
 
         <AppSearch
           variant="field"
+          size="lg"
           class="mt-9 w-full max-w-xl"
         />
 
