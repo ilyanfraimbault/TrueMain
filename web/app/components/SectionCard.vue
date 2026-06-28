@@ -13,6 +13,21 @@ withDefaults(defineProps<{
   level: 3,
 })
 
+defineSlots<{
+  /**
+   * Replaces the default title heading. When this slot is used the card drops
+   * its automatic `aria-labelledby` (which targets the default heading), so the
+   * `<section>` region is left unnamed unless the slotted content names it — and
+   * the `title`/`subtitle` props are ignored. Prefer the `title` prop unless you
+   * need custom markup (badge, link) in the heading.
+   */
+  title?: () => unknown
+  /** Card body. */
+  default?: () => unknown
+  /** Controls shown opposite the title in the header (filters, toggles, links). */
+  actions?: () => unknown
+}>()
+
 // Render the card as a labelled <section> so AT users can navigate by region.
 // The id links the section to its heading (aria-labelledby) — only emitted when
 // there's a title to point at, so a section without one isn't a nameless region.
