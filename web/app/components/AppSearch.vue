@@ -81,19 +81,23 @@ function profilePath(result: SearchResult): string {
   return `/truemains/${encodeURIComponent(slug)}`
 }
 
+// Sorted + mapped once, memoised: `groups` re-runs on every keystroke (the
+// truemains branch reads `term`), and re-sorting ~160 names through
+// localeCompare each time would be needless work. This only recomputes when the
+// champion list itself changes (i.e. once, after it loads).
+const championItems = computed<SearchItem[]>(() =>
+  [...(champions.value ?? [])]
+    .sort((a, b) => a.name.localeCompare(b.name, 'en'))
+    .map(champion => ({
+      label: champion.name,
+      avatar: { src: champion.iconUrl, alt: champion.name },
+      onSelect: () => onSelectChampion(champion.championId),
+    })),
+)
+
 const groups = computed<CommandPaletteGroup<SearchItem>[]>(() => {
   const list: CommandPaletteGroup<SearchItem>[] = [
-    {
-      id: 'champions',
-      label: 'Champions',
-      items: [...(champions.value ?? [])]
-        .sort((a, b) => a.name.localeCompare(b.name, 'en'))
-        .map(champion => ({
-          label: champion.name,
-          avatar: { src: champion.iconUrl, alt: champion.name },
-          onSelect: () => onSelectChampion(champion.championId),
-        })),
-    },
+    { id: 'champions', label: 'Champions', items: championItems.value },
   ]
 
   // Player group — only with a real query (name part ≥ SEARCH_MIN_LENGTH); an
@@ -159,13 +163,13 @@ watch(open, (isOpen) => {
   if (!isOpen) term.value = ''
 })
 
-if (props.shortcut) {
-  defineShortcuts({
-    meta_k: () => {
-      open.value = !open.value
-    },
-  })
-}
+// Registered unconditionally — composables must not be called inside an `if`.
+// `false` disables the binding on field instances, so ⌘K is owned only by the
+// header instance (which sets `shortcut`); the computed keeps it reactive if the
+// prop ever becomes dynamic.
+defineShortcuts(computed(() => ({
+  meta_k: props.shortcut ? () => { open.value = !open.value } : false,
+})))
 </script>
 
 <template>
