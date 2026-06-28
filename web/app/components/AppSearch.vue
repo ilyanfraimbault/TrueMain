@@ -11,9 +11,11 @@ import { SEARCH_MIN_LENGTH } from '~/composables/useTruemainSearch'
 // Unified search: one command palette over both the champion roster (filtered
 // locally by Fuse) and the truemain database (server search, debounced). A
 // trigger (a search-field look in a page hero, a compact icon in the header)
-// opens a modal; the heavy part — the palette, the live player query — lives
-// inside the modal so it never participates in SSR. Replaces the former split
-// between ChampionSearch (champions) and TruemainSearch (players).
+// opens a modal holding the palette and the results list. `useTruemainSearch`
+// is instantiated in setup — so it runs on every page, since the header mounts
+// this component — but stays inert while the modal is closed: `term` is `''`, so
+// its watcher returns early without firing a request or a debounce timer.
+// Replaces the former split between ChampionSearch and TruemainSearch.
 const props = withDefaults(defineProps<{
   /** `field` = full search-bar trigger (page hero); `button` = compact icon (header). */
   variant?: 'field' | 'button'
@@ -110,6 +112,27 @@ const championItems = computed<SearchItem[]>(() =>
     })),
 )
 
+// Map a truemain result to a palette item. `stale` (used during a refetch)
+// keeps the row visible but dimmed and non-selectable, so a pending list can't
+// be clicked onto the wrong profile.
+function toTruemainItem(result: SearchResult, stale = false): SearchItem {
+  const item: SearchItem = {
+    label: result.identity.gameName,
+    suffix: result.identity.tagLine ? `#${result.identity.tagLine}` : undefined,
+    avatar: { src: getProfileIconUrl(result.identity.profileIconId, latestPatch.value) ?? undefined, alt: result.identity.gameName },
+    slot: 'truemain',
+    truemain: result,
+  }
+  if (stale) {
+    item.disabled = true
+    item.class = 'opacity-50'
+  }
+  else {
+    item.onSelect = () => go(profilePath(result))
+  }
+  return item
+}
+
 const groups = computed<CommandPaletteGroup<SearchItem>[]>(() => {
   const list: CommandPaletteGroup<SearchItem>[] = [
     { id: 'champions', label: 'Champions', items: championItems.value },
@@ -119,8 +142,9 @@ const groups = computed<CommandPaletteGroup<SearchItem>[]>(() => {
   // matching the former ChampionSearch. Each non-result state is a disabled,
   // non-selectable synthetic item (too-short hint / error / no match) so the
   // group never reads as a silent failure. While a newer query is in flight
-  // (`pending`) the previous results are dropped, so a stale row can't be
-  // clicked onto the wrong profile — the input's loading spinner signals work.
+  // (`pending`) the previous results stay visible but dimmed + non-selectable —
+  // no flash on each keystroke, and a stale row still can't be clicked onto the
+  // wrong profile; the input's loading spinner signals the refetch.
   const query = term.value.trim()
   if (query.length > 0) {
     let truemainItems: SearchItem[]
@@ -131,20 +155,13 @@ const groups = computed<CommandPaletteGroup<SearchItem>[]>(() => {
       truemainItems = [{ label: 'Search failed — try again.', icon: 'i-lucide-alert-triangle', disabled: true }]
     }
     else if (status.value === 'pending') {
-      truemainItems = []
+      truemainItems = results.value.map(result => toTruemainItem(result, true))
     }
     else if (results.value.length === 0) {
       truemainItems = [{ label: 'No truemain matches that name.', icon: 'i-lucide-search-x', disabled: true }]
     }
     else {
-      truemainItems = results.value.map(result => ({
-        label: result.identity.gameName,
-        suffix: result.identity.tagLine ? `#${result.identity.tagLine}` : undefined,
-        avatar: { src: getProfileIconUrl(result.identity.profileIconId, latestPatch.value) ?? undefined, alt: result.identity.gameName },
-        slot: 'truemain',
-        truemain: result,
-        onSelect: () => go(profilePath(result)),
-      }))
+      truemainItems = results.value.map(result => toTruemainItem(result))
     }
 
     // Already filtered by the backend — keep Fuse out of it.
