@@ -133,32 +133,40 @@ function toTruemainItem(result: SearchResult, stale = false): SearchItem {
   return item
 }
 
+// Truemain-search state messages, shared between the palette's disabled items
+// and the aria-live announcement so the two can't drift apart.
+const TM_TOO_SHORT = `Type at least ${SEARCH_MIN_LENGTH} characters to search truemains.`
+const TM_SEARCHING = 'Searching truemains…'
+const TM_FAILED = 'Search failed — try again.'
+const TM_NO_MATCH = 'No truemain matches that name.'
+
 const groups = computed<CommandPaletteGroup<SearchItem>[]>(() => {
   const list: CommandPaletteGroup<SearchItem>[] = [
     { id: 'champions', label: 'Champions', items: championItems.value },
   ]
 
   // Player group — shown with any query; an empty box shows champions + browse,
-  // matching the former ChampionSearch. Each non-result state is a disabled,
-  // non-selectable synthetic item (too-short hint / error / no match) so the
-  // group never reads as a silent failure. While a newer query is in flight
-  // (`pending`) the previous results stay visible but dimmed + non-selectable —
-  // no flash on each keystroke, and a stale row still can't be clicked onto the
-  // wrong profile; the input's loading spinner signals the refetch.
+  // matching the former ChampionSearch. Every non-result state shows a disabled,
+  // non-selectable synthetic item (too-short hint / searching / error / no
+  // match) so the group is never silent. During a refetch (`pending`) prior
+  // results stay visible but dimmed + non-selectable — no flash on each
+  // keystroke, and a stale row can't be clicked onto the wrong profile.
   const query = term.value.trim()
   if (query.length > 0) {
     let truemainItems: SearchItem[]
     if (tooShort.value) {
-      truemainItems = [{ label: `Type at least ${SEARCH_MIN_LENGTH} characters to search truemains.`, icon: 'i-lucide-info', disabled: true }]
+      truemainItems = [{ label: TM_TOO_SHORT, icon: 'i-lucide-info', disabled: true }]
     }
     else if (status.value === 'error') {
-      truemainItems = [{ label: 'Search failed — try again.', icon: 'i-lucide-alert-triangle', disabled: true }]
+      truemainItems = [{ label: TM_FAILED, icon: 'i-lucide-alert-triangle', disabled: true }]
     }
     else if (status.value === 'pending') {
-      truemainItems = results.value.map(result => toTruemainItem(result, true))
+      truemainItems = results.value.length > 0
+        ? results.value.map(result => toTruemainItem(result, true))
+        : [{ label: TM_SEARCHING, icon: 'i-lucide-loader-circle', disabled: true }]
     }
     else if (results.value.length === 0) {
-      truemainItems = [{ label: 'No truemain matches that name.', icon: 'i-lucide-search-x', disabled: true }]
+      truemainItems = [{ label: TM_NO_MATCH, icon: 'i-lucide-search-x', disabled: true }]
     }
     else {
       truemainItems = results.value.map(result => toTruemainItem(result))
@@ -190,26 +198,20 @@ const groups = computed<CommandPaletteGroup<SearchItem>[]>(() => {
   return list
 })
 
-// The ⌘K hint only belongs on a field that actually owns the shortcut
-// (`shortcut`). Advertising it on a field that doesn't own ⌘K is a false
-// promise: ⌘K toggles the header instance's own modal, not this one, and
-// pressing it while this modal is open would stack a second one. (No field sets
-// `shortcut` today, so the hint stays hidden — ⌘K still works via the header.)
-const showKbd = computed(() => props.shortcut && props.variant === 'field')
-
 // Screen-reader announcement for the async truemain search: UCommandPalette
-// emits no aria-live region of its own, so without this the loading / no-match
+// emits no aria-live region of its own, so without this the searching / no-match
 // / error / results transitions are silent (the former TruemainSearch wrapped
 // them in an aria-live="polite" block). Champions filter locally and need no
-// announcement.
+// announcement. Reuses the same TM_* strings as the palette items so the two
+// can't drift.
 const truemainAnnouncement = computed(() => {
   if (term.value.trim().length === 0) return ''
-  if (tooShort.value) return `Type at least ${SEARCH_MIN_LENGTH} characters to search truemains.`
-  if (status.value === 'pending') return 'Searching truemains…'
-  if (status.value === 'error') return 'Truemain search failed. Try again.'
+  if (tooShort.value) return TM_TOO_SHORT
+  if (status.value === 'pending') return TM_SEARCHING
+  if (status.value === 'error') return TM_FAILED
   if (status.value === 'success') {
     const n = results.value.length
-    return n === 0 ? 'No truemain matches that name.' : `${n} truemain${n > 1 ? 's' : ''} found.`
+    return n === 0 ? TM_NO_MATCH : `${n} truemain${n > 1 ? 's' : ''} found.`
   }
   return ''
 })
@@ -252,10 +254,6 @@ defineShortcuts(computed(() => ({
       />
       <span class="flex-1 truncate text-dimmed">
         {{ props.placeholder }}
-      </span>
-      <span v-if="showKbd" class="hidden items-center gap-0.5 sm:flex">
-        <UKbd value="meta" />
-        <UKbd value="K" />
       </span>
     </button>
 
