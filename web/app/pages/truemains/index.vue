@@ -133,7 +133,12 @@ const championsById = computed(() => {
       </p>
     </header>
 
-    <TruemainSearch variant="field" />
+    <AppSearch
+      variant="field"
+      champion-mode="filter"
+      placeholder="Search a champion or player…"
+      @filter-champion="setChampionId"
+    />
 
     <LeaderboardFilters
       :champions="champions"

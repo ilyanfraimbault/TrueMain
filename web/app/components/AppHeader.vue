@@ -37,7 +37,7 @@ const items = computed<NavigationMenuItem[]>(() => [
     />
 
     <template #right>
-      <TruemainSearch variant="button" />
+      <AppSearch variant="button" shortcut />
       <UColorModeButton />
     </template>
 

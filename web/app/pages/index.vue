@@ -8,8 +8,6 @@ useSeoMeta({
   description: 'League of Legends champion builds, runes and skill orders from true main players.',
 })
 
-const nuxtApp = useNuxtApp()
-
 // Champion summaries for the active patch — drives both the tier-list panel
 // and the hero stat chips. Client-only (`server: false`) with a homepage-own
 // key: the /champions page keys by filter state, and sharing its key would
@@ -23,19 +21,9 @@ const {
   { server: false, default: () => [] },
 )
 
-// Same shared static list (and cache key) as the other pages, so navigating
-// home → /champions reuses the payload the prefetch plugin warmed up. The
-// options must match the other callsites exactly (no `default`) — Nuxt warns
-// on divergent options for a shared key.
-const { data: staticList } = useLazyAsyncData<ChampionStaticListItem[]>(
-  'champion-static-list',
-  async () => {
-    const data = await $fetch<ChampionStaticListItem[]>('/api/static/champions')
-    markStaticFetched('champion-static-list', nuxtApp)
-    return data
-  },
-  { getCachedData: key => getStaticCachedData(key, nuxtApp), server: false },
-)
+// Shared static list (champion id/name/icon) — same cache key as the unified
+// search and the other pages, so the prefetch-warmed payload is reused.
+const { data: staticList } = useChampionStaticList()
 
 const championsById = computed(() => {
   const map = new Map<number, ChampionStaticListItem>()
@@ -131,8 +119,8 @@ const steps = [
           See what real mains build, rune and max — straight from their ranked games.
         </p>
 
-        <HomeChampionSearch
-          :champions="staticList ?? []"
+        <AppSearch
+          variant="field"
           class="mt-9 w-full max-w-xl"
         />
 
