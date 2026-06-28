@@ -13,7 +13,6 @@ const VALID_REGIONS: ReadonlySet<RegionSlug> = new Set(['europe', 'americas', 'k
 
 const route = useRoute()
 const router = useRouter()
-const nuxtApp = useNuxtApp()
 
 // URL state — same coercion pattern as champions/index.vue + the matches
 // feed: invalid values fall back to "no filter" / page 1 instead of
@@ -92,21 +91,10 @@ const {
 })
 
 // ─── Static lookups ───────────────────────────────────────────────────────
-// The champion list backs both the picker (championId search) and the row's
-// top-3 icon lookup. Cached across navigations via getCachedData.
-const { data: champions } = useLazyAsyncData<ChampionStaticListItem[]>(
-  'leaderboard-champions',
-  async () => {
-    const data = await $fetch<ChampionStaticListItem[]>('/api/static/champions')
-    markStaticFetched('leaderboard-champions', nuxtApp)
-    return data
-  },
-  {
-    default: () => [],
-    server: false,
-    getCachedData: key => getStaticCachedData(key, nuxtApp),
-  },
-)
+// The champion list backs the picker, the row's top-3 icon lookup and the
+// header's unified search — one shared `champion-static-list` cache (warmed by
+// the prefetch plugin), so there's no duplicate /api/static/champions request.
+const { data: champions } = useChampionStaticList()
 
 const { data: versions } = useDDragonVersions()
 const latestPatch = computed(() => versions.value?.[0] ?? null)
@@ -117,7 +105,7 @@ const { runeTree, itemsMap } = useBuildAssets(latestPatch)
 // Map keyed lookup for the row's top-3 — avoids a linear scan per icon.
 const championsById = computed(() => {
   const map = new Map<number, ChampionStaticListItem>()
-  for (const c of champions.value) map.set(c.championId, c)
+  for (const c of champions.value ?? []) map.set(c.championId, c)
   return map
 })
 </script>
@@ -141,7 +129,7 @@ const championsById = computed(() => {
     />
 
     <LeaderboardFilters
-      :champions="champions"
+      :champions="champions ?? []"
       :region="filterRegion"
       :position="filterPosition"
       :champion-id="filterChampionId"

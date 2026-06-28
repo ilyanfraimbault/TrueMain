@@ -38,6 +38,11 @@ const props = withDefaults(defineProps<{
   shortcut: false,
 })
 
+// Set-only by design: `filterChampion` always carries a champion id, never
+// null. In filter mode the search applies a champion to the leaderboard;
+// clearing back to "all champions" stays the ChampionPicker's job in
+// LeaderboardFilters (intentionally kept on /truemains). Don't wire a "clear"
+// here without revisiting that split.
 const emit = defineEmits<{
   filterChampion: [championId: number]
 }>()
