@@ -71,6 +71,7 @@ builder.Services.AddRecordedProcess<ScoringProcess>();
 builder.Services.AddRecordedProcess<MatchIngestionProcess>();
 builder.Services.AddRecordedProcess<MainAnalysisProcess>();
 builder.Services.AddRecordedProcess<ChampionPatternAggregationProcess>();
+builder.Services.AddRecordedProcess<ChampionMatchupLeadAggregationProcess>();
 builder.Services.AddRecordedProcess<AccountRefreshProcess>();
 builder.Services.AddRecordedProcess<MatchDataRetentionProcess>();
 
