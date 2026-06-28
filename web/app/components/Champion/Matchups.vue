@@ -68,84 +68,79 @@ const searchedOpponent = computed(() =>
 </script>
 
 <template>
-  <section class="flex flex-col gap-3">
-    <header class="flex flex-wrap items-center gap-3">
-      <div class="flex flex-col gap-0.5">
-        <h2 class="text-sm font-semibold">
-          Matchups
-        </h2>
-        <p class="text-xs text-muted">
-          Best and worst lane matchups.
-        </p>
-      </div>
-      <div class="ml-auto flex items-center gap-2">
-        <ChampionPicker
-          :champions="opponentOptions"
-          :champion-id="selectedOpponentId"
-          placeholder="Search for a champion"
-          trigger-class="w-48"
-          @update:champion-id="value => (selectedOpponentId = value)"
-        />
-      </div>
-    </header>
-
-    <template v-if="isLoading">
-      <USkeleton v-for="i in 6" :key="`mu-skel-${i}`" class="h-11 w-full rounded-md" />
-    </template>
-
-    <p
-      v-else-if="error"
-      class="glass rounded-lg px-4 py-6 text-center text-sm text-muted"
-    >
-      Couldn't load matchups. Please try again.
-    </p>
-
-    <!-- Opponent search: just the picked champion's row (or a games-floor note). -->
-    <template v-else-if="selectedOpponentId !== null">
-      <ChampionMatchupRow
-        v-if="searched"
-        :entry="searched"
-        :opponent="searchedOpponent"
+  <SectionCard
+    title="Matchups"
+    subtitle="Best and worst lane matchups."
+  >
+    <template #actions>
+      <ChampionPicker
+        :champions="opponentOptions"
+        :champion-id="selectedOpponentId"
+        placeholder="Search for a champion"
+        trigger-class="w-48"
+        @update:champion-id="value => (selectedOpponentId = value)"
       />
+    </template>
+
+    <div class="flex flex-col gap-3">
+      <template v-if="isLoading">
+        <USkeleton v-for="i in 6" :key="`mu-skel-${i}`" class="h-11 w-full rounded-md" />
+      </template>
+
       <p
-        v-else
-        class="glass rounded-lg px-4 py-6 text-center text-sm text-muted"
+        v-else-if="error"
+        class="px-4 py-6 text-center text-sm text-muted"
       >
-        No recorded games against {{ searchedOpponent?.name ?? 'this opponent' }} on this lane yet.
+        Couldn't load matchups. Please try again.
       </p>
-    </template>
 
-    <p
-      v-else-if="!hasAny"
-      class="glass rounded-lg px-4 py-6 text-center text-sm text-muted"
-    >
-      No matchups with enough games on this lane yet.
-    </p>
+      <!-- Opponent search: just the picked champion's row (or a games-floor note). -->
+      <template v-else-if="selectedOpponentId !== null">
+        <ChampionMatchupRow
+          v-if="searched"
+          :entry="searched"
+          :opponent="searchedOpponent"
+        />
+        <p
+          v-else
+          class="px-4 py-6 text-center text-sm text-muted"
+        >
+          No recorded games against {{ searchedOpponent?.name ?? 'this opponent' }} on this lane yet.
+        </p>
+      </template>
 
-    <!-- Default: best / worst leaderboard. -->
-    <template v-else>
-      <div class="flex flex-col gap-1">
-        <p class="px-2 text-xs font-semibold uppercase tracking-wide text-emerald-400/80">
-          Best matchups
-        </p>
-        <ChampionMatchupRow
-          v-for="m in best"
-          :key="`best-${m.opponentChampionId}`"
-          :entry="m"
-          :opponent="championById.get(m.opponentChampionId) ?? null"
-        />
-      </div>
-      <div v-if="worst.length" class="flex flex-col gap-1">
-        <p class="px-2 text-xs font-semibold uppercase tracking-wide text-red-400/80">
-          Worst matchups
-        </p>
-        <ChampionMatchupRow
-          v-for="m in worst"
-          :key="`worst-${m.opponentChampionId}`"
-          :entry="m"
-          :opponent="championById.get(m.opponentChampionId) ?? null"
-        />
-      </div>
-    </template>
-  </section>
+      <p
+        v-else-if="!hasAny"
+        class="px-4 py-6 text-center text-sm text-muted"
+      >
+        No matchups with enough games on this lane yet.
+      </p>
+
+      <!-- Default: best / worst leaderboard. -->
+      <template v-else>
+        <div class="flex flex-col gap-1">
+          <p class="px-2 text-xs font-semibold uppercase tracking-wide text-emerald-400/80">
+            Best matchups
+          </p>
+          <ChampionMatchupRow
+            v-for="m in best"
+            :key="`best-${m.opponentChampionId}`"
+            :entry="m"
+            :opponent="championById.get(m.opponentChampionId) ?? null"
+          />
+        </div>
+        <div v-if="worst.length" class="flex flex-col gap-1">
+          <p class="px-2 text-xs font-semibold uppercase tracking-wide text-red-400/80">
+            Worst matchups
+          </p>
+          <ChampionMatchupRow
+            v-for="m in worst"
+            :key="`worst-${m.opponentChampionId}`"
+            :entry="m"
+            :opponent="championById.get(m.opponentChampionId) ?? null"
+          />
+        </div>
+      </template>
+    </div>
+  </SectionCard>
 </template>

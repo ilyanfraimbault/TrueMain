@@ -53,16 +53,10 @@ const pickRateFormatter = (value: number): string => formatPercentage(value, 1)
 </script>
 
 <template>
-  <section class="flex flex-col gap-4">
-    <header class="flex flex-col gap-0.5">
-      <h2 class="text-sm font-semibold">
-        Trend by patch
-      </h2>
-      <p class="text-xs text-muted">
-        Win rate and pick rate over the last five patches with data.
-      </p>
-    </header>
-
+  <SectionCard
+    title="Trend by patch"
+    subtitle="Win rate and pick rate over the last five patches with data."
+  >
     <USkeleton
       v-if="loading"
       class="h-[220px] w-full rounded-lg"
@@ -70,7 +64,7 @@ const pickRateFormatter = (value: number): string => formatPercentage(value, 1)
 
     <p
       v-else-if="!hasTrend"
-      class="glass rounded-lg px-4 py-8 text-center text-sm text-muted"
+      class="px-4 py-8 text-center text-sm text-muted"
     >
       {{ hasData
         ? 'Only one patch of data so far — not enough history to chart a trend.'
@@ -137,5 +131,5 @@ const pickRateFormatter = (value: number): string => formatPercentage(value, 1)
         </ChartsAreaChart>
       </div>
     </div>
-  </section>
+  </SectionCard>
 </template>

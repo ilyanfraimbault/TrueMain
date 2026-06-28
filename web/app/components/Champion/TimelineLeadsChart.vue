@@ -66,21 +66,12 @@ const yFormatter = (value: number): string => formatSigned(value, activeMetric.v
 </script>
 
 <template>
-  <section class="flex flex-col gap-4">
-    <header class="flex flex-wrap items-center justify-between gap-2">
-      <div class="flex flex-col gap-0.5">
-        <h2 class="text-sm font-semibold">
-          Lead vs lane opponent
-        </h2>
-        <p class="text-xs text-muted">
-          Average advantage over the opposing lane at each minute mark. Positive is ahead.
-        </p>
-      </div>
-
-      <div
-        v-if="hasData"
-        class="flex flex-wrap gap-1"
-      >
+  <SectionCard
+    title="Lead vs lane opponent"
+    subtitle="Average advantage over the opposing lane at each minute mark. Positive is ahead."
+  >
+    <template v-if="hasData" #actions>
+      <div class="flex flex-wrap gap-1">
         <UButton
           v-for="metric in METRICS"
           :key="metric.key"
@@ -92,7 +83,7 @@ const yFormatter = (value: number): string => formatSigned(value, activeMetric.v
           {{ metric.label }}
         </UButton>
       </div>
-    </header>
+    </template>
 
     <USkeleton
       v-if="loading"
@@ -101,7 +92,7 @@ const yFormatter = (value: number): string => formatSigned(value, activeMetric.v
 
     <p
       v-else-if="!hasData"
-      class="glass rounded-lg px-4 py-8 text-center text-sm text-muted"
+      class="px-4 py-8 text-center text-sm text-muted"
     >
       No timeline data yet for this champion and lane.
     </p>
@@ -131,5 +122,5 @@ const yFormatter = (value: number): string => formatSigned(value, activeMetric.v
         </div>
       </template>
     </ChartsAreaChart>
-  </section>
+  </SectionCard>
 </template>

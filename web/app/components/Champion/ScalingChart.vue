@@ -70,27 +70,18 @@ const winRateFormatter = (value: number): string => formatPercentage(value, 0)
 </script>
 
 <template>
-  <section class="flex flex-col gap-4">
-    <header class="flex flex-wrap items-center justify-between gap-2">
-      <div class="flex flex-col gap-0.5">
-        <h2 class="text-sm font-semibold">
-          Scaling
-        </h2>
-        <p class="text-xs text-muted">
-          Win rate by game length. A rising line means the champion scales into the late game.
-        </p>
-      </div>
-
-      <div
-        v-if="verdict"
-        class="flex items-baseline gap-1.5 text-xs"
-      >
+  <SectionCard
+    title="Scaling"
+    subtitle="Win rate by game length. A rising line means the champion scales into the late game."
+  >
+    <template v-if="verdict" #actions>
+      <div class="flex items-baseline gap-1.5 text-xs">
         <span class="font-semibold tabular-nums" :class="verdict.tone">
           {{ formatSignedPercent(scalingIndex ?? 0) }}
         </span>
         <span :class="verdict.tone">{{ verdict.label }}</span>
       </div>
-    </header>
+    </template>
 
     <USkeleton
       v-if="loading"
@@ -99,7 +90,7 @@ const winRateFormatter = (value: number): string => formatPercentage(value, 0)
 
     <p
       v-else-if="!hasTrend"
-      class="glass rounded-lg px-4 py-8 text-center text-sm text-muted"
+      class="px-4 py-8 text-center text-sm text-muted"
     >
       {{ hasData
         ? 'Only one duration bucket has enough games — not enough to chart scaling.'
@@ -132,5 +123,5 @@ const winRateFormatter = (value: number): string => formatPercentage(value, 0)
         </div>
       </template>
     </ChartsAreaChart>
-  </section>
+  </SectionCard>
 </template>

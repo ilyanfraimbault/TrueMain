@@ -26,16 +26,10 @@ const PRIMARY = '#34d399' // emerald-400 (CHART_SERIES_PALETTE[0])
 </script>
 
 <template>
-  <section class="flex flex-col gap-4">
-    <header class="flex flex-col gap-0.5">
-      <h2 class="text-sm font-semibold">
-        Roaming
-      </h2>
-      <p class="text-xs text-muted">
-        Share of early kills and assists made outside the lane.
-      </p>
-    </header>
-
+  <SectionCard
+    title="Roaming"
+    subtitle="Share of early kills and assists made outside the lane."
+  >
     <USkeleton
       v-if="loading"
       class="h-20 w-full rounded-lg"
@@ -43,14 +37,14 @@ const PRIMARY = '#34d399' // emerald-400 (CHART_SERIES_PALETTE[0])
 
     <p
       v-else-if="!hasData"
-      class="glass rounded-lg px-4 py-8 text-center text-sm text-muted"
+      class="px-4 py-8 text-center text-sm text-muted"
     >
       Not enough roam data yet for this champion and lane.
     </p>
 
     <div
       v-else
-      class="glass flex flex-col gap-2 rounded-lg p-4"
+      class="flex flex-col gap-2"
     >
       <div class="flex items-baseline justify-between">
         <span class="text-2xl font-semibold tabular-nums">
@@ -74,5 +68,5 @@ const PRIMARY = '#34d399' // emerald-400 (CHART_SERIES_PALETTE[0])
         of early kill participations were out of lane · {{ games.toLocaleString('en-US') }} games
       </p>
     </div>
-  </section>
+  </SectionCard>
 </template>
