@@ -27,6 +27,7 @@ public sealed class WorkerProcessIsolationTests
         "MatchIngestion",
         "MainAnalysis",
         "ChampionPatternAggregation",
+        "ChampionMatchupLeadAggregation",
         "AccountRefresh",
         "MatchDataRetention"
     ];
