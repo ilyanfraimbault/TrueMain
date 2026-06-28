@@ -28,6 +28,7 @@ const headingId = useId()
         <div class="flex min-w-0 flex-col gap-0.5">
           <slot name="title">
             <component
+              v-if="title"
               :is="`h${level}`"
               :id="headingId"
               class="text-sm font-medium text-default"
@@ -36,7 +37,7 @@ const headingId = useId()
             </component>
           </slot>
           <p
-            v-if="subtitle"
+            v-if="subtitle && !$slots.title"
             class="text-xs text-muted"
           >
             {{ subtitle }}
