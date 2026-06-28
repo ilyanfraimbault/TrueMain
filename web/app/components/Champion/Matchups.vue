@@ -69,6 +69,7 @@ const searchedOpponent = computed(() =>
 
 <template>
   <SectionCard
+    :level="2"
     title="Matchups"
     subtitle="Best and worst lane matchups."
   >

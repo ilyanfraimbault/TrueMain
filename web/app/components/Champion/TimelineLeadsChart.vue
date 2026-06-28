@@ -67,6 +67,7 @@ const yFormatter = (value: number): string => formatSigned(value, activeMetric.v
 
 <template>
   <SectionCard
+    :level="2"
     title="Lead vs lane opponent"
     subtitle="Average advantage over the opposing lane at each minute mark. Positive is ahead."
   >

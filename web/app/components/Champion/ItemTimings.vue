@@ -48,6 +48,7 @@ function formatGameTime(seconds: number): string {
 
 <template>
   <SectionCard
+    :level="2"
     title="Power spikes"
     subtitle="Average time each item is completed, earliest first."
   >

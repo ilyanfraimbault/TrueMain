@@ -54,6 +54,7 @@ const pickRateFormatter = (value: number): string => formatPercentage(value, 1)
 
 <template>
   <SectionCard
+    :level="2"
     title="Trend by patch"
     subtitle="Win rate and pick rate over the last five patches with data."
   >

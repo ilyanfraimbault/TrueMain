@@ -27,6 +27,7 @@ const PRIMARY = '#34d399' // emerald-400 (CHART_SERIES_PALETTE[0])
 
 <template>
   <SectionCard
+    :level="2"
     title="Roaming"
     subtitle="Share of early kills and assists made outside the lane."
   >
