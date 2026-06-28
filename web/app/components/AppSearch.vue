@@ -161,10 +161,12 @@ const groups = computed<CommandPaletteGroup<SearchItem>[]>(() => {
   return list
 })
 
-// Show the ⌘K hint on the field only when ⌘K does the same thing this field
-// does (navigate). On the leaderboard field (filter mode) ⌘K opens the header's
-// navigate-mode search, so advertising it here would be misleading.
-const showKbd = computed(() => props.variant === 'field' && props.championMode === 'navigate')
+// The ⌘K hint only belongs on a field that actually owns the shortcut
+// (`shortcut`). Advertising it on a field that doesn't own ⌘K is a false
+// promise: ⌘K toggles the header instance's own modal, not this one, and
+// pressing it while this modal is open would stack a second one. (No field sets
+// `shortcut` today, so the hint stays hidden — ⌘K still works via the header.)
+const showKbd = computed(() => props.shortcut && props.variant === 'field')
 
 // Screen-reader announcement for the async truemain search: UCommandPalette
 // emits no aria-live region of its own, so without this the loading / no-match
