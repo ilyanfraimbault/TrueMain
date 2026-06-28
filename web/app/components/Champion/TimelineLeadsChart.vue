@@ -92,7 +92,7 @@ const yFormatter = (value: number): string => formatSigned(value, activeMetric.v
 
     <p
       v-else-if="!hasData"
-      class="px-4 py-8 text-center text-sm text-muted"
+      class="py-8 text-center text-sm text-muted"
     >
       No timeline data yet for this champion and lane.
     </p>

@@ -37,7 +37,7 @@ const PRIMARY = '#34d399' // emerald-400 (CHART_SERIES_PALETTE[0])
 
     <p
       v-else-if="!hasData"
-      class="px-4 py-8 text-center text-sm text-muted"
+      class="py-8 text-center text-sm text-muted"
     >
       Not enough roam data yet for this champion and lane.
     </p>

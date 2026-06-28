@@ -64,7 +64,7 @@ const pickRateFormatter = (value: number): string => formatPercentage(value, 1)
 
     <p
       v-else-if="!hasTrend"
-      class="px-4 py-8 text-center text-sm text-muted"
+      class="py-8 text-center text-sm text-muted"
     >
       {{ hasData
         ? 'Only one patch of data so far — not enough history to chart a trend.'

@@ -58,7 +58,7 @@ function formatGameTime(seconds: number): string {
 
     <p
       v-else-if="!hasData"
-      class="px-4 py-8 text-center text-sm text-muted"
+      class="py-8 text-center text-sm text-muted"
     >
       No item-timing data yet for this champion and lane.
     </p>

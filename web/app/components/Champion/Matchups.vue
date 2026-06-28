@@ -89,7 +89,7 @@ const searchedOpponent = computed(() =>
 
       <p
         v-else-if="error"
-        class="px-4 py-6 text-center text-sm text-muted"
+        class="py-6 text-center text-sm text-muted"
       >
         Couldn't load matchups. Please try again.
       </p>
@@ -103,7 +103,7 @@ const searchedOpponent = computed(() =>
         />
         <p
           v-else
-          class="px-4 py-6 text-center text-sm text-muted"
+          class="py-6 text-center text-sm text-muted"
         >
           No recorded games against {{ searchedOpponent?.name ?? 'this opponent' }} on this lane yet.
         </p>
@@ -111,7 +111,7 @@ const searchedOpponent = computed(() =>
 
       <p
         v-else-if="!hasAny"
-        class="px-4 py-6 text-center text-sm text-muted"
+        class="py-6 text-center text-sm text-muted"
       >
         No matchups with enough games on this lane yet.
       </p>

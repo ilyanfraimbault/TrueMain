@@ -90,7 +90,7 @@ const winRateFormatter = (value: number): string => formatPercentage(value, 0)
 
     <p
       v-else-if="!hasTrend"
-      class="px-4 py-8 text-center text-sm text-muted"
+      class="py-8 text-center text-sm text-muted"
     >
       {{ hasData
         ? 'Only one duration bucket has enough games — not enough to chart scaling.'
