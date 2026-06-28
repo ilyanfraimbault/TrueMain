@@ -140,42 +140,58 @@ const TM_SEARCHING = 'Searching truemains…'
 const TM_FAILED = 'Search failed — try again.'
 const TM_NO_MATCH = 'No truemain matches that name.'
 
+// One classification of the truemain-search state, derived once and consumed by
+// both the palette group and the aria-live announcement — so a new state
+// (rate-limit, timeout, …) is added in one place and the screen-reader text
+// can't diverge from what's shown.
+type TruemainState =
+  | { kind: 'idle' }
+  | { kind: 'tooShort' }
+  | { kind: 'searching' }
+  | { kind: 'error' }
+  | { kind: 'empty' }
+  | { kind: 'refetching', results: SearchResult[] }
+  | { kind: 'results', results: SearchResult[] }
+
+const truemainState = computed<TruemainState>(() => {
+  if (term.value.trim().length === 0) return { kind: 'idle' }
+  if (tooShort.value) return { kind: 'tooShort' }
+  if (status.value === 'error') return { kind: 'error' }
+  if (status.value === 'pending') {
+    return results.value.length > 0
+      ? { kind: 'refetching', results: results.value }
+      : { kind: 'searching' }
+  }
+  if (results.value.length === 0) return { kind: 'empty' }
+  return { kind: 'results', results: results.value }
+})
+
+// Palette items for the player group. Every non-idle state yields at least one
+// item (a synthetic hint/searching/error/no-match row, or the result rows —
+// dimmed + non-selectable during a refetch so a stale row can't be clicked onto
+// the wrong profile and there's no flash on each keystroke).
+function truemainItemsFor(state: Exclude<TruemainState, { kind: 'idle' }>): SearchItem[] {
+  switch (state.kind) {
+    case 'tooShort': return [{ label: TM_TOO_SHORT, icon: 'i-lucide-info', disabled: true }]
+    case 'searching': return [{ label: TM_SEARCHING, icon: 'i-lucide-loader-circle', disabled: true }]
+    case 'error': return [{ label: TM_FAILED, icon: 'i-lucide-alert-triangle', disabled: true }]
+    case 'empty': return [{ label: TM_NO_MATCH, icon: 'i-lucide-search-x', disabled: true }]
+    case 'refetching': return state.results.map(result => toTruemainItem(result, true))
+    case 'results': return state.results.map(result => toTruemainItem(result))
+  }
+}
+
 const groups = computed<CommandPaletteGroup<SearchItem>[]>(() => {
   const list: CommandPaletteGroup<SearchItem>[] = [
     { id: 'champions', label: 'Champions', items: championItems.value },
   ]
 
   // Player group — shown with any query; an empty box shows champions + browse,
-  // matching the former ChampionSearch. Every non-result state shows a disabled,
-  // non-selectable synthetic item (too-short hint / searching / error / no
-  // match) so the group is never silent. During a refetch (`pending`) prior
-  // results stay visible but dimmed + non-selectable — no flash on each
-  // keystroke, and a stale row can't be clicked onto the wrong profile.
-  const query = term.value.trim()
-  if (query.length > 0) {
-    let truemainItems: SearchItem[]
-    if (tooShort.value) {
-      truemainItems = [{ label: TM_TOO_SHORT, icon: 'i-lucide-info', disabled: true }]
-    }
-    else if (status.value === 'error') {
-      truemainItems = [{ label: TM_FAILED, icon: 'i-lucide-alert-triangle', disabled: true }]
-    }
-    else if (status.value === 'pending') {
-      truemainItems = results.value.length > 0
-        ? results.value.map(result => toTruemainItem(result, true))
-        : [{ label: TM_SEARCHING, icon: 'i-lucide-loader-circle', disabled: true }]
-    }
-    else if (results.value.length === 0) {
-      truemainItems = [{ label: TM_NO_MATCH, icon: 'i-lucide-search-x', disabled: true }]
-    }
-    else {
-      truemainItems = results.value.map(result => toTruemainItem(result))
-    }
-
-    // Already filtered by the backend — keep Fuse out of it.
-    if (truemainItems.length > 0) {
-      list.push({ id: 'truemains', label: 'Truemains', ignoreFilter: true, items: truemainItems })
-    }
+  // matching the former ChampionSearch. Every non-idle state yields ≥1 item, so
+  // it's pushed unconditionally (never a silent empty group).
+  const state = truemainState.value
+  if (state.kind !== 'idle') {
+    list.push({ id: 'truemains', label: 'Truemains', ignoreFilter: true, items: truemainItemsFor(state) })
   }
 
   list.push({
@@ -201,19 +217,19 @@ const groups = computed<CommandPaletteGroup<SearchItem>[]>(() => {
 // Screen-reader announcement for the async truemain search: UCommandPalette
 // emits no aria-live region of its own, so without this the searching / no-match
 // / error / results transitions are silent (the former TruemainSearch wrapped
-// them in an aria-live="polite" block). Champions filter locally and need no
-// announcement. Reuses the same TM_* strings as the palette items so the two
-// can't drift.
+// them in an aria-live="polite" block). Derives from the same `truemainState`
+// as the palette group, so the announcement can't diverge from what's shown.
 const truemainAnnouncement = computed(() => {
-  if (term.value.trim().length === 0) return ''
-  if (tooShort.value) return TM_TOO_SHORT
-  if (status.value === 'pending') return TM_SEARCHING
-  if (status.value === 'error') return TM_FAILED
-  if (status.value === 'success') {
-    const n = results.value.length
-    return n === 0 ? TM_NO_MATCH : `${n} truemain${n > 1 ? 's' : ''} found.`
+  const state = truemainState.value
+  switch (state.kind) {
+    case 'idle': return ''
+    case 'tooShort': return TM_TOO_SHORT
+    case 'searching':
+    case 'refetching': return TM_SEARCHING
+    case 'error': return TM_FAILED
+    case 'empty': return TM_NO_MATCH
+    case 'results': return `${state.results.length} truemain${state.results.length > 1 ? 's' : ''} found.`
   }
-  return ''
 })
 
 // Field trigger sizing: `lg` restores the homepage hero's larger, more rounded,
@@ -254,6 +270,14 @@ defineShortcuts(computed(() => ({
       />
       <span class="flex-1 truncate text-dimmed">
         {{ props.placeholder }}
+      </span>
+      <!-- ⌘K hint on the prominent hero bar only. The shortcut itself is owned
+           by the always-mounted header instance; pressing ⌘K opens the
+           (identical) unified search, and `usingInput` blocks it while a modal
+           input is focused, so it can't stack a second modal. -->
+      <span v-if="props.size === 'lg'" class="hidden items-center gap-0.5 sm:flex">
+        <UKbd value="meta" />
+        <UKbd value="K" />
       </span>
     </button>
 
