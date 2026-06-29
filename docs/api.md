@@ -1012,5 +1012,5 @@ ingérés + requête de seed liée (si origine manuelle).
 |------------|-----------|-------------|
 | Champions  | 9         | Public      |
 | Truemains  | 7         | Public      |
-| Ops        | 16        | `X-Ops-Key` |
+| Ops        | 17        | `X-Ops-Key` |
 | Infra      | 4         | —           |
