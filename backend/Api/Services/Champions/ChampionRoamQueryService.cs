@@ -111,9 +111,20 @@ public sealed class ChampionRoamQueryService(
                 continue;
             }
 
-            if (row.TimestampMs < Window5Ms) roam5++;
-            if (row.TimestampMs < Window10Ms) roam10++;
-            if (row.TimestampMs < Window15Ms) roam15++;
+            if (row.TimestampMs < Window5Ms)
+            {
+                roam5++;
+            }
+
+            if (row.TimestampMs < Window10Ms)
+            {
+                roam10++;
+            }
+
+            if (row.TimestampMs < Window15Ms)
+            {
+                roam15++;
+            }
         }
 
         var response = new ChampionRoamResponse
