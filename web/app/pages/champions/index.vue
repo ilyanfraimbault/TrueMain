@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ChampionSummaryResponse } from '~~/shared/types/champions'
-import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
+import type { RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
 import { POSITION_OPTIONS, isChampionPosition, type ChampionPosition } from '~/utils/positions'
 
 // Whole-percent format used for both WR and PR in the list — matches the
@@ -81,15 +81,7 @@ const {
   data: staticList,
   error: staticError,
   status: staticStatus,
-} = useLazyAsyncData<ChampionStaticListItem[]>(
-  'champion-static-list',
-  async () => {
-    const data = await $fetch<ChampionStaticListItem[]>('/api/static/champions')
-    markStaticFetched('champion-static-list', nuxtApp)
-    return data
-  },
-  { getCachedData: key => getStaticCachedData(key, nuxtApp), server: false },
-)
+} = useChampionStaticList()
 const { data: versions } = useDDragonVersions()
 
 const apiPatch = computed(() => summaries.value?.[0]?.patchVersion ?? '')
