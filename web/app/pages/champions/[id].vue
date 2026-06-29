@@ -347,7 +347,10 @@ const isRefetching = computed(() =>
       />
 
       <ChampionRoam
-        :share="championRoam?.outOfLaneShare ?? null"
+        v-if="trendPosition !== 'JUNGLE'"
+        :kp5="championRoam?.roamKp5 ?? null"
+        :kp10="championRoam?.roamKp10 ?? null"
+        :kp15="championRoam?.roamKp15 ?? null"
         :games="championRoam?.games ?? 0"
         :loading="isLoadingStatus(roamStatus)"
       />

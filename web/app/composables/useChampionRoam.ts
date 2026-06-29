@@ -1,8 +1,8 @@
 import type { ChampionRoamResponse } from '~~/shared/types/champions'
 
 /**
- * Roam metric (out-of-lane kill-participation share) for the champion detail page
- * (issue #536). Forwards position + the pinned patch, keyed on
+ * Roam metric (per-game out-of-lane kill participations at @5/@10/@15) for the
+ * champion detail page (issue #536). Forwards position + the pinned patch, keyed on
  * (champion, position, patch) so it dedupes with the rest of the page and
  * re-fetches when either filter changes. `server: false` mirrors `useChampion`;
  * `enabled` gates the request until the champion (and its lane) resolves.
@@ -27,9 +27,9 @@ export function useChampionRoam(
           position: positionRef.value ?? '',
           patch: patchRef.value ?? null,
           games: 0,
-          killParticipations: 0,
-          outOfLaneParticipations: 0,
-          outOfLaneShare: null,
+          roamKp5: null,
+          roamKp10: null,
+          roamKp15: null,
         })
       }
       const query: Record<string, string> = { position: positionRef.value }
