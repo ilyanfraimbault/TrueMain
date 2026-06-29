@@ -11,11 +11,15 @@ using TrueMain.ReadModels.Champions;
 namespace TrueMain.Services.Champions;
 
 /// <summary>
-/// Roam metric for a champion at a position: the share of its early-game kill
-/// participations that happened outside its own lane. Pulls the bounded
-/// kill-position rows for the champion (joined to its lane + the queue/patch/
-/// tracked-account population the sibling reads share) and classifies each
-/// against the lane via <see cref="LolMap"/>. Computed live, cached 60s.
+/// Roam metric for a champion at a position: the average number of out-of-lane
+/// kill participations (kills + assists) per game, taken cumulatively at the
+/// 5/10/15-minute marks. Pulls the bounded kill-position rows for the champion
+/// (joined to its lane + the queue/patch/tracked-account population the sibling
+/// reads share), classifies each against the lane and team side via
+/// <see cref="LolMap.IsRoam"/>, and divides by the games actually played in that
+/// lane (so games with no early roam still pull the average down). JUNGLE is
+/// excluded — a jungler has no own lane, so every gank would read as a roam.
+/// Computed live, cached 60s.
 /// </summary>
 public sealed class ChampionRoamQueryService(
     TrueMainDbContext db,
@@ -25,6 +29,15 @@ public sealed class ChampionRoamQueryService(
     : IChampionRoamQueryService
 {
     private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(60);
+
+    // Cumulative early-game marks the roam average is reported at. The stored
+    // kill positions are already bounded to before 15 min by the ingestor.
+    private const int Window5Ms = 5 * 60 * 1000;
+    private const int Window10Ms = 10 * 60 * 1000;
+    private const int Window15Ms = 15 * 60 * 1000;
+
+    // Riot team id for the blue side (bottom-left of the map); 200 is red.
+    private const int BlueTeamId = 100;
 
     public async Task<ChampionRoamResponse> GetAsync(
         int championId,
@@ -42,9 +55,38 @@ public sealed class ChampionRoamQueryService(
             return cached;
         }
 
+        // Junglers have no own lane to roam from; the metric is meaningless for
+        // them. Return an empty slice rather than a misleading near-100% roam.
+        var ownLane = ExpectedZone(position);
+        if (ownLane is MapZone.Jungle or MapZone.Unknown)
+        {
+            return Cache(cacheKey, Empty(championId, position, normalizedPatch));
+        }
+
         var queueId = (int)options.Value.QueueId;
         var patchPrefix = normalizedPatch is null ? null : $"{normalizedPatch}.%";
         var minGames = championsOptions.Value.MinMatchupGames;
+
+        // Denominator: games the champion played in this lane that also have
+        // timeline coverage (i.e. produced kill-position rows). Games without a
+        // timeline are excluded so they don't dilute the average toward zero.
+        var gamesPlayed = await db.MatchParticipants.AsNoTracking()
+            .Where(p => p.ChampionId == championId
+                && p.TeamPosition == position
+                && p.RiotAccountId != null
+                && db.Matches.Any(m =>
+                    m.Id == p.MatchId
+                    && m.QueueId == queueId
+                    && (normalizedPatch == null || EF.Functions.Like(m.GameVersion, patchPrefix!)))
+                && db.MatchParticipantKillPositions.Any(k => k.MatchId == p.MatchId))
+            .Select(p => p.MatchId)
+            .Distinct()
+            .CountAsync(ct);
+
+        if (gamesPlayed < minGames)
+        {
+            return Cache(cacheKey, Empty(championId, position, normalizedPatch, gamesPlayed));
+        }
 
         var rows = await (
                 from killPosition in db.MatchParticipantKillPositions.AsNoTracking()
@@ -58,19 +100,20 @@ public sealed class ChampionRoamQueryService(
                         m.Id == killPosition.MatchId
                         && m.QueueId == queueId
                         && (normalizedPatch == null || EF.Functions.Like(m.GameVersion, patchPrefix!)))
-                select new { killPosition.MatchId, killPosition.X, killPosition.Y })
+                select new { killPosition.X, killPosition.Y, killPosition.TimestampMs, participant.TeamId })
             .ToListAsync(ct);
 
-        var games = rows.Select(row => row.MatchId).Distinct().Count();
-        var total = rows.Count;
-
-        int outOfLane = 0;
-        double? share = null;
-        if (games >= minGames && total > 0)
+        int roam5 = 0, roam10 = 0, roam15 = 0;
+        foreach (var row in rows)
         {
-            var ownLane = ExpectedZone(position);
-            outOfLane = rows.Count(row => LolMap.Classify(row.X, row.Y) != ownLane);
-            share = (double)outOfLane / total;
+            if (!LolMap.IsRoam(row.X, row.Y, ownLane, row.TeamId == BlueTeamId))
+            {
+                continue;
+            }
+
+            if (row.TimestampMs < Window5Ms) roam5++;
+            if (row.TimestampMs < Window10Ms) roam10++;
+            if (row.TimestampMs < Window15Ms) roam15++;
         }
 
         var response = new ChampionRoamResponse
@@ -78,12 +121,17 @@ public sealed class ChampionRoamQueryService(
             ChampionId = championId,
             Position = position,
             Patch = normalizedPatch,
-            Games = games,
-            KillParticipations = total,
-            OutOfLaneParticipations = outOfLane,
-            OutOfLaneShare = share
+            Games = gamesPlayed,
+            RoamKp5 = (double)roam5 / gamesPlayed,
+            RoamKp10 = (double)roam10 / gamesPlayed,
+            RoamKp15 = (double)roam15 / gamesPlayed
         };
 
+        return Cache(cacheKey, response);
+    }
+
+    private ChampionRoamResponse Cache(string cacheKey, ChampionRoamResponse response)
+    {
         cache.Set(cacheKey, response, new MemoryCacheEntryOptions
         {
             AbsoluteExpirationRelativeToNow = CacheTtl,
@@ -93,13 +141,24 @@ public sealed class ChampionRoamQueryService(
         return response;
     }
 
+    private static ChampionRoamResponse Empty(int championId, string position, string? patch, int games = 0)
+        => new()
+        {
+            ChampionId = championId,
+            Position = position,
+            Patch = patch,
+            Games = games,
+            RoamKp5 = null,
+            RoamKp10 = null,
+            RoamKp15 = null
+        };
+
     private static MapZone ExpectedZone(string position) => position switch
     {
         "TOP" => MapZone.TopLane,
         "MIDDLE" => MapZone.MidLane,
         "BOTTOM" => MapZone.BotLane,
         "UTILITY" => MapZone.BotLane,
-        "JUNGLE" => MapZone.Jungle,
-        _ => MapZone.Unknown
+        _ => MapZone.Unknown // JUNGLE and anything unrecognised: no own lane.
     };
 }

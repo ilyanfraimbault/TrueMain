@@ -219,11 +219,11 @@ public sealed class ChampionsController(
     }
 
     /// <summary>
-    /// How much a champion roams at a position: the share of its early-game kill
-    /// participations that happened outside its own lane, computed live from the
-    /// stored kill positions. <paramref name="position"/> is the required Riot team
-    /// position; an unrecognised position is a 400. Always 200; the out-of-lane
-    /// share is null below the sample floor.
+    /// How much a champion roams at a position: the average number of out-of-lane
+    /// kill participations per game at the 5/10/15-minute marks, computed live from
+    /// the stored kill positions. <paramref name="position"/> is the required Riot
+    /// team position; an unrecognised position is a 400. Always 200; the per-game
+    /// averages are null below the sample floor and for JUNGLE (no own lane).
     /// </summary>
     [HttpGet("{championId:int}/roam")]
     [ProducesResponseType(typeof(ChampionRoamResponse), StatusCodes.Status200OK)]
