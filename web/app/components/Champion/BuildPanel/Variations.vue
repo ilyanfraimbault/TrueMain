@@ -38,7 +38,7 @@ function spellByKey(key: string) {
 
 <template>
   <div class="grid gap-4 sm:grid-cols-2">
-    <SectionCard title="Summoner spells">
+    <SectionCard :level="2" title="Summoner spells">
       <ul class="space-y-2">
         <li
           v-for="option in summonerSpells"
@@ -70,7 +70,7 @@ function spellByKey(key: string) {
       </ul>
     </SectionCard>
 
-    <SectionCard title="Skill order">
+    <SectionCard :level="2" title="Skill order">
       <ul class="space-y-2">
         <li
           v-for="(option, optionIndex) in skillOrder"
@@ -113,7 +113,7 @@ function spellByKey(key: string) {
       </ul>
     </SectionCard>
 
-    <SectionCard title="Boots">
+    <SectionCard :level="2" title="Boots">
       <ul class="space-y-2">
         <li
           v-for="(option, optionIndex) in boots"
@@ -144,7 +144,7 @@ function spellByKey(key: string) {
       </ul>
     </SectionCard>
 
-    <SectionCard title="Starter">
+    <SectionCard :level="2" title="Starter">
       <ul class="space-y-2">
         <li
           v-for="(option, optionIndex) in starterItems"
