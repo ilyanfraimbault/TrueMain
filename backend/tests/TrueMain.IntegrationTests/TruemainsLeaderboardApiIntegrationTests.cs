@@ -262,6 +262,86 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
     }
 
     [Fact]
+    public async Task List_exposes_primary_and_secondary_position_from_position_share()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        // Three players with different lane spreads across their mains. The
+        // primary lane is the highest-share lane; the secondary lane only
+        // surfaces when it clears the 20% share floor (and sits below the
+        // primary). Shares are summed across the player's mains, matching the
+        // profile's #205 aggregation.
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var flex = Account("flex", "FlexPlayer", "EUW1");
+            var cameo = Account("cameo", "CameoPlayer", "EUW1");
+            var pure = Account("pure", "PurePlayer", "EUW1");
+
+            db.RiotAccounts.AddRange(flex, cameo, pure);
+            db.RankSnapshots.AddRange(
+                Snapshot(flex, "DIAMOND", "I", 90, now),
+                Snapshot(cameo, "DIAMOND", "I", 60, now),
+                Snapshot(pure, "DIAMOND", "I", 30, now));
+
+            // FlexPlayer: two mains summing to MIDDLE 70 / TOP 30 games —
+            // secondary TOP at 30% clears the 20% floor.
+            db.MainChampionStats.AddRange(
+                MainStatWithBreakdown("flex", "EUW1", championId: 157, primaryPosition: "MIDDLE",
+                    breakdown:
+                    [
+                        new PositionStat { Position = "MIDDLE", Games = 50, Rate = 1d },
+                    ]),
+                MainStatWithBreakdown("flex", "EUW1", championId: 86, primaryPosition: "TOP",
+                    breakdown:
+                    [
+                        new PositionStat { Position = "MIDDLE", Games = 20, Rate = 0.4d },
+                        new PositionStat { Position = "TOP", Games = 30, Rate = 0.6d },
+                    ]));
+
+            // CameoPlayer: MIDDLE 90 / TOP 10 — TOP cameo (10%) is below the
+            // floor, so no secondary is shown.
+            db.MainChampionStats.Add(MainStatWithBreakdown(
+                "cameo", "EUW1", championId: 157, primaryPosition: "MIDDLE",
+                breakdown:
+                [
+                    new PositionStat { Position = "MIDDLE", Games = 90, Rate = 0.9d },
+                    new PositionStat { Position = "TOP", Games = 10, Rate = 0.1d },
+                ]));
+
+            // PurePlayer: TOP 100% — primary TOP, no secondary.
+            db.MainChampionStats.Add(MainStatWithBreakdown(
+                "pure", "EUW1", championId: 86, primaryPosition: "TOP",
+                breakdown:
+                [
+                    new PositionStat { Position = "TOP", Games = 50, Rate = 1d },
+                ]));
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        var leaderboard = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        leaderboard!.Total.Should().Be(3);
+
+        var byName = leaderboard.Rows.ToDictionary(r => r.Identity.GameName);
+
+        byName["FlexPlayer"].Positions.Should().NotBeNull();
+        byName["FlexPlayer"].Positions!.Primary.Should().Be("MIDDLE");
+        byName["FlexPlayer"].Positions!.Secondary.Should().Be("TOP", "TOP at 30% share clears the 20% floor");
+
+        byName["CameoPlayer"].Positions.Should().NotBeNull();
+        byName["CameoPlayer"].Positions!.Primary.Should().Be("MIDDLE");
+        byName["CameoPlayer"].Positions!.Secondary.Should().BeNull("a 10% cameo lane is below the share floor");
+
+        byName["PurePlayer"].Positions.Should().NotBeNull();
+        byName["PurePlayer"].Positions!.Primary.Should().Be("TOP");
+        byName["PurePlayer"].Positions!.Secondary.Should().BeNull();
+    }
+
+    [Fact]
     public async Task List_paginates_with_server_computed_rank()
     {
         await _fixture.ResetDatabaseAsync();

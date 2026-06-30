@@ -159,6 +159,7 @@ public sealed class TruemainsLeaderboardQueryService(
 
         var statsTask = TimedAsync(() => FetchStatsAsync(puuids, ct));
         var ranksTask = TimedAsync(() => FetchLatestRanksAsync(accountIds, ct));
+        var positionsTask = TimedAsync(() => FetchPositionsAsync(puuids, ct));
 
         // Chain the build fetch off the top-3 result: it resolves the page's
         // (account, champion) pairs from the selected champions, and still runs
@@ -173,12 +174,13 @@ public sealed class TruemainsLeaderboardQueryService(
             return await FetchTopChampionBuildsAsync(topChampions, accountIdByPuuid, ct);
         });
 
-        await Task.WhenAll(topChampionsTask, statsTask, ranksTask, buildsTask);
+        await Task.WhenAll(topChampionsTask, statsTask, ranksTask, buildsTask, positionsTask);
 
         var (topChampionsByPuuid, topChampMs) = await topChampionsTask;
         var (statsByPuuid, statsMs) = await statsTask;
         var (ranksByAccount, ranksMs) = await ranksTask;
         var (buildsByPuuidChampion, buildsContinuationMs) = await buildsTask;
+        var (positionsByPuuid, positionsMs) = await positionsTask;
 
         var rank = offset + 1;
         var rows = new List<LeaderboardRowReadModel>(pageRows.Count);
@@ -240,6 +242,7 @@ public sealed class TruemainsLeaderboardQueryService(
                     Kda = stats?.Kda,
                 },
                 TopChampions = topChamps,
+                Positions = positionsByPuuid.GetValueOrDefault(row.Puuid),
             });
         }
 
@@ -254,9 +257,9 @@ public sealed class TruemainsLeaderboardQueryService(
 
         totalSw.Stop();
         logger.LogInformation(
-            "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} rows={Rows} total={Total} countMs={CountMs:F1} pageMs={PageMs:F1} topChampMs={TopChampMs:F1} statsMs={StatsMs:F1} ranksMs={RanksMs:F1} buildsContinuationMs={BuildsContinuationMs:F1} elapsed={ElapsedMs}ms result=miss",
+            "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} rows={Rows} total={Total} countMs={CountMs:F1} pageMs={PageMs:F1} topChampMs={TopChampMs:F1} statsMs={StatsMs:F1} ranksMs={RanksMs:F1} buildsContinuationMs={BuildsContinuationMs:F1} positionsMs={PositionsMs:F1} elapsed={ElapsedMs}ms result=miss",
             clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames,
-            rows.Count, total, countMs, pageMs, topChampMs, statsMs, ranksMs, buildsContinuationMs, totalSw.ElapsedMilliseconds);
+            rows.Count, total, countMs, pageMs, topChampMs, statsMs, ranksMs, buildsContinuationMs, positionsMs, totalSw.ElapsedMilliseconds);
 
         return response;
     }
@@ -693,6 +696,95 @@ public sealed class TruemainsLeaderboardQueryService(
                 Kda: r.Deaths > 0
                     ? (double)(r.Kills + r.Assists) / r.Deaths
                     : r.Kills + r.Assists));
+    }
+
+    private async Task<Dictionary<string, LeaderboardPositionsReadModel>> FetchPositionsAsync(
+        string[] puuids,
+        CancellationToken ct)
+    {
+        if (puuids.Length == 0)
+        {
+            return new Dictionary<string, LeaderboardPositionsReadModel>();
+        }
+
+        // Own short-lived context: this runs concurrently with the other page
+        // hydration fetches, and a single DbContext is not thread-safe.
+        await using var ctx = await dbFactory.CreateDbContextAsync(ct);
+
+        // Pull the per-champion position breakdown for the page's mains so we can
+        // derive each player's primary / secondary lane from position *share*
+        // (same approach as the profile, #205) rather than the single
+        // most-played PrimaryPosition. PositionBreakdown is JSONB on the row;
+        // EF materialises it as List<PositionStat>, so the share aggregation runs
+        // in memory over the page slice (~25 players × few mains each).
+        var rows = await ctx.MainChampionStats
+            .AsNoTracking()
+            .Where(m => puuids.Contains(m.Puuid) && m.IsMain)
+            .Select(m => new { m.Puuid, m.PositionBreakdown })
+            .ToListAsync(ct);
+
+        var result = new Dictionary<string, LeaderboardPositionsReadModel>(puuids.Length);
+        foreach (var group in rows.GroupBy(r => r.Puuid))
+        {
+            var positions = ComputePositions(group.SelectMany(r => r.PositionBreakdown));
+            if (positions is not null)
+            {
+                result[group.Key] = positions;
+            }
+        }
+
+        return result;
+    }
+
+    // Primary + secondary lane from position share across a player's mains.
+    // Mirrors the profile's #205 aggregation: sum games per lane across every
+    // main, then share = lane games / total games. The primary is the
+    // highest-share lane (always shown when the player has any positioned
+    // games); the secondary is the next lane down, shown only when its share
+    // clears the noise floor — otherwise it would surface a one-off off-role
+    // cameo that doesn't reflect how the player actually flexes.
+    private static LeaderboardPositionsReadModel? ComputePositions(IEnumerable<Data.Entities.PositionStat> breakdown)
+    {
+        var positionSums = breakdown
+            .Where(p => !string.IsNullOrWhiteSpace(p.Position))
+            .GroupBy(p => p.Position)
+            .Select(g => new { Position = g.Key, Games = g.Sum(x => x.Games) })
+            .Where(p => p.Games > 0)
+            .OrderByDescending(p => p.Games)
+            .ToList();
+
+        if (positionSums.Count == 0)
+        {
+            return null;
+        }
+
+        var totalGames = positionSums.Sum(p => p.Games);
+        if (totalGames == 0)
+        {
+            return null;
+        }
+
+        var primary = positionSums[0];
+
+        string? secondary = null;
+        if (positionSums.Count > 1)
+        {
+            var candidate = positionSums[1];
+            var share = (double)candidate.Games / totalGames;
+            // Below the primary by construction (ordered desc) and meaningful —
+            // reuse MinPositionShare so the "secondary lane" bar matches the
+            // position-filter bar the leaderboard already exposes.
+            if (share >= MinPositionShare)
+            {
+                secondary = candidate.Position;
+            }
+        }
+
+        return new LeaderboardPositionsReadModel
+        {
+            Primary = primary.Position,
+            Secondary = secondary,
+        };
     }
 
     private static string? NormalizePosition(string? position)

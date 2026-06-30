@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { LeaderboardRowResponse } from '~~/shared/types/leaderboard'
 import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
-import { getProfileIconUrl } from '~~/shared/utils/ddragon'
+import { getPositionIconUrl, getProfileIconUrl } from '~~/shared/utils/ddragon'
 import { isApexTier } from '~/utils/tiers'
 
 // One row of the leaderboard. The whole row navigates to the player's profile
@@ -64,6 +64,45 @@ function championName(id: number): string {
 function championIcon(id: number): string | null {
   return props.championsById.get(id)?.iconUrl ?? null
 }
+
+// Riot-stored position string → short community label, for the role-icon
+// tooltips. Mirrors ProfilePositionBreakdown's mapping so the lane reads the
+// same across the leaderboard and the profile.
+const POSITION_LABELS: Record<string, string> = {
+  TOP: 'Top',
+  JUNGLE: 'Jungle',
+  MIDDLE: 'Mid',
+  BOTTOM: 'ADC',
+  UTILITY: 'Support',
+}
+function positionLabel(position: string): string {
+  return POSITION_LABELS[position] ?? position
+}
+
+// Primary + secondary lane icons. Each entry carries its icon URL and a
+// tooltip. The list is empty when the backend has no position data (no main
+// analysis yet), so the slot collapses without shifting the row.
+const positionIcons = computed(() => {
+  const positions = props.row.positions
+  if (!positions) {
+    return []
+  }
+  const icons = [{
+    position: positions.primary,
+    iconUrl: getPositionIconUrl(positions.primary),
+    title: `Primary: ${positionLabel(positions.primary)}`,
+    primary: true,
+  }]
+  if (positions.secondary) {
+    icons.push({
+      position: positions.secondary,
+      iconUrl: getPositionIconUrl(positions.secondary),
+      title: `Secondary: ${positionLabel(positions.secondary)}`,
+      primary: false,
+    })
+  }
+  return icons
+})
 </script>
 
 <template>
@@ -111,6 +150,25 @@ function championIcon(id: number): string | null {
         <span v-if="row.identity.tagLine" class="shrink-0 text-xs text-muted">#{{ row.identity.tagLine }}</span>
       </div>
       <LeaderboardRegionFlag :region="row.region" :width="18" class="mt-0.5" />
+    </div>
+
+    <!-- Primary / secondary lane. Small, muted role icons secondary to the
+         name. Fixed-width slot (room for two 16px icons + gap) reserved on
+         every row so the layout never shifts whether a player has a secondary
+         lane, or no position data at all. Hidden below sm to keep narrow rows
+         readable. -->
+    <div class="hidden w-12 shrink-0 items-center gap-1 sm:flex" aria-hidden="true">
+      <NuxtImg
+        v-for="role in positionIcons"
+        :key="role.position"
+        :src="role.iconUrl"
+        :alt="positionLabel(role.position)"
+        :title="role.title"
+        class="size-4 shrink-0"
+        :class="role.primary ? 'opacity-70' : 'opacity-40'"
+        width="16"
+        height="16"
+      />
     </div>
 
     <!-- Left spacer: with the right spacer below, the two centre the champion
