@@ -168,6 +168,7 @@ builder.Services.AddScoped<IChampionRoamQueryService, ChampionRoamQueryService>(
 builder.Services.AddScoped<IChampionPowerspikesQueryService, ChampionPowerspikesQueryService>();
 builder.Services.AddScoped<IChampionTrendQueryService, ChampionTrendQueryService>();
 builder.Services.AddScoped<IMatchSummariesQueryService, MatchSummariesQueryService>();
+builder.Services.AddScoped<IMatchDetailQueryService, MatchDetailQueryService>();
 builder.Services.AddScoped<IProfileQueryService, ProfileQueryService>();
 builder.Services.AddScoped<IPlayerChampionBuildsQueryService, PlayerChampionBuildsQueryService>();
 builder.Services.AddScoped<IPlayerChampionMatchupQueryService, PlayerChampionMatchupQueryService>();
