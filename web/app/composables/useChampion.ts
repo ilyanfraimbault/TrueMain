@@ -50,13 +50,16 @@ export function useChampion(
     return value && value.length > 0 ? value : undefined
   })
 
-  const buildKey = (patch: string, position: string) =>
-    ['champion', nameTagRef.value ?? 'global', championIdRef.value, patch, position].join('-')
+  // The elo bracket is part of the cache key so each band caches separately;
+  // it is NOT cleared by the patch/position 404 fallback (every champion always
+  // has an ALL union), so the unfiltered key below keeps the current bracket.
+  const buildKey = (patch: string, position: string, eloBracket = '') =>
+    ['champion', nameTagRef.value ?? 'global', championIdRef.value, patch, position, eloBracket].join('-')
 
   const result = useLazyAsyncData<ChampionResponse | null>(
     () => {
       const f = filters.value
-      return buildKey(f.patch ?? '', f.position ?? '')
+      return buildKey(f.patch ?? '', f.position ?? '', f.eloBracket ?? '')
     },
     async () => {
       const id = championIdRef.value
@@ -65,8 +68,9 @@ export function useChampion(
       // Capture the stash key synchronously, before any `await`: if the user
       // navigates to another champion while a fetch is in flight, the refs
       // change underneath us and `buildKey` would otherwise stash this
-      // response under the new champion's key.
-      const unfilteredKey = buildKey('', '')
+      // response under the new champion's key. The fallback drops patch +
+      // position but keeps the bracket, so it stashes under the same band.
+      const unfilteredKey = buildKey('', '', f.eloBracket ?? '')
 
       if (nameTag) {
         try {
@@ -109,7 +113,7 @@ export function useChampion(
       // flips to the unfiltered one. Filtered keys and the player-scoped
       // (nameTag) variant always fetch, so their behaviour is unchanged.
       getCachedData: (key, _app, ctx) => {
-        if (nameTagRef.value || key !== buildKey('', '')) return undefined
+        if (nameTagRef.value || key !== buildKey('', '', filters.value.eloBracket ?? '')) return undefined
         // Mirror Nuxt's default getter: never short-circuit an explicit
         // refresh, only the watch/key-change reload the reconciler triggers.
         if (ctx?.cause === 'refresh:manual' || ctx?.cause === 'refresh:hook') return undefined

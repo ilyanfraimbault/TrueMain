@@ -5,6 +5,7 @@ import type {
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
 import { isChampionPosition, type ChampionPosition } from '~/utils/positions'
+import { ELO_BRACKET_ALL, eloBracketLabel, isEloBracket, type EloBracket } from '~/utils/elo-brackets'
 import { describeFetchError } from '~/utils/errors'
 
 const route = useRoute()
@@ -150,6 +151,37 @@ const selectedPatch = computed(() => champion.value?.patch || filters.value.patc
 const selectedPosition = computed<ChampionPosition | null>(() => {
   const value = champion.value?.position || filters.value.position || ''
   return isChampionPosition(value) ? value : null
+})
+// Elo bracket (issue #526). Bind to the API-returned bracket once available so
+// the picker reflects what's actually shown; fall back to the URL filter for
+// the optimistic render before the fetch resolves. Unlike patch/position, a
+// bracket is never dropped by the 404 fallback (every champion has an ALL
+// union), so it always echoes the request.
+const selectedEloBracket = computed<EloBracket>(() => {
+  const value = champion.value?.eloBracket || filters.value.eloBracket || ELO_BRACKET_ALL
+  return isEloBracket(value) ? value : ELO_BRACKET_ALL
+})
+
+// Coverage / min-sample guards: only meaningful for a narrow (non-ALL) band.
+// `eloCoverage` is the share of all-rank games this slice covers; `minSampleMet`
+// is false for tiny high-elo slices. Surface a notice so a thin Master+ build
+// reads as "treat with caution" rather than authoritative.
+const showBracketNotice = computed(() =>
+  Boolean(champion.value)
+  && selectedEloBracket.value !== ELO_BRACKET_ALL
+  && (!champion.value!.minSampleMet || champion.value!.eloCoverage < 0.1),
+)
+const bracketCoveragePercent = computed(() =>
+  champion.value ? Math.round(champion.value.eloCoverage * 100) : 0,
+)
+const bracketNoticeText = computed(() => {
+  const label = eloBracketLabel(selectedEloBracket.value)
+  const games = champion.value?.totalGames ?? 0
+  if (champion.value && !champion.value.minSampleMet) {
+    return `Only ${games} ${games === 1 ? 'game' : 'games'} in ${label} (${bracketCoveragePercent.value}% of all ranks) — `
+      + 'too few to be reliable. Treat this build as a rough signal.'
+  }
+  return `${label} covers just ${bracketCoveragePercent.value}% of all-rank games — a narrow slice, so read it with caution.`
 })
 
 // Average per-interval lead vs the lane opponent (issue #525). Follows the
@@ -302,11 +334,22 @@ const isRefetching = computed(() =>
         <ChampionFilters
           :selected-patch="selectedPatch"
           :selected-position="selectedPosition"
+          :selected-elo-bracket="selectedEloBracket"
           :patch-options="patchOptions"
           @update:patch="value => setFilter({ patch: value })"
           @update:position="value => setFilter({ position: value })"
+          @update:elo-bracket="value => setFilter({ eloBracket: value })"
         />
       </header>
+
+      <UAlert
+        v-if="showBracketNotice"
+        color="warning"
+        variant="soft"
+        :title="`Small ${eloBracketLabel(selectedEloBracket)} sample`"
+        :description="bracketNoticeText"
+        icon="i-lucide-triangle-alert"
+      />
 
       <ChampionBuildTabs
         :builds="champion.builds"

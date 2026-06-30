@@ -25,6 +25,20 @@ export interface ChampionResponse {
   championId: number
   patch: string
   position: string
+  /** Elo bracket this slice was computed for (one of `EloBracket`; `ALL` by default). */
+  eloBracket: string
+  /**
+   * Games in the selected bracket as a fraction of all games on this champion at
+   * the resolved patch + position. `1` for the `ALL` bracket; lower for narrow
+   * high-elo bands, so the page can flag how representative the slice is.
+   */
+  eloCoverage: number
+  /**
+   * False when `totalGames` is below the trustworthy-build floor (tiny
+   * high-bracket slices). The page still renders the data but flags it as
+   * low-confidence.
+   */
+  minSampleMet: boolean
   totalGames: number
   totalWins: number
   builds: ChampionBuild[]
