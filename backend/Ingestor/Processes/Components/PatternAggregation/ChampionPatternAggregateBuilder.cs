@@ -40,7 +40,8 @@ public sealed class ChampionPatternAggregateBuilder(
                 scope.GameVersion,
                 scope.PlatformId,
                 scope.QueueId,
-                scope.Position),
+                scope.Position,
+                scope.EloBracket),
             scope => scope.Id);
 
         return expandedRows
@@ -52,7 +53,8 @@ public sealed class ChampionPatternAggregateBuilder(
                     row.GameVersion,
                     row.PlatformId,
                     row.QueueId,
-                    row.Position),
+                    row.Position,
+                    row.EloBracket),
                 Build = new BuildDimensionContent(
                     row.BootsItemId,
                     row.BuildItem0, row.BuildItem1, row.BuildItem2, row.BuildItem3,
@@ -97,12 +99,14 @@ public sealed class ChampionPatternAggregateBuilder(
                 row.GameVersion,
                 row.PlatformId,
                 row.QueueId,
-                row.Position))
+                row.Position,
+                row.EloBracket))
             .OrderBy(group => group.Key.RiotAccountId)
             .ThenBy(group => group.Key.ChampionId)
             .ThenBy(group => group.Key.GameVersion)
             .ThenBy(group => group.Key.PlatformId)
             .ThenBy(group => group.Key.Position)
+            .ThenBy(group => group.Key.EloBracket)
             .Select(group => BuildScope(group, aggregatedAtUtc))
             .ToList();
 
@@ -121,6 +125,7 @@ public sealed class ChampionPatternAggregateBuilder(
             PlatformId = group.Key.PlatformId,
             QueueId = group.Key.QueueId,
             Position = group.Key.Position,
+            EloBracket = group.Key.EloBracket,
             Games = rows.Count,
             Wins = rows.Count(row => row.Win),
             LastGameStartTimeUtc = rows.Max(row => row.GameStartTimeUtc),
@@ -153,6 +158,7 @@ public sealed class ChampionPatternAggregateBuilder(
                 row.PlatformId,
                 row.QueueId,
                 row.Position ?? string.Empty,
+                row.EloBracket,
                 row.PrimaryStyleId,
                 row.SubStyleId,
                 row.PerksOffense,
@@ -201,4 +207,5 @@ internal sealed record AggregateScopeKeyWithAccount(
     string GameVersion,
     string PlatformId,
     int QueueId,
-    string Position);
+    string Position,
+    string EloBracket);

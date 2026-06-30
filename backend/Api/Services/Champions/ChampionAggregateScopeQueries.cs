@@ -17,7 +17,8 @@ internal static class ChampionAggregateScopeQueries
         Guid? riotAccountId,
         string? patch,
         string? platformId,
-        string? position)
+        string? position,
+        string? eloBracket = null)
     {
         var query = source.Where(scope => scope.ChampionId == championId && scope.QueueId == queueId);
 
@@ -39,6 +40,14 @@ internal static class ChampionAggregateScopeQueries
         if (!string.IsNullOrWhiteSpace(position))
         {
             query = query.Where(scope => scope.Position == position);
+        }
+
+        // A null / "ALL" bracket spans every persisted bracket (the read-time
+        // union); a specific bracket narrows to its single scope row per
+        // (account, champion, patch, platform, queue, position).
+        if (!string.IsNullOrWhiteSpace(eloBracket))
+        {
+            query = query.Where(scope => scope.EloBracket == eloBracket);
         }
 
         return query;
