@@ -87,36 +87,26 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
         var participantIds = participants.Select(p => p.ParticipantId).ToList();
 
         // Full 6-rune pages for every participant: ParticipantPerkSelection
-        // joined to its catalog row. Ordered by (style, selection index) so the
-        // frontend gets keystone-first, primary-then-secondary order.
+        // joined to its catalog row. Final ordering (keystone-first,
+        // primary-tree-then-secondary-tree) is applied per participant below.
         var perkRows = await (
             from pps in db.ParticipantPerkSelections.AsNoTracking()
             join cat in db.PerkSelectionCatalogs.AsNoTracking()
                 on pps.PerkSelectionCatalogId equals cat.Id
             where pps.MatchId == matchId
-            select new
-            {
+            select new PerkRow(
                 pps.ParticipantId,
                 cat.StyleId,
                 cat.SelectionIndex,
-                cat.PerkId,
-            }).ToListAsync(ct);
+                cat.PerkId)).ToListAsync(ct);
 
-        var perksByParticipant = perkRows
+        // Group raw rune rows per participant; the final keystone-first,
+        // primary-tree-then-secondary-tree ordering is applied per participant
+        // below, where the participant's PrimaryStyleId is known (SelectionIndex
+        // resets to 0 within each tree, so it alone can't order across trees).
+        var perkRowsByParticipant = perkRows
             .GroupBy(r => r.ParticipantId)
-            .ToDictionary(
-                g => g.Key,
-                g => g
-                    .OrderBy(r => r.SelectionIndex)
-                    .ThenBy(r => r.StyleId)
-                    .ThenBy(r => r.PerkId)
-                    .Select(r => new MatchDetailRuneReadModel
-                    {
-                        StyleId = r.StyleId,
-                        SelectionIndex = r.SelectionIndex,
-                        PerkId = r.PerkId,
-                    })
-                    .ToList());
+            .ToDictionary(g => g.Key, g => g.ToList());
 
         // @15 timeline snapshots — one per participant when present. Used for
         // the laning-phase cs/gold/xp diffs against the lane opponent.
@@ -237,9 +227,23 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
                 var laning15 = ComputeLaning15(p.ParticipantId, opponent, snapshotByParticipant);
                 var firstToTwo = ComputeFirstToLevelTwo(p, opponent);
 
-                var runes = perksByParticipant.TryGetValue(p.ParticipantId, out var rs)
-                    ? rs
-                    : new List<MatchDetailRuneReadModel>();
+                var primaryStyleId = p.PrimaryStyleId;
+                var runes = (perkRowsByParticipant.TryGetValue(p.ParticipantId, out var rs)
+                        ? rs
+                        : new List<PerkRow>())
+                    // Primary tree first (keystone-first within it), then the
+                    // secondary tree — SelectionIndex resets per tree, so the
+                    // primary-style flag must lead the sort.
+                    .OrderBy(r => r.StyleId == primaryStyleId ? 0 : 1)
+                    .ThenBy(r => r.SelectionIndex)
+                    .ThenBy(r => r.PerkId)
+                    .Select(r => new MatchDetailRuneReadModel
+                    {
+                        StyleId = r.StyleId,
+                        SelectionIndex = r.SelectionIndex,
+                        PerkId = r.PerkId,
+                    })
+                    .ToList();
 
                 var keystoneId = runes
                     .Where(r => r.StyleId == p.PrimaryStyleId && r.SelectionIndex == 0)
@@ -412,4 +416,7 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
 
     /// <summary>@15 timeline projection: combined cs, gold and xp for a participant.</summary>
     private sealed record Snapshot15(int ParticipantId, int Cs, int Gold, int Xp);
+
+    /// <summary>One rune selection row: owning style, slot index and perk id.</summary>
+    private sealed record PerkRow(int ParticipantId, int StyleId, int SelectionIndex, int PerkId);
 }

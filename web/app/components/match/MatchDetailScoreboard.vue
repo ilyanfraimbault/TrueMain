@@ -11,7 +11,6 @@ const props = defineProps<{
   participants: MatchDetailParticipant[]
   teamId: number
   win: boolean
-  nameTag: string
   champions: ChampionStaticListItem[]
   items: Record<number, StaticItemData>
   summonerSpells: Record<number, StaticSummonerSpellData>
@@ -24,6 +23,14 @@ function champ(id: number) {
 
 function champName(id: number) {
   return champ(id)?.name ?? `Champion ${id}`
+}
+
+// Profile slug for a tracked participant — only when BOTH gameName and tagLine
+// are present. A null tagLine would otherwise produce a trailing-dash slug
+// (`Name-`) that NameTagParser can't resolve, yielding a 404 link.
+function profileSlug(p: MatchDetailParticipant): string | null {
+  if (!p.gameName || !p.tagLine) return null
+  return `/truemains/${encodeURIComponent(`${p.gameName}-${p.tagLine}`)}`
 }
 
 // Highest damage across the rendered team — drives the damage bar fill.
@@ -114,13 +121,13 @@ const sideLabel = computed(() => (props.teamId === 100 ? 'Blue' : 'Red'))
         <!-- Identity + rank -->
         <div class="flex min-w-0 flex-[1.2] flex-col">
           <NuxtLink
-            v-if="p.gameName"
-            :to="`/truemains/${encodeURIComponent(`${p.gameName}-${p.tagLine ?? ''}`)}`"
+            v-if="profileSlug(p)"
+            :to="profileSlug(p)!"
             class="truncate text-xs font-medium text-default hover:underline"
           >
             {{ p.gameName }}
           </NuxtLink>
-          <span v-else class="truncate text-xs font-medium text-muted">{{ p.summonerName }}</span>
+          <span v-else class="truncate text-xs font-medium text-muted">{{ p.gameName ?? p.summonerName }}</span>
           <span v-if="p.rank" class="flex items-center gap-1 text-[10px] text-muted">
             <RankIcon :tier="p.rank.tier" :size="14" />
             {{ p.rank.tier }} {{ p.rank.division }}

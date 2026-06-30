@@ -94,7 +94,11 @@ public sealed record MatchDetailParticipantReadModel
 
     // ── Derived (computed server-side) ──────────────────────────────────────
 
-    /// <summary>Kill participation 0..1 — <c>(kills + assists) / teamKills</c>, 0 when the team scored no kills.</summary>
+    /// <summary>
+    /// Kill participation — <c>(kills + assists) / teamKills</c>, 0 when the team
+    /// scored no kills. Usually 0..1 but can exceed 1 when a player's kills plus
+    /// assists outnumber the team's total kills (shared assists are double-counted).
+    /// </summary>
     public double KillParticipation { get; init; }
 
     /// <summary>CS per minute.</summary>
@@ -119,7 +123,7 @@ public sealed record MatchDetailParticipantReadModel
     /// </summary>
     public bool? FirstToLevelTwo { get; init; }
 
-    /// <summary>Full rune page (6 selections) in catalog order.</summary>
+    /// <summary>Full rune page (6 selections): the primary tree (keystone first) then the secondary tree.</summary>
     public IReadOnlyList<MatchDetailRuneReadModel> Runes { get; init; }
         = Array.Empty<MatchDetailRuneReadModel>();
 

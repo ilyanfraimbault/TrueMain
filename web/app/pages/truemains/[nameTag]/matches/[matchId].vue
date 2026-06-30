@@ -106,6 +106,16 @@ const redTeam = computed(() => detail.value?.participants.filter(p => p.teamId =
 
 const blueWin = computed(() => blueTeam.value[0]?.win ?? false)
 
+// The header banner reads the winning side off whichever team actually won,
+// rather than assuming blue exists — a remake or odd payload with no team-100
+// rows would otherwise always label the game a red victory. Null when neither
+// side reports a win (e.g. an empty/remade match) so the banner is hidden.
+const winningSide = computed<'blue' | 'red' | null>(() => {
+  if (blueTeam.value.some(p => p.win)) return 'blue'
+  if (redTeam.value.some(p => p.win)) return 'red'
+  return null
+})
+
 const headerMeta = computed(() => {
   if (!detail.value) return null
   return {
@@ -157,10 +167,11 @@ const tabItems = [
         class="glass mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border border-default/60 bg-elevated/40 px-4 py-3"
       >
         <span
+          v-if="winningSide"
           class="text-sm font-bold"
-          :class="blueWin ? 'text-sky-400' : 'text-red-400'"
+          :class="winningSide === 'blue' ? 'text-sky-400' : 'text-red-400'"
         >
-          {{ blueWin ? 'Blue victory' : 'Red victory' }}
+          {{ winningSide === 'blue' ? 'Blue victory' : 'Red victory' }}
         </span>
         <span v-if="headerMeta" class="text-xs text-muted">{{ headerMeta.queue }}</span>
         <span v-if="headerMeta" class="text-xs text-muted">{{ headerMeta.duration }}</span>
@@ -182,7 +193,6 @@ const tabItems = [
               :participants="blueTeam"
               :team-id="100"
               :win="blueWin"
-              :name-tag="nameTag"
               :champions="champions"
               :items="items"
               :summoner-spells="summonerSpells"
@@ -192,7 +202,6 @@ const tabItems = [
               :participants="redTeam"
               :team-id="200"
               :win="!blueWin"
-              :name-tag="nameTag"
               :champions="champions"
               :items="items"
               :summoner-spells="summonerSpells"

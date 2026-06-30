@@ -43,6 +43,13 @@ function eventTint(type: string) {
   return type === 'ITEM_PURCHASED' ? 'opacity-100' : 'opacity-50'
 }
 
+// Riot sets itemId = 0 on an ITEM_UNDO and carries the affected item in
+// beforeId / afterId. Fall back to those so undo steps render the real item
+// instead of a blank square.
+function eventItemId(ev: { itemId: number, beforeId: number | null, afterId: number | null }) {
+  return ev.itemId || ev.beforeId || ev.afterId || 0
+}
+
 // Skill order grid: one column per level (max 18), one row per slot Q/W/E/R.
 // A cell is filled at the level the slot was leveled. SkillEvents are already
 // in chronological (level) order from the API.
@@ -149,7 +156,7 @@ function fmtDiff(value: number) {
           :title="`${eventLabel(ev.eventType)} @ ${fmtTime(ev.timestampMs)}`"
         >
           <GameTooltipItemIcon
-            :item="ev.itemId ? items[ev.itemId] ?? null : null"
+            :item="eventItemId(ev) ? items[eventItemId(ev)] ?? null : null"
             :width="24"
             :height="24"
             class="size-6 rounded"
