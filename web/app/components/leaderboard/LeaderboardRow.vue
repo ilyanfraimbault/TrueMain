@@ -2,6 +2,7 @@
 import type { LeaderboardRowResponse } from '~~/shared/types/leaderboard'
 import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
 import { getPositionIconUrl, getProfileIconUrl } from '~~/shared/utils/ddragon'
+import { POSITION_OPTIONS } from '~/utils/positions'
 import { isApexTier } from '~/utils/tiers'
 
 // One row of the leaderboard. The whole row navigates to the player's profile
@@ -65,18 +66,12 @@ function championIcon(id: number): string | null {
   return props.championsById.get(id)?.iconUrl ?? null
 }
 
-// Riot-stored position string → short community label, for the role-icon
-// tooltips. Mirrors ProfilePositionBreakdown's mapping so the lane reads the
-// same across the leaderboard and the profile.
-const POSITION_LABELS: Record<string, string> = {
-  TOP: 'Top',
-  JUNGLE: 'Jungle',
-  MIDDLE: 'Mid',
-  BOTTOM: 'ADC',
-  UTILITY: 'Support',
-}
+// Riot-stored position string → label for the role-icon tooltips. Reuses the
+// canonical POSITION_OPTIONS (shared with the role picker and tier list) so the
+// leaderboard label never drifts from the rest of the app.
+const positionLabelByValue = new Map(POSITION_OPTIONS.map(o => [o.value as string, o.label]))
 function positionLabel(position: string): string {
-  return POSITION_LABELS[position] ?? position
+  return positionLabelByValue.get(position) ?? position
 }
 
 // Primary + secondary lane icons. Each entry carries its icon URL and a
@@ -157,7 +152,7 @@ const positionIcons = computed(() => {
          every row so the layout never shifts whether a player has a secondary
          lane, or no position data at all. Hidden below sm to keep narrow rows
          readable. -->
-    <div class="hidden w-12 shrink-0 items-center gap-1 sm:flex" aria-hidden="true">
+    <div class="hidden w-12 shrink-0 items-center gap-1 sm:flex">
       <NuxtImg
         v-for="role in positionIcons"
         :key="role.position"

@@ -750,7 +750,10 @@ public sealed class TruemainsLeaderboardQueryService(
             .GroupBy(p => p.Position)
             .Select(g => new { Position = g.Key, Games = g.Sum(x => x.Games) })
             .Where(p => p.Games > 0)
+            // Deterministic tiebreak: equal-games lanes would otherwise pick a
+            // primary/secondary at random across requests, making the row flap.
             .OrderByDescending(p => p.Games)
+            .ThenBy(p => p.Position, StringComparer.Ordinal)
             .ToList();
 
         if (positionSums.Count == 0)
@@ -758,11 +761,9 @@ public sealed class TruemainsLeaderboardQueryService(
             return null;
         }
 
+        // Every group cleared the Games > 0 filter and at least one survives, so
+        // totalGames is always > 0 here — safe to divide for the share below.
         var totalGames = positionSums.Sum(p => p.Games);
-        if (totalGames == 0)
-        {
-            return null;
-        }
 
         var primary = positionSums[0];
 
