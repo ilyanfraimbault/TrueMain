@@ -55,22 +55,19 @@ function onToChange(value: unknown) {
   if (typeof value === 'string' && value) emit('update:toPatch', value)
 }
 
-interface ChangeRow {
-  key: string
-  label: string
-  changed: boolean
-}
-// The three notable-movement flags, surfaced as a compact list of badges so the
-// "what changed" read is at-a-glance. Only shown when both sides are present.
-const changeRows = computed<ChangeRow[]>(() => {
+// True when both sides are present but nothing notable moved — drives the
+// "no notable changes" footnote so the section doesn't read as broken.
+const noChanges = computed(() => {
   const delta = props.diff?.delta
-  if (!delta) return []
-  return [
-    { key: 'item', label: 'First item', changed: delta.firstItemChanged },
-    { key: 'keystone', label: 'Keystone', changed: delta.keystoneChanged },
-    { key: 'skills', label: 'Skill order', changed: delta.skillOrderChanged },
-  ]
+  return Boolean(delta) && !delta!.firstItemChanged && !delta!.keystoneChanged && !delta!.skillOrderChanged
 })
+
+// One side resolved but the other didn't: the user picked (or defaulted into) a
+// patch the champion has no data on. Distinct from "no history at all" so the
+// empty copy can be accurate.
+const oneSideMissing = computed(() =>
+  Boolean(props.diff && (props.diff.from || props.diff.to) && !(props.diff.from && props.diff.to)),
+)
 
 function winRateLabel(side: ChampionPatchDiffSide | null | undefined): string {
   return side ? formatPercentage(side.winRate, 1) : '—'
@@ -125,7 +122,9 @@ function winRateLabel(side: ChampionPatchDiffSide | null | undefined): string {
       v-else-if="!hasBothSides"
       class="rounded-lg px-4 py-8 text-center text-sm text-muted"
     >
-      Not enough patch history yet to compare this champion across patches.
+      {{ oneSideMissing
+        ? 'No data for this champion on one of the selected patches — pick another patch to compare.'
+        : 'Not enough patch history yet to compare this champion across patches.' }}
     </p>
 
     <div
@@ -256,7 +255,7 @@ function winRateLabel(side: ChampionPatchDiffSide | null | undefined): string {
       </div>
 
       <p
-        v-if="changeRows.every(row => !row.changed)"
+        v-if="noChanges"
         class="text-center text-xs text-muted"
       >
         No notable build, rune or skill changes between these patches.

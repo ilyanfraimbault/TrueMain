@@ -87,6 +87,31 @@ public sealed class ChampionPatchDiffApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetChampionPatchDiffAsync_LoneToDefaultsFromToTheNeighbourBelowIt()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedThreePatchesAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        // Only `to=16.4` given (not the newest 16.5). The defaulted `from` must
+        // be the patch immediately older than the explicit `to` (16.3), NOT the
+        // global newest — otherwise the user's explicit `to` would be discarded.
+        var response = await client.GetAsync(
+            $"/champions/{ChampionId}/patch-diff?to=16.4&position=middle");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var diff = await response.Content.ReadFromJsonAsync<ChampionPatchDiffReadModel>();
+        diff.Should().NotBeNull();
+        diff!.To!.Patch.Should().Be("16.4", "the explicit to endpoint is honoured");
+        diff.From!.Patch.Should().Be("16.3", "from defaults to the patch immediately older than to");
+    }
+
+    [Fact]
     public async Task GetChampionPatchDiffAsync_ReturnsNullSideForPatchWithoutData()
     {
         await _fixture.ResetDatabaseAsync();
@@ -171,6 +196,42 @@ public sealed class ChampionPatchDiffApiIntegrationTests
             buildItems: [6672, 3006, 3031], bootsItemId: 3006,
             primaryStyleId: 8000, primaryKeystoneId: 8008, secondaryStyleId: 8400,
             games: 100, wins: 60, aggregatedAtUtc: now);
+
+        await seeder.SaveAsync(db);
+    }
+
+    // Three consecutive MIDDLE patches (16.3, 16.4, 16.5) so a lone explicit
+    // endpoint has a neighbour to default against.
+    private async Task SeedThreePatchesAsync()
+    {
+        var now = DateTime.UtcNow;
+
+        await using var db = _fixture.CreateDbContext();
+        db.RiotAccounts.Add(new RiotAccount
+        {
+            Id = AccountId,
+            PlatformId = "KR",
+            Puuid = "patch-diff-puuid",
+            GameName = "patch-diff-one",
+            SummonerId = "patch-diff-summoner",
+            ProfileIconId = 1,
+            SummonerLevel = 100,
+            LastProfileSyncAtUtc = now,
+            CreatedAtUtc = now.AddDays(-10),
+            UpdatedAtUtc = now.AddDays(-1),
+        });
+        await db.SaveChangesAsync();
+
+        var seeder = new ChampionAggregateSeeder();
+        foreach (var (patch, wins) in new[] { ("16.3", 50), ("16.4", 40), ("16.5", 60) })
+        {
+            seeder.AddPatternWithRune(
+                AccountId, ChampionId, patch, "KR", 420, "MIDDLE",
+                summoner1Id: 4, summoner2Id: 12, skillOrderKey: "Q-W-E",
+                buildItems: [3153, 3006, 3031], bootsItemId: 3006,
+                primaryStyleId: 8000, primaryKeystoneId: 8008, secondaryStyleId: 8400,
+                games: 100, wins: wins, aggregatedAtUtc: now);
+        }
 
         await seeder.SaveAsync(db);
     }

@@ -212,6 +212,18 @@ const { data: championPatchDiff, status: patchDiffStatus } = useChampionPatchDif
   patchDiffTo,
   trendReady,
 )
+// The patch-diff selectors draw from the page-wide recent-patch list, but the
+// backend resolves the diff against the champion's actual data patches — which
+// can be older than the 12 newest ddragon versions for a sparsely-played
+// champion. Union the resolved from/to in (newest first) so a selector never
+// shows blank for a value that isn't in the recent list.
+const patchDiffOptions = computed(() => {
+  const seen = new Map(patchOptions.value.map(option => [option.value, option]))
+  for (const patch of [championPatchDiff.value?.from?.patch, championPatchDiff.value?.to?.patch]) {
+    if (patch && !seen.has(patch)) seen.set(patch, { label: patch, value: patch })
+  }
+  return [...seen.values()].sort((a, b) => b.value.localeCompare(a.value, undefined, { numeric: true }))
+})
 
 // When useChampion's 404 fallback drops the URL filters (no data for the
 // champion on that patch/position) the API returns the default slice, but the
@@ -354,7 +366,7 @@ const isRefetching = computed(() =>
         :diff="championPatchDiff ?? null"
         :items-map="itemsMap ?? {}"
         :rune-tree="runeTree ?? null"
-        :patch-options="patchOptions"
+        :patch-options="patchDiffOptions"
         :from-patch="patchDiffFrom"
         :to-patch="patchDiffTo"
         :loading="isLoadingStatus(patchDiffStatus)"

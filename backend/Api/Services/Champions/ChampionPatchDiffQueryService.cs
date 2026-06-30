@@ -184,10 +184,13 @@ public sealed class ChampionPatchDiffQueryService(
     /// <summary>
     /// Resolves the (from, to) patch pair. <paramref name="lanePatches"/> is
     /// ordered newest → oldest. Explicit requests are honoured as-is (an
-    /// off-data patch simply yields a null side); when a side is unspecified we
-    /// default to → newest and from → the patch immediately before it. The pair
-    /// is normalised so <c>from</c> is always the older of the two — the diff
-    /// reads "what changed going into the newer patch".
+    /// off-data patch simply yields a null side). An unspecified side is
+    /// defaulted <em>relative to the other</em>, so a lone explicit endpoint is
+    /// never discarded: an unspecified <c>to</c> defaults to the newest patch,
+    /// and an unspecified <c>from</c> to the lane patch immediately older than
+    /// <c>to</c> (the patch the comparison reads "into"). The pair is finally
+    /// normalised so <c>from</c> is always the older of the two — the diff reads
+    /// "what changed going into the newer patch".
     /// </summary>
     private static (string? From, string? To) ResolvePatches(
         IReadOnlyList<string> lanePatches,
@@ -197,16 +200,54 @@ public sealed class ChampionPatchDiffQueryService(
         var normalizedFrom = NormalizeRequested(requestedFrom);
         var normalizedTo = NormalizeRequested(requestedTo);
 
-        var to = normalizedTo ?? lanePatches[0];
+        // Default the unspecified side(s) against the explicit one so a lone
+        // `?to=` (or `?from=`) anchors the pair instead of being swapped out.
+        string to;
+        if (normalizedTo is not null)
+        {
+            to = normalizedTo;
+        }
+        else if (normalizedFrom is { } anchorFrom)
+        {
+            // Only `from` given: pair it with the patch immediately newer than
+            // it, falling back to the newest patch when `from` is already newest.
+            to = NeighbourNewerThan(lanePatches, anchorFrom) ?? lanePatches[0];
+        }
+        else
+        {
+            to = lanePatches[0];
+        }
+
         var from = normalizedFrom
-            ?? lanePatches.FirstOrDefault(patch => !string.Equals(patch, to, StringComparison.Ordinal))
-            // Only one patch of data: compare it against itself so the page can
-            // still render both sides (the delta is then a flat zero).
+            // Pick the lane patch immediately older than `to`; only when `to`
+            // is the oldest (or the lone) patch does this fall back to `to`
+            // itself, so the page still renders both sides (flat-zero delta).
+            ?? NeighbourOlderThan(lanePatches, to)
             ?? to;
 
         // Keep from older than to regardless of how the caller passed them, so
         // the win-rate delta always reads as the newer patch minus the older.
         return ParsePatch(from).CompareTo(ParsePatch(to)) > 0 ? (to, from) : (from, to);
+    }
+
+    /// <summary>Newest lane patch strictly older than <paramref name="patch"/>, or null.</summary>
+    private static string? NeighbourOlderThan(IReadOnlyList<string> lanePatches, string patch)
+    {
+        var pivot = ParsePatch(patch);
+        return lanePatches
+            .Where(candidate => ParsePatch(candidate).CompareTo(pivot) < 0)
+            .Cast<string?>()
+            .FirstOrDefault();
+    }
+
+    /// <summary>Oldest lane patch strictly newer than <paramref name="patch"/>, or null.</summary>
+    private static string? NeighbourNewerThan(IReadOnlyList<string> lanePatches, string patch)
+    {
+        var pivot = ParsePatch(patch);
+        return lanePatches
+            .Where(candidate => ParsePatch(candidate).CompareTo(pivot) > 0)
+            .Cast<string?>()
+            .LastOrDefault();
     }
 
     private static string? NormalizeRequested(string? patch)
