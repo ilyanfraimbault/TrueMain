@@ -13,10 +13,7 @@ useSeoMeta({
   description: 'Champion meta tier list ranking champions by winrate and pickrate per role for the current patch.',
 })
 
-const route = useRoute()
-const router = useRouter()
-
-const { filters } = useChampionFilters()
+const { filters, setFilter } = useChampionFilters()
 
 const nuxtApp = useNuxtApp()
 
@@ -88,31 +85,16 @@ const patchOptions = computed(() => {
     .sort((a, b) => b.value.localeCompare(a.value, undefined, { numeric: true }))
 })
 
-// Filter changes write straight to the URL query so back/forward and deep
-// links keep the selection — same pattern as the /champions directory.
-async function applyFilter(updates: { patch?: string | null, position?: ChampionPosition | null }) {
-  const nextQuery: Record<string, string> = {}
-  for (const [key, value] of Object.entries(route.query)) {
-    if (typeof value === 'string') nextQuery[key] = value
-  }
-  if (updates.patch !== undefined) {
-    if (updates.patch) nextQuery.patch = updates.patch
-    else delete nextQuery.patch
-  }
-  if (updates.position !== undefined) {
-    if (updates.position) nextQuery.position = updates.position
-    else delete nextQuery.position
-  }
-  await router.replace({ query: nextQuery })
-}
-
+// Filter changes go through the shared composable so this page handles patch /
+// position clearing exactly like the /champions directory and the champion
+// detail pages (no pagination here, so setFilter is a drop-in — see #527).
 function onPatchChange(value: unknown) {
   if (typeof value !== 'string' || !value) return
-  void applyFilter({ patch: value })
+  void setFilter({ patch: value })
 }
 
 async function selectPosition(value: ChampionPosition | null) {
-  await applyFilter({ position: value })
+  await setFilter({ position: value })
 }
 
 const nameById = computed(() => new Map((staticList.value ?? []).map(item => [item.championId, item])))
@@ -122,11 +104,14 @@ const nameById = computed(() => new Map((staticList.value ?? []).map(item => [it
 const tierGroups = computed(() =>
   (tierList.value?.tiers ?? []).map(group => ({
     tier: group.tier,
-    entries: group.entries.map(entry => ({
-      ...entry,
-      name: nameById.value.get(entry.championId)?.name ?? `Champion ${entry.championId}`,
-      iconUrl: nameById.value.get(entry.championId)?.iconUrl ?? '',
-    })),
+    entries: group.entries.map((entry) => {
+      const meta = nameById.value.get(entry.championId)
+      return {
+        ...entry,
+        name: meta?.name ?? `Champion ${entry.championId}`,
+        iconUrl: meta?.iconUrl ?? '',
+      }
+    }),
   })),
 )
 

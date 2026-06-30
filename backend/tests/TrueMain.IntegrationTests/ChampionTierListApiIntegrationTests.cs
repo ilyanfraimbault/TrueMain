@@ -62,14 +62,14 @@ public sealed class ChampionTierListApiIntegrationTests
         emittedOrder.Should().Contain("S").And.Contain("D",
             "a populated patch spans the full tier pyramid");
 
-        // Within a tier, entries are ordered strongest-first: the blended score
-        // is monotonic in winRate at constant-ish pickRate, so within any group
-        // the leading entry's winRate is >= the trailing entry's.
-        foreach (var group in tierList.Tiers)
-        {
-            group.Entries.Should().NotBeEmpty();
-            group.Entries.First().WinRate.Should().BeGreaterThanOrEqualTo(group.Entries.Last().WinRate);
-        }
+        // Every emitted tier group carries at least one row (empty tiers are
+        // omitted upstream). Within-tier strongest-first ordering is by the
+        // blended winRate + pickRate score, which is NOT monotonic in winRate
+        // alone once a group merges rows from several positions (each scored
+        // against its own per-position max pickRate) — so that ordering is
+        // asserted on the single-position path below and in the unit tests,
+        // not here.
+        tierList.Tiers.Should().OnlyContain(group => group.Entries.Count > 0);
     }
 
     [Fact]
