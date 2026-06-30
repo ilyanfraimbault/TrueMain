@@ -17,6 +17,7 @@ public sealed class DataSession : IDataSession
         MatchParticipants = repositoryFactory.CreateMatchParticipantRepository(_db);
         MatchParticipantTimelineSnapshots = repositoryFactory.CreateMatchParticipantTimelineSnapshotRepository(_db);
         MatchParticipantKillPositions = repositoryFactory.CreateMatchParticipantKillPositionRepository(_db);
+        JungleFirstClears = repositoryFactory.CreateJungleFirstClearRepository(_db);
         ProcessRuns = repositoryFactory.CreateProcessRunRepository(_db);
         RankSnapshots = repositoryFactory.CreateRankSnapshotRepository(_db);
         SeedRequests = repositoryFactory.CreateSeedRequestRepository(_db);
@@ -30,6 +31,7 @@ public sealed class DataSession : IDataSession
     public IMatchParticipantRepository MatchParticipants { get; }
     public IMatchParticipantTimelineSnapshotRepository MatchParticipantTimelineSnapshots { get; }
     public IMatchParticipantKillPositionRepository MatchParticipantKillPositions { get; }
+    public IJungleFirstClearRepository JungleFirstClears { get; }
     public IProcessRunRepository ProcessRuns { get; }
     public IRankSnapshotRepository RankSnapshots { get; }
     public ISeedRequestRepository SeedRequests { get; }
