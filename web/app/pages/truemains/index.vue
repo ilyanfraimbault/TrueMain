@@ -112,14 +112,11 @@ const championsById = computed(() => {
 
 <template>
   <main class="mx-auto w-full max-w-6xl space-y-6 p-4 md:p-6">
-    <header class="space-y-1">
-      <h1 class="text-2xl font-bold text-default">
-        Truemains
-      </h1>
-      <p class="text-sm text-muted">
-        Tracked players ranked by current LP. Higher tier wins below Master; Master+ are ordered by raw LP.
-      </p>
-    </header>
+    <PageHeader
+      eyebrow="Leaderboard"
+      title="Truemains"
+      description="Tracked players ranked by current LP. Higher tier wins below Master; Master+ are ordered by raw LP."
+    />
 
     <AppSearch
       variant="field"

@@ -37,7 +37,7 @@ const hasTrend = computed(() => rows.value.length > 1)
 
 // Both series in the app primary (emerald-400). The charts sit side by side
 // and never share a plot, so they don't need different hues to be told apart.
-const PRIMARY = '#34d399' // emerald-400 (CHART_SERIES_PALETTE[0])
+const PRIMARY = defaultSeriesColor(0) // app primary (rosegold-400)
 const winRateCategories = { winRate: { name: 'Win rate', color: PRIMARY } }
 const pickRateCategories = { pickRate: { name: 'Pick rate', color: PRIMARY } }
 

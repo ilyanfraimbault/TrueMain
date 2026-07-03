@@ -22,7 +22,7 @@ const verdict = computed<{ label: string, tone: string } | null>(() => {
   return { label: 'Balanced', tone: 'text-muted' }
 })
 
-const PRIMARY = '#34d399' // emerald-400 (CHART_SERIES_PALETTE[0])
+const PRIMARY = defaultSeriesColor(0) // app primary (rosegold-400)
 </script>
 
 <template>
