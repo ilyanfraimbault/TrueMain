@@ -342,6 +342,45 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
     }
 
     [Fact]
+    public async Task List_resolves_tied_lanes_deterministically_by_ordinal_position()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        // Two lanes at an exact games tie (MIDDLE 50 / TOP 50). Without a
+        // deterministic tiebreak the primary/secondary could flap between
+        // requests; ComputePositions breaks the tie by ordinal Position, so
+        // MIDDLE (< TOP) is always the primary and TOP the secondary. Both
+        // sit at 50% share, clearing the 20% floor.
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var tied = Account("tied", "TiedPlayer", "EUW1");
+            db.RiotAccounts.Add(tied);
+            db.RankSnapshots.Add(Snapshot(tied, "DIAMOND", "I", 70, now));
+
+            db.MainChampionStats.Add(MainStatWithBreakdown(
+                "tied", "EUW1", championId: 157, primaryPosition: "MIDDLE",
+                breakdown:
+                [
+                    new PositionStat { Position = "MIDDLE", Games = 50, Rate = 0.5d },
+                    new PositionStat { Position = "TOP", Games = 50, Rate = 0.5d },
+                ]));
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        var leaderboard = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        var row = leaderboard!.Rows.Single(r => r.Identity.GameName == "TiedPlayer");
+
+        row.Positions.Should().NotBeNull();
+        row.Positions!.Primary.Should().Be("MIDDLE", "an exact games tie breaks toward the lower ordinal position");
+        row.Positions!.Secondary.Should().Be("TOP", "the tied runner-up still clears the 20% share floor");
+    }
+
+    [Fact]
     public async Task List_derives_positions_from_only_the_top_mains_like_the_profile()
     {
         await _fixture.ResetDatabaseAsync();
