@@ -1,36 +1,48 @@
 <script setup lang="ts">
-import { formatPercentage } from '~~/shared/utils/ddragon'
-
 const props = withDefaults(defineProps<{
-  share: number | null
+  kp5: number | null
+  kp10: number | null
+  kp15: number | null
   games: number
   loading?: boolean
 }>(), {
   loading: false,
 })
 
-const hasData = computed(() => props.share !== null)
-const widthPercent = computed(() => Math.round((props.share ?? 0) * 100))
+// The @15 window is the headline (it's cumulative, so it's the largest); its
+// presence also signals whether we have data at all.
+const hasData = computed(() => props.kp15 !== null)
 
-// 40%+ of early kills out of lane reads as a roamer; 20% or less is lane-bound.
-// Only roamers get the accent tone; the other two stay muted on purpose (the
-// label text carries the distinction) so the emphasis lands on the roamers.
+const windows = computed(() => [
+  { label: '@5', value: props.kp5 },
+  { label: '@10', value: props.kp10 },
+  { label: '@15', value: props.kp15 },
+])
+
+const fmt = (value: number | null) => (value === null ? '–' : value.toFixed(1))
+
+// Verdict on the @15 average (out-of-lane kills + assists per game). Heuristic
+// thresholds: 1.5+ reads as a roamer, 0.5 or fewer as lane-bound. Only roamers
+// get the accent tone so the emphasis lands on them; the others stay muted.
 const verdict = computed<{ label: string, tone: string } | null>(() => {
-  if (props.share === null) return null
-  if (props.share >= 0.4) return { label: 'High roamer', tone: 'text-primary' }
-  if (props.share <= 0.2) return { label: 'Lane-focused', tone: 'text-muted' }
+  if (props.kp15 === null) return null
+  if (props.kp15 >= 1.5) return { label: 'High roamer', tone: 'text-primary' }
+  if (props.kp15 <= 0.5) return { label: 'Lane-focused', tone: 'text-muted' }
   return { label: 'Balanced', tone: 'text-muted' }
 })
-
-const PRIMARY = defaultSeriesColor(0) // app primary (rosegold-400)
 </script>
 
 <template>
-  <SectionCard
-    :level="2"
-    title="Roaming"
-    subtitle="Share of early kills and assists made outside the lane."
-  >
+  <section class="flex flex-col gap-4">
+    <header class="flex flex-col gap-0.5">
+      <h2 class="text-sm font-semibold">
+        Roaming
+      </h2>
+      <p class="text-xs text-muted">
+        Average out-of-lane kills + assists per game, by minute mark.
+      </p>
+    </header>
+
     <USkeleton
       v-if="loading"
       class="h-20 w-full rounded-lg"
@@ -38,18 +50,18 @@ const PRIMARY = defaultSeriesColor(0) // app primary (rosegold-400)
 
     <p
       v-else-if="!hasData"
-      class="py-8 text-center text-sm text-muted"
+      class="glass rounded-lg px-4 py-8 text-center text-sm text-muted"
     >
       Not enough roam data yet for this champion and lane.
     </p>
 
     <div
       v-else
-      class="flex flex-col gap-2"
+      class="glass flex flex-col gap-3 rounded-lg p-4"
     >
-      <div class="flex items-baseline justify-between">
-        <span class="text-2xl font-semibold tabular-nums">
-          {{ formatPercentage(share ?? 0, 0) }}
+      <div class="flex items-center justify-between">
+        <span class="text-xs font-medium uppercase tracking-wide text-muted">
+          Roaming KP
         </span>
         <span
           v-if="verdict"
@@ -59,15 +71,25 @@ const PRIMARY = defaultSeriesColor(0) // app primary (rosegold-400)
           {{ verdict.label }}
         </span>
       </div>
-      <div class="h-2 w-full overflow-hidden rounded-full bg-elevated">
+
+      <div class="grid grid-cols-3 gap-2">
         <div
-          class="h-full rounded-full"
-          :style="{ width: `${widthPercent}%`, backgroundColor: PRIMARY }"
-        />
+          v-for="window in windows"
+          :key="window.label"
+          class="flex flex-col items-center gap-0.5 rounded-lg bg-elevated px-2 py-3"
+        >
+          <span class="text-2xl font-semibold tabular-nums">
+            {{ fmt(window.value) }}
+          </span>
+          <span class="text-xs text-muted">
+            {{ window.label }}
+          </span>
+        </div>
       </div>
+
       <p class="text-xs text-muted">
-        of early kill participations were out of lane · {{ games.toLocaleString('en-US') }} games
+        out-of-lane kill participations per game · {{ games.toLocaleString('en-US') }} games
       </p>
     </div>
-  </SectionCard>
+  </section>
 </template>
