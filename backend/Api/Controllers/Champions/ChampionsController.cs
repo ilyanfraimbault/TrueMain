@@ -9,8 +9,10 @@ namespace TrueMain.Controllers.Champions;
 [Route("champions")]
 public sealed class ChampionsController(
     IChampionSummariesQueryService summariesQueryService,
+    IChampionTierListQueryService tierListQueryService,
     IChampionBuildsQueryService buildsQueryService,
     IChampionTrendQueryService trendQueryService,
+    IChampionPatchDiffQueryService patchDiffQueryService,
     IChampionMatchupQueryService matchupQueryService,
     IChampionTimelineLeadsQueryService timelineLeadsQueryService,
     IChampionScalingQueryService scalingQueryService,
@@ -27,6 +29,42 @@ public sealed class ChampionsController(
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
         var summaries = await summariesQueryService.GetAllSummariesAsync(normalizedPatch, ct);
         return Ok(summaries);
+    }
+
+    /// <summary>
+    /// Champion meta / tier-list for a patch: <c>(champion, position)</c> rows
+    /// bucketed into S/A/B/C/D by a winRate + pickRate blend, tiered
+    /// independently per position. <paramref name="patch"/> defaults to the
+    /// active patch; <paramref name="position"/> narrows to a single lane when
+    /// set (an unrecognised position is a 400). Always 200 with a (possibly
+    /// empty) set of tier groups, all metrics derived from the same aggregates
+    /// the directory reads. The static route segment never collides with the
+    /// <c>{championId:int}</c> route below — "tierlist" is not an int.
+    /// </summary>
+    [HttpGet("tierlist")]
+    [ProducesResponseType(typeof(ChampionTierListReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ChampionTierListReadModel>> GetTierListAsync(
+        [FromQuery] string? patch,
+        [FromQuery] string? position,
+        CancellationToken ct = default)
+    {
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+
+        // A blank/absent position means "all positions"; only a non-blank value
+        // that fails to canonicalise is a client error.
+        string? normalizedPosition = null;
+        if (!string.IsNullOrWhiteSpace(position))
+        {
+            normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+            if (normalizedPosition is null)
+            {
+                return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+            }
+        }
+
+        var tierList = await tierListQueryService.GetTierListAsync(normalizedPatch, normalizedPosition, ct);
+        return Ok(tierList);
     }
 
     [HttpGet("{championId:int}")]
@@ -69,6 +107,34 @@ public sealed class ChampionsController(
         var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
         var trend = await trendQueryService.GetTrendAsync(championId, normalizedPosition, ct);
         return Ok(trend);
+    }
+
+    /// <summary>
+    /// What changed for a champion between two patches (issue #534): the
+    /// win-rate swing plus whether the most popular first item, keystone and
+    /// skill order moved, at a single position. <paramref name="from"/> /
+    /// <paramref name="to"/> are the older and newer patch; either may be
+    /// omitted, in which case the service defaults to the two most recent
+    /// patches with data for the resolved lane. Always 200 with a (possibly
+    /// half-empty) model so the page can render its own "not enough data" state
+    /// — a patch the champion was never played on simply yields a null side.
+    /// </summary>
+    [HttpGet("{championId:int}/patch-diff")]
+    [ProducesResponseType(typeof(ChampionPatchDiffReadModel), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ChampionPatchDiffReadModel>> GetChampionPatchDiffAsync(
+        int championId,
+        [FromQuery] string? from,
+        [FromQuery] string? to,
+        [FromQuery] string? position,
+        CancellationToken ct = default)
+    {
+        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+        var normalizedFrom = ChampionQueryParameterNormalizer.NormalizePatch(from);
+        var normalizedTo = ChampionQueryParameterNormalizer.NormalizePatch(to);
+
+        var diff = await patchDiffQueryService.GetDiffAsync(
+            championId, normalizedFrom, normalizedTo, normalizedPosition, ct);
+        return Ok(diff);
     }
 
     /// <summary>
@@ -219,11 +285,11 @@ public sealed class ChampionsController(
     }
 
     /// <summary>
-    /// How much a champion roams at a position: the share of its early-game kill
-    /// participations that happened outside its own lane, computed live from the
-    /// stored kill positions. <paramref name="position"/> is the required Riot team
-    /// position; an unrecognised position is a 400. Always 200; the out-of-lane
-    /// share is null below the sample floor.
+    /// How much a champion roams at a position: the average number of out-of-lane
+    /// kill participations per game at the 5/10/15-minute marks, computed live from
+    /// the stored kill positions. <paramref name="position"/> is the required Riot
+    /// team position; an unrecognised position is a 400. Always 200; the per-game
+    /// averages are null below the sample floor and for JUNGLE (no own lane).
     /// </summary>
     [HttpGet("{championId:int}/roam")]
     [ProducesResponseType(typeof(ChampionRoamResponse), StatusCodes.Status200OK)]

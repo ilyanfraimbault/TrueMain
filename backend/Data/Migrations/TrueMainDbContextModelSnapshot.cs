@@ -285,6 +285,99 @@ namespace Data.Migrations
                     b.ToTable("champion_dim_starter_items", (string)null);
                 });
 
+            modelBuilder.Entity("Data.Entities.ChampionMatchupStat", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AggregatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ChampionId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Games")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("OpponentChampionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Patch")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("TeamPosition")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("Wins")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChampionId", "TeamPosition", "OpponentChampionId", "Patch")
+                        .IsUnique();
+
+                    b.ToTable("champion_matchup_stats", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.ChampionTimelineLeadStat", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AggregatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ChampionId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Games")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("IntervalMinute")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Patch")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("TeamPosition")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<long>("TotalCsDiff")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TotalDamageDiff")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TotalGoldDiff")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TotalKillsDiff")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TotalLevelDiff")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TotalXpDiff")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChampionId", "TeamPosition", "Patch", "IntervalMinute")
+                        .IsUnique();
+
+                    b.ToTable("champion_timeline_lead_stats", (string)null);
+                });
+
             modelBuilder.Entity("Data.Entities.DiscoveryCursor", b =>
                 {
                     b.Property<string>("PlatformId")

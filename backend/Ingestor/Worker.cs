@@ -126,6 +126,7 @@ public sealed class Worker(
             JobMode.MatchIngestionOnly => ["MatchIngestion"],
             JobMode.MainAnalysisOnly => ["MainAnalysis"],
             JobMode.PatternAggregationOnly => ["ChampionPatternAggregation"],
+            JobMode.MatchupLeadAggregationOnly => ["ChampionMatchupLeadAggregation"],
             JobMode.AccountRefreshOnly => ["AccountRefresh"],
             JobMode.MatchDataRetentionOnly => ["MatchDataRetention"],
             _ => (string[])
@@ -144,6 +145,7 @@ public sealed class Worker(
                 "MatchIngestion",
                 "MainAnalysis",
                 "ChampionPatternAggregation",
+                "ChampionMatchupLeadAggregation",
                 "AccountRefresh",
                 "MatchDataRetention"
             ]

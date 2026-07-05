@@ -21,6 +21,36 @@ export interface ChampionSummaryTopBuild {
   itemPath: number[]
 }
 
+/**
+ * Champion meta / tier-list for a single patch (`GET /champions/tierlist`).
+ * Champions are bucketed into S/A/B/C/D tiers by a winRate + pickRate blend,
+ * tiered independently per position. All metrics come from the same aggregates
+ * the directory reads — none are synthesised.
+ */
+export interface ChampionTierListResponse {
+  patchVersion: string
+  /** Position the list is scoped to, or null for every position at once. */
+  position: string | null
+  /** Tier groups in descending strength (S first); empty tiers are omitted. */
+  tiers: ChampionTierGroup[]
+}
+
+export interface ChampionTierGroup {
+  /** Tier letter: 'S' | 'A' | 'B' | 'C' | 'D'. */
+  tier: string
+  /** Rows in this tier, strongest-first. */
+  entries: ChampionTierEntry[]
+}
+
+export interface ChampionTierEntry {
+  championId: number
+  position: string
+  games: number
+  winRate: number
+  /** Share of TrueMain games on this position taken by this champion. */
+  pickRate: number
+}
+
 export interface ChampionResponse {
   championId: number
   patch: string
@@ -41,6 +71,41 @@ export interface ChampionTrendPoint {
   winRate: number
   pickRate: number
   games: number
+}
+
+/**
+ * What changed for a champion between two patches (issue #534): the win-rate
+ * swing plus whether the dominant first item, keystone and skill order moved,
+ * at a single position. Either side is null when the champion has no data on
+ * that patch; `delta` is null unless both sides are present.
+ */
+export interface ChampionPatchDiffResponse {
+  championId: number
+  position: string
+  from: ChampionPatchDiffSide | null
+  to: ChampionPatchDiffSide | null
+  delta: ChampionPatchDiffDelta | null
+}
+
+export interface ChampionPatchDiffSide {
+  patch: string
+  games: number
+  wins: number
+  winRate: number
+  /** Most popular completed-build first item on the patch; 0 when none qualifies. */
+  topFirstItemId: number
+  /** Most popular primary keystone on the patch; 0 when none qualifies. */
+  topKeystoneId: number
+  /** Dominant skill-order sequence (e.g. ['Q', 'E', 'W']); empty when unavailable. */
+  topSkillOrder: string[]
+}
+
+export interface ChampionPatchDiffDelta {
+  /** Win-rate change, to.winRate - from.winRate (signed fraction). */
+  winRateChange: number
+  firstItemChanged: boolean
+  keystoneChanged: boolean
+  skillOrderChanged: boolean
 }
 
 /**
@@ -108,18 +173,20 @@ export interface ChampionItemTiming {
 }
 
 /**
- * How much a champion roams at a position: the share of its early-game kill
- * participations that happened outside its own lane. `outOfLaneShare` is null
- * below the sample floor.
+ * How much a champion roams at a position: the average number of out-of-lane
+ * kill participations (kills + assists) per game at the 5/10/15-minute marks
+ * (cumulative). A roam is a participation in a different lane, the enemy jungle,
+ * or the enemy base. The `roamKp*` values are null below the sample floor and
+ * for JUNGLE (which has no own lane).
  */
 export interface ChampionRoamResponse {
   championId: number
   position: string
   patch: string | null
   games: number
-  killParticipations: number
-  outOfLaneParticipations: number
-  outOfLaneShare: number | null
+  roamKp5: number | null
+  roamKp10: number | null
+  roamKp15: number | null
 }
 
 /** One lane-matchup row: the champion's record against a single opponent. */

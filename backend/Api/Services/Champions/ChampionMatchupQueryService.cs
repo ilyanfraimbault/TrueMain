@@ -9,12 +9,13 @@ using TrueMain.ReadModels.Champions;
 namespace TrueMain.Services.Champions;
 
 /// <summary>
-/// Live champion lane-matchups query. Self-joins <c>match_participants</c> to
-/// pair a champion with every lane opponent it met (same <c>TeamPosition</c>,
-/// opposite <c>TeamId</c>, same match), joins through to <c>matches</c> for the
-/// queue / patch filter the other champion reads share, and folds each opponent
-/// down to a game count and a win count. There is no aggregation table — the
-/// numbers are computed from the raw participant rows on every request.
+/// Champion lane-matchups query. The global leaderboard slice is served from the
+/// pre-aggregated <c>champion_matchup_stats</c> table (#606): one indexed read,
+/// folded to the requested patch scope with the games floor applied on the merged
+/// total. The player-scoped and opponent-search slices stay live — they self-join
+/// <c>match_participants</c> to pair the champion with its lane opponent (same
+/// <c>TeamPosition</c>, opposite <c>TeamId</c>, same match), because they need
+/// per-account filtering / a sub-floor the aggregate does not carry.
 /// </summary>
 public sealed class ChampionMatchupQueryService(
     TrueMainDbContext db,
@@ -30,36 +31,101 @@ public sealed class ChampionMatchupQueryService(
         int? opponentChampionId,
         CancellationToken ct)
     {
+        // Canonicalise to major.minor (e.g. "16.4.521.123" → "16.4"). The
+        // interface contract accepts either form, so the service normalises its
+        // own input and stays correct standalone. Null / unparseable input means
+        // "every patch".
+        var normalizedPatch = string.IsNullOrWhiteSpace(patch)
+            ? null
+            : PatchVersion.TryParse(patch, out var parsed) ? parsed.ToMajorMinor() : null;
+
+        // The global slice (no player, no opponent) is the only one backed by the
+        // aggregate. The other two stay live: an opponent lookup wants the
+        // head-to-head from a single game (floor 1), and a player slice filters to
+        // one account with a lower floor — neither is expressible against a
+        // global, floor-free aggregate.
+        var matchups = opponentChampionId is null && riotAccountId is null
+            ? await ReadFromAggregateAsync(championId, position, normalizedPatch, ct)
+            : await ComputeLiveAsync(championId, position, normalizedPatch, riotAccountId, opponentChampionId, ct);
+
+        return new ChampionMatchupsResponse
+        {
+            ChampionId = championId,
+            Position = position,
+            Patch = normalizedPatch,
+            Matchups = matchups,
+        };
+    }
+
+    private async Task<List<ChampionMatchupEntry>> ReadFromAggregateAsync(
+        int championId,
+        string position,
+        string? normalizedPatch,
+        CancellationToken ct)
+    {
+        var minGames = championsOptions.Value.MinMatchupGames;
+
+        // Rows are stored per (opponent, patch) with no floor. Fold to the
+        // requested scope — one patch, or every patch summed — then apply the
+        // floor on the merged total so the all-patches view floors on the real
+        // total, not on any single patch's slice.
+        var query = db.ChampionMatchupStats
+            .AsNoTracking()
+            .Where(s => s.ChampionId == championId && s.TeamPosition == position);
+        if (normalizedPatch is not null)
+        {
+            query = query.Where(s => s.Patch == normalizedPatch);
+        }
+
+        var rows = await query
+            .GroupBy(s => s.OpponentChampionId)
+            .Select(g => new
+            {
+                Opponent = g.Key,
+                Games = g.Sum(x => x.Games),
+                Wins = g.Sum(x => x.Wins),
+            })
+            .Where(x => x.Games >= minGames)
+            .ToListAsync(ct);
+
+        return rows
+            .Select(x => new ChampionMatchupEntry
+            {
+                OpponentChampionId = x.Opponent,
+                Games = x.Games,
+                Wins = x.Wins,
+                WinRate = (double)x.Wins / x.Games,
+            })
+            .OrderByDescending(m => m.WinRate)
+            .ToList();
+    }
+
+    private async Task<List<ChampionMatchupEntry>> ComputeLiveAsync(
+        int championId,
+        string position,
+        string? normalizedPatch,
+        Guid? riotAccountId,
+        int? opponentChampionId,
+        CancellationToken ct)
+    {
         // Same queue cast the sibling champion reads use, so the matchup slice
         // is drawn from the same population as the build / summary pages.
         var queueId = (int)options.Value.QueueId;
 
-        // Canonicalise to major.minor (e.g. "16.4.521.123" → "16.4"). The
-        // interface contract accepts either form, so the service normalises its
-        // own input and stays correct standalone — both controllers happen to
-        // pre-normalise, but the service doesn't rely on that. The matches table
-        // stores the full Riot GameVersion, so an exact compare would never hit;
-        // the LIKE prefix below bridges the two forms. Null / unparseable input
-        // means "every patch".
-        var normalizedPatch = string.IsNullOrWhiteSpace(patch)
-            ? null
-            : PatchVersion.TryParse(patch, out var parsed) ? parsed.ToMajorMinor() : null;
+        // The matches table stores the full Riot GameVersion, so an exact compare
+        // would never hit; the LIKE prefix bridges normalised input to it.
         var patchPrefix = normalizedPatch is null ? null : $"{normalizedPatch}.%";
 
-        // Floor matrix. A deliberate opponent lookup shows the head-to-head from
-        // a single game up (floor 1); the best/worst leaderboard keeps a sample
-        // floor so a one-game fluke never tops it — the lower per-player floor
-        // for a player slice, the global floor otherwise.
+        // Floor matrix for the two live slices. A deliberate opponent lookup shows
+        // the head-to-head from a single game up (floor 1); a player leaderboard
+        // keeps the lower per-player floor.
         var minGames = opponentChampionId is not null
             ? 1
-            : riotAccountId is not null
-                ? championsOptions.Value.MinPlayerMatchupGames
-                : championsOptions.Value.MinMatchupGames;
+            : championsOptions.Value.MinPlayerMatchupGames;
 
         // The champion side of the lane: rows for this champion at this
         // position, on the configured queue (matched via the correlated
-        // EXISTS over matches), optionally narrowed to one player. Each row's
-        // lane opponent is paired in the SelectMany below.
+        // EXISTS over matches), optionally narrowed to one player.
         var championRows = db.MatchParticipants
             .AsNoTracking()
             .Where(p1 => p1.ChampionId == championId && p1.TeamPosition == position)
@@ -72,19 +138,15 @@ public sealed class ChampionMatchupQueryService(
         // Scope the champion side to tracked accounts so the matchup pool matches
         // the champion page's aggregation, which only counts tracked truemains —
         // never the untracked random players who merely shared a truemain's game.
-        // Including them drags in off-meta lane picks and inflates the counts past
-        // the champion's own total. A player-scoped call narrows to one account.
+        // A player-scoped call narrows to one account.
         championRows = riotAccountId is { } accountId
             ? championRows.Where(p1 => p1.RiotAccountId == accountId)
             : championRows.Where(p1 => p1.RiotAccountId != null);
 
         // One SQL round-trip: correlate each champion row to its lane opponent
         // (same match + position, opposite team), group by the opponent
-        // champion, and COUNT(*) / SUM(win) per opponent. EF translates this
-        // SelectMany-then-GroupBy to a self-join with a GROUP BY over the
-        // opponent champion id (verified at runtime against Postgres). The
-        // minimum-games floor is applied in SQL (HAVING) so thin samples never
-        // cross the wire.
+        // champion, and COUNT(*) / SUM(win) per opponent. The minimum-games floor
+        // is applied in SQL (HAVING) so thin samples never cross the wire.
         var rows = await championRows
             .SelectMany(
                 p1 => db.MatchParticipants.Where(p2 =>
@@ -103,10 +165,7 @@ public sealed class ChampionMatchupQueryService(
             .Where(x => x.Games >= minGames)
             .ToListAsync(ct);
 
-        // Materialise the entries and order by win rate descending. Games is
-        // guaranteed >= MinMatchupGames here (the HAVING dropped the rest), so
-        // no divide-by-zero guard is needed.
-        var matchups = rows
+        return rows
             .Select(x => new ChampionMatchupEntry
             {
                 OpponentChampionId = x.Opponent,
@@ -116,13 +175,5 @@ public sealed class ChampionMatchupQueryService(
             })
             .OrderByDescending(m => m.WinRate)
             .ToList();
-
-        return new ChampionMatchupsResponse
-        {
-            ChampionId = championId,
-            Position = position,
-            Patch = normalizedPatch,
-            Matchups = matchups,
-        };
     }
 }
