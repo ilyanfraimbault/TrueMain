@@ -543,8 +543,8 @@ async function mockPowerspikes(id: number): Promise<ChampionPowerspikesResponse 
     games: Math.round(s.pr * POOL_GAMES * Math.max(0.25, 1 - i * 0.02)),
   }))
   // One spike per core item: mostly positive, tapering with build order, the
-  // odd negative read on late defensive buys. Endpoint orders by |magnitude|
-  // descending — mirror that so the client cap keeps the strongest spikes.
+  // odd negative read on late defensive buys. The real endpoint orders by
+  // *signed* magnitude descending — mirror that.
   const events: ChampionPowerspikeEvent[] = archetype.items.slice(0, 6).map((itemId, i) => ({
     type: 'item' as const,
     refId: itemId,
@@ -559,7 +559,7 @@ async function mockPowerspikes(id: number): Promise<ChampionPowerspikesResponse 
     spikeMagnitude: round3(0.05 - level * 0.002 + (rng() - 0.5) * 0.01),
     games: Math.round(s.pr * POOL_GAMES * (level === 16 ? 0.4 : 0.9)),
   })))
-  events.sort((a, b) => Math.abs(b.spikeMagnitude) - Math.abs(a.spikeMagnitude))
+  events.sort((a, b) => b.spikeMagnitude - a.spikeMagnitude)
   return {
     championId: s.id,
     position: s.position,

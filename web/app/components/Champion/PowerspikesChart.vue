@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ChampionPowerspikeEvent } from '~~/shared/types/champions'
 import type { StaticItemData } from '~~/shared/types/static-data'
+import { formatDuration } from '~/utils/relativeTime'
 
 const props = withDefaults(defineProps<{
   events: ChampionPowerspikeEvent[]
@@ -12,8 +13,9 @@ const props = withDefaults(defineProps<{
 
 // One bar per completed build item, in the order the build comes online. Level
 // milestones (6/11/16) are also in the payload but out of scope for this bar
-// view. The endpoint orders by descending magnitude, so capping before the
-// chronological re-sort keeps the strongest spikes.
+// view. The endpoint orders by *signed* magnitude, so re-rank by absolute
+// magnitude before capping — a strong negative spike is as worth showing as a
+// strong positive one.
 const MAX_ITEMS = 8
 
 interface SpikeBar {
@@ -33,6 +35,7 @@ const bars = computed<SpikeBar[]>(() =>
       games: event.games,
     }))
     .filter((entry): entry is SpikeBar => entry.item !== undefined)
+    .sort((left, right) => Math.abs(right.spikeMagnitude) - Math.abs(left.spikeMagnitude))
     .slice(0, MAX_ITEMS)
     .sort((left, right) => left.avgMinute - right.avgMinute),
 )
@@ -59,15 +62,13 @@ function barHeightPercent(bar: SpikeBar): number {
   return scale > 0 ? (magnitude / scale) * 100 : 0
 }
 
-function formatGameTime(minutes: number): string {
-  const totalSeconds = Math.round(minutes * 60)
-  const wholeMinutes = Math.floor(totalSeconds / 60)
-  const remainder = totalSeconds % 60
-  return `${wholeMinutes}:${remainder.toString().padStart(2, '0')}`
-}
+const formatGameTime = (minutes: number): string => formatDuration(Math.round(minutes * 60))
 
+// Sign off the *rounded* value so a near-zero negative never reads "−0.00".
 function formatMagnitude(value: number): string {
-  return `${value >= 0 ? '+' : '−'}${Math.abs(value).toFixed(2)}`
+  const rounded = Number(value.toFixed(2))
+  if (rounded === 0) return '0.00'
+  return `${rounded > 0 ? '+' : '−'}${Math.abs(rounded).toFixed(2)}`
 }
 
 function barTooltip(bar: SpikeBar): string {
