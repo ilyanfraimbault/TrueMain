@@ -53,7 +53,8 @@ gh pr merge <n> --squash --delete-branch
 ```
 
 - Squash for feature PRs into develop. The repo does **not** auto-delete branches — `--delete-branch` is mandatory.
-- If the local branch deletion fails because it's checked out in this worktree, that's fine: the remote deletion is what matters; the worktree branch goes away when the session is archived.
+- From a worktree, `gh pr merge --delete-branch` fails on the local cleanup step ("'develop' is already used by worktree ...") **after** the merge itself succeeded and **before** deleting the remote branch. Don't retry the merge: verify with `gh pr view <n> --json state,mergeCommit`, then finish the cleanup yourself with `git push origin --delete <branch>`.
+- If only the local branch deletion fails, that's fine: the remote deletion is what matters; the worktree branch goes away when the session is archived.
 - Never delete `develop` or `master`.
 
 ## 6. Post-merge
