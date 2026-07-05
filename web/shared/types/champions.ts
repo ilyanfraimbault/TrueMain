@@ -89,22 +89,46 @@ export interface ChampionScalingBucket {
 }
 
 /**
- * When a champion buys each item on average, at a position — the "power spike"
- * timeline. Items are ordered earliest-first; the caller filters/labels them
- * from static item data (e.g. by total gold to drop consumables/components).
+ * Power curve and event spikes for a champion at a position (issue #571). The
+ * curve is the mean opponent-relative power per minute; the events are the
+ * completed build items and level milestones (6/11/16), each carrying how much
+ * the curve accelerates around it — the spike.
  */
-export interface ChampionItemTimingsResponse {
+export interface ChampionPowerspikesResponse {
   championId: number
   position: string
   patch: string | null
-  items: ChampionItemTiming[]
+  /** Mean power per minute across the population, ordered by minute. */
+  curve: ChampionPowerCurvePoint[]
+  /** Spike events, ordered by descending magnitude. */
+  events: ChampionPowerspikeEvent[]
 }
 
-export interface ChampionItemTiming {
-  itemId: number
+export interface ChampionPowerCurvePoint {
+  minute: number
+  /**
+   * Opponent-relative power index at this minute: 0 = even with the lane
+   * opponent, positive = ahead. Unitless (σ-normalized blend of gold and
+   * damage lead).
+   */
+  power: number
   games: number
-  /** Average game time of the first purchase of this item, in seconds. */
-  avgSeconds: number
+}
+
+export interface ChampionPowerspikeEvent {
+  /** `item` or `level`. */
+  type: string
+  /** Item id for `item` events; champion level (6/11/16) for `level` events. */
+  refId: number
+  /** Mean minute the event occurs across games. */
+  avgMinute: number
+  /**
+   * Mean change in the power-curve slope across a ±3 min window around the
+   * event (after − before). Positive = the champion's advantage accelerates
+   * after the event — the power spike.
+   */
+  spikeMagnitude: number
+  games: number
 }
 
 /**

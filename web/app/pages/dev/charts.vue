@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import type { ChampionPowerspikeEvent } from '~~/shared/types/champions'
+import type { StaticItemData } from '~~/shared/types/static-data'
+
 definePageMeta({ layout: 'default' })
 
 useSeoMeta({
@@ -67,6 +70,28 @@ const winrateXFormatter = (tick: number): string =>
 
 const winrateYFormatter = (tick: number): string =>
   `${(tick * 100).toFixed(0)}%`
+
+// ─── Champion power spikes (item bars) ─────────────────────────────────────
+// Mock of GET /champions/{id}/powerspikes events, endpoint order (magnitude
+// desc). Icons come off live DDragon so the strip renders realistically.
+const DD_ITEM = 'https://ddragon.leagueoflegends.com/cdn/15.10.1/img/item'
+const spikeItemsMap: Record<number, StaticItemData> = {
+  3078: { id: 3078, name: 'Trinity Force', iconUrl: `${DD_ITEM}/3078.png`, totalGold: 3333 },
+  3074: { id: 3074, name: 'Ravenous Hydra', iconUrl: `${DD_ITEM}/3074.png`, totalGold: 3300 },
+  3053: { id: 3053, name: 'Sterak\'s Gage', iconUrl: `${DD_ITEM}/3053.png`, totalGold: 3200 },
+  3071: { id: 3071, name: 'Black Cleaver', iconUrl: `${DD_ITEM}/3071.png`, totalGold: 3000 },
+  3006: { id: 3006, name: 'Berserker\'s Greaves', iconUrl: `${DD_ITEM}/3006.png`, totalGold: 1100 },
+  3026: { id: 3026, name: 'Guardian Angel', iconUrl: `${DD_ITEM}/3026.png`, totalGold: 3200 },
+}
+const spikeEvents: ChampionPowerspikeEvent[] = [
+  { type: 'item', refId: 3078, avgMinute: 14.3, spikeMagnitude: 0.082, games: 412 },
+  { type: 'item', refId: 3074, avgMinute: 21.6, spikeMagnitude: 0.064, games: 355 },
+  { type: 'level', refId: 6, avgMinute: 8.1, spikeMagnitude: 0.051, games: 470 },
+  { type: 'item', refId: 3053, avgMinute: 27.4, spikeMagnitude: 0.037, games: 198 },
+  { type: 'item', refId: 3006, avgMinute: 9.8, spikeMagnitude: 0.021, games: 445 },
+  { type: 'item', refId: 3071, avgMinute: 24.9, spikeMagnitude: -0.018, games: 176 },
+  { type: 'item', refId: 3026, avgMinute: 31.2, spikeMagnitude: -0.041, games: 88 },
+]
 </script>
 
 <template>
@@ -111,6 +136,18 @@ const winrateYFormatter = (tick: number): string =>
           :height="260"
           :x-formatter="winrateXFormatter"
           :y-formatter="winrateYFormatter"
+        />
+      </div>
+    </section>
+
+    <section class="flex flex-col gap-3">
+      <h2 class="text-sm font-semibold">
+        Champion power spikes (item bars)
+      </h2>
+      <div class="rounded-lg border border-default bg-elevated p-4">
+        <ChampionPowerspikesChart
+          :events="spikeEvents"
+          :items-map="spikeItemsMap"
         />
       </div>
     </section>
