@@ -159,6 +159,7 @@ builder.Services.AddRateLimiter(options =>
             }));
 });
 builder.Services.AddScoped<IChampionSummariesQueryService, ChampionSummariesQueryService>();
+builder.Services.AddScoped<IChampionTierListQueryService, ChampionTierListQueryService>();
 builder.Services.AddScoped<IChampionBuildsQueryService, ChampionBuildsQueryService>();
 builder.Services.AddScoped<IChampionMatchupQueryService, ChampionMatchupQueryService>();
 builder.Services.AddScoped<IChampionTimelineLeadsQueryService, ChampionTimelineLeadsQueryService>();

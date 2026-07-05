@@ -21,6 +21,36 @@ export interface ChampionSummaryTopBuild {
   itemPath: number[]
 }
 
+/**
+ * Champion meta / tier-list for a single patch (`GET /champions/tierlist`).
+ * Champions are bucketed into S/A/B/C/D tiers by a winRate + pickRate blend,
+ * tiered independently per position. All metrics come from the same aggregates
+ * the directory reads — none are synthesised.
+ */
+export interface ChampionTierListResponse {
+  patchVersion: string
+  /** Position the list is scoped to, or null for every position at once. */
+  position: string | null
+  /** Tier groups in descending strength (S first); empty tiers are omitted. */
+  tiers: ChampionTierGroup[]
+}
+
+export interface ChampionTierGroup {
+  /** Tier letter: 'S' | 'A' | 'B' | 'C' | 'D'. */
+  tier: string
+  /** Rows in this tier, strongest-first. */
+  entries: ChampionTierEntry[]
+}
+
+export interface ChampionTierEntry {
+  championId: number
+  position: string
+  games: number
+  winRate: number
+  /** Share of TrueMain games on this position taken by this champion. */
+  pickRate: number
+}
+
 export interface ChampionResponse {
   championId: number
   patch: string
