@@ -80,6 +80,41 @@ export interface ChampionTrendPoint {
 }
 
 /**
+ * What changed for a champion between two patches (issue #534): the win-rate
+ * swing plus whether the dominant first item, keystone and skill order moved,
+ * at a single position. Either side is null when the champion has no data on
+ * that patch; `delta` is null unless both sides are present.
+ */
+export interface ChampionPatchDiffResponse {
+  championId: number
+  position: string
+  from: ChampionPatchDiffSide | null
+  to: ChampionPatchDiffSide | null
+  delta: ChampionPatchDiffDelta | null
+}
+
+export interface ChampionPatchDiffSide {
+  patch: string
+  games: number
+  wins: number
+  winRate: number
+  /** Most popular completed-build first item on the patch; 0 when none qualifies. */
+  topFirstItemId: number
+  /** Most popular primary keystone on the patch; 0 when none qualifies. */
+  topKeystoneId: number
+  /** Dominant skill-order sequence (e.g. ['Q', 'E', 'W']); empty when unavailable. */
+  topSkillOrder: string[]
+}
+
+export interface ChampionPatchDiffDelta {
+  /** Win-rate change, to.winRate - from.winRate (signed fraction). */
+  winRateChange: number
+  firstItemChanged: boolean
+  keystoneChanged: boolean
+  skillOrderChanged: boolean
+}
+
+/**
  * A champion's average lead vs its lane opponent at each minute mark
  * (5/10/15/20/30), computed live from per-interval timeline snapshots. Positive
  * diffs mean the champion is ahead of the opposing lane at that interval.

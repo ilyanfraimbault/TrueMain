@@ -12,6 +12,7 @@ public sealed class ChampionsController(
     IChampionTierListQueryService tierListQueryService,
     IChampionBuildsQueryService buildsQueryService,
     IChampionTrendQueryService trendQueryService,
+    IChampionPatchDiffQueryService patchDiffQueryService,
     IChampionMatchupQueryService matchupQueryService,
     IChampionTimelineLeadsQueryService timelineLeadsQueryService,
     IChampionScalingQueryService scalingQueryService,
@@ -109,6 +110,34 @@ public sealed class ChampionsController(
         var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
         var trend = await trendQueryService.GetTrendAsync(championId, normalizedPosition, ct);
         return Ok(trend);
+    }
+
+    /// <summary>
+    /// What changed for a champion between two patches (issue #534): the
+    /// win-rate swing plus whether the most popular first item, keystone and
+    /// skill order moved, at a single position. <paramref name="from"/> /
+    /// <paramref name="to"/> are the older and newer patch; either may be
+    /// omitted, in which case the service defaults to the two most recent
+    /// patches with data for the resolved lane. Always 200 with a (possibly
+    /// half-empty) model so the page can render its own "not enough data" state
+    /// — a patch the champion was never played on simply yields a null side.
+    /// </summary>
+    [HttpGet("{championId:int}/patch-diff")]
+    [ProducesResponseType(typeof(ChampionPatchDiffReadModel), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ChampionPatchDiffReadModel>> GetChampionPatchDiffAsync(
+        int championId,
+        [FromQuery] string? from,
+        [FromQuery] string? to,
+        [FromQuery] string? position,
+        CancellationToken ct = default)
+    {
+        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+        var normalizedFrom = ChampionQueryParameterNormalizer.NormalizePatch(from);
+        var normalizedTo = ChampionQueryParameterNormalizer.NormalizePatch(to);
+
+        var diff = await patchDiffQueryService.GetDiffAsync(
+            championId, normalizedFrom, normalizedTo, normalizedPosition, ct);
+        return Ok(diff);
     }
 
     /// <summary>

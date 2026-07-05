@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- TrueMain M-check mark (colour). An M whose last stroke becomes a
+       checkmark — the "true" main, verified by the data. Rose-gold ramp:
+       champagne #f2cfa6 -> rose #e2917e -> wine #8a3b44. -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f2cfa6"/>
+      <stop offset="0.55" stop-color="#e2917e"/>
+      <stop offset="1" stop-color="#8a3b44"/>
+    </linearGradient>
+  </defs>
+  <path d="M13 47V21l15 17L51 15" fill="none" stroke="url(#g)" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

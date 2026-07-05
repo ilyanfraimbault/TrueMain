@@ -6,6 +6,7 @@ using Data;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -14,9 +15,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Data.Migrations
 {
     [DbContext(typeof(TrueMainDbContext))]
-    partial class TrueMainDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260705184205_AddJungleFirstClears")]
+    partial class AddJungleFirstClears
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -95,12 +98,6 @@ namespace Data.Migrations
                     b.Property<int>("ChampionId")
                         .HasColumnType("integer");
 
-                    b.Property<string>("EloBracket")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("elo_bracket");
-
                     b.Property<string>("GameVersion")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -137,10 +134,7 @@ namespace Data.Migrations
 
                     b.HasIndex("RiotAccountId", "ChampionId", "GameVersion", "PlatformId", "Position");
 
-                    b.HasIndex("ChampionId", "GameVersion", "PlatformId", "QueueId", "Position", "EloBracket")
-                        .HasDatabaseName("IX_champion_aggregate_scopes_ChampionId_GameVersion_PlatformI~1");
-
-                    b.HasIndex("RiotAccountId", "ChampionId", "GameVersion", "PlatformId", "QueueId", "Position", "EloBracket")
+                    b.HasIndex("RiotAccountId", "ChampionId", "GameVersion", "PlatformId", "QueueId", "Position")
                         .IsUnique()
                         .HasDatabaseName("IX_champion_aggregate_scopes_RiotAccountId_ChampionId_GameVer~1");
 

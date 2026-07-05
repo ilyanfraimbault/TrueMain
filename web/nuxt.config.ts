@@ -49,6 +49,16 @@ export default defineNuxtConfig({
   nuxtCharts: {
     prefix: 'Nc',
   },
+  app: {
+    head: {
+      link: [
+        // .ico first as the universal fallback; SVG last so browsers that
+        // support it (all modern ones) pick the crisp vector M-check mark.
+        { rel: 'icon', href: '/favicon.ico', sizes: 'any' },
+        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+      ],
+    },
+  },
   css: ['./app/assets/css/main.css'],
   compatibilityDate: '2026-05-15',
   devtools: { enabled: true },
