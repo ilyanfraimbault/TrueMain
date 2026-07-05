@@ -9,6 +9,7 @@ namespace TrueMain.Controllers.Champions;
 [Route("champions")]
 public sealed class ChampionsController(
     IChampionSummariesQueryService summariesQueryService,
+    IChampionTierListQueryService tierListQueryService,
     IChampionBuildsQueryService buildsQueryService,
     IChampionTrendQueryService trendQueryService,
     IChampionMatchupQueryService matchupQueryService,
@@ -27,6 +28,42 @@ public sealed class ChampionsController(
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
         var summaries = await summariesQueryService.GetAllSummariesAsync(normalizedPatch, ct);
         return Ok(summaries);
+    }
+
+    /// <summary>
+    /// Champion meta / tier-list for a patch: <c>(champion, position)</c> rows
+    /// bucketed into S/A/B/C/D by a winRate + pickRate blend, tiered
+    /// independently per position. <paramref name="patch"/> defaults to the
+    /// active patch; <paramref name="position"/> narrows to a single lane when
+    /// set (an unrecognised position is a 400). Always 200 with a (possibly
+    /// empty) set of tier groups, all metrics derived from the same aggregates
+    /// the directory reads. The static route segment never collides with the
+    /// <c>{championId:int}</c> route below — "tierlist" is not an int.
+    /// </summary>
+    [HttpGet("tierlist")]
+    [ProducesResponseType(typeof(ChampionTierListReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ChampionTierListReadModel>> GetTierListAsync(
+        [FromQuery] string? patch,
+        [FromQuery] string? position,
+        CancellationToken ct = default)
+    {
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+
+        // A blank/absent position means "all positions"; only a non-blank value
+        // that fails to canonicalise is a client error.
+        string? normalizedPosition = null;
+        if (!string.IsNullOrWhiteSpace(position))
+        {
+            normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+            if (normalizedPosition is null)
+            {
+                return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+            }
+        }
+
+        var tierList = await tierListQueryService.GetTierListAsync(normalizedPatch, normalizedPosition, ct);
+        return Ok(tierList);
     }
 
     [HttpGet("{championId:int}")]
