@@ -17,7 +17,20 @@ const props = defineProps<{
   items: Record<number, StaticItemData>
   summonerSpells: Record<number, StaticSummonerSpellData>
   runeTree: RuneTreeResponse
+  /**
+   * When set, the row links to the match detail page
+   * (`/truemains/{nameTag}/matches/{matchId}`). Omitted on surfaces with no
+   * player context (e.g. the dev playground), where the row stays static.
+   */
+  nameTag?: string | null
 }>()
+
+// Deep-link target for the whole row. Null disables the link wrapper so the
+// row degrades to a plain article wherever no nameTag is provided.
+const detailTo = computed(() => {
+  if (!props.nameTag) return null
+  return `/truemains/${encodeURIComponent(props.nameTag)}/matches/${encodeURIComponent(props.match.matchId)}`
+})
 
 const self = computed(() => props.match.self)
 
@@ -140,7 +153,16 @@ const rowTint = computed(() =>
       aria-hidden="true"
     />
 
-    <div class="flex flex-1 items-center gap-3 px-3 py-2.5">
+    <!-- Whole-row affordance: when a nameTag is provided the inner content is
+         a NuxtLink to the match detail page; otherwise a plain div. The
+         GameTooltip children are hover-only (UTooltip triggers, not links), so
+         they sit happily inside the anchor. -->
+    <component
+      :is="detailTo ? 'NuxtLink' : 'div'"
+      :to="detailTo ?? undefined"
+      class="flex flex-1 items-center gap-3 px-3 py-2.5"
+      :class="detailTo ? 'cursor-pointer' : ''"
+    >
       <!-- Meta column: result + queue + LP + duration + timestamp -->
       <div class="flex w-[5.5rem] shrink-0 flex-col text-xs leading-tight">
         <div class="font-semibold" :class="self.win ? 'text-sky-400' : 'text-red-400'">
@@ -283,6 +305,6 @@ const rowTint = computed(() =>
           {{ self.isMvp ? 'MVP' : 'ACE' }}
         </span>
       </div>
-    </div>
+    </component>
   </article>
 </template>

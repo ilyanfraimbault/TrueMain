@@ -34,7 +34,7 @@ describe('resolveGlobalChampion', () => {
     expect(fetcher).toHaveBeenCalledTimes(1)
   })
 
-  it('falls back to the unfiltered slice when a filtered slice 404s', async () => {
+  it('falls back to the default slice (patch/position dropped) when a filtered slice 404s', async () => {
     const fallback = champion('14.2')
     const fetcher = vi
       .fn()
@@ -46,7 +46,47 @@ describe('resolveGlobalChampion', () => {
     // data and fallbackData are the same slice — the caller stashes fallbackData.
     expect(outcome).toEqual({ data: fallback, fallbackData: fallback })
     expect(fetcher).toHaveBeenCalledTimes(2)
-    expect(fetcher).toHaveBeenLastCalledWith() // unfiltered retry
+    // Retry drops patch/position; no rank was set, so nothing is preserved.
+    expect(fetcher).toHaveBeenLastCalledWith({})
+  })
+
+  it('keeps the rank in the fallback when a pinned patch 404s', async () => {
+    const fallback = champion('14.2')
+    const fetcher = vi
+      .fn()
+      .mockRejectedValueOnce(fetchError(404))
+      .mockResolvedValueOnce(fallback)
+
+    const outcome = await resolveGlobalChampion(fetcher, { patch: '14.1', eloBracket: 'GOLD' })
+
+    expect(outcome).toEqual({ data: fallback, fallbackData: fallback })
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    // The explicit rank is preserved into the retry; only the patch is dropped.
+    expect(fetcher).toHaveBeenLastCalledWith({ eloBracket: 'GOLD' })
+  })
+
+  it('does not fall back when only a rank is set (empty rank → no data)', async () => {
+    const fetcher = vi.fn().mockRejectedValue(fetchError(404))
+
+    const outcome = await resolveGlobalChampion(fetcher, { eloBracket: 'IRON' })
+
+    // Nothing auto-resolvable to drop and we won't silently drop the rank, so we
+    // conclude "no data for this rank" without a second call.
+    expect(outcome).toEqual({ data: null, fallbackData: null })
+    expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+
+  it('resolves to null when the rank-preserving fallback also 404s', async () => {
+    const fetcher = vi
+      .fn()
+      .mockRejectedValueOnce(fetchError(404))
+      .mockRejectedValueOnce(fetchError(404))
+
+    const outcome = await resolveGlobalChampion(fetcher, { patch: '14.1', eloBracket: 'IRON' })
+
+    expect(outcome).toEqual({ data: null, fallbackData: null })
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(fetcher).toHaveBeenLastCalledWith({ eloBracket: 'IRON' })
   })
 
   it('resolves to null data when both the filtered and unfiltered slices 404', async () => {

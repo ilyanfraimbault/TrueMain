@@ -159,6 +159,7 @@ builder.Services.AddRateLimiter(options =>
             }));
 });
 builder.Services.AddScoped<IChampionSummariesQueryService, ChampionSummariesQueryService>();
+builder.Services.AddScoped<IChampionTierListQueryService, ChampionTierListQueryService>();
 builder.Services.AddScoped<IChampionBuildsQueryService, ChampionBuildsQueryService>();
 builder.Services.AddScoped<IChampionMatchupQueryService, ChampionMatchupQueryService>();
 builder.Services.AddScoped<IChampionTimelineLeadsQueryService, ChampionTimelineLeadsQueryService>();
@@ -167,7 +168,9 @@ builder.Services.AddScoped<IChampionItemTimingsQueryService, ChampionItemTimings
 builder.Services.AddScoped<IChampionRoamQueryService, ChampionRoamQueryService>();
 builder.Services.AddScoped<IChampionPowerspikesQueryService, ChampionPowerspikesQueryService>();
 builder.Services.AddScoped<IChampionTrendQueryService, ChampionTrendQueryService>();
+builder.Services.AddScoped<IChampionPatchDiffQueryService, ChampionPatchDiffQueryService>();
 builder.Services.AddScoped<IMatchSummariesQueryService, MatchSummariesQueryService>();
+builder.Services.AddScoped<IMatchDetailQueryService, MatchDetailQueryService>();
 builder.Services.AddScoped<IProfileQueryService, ProfileQueryService>();
 builder.Services.AddScoped<IPlayerChampionBuildsQueryService, PlayerChampionBuildsQueryService>();
 builder.Services.AddScoped<IPlayerChampionMatchupQueryService, PlayerChampionMatchupQueryService>();

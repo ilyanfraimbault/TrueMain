@@ -24,6 +24,28 @@ public sealed record LeaderboardRowReadModel
     /// <summary>Up to 3 most-played champions, ordered by descending games. Empty when no main-champion analysis has run.</summary>
     public IReadOnlyList<LeaderboardTopChampionReadModel> TopChampions { get; init; }
         = Array.Empty<LeaderboardTopChampionReadModel>();
+
+    /// <summary>
+    /// The player's primary and secondary lane, derived from position share across
+    /// their main champions (same share logic as the profile, #205). Null when no
+    /// main-champion analysis has run, so the UI omits the role icons entirely.
+    /// </summary>
+    public LeaderboardPositionsReadModel? Positions { get; init; }
+}
+
+/// <summary>
+/// Primary / secondary lane for a leaderboard row, derived from the
+/// position-share distribution across the player's mains. <see cref="Primary"/>
+/// is the highest-share lane; <see cref="Secondary"/> is the next lane whose
+/// share clears the noise floor (and is below the primary), null otherwise.
+/// Positions are Riot uppercase strings (TOP/JUNGLE/MIDDLE/BOTTOM/UTILITY).
+/// </summary>
+public sealed record LeaderboardPositionsReadModel
+{
+    public string Primary { get; init; } = string.Empty;
+
+    /// <summary>Second lane when its share is meaningful (≥ the share floor and below the primary), otherwise null.</summary>
+    public string? Secondary { get; init; }
 }
 
 public sealed record LeaderboardRankedReadModel

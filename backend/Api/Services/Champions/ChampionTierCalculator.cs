@@ -114,6 +114,17 @@ internal static class ChampionTierCalculator
         return tiers;
     }
 
+    /// <summary>
+    /// Ranking score for one row against a field whose busiest pickRate is
+    /// <paramref name="maxPickRate"/> — the same blend <see cref="Assign"/>
+    /// sorts by. Exposed so callers that re-present the tiered rows (e.g. the
+    /// tier-list meta page) can order within a tier by the exact value that
+    /// placed each row in its bucket, instead of re-deriving an ad-hoc order.
+    /// Pass the maximum pickRate over the same field the inputs were tiered
+    /// against; <c>0</c> collapses the score to winRate-only.
+    /// </summary>
+    public static double ScoreOf(TierInput input, double maxPickRate) => Score(input, maxPickRate);
+
     private static double Score(TierInput input, double maxPickRate)
     {
         var normalizedPickRate = maxPickRate <= 0 ? 0 : input.PickRate / maxPickRate;

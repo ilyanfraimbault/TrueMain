@@ -85,6 +85,30 @@ public static class LolMap
     public static bool IsBlueSide(int x, int y)
         => Normalize(x, MaxX) + Normalize(y, MaxY) < 1.0;
 
+    /// <summary>
+    /// Whether a kill participation at (x, y) counts as roaming for a laner whose
+    /// own lane is <paramref name="ownLane"/> and whose team started on the blue
+    /// side (<paramref name="ownIsBlueSide"/>; Riot team 100). A roam is a play
+    /// made in a <em>different</em> lane, the <em>enemy</em> jungle, or the
+    /// <em>enemy</em> base. The river and the player's own-side jungle are normal
+    /// lane-phase movement, not roaming, and never count; nor does the player's
+    /// own base. Jungle and base side are read from the map geometry via
+    /// <see cref="IsBlueSide"/>. Intended for laners only — junglers have no
+    /// meaningful own lane and are excluded by the caller.
+    /// </summary>
+    public static bool IsRoam(int x, int y, MapZone ownLane, bool ownIsBlueSide)
+    {
+        var zone = Classify(x, y);
+        return zone switch
+        {
+            MapZone.TopLane or MapZone.MidLane or MapZone.BotLane => zone != ownLane,
+            MapZone.Jungle => IsBlueSide(x, y) != ownIsBlueSide,
+            MapZone.BlueBase => !ownIsBlueSide,
+            MapZone.RedBase => ownIsBlueSide,
+            _ => false, // River and Unknown: transitional / unclassifiable, not a roam.
+        };
+    }
+
     private static double Normalize(int value, int max)
     {
         var span = (double)(max - MinCoordinate);

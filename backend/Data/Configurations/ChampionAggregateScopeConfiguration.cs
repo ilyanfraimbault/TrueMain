@@ -18,6 +18,7 @@ public sealed class ChampionAggregateScopeConfiguration : IEntityTypeConfigurati
         entity.Property(e => e.PlatformId).IsRequired().HasMaxLength(8);
         entity.Property(e => e.QueueId).IsRequired();
         entity.Property(e => e.Position).IsRequired().HasMaxLength(16);
+        entity.Property(e => e.EloBracket).IsRequired().HasMaxLength(20).HasColumnName("elo_bracket");
         entity.Property(e => e.Games).IsRequired();
         entity.Property(e => e.Wins).IsRequired();
         entity.Property(e => e.LastGameStartTimeUtc).IsRequired();
@@ -30,11 +31,16 @@ public sealed class ChampionAggregateScopeConfiguration : IEntityTypeConfigurati
             e.GameVersion,
             e.PlatformId,
             e.QueueId,
-            e.Position
+            e.Position,
+            e.EloBracket
         }).IsUnique();
 
         entity.HasIndex(e => new { e.RiotAccountId, e.ChampionId, e.GameVersion, e.PlatformId, e.Position });
         entity.HasIndex(e => new { e.ChampionId, e.GameVersion, e.PlatformId, e.QueueId });
+
+        // Reader path: builds are filtered by (champion, patch, platform, queue,
+        // position, bracket); index it so a per-bracket slice is a cheap seek.
+        entity.HasIndex(e => new { e.ChampionId, e.GameVersion, e.PlatformId, e.QueueId, e.Position, e.EloBracket });
 
         entity.HasOne(e => e.RiotAccount)
             .WithMany()

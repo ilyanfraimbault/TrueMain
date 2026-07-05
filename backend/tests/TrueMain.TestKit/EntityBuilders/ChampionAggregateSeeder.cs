@@ -1,3 +1,4 @@
+using Core.Lol.Ranking;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -31,12 +32,13 @@ public sealed class ChampionAggregateSeeder
         int bootsItemId,
         int games,
         int wins,
-        DateTime aggregatedAtUtc)
+        DateTime aggregatedAtUtc,
+        string eloBracket = EloBracket.Gold)
         => AddPattern(
             riotAccountId, championId, patch, platformId, queueId, position,
             summoner1Id, summoner2Id, skillOrderKey,
             starterItems: [1055, 2003], starterItemsKey: "1055-2003",
-            buildItems, bootsItemId, games, wins, aggregatedAtUtc);
+            buildItems, bootsItemId, games, wins, aggregatedAtUtc, eloBracket);
 
     /// <summary>
     /// Convenience overload that pins a specific rune page (primary keystone
@@ -60,14 +62,15 @@ public sealed class ChampionAggregateSeeder
         int secondaryStyleId,
         int games,
         int wins,
-        DateTime aggregatedAtUtc)
+        DateTime aggregatedAtUtc,
+        string eloBracket = EloBracket.Gold)
         => AddPattern(
             riotAccountId, championId, patch, platformId, queueId, position,
             summoner1Id, summoner2Id, skillOrderKey,
             starterItems: [1055, 2003], starterItemsKey: "1055-2003",
             buildItems, bootsItemId,
             new RunePageKey(primaryStyleId, primaryKeystoneId, secondaryStyleId),
-            games, wins, aggregatedAtUtc);
+            games, wins, aggregatedAtUtc, eloBracket);
 
     public ChampionAggregateSeeder AddPattern(
         Guid riotAccountId,
@@ -85,14 +88,15 @@ public sealed class ChampionAggregateSeeder
         int bootsItemId,
         int games,
         int wins,
-        DateTime aggregatedAtUtc)
+        DateTime aggregatedAtUtc,
+        string eloBracket = EloBracket.Gold)
         => AddPattern(
             riotAccountId, championId, patch, platformId, queueId, position,
             summoner1Id, summoner2Id, skillOrderKey,
             starterItems, starterItemsKey,
             buildItems, bootsItemId,
             RunePageKey.Placeholder,
-            games, wins, aggregatedAtUtc);
+            games, wins, aggregatedAtUtc, eloBracket);
 
     private ChampionAggregateSeeder AddPattern(
         Guid riotAccountId,
@@ -111,9 +115,10 @@ public sealed class ChampionAggregateSeeder
         RunePageKey runePageKey,
         int games,
         int wins,
-        DateTime aggregatedAtUtc)
+        DateTime aggregatedAtUtc,
+        string eloBracket = EloBracket.Gold)
     {
-        var key = new ScopeKey(riotAccountId, championId, patch, platformId, queueId, position);
+        var key = new ScopeKey(riotAccountId, championId, patch, platformId, queueId, position, eloBracket);
 
         if (!_scopes.TryGetValue(key, out var acc))
         {
@@ -194,6 +199,7 @@ public sealed class ChampionAggregateSeeder
                 PlatformId = accumulator.Key.PlatformId,
                 QueueId = accumulator.Key.QueueId,
                 Position = accumulator.Key.Position,
+                EloBracket = accumulator.Key.EloBracket,
                 Games = accumulator.Games,
                 Wins = accumulator.Wins,
                 LastGameStartTimeUtc = accumulator.AggregatedAtUtc.AddMinutes(-30),
@@ -317,7 +323,8 @@ public sealed class ChampionAggregateSeeder
         string Patch,
         string PlatformId,
         int QueueId,
-        string Position);
+        string Position,
+        string EloBracket);
 
     private readonly record struct BuildKey(
         int BootsItemId,

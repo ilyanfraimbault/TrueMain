@@ -150,34 +150,64 @@ public sealed class MatchParticipantRepository(TrueMainDbContext db) : IMatchPar
         var safeMinGames = Math.Max(1, minObservedGames);
         var safeMaxRows = Math.Max(1, maxRows);
 
-        // Index-friendly GROUP BY over orphan participant rows (RiotAccountId IS NULL =
-        // untracked players). The GameStartTimeUtc >= sinceUtc predicate bounds the scan
-        // explicitly (a caller-supplied lookback) instead of relying on MatchDataRetention
-        // having physically deleted older rows. The (Puuid, MatchId) index supports the
-        // join. SUM over the bool Win column needs an explicit CASE for Postgres. Columns
-        // are aliased to match HarvestedCandidateRow.
-        return await db.Database
-            .SqlQuery<HarvestedCandidateRow>(
-                $"""
-                SELECT
-                    m."PlatformId" AS "PlatformId",
-                    p."Puuid" AS "Puuid",
-                    p."ChampionId" AS "ChampionId",
-                    COUNT(*)::int AS "ObservedGames",
-                    SUM(CASE WHEN p."Win" THEN 1 ELSE 0 END)::int AS "ObservedWins",
-                    MAX(m."GameStartTimeUtc") AS "LastSeenUtc"
-                FROM "match_participants" AS p
-                INNER JOIN "matches" AS m ON p."MatchId" = m."Id"
-                WHERE p."RiotAccountId" IS NULL
-                  AND m."PlatformId" = ANY ({normalizedPlatforms})
-                  AND m."QueueId" = {queueId}
-                  AND m."GameStartTimeUtc" >= {sinceUtc}
-                GROUP BY m."PlatformId", p."Puuid", p."ChampionId"
-                HAVING COUNT(*) >= {safeMinGames}
-                ORDER BY COUNT(*) DESC, MAX(m."GameStartTimeUtc") DESC
-                LIMIT {safeMaxRows}
-                """)
-            .ToListAsync(ct);
+        // Aggregate one platform at a time instead of PlatformId = ANY(...) (#632). The
+        // cross-platform statement hash-aggregated the orphan rows of the whole live
+        // match_participants table in a single command; with parallel query disabled
+        // (max_parallel_workers_per_gather=0, #589) that ran single-threaded and outgrew
+        // Command Timeout=300 as orphan volume climbed. Chunking per platform keeps each
+        // command's scope — and therefore its runtime — bounded, mirroring the per-champion
+        // chunking of #601. The durable complement is a partial index on the orphan scan
+        // (#498), built CONCURRENTLY out-of-band.
+        //
+        // Each per-platform query returns that platform's own top safeMaxRows; the union is
+        // re-ordered and re-capped in memory below. This reproduces the previous global
+        // top-N exactly: any row in the global top-N is necessarily within its own
+        // platform's top-N (at most N-1 rows outrank it globally, hence at most N-1 within
+        // its platform), so the per-platform slices are a superset of the global result.
+        var merged = new List<HarvestedCandidateRow>(safeMaxRows * normalizedPlatforms.Length);
+        foreach (var platform in normalizedPlatforms)
+        {
+            // Index-friendly GROUP BY over orphan participant rows (RiotAccountId IS NULL =
+            // untracked players). The GameStartTimeUtc >= sinceUtc predicate bounds the scan
+            // explicitly (a caller-supplied lookback) instead of relying on MatchDataRetention
+            // having physically deleted older rows. The (Puuid, MatchId) index supports the
+            // join. SUM over the bool Win column needs an explicit CASE for Postgres. Columns
+            // are aliased to match HarvestedCandidateRow. PlatformId is constant here but kept
+            // in the projection/GROUP BY so the row shape and merge below are unchanged.
+            var platformRows = await db.Database
+                .SqlQuery<HarvestedCandidateRow>(
+                    $"""
+                    SELECT
+                        m."PlatformId" AS "PlatformId",
+                        p."Puuid" AS "Puuid",
+                        p."ChampionId" AS "ChampionId",
+                        COUNT(*)::int AS "ObservedGames",
+                        SUM(CASE WHEN p."Win" THEN 1 ELSE 0 END)::int AS "ObservedWins",
+                        MAX(m."GameStartTimeUtc") AS "LastSeenUtc"
+                    FROM "match_participants" AS p
+                    INNER JOIN "matches" AS m ON p."MatchId" = m."Id"
+                    WHERE p."RiotAccountId" IS NULL
+                      AND m."PlatformId" = {platform}
+                      AND m."QueueId" = {queueId}
+                      AND m."GameStartTimeUtc" >= {sinceUtc}
+                    GROUP BY m."PlatformId", p."Puuid", p."ChampionId"
+                    HAVING COUNT(*) >= {safeMinGames}
+                    ORDER BY COUNT(*) DESC, MAX(m."GameStartTimeUtc") DESC
+                    LIMIT {safeMaxRows}
+                    """)
+                .ToListAsync(ct);
+
+            merged.AddRange(platformRows);
+        }
+
+        // Single global cap across platforms, preserving the previous ANY-query ordering
+        // (observed games desc, then most-recently-seen desc). A high-traffic region can
+        // still consume most of the quota — unchanged behaviour, see #495.
+        return merged
+            .OrderByDescending(row => row.ObservedGames)
+            .ThenByDescending(row => row.LastSeenUtc)
+            .Take(safeMaxRows)
+            .ToList();
     }
 
     public void AddRange(IEnumerable<MatchParticipant> participants)

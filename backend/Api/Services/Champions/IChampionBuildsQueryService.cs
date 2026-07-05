@@ -29,10 +29,18 @@ public interface IChampionBuildsQueryService
     /// a thinly-played champion as "not enough data" (returns
     /// <see langword="null"/>) so the page can show an empty state.
     /// </param>
+    /// <param name="eloBracket">
+    /// Optional elo filter (per <c>Core.Lol.Ranking.EloBracket</c>): <c>ALL</c>,
+    /// a bare tier (e.g. <c>GOLD</c> — that tier only), or a <c>TIER_PLUS</c>
+    /// form (e.g. <c>GOLD_PLUS</c> — that tier and above). When null or
+    /// <c>ALL</c> the response spans every tier; otherwise it recomputes the
+    /// builds / skill order / win rate from the selected tier(s) only.
+    /// </param>
     Task<ChampionResponse?> GetAsync(
         int championId,
         string? patch,
         string? position,
         CancellationToken ct,
-        ChampionBuildsScope? scope = null);
+        ChampionBuildsScope? scope = null,
+        string? eloBracket = null);
 }

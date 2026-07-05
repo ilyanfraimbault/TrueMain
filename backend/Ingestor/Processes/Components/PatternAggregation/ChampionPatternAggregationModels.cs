@@ -46,6 +46,11 @@ internal sealed class AggregateSourceRow
     public int PerksFlex { get; init; }
     public int PerksDefense { get; init; }
 
+    // Elo bucket of the player at game time, resolved after the initial LINQ
+    // projection by HydrateEloBracketsAsync (nearest rank_snapshots capture to
+    // GameStartTimeUtc). Defaults to UNRANKED when no snapshot is found.
+    public string EloBracket { get; set; } = Core.Lol.Ranking.EloBracket.Unranked;
+
     // Populated after the initial LINQ projection by HydratePerkSelectionsAsync
     // (the six individual perk ids live in participant_perk_selections ⋈
     // perk_selection_catalog, not on match_participants directly).
@@ -74,6 +79,7 @@ internal sealed record ExpandedSourceRow(
     string PlatformId,
     int QueueId,
     string Position,
+    string EloBracket,
     int PrimaryStyleId,
     int SubStyleId,
     int PerksOffense,
