@@ -696,7 +696,12 @@ export function pageParams(
   maxSize: number,
 ): { page: number, pageSize: number } {
   const page = Math.max(1, Number.parseInt(String(query.page ?? '1'), 10) || 1)
-  const pageSize = Math.min(maxSize, Math.max(1, Number.parseInt(String(query.pageSize ?? ''), 10) || fallbackSize))
+  // Absent/unparseable pageSize falls back to the default; any parsed number
+  // (including an explicit 0) clamps into [1, maxSize] — so pageSize=0 lands on
+  // 1 like every other out-of-range value rather than silently reverting to
+  // the default.
+  const parsedSize = Number.parseInt(String(query.pageSize ?? ''), 10)
+  const pageSize = Math.min(maxSize, Math.max(1, Number.isNaN(parsedSize) ? fallbackSize : parsedSize))
   return { page, pageSize }
 }
 
@@ -818,8 +823,13 @@ function mockMatches(player: MockPlayer, query: Record<string, unknown>): MatchS
 
     // 10 participants: self + 9 others drawn from the champion pool, split 5v5.
     const selfTeam = rng() < 0.5 ? 100 : 200
+    const selfIndex = player.row.rank - 1
     const participants = Array.from({ length: 10 }, (_, slot) => {
-      const other = players()[(player.row.rank + slot * 17 + index) % PLAYER_COUNT]!
+      // Skip the current player's own index so self never shows up a second
+      // time among the "others".
+      let otherIndex = (player.row.rank + slot * 17 + index) % PLAYER_COUNT
+      if (otherIndex === selfIndex) otherIndex = (otherIndex + 1) % PLAYER_COUNT
+      const other = players()[otherIndex]!
       return {
         championId: slot === 0 ? main.championId : pool[(index * 7 + slot * 13) % pool.length]!.id,
         teamId: slot < 5 ? selfTeam : selfTeam === 100 ? 200 : 100,

@@ -34,6 +34,10 @@ describe('pageParams', () => {
     expect(pageParams({ page: '2', pageSize: '-5' }, 25, 100)).toEqual({ page: 2, pageSize: 1 })
   })
 
+  it('clamps an explicit pageSize=0 up to 1 (not the fallback)', () => {
+    expect(pageParams({ pageSize: '0' }, 25, 100)).toEqual({ page: 1, pageSize: 1 })
+  })
+
   it('falls back on non-numeric input', () => {
     expect(pageParams({ page: 'x', pageSize: 'y' }, 25, 100)).toEqual({ page: 1, pageSize: 25 })
   })
