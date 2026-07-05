@@ -449,7 +449,9 @@ const ELO_TIER_WEIGHTS: Array<{ tier: string, weight: number }> = [
   { tier: 'PLATINUM', weight: 0.17 },
   { tier: 'EMERALD', weight: 0.14 },
   { tier: 'DIAMOND', weight: 0.09 },
-  { tier: 'MASTER', weight: 0.03 },
+  { tier: 'MASTER', weight: 0.02 },
+  { tier: 'GRANDMASTER', weight: 0.007 },
+  { tier: 'CHALLENGER', weight: 0.003 },
 ]
 
 function resolveEloSlice(filter: string | undefined): { bracket: string, fraction: number } {
@@ -479,7 +481,7 @@ async function mockChampionDetail(
   const allGames = Math.max(120, Math.round(s.pr * POOL_GAMES * (0.9 + rng() * 0.2)))
 
   // Scope the slice to the requested tier(s): ALL keeps the full pool, a tier
-  // (or tier-and-above) takes its share so the emblem strip visibly changes.
+  // (or tier-and-above) takes its share so the rank select visibly changes.
   const { bracket, fraction } = resolveEloSlice(eloBracket)
   const totalGames = Math.round(allGames * fraction)
   return {

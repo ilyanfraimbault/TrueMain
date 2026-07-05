@@ -153,7 +153,7 @@ const selectedPosition = computed<ChampionPosition | null>(() => {
   return isChampionPosition(value) ? value : null
 })
 // Elo filter (issue #526). Bind to the API-returned filter once available so
-// the emblem strip reflects what's actually shown; fall back to the URL filter
+// the rank select reflects what's actually shown; fall back to the URL filter
 // for the optimistic render before the fetch resolves. The rank is never dropped
 // by the 404 fallback (it only drops patch/position), so the response always
 // echoes the requested rank.
@@ -163,7 +163,7 @@ const selectedEloBracket = computed<string>(() =>
 
 // A rank filter with no data: the fetch 404'd on a specific rank (the champion
 // may well have builds in other ranks). Distinct from the champion-level "no
-// data at all" state below — here we keep the emblem strip so the user can pick
+// data at all" state below — here we keep the rank select so the user can pick
 // another rank instead of hitting a dead end.
 const noDataForRank = computed(() =>
   notEnoughData.value && selectedEloBracket.value !== ELO_BRACKET_ALL,
@@ -309,7 +309,7 @@ const isRefetching = computed(() =>
 
     <!--
       No-data-for-this-rank state: the picked rank has no games (the champion may
-      well have builds in other ranks). We keep the emblem strip visible so the
+      well have builds in other ranks). We keep the rank select visible so the
       user can switch rank — a dead end otherwise — rather than silently showing
       all-ranks data under the selected rank.
     -->
@@ -403,16 +403,13 @@ const isRefetching = computed(() =>
         <ChampionFilters
           :selected-patch="selectedPatch"
           :selected-position="selectedPosition"
+          :selected-elo-bracket="selectedEloBracket"
           :patch-options="patchOptions"
           @update:patch="value => setFilter({ patch: value })"
           @update:position="value => setFilter({ position: value })"
+          @update:elo-bracket="value => setFilter({ eloBracket: value })"
         />
       </header>
-
-      <ChampionEloFilter
-        :model-value="selectedEloBracket"
-        @update:model-value="value => setFilter({ eloBracket: value })"
-      />
 
       <ChampionBuildTabs
         :builds="champion.builds"
