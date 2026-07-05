@@ -10,7 +10,9 @@ public sealed class ProfileQueryService(
     IDbContextFactory<TrueMainDbContext> dbFactory,
     ILogger<ProfileQueryService> logger) : IProfileQueryService
 {
-    private const int MainChampionsCap = 6;
+    // Shared with the leaderboard so both views derive a player's mains from the
+    // same top-N slice (see MainChampionsPolicy / #521).
+    private const int MainChampionsCap = MainChampionsPolicy.Cap;
 
     // Private DTOs used to carry query results out of factory-owned contexts.
     private sealed record SnapshotDto(

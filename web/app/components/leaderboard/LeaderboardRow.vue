@@ -157,7 +157,7 @@ const positionIcons = computed(() => {
         v-for="role in positionIcons"
         :key="role.position"
         :src="role.iconUrl"
-        :alt="positionLabel(role.position)"
+        :alt="role.title"
         :title="role.title"
         class="size-4 shrink-0"
         :class="role.primary ? 'opacity-70' : 'opacity-40'"

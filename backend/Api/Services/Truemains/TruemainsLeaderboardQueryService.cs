@@ -20,13 +20,13 @@ public sealed class TruemainsLeaderboardQueryService(
     private const int TopChampionsPerRow = 3;
 
     // The profile derives a player's primary/secondary lane from only their
-    // N most-played mains (ProfileQueryService.FetchMainsAsync caps to the same
-    // number, #205). The leaderboard must aggregate over the same slice or a
-    // heavy-flex player's lanes diverge between the two views: MainStatsCalculator
-    // can flag more than this many champions IsMain when coverage is thin
-    // (CriticalPlayRateThreshold can drop to 0.1), so ">6 mains" is a real shape,
-    // not a corner case. Kept in lock-step with ProfileQueryService.MainChampionsCap.
-    private const int MainChampionsCap = 6;
+    // N most-played mains (ProfileQueryService.FetchMainsAsync). The leaderboard
+    // must aggregate over the same slice or a heavy-flex player's lanes diverge
+    // between the two views: MainStatsCalculator can flag more than this many
+    // champions IsMain when coverage is thin (CriticalPlayRateThreshold can drop
+    // to 0.1), so ">6 mains" is a real shape, not a corner case. Single source of
+    // truth in MainChampionsPolicy so the two views can't drift apart.
+    private const int MainChampionsCap = MainChampionsPolicy.Cap;
 
     // The leaderboard is dominated by page-1 traffic with no filters, and the
     // four SQL queries that make a fresh response (Count + FetchPage +
