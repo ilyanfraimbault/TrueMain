@@ -141,7 +141,7 @@ const hasNodes = computed(() => layout.value.flat.length > 1)
 </script>
 
 <template>
-  <SectionCard title="Build tree">
+  <SectionCard :level="2" title="Build tree">
     <div
       v-if="hasNodes"
       class="overflow-x-auto"

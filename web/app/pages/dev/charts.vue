@@ -29,7 +29,7 @@ const lpHistory: LpPoint[] = [
 ]
 
 const lpCategories = {
-  lp: { name: 'LP', color: '#34d399' },
+  lp: { name: 'LP', color: '#e58f83' },
 }
 
 const lpXFormatter = (tick: number): string => {
@@ -60,7 +60,7 @@ const winrates: WinratePoint[] = [
 ]
 
 const winrateCategories = {
-  yone: { name: 'Yone', color: '#34d399' },
+  yone: { name: 'Yone', color: '#e58f83' },
   ahri: { name: 'Ahri', color: '#f59e0b' },
   zed: { name: 'Zed',  color: '#71717a' },
 }
@@ -144,12 +144,10 @@ const spikeEvents: ChampionPowerspikeEvent[] = [
       <h2 class="text-sm font-semibold">
         Champion power spikes (item bars)
       </h2>
-      <div class="rounded-lg border border-default bg-elevated p-4">
-        <ChampionPowerspikesChart
-          :events="spikeEvents"
-          :items-map="spikeItemsMap"
-        />
-      </div>
+      <ChampionPowerspikesChart
+        :events="spikeEvents"
+        :items-map="spikeItemsMap"
+      />
     </section>
 
     <section class="flex flex-col gap-3">

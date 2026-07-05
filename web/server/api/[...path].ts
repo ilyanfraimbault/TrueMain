@@ -1,6 +1,17 @@
-import { createError, defineEventHandler, proxyRequest } from 'h3'
+import { createError, defineEventHandler, getQuery, getRequestURL, proxyRequest } from 'h3'
 
-export default defineEventHandler((event) => {
+export default defineEventHandler(async (event) => {
+  // Dev-only, opt-in backend mock (`NUXT_DEV_MOCK_API=1`): serve deterministic
+  // fixture payloads instead of proxying, so every page can be eyeballed
+  // without a running backend. `import.meta.dev` tree-shakes this whole block
+  // out of production builds; without the env flag the proxy below still hits
+  // the real local backend.
+  if (import.meta.dev && devApiMockEnabled()) {
+    const pathname = getRequestURL(event).pathname.replace(/^\/api/, '')
+    const mock = await resolveDevApiMock(pathname, getQuery(event))
+    if (mock !== undefined) return mock
+  }
+
   const { apiBaseUrl } = useRuntimeConfig(event)
 
   // Validate the configured base URL up front so a misconfigured env var

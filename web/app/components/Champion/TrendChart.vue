@@ -35,9 +35,9 @@ const hasData = computed(() => rows.value.length > 0)
 // rather than a one-point line that reads as a flat bar.
 const hasTrend = computed(() => rows.value.length > 1)
 
-// Both series in the app primary (emerald-400). The charts sit side by side
+// Both series in the app primary (rosegold-400). The charts sit side by side
 // and never share a plot, so they don't need different hues to be told apart.
-const PRIMARY = '#34d399' // emerald-400 (CHART_SERIES_PALETTE[0])
+const PRIMARY = defaultSeriesColor(0)
 const winRateCategories = { winRate: { name: 'Win rate', color: PRIMARY } }
 const pickRateCategories = { pickRate: { name: 'Pick rate', color: PRIMARY } }
 
@@ -53,16 +53,11 @@ const pickRateFormatter = (value: number): string => formatPercentage(value, 1)
 </script>
 
 <template>
-  <section class="flex flex-col gap-4">
-    <header class="flex flex-col gap-0.5">
-      <h2 class="text-sm font-semibold">
-        Trend by patch
-      </h2>
-      <p class="text-xs text-muted">
-        Win rate and pick rate over the last five patches with data.
-      </p>
-    </header>
-
+  <SectionCard
+    :level="2"
+    title="Trend by patch"
+    subtitle="Win rate and pick rate over the last five patches with data."
+  >
     <USkeleton
       v-if="loading"
       class="h-[220px] w-full rounded-lg"
@@ -70,7 +65,7 @@ const pickRateFormatter = (value: number): string => formatPercentage(value, 1)
 
     <p
       v-else-if="!hasTrend"
-      class="glass rounded-lg px-4 py-8 text-center text-sm text-muted"
+      class="py-8 text-center text-sm text-muted"
     >
       {{ hasData
         ? 'Only one patch of data so far — not enough history to chart a trend.'
@@ -137,5 +132,5 @@ const pickRateFormatter = (value: number): string => formatPercentage(value, 1)
         </ChartsAreaChart>
       </div>
     </div>
-  </section>
+  </SectionCard>
 </template>

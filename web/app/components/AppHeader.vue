@@ -12,7 +12,15 @@ const items = computed<NavigationMenuItem[]>(() => [
     label: 'Champions',
     icon: 'i-lucide-swords',
     to: '/champions',
-    active: isActive('/champions'),
+    // Exclude the tier-list route so only one of the two champion entries
+    // lights up at a time.
+    active: isActive('/champions') && !isActive('/champions/tierlist'),
+  },
+  {
+    label: 'Tier List',
+    icon: 'i-lucide-trending-up',
+    to: '/champions/tierlist',
+    active: isActive('/champions/tierlist'),
   },
   {
     label: 'Truemains',
@@ -37,7 +45,7 @@ const items = computed<NavigationMenuItem[]>(() => [
     />
 
     <template #right>
-      <TruemainSearch variant="button" />
+      <AppSearch variant="button" shortcut />
       <UColorModeButton />
     </template>
 

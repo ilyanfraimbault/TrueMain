@@ -76,16 +76,11 @@ function barTooltip(bar: SpikeBar): string {
 </script>
 
 <template>
-  <section class="flex flex-col gap-4">
-    <header class="flex flex-col gap-0.5">
-      <h2 class="text-sm font-semibold">
-        Power spikes
-      </h2>
-      <p class="text-xs text-muted">
-        How much the champion's lead accelerates once each core item is completed, at its average completion time.
-      </p>
-    </header>
-
+  <SectionCard
+    :level="2"
+    title="Power spikes"
+    subtitle="How much the champion's lead accelerates once each core item is completed, at its average completion time."
+  >
     <USkeleton
       v-if="loading"
       class="h-52 w-full rounded-lg"
@@ -93,7 +88,7 @@ function barTooltip(bar: SpikeBar): string {
 
     <p
       v-else-if="!hasData"
-      class="glass rounded-lg px-4 py-8 text-center text-sm text-muted"
+      class="py-8 text-center text-sm text-muted"
     >
       No power-spike data yet for this champion and lane.
     </p>
@@ -150,5 +145,5 @@ function barTooltip(bar: SpikeBar): string {
         </span>
       </div>
     </div>
-  </section>
+  </SectionCard>
 </template>

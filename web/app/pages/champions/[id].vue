@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type {
-  ChampionStaticListItem,
   RuneTreeResponse,
   StaticItemData,
   StaticSummonerSpellData,
@@ -49,15 +48,7 @@ const { data: championTrend, status: trendStatus } = useChampionTrend(championId
 // Each fetch wraps the network call so `markStaticFetched` runs after success
 // and `getCachedData` reuses entries across navigations within
 // `STATIC_CACHE_TTL_MS` (see static-cache.ts).
-const { data: staticList, status: staticListStatus } = useLazyAsyncData<ChampionStaticListItem[]>(
-  'champion-static-list',
-  async () => {
-    const data = await $fetch<ChampionStaticListItem[]>('/api/static/champions')
-    markStaticFetched('champion-static-list', nuxtApp)
-    return data
-  },
-  { getCachedData: key => getStaticCachedData(key, nuxtApp), server: false },
-)
+const { data: staticList, status: staticListStatus } = useChampionStaticList()
 // Pin rune-tree to the champion's active patch so the icon URLs we render
 // hit CommunityDragon's per-patch (year-cacheable) tree, and so cached
 // payloads don't bleed across patches when the user navigates between them.
@@ -201,6 +192,43 @@ const { data: championRoam, status: roamStatus } = useChampionRoam(
   trendReady,
 )
 
+// Per-champion patch diff (issue #534): what changed for the champion between
+// two patches — win-rate swing, build/rune/skill shifts. Follows the resolved
+// lane like the trend chart but is deliberately cross-patch (it picks its own
+// two patches), so the active patch filter never scopes it. The two selectors
+// hold null until the user picks, letting the backend default to the two most
+// recent patches with data; gated on the champion fetch like the other stats.
+const patchDiffFrom = ref<string | null>(null)
+const patchDiffTo = ref<string | null>(null)
+// Reset the manual selection when the champion or lane changes so a patch that
+// has no data on the new champion/lane can't linger in the pickers — the backend
+// re-defaults. Watching championId too matters when navigating between champions
+// that share a dominant lane (e.g. two ADCs on BOTTOM): trendPosition stays put,
+// so without it the previous champion's picked patches would silently carry over.
+watch([championId, trendPosition], () => {
+  patchDiffFrom.value = null
+  patchDiffTo.value = null
+})
+const { data: championPatchDiff, status: patchDiffStatus } = useChampionPatchDiff(
+  championId,
+  trendPosition,
+  patchDiffFrom,
+  patchDiffTo,
+  trendReady,
+)
+// The patch-diff selectors draw from the page-wide recent-patch list, but the
+// backend resolves the diff against the champion's actual data patches — which
+// can be older than the 12 newest ddragon versions for a sparsely-played
+// champion. Union the resolved from/to in (newest first) so a selector never
+// shows blank for a value that isn't in the recent list.
+const patchDiffOptions = computed(() => {
+  const seen = new Map(patchOptions.value.map(option => [option.value, option]))
+  for (const patch of [championPatchDiff.value?.from?.patch, championPatchDiff.value?.to?.patch]) {
+    if (patch && !seen.has(patch)) seen.set(patch, { label: patch, value: patch })
+  }
+  return [...seen.values()].sort((a, b) => b.value.localeCompare(a.value, undefined, { numeric: true }))
+})
+
 // When useChampion's 404 fallback drops the URL filters (no data for the
 // champion on that patch/position) the API returns the default slice, but the
 // dead patch/position query param lingers in the URL. Once the fetch resolves,
@@ -238,7 +266,8 @@ const isRefetching = computed(() =>
   || isLoadingStatus(leadsStatus.value)
   || isLoadingStatus(scalingStatus.value)
   || isLoadingStatus(powerspikesStatus.value)
-  || isLoadingStatus(roamStatus.value),
+  || isLoadingStatus(roamStatus.value)
+  || isLoadingStatus(patchDiffStatus.value),
 )
 </script>
 
@@ -337,6 +366,18 @@ const isRefetching = computed(() =>
         :loading="isLoadingStatus(trendStatus)"
       />
 
+      <ChampionPatchDiff
+        :diff="championPatchDiff ?? null"
+        :items-map="itemsMap ?? {}"
+        :rune-tree="runeTree ?? null"
+        :patch-options="patchDiffOptions"
+        :from-patch="patchDiffFrom"
+        :to-patch="patchDiffTo"
+        :loading="isLoadingStatus(patchDiffStatus)"
+        @update:from-patch="value => { patchDiffFrom = value }"
+        @update:to-patch="value => { patchDiffTo = value }"
+      />
+
       <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <ChampionTimelineLeadsChart
           :intervals="championLeads?.intervals ?? []"
@@ -357,7 +398,10 @@ const isRefetching = computed(() =>
       />
 
       <ChampionRoam
-        :share="championRoam?.outOfLaneShare ?? null"
+        v-if="trendPosition !== 'JUNGLE'"
+        :kp5="championRoam?.roamKp5 ?? null"
+        :kp10="championRoam?.roamKp10 ?? null"
+        :kp15="championRoam?.roamKp15 ?? null"
         :games="championRoam?.games ?? 0"
         :loading="isLoadingStatus(roamStatus)"
       />

@@ -1,8 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
 using AwesomeAssertions;
+using Core.Lol.Map;
+using Core.Options;
 using Data.Entities;
+using Ingestor.Processes;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Logging.Abstractions;
 using TrueMain.ReadModels.Champions;
 using TrueMain.TestKit.EntityBuilders;
 
@@ -156,6 +160,22 @@ public sealed class ChampionTimelineLeadsApiIntegrationTests
         }
 
         await db.SaveChangesAsync();
+        await RunAggregationAsync();
+    }
+
+    /// <summary>
+    /// Runs the ingestor aggregation against the seeded raw rows so the
+    /// timeline-leads read (served from <c>champion_timeline_lead_stats</c>) has
+    /// data — the read no longer self-joins the raw snapshot rows.
+    /// </summary>
+    private async Task RunAggregationAsync()
+    {
+        var process = new ChampionMatchupLeadAggregationProcess(
+            NullLogger<ChampionMatchupLeadAggregationProcess>.Instance,
+            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
+            new TestDbContextFactory(_fixture),
+            TimeProvider.System);
+        await process.RunCoreAsync(CancellationToken.None);
     }
 
     private static MatchParticipantTimelineSnapshot Snapshot(

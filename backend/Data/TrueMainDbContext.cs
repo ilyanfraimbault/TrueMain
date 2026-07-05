@@ -14,11 +14,19 @@ public class TrueMainDbContext : DbContext
     public DbSet<MatchParticipant> MatchParticipants => Set<MatchParticipant>();
     public DbSet<MatchParticipantTimelineSnapshot> MatchParticipantTimelineSnapshots => Set<MatchParticipantTimelineSnapshot>();
     public DbSet<MatchParticipantKillPosition> MatchParticipantKillPositions => Set<MatchParticipantKillPosition>();
+    public DbSet<JungleFirstClear> JungleFirstClears => Set<JungleFirstClear>();
     public DbSet<ParticipantPerkSelection> ParticipantPerkSelections => Set<ParticipantPerkSelection>();
     public DbSet<PerkSelectionCatalog> PerkSelectionCatalogs => Set<PerkSelectionCatalog>();
     public DbSet<MainCandidate> MainCandidates => Set<MainCandidate>();
     public DbSet<Match> Matches => Set<Match>();
     public DbSet<MainChampionStat> MainChampionStats => Set<MainChampionStat>();
+
+    // Pre-aggregated read models for the champion page's two heaviest slices
+    // (#606): the global matchups leaderboard and the lead-vs-lane-opponent
+    // timeline curve. Populated by ChampionMatchupLeadAggregationProcess.
+    public DbSet<ChampionMatchupStat> ChampionMatchupStats => Set<ChampionMatchupStat>();
+    public DbSet<ChampionTimelineLeadStat> ChampionTimelineLeadStats => Set<ChampionTimelineLeadStat>();
+
     public DbSet<ChampionAggregateScope> ChampionAggregateScopes => Set<ChampionAggregateScope>();
 
     // Phase 6: junction-table aggregate + globally-deduplicated dimension

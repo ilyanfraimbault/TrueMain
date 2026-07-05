@@ -15,5 +15,6 @@ public enum JobMode
     PatternAggregationOnly = 6,
     AccountRefreshOnly = 7,
     MatchDataRetentionOnly = 8,
-    HarvestOnly = 9
+    HarvestOnly = 9,
+    MatchupLeadAggregationOnly = 10
 }

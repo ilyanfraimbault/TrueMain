@@ -23,6 +23,9 @@ public sealed class DataRepositoryFactory : IDataRepositoryFactory
     public IMatchParticipantKillPositionRepository CreateMatchParticipantKillPositionRepository(TrueMainDbContext dbContext)
         => new MatchParticipantKillPositionRepository(dbContext);
 
+    public IJungleFirstClearRepository CreateJungleFirstClearRepository(TrueMainDbContext dbContext)
+        => new JungleFirstClearRepository(dbContext);
+
     public IProcessRunRepository CreateProcessRunRepository(TrueMainDbContext dbContext)
         => new ProcessRunRepository(dbContext);
 

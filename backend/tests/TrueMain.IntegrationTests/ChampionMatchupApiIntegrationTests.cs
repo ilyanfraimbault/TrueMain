@@ -1,8 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
 using AwesomeAssertions;
+using Core.Lol.Map;
+using Core.Options;
 using Data.Entities;
+using Ingestor.Processes;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Logging.Abstractions;
 using TrueMain.ReadModels.Champions;
 using TrueMain.TestKit.EntityBuilders;
 
@@ -340,6 +344,7 @@ public sealed class ChampionMatchupApiIntegrationTests
         AddLaneMatchup(db, "m-talon", "16.4.521.123", QueueId, yoneWins: true, OtherOpponent, yoneAccountId: account.Id);
 
         await db.SaveChangesAsync();
+        await RunAggregationAsync();
     }
 
     /// <summary>
@@ -389,6 +394,7 @@ public sealed class ChampionMatchupApiIntegrationTests
         }
 
         await db.SaveChangesAsync();
+        await RunAggregationAsync();
         return $"{account.GameName}-{account.TagLine}";
     }
 
@@ -416,6 +422,7 @@ public sealed class ChampionMatchupApiIntegrationTests
         }
 
         await db.SaveChangesAsync();
+        await RunAggregationAsync();
         return $"{account.GameName}-{account.TagLine}";
     }
 
@@ -453,6 +460,7 @@ public sealed class ChampionMatchupApiIntegrationTests
         AddLaneMatchup(db, "mo-anon-0", "16.4.521.123", QueueId, yoneWins: true, OtherOpponent);
 
         await db.SaveChangesAsync();
+        await RunAggregationAsync();
         return $"{account.GameName}-{account.TagLine}";
     }
 
@@ -530,6 +538,22 @@ public sealed class ChampionMatchupApiIntegrationTests
             ItemEvents = [],
             SkillEvents = []
         };
+
+    /// <summary>
+    /// Runs the ingestor aggregation against the seeded raw rows so the global
+    /// matchups slice (served from <c>champion_matchup_stats</c>) has data. The
+    /// player-scoped and opponent-search slices stay live, so this is a no-op for
+    /// them — but running it after every seed keeps the full pipeline under test.
+    /// </summary>
+    private async Task RunAggregationAsync()
+    {
+        var process = new ChampionMatchupLeadAggregationProcess(
+            NullLogger<ChampionMatchupLeadAggregationProcess>.Instance,
+            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
+            new TestDbContextFactory(_fixture),
+            TimeProvider.System);
+        await process.RunCoreAsync(CancellationToken.None);
+    }
 
     private static HttpClient CreateClient(ApiWebApplicationFactory factory)
         => factory.CreateClient(new WebApplicationFactoryClientOptions
