@@ -181,8 +181,7 @@ export interface ChampionPowerCurvePoint {
 }
 
 export interface ChampionPowerspikeEvent {
-  /** `item` or `level`. */
-  type: string
+  type: 'item' | 'level'
   /** Item id for `item` events; champion level (6/11/16) for `level` events. */
   refId: number
   /** Mean minute the event occurs across games. */
