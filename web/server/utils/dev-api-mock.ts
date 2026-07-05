@@ -552,16 +552,22 @@ async function mockRoam(id: number): Promise<ChampionRoamResponse | null> {
   if (!s) return null
   const rng = mulberry32(s.id * 503)
   const games = Math.max(120, Math.round(s.pr * POOL_GAMES))
-  const participations = Math.round(games * (4.2 + rng() * 2.5))
-  const share = Math.min(0.85, Math.max(0.05, (ROAM_SHARE[s.position] ?? 0.25) + (rng() - 0.5) * 0.1))
+  // Cumulative out-of-lane kills + assists per game at each minute mark
+  // (@15 ≥ @10 ≥ @5), scaled off the position's roam tendency so junglers /
+  // supports read as roamers and side lanes stay lane-bound — lining up with
+  // the verdict thresholds the component applies to @15.
+  const roamBias = ROAM_SHARE[s.position] ?? 0.25
+  const roamKp15 = round3(Math.max(0.05, roamBias * 3.0 + (rng() - 0.5) * 0.4))
+  const roamKp10 = round3(roamKp15 * (0.55 + rng() * 0.12))
+  const roamKp5 = round3(roamKp15 * (0.25 + rng() * 0.1))
   return {
     championId: s.id,
     position: s.position,
     patch: await latestShortPatch(),
     games,
-    killParticipations: participations,
-    outOfLaneParticipations: Math.round(participations * share),
-    outOfLaneShare: round3(share),
+    roamKp5,
+    roamKp10,
+    roamKp15,
   }
 }
 
