@@ -1,0 +1,50 @@
+import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { pageParams, resolveDevApiMock, tierFor } from '~~/server/utils/dev-api-mock'
+
+// `resolveDevApiMock` reaches `latestShortPatch`, which calls the auto-imported
+// global `$fetch` for the DDragon version list. Stub it so routing is exercised
+// deterministically without touching the network.
+beforeAll(() => {
+  vi.stubGlobal('$fetch', vi.fn(async () => ['15.13.1', '15.12.1']))
+})
+
+describe('tierFor', () => {
+  it('buckets by win-rate percentile, S at the top through D at the bottom', () => {
+    expect(tierFor(0, 100)).toBe('S')
+    expect(tierFor(20, 100)).toBe('A')
+    expect(tierFor(50, 100)).toBe('B')
+    expect(tierFor(80, 100)).toBe('C')
+    expect(tierFor(99, 100)).toBe('D')
+  })
+})
+
+describe('pageParams', () => {
+  it('defaults to page 1 and the fallback size', () => {
+    expect(pageParams({}, 25, 100)).toEqual({ page: 1, pageSize: 25 })
+  })
+
+  it('clamps page up to 1 and pageSize down to the max', () => {
+    expect(pageParams({ page: '-3', pageSize: '999' }, 25, 100)).toEqual({ page: 1, pageSize: 100 })
+  })
+
+  it('clamps a negative pageSize up to 1', () => {
+    expect(pageParams({ page: '2', pageSize: '-5' }, 25, 100)).toEqual({ page: 2, pageSize: 1 })
+  })
+
+  it('falls back on non-numeric input', () => {
+    expect(pageParams({ page: 'x', pageSize: 'y' }, 25, 100)).toEqual({ page: 1, pageSize: 25 })
+  })
+})
+
+describe('resolveDevApiMock', () => {
+  it('returns undefined for a path the mock does not serve', async () => {
+    expect(await resolveDevApiMock('/not/a/route', {})).toBeUndefined()
+    expect(await resolveDevApiMock('/champions/64/nonsense', {})).toBeUndefined()
+  })
+
+  it('routes /champions to the champion list', async () => {
+    const res = await resolveDevApiMock('/champions', {})
+    expect(Array.isArray(res)).toBe(true)
+    expect((res as unknown[]).length).toBeGreaterThan(0)
+  })
+})

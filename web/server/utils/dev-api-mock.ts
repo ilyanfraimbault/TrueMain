@@ -276,7 +276,7 @@ for (const s of CHAMPION_SEEDS) if (!seedsById.has(s.id)) seedsById.set(s.id, s)
 // into a few hundred to a few thousand games per row.
 const POOL_GAMES = 42_000
 
-function tierFor(rankIndex: number, total: number): string {
+export function tierFor(rankIndex: number, total: number): string {
   const pct = rankIndex / total
   if (pct < 0.12) return 'S'
   if (pct < 0.35) return 'A'
@@ -690,7 +690,7 @@ function players(): MockPlayer[] {
 }
 
 /** Parse + clamp 1-indexed pagination params, mirroring the backend's clamping. */
-function pageParams(
+export function pageParams(
   query: Record<string, unknown>,
   fallbackSize: number,
   maxSize: number,
