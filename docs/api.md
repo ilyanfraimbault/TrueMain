@@ -293,7 +293,10 @@ au plus tardif.
 
 ## `GET /champions/{championId}/roam`
 
-Propension au roam : part des participations à des kills early hors de la lane.
+Propension au roam : nombre moyen de participations à des kills (kills + assists)
+hors de la lane par partie, mesuré aux paliers 5/10/15 minutes (cumulatifs).
+Un roam est une participation dans une autre lane, la jungle ennemie ou la base
+ennemie — la rivière et sa propre jungle ne comptent pas.
 
 **Query** — `position` (**requis**, `400` sinon), `patch` (optionnel)
 
@@ -305,13 +308,14 @@ Propension au roam : part des participations à des kills early hors de la lane.
   "position": "MIDDLE",
   "patch": "16.4",
   "games": 1840,
-  "killParticipations": 5200,
-  "outOfLaneParticipations": 1456,
-  "outOfLaneShare": 0.28
+  "roamKp5": 0.42,
+  "roamKp10": 1.15,
+  "roamKp15": 2.03
 }
 ```
 
-`outOfLaneShare` ∈ [0,1] ; `null` sous le plancher d'échantillon.
+`roamKp5/10/15` = moyennes cumulatives par partie ; `null` sous le plancher
+d'échantillon et pour `JUNGLE` (pas de lane propre).
 
 ## `GET /champions/{championId}/powerspikes`
 
@@ -523,6 +527,80 @@ Historique de matchs paginé.
 - `participants` : les 10 joueurs (team 100 puis 200). `gameName`/`tagLine` `null`
   si le participant n'est pas un compte suivi.
 - `lpDelta` est toujours `null` dans cette itération.
+
+## `GET /truemains/{nameTag}/matches/{matchId}`
+
+Détail complet d'un match auquel le joueur a participé : les 10 participants avec
+leur build order, skill order, page de runes et les stats de lane dérivées de la
+timeline. `nameTag` scope la route (le compte doit avoir joué ce match) mais la
+réponse couvre tous les participants.
+
+**Réponse `200`** — `MatchDetailReadModel` · **`404`** si `nameTag` malformé,
+compte inconnu, ou match non joué par ce compte.
+
+```json
+{
+  "matchId": "KR_7654321",
+  "queueId": 420,
+  "gameMode": "CLASSIC",
+  "gameStartTimeUtc": "2026-06-25T18:42:00Z",
+  "gameDurationSeconds": 1832,
+  "gameVersion": "16.4.521",
+  "participants": [
+    {
+      "participantId": 1,
+      "championId": 103,
+      "champLevel": 16,
+      "summonerName": "Faker",
+      "gameName": "Faker",
+      "tagLine": "KR1",
+      "teamId": 100,
+      "teamPosition": "MIDDLE",
+      "win": true,
+      "kills": 8, "deaths": 3, "assists": 11,
+      "items": [6653, 3020, 3157, 3089, 3135, 0, 0],
+      "trinketItemId": 3340,
+      "summoner1Id": 4, "summoner2Id": 14,
+      "primaryStyleId": 8200, "subStyleId": 8100, "keystoneId": 8214,
+      "totalDamageDealtToChampions": 28400,
+      "visionScore": 32,
+      "goldEarned": 14200,
+      "cs": 245,
+      "rank": { "tier": "CHALLENGER", "division": "I", "leaguePoints": 1245 },
+      "killParticipation": 0.62,
+      "csPerMin": 8.0,
+      "damagePerMin": 930.1,
+      "goldPerMin": 465.0,
+      "visionPerMin": 1.05,
+      "laning15": { "csDiff": 12, "goldDiff": 480, "xpDiff": 210 },
+      "firstToLevelTwo": true,
+      "runes": [
+        { "styleId": 8200, "selectionIndex": 0, "perkId": 8214 },
+        { "styleId": 8100, "selectionIndex": 4, "perkId": 8135 }
+      ],
+      "statPerkOffense": 5008,
+      "statPerkFlex": 5008,
+      "statPerkDefense": 5001,
+      "itemEvents": [
+        { "timestampMs": 21000, "eventType": "ITEM_PURCHASED", "itemId": 1056, "beforeId": null, "afterId": null }
+      ],
+      "skillEvents": [
+        { "timestampMs": 90000, "skillSlot": 2 }
+      ]
+    }
+  ]
+}
+```
+
+- `participants` : les 10 joueurs. `gameName`/`tagLine` `null` si non suivi ;
+  `items` = 7 slots d'inventaire (0 = vide), trinket séparé dans `trinketItemId`.
+- Champs dérivés côté serveur : `killParticipation`, `*PerMin`, `laning15` (diffs
+  @15 vs l'adversaire de lane, `null` si un snapshot @15 manque) et `firstToLevelTwo`
+  (`null` sans adversaire de lane ou timeline de skills).
+- `rank` = tier approximatif au moment du match (snapshot le plus proche), `null` sinon.
+- `itemEvents.eventType` : `ITEM_PURCHASED` / `ITEM_SOLD` / `ITEM_DESTROYED` /
+  `ITEM_UNDO` (`beforeId`/`afterId` renseignés sur un undo).
+  `skillEvents.skillSlot` : 1=Q, 2=W, 3=E, 4=R.
 
 ---
 
@@ -750,6 +828,68 @@ Page de logs applicatifs persistés (Mongo), récents d'abord.
 ```
 
 `eventTypes` = catalogue statique des ops-events (pour peupler le filtre).
+
+## `GET /ops/crashes`
+
+Page de crashs de process enregistrés (Mongo), récents d'abord. Chaque entrée
+porte le rapport complet (chaîne d'exceptions, snapshot environnement + mémoire/GC,
+et les dernières lignes de log avant le crash) — le panneau Crashes n'a donc pas
+besoin d'appel de détail séparé. `sources` et `processes` (catalogues statiques)
+accompagnent chaque réponse pour peupler les filtres.
+
+**Query**
+
+| Param      | Type     | Requis | Description |
+|------------|----------|--------|-------------|
+| `since`    | datetime | non | Borne basse sur l'instant du crash. |
+| `process`  | string   | non | `Api` / `Ingestor` (filtre exact). |
+| `source`   | string   | non | Nom de `CrashSource` (insensible à la casse). |
+| `search`   | string   | non | Recherche message / stack-trace. |
+| `page`     | int      | non | 1-based. |
+| `pageSize` | int      | non | Taille de page. |
+
+**Réponse `200`** — `CrashesReadModel`
+
+```json
+{
+  "entries": [
+    {
+      "id": "665fd2a1c3b4e5f6a7b8c9d0",
+      "timestampUtc": "2026-06-26T10:01:23Z",
+      "processName": "Ingestor",
+      "source": "AppDomainUnhandled",
+      "exceptionType": "System.OutOfMemoryException",
+      "message": "Exception of type 'System.OutOfMemoryException' was thrown.",
+      "stackTrace": "at TrueMain.Ingestor.ChampionPatternAggregation...",
+      "innerExceptions": [
+        { "type": "System.InvalidOperationException", "message": "Sequence contains no elements", "stackTrace": "at ..." }
+      ],
+      "host": "ingestor-1",
+      "osDescription": "Linux 6.1.0 x64",
+      "uptimeSeconds": 3600.5,
+      "runtimeVersion": "10.0.9",
+      "appVersion": "1.6.0",
+      "workingSetBytes": 6100000000,
+      "totalManagedMemoryBytes": 5800000000,
+      "gen0Collections": 1200,
+      "gen1Collections": 300,
+      "gen2Collections": 40,
+      "exitCode": null,
+      "recentLogTail": [
+        { "timestampUtc": "2026-06-26T10:01:20Z", "level": "Warning", "category": "TrueMain.Ingestor.PatternAgg", "message": "Heap pressure high", "exception": null }
+      ]
+    }
+  ],
+  "total": 12,
+  "page": 1,
+  "pageSize": 50,
+  "sources": ["AppDomainUnhandled", "TaskSchedulerUnobserved", "HostRun", "UncleanShutdown"],
+  "processes": ["Api", "Ingestor"]
+}
+```
+
+Pour un `UncleanShutdown`, les champs d'exception sont `null` et les champs mémoire
+portent le dernier snapshot connu du run mort (le signal OOM).
 
 ## `GET /ops/riot-usage`
 
@@ -1011,6 +1151,6 @@ ingérés + requête de seed liée (si origine manuelle).
 | Groupe     | Endpoints | Auth        |
 |------------|-----------|-------------|
 | Champions  | 9         | Public      |
-| Truemains  | 7         | Public      |
+| Truemains  | 8         | Public      |
 | Ops        | 17        | `X-Ops-Key` |
 | Infra      | 4         | —           |

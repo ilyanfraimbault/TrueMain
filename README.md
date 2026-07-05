@@ -132,7 +132,7 @@ Toutes les valeurs nécessaires sont listées dans `.env.example` (dev/prod) et 
 
 Le diagramme d'architecture est dans [`docs/diagrams/architecture.drawio`](docs/diagrams/architecture.drawio) — à ouvrir avec [draw.io](https://app.diagrams.net/) ou l'extension VS Code.
 
-La référence des endpoints HTTP (paramètres + formes de réponse) est dans [`docs/api.md`](docs/api.md). En dev, l'UI Scalar est aussi servie sur [http://localhost:8080/scalar/v1](http://localhost:8080/scalar/v1).
+La référence des endpoints HTTP (paramètres + formes de réponse) est dans [`docs/api.md`](docs/api.md). En dev, l'UI Scalar est aussi servie sur `http://localhost:8080/scalar/v1`.
 
 Les RFCs détaillant les phases majeures :
 
