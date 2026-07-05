@@ -107,16 +107,17 @@ internal static class JungleClearBuilder
             // No new camp credit unless jungle CS actually advanced since the last
             // frame — disambiguates standing near a camp (recall, pathing through)
             // from clearing it, and skips minutes where the jungler ganked instead.
+            // The first observed frame only primes the baseline (advanced is false
+            // while previousJungleCs is null): crediting the opening camp relies on the
+            // timeline starting with a pre-clear frame. Riot always emits a t=0 frame
+            // (jungle CS 0) before the first camp, so the opening camp is not lost.
             var jungleCs = participantFrame.JungleMinionsKilled;
             var advanced = previousJungleCs is { } previous && jungleCs > previous;
-            previousJungleCs ??= jungleCs;
+            previousJungleCs = jungleCs;
             if (!advanced)
             {
-                previousJungleCs = jungleCs;
                 continue;
             }
-
-            previousJungleCs = jungleCs;
 
             // Dedup against every camp already credited to this clear, not just the
             // immediately previous one: adjacent camps sit as little as ~1200 units
