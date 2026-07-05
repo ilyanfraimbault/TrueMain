@@ -436,14 +436,31 @@ function makeBuild(s: ChampionSeed, variant: 0 | 1, totalGames: number): Champio
   }
 }
 
-// Share of all-rank games each elo band holds, so the mock's `eloCoverage` and
-// small-sample warning behave like the backend: high brackets are a thin slice
-// (issue #526). `ALL` (and any unrecognised value) is the full, unscoped pool.
-const ELO_BRACKET_COVERAGE: Record<string, number> = {
-  IRON_GOLD: 0.55,
-  PLATINUM_EMERALD: 0.28,
-  DIAMOND_PLUS: 0.12,
-  MASTER_PLUS: 0.05,
+// Share of all-rank games each tier holds, ascending — mirrors the backend
+// EloBracket ladder for the dev mock (issue #526). A bare tier reads its own
+// share; a `<TIER>_PLUS` filter sums that tier and every tier above it; `ALL`
+// (or any unrecognised value) is the full pool. Weights sum to 1.
+const ELO_TIER_WEIGHTS: Array<{ tier: string, weight: number }> = [
+  { tier: 'IRON', weight: 0.04 },
+  { tier: 'BRONZE', weight: 0.13 },
+  { tier: 'SILVER', weight: 0.20 },
+  { tier: 'GOLD', weight: 0.20 },
+  { tier: 'PLATINUM', weight: 0.17 },
+  { tier: 'EMERALD', weight: 0.14 },
+  { tier: 'DIAMOND', weight: 0.09 },
+  { tier: 'MASTER', weight: 0.03 },
+]
+
+function resolveEloSlice(filter: string | undefined): { bracket: string, fraction: number } {
+  if (!filter || filter.toUpperCase() === 'ALL') return { bracket: 'ALL', fraction: 1 }
+  const upper = filter.toUpperCase()
+  const andAbove = upper.endsWith('_PLUS')
+  const tier = andAbove ? upper.slice(0, -'_PLUS'.length) : upper
+  const index = ELO_TIER_WEIGHTS.findIndex(entry => entry.tier === tier)
+  if (index < 0) return { bracket: 'ALL', fraction: 1 }
+  const included = andAbove ? ELO_TIER_WEIGHTS.slice(index) : [ELO_TIER_WEIGHTS[index]!]
+  const fraction = included.reduce((sum, entry) => sum + entry.weight, 0)
+  return { bracket: andAbove ? `${tier}_PLUS` : tier, fraction }
 }
 
 async function mockChampionDetail(
@@ -460,18 +477,15 @@ async function mockChampionDetail(
   const rng = mulberry32(s.id * 31 + s.position.length)
   const allGames = Math.max(120, Math.round(s.pr * POOL_GAMES * (0.9 + rng() * 0.2)))
 
-  // Scope the slice to the requested band: ALL keeps the full pool (coverage 1),
-  // a specific band takes its share and flags a small sample below the floor.
-  const coverage = eloBracket ? ELO_BRACKET_COVERAGE[eloBracket] ?? 1 : 1
-  const resolvedBracket = coverage === 1 ? 'ALL' : eloBracket!
-  const totalGames = Math.round(allGames * coverage)
+  // Scope the slice to the requested tier(s): ALL keeps the full pool, a tier
+  // (or tier-and-above) takes its share so the emblem strip visibly changes.
+  const { bracket, fraction } = resolveEloSlice(eloBracket)
+  const totalGames = Math.round(allGames * fraction)
   return {
     championId: s.id,
     patch,
     position: s.position,
-    eloBracket: resolvedBracket,
-    eloCoverage: coverage,
-    minSampleMet: totalGames >= 20,
+    eloBracket: bracket,
     totalGames,
     totalWins: Math.round(totalGames * s.wr),
     builds: [makeBuild(s, 0, totalGames), makeBuild(s, 1, totalGames)],

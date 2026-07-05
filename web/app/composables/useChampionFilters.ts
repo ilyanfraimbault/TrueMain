@@ -1,5 +1,5 @@
 import type { ChampionPosition } from '~/utils/positions'
-import { isEloBracket, type EloBracket } from '~/utils/elo-brackets'
+import { isEloBracket, ELO_BRACKET_ALL } from '~/utils/elo-brackets'
 
 function getQuery(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? '' : value ?? ''
@@ -14,7 +14,7 @@ export function useChampionFilters() {
     // the server default, so omitting it keeps the query — and the data cache
     // key — identical to an unfiltered request.
     const rawBracket = getQuery(route.query.elo as string | string[] | undefined)
-    const eloBracket = isEloBracket(rawBracket) && rawBracket !== 'ALL' ? rawBracket : undefined
+    const eloBracket = isEloBracket(rawBracket) && rawBracket !== ELO_BRACKET_ALL ? rawBracket : undefined
 
     return {
       patch: getQuery(route.query.patch as string | string[] | undefined) || undefined,
@@ -33,7 +33,7 @@ export function useChampionFilters() {
   async function setFilter(updates: {
     patch?: string | null
     position?: ChampionPosition | null
-    eloBracket?: EloBracket | null
+    eloBracket?: string | null
   }) {
     const nextQuery: Record<string, string> = {}
     for (const [key, value] of Object.entries(route.query)) {
@@ -50,7 +50,7 @@ export function useChampionFilters() {
     }
     if (updates.eloBracket !== undefined) {
       // `ALL` is the default, so clear the param rather than pin it.
-      if (updates.eloBracket && updates.eloBracket !== 'ALL') nextQuery.elo = updates.eloBracket
+      if (updates.eloBracket && updates.eloBracket !== ELO_BRACKET_ALL) nextQuery.elo = updates.eloBracket
       else delete nextQuery.elo
     }
 
