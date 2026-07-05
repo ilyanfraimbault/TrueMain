@@ -677,6 +677,13 @@ function buildPlayers(): MockPlayer[] {
             firstItemId: ARCHETYPES[m.archetype].items[0]!,
           }
         }),
+        // Primary is the top main's lane; secondary is the first differing lane
+        // among the other mains (null when every main shares one lane), matching
+        // the backend's primary/secondary derivation from position share.
+        positions: {
+          primary: mains[0]!.position,
+          secondary: mains.slice(1).map(m => m.position).find(p => p !== mains[0]!.position) ?? null,
+        },
       },
     })
   }

@@ -30,6 +30,15 @@ export interface LeaderboardRowResponse {
   stats: LeaderboardStats
   /** Up to 3 most-played champions, descending by play rate. Empty when no main-champion analysis has run. */
   topChampions: LeaderboardTopChampion[]
+  /** Primary + secondary lane from position share across the player's mains. Null when no main-champion analysis has run. */
+  positions: LeaderboardPositions | null
+}
+
+export interface LeaderboardPositions {
+  /** Highest-share lane, Riot uppercase (TOP/JUNGLE/MIDDLE/BOTTOM/UTILITY). */
+  primary: string
+  /** Next lane when its share is meaningful (≥ the share floor, below the primary), otherwise null. */
+  secondary: string | null
 }
 
 export interface LeaderboardRanked {
