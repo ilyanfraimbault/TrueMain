@@ -6,6 +6,7 @@ using Data;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -14,9 +15,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Data.Migrations
 {
     [DbContext(typeof(TrueMainDbContext))]
-    partial class TrueMainDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260705184615_AddChampionAggregateScopeEloBracket")]
+    partial class AddChampionAggregateScopeEloBracket
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -404,35 +407,6 @@ namespace Data.Migrations
                     b.HasKey("PlatformId");
 
                     b.ToTable("discovery_cursors", (string)null);
-                });
-
-            modelBuilder.Entity("Data.Entities.JungleFirstClear", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<int?>("FullClearTimeMs")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("MatchId")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<int>("ParticipantId")
-                        .HasColumnType("integer");
-
-                    b.Property<List<JungleClearStep>>("Steps")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MatchId", "ParticipantId")
-                        .IsUnique();
-
-                    b.ToTable("jungle_first_clears", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.MainCandidate", b =>
@@ -1256,15 +1230,6 @@ namespace Data.Migrations
                         .IsRequired();
 
                     b.Navigation("RiotAccount");
-                });
-
-            modelBuilder.Entity("Data.Entities.JungleFirstClear", b =>
-                {
-                    b.HasOne("Data.Entities.Match", null)
-                        .WithMany()
-                        .HasForeignKey("MatchId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("Data.Entities.MatchParticipant", b =>

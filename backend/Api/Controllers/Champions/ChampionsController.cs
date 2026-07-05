@@ -75,16 +75,19 @@ public sealed class ChampionsController(
         int championId,
         [FromQuery] string? patch,
         [FromQuery] string? position,
+        [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
         var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+        var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
 
         var response = await buildsQueryService.GetAsync(
             championId,
             normalizedPatch,
             normalizedPosition,
-            ct);
+            ct,
+            eloBracket: normalizedBracket);
 
         return response is null ? NotFound() : Ok(response);
     }

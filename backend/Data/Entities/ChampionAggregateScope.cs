@@ -2,7 +2,7 @@ namespace Data.Entities;
 
 /// <summary>
 /// Master row of the aggregate schema: one row per
-/// (riot_account_id, champion_id, game_version, platform_id, queue_id, position)
+/// (riot_account_id, champion_id, game_version, platform_id, queue_id, position, elo_bracket)
 /// slice, carrying the scope-level totals (Games / Wins / aggregated-at).
 /// Per-combo counts live on <see cref="ChampionAggregatePattern"/> with
 /// FKs to the deduplicated <c>ChampionDim*</c> tables — the scope itself
@@ -20,6 +20,15 @@ public class ChampionAggregateScope
     public string PlatformId { get; set; } = string.Empty;
     public int QueueId { get; set; }
     public string Position { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Elo bucket of the contributing games, derived from the player's ranked
+    /// tier at game time — the nearest <c>rank_snapshots</c> capture to each
+    /// game's start (see <c>Core.Lol.Ranking.EloBracket</c>). One scope row per
+    /// persisted bracket; the synthetic <c>ALL</c> bracket is the read-time
+    /// union of these rows and is never stored.
+    /// </summary>
+    public string EloBracket { get; set; } = string.Empty;
 
     public int Games { get; set; }
     public int Wins { get; set; }

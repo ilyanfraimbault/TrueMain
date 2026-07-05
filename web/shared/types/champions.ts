@@ -55,6 +55,12 @@ export interface ChampionResponse {
   championId: number
   patch: string
   position: string
+  /**
+   * Elo filter this slice was computed for: `ALL`, a bare tier (e.g. `GOLD` —
+   * that tier only) or a `<TIER>_PLUS` form (e.g. `GOLD_PLUS` — that tier and
+   * above). `ALL` by default.
+   */
+  eloBracket: string
   totalGames: number
   totalWins: number
   builds: ChampionBuild[]

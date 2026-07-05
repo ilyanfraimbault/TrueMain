@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { ChampionPosition } from '~/utils/positions'
 
+// Position + patch pickers for the champion page. The elo-rank filter lives
+// in its own emblem strip (ChampionEloFilter) so it isn't offered here.
 defineProps<{
   selectedPatch: string
   selectedPosition: ChampionPosition | null

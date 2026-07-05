@@ -437,7 +437,38 @@ function makeBuild(s: ChampionSeed, variant: 0 | 1, totalGames: number): Champio
   }
 }
 
-async function mockChampionDetail(id: number, position: string | undefined): Promise<ChampionResponse | null> {
+// Share of all-rank games each tier holds, ascending — mirrors the backend
+// EloBracket ladder for the dev mock (issue #526). A bare tier reads its own
+// share; a `<TIER>_PLUS` filter sums that tier and every tier above it; `ALL`
+// (or any unrecognised value) is the full pool. Weights sum to 1.
+const ELO_TIER_WEIGHTS: Array<{ tier: string, weight: number }> = [
+  { tier: 'IRON', weight: 0.04 },
+  { tier: 'BRONZE', weight: 0.13 },
+  { tier: 'SILVER', weight: 0.20 },
+  { tier: 'GOLD', weight: 0.20 },
+  { tier: 'PLATINUM', weight: 0.17 },
+  { tier: 'EMERALD', weight: 0.14 },
+  { tier: 'DIAMOND', weight: 0.09 },
+  { tier: 'MASTER', weight: 0.03 },
+]
+
+function resolveEloSlice(filter: string | undefined): { bracket: string, fraction: number } {
+  if (!filter || filter.toUpperCase() === 'ALL') return { bracket: 'ALL', fraction: 1 }
+  const upper = filter.toUpperCase()
+  const andAbove = upper.endsWith('_PLUS')
+  const tier = andAbove ? upper.slice(0, -'_PLUS'.length) : upper
+  const index = ELO_TIER_WEIGHTS.findIndex(entry => entry.tier === tier)
+  if (index < 0) return { bracket: 'ALL', fraction: 1 }
+  const included = andAbove ? ELO_TIER_WEIGHTS.slice(index) : [ELO_TIER_WEIGHTS[index]!]
+  const fraction = included.reduce((sum, entry) => sum + entry.weight, 0)
+  return { bracket: andAbove ? `${tier}_PLUS` : tier, fraction }
+}
+
+async function mockChampionDetail(
+  id: number,
+  position: string | undefined,
+  eloBracket: string | undefined,
+): Promise<ChampionResponse | null> {
   const s = seedsById.get(id)
   if (!s) return null
   // Mirror the backend: a filtered slice for a lane the champion doesn't play
@@ -445,11 +476,17 @@ async function mockChampionDetail(id: number, position: string | undefined): Pro
   if (position && position !== s.position) return null
   const patch = await latestShortPatch()
   const rng = mulberry32(s.id * 31 + s.position.length)
-  const totalGames = Math.max(120, Math.round(s.pr * POOL_GAMES * (0.9 + rng() * 0.2)))
+  const allGames = Math.max(120, Math.round(s.pr * POOL_GAMES * (0.9 + rng() * 0.2)))
+
+  // Scope the slice to the requested tier(s): ALL keeps the full pool, a tier
+  // (or tier-and-above) takes its share so the emblem strip visibly changes.
+  const { bracket, fraction } = resolveEloSlice(eloBracket)
+  const totalGames = Math.round(allGames * fraction)
   return {
     championId: s.id,
     patch,
     position: s.position,
+    eloBracket: bracket,
     totalGames,
     totalWins: Math.round(totalGames * s.wr),
     builds: [makeBuild(s, 0, totalGames), makeBuild(s, 1, totalGames)],
@@ -951,8 +988,9 @@ export async function resolveDevApiMock(
     const id = Number(championMatch[1])
     const sub = championMatch[2]
     const position = typeof query.position === 'string' && query.position ? query.position : undefined
+    const eloBracket = typeof query.eloBracket === 'string' && query.eloBracket ? query.eloBracket : undefined
     const payload = await (
-      sub === undefined ? mockChampionDetail(id, position)
+      sub === undefined ? mockChampionDetail(id, position, eloBracket)
       : sub === 'trend' ? mockTrend(id)
       : sub === 'timeline-leads' ? mockTimelineLeads(id)
       : sub === 'scaling' ? mockScaling(id)
@@ -985,7 +1023,7 @@ export async function resolveDevApiMock(
   const playerChampionMatch = path.match(/^\/truemains\/[^/]+\/champions\/(\d+)(?:\/matchups)?$/)
   if (playerChampionMatch) {
     const id = Number(playerChampionMatch[1])
-    const payload = path.endsWith('/matchups') ? await mockMatchups(id) : await mockChampionDetail(id, undefined)
+    const payload = path.endsWith('/matchups') ? await mockMatchups(id) : await mockChampionDetail(id, undefined, undefined)
     if (payload === null) throw createError({ statusCode: 404, statusMessage: 'No data (dev mock)' })
     return payload
   }

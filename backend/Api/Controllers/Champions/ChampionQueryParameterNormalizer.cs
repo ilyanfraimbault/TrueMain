@@ -1,6 +1,7 @@
 using Core.Lol.Identifiers;
 using Core.Lol.Map;
 using Core.Lol.Patches;
+using Core.Lol.Ranking;
 
 namespace TrueMain.Controllers.Champions;
 
@@ -48,4 +49,13 @@ internal static class ChampionQueryParameterNormalizer
     /// </summary>
     public static string? NormalizePosition(string? raw)
         => LolPositionExtensions.Parse(raw).ToRiotString();
+
+    /// <summary>
+    /// Normalises an elo-bracket filter to a canonical
+    /// <see cref="EloBracket"/> constant. Returns <c>null</c> for null /
+    /// whitespace / unrecognised input, which the service treats as the
+    /// <c>ALL</c> (every-bracket) default.
+    /// </summary>
+    public static string? NormalizeEloBracket(string? raw)
+        => EloBracket.Normalize(raw);
 }

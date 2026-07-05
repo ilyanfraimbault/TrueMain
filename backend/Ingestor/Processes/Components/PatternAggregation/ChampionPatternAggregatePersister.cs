@@ -16,7 +16,7 @@ public sealed class ChampionPatternAggregatePersister(
     {
         // Guard against a drift between the builder's GroupBy key and the
         // scope unique index: if we get here with two scopes sharing the
-        // (account, champion, patch, platform, queue, position) key the
+        // (account, champion, patch, platform, queue, position, bracket) key the
         // insert would explode with a Postgres 23505. Dedup defensively.
         var dedupedScopes = scopes
             .GroupBy(scope => (
@@ -25,7 +25,8 @@ public sealed class ChampionPatternAggregatePersister(
                 scope.GameVersion,
                 scope.PlatformId,
                 scope.QueueId,
-                scope.Position))
+                scope.Position,
+                scope.EloBracket))
             .Select(group => group.OrderByDescending(scope => scope.Games).First())
             .ToList();
         var keptScopeIds = dedupedScopes.Select(scope => scope.Id).ToHashSet();

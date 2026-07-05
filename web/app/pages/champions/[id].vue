@@ -5,6 +5,7 @@ import type {
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
 import { isChampionPosition, type ChampionPosition } from '~/utils/positions'
+import { ELO_BRACKET_ALL, eloBracketLabel, normalizeEloBracket } from '~/utils/elo-brackets'
 import { describeFetchError } from '~/utils/errors'
 
 const route = useRoute()
@@ -151,6 +152,22 @@ const selectedPosition = computed<ChampionPosition | null>(() => {
   const value = champion.value?.position || filters.value.position || ''
   return isChampionPosition(value) ? value : null
 })
+// Elo filter (issue #526). Bind to the API-returned filter once available so
+// the emblem strip reflects what's actually shown; fall back to the URL filter
+// for the optimistic render before the fetch resolves. The rank is never dropped
+// by the 404 fallback (it only drops patch/position), so the response always
+// echoes the requested rank.
+const selectedEloBracket = computed<string>(() =>
+  normalizeEloBracket(champion.value?.eloBracket || filters.value.eloBracket),
+)
+
+// A rank filter with no data: the fetch 404'd on a specific rank (the champion
+// may well have builds in other ranks). Distinct from the champion-level "no
+// data at all" state below — here we keep the emblem strip so the user can pick
+// another rank instead of hitting a dead end.
+const noDataForRank = computed(() =>
+  notEnoughData.value && selectedEloBracket.value !== ELO_BRACKET_ALL,
+)
 
 // Average per-interval lead vs the lane opponent (issue #525). Follows the
 // resolved lane like the trend chart, but is patch-scoped: the active patch
@@ -291,11 +308,56 @@ const isRefetching = computed(() =>
     />
 
     <!--
+      No-data-for-this-rank state: the picked rank has no games (the champion may
+      well have builds in other ranks). We keep the emblem strip visible so the
+      user can switch rank — a dead end otherwise — rather than silently showing
+      all-ranks data under the selected rank.
+    -->
+    <div
+      v-else-if="noDataForRank"
+      class="space-y-6"
+    >
+      <header class="flex flex-wrap items-center gap-3">
+        <SkeletonImage
+          v-if="displayIconUrl"
+          :src="displayIconUrl"
+          :alt="displayName ?? ''"
+          width="48"
+          height="48"
+          class="size-12 rounded"
+        />
+        <h1 class="text-lg font-semibold text-default">
+          {{ displayName ?? `Champion ${championId}` }}
+        </h1>
+      </header>
+
+      <ChampionEloFilter
+        :model-value="selectedEloBracket"
+        @update:model-value="value => setFilter({ eloBracket: value })"
+      />
+
+      <div class="flex flex-col items-center gap-1 glass rounded-lg px-6 py-12 text-center">
+        <p class="text-sm font-medium text-default">
+          No {{ displayName ?? 'champion' }} games in {{ eloBracketLabel(selectedEloBracket) }} yet
+        </p>
+        <p class="text-sm text-muted">
+          Pick another rank above, or
+          <button
+            type="button"
+            class="rounded text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            @click="setFilter({ eloBracket: null })"
+          >
+            see all ranks</button>.
+        </p>
+      </div>
+    </div>
+
+    <!--
       No-data empty state: the API returned 404 for this champion (and, if a
-      patch/position was pinned, the unfiltered fallback 404'd too) — we simply
-      don't hold any aggregate for them yet (a brand-new champion, or one nobody
-      in the dataset has played). This is deliberately distinct from the error
-      alert above: a 404 is "no data", not a transient failure to retry.
+      patch/position was pinned, the fallback 404'd too) — we simply don't hold
+      any aggregate for them yet (a brand-new champion, or one nobody in the
+      dataset has played). This is deliberately distinct from the error alert
+      above: a 404 is "no data", not a transient failure to retry.
     -->
     <!--
       Deliberately gated on `notEnoughData` alone, NOT `!isRefetching`: this
@@ -346,6 +408,11 @@ const isRefetching = computed(() =>
           @update:position="value => setFilter({ position: value })"
         />
       </header>
+
+      <ChampionEloFilter
+        :model-value="selectedEloBracket"
+        @update:model-value="value => setFilter({ eloBracket: value })"
+      />
 
       <ChampionBuildTabs
         :builds="champion.builds"
