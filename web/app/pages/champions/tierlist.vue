@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { ChampionTierListResponse } from '~~/shared/types/champions'
-import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { POSITION_OPTIONS, isChampionPosition, type ChampionPosition } from '~/utils/positions'
 
 // Whole-percent format, same terse style as the /champions directory rows.
@@ -14,8 +13,6 @@ useSeoMeta({
 })
 
 const { filters, setFilter } = useChampionFilters()
-
-const nuxtApp = useNuxtApp()
 
 // null = "All positions" — same RolePicker contract as the /champions filter.
 const selectedPosition = computed<ChampionPosition | null>(() => {
@@ -45,21 +42,13 @@ const {
   },
 )
 
-// Static champion list (names + icons) — reused from the shared static cache so
-// navigating between /champions and the tier list pays the fetch once.
+// Static champion list (names + icons) — shared composable so navigating between
+// /champions and the tier list pays the fetch once (same key + options).
 const {
   data: staticList,
   error: staticError,
   status: staticStatus,
-} = useLazyAsyncData<ChampionStaticListItem[]>(
-  'champion-static-list',
-  async () => {
-    const data = await $fetch<ChampionStaticListItem[]>('/api/static/champions')
-    markStaticFetched('champion-static-list', nuxtApp)
-    return data
-  },
-  { getCachedData: key => getStaticCachedData(key, nuxtApp), server: false },
-)
+} = useChampionStaticList()
 const { data: versions } = useDDragonVersions()
 
 const apiPatch = computed(() => tierList.value?.patchVersion ?? '')
