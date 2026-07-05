@@ -199,9 +199,12 @@ const { data: championRoam, status: roamStatus } = useChampionRoam(
 // recent patches with data; gated on the champion fetch like the other stats.
 const patchDiffFrom = ref<string | null>(null)
 const patchDiffTo = ref<string | null>(null)
-// Reset the manual selection when the lane changes so a patch that has no data
-// on the new lane can't linger in the pickers — the backend re-defaults.
-watch(trendPosition, () => {
+// Reset the manual selection when the champion or lane changes so a patch that
+// has no data on the new champion/lane can't linger in the pickers — the backend
+// re-defaults. Watching championId too matters when navigating between champions
+// that share a dominant lane (e.g. two ADCs on BOTTOM): trendPosition stays put,
+// so without it the previous champion's picked patches would silently carry over.
+watch([championId, trendPosition], () => {
   patchDiffFrom.value = null
   patchDiffTo.value = null
 })
