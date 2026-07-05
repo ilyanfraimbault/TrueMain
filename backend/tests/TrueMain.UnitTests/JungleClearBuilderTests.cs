@@ -106,6 +106,35 @@ public sealed class JungleClearBuilderTests
     }
 
     [Fact]
+    public void Build_DoesNotDuplicateStep_WhenPositionNoiseMapsBackToAnEarlierCamp()
+    {
+        // After Gromp/Blue/Wolves the jungler kills another camp (CS advances) but the
+        // minute frame's position noise maps back onto Blue (already cleared, and not
+        // the immediately previous camp). It must not be re-recorded as a duplicate.
+        var frames = new List<MatchTimelineFrameDto>
+        {
+            Frame(0, JunglerAt(1, JungleCamp.BlueGromp, jungleCs: 0)),
+            Frame(60_000, JunglerAt(1, JungleCamp.BlueGromp, jungleCs: 1)),
+            Frame(120_000, JunglerAt(1, JungleCamp.BlueBlueBuff, jungleCs: 2)),
+            Frame(180_000, JunglerAt(1, JungleCamp.BlueWolves, jungleCs: 3)),
+            // CS advanced (a camp was taken) but the sampled position is back on Blue.
+            Frame(240_000, JunglerAt(1, JungleCamp.BlueBlueBuff, jungleCs: 4)),
+            Frame(300_000, JunglerAt(1, JungleCamp.BlueRaptors, jungleCs: 5))
+        };
+
+        var clears = JungleClearBuilder.Build(MatchId, new MatchTimelineDto { Frames = frames });
+
+        clears.Should().HaveCount(1);
+        clears[0].Steps.Select(s => s.Camp)
+            .Should().Equal(
+                JungleCamp.BlueGromp.ToString(),
+                JungleCamp.BlueBlueBuff.ToString(),
+                JungleCamp.BlueWolves.ToString(),
+                JungleCamp.BlueRaptors.ToString());
+        clears[0].FullClearTimeMs.Should().BeNull();
+    }
+
+    [Fact]
     public void Build_StopsAtFullClear_IgnoringLaterCamps()
     {
         var frames = new List<MatchTimelineFrameDto> { Frame(0, JunglerAt(1, JungleCamp.BlueGromp, jungleCs: 0)) };

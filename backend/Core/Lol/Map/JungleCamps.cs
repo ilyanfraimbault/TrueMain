@@ -12,17 +12,19 @@ namespace Core.Lol.Map;
 ///
 /// The nearest-camp mapping is the standard accepted method for reconstructing a
 /// jungler's first clear from per-minute position frames (Doran's Lab / League of
-/// Graphs): camps are far enough apart (~2000+ units) that the nearest centroid
-/// to a sampled position reliably identifies the camp the jungler is on, for the
-/// first clear where movement is ~1 camp/min.
+/// Graphs): a sampled position is assigned to its <b>closest</b> centroid, which
+/// reliably identifies the camp the jungler is on during the first clear (movement
+/// ~1 camp/min). Adjacent camps are only ~1200–1900 units apart, so the mapping
+/// relies on closest-centroid-wins rather than on wide gaps between camps.
 /// </summary>
 public static class JungleCamps
 {
     /// <summary>
     /// A jungler standing further than this (units) from every camp centroid is
-    /// considered to be between camps / recalling / ganking — not on any camp.
-    /// Camp centroids are ~2000+ units apart, so a generous radius still maps a
-    /// nearby sampled position to the right camp without bleeding into a neighbour.
+    /// considered to be between camps / recalling / ganking — not on any camp. This
+    /// only gates on-a-camp vs. off-any-camp; which camp is chosen is always the
+    /// closest centroid, so the radius being wider than the ~1200-unit gap between
+    /// adjacent camps does not cause mis-assignment (closest still wins).
     /// </summary>
     public const double MaxAssignmentDistance = 2200.0;
 

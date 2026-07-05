@@ -90,7 +90,6 @@ internal static class JungleClearBuilder
     private static JungleFirstClear BuildClear(string matchId, int participantId, List<MatchTimelineFrameDto> frames)
     {
         var steps = new List<JungleClearStep>();
-        JungleCamp lastRecordedCamp = JungleCamp.Unknown;
         var previousJungleCs = (int?)null;
         int? fullClearTimeMs = null;
         IReadOnlyList<JungleCamp>? clearSet = null;
@@ -119,8 +118,13 @@ internal static class JungleClearBuilder
 
             previousJungleCs = jungleCs;
 
+            // Dedup against every camp already credited to this clear, not just the
+            // immediately previous one: adjacent camps sit as little as ~1200 units
+            // apart (inside the assignment radius), so a later frame's position noise
+            // can map back onto an already-cleared, non-consecutive camp. Recording it
+            // again would insert a duplicate step and corrupt the persisted sequence.
             var camp = JungleCamps.NearestCamp(x, y);
-            if (camp == JungleCamp.Unknown || camp == lastRecordedCamp || !JungleCamps.IsFirstClearCamp(camp))
+            if (camp == JungleCamp.Unknown || clearedFirstClearCamps.Contains(camp) || !JungleCamps.IsFirstClearCamp(camp))
             {
                 continue;
             }
@@ -137,7 +141,6 @@ internal static class JungleClearBuilder
             }
 
             steps.Add(new JungleClearStep { Camp = camp.ToString(), TimestampMs = frame.TimestampMs });
-            lastRecordedCamp = camp;
             clearedFirstClearCamps.Add(camp);
 
             if (fullClearTimeMs is null && clearedFirstClearCamps.Count == clearSet.Count)
