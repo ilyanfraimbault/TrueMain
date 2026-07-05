@@ -11,6 +11,7 @@ namespace TrueMain.Controllers.Truemains;
 [Route("truemains")]
 public sealed class TruemainsController(
     IMatchSummariesQueryService matchSummariesQueryService,
+    IMatchDetailQueryService matchDetailQueryService,
     IProfileQueryService profileQueryService,
     IPlayerChampionBuildsQueryService playerChampionBuildsQueryService,
     IPlayerChampionMatchupQueryService playerChampionMatchupQueryService,
@@ -197,6 +198,27 @@ public sealed class TruemainsController(
             championId,
             ct);
 
+        return response is null ? NotFound() : Ok(response);
+    }
+
+    /// <summary>
+    /// Full detail payload for a single match the player took part in: all 10
+    /// participants with their build order, skill order, rune page and the
+    /// timeline-derived laning stats. <paramref name="nameTag"/> scopes the
+    /// route (the account must have played the match) but the response covers
+    /// every participant. 404 when the name tag is malformed, the account is
+    /// unknown, or the match id is not one this account played in.
+    /// </summary>
+    [HttpGet("{nameTag}/matches/{matchId}")]
+    [ProducesResponseType(typeof(MatchDetailReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<MatchDetailReadModel>> GetMatchDetailAsync(
+        string nameTag,
+        string matchId,
+        CancellationToken ct = default)
+    {
+        var response = await matchDetailQueryService.GetAsync(nameTag, matchId, ct);
         return response is null ? NotFound() : Ok(response);
     }
 }
