@@ -342,6 +342,63 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
     }
 
     [Fact]
+    public async Task List_derives_positions_from_only_the_top_mains_like_the_profile()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        // MainStatsCalculator can flag more than the profile's 6-main cap as
+        // IsMain when a player's coverage is thin (CriticalPlayRateThreshold can
+        // drop to 0.1). ProfileQueryService derives the profile's lanes from only
+        // the top-6 mains (#205), so the leaderboard must aggregate over the same
+        // slice — otherwise the two views disagree for the same player.
+        //
+        // CappedPlayer has 7 mains: six MIDDLE mains that fill the entire top-6
+        // window by play rate, plus a seventh TOP main that sits *below* the cut
+        // (lowest play rate) yet carries far more games. Counting the seventh
+        // would flip the primary lane to TOP; capping to the top-6 keeps MIDDLE.
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var capped = Account("capped", "CappedPlayer", "EUW1");
+            db.RiotAccounts.Add(capped);
+            db.RankSnapshots.Add(Snapshot(capped, "DIAMOND", "I", 90, now));
+
+            // Six MIDDLE mains, all above the TOP main by play rate → they fill
+            // the top-6 window. 10 MIDDLE games each = 60 MIDDLE games.
+            var playRates = new[] { 0.9d, 0.8d, 0.7d, 0.6d, 0.5d, 0.45d };
+            for (var i = 0; i < playRates.Length; i++)
+            {
+                db.MainChampionStats.Add(MainStatWithBreakdown(
+                    "capped", "EUW1", championId: 100 + i, primaryPosition: "MIDDLE",
+                    breakdown: [new PositionStat { Position = "MIDDLE", Games = 10, Rate = 1d }],
+                    playRate: playRates[i]));
+            }
+
+            // Seventh main: lowest play rate (ranked 7th → excluded by the cap),
+            // but 100 TOP games. If the aggregation wrongly counted it, TOP (100)
+            // would outweigh MIDDLE (60) and become the primary lane.
+            db.MainChampionStats.Add(MainStatWithBreakdown(
+                "capped", "EUW1", championId: 200, primaryPosition: "TOP",
+                breakdown: [new PositionStat { Position = "TOP", Games = 100, Rate = 1d }],
+                playRate: 0.4d));
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        var leaderboard = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        var row = leaderboard!.Rows.Single(r => r.Identity.GameName == "CappedPlayer");
+
+        row.Positions.Should().NotBeNull();
+        row.Positions!.Primary.Should().Be("MIDDLE",
+            "lanes are aggregated over only the top-6 mains (all MIDDLE) — the excluded 7th main's TOP games must not count");
+        row.Positions!.Secondary.Should().BeNull(
+            "every main in the top-6 slice is MIDDLE, so there is no secondary lane");
+    }
+
+    [Fact]
     public async Task List_paginates_with_server_computed_rank()
     {
         await _fixture.ResetDatabaseAsync();
@@ -597,7 +654,8 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
         string platformId,
         int championId,
         string primaryPosition,
-        List<PositionStat> breakdown)
+        List<PositionStat> breakdown,
+        double playRate = 0.5d)
         => new()
         {
             Id = Guid.NewGuid(),
@@ -606,7 +664,9 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
             ChampionId = championId,
             TotalMatches = 100,
             ChampionMatches = breakdown.Sum(p => p.Games),
-            PlayRate = 0.5d,
+            // Overridable so a test can order a player's mains by play rate and
+            // exercise the top-mains cap the position aggregation applies.
+            PlayRate = playRate,
             IsMain = true,
             IsOtp = false,
             PrimaryPosition = primaryPosition,

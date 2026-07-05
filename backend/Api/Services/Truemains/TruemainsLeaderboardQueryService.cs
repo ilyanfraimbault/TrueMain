@@ -19,6 +19,15 @@ public sealed class TruemainsLeaderboardQueryService(
     private const int MaxPageSize = 50;
     private const int TopChampionsPerRow = 3;
 
+    // The profile derives a player's primary/secondary lane from only their
+    // N most-played mains (ProfileQueryService.FetchMainsAsync caps to the same
+    // number, #205). The leaderboard must aggregate over the same slice or a
+    // heavy-flex player's lanes diverge between the two views: MainStatsCalculator
+    // can flag more than this many champions IsMain when coverage is thin
+    // (CriticalPlayRateThreshold can drop to 0.1), so ">6 mains" is a real shape,
+    // not a corner case. Kept in lock-step with ProfileQueryService.MainChampionsCap.
+    private const int MainChampionsCap = 6;
+
     // The leaderboard is dominated by page-1 traffic with no filters, and the
     // four SQL queries that make a fresh response (Count + FetchPage +
     // FetchTopChampions + FetchStats) cost more than the response itself is
@@ -716,17 +725,30 @@ public sealed class TruemainsLeaderboardQueryService(
         // (same approach as the profile, #205) rather than the single
         // most-played PrimaryPosition. PositionBreakdown is JSONB on the row;
         // EF materialises it as List<PositionStat>, so the share aggregation runs
-        // in memory over the page slice (~25 players × few mains each).
+        // in memory over the page slice (~25 players × few mains each). PlayRate /
+        // ChampionMatches come along so we can cap each player to their top mains
+        // below, exactly as the profile does.
         var rows = await ctx.MainChampionStats
             .AsNoTracking()
             .Where(m => puuids.Contains(m.Puuid) && m.IsMain)
-            .Select(m => new { m.Puuid, m.PositionBreakdown })
+            .Select(m => new { m.Puuid, m.PlayRate, m.ChampionMatches, m.PositionBreakdown })
             .ToListAsync(ct);
 
         var result = new Dictionary<string, LeaderboardPositionsReadModel>(puuids.Length);
         foreach (var group in rows.GroupBy(r => r.Puuid))
         {
-            var positions = ComputePositions(group.SelectMany(r => r.PositionBreakdown));
+            // Mirror ProfileQueryService.FetchMainsAsync exactly: order by
+            // PlayRate desc, ChampionMatches desc and keep only the top mains
+            // before summing position shares. Without the cap a player flagged
+            // IsMain on more than MainChampionsCap champions would have lanes
+            // aggregated over champions the profile never counts, so the
+            // leaderboard and profile could show a different primary/secondary
+            // for the same player.
+            var topMains = group
+                .OrderByDescending(r => r.PlayRate)
+                .ThenByDescending(r => r.ChampionMatches)
+                .Take(MainChampionsCap);
+            var positions = ComputePositions(topMains.SelectMany(r => r.PositionBreakdown));
             if (positions is not null)
             {
                 result[group.Key] = positions;
