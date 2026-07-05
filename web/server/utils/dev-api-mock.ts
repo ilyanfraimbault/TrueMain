@@ -877,6 +877,21 @@ export function devApiMockEnabled(): boolean {
 }
 
 /**
+ * `decodeURIComponent` that returns `undefined` on a malformed `%` sequence
+ * (e.g. `foo%2`) instead of throwing a `URIError` — the caller treats that as
+ * an unknown segment (clean 404) rather than letting it bubble up as a generic
+ * Nitro 500.
+ */
+function safeDecodeURIComponent(value: string): string | undefined {
+  try {
+    return decodeURIComponent(value)
+  }
+  catch {
+    return undefined
+  }
+}
+
+/**
  * Resolve a mock payload for a backend API request, or `undefined` when the
  * path isn't one the mock serves (the caller then proxies as usual).
  *
@@ -916,7 +931,8 @@ export async function resolveDevApiMock(
 
   const playerMatch = path.match(/^\/truemains\/([^/]+)\/(profile|rank-history|matches)$/)
   if (playerMatch) {
-    const player = findPlayer(decodeURIComponent(playerMatch[1]!))
+    const name = safeDecodeURIComponent(playerMatch[1]!)
+    const player = name === undefined ? undefined : findPlayer(name)
     if (!player) throw createError({ statusCode: 404, statusMessage: 'Unknown truemain (dev mock)' })
     if (playerMatch[2] === 'profile') return mockProfile(player)
     if (playerMatch[2] === 'rank-history') return mockRankHistory(player)

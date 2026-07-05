@@ -1,11 +1,14 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { pageParams, resolveDevApiMock, tierFor } from '~~/server/utils/dev-api-mock'
 
-// `resolveDevApiMock` reaches `latestShortPatch`, which calls the auto-imported
-// global `$fetch` for the DDragon version list. Stub it so routing is exercised
-// deterministically without touching the network.
+// `resolveDevApiMock` reaches two auto-imported server globals: `$fetch`
+// (via latestShortPatch, for the DDragon version list) and `createError`
+// (thrown as the 404s). Stub both so routing is exercised deterministically
+// without the network, and so a thrown 404 carries an assertable statusCode.
 beforeAll(() => {
   vi.stubGlobal('$fetch', vi.fn(async () => ['15.13.1', '15.12.1']))
+  vi.stubGlobal('createError', (opts: { statusCode: number, statusMessage?: string }) =>
+    Object.assign(new Error(opts.statusMessage ?? 'error'), opts))
 })
 
 describe('tierFor', () => {
@@ -46,5 +49,25 @@ describe('resolveDevApiMock', () => {
     const res = await resolveDevApiMock('/champions', {})
     expect(Array.isArray(res)).toBe(true)
     expect((res as unknown[]).length).toBeGreaterThan(0)
+  })
+
+  it('resolves a known player route (Sheiden-1234)', async () => {
+    const res = await resolveDevApiMock('/truemains/Sheiden-1234/profile', {})
+    expect(res).toBeTruthy()
+    expect(res).toHaveProperty('identity')
+  })
+
+  it('404s on an unknown champion id', async () => {
+    await expect(resolveDevApiMock('/champions/999999', {})).rejects.toMatchObject({ statusCode: 404 })
+  })
+
+  it('404s on an unknown player', async () => {
+    await expect(resolveDevApiMock('/truemains/no-such-player-xyz/profile', {}))
+      .rejects.toMatchObject({ statusCode: 404 })
+  })
+
+  it('404s (not a URIError/500) on a malformed player segment', async () => {
+    await expect(resolveDevApiMock('/truemains/foo%2/profile', {}))
+      .rejects.toMatchObject({ statusCode: 404 })
   })
 })
