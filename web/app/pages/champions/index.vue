@@ -305,11 +305,10 @@ function staticItem(id: number | undefined) {
 
 <template>
   <main class="mx-auto max-w-6xl space-y-6 p-4 md:p-6">
-    <header class="space-y-3">
-      <h1 class="text-2xl font-semibold">
-        Champions
-      </h1>
-
+    <PageHeader
+      eyebrow="Tier list"
+      title="Champions"
+    >
       <div class="flex flex-wrap items-center justify-between gap-3">
         <RolePicker
           :position="selectedPosition"
@@ -332,7 +331,7 @@ function staticItem(id: number | undefined) {
           @update:model-value="onPatchChange"
         />
       </div>
-    </header>
+    </PageHeader>
 
     <!-- Wrap the data-dependent body in `<ClientOnly>` so the four lazy
          fetches (all `server: false`) never participate in the SSR render.
@@ -376,7 +375,7 @@ function staticItem(id: number | undefined) {
               role="button"
               tabindex="0"
               :aria-label="`View ${row.name} builds`"
-              class="glass-hover flex cursor-pointer items-center gap-4 rounded-md border border-default/60 bg-elevated/40 px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-default"
+              class="glass-hover flex cursor-pointer items-center gap-4 rounded-lg border border-default/60 bg-elevated/60 px-3 py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-default"
               @click="onRowActivate(row)"
               @keydown.enter.prevent="onRowActivate(row)"
               @keydown.space.prevent="onRowActivate(row)"

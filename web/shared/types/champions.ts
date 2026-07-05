@@ -122,18 +122,20 @@ export interface ChampionItemTiming {
 }
 
 /**
- * How much a champion roams at a position: the share of its early-game kill
- * participations that happened outside its own lane. `outOfLaneShare` is null
- * below the sample floor.
+ * How much a champion roams at a position: the average number of out-of-lane
+ * kill participations (kills + assists) per game at the 5/10/15-minute marks
+ * (cumulative). A roam is a participation in a different lane, the enemy jungle,
+ * or the enemy base. The `roamKp*` values are null below the sample floor and
+ * for JUNGLE (which has no own lane).
  */
 export interface ChampionRoamResponse {
   championId: number
   position: string
   patch: string | null
   games: number
-  killParticipations: number
-  outOfLaneParticipations: number
-  outOfLaneShare: number | null
+  roamKp5: number | null
+  roamKp10: number | null
+  roamKp15: number | null
 }
 
 /** One lane-matchup row: the champion's record against a single opponent. */

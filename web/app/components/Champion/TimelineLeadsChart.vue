@@ -40,7 +40,7 @@ const rows = computed<ChartRow[]>(() =>
 
 const hasData = computed(() => rows.value.length > 0)
 
-const PRIMARY = '#34d399' // emerald-400 (CHART_SERIES_PALETTE[0])
+const PRIMARY = defaultSeriesColor(0) // app primary (rosegold-400)
 const categories = computed(() => ({ value: { name: activeMetric.value.label, color: PRIMARY } }))
 
 const gradientStops = [
