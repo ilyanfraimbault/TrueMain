@@ -13,18 +13,12 @@ public sealed class EloBracketTests
     [InlineData("PLATINUM", EloBracket.Platinum)]
     [InlineData("EMERALD", EloBracket.Emerald)]
     [InlineData("DIAMOND", EloBracket.Diamond)]
+    [InlineData("MASTER", EloBracket.Master)]
+    [InlineData("GRANDMASTER", EloBracket.Grandmaster)]
+    [InlineData("CHALLENGER", EloBracket.Challenger)]
     public void FromTier_MapsEachRiotTierToItsOwnBucket(string tier, string expected)
     {
         EloBracket.FromTier(tier).Should().Be(expected);
-    }
-
-    [Theory]
-    [InlineData("MASTER")]
-    [InlineData("GRANDMASTER")]
-    [InlineData("CHALLENGER")]
-    public void FromTier_FoldsTheApexTiersIntoMaster(string tier)
-    {
-        EloBracket.FromTier(tier).Should().Be(EloBracket.Master);
     }
 
     [Theory]
@@ -83,14 +77,27 @@ public sealed class EloBracketTests
             EloBracket.Platinum,
             EloBracket.Emerald,
             EloBracket.Diamond,
-            EloBracket.Master);
+            EloBracket.Master,
+            EloBracket.Grandmaster,
+            EloBracket.Challenger);
     }
 
     [Fact]
-    public void ResolveFilter_MasterPlus_CollapsesToMasterAlone()
+    public void ResolveFilter_MasterPlus_UnionsTheApexTiers()
     {
-        // Master is the top of the ladder, so "and above" adds nothing.
-        EloBracket.ResolveFilter("MASTER_PLUS").Should().Equal(EloBracket.Master);
+        // Master / Grandmaster / Challenger are now distinct buckets, so
+        // "Master and above" spans all three.
+        EloBracket.ResolveFilter("MASTER_PLUS").Should().Equal(
+            EloBracket.Master,
+            EloBracket.Grandmaster,
+            EloBracket.Challenger);
+    }
+
+    [Fact]
+    public void ResolveFilter_ChallengerPlus_CollapsesToChallengerAlone()
+    {
+        // Challenger tops the ladder, so "and above" adds nothing.
+        EloBracket.ResolveFilter("CHALLENGER_PLUS").Should().Equal(EloBracket.Challenger);
     }
 
     [Theory]
@@ -117,6 +124,8 @@ public sealed class EloBracketTests
             EloBracket.Emerald,
             EloBracket.Diamond,
             EloBracket.Master,
+            EloBracket.Grandmaster,
+            EloBracket.Challenger,
             EloBracket.Unranked
         ]);
     }
@@ -132,7 +141,9 @@ public sealed class EloBracketTests
             EloBracket.Platinum,
             EloBracket.Emerald,
             EloBracket.Diamond,
-            EloBracket.Master);
+            EloBracket.Master,
+            EloBracket.Grandmaster,
+            EloBracket.Challenger);
         EloBracket.Ladder.Should().NotContain(EloBracket.Unranked);
     }
 }

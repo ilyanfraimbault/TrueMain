@@ -7,8 +7,8 @@ namespace Core.Lol.Ranking;
 /// match start). Games with no usable snapshot fall into <see cref="Unranked"/>.
 ///
 /// One scope row is persisted per individual tier (<see cref="Ladder"/>) plus
-/// <see cref="Unranked"/>. The apex tiers (Grandmaster, Challenger) fold into
-/// <see cref="Master"/> — they share an emblem and are too thin to split.
+/// <see cref="Unranked"/> — the full ladder up to <see cref="Challenger"/>,
+/// with Master, Grandmaster and Challenger each their own bucket.
 ///
 /// A read-time <em>filter</em> is one of:
 /// <list type="bullet">
@@ -31,6 +31,8 @@ public static class EloBracket
     public const string Emerald = "EMERALD";
     public const string Diamond = "DIAMOND";
     public const string Master = "MASTER";
+    public const string Grandmaster = "GRANDMASTER";
+    public const string Challenger = "CHALLENGER";
     public const string Unranked = "UNRANKED";
 
     /// <summary>Suffix marking an "and above" filter, e.g. <c>GOLD_PLUS</c>.</summary>
@@ -49,7 +51,9 @@ public static class EloBracket
         Platinum,
         Emerald,
         Diamond,
-        Master
+        Master,
+        Grandmaster,
+        Challenger
     ];
 
     /// <summary>
@@ -61,9 +65,8 @@ public static class EloBracket
 
     /// <summary>
     /// Maps a Riot ranked tier name (e.g. <c>"DIAMOND"</c>) to its stored
-    /// bucket. Master / Grandmaster / Challenger all fold into
-    /// <see cref="Master"/>; unknown / null / empty tiers map to
-    /// <see cref="Unranked"/>.
+    /// bucket — one bucket per ranked tier, the apex tiers included; unknown /
+    /// null / empty tiers map to <see cref="Unranked"/>.
     /// </summary>
     public static string FromTier(string? tier) => tier?.Trim().ToUpperInvariant() switch
     {
@@ -74,7 +77,9 @@ public static class EloBracket
         "PLATINUM" => Platinum,
         "EMERALD" => Emerald,
         "DIAMOND" => Diamond,
-        "MASTER" or "GRANDMASTER" or "CHALLENGER" => Master,
+        "MASTER" => Master,
+        "GRANDMASTER" => Grandmaster,
+        "CHALLENGER" => Challenger,
         _ => Unranked
     };
 

@@ -9,7 +9,7 @@
  *   - a `<TIER>_PLUS` form (e.g. `GOLD_PLUS`) — that tier and every tier above.
  */
 
-/** Ranked tiers, ascending (Iron→Master). Master folds in GM/Challenger. */
+/** Ranked tiers, ascending (Iron→Challenger); each apex tier is its own bucket. */
 export const ELO_TIERS = [
   'IRON',
   'BRONZE',
@@ -19,6 +19,8 @@ export const ELO_TIERS = [
   'EMERALD',
   'DIAMOND',
   'MASTER',
+  'GRANDMASTER',
+  'CHALLENGER',
 ] as const
 
 export type EloTier = typeof ELO_TIERS[number]
@@ -36,9 +38,9 @@ export function tierPlus(tier: EloTier): string {
   return `${tier}${ELO_PLUS_SUFFIX}`
 }
 
-/** Master tops the ladder, so its "+" would add nothing — hide it. */
+/** Challenger tops the ladder, so its "+" would add nothing — hide it. */
 export function hasPlus(tier: EloTier): boolean {
-  return tier !== 'MASTER'
+  return tier !== 'CHALLENGER'
 }
 
 export function isEloTier(value: unknown): value is EloTier {

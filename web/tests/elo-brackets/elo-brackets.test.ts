@@ -13,9 +13,10 @@ import {
 
 describe('elo-brackets', () => {
   describe('ELO_TIERS', () => {
-    it('is the eight ranked tiers, ascending, ending at Master', () => {
+    it('is the ten ranked tiers, ascending, ending at Challenger', () => {
       expect([...ELO_TIERS]).toEqual([
-        'IRON', 'BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'EMERALD', 'DIAMOND', 'MASTER',
+        'IRON', 'BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'EMERALD', 'DIAMOND',
+        'MASTER', 'GRANDMASTER', 'CHALLENGER',
       ])
     })
   })
@@ -26,10 +27,12 @@ describe('elo-brackets', () => {
       expect(tierPlus('GOLD')).toBe('GOLD_PLUS')
     })
 
-    it('offers a "+" for every tier except the top one (Master)', () => {
+    it('offers a "+" for every tier except the top one (Challenger)', () => {
       expect(hasPlus('IRON')).toBe(true)
       expect(hasPlus('DIAMOND')).toBe(true)
-      expect(hasPlus('MASTER')).toBe(false)
+      expect(hasPlus('MASTER')).toBe(true)
+      expect(hasPlus('GRANDMASTER')).toBe(true)
+      expect(hasPlus('CHALLENGER')).toBe(false)
     })
   })
 
@@ -37,9 +40,11 @@ describe('elo-brackets', () => {
     it('accepts the canonical upper-case tiers only', () => {
       expect(isEloTier('GOLD')).toBe(true)
       expect(isEloTier('MASTER')).toBe(true)
+      expect(isEloTier('GRANDMASTER')).toBe(true)
+      expect(isEloTier('CHALLENGER')).toBe(true)
     })
 
-    it.each(['gold', 'GRANDMASTER', 'CHALLENGER', 'UNRANKED', 'ALL', '', null, 42])(
+    it.each(['gold', 'grandmaster', 'UNRANKED', 'ALL', '', null, 42])(
       'rejects %p',
       (value) => {
         expect(isEloTier(value)).toBe(false)
@@ -48,7 +53,7 @@ describe('elo-brackets', () => {
   })
 
   describe('isEloBracket', () => {
-    it.each(['ALL', 'GOLD', 'GOLD_PLUS', 'IRON', 'MASTER'])('accepts %p', (value) => {
+    it.each(['ALL', 'GOLD', 'GOLD_PLUS', 'IRON', 'MASTER', 'GRANDMASTER', 'CHALLENGER', 'MASTER_PLUS'])('accepts %p', (value) => {
       expect(isEloBracket(value)).toBe(true)
     })
 
@@ -85,6 +90,10 @@ describe('elo-brackets', () => {
       ['GOLD_PLUS', 'Gold+'],
       ['DIAMOND_PLUS', 'Diamond+'],
       ['MASTER', 'Master'],
+      ['MASTER_PLUS', 'Master+'],
+      ['GRANDMASTER', 'Grandmaster'],
+      ['GRANDMASTER_PLUS', 'Grandmaster+'],
+      ['CHALLENGER', 'Challenger'],
       [null, 'All ranks'],
       ['garbage', 'All ranks'],
     ])('labels %p as %p', (input, expected) => {
