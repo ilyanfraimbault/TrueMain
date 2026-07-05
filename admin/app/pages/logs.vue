@@ -10,6 +10,18 @@ import type { TableColumn } from '@nuxt/ui'
 import type { LogEntry, LogLevel } from '~~/shared/types/ops'
 import { formatDateTime } from '~~/shared/utils/format'
 
+// This page hosts two server-paginated lists: the application Logs and the durable
+// Crashes list. A simple tab switch toggles between them; deep-linkable via
+// ?view=crashes so a link can point straight at the Crashes tab.
+const route = useRoute()
+const router = useRouter()
+const view = ref<'logs' | 'crashes'>(route.query.view === 'crashes' ? 'crashes' : 'logs')
+watch(view, (v) => {
+  router.replace({
+    query: { ...route.query, view: v === 'crashes' ? 'crashes' : undefined },
+  })
+})
+
 // --- Filters -----------------------------------------------------------------
 // Reka UI forbids an empty-string SelectItem value, so "All …" uses the
 // non-empty `'all'` sentinel; `filters` maps it back to `undefined` (param
@@ -179,6 +191,10 @@ const tableMeta = {
 // --- Detail slide-over -------------------------------------------------------
 const detailOpen = ref(false)
 const selectedEntry = ref<LogEntry | null>(null)
+// Close any open detail when switching tabs so it doesn't reopen on return.
+watch(view, () => {
+  detailOpen.value = false
+})
 function openDetail(entry: LogEntry) {
   selectedEntry.value = entry
   detailOpen.value = true
@@ -194,6 +210,7 @@ function openDetail(entry: LogEntry) {
         </template>
         <template #right>
           <UButton
+            v-if="view === 'logs'"
             icon="i-lucide-refresh-cw"
             color="neutral"
             variant="ghost"
@@ -204,7 +221,29 @@ function openDetail(entry: LogEntry) {
         </template>
       </UDashboardNavbar>
 
+      <!-- Tab switch: Logs (this page's existing content) vs Crashes. -->
       <UDashboardToolbar>
+        <template #left>
+          <div class="flex items-center gap-1">
+            <UButton
+              :color="view === 'logs' ? 'primary' : 'neutral'"
+              :variant="view === 'logs' ? 'solid' : 'ghost'"
+              icon="i-lucide-scroll-text"
+              label="Logs"
+              @click="view = 'logs'"
+            />
+            <UButton
+              :color="view === 'crashes' ? 'primary' : 'neutral'"
+              :variant="view === 'crashes' ? 'solid' : 'ghost'"
+              icon="i-lucide-skull"
+              label="Crashes"
+              @click="view = 'crashes'"
+            />
+          </div>
+        </template>
+      </UDashboardToolbar>
+
+      <UDashboardToolbar v-if="view === 'logs'">
         <template #left>
           <USelect
             v-model="level"
@@ -254,6 +293,8 @@ function openDetail(entry: LogEntry) {
     </template>
 
     <template #body>
+      <CrashesPanel v-if="view === 'crashes'" />
+      <template v-else>
       <UAlert
         v-if="error"
         color="error"
@@ -440,21 +481,28 @@ function openDetail(entry: LogEntry) {
             </dl>
 
             <div>
-              <p class="text-muted text-xs uppercase mb-1.5">
-                Message
-              </p>
+              <div class="flex items-center justify-between mb-1.5">
+                <p class="text-muted text-xs uppercase">
+                  Message
+                </p>
+                <CopyButton :text="selectedEntry.message" label="Copy" />
+              </div>
               <pre class="text-xs bg-elevated/50 border border-default rounded-md p-3 overflow-auto whitespace-pre-wrap">{{ selectedEntry.message }}</pre>
             </div>
 
             <div v-if="selectedEntry.exception">
-              <p class="text-muted text-xs uppercase mb-1.5">
-                Exception
-              </p>
+              <div class="flex items-center justify-between mb-1.5">
+                <p class="text-muted text-xs uppercase">
+                  Exception
+                </p>
+                <CopyButton :text="selectedEntry.exception" label="Copy" />
+              </div>
               <pre class="text-xs text-error bg-error/5 border border-error/20 rounded-md p-3 overflow-auto whitespace-pre-wrap">{{ selectedEntry.exception }}</pre>
             </div>
           </div>
         </template>
       </USlideover>
+      </template>
     </template>
   </UDashboardPanel>
 </template>

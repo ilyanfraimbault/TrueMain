@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type {
-  ChampionStaticListItem,
   RuneTreeResponse,
   StaticItemData,
   StaticSummonerSpellData,
@@ -54,15 +53,7 @@ const activePatch = computed(() => champion.value?.patch || filters.value.patch 
 const { data: staticData, status: staticStatus } = useChampionStatic(championId, activePatch)
 const { data: versions } = useDDragonVersions()
 
-const { data: staticList, status: staticListStatus } = useLazyAsyncData<ChampionStaticListItem[]>(
-  'champion-static-list',
-  async () => {
-    const data = await $fetch<ChampionStaticListItem[]>('/api/static/champions')
-    markStaticFetched('champion-static-list', nuxtApp)
-    return data
-  },
-  { getCachedData: key => getStaticCachedData(key, nuxtApp), server: false },
-)
+const { data: staticList, status: staticListStatus } = useChampionStaticList()
 const { data: runeTree, status: runeTreeStatus } = useLazyAsyncData<RuneTreeResponse>(
   () => `rune-tree-${activePatch.value || 'latest'}`,
   async () => {

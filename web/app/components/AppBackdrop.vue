@@ -1,13 +1,14 @@
 <script setup lang="ts">
 // App-wide animated backdrop. One fixed WebGL layer behind every page (the
-// hero included) so the surface is a single, uniform, slowly-drifting emerald
-// haze rather than a patchwork of CSS radial gradients. Organic (domain-warped
-// fbm noise) so it reads as a shader, not a flat colour ramp, with a gentle
-// top-weighted falloff for a little depth.
+// hero included) so the surface reads as a single sheet of slowly-billowing
+// rose-gold silk: an iterative sine warp bends space into wide, voluptuous
+// folds (deliberately few iterations + large amplitudes — curves, not noise),
+// a champagne sheen catches the crest of each fold, and the troughs stay
+// transparent so the dark surface shows through as the fabric's shadow.
 //
 // Degrades gracefully: no WebGL → the static CSS wash below; reduced-motion →
 // a single rendered frame, no loop; tab hidden / off-screen → the loop parks.
-// Emerald-only, transparent output, so it tints whatever sits behind on both
+// Rose-gold-only, transparent output, so it tints whatever sits behind on both
 // colour modes.
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
@@ -33,60 +34,41 @@ precision mediump float;
 uniform vec2 u_resolution;
 uniform float u_time;
 
-float hash(vec2 p) {
-  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
-}
-
-float noise(vec2 p) {
-  vec2 i = floor(p);
-  vec2 f = fract(p);
-  vec2 u = f * f * (3.0 - 2.0 * f);
-  return mix(
-    mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
-    mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
-    u.y);
-}
-
-float fbm(vec2 p) {
-  float v = 0.0;
-  float a = 0.5;
-  for (int i = 0; i < 5; i++) {
-    v += a * noise(p);
-    p = p * 2.0 + vec2(17.0, 9.0);
-    a *= 0.5;
-  }
-  return v;
-}
-
 void main() {
   vec2 uv = gl_FragCoord.xy / u_resolution;
-  vec2 p = uv;
-  p.x *= u_resolution.x / u_resolution.y;
-  float t = u_time * 0.025;
+  // Centered, aspect-corrected space so the folds sweep in wide diagonals
+  // instead of stretching with the viewport.
+  vec2 p = (gl_FragCoord.xy * 2.0 - u_resolution) / min(u_resolution.x, u_resolution.y);
+  float t = u_time * 0.05;
 
-  // Domain-warp the noise so the folds curl and drift instead of sliding.
-  vec2 q = vec2(
-    fbm(p * 1.2 + vec2(0.0, t)),
-    fbm(p * 1.2 + vec2(5.2, -t * 0.8)));
-  float field = fbm(p * 1.6 + q * 1.6 + vec2(t * 0.4, -t * 0.25));
+  // Iterative sine warp — each pass bends space along big slow curves. Few
+  // iterations x large amplitude reads as draped silk; more/finer would
+  // collapse back into noise.
+  vec2 q = p;
+  for (float i = 1.0; i <= 4.0; i += 1.0) {
+    q.x += (0.65 / i) * sin(i * 1.4 * q.y + t + 0.4 * i);
+    q.y += (0.55 / i) * cos(i * 1.2 * q.x + 1.3 * t + 0.7 * i);
+  }
 
-  // Gentle top-weighted falloff — folds (and the dark gaps between them) live
-  // across the whole height, a touch stronger up top.
-  float vgrad = mix(0.5, 1.0, 1.0 - uv.y);
+  // One smooth band field over the warped space: body is the lit face of a
+  // fold, sheen the narrow champagne highlight riding its crest. Troughs
+  // fall to zero alpha — the dark page shows through as the fabric's shadow.
+  float band = 0.5 + 0.5 * sin(1.6 * q.x + 1.1 * q.y);
+  float body = smoothstep(0.12, 0.92, band);
+  float sheen = pow(band, 6.0);
 
-  // Tight ramp: only the crests of the field light up, the troughs stay
-  // fully transparent. That transparency is what reads as shadow between the
-  // emerald folds — keep it, don't fill it, or the whole thing goes flat green.
-  float glow = smoothstep(0.40, 0.95, field);
+  // Rose-gold ramp: shadowed mauve-rose folds -> lit rose silk -> champagne
+  // sheen, so the fabric warms toward gold exactly where it catches light.
+  vec3 deep = vec3(0.42, 0.20, 0.23);
+  vec3 mid = vec3(0.85, 0.45, 0.42);
+  vec3 gold = vec3(0.96, 0.81, 0.66);
+  vec3 color = deep * body * 0.85
+    + mid * pow(band, 2.5) * 0.6
+    + gold * sheen * 0.5;
 
-  vec3 deep = vec3(0.024, 0.306, 0.231);
-  vec3 mid = vec3(0.063, 0.725, 0.506);
-  vec3 bright = vec3(0.204, 0.827, 0.600);
-  vec3 color = deep * glow * 0.9
-    + mid * pow(glow, 2.0) * 0.55
-    + bright * pow(glow, 4.0) * 0.35;
-
-  float alpha = clamp(glow * 0.74 * vgrad, 0.0, 0.74);
+  // Top-weighted falloff keeps the hero draped and the reading surface calm.
+  float vgrad = mix(0.45, 1.0, 1.0 - uv.y);
+  float alpha = clamp((body * 0.26 + sheen * 0.32) * vgrad, 0.0, 0.6);
   gl_FragColor = vec4(color, alpha);
 }
 `

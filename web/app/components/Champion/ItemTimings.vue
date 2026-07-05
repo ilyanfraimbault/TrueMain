@@ -47,16 +47,11 @@ function formatGameTime(seconds: number): string {
 </script>
 
 <template>
-  <section class="flex flex-col gap-4">
-    <header class="flex flex-col gap-0.5">
-      <h2 class="text-sm font-semibold">
-        Power spikes
-      </h2>
-      <p class="text-xs text-muted">
-        Average time each item is completed, earliest first.
-      </p>
-    </header>
-
+  <SectionCard
+    :level="2"
+    title="Power spikes"
+    subtitle="Average time each item is completed, earliest first."
+  >
     <USkeleton
       v-if="loading"
       class="h-20 w-full rounded-lg"
@@ -64,7 +59,7 @@ function formatGameTime(seconds: number): string {
 
     <p
       v-else-if="!hasData"
-      class="glass rounded-lg px-4 py-8 text-center text-sm text-muted"
+      class="py-8 text-center text-sm text-muted"
     >
       No item-timing data yet for this champion and lane.
     </p>
@@ -89,5 +84,5 @@ function formatGameTime(seconds: number): string {
         </span>
       </div>
     </div>
-  </section>
+  </SectionCard>
 </template>

@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using Data.Logging.Crash;
 using Data.Metrics.Mongo;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
@@ -41,6 +42,7 @@ public sealed class MongoLogContext : IDisposable
         Logs = _database.GetCollection<MongoLogDocument>(_options.LogsCollection);
         AuditEvents = _database.GetCollection<AuditEventDocument>(_options.AuditCollection);
         RiotApiCallRollups = _database.GetCollection<RiotApiCallRollupDocument>(_options.RiotApiCallsCollection);
+        Crashes = _database.GetCollection<CrashReportDocument>(_options.CrashesCollection);
     }
 
     /// <summary>True when a Mongo client was created (logging enabled + connection string present).</summary>
@@ -69,6 +71,16 @@ public sealed class MongoLogContext : IDisposable
     /// and read by the admin <c>/ops/riot-usage</c> panel.
     /// </summary>
     public IMongoCollection<RiotApiCallRollupDocument> RiotApiCallRollups
+    {
+        get => field ?? throw Inactive();
+        private init;
+    }
+
+    /// <summary>
+    /// Lossless crash reports (one per process crash, #crash-logs), written
+    /// synchronously by <c>CrashReporter</c> and read by the admin Crashes panel.
+    /// </summary>
+    public IMongoCollection<CrashReportDocument> Crashes
     {
         get => field ?? throw Inactive();
         private init;
@@ -132,6 +144,23 @@ public sealed class MongoLogContext : IDisposable
                 Builders<AuditEventDocument>.IndexKeys.Descending(doc => doc.TimestampUtc),
                 new CreateIndexOptions { Name = "ix_timestamp_desc" }),
             cancellationToken: ct);
+
+        // crashes: a descending timestamp index for the newest-first listing, plus
+        // equality indexes backing the process / source filters, and the reconciled
+        // TTL index enforcing CrashesRetention (rare, high-value rows kept ~1 year).
+        var crashModels = new List<CreateIndexModel<CrashReportDocument>>
+        {
+            new(Builders<CrashReportDocument>.IndexKeys.Descending(doc => doc.TimestampUtc),
+                new CreateIndexOptions { Name = "ix_timestamp_desc" }),
+            new(Builders<CrashReportDocument>.IndexKeys.Ascending(doc => doc.ProcessName),
+                new CreateIndexOptions { Name = "ix_process" }),
+            new(Builders<CrashReportDocument>.IndexKeys.Ascending(doc => doc.Source),
+                new CreateIndexOptions { Name = "ix_source" })
+        };
+
+        await Crashes.Indexes.CreateManyAsync(crashModels, ct);
+
+        await ReconcileTtlIndexAsync(Crashes, doc => doc.TimestampUtc, _options.CrashesRetention, ct);
     }
 
     /// <summary>

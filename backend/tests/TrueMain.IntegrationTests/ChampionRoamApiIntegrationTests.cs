@@ -15,10 +15,15 @@ public sealed class ChampionRoamApiIntegrationTests
     private const int Champion = 157; // Yone
     private const string Position = "MIDDLE";
 
-    // Verified against LolMap: the first two classify as MidLane (in-lane for
-    // MIDDLE), the third as Jungle (out-of-lane).
-    private static readonly (int X, int Y)[] InLane = [(3203, 3208), (4000, 4000)];
-    private static readonly (int X, int Y) OutOfLane = (6500, 4000);
+    // The seeded champion is a blue-side (team 100) MIDDLE laner. Verified against
+    // LolMap: both of these are non-roams for it — own mid lane, and the blue-side
+    // (own) jungle, which no longer counts as roaming.
+    private static readonly (int X, int Y)[] NonRoam = [(3203, 3208), (6500, 4000)];
+
+    // Red-side (enemy) jungle: a genuine roam for a blue-side laner. Seeded at
+    // three timestamps so the cumulative @5/@10/@15 windows each pick up one more.
+    private static readonly (int X, int Y) EnemyJungle = (8500, 11000);
+    private static readonly int[] RoamTimestampsMs = [200_000, 400_000, 700_000]; // 3:20, 6:40, 11:40
 
     private readonly PostgresFixture _fixture;
 
@@ -28,7 +33,7 @@ public sealed class ChampionRoamApiIntegrationTests
     }
 
     [Fact]
-    public async Task GetChampionRoamAsync_ComputesOutOfLaneShare()
+    public async Task GetChampionRoamAsync_ComputesPerGameRoamKpWindows()
     {
         await _fixture.ResetDatabaseAsync();
         await SeedRoamSampleAsync(games: 12);
@@ -42,13 +47,15 @@ public sealed class ChampionRoamApiIntegrationTests
         var roam = await response.Content.ReadFromJsonAsync<ChampionRoamResponse>();
         roam.Should().NotBeNull();
         roam!.Games.Should().Be(12);
-        roam.KillParticipations.Should().Be(36); // 3 positions per game
-        roam.OutOfLaneParticipations.Should().Be(12); // 1 of 3 is jungle
-        roam.OutOfLaneShare.Should().BeApproximately(12d / 36d, 1e-9);
+        // Per game: 1 enemy-jungle roam before 5 min, 2 before 10 min, 3 before 15
+        // min. The two NonRoam positions (own lane, own jungle) never count.
+        roam.RoamKp5.Should().BeApproximately(1d, 1e-9);
+        roam.RoamKp10.Should().BeApproximately(2d, 1e-9);
+        roam.RoamKp15.Should().BeApproximately(3d, 1e-9);
     }
 
     [Fact]
-    public async Task GetChampionRoamAsync_NullsShareBelowSampleFloor()
+    public async Task GetChampionRoamAsync_NullsWindowsBelowSampleFloor()
     {
         await _fixture.ResetDatabaseAsync();
         await SeedRoamSampleAsync(games: 5); // below MinMatchupGames floor of 10
@@ -60,7 +67,22 @@ public sealed class ChampionRoamApiIntegrationTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var roam = await response.Content.ReadFromJsonAsync<ChampionRoamResponse>();
-        roam!.OutOfLaneShare.Should().BeNull("five games is below the sample floor");
+        roam!.RoamKp15.Should().BeNull("five games is below the sample floor");
+    }
+
+    [Fact]
+    public async Task GetChampionRoamAsync_ExcludesJungle()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var response = await client.GetAsync($"/champions/{Champion}/roam?position=JUNGLE");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var roam = await response.Content.ReadFromJsonAsync<ChampionRoamResponse>();
+        roam!.RoamKp15.Should().BeNull("the roam metric is meaningless for junglers");
     }
 
     [Fact]
@@ -77,7 +99,7 @@ public sealed class ChampionRoamApiIntegrationTests
 
         var roam = await response.Content.ReadFromJsonAsync<ChampionRoamResponse>();
         roam!.Games.Should().Be(0, "no games on 16.5");
-        roam.OutOfLaneShare.Should().BeNull();
+        roam.RoamKp15.Should().BeNull();
     }
 
     [Fact]
@@ -114,12 +136,15 @@ public sealed class ChampionRoamApiIntegrationTests
 
             db.MatchParticipants.Add(Participant(matchId, account.Id));
 
-            foreach (var (x, y) in InLane)
+            foreach (var (x, y) in NonRoam)
             {
                 db.MatchParticipantKillPositions.Add(KillPosition(matchId, 120_000, x, y));
             }
 
-            db.MatchParticipantKillPositions.Add(KillPosition(matchId, 200_000, OutOfLane.X, OutOfLane.Y));
+            foreach (var timestampMs in RoamTimestampsMs)
+            {
+                db.MatchParticipantKillPositions.Add(KillPosition(matchId, timestampMs, EnemyJungle.X, EnemyJungle.Y));
+            }
         }
 
         await db.SaveChangesAsync();

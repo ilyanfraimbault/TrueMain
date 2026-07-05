@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type {
-  ChampionStaticListItem,
   RuneTreeResponse,
   StaticItemData,
   StaticSummonerSpellData,
@@ -49,15 +48,7 @@ const { data: championTrend, status: trendStatus } = useChampionTrend(championId
 // Each fetch wraps the network call so `markStaticFetched` runs after success
 // and `getCachedData` reuses entries across navigations within
 // `STATIC_CACHE_TTL_MS` (see static-cache.ts).
-const { data: staticList, status: staticListStatus } = useLazyAsyncData<ChampionStaticListItem[]>(
-  'champion-static-list',
-  async () => {
-    const data = await $fetch<ChampionStaticListItem[]>('/api/static/champions')
-    markStaticFetched('champion-static-list', nuxtApp)
-    return data
-  },
-  { getCachedData: key => getStaticCachedData(key, nuxtApp), server: false },
-)
+const { data: staticList, status: staticListStatus } = useChampionStaticList()
 // Pin rune-tree to the champion's active patch so the icon URLs we render
 // hit CommunityDragon's per-patch (year-cacheable) tree, and so cached
 // payloads don't bleed across patches when the user navigates between them.
@@ -356,7 +347,10 @@ const isRefetching = computed(() =>
       />
 
       <ChampionRoam
-        :share="championRoam?.outOfLaneShare ?? null"
+        v-if="trendPosition !== 'JUNGLE'"
+        :kp5="championRoam?.roamKp5 ?? null"
+        :kp10="championRoam?.roamKp10 ?? null"
+        :kp15="championRoam?.roamKp15 ?? null"
         :games="championRoam?.games ?? 0"
         :loading="isLoadingStatus(roamStatus)"
       />

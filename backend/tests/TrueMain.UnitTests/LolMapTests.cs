@@ -34,4 +34,27 @@ public sealed class LolMapTests
     [InlineData(981, 10441, true)]      // blue-side top lane (below anti-diagonal)
     public void IsBlueSide_SplitsOnRiverAntiDiagonal(int x, int y, bool expected)
         => LolMap.IsBlueSide(x, y).Should().Be(expected);
+
+    [Theory]
+    // A blue-side MIDDLE laner. Roam = a different lane, the enemy (red-side)
+    // jungle, or the enemy (red) base. Own lane, the river, own-side jungle and
+    // own base are normal lane-phase movement and never count.
+    [InlineData(3203, 3208, false)]   // own mid lane → not a roam
+    [InlineData(13624, 10572, true)]  // bot lane → roam (different lane)
+    [InlineData(6500, 4000, false)]   // blue-side (own) jungle → not a roam
+    [InlineData(8500, 11000, true)]   // red-side (enemy) jungle → roam
+    [InlineData(3000, 11800, false)]  // river → not a roam
+    [InlineData(14000, 14500, true)]  // red (enemy) base → roam
+    [InlineData(500, 500, false)]     // blue (own) base → not a roam
+    public void IsRoam_FlagsOtherLanesAndEnemySideOnly(int x, int y, bool expected)
+        => LolMap.IsRoam(x, y, MapZone.MidLane, ownIsBlueSide: true).Should().Be(expected);
+
+    [Fact]
+    public void IsRoam_IsRelativeToTeamSide()
+    {
+        // The same red-side jungle point is a roam for a blue laner (enemy jungle)
+        // but not for a red laner (own jungle) — side flips the verdict.
+        LolMap.IsRoam(8500, 11000, MapZone.MidLane, ownIsBlueSide: true).Should().BeTrue();
+        LolMap.IsRoam(8500, 11000, MapZone.MidLane, ownIsBlueSide: false).Should().BeFalse();
+    }
 }
