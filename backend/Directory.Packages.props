@@ -6,6 +6,12 @@
 
   <ItemGroup>
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.9" />
+    <!-- Direct pin only to override the vulnerable Microsoft.OpenApi 2.0.0 that
+         Microsoft.AspNetCore.OpenApi 10.0.9 pulls in transitively (NU1903 /
+         GHSA-v5pm-xwqc-g5wc, high severity). Not referenced directly in code;
+         drop this once the AspNetCore.OpenApi metapackage ships a patched
+         transitive. -->
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.9.0" />
     <PackageVersion Include="Scalar.AspNetCore" Version="2.16.6" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.9" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.9" />

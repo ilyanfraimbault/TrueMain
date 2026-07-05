@@ -1,8 +1,11 @@
 export default defineAppConfig({
   ui: {
     colors: {
-      primary: 'emerald',
-      neutral: 'zinc',
+      // Custom palettes defined in assets/css/main.css @theme. `rosegold` is
+      // the brand accent (warm rose with a gold read); `mauve` is a warm
+      // near-neutral charcoal replacing the old cold zinc.
+      primary: 'rosegold',
+      neutral: 'mauve',
     },
     // Give every UCard the app-wide glass material (translucent, blurred
     // surface — see the `glass` utility in main.css) and trim the default
@@ -17,7 +20,7 @@ export default defineAppConfig({
       // border-radius and bleeds past the rounded corners on Safari/iOS. The
       // body/header padding keeps content off the corners anyway.
       slots: {
-        root: 'glass rounded-xl',
+        root: 'glass rounded-2xl',
         header: 'p-3 sm:px-4 sm:py-3.5',
         body: 'p-3 sm:p-4',
         footer: 'p-3 sm:px-4',

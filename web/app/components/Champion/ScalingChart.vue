@@ -57,7 +57,7 @@ const verdict = computed<{ label: string, tone: string } | null>(() => {
 const formatSignedPercent = (value: number): string =>
   `${value > 0 ? '+' : value < 0 ? '−' : ''}${formatPercentage(Math.abs(value), 1)}`
 
-const PRIMARY = '#34d399' // emerald-400 (CHART_SERIES_PALETTE[0])
+const PRIMARY = defaultSeriesColor(0) // app primary (rosegold-400)
 const categories = { winRate: { name: 'Win rate', color: PRIMARY } }
 
 const gradientStops = [
