@@ -103,26 +103,6 @@ public sealed class EloBracketTests
         EloBracket.ResolveFilter(filter).Should().BeNull();
     }
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("ALL")]
-    [InlineData("all")]
-    [InlineData("garbage")]
-    public void IsAll_TreatsBlankAllAndUnrecognisedAsEveryGame(string? filter)
-    {
-        EloBracket.IsAll(filter).Should().BeTrue();
-    }
-
-    [Theory]
-    [InlineData("GOLD")]
-    [InlineData("GOLD_PLUS")]
-    [InlineData("MASTER")]
-    public void IsAll_IsFalseForASpecificTierFilter(string filter)
-    {
-        EloBracket.IsAll(filter).Should().BeFalse();
-    }
-
     [Fact]
     public void Persisted_IsTheLadderPlusUnrankedAndExcludesAll()
     {

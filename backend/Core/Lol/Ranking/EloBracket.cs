@@ -135,13 +135,6 @@ public static class EloBracket
         return andAbove ? Ladder.Skip(index).ToList() : [Ladder[index]];
     }
 
-    /// <summary>
-    /// True when the filter means "every game" — either explicitly
-    /// <see cref="All"/> or an unspecified / unrecognised value.
-    /// </summary>
-    public static bool IsAll(string? filter)
-        => ResolveFilter(filter) is null;
-
     private static (string Tier, bool AndAbove) SplitFilter(string value)
         => value.EndsWith(PlusSuffix, StringComparison.Ordinal)
             ? (value[..^PlusSuffix.Length], true)
