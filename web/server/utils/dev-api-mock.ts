@@ -550,12 +550,27 @@ const ROAM_SHARE: Record<string, number> = { TOP: 0.14, JUNGLE: 0.66, MIDDLE: 0.
 async function mockRoam(id: number): Promise<ChampionRoamResponse | null> {
   const s = seedsById.get(id)
   if (!s) return null
+  // JUNGLE has no own lane, so the real backend (ChampionRoamQueryService)
+  // returns null roamKp for it — mirror that so junglers render the empty
+  // state rather than a fabricated roamer verdict, per the ChampionRoamResponse
+  // contract ("null ... for JUNGLE").
+  if (s.position === 'JUNGLE') {
+    return {
+      championId: s.id,
+      position: s.position,
+      patch: await latestShortPatch(),
+      games: 0,
+      roamKp5: null,
+      roamKp10: null,
+      roamKp15: null,
+    }
+  }
   const rng = mulberry32(s.id * 503)
   const games = Math.max(120, Math.round(s.pr * POOL_GAMES))
   // Cumulative out-of-lane kills + assists per game at each minute mark
-  // (@15 ≥ @10 ≥ @5), scaled off the position's roam tendency so junglers /
-  // supports read as roamers and side lanes stay lane-bound — lining up with
-  // the verdict thresholds the component applies to @15.
+  // (@15 ≥ @10 ≥ @5), scaled off the position's roam tendency so supports read
+  // as roamers and side lanes stay lane-bound — lining up with the verdict
+  // thresholds the component applies to @15.
   const roamBias = ROAM_SHARE[s.position] ?? 0.25
   const roamKp15 = round3(Math.max(0.05, roamBias * 3.0 + (rng() - 0.5) * 0.4))
   const roamKp10 = round3(roamKp15 * (0.55 + rng() * 0.12))
