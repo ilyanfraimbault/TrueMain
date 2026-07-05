@@ -2,10 +2,15 @@
 import type { ChampionPosition } from '~/utils/positions'
 import { ELO_BRACKET_OPTIONS, isEloBracket, type EloBracket } from '~/utils/elo-brackets'
 
+// `selectedEloBracket` is optional: the global champion page passes it to expose
+// the elo-bracket picker (issue #526), while the player-scoped page omits it — a
+// single player sits in one bracket, so filtering their own games by elo is not
+// meaningful (and the player-scoped endpoint doesn't accept it). When it's
+// undefined the elo selector is hidden entirely.
 defineProps<{
   selectedPatch: string
   selectedPosition: ChampionPosition | null
-  selectedEloBracket: EloBracket
+  selectedEloBracket?: EloBracket
   patchOptions: Array<{ label: string, value: string }>
 }>()
 
@@ -36,6 +41,7 @@ function onEloBracketChange(value: unknown) {
       @update:position="value => emit('update:position', value)"
     />
     <USelect
+      v-if="selectedEloBracket"
       :model-value="selectedEloBracket"
       :items="eloBracketOptions"
       placeholder="Elo"

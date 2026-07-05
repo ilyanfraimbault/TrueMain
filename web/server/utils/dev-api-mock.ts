@@ -436,7 +436,21 @@ function makeBuild(s: ChampionSeed, variant: 0 | 1, totalGames: number): Champio
   }
 }
 
-async function mockChampionDetail(id: number, position: string | undefined): Promise<ChampionResponse | null> {
+// Share of all-rank games each elo band holds, so the mock's `eloCoverage` and
+// small-sample warning behave like the backend: high brackets are a thin slice
+// (issue #526). `ALL` (and any unrecognised value) is the full, unscoped pool.
+const ELO_BRACKET_COVERAGE: Record<string, number> = {
+  IRON_GOLD: 0.55,
+  PLATINUM_EMERALD: 0.28,
+  DIAMOND_PLUS: 0.12,
+  MASTER_PLUS: 0.05,
+}
+
+async function mockChampionDetail(
+  id: number,
+  position: string | undefined,
+  eloBracket: string | undefined,
+): Promise<ChampionResponse | null> {
   const s = seedsById.get(id)
   if (!s) return null
   // Mirror the backend: a filtered slice for a lane the champion doesn't play
@@ -444,11 +458,20 @@ async function mockChampionDetail(id: number, position: string | undefined): Pro
   if (position && position !== s.position) return null
   const patch = await latestShortPatch()
   const rng = mulberry32(s.id * 31 + s.position.length)
-  const totalGames = Math.max(120, Math.round(s.pr * POOL_GAMES * (0.9 + rng() * 0.2)))
+  const allGames = Math.max(120, Math.round(s.pr * POOL_GAMES * (0.9 + rng() * 0.2)))
+
+  // Scope the slice to the requested band: ALL keeps the full pool (coverage 1),
+  // a specific band takes its share and flags a small sample below the floor.
+  const coverage = eloBracket ? ELO_BRACKET_COVERAGE[eloBracket] ?? 1 : 1
+  const resolvedBracket = coverage === 1 ? 'ALL' : eloBracket!
+  const totalGames = Math.round(allGames * coverage)
   return {
     championId: s.id,
     patch,
     position: s.position,
+    eloBracket: resolvedBracket,
+    eloCoverage: coverage,
+    minSampleMet: totalGames >= 20,
     totalGames,
     totalWins: Math.round(totalGames * s.wr),
     builds: [makeBuild(s, 0, totalGames), makeBuild(s, 1, totalGames)],
@@ -920,8 +943,9 @@ export async function resolveDevApiMock(
     const id = Number(championMatch[1])
     const sub = championMatch[2]
     const position = typeof query.position === 'string' && query.position ? query.position : undefined
+    const eloBracket = typeof query.eloBracket === 'string' && query.eloBracket ? query.eloBracket : undefined
     const payload = await (
-      sub === undefined ? mockChampionDetail(id, position)
+      sub === undefined ? mockChampionDetail(id, position, eloBracket)
       : sub === 'trend' ? mockTrend(id)
       : sub === 'timeline-leads' ? mockTimelineLeads(id)
       : sub === 'scaling' ? mockScaling(id)
@@ -954,7 +978,7 @@ export async function resolveDevApiMock(
   const playerChampionMatch = path.match(/^\/truemains\/[^/]+\/champions\/(\d+)(?:\/matchups)?$/)
   if (playerChampionMatch) {
     const id = Number(playerChampionMatch[1])
-    const payload = path.endsWith('/matchups') ? await mockMatchups(id) : await mockChampionDetail(id, undefined)
+    const payload = path.endsWith('/matchups') ? await mockMatchups(id) : await mockChampionDetail(id, undefined, undefined)
     if (payload === null) throw createError({ statusCode: 404, statusMessage: 'No data (dev mock)' })
     return payload
   }
