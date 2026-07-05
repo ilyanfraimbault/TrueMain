@@ -35,9 +35,9 @@ const hasData = computed(() => rows.value.length > 0)
 // rather than a one-point line that reads as a flat bar.
 const hasTrend = computed(() => rows.value.length > 1)
 
-// Both series in the app primary (emerald-400). The charts sit side by side
+// Both series in the app primary (rosegold-400). The charts sit side by side
 // and never share a plot, so they don't need different hues to be told apart.
-const PRIMARY = defaultSeriesColor(0) // app primary (rosegold-400)
+const PRIMARY = defaultSeriesColor(0)
 const winRateCategories = { winRate: { name: 'Win rate', color: PRIMARY } }
 const pickRateCategories = { pickRate: { name: 'Pick rate', color: PRIMARY } }
 

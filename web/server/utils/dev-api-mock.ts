@@ -843,9 +843,16 @@ function mockMatches(player: MockPlayer, query: Record<string, unknown>): MatchS
 
 // ─── Router ──────────────────────────────────────────────────────────────────
 
-/** Truthy iff the dev mock is enabled for this process. */
+/**
+ * Truthy iff the dev mock is enabled for this process. Matches an explicit
+ * allowlist rather than `Boolean(...)` so falsy-looking opt-outs like
+ * `NUXT_DEV_MOCK_API=0` or `=false` disable it (a bare `Boolean('0')` is
+ * `true`), keeping the documented `=1` opt-in symmetric with env-managed
+ * setups that toggle the flag by value.
+ */
 export function devApiMockEnabled(): boolean {
-  return Boolean(process.env.NUXT_DEV_MOCK_API)
+  const flag = process.env.NUXT_DEV_MOCK_API?.toLowerCase()
+  return flag === '1' || flag === 'true'
 }
 
 /**
