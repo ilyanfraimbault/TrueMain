@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Core.Lol.Ranking;
 using Data.Entities;
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -40,7 +41,8 @@ public sealed class ChampionBuildsApiIntegrationTests
 
         // Top-level contract
         root.EnumerateObject().Select(property => property.Name).Should().BeEquivalentTo(
-            ["championId", "patch", "position", "totalGames", "totalWins", "builds"]);
+            ["championId", "patch", "position", "eloBracket", "eloCoverage", "minSampleMet",
+             "totalGames", "totalWins", "builds"]);
 
         // Per-build contract — covers the four UI sections + tab key
         AssertObjectArrayElementsHaveProperties(root.GetProperty("builds"),
@@ -107,6 +109,112 @@ public sealed class ChampionBuildsApiIntegrationTests
 
         var response = await client.GetAsync("/champions/9999");
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task GetChampionAsync_DefaultBracket_UnionsEveryBand()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedMultiBracketAggregatesAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        // No eloBracket query → the synthetic ALL union across every band.
+        var payload = await client.GetFromJsonAsync<ChampionResponse>("/champions/777");
+        payload.Should().NotBeNull();
+        payload!.EloBracket.Should().Be(EloBracket.All);
+        payload.Patch.Should().Be("16.5");
+        payload.Position.Should().Be("MIDDLE");
+
+        // 80 (Iron–Gold) + 10 (Master+) games across the two seeded bands.
+        payload.TotalGames.Should().Be(90);
+        payload.EloCoverage.Should().Be(1d, "the ALL union covers every game by definition");
+        payload.MinSampleMet.Should().BeTrue();
+
+        // Both bands' distinct (firstItem, keystone) tabs surface.
+        payload.Builds.Select(b => (b.FirstItemId, b.PrimaryKeystoneId))
+            .Should().BeEquivalentTo([(3153, 8008), (6673, 8010)]);
+    }
+
+    [Fact]
+    public async Task GetChampionAsync_NarrowBracket_ScopesToThatBandAndReportsCoverage()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedMultiBracketAggregatesAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var payload = await client.GetFromJsonAsync<ChampionResponse>(
+            "/champions/777?eloBracket=MASTER_PLUS");
+        payload.Should().NotBeNull();
+        payload!.EloBracket.Should().Be(EloBracket.MasterPlus);
+
+        // Only the Master+ band's 10 games and its single tab remain.
+        payload.TotalGames.Should().Be(10);
+        payload.Builds.Select(b => (b.FirstItemId, b.PrimaryKeystoneId))
+            .Should().Equal((6673, 8010));
+
+        // 10 / (80 + 10) all-rank games, and below the 20-game sample floor.
+        payload.EloCoverage.Should().BeApproximately(10d / 90d, 1e-9);
+        payload.MinSampleMet.Should().BeFalse("10 games is under the min-sample floor");
+    }
+
+    [Fact]
+    public async Task GetChampionAsync_UnrankedBracket_IsNotSelectableAndYieldsNoData()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedMultiBracketAggregatesAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        // No seeded games fall in an UNRANKED scope, so the slice is empty → 404.
+        var response = await client.GetAsync("/champions/777?eloBracket=UNRANKED");
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    private async Task SeedMultiBracketAggregatesAsync()
+    {
+        var now = DateTime.UtcNow;
+        var account1Id = Guid.Parse("aaaa1111-1111-1111-1111-111111111111");
+        var account2Id = Guid.Parse("bbbb2222-2222-2222-2222-222222222222");
+
+        await using var db = _fixture.CreateDbContext();
+
+        db.RiotAccounts.AddRange(
+            BuildAccount(account1Id, "KR", "bracket-puuid-1", "bracket-one", now),
+            BuildAccount(account2Id, "KR", "bracket-puuid-2", "bracket-two", now));
+        await db.SaveChangesAsync();
+
+        // Champion 777, patch 16.5, MIDDLE, queue 420. Two elo bands, each with a
+        // distinct (firstItem, keystone) tab so we can tell them apart:
+        // - Iron–Gold : 3153 + 8008, 80 games (the dominant band).
+        // - Master+   : 6673 + 8010, 10 games (a thin high-elo slice).
+        await new ChampionAggregateSeeder()
+            .AddPatternWithRune(account1Id, 777, "16.5", "KR", 420, "MIDDLE",
+                summoner1Id: 4, summoner2Id: 12, skillOrderKey: "Q-E-W",
+                buildItems: [3153, 3006, 3031], bootsItemId: 3006,
+                primaryStyleId: 8000, primaryKeystoneId: 8008, secondaryStyleId: 8400,
+                games: 80, wins: 42, aggregatedAtUtc: now.AddMinutes(-10),
+                eloBracket: EloBracket.IronGold)
+            .AddPatternWithRune(account2Id, 777, "16.5", "KR", 420, "MIDDLE",
+                summoner1Id: 4, summoner2Id: 12, skillOrderKey: "Q-W-E",
+                buildItems: [6673, 3006, 3031], bootsItemId: 3006,
+                primaryStyleId: 8000, primaryKeystoneId: 8010, secondaryStyleId: 8400,
+                games: 10, wins: 7, aggregatedAtUtc: now.AddMinutes(-9),
+                eloBracket: EloBracket.MasterPlus)
+            .SaveAsync(db);
     }
 
     private async Task SeedChampionBuildsAggregatesAsync()

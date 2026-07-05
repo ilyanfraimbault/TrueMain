@@ -79,7 +79,8 @@ public sealed class PlayerChampionBuildsApiIntegrationTests
         // Top-level contract must match ChampionResponse exactly so the page
         // and composable can be reused with only the data source swapped.
         root.EnumerateObject().Select(property => property.Name).Should().BeEquivalentTo(
-            ["championId", "patch", "position", "totalGames", "totalWins", "builds"]);
+            ["championId", "patch", "position", "eloBracket", "eloCoverage", "minSampleMet",
+             "totalGames", "totalWins", "builds"]);
 
         foreach (var element in root.GetProperty("builds").EnumerateArray())
         {
