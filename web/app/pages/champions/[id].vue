@@ -215,10 +215,16 @@ watch(champion, (data) => {
   // Only reset when the API actually returned a (truthy) value that differs:
   // a missing/empty patch or position in the response means "no slice info",
   // not "your valid filter was dropped", so it must never clear a live filter.
-  const updates: { patch?: string | null, position?: ChampionPosition | null } = {}
+  const updates: { patch?: string | null, position?: ChampionPosition | null, eloBracket?: string | null } = {}
   if (filters.value.patch && data.patch && filters.value.patch !== data.patch) updates.patch = null
   if (filters.value.position && data.position && filters.value.position !== data.position) updates.position = null
-  if (updates.patch !== undefined || updates.position !== undefined) setFilter(updates).catch(console.error)
+  // A dead rank filter (the selected tier had no games at the resolved slice, so
+  // the API fell back to the ALL bracket) leaves `?elo=…` desynced from what's
+  // shown — clear it so the emblem strip and the address bar agree.
+  if (filters.value.eloBracket && data.eloBracket && filters.value.eloBracket !== data.eloBracket) updates.eloBracket = null
+  if (updates.patch !== undefined || updates.position !== undefined || updates.eloBracket !== undefined) {
+    setFilter(updates).catch(console.error)
+  }
 }, { immediate: true })
 
 // Bound to every async source so the bar covers both the initial lazy load
