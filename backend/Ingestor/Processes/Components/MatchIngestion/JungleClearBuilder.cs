@@ -29,7 +29,11 @@ internal static class JungleClearBuilder
     internal const int FirstClearWindowMs = 8 * 60_000;
 
     // A participant is only treated as a jungler if their jungle CS grows by at least
-    // this much across the window — filters laners who poke a single camp.
+    // this much across the window — filters laners who poke a single camp. The trade
+    // is a deliberate false-negative: a jungler counter-jungled or repeatedly ganked
+    // out of their own jungle who never reaches this jungle CS in the window yields no
+    // row at all (rather than a partial clear). Acceptable for the "first clear only"
+    // scope of #535; worth revisiting if prod coverage comes in lower than expected.
     internal const int MinJungleCsForJungler = 4;
 
     public static List<JungleFirstClear> Build(string matchId, MatchTimelineDto timeline)

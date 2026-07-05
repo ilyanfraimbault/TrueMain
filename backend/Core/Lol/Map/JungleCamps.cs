@@ -30,8 +30,11 @@ public static class JungleCamps
 
     /// <summary>
     /// Centroid (x, y) of every jungle camp. Coordinates are approximate documented
-    /// community values; the nearest-camp mapping only needs them accurate enough to
-    /// be each camp's closest centroid, which holds with wide margins.
+    /// community (HextechDocs) values; the nearest-camp mapping only needs them
+    /// accurate enough to be each camp's closest centroid, which holds with wide
+    /// margins. The JungleCampsTests suite pins these exact values, so it is the
+    /// anchor to update (and to re-derive the source against) if Riot ever reshapes
+    /// the jungle geometry.
     /// </summary>
     public static readonly IReadOnlyDictionary<JungleCamp, (int X, int Y)> Coordinates =
         new Dictionary<JungleCamp, (int X, int Y)>
