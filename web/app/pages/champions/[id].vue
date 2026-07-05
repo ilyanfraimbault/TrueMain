@@ -173,9 +173,10 @@ const { data: championScaling, status: scalingStatus } = useChampionScaling(
   trendReady,
 )
 
-// Average item-purchase times — power spikes (issue #524). Same lane/patch scoping
+// Power curve event spikes — completed build items ranked by how much the
+// champion's lead accelerates after them (issue #571). Same lane/patch scoping
 // and gating; rendered against the page's static item map.
-const { data: championItemTimings, status: itemTimingsStatus } = useChampionItemTimings(
+const { data: championPowerspikes, status: powerspikesStatus } = useChampionPowerspikes(
   championId,
   trendPosition,
   selectedPatch,
@@ -264,7 +265,7 @@ const isRefetching = computed(() =>
   || isLoadingStatus(trendStatus.value)
   || isLoadingStatus(leadsStatus.value)
   || isLoadingStatus(scalingStatus.value)
-  || isLoadingStatus(itemTimingsStatus.value)
+  || isLoadingStatus(powerspikesStatus.value)
   || isLoadingStatus(roamStatus.value)
   || isLoadingStatus(patchDiffStatus.value),
 )
@@ -390,10 +391,10 @@ const isRefetching = computed(() =>
         />
       </div>
 
-      <ChampionItemTimings
-        :timings="championItemTimings?.items ?? []"
+      <ChampionPowerspikesChart
+        :events="championPowerspikes?.events ?? []"
         :items-map="itemsMap ?? {}"
-        :loading="isLoadingStatus(itemTimingsStatus)"
+        :loading="isLoadingStatus(powerspikesStatus)"
       />
 
       <ChampionRoam

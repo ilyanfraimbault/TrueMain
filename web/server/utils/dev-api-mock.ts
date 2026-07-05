@@ -14,8 +14,9 @@
 
 import type {
   ChampionBuild,
-  ChampionItemTimingsResponse,
   ChampionMatchups,
+  ChampionPowerspikeEvent,
+  ChampionPowerspikesResponse,
   ChampionResponse,
   ChampionRoamResponse,
   ChampionScalingResponse,
@@ -528,20 +529,43 @@ async function mockScaling(id: number): Promise<ChampionScalingResponse | null> 
   }
 }
 
-async function mockItemTimings(id: number): Promise<ChampionItemTimingsResponse | null> {
+async function mockPowerspikes(id: number): Promise<ChampionPowerspikesResponse | null> {
   const s = seedsById.get(id)
   if (!s) return null
   const rng = mulberry32(s.id * 401)
   const archetype = ARCHETYPES[s.archetype]
+  // Power drifts with the archetype's scaling slope so late-game champions
+  // read as ramping up; the curve stays in the ±1σ band real data lives in.
+  const slope = SCALING_SLOPE[s.archetype]
+  const curve = Array.from({ length: 30 }, (_, i) => ({
+    minute: i + 1,
+    power: round3(slope * 8 * ((i + 1) / 30 - 0.4) + (rng() - 0.5) * 0.08),
+    games: Math.round(s.pr * POOL_GAMES * Math.max(0.25, 1 - i * 0.02)),
+  }))
+  // One spike per core item: mostly positive, tapering with build order, the
+  // odd negative read on late defensive buys. The real endpoint orders by
+  // *signed* magnitude descending — mirror that.
+  const events: ChampionPowerspikeEvent[] = archetype.items.slice(0, 6).map((itemId, i) => ({
+    type: 'item' as const,
+    refId: itemId,
+    avgMinute: round3(9 + i * 4.6 + rng() * 1.6),
+    spikeMagnitude: round3((0.09 - i * 0.022) * (rng() > 0.12 ? 1 : -0.6) + (rng() - 0.5) * 0.01),
+    games: Math.round(s.pr * POOL_GAMES * Math.max(0.08, 0.7 - i * 0.11)),
+  }))
+  events.push(...[6, 11, 16].map(level => ({
+    type: 'level' as const,
+    refId: level,
+    avgMinute: round3(level === 6 ? 7.5 + rng() : level === 11 ? 16 + rng() * 2 : 26 + rng() * 3),
+    spikeMagnitude: round3(0.05 - level * 0.002 + (rng() - 0.5) * 0.01),
+    games: Math.round(s.pr * POOL_GAMES * (level === 16 ? 0.4 : 0.9)),
+  })))
+  events.sort((a, b) => b.spikeMagnitude - a.spikeMagnitude)
   return {
     championId: s.id,
     position: s.position,
     patch: await latestShortPatch(),
-    items: archetype.items.slice(0, 6).map((itemId, i) => ({
-      itemId,
-      games: Math.round(s.pr * POOL_GAMES * Math.max(0.08, 0.7 - i * 0.11)),
-      avgSeconds: Math.round(520 + i * 290 + rng() * 90),
-    })),
+    curve,
+    events,
   }
 }
 
@@ -932,7 +956,7 @@ export async function resolveDevApiMock(
       : sub === 'trend' ? mockTrend(id)
       : sub === 'timeline-leads' ? mockTimelineLeads(id)
       : sub === 'scaling' ? mockScaling(id)
-      : sub === 'item-timings' ? mockItemTimings(id)
+      : sub === 'powerspikes' ? mockPowerspikes(id)
       : sub === 'roam' ? mockRoam(id)
       : sub === 'matchups' ? mockMatchups(id)
       : Promise.resolve(undefined))
