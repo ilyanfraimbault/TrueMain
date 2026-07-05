@@ -1,105 +1,162 @@
 namespace Core.Lol.Ranking;
 
 /// <summary>
-/// Coarse elo buckets used to scope champion builds / winrate by skill band
+/// Per-tier elo buckets used to scope champion builds / win rate by rank
 /// instead of one blended average. A game is bucketed by the player's ranked
 /// tier <em>at game time</em> (nearest <c>rank_snapshots</c> capture to the
-/// match start). Games with no usable snapshot fall into
-/// <see cref="Unranked"/>.
+/// match start). Games with no usable snapshot fall into <see cref="Unranked"/>.
 ///
-/// Buckets (deliberately broad so high brackets keep a usable sample):
+/// One scope row is persisted per individual tier (<see cref="Ladder"/>) plus
+/// <see cref="Unranked"/>. The apex tiers (Grandmaster, Challenger) fold into
+/// <see cref="Master"/> — they share an emblem and are too thin to split.
+///
+/// A read-time <em>filter</em> is one of:
 /// <list type="bullet">
-///   <item><see cref="IronGold"/> — Iron, Bronze, Silver, Gold.</item>
-///   <item><see cref="PlatinumEmerald"/> — Platinum, Emerald.</item>
-///   <item><see cref="DiamondPlus"/> — Diamond.</item>
-///   <item><see cref="MasterPlus"/> — Master, Grandmaster, Challenger.</item>
-///   <item><see cref="Unranked"/> — no snapshot / unknown tier.</item>
+///   <item><see cref="All"/> — every bucket (the default, never stored).</item>
+///   <item>a bare tier (e.g. <c>GOLD</c>) — that tier only.</item>
+///   <item>a tier + <see cref="PlusSuffix"/> (e.g. <c>GOLD_PLUS</c>) — that tier
+///   and every tier above it on the <see cref="Ladder"/>.</item>
 /// </list>
-///
-/// <see cref="All"/> is never persisted on a scope row — it is the read-time
-/// union of every other bracket, so adding a bracket dimension never doubles
-/// the stored row count.
+/// <see cref="ResolveFilter"/> turns a filter into the concrete set of stored
+/// buckets to read, so a "rank and above" filter is a single <c>IN</c> query.
 /// </summary>
 public static class EloBracket
 {
     public const string All = "ALL";
-    public const string IronGold = "IRON_GOLD";
-    public const string PlatinumEmerald = "PLATINUM_EMERALD";
-    public const string DiamondPlus = "DIAMOND_PLUS";
-    public const string MasterPlus = "MASTER_PLUS";
+    public const string Iron = "IRON";
+    public const string Bronze = "BRONZE";
+    public const string Silver = "SILVER";
+    public const string Gold = "GOLD";
+    public const string Platinum = "PLATINUM";
+    public const string Emerald = "EMERALD";
+    public const string Diamond = "DIAMOND";
+    public const string Master = "MASTER";
     public const string Unranked = "UNRANKED";
 
+    /// <summary>Suffix marking an "and above" filter, e.g. <c>GOLD_PLUS</c>.</summary>
+    public const string PlusSuffix = "_PLUS";
+
     /// <summary>
-    /// Brackets that are precomputed and stored on scope rows (everything
-    /// except the synthetic <see cref="All"/> union). The aggregator emits one
-    /// scope row per persisted bracket so a per-bracket read is a single index
-    /// seek.
+    /// The ranked tiers in ascending order. Position defines "and above": a
+    /// <c>TIER_PLUS</c> filter reads this tier and everything after it.
     /// </summary>
-    public static readonly IReadOnlyList<string> Persisted =
+    public static readonly IReadOnlyList<string> Ladder =
     [
-        IronGold,
-        PlatinumEmerald,
-        DiamondPlus,
-        MasterPlus,
-        Unranked
+        Iron,
+        Bronze,
+        Silver,
+        Gold,
+        Platinum,
+        Emerald,
+        Diamond,
+        Master
     ];
 
     /// <summary>
-    /// Brackets surfaced as selectable filters on the champion page, ordered
-    /// from broadest to narrowest. <see cref="All"/> leads as the default;
-    /// <see cref="Unranked"/> is intentionally omitted from the picker (it is
-    /// folded into <see cref="All"/> but not a band a user would pick).
+    /// Buckets stored on scope rows: the <see cref="Ladder"/> tiers plus
+    /// <see cref="Unranked"/>. The synthetic <see cref="All"/> filter is the
+    /// read-time union of these and is never persisted.
     /// </summary>
-    public static readonly IReadOnlyList<string> Selectable =
-    [
-        All,
-        IronGold,
-        PlatinumEmerald,
-        DiamondPlus,
-        MasterPlus
-    ];
+    public static readonly IReadOnlyList<string> Persisted = [.. Ladder, Unranked];
 
     /// <summary>
-    /// Maps a Riot ranked tier name (e.g. <c>"DIAMOND"</c>) to its bracket.
-    /// Unknown / null / empty tiers map to <see cref="Unranked"/>.
+    /// Maps a Riot ranked tier name (e.g. <c>"DIAMOND"</c>) to its stored
+    /// bucket. Master / Grandmaster / Challenger all fold into
+    /// <see cref="Master"/>; unknown / null / empty tiers map to
+    /// <see cref="Unranked"/>.
     /// </summary>
     public static string FromTier(string? tier) => tier?.Trim().ToUpperInvariant() switch
     {
-        "IRON" or "BRONZE" or "SILVER" or "GOLD" => IronGold,
-        "PLATINUM" or "EMERALD" => PlatinumEmerald,
-        "DIAMOND" => DiamondPlus,
-        "MASTER" or "GRANDMASTER" or "CHALLENGER" => MasterPlus,
+        "IRON" => Iron,
+        "BRONZE" => Bronze,
+        "SILVER" => Silver,
+        "GOLD" => Gold,
+        "PLATINUM" => Platinum,
+        "EMERALD" => Emerald,
+        "DIAMOND" => Diamond,
+        "MASTER" or "GRANDMASTER" or "CHALLENGER" => Master,
         _ => Unranked
     };
 
     /// <summary>
-    /// Normalises a caller-supplied bracket filter to a canonical persisted
-    /// bracket, <see cref="All"/>, or <see langword="null"/> when the value is
-    /// blank / unrecognised (treated as "no filter" → <see cref="All"/>).
+    /// Canonicalises a caller-supplied filter to <see cref="All"/>, a bare tier,
+    /// or a <c>TIER_PLUS</c> form; returns <see langword="null"/> when the value
+    /// is blank / unrecognised (treated as "no filter" → <see cref="All"/>).
     /// </summary>
-    public static string? Normalize(string? bracket)
+    public static string? Normalize(string? filter)
     {
-        if (string.IsNullOrWhiteSpace(bracket))
+        if (string.IsNullOrWhiteSpace(filter))
         {
             return null;
         }
 
-        return bracket.Trim().ToUpperInvariant() switch
+        var value = filter.Trim().ToUpperInvariant();
+        if (value == All)
         {
-            All => All,
-            IronGold => IronGold,
-            PlatinumEmerald => PlatinumEmerald,
-            DiamondPlus => DiamondPlus,
-            MasterPlus => MasterPlus,
-            Unranked => Unranked,
-            _ => null
-        };
+            return All;
+        }
+
+        var (tier, andAbove) = SplitFilter(value);
+        if (IndexInLadder(tier) < 0)
+        {
+            return null;
+        }
+
+        return andAbove ? tier + PlusSuffix : tier;
     }
 
     /// <summary>
-    /// True when the bracket means "every game" — either explicitly
-    /// <see cref="All"/> or an unspecified filter.
+    /// Resolves a filter to the set of stored buckets it covers, or
+    /// <see langword="null"/> for the <see cref="All"/> / blank / unrecognised
+    /// case (no filter — the caller then spans every bucket). A bare tier
+    /// yields a single-element set; a <c>TIER_PLUS</c> filter yields that tier
+    /// and everything above it on the <see cref="Ladder"/>.
     /// </summary>
-    public static bool IsAll(string? bracket)
-        => string.IsNullOrWhiteSpace(bracket) || string.Equals(bracket, All, StringComparison.OrdinalIgnoreCase);
+    public static IReadOnlyList<string>? ResolveFilter(string? filter)
+    {
+        if (string.IsNullOrWhiteSpace(filter))
+        {
+            return null;
+        }
+
+        var value = filter.Trim().ToUpperInvariant();
+        if (value == All)
+        {
+            return null;
+        }
+
+        var (tier, andAbove) = SplitFilter(value);
+        var index = IndexInLadder(tier);
+        if (index < 0)
+        {
+            return null;
+        }
+
+        return andAbove ? Ladder.Skip(index).ToList() : [Ladder[index]];
+    }
+
+    /// <summary>
+    /// True when the filter means "every game" — either explicitly
+    /// <see cref="All"/> or an unspecified / unrecognised value.
+    /// </summary>
+    public static bool IsAll(string? filter)
+        => ResolveFilter(filter) is null;
+
+    private static (string Tier, bool AndAbove) SplitFilter(string value)
+        => value.EndsWith(PlusSuffix, StringComparison.Ordinal)
+            ? (value[..^PlusSuffix.Length], true)
+            : (value, false);
+
+    private static int IndexInLadder(string tier)
+    {
+        for (var i = 0; i < Ladder.Count; i++)
+        {
+            if (string.Equals(Ladder[i], tier, StringComparison.Ordinal))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
 }

@@ -18,14 +18,6 @@ public sealed class ChampionBuildsQueryService(
     private const int VariationsTopN = 3;
     private const int RunePagesTopN = 3;
 
-    /// <summary>
-    /// Below this many games a bracket slice is flagged low-confidence
-    /// (<see cref="ChampionResponse.MinSampleMet"/> = false). High brackets
-    /// (Master+) routinely fall below this, so it guards the UI rather than
-    /// hiding the data.
-    /// </summary>
-    private const int MinSampleGames = 20;
-
     public async Task<ChampionResponse?> GetAsync(
         int championId,
         string? patch,
@@ -34,37 +26,27 @@ public sealed class ChampionBuildsQueryService(
         ChampionBuildsScope? scope = null,
         string? eloBracket = null)
     {
-        var normalizedBracket = EloBracket.Normalize(eloBracket);
-        var isAllBracket = EloBracket.IsAll(normalizedBracket);
-        var bracketFilter = isAllBracket ? null : normalizedBracket;
+        // A blank / ALL / unrecognised filter resolves to null (every tier); a
+        // bare tier to a single bucket; a TIER_PLUS filter to that tier and the
+        // ones above it. The loader reads exactly this set.
+        var bracketFilter = EloBracket.ResolveFilter(eloBracket);
+        var resolvedBracket = EloBracket.Normalize(eloBracket) ?? EloBracket.All;
 
         var scopes = await ChampionScopeLoader.LoadAsync(
             db, (int)options.Value.QueueId, championId, patch, position, ct,
             riotAccountId: scope?.RiotAccountId,
             platformId: scope?.PlatformId,
             minGames: scope?.MinGames,
-            eloBracket: bracketFilter);
+            eloBrackets: bracketFilter);
         if (scopes is null)
         {
             return null;
         }
 
-        var resolvedBracket = isAllBracket ? EloBracket.All : normalizedBracket!;
-
         var scopeIds = scopes.Select(s => s.Id).ToList();
         var rows = await FetchRowsAsync(scopeIds, ct);
         var totalGames = rows.Sum(row => row.Games);
         var totalWins = rows.Sum(row => row.Wins);
-
-        // Coverage denominator: games across every bracket at the same resolved
-        // patch + position. For the ALL bracket the slice already spans them, so
-        // coverage is 1; for a narrow bracket we re-sum the scope totals without
-        // the bracket filter (cheap — scope rows only, no pattern join).
-        var allBracketGames = isAllBracket
-            ? totalGames
-            : await CountAllBracketGamesAsync(
-                scopes[0], scope?.RiotAccountId, scope?.PlatformId, ct);
-        var coverage = allBracketGames == 0 ? 0d : (double)totalGames / allBracketGames;
 
         // Player-scoped requests carry a minimum-games floor: a champion the
         // player has barely touched would produce a sparse, misleading build,
@@ -86,8 +68,6 @@ public sealed class ChampionBuildsQueryService(
             Patch = resolvedPatch,
             Position = resolvedPosition,
             EloBracket = resolvedBracket,
-            EloCoverage = coverage,
-            MinSampleMet = totalGames >= MinSampleGames,
             TotalGames = totalGames,
             TotalWins = totalWins,
             Builds = builds
@@ -147,30 +127,6 @@ public sealed class ChampionBuildsQueryService(
 
         return BuildResponse(builds);
     }
-
-    /// <summary>
-    /// Total games across every persisted bracket for the same resolved scope
-    /// (champion, patch, platform, queue, position) as <paramref name="reference"/>.
-    /// Mirrors the loader's account filter — global callers span every account,
-    /// player-scoped callers pin the one account — so the denominator matches
-    /// the numerator's population. Sums scope-level totals only (no pattern
-    /// join), so it's a cheap denominator for bracket coverage.
-    /// </summary>
-    private async Task<int> CountAllBracketGamesAsync(
-        ChampionAggregateScope reference,
-        Guid? riotAccountId,
-        string? platformId,
-        CancellationToken ct)
-        => await db.ChampionAggregateScopes
-            .AsNoTracking()
-            .WhereChampionScope(
-                reference.ChampionId,
-                reference.QueueId,
-                riotAccountId,
-                reference.GameVersion,
-                platformId,
-                reference.Position)
-            .SumAsync(s => s.Games, ct);
 
     private async Task<IReadOnlyList<ChampionPatternEnrichedRow>> FetchRowsAsync(
         IReadOnlyList<Guid> scopeIds,
