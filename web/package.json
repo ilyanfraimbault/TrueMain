@@ -27,6 +27,6 @@
     "typescript": "^6.0.3",
     "vitest": "^4.1.8",
     "vue-chrts": "2.1.4",
-    "vue-tsc": "^3.3.4"
+    "vue-tsc": "^3.3.6"
   }
 }
