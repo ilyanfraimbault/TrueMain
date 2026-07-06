@@ -126,38 +126,43 @@ const tabItems = [
       <!-- ── Details: player selector + single-player breakdown ──────── -->
       <template #details>
         <div class="mt-3 flex flex-col gap-3">
-          <!-- Selector: blue team · VS · red team -->
-          <div class="flex items-center justify-center gap-1 overflow-x-auto pb-1">
-            <template v-for="(p, i) in participants" :key="`sel-${p.participantId}`">
+          <!-- Selector: blue team · vs · red team, spread across the full width -->
+          <div class="flex items-center justify-center gap-3 overflow-x-auto pb-1 sm:justify-between">
+            <template v-for="(team, teamIdx) in [blueTeam, redTeam]" :key="`team-${teamIdx}`">
+              <div class="flex shrink-0 items-center gap-2">
+                <button
+                  v-for="p in team"
+                  :key="`sel-${p.participantId}`"
+                  type="button"
+                  class="relative shrink-0 rounded transition-all"
+                  :class="p.participantId === selectedParticipant?.participantId
+                    ? 'ring-2 ring-primary'
+                    : 'opacity-60 hover:opacity-100'"
+                  :title="champName(p.championId)"
+                  :aria-label="`Show ${champName(p.championId)} details`"
+                  :aria-pressed="p.participantId === selectedParticipant?.participantId"
+                  @click="selectPlayer(p.participantId)"
+                >
+                  <SkeletonImage
+                    :src="champIcon(p.championId)"
+                    :alt="champName(p.championId)"
+                    class="size-14 rounded"
+                  />
+                  <img
+                    v-if="p.teamPosition"
+                    :src="getPositionIconUrl(p.teamPosition)"
+                    :alt="p.teamPosition"
+                    class="absolute -bottom-1 -left-1 size-5 rounded-full bg-default p-0.5 ring-1 ring-default"
+                    aria-hidden="true"
+                  >
+                </button>
+              </div>
+
               <span
-                v-if="i === blueTeam.length"
-                class="mx-2 shrink-0 select-none text-sm font-medium text-muted"
+                v-if="teamIdx === 0"
+                class="mx-2 shrink-0 select-none text-2xl font-semibold text-muted"
                 aria-hidden="true"
               >vs</span>
-              <button
-                type="button"
-                class="relative shrink-0 rounded transition-all"
-                :class="p.participantId === selectedParticipant?.participantId
-                  ? 'ring-2 ring-primary'
-                  : 'opacity-60 hover:opacity-100'"
-                :title="champName(p.championId)"
-                :aria-label="`Show ${champName(p.championId)} details`"
-                :aria-pressed="p.participantId === selectedParticipant?.participantId"
-                @click="selectPlayer(p.participantId)"
-              >
-                <SkeletonImage
-                  :src="champIcon(p.championId)"
-                  :alt="champName(p.championId)"
-                  class="size-9 rounded"
-                />
-                <img
-                  v-if="p.teamPosition"
-                  :src="getPositionIconUrl(p.teamPosition)"
-                  :alt="p.teamPosition"
-                  class="absolute -bottom-1 -left-1 size-3.5 rounded-full bg-default p-0.5 ring-1 ring-default"
-                  aria-hidden="true"
-                >
-              </button>
             </template>
           </div>
 
