@@ -7,7 +7,14 @@
 // Riot ingestion pipeline. See issue #631.
 //
 // Usage:
-//   dotnet run --project backend/Tools/DevSeed -- [--games-per-champion N] [--patch X.Y] [--force]
+//   dotnet run --project backend/Tools/DevSeed -- [--games-per-champion N] [--patch X.Y] [--force-host] [--force-wipe]
+//
+// --force-host bypasses the "does this look like a local dev host" check;
+// --force-wipe bypasses the "does this database already hold non-synthetic
+// match data" check (which guards the wholesale truncate of
+// champion_matchup_stats / champion_timeline_lead_stats below). The two are
+// independent, deliberately unmerged flags: bypassing one risk shouldn't
+// silently bypass the other.
 //
 // The connection string comes from (in order) an env var (ConnectionStrings__TrueMain),
 // this project's own user secrets (`dotnet user-secrets set ConnectionStrings:TrueMain
@@ -26,7 +33,8 @@ const string DevSeedAccountPuuid = "DEVSEED0000000000000000000000000000000000000
 
 MapPoints.AssertValid();
 
-var force = args.Contains("--force");
+var forceHost = args.Contains("--force-host");
+var forceWipe = args.Contains("--force-wipe");
 var gamesPerChampion = ReadIntArg(args, "--games-per-champion");
 var patchArg = ReadStringArg(args, "--patch");
 
@@ -50,12 +58,12 @@ if (string.IsNullOrWhiteSpace(connectionString))
     return 1;
 }
 
-if (!force && !LooksLocal(connectionString))
+if (!forceHost && !LooksLocal(connectionString))
 {
     Console.Error.WriteLine(
         "Refusing to run: the connection string doesn't look like a local dev database " +
         "(expected the host to be localhost/127.0.0.1/postgres/pgbouncer). " +
-        "Pass --force if you're sure this is safe.");
+        "Pass --force-host if you're sure this is safe.");
     return 1;
 }
 
@@ -69,13 +77,13 @@ var options = new DbContextOptionsBuilder<TrueMainDbContext>()
 
 await using var db = new TrueMainDbContext(options);
 
-if (!force && await db.Matches.AnyAsync(m => !m.Id.StartsWith("DEVSEED_")))
+if (!forceWipe && await db.Matches.AnyAsync(m => !m.Id.StartsWith("DEVSEED_")))
 {
     Console.Error.WriteLine(
         "Refusing to run: this database already has non-synthetic match data. " +
         "DevSeed truncates champion_matchup_stats / champion_timeline_lead_stats wholesale " +
         "(they carry no owner column to scope a delete to), which would destroy real aggregated " +
-        "data. Pass --force if you're sure this database only ever holds DevSeed data.");
+        "data. Pass --force-wipe if you're sure this database only ever holds DevSeed data.");
     return 1;
 }
 
@@ -163,7 +171,7 @@ static async Task CleanupAsync(TrueMainDbContext db)
     }
 
     // No owner column exists on these two tables (see their doc comments) — the
-    // --force / non-synthetic-data guard above is what keeps this safe.
+    // --force-wipe / non-synthetic-data guard above is what keeps this safe.
     await db.ChampionMatchupStats.ExecuteDeleteAsync();
     await db.ChampionTimelineLeadStats.ExecuteDeleteAsync();
 }

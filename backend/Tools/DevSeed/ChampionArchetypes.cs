@@ -120,7 +120,12 @@ public static class ChampionArchetypes
         new(43, "UTILITY", "enchanter", 8214, 8200, 8300, 0.509, 0.039),
     ];
 
-    /// <summary>How much each archetype roams: out-of-lane KP share used to bias generated kill positions.</summary>
+    /// <summary>
+    /// How much each position roams: out-of-lane KP share used to bias generated
+    /// kill positions. The JUNGLE entry is unused by the current Roam read —
+    /// ChampionRoamQueryService excludes junglers entirely (no meaningful own
+    /// lane) — kept here only so this dictionary stays a complete position map.
+    /// </summary>
     public static readonly IReadOnlyDictionary<string, double> RoamSharePerPosition = new Dictionary<string, double>
     {
         ["TOP"] = 0.14,

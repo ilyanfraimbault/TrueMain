@@ -1,4 +1,5 @@
 using Data.Entities;
+using EloBracket = Core.Lol.Ranking.EloBracket;
 
 namespace DevSeed;
 
@@ -31,6 +32,20 @@ public sealed class SeedGenerator(
     private const int BlueTeamId = 100;
     private const int RedTeamId = 200;
     private static readonly int[] IntervalMinutes = [5, 10, 15, 20, 30];
+
+    // A ChampionAggregateScope row is persisted per elo bracket (see
+    // ChampionAggregateScopeConfiguration's unique index), and the build tab's
+    // rank filter (?eloBracket=GOLD_PLUS etc.) reads scoped to specific brackets
+    // — a single ALL-only scope would make every rank-scoped query return
+    // nothing. Split each patch's games across a handful of brackets instead so
+    // that read path is actually exercisable against seeded data.
+    private static readonly (string Bracket, double Share)[] EloBrackets =
+    [
+        (EloBracket.Gold, 0.32),
+        (EloBracket.Platinum, 0.30),
+        (EloBracket.Emerald, 0.22),
+        (EloBracket.Diamond, 0.16),
+    ];
 
     // Shared across every SeedGenerator instance in the process (one is created
     // per champion, sequentially, in Program.cs) so match ids never collide.
@@ -73,8 +88,8 @@ public sealed class SeedGenerator(
             // Pass A: the Phase 6 build aggregate for this patch — share-based,
             // mirroring the web mock's makeBuild(variant, totalGames) rather than
             // per-match accumulation (there are only two known variants here).
-            var (scope, patternRows) = BuildAggregateForPatch(self, dims, patch, nowUtc);
-            scopes.Add(scope);
+            var (patchScopes, patternRows) = BuildAggregateForPatch(self, dims, patch, nowUtc);
+            scopes.AddRange(patchScopes);
             patterns.AddRange(patternRows);
 
             // Pass B: real per-match rows for the live-computed reads, plus the
@@ -119,35 +134,40 @@ public sealed class SeedGenerator(
         return new GenerationResult(matches, participants, snapshots, killPositions, scopes, patterns, matchupStats, leadStats);
     }
 
-    private (ChampionAggregateScope Scope, List<ChampionAggregatePattern> Patterns) BuildAggregateForPatch(
+    private (List<ChampionAggregateScope> Scopes, List<ChampionAggregatePattern> Patterns) BuildAggregateForPatch(
         ChampionSeed self, Dims dim, string patch, DateTime nowUtc)
     {
         var totalGames = Math.Max(20, gamesPerPatch);
-        var scopeWins = (int)Math.Round(totalGames * self.WinRate);
+        var scopes = new List<ChampionAggregateScope>();
+        var patterns = new List<ChampionAggregatePattern>();
 
-        var scope = new ChampionAggregateScope
+        foreach (var (bracket, share) in EloBrackets)
         {
-            Id = Guid.NewGuid(),
-            RiotAccountId = devSeedAccount.Id,
-            ChampionId = self.Id,
-            GameVersion = patch,
-            PlatformId = PlatformId,
-            QueueId = QueueId,
-            Position = self.Position,
-            Games = totalGames,
-            Wins = scopeWins,
-            LastGameStartTimeUtc = nowUtc.AddDays(-1),
-            AggregatedAtUtc = nowUtc,
-        };
+            var bracketGames = Math.Max(4, (int)Math.Round(totalGames * share));
 
-        // Two build variants, matching the web mock's makeBuild(0|1): the
-        // dominant build owns ~2/3 of the sample, the alternate the rest.
-        var dominantGames = (int)Math.Round(totalGames * 0.64);
-        var altGames = (int)Math.Round(totalGames * 0.24);
+            var scope = new ChampionAggregateScope
+            {
+                Id = Guid.NewGuid(),
+                RiotAccountId = devSeedAccount.Id,
+                ChampionId = self.Id,
+                GameVersion = patch,
+                PlatformId = PlatformId,
+                QueueId = QueueId,
+                Position = self.Position,
+                EloBracket = bracket,
+                Games = bracketGames,
+                Wins = (int)Math.Round(bracketGames * self.WinRate),
+                LastGameStartTimeUtc = nowUtc.AddDays(-1),
+                AggregatedAtUtc = nowUtc,
+            };
+            scopes.Add(scope);
 
-        var patterns = new List<ChampionAggregatePattern>
-        {
-            new()
+            // Two build variants, matching the web mock's makeBuild(0|1): the
+            // dominant build owns ~2/3 of the sample, the alternate the rest.
+            var dominantGames = (int)Math.Round(bracketGames * 0.64);
+            var altGames = (int)Math.Round(bracketGames * 0.24);
+
+            patterns.Add(new ChampionAggregatePattern
             {
                 Id = Guid.NewGuid(),
                 ScopeId = scope.Id,
@@ -158,8 +178,8 @@ public sealed class SeedGenerator(
                 StarterItemsId = dim.StarterItemsId,
                 Games = dominantGames,
                 Wins = (int)Math.Round(dominantGames * self.WinRate),
-            },
-            new()
+            });
+            patterns.Add(new ChampionAggregatePattern
             {
                 Id = Guid.NewGuid(),
                 ScopeId = scope.Id,
@@ -170,10 +190,10 @@ public sealed class SeedGenerator(
                 StarterItemsId = dim.StarterItemsId,
                 Games = altGames,
                 Wins = (int)Math.Round(altGames * (self.WinRate - 0.015)),
-            },
-        };
+            });
+        }
 
-        return (scope, patterns);
+        return (scopes, patterns);
     }
 
     private sealed record Dims(
@@ -232,12 +252,12 @@ public sealed class SeedGenerator(
         var bucket = WeightedBucket(rng);
         var durationSeconds = bucket switch
         {
-            0 => rng.NextInt(1500, 1800), // Riot's actual floor differs; only relative bucketing matters here.
-            1 => rng.NextInt(1200, 1500),
-            2 => rng.NextInt(1500, 1800),
-            3 => rng.NextInt(1800, 2100),
-            _ => rng.NextInt(2100, 2400),
-        } - (bucket == 0 ? 300 : 0); // bucket 0 is "<20m": pull it under 1200s.
+            0 => rng.NextInt(900, 1200), // <20m
+            1 => rng.NextInt(1200, 1500), // 20-25m
+            2 => rng.NextInt(1500, 1800), // 25-30m
+            3 => rng.NextInt(1800, 2100), // 30-35m
+            _ => rng.NextInt(2100, 2400), // 35m+
+        };
         var slope = ChampionArchetypes.ScalingSlope[self.ArchetypeKey];
         var winProbability = Math.Clamp(self.WinRate + slope * (bucket - 2) + rng.NextDouble(-0.02, 0.02), 0.05, 0.95);
         var win = rng.NextDouble() < winProbability;
