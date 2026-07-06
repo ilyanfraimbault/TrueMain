@@ -17,7 +17,8 @@ internal static class ChampionAggregateScopeQueries
         Guid? riotAccountId,
         string? patch,
         string? platformId,
-        string? position)
+        string? position,
+        IReadOnlyCollection<string>? eloBrackets = null)
     {
         var query = source.Where(scope => scope.ChampionId == championId && scope.QueueId == queueId);
 
@@ -39,6 +40,15 @@ internal static class ChampionAggregateScopeQueries
         if (!string.IsNullOrWhiteSpace(position))
         {
             query = query.Where(scope => scope.Position == position);
+        }
+
+        // A null bracket set means "every game" (the ALL read-time union across
+        // every persisted tier). A non-null set narrows to those tiers — one
+        // tier for a "rank only" filter, several for a "rank and above" one —
+        // via a single IN over the bracket-aware index.
+        if (eloBrackets is { Count: > 0 })
+        {
+            query = query.Where(scope => eloBrackets.Contains(scope.EloBracket));
         }
 
         return query;

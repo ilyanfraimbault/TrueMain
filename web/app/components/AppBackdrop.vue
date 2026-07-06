@@ -1,15 +1,20 @@
 <script setup lang="ts">
-// App-wide animated backdrop. One fixed WebGL layer behind every page (the
-// hero included) so the surface reads as a single sheet of slowly-billowing
-// rose-gold silk: an iterative sine warp bends space into wide, voluptuous
-// folds (deliberately few iterations + large amplitudes — curves, not noise),
-// a champagne sheen catches the crest of each fold, and the troughs stay
-// transparent so the dark surface shows through as the fabric's shadow.
+// App-wide animated backdrop. One fixed WebGL layer behind every page: a
+// rose-gold eclipse. A dark orb drifts slowly around the upper-middle of the
+// viewport on two superposed oscillations — never still, never going
+// anywhere. Its rim burns champagne-rose, a corona of fbm streams breathes
+// around it, a whisper of limb light keeps the sphere reading as a body, and
+// sparse stars twinkle behind (masked by the disc). A soft elliptical
+// "reading shield" dims whatever crosses the hero text zone so the title
+// keeps its contrast on any screen.
+//
+// Cursor-reactive: the corona surges on the side of the orb facing the
+// mouse while it moves, and settles a few seconds after it rests.
 //
 // Degrades gracefully: no WebGL → the static CSS wash below; reduced-motion →
 // a single rendered frame, no loop; tab hidden / off-screen → the loop parks.
-// Rose-gold-only, transparent output, so it tints whatever sits behind on both
-// colour modes.
+// Output is additive-over-transparent (colour normalised by luminance, alpha
+// = luminance) so only the light composites onto the page surface.
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 
@@ -33,47 +38,121 @@ precision mediump float;
 #endif
 uniform vec2 u_resolution;
 uniform float u_time;
+uniform vec2 u_pointer;   // smoothed cursor, viewport fractions (0..1, y up)
+uniform float u_pointerK; // 0 = ambient drift, 1 = cursor-driven
+
+float hash2(vec2 p) {
+  return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+float vnoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  float a = hash2(i), b = hash2(i + vec2(1.0, 0.0));
+  float c = hash2(i + vec2(0.0, 1.0)), d = hash2(i + vec2(1.0, 1.0));
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+float fbm(vec2 p) {
+  float v = 0.0, a = 0.5;
+  for (int i = 0; i < 5; i++) { v += a * vnoise(p); p = p * 2.03 + vec2(7.3, 3.1); a *= 0.5; }
+  return v;
+}
+
+// Viewport fractions -> the same height-normalised space as p, so anchors
+// keep their on-screen position on any aspect ratio. Normalising by height
+// (not min(w,h)) is deliberate: the hero text is vertically centred and
+// height-driven, so tying the orb's size and vertical position to height too
+// keeps them locked together — resizing width no longer shrinks or shifts
+// the eclipse relative to the text. In landscape this equals min(w,h), so
+// the common case is unchanged.
+vec2 anchor(vec2 uv) {
+  return (uv * 2.0 - 1.0) * u_resolution / u_resolution.y;
+}
+
+vec2 starPos(vec2 g) {
+  return g + 0.2 + 0.6 * vec2(hash2(g), hash2(g + 17.3));
+}
 
 void main() {
-  vec2 uv = gl_FragCoord.xy / u_resolution;
-  // Centered, aspect-corrected space so the folds sweep in wide diagonals
-  // instead of stretching with the viewport.
-  vec2 p = (gl_FragCoord.xy * 2.0 - u_resolution) / min(u_resolution.x, u_resolution.y);
-  float t = u_time * 0.05;
+  vec2 p = (gl_FragCoord.xy * 2.0 - u_resolution) / u_resolution.y;
+  float t = u_time;
 
-  // Iterative sine warp — each pass bends space along big slow curves. Few
-  // iterations x large amplitude reads as draped silk; more/finer would
-  // collapse back into noise.
-  vec2 q = p;
-  for (float i = 1.0; i <= 4.0; i += 1.0) {
-    q.x += (0.65 / i) * sin(i * 1.4 * q.y + t + 0.4 * i);
-    q.y += (0.55 / i) * cos(i * 1.2 * q.x + 1.3 * t + 0.7 * i);
+  const vec3 WINE = vec3(0.30, 0.09, 0.15);
+  const vec3 ROSE = vec3(0.80, 0.36, 0.32);
+  const vec3 CHAMPAGNE = vec3(0.95, 0.70, 0.48);
+
+  // The orb drifts on two superposed slow oscillations — never still, never
+  // going anywhere. The reading shield below stays put, so the text zone is
+  // protected wherever the rim wanders.
+  vec2 c = anchor(vec2(
+    0.5 + 0.020 * sin(t * 0.19) + 0.006 * sin(t * 0.53 + 1.3),
+    0.66 + 0.024 * sin(t * 0.14 + 2.1) + 0.006 * sin(t * 0.47)));
+  vec2 d2c = p - c;
+  float d = length(d2c);
+  float R = 0.38;
+  vec2 dirN = d2c / max(d, 1e-4);
+
+  // Rim + corona (fbm sampled on the unit circle so there is no angle seam).
+  float rim = exp(-abs(d - R) * 30.0);
+  float outer = max(d - R, 0.0);
+  float streams = pow(max(fbm(dirN * 1.9 + outer * 2.0 + vec2(0.0, t * 0.04)) - 0.28, 0.0), 1.8);
+  float cor = exp(-outer * 3.4) * streams * step(R, d);
+
+  // Cursor flare: the corona surges on the side of the orb facing the mouse.
+  vec2 cpDir = anchor(u_pointer) - c;
+  cpDir /= max(length(cpDir), 1e-4);
+  float facing = pow(max(dot(dirN, cpDir), 0.0), 5.0);
+  cor *= 0.6 + 1.5 * u_pointerK * facing;
+  rim *= 0.75 + 0.8 * u_pointerK * facing;
+
+  float inside = smoothstep(R, R - 0.025, d);
+  vec3 col = (ROSE * 0.7 + CHAMPAGNE * 0.5) * rim * (1.0 - inside * 0.6);
+  col += (WINE * 0.7 + ROSE * 0.55) * cor * 1.5;
+
+  // Natural aura: a wide, very soft atmosphere breathing out from the disc,
+  // slower and calmer than the corona streams. Outward only — the disc's
+  // interior is the hero's reading surface and must stay dark.
+  float breathe = 0.85 + 0.15 * sin(t * 0.25);
+  col += (WINE * 0.75 + ROSE * 0.3) * exp(-outer * 5.5) * step(R, d) * 0.2 * breathe;
+  // Earthshine: the sphere's limb catches a whisper of that light just
+  // inside the rim — hugging the edge so it never veils the text.
+  col += (WINE * 0.6 + ROSE * 0.3) * exp(-(R - d) * 18.0) * inside * 0.3 * breathe;
+
+  // Sparse stars, hidden behind the disc.
+  vec2 q = p * 4.0 + 11.0;
+  vec2 g = floor(q);
+  float st = 0.0;
+  for (int dy = -1; dy <= 1; dy++) {
+    for (int dx = -1; dx <= 1; dx++) {
+      vec2 gg = g + vec2(float(dx), float(dy));
+      float h = hash2(gg + 5.1);
+      float tw = 0.5 + 0.5 * sin(t * (0.5 + h) + h * 40.0);
+      st += exp(-dot(q - starPos(gg), q - starPos(gg)) * 1000.0) * tw * step(0.55, h);
+    }
   }
+  col += mix(ROSE, CHAMPAGNE, 0.6) * st * 0.5 * (1.0 - inside);
 
-  // One smooth band field over the warped space: body is the lit face of a
-  // fold, sheen the narrow champagne highlight riding its crest. Troughs
-  // fall to zero alpha — the dark page shows through as the fabric's shadow.
-  float band = 0.5 + 0.5 * sin(1.6 * q.x + 1.1 * q.y);
-  float body = smoothstep(0.12, 0.92, band);
-  float sheen = pow(band, 6.0);
+  // Reading shield: gently dim whatever crosses the hero text zone, so the
+  // title keeps its contrast whichever way the rim lands on this screen.
+  vec2 hz = (p - anchor(vec2(0.5, 0.55))) / vec2(0.72, 0.34);
+  col *= 1.0 - 0.6 * (1.0 - smoothstep(0.75, 1.3, length(hz)));
 
-  // Rose-gold ramp: shadowed mauve-rose folds -> lit rose silk -> champagne
-  // sheen, so the fabric warms toward gold exactly where it catches light.
-  vec3 deep = vec3(0.42, 0.20, 0.23);
-  vec3 mid = vec3(0.85, 0.45, 0.42);
-  vec3 gold = vec3(0.96, 0.81, 0.66);
-  vec3 color = deep * body * 0.85
-    + mid * pow(band, 2.5) * 0.6
-    + gold * sheen * 0.5;
+  // Fine animated grain keeps the soft gradients from banding.
+  col += (hash2(gl_FragCoord.xy + fract(t) * 61.0) - 0.5) * 0.02;
+  col = max(col, 0.0);
 
-  // Top-weighted falloff keeps the hero draped and the reading surface calm.
-  float vgrad = mix(0.45, 1.0, 1.0 - uv.y);
-  float alpha = clamp((body * 0.26 + sheen * 0.32) * vgrad, 0.0, 0.6);
-  gl_FragColor = vec4(color, alpha);
+  // Additive-over-transparent: normalise colour by luminance and carry the
+  // luminance as alpha, so compositing over the page reproduces col + bg.
+  float lum = max(col.r, max(col.g, col.b));
+  float alpha = clamp(lum, 0.0, 0.95);
+  gl_FragColor = vec4(col / max(lum, 1e-4), alpha);
 }
 `
 
 const FRAME_INTERVAL_MS = 1000 / 30
+// Everything is soft gradients + grain; capped so 4K/retina doesn't
+// quadruple the fill cost for detail that isn't there.
 const MAX_DPR = 1.5
 // Arbitrary mid-animation timestamp for the single frame drawn when motion is
 // off (reduced-motion / pre-loop resize) — far enough in that the folds are
@@ -140,6 +219,23 @@ onMounted(() => {
 
   const uResolution = gl.getUniformLocation(program, 'u_resolution')
   const uTime = gl.getUniformLocation(program, 'u_time')
+  const uPointer = gl.getUniformLocation(program, 'u_pointer')
+  const uPointerK = gl.getUniformLocation(program, 'u_pointerK')
+
+  // Cursor state, in viewport fractions (0..1, y up) to match the shader.
+  // `pointer` trails `pointerTarget` and `pointerK` eases toward 1 while the
+  // mouse is moving, back to 0 a few seconds after it rests — both smoothed
+  // per frame in draw(), so the light glides instead of jumping.
+  const pointerTarget = { x: 0.7, y: 0.62 }
+  const pointer = { ...pointerTarget }
+  let pointerK = 0
+  let lastPointerMoveAt = -Infinity
+
+  function onPointerMove(event: PointerEvent) {
+    pointerTarget.x = event.clientX / window.innerWidth
+    pointerTarget.y = 1 - event.clientY / window.innerHeight
+    lastPointerMoveAt = performance.now()
+  }
 
   function resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR)
@@ -154,8 +250,17 @@ onMounted(() => {
 
   function draw(timeSeconds: number) {
     resize()
+    // Runs at ~30fps (loop is frame-gated), so these fixed factors act as
+    // time constants: ~0.3s for the position trail, ~1s in / ~2s out for the
+    // cursor's influence.
+    pointer.x += (pointerTarget.x - pointer.x) * 0.12
+    pointer.y += (pointerTarget.y - pointer.y) * 0.12
+    const pointerActive = performance.now() - lastPointerMoveAt < 3000
+    pointerK += ((pointerActive ? 1 : 0) - pointerK) * (pointerActive ? 0.1 : 0.02)
     gl!.uniform2f(uResolution, canvas!.width, canvas!.height)
     gl!.uniform1f(uTime, timeSeconds)
+    gl!.uniform2f(uPointer, pointer.x, pointer.y)
+    gl!.uniform1f(uPointerK, pointerK)
     gl!.clearColor(0, 0, 0, 0)
     gl!.clear(gl!.COLOR_BUFFER_BIT)
     gl!.drawArrays(gl!.TRIANGLES, 0, 3)
@@ -221,6 +326,7 @@ onMounted(() => {
   document.addEventListener('visibilitychange', onVisibilityChange)
   canvas.addEventListener('webglcontextlost', onContextLost)
   reducedMotion.addEventListener('change', syncMotion)
+  window.addEventListener('pointermove', onPointerMove, { passive: true })
 
   syncMotion()
 
@@ -229,6 +335,7 @@ onMounted(() => {
     document.removeEventListener('visibilitychange', onVisibilityChange)
     canvas.removeEventListener('webglcontextlost', onContextLost)
     reducedMotion.removeEventListener('change', syncMotion)
+    window.removeEventListener('pointermove', onPointerMove)
     resizeObserver.disconnect()
     gl.getExtension('WEBGL_lose_context')?.loseContext()
   }

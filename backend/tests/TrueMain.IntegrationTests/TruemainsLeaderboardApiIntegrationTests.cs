@@ -262,6 +262,182 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
     }
 
     [Fact]
+    public async Task List_exposes_primary_and_secondary_position_from_position_share()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        // Three players with different lane spreads across their mains. The
+        // primary lane is the highest-share lane; the secondary lane only
+        // surfaces when it clears the 20% share floor (and sits below the
+        // primary). Shares are summed across the player's mains, matching the
+        // profile's #205 aggregation.
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var flex = Account("flex", "FlexPlayer", "EUW1");
+            var cameo = Account("cameo", "CameoPlayer", "EUW1");
+            var pure = Account("pure", "PurePlayer", "EUW1");
+
+            db.RiotAccounts.AddRange(flex, cameo, pure);
+            db.RankSnapshots.AddRange(
+                Snapshot(flex, "DIAMOND", "I", 90, now),
+                Snapshot(cameo, "DIAMOND", "I", 60, now),
+                Snapshot(pure, "DIAMOND", "I", 30, now));
+
+            // FlexPlayer: two mains summing to MIDDLE 70 / TOP 30 games —
+            // secondary TOP at 30% clears the 20% floor.
+            db.MainChampionStats.AddRange(
+                MainStatWithBreakdown("flex", "EUW1", championId: 157, primaryPosition: "MIDDLE",
+                    breakdown:
+                    [
+                        new PositionStat { Position = "MIDDLE", Games = 50, Rate = 1d },
+                    ]),
+                MainStatWithBreakdown("flex", "EUW1", championId: 86, primaryPosition: "TOP",
+                    breakdown:
+                    [
+                        new PositionStat { Position = "MIDDLE", Games = 20, Rate = 0.4d },
+                        new PositionStat { Position = "TOP", Games = 30, Rate = 0.6d },
+                    ]));
+
+            // CameoPlayer: MIDDLE 90 / TOP 10 — TOP cameo (10%) is below the
+            // floor, so no secondary is shown.
+            db.MainChampionStats.Add(MainStatWithBreakdown(
+                "cameo", "EUW1", championId: 157, primaryPosition: "MIDDLE",
+                breakdown:
+                [
+                    new PositionStat { Position = "MIDDLE", Games = 90, Rate = 0.9d },
+                    new PositionStat { Position = "TOP", Games = 10, Rate = 0.1d },
+                ]));
+
+            // PurePlayer: TOP 100% — primary TOP, no secondary.
+            db.MainChampionStats.Add(MainStatWithBreakdown(
+                "pure", "EUW1", championId: 86, primaryPosition: "TOP",
+                breakdown:
+                [
+                    new PositionStat { Position = "TOP", Games = 50, Rate = 1d },
+                ]));
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        var leaderboard = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        leaderboard!.Total.Should().Be(3);
+
+        var byName = leaderboard.Rows.ToDictionary(r => r.Identity.GameName);
+
+        byName["FlexPlayer"].Positions.Should().NotBeNull();
+        byName["FlexPlayer"].Positions!.Primary.Should().Be("MIDDLE");
+        byName["FlexPlayer"].Positions!.Secondary.Should().Be("TOP", "TOP at 30% share clears the 20% floor");
+
+        byName["CameoPlayer"].Positions.Should().NotBeNull();
+        byName["CameoPlayer"].Positions!.Primary.Should().Be("MIDDLE");
+        byName["CameoPlayer"].Positions!.Secondary.Should().BeNull("a 10% cameo lane is below the share floor");
+
+        byName["PurePlayer"].Positions.Should().NotBeNull();
+        byName["PurePlayer"].Positions!.Primary.Should().Be("TOP");
+        byName["PurePlayer"].Positions!.Secondary.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task List_resolves_tied_lanes_deterministically_by_ordinal_position()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        // Two lanes at an exact games tie (MIDDLE 50 / TOP 50). Without a
+        // deterministic tiebreak the primary/secondary could flap between
+        // requests; ComputePositions breaks the tie by ordinal Position, so
+        // MIDDLE (< TOP) is always the primary and TOP the secondary. Both
+        // sit at 50% share, clearing the 20% floor.
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var tied = Account("tied", "TiedPlayer", "EUW1");
+            db.RiotAccounts.Add(tied);
+            db.RankSnapshots.Add(Snapshot(tied, "DIAMOND", "I", 70, now));
+
+            db.MainChampionStats.Add(MainStatWithBreakdown(
+                "tied", "EUW1", championId: 157, primaryPosition: "MIDDLE",
+                breakdown:
+                [
+                    new PositionStat { Position = "MIDDLE", Games = 50, Rate = 0.5d },
+                    new PositionStat { Position = "TOP", Games = 50, Rate = 0.5d },
+                ]));
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        var leaderboard = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        var row = leaderboard!.Rows.Single(r => r.Identity.GameName == "TiedPlayer");
+
+        row.Positions.Should().NotBeNull();
+        row.Positions!.Primary.Should().Be("MIDDLE", "an exact games tie breaks toward the lower ordinal position");
+        row.Positions!.Secondary.Should().Be("TOP", "the tied runner-up still clears the 20% share floor");
+    }
+
+    [Fact]
+    public async Task List_derives_positions_from_only_the_top_mains_like_the_profile()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        // MainStatsCalculator can flag more than the profile's 6-main cap as
+        // IsMain when a player's coverage is thin (CriticalPlayRateThreshold can
+        // drop to 0.1). ProfileQueryService derives the profile's lanes from only
+        // the top-6 mains (#205), so the leaderboard must aggregate over the same
+        // slice — otherwise the two views disagree for the same player.
+        //
+        // CappedPlayer has 7 mains: six MIDDLE mains that fill the entire top-6
+        // window by play rate, plus a seventh TOP main that sits *below* the cut
+        // (lowest play rate) yet carries far more games. Counting the seventh
+        // would flip the primary lane to TOP; capping to the top-6 keeps MIDDLE.
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var capped = Account("capped", "CappedPlayer", "EUW1");
+            db.RiotAccounts.Add(capped);
+            db.RankSnapshots.Add(Snapshot(capped, "DIAMOND", "I", 90, now));
+
+            // Six MIDDLE mains, all above the TOP main by play rate → they fill
+            // the top-6 window. 10 MIDDLE games each = 60 MIDDLE games.
+            var playRates = new[] { 0.9d, 0.8d, 0.7d, 0.6d, 0.5d, 0.45d };
+            for (var i = 0; i < playRates.Length; i++)
+            {
+                db.MainChampionStats.Add(MainStatWithBreakdown(
+                    "capped", "EUW1", championId: 100 + i, primaryPosition: "MIDDLE",
+                    breakdown: [new PositionStat { Position = "MIDDLE", Games = 10, Rate = 1d }],
+                    playRate: playRates[i]));
+            }
+
+            // Seventh main: lowest play rate (ranked 7th → excluded by the cap),
+            // but 100 TOP games. If the aggregation wrongly counted it, TOP (100)
+            // would outweigh MIDDLE (60) and become the primary lane.
+            db.MainChampionStats.Add(MainStatWithBreakdown(
+                "capped", "EUW1", championId: 200, primaryPosition: "TOP",
+                breakdown: [new PositionStat { Position = "TOP", Games = 100, Rate = 1d }],
+                playRate: 0.4d));
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        var leaderboard = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        var row = leaderboard!.Rows.Single(r => r.Identity.GameName == "CappedPlayer");
+
+        row.Positions.Should().NotBeNull();
+        row.Positions!.Primary.Should().Be("MIDDLE",
+            "lanes are aggregated over only the top-6 mains (all MIDDLE) — the excluded 7th main's TOP games must not count");
+        row.Positions!.Secondary.Should().BeNull(
+            "every main in the top-6 slice is MIDDLE, so there is no secondary lane");
+    }
+
+    [Fact]
     public async Task List_paginates_with_server_computed_rank()
     {
         await _fixture.ResetDatabaseAsync();
@@ -517,7 +693,8 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
         string platformId,
         int championId,
         string primaryPosition,
-        List<PositionStat> breakdown)
+        List<PositionStat> breakdown,
+        double playRate = 0.5d)
         => new()
         {
             Id = Guid.NewGuid(),
@@ -526,7 +703,9 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
             ChampionId = championId,
             TotalMatches = 100,
             ChampionMatches = breakdown.Sum(p => p.Games),
-            PlayRate = 0.5d,
+            // Overridable so a test can order a player's mains by play rate and
+            // exercise the top-mains cap the position aggregation applies.
+            PlayRate = playRate,
             IsMain = true,
             IsOtp = false,
             PrimaryPosition = primaryPosition,

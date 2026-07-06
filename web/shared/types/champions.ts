@@ -21,10 +21,46 @@ export interface ChampionSummaryTopBuild {
   itemPath: number[]
 }
 
+/**
+ * Champion meta / tier-list for a single patch (`GET /champions/tierlist`).
+ * Champions are bucketed into S/A/B/C/D tiers by a winRate + pickRate blend,
+ * tiered independently per position. All metrics come from the same aggregates
+ * the directory reads — none are synthesised.
+ */
+export interface ChampionTierListResponse {
+  patchVersion: string
+  /** Position the list is scoped to, or null for every position at once. */
+  position: string | null
+  /** Tier groups in descending strength (S first); empty tiers are omitted. */
+  tiers: ChampionTierGroup[]
+}
+
+export interface ChampionTierGroup {
+  /** Tier letter: 'S' | 'A' | 'B' | 'C' | 'D'. */
+  tier: string
+  /** Rows in this tier, strongest-first. */
+  entries: ChampionTierEntry[]
+}
+
+export interface ChampionTierEntry {
+  championId: number
+  position: string
+  games: number
+  winRate: number
+  /** Share of TrueMain games on this position taken by this champion. */
+  pickRate: number
+}
+
 export interface ChampionResponse {
   championId: number
   patch: string
   position: string
+  /**
+   * Elo filter this slice was computed for: `ALL`, a bare tier (e.g. `GOLD` —
+   * that tier only) or a `<TIER>_PLUS` form (e.g. `GOLD_PLUS` — that tier and
+   * above). `ALL` by default.
+   */
+  eloBracket: string
   totalGames: number
   totalWins: number
   builds: ChampionBuild[]
@@ -41,6 +77,41 @@ export interface ChampionTrendPoint {
   winRate: number
   pickRate: number
   games: number
+}
+
+/**
+ * What changed for a champion between two patches (issue #534): the win-rate
+ * swing plus whether the dominant first item, keystone and skill order moved,
+ * at a single position. Either side is null when the champion has no data on
+ * that patch; `delta` is null unless both sides are present.
+ */
+export interface ChampionPatchDiffResponse {
+  championId: number
+  position: string
+  from: ChampionPatchDiffSide | null
+  to: ChampionPatchDiffSide | null
+  delta: ChampionPatchDiffDelta | null
+}
+
+export interface ChampionPatchDiffSide {
+  patch: string
+  games: number
+  wins: number
+  winRate: number
+  /** Most popular completed-build first item on the patch; 0 when none qualifies. */
+  topFirstItemId: number
+  /** Most popular primary keystone on the patch; 0 when none qualifies. */
+  topKeystoneId: number
+  /** Dominant skill-order sequence (e.g. ['Q', 'E', 'W']); empty when unavailable. */
+  topSkillOrder: string[]
+}
+
+export interface ChampionPatchDiffDelta {
+  /** Win-rate change, to.winRate - from.winRate (signed fraction). */
+  winRateChange: number
+  firstItemChanged: boolean
+  keystoneChanged: boolean
+  skillOrderChanged: boolean
 }
 
 /**
@@ -89,22 +160,45 @@ export interface ChampionScalingBucket {
 }
 
 /**
- * When a champion buys each item on average, at a position — the "power spike"
- * timeline. Items are ordered earliest-first; the caller filters/labels them
- * from static item data (e.g. by total gold to drop consumables/components).
+ * Power curve and event spikes for a champion at a position (issue #571). The
+ * curve is the mean opponent-relative power per minute; the events are the
+ * completed build items and level milestones (6/11/16), each carrying how much
+ * the curve accelerates around it — the spike.
  */
-export interface ChampionItemTimingsResponse {
+export interface ChampionPowerspikesResponse {
   championId: number
   position: string
   patch: string | null
-  items: ChampionItemTiming[]
+  /** Mean power per minute across the population, ordered by minute. */
+  curve: ChampionPowerCurvePoint[]
+  /** Spike events, ordered by descending magnitude. */
+  events: ChampionPowerspikeEvent[]
 }
 
-export interface ChampionItemTiming {
-  itemId: number
+export interface ChampionPowerCurvePoint {
+  minute: number
+  /**
+   * Opponent-relative power index at this minute: 0 = even with the lane
+   * opponent, positive = ahead. Unitless (σ-normalized blend of gold and
+   * damage lead).
+   */
+  power: number
   games: number
-  /** Average game time of the first purchase of this item, in seconds. */
-  avgSeconds: number
+}
+
+export interface ChampionPowerspikeEvent {
+  type: 'item' | 'level'
+  /** Item id for `item` events; champion level (6/11/16) for `level` events. */
+  refId: number
+  /** Mean minute the event occurs across games. */
+  avgMinute: number
+  /**
+   * Mean change in the power-curve slope across a ±3 min window around the
+   * event (after − before). Positive = the champion's advantage accelerates
+   * after the event — the power spike.
+   */
+  spikeMagnitude: number
+  games: number
 }
 
 /**

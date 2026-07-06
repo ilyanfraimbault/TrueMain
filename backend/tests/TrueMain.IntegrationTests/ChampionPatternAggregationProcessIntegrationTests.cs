@@ -1,4 +1,5 @@
 using Core.Lol.Map;
+using Core.Lol.Ranking;
 using Core.Options;
 using Data.Entities;
 using AwesomeAssertions;
@@ -196,6 +197,67 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
         // is filtered out as too short, so there's no second scope to keep.
         scopes.Should().ContainSingle();
         scopes.Should().NotContain(scope => scope.GameVersion == "16.6");
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldBucketScopesByNearestRankSnapshotTier()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedChampionPatternDataAsync();
+        await SeedRankSnapshotsBracketingTheGamesAsync();
+
+        var process = CreateProcess();
+        await process.RunCoreAsync(CancellationToken.None);
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        var scopes = await verifyDb.ChampionAggregateScopes.AsNoTracking().ToListAsync();
+
+        // The two 16.5 games (same account / champion / patch / position) now
+        // split by the player's tier at game time: the earlier game buckets
+        // Silver (nearest to the Silver snapshot), the later one Master (nearest
+        // to the Master snapshot) — so one scope becomes two.
+        scopes.Should().HaveCount(2);
+        scopes.Select(scope => scope.EloBracket)
+            .Should().BeEquivalentTo([EloBracket.Silver, EloBracket.Master]);
+
+        var silver = scopes.Single(scope => scope.EloBracket == EloBracket.Silver);
+        silver.Games.Should().Be(1);
+        silver.Wins.Should().Be(1, "KR_AGG_1 (nearest the Silver snapshot) was a win");
+
+        var master = scopes.Single(scope => scope.EloBracket == EloBracket.Master);
+        master.Games.Should().Be(1);
+        master.Wins.Should().Be(0, "KR_AGG_2 (nearest the Master snapshot) was a loss");
+    }
+
+    private async Task SeedRankSnapshotsBracketingTheGamesAsync()
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        // Capture each snapshot exactly at a game's start so the nearest-capture
+        // reduction is deterministic: KR_AGG_1 → Silver, KR_AGG_2 → Master.
+        var gameStarts = await db.Matches
+            .Where(match => match.Id == "KR_AGG_1" || match.Id == "KR_AGG_2")
+            .ToDictionaryAsync(match => match.Id, match => match.GameStartTimeUtc);
+
+        db.RankSnapshots.AddRange(
+            new RankSnapshot
+            {
+                RiotAccountId = _riotAccountId,
+                CapturedAtUtc = gameStarts["KR_AGG_1"],
+                Tier = "SILVER",
+                Division = "II",
+                LeaguePoints = 50
+            },
+            new RankSnapshot
+            {
+                RiotAccountId = _riotAccountId,
+                CapturedAtUtc = gameStarts["KR_AGG_2"],
+                Tier = "MASTER",
+                Division = "I",
+                LeaguePoints = 200
+            });
+
+        await db.SaveChangesAsync();
     }
 
     private ChampionPatternAggregationProcess CreateProcess()

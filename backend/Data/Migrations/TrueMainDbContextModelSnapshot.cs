@@ -20,7 +20,7 @@ namespace Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.8")
+                .HasAnnotation("ProductVersion", "10.0.9")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -95,6 +95,12 @@ namespace Data.Migrations
                     b.Property<int>("ChampionId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("EloBracket")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("elo_bracket");
+
                     b.Property<string>("GameVersion")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -131,7 +137,10 @@ namespace Data.Migrations
 
                     b.HasIndex("RiotAccountId", "ChampionId", "GameVersion", "PlatformId", "Position");
 
-                    b.HasIndex("RiotAccountId", "ChampionId", "GameVersion", "PlatformId", "QueueId", "Position")
+                    b.HasIndex("ChampionId", "GameVersion", "PlatformId", "QueueId", "Position", "EloBracket")
+                        .HasDatabaseName("IX_champion_aggregate_scopes_ChampionId_GameVersion_PlatformI~1");
+
+                    b.HasIndex("RiotAccountId", "ChampionId", "GameVersion", "PlatformId", "QueueId", "Position", "EloBracket")
                         .IsUnique()
                         .HasDatabaseName("IX_champion_aggregate_scopes_RiotAccountId_ChampionId_GameVer~1");
 
@@ -395,6 +404,35 @@ namespace Data.Migrations
                     b.HasKey("PlatformId");
 
                     b.ToTable("discovery_cursors", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.JungleFirstClear", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("FullClearTimeMs")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("MatchId")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int>("ParticipantId")
+                        .HasColumnType("integer");
+
+                    b.Property<List<JungleClearStep>>("Steps")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MatchId", "ParticipantId")
+                        .IsUnique();
+
+                    b.ToTable("jungle_first_clears", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.MainCandidate", b =>
@@ -1218,6 +1256,15 @@ namespace Data.Migrations
                         .IsRequired();
 
                     b.Navigation("RiotAccount");
+                });
+
+            modelBuilder.Entity("Data.Entities.JungleFirstClear", b =>
+                {
+                    b.HasOne("Data.Entities.Match", null)
+                        .WithMany()
+                        .HasForeignKey("MatchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Data.Entities.MatchParticipant", b =>

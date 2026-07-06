@@ -14,8 +14,9 @@
 
 import type {
   ChampionBuild,
-  ChampionItemTimingsResponse,
   ChampionMatchups,
+  ChampionPowerspikeEvent,
+  ChampionPowerspikesResponse,
   ChampionResponse,
   ChampionRoamResponse,
   ChampionScalingResponse,
@@ -436,7 +437,40 @@ function makeBuild(s: ChampionSeed, variant: 0 | 1, totalGames: number): Champio
   }
 }
 
-async function mockChampionDetail(id: number, position: string | undefined): Promise<ChampionResponse | null> {
+// Share of all-rank games each tier holds, ascending — mirrors the backend
+// EloBracket ladder for the dev mock (issue #526). A bare tier reads its own
+// share; a `<TIER>_PLUS` filter sums that tier and every tier above it; `ALL`
+// (or any unrecognised value) is the full pool. Weights sum to 1.
+const ELO_TIER_WEIGHTS: Array<{ tier: string, weight: number }> = [
+  { tier: 'IRON', weight: 0.04 },
+  { tier: 'BRONZE', weight: 0.13 },
+  { tier: 'SILVER', weight: 0.20 },
+  { tier: 'GOLD', weight: 0.20 },
+  { tier: 'PLATINUM', weight: 0.17 },
+  { tier: 'EMERALD', weight: 0.14 },
+  { tier: 'DIAMOND', weight: 0.09 },
+  { tier: 'MASTER', weight: 0.02 },
+  { tier: 'GRANDMASTER', weight: 0.007 },
+  { tier: 'CHALLENGER', weight: 0.003 },
+]
+
+function resolveEloSlice(filter: string | undefined): { bracket: string, fraction: number } {
+  if (!filter || filter.toUpperCase() === 'ALL') return { bracket: 'ALL', fraction: 1 }
+  const upper = filter.toUpperCase()
+  const andAbove = upper.endsWith('_PLUS')
+  const tier = andAbove ? upper.slice(0, -'_PLUS'.length) : upper
+  const index = ELO_TIER_WEIGHTS.findIndex(entry => entry.tier === tier)
+  if (index < 0) return { bracket: 'ALL', fraction: 1 }
+  const included = andAbove ? ELO_TIER_WEIGHTS.slice(index) : [ELO_TIER_WEIGHTS[index]!]
+  const fraction = included.reduce((sum, entry) => sum + entry.weight, 0)
+  return { bracket: andAbove ? `${tier}_PLUS` : tier, fraction }
+}
+
+async function mockChampionDetail(
+  id: number,
+  position: string | undefined,
+  eloBracket: string | undefined,
+): Promise<ChampionResponse | null> {
   const s = seedsById.get(id)
   if (!s) return null
   // Mirror the backend: a filtered slice for a lane the champion doesn't play
@@ -444,11 +478,17 @@ async function mockChampionDetail(id: number, position: string | undefined): Pro
   if (position && position !== s.position) return null
   const patch = await latestShortPatch()
   const rng = mulberry32(s.id * 31 + s.position.length)
-  const totalGames = Math.max(120, Math.round(s.pr * POOL_GAMES * (0.9 + rng() * 0.2)))
+  const allGames = Math.max(120, Math.round(s.pr * POOL_GAMES * (0.9 + rng() * 0.2)))
+
+  // Scope the slice to the requested tier(s): ALL keeps the full pool, a tier
+  // (or tier-and-above) takes its share so the rank select visibly changes.
+  const { bracket, fraction } = resolveEloSlice(eloBracket)
+  const totalGames = Math.round(allGames * fraction)
   return {
     championId: s.id,
     patch,
     position: s.position,
+    eloBracket: bracket,
     totalGames,
     totalWins: Math.round(totalGames * s.wr),
     builds: [makeBuild(s, 0, totalGames), makeBuild(s, 1, totalGames)],
@@ -528,20 +568,43 @@ async function mockScaling(id: number): Promise<ChampionScalingResponse | null> 
   }
 }
 
-async function mockItemTimings(id: number): Promise<ChampionItemTimingsResponse | null> {
+async function mockPowerspikes(id: number): Promise<ChampionPowerspikesResponse | null> {
   const s = seedsById.get(id)
   if (!s) return null
   const rng = mulberry32(s.id * 401)
   const archetype = ARCHETYPES[s.archetype]
+  // Power drifts with the archetype's scaling slope so late-game champions
+  // read as ramping up; the curve stays in the ±1σ band real data lives in.
+  const slope = SCALING_SLOPE[s.archetype]
+  const curve = Array.from({ length: 30 }, (_, i) => ({
+    minute: i + 1,
+    power: round3(slope * 8 * ((i + 1) / 30 - 0.4) + (rng() - 0.5) * 0.08),
+    games: Math.round(s.pr * POOL_GAMES * Math.max(0.25, 1 - i * 0.02)),
+  }))
+  // One spike per core item: mostly positive, tapering with build order, the
+  // odd negative read on late defensive buys. The real endpoint orders by
+  // *signed* magnitude descending — mirror that.
+  const events: ChampionPowerspikeEvent[] = archetype.items.slice(0, 6).map((itemId, i) => ({
+    type: 'item' as const,
+    refId: itemId,
+    avgMinute: round3(9 + i * 4.6 + rng() * 1.6),
+    spikeMagnitude: round3((0.09 - i * 0.022) * (rng() > 0.12 ? 1 : -0.6) + (rng() - 0.5) * 0.01),
+    games: Math.round(s.pr * POOL_GAMES * Math.max(0.08, 0.7 - i * 0.11)),
+  }))
+  events.push(...[6, 11, 16].map(level => ({
+    type: 'level' as const,
+    refId: level,
+    avgMinute: round3(level === 6 ? 7.5 + rng() : level === 11 ? 16 + rng() * 2 : 26 + rng() * 3),
+    spikeMagnitude: round3(0.05 - level * 0.002 + (rng() - 0.5) * 0.01),
+    games: Math.round(s.pr * POOL_GAMES * (level === 16 ? 0.4 : 0.9)),
+  })))
+  events.sort((a, b) => b.spikeMagnitude - a.spikeMagnitude)
   return {
     championId: s.id,
     position: s.position,
     patch: await latestShortPatch(),
-    items: archetype.items.slice(0, 6).map((itemId, i) => ({
-      itemId,
-      games: Math.round(s.pr * POOL_GAMES * Math.max(0.08, 0.7 - i * 0.11)),
-      avgSeconds: Math.round(520 + i * 290 + rng() * 90),
-    })),
+    curve,
+    events,
   }
 }
 
@@ -677,6 +740,13 @@ function buildPlayers(): MockPlayer[] {
             firstItemId: ARCHETYPES[m.archetype].items[0]!,
           }
         }),
+        // Primary is the top main's lane; secondary is the first differing lane
+        // among the other mains (null when every main shares one lane), matching
+        // the backend's primary/secondary derivation from position share.
+        positions: {
+          primary: mains[0]!.position,
+          secondary: mains.slice(1).map(m => m.position).find(p => p !== mains[0]!.position) ?? null,
+        },
       },
     })
   }
@@ -920,12 +990,13 @@ export async function resolveDevApiMock(
     const id = Number(championMatch[1])
     const sub = championMatch[2]
     const position = typeof query.position === 'string' && query.position ? query.position : undefined
+    const eloBracket = typeof query.eloBracket === 'string' && query.eloBracket ? query.eloBracket : undefined
     const payload = await (
-      sub === undefined ? mockChampionDetail(id, position)
+      sub === undefined ? mockChampionDetail(id, position, eloBracket)
       : sub === 'trend' ? mockTrend(id)
       : sub === 'timeline-leads' ? mockTimelineLeads(id)
       : sub === 'scaling' ? mockScaling(id)
-      : sub === 'item-timings' ? mockItemTimings(id)
+      : sub === 'powerspikes' ? mockPowerspikes(id)
       : sub === 'roam' ? mockRoam(id)
       : sub === 'matchups' ? mockMatchups(id)
       : Promise.resolve(undefined))
@@ -954,7 +1025,7 @@ export async function resolveDevApiMock(
   const playerChampionMatch = path.match(/^\/truemains\/[^/]+\/champions\/(\d+)(?:\/matchups)?$/)
   if (playerChampionMatch) {
     const id = Number(playerChampionMatch[1])
-    const payload = path.endsWith('/matchups') ? await mockMatchups(id) : await mockChampionDetail(id, undefined)
+    const payload = path.endsWith('/matchups') ? await mockMatchups(id) : await mockChampionDetail(id, undefined, undefined)
     if (payload === null) throw createError({ statusCode: 404, statusMessage: 'No data (dev mock)' })
     return payload
   }

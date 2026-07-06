@@ -9,6 +9,7 @@ public interface IDataRepositoryFactory
     IMatchParticipantRepository CreateMatchParticipantRepository(TrueMainDbContext dbContext);
     IMatchParticipantTimelineSnapshotRepository CreateMatchParticipantTimelineSnapshotRepository(TrueMainDbContext dbContext);
     IMatchParticipantKillPositionRepository CreateMatchParticipantKillPositionRepository(TrueMainDbContext dbContext);
+    IJungleFirstClearRepository CreateJungleFirstClearRepository(TrueMainDbContext dbContext);
     IProcessRunRepository CreateProcessRunRepository(TrueMainDbContext dbContext);
     IRankSnapshotRepository CreateRankSnapshotRepository(TrueMainDbContext dbContext);
     ISeedRequestRepository CreateSeedRequestRepository(TrueMainDbContext dbContext);
