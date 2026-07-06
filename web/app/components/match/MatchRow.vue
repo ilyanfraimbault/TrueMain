@@ -18,19 +18,28 @@ const props = defineProps<{
   summonerSpells: Record<number, StaticSummonerSpellData>
   runeTree: RuneTreeResponse
   /**
-   * When set, the row links to the match detail page
-   * (`/truemains/{nameTag}/matches/{matchId}`). Omitted on surfaces with no
-   * player context (e.g. the dev playground), where the row stays static.
+   * When set, the row becomes an accordion whose header expands an inline
+   * match-detail panel. Omitted on surfaces with no resolved player identity
+   * to fetch the detail against, where the row stays a static, non-interactive
+   * article.
    */
   nameTag?: string | null
 }>()
 
-// Deep-link target for the whole row. Null disables the link wrapper so the
-// row degrades to a plain article wherever no nameTag is provided.
-const detailTo = computed(() => {
-  if (!props.nameTag) return null
-  return `/truemains/${encodeURIComponent(props.nameTag)}/matches/${encodeURIComponent(props.match.matchId)}`
-})
+// A nameTag is required to fetch the detail payload, so it gates the whole
+// expand affordance — without it the row degrades to a plain article.
+const canExpand = computed(() => !!props.nameTag)
+
+const expanded = ref(false)
+// The detail panel is mounted on first open and kept mounted afterwards, so
+// collapsing and re-opening a row never re-runs the (large) detail fetch.
+const hasOpened = ref(false)
+
+function toggle() {
+  if (!canExpand.value) return
+  expanded.value = !expanded.value
+  if (expanded.value) hasOpened.value = true
+}
 
 const self = computed(() => props.match.self)
 
@@ -140,171 +149,213 @@ const rowTint = computed(() =>
 
 <template>
   <article
-    class="group relative flex overflow-hidden rounded-md transition-colors"
-    :class="rowTint"
+    class="group relative overflow-hidden rounded-md"
     :aria-label="`${resultLabel} as ${championName}, ${self.kills}/${self.deaths}/${self.assists}`"
   >
-    <!-- Result strip: 4px vertical band on the left edge, slightly more
-         saturated than the row tint so the eye still locks on the side
-         even when scanning quickly. -->
-    <div
-      class="w-1 shrink-0"
-      :class="self.win ? 'bg-sky-500' : 'bg-red-500'"
-      aria-hidden="true"
-    />
+    <!-- Row header: result strip + clickable summary. -->
+    <div class="flex transition-colors" :class="rowTint">
+      <!-- Result strip: 4px vertical band on the left edge, slightly more
+           saturated than the row tint so the eye still locks on the side
+           even when scanning quickly. -->
+      <div
+        class="w-1 shrink-0"
+        :class="self.win ? 'bg-sky-500' : 'bg-red-500'"
+        aria-hidden="true"
+      />
 
-    <!-- Whole-row affordance: when a nameTag is provided the inner content is
-         a NuxtLink to the match detail page; otherwise a plain div. The
-         GameTooltip children are hover-only (UTooltip triggers, not links), so
-         they sit happily inside the anchor. -->
-    <component
-      :is="detailTo ? 'NuxtLink' : 'div'"
-      :to="detailTo ?? undefined"
-      class="flex flex-1 items-center gap-3 px-3 py-2.5"
-      :class="detailTo ? 'cursor-pointer' : ''"
-    >
-      <!-- Meta column: result + queue + LP + duration + timestamp -->
-      <div class="flex w-[5.5rem] shrink-0 flex-col text-xs leading-tight">
-        <div class="font-semibold" :class="self.win ? 'text-sky-400' : 'text-red-400'">
-          {{ resultLabel }}
+      <!-- Expand affordance: a role=button div (not a native <button>) so the
+           hover-only GameTooltip triggers inside — themselves UTooltip buttons
+           — aren't nested inside an interactive button, which is invalid HTML
+           and swallows clicks. Keyboard support is wired manually. When no
+           nameTag is provided the row degrades to a static, non-interactive
+           block. -->
+      <div
+        :role="canExpand ? 'button' : undefined"
+        :tabindex="canExpand ? 0 : undefined"
+        :aria-expanded="canExpand ? expanded : undefined"
+        class="flex flex-1 items-center gap-3 px-3 py-2.5"
+        :class="canExpand ? 'cursor-pointer' : ''"
+        @click="toggle"
+        @keydown.enter.prevent="toggle"
+        @keydown.space.prevent="toggle"
+      >
+        <!-- Meta column: result + queue + LP + duration + timestamp -->
+        <div class="flex w-[5.5rem] shrink-0 flex-col text-xs leading-tight">
+          <div class="font-semibold" :class="self.win ? 'text-sky-400' : 'text-red-400'">
+            {{ resultLabel }}
+          </div>
+          <div class="text-muted">
+            {{ queueLabel }}
+          </div>
+          <div
+            v-if="lpDeltaText"
+            class="font-semibold"
+            :class="(self.lpDelta ?? 0) >= 0 ? 'text-sky-400' : 'text-red-400'"
+          >
+            {{ lpDeltaText }}
+          </div>
+          <div class="text-muted">
+            {{ durationLabel }}
+          </div>
+          <div class="text-muted">
+            {{ relativeLabel }}
+          </div>
         </div>
-        <div class="text-muted">
-          {{ queueLabel }}
-        </div>
-        <div
-          v-if="lpDeltaText"
-          class="font-semibold"
-          :class="(self.lpDelta ?? 0) >= 0 ? 'text-sky-400' : 'text-red-400'"
-        >
-          {{ lpDeltaText }}
-        </div>
-        <div class="text-muted">
-          {{ durationLabel }}
-        </div>
-        <div class="text-muted">
-          {{ relativeLabel }}
-        </div>
-      </div>
 
-      <!-- Loadout cluster: champion + level pill, summoner spells, runes -->
-      <div class="flex shrink-0 items-center gap-1.5">
-        <div class="relative">
-          <SkeletonImage
-            :src="championIconUrl"
-            :alt="championName"
-            :title="championName"
-            class="size-12 rounded"
+        <!-- Loadout cluster: champion + level pill, summoner spells, runes -->
+        <div class="flex shrink-0 items-center gap-1.5">
+          <div class="relative">
+            <SkeletonImage
+              :src="championIconUrl"
+              :alt="championName"
+              :title="championName"
+              class="size-12 rounded"
+            />
+            <span
+              class="absolute -bottom-1 -right-1 inline-flex size-4 items-center justify-center rounded-full bg-default text-[10px] font-bold leading-none ring-1 ring-default"
+            >
+              {{ self.championLevel }}
+            </span>
+          </div>
+          <div class="flex flex-col gap-0.5">
+            <GameTooltipSummonerSpellIcon
+              :spell="summoner1"
+              :width="22"
+              :height="22"
+              class="size-[22px] rounded"
+            />
+            <GameTooltipSummonerSpellIcon
+              :spell="summoner2"
+              :width="22"
+              :height="22"
+              class="size-[22px] rounded"
+            />
+          </div>
+          <div class="flex flex-col items-center gap-0.5">
+            <GameTooltipPerkIcon
+              :perk="keystone"
+              :width="22"
+              :height="22"
+              class="size-[22px] rounded-full bg-black/40"
+            />
+            <GameTooltipPerkStyleIcon
+              :style="subStyle"
+              :width="18"
+              :height="18"
+              class="size-[18px]"
+            />
+          </div>
+        </div>
+
+        <!-- KDA + stats: two-column block. KDA on top with the ratio under
+             it; CS/m and KP stacked to the right so they share the vertical
+             rhythm of the KDA cluster. Tabular-nums everywhere so columns
+             visually align row-to-row. -->
+        <div class="flex shrink-0 items-start gap-3">
+          <div class="flex min-w-[5.5rem] flex-col items-center">
+            <div class="text-lg font-bold leading-tight tabular-nums">
+              {{ self.kills }}
+              <span class="text-muted/70">/</span>
+              <span class="text-red-400">{{ self.deaths }}</span>
+              <span class="text-muted/70">/</span>
+              {{ self.assists }}
+            </div>
+            <div class="text-[11px] font-semibold text-muted tabular-nums">
+              {{ kdaRatio }}
+            </div>
+          </div>
+          <div class="flex flex-col gap-0.5 text-[11px] text-muted tabular-nums">
+            <span>{{ csPerMin }} CS/m</span>
+            <span>{{ kpPercent }} KP</span>
+          </div>
+        </div>
+
+        <!-- Items: single row of 6 inventory slots + a small gap + trinket.
+             No background on the icons themselves — they sit on the row tint
+             directly, the way scoreboards usually render inventory.
+             Empty slots render as transparent same-sized placeholders so the
+             trinket column stays aligned across every row regardless of how
+             many real items the player finished the game with. -->
+        <div class="flex shrink-0 items-center gap-1.5">
+          <div class="flex gap-1">
+            <template
+              v-for="(slot, idx) in inventoryItems"
+              :key="`item-${idx}`"
+            >
+              <div
+                v-if="slot.kind === 'empty'"
+                class="size-6 shrink-0"
+                aria-hidden="true"
+              />
+              <GameTooltipItemIcon
+                v-else
+                :item="slot.kind === 'item' ? slot.item : null"
+                :width="24"
+                :height="24"
+                class="size-6 rounded"
+              />
+            </template>
+          </div>
+          <GameTooltipItemIcon
+            :item="trinket"
+            :width="24"
+            :height="24"
+            class="size-6 rounded-full"
           />
+        </div>
+
+        <!--
+          Right cluster: MVP / ACE badge + expand chevron. MVP = amber (gold,
+          the "best of the game" accolade); ACE = stone (silver, the runner-up).
+          Picked stone over sky so ACE doesn't share a hue with the win row
+          tint a few px to the left. The chevron rotates 180° when open.
+        -->
+        <div class="ml-auto flex shrink-0 items-center gap-2">
           <span
-            class="absolute -bottom-1 -right-1 inline-flex size-4 items-center justify-center rounded-full bg-default text-[10px] font-bold leading-none ring-1 ring-default"
+            v-if="self.isMvp || self.isAce"
+            class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold ring-1"
+            :class="self.isMvp
+              ? 'bg-amber-400/25 text-amber-200 ring-amber-400/50'
+              : 'bg-stone-400/30 text-stone-200 ring-stone-400/50'"
           >
-            {{ self.championLevel }}
+            {{ self.isMvp ? 'MVP' : 'ACE' }}
           </span>
-        </div>
-        <div class="flex flex-col gap-0.5">
-          <GameTooltipSummonerSpellIcon
-            :spell="summoner1"
-            :width="22"
-            :height="22"
-            class="size-[22px] rounded"
-          />
-          <GameTooltipSummonerSpellIcon
-            :spell="summoner2"
-            :width="22"
-            :height="22"
-            class="size-[22px] rounded"
-          />
-        </div>
-        <div class="flex flex-col items-center gap-0.5">
-          <GameTooltipPerkIcon
-            :perk="keystone"
-            :width="22"
-            :height="22"
-            class="size-[22px] rounded-full bg-black/40"
-          />
-          <GameTooltipPerkStyleIcon
-            :style="subStyle"
-            :width="18"
-            :height="18"
-            class="size-[18px]"
+          <UIcon
+            v-if="canExpand"
+            name="i-lucide-chevron-down"
+            class="size-4 text-muted transition-transform duration-200"
+            :class="expanded ? 'rotate-180' : ''"
+            aria-hidden="true"
           />
         </div>
       </div>
+    </div>
 
-      <!-- KDA + stats: two-column block. KDA on top with the ratio under
-           it; CS/m and KP stacked to the right so they share the vertical
-           rhythm of the KDA cluster. Tabular-nums everywhere so columns
-           visually align row-to-row. -->
-      <div class="flex shrink-0 items-start gap-3">
-        <div class="flex min-w-[5.5rem] flex-col items-center">
-          <div class="text-lg font-bold leading-tight tabular-nums">
-            {{ self.kills }}
-            <span class="text-muted/70">/</span>
-            <span class="text-red-400">{{ self.deaths }}</span>
-            <span class="text-muted/70">/</span>
-            {{ self.assists }}
-          </div>
-          <div class="text-[11px] font-semibold text-muted tabular-nums">
-            {{ kdaRatio }}
-          </div>
-        </div>
-        <div class="flex flex-col gap-0.5 text-[11px] text-muted tabular-nums">
-          <span>{{ csPerMin }} CS/m</span>
-          <span>{{ kpPercent }} KP</span>
-        </div>
-      </div>
-
-      <!-- Items: single row of 6 inventory slots + a small gap + trinket.
-           No background on the icons themselves — they sit on the row tint
-           directly, the way scoreboards usually render inventory.
-           Empty slots render as transparent same-sized placeholders so the
-           trinket column stays aligned across every row regardless of how
-           many real items the player finished the game with. -->
-      <div class="flex shrink-0 items-center gap-1.5">
-        <div class="flex gap-1">
-          <template
-            v-for="(slot, idx) in inventoryItems"
-            :key="`item-${idx}`"
-          >
-            <div
-              v-if="slot.kind === 'empty'"
-              class="size-6 shrink-0"
-              aria-hidden="true"
-            />
-            <GameTooltipItemIcon
-              v-else
-              :item="slot.kind === 'item' ? slot.item : null"
-              :width="24"
-              :height="24"
-              class="size-6 rounded"
-            />
-          </template>
-        </div>
-        <GameTooltipItemIcon
-          :item="trinket"
-          :width="24"
-          :height="24"
-          class="size-6 rounded-full"
+    <!-- Inline detail panel. Animated open/close via a grid-rows 0fr→1fr
+         transition; the inner wrapper clips overflow while collapsed. Mounted
+         lazily on first open (hasOpened) so the detail fetch only fires for
+         rows the user actually expands, then kept mounted so re-toggling
+         doesn't re-fetch. -->
+    <div
+      v-if="canExpand"
+      class="grid transition-[grid-template-rows] duration-300 ease-out"
+      :class="expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'"
+    >
+      <!-- inert while collapsed: the panel stays mounted (0fr height, clipped)
+           so re-opening doesn't re-fetch, but its tabs/links must leave the
+           keyboard tab order when hidden. -->
+      <div class="min-h-0 overflow-hidden" :inert="!expanded">
+        <MatchDetailPanel
+          v-if="hasOpened"
+          :name-tag="nameTag ?? ''"
+          :match-id="match.matchId"
+          :champions="champions"
+          :items="items"
+          :summoner-spells="summonerSpells"
+          :rune-tree="runeTree"
+          :self-champion-id="self.championId"
         />
       </div>
-
-      <!--
-        MVP / ACE badge anchored to the right. MVP = amber (gold, the
-        "best of the game" accolade); ACE = stone (silver, the
-        "best of the rest" runner-up). Picked stone over sky so ACE
-        doesn't share a hue with the win row tint a few px to the left.
-      -->
-      <div class="ml-auto shrink-0">
-        <span
-          v-if="self.isMvp || self.isAce"
-          class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold ring-1"
-          :class="self.isMvp
-            ? 'bg-amber-400/25 text-amber-200 ring-amber-400/50'
-            : 'bg-stone-400/30 text-stone-200 ring-stone-400/50'"
-        >
-          {{ self.isMvp ? 'MVP' : 'ACE' }}
-        </span>
-      </div>
-    </component>
+    </div>
   </article>
 </template>

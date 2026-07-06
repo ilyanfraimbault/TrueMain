@@ -2,6 +2,11 @@
 import type { MatchDetailParticipant } from '~~/shared/types/match-detail'
 import type { ChampionStaticListItem, RuneTreeResponse } from '~~/shared/types/static-data'
 
+/**
+ * Compact per-player rune summary tile, laid out in a 10-up grid on the Runes
+ * tab: champion portrait with its keystone badge, then the primary minor runes,
+ * the secondary runes and the stat shards — the scannable OP.GG-style card.
+ */
 const props = defineProps<{
   participant: MatchDetailParticipant
   champions: ChampionStaticListItem[]
@@ -13,108 +18,87 @@ const champ = computed(() =>
 )
 const champName = computed(() => champ.value?.name ?? `Champion ${props.participant.championId}`)
 
-// Split the 6-rune page into primary tree (the keystone's style) and the
-// secondary tree, preserving the catalog order the API sent.
-const primaryRunes = computed(() =>
-  props.participant.runes.filter(r => r.styleId === props.participant.primaryStyleId),
+// Keystone is drawn as the badge on the portrait; the row below shows only the
+// three minor primary runes (selectionIndex > 0), preserving catalog order.
+const primaryMinors = computed(() =>
+  props.participant.runes.filter(r => r.styleId === props.participant.primaryStyleId && r.selectionIndex > 0),
 )
 const secondaryRunes = computed(() =>
   props.participant.runes.filter(r => r.styleId === props.participant.subStyleId),
 )
+const shards = computed(() =>
+  [props.participant.statPerkOffense, props.participant.statPerkFlex, props.participant.statPerkDefense]
+    .filter(id => id > 0),
+)
 
-const primaryStyle = computed(() => props.runeTree.perkStyles[props.participant.primaryStyleId] ?? null)
-const secondaryStyle = computed(() => props.runeTree.perkStyles[props.participant.subStyleId] ?? null)
-
-const statShards = computed(() => [
-  props.participant.statPerkOffense,
-  props.participant.statPerkFlex,
-  props.participant.statPerkDefense,
-].filter(id => id > 0))
-
+const keystone = computed(() =>
+  props.participant.keystoneId ? props.runeTree.perks[props.participant.keystoneId] ?? null : null,
+)
 function perk(id: number) {
   return props.runeTree.perks[id] ?? null
 }
 </script>
 
 <template>
-  <section class="glass rounded-md border border-default/60 bg-elevated/40 p-3">
-    <header class="mb-3 flex items-center gap-2">
-      <ChampionLink
-        :champion-id="participant.championId"
-        :name="champName"
-        :icon-url="champ?.iconUrl"
-        class="block size-9 overflow-hidden rounded"
+  <section class="glass flex flex-col items-center gap-2 rounded-md border border-default/60 bg-elevated/60 p-3">
+    <!-- Portrait + keystone badge -->
+    <div class="relative">
+      <SkeletonImage
+        :src="champ?.iconUrl"
+        :alt="champName"
+        :title="champName"
+        class="size-12 rounded"
       />
-      <p class="truncate text-xs font-semibold text-default">
-        {{ participant.gameName ?? participant.summonerName }}
-      </p>
-    </header>
-
-    <div class="grid grid-cols-2 gap-3">
-      <!-- Primary tree -->
-      <div>
-        <div class="mb-2 flex items-center gap-1.5">
-          <GameTooltipPerkStyleIcon
-            :style="primaryStyle"
-            :width="18"
-            :height="18"
-            class="size-[18px]"
-          />
-          <span class="text-[10px] font-semibold uppercase tracking-wide text-muted">
-            {{ primaryStyle?.name ?? 'Primary' }}
-          </span>
-        </div>
-        <div class="flex flex-wrap gap-1.5">
-          <GameTooltipPerkIcon
-            v-for="(rune, idx) in primaryRunes"
-            :key="`p-${idx}`"
-            :perk="perk(rune.perkId)"
-            :width="rune.selectionIndex === 0 ? 32 : 24"
-            :height="rune.selectionIndex === 0 ? 32 : 24"
-            class="rounded-full bg-black/40"
-            :class="rune.selectionIndex === 0 ? 'size-8 ring-1 ring-primary/50' : 'size-6'"
-          />
-        </div>
+      <div
+        class="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-elevated ring-1 ring-default/60"
+      >
+        <GameTooltipPerkIcon
+          :perk="keystone"
+          :width="24"
+          :height="24"
+          class="size-6 rounded-full bg-black/50"
+        />
       </div>
+    </div>
 
-      <!-- Secondary tree + stat shards -->
-      <div>
-        <div class="mb-2 flex items-center gap-1.5">
-          <GameTooltipPerkStyleIcon
-            :style="secondaryStyle"
-            :width="18"
-            :height="18"
-            class="size-[18px]"
-          />
-          <span class="text-[10px] font-semibold uppercase tracking-wide text-muted">
-            {{ secondaryStyle?.name ?? 'Secondary' }}
-          </span>
-        </div>
-        <div class="flex flex-wrap gap-1.5">
-          <GameTooltipPerkIcon
-            v-for="(rune, idx) in secondaryRunes"
-            :key="`s-${idx}`"
-            :perk="perk(rune.perkId)"
-            :width="24"
-            :height="24"
-            class="size-6 rounded-full bg-black/40"
-          />
-        </div>
+    <p class="mt-1 max-w-full truncate text-[11px] font-medium text-default">
+      {{ participant.gameName ?? participant.summonerName }}
+    </p>
 
-        <div v-if="statShards.length" class="mt-3">
-          <p class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">Shards</p>
-          <div class="flex gap-1.5">
-            <GameTooltipPerkIcon
-              v-for="(shard, idx) in statShards"
-              :key="`shard-${idx}`"
-              :perk="perk(shard)"
-              :width="18"
-              :height="18"
-              class="size-[18px] rounded-full bg-black/40"
-            />
-          </div>
-        </div>
-      </div>
+    <!-- Primary minors -->
+    <div class="flex items-center gap-1">
+      <GameTooltipPerkIcon
+        v-for="(rune, idx) in primaryMinors"
+        :key="`p-${idx}`"
+        :perk="perk(rune.perkId)"
+        :width="22"
+        :height="22"
+        class="size-[22px] rounded-full bg-black/40"
+      />
+    </div>
+
+    <!-- Secondary -->
+    <div class="flex items-center gap-1">
+      <GameTooltipPerkIcon
+        v-for="(rune, idx) in secondaryRunes"
+        :key="`s-${idx}`"
+        :perk="perk(rune.perkId)"
+        :width="20"
+        :height="20"
+        class="size-5 rounded-full bg-black/40"
+      />
+    </div>
+
+    <!-- Stat shards -->
+    <div v-if="shards.length" class="mt-0.5 flex items-center gap-1.5 border-t border-default/40 pt-2">
+      <GameTooltipPerkIcon
+        v-for="(shard, idx) in shards"
+        :key="`shard-${idx}`"
+        :perk="perk(shard)"
+        :width="16"
+        :height="16"
+        class="size-4 rounded-full bg-black/40"
+      />
     </div>
   </section>
 </template>

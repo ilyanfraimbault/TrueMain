@@ -53,16 +53,42 @@ function inventory(p: MatchDetailParticipant) {
 }
 
 const sideLabel = computed(() => (props.teamId === 100 ? 'Blue' : 'Red'))
+
+// Team aggregates for the header — real sums over the rendered side, no
+// fabricated objective/score data.
+const teamKda = computed(() => props.participants.reduce(
+  (acc, p) => {
+    acc.k += p.kills
+    acc.d += p.deaths
+    acc.a += p.assists
+    return acc
+  },
+  { k: 0, d: 0, a: 0 },
+))
+const teamGold = computed(() => props.participants.reduce((sum, p) => sum + p.goldEarned, 0))
+
+function fmtGold(value: number) {
+  return value >= 1000 ? `${(value / 1000).toFixed(1)}k` : `${value}`
+}
 </script>
 
 <template>
-  <section class="glass overflow-hidden rounded-md border border-default/60 bg-elevated/40">
+  <section class="glass overflow-hidden rounded-md border border-default/60 bg-elevated/60">
     <header
       class="flex items-center justify-between px-3 py-2 text-xs font-semibold"
       :class="win ? 'text-sky-400' : 'text-red-400'"
     >
       <span>{{ sideLabel }} team — {{ win ? 'Victory' : 'Defeat' }}</span>
-      <span class="text-muted">KDA · CS · KP · Damage</span>
+      <span class="flex items-center gap-2 text-muted tabular-nums">
+        <span>
+          {{ teamKda.k }}<span class="text-muted/60">/</span>{{ teamKda.d }}<span class="text-muted/60">/</span>{{ teamKda.a }}
+        </span>
+        <span class="text-muted/50">·</span>
+        <span class="inline-flex items-center gap-1">
+          <UIcon name="i-lucide-coins" class="size-3 text-amber-400/80" />
+          {{ fmtGold(teamGold) }}
+        </span>
+      </span>
     </header>
 
     <ul class="divide-y divide-default/40">
