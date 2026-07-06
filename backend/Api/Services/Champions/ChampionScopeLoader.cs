@@ -31,7 +31,7 @@ internal static class ChampionScopeLoader
         Guid? riotAccountId = null,
         string? platformId = null,
         int? minGames = null,
-        string? eloBracket = null)
+        IReadOnlyCollection<string>? eloBrackets = null)
     {
         var normalizedPatch = string.IsNullOrWhiteSpace(patch)
             ? null
@@ -85,7 +85,7 @@ internal static class ChampionScopeLoader
                 selectedPatch,
                 platformId,
                 string.IsNullOrWhiteSpace(effectivePosition) ? null : effectivePosition,
-                eloBracket)
+                eloBrackets)
             .ToListAsync(ct);
 
         return scopedScopes.Count == 0 ? null : scopedScopes;

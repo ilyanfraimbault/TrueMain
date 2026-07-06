@@ -33,7 +33,7 @@ public sealed class ChampionAggregateSeeder
         int games,
         int wins,
         DateTime aggregatedAtUtc,
-        string eloBracket = EloBracket.IronGold)
+        string eloBracket = EloBracket.Iron)
         => AddPattern(
             riotAccountId, championId, patch, platformId, queueId, position,
             summoner1Id, summoner2Id, skillOrderKey,
@@ -63,7 +63,7 @@ public sealed class ChampionAggregateSeeder
         int games,
         int wins,
         DateTime aggregatedAtUtc,
-        string eloBracket = EloBracket.IronGold)
+        string eloBracket = EloBracket.Iron)
         => AddPattern(
             riotAccountId, championId, patch, platformId, queueId, position,
             summoner1Id, summoner2Id, skillOrderKey,
@@ -89,7 +89,7 @@ public sealed class ChampionAggregateSeeder
         int games,
         int wins,
         DateTime aggregatedAtUtc,
-        string eloBracket = EloBracket.IronGold)
+        string eloBracket = EloBracket.Iron)
         => AddPattern(
             riotAccountId, championId, patch, platformId, queueId, position,
             summoner1Id, summoner2Id, skillOrderKey,
@@ -116,7 +116,7 @@ public sealed class ChampionAggregateSeeder
         int games,
         int wins,
         DateTime aggregatedAtUtc,
-        string eloBracket = EloBracket.IronGold)
+        string eloBracket = EloBracket.Iron)
     {
         var key = new ScopeKey(riotAccountId, championId, patch, platformId, queueId, position, eloBracket);
 

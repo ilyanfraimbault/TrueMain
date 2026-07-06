@@ -6,6 +6,7 @@ using Data;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -14,9 +15,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Data.Migrations
 {
     [DbContext(typeof(TrueMainDbContext))]
-    partial class TrueMainDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260706085003_AddEloBracketToChampionAggregateScope")]
+    partial class AddEloBracketToChampionAggregateScope
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -306,14 +309,6 @@ namespace Data.Migrations
                     b.Property<int>("ChampionId")
                         .HasColumnType("integer");
 
-                    b.Property<string>("EloBracket")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasDefaultValue("")
-                        .HasColumnName("elo_bracket");
-
                     b.Property<int>("Games")
                         .HasColumnType("integer");
 
@@ -335,7 +330,7 @@ namespace Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ChampionId", "TeamPosition", "OpponentChampionId", "Patch", "EloBracket")
+                    b.HasIndex("ChampionId", "TeamPosition", "OpponentChampionId", "Patch")
                         .IsUnique();
 
                     b.ToTable("champion_matchup_stats", (string)null);
@@ -352,14 +347,6 @@ namespace Data.Migrations
 
                     b.Property<int>("ChampionId")
                         .HasColumnType("integer");
-
-                    b.Property<string>("EloBracket")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasDefaultValue("")
-                        .HasColumnName("elo_bracket");
 
                     b.Property<int>("Games")
                         .HasColumnType("integer");
@@ -397,7 +384,7 @@ namespace Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ChampionId", "TeamPosition", "Patch", "IntervalMinute", "EloBracket")
+                    b.HasIndex("ChampionId", "TeamPosition", "Patch", "IntervalMinute")
                         .IsUnique();
 
                     b.ToTable("champion_timeline_lead_stats", (string)null);
@@ -644,14 +631,6 @@ namespace Data.Migrations
                     b.Property<int>("Deaths")
                         .HasColumnType("integer");
 
-                    b.Property<string>("EloBracket")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasDefaultValue("")
-                        .HasColumnName("elo_bracket");
-
                     b.Property<int>("GoldEarned")
                         .HasColumnType("integer");
 
@@ -781,15 +760,15 @@ namespace Data.Migrations
 
                     b.HasIndex("RiotAccountId");
 
+                    b.HasIndex("ChampionId", "TeamPosition")
+                        .HasDatabaseName("IX_match_participants_champion_position_tracked")
+                        .HasFilter("\"RiotAccountId\" IS NOT NULL");
+
                     b.HasIndex("MatchId", "ParticipantId")
                         .IsUnique();
 
                     b.HasIndex("Puuid", "MatchId")
                         .HasDatabaseName("IX_match_participants_puuid_match");
-
-                    b.HasIndex("ChampionId", "TeamPosition", "EloBracket")
-                        .HasDatabaseName("IX_match_participants_champion_position_tracked")
-                        .HasFilter("\"RiotAccountId\" IS NOT NULL");
 
                     b.ToTable("match_participants", (string)null);
                 });

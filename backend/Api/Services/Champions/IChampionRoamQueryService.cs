@@ -8,5 +8,6 @@ public interface IChampionRoamQueryService
         int championId,
         string position,
         string? patch,
+        string? eloBracket,
         CancellationToken ct);
 }

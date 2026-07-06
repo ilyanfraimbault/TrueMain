@@ -43,6 +43,9 @@ public sealed class PlayerChampionMatchupQueryService(
             patch,
             accountId,
             opponentChampionId,
+            // Player-scoped matchups are one player's own games — a rank filter is
+            // meaningless there, so the elo bracket is always unfiltered (ALL).
+            eloBracket: null,
             ct);
     }
 }

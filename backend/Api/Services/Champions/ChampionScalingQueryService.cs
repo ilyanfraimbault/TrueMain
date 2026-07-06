@@ -1,4 +1,5 @@
 using Core.Lol.Patches;
+using Core.Lol.Ranking;
 using Core.Options;
 using Data;
 using Microsoft.EntityFrameworkCore;
@@ -30,13 +31,19 @@ public sealed class ChampionScalingQueryService(
         int championId,
         string position,
         string? patch,
+        string? eloBracket,
         CancellationToken ct)
     {
         var normalizedPatch = string.IsNullOrWhiteSpace(patch)
             ? null
             : PatchVersion.TryParse(patch, out var parsed) ? parsed.ToMajorMinor() : null;
 
-        var cacheKey = $"champions:scaling:{championId}:{position}:{normalizedPatch ?? "all"}";
+        // Resolve the elo filter to its bands (null = ALL, no clause). The cache
+        // key carries the bracket so each band caches separately.
+        var bands = EloBracket.ResolveBands(eloBracket);
+        var bracketToken = bands is null ? "all" : EloBracket.Normalize(eloBracket)!;
+
+        var cacheKey = $"champions:scaling:{championId}:{position}:{normalizedPatch ?? "all"}:{bracketToken}";
         if (cache.TryGetValue<ChampionScalingResponse>(cacheKey, out var cached) && cached is not null)
         {
             return cached;
@@ -49,13 +56,21 @@ public sealed class ChampionScalingQueryService(
         // its win rate to mean anything, same threshold the sibling reads use.
         var minGames = championsOptions.Value.MinMatchupGames;
 
-        // Bucket each game by duration (CASE in GROUP BY), count games and wins per
-        // bucket, drop thin buckets — one SQL round-trip.
-        var rows = await db.MatchParticipants
+        // The champion side: tracked rows for this champion + lane, optionally
+        // narrowed to the requested elo bands.
+        var participants = db.MatchParticipants
             .AsNoTracking()
             .Where(p => p.ChampionId == championId
                 && p.TeamPosition == position
-                && p.RiotAccountId != null)
+                && p.RiotAccountId != null);
+        if (bands is not null)
+        {
+            participants = participants.Where(p => bands.Contains(p.EloBracket));
+        }
+
+        // Bucket each game by duration (CASE in GROUP BY), count games and wins per
+        // bucket, drop thin buckets — one SQL round-trip.
+        var rows = await participants
             .Join(
                 db.Matches.Where(m =>
                     m.QueueId == queueId

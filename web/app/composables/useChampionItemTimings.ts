@@ -12,14 +12,16 @@ export function useChampionItemTimings(
   position: MaybeRefOrGetter<string | null | undefined>,
   patch: MaybeRefOrGetter<string | null | undefined>,
   enabled: MaybeRefOrGetter<boolean> = true,
+  eloBracket: MaybeRefOrGetter<string | null | undefined> = undefined,
 ) {
   const championIdRef = computed(() => toValue(championId))
   const positionRef = computed(() => toValue(position) || undefined)
   const patchRef = computed(() => toValue(patch) || undefined)
   const enabledRef = computed(() => toValue(enabled))
+  const eloBracketRef = computed(() => toValue(eloBracket) || undefined)
 
   return useLazyAsyncData<ChampionItemTimingsResponse>(
-    () => `champion-item-timings|${championIdRef.value}|${positionRef.value ?? ''}|${patchRef.value ?? ''}`,
+    () => `champion-item-timings|${championIdRef.value}|${positionRef.value ?? ''}|${patchRef.value ?? ''}|${eloBracketRef.value ?? ''}`,
     () => {
       if (!enabledRef.value || !positionRef.value) {
         return Promise.resolve({
@@ -31,11 +33,12 @@ export function useChampionItemTimings(
       }
       const query: Record<string, string> = { position: positionRef.value }
       if (patchRef.value) query.patch = patchRef.value
+      if (eloBracketRef.value) query.eloBracket = eloBracketRef.value
       return $fetch<ChampionItemTimingsResponse>(
         `/api/champions/${championIdRef.value}/item-timings`,
         { query },
       )
     },
-    { watch: [championIdRef, positionRef, patchRef, enabledRef], server: false },
+    { watch: [championIdRef, positionRef, patchRef, enabledRef, eloBracketRef], server: false },
   )
 }

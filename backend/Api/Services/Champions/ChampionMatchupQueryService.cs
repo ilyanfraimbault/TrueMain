@@ -1,4 +1,5 @@
 using Core.Lol.Patches;
+using Core.Lol.Ranking;
 using Core.Options;
 using Data;
 using Microsoft.EntityFrameworkCore;
@@ -29,6 +30,7 @@ public sealed class ChampionMatchupQueryService(
         string? patch,
         Guid? riotAccountId,
         int? opponentChampionId,
+        string? eloBracket,
         CancellationToken ct)
     {
         // Canonicalise to major.minor (e.g. "16.4.521.123" → "16.4"). The
@@ -39,14 +41,18 @@ public sealed class ChampionMatchupQueryService(
             ? null
             : PatchVersion.TryParse(patch, out var parsed) ? parsed.ToMajorMinor() : null;
 
+        // Resolve the elo filter to its bands (null = ALL, no clause). Applied to
+        // the champion side on both the aggregate and the live paths.
+        var bands = EloBracket.ResolveBands(eloBracket);
+
         // The global slice (no player, no opponent) is the only one backed by the
         // aggregate. The other two stay live: an opponent lookup wants the
         // head-to-head from a single game (floor 1), and a player slice filters to
         // one account with a lower floor — neither is expressible against a
         // global, floor-free aggregate.
         var matchups = opponentChampionId is null && riotAccountId is null
-            ? await ReadFromAggregateAsync(championId, position, normalizedPatch, ct)
-            : await ComputeLiveAsync(championId, position, normalizedPatch, riotAccountId, opponentChampionId, ct);
+            ? await ReadFromAggregateAsync(championId, position, normalizedPatch, bands, ct)
+            : await ComputeLiveAsync(championId, position, normalizedPatch, riotAccountId, opponentChampionId, bands, ct);
 
         return new ChampionMatchupsResponse
         {
@@ -61,20 +67,25 @@ public sealed class ChampionMatchupQueryService(
         int championId,
         string position,
         string? normalizedPatch,
+        IReadOnlyCollection<string>? bands,
         CancellationToken ct)
     {
         var minGames = championsOptions.Value.MinMatchupGames;
 
-        // Rows are stored per (opponent, patch) with no floor. Fold to the
-        // requested scope — one patch, or every patch summed — then apply the
-        // floor on the merged total so the all-patches view floors on the real
-        // total, not on any single patch's slice.
+        // Rows are stored per (opponent, patch, band) with no floor. Fold to the
+        // requested scope — one patch, or every patch summed; the requested elo
+        // bands, or every band — then apply the floor on the merged total so the
+        // all-patches view floors on the real total, not on any single slice.
         var query = db.ChampionMatchupStats
             .AsNoTracking()
             .Where(s => s.ChampionId == championId && s.TeamPosition == position);
         if (normalizedPatch is not null)
         {
             query = query.Where(s => s.Patch == normalizedPatch);
+        }
+        if (bands is not null)
+        {
+            query = query.Where(s => bands.Contains(s.EloBracket));
         }
 
         var rows = await query
@@ -106,6 +117,7 @@ public sealed class ChampionMatchupQueryService(
         string? normalizedPatch,
         Guid? riotAccountId,
         int? opponentChampionId,
+        IReadOnlyCollection<string>? bands,
         CancellationToken ct)
     {
         // Same queue cast the sibling champion reads use, so the matchup slice
@@ -142,6 +154,12 @@ public sealed class ChampionMatchupQueryService(
         championRows = riotAccountId is { } accountId
             ? championRows.Where(p1 => p1.RiotAccountId == accountId)
             : championRows.Where(p1 => p1.RiotAccountId != null);
+
+        // Narrow the champion side to the requested elo bands (null = every band).
+        if (bands is not null)
+        {
+            championRows = championRows.Where(p1 => bands.Contains(p1.EloBracket));
+        }
 
         // One SQL round-trip: correlate each champion row to its lane opponent
         // (same match + position, opposite team), group by the opponent

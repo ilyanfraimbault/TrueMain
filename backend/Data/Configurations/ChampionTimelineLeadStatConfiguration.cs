@@ -16,6 +16,7 @@ public sealed class ChampionTimelineLeadStatConfiguration : IEntityTypeConfigura
         entity.Property(e => e.ChampionId).IsRequired();
         entity.Property(e => e.TeamPosition).IsRequired().HasMaxLength(16);
         entity.Property(e => e.Patch).IsRequired().HasMaxLength(16);
+        entity.Property(e => e.EloBracket).IsRequired().HasMaxLength(20).HasColumnName("elo_bracket").HasDefaultValue(string.Empty);
         entity.Property(e => e.IntervalMinute).IsRequired();
         entity.Property(e => e.Games).IsRequired();
         entity.Property(e => e.TotalGoldDiff).IsRequired();
@@ -26,10 +27,11 @@ public sealed class ChampionTimelineLeadStatConfiguration : IEntityTypeConfigura
         entity.Property(e => e.TotalDamageDiff).IsRequired();
         entity.Property(e => e.AggregatedAtUtc).IsRequired();
 
-        // Natural key on the aggregate grain. Its leading (ChampionId,
-        // TeamPosition) prefix is also the read seek: the timeline-leads read
-        // filters on those two then folds intervals to the requested patch scope.
-        entity.HasIndex(e => new { e.ChampionId, e.TeamPosition, e.Patch, e.IntervalMinute })
+        // Natural key on the aggregate grain (now split per elo band). Its leading
+        // (ChampionId, TeamPosition) prefix is still the read seek: the
+        // timeline-leads read filters on those two, optionally narrows to a set of
+        // bands, then folds intervals to the requested patch scope.
+        entity.HasIndex(e => new { e.ChampionId, e.TeamPosition, e.Patch, e.IntervalMinute, e.EloBracket })
             .IsUnique();
     }
 }

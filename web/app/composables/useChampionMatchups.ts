@@ -14,6 +14,12 @@ export interface UseChampionMatchupsOptions {
    * entry, or none) rather than the full leaderboard. Sent as `?opponent=<id>`.
    */
   opponentChampionId?: MaybeRefOrGetter<number | null | undefined>
+  /**
+   * Elo filter (exact tier or cumulative "X+" threshold) for the global slice.
+   * Ignored for the player-scoped (`nameTag`) route — a single player's games
+   * are one rank. Sent as `?eloBracket=<value>`.
+   */
+  eloBracket?: MaybeRefOrGetter<string | null | undefined>
 }
 
 /**
@@ -39,6 +45,7 @@ export function useChampionMatchups(
     const value = toValue(options.opponentChampionId)
     return value == null ? undefined : value
   })
+  const eloBracketRef = computed(() => toValue(options.eloBracket) || undefined)
 
   return useLazyAsyncData<ChampionMatchups | null>(
     () => [
@@ -47,6 +54,9 @@ export function useChampionMatchups(
       championIdRef.value,
       positionRef.value ?? '',
       opponentRef.value ?? '',
+      // Only the global slice varies by bracket, but keying it always keeps the
+      // cache entry distinct when the filter changes.
+      nameTagRef.value ? '' : eloBracketRef.value ?? '',
     ].join('-'),
     async () => {
       const position = positionRef.value
@@ -56,6 +66,10 @@ export function useChampionMatchups(
       if (opponentRef.value != null) query.opponent = String(opponentRef.value)
 
       const nameTag = nameTagRef.value
+      // The player-scoped route is one player's own games — a rank filter is
+      // meaningless there, so only the global slice forwards the bracket.
+      if (!nameTag && eloBracketRef.value) query.eloBracket = eloBracketRef.value
+
       const path = nameTag
         ? `/api/truemains/${encodeURIComponent(nameTag)}/champions/${championIdRef.value}/matchups`
         : `/api/champions/${championIdRef.value}/matchups`
@@ -71,7 +85,7 @@ export function useChampionMatchups(
       }
     },
     {
-      watch: [championIdRef, positionRef, nameTagRef, opponentRef],
+      watch: [championIdRef, positionRef, nameTagRef, opponentRef, eloBracketRef],
       server: false,
     },
   )

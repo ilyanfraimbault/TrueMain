@@ -1,13 +1,20 @@
 <script setup lang="ts">
 import type { ChampionPosition } from '~/utils/positions'
-import { ELO_BRACKET_OPTIONS, isEloBracket, type EloBracket } from '~/utils/elo-brackets'
+import { ELO_BRACKET_ALL, ELO_BRACKET_OPTIONS, isEloBracket, type EloBracket } from '~/utils/elo-brackets'
 
-defineProps<{
+// `hideElo` drops the elo picker for single-player views (a truemain's own
+// champion page), where every game is essentially one rank so a rank filter
+// is meaningless. `selectedEloBracket` then defaults to ALL and is unused.
+withDefaults(defineProps<{
   selectedPatch: string
   selectedPosition: ChampionPosition | null
-  selectedEloBracket: EloBracket
   patchOptions: Array<{ label: string, value: string }>
-}>()
+  selectedEloBracket?: EloBracket
+  hideElo?: boolean
+}>(), {
+  selectedEloBracket: ELO_BRACKET_ALL,
+  hideElo: false,
+})
 
 const emit = defineEmits<{
   'update:patch': [value: string]
@@ -36,6 +43,7 @@ function onEloBracketChange(value: unknown) {
       @update:position="value => emit('update:position', value)"
     />
     <USelect
+      v-if="!hideElo"
       :model-value="selectedEloBracket"
       :items="eloBracketOptions"
       placeholder="Elo"

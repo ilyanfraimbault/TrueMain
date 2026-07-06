@@ -36,14 +36,17 @@ public sealed class ChampionBuildsQueryService(
     {
         var normalizedBracket = EloBracket.Normalize(eloBracket);
         var isAllBracket = EloBracket.IsAll(normalizedBracket);
-        var bracketFilter = isAllBracket ? null : normalizedBracket;
+        // Resolve the filter to its per-tier bands: a cumulative "X+" threshold
+        // expands (Gold+ → Gold…Master+), an exact tier selects only itself
+        // (Gold → Gold). Null for ALL → no elo clause, the full union.
+        var bracketBands = EloBracket.ResolveBands(normalizedBracket);
 
         var scopes = await ChampionScopeLoader.LoadAsync(
             db, (int)options.Value.QueueId, championId, patch, position, ct,
             riotAccountId: scope?.RiotAccountId,
             platformId: scope?.PlatformId,
             minGames: scope?.MinGames,
-            eloBracket: bracketFilter);
+            eloBrackets: bracketBands);
         if (scopes is null)
         {
             return null;

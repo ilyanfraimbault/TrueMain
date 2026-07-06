@@ -162,6 +162,11 @@ const selectedEloBracket = computed<EloBracket>(() => {
   return isEloBracket(value) ? value : ELO_BRACKET_ALL
 })
 
+// The elo filter forwarded to every live panel (matchups / leads / scaling /
+// item-timings / roam). Sourced from the URL filter and undefined for ALL, so
+// the query param + cache key stay clean — the same contract patch/position use.
+const eloBracketParam = computed(() => filters.value.eloBracket)
+
 // Coverage / min-sample guards: only meaningful for a narrow (non-ALL) band.
 // `eloCoverage` is the share of all-rank games this slice covers; `minSampleMet`
 // is false for tiny high-elo slices. Surface a notice so a thin Master+ build
@@ -193,6 +198,7 @@ const { data: championLeads, status: leadsStatus } = useChampionTimelineLeads(
   trendPosition,
   selectedPatch,
   trendReady,
+  eloBracketParam,
 )
 
 // Win rate by game duration (issue #537). Same lane/patch scoping and gating as
@@ -203,6 +209,7 @@ const { data: championScaling, status: scalingStatus } = useChampionScaling(
   trendPosition,
   selectedPatch,
   trendReady,
+  eloBracketParam,
 )
 
 // Average item-purchase times — power spikes (issue #524). Same lane/patch scoping
@@ -212,6 +219,7 @@ const { data: championItemTimings, status: itemTimingsStatus } = useChampionItem
   trendPosition,
   selectedPatch,
   trendReady,
+  eloBracketParam,
 )
 
 // Roam metric — out-of-lane early kill participations (issue #536). Same lane/patch
@@ -221,6 +229,7 @@ const { data: championRoam, status: roamStatus } = useChampionRoam(
   trendPosition,
   selectedPatch,
   trendReady,
+  eloBracketParam,
 )
 
 // When useChampion's 404 fallback drops the URL filters (no data for the
@@ -363,6 +372,7 @@ const isRefetching = computed(() =>
         :champion-id="championId"
         :position="selectedPosition"
         :champions="staticList ?? []"
+        :elo-bracket="eloBracketParam"
       />
 
       <ChampionTrendChart

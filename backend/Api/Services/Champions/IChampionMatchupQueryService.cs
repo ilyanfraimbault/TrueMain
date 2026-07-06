@@ -31,6 +31,11 @@ public interface IChampionMatchupQueryService
     /// one champion is returned (a single entry, or none) and the minimum-games
     /// floor drops to one — a deliberate lookup, not a ranked list.
     /// </param>
+    /// <param name="eloBracket">
+    /// Optional elo filter — an exact tier (<c>GOLD</c>) or a cumulative "X+"
+    /// threshold (<c>GOLD_PLUS</c>); null / <c>ALL</c> spans every band. Narrows
+    /// the champion side to games the tracked player was in that rank at.
+    /// </param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>
     /// The matchups list, ordered by win rate descending. Only opponents with
@@ -45,5 +50,6 @@ public interface IChampionMatchupQueryService
         string? patch,
         Guid? riotAccountId,
         int? opponentChampionId,
+        string? eloBracket,
         CancellationToken ct);
 }
