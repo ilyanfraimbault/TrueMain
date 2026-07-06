@@ -131,8 +131,9 @@ const tabItems = [
             <template v-for="(p, i) in participants" :key="`sel-${p.participantId}`">
               <span
                 v-if="i === blueTeam.length"
-                class="mx-1 shrink-0 text-[10px] font-bold text-muted/70"
-              >VS</span>
+                class="mx-2 shrink-0 select-none text-sm font-medium text-muted"
+                aria-hidden="true"
+              >vs</span>
               <button
                 type="button"
                 class="relative shrink-0 rounded transition-all"
@@ -165,9 +166,6 @@ const tabItems = [
             <div class="flex items-center gap-2 px-0.5">
               <span class="text-sm font-semibold text-default">
                 {{ selectedParticipant.gameName ?? selectedParticipant.summonerName }}
-              </span>
-              <span class="text-[11px] text-muted">
-                {{ selectedParticipant.teamPosition || '—' }} · {{ champName(selectedParticipant.championId) }}
               </span>
               <span
                 class="ml-auto rounded px-1.5 py-0.5 text-[10px] font-semibold"
