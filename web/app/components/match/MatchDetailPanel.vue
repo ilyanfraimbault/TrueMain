@@ -97,6 +97,7 @@ const tabItems = [
       default-value="general"
       variant="link"
       class="w-full"
+      :unmount-on-hide="false"
     >
       <!-- ── General: scoreboard ─────────────────────────────────────── -->
       <template #general>
