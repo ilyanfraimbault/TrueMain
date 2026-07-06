@@ -30,6 +30,7 @@ const items = computed(() =>
     :items="items"
     :default-value="items[0]?.value"
     variant="pill"
+    color="neutral"
     size="sm"
     class="w-full"
     :unmount-on-hide="false"
