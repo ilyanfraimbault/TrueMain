@@ -1,0 +1,45 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web-dev",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "lsof -ti tcp:3002 -sTCP:LISTEN | xargs -r kill; exec npm run dev -- --port 3002"
+      ],
+      "cwd": "web",
+      "port": 3002
+    },
+    {
+      "name": "admin-dev",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "lsof -ti tcp:3011 -sTCP:LISTEN | xargs -r kill; exec npm run dev -- --port 3011"
+      ],
+      "cwd": "admin",
+      "port": 3011
+    },
+    {
+      "name": "api-5099",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "lsof -ti tcp:5099 -sTCP:LISTEN | xargs -r kill; ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS=http://127.0.0.1:5099 exec dotnet run --no-launch-profile"
+      ],
+      "cwd": "backend/Api",
+      "port": 5099
+    },
+    {
+      "name": "dev",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "for p in 3002 5099; do lsof -ti tcp:$p -sTCP:LISTEN | xargs -r kill; done; trap 'kill 0' EXIT INT TERM; (cd backend/Api && ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS=http://127.0.0.1:5099 dotnet run --no-launch-profile) & exec npm --prefix web run dev -- --port 3002"
+      ],
+      "cwd": ".",
+      "port": 3002
+    }
+  ]
+}

@@ -119,6 +119,46 @@ public sealed class HarvestCandidatesQueryIntegrationTests
         rows.Select(r => r.Puuid).Should().Equal("PA", "PB");
     }
 
+    [Fact]
+    public async Task GetHarvestCandidatesAsync_MergesAcrossPlatforms_AppliesGlobalCapAndOrdering()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var now = new DateTime(2026, 6, 14, 12, 0, 0, DateTimeKind.Utc);
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            // Eligible (puuid, champion) spread across the three harvested platforms with
+            // distinct observed-game counts. The per-platform chunking must still yield the
+            // same global top-N (by observed games desc) as the old single ANY(...) query:
+            // KR alone can occupy the whole quota, so the cap is genuinely cross-platform.
+            SeedGamesOn(db, "KR", "PA", gameCount: 8, now);   // KR, 8 games
+            SeedGamesOn(db, "KR", "PB", gameCount: 7, now);   // KR, 7 games
+            SeedGamesOn(db, "EUW1", "PE", gameCount: 6, now); // EUW1, 6 games
+            SeedGamesOn(db, "NA1", "PN", gameCount: 5, now);  // NA1, 5 games
+            await db.SaveChangesAsync();
+        }
+
+        await using var session = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None);
+        var rows = await session.MatchParticipants.GetHarvestCandidatesAsync(
+            ["KR", "EUW1", "NA1"], RankedSolo, minObservedGames: 5, maxRows: 3, DateTime.UnixEpoch, CancellationToken.None);
+
+        // Global top 3 by observed games across all platforms: PA(8,KR), PB(7,KR), PE(6,EUW1).
+        // PN(5,NA1) drops off even though it is its platform's only candidate.
+        rows.Should().HaveCount(3);
+        rows.Select(r => r.ObservedGames).Should().Equal(8, 7, 6);
+        rows.Select(r => r.Puuid).Should().Equal("PA", "PB", "PE");
+        rows.Select(r => r.PlatformId).Should().Equal("KR", "KR", "EUW1");
+    }
+
+    private static void SeedGamesOn(TrueMainDbContext db, string platformId, string puuid, int gameCount, DateTime now)
+    {
+        for (var i = 0; i < gameCount; i++)
+        {
+            MatchParticipantSeed.AddMatchWithParticipant(
+                db, $"{platformId}_{puuid}_{i}", platformId, RankedSolo, now.AddDays(-i), puuid, 22, win: true);
+        }
+    }
+
     private static void SeedGames(TrueMainDbContext db, string puuid, int gameCount, DateTime now)
     {
         for (var i = 0; i < gameCount; i++)

@@ -21,10 +21,10 @@ namespace Data.CompiledModels
                 "Data.Entities.ChampionAggregateScope",
                 typeof(ChampionAggregateScope),
                 baseEntityType,
-                propertyCount: 11,
+                propertyCount: 12,
                 navigationCount: 1,
                 foreignKeyCount: 1,
-                unnamedIndexCount: 3,
+                unnamedIndexCount: 4,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -52,6 +52,15 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(ChampionAggregateScope).GetField("<ChampionId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: 0);
             championId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var eloBracket = runtimeEntityType.AddProperty(
+                "EloBracket",
+                typeof(string),
+                propertyInfo: typeof(ChampionAggregateScope).GetProperty("EloBracket", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(ChampionAggregateScope).GetField("<EloBracket>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                maxLength: 20);
+            eloBracket.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            eloBracket.AddAnnotation("Relational:ColumnName", "elo_bracket");
 
             var gameVersion = runtimeEntityType.AddProperty(
                 "GameVersion",
@@ -128,9 +137,13 @@ namespace Data.CompiledModels
                 new[] { riotAccountId, championId, gameVersion, platformId, position });
 
             var index1 = runtimeEntityType.AddIndex(
-                new[] { riotAccountId, championId, gameVersion, platformId, queueId, position },
+                new[] { championId, gameVersion, platformId, queueId, position, eloBracket });
+            index1.AddAnnotation("Relational:Name", "IX_champion_aggregate_scopes_ChampionId_GameVersion_PlatformI~1");
+
+            var index2 = runtimeEntityType.AddIndex(
+                new[] { riotAccountId, championId, gameVersion, platformId, queueId, position, eloBracket },
                 unique: true);
-            index1.AddAnnotation("Relational:Name", "IX_champion_aggregate_scopes_RiotAccountId_ChampionId_GameVer~1");
+            index2.AddAnnotation("Relational:Name", "IX_champion_aggregate_scopes_RiotAccountId_ChampionId_GameVer~1");
 
             return runtimeEntityType;
         }

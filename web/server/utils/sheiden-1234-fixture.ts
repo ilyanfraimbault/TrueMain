@@ -45,8 +45,9 @@ export const SHEIDEN_PROFILE: ProfileResponse = {
 // Tier cutoffs we apply to LP for label purposes — Riot's actual GM/Chall
 // thresholds drift with the regional ladder but ~500 LP / ~900 LP is a
 // reasonable EUW-ish proxy and matches what the rank-score helper assumes
-// for the continuous apex band.
-function apexTierForLp(lp: number): { tier: string, division: string } {
+// for the continuous apex band. Exported so the full-API dev mock
+// (dev-api-mock.ts) labels its generated rank histories with the same cutoffs.
+export function apexTierForLp(lp: number): { tier: string, division: string } {
   if (lp >= 900) return { tier: 'CHALLENGER', division: 'I' }
   if (lp >= 500) return { tier: 'GRANDMASTER', division: 'I' }
   return { tier: 'MASTER', division: 'I' }

@@ -1,5 +1,6 @@
 using Core.Lol.Map;
 using Core.Lol.Patches;
+using Core.Lol.Ranking;
 using Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -187,7 +188,64 @@ public sealed class ChampionPatternSourceRowReader(
             .ToList();
 
         await HydratePerkSelectionsAsync(db, filtered, ct);
+        await HydrateEloBracketsAsync(db, filtered, ct);
         return filtered;
+    }
+
+    /// <summary>
+    /// Buckets each source row by the player's ranked tier <em>at game time</em>:
+    /// the <c>rank_snapshots</c> capture nearest (in absolute time) to the
+    /// match's <c>GameStartTimeUtc</c> for that account. Rows whose account has
+    /// no snapshot keep the default <see cref="EloBracket.Unranked"/> bucket.
+    ///
+    /// The nearest-capture match is a LINQ join between the rows and the
+    /// candidate snapshots (keyed on the account), then a per-row reduction to
+    /// the minimum <c>|CapturedAtUtc - GameStartTimeUtc|</c>. Snapshots are
+    /// loaded once for the involved accounts and folded in memory — mirroring
+    /// <see cref="HydratePerkSelectionsAsync"/> — because a per-row correlated
+    /// "nearest" subquery would not translate to an efficient single SQL pass.
+    /// </summary>
+    private static async Task HydrateEloBracketsAsync(
+        TrueMainDbContext db,
+        IReadOnlyCollection<AggregateSourceRow> sourceRows,
+        CancellationToken ct)
+    {
+        if (sourceRows.Count == 0)
+        {
+            return;
+        }
+
+        var accountIds = sourceRows.Select(row => row.RiotAccountId).Distinct().ToList();
+
+        var snapshots = await db.RankSnapshots
+            .AsNoTracking()
+            .Where(snapshot => accountIds.Contains(snapshot.RiotAccountId))
+            .Select(snapshot => new { snapshot.RiotAccountId, snapshot.CapturedAtUtc, snapshot.Tier })
+            .ToListAsync(ct);
+
+        var snapshotsByAccount = snapshots
+            .GroupBy(snapshot => snapshot.RiotAccountId)
+            .ToDictionary(group => group.Key, group => group.ToList());
+
+        foreach (var row in sourceRows)
+        {
+            if (!snapshotsByAccount.TryGetValue(row.RiotAccountId, out var accountSnapshots)
+                || accountSnapshots.Count == 0)
+            {
+                // No snapshot for this account → already UNRANKED by default.
+                continue;
+            }
+
+            // Nearest capture to the game start (absolute distance); ties break
+            // toward the earlier capture (deterministic) so the same game always
+            // buckets the same way across re-aggregations.
+            var nearest = accountSnapshots
+                .OrderBy(snapshot => Math.Abs((snapshot.CapturedAtUtc - row.GameStartTimeUtc).Ticks))
+                .ThenBy(snapshot => snapshot.CapturedAtUtc)
+                .First();
+
+            row.EloBracket = EloBracket.FromTier(nearest.Tier);
+        }
     }
 
     private static string NormalizeGameVersion(string gameVersion)

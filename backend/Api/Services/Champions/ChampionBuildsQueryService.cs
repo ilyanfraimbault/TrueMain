@@ -1,3 +1,4 @@
+using Core.Lol.Ranking;
 using Core.Options;
 using Data;
 using Data.Entities;
@@ -22,13 +23,21 @@ public sealed class ChampionBuildsQueryService(
         string? patch,
         string? position,
         CancellationToken ct,
-        ChampionBuildsScope? scope = null)
+        ChampionBuildsScope? scope = null,
+        string? eloBracket = null)
     {
+        // A blank / ALL / unrecognised filter resolves to null (every tier); a
+        // bare tier to a single bucket; a TIER_PLUS filter to that tier and the
+        // ones above it. The loader reads exactly this set.
+        var bracketFilter = EloBracket.ResolveFilter(eloBracket);
+        var resolvedBracket = EloBracket.Normalize(eloBracket) ?? EloBracket.All;
+
         var scopes = await ChampionScopeLoader.LoadAsync(
             db, (int)options.Value.QueueId, championId, patch, position, ct,
             riotAccountId: scope?.RiotAccountId,
             platformId: scope?.PlatformId,
-            minGames: scope?.MinGames);
+            minGames: scope?.MinGames,
+            eloBrackets: bracketFilter);
         if (scopes is null)
         {
             return null;
@@ -53,17 +62,20 @@ public sealed class ChampionBuildsQueryService(
         var resolvedPatch = scopes.First().GameVersion;
         var resolvedPosition = scopes.First().Position;
 
+        ChampionResponse BuildResponse(IReadOnlyList<ChampionBuildReadModel> builds) => new()
+        {
+            ChampionId = championId,
+            Patch = resolvedPatch,
+            Position = resolvedPosition,
+            EloBracket = resolvedBracket,
+            TotalGames = totalGames,
+            TotalWins = totalWins,
+            Builds = builds
+        };
+
         if (totalGames == 0 || rows.Count == 0)
         {
-            return new ChampionResponse
-            {
-                ChampionId = championId,
-                Patch = resolvedPatch,
-                Position = resolvedPosition,
-                TotalGames = totalGames,
-                TotalWins = totalWins,
-                Builds = []
-            };
+            return BuildResponse([]);
         }
 
         var groups = rows
@@ -82,15 +94,7 @@ public sealed class ChampionBuildsQueryService(
 
         if (groups.Count == 0)
         {
-            return new ChampionResponse
-            {
-                ChampionId = championId,
-                Patch = resolvedPatch,
-                Position = resolvedPosition,
-                TotalGames = totalGames,
-                TotalWins = totalWins,
-                Builds = []
-            };
+            return BuildResponse([]);
         }
 
         var perGroupAggregates = groups
@@ -121,15 +125,7 @@ public sealed class ChampionBuildsQueryService(
                 dimSpellPairs, dimSkillOrders, dimStarterItems, dimRunePages))
             .ToList();
 
-        return new ChampionResponse
-        {
-            ChampionId = championId,
-            Patch = resolvedPatch,
-            Position = resolvedPosition,
-            TotalGames = totalGames,
-            TotalWins = totalWins,
-            Builds = builds
-        };
+        return BuildResponse(builds);
     }
 
     private async Task<IReadOnlyList<ChampionPatternEnrichedRow>> FetchRowsAsync(

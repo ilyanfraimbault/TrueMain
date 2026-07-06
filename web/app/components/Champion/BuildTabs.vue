@@ -29,36 +29,37 @@ const items = computed(() =>
     v-if="items.length"
     :items="items"
     :default-value="items[0]?.value"
-    variant="link"
+    variant="pill"
+    size="sm"
     class="w-full"
     :unmount-on-hide="false"
-    :ui="{ trigger: 'flex-1 gap-2' }"
+    :ui="{ trigger: 'flex-1 gap-1.5' }"
   >
     <template #leading="{ item }">
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-1.5">
         <GameTooltipItemIcon
           v-if="itemsMap[item.build.firstItemId]"
           :item="itemsMap[item.build.firstItemId]"
-          :width="28"
-          :height="28"
-          class="size-7 rounded"
+          :width="24"
+          :height="24"
+          class="size-6 rounded"
         />
         <div
           v-if="runeTree?.perks[item.build.primaryKeystoneId]"
-          class="relative size-7"
+          class="relative size-6"
         >
           <GameTooltipPerkIcon
             :perk="runeTree?.perks[item.build.primaryKeystoneId] ?? null"
-            :width="28"
-            :height="28"
-            class="size-7 rounded-full"
+            :width="24"
+            :height="24"
+            class="size-6 rounded-full"
           />
           <GameTooltipPerkStyleIcon
             v-if="item.build.core.runePage && runeTree?.perkStyles[item.build.core.runePage.secondaryStyleId]"
             :style="runeTree?.perkStyles[item.build.core.runePage.secondaryStyleId] ?? null"
-            :width="16"
-            :height="16"
-            class="absolute -bottom-1 -right-2 size-4"
+            :width="14"
+            :height="14"
+            class="absolute -bottom-1 -right-1.5 size-3.5"
           />
         </div>
       </div>

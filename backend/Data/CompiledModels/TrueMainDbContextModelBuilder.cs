@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("7cbed44c-665d-4862-bb1f-0c4834232717"), entityTypeCount: 21)
+            : base(skipDetectChanges: false, modelId: new Guid("4a3d1058-0c6e-4bfe-8c0b-1918789f0760"), entityTypeCount: 24)
         {
         }
 
@@ -25,7 +25,10 @@ namespace Data.CompiledModels
             var championDimSkillOrder = ChampionDimSkillOrderEntityType.Create(this);
             var championDimSpellPair = ChampionDimSpellPairEntityType.Create(this);
             var championDimStarterItems = ChampionDimStarterItemsEntityType.Create(this);
+            var championMatchupStat = ChampionMatchupStatEntityType.Create(this);
+            var championTimelineLeadStat = ChampionTimelineLeadStatEntityType.Create(this);
             var discoveryCursor = DiscoveryCursorEntityType.Create(this);
+            var jungleFirstClear = JungleFirstClearEntityType.Create(this);
             var mainCandidate = MainCandidateEntityType.Create(this);
             var mainChampionStat = MainChampionStatEntityType.Create(this);
             var match = MatchEntityType.Create(this);
@@ -47,6 +50,7 @@ namespace Data.CompiledModels
             ChampionAggregatePatternEntityType.CreateForeignKey5(championAggregatePattern, championDimSpellPair);
             ChampionAggregatePatternEntityType.CreateForeignKey6(championAggregatePattern, championDimStarterItems);
             ChampionAggregateScopeEntityType.CreateForeignKey1(championAggregateScope, riotAccount);
+            JungleFirstClearEntityType.CreateForeignKey1(jungleFirstClear, match);
             MatchParticipantEntityType.CreateForeignKey1(matchParticipant, match);
             MatchParticipantEntityType.CreateForeignKey2(matchParticipant, riotAccount);
             MatchParticipantKillPositionEntityType.CreateForeignKey1(matchParticipantKillPosition, match);
@@ -63,7 +67,10 @@ namespace Data.CompiledModels
             ChampionDimSkillOrderEntityType.CreateAnnotations(championDimSkillOrder);
             ChampionDimSpellPairEntityType.CreateAnnotations(championDimSpellPair);
             ChampionDimStarterItemsEntityType.CreateAnnotations(championDimStarterItems);
+            ChampionMatchupStatEntityType.CreateAnnotations(championMatchupStat);
+            ChampionTimelineLeadStatEntityType.CreateAnnotations(championTimelineLeadStat);
             DiscoveryCursorEntityType.CreateAnnotations(discoveryCursor);
+            JungleFirstClearEntityType.CreateAnnotations(jungleFirstClear);
             MainCandidateEntityType.CreateAnnotations(mainCandidate);
             MainChampionStatEntityType.CreateAnnotations(mainChampionStat);
             MatchEntityType.CreateAnnotations(match);
@@ -79,7 +86,7 @@ namespace Data.CompiledModels
             SeedRequestEntityType.CreateAnnotations(seedRequest);
 
             AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn);
-            AddAnnotation("ProductVersion", "10.0.8");
+            AddAnnotation("ProductVersion", "10.0.9");
             AddAnnotation("Relational:MaxIdentifierLength", 63);
         }
     }

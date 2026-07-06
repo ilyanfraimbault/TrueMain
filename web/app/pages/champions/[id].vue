@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import type {
-  ChampionStaticListItem,
   RuneTreeResponse,
   StaticItemData,
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
 import { isChampionPosition, type ChampionPosition } from '~/utils/positions'
+import { ELO_BRACKET_ALL, eloBracketLabel, normalizeEloBracket } from '~/utils/elo-brackets'
 import { describeFetchError } from '~/utils/errors'
 
 const route = useRoute()
@@ -49,15 +49,7 @@ const { data: championTrend, status: trendStatus } = useChampionTrend(championId
 // Each fetch wraps the network call so `markStaticFetched` runs after success
 // and `getCachedData` reuses entries across navigations within
 // `STATIC_CACHE_TTL_MS` (see static-cache.ts).
-const { data: staticList, status: staticListStatus } = useLazyAsyncData<ChampionStaticListItem[]>(
-  'champion-static-list',
-  async () => {
-    const data = await $fetch<ChampionStaticListItem[]>('/api/static/champions')
-    markStaticFetched('champion-static-list', nuxtApp)
-    return data
-  },
-  { getCachedData: key => getStaticCachedData(key, nuxtApp), server: false },
-)
+const { data: staticList, status: staticListStatus } = useChampionStaticList()
 // Pin rune-tree to the champion's active patch so the icon URLs we render
 // hit CommunityDragon's per-patch (year-cacheable) tree, and so cached
 // payloads don't bleed across patches when the user navigates between them.
@@ -160,6 +152,22 @@ const selectedPosition = computed<ChampionPosition | null>(() => {
   const value = champion.value?.position || filters.value.position || ''
   return isChampionPosition(value) ? value : null
 })
+// Elo filter (issue #526). Bind to the API-returned filter once available so
+// the rank select reflects what's actually shown; fall back to the URL filter
+// for the optimistic render before the fetch resolves. The rank is never dropped
+// by the 404 fallback (it only drops patch/position), so the response always
+// echoes the requested rank.
+const selectedEloBracket = computed<string>(() =>
+  normalizeEloBracket(champion.value?.eloBracket || filters.value.eloBracket),
+)
+
+// A rank filter with no data: the fetch 404'd on a specific rank (the champion
+// may well have builds in other ranks). Distinct from the champion-level "no
+// data at all" state below — here we keep the rank select so the user can pick
+// another rank instead of hitting a dead end.
+const noDataForRank = computed(() =>
+  notEnoughData.value && selectedEloBracket.value !== ELO_BRACKET_ALL,
+)
 
 // Average per-interval lead vs the lane opponent (issue #525). Follows the
 // resolved lane like the trend chart, but is patch-scoped: the active patch
@@ -182,9 +190,10 @@ const { data: championScaling, status: scalingStatus } = useChampionScaling(
   trendReady,
 )
 
-// Average item-purchase times — power spikes (issue #524). Same lane/patch scoping
+// Power curve event spikes — completed build items ranked by how much the
+// champion's lead accelerates after them (issue #571). Same lane/patch scoping
 // and gating; rendered against the page's static item map.
-const { data: championItemTimings, status: itemTimingsStatus } = useChampionItemTimings(
+const { data: championPowerspikes, status: powerspikesStatus } = useChampionPowerspikes(
   championId,
   trendPosition,
   selectedPatch,
@@ -199,6 +208,43 @@ const { data: championRoam, status: roamStatus } = useChampionRoam(
   selectedPatch,
   trendReady,
 )
+
+// Per-champion patch diff (issue #534): what changed for the champion between
+// two patches — win-rate swing, build/rune/skill shifts. Follows the resolved
+// lane like the trend chart but is deliberately cross-patch (it picks its own
+// two patches), so the active patch filter never scopes it. The two selectors
+// hold null until the user picks, letting the backend default to the two most
+// recent patches with data; gated on the champion fetch like the other stats.
+const patchDiffFrom = ref<string | null>(null)
+const patchDiffTo = ref<string | null>(null)
+// Reset the manual selection when the champion or lane changes so a patch that
+// has no data on the new champion/lane can't linger in the pickers — the backend
+// re-defaults. Watching championId too matters when navigating between champions
+// that share a dominant lane (e.g. two ADCs on BOTTOM): trendPosition stays put,
+// so without it the previous champion's picked patches would silently carry over.
+watch([championId, trendPosition], () => {
+  patchDiffFrom.value = null
+  patchDiffTo.value = null
+})
+const { data: championPatchDiff, status: patchDiffStatus } = useChampionPatchDiff(
+  championId,
+  trendPosition,
+  patchDiffFrom,
+  patchDiffTo,
+  trendReady,
+)
+// The patch-diff selectors draw from the page-wide recent-patch list, but the
+// backend resolves the diff against the champion's actual data patches — which
+// can be older than the 12 newest ddragon versions for a sparsely-played
+// champion. Union the resolved from/to in (newest first) so a selector never
+// shows blank for a value that isn't in the recent list.
+const patchDiffOptions = computed(() => {
+  const seen = new Map(patchOptions.value.map(option => [option.value, option]))
+  for (const patch of [championPatchDiff.value?.from?.patch, championPatchDiff.value?.to?.patch]) {
+    if (patch && !seen.has(patch)) seen.set(patch, { label: patch, value: patch })
+  }
+  return [...seen.values()].sort((a, b) => b.value.localeCompare(a.value, undefined, { numeric: true }))
+})
 
 // When useChampion's 404 fallback drops the URL filters (no data for the
 // champion on that patch/position) the API returns the default slice, but the
@@ -236,8 +282,9 @@ const isRefetching = computed(() =>
   || isLoadingStatus(trendStatus.value)
   || isLoadingStatus(leadsStatus.value)
   || isLoadingStatus(scalingStatus.value)
-  || isLoadingStatus(itemTimingsStatus.value)
-  || isLoadingStatus(roamStatus.value),
+  || isLoadingStatus(powerspikesStatus.value)
+  || isLoadingStatus(roamStatus.value)
+  || isLoadingStatus(patchDiffStatus.value),
 )
 </script>
 
@@ -261,11 +308,56 @@ const isRefetching = computed(() =>
     />
 
     <!--
+      No-data-for-this-rank state: the picked rank has no games (the champion may
+      well have builds in other ranks). We keep the rank select visible so the
+      user can switch rank — a dead end otherwise — rather than silently showing
+      all-ranks data under the selected rank.
+    -->
+    <div
+      v-else-if="noDataForRank"
+      class="space-y-6"
+    >
+      <header class="flex flex-wrap items-center gap-3">
+        <SkeletonImage
+          v-if="displayIconUrl"
+          :src="displayIconUrl"
+          :alt="displayName ?? ''"
+          width="48"
+          height="48"
+          class="size-12 rounded"
+        />
+        <h1 class="text-lg font-semibold text-default">
+          {{ displayName ?? `Champion ${championId}` }}
+        </h1>
+      </header>
+
+      <ChampionEloFilter
+        :model-value="selectedEloBracket"
+        @update:model-value="value => setFilter({ eloBracket: value })"
+      />
+
+      <div class="flex flex-col items-center gap-1 glass rounded-lg px-6 py-12 text-center">
+        <p class="text-sm font-medium text-default">
+          No {{ displayName ?? 'champion' }} games in {{ eloBracketLabel(selectedEloBracket) }} yet
+        </p>
+        <p class="text-sm text-muted">
+          Pick another rank above, or
+          <button
+            type="button"
+            class="rounded text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            @click="setFilter({ eloBracket: null })"
+          >
+            see all ranks</button>.
+        </p>
+      </div>
+    </div>
+
+    <!--
       No-data empty state: the API returned 404 for this champion (and, if a
-      patch/position was pinned, the unfiltered fallback 404'd too) — we simply
-      don't hold any aggregate for them yet (a brand-new champion, or one nobody
-      in the dataset has played). This is deliberately distinct from the error
-      alert above: a 404 is "no data", not a transient failure to retry.
+      patch/position was pinned, the fallback 404'd too) — we simply don't hold
+      any aggregate for them yet (a brand-new champion, or one nobody in the
+      dataset has played). This is deliberately distinct from the error alert
+      above: a 404 is "no data", not a transient failure to retry.
     -->
     <!--
       Deliberately gated on `notEnoughData` alone, NOT `!isRefetching`: this
@@ -311,9 +403,11 @@ const isRefetching = computed(() =>
         <ChampionFilters
           :selected-patch="selectedPatch"
           :selected-position="selectedPosition"
+          :selected-elo-bracket="selectedEloBracket"
           :patch-options="patchOptions"
           @update:patch="value => setFilter({ patch: value })"
           @update:position="value => setFilter({ position: value })"
+          @update:elo-bracket="value => setFilter({ eloBracket: value })"
         />
       </header>
 
@@ -336,6 +430,18 @@ const isRefetching = computed(() =>
         :loading="isLoadingStatus(trendStatus)"
       />
 
+      <ChampionPatchDiff
+        :diff="championPatchDiff ?? null"
+        :items-map="itemsMap ?? {}"
+        :rune-tree="runeTree ?? null"
+        :patch-options="patchDiffOptions"
+        :from-patch="patchDiffFrom"
+        :to-patch="patchDiffTo"
+        :loading="isLoadingStatus(patchDiffStatus)"
+        @update:from-patch="value => { patchDiffFrom = value }"
+        @update:to-patch="value => { patchDiffTo = value }"
+      />
+
       <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <ChampionTimelineLeadsChart
           :intervals="championLeads?.intervals ?? []"
@@ -349,14 +455,17 @@ const isRefetching = computed(() =>
         />
       </div>
 
-      <ChampionItemTimings
-        :timings="championItemTimings?.items ?? []"
+      <ChampionPowerspikesChart
+        :events="championPowerspikes?.events ?? []"
         :items-map="itemsMap ?? {}"
-        :loading="isLoadingStatus(itemTimingsStatus)"
+        :loading="isLoadingStatus(powerspikesStatus)"
       />
 
       <ChampionRoam
-        :share="championRoam?.outOfLaneShare ?? null"
+        v-if="trendPosition !== 'JUNGLE'"
+        :kp5="championRoam?.roamKp5 ?? null"
+        :kp10="championRoam?.roamKp10 ?? null"
+        :kp15="championRoam?.roamKp15 ?? null"
         :games="championRoam?.games ?? 0"
         :loading="isLoadingStatus(roamStatus)"
       />

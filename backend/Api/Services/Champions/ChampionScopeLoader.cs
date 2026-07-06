@@ -30,7 +30,8 @@ internal static class ChampionScopeLoader
         CancellationToken ct,
         Guid? riotAccountId = null,
         string? platformId = null,
-        int? minGames = null)
+        int? minGames = null,
+        IReadOnlyCollection<string>? eloBrackets = null)
     {
         var normalizedPatch = string.IsNullOrWhiteSpace(patch)
             ? null
@@ -71,6 +72,10 @@ internal static class ChampionScopeLoader
                     .Select(row => (row.Position, row.Games)))
             : position;
 
+        // Patch / position are resolved bracket-agnostically above (the first
+        // pass passes no brackets) so switching bracket never shifts the
+        // rendered patch + position. The bracket filter is applied only here,
+        // on the final scope slice.
         var scopedScopes = await db.ChampionAggregateScopes
             .AsNoTracking()
             .WhereChampionScope(
@@ -79,7 +84,8 @@ internal static class ChampionScopeLoader
                 riotAccountId,
                 selectedPatch,
                 platformId,
-                string.IsNullOrWhiteSpace(effectivePosition) ? null : effectivePosition)
+                string.IsNullOrWhiteSpace(effectivePosition) ? null : effectivePosition,
+                eloBrackets)
             .ToListAsync(ct);
 
         return scopedScopes.Count == 0 ? null : scopedScopes;
