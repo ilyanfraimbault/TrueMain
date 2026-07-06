@@ -3,10 +3,11 @@ import type { MatchDetailResponse } from '~~/shared/types/match-detail'
 /**
  * Single-match detail fetch for `GET /truemains/{nameTag}/matches/{matchId}`,
  * proxied through `/api/**`. Client-only (`server: false`) — the payload is
- * large and viewer-agnostic, so there's nothing to gain from SSR. A 404 from
- * the controller (malformed name tag, unknown account, or a match the account
- * never played) is surfaced as `notFound = true` so the page renders an empty
- * state instead of an error.
+ * large and viewer-agnostic, so there's nothing to gain from SSR. Backs the
+ * inline detail panel of an expanded `MatchRow` accordion. A 404 from the
+ * controller (malformed name tag, unknown account, or a match the account
+ * never played) is surfaced as `notFound = true` so the panel renders an
+ * empty state instead of an error.
  */
 export function useMatchDetail(
   nameTag: MaybeRefOrGetter<string>,

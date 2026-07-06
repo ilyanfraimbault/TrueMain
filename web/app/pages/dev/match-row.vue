@@ -196,7 +196,8 @@ const staticBundleReady = computed(() =>
       </h1>
       <p class="text-sm text-muted">
         Isolated visual review for <code>MatchRow</code> — mock fixtures on top, optional live fetch by Riot ID below.
-        Collapsed accordion only; expanded view tabs are deferred.
+        Click a row to expand the inline detail accordion (scoreboard / details / runes). The mock rows use a
+        dev-only <code>Playground-MOCK</code> detail fixture; live rows fetch the real detail endpoint.
       </p>
     </header>
 
@@ -213,6 +214,7 @@ const staticBundleReady = computed(() =>
           :items="items"
           :summoner-spells="summonerSpells"
           :rune-tree="runeTree"
+          name-tag="Playground-MOCK"
         />
       </template>
       <template v-else>
@@ -260,6 +262,7 @@ const staticBundleReady = computed(() =>
           :items="items"
           :summoner-spells="summonerSpells"
           :rune-tree="runeTree"
+          :name-tag="liveNameTag"
         />
         <UPagination
           v-if="liveTotal > livePageSize"
