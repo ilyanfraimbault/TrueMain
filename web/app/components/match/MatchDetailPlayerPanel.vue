@@ -47,6 +47,18 @@ function isCorrection(type: string) {
   return type === 'ITEM_UNDO' || type === 'ITEM_SOLD' || type === 'ITEM_DESTROYED'
 }
 
+// Auto-granted transforms — support/role quest upgrade stages and the
+// empowered-recall boots upgrade — surface as ITEM_PURCHASED events even though
+// the player never bought them, cluttering the build order at odd minutes. Riot
+// flags them as non-shop items (gold.purchasable = false, or inStore = false),
+// so drop any event whose resolved item is known to be unbuyable. Items missing
+// from the static catalog are kept — better a stray icon than a silent gap.
+function isNonShopStep(ev: MatchDetailItemEvent) {
+  const item = props.items[eventItemId(ev)]
+  if (!item) return false
+  return item.purchasable === false || item.inStore === false
+}
+
 // Build order grouped into shopping trips: consecutive events sharing the same
 // game-minute collapse into one cluster with a single time label, the way the
 // inspiration lays it out. Minute 0 is the starting purchase ("Starter").
@@ -58,6 +70,7 @@ interface BuildGroup {
 const buildGroups = computed<BuildGroup[]>(() => {
   const groups: BuildGroup[] = []
   for (const ev of props.participant.itemEvents) {
+    if (isNonShopStep(ev)) continue
     const minute = Math.floor(ev.timestampMs / 60000)
     const last = groups[groups.length - 1]
     if (last && last.minute === minute) {
