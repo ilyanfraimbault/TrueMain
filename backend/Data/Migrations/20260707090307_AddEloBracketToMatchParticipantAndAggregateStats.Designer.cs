@@ -15,8 +15,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Data.Migrations
 {
     [DbContext(typeof(TrueMainDbContext))]
-    [Migration("20260706085003_AddEloBracketToChampionAggregateScope")]
-    partial class AddEloBracketToChampionAggregateScope
+    [Migration("20260707090307_AddEloBracketToMatchParticipantAndAggregateStats")]
+    partial class AddEloBracketToMatchParticipantAndAggregateStats
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -309,6 +309,14 @@ namespace Data.Migrations
                     b.Property<int>("ChampionId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("EloBracket")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("")
+                        .HasColumnName("elo_bracket");
+
                     b.Property<int>("Games")
                         .HasColumnType("integer");
 
@@ -330,7 +338,7 @@ namespace Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ChampionId", "TeamPosition", "OpponentChampionId", "Patch")
+                    b.HasIndex("ChampionId", "TeamPosition", "OpponentChampionId", "Patch", "EloBracket")
                         .IsUnique();
 
                     b.ToTable("champion_matchup_stats", (string)null);
@@ -347,6 +355,14 @@ namespace Data.Migrations
 
                     b.Property<int>("ChampionId")
                         .HasColumnType("integer");
+
+                    b.Property<string>("EloBracket")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("")
+                        .HasColumnName("elo_bracket");
 
                     b.Property<int>("Games")
                         .HasColumnType("integer");
@@ -384,7 +400,7 @@ namespace Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ChampionId", "TeamPosition", "Patch", "IntervalMinute")
+                    b.HasIndex("ChampionId", "TeamPosition", "Patch", "IntervalMinute", "EloBracket")
                         .IsUnique();
 
                     b.ToTable("champion_timeline_lead_stats", (string)null);
@@ -407,6 +423,35 @@ namespace Data.Migrations
                     b.HasKey("PlatformId");
 
                     b.ToTable("discovery_cursors", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.JungleFirstClear", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("FullClearTimeMs")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("MatchId")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int>("ParticipantId")
+                        .HasColumnType("integer");
+
+                    b.Property<List<JungleClearStep>>("Steps")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MatchId", "ParticipantId")
+                        .IsUnique();
+
+                    b.ToTable("jungle_first_clears", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.MainCandidate", b =>
@@ -631,6 +676,14 @@ namespace Data.Migrations
                     b.Property<int>("Deaths")
                         .HasColumnType("integer");
 
+                    b.Property<string>("EloBracket")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("")
+                        .HasColumnName("elo_bracket");
+
                     b.Property<int>("GoldEarned")
                         .HasColumnType("integer");
 
@@ -760,15 +813,15 @@ namespace Data.Migrations
 
                     b.HasIndex("RiotAccountId");
 
-                    b.HasIndex("ChampionId", "TeamPosition")
-                        .HasDatabaseName("IX_match_participants_champion_position_tracked")
-                        .HasFilter("\"RiotAccountId\" IS NOT NULL");
-
                     b.HasIndex("MatchId", "ParticipantId")
                         .IsUnique();
 
                     b.HasIndex("Puuid", "MatchId")
                         .HasDatabaseName("IX_match_participants_puuid_match");
+
+                    b.HasIndex("ChampionId", "TeamPosition", "EloBracket")
+                        .HasDatabaseName("IX_match_participants_champion_position_tracked")
+                        .HasFilter("\"RiotAccountId\" IS NOT NULL");
 
                     b.ToTable("match_participants", (string)null);
                 });
@@ -1230,6 +1283,15 @@ namespace Data.Migrations
                         .IsRequired();
 
                     b.Navigation("RiotAccount");
+                });
+
+            modelBuilder.Entity("Data.Entities.JungleFirstClear", b =>
+                {
+                    b.HasOne("Data.Entities.Match", null)
+                        .WithMany()
+                        .HasForeignKey("MatchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Data.Entities.MatchParticipant", b =>

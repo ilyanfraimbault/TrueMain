@@ -40,7 +40,7 @@ public sealed class ChampionItemTimingsQueryService(
         // Resolve the elo filter to its bands (null = ALL, no clause). A null
         // array parameter short-circuits the WHERE via the `IS NULL OR` guard,
         // mirroring the patch-prefix pattern below. The cache key carries the band.
-        var bands = EloBracket.ResolveBands(eloBracket);
+        var bands = EloBracket.ResolveFilter(eloBracket);
         var bandsArray = bands?.ToArray();
         var bracketToken = bands is null ? "all" : EloBracket.Normalize(eloBracket)!;
 

@@ -47,8 +47,8 @@ public sealed class ChampionSummariesQueryService(
         // Resolve the filter to its per-tier bands: cumulative "X+" expands, an
         // exact tier selects only itself. Null → ALL: no elo clause, full union.
         var normalizedBracket = EloBracket.Normalize(eloBracket);
-        var bracketBands = EloBracket.ResolveBands(normalizedBracket);
-        var bracketKey = EloBracket.IsAll(normalizedBracket) ? EloBracket.All : normalizedBracket!;
+        var bracketBands = EloBracket.ResolveFilter(normalizedBracket);
+        var bracketKey = bracketBands is null ? EloBracket.All : normalizedBracket!;
 
         var resolveSw = Stopwatch.StartNew();
         var activePatch = await ResolveActivePatchAsync(patch, ct);

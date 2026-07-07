@@ -11,14 +11,14 @@ defineProps<{
   <div class="flex shrink-0 items-center gap-2 whitespace-nowrap">
     <UBadge
       color="neutral"
-      variant="subtle"
+      variant="soft"
       size="sm"
     >
       {{ formatPercentage(pickRate) }} pick
     </UBadge>
     <UBadge
       color="primary"
-      variant="subtle"
+      variant="soft"
       size="sm"
     >
       {{ formatPercentage(winRate) }} win

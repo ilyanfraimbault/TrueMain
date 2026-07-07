@@ -1,5 +1,5 @@
 import type { ChampionPosition } from '~/utils/positions'
-import { isEloBracket, type EloBracket } from '~/utils/elo-brackets'
+import { normalizeEloBracket, ELO_BRACKET_ALL } from '~/utils/elo-brackets'
 
 function getQuery(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? '' : value ?? ''
@@ -10,11 +10,14 @@ export function useChampionFilters() {
   const router = useRouter()
 
   const filters = computed(() => {
-    // Only forward a recognised, non-default bracket. `ALL` (and any junk) is
-    // the server default, so omitting it keeps the query — and the data cache
-    // key — identical to an unfiltered request.
+    // Only forward a recognised, non-default bracket. Normalise first (upper-
+    // cases + validates) so a hand-typed / shared `?elo=gold` is honoured like
+    // the backend does, instead of being silently dropped. `ALL` (and any junk)
+    // is the server default, so it maps to `undefined` — keeping the query, and
+    // the data cache key, identical to an unfiltered request.
     const rawBracket = getQuery(route.query.elo as string | string[] | undefined)
-    const eloBracket = isEloBracket(rawBracket) && rawBracket !== 'ALL' ? rawBracket : undefined
+    const normalizedBracket = normalizeEloBracket(rawBracket)
+    const eloBracket = normalizedBracket === ELO_BRACKET_ALL ? undefined : normalizedBracket
 
     return {
       patch: getQuery(route.query.patch as string | string[] | undefined) || undefined,
@@ -33,7 +36,7 @@ export function useChampionFilters() {
   async function setFilter(updates: {
     patch?: string | null
     position?: ChampionPosition | null
-    eloBracket?: EloBracket | null
+    eloBracket?: string | null
   }) {
     const nextQuery: Record<string, string> = {}
     for (const [key, value] of Object.entries(route.query)) {
@@ -50,7 +53,7 @@ export function useChampionFilters() {
     }
     if (updates.eloBracket !== undefined) {
       // `ALL` is the default, so clear the param rather than pin it.
-      if (updates.eloBracket && updates.eloBracket !== 'ALL') nextQuery.elo = updates.eloBracket
+      if (updates.eloBracket && updates.eloBracket !== ELO_BRACKET_ALL) nextQuery.elo = updates.eloBracket
       else delete nextQuery.elo
     }
 

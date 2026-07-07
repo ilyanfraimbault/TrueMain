@@ -10,7 +10,9 @@ public sealed class ProfileQueryService(
     IDbContextFactory<TrueMainDbContext> dbFactory,
     ILogger<ProfileQueryService> logger) : IProfileQueryService
 {
-    private const int MainChampionsCap = 6;
+    // Shared with the leaderboard so both views derive a player's mains from the
+    // same top-N slice (see MainChampionsPolicy / #521).
+    private const int MainChampionsCap = MainChampionsPolicy.Cap;
 
     // Private DTOs used to carry query results out of factory-owned contexts.
     private sealed record SnapshotDto(
@@ -80,12 +82,18 @@ public sealed class ProfileQueryService(
         // distribution scoped to the cards we're showing — not the
         // account's full lifetime, which would over-weight off-role pool
         // champions the analysis chose to drop.
+        // Deterministic ordinal tiebreak on Position after Games so the primary
+        // lane (this list's first entry, shown by ProfilePositionBreakdown.vue)
+        // is stable across requests on an exact games tie — and, crucially,
+        // resolves the same way as the leaderboard's ComputePositions so a
+        // player's primary/secondary never disagrees between the two views (#521).
         var positionSums = mains
             .SelectMany(m => m.PositionBreakdown)
             .Where(p => !string.IsNullOrWhiteSpace(p.Position))
             .GroupBy(p => p.Position)
             .Select(g => new { Position = g.Key, Games = g.Sum(x => x.Games) })
             .OrderByDescending(p => p.Games)
+            .ThenBy(p => p.Position, StringComparer.Ordinal)
             .ToList();
 
         var totalPositionGames = positionSums.Sum(p => p.Games);

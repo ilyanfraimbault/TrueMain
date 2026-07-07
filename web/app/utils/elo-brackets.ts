@@ -1,56 +1,73 @@
 /**
- * Elo filter values used to scope champion builds / winrate by skill, mirroring
- * the backend `Core.Lol.Ranking.EloBracket`. A game is bucketed by the player's
+ * Per-tier elo filters used to scope champion builds by rank, mirroring the
+ * backend `Core.Lol.Ranking.EloBracket`. A game is bucketed by the player's
  * ranked tier at game time (nearest rank snapshot to the match start).
  *
- * Each tier offers two forms: a cumulative "X+" threshold (`GOLD_PLUS` = "Gold
- * and above") and an exact single tier (`GOLD` = "Gold only"). The apex band
- * `MASTER_PLUS` has no separate exact form (Master / GM / Challenger are one
- * band). `ALL` is the default — no elo filter, the union of every band
- * (unranked included). Options are ordered highest rank → lowest, with the
- * cumulative form before the exact form within each tier.
+ * A filter value is one of:
+ *   - `ALL` — every tier (the default).
+ *   - a bare tier (e.g. `GOLD`) — that tier only.
+ *   - a `<TIER>_PLUS` form (e.g. `GOLD_PLUS`) — that tier and every tier above.
  */
-export type EloBracket =
-  | 'ALL'
-  | 'MASTER_PLUS'
-  | 'DIAMOND_PLUS' | 'DIAMOND'
-  | 'EMERALD_PLUS' | 'EMERALD'
-  | 'PLATINUM_PLUS' | 'PLATINUM'
-  | 'GOLD_PLUS' | 'GOLD'
-  | 'SILVER_PLUS' | 'SILVER'
-  | 'BRONZE_PLUS' | 'BRONZE'
-  | 'IRON_PLUS' | 'IRON'
 
-export const ELO_BRACKET_ALL: EloBracket = 'ALL'
+/** Ranked tiers, ascending (Iron→Challenger); each apex tier is its own bucket. */
+export const ELO_TIERS = [
+  'IRON',
+  'BRONZE',
+  'SILVER',
+  'GOLD',
+  'PLATINUM',
+  'EMERALD',
+  'DIAMOND',
+  'MASTER',
+  'GRANDMASTER',
+  'CHALLENGER',
+] as const
 
-/**
- * Selectable values, highest rank → lowest; within a tier the "+" (cumulative)
- * form precedes the exact form. `ALL` leads as the default.
- */
-export const ELO_BRACKET_OPTIONS: Array<{ label: string, value: EloBracket }> = [
-  { label: 'All ranks', value: 'ALL' },
-  { label: 'Master+', value: 'MASTER_PLUS' },
-  { label: 'Diamond+', value: 'DIAMOND_PLUS' },
-  { label: 'Diamond', value: 'DIAMOND' },
-  { label: 'Emerald+', value: 'EMERALD_PLUS' },
-  { label: 'Emerald', value: 'EMERALD' },
-  { label: 'Platinum+', value: 'PLATINUM_PLUS' },
-  { label: 'Platinum', value: 'PLATINUM' },
-  { label: 'Gold+', value: 'GOLD_PLUS' },
-  { label: 'Gold', value: 'GOLD' },
-  { label: 'Silver+', value: 'SILVER_PLUS' },
-  { label: 'Silver', value: 'SILVER' },
-  { label: 'Bronze+', value: 'BRONZE_PLUS' },
-  { label: 'Bronze', value: 'BRONZE' },
-  { label: 'Iron+', value: 'IRON_PLUS' },
-  { label: 'Iron', value: 'IRON' },
-]
+export type EloTier = typeof ELO_TIERS[number]
 
-export function isEloBracket(value: unknown): value is EloBracket {
-  return typeof value === 'string' && ELO_BRACKET_OPTIONS.some(o => o.value === value)
+export const ELO_BRACKET_ALL = 'ALL'
+export const ELO_PLUS_SUFFIX = '_PLUS'
+
+/** Filter value for "this tier only". */
+export function tierOnly(tier: EloTier): string {
+  return tier
 }
 
-/** Short human label for a threshold value (falls back to `All ranks`). */
+/** Filter value for "this tier and above". */
+export function tierPlus(tier: EloTier): string {
+  return `${tier}${ELO_PLUS_SUFFIX}`
+}
+
+/** Challenger tops the ladder, so its "+" would add nothing — hide it. */
+export function hasPlus(tier: EloTier): boolean {
+  return tier !== 'CHALLENGER'
+}
+
+export function isEloTier(value: unknown): value is EloTier {
+  return typeof value === 'string' && (ELO_TIERS as readonly string[]).includes(value)
+}
+
+/** True for `ALL`, a bare tier, or a recognised `<TIER>_PLUS` form. */
+export function isEloBracket(value: unknown): boolean {
+  if (typeof value !== 'string') return false
+  if (value === ELO_BRACKET_ALL) return true
+  const tier = value.endsWith(ELO_PLUS_SUFFIX) ? value.slice(0, -ELO_PLUS_SUFFIX.length) : value
+  return isEloTier(tier)
+}
+
+/** Canonicalise to a recognised filter, falling back to `ALL`. */
+export function normalizeEloBracket(value: string | null | undefined): string {
+  if (!value) return ELO_BRACKET_ALL
+  const upper = value.toUpperCase()
+  return isEloBracket(upper) ? upper : ELO_BRACKET_ALL
+}
+
+/** Human label, e.g. `Gold`, `Gold+`, `All ranks`. */
 export function eloBracketLabel(value: string | null | undefined): string {
-  return ELO_BRACKET_OPTIONS.find(o => o.value === value)?.label ?? 'All ranks'
+  const filter = normalizeEloBracket(value)
+  if (filter === ELO_BRACKET_ALL) return 'All ranks'
+  const andAbove = filter.endsWith(ELO_PLUS_SUFFIX)
+  const tier = andAbove ? filter.slice(0, -ELO_PLUS_SUFFIX.length) : filter
+  const label = tier.charAt(0) + tier.slice(1).toLowerCase()
+  return andAbove ? `${label}+` : label
 }

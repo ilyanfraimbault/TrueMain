@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- TrueMain M-check mark (monochrome). Inherits currentColor so it can sit
+       on any surface: set `color` on the embedding context, or replace
+       currentColor with a flat hex for standalone export. -->
+  <path d="M13 47V21l15 17L51 15" fill="none" stroke="currentColor" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

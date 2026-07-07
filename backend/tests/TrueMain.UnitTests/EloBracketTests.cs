@@ -1,5 +1,5 @@
-using AwesomeAssertions;
 using Core.Lol.Ranking;
+using AwesomeAssertions;
 
 namespace TrueMain.UnitTests;
 
@@ -7,47 +7,115 @@ public sealed class EloBracketTests
 {
     [Theory]
     [InlineData("IRON", EloBracket.Iron)]
-    [InlineData("bronze", EloBracket.Bronze)]
-    [InlineData("  Gold ", EloBracket.Gold)]
+    [InlineData("BRONZE", EloBracket.Bronze)]
+    [InlineData("SILVER", EloBracket.Silver)]
+    [InlineData("GOLD", EloBracket.Gold)]
     [InlineData("PLATINUM", EloBracket.Platinum)]
     [InlineData("EMERALD", EloBracket.Emerald)]
     [InlineData("DIAMOND", EloBracket.Diamond)]
-    [InlineData("MASTER", EloBracket.MasterPlus)]
-    [InlineData("GRANDMASTER", EloBracket.MasterPlus)]
-    [InlineData("CHALLENGER", EloBracket.MasterPlus)]
-    [InlineData("", EloBracket.Unranked)]
-    [InlineData(null, EloBracket.Unranked)]
-    [InlineData("WOOD", EloBracket.Unranked)]
-    public void FromTier_maps_to_per_tier_band(string? tier, string expected)
+    [InlineData("MASTER", EloBracket.Master)]
+    [InlineData("GRANDMASTER", EloBracket.Grandmaster)]
+    [InlineData("CHALLENGER", EloBracket.Challenger)]
+    public void FromTier_MapsEachRiotTierToItsOwnBucket(string tier, string expected)
     {
         EloBracket.FromTier(tier).Should().Be(expected);
     }
 
-    [Fact]
-    public void BandsAtOrAbove_expands_a_threshold_cumulatively()
+    [Theory]
+    [InlineData("gold")]
+    [InlineData(" Gold ")]
+    [InlineData("GoLd")]
+    public void FromTier_IsCaseAndWhitespaceInsensitive(string tier)
     {
-        EloBracket.BandsAtOrAbove(EloBracket.GoldPlus)
-            .Should().Equal(
-                EloBracket.Gold,
-                EloBracket.Platinum,
-                EloBracket.Emerald,
-                EloBracket.Diamond,
-                EloBracket.MasterPlus);
+        EloBracket.FromTier(tier).Should().Be(EloBracket.Gold);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("UNRANKED")]
+    [InlineData("not-a-tier")]
+    public void FromTier_FallsBackToUnrankedForUnknownOrMissingTiers(string? tier)
+    {
+        EloBracket.FromTier(tier).Should().Be(EloBracket.Unranked);
+    }
+
+    [Theory]
+    [InlineData("ALL", EloBracket.All)]
+    [InlineData("gold", EloBracket.Gold)]
+    [InlineData(" gold_plus ", "GOLD_PLUS")]
+    [InlineData("DIAMOND_PLUS", "DIAMOND_PLUS")]
+    public void Normalize_CanonicalisesRecognisedFilters(string raw, string expected)
+    {
+        EloBracket.Normalize(raw).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  ")]
+    [InlineData("UNRANKED")]      // stored bucket, but not a selectable filter
+    [InlineData("UNRANKED_PLUS")]
+    [InlineData("garbage")]
+    public void Normalize_ReturnsNullForBlankOrUnrecognisedInput(string? raw)
+    {
+        EloBracket.Normalize(raw).Should().BeNull();
     }
 
     [Fact]
-    public void BandsAtOrAbove_master_plus_is_the_apex_band_only()
+    public void ResolveFilter_BareTier_YieldsThatTierOnly()
     {
-        EloBracket.BandsAtOrAbove(EloBracket.MasterPlus)
-            .Should().Equal(EloBracket.MasterPlus);
+        EloBracket.ResolveFilter("GOLD").Should().Equal(EloBracket.Gold);
     }
 
     [Fact]
-    public void BandsAtOrAbove_iron_plus_spans_every_ranked_band_but_not_unranked()
+    public void ResolveFilter_TierPlus_YieldsThatTierAndEveryTierAbove()
     {
-        var bands = EloBracket.BandsAtOrAbove(EloBracket.IronPlus);
+        EloBracket.ResolveFilter("GOLD_PLUS").Should().Equal(
+            EloBracket.Gold,
+            EloBracket.Platinum,
+            EloBracket.Emerald,
+            EloBracket.Diamond,
+            EloBracket.Master,
+            EloBracket.Grandmaster,
+            EloBracket.Challenger);
+    }
 
-        bands.Should().Equal(
+    [Fact]
+    public void ResolveFilter_MasterPlus_UnionsTheApexTiers()
+    {
+        // Master / Grandmaster / Challenger are now distinct buckets, so
+        // "Master and above" spans all three.
+        EloBracket.ResolveFilter("MASTER_PLUS").Should().Equal(
+            EloBracket.Master,
+            EloBracket.Grandmaster,
+            EloBracket.Challenger);
+    }
+
+    [Fact]
+    public void ResolveFilter_ChallengerPlus_CollapsesToChallengerAlone()
+    {
+        // Challenger tops the ladder, so "and above" adds nothing.
+        EloBracket.ResolveFilter("CHALLENGER_PLUS").Should().Equal(EloBracket.Challenger);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("ALL")]
+    [InlineData("garbage")]
+    public void ResolveFilter_ReturnsNullForTheEveryTierCase(string? filter)
+    {
+        EloBracket.ResolveFilter(filter).Should().BeNull();
+    }
+
+    [Fact]
+    public void Persisted_IsTheLadderPlusUnrankedAndExcludesAll()
+    {
+        EloBracket.Persisted.Should().NotContain(EloBracket.All);
+        EloBracket.Persisted.Should().BeEquivalentTo(
+        [
             EloBracket.Iron,
             EloBracket.Bronze,
             EloBracket.Silver,
@@ -55,81 +123,27 @@ public sealed class EloBracketTests
             EloBracket.Platinum,
             EloBracket.Emerald,
             EloBracket.Diamond,
-            EloBracket.MasterPlus);
-        bands.Should().NotContain(EloBracket.Unranked);
-    }
-
-    [Theory]
-    [InlineData(EloBracket.All)]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("garbage")]
-    public void BandsAtOrAbove_returns_null_for_all_or_unrecognised(string? threshold)
-    {
-        // Null tells callers "no elo clause" — the full union across bands.
-        EloBracket.BandsAtOrAbove(threshold).Should().BeNull();
-    }
-
-    [Theory]
-    [InlineData("gold_plus", EloBracket.GoldPlus)]
-    [InlineData("  MASTER_PLUS  ", EloBracket.MasterPlus)]
-    [InlineData("all", EloBracket.All)]
-    [InlineData("gold", EloBracket.Gold)] // exact single tier
-    [InlineData("DIAMOND", EloBracket.Diamond)]
-    public void Normalize_canonicalises_known_values(string raw, string expected)
-    {
-        EloBracket.Normalize(raw).Should().Be(expected);
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData(null)]
-    [InlineData("IRON_GOLD")] // an old coarse-bucket value is neither threshold nor band
-    [InlineData("nonsense")]
-    public void Normalize_returns_null_for_blank_or_unknown(string? raw)
-    {
-        EloBracket.Normalize(raw).Should().BeNull();
+            EloBracket.Master,
+            EloBracket.Grandmaster,
+            EloBracket.Challenger,
+            EloBracket.Unranked
+        ]);
     }
 
     [Fact]
-    public void ResolveBands_exact_tier_selects_only_that_band()
+    public void Ladder_IsAscendingAndOmitsUnranked()
     {
-        EloBracket.ResolveBands(EloBracket.Gold).Should().Equal(EloBracket.Gold);
-    }
-
-    [Fact]
-    public void ResolveBands_cumulative_threshold_expands()
-    {
-        EloBracket.ResolveBands(EloBracket.GoldPlus)
-            .Should().Equal(
-                EloBracket.Gold,
-                EloBracket.Platinum,
-                EloBracket.Emerald,
-                EloBracket.Diamond,
-                EloBracket.MasterPlus);
-    }
-
-    [Theory]
-    [InlineData(EloBracket.All)]
-    [InlineData(null)]
-    [InlineData("garbage")]
-    public void ResolveBands_returns_null_for_all_or_unrecognised(string? value)
-    {
-        EloBracket.ResolveBands(value).Should().BeNull();
-    }
-
-    [Fact]
-    public void Selectable_interleaves_cumulative_then_exact_highest_to_lowest()
-    {
-        EloBracket.Selectable.Should().Equal(
-            EloBracket.All,
-            EloBracket.MasterPlus,
-            EloBracket.DiamondPlus, EloBracket.Diamond,
-            EloBracket.EmeraldPlus, EloBracket.Emerald,
-            EloBracket.PlatinumPlus, EloBracket.Platinum,
-            EloBracket.GoldPlus, EloBracket.Gold,
-            EloBracket.SilverPlus, EloBracket.Silver,
-            EloBracket.BronzePlus, EloBracket.Bronze,
-            EloBracket.IronPlus, EloBracket.Iron);
+        EloBracket.Ladder.Should().Equal(
+            EloBracket.Iron,
+            EloBracket.Bronze,
+            EloBracket.Silver,
+            EloBracket.Gold,
+            EloBracket.Platinum,
+            EloBracket.Emerald,
+            EloBracket.Diamond,
+            EloBracket.Master,
+            EloBracket.Grandmaster,
+            EloBracket.Challenger);
+        EloBracket.Ladder.Should().NotContain(EloBracket.Unranked);
     }
 }

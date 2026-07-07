@@ -280,7 +280,6 @@ const staticBundleReady = computed(() =>
           :selected-patch="selectedPatch"
           :selected-position="selectedPosition"
           :patch-options="patchOptions"
-          hide-elo
           @update:patch="value => setFilter({ patch: value })"
           @update:position="value => setFilter({ position: value })"
         />

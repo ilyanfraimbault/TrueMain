@@ -1,37 +1,26 @@
 <script setup lang="ts">
 import type { ChampionPosition } from '~/utils/positions'
-import { ELO_BRACKET_ALL, ELO_BRACKET_OPTIONS, isEloBracket, type EloBracket } from '~/utils/elo-brackets'
 
-// `hideElo` drops the elo picker for single-player views (a truemain's own
-// champion page), where every game is essentially one rank so a rank filter
-// is meaningless. `selectedEloBracket` then defaults to ALL and is unused.
-withDefaults(defineProps<{
+// Position + elo + patch pickers for the champion page, laid out as one row.
+// The elo-rank select sits between the position picker and the patch select.
+// It's optional: the per-player champion page has no rank scoping, so it omits
+// the `selectedEloBracket` prop and the select simply isn't rendered.
+defineProps<{
   selectedPatch: string
   selectedPosition: ChampionPosition | null
   patchOptions: Array<{ label: string, value: string }>
-  selectedEloBracket?: EloBracket
-  hideElo?: boolean
-}>(), {
-  selectedEloBracket: ELO_BRACKET_ALL,
-  hideElo: false,
-})
+  selectedEloBracket?: string
+}>()
 
 const emit = defineEmits<{
   'update:patch': [value: string]
   'update:position': [value: ChampionPosition | null]
-  'update:eloBracket': [value: EloBracket]
+  'update:eloBracket': [value: string]
 }>()
-
-const eloBracketOptions = ELO_BRACKET_OPTIONS
 
 function onPatchChange(value: unknown) {
   if (typeof value !== 'string' || !value) return
   emit('update:patch', value)
-}
-
-function onEloBracketChange(value: unknown) {
-  if (!isEloBracket(value)) return
-  emit('update:eloBracket', value)
 }
 </script>
 
@@ -42,14 +31,10 @@ function onEloBracketChange(value: unknown) {
       hide-all
       @update:position="value => emit('update:position', value)"
     />
-    <USelect
-      v-if="!hideElo"
+    <ChampionEloFilter
+      v-if="selectedEloBracket !== undefined"
       :model-value="selectedEloBracket"
-      :items="eloBracketOptions"
-      placeholder="Elo"
-      class="w-36"
-      aria-label="Elo bracket"
-      @update:model-value="onEloBracketChange"
+      @update:model-value="value => emit('update:eloBracket', value)"
     />
     <USelect
       :model-value="selectedPatch"

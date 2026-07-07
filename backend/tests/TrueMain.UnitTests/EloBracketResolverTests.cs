@@ -27,10 +27,10 @@ public sealed class EloBracketResolverTests
     }
 
     [Fact]
-    public void FromNearestSnapshot_maps_apex_tiers_to_master_plus()
+    public void FromNearestSnapshot_maps_apex_tiers_to_their_own_bucket()
     {
         (DateTime, string?)[] snapshots = [(GameStart, "GRANDMASTER")];
-        EloBracketResolver.FromNearestSnapshot(snapshots, GameStart).Should().Be(EloBracket.MasterPlus);
+        EloBracketResolver.FromNearestSnapshot(snapshots, GameStart).Should().Be(EloBracket.Grandmaster);
     }
 
     [Fact]

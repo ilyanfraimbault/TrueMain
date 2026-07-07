@@ -50,9 +50,10 @@ export function useChampion(
     return value && value.length > 0 ? value : undefined
   })
 
-  // The elo bracket is part of the cache key so each band caches separately;
-  // it is NOT cleared by the patch/position 404 fallback (every champion always
-  // has an ALL union), so the unfiltered key below keeps the current bracket.
+  // The elo bracket is part of the cache key so each band caches separately.
+  // The 404 fallback keeps the rank (it only drops patch/position), so it
+  // stashes the rank's default-patch/position slice under the rank-scoped key
+  // buildKey('', '', bracket) — see below.
   const buildKey = (patch: string, position: string, eloBracket = '') =>
     ['champion', nameTagRef.value ?? 'global', championIdRef.value, patch, position, eloBracket].join('-')
 
@@ -67,9 +68,12 @@ export function useChampion(
       const nameTag = nameTagRef.value
       // Capture the stash key synchronously, before any `await`: if the user
       // navigates to another champion while a fetch is in flight, the refs
-      // change underneath us and `buildKey` would otherwise stash this
-      // response under the new champion's key. The fallback drops patch +
-      // position but keeps the bracket, so it stashes under the same band.
+      // change underneath us and `buildKey` would otherwise stash this response
+      // under the new champion's key. resolveGlobalChampion's fallback drops
+      // patch + position but keeps the rank, so the stashed slice is the rank at
+      // its default patch/position — stash it under the rank-scoped key. When
+      // the page's reconciler then clears the dead patch/position, the data key
+      // flips to this same key so getCachedData reuses the stash (no refetch).
       const unfilteredKey = buildKey('', '', f.eloBracket ?? '')
 
       if (nameTag) {
@@ -108,10 +112,11 @@ export function useChampion(
     {
       watch: [championIdRef, nameTagRef, filters],
       server: false,
-      // Dedupe only the global, unfiltered slice: after the 404 fallback has
-      // already fetched (and stashed) the default slice, reuse it when the key
-      // flips to the unfiltered one. Filtered keys and the player-scoped
-      // (nameTag) variant always fetch, so their behaviour is unchanged.
+      // Dedupe only the global slice at the rank's default patch/position: after
+      // the 404 fallback has stashed it under buildKey('', '', bracket), reuse it
+      // when the reconciler clears a dead patch/position and the key flips to
+      // that same rank-scoped key. Filtered keys and the player-scoped (nameTag)
+      // variant always fetch, so their behaviour is unchanged.
       getCachedData: (key, _app, ctx) => {
         if (nameTagRef.value || key !== buildKey('', '', filters.value.eloBracket ?? '')) return undefined
         // Mirror Nuxt's default getter: never short-circuit an explicit

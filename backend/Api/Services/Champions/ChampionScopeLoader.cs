@@ -73,7 +73,7 @@ internal static class ChampionScopeLoader
             : position;
 
         // Patch / position are resolved bracket-agnostically above (the first
-        // pass passes no bracket) so switching bracket never shifts the
+        // pass passes no brackets) so switching bracket never shifts the
         // rendered patch + position. The bracket filter is applied only here,
         // on the final scope slice.
         var scopedScopes = await db.ChampionAggregateScopes

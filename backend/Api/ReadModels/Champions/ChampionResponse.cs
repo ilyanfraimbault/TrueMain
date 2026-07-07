@@ -15,9 +15,11 @@ public sealed record ChampionResponse
     public string Position { get; init; } = string.Empty;
 
     /// <summary>
-    /// Elo bracket this slice was computed for — one of
-    /// <c>Core.Lol.Ranking.EloBracket</c> (<c>ALL</c> by default). The builds,
-    /// skill orders and win rates below are scoped to this band.
+    /// Elo filter this slice was computed for — <c>ALL</c>, a bare tier
+    /// (e.g. <c>GOLD</c> — that tier only) or a <c>TIER_PLUS</c> form
+    /// (e.g. <c>GOLD_PLUS</c> — that tier and above), per
+    /// <c>Core.Lol.Ranking.EloBracket</c>. The builds, skill orders and win
+    /// rates below are scoped to it. <c>ALL</c> by default.
     /// </summary>
     public string EloBracket { get; init; } = Core.Lol.Ranking.EloBracket.All;
 

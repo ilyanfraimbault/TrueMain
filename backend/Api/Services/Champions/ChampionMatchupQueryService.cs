@@ -43,7 +43,7 @@ public sealed class ChampionMatchupQueryService(
 
         // Resolve the elo filter to its bands (null = ALL, no clause). Applied to
         // the champion side on both the aggregate and the live paths.
-        var bands = EloBracket.ResolveBands(eloBracket);
+        var bands = EloBracket.ResolveFilter(eloBracket);
 
         // The global slice (no player, no opponent) is the only one backed by the
         // aggregate. The other two stay live: an opponent lookup wants the

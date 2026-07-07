@@ -42,10 +42,10 @@ internal static class ChampionAggregateScopeQueries
             query = query.Where(scope => scope.Position == position);
         }
 
-        // A null / empty set means "ALL" — no elo clause, so the slice spans
-        // every persisted band (Unranked included). A non-empty set is the
-        // cumulative expansion of a "X+" threshold (e.g. Gold+ → Gold, Platinum,
-        // Emerald, Diamond, Master+); translates to `elo_bracket = ANY(@bands)`.
+        // A null bracket set means "every game" (the ALL read-time union across
+        // every persisted tier). A non-null set narrows to those tiers — one
+        // tier for a "rank only" filter, several for a "rank and above" one —
+        // via a single IN over the bracket-aware index.
         if (eloBrackets is { Count: > 0 })
         {
             query = query.Where(scope => eloBrackets.Contains(scope.EloBracket));

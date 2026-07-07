@@ -5,7 +5,7 @@
 namespace Data.Migrations
 {
     /// <inheritdoc />
-    public partial class AddEloBracketToChampionAggregateScope : Migration
+    public partial class AddChampionAggregateScopeEloBracket : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -14,13 +14,19 @@ namespace Data.Migrations
                 name: "IX_champion_aggregate_scopes_RiotAccountId_ChampionId_GameVer~1",
                 table: "champion_aggregate_scopes");
 
+            // Existing (pre-bracketing) scopes carry no rank breakdown, so back
+            // them into UNRANKED — a real EloBracket bucket, not "" — so the ALL
+            // union still counts them and a rank filter cleanly excludes them,
+            // rather than a non-canonical value lingering on frozen patches that
+            // MatchDataRetention never rebuilds. Live patches get real per-tier
+            // buckets on the next replace-by-scope aggregation run.
             migrationBuilder.AddColumn<string>(
                 name: "elo_bracket",
                 table: "champion_aggregate_scopes",
                 type: "character varying(20)",
                 maxLength: 20,
                 nullable: false,
-                defaultValue: "");
+                defaultValue: "UNRANKED");
 
             migrationBuilder.CreateIndex(
                 name: "IX_champion_aggregate_scopes_ChampionId_GameVersion_PlatformI~1",
