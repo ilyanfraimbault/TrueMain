@@ -185,7 +185,11 @@ function buildChain(runs: ProcessRun[]): ChainLink[] {
     if (canonical.has(run.processName) || seenExtra.has(run.processName))
       continue
     seenExtra.add(run.processName)
-    links.push({ processName: run.processName, outcome: run.status, run })
+    // Resolve through `byName` like the canonical links do, so a process that
+    // ran twice this pass (a retry) shows its latest run in both paths; the
+    // loop order still fixes the extra's position at its first appearance.
+    const latest = byName.get(run.processName) ?? run
+    links.push({ processName: latest.processName, outcome: latest.status, run: latest })
   }
   return links
 }
