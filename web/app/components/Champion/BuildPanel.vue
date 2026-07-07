@@ -17,9 +17,11 @@ defineProps<{
 </script>
 
 <template>
-  <div class="space-y-6 pt-4">
-    <!-- Section 1: Core view -->
-    <UCard>
+  <div class="space-y-6">
+    <!-- Section 1: Core view. Flattened to a bare block (no UCard) — the whole
+         panel now lives inside the single enveloping card from BuildTabs, so a
+         card here would nest card-in-card. -->
+    <div>
       <!-- Outer grid: left column is flexible, right Runes column is a fixed
            240 px so the left column never resizes when rune layouts change
            between builds/positions. 240 px fits the widest primary tree
@@ -82,7 +84,7 @@ defineProps<{
           />
         </div>
       </div>
-    </UCard>
+    </div>
 
     <!-- Section 2: Variations -->
     <ChampionBuildPanelVariations
