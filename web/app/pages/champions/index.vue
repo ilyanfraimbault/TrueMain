@@ -339,19 +339,10 @@ function staticItem(id: number | undefined) {
          plugin priming the payload and the page's own `useLazyAsyncData`
          setup could leave the server rendering one tree (e.g. `<ul>`) while
          the client expected another (the skeleton), producing the
-         `<UProgress>` / `<ul>` hydration node mismatches reported in #149.
-         The `<template #fallback>` matches the SSR shell so the user sees
-         the same progress bar before the client takes over. -->
+         hydration node mismatches reported in #149. The `<template #fallback>`
+         renders the same skeleton list as the SSR shell so the user sees
+         placeholder rows before the client takes over. -->
     <ClientOnly>
-      <div class="h-0.5">
-        <UProgress
-          v-if="isPending"
-          size="xs"
-          color="primary"
-          aria-label="Loading champions"
-        />
-      </div>
-
       <UAlert
         v-if="error"
         color="error"
@@ -360,12 +351,17 @@ function staticItem(id: number | undefined) {
         :description="error.message"
       />
 
+      <!-- Cold load: placeholder rows in the real row layout so there's no
+           blank area and no layout shift when the data resolves. Gated on all
+           four sources (see `isPending`) so we never flash rows with fallback
+           `Champion {id}` names or missing rune / item icons. -->
+      <ul v-else-if="isPending" class="space-y-1" aria-hidden="true">
+        <li v-for="i in PAGE_SIZE" :key="`skeleton-${i}`">
+          <ChampionRowSkeleton />
+        </li>
+      </ul>
+
       <template v-else>
-        <!-- During fetch the UProgress bar above is the only loading signal;
-             empty rectangles below it carried no information and looked worse
-             than the implicit empty state. Rows mount as soon as summaries
-             resolve, with per-icon SkeletonImage placeholders covering the
-             remaining image loads. -->
         <ul class="space-y-1">
           <li
             v-for="row in pagedRows"
@@ -479,17 +475,17 @@ function staticItem(id: number | undefined) {
         </ul>
 
         <p
-          v-if="!isPending && filteredRows.length === 0"
+          v-if="filteredRows.length === 0"
           class="text-sm text-muted"
         >
           No champions match these filters.
         </p>
 
-        <!-- Only show pagination when there's more than one page of results
-             on the backend. The component is hidden during the pending state
-             to avoid flashing stale page counts between fetches. -->
+        <!-- Only show pagination when there's more than one page of results.
+             This branch only renders once the data has resolved, so the count
+             is never stale. -->
         <div
-          v-if="!isPending && totalCount > PAGE_SIZE"
+          v-if="totalCount > PAGE_SIZE"
           class="flex justify-center pt-2"
         >
           <UPagination
@@ -507,13 +503,11 @@ function staticItem(id: number | undefined) {
       </template>
 
       <template #fallback>
-        <div class="h-0.5">
-          <UProgress
-            size="xs"
-            color="primary"
-            aria-label="Loading champions"
-          />
-        </div>
+        <ul class="space-y-1" aria-hidden="true">
+          <li v-for="i in PAGE_SIZE" :key="`skeleton-${i}`">
+            <ChampionRowSkeleton />
+          </li>
+        </ul>
       </template>
     </ClientOnly>
   </main>
