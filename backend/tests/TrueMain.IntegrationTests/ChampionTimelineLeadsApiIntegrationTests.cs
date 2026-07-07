@@ -127,6 +127,21 @@ public sealed class ChampionTimelineLeadsApiIntegrationTests
             .Build();
         db.RiotAccounts.Add(account);
 
+        // The aggregation's champion work-list is derived from main_champion_stats
+        // (#606 fix mirroring #604), not a scan over match_participants.
+        db.MainChampionStats.Add(new MainChampionStat
+        {
+            PlatformId = account.PlatformId,
+            Puuid = account.Puuid,
+            ChampionId = Champion,
+            TotalMatches = games,
+            ChampionMatches = games,
+            PlayRate = 1.0,
+            IsMain = true,
+            PrimaryPosition = Position,
+            CalculatedAtUtc = DateTime.UtcNow
+        });
+
         for (var i = 0; i < games; i++)
         {
             var matchId = $"m-leads-{i}";

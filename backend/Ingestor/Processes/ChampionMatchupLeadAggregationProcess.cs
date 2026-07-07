@@ -50,7 +50,7 @@ public sealed class ChampionMatchupLeadAggregationProcess(
         await using (var db = await dbContextFactory.CreateDbContextAsync(ct))
         {
             livePatches = await LoadLivePatchesAsync(db, queueId, ct);
-            championIds = await LoadChampionIdsAsync(db, queueId, ct);
+            championIds = await LoadChampionIdsAsync(db, ct);
         }
 
         if (livePatches.Count == 0)
@@ -149,17 +149,21 @@ public sealed class ChampionMatchupLeadAggregationProcess(
 
     private static async Task<List<int>> LoadChampionIdsAsync(
         TrueMainDbContext db,
-        int queueId,
         CancellationToken ct)
     {
-        // Champions with tracked games on the queue (the ones with data to
-        // aggregate) unioned with champions that already have aggregate rows (so a
-        // champion that has since dropped out gets its live-patch rows pruned).
-        var tracked = await db.MatchParticipants
+        // Champions with at least one "main" account — a superset of the champions
+        // that can produce source rows. The per-champion matchup/lead queries
+        // re-apply the full tracked-account/queue filter, so a champion with no
+        // qualifying rows just yields empty results. Derived from
+        // main_champion_stats (small: one row per tracked account/champion)
+        // rather than a DISTINCT over match_participants, which scanned the whole
+        // 35 GB table and blew the command timeout now that parallel query is
+        // disabled (max_parallel_workers_per_gather=0, #589) — the same failure
+        // mode already fixed for pattern aggregation in #604.
+        var tracked = await db.MainChampionStats
             .AsNoTracking()
-            .Where(p => p.RiotAccountId != null && CanonicalPositions.Contains(p.TeamPosition))
-            .Where(p => db.Matches.Any(m => m.Id == p.MatchId && m.QueueId == queueId))
-            .Select(p => p.ChampionId)
+            .Where(stat => stat.IsMain)
+            .Select(stat => stat.ChampionId)
             .Distinct()
             .ToListAsync(ct);
 

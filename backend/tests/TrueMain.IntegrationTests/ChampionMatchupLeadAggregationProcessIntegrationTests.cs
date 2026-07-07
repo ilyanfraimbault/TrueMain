@@ -147,6 +147,25 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests
             db.RiotAccounts.Add(account);
         }
 
+        // The champion work-list is now derived from main_champion_stats (#606
+        // fix mirroring #604), not from a DISTINCT scan over match_participants,
+        // so the aggregation only visits champions with a "main" row here.
+        if (!await db.MainChampionStats.AnyAsync(s => s.Puuid == account.Puuid && s.ChampionId == Champion))
+        {
+            db.MainChampionStats.Add(new MainChampionStat
+            {
+                PlatformId = account.PlatformId,
+                Puuid = account.Puuid,
+                ChampionId = Champion,
+                TotalMatches = games,
+                ChampionMatches = games,
+                PlayRate = 1.0,
+                IsMain = true,
+                PrimaryPosition = Position,
+                CalculatedAtUtc = DateTime.UtcNow
+            });
+        }
+
         for (var i = 0; i < games; i++)
         {
             var matchId = $"{matchPrefix}-{version}-{i}";
