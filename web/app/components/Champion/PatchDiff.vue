@@ -140,8 +140,24 @@ function winRateLabel(side: ChampionPatchDiffSide | null): string {
           </span>
         </div>
 
-        <!-- Core build — ChampionCoreBuildPath self-titles "Build path". -->
-        <div class="col-span-2 border-t border-default/60" />
+        <!-- Core build — ChampionCoreBuildPath self-titles "Build path". The
+             divider row carries the dimension's own changed/unchanged badge,
+             restoring the per-dimension signal the old single-block layout had. -->
+        <div class="col-span-2 flex items-center justify-between border-t border-default/60 pt-3">
+          <span class="text-xs font-medium uppercase tracking-wide text-muted">Core build</span>
+          <UBadge
+            v-if="diff?.delta?.firstItemChanged"
+            color="primary"
+            variant="soft"
+            size="sm"
+          >
+            Changed
+          </UBadge>
+          <span
+            v-else-if="hasBothSides"
+            class="text-xs text-dimmed"
+          >Unchanged</span>
+        </div>
         <div class="flex justify-center">
           <ChampionCoreBuildPath
             :path="fromSide?.itemPath ?? null"
@@ -155,43 +171,63 @@ function winRateLabel(side: ChampionPatchDiffSide | null): string {
           />
         </div>
 
-        <!-- Runes — Runes.vue has no heading, so title each cell to match. -->
-        <div class="col-span-2 border-t border-default/60" />
-        <div class="flex flex-col items-center overflow-hidden">
-          <h2 class="text-sm font-medium text-muted">
-            Runes
-          </h2>
+        <!-- Runes -->
+        <div class="col-span-2 flex items-center justify-between border-t border-default/60 pt-3">
+          <span class="text-xs font-medium uppercase tracking-wide text-muted">Runes</span>
+          <UBadge
+            v-if="diff?.delta?.keystoneChanged"
+            color="primary"
+            variant="soft"
+            size="sm"
+          >
+            Changed
+          </UBadge>
+          <span
+            v-else-if="hasBothSides"
+            class="text-xs text-dimmed"
+          >Unchanged</span>
+        </div>
+        <div class="flex justify-center overflow-hidden">
           <ChampionCoreRunes
             v-if="fromSide?.runePage && runeTree"
             :page="fromSide.runePage"
             :tree="runeTree"
             :keystone-size="35"
-            class="mt-2"
           />
           <span
             v-else
-            class="mt-2 text-sm text-muted"
+            class="py-2 text-sm text-muted"
           >No data</span>
         </div>
-        <div class="flex flex-col items-center overflow-hidden">
-          <h2 class="text-sm font-medium text-muted">
-            Runes
-          </h2>
+        <div class="flex justify-center overflow-hidden">
           <ChampionCoreRunes
             v-if="toSide?.runePage && runeTree"
             :page="toSide.runePage"
             :tree="runeTree"
             :keystone-size="35"
-            class="mt-2"
           />
           <span
             v-else
-            class="mt-2 text-sm text-muted"
+            class="py-2 text-sm text-muted"
           >No data</span>
         </div>
 
         <!-- Skill order — ChampionCoreSkillOrder self-titles "Skill order". -->
-        <div class="col-span-2 border-t border-default/60" />
+        <div class="col-span-2 flex items-center justify-between border-t border-default/60 pt-3">
+          <span class="text-xs font-medium uppercase tracking-wide text-muted">Skill order</span>
+          <UBadge
+            v-if="diff?.delta?.skillOrderChanged"
+            color="primary"
+            variant="soft"
+            size="sm"
+          >
+            Changed
+          </UBadge>
+          <span
+            v-else-if="hasBothSides"
+            class="text-xs text-dimmed"
+          >Unchanged</span>
+        </div>
         <div class="flex justify-center">
           <ChampionCoreSkillOrder
             v-if="championStatic"
