@@ -317,6 +317,7 @@ public sealed class ChampionMatchupApiIntegrationTests
             .WithPuuid("matchup-global-puuid")
             .Build();
         db.RiotAccounts.Add(account);
+        db.MainChampionStats.Add(MainStat(account, Champion, games: 12));
 
         for (var i = 0; i < 12; i++)
         {
@@ -372,6 +373,7 @@ public sealed class ChampionMatchupApiIntegrationTests
             .WithPuuid("matchup-other-puuid")
             .Build();
         db.RiotAccounts.Add(otherAccount);
+        db.MainChampionStats.Add(MainStat(account, Champion, games: 11));
 
         for (var i = 0; i < 11; i++)
         {
@@ -414,6 +416,7 @@ public sealed class ChampionMatchupApiIntegrationTests
             .WithPuuid("matchup-floor-puuid")
             .Build();
         db.RiotAccounts.Add(account);
+        db.MainChampionStats.Add(MainStat(account, Champion, games: 5));
 
         for (var i = 0; i < 5; i++)
         {
@@ -449,6 +452,7 @@ public sealed class ChampionMatchupApiIntegrationTests
             .WithPuuid("matchup-oppother-puuid")
             .Build();
         db.RiotAccounts.Add(otherAccount);
+        db.MainChampionStats.Add(MainStat(account, Champion, games: 1));
 
         AddLaneMatchup(db, "mo-owned-0", "16.4.521.123", QueueId, yoneWins: true, OtherOpponent,
             yoneAccountId: account.Id);
@@ -489,6 +493,25 @@ public sealed class ChampionMatchupApiIntegrationTests
         db.MatchParticipants.Add(Participant(
             match.Id, 2, opponentChampionId, teamId: 200, Position, win: !yoneWins));
     }
+
+    /// <summary>
+    /// The aggregation's champion work-list is derived from main_champion_stats
+    /// (#606 fix mirroring #604), not a scan over match_participants, so every
+    /// seed needs at least one "main" row for the champion under test.
+    /// </summary>
+    private static MainChampionStat MainStat(RiotAccount account, int championId, int games)
+        => new()
+        {
+            PlatformId = account.PlatformId,
+            Puuid = account.Puuid,
+            ChampionId = championId,
+            TotalMatches = games,
+            ChampionMatches = games,
+            PlayRate = 1.0,
+            IsMain = true,
+            PrimaryPosition = Position,
+            CalculatedAtUtc = DateTime.UtcNow
+        };
 
     private static MatchParticipant Participant(
         string matchId,
