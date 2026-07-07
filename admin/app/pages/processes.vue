@@ -164,11 +164,15 @@ interface ChainLink {
   run: ProcessRun | null
 }
 
-// Build the canonical ordered chain for one iteration: every process in
-// PIPELINE_CHAIN, annotated with its run outcome (or `notRun` when absent).
+// Build the ordered chain for one iteration: the union of the canonical
+// PIPELINE_CHAIN order and every process actually present in `runs`. Canonical
+// processes keep their known position (annotated `notRun` when absent this
+// pass); any extra/unknown process that ran is appended in run order, so no run
+// is ever silently dropped just because its name isn't in PIPELINE_CHAIN.
 function buildChain(runs: ProcessRun[]): ChainLink[] {
   const byName = new Map(runs.map(run => [run.processName, run]))
-  return PIPELINE_CHAIN.map((processName) => {
+  const canonical = new Set(PIPELINE_CHAIN)
+  const links: ChainLink[] = PIPELINE_CHAIN.map((processName) => {
     const run = byName.get(processName) ?? null
     return {
       processName,
@@ -176,6 +180,14 @@ function buildChain(runs: ProcessRun[]): ChainLink[] {
       run,
     }
   })
+  const seenExtra = new Set<string>()
+  for (const run of runs) {
+    if (canonical.has(run.processName) || seenExtra.has(run.processName))
+      continue
+    seenExtra.add(run.processName)
+    links.push({ processName: run.processName, outcome: run.status, run })
+  }
+  return links
 }
 
 // The live chain shown at the top: the globally newest iteration's outcomes when
@@ -186,6 +198,13 @@ const currentChain = computed<ChainLink[]>(() => {
   return buildChain(latestIteration.value?.runs ?? [])
 })
 const currentIterationRunning = computed(() => latestIteration.value?.isRunning ?? false)
+
+// Precompute each finished iteration's chain once, so the recent-iterations
+// template shares one array between its v-for and its separator length check
+// (which now tracks the actual rendered link count, not PIPELINE_CHAIN.length).
+const iterationChains = computed<Map<string, ChainLink[]>>(
+  () => new Map(finishedIterations.value.map(it => [it.iterationId, buildChain(it.runs)])),
+)
 
 function outcomeColor(outcome: ChainOutcome): 'primary' | 'success' | 'error' | 'warning' | 'neutral' {
   switch (outcome) {
@@ -575,7 +594,7 @@ const selectedIterationTally = computed(() => {
 
             <div class="flex flex-wrap items-center gap-y-2">
               <template
-                v-for="(link, i) in buildChain(iteration.runs)"
+                v-for="(link, i) in iterationChains.get(iteration.iterationId)"
                 :key="link.processName"
               >
                 <span
@@ -608,7 +627,7 @@ const selectedIterationTally = computed(() => {
                   </span>
                 </span>
                 <UIcon
-                  v-if="i < PIPELINE_CHAIN.length - 1"
+                  v-if="i < (iterationChains.get(iteration.iterationId)?.length ?? 0) - 1"
                   name="i-lucide-chevron-right"
                   class="size-3.5 text-dimmed shrink-0 mx-0.5"
                 />
