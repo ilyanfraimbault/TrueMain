@@ -48,15 +48,11 @@ function spellByKey(key: string) {
             >
               {{ index + 1 }}
             </span>
-            <!-- Skill key (Q/W/E), bottom-centre. -->
-            <span
-              class="absolute bottom-0 left-1/2 inline-flex h-4 min-w-4 -translate-x-1/2 items-center justify-center rounded px-1 text-[10px] font-bold uppercase ring-1 backdrop-blur-sm"
-              :class="index === 0
-                ? 'bg-primary text-inverted ring-primary'
-                : 'bg-default/85 text-default ring-default'"
-            >
-              {{ key }}
-            </span>
+            <ItemRankBadge
+              :value="key"
+              size="md"
+              :primary="index === 0"
+            />
           </div>
           <UIcon
             v-if="index < skillOrder.sequence.length - 1"
