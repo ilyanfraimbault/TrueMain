@@ -9,6 +9,12 @@ const props = defineProps<{
   champions: ChampionStaticListItem[]
   /** When set, scope the matchups to this player's games. */
   nameTag?: string
+  /**
+   * Force the skeleton while the parent's lane is still resolving. Without it
+   * the composable returns null for a not-yet-known position and the table
+   * flashes its empty state before the champion (and its lane) has loaded.
+   */
+  loading?: boolean
 }>()
 
 const TOP_N = 5
@@ -24,9 +30,9 @@ const { data, status, error } = useChampionMatchups(
   },
 )
 
-// Skeleton only on the first load — keep the table on screen while an opponent
-// search refetches so the rows don't flash out.
-const isLoading = computed(() => status.value === 'pending' && !data.value)
+// Skeleton on the first load or while the parent lane resolves — but keep the
+// table on screen while an opponent search refetches so the rows don't flash out.
+const isLoading = computed(() => props.loading || (status.value === 'pending' && !data.value))
 
 // Champion id → static entry for icon + name lookups.
 const championById = computed(() => {

@@ -267,38 +267,22 @@ watch(champion, (data) => {
   if (updates.patch !== undefined || updates.position !== undefined) setFilter(updates).catch(console.error)
 }, { immediate: true })
 
-// Bound to every async source so the bar covers both the initial lazy load
-// and patch/position swaps where the previous champion's data is still on
-// screen. `idle` is the pre-fetch state from useLazy* before the client
-// kicks them off — treat it as loading too.
+// Per-section loading, not a single page-wide bar: each section keys its own
+// skeleton off its own source so it fills in independently as data lands.
+// `idle` is the pre-fetch state from useLazy* before the client kicks them
+// off — treat it as loading too. The header and build tabs gate directly on
+// `!data` in the template (which also narrows the types) so a patch/position
+// swap keeps the previous champion's content on screen (no skeleton flash)
+// until the refetch resolves.
 const isLoadingStatus = (s: 'idle' | 'pending' | 'success' | 'error') => s === 'idle' || s === 'pending'
-const isRefetching = computed(() =>
-  isLoadingStatus(championStatus.value)
-  || isLoadingStatus(staticStatus.value)
-  || isLoadingStatus(staticListStatus.value)
-  || isLoadingStatus(runeTreeStatus.value)
-  || isLoadingStatus(itemsStatus.value)
-  || isLoadingStatus(summonersStatus.value)
-  || isLoadingStatus(trendStatus.value)
-  || isLoadingStatus(leadsStatus.value)
-  || isLoadingStatus(scalingStatus.value)
-  || isLoadingStatus(powerspikesStatus.value)
-  || isLoadingStatus(roamStatus.value)
-  || isLoadingStatus(patchDiffStatus.value),
-)
+// Matchups fetches its own data but derives its lane from the champion, so it
+// must show its skeleton until the champion aggregate lands rather than flash
+// its "no matchups" empty state against a not-yet-known lane.
+const championLoading = computed(() => !champion.value)
 </script>
 
 <template>
   <main class="mx-auto max-w-5xl space-y-6 p-4 md:p-6">
-    <div class="h-0.5">
-      <UProgress
-        v-if="isRefetching"
-        size="xs"
-        color="primary"
-        aria-label="Loading champion"
-      />
-    </div>
-
     <UAlert
       v-if="championError"
       color="error"
@@ -360,12 +344,11 @@ const isRefetching = computed(() =>
       above: a 404 is "no data", not a transient failure to retry.
     -->
     <!--
-      Deliberately gated on `notEnoughData` alone, NOT `!isRefetching`: this
-      block depends on no secondary data, and `isRefetching` stays true while
-      the static fetches (rune tree, items, summoners…) run — which they do even
-      for a champion we hold no data on — so anding it in would blank the page
-      behind the progress bar until those resolve. The bar already signals that
-      background activity.
+      Gated on `notEnoughData` alone: it flips true only once the champion fetch
+      resolves 404, so it can never race the skeleton state below (which renders
+      while champion is still null). The secondary static/timeline fetches don't
+      gate it — they run even for a champion we hold no data on, and this block
+      depends on none of them.
     -->
     <div
       v-else-if="notEnoughData"
@@ -390,9 +373,10 @@ const isRefetching = computed(() =>
       </div>
     </div>
 
-    <template v-else-if="champion && staticData">
+    <template v-else>
       <header class="flex flex-wrap items-center gap-4">
         <ChampionHeader
+          v-if="champion"
           :champion-name="displayName"
           :champion-icon-url="displayIconUrl"
           :champion-id="championId"
@@ -400,6 +384,7 @@ const isRefetching = computed(() =>
           :total-games="champion.totalGames"
           :total-wins="champion.totalWins"
         />
+        <ChampionHeaderSkeleton v-else />
         <ChampionFilters
           :selected-patch="selectedPatch"
           :selected-position="selectedPosition"
@@ -412,17 +397,20 @@ const isRefetching = computed(() =>
       </header>
 
       <ChampionBuildTabs
+        v-if="champion && staticData"
         :builds="champion.builds"
         :champion-static="staticData"
         :items-map="itemsMap ?? {}"
         :summoners-map="summonersMap ?? {}"
         :rune-tree="runeTree ?? null"
       />
+      <ChampionBuildTabsSkeleton v-else />
 
       <ChampionMatchups
         :champion-id="championId"
         :position="selectedPosition"
         :champions="staticList ?? []"
+        :loading="championLoading"
       />
 
       <ChampionTrendChart
