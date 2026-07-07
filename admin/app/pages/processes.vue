@@ -117,6 +117,11 @@ function statusIcon(s: ProcessRunStatus): string {
       return 'i-lucide-circle-x'
   }
 }
+// The badge passes its icon through the `leadingIcon` slot; spin it only while
+// `Running` so the loader-circle actually animates (other statuses stay static).
+function statusBadgeUi(s: ProcessRunStatus): { leadingIcon: string } | undefined {
+  return s === 'Running' ? { leadingIcon: 'animate-spin' } : undefined
+}
 
 // --- Pipeline chain + iterations ---------------------------------------------
 // Recent iterations (one full pass of the chain each), newest first, with their
@@ -677,6 +682,7 @@ const selectedIterationTally = computed(() => {
               <UBadge
                 :color="statusColor(proc.lastStatus)"
                 :icon="statusIcon(proc.lastStatus)"
+                :ui="statusBadgeUi(proc.lastStatus)"
                 variant="subtle"
                 size="sm"
                 :label="proc.lastStatus"
@@ -761,6 +767,7 @@ const selectedIterationTally = computed(() => {
             <UBadge
               :color="statusColor(row.original.status)"
               :icon="statusIcon(row.original.status)"
+              :ui="statusBadgeUi(row.original.status)"
               variant="subtle"
               size="sm"
               :label="row.original.status"
@@ -854,6 +861,7 @@ const selectedIterationTally = computed(() => {
                   <UBadge
                     :color="statusColor(selectedRun.status)"
                     :icon="statusIcon(selectedRun.status)"
+                    :ui="statusBadgeUi(selectedRun.status)"
                     variant="subtle"
                     size="sm"
                     :label="selectedRun.status"
