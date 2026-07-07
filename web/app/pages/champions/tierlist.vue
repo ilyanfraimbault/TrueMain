@@ -148,15 +148,6 @@ function championDestination(entry: { championId: number, position: string }) {
     </header>
 
     <ClientOnly>
-      <div class="h-0.5">
-        <UProgress
-          v-if="isPending"
-          size="xs"
-          color="primary"
-          aria-label="Loading tier list"
-        />
-      </div>
-
       <UAlert
         v-if="error"
         color="error"
@@ -164,6 +155,8 @@ function championDestination(entry: { championId: number, position: string }) {
         title="Failed to load tier list"
         :description="error.message"
       />
+
+      <TierlistSkeleton v-else-if="isPending" />
 
       <template v-else>
         <div class="space-y-3">
@@ -218,7 +211,7 @@ function championDestination(entry: { championId: number, position: string }) {
         </div>
 
         <p
-          v-if="!isPending && !hasRows"
+          v-if="!hasRows"
           class="text-sm text-muted"
         >
           No champions match these filters.
@@ -226,13 +219,7 @@ function championDestination(entry: { championId: number, position: string }) {
       </template>
 
       <template #fallback>
-        <div class="h-0.5">
-          <UProgress
-            size="xs"
-            color="primary"
-            aria-label="Loading tier list"
-          />
-        </div>
+        <TierlistSkeleton />
       </template>
     </ClientOnly>
   </main>
