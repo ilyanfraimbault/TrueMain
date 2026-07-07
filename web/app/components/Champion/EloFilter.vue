@@ -68,11 +68,9 @@ function onChange(value: string) {
   >
     <template #leading>
       <RankIcon v-if="selectedTier" :tier="selectedTier" :size="20" />
-      <UIcon v-else name="i-lucide-layers" class="size-5 text-muted" />
     </template>
     <template #item-leading="{ item }">
       <RankIcon v-if="(item as EloItem).tier" :tier="(item as EloItem).tier" :size="20" />
-      <UIcon v-else name="i-lucide-layers" class="size-5 text-muted" />
     </template>
   </USelect>
 </template>
