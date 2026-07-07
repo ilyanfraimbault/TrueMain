@@ -76,7 +76,7 @@ const tabItems = [
   <!-- Opaque body surface so the expanded panel reads as one card with the row
        header instead of letting the animated backdrop bleed through the tabs
        and gaps between cards. -->
-  <div class="border-t border-default/60 bg-default/90 px-3 pb-3 pt-3 backdrop-blur-md">
+  <div class="border-t border-default/60 bg-default/90 px-3 pb-3 pt-3 backdrop-blur-lg">
     <div
       v-if="isLoading && !detail"
       class="rounded-md border border-default/60 bg-elevated/60 p-6 text-center text-sm text-muted"
