@@ -51,8 +51,24 @@ public sealed class ChampionPatchDiffApiIntegrationTests
         // 16.4: 100 games, 40 wins → 0.40. 16.5: 100 games, 60 wins → 0.60.
         diff.From.WinRate.Should().BeApproximately(0.40, 1e-9);
         diff.To.WinRate.Should().BeApproximately(0.60, 1e-9);
-        diff.From.TopFirstItemId.Should().Be(3153);
-        diff.To.TopFirstItemId.Should().Be(6672, "the popular first item shifted between patches");
+
+        // Full core item path, not just the first item — this is the whole
+        // point of surfacing ItemPath instead of a scalar TopFirstItemId.
+        diff.From.ItemPath!.ItemIds.Should().Equal([3153, 3006, 3031]);
+        diff.To.ItemPath!.ItemIds.Should().Equal([6672, 3006, 3031], "the popular first item shifted between patches");
+
+        // Full rune page: primary/secondary tree stay put, only the first
+        // item and skill order move on this fixture.
+        diff.From.RunePage!.PrimaryStyleId.Should().Be(8000);
+        diff.From.RunePage.PrimaryKeystoneId.Should().Be(8008);
+        diff.From.RunePage.SecondaryStyleId.Should().Be(8400);
+        diff.To.RunePage!.PrimaryStyleId.Should().Be(8000);
+        diff.To.RunePage.PrimaryKeystoneId.Should().Be(8008);
+        diff.To.RunePage.SecondaryStyleId.Should().Be(8400);
+
+        // Full skill-order sequence on both sides.
+        diff.From.SkillOrder!.Sequence.Should().Equal(["Q", "W", "E"]);
+        diff.To.SkillOrder!.Sequence.Should().Equal(["Q", "E", "W"], "the dominant skill order shifted between patches");
 
         diff.Delta.Should().NotBeNull();
         diff.Delta!.WinRateChange.Should().BeApproximately(0.20, 1e-9, "0.60 - 0.40");

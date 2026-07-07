@@ -98,12 +98,12 @@ export interface ChampionPatchDiffSide {
   games: number
   wins: number
   winRate: number
-  /** Most popular completed-build first item on the patch; 0 when none qualifies. */
-  topFirstItemId: number
-  /** Most popular primary keystone on the patch; 0 when none qualifies. */
-  topKeystoneId: number
-  /** Dominant skill-order sequence (e.g. ['Q', 'E', 'W']); empty when unavailable. */
-  topSkillOrder: string[]
+  /** Top build's completed core item order on the patch; null when none qualifies. */
+  itemPath: BuildItemPath | null
+  /** Top build's full rune page on the patch; null when unavailable. */
+  runePage: BuildRunePage | null
+  /** Top build's dominant skill-order sequence; null when unavailable. */
+  skillOrder: BuildSkillOrder | null
 }
 
 export interface ChampionPatchDiffDelta {

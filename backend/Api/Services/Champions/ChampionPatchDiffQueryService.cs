@@ -114,8 +114,10 @@ public sealed class ChampionPatchDiffQueryService(
 
         // The top build tab is the most-played (first item, keystone) slice —
         // GetAsync orders builds by games descending, so the head is the
-        // dominant build. Its core skill order is the dominant sequence.
-        var topBuild = response.Builds.Count > 0 ? response.Builds[0] : null;
+        // dominant build. We surface its whole core (item path, rune page, skill
+        // order) so the diff can render each side with the same widgets the
+        // build view uses.
+        var core = response.Builds.Count > 0 ? response.Builds[0].Core : null;
 
         return new ChampionPatchDiffSide
         {
@@ -125,11 +127,15 @@ public sealed class ChampionPatchDiffQueryService(
             WinRate = response.TotalGames == 0
                 ? 0
                 : (double)response.TotalWins / response.TotalGames,
-            TopFirstItemId = topBuild?.FirstItemId ?? 0,
-            TopKeystoneId = topBuild?.PrimaryKeystoneId ?? 0,
-            TopSkillOrder = topBuild?.Core.SkillOrder?.Sequence ?? [],
+            ItemPath = core?.ItemPath,
+            RunePage = core?.RunePage,
+            SkillOrder = core?.SkillOrder,
         };
     }
+
+    /// <summary>First completed item of a side's core build path, or 0 when none.</summary>
+    private static int FirstItemId(ChampionPatchDiffSide side)
+        => side.ItemPath is { ItemIds.Count: > 0 } path ? path.ItemIds[0] : 0;
 
     private static ChampionPatchDiffDelta? BuildDelta(
         ChampionPatchDiffSide? from,
@@ -140,21 +146,28 @@ public sealed class ChampionPatchDiffQueryService(
             return null;
         }
 
+        var fromFirstItem = FirstItemId(from);
+        var toFirstItem = FirstItemId(to);
+        var fromKeystone = from.RunePage?.PrimaryKeystoneId ?? 0;
+        var toKeystone = to.RunePage?.PrimaryKeystoneId ?? 0;
+        var fromSkills = from.SkillOrder?.Sequence ?? [];
+        var toSkills = to.SkillOrder?.Sequence ?? [];
+
         return new ChampionPatchDiffDelta
         {
             WinRateChange = to.WinRate - from.WinRate,
             // Treat a missing (zero) first item / keystone as "not changed":
             // a side with no qualifying build can't claim a build shift, so we
             // only flag a change when both sides actually have a top build.
-            FirstItemChanged = from.TopFirstItemId != 0
-                && to.TopFirstItemId != 0
-                && from.TopFirstItemId != to.TopFirstItemId,
-            KeystoneChanged = from.TopKeystoneId != 0
-                && to.TopKeystoneId != 0
-                && from.TopKeystoneId != to.TopKeystoneId,
-            SkillOrderChanged = from.TopSkillOrder.Count > 0
-                && to.TopSkillOrder.Count > 0
-                && !from.TopSkillOrder.SequenceEqual(to.TopSkillOrder, StringComparer.Ordinal),
+            FirstItemChanged = fromFirstItem != 0
+                && toFirstItem != 0
+                && fromFirstItem != toFirstItem,
+            KeystoneChanged = fromKeystone != 0
+                && toKeystone != 0
+                && fromKeystone != toKeystone,
+            SkillOrderChanged = fromSkills.Count > 0
+                && toSkills.Count > 0
+                && !fromSkills.SequenceEqual(toSkills, StringComparer.Ordinal),
         };
     }
 

@@ -434,6 +434,7 @@ const isRefetching = computed(() =>
         :diff="championPatchDiff ?? null"
         :items-map="itemsMap ?? {}"
         :rune-tree="runeTree ?? null"
+        :champion-static="staticData"
         :patch-options="patchDiffOptions"
         :from-patch="patchDiffFrom"
         :to-patch="patchDiffTo"
