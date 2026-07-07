@@ -60,6 +60,12 @@ const noChanges = computed(() => {
   return Boolean(delta) && !delta!.firstItemChanged && !delta!.keystoneChanged && !delta!.skillOrderChanged
 })
 
+// One side resolved but the other didn't: the user picked (or defaulted into) a
+// patch the champion has no data on. Distinct from "no history at all" (both
+// sides missing) so the footnote can point at the fix ("pick another patch")
+// rather than implying the whole comparison is broken.
+const oneSideMissing = computed(() => Boolean(fromSide.value) !== Boolean(toSide.value))
+
 function winRateLabel(side: ChampionPatchDiffSide | null): string {
   return side ? formatPercentage(side.winRate, 1) : '—'
 }
@@ -253,10 +259,16 @@ function winRateLabel(side: ChampionPatchDiffSide | null): string {
       </div>
 
       <p
-        v-if="!hasBothSides"
+        v-if="oneSideMissing"
         class="text-center text-xs text-muted"
       >
         No data for this champion on one of the selected patches — pick another patch to compare.
+      </p>
+      <p
+        v-else-if="!hasBothSides"
+        class="text-center text-xs text-muted"
+      >
+        No data for this champion on either selected patch.
       </p>
       <p
         v-else-if="noChanges"
