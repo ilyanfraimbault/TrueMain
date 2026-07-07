@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using AwesomeAssertions;
 using Core.Lol.Map;
+using Core.Lol.Ranking;
 using Core.Options;
 using Data.Entities;
 using Ingestor.Processes;
@@ -105,6 +106,32 @@ public sealed class ChampionTimelineLeadsApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetChampionTimelineLeadsAsync_FiltersToRequestedEloBracket()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedBracketedLeadsSampleAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // ALL sums both cohorts (12 Gold + 12 Iron) on every interval.
+        var all = await client.GetFromJsonAsync<ChampionTimelineLeadsResponse>(
+            $"/champions/{Champion}/timeline-leads?position={Position}");
+        all!.Intervals.Should().HaveCount(Intervals.Length);
+        all.Intervals.Should().OnlyContain(interval => interval.Games == 24);
+
+        // A bare Gold filter reads only the Gold-stamped slice of the aggregate.
+        var gold = await client.GetFromJsonAsync<ChampionTimelineLeadsResponse>(
+            $"/champions/{Champion}/timeline-leads?position={Position}&eloBracket=GOLD");
+        gold!.Intervals.Should().OnlyContain(interval => interval.Games == 12, "only the Gold-stamped games count");
+
+        // GOLD_PLUS unions Gold and above; Iron is below and drops out.
+        var goldPlus = await client.GetFromJsonAsync<ChampionTimelineLeadsResponse>(
+            $"/champions/{Champion}/timeline-leads?position={Position}&eloBracket=GOLD_PLUS");
+        goldPlus!.Intervals.Should().OnlyContain(interval => interval.Games == 12, "Iron is below Gold and drops out");
+    }
+
+    [Fact]
     public async Task GetChampionTimelineLeadsAsync_ReturnsBadRequestForInvalidPosition()
     {
         await _fixture.ResetDatabaseAsync();
@@ -129,38 +156,71 @@ public sealed class ChampionTimelineLeadsApiIntegrationTests
 
         for (var i = 0; i < games; i++)
         {
-            var matchId = $"m-leads-{i}";
-            var match = new MatchBuilder()
-                .WithId(matchId)
-                .WithQueueId(QueueId)
-                .WithGameVersion("16.4.521.123")
-                .Build();
-            db.Matches.Add(match);
-
-            db.MatchParticipants.Add(Participant(matchId, 1, Champion, teamId: 100, win: true, riotAccountId: account.Id));
-            db.MatchParticipants.Add(Participant(matchId, 2, Opponent, teamId: 200, win: false));
-
-            foreach (var minute in Intervals)
-            {
-                // Champion-side values are arbitrary; the opponent is offset by a
-                // fixed lead so the averaged diff is exactly that lead.
-                var gold = minute * 200;
-                var cs = minute * 5;
-                var level = minute / 3 + 4;
-                var xp = minute * 250;
-                var kills = minute / 5;
-                var damage = minute * 200;
-
-                db.MatchParticipantTimelineSnapshots.Add(
-                    Snapshot(matchId, 1, minute, gold, cs, level, xp, kills, damage));
-                db.MatchParticipantTimelineSnapshots.Add(
-                    Snapshot(matchId, 2, minute,
-                        gold - GoldLead, cs - CsLead, level - LevelLead, xp - XpLead, kills - KillsLead, damage - DamageLead));
-            }
+            AddLeadGame(db, $"m-leads-{i}", account.Id, eloBracket: "");
         }
 
         await db.SaveChangesAsync();
         await RunAggregationAsync();
+    }
+
+    /// <summary>
+    /// Seeds two lead cohorts for one tracked account — 12 Gold games and 12 Iron
+    /// games, each with the identical per-interval lead — stamped on the champion
+    /// side so the aggregation splits <c>champion_timeline_lead_stats</c> by band.
+    /// </summary>
+    private async Task SeedBracketedLeadsSampleAsync()
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        var account = new RiotAccountBuilder()
+            .WithGameName("LeadsBracket")
+            .WithTagLine("KR1")
+            .WithPuuid("leads-bracket-puuid")
+            .Build();
+        db.RiotAccounts.Add(account);
+
+        for (var i = 0; i < 12; i++)
+        {
+            AddLeadGame(db, $"m-leads-gold-{i}", account.Id, EloBracket.Gold);
+        }
+        for (var i = 0; i < 12; i++)
+        {
+            AddLeadGame(db, $"m-leads-iron-{i}", account.Id, EloBracket.Iron);
+        }
+
+        await db.SaveChangesAsync();
+        await RunAggregationAsync();
+    }
+
+    private static void AddLeadGame(Data.TrueMainDbContext db, string matchId, Guid accountId, string eloBracket)
+    {
+        db.Matches.Add(new MatchBuilder()
+            .WithId(matchId)
+            .WithQueueId(QueueId)
+            .WithGameVersion("16.4.521.123")
+            .Build());
+
+        db.MatchParticipants.Add(
+            Participant(matchId, 1, Champion, teamId: 100, win: true, accountId, eloBracket));
+        db.MatchParticipants.Add(Participant(matchId, 2, Opponent, teamId: 200, win: false));
+
+        foreach (var minute in Intervals)
+        {
+            // Champion-side values are arbitrary; the opponent is offset by a
+            // fixed lead so the averaged diff is exactly that lead.
+            var gold = minute * 200;
+            var cs = minute * 5;
+            var level = minute / 3 + 4;
+            var xp = minute * 250;
+            var kills = minute / 5;
+            var damage = minute * 200;
+
+            db.MatchParticipantTimelineSnapshots.Add(
+                Snapshot(matchId, 1, minute, gold, cs, level, xp, kills, damage));
+            db.MatchParticipantTimelineSnapshots.Add(
+                Snapshot(matchId, 2, minute,
+                    gold - GoldLead, cs - CsLead, level - LevelLead, xp - XpLead, kills - KillsLead, damage - DamageLead));
+        }
     }
 
     /// <summary>
@@ -199,7 +259,8 @@ public sealed class ChampionTimelineLeadsApiIntegrationTests
         };
 
     private static MatchParticipant Participant(
-        string matchId, int participantId, int championId, int teamId, bool win, Guid? riotAccountId = null)
+        string matchId, int participantId, int championId, int teamId, bool win,
+        Guid? riotAccountId = null, string eloBracket = "")
         => new()
         {
             MatchId = matchId,
@@ -218,6 +279,7 @@ public sealed class ChampionTimelineLeadsApiIntegrationTests
             ChampLevel = 16,
             Item6 = 3363,
             TrinketItemId = 3363,
+            EloBracket = eloBracket,
             ItemEvents = [],
             SkillEvents = []
         };

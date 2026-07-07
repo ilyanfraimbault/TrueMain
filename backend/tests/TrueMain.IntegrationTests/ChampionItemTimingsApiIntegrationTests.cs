@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using AwesomeAssertions;
+using Core.Lol.Ranking;
 using Data.Entities;
 using Microsoft.AspNetCore.Mvc.Testing;
 using TrueMain.ReadModels.Champions;
@@ -78,6 +79,31 @@ public sealed class ChampionItemTimingsApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetChampionItemTimingsAsync_FiltersToRequestedEloBracket()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedBracketedItemTimingsAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // ALL sums both cohorts (12 Gold + 12 Iron), each buying Boots then core.
+        var all = await client.GetFromJsonAsync<ChampionItemTimingsResponse>(
+            $"/champions/{Champion}/item-timings?position={Position}");
+        all!.Items.Single(i => i.ItemId == Boots).Games.Should().Be(24);
+
+        // A bare Gold filter counts only the Gold-stamped games.
+        var gold = await client.GetFromJsonAsync<ChampionItemTimingsResponse>(
+            $"/champions/{Champion}/item-timings?position={Position}&eloBracket=GOLD");
+        gold!.Items.Single(i => i.ItemId == Boots).Games.Should().Be(12, "only the Gold-stamped games count");
+
+        // GOLD_PLUS unions Gold and above; Iron is below and drops out.
+        var goldPlus = await client.GetFromJsonAsync<ChampionItemTimingsResponse>(
+            $"/champions/{Champion}/item-timings?position={Position}&eloBracket=GOLD_PLUS");
+        goldPlus!.Items.Single(i => i.ItemId == Boots).Games.Should().Be(12, "Iron is below Gold and drops out");
+    }
+
+    [Fact]
     public async Task GetChampionItemTimingsAsync_ReturnsEmptyWhenNoGames()
     {
         await _fixture.ResetDatabaseAsync();
@@ -149,10 +175,50 @@ public sealed class ChampionItemTimingsApiIntegrationTests
         await db.SaveChangesAsync();
     }
 
+    /// <summary>
+    /// Seeds two cohorts for one tracked account — 12 Gold games and 12 Iron games,
+    /// each buying Boots @300s and the core item @600s — so the elo-bracket filter
+    /// on the champion side can be exercised.
+    /// </summary>
+    private async Task SeedBracketedItemTimingsAsync()
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        var account = new RiotAccountBuilder()
+            .WithGameName("TimingsBracket")
+            .WithTagLine("KR1")
+            .WithPuuid("timings-bracket-puuid")
+            .Build();
+        db.RiotAccounts.Add(account);
+
+        AddTimingGames(db, "gold", 12, account.Id, EloBracket.Gold);
+        AddTimingGames(db, "iron", 12, account.Id, EloBracket.Iron);
+
+        await db.SaveChangesAsync();
+    }
+
+    private static void AddTimingGames(
+        Data.TrueMainDbContext db, string prefix, int games, Guid accountId, string eloBracket)
+    {
+        for (var i = 0; i < games; i++)
+        {
+            var matchId = $"m-timings-{prefix}-{i}";
+            db.Matches.Add(new MatchBuilder()
+                .WithId(matchId)
+                .WithQueueId(QueueId)
+                .WithGameVersion("16.4.521.123")
+                .Build());
+
+            var events = new List<ItemEvent> { Purchase(Boots, 300_000), Purchase(CoreItem, 600_000) };
+            db.MatchParticipants.Add(Participant(matchId, accountId, events, eloBracket));
+        }
+    }
+
     private static ItemEvent Purchase(int itemId, int timestampMs)
         => new() { TimestampMs = timestampMs, EventType = "ITEM_PURCHASED", ItemId = itemId };
 
-    private static MatchParticipant Participant(string matchId, Guid accountId, List<ItemEvent> itemEvents)
+    private static MatchParticipant Participant(
+        string matchId, Guid accountId, List<ItemEvent> itemEvents, string eloBracket = "")
         => new()
         {
             MatchId = matchId,
@@ -171,6 +237,7 @@ public sealed class ChampionItemTimingsApiIntegrationTests
             ChampLevel = 16,
             Item6 = 3363,
             TrinketItemId = 3363,
+            EloBracket = eloBracket,
             ItemEvents = itemEvents,
             SkillEvents = []
         };
