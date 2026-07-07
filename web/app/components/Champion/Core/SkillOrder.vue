@@ -41,9 +41,10 @@ function spellByKey(key: string) {
               :height="48"
               class="size-12 rounded-lg"
             />
-            <!-- Priority ordinal, top-left: 1 = maxed first. -->
+            <!-- Priority ordinal, top-left: 1 = maxed first. Inset (not
+                 overhanging) so the h-12 row's overflow-hidden doesn't clip it. -->
             <span
-              class="absolute -left-1 -top-1 inline-flex size-4 items-center justify-center rounded-full text-[10px] font-bold tabular-nums ring-1 ring-default"
+              class="absolute left-0 top-0 inline-flex size-4 items-center justify-center rounded-full text-[10px] font-bold tabular-nums ring-1 ring-default"
               :class="index === 0 ? 'bg-primary text-inverted' : 'bg-default text-muted'"
             >
               {{ index + 1 }}
