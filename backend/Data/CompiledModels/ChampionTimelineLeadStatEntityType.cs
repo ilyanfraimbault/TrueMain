@@ -20,7 +20,7 @@ namespace Data.CompiledModels
                 "Data.Entities.ChampionTimelineLeadStat",
                 typeof(ChampionTimelineLeadStat),
                 baseEntityType,
-                propertyCount: 13,
+                propertyCount: 14,
                 unnamedIndexCount: 1,
                 keyCount: 1);
 
@@ -49,6 +49,17 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(ChampionTimelineLeadStat).GetField("<ChampionId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: 0);
             championId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var eloBracket = runtimeEntityType.AddProperty(
+                "EloBracket",
+                typeof(string),
+                propertyInfo: typeof(ChampionTimelineLeadStat).GetProperty("EloBracket", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(ChampionTimelineLeadStat).GetField("<EloBracket>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                maxLength: 20);
+            eloBracket.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            eloBracket.AddAnnotation("Relational:ColumnName", "elo_bracket");
+            eloBracket.AddAnnotation("Relational:DefaultValue", "");
 
             var games = runtimeEntityType.AddProperty(
                 "Games",
@@ -135,7 +146,7 @@ namespace Data.CompiledModels
             runtimeEntityType.SetPrimaryKey(key);
 
             var index = runtimeEntityType.AddIndex(
-                new[] { championId, teamPosition, patch, intervalMinute },
+                new[] { championId, teamPosition, patch, intervalMinute, eloBracket },
                 unique: true);
 
             return runtimeEntityType;
