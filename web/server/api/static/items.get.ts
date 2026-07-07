@@ -2,7 +2,14 @@ import type { StaticItemData } from '~~/shared/types/static-data'
 import { normalizeDataDragonPatch } from '~~/shared/utils/ddragon'
 
 interface ItemListResponse {
-  data: Record<string, { name: string, image: { full: string }, gold?: { total?: number }, plaintext?: string, description?: string }>
+  data: Record<string, {
+    name: string
+    image: { full: string }
+    gold?: { total?: number, purchasable?: boolean }
+    inStore?: boolean
+    plaintext?: string
+    description?: string
+  }>
 }
 
 async function resolveLatestPatch(): Promise<string> {
@@ -29,6 +36,8 @@ const loadItemsForPatch = defineCachedFunction(
           name: item.name,
           iconUrl: `https://ddragon.leagueoflegends.com/cdn/${patch}/img/item/${item.image.full}`,
           totalGold: item.gold?.total ?? 0,
+          purchasable: item.gold?.purchasable,
+          inStore: item.inStore,
           plaintext: item.plaintext,
           description: item.description,
         } satisfies StaticItemData,
