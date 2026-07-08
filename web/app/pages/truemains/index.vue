@@ -91,9 +91,9 @@ const {
 })
 
 // ─── Static lookups ───────────────────────────────────────────────────────
-// The champion list backs the picker, the row's top-3 icon lookup and the
-// header's unified search — one shared `champion-static-list` cache (warmed by
-// the prefetch plugin), so there's no duplicate /api/static/champions request.
+// The champion list backs the row's top-3 icon lookup and the header's
+// unified search — one shared `champion-static-list` cache (warmed by the
+// prefetch plugin), so there's no duplicate /api/static/champions request.
 const { data: champions } = useChampionStaticList()
 
 const { data: versions } = useDDragonVersions()
@@ -121,18 +121,16 @@ const championsById = computed(() => {
     <AppSearch
       variant="field"
       champion-mode="filter"
+      :active-champion-id="filterChampionId"
       placeholder="Search a champion or player…"
       @filter-champion="setChampionId"
     />
 
     <LeaderboardFilters
-      :champions="champions ?? []"
       :region="filterRegion"
       :position="filterPosition"
-      :champion-id="filterChampionId"
       @update:region="setRegion"
       @update:position="setPosition"
-      @update:champion-id="setChampionId"
     />
 
     <ClientOnly>
