@@ -213,21 +213,24 @@ public sealed class ChampionMatchupLeadAggregationProcess(
                     p2.MatchId == x.P1.MatchId
                     && p2.TeamPosition == x.P1.TeamPosition
                     && p2.TeamId != x.P1.TeamId),
-                (x, p2) => new { x.P1.TeamPosition, Opponent = p2.ChampionId, x.GameVersion, x.P1.Win })
-            .GroupBy(x => new { x.TeamPosition, x.Opponent, x.GameVersion })
+                (x, p2) => new { x.P1.TeamPosition, Opponent = p2.ChampionId, x.GameVersion, x.P1.EloBracket, x.P1.Win })
+            .GroupBy(x => new { x.TeamPosition, x.Opponent, x.GameVersion, x.EloBracket })
             .Select(g => new
             {
                 g.Key.TeamPosition,
                 g.Key.Opponent,
                 g.Key.GameVersion,
+                g.Key.EloBracket,
                 Games = g.Count(),
                 Wins = g.Sum(x => x.Win ? 1 : 0),
             })
             .ToListAsync(ct);
 
         // Fold the raw Riot versions (hotfix builds) down to the canonical patch.
+        // The elo band is carried through so one row per (position, opponent,
+        // patch, band) is stored — the read seeks the bands it wants.
         return raw
-            .GroupBy(r => new { r.TeamPosition, r.Opponent, Patch = PatchVersion.Normalize(r.GameVersion) })
+            .GroupBy(r => new { r.TeamPosition, r.Opponent, Patch = PatchVersion.Normalize(r.GameVersion), r.EloBracket })
             .Where(g => livePatches.Contains(g.Key.Patch))
             .Select(g => new ChampionMatchupStat
             {
@@ -235,6 +238,7 @@ public sealed class ChampionMatchupLeadAggregationProcess(
                 TeamPosition = g.Key.TeamPosition,
                 OpponentChampionId = g.Key.Opponent,
                 Patch = g.Key.Patch,
+                EloBracket = g.Key.EloBracket,
                 Games = g.Sum(x => x.Games),
                 Wins = g.Sum(x => x.Wins),
                 AggregatedAtUtc = aggregatedAtUtc,
@@ -274,6 +278,7 @@ public sealed class ChampionMatchupLeadAggregationProcess(
                 {
                     x.GameVersion,
                     Position = x.P1.TeamPosition,
+                    x.P1.EloBracket,
                     P1MatchId = x.P1.MatchId,
                     P1ParticipantId = x.P1.ParticipantId,
                     P2MatchId = p2.MatchId,
@@ -284,7 +289,7 @@ public sealed class ChampionMatchupLeadAggregationProcess(
                     s1.MatchId == x.P1MatchId
                     && s1.ParticipantId == x.P1ParticipantId
                     && LeadIntervalMinutes.Contains(s1.IntervalMinute)),
-                (x, s1) => new { x.GameVersion, x.Position, x.P2MatchId, x.P2ParticipantId, S1 = s1 })
+                (x, s1) => new { x.GameVersion, x.Position, x.EloBracket, x.P2MatchId, x.P2ParticipantId, S1 = s1 })
             .SelectMany(
                 x => db.MatchParticipantTimelineSnapshots.Where(s2 =>
                     s2.MatchId == x.P2MatchId
@@ -295,6 +300,7 @@ public sealed class ChampionMatchupLeadAggregationProcess(
                 {
                     x.GameVersion,
                     x.Position,
+                    x.EloBracket,
                     x.S1.IntervalMinute,
                     GoldDiff = x.S1.TotalGold - s2.TotalGold,
                     CsDiff = x.S1.MinionsKilled + x.S1.JungleMinionsKilled - s2.MinionsKilled - s2.JungleMinionsKilled,
@@ -303,11 +309,12 @@ public sealed class ChampionMatchupLeadAggregationProcess(
                     XpDiff = x.S1.Xp - s2.Xp,
                     DamageDiff = x.S1.DamageToChampions - s2.DamageToChampions,
                 })
-            .GroupBy(x => new { x.GameVersion, x.Position, x.IntervalMinute })
+            .GroupBy(x => new { x.GameVersion, x.Position, x.EloBracket, x.IntervalMinute })
             .Select(g => new
             {
                 g.Key.GameVersion,
                 g.Key.Position,
+                g.Key.EloBracket,
                 g.Key.IntervalMinute,
                 Games = g.Count(),
                 GoldDiff = g.Sum(x => (long)x.GoldDiff),
@@ -320,13 +327,14 @@ public sealed class ChampionMatchupLeadAggregationProcess(
             .ToListAsync(ct);
 
         return raw
-            .GroupBy(r => new { r.Position, Patch = PatchVersion.Normalize(r.GameVersion), r.IntervalMinute })
+            .GroupBy(r => new { r.Position, Patch = PatchVersion.Normalize(r.GameVersion), r.EloBracket, r.IntervalMinute })
             .Where(g => livePatches.Contains(g.Key.Patch))
             .Select(g => new ChampionTimelineLeadStat
             {
                 ChampionId = championId,
                 TeamPosition = g.Key.Position,
                 Patch = g.Key.Patch,
+                EloBracket = g.Key.EloBracket,
                 IntervalMinute = g.Key.IntervalMinute,
                 Games = g.Sum(x => x.Games),
                 TotalGoldDiff = g.Sum(x => x.GoldDiff),

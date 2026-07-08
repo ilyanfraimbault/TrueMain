@@ -2,6 +2,7 @@
 import type { ChampionSummaryResponse } from '~~/shared/types/champions'
 import type { RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
 import { POSITION_OPTIONS, isChampionPosition, type ChampionPosition } from '~/utils/positions'
+import { ELO_BRACKET_ALL, normalizeEloBracket } from '~/utils/elo-brackets'
 
 // Whole-percent format used for both WR and PR in the list — matches the
 // terse style used by the in-game stats and the detail-page build tabs.
@@ -64,14 +65,24 @@ const {
   error: summariesError,
   status: summariesStatus,
 } = useLazyAsyncData<ChampionSummaryResponse[]>(
-  () => `champions-list-${filters.value.patch ?? 'latest'}`,
+  () => `champions-list-${filters.value.patch ?? 'latest'}-${filters.value.eloBracket ?? 'ALL'}`,
   () => {
     const patch = filters.value.patch
+    const elo = filters.value.eloBracket
     return $fetch<ChampionSummaryResponse[]>('/api/champions', {
-      query: patch ? { patch } : {},
+      query: {
+        ...(patch ? { patch } : {}),
+        // Cumulative "X+" threshold; the composable already omits the default
+        // ALL, so a value here is always a real filter the backend expands.
+        ...(elo ? { eloBracket: elo } : {}),
+      },
     })
   },
-  { watch: [() => filters.value.patch], server: false, default: () => [] },
+  {
+    watch: [() => filters.value.patch, () => filters.value.eloBracket],
+    server: false,
+    default: () => [],
+  },
 )
 // Static fetches use `useLazyAsyncData` (not `useLazyFetch`) so the handler
 // closure can call `markStaticFetched` after the network round trip — the
@@ -179,6 +190,10 @@ const selectedPosition = computed<ChampionPosition | null>(() => {
   return isChampionPosition(value) ? value : null
 })
 
+// ALL when the `?elo=` param is absent (the composable omits the default), so
+// the picker always reflects a valid threshold.
+const selectedEloBracket = computed<string>(() => normalizeEloBracket(filters.value.eloBracket))
+
 // Champion filter sources from `?championId=` so deep links and back/forward
 // keep the selection. Uses the same ChampionPicker as the truemain
 // leaderboard so the UX matches across the two list pages.
@@ -196,6 +211,7 @@ async function applyFilterReset(updates: {
   patch?: string | null
   position?: ChampionPosition | null
   championId?: number | null
+  eloBracket?: string | null
 }) {
   const nextQuery: Record<string, string> = {}
   for (const [key, value] of Object.entries(route.query)) {
@@ -216,6 +232,12 @@ async function applyFilterReset(updates: {
     if (updates.championId) nextQuery.championId = String(updates.championId)
     else delete nextQuery.championId
   }
+  if (updates.eloBracket !== undefined) {
+    // `ALL` is the default, so clear the param rather than pin it — keeps the
+    // URL and the list cache key identical to an unfiltered request.
+    if (updates.eloBracket && updates.eloBracket !== ELO_BRACKET_ALL) nextQuery.elo = updates.eloBracket
+    else delete nextQuery.elo
+  }
   await router.replace({ query: nextQuery })
 }
 
@@ -230,6 +252,10 @@ async function selectPosition(value: ChampionPosition | null) {
 
 async function selectChampion(value: number | null) {
   await applyFilterReset({ championId: value })
+}
+
+function onEloBracketChange(value: string) {
+  void applyFilterReset({ eloBracket: value })
 }
 
 const baseRows = computed(() => {
@@ -321,6 +347,11 @@ function staticItem(id: number | undefined) {
           placeholder="Search for a champion"
           trigger-class="w-64"
           @update:champion-id="selectChampion"
+        />
+
+        <ChampionEloFilter
+          :model-value="selectedEloBracket"
+          @update:model-value="onEloBracketChange"
         />
 
         <USelect

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using AwesomeAssertions;
 using Core.Lol.Map;
+using Core.Lol.Ranking;
 using Core.Options;
 using Data.Entities;
 using Ingestor.Processes;
@@ -85,6 +86,33 @@ public sealed class ChampionMatchupApiIntegrationTests
         // The 7 wins are games i=0..6, all on 16.4 (i<10); the two dropped 16.5
         // games (i=10,11) were losses, so every seeded win survives the filter.
         zed.Wins.Should().Be(7);
+    }
+
+    [Fact]
+    public async Task GetChampionMatchupsAsync_FiltersToRequestedEloBracket()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedBracketedMatchupSampleAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // ALL sums both cohorts: 12 Gold + 12 Iron Yone-vs-Zed games.
+        var all = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
+            $"/champions/{Champion}/matchups?position={Position}");
+        all!.Matchups.Single(m => m.OpponentChampionId == Opponent).Games.Should().Be(24);
+
+        // A bare Gold filter reads only the Gold-stamped slice of the aggregate.
+        var gold = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
+            $"/champions/{Champion}/matchups?position={Position}&eloBracket=GOLD");
+        gold!.Matchups.Single(m => m.OpponentChampionId == Opponent).Games
+            .Should().Be(12, "only the Gold-stamped games count");
+
+        // GOLD_PLUS unions Gold and above; Iron is below and drops out.
+        var goldPlus = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
+            $"/champions/{Champion}/matchups?position={Position}&eloBracket=GOLD_PLUS");
+        goldPlus!.Matchups.Single(m => m.OpponentChampionId == Opponent).Games
+            .Should().Be(12, "Iron is below Gold and drops out");
     }
 
     [Fact]
@@ -469,6 +497,45 @@ public sealed class ChampionMatchupApiIntegrationTests
     }
 
     /// <summary>
+    /// Seeds two <c>champion_matchup_stats</c> rows directly — Gold (12 games, 8
+    /// wins) and Iron (12 games, 6 wins) — for the same champion/position/opponent/
+    /// patch. Written straight to the aggregate table (bypassing the ingestor
+    /// pipeline) so this exercises only the read-side band filter/fold, which is
+    /// what the elo-bracket query parameter controls.
+    /// </summary>
+    private async Task SeedBracketedMatchupSampleAsync()
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        var now = DateTime.UtcNow;
+        db.ChampionMatchupStats.AddRange(
+            new ChampionMatchupStat
+            {
+                ChampionId = Champion,
+                TeamPosition = Position,
+                OpponentChampionId = Opponent,
+                Patch = "16.4",
+                EloBracket = EloBracket.Gold,
+                Games = 12,
+                Wins = 8,
+                AggregatedAtUtc = now
+            },
+            new ChampionMatchupStat
+            {
+                ChampionId = Champion,
+                TeamPosition = Position,
+                OpponentChampionId = Opponent,
+                Patch = "16.4",
+                EloBracket = EloBracket.Iron,
+                Games = 12,
+                Wins = 6,
+                AggregatedAtUtc = now
+            });
+
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
     /// Adds one match with Yone on team 100 and the opponent on team 200, both
     /// at <see cref="Position"/> — the lane-opponent shape the query counts.
     /// </summary>
@@ -479,7 +546,8 @@ public sealed class ChampionMatchupApiIntegrationTests
         int queueId,
         bool yoneWins,
         int opponentChampionId,
-        Guid? yoneAccountId = null)
+        Guid? yoneAccountId = null,
+        string eloBracket = "")
     {
         var match = new MatchBuilder()
             .WithId(matchId)
@@ -489,7 +557,8 @@ public sealed class ChampionMatchupApiIntegrationTests
         db.Matches.Add(match);
 
         db.MatchParticipants.Add(Participant(
-            match.Id, 1, Champion, teamId: 100, Position, win: yoneWins, riotAccountId: yoneAccountId));
+            match.Id, 1, Champion, teamId: 100, Position, win: yoneWins, riotAccountId: yoneAccountId,
+            eloBracket: eloBracket));
         db.MatchParticipants.Add(Participant(
             match.Id, 2, opponentChampionId, teamId: 200, Position, win: !yoneWins));
     }
@@ -520,7 +589,8 @@ public sealed class ChampionMatchupApiIntegrationTests
         int teamId,
         string teamPosition,
         bool win,
-        Guid? riotAccountId = null)
+        Guid? riotAccountId = null,
+        string eloBracket = "")
         => new()
         {
             MatchId = matchId,
@@ -558,6 +628,7 @@ public sealed class ChampionMatchupApiIntegrationTests
             SubStyleId = 8100,
             Summoner1Id = 4,
             Summoner2Id = 12,
+            EloBracket = eloBracket,
             ItemEvents = [],
             SkillEvents = []
         };

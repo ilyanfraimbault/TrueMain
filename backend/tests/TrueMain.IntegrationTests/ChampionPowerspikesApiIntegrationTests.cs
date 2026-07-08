@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using AwesomeAssertions;
+using Core.Lol.Ranking;
 using Data.Entities;
 using Microsoft.AspNetCore.Mvc.Testing;
 using TrueMain.ReadModels.Champions;
@@ -74,6 +75,34 @@ public sealed class ChampionPowerspikesApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetChampionPowerspikesAsync_FiltersToRequestedEloBracket()
+    {
+        await _fixture.ResetDatabaseAsync();
+        // Two cohorts with the same power curve: 12 Gold games and 12 Iron games.
+        await SeedBracketedAsync(perBracketGames: 12);
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // ALL sees both cohorts on every curve point.
+        var all = await client.GetFromJsonAsync<ChampionPowerspikesResponse>(
+            $"/champions/{Champion}/powerspikes?position={Position}");
+        all!.Curve.Should().NotBeEmpty();
+        all.Curve.Should().OnlyContain(point => point.Games == 24);
+
+        // A bare Gold filter narrows the champion side to the Gold-stamped games.
+        var gold = await client.GetFromJsonAsync<ChampionPowerspikesResponse>(
+            $"/champions/{Champion}/powerspikes?position={Position}&eloBracket=GOLD");
+        gold!.Curve.Should().NotBeEmpty();
+        gold.Curve.Should().OnlyContain(point => point.Games == 12);
+
+        // GOLD_PLUS unions Gold and above; Iron is below and drops out.
+        var goldPlus = await client.GetFromJsonAsync<ChampionPowerspikesResponse>(
+            $"/champions/{Champion}/powerspikes?position={Position}&eloBracket=GOLD_PLUS");
+        goldPlus!.Curve.Should().OnlyContain(point => point.Games == 12);
+    }
+
+    [Fact]
     public async Task GetChampionPowerspikesAsync_ReturnsBadRequestForInvalidPosition()
     {
         await _fixture.ResetDatabaseAsync();
@@ -98,40 +127,7 @@ public sealed class ChampionPowerspikesApiIntegrationTests
 
         for (var i = 0; i < games; i++)
         {
-            var matchId = $"m-spike-{i}";
-            db.Matches.Add(new MatchBuilder()
-                .WithId(matchId)
-                .WithQueueId(QueueId)
-                .WithGameVersion(GameVersion)
-                .Build());
-
-            var champion = Participant(matchId, 1, Champion, teamId: 100, win: true, riotAccountId: account.Id);
-            champion.ItemEvents =
-            [
-                new ItemEvent { EventType = "ITEM_PURCHASED", ItemId = NoiseItem, TimestampMs = 5 * 60_000 },
-                new ItemEvent { EventType = "ITEM_PURCHASED", ItemId = CoreItem, TimestampMs = KinkMinute * 60_000 }
-            ];
-            db.MatchParticipants.Add(champion);
-            db.MatchParticipants.Add(Participant(matchId, 2, Opponent, teamId: 200, win: false));
-
-            // Per-game offset so the lead varies across games — the global spread
-            // (sigma) is then non-zero and power is normalizable.
-            var variance = (i - games / 2) * 4;
-
-            for (var minute = 1; minute <= MaxMinute; minute++)
-            {
-                var goldDiff = GoldDiffBase(minute) + variance;
-                var dmgDiff = DamageDiffBase(minute) + variance;
-                var level = minute < KinkMinute ? 5 : Math.Min(18, 6 + (minute - KinkMinute) / 3);
-
-                var championGold = minute * 300;
-                var championDamage = minute * 150;
-
-                db.MatchParticipantTimelineSnapshots.Add(
-                    Snapshot(matchId, 1, minute, championGold, level, championDamage));
-                db.MatchParticipantTimelineSnapshots.Add(
-                    Snapshot(matchId, 2, minute, championGold - goldDiff, level - 1, championDamage - dmgDiff));
-            }
+            AddSpikeGame(db, $"m-spike-{i}", i, games, account.Id, eloBracket: "");
         }
 
         await db.SaveChangesAsync();
@@ -143,6 +139,73 @@ public sealed class ChampionPowerspikesApiIntegrationTests
                 summoner1Id: 4, summoner2Id: 14, skillOrderKey: "Q",
                 buildItems: [CoreItem], bootsItemId: 0, games: games, wins: games / 2, aggregatedAt)
             .SaveAsync(db);
+    }
+
+    /// <summary>
+    /// Seeds two power-curve cohorts for one tracked account — <paramref name="perBracketGames"/>
+    /// Gold games and the same number of Iron games, each with an identical curve —
+    /// so the elo-bracket filter narrows the champion side. Each cohort carries its
+    /// own per-game variance, so its filtered spread stays normalizable.
+    /// </summary>
+    private async Task SeedBracketedAsync(int perBracketGames)
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        var account = new RiotAccountBuilder()
+            .WithGameName("SpikeBracket")
+            .WithTagLine("KR1")
+            .WithPuuid("spike-bracket-puuid")
+            .Build();
+        db.RiotAccounts.Add(account);
+
+        for (var i = 0; i < perBracketGames; i++)
+        {
+            AddSpikeGame(db, $"m-spike-gold-{i}", i, perBracketGames, account.Id, EloBracket.Gold);
+        }
+        for (var i = 0; i < perBracketGames; i++)
+        {
+            AddSpikeGame(db, $"m-spike-iron-{i}", i, perBracketGames, account.Id, EloBracket.Iron);
+        }
+
+        await db.SaveChangesAsync();
+    }
+
+    private static void AddSpikeGame(
+        Data.TrueMainDbContext db, string matchId, int index, int cohortGames, Guid accountId, string eloBracket)
+    {
+        db.Matches.Add(new MatchBuilder()
+            .WithId(matchId)
+            .WithQueueId(QueueId)
+            .WithGameVersion(GameVersion)
+            .Build());
+
+        var champion = Participant(matchId, 1, Champion, teamId: 100, win: true, accountId, eloBracket);
+        champion.ItemEvents =
+        [
+            new ItemEvent { EventType = "ITEM_PURCHASED", ItemId = NoiseItem, TimestampMs = 5 * 60_000 },
+            new ItemEvent { EventType = "ITEM_PURCHASED", ItemId = CoreItem, TimestampMs = KinkMinute * 60_000 }
+        ];
+        db.MatchParticipants.Add(champion);
+        db.MatchParticipants.Add(Participant(matchId, 2, Opponent, teamId: 200, win: false));
+
+        // Per-game offset so the lead varies across the cohort — the spread (sigma)
+        // is then non-zero and power is normalizable even under a bracket filter.
+        var variance = (index - cohortGames / 2) * 4;
+
+        for (var minute = 1; minute <= MaxMinute; minute++)
+        {
+            var goldDiff = GoldDiffBase(minute) + variance;
+            var dmgDiff = DamageDiffBase(minute) + variance;
+            var level = minute < KinkMinute ? 5 : Math.Min(18, 6 + (minute - KinkMinute) / 3);
+
+            var championGold = minute * 300;
+            var championDamage = minute * 150;
+
+            db.MatchParticipantTimelineSnapshots.Add(
+                Snapshot(matchId, 1, minute, championGold, level, championDamage));
+            db.MatchParticipantTimelineSnapshots.Add(
+                Snapshot(matchId, 2, minute, championGold - goldDiff, level - 1, championDamage - dmgDiff));
+        }
     }
 
     // Flat lead up to the kink minute, then a linear rise — an upward slope kink.
@@ -172,7 +235,8 @@ public sealed class ChampionPowerspikesApiIntegrationTests
         };
 
     private static MatchParticipant Participant(
-        string matchId, int participantId, int championId, int teamId, bool win, Guid? riotAccountId = null)
+        string matchId, int participantId, int championId, int teamId, bool win,
+        Guid? riotAccountId = null, string eloBracket = "")
         => new()
         {
             MatchId = matchId,
@@ -191,6 +255,7 @@ public sealed class ChampionPowerspikesApiIntegrationTests
             ChampLevel = 16,
             Item6 = 3363,
             TrinketItemId = 3363,
+            EloBracket = eloBracket,
             ItemEvents = [],
             SkillEvents = []
         };

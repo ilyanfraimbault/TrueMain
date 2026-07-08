@@ -1,5 +1,6 @@
 using Core.Lol.Map;
 using Core.Lol.Patches;
+using Core.Lol.Ranking;
 using Core.Options;
 using Data;
 using Microsoft.EntityFrameworkCore;
@@ -43,13 +44,19 @@ public sealed class ChampionRoamQueryService(
         int championId,
         string position,
         string? patch,
+        string? eloBracket,
         CancellationToken ct)
     {
         var normalizedPatch = string.IsNullOrWhiteSpace(patch)
             ? null
             : PatchVersion.TryParse(patch, out var parsed) ? parsed.ToMajorMinor() : null;
 
-        var cacheKey = $"champions:roam:{championId}:{position}:{normalizedPatch ?? "all"}";
+        // Resolve the elo filter to its bands (null = ALL, no clause); the cache
+        // key carries the bracket so each band caches separately.
+        var bands = EloBracket.ResolveFilter(eloBracket);
+        var bracketToken = bands is null ? "all" : EloBracket.Normalize(eloBracket)!;
+
+        var cacheKey = $"champions:roam:{championId}:{position}:{normalizedPatch ?? "all"}:{bracketToken}";
         if (cache.TryGetValue<ChampionRoamResponse>(cacheKey, out var cached) && cached is not null)
         {
             return cached;
@@ -70,7 +77,9 @@ public sealed class ChampionRoamQueryService(
         // Denominator: games the champion played in this lane that also have
         // timeline coverage (i.e. produced kill-position rows). Games without a
         // timeline are excluded so they don't dilute the average toward zero.
-        var gamesPlayed = await db.MatchParticipants.AsNoTracking()
+        // Narrowed to the requested elo bands (null = every band), same as the
+        // kill-position query below, so numerator and denominator agree.
+        var gamesQuery = db.MatchParticipants.AsNoTracking()
             .Where(p => p.ChampionId == championId
                 && p.TeamPosition == position
                 && p.RiotAccountId != null
@@ -78,7 +87,13 @@ public sealed class ChampionRoamQueryService(
                     m.Id == p.MatchId
                     && m.QueueId == queueId
                     && (normalizedPatch == null || EF.Functions.Like(m.GameVersion, patchPrefix!)))
-                && db.MatchParticipantKillPositions.Any(k => k.MatchId == p.MatchId))
+                && db.MatchParticipantKillPositions.Any(k => k.MatchId == p.MatchId));
+        if (bands is not null)
+        {
+            gamesQuery = gamesQuery.Where(p => bands.Contains(p.EloBracket));
+        }
+
+        var gamesPlayed = await gamesQuery
             .Select(p => p.MatchId)
             .Distinct()
             .CountAsync(ct);
@@ -88,19 +103,28 @@ public sealed class ChampionRoamQueryService(
             return Cache(cacheKey, Empty(championId, position, normalizedPatch, gamesPlayed));
         }
 
-        var rows = await (
-                from killPosition in db.MatchParticipantKillPositions.AsNoTracking()
-                join participant in db.MatchParticipants
-                    on new { killPosition.MatchId, killPosition.ParticipantId }
-                    equals new { participant.MatchId, participant.ParticipantId }
-                where participant.ChampionId == championId
-                    && participant.TeamPosition == position
-                    && participant.RiotAccountId != null
-                    && db.Matches.Any(m =>
-                        m.Id == killPosition.MatchId
-                        && m.QueueId == queueId
-                        && (normalizedPatch == null || EF.Functions.Like(m.GameVersion, patchPrefix!)))
-                select new { killPosition.X, killPosition.Y, killPosition.TimestampMs, participant.TeamId })
+        var killRows =
+            from killPosition in db.MatchParticipantKillPositions.AsNoTracking()
+            join participant in db.MatchParticipants
+                on new { killPosition.MatchId, killPosition.ParticipantId }
+                equals new { participant.MatchId, participant.ParticipantId }
+            where participant.ChampionId == championId
+                && participant.TeamPosition == position
+                && participant.RiotAccountId != null
+                && db.Matches.Any(m =>
+                    m.Id == killPosition.MatchId
+                    && m.QueueId == queueId
+                    && (normalizedPatch == null || EF.Functions.Like(m.GameVersion, patchPrefix!)))
+            select new { killPosition.X, killPosition.Y, killPosition.TimestampMs, participant.TeamId, participant.EloBracket };
+
+        // Narrow the champion side to the requested elo bands (null = every band).
+        if (bands is not null)
+        {
+            killRows = killRows.Where(r => bands.Contains(r.EloBracket));
+        }
+
+        var rows = await killRows
+            .Select(r => new { r.X, r.Y, r.TimestampMs, r.TeamId })
             .ToListAsync(ct);
 
         int roam5 = 0, roam10 = 0, roam15 = 0;

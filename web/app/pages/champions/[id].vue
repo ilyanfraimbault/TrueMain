@@ -153,12 +153,15 @@ const selectedPosition = computed<ChampionPosition | null>(() => {
 })
 // Elo filter (issue #526). Bind to the API-returned filter once available so
 // the rank select reflects what's actually shown; fall back to the URL filter
-// for the optimistic render before the fetch resolves. The rank is never dropped
-// by the 404 fallback (it only drops patch/position), so the response always
-// echoes the requested rank.
+// for the optimistic render before the fetch resolves.
 const selectedEloBracket = computed<string>(() =>
   normalizeEloBracket(champion.value?.eloBracket || filters.value.eloBracket),
 )
+
+// The elo filter forwarded to every live panel (matchups / leads / scaling /
+// item-timings / roam). Sourced from the URL filter and undefined for ALL, so
+// the query param + cache key stay clean — the same contract patch/position use.
+const eloBracketParam = computed(() => filters.value.eloBracket)
 
 // A rank filter with no data: the fetch 404'd on a specific rank (the champion
 // may well have builds in other ranks). Distinct from the champion-level "no
@@ -167,6 +170,28 @@ const selectedEloBracket = computed<string>(() =>
 const noDataForRank = computed(() =>
   notEnoughData.value && selectedEloBracket.value !== ELO_BRACKET_ALL,
 )
+
+// Coverage / min-sample guards: only meaningful for a narrow (non-ALL) band.
+// `eloCoverage` is the share of all-rank games this slice covers; `minSampleMet`
+// is false for tiny high-elo slices. Surface a notice so a thin Master+ build
+// reads as "treat with caution" rather than authoritative.
+const showBracketNotice = computed(() =>
+  Boolean(champion.value)
+  && selectedEloBracket.value !== ELO_BRACKET_ALL
+  && (!champion.value!.minSampleMet || champion.value!.eloCoverage < 0.1),
+)
+const bracketCoveragePercent = computed(() =>
+  champion.value ? Math.round(champion.value.eloCoverage * 100) : 0,
+)
+const bracketNoticeText = computed(() => {
+  const label = eloBracketLabel(selectedEloBracket.value)
+  const games = champion.value?.totalGames ?? 0
+  if (champion.value && !champion.value.minSampleMet) {
+    return `Only ${games} ${games === 1 ? 'game' : 'games'} in ${label} (${bracketCoveragePercent.value}% of all ranks) — `
+      + 'too few to be reliable. Treat this build as a rough signal.'
+  }
+  return `${label} covers just ${bracketCoveragePercent.value}% of all-rank games — a narrow slice, so read it with caution.`
+})
 
 // Average per-interval lead vs the lane opponent (issue #525). Follows the
 // resolved lane like the trend chart, but is patch-scoped: the active patch
@@ -177,6 +202,7 @@ const { data: championLeads, status: leadsStatus } = useChampionTimelineLeads(
   trendPosition,
   selectedPatch,
   trendReady,
+  eloBracketParam,
 )
 
 // Win rate by game duration (issue #537). Same lane/patch scoping and gating as
@@ -187,6 +213,7 @@ const { data: championScaling, status: scalingStatus } = useChampionScaling(
   trendPosition,
   selectedPatch,
   trendReady,
+  eloBracketParam,
 )
 
 // Power curve event spikes — completed build items ranked by how much the
@@ -197,6 +224,7 @@ const { data: championPowerspikes, status: powerspikesStatus } = useChampionPowe
   trendPosition,
   selectedPatch,
   trendReady,
+  eloBracketParam,
 )
 
 // Roam metric — out-of-lane early kill participations (issue #536). Same lane/patch
@@ -206,6 +234,7 @@ const { data: championRoam, status: roamStatus } = useChampionRoam(
   trendPosition,
   selectedPatch,
   trendReady,
+  eloBracketParam,
 )
 
 // Per-champion patch diff (issue #534): what changed for the champion between
@@ -386,6 +415,15 @@ const isLoadingStatus = (s: 'idle' | 'pending' | 'success' | 'error') => s === '
         />
       </header>
 
+      <UAlert
+        v-if="showBracketNotice"
+        color="warning"
+        variant="soft"
+        :title="`Small ${eloBracketLabel(selectedEloBracket)} sample`"
+        :description="bracketNoticeText"
+        icon="i-lucide-triangle-alert"
+      />
+
       <ChampionBuildTabs
         v-if="champion && staticData"
         :builds="champion.builds"
@@ -400,6 +438,7 @@ const isLoadingStatus = (s: 'idle' | 'pending' | 'success' | 'error') => s === '
         :champion-id="championId"
         :position="selectedPosition"
         :champions="staticList ?? []"
+        :elo-bracket="eloBracketParam"
       />
 
       <ChampionTrendChart

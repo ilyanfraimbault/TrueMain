@@ -70,6 +70,7 @@ builder.Services.AddRecordedProcess<HarvestProcess>();
 builder.Services.AddRecordedProcess<ScoringProcess>();
 builder.Services.AddRecordedProcess<MatchIngestionProcess>();
 builder.Services.AddRecordedProcess<MainAnalysisProcess>();
+builder.Services.AddRecordedProcess<MatchParticipantEloBracketEnrichmentProcess>();
 builder.Services.AddRecordedProcess<ChampionPatternAggregationProcess>();
 builder.Services.AddRecordedProcess<ChampionMatchupLeadAggregationProcess>();
 builder.Services.AddRecordedProcess<AccountRefreshProcess>();

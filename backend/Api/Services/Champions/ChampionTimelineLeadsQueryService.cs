@@ -1,4 +1,5 @@
 using Core.Lol.Patches;
+using Core.Lol.Ranking;
 using Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -29,13 +30,19 @@ public sealed class ChampionTimelineLeadsQueryService(
         int championId,
         string position,
         string? patch,
+        string? eloBracket,
         CancellationToken ct)
     {
         var normalizedPatch = string.IsNullOrWhiteSpace(patch)
             ? null
             : PatchVersion.TryParse(patch, out var parsed) ? parsed.ToMajorMinor() : null;
 
-        var cacheKey = $"champions:timeline-leads:{championId}:{position}:{normalizedPatch ?? "all"}";
+        // Resolve the elo filter to its bands (null = ALL, no clause); the cache
+        // key carries the bracket so each band caches separately.
+        var bands = EloBracket.ResolveFilter(eloBracket);
+        var bracketToken = bands is null ? "all" : EloBracket.Normalize(eloBracket)!;
+
+        var cacheKey = $"champions:timeline-leads:{championId}:{position}:{normalizedPatch ?? "all"}:{bracketToken}";
         if (cache.TryGetValue<ChampionTimelineLeadsResponse>(cacheKey, out var cached) && cached is not null)
         {
             return cached;
@@ -56,6 +63,10 @@ public sealed class ChampionTimelineLeadsQueryService(
         if (normalizedPatch is not null)
         {
             query = query.Where(s => s.Patch == normalizedPatch);
+        }
+        if (bands is not null)
+        {
+            query = query.Where(s => bands.Contains(s.EloBracket));
         }
 
         var rows = await query

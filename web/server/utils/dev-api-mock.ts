@@ -489,6 +489,10 @@ async function mockChampionDetail(
     patch,
     position: s.position,
     eloBracket: bracket,
+    // `fraction` is exactly the share of all-rank games this slice covers —
+    // the same definition the real backend uses for eloCoverage.
+    eloCoverage: fraction,
+    minSampleMet: totalGames >= 20,
     totalGames,
     totalWins: Math.round(totalGames * s.wr),
     builds: [makeBuild(s, 0, totalGames), makeBuild(s, 1, totalGames)],

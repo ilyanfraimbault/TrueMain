@@ -24,6 +24,21 @@ public sealed record ChampionResponse
     public string EloBracket { get; init; } = Core.Lol.Ranking.EloBracket.All;
 
     /// <summary>
+    /// Games in the selected bracket as a fraction of all games on this
+    /// champion at the resolved patch + position (across every bracket). Lets
+    /// the page show how representative a high-bracket slice is. Always
+    /// <c>1.0</c> for the <c>ALL</c> bracket.
+    /// </summary>
+    public double EloCoverage { get; init; } = 1d;
+
+    /// <summary>
+    /// False when <see cref="TotalGames"/> is below the minimum-sample floor
+    /// for a trustworthy build (tiny high-bracket slices). The page still
+    /// renders the data but flags it as low-confidence.
+    /// </summary>
+    public bool MinSampleMet { get; init; } = true;
+
+    /// <summary>
     /// Total games across the scope, including patterns that are excluded
     /// from <see cref="Builds"/> (no first item, pick-rate below the floor,
     /// or beyond the top-N cap). Used as the denominator for

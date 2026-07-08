@@ -26,6 +26,17 @@ public class MatchParticipant
 
     public string TeamPosition { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Per-game elo band of this participant (see <c>Core.Lol.Ranking.EloBracket</c>):
+    /// the tier of the tracked account's nearest <c>rank_snapshots</c> capture to the
+    /// match start, folded to a band. Empty string until stamped by the elo-bracket
+    /// enrichment pass; <c>UNRANKED</c> when the account has no usable snapshot. Only
+    /// meaningful for tracked rows (<see cref="RiotAccountId"/> not null) — the
+    /// champion-page reads filter on those. Enables filtering every champion-page
+    /// panel by rank, mirroring the band stored on <c>champion_aggregate_scopes</c>.
+    /// </summary>
+    public string EloBracket { get; set; } = string.Empty;
+
     public string IndividualPosition { get; set; } = string.Empty;
 
     public string Lane { get; set; } = string.Empty;

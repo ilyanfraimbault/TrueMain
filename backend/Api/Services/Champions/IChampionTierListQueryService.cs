@@ -14,5 +14,15 @@ public interface IChampionTierListQueryService
     /// merged into the same buckets. Always returns a model (possibly with no
     /// tiers) so the caller can render its own empty state.
     /// </summary>
-    Task<ChampionTierListReadModel> GetTierListAsync(string? patch, string? position, CancellationToken ct);
+    /// <param name="patch">Requested patch; null resolves to the active patch.</param>
+    /// <param name="position">Requested Riot team position; null spans every position.</param>
+    /// <param name="eloBracket">
+    /// Optional elo filter (per <c>Core.Lol.Ranking.EloBracket</c>): <c>ALL</c>,
+    /// a bare tier (e.g. <c>GOLD</c> — that tier only), or a <c>TIER_PLUS</c>
+    /// form (e.g. <c>GOLD_PLUS</c> — that tier and above). When null or
+    /// <c>ALL</c> the tiers are computed from every band; otherwise only the
+    /// selected tier(s) feed the winRate / pickRate blend.
+    /// </param>
+    /// <param name="ct">Cancellation token.</param>
+    Task<ChampionTierListReadModel> GetTierListAsync(string? patch, string? position, string? eloBracket, CancellationToken ct);
 }

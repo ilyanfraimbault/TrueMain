@@ -29,9 +29,10 @@ public sealed class ChampionTierListQueryService(
     public async Task<ChampionTierListReadModel> GetTierListAsync(
         string? patch,
         string? position,
+        string? eloBracket,
         CancellationToken ct)
     {
-        var summaries = await summariesQueryService.GetAllSummariesAsync(patch, ct);
+        var summaries = await summariesQueryService.GetAllSummariesAsync(patch, eloBracket, ct);
         if (summaries.Count == 0)
         {
             return new ChampionTierListReadModel { PatchVersion = patch ?? string.Empty, Position = position };

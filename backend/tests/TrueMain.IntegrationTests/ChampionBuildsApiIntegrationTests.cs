@@ -41,7 +41,8 @@ public sealed class ChampionBuildsApiIntegrationTests
 
         // Top-level contract
         root.EnumerateObject().Select(property => property.Name).Should().BeEquivalentTo(
-            ["championId", "patch", "position", "eloBracket", "totalGames", "totalWins", "builds"]);
+            ["championId", "patch", "position", "eloBracket", "eloCoverage", "minSampleMet",
+             "totalGames", "totalWins", "builds"]);
 
         // Per-build contract — covers the four UI sections + tab key
         AssertObjectArrayElementsHaveProperties(root.GetProperty("builds"),

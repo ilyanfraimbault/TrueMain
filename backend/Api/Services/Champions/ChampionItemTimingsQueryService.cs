@@ -1,4 +1,5 @@
 using Core.Lol.Patches;
+using Core.Lol.Ranking;
 using Core.Options;
 using Data;
 using Microsoft.EntityFrameworkCore;
@@ -29,13 +30,21 @@ public sealed class ChampionItemTimingsQueryService(
         int championId,
         string position,
         string? patch,
+        string? eloBracket,
         CancellationToken ct)
     {
         var normalizedPatch = string.IsNullOrWhiteSpace(patch)
             ? null
             : PatchVersion.TryParse(patch, out var parsed) ? parsed.ToMajorMinor() : null;
 
-        var cacheKey = $"champions:item-timings:{championId}:{position}:{normalizedPatch ?? "all"}";
+        // Resolve the elo filter to its bands (null = ALL, no clause). A null
+        // array parameter short-circuits the WHERE via the `IS NULL OR` guard,
+        // mirroring the patch-prefix pattern below. The cache key carries the band.
+        var bands = EloBracket.ResolveFilter(eloBracket);
+        var bandsArray = bands?.ToArray();
+        var bracketToken = bands is null ? "all" : EloBracket.Normalize(eloBracket)!;
+
+        var cacheKey = $"champions:item-timings:{championId}:{position}:{normalizedPatch ?? "all"}:{bracketToken}";
         if (cache.TryGetValue<ChampionItemTimingsResponse>(cacheKey, out var cached) && cached is not null)
         {
             return cached;
@@ -68,6 +77,7 @@ public sealed class ChampionItemTimingsQueryService(
               AND mp.""RiotAccountId"" IS NOT NULL
               AND m.""QueueId"" = {queueId}
               AND ({patchPrefix}::text IS NULL OR m.""GameVersion"" LIKE {patchPrefix})
+              AND ({bandsArray}::text[] IS NULL OR mp.""elo_bracket"" = ANY({bandsArray}::text[]))
             GROUP BY e.item_id
             HAVING COUNT(*) >= {minGames}
             ORDER BY AVG(e.ts)";
