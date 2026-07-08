@@ -3,12 +3,17 @@ import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import type { RegionSlug } from '~~/shared/types/leaderboard'
 import type { ChampionPosition } from '~/utils/positions'
 
-// Three independent filters, ordered visually as: position (left) → search
-// (middle, centred via mx-auto) → region (right). Each filter has its own
-// reset affordance: the position picker's "All" button, the champion
-// picker's inline X, and the region select's "All regions" entry. There's
-// no global Clear button — per-field clearing is faster and avoids the
-// nuclear option for a single mis-click.
+// Three independent filters, ordered visually as: position (left) → champion
+// chip (middle, only present once a champion is active) → region (right).
+// Each filter has its own reset affordance: the position picker's "All"
+// button, the champion chip's X, and the region select's "All regions"
+// entry. There's no global Clear button — per-field clearing is faster and
+// avoids the nuclear option for a single mis-click.
+//
+// The champion filter itself is only ever *set* here — it comes from
+// AppSearch's unified search, which by design can't clear it (see the note
+// in AppSearch.vue). This chip exists purely to show what's active and clear
+// it back to "all champions".
 const props = defineProps<{
   champions: ChampionStaticListItem[]
   region: RegionSlug | null
@@ -21,6 +26,12 @@ const emit = defineEmits<{
   'update:position': [value: ChampionPosition | null]
   'update:championId': [value: number | null]
 }>()
+
+const filteredChampion = computed(() =>
+  props.championId === null
+    ? null
+    : props.champions.find(c => c.championId === props.championId) ?? null,
+)
 
 interface RegionItem {
   label: string
@@ -53,17 +64,28 @@ function onRegionChange(item: RegionItem | undefined) {
       @update:position="value => emit('update:position', value)"
     />
 
-    <!-- Champion search: middle slot, mx-auto centres it in the space
-         left over by the position pills (left) and the region select
-         (right). The inline X (built into ChampionPicker) clears the
-         selection without touching the other filters. -->
-    <ChampionPicker
-      :champions="champions"
-      :champion-id="championId"
-      placeholder="Search for a champion"
-      trigger-class="mx-auto w-64"
-      @update:champion-id="value => emit('update:championId', value)"
-    />
+    <!-- Active champion filter: middle slot, mx-auto centres it when
+         present. Read-only chip (the search bar is what sets it) — clicking
+         it clears the filter back to "all champions". -->
+    <button
+      v-if="filteredChampion"
+      type="button"
+      class="glass-hover mx-auto flex items-center gap-1.5 rounded-full border border-default/60 bg-elevated/40 py-1 pl-1.5 pr-2.5 text-sm"
+      @click="emit('update:championId', null)"
+    >
+      <SkeletonImage
+        :src="filteredChampion.iconUrl"
+        :alt="filteredChampion.name"
+        width="20"
+        height="20"
+        class="size-5 rounded-full"
+      />
+      <span class="max-w-[8rem] truncate">{{ filteredChampion.name }}</span>
+      <UIcon
+        name="i-lucide-x"
+        class="size-3.5 text-dimmed"
+      />
+    </button>
 
     <!-- Region: rightmost, single dropdown so the strip stays compact and
          each region is reachable in one click. The flag renders in both
