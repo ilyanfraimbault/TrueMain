@@ -493,34 +493,42 @@ public sealed class ChampionMatchupApiIntegrationTests
     }
 
     /// <summary>
-    /// Seeds two Yone-vs-Zed cohorts for one tracked account — 12 Gold games and
-    /// 12 Iron games — each stamped on the champion side so the aggregation splits
-    /// <c>champion_matchup_stats</c> by band and the elo filter can be exercised.
+    /// Seeds two <c>champion_matchup_stats</c> rows directly — Gold (12 games, 8
+    /// wins) and Iron (12 games, 6 wins) — for the same champion/position/opponent/
+    /// patch. Written straight to the aggregate table (bypassing the ingestor
+    /// pipeline) so this exercises only the read-side band filter/fold, which is
+    /// what the elo-bracket query parameter controls.
     /// </summary>
     private async Task SeedBracketedMatchupSampleAsync()
     {
         await using var db = _fixture.CreateDbContext();
 
-        var account = new RiotAccountBuilder()
-            .WithGameName("MatchupBracket")
-            .WithTagLine("KR1")
-            .WithPuuid("matchup-bracket-puuid")
-            .Build();
-        db.RiotAccounts.Add(account);
-
-        for (var i = 0; i < 12; i++)
-        {
-            AddLaneMatchup(db, $"mb-gold-{i}", "16.4.521.123", QueueId, yoneWins: i < 6, Opponent,
-                account.Id, EloBracket.Gold);
-        }
-        for (var i = 0; i < 12; i++)
-        {
-            AddLaneMatchup(db, $"mb-iron-{i}", "16.4.521.123", QueueId, yoneWins: i < 6, Opponent,
-                account.Id, EloBracket.Iron);
-        }
+        var now = DateTime.UtcNow;
+        db.ChampionMatchupStats.AddRange(
+            new ChampionMatchupStat
+            {
+                ChampionId = Champion,
+                TeamPosition = Position,
+                OpponentChampionId = Opponent,
+                Patch = "16.4",
+                EloBracket = EloBracket.Gold,
+                Games = 12,
+                Wins = 8,
+                AggregatedAtUtc = now
+            },
+            new ChampionMatchupStat
+            {
+                ChampionId = Champion,
+                TeamPosition = Position,
+                OpponentChampionId = Opponent,
+                Patch = "16.4",
+                EloBracket = EloBracket.Iron,
+                Games = 12,
+                Wins = 6,
+                AggregatedAtUtc = now
+            });
 
         await db.SaveChangesAsync();
-        await RunAggregationAsync();
     }
 
     /// <summary>

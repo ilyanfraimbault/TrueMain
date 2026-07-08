@@ -164,33 +164,44 @@ public sealed class ChampionTimelineLeadsApiIntegrationTests
     }
 
     /// <summary>
-    /// Seeds two lead cohorts for one tracked account — 12 Gold games and 12 Iron
-    /// games, each with the identical per-interval lead — stamped on the champion
-    /// side so the aggregation splits <c>champion_timeline_lead_stats</c> by band.
+    /// Seeds <c>champion_timeline_lead_stats</c> rows directly — one per interval,
+    /// per band (Gold: 12 games; Iron: 12 games) — each carrying the same per-game
+    /// lead as <see cref="SeedLeadSampleAsync"/> so the average stays <see cref="GoldLead"/>
+    /// etc. regardless of band. Written straight to the aggregate table (bypassing
+    /// the ingestor pipeline) so this exercises only the read-side band filter/fold.
     /// </summary>
     private async Task SeedBracketedLeadsSampleAsync()
     {
         await using var db = _fixture.CreateDbContext();
 
-        var account = new RiotAccountBuilder()
-            .WithGameName("LeadsBracket")
-            .WithTagLine("KR1")
-            .WithPuuid("leads-bracket-puuid")
-            .Build();
-        db.RiotAccounts.Add(account);
-
-        for (var i = 0; i < 12; i++)
+        var now = DateTime.UtcNow;
+        foreach (var minute in Intervals)
         {
-            AddLeadGame(db, $"m-leads-gold-{i}", account.Id, EloBracket.Gold);
-        }
-        for (var i = 0; i < 12; i++)
-        {
-            AddLeadGame(db, $"m-leads-iron-{i}", account.Id, EloBracket.Iron);
+            db.ChampionTimelineLeadStats.AddRange(
+                LeadStat(minute, EloBracket.Gold, games: 12, now),
+                LeadStat(minute, EloBracket.Iron, games: 12, now));
         }
 
         await db.SaveChangesAsync();
-        await RunAggregationAsync();
     }
+
+    private static ChampionTimelineLeadStat LeadStat(int minute, string eloBracket, int games, DateTime aggregatedAtUtc)
+        => new()
+        {
+            ChampionId = Champion,
+            TeamPosition = Position,
+            Patch = "16.4",
+            IntervalMinute = minute,
+            EloBracket = eloBracket,
+            Games = games,
+            TotalGoldDiff = (long)GoldLead * games,
+            TotalCsDiff = (long)CsLead * games,
+            TotalKillsDiff = (long)KillsLead * games,
+            TotalLevelDiff = (long)LevelLead * games,
+            TotalXpDiff = (long)XpLead * games,
+            TotalDamageDiff = (long)DamageLead * games,
+            AggregatedAtUtc = aggregatedAtUtc
+        };
 
     private static void AddLeadGame(Data.TrueMainDbContext db, string matchId, Guid accountId, string eloBracket)
     {
