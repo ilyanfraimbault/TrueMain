@@ -1,25 +1,21 @@
 <script setup lang="ts">
-import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import type { RegionSlug } from '~~/shared/types/leaderboard'
 import type { ChampionPosition } from '~/utils/positions'
 
-// Three independent filters, ordered visually as: position (left) → search
-// (middle, centred via mx-auto) → region (right). Each filter has its own
-// reset affordance: the position picker's "All" button, the champion
-// picker's inline X, and the region select's "All regions" entry. There's
-// no global Clear button — per-field clearing is faster and avoids the
-// nuclear option for a single mis-click.
+// Two independent filters, ordered visually as: position (left) → region
+// (right), pushed apart with justify-between. Champion filtering lives in the
+// page's top AppSearch bar, not here. Each filter has its own reset
+// affordance: the position picker's "All" button and the region select's
+// "All regions" entry. There's no global Clear button — per-field clearing is
+// faster and avoids the nuclear option for a single mis-click.
 const props = defineProps<{
-  champions: ChampionStaticListItem[]
   region: RegionSlug | null
   position: ChampionPosition | null
-  championId: number | null
 }>()
 
 const emit = defineEmits<{
   'update:region': [value: RegionSlug | null]
   'update:position': [value: ChampionPosition | null]
-  'update:championId': [value: number | null]
 }>()
 
 interface RegionItem {
@@ -45,24 +41,12 @@ function onRegionChange(item: RegionItem | undefined) {
 </script>
 
 <template>
-  <div class="flex flex-wrap items-center gap-3">
+  <div class="flex flex-wrap items-center justify-between gap-3">
     <!-- Position: leftmost, narrowest filter. Reuses the same component
          the /champions page uses so the two filter strips feel identical. -->
     <RolePicker
       :position="position"
       @update:position="value => emit('update:position', value)"
-    />
-
-    <!-- Champion search: middle slot, mx-auto centres it in the space
-         left over by the position pills (left) and the region select
-         (right). The inline X (built into ChampionPicker) clears the
-         selection without touching the other filters. -->
-    <ChampionPicker
-      :champions="champions"
-      :champion-id="championId"
-      placeholder="Search for a champion"
-      trigger-class="mx-auto w-64"
-      @update:champion-id="value => emit('update:championId', value)"
     />
 
     <!-- Region: rightmost, single dropdown so the strip stays compact and

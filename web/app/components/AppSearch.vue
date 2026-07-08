@@ -26,6 +26,13 @@ const props = withDefaults(defineProps<{
    *   where a champion narrows the list instead of leaving the page).
    */
   championMode?: 'navigate' | 'filter'
+  /**
+   * Currently-applied champion filter id, or `null` for "all champions". Only
+   * meaningful in `filter` mode: when set, the palette surfaces an "All
+   * champions" reset row so the filter can be cleared from here (there's no
+   * ChampionPicker on the leaderboard anymore).
+   */
+  activeChampionId?: number | null
   placeholder?: string
   /**
    * Register the ⌘K shortcut on this instance. Set only on the header instance
@@ -42,18 +49,18 @@ const props = withDefaults(defineProps<{
 }>(), {
   variant: 'field',
   championMode: 'navigate',
+  activeChampionId: null,
   placeholder: 'Search a champion or player…',
   shortcut: false,
   size: 'md',
 })
 
-// Set-only by design: `filterChampion` always carries a champion id, never
-// null. In filter mode the search applies a champion to the leaderboard;
-// clearing back to "all champions" stays the ChampionPicker's job in
-// LeaderboardFilters (intentionally kept on /truemains). Don't wire a "clear"
-// here without revisiting that split.
+// In filter mode the search both applies a champion to the leaderboard (a
+// champion id) and clears the filter back to "all champions" (`null`) via the
+// reset row surfaced when `activeChampionId` is set — the leaderboard has no
+// ChampionPicker to own the clear anymore.
 const emit = defineEmits<{
-  filterChampion: [championId: number]
+  filterChampion: [championId: number | null]
 }>()
 
 const open = ref(false)
@@ -181,10 +188,30 @@ function truemainItemsFor(state: Exclude<TruemainState, { kind: 'idle' }>): Sear
   }
 }
 
+// Reset row — only in filter mode with a champion applied. Emits `null` to
+// clear the leaderboard's champion filter, mirroring the region select's "All
+// regions" entry. `ignoreFilter` keeps it reachable even while a search term is
+// typed, so a mistyped name can still be undone in one step.
+const clearFilterItem = computed<SearchItem | null>(() => {
+  if (props.championMode !== 'filter' || props.activeChampionId == null) return null
+  return {
+    label: 'All champions',
+    icon: 'i-lucide-x',
+    onSelect: () => {
+      emit('filterChampion', null)
+      open.value = false
+    },
+  }
+})
+
 const groups = computed<CommandPaletteGroup<SearchItem>[]>(() => {
-  const list: CommandPaletteGroup<SearchItem>[] = [
-    { id: 'champions', label: 'Champions', items: championItems.value },
-  ]
+  const list: CommandPaletteGroup<SearchItem>[] = []
+
+  if (clearFilterItem.value) {
+    list.push({ id: 'filter', label: 'Filter', ignoreFilter: true, items: [clearFilterItem.value] })
+  }
+
+  list.push({ id: 'champions', label: 'Champions', items: championItems.value })
 
   // Player group — shown with any query; an empty box shows champions + browse,
   // matching the former ChampionSearch. Every non-idle state yields ≥1 item, so
