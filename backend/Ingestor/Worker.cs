@@ -127,6 +127,7 @@ public sealed class Worker(
             JobMode.MainAnalysisOnly => ["MainAnalysis"],
             JobMode.PatternAggregationOnly => ["ChampionPatternAggregation"],
             JobMode.MatchupLeadAggregationOnly => ["ChampionMatchupLeadAggregation"],
+            JobMode.EloBracketEnrichmentOnly => ["MatchParticipantEloBracketEnrichment"],
             JobMode.AccountRefreshOnly => ["AccountRefresh"],
             JobMode.MatchDataRetentionOnly => ["MatchDataRetention"],
             _ => (string[])
@@ -144,6 +145,10 @@ public sealed class Worker(
                 "Scoring",
                 "MatchIngestion",
                 "MainAnalysis",
+                // Stamps match_participants.elo_bracket from the nearest rank
+                // snapshot BEFORE the champion aggregations, so they (and the live
+                // panel reads) can filter by rank. Uses prior-cycle snapshots.
+                "MatchParticipantEloBracketEnrichment",
                 "ChampionPatternAggregation",
                 "ChampionMatchupLeadAggregation",
                 "AccountRefresh",

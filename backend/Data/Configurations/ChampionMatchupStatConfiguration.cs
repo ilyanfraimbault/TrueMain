@@ -17,14 +17,16 @@ public sealed class ChampionMatchupStatConfiguration : IEntityTypeConfiguration<
         entity.Property(e => e.TeamPosition).IsRequired().HasMaxLength(16);
         entity.Property(e => e.OpponentChampionId).IsRequired();
         entity.Property(e => e.Patch).IsRequired().HasMaxLength(16);
+        entity.Property(e => e.EloBracket).IsRequired().HasMaxLength(20).HasColumnName("elo_bracket").HasDefaultValue(string.Empty);
         entity.Property(e => e.Games).IsRequired();
         entity.Property(e => e.Wins).IsRequired();
         entity.Property(e => e.AggregatedAtUtc).IsRequired();
 
-        // Natural key on the aggregate grain. Its leading (ChampionId,
-        // TeamPosition) prefix is also the read seek: the global matchups read
-        // filters on those two then folds opponents to the requested patch scope.
-        entity.HasIndex(e => new { e.ChampionId, e.TeamPosition, e.OpponentChampionId, e.Patch })
+        // Natural key on the aggregate grain (now split per elo band). Its leading
+        // (ChampionId, TeamPosition) prefix is still the read seek: the matchups
+        // read filters on those two, optionally narrows to a set of bands, then
+        // folds opponents to the requested patch scope.
+        entity.HasIndex(e => new { e.ChampionId, e.TeamPosition, e.OpponentChampionId, e.Patch, e.EloBracket })
             .IsUnique();
     }
 }

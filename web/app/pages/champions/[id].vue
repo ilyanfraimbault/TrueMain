@@ -17,7 +17,6 @@ const nuxtApp = useNuxtApp()
 const {
   data: champion,
   error: championError,
-  status: championStatus,
   notEnoughData,
 } = useChampion(championId, filters)
 
@@ -29,7 +28,7 @@ useErrorToast(championError, { title: 'Failed to load champion' })
 
 const activePatch = computed(() => champion.value?.patch || filters.value.patch || null)
 
-const { data: staticData, status: staticStatus } = useChampionStatic(championId, activePatch)
+const { data: staticData } = useChampionStatic(championId, activePatch)
 const { data: versions } = useDDragonVersions()
 
 // Winrate/pickrate trend across the last five patches (issues #89, #112).
@@ -49,11 +48,11 @@ const { data: championTrend, status: trendStatus } = useChampionTrend(championId
 // Each fetch wraps the network call so `markStaticFetched` runs after success
 // and `getCachedData` reuses entries across navigations within
 // `STATIC_CACHE_TTL_MS` (see static-cache.ts).
-const { data: staticList, status: staticListStatus } = useChampionStaticList()
+const { data: staticList } = useChampionStaticList()
 // Pin rune-tree to the champion's active patch so the icon URLs we render
 // hit CommunityDragon's per-patch (year-cacheable) tree, and so cached
 // payloads don't bleed across patches when the user navigates between them.
-const { data: runeTree, status: runeTreeStatus } = useLazyAsyncData<RuneTreeResponse>(
+const { data: runeTree } = useLazyAsyncData<RuneTreeResponse>(
   () => `rune-tree-${activePatch.value || 'latest'}`,
   async () => {
     const key = `rune-tree-${activePatch.value || 'latest'}`
@@ -69,7 +68,7 @@ const { data: runeTree, status: runeTreeStatus } = useLazyAsyncData<RuneTreeResp
     server: false,
   },
 )
-const { data: itemsMap, status: itemsStatus } = useLazyAsyncData<Record<number, StaticItemData>>(
+const { data: itemsMap } = useLazyAsyncData<Record<number, StaticItemData>>(
   () => `static-items-${activePatch.value || 'latest'}`,
   async () => {
     const key = `static-items-${activePatch.value || 'latest'}`
@@ -85,7 +84,7 @@ const { data: itemsMap, status: itemsStatus } = useLazyAsyncData<Record<number, 
     server: false,
   },
 )
-const { data: summonersMap, status: summonersStatus } = useLazyAsyncData<Record<number, StaticSummonerSpellData>>(
+const { data: summonersMap } = useLazyAsyncData<Record<number, StaticSummonerSpellData>>(
   () => `static-summoners-${activePatch.value || 'latest'}`,
   async () => {
     const key = `static-summoners-${activePatch.value || 'latest'}`
@@ -154,12 +153,15 @@ const selectedPosition = computed<ChampionPosition | null>(() => {
 })
 // Elo filter (issue #526). Bind to the API-returned filter once available so
 // the rank select reflects what's actually shown; fall back to the URL filter
-// for the optimistic render before the fetch resolves. The rank is never dropped
-// by the 404 fallback (it only drops patch/position), so the response always
-// echoes the requested rank.
+// for the optimistic render before the fetch resolves.
 const selectedEloBracket = computed<string>(() =>
   normalizeEloBracket(champion.value?.eloBracket || filters.value.eloBracket),
 )
+
+// The elo filter forwarded to every live panel (matchups / leads / scaling /
+// item-timings / roam). Sourced from the URL filter and undefined for ALL, so
+// the query param + cache key stay clean — the same contract patch/position use.
+const eloBracketParam = computed(() => filters.value.eloBracket)
 
 // A rank filter with no data: the fetch 404'd on a specific rank (the champion
 // may well have builds in other ranks). Distinct from the champion-level "no
@@ -168,6 +170,28 @@ const selectedEloBracket = computed<string>(() =>
 const noDataForRank = computed(() =>
   notEnoughData.value && selectedEloBracket.value !== ELO_BRACKET_ALL,
 )
+
+// Coverage / min-sample guards: only meaningful for a narrow (non-ALL) band.
+// `eloCoverage` is the share of all-rank games this slice covers; `minSampleMet`
+// is false for tiny high-elo slices. Surface a notice so a thin Master+ build
+// reads as "treat with caution" rather than authoritative.
+const showBracketNotice = computed(() =>
+  Boolean(champion.value)
+  && selectedEloBracket.value !== ELO_BRACKET_ALL
+  && (!champion.value!.minSampleMet || champion.value!.eloCoverage < 0.1),
+)
+const bracketCoveragePercent = computed(() =>
+  champion.value ? Math.round(champion.value.eloCoverage * 100) : 0,
+)
+const bracketNoticeText = computed(() => {
+  const label = eloBracketLabel(selectedEloBracket.value)
+  const games = champion.value?.totalGames ?? 0
+  if (champion.value && !champion.value.minSampleMet) {
+    return `Only ${games} ${games === 1 ? 'game' : 'games'} in ${label} (${bracketCoveragePercent.value}% of all ranks) — `
+      + 'too few to be reliable. Treat this build as a rough signal.'
+  }
+  return `${label} covers just ${bracketCoveragePercent.value}% of all-rank games — a narrow slice, so read it with caution.`
+})
 
 // Average per-interval lead vs the lane opponent (issue #525). Follows the
 // resolved lane like the trend chart, but is patch-scoped: the active patch
@@ -178,6 +202,7 @@ const { data: championLeads, status: leadsStatus } = useChampionTimelineLeads(
   trendPosition,
   selectedPatch,
   trendReady,
+  eloBracketParam,
 )
 
 // Win rate by game duration (issue #537). Same lane/patch scoping and gating as
@@ -188,6 +213,7 @@ const { data: championScaling, status: scalingStatus } = useChampionScaling(
   trendPosition,
   selectedPatch,
   trendReady,
+  eloBracketParam,
 )
 
 // Power curve event spikes — completed build items ranked by how much the
@@ -198,6 +224,7 @@ const { data: championPowerspikes, status: powerspikesStatus } = useChampionPowe
   trendPosition,
   selectedPatch,
   trendReady,
+  eloBracketParam,
 )
 
 // Roam metric — out-of-lane early kill participations (issue #536). Same lane/patch
@@ -207,6 +234,7 @@ const { data: championRoam, status: roamStatus } = useChampionRoam(
   trendPosition,
   selectedPatch,
   trendReady,
+  eloBracketParam,
 )
 
 // Per-champion patch diff (issue #534): what changed for the champion between
@@ -267,38 +295,14 @@ watch(champion, (data) => {
   if (updates.patch !== undefined || updates.position !== undefined) setFilter(updates).catch(console.error)
 }, { immediate: true })
 
-// Bound to every async source so the bar covers both the initial lazy load
-// and patch/position swaps where the previous champion's data is still on
-// screen. `idle` is the pre-fetch state from useLazy* before the client
-// kicks them off — treat it as loading too.
+// Each section drives its own skeleton off its own async status; `idle` is
+// the pre-fetch state from useLazy* before the client kicks it off — treat it
+// as loading too.
 const isLoadingStatus = (s: 'idle' | 'pending' | 'success' | 'error') => s === 'idle' || s === 'pending'
-const isRefetching = computed(() =>
-  isLoadingStatus(championStatus.value)
-  || isLoadingStatus(staticStatus.value)
-  || isLoadingStatus(staticListStatus.value)
-  || isLoadingStatus(runeTreeStatus.value)
-  || isLoadingStatus(itemsStatus.value)
-  || isLoadingStatus(summonersStatus.value)
-  || isLoadingStatus(trendStatus.value)
-  || isLoadingStatus(leadsStatus.value)
-  || isLoadingStatus(scalingStatus.value)
-  || isLoadingStatus(powerspikesStatus.value)
-  || isLoadingStatus(roamStatus.value)
-  || isLoadingStatus(patchDiffStatus.value),
-)
 </script>
 
 <template>
   <main class="mx-auto max-w-5xl space-y-6 p-4 md:p-6">
-    <div class="h-0.5">
-      <UProgress
-        v-if="isRefetching"
-        size="xs"
-        color="primary"
-        aria-label="Loading champion"
-      />
-    </div>
-
     <UAlert
       v-if="championError"
       color="error"
@@ -359,14 +363,6 @@ const isRefetching = computed(() =>
       dataset has played). This is deliberately distinct from the error alert
       above: a 404 is "no data", not a transient failure to retry.
     -->
-    <!--
-      Deliberately gated on `notEnoughData` alone, NOT `!isRefetching`: this
-      block depends on no secondary data, and `isRefetching` stays true while
-      the static fetches (rune tree, items, summoners…) run — which they do even
-      for a champion we hold no data on — so anding it in would blank the page
-      behind the progress bar until those resolve. The bar already signals that
-      background activity.
-    -->
     <div
       v-else-if="notEnoughData"
       class="flex flex-col items-center gap-3 glass rounded-lg px-6 py-12 text-center"
@@ -390,15 +386,23 @@ const isRefetching = computed(() =>
       </div>
     </div>
 
-    <template v-else-if="champion && staticData">
+    <!--
+      Everything below renders immediately and independently — no gate on
+      `champion`/`staticData` resolving. Header/filters already fall back to
+      the URL filters and the static champion list; the charts already accept
+      a `loading` flag and skeleton themselves. Only the build tabs need real
+      champion + static data, so that section alone shows a dedicated skeleton
+      until both resolve.
+    -->
+    <template v-else>
       <header class="flex flex-wrap items-center gap-4">
         <ChampionHeader
           :champion-name="displayName"
           :champion-icon-url="displayIconUrl"
           :champion-id="championId"
-          :position="champion.position"
-          :total-games="champion.totalGames"
-          :total-wins="champion.totalWins"
+          :position="champion?.position || selectedPosition || ''"
+          :total-games="champion?.totalGames ?? 0"
+          :total-wins="champion?.totalWins ?? 0"
         />
         <ChampionFilters
           :selected-patch="selectedPatch"
@@ -411,18 +415,30 @@ const isRefetching = computed(() =>
         />
       </header>
 
+      <UAlert
+        v-if="showBracketNotice"
+        color="warning"
+        variant="soft"
+        :title="`Small ${eloBracketLabel(selectedEloBracket)} sample`"
+        :description="bracketNoticeText"
+        icon="i-lucide-triangle-alert"
+      />
+
       <ChampionBuildTabs
+        v-if="champion && staticData"
         :builds="champion.builds"
         :champion-static="staticData"
         :items-map="itemsMap ?? {}"
         :summoners-map="summonersMap ?? {}"
         :rune-tree="runeTree ?? null"
       />
+      <ChampionBuildTabsSkeleton v-else />
 
       <ChampionMatchups
         :champion-id="championId"
         :position="selectedPosition"
         :champions="staticList ?? []"
+        :elo-bracket="eloBracketParam"
       />
 
       <ChampionTrendChart
@@ -434,6 +450,7 @@ const isRefetching = computed(() =>
         :diff="championPatchDiff ?? null"
         :items-map="itemsMap ?? {}"
         :rune-tree="runeTree ?? null"
+        :champion-static="staticData"
         :patch-options="patchDiffOptions"
         :from-patch="patchDiffFrom"
         :to-patch="patchDiffTo"

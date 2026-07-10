@@ -24,10 +24,12 @@ public sealed class ChampionsController(
     [ProducesResponseType(typeof(IReadOnlyList<ChampionSummaryReadModel>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<ChampionSummaryReadModel>>> ListChampionsAsync(
         [FromQuery] string? patch,
+        [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
-        var summaries = await summariesQueryService.GetAllSummariesAsync(normalizedPatch, ct);
+        var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
+        var summaries = await summariesQueryService.GetAllSummariesAsync(normalizedPatch, normalizedBracket, ct);
         return Ok(summaries);
     }
 
@@ -47,9 +49,11 @@ public sealed class ChampionsController(
     public async Task<ActionResult<ChampionTierListReadModel>> GetTierListAsync(
         [FromQuery] string? patch,
         [FromQuery] string? position,
+        [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+        var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
 
         // A blank/absent position means "all positions"; only a non-blank value
         // that fails to canonicalise is a client error.
@@ -63,7 +67,7 @@ public sealed class ChampionsController(
             }
         }
 
-        var tierList = await tierListQueryService.GetTierListAsync(normalizedPatch, normalizedPosition, ct);
+        var tierList = await tierListQueryService.GetTierListAsync(normalizedPatch, normalizedPosition, normalizedBracket, ct);
         return Ok(tierList);
     }
 
@@ -159,6 +163,7 @@ public sealed class ChampionsController(
         int championId,
         [FromQuery] string? position,
         [FromQuery] string? patch,
+        [FromQuery] string? eloBracket,
         [FromQuery][Range(1, int.MaxValue)] int? opponent,
         CancellationToken ct = default)
     {
@@ -169,6 +174,7 @@ public sealed class ChampionsController(
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+        var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
 
         var response = await matchupQueryService.GetAsync(
             championId,
@@ -176,6 +182,7 @@ public sealed class ChampionsController(
             normalizedPatch,
             riotAccountId: null,
             opponentChampionId: opponent,
+            normalizedBracket,
             ct);
 
         return Ok(response);
@@ -198,6 +205,7 @@ public sealed class ChampionsController(
         int championId,
         [FromQuery] string? position,
         [FromQuery] string? patch,
+        [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
         var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
@@ -207,11 +215,13 @@ public sealed class ChampionsController(
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+        var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
 
         var response = await timelineLeadsQueryService.GetAsync(
             championId,
             normalizedPosition,
             normalizedPatch,
+            normalizedBracket,
             ct);
 
         return Ok(response);
@@ -233,6 +243,7 @@ public sealed class ChampionsController(
         int championId,
         [FromQuery] string? position,
         [FromQuery] string? patch,
+        [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
         var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
@@ -242,11 +253,13 @@ public sealed class ChampionsController(
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+        var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
 
         var response = await scalingQueryService.GetAsync(
             championId,
             normalizedPosition,
             normalizedPatch,
+            normalizedBracket,
             ct);
 
         return Ok(response);
@@ -268,6 +281,7 @@ public sealed class ChampionsController(
         int championId,
         [FromQuery] string? position,
         [FromQuery] string? patch,
+        [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
         var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
@@ -277,11 +291,13 @@ public sealed class ChampionsController(
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+        var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
 
         var response = await itemTimingsQueryService.GetAsync(
             championId,
             normalizedPosition,
             normalizedPatch,
+            normalizedBracket,
             ct);
 
         return Ok(response);
@@ -302,6 +318,7 @@ public sealed class ChampionsController(
         int championId,
         [FromQuery] string? position,
         [FromQuery] string? patch,
+        [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
         var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
@@ -311,11 +328,13 @@ public sealed class ChampionsController(
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+        var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
 
         var response = await roamQueryService.GetAsync(
             championId,
             normalizedPosition,
             normalizedPatch,
+            normalizedBracket,
             ct);
 
         return Ok(response);
@@ -337,6 +356,7 @@ public sealed class ChampionsController(
         int championId,
         [FromQuery] string? position,
         [FromQuery] string? patch,
+        [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
         var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
@@ -346,11 +366,13 @@ public sealed class ChampionsController(
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+        var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
 
         var response = await powerspikesQueryService.GetAsync(
             championId,
             normalizedPosition,
             normalizedPatch,
+            normalizedBracket,
             ct);
 
         return Ok(response);

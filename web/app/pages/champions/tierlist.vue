@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ChampionTierListResponse } from '~~/shared/types/champions'
 import { POSITION_OPTIONS, isChampionPosition, type ChampionPosition } from '~/utils/positions'
+import { ELO_BRACKET_ALL, normalizeEloBracket } from '~/utils/elo-brackets'
 
 // Whole-percent format, same terse style as the /champions directory rows.
 function pct(value: number): string {
@@ -20,23 +21,29 @@ const selectedPosition = computed<ChampionPosition | null>(() => {
   return isChampionPosition(value) ? value : null
 })
 
-// Tier list is computed server-side, so the fetch keys on patch + position and
-// the backend does the per-role tiering. Client-only (`server: false`) to keep
-// the SSR shell deterministic, mirroring the /champions directory page.
+// ALL when the `?elo=` param is absent (the composable omits the default), so
+// the picker always reflects a valid threshold.
+const selectedEloBracket = computed<string>(() => normalizeEloBracket(filters.value.eloBracket))
+
+// Tier list is computed server-side, so the fetch keys on patch + position +
+// elo bracket and the backend does the per-role tiering. Client-only
+// (`server: false`) to keep the SSR shell deterministic, mirroring the
+// /champions directory page.
 const {
   data: tierList,
   error: tierListError,
   status: tierListStatus,
 } = useLazyAsyncData<ChampionTierListResponse>(
-  () => `champion-tierlist-${filters.value.patch ?? 'latest'}-${selectedPosition.value ?? 'all'}`,
+  () => `champion-tierlist-${filters.value.patch ?? 'latest'}-${selectedPosition.value ?? 'all'}-${filters.value.eloBracket ?? 'all'}`,
   () => {
     const query: Record<string, string> = {}
     if (filters.value.patch) query.patch = filters.value.patch
     if (selectedPosition.value) query.position = selectedPosition.value
+    if (filters.value.eloBracket) query.eloBracket = filters.value.eloBracket
     return $fetch<ChampionTierListResponse>('/api/champions/tierlist', { query })
   },
   {
-    watch: [() => filters.value.patch, selectedPosition],
+    watch: [() => filters.value.patch, selectedPosition, () => filters.value.eloBracket],
     server: false,
     default: () => ({ patchVersion: '', position: null, tiers: [] }),
   },
@@ -84,6 +91,10 @@ function onPatchChange(value: unknown) {
 
 async function selectPosition(value: ChampionPosition | null) {
   await setFilter({ position: value })
+}
+
+function onEloBracketChange(value: string) {
+  void setFilter({ eloBracket: value === ELO_BRACKET_ALL ? null : value })
 }
 
 const nameById = computed(() => new Map((staticList.value ?? []).map(item => [item.championId, item])))
@@ -137,6 +148,11 @@ function championDestination(entry: { championId: number, position: string }) {
           @update:position="selectPosition"
         />
 
+        <ChampionEloFilter
+          :model-value="selectedEloBracket"
+          @update:model-value="onEloBracketChange"
+        />
+
         <USelect
           :model-value="selectedPatch || undefined"
           :items="patchOptions"
@@ -148,15 +164,6 @@ function championDestination(entry: { championId: number, position: string }) {
     </header>
 
     <ClientOnly>
-      <div class="h-0.5">
-        <UProgress
-          v-if="isPending"
-          size="xs"
-          color="primary"
-          aria-label="Loading tier list"
-        />
-      </div>
-
       <UAlert
         v-if="error"
         color="error"
@@ -164,6 +171,8 @@ function championDestination(entry: { championId: number, position: string }) {
         title="Failed to load tier list"
         :description="error.message"
       />
+
+      <TierlistSkeleton v-else-if="isPending" />
 
       <template v-else>
         <div class="space-y-3">
@@ -218,7 +227,7 @@ function championDestination(entry: { championId: number, position: string }) {
         </div>
 
         <p
-          v-if="!isPending && !hasRows"
+          v-if="!hasRows"
           class="text-sm text-muted"
         >
           No champions match these filters.
@@ -226,13 +235,7 @@ function championDestination(entry: { championId: number, position: string }) {
       </template>
 
       <template #fallback>
-        <div class="h-0.5">
-          <UProgress
-            size="xs"
-            color="primary"
-            aria-label="Loading tier list"
-          />
-        </div>
+        <TierlistSkeleton />
       </template>
     </ClientOnly>
   </main>

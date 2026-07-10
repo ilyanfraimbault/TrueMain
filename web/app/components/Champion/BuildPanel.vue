@@ -17,9 +17,11 @@ defineProps<{
 </script>
 
 <template>
-  <div class="space-y-6 pt-4">
-    <!-- Section 1: Core view -->
-    <UCard>
+  <div class="space-y-6">
+    <!-- Section 1: Core view. Flattened to a bare block (no UCard) — the whole
+         panel now lives inside the single enveloping card from BuildTabs, so a
+         card here would nest card-in-card. -->
+    <div>
       <!-- Outer grid: left column is flexible, right Runes column is a fixed
            240 px so the left column never resizes when rune layouts change
            between builds/positions. 240 px fits the widest primary tree
@@ -48,7 +50,7 @@ defineProps<{
                A2 grows to fill the remainder of Section A. justify-around
                distributes the two fixed-width cards evenly inside A2. -->
           <div class="flex flex-1 flex-col gap-5">
-            <!-- A2a: Skill order (216 px) and Boots (76 px) evenly spaced -->
+            <!-- A2a: Skill order (156 px) and Boots (76 px) evenly spaced -->
             <div class="flex flex-wrap items-start justify-around gap-6">
               <ChampionCoreSkillOrder
                 :skill-order="build.core.skillOrder"
@@ -82,7 +84,7 @@ defineProps<{
           />
         </div>
       </div>
-    </UCard>
+    </div>
 
     <!-- Section 2: Variations -->
     <ChampionBuildPanelVariations

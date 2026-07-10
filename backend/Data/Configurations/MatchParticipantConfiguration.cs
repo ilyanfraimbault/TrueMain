@@ -44,6 +44,12 @@ public sealed class MatchParticipantConfiguration : IEntityTypeConfiguration<Mat
             .IsRequired()
             .HasMaxLength(32);
 
+        entity.Property(e => e.EloBracket)
+            .IsRequired()
+            .HasMaxLength(20)
+            .HasColumnName("elo_bracket")
+            .HasDefaultValue(string.Empty);
+
         entity.Property(e => e.IndividualPosition)
             .IsRequired()
             .HasMaxLength(32);
@@ -142,8 +148,10 @@ public sealed class MatchParticipantConfiguration : IEntityTypeConfiguration<Mat
         // roam) all filter the tracked-account rows by champion + lane. A partial
         // index on those columns (only the tracked rows, ~1/10 of the table) turns
         // those filters into an index seek instead of a scan of the full 35 GB
-        // match_participants table.
-        entity.HasIndex(e => new { e.ChampionId, e.TeamPosition })
+        // match_participants table. EloBracket is the trailing column so the same
+        // index serves both the unfiltered (champion, lane) prefix reads and the
+        // rank-filtered (champion, lane, band) reads.
+        entity.HasIndex(e => new { e.ChampionId, e.TeamPosition, e.EloBracket })
             .HasFilter("\"RiotAccountId\" IS NOT NULL")
             .HasDatabaseName("IX_match_participants_champion_position_tracked");
 

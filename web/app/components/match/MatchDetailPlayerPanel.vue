@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { MatchDetailItemEvent, MatchDetailParticipant } from '~~/shared/types/match-detail'
 import type { ChampionStaticListItem, StaticItemData } from '~~/shared/types/static-data'
+import { isBuildOrderEvent, resolveEventItemId } from '~~/shared/utils/build'
 
 /**
  * Full-width detail view for a single selected participant (the Details tab).
@@ -38,18 +39,18 @@ function fmtTime(ms: number) {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-// Riot sets itemId = 0 on an ITEM_UNDO and carries the affected item in
-// beforeId / afterId — fall back so undo steps render the real item.
-function eventItemId(ev: MatchDetailItemEvent) {
-  return ev.itemId || ev.beforeId || ev.afterId || 0
-}
+// Only a sold item or an undo is a genuine "correction" worth dimming; the
+// build order drops ITEM_DESTROYED entirely (see isBuildOrderEvent), so it
+// never reaches the template.
 function isCorrection(type: string) {
-  return type === 'ITEM_UNDO' || type === 'ITEM_SOLD' || type === 'ITEM_DESTROYED'
+  return type === 'ITEM_UNDO' || type === 'ITEM_SOLD'
 }
 
 // Build order grouped into shopping trips: consecutive events sharing the same
 // game-minute collapse into one cluster with a single time label, the way the
 // inspiration lays it out. Minute 0 is the starting purchase ("Starter").
+// isBuildOrderEvent strips auto-granted transforms (quest stages, empowered-
+// recall boots) and their paired ITEM_DESTROYED so they don't clutter it.
 interface BuildGroup {
   minute: number
   label: string
@@ -58,6 +59,7 @@ interface BuildGroup {
 const buildGroups = computed<BuildGroup[]>(() => {
   const groups: BuildGroup[] = []
   for (const ev of props.participant.itemEvents) {
+    if (!isBuildOrderEvent(ev, props.items)) continue
     const minute = Math.floor(ev.timestampMs / 60000)
     const last = groups[groups.length - 1]
     if (last && last.minute === minute) {
@@ -170,7 +172,7 @@ const hasSkills = computed(() => props.participant.skillEvents.length > 0)
                 :title="`${fmtTime(ev.timestampMs)}`"
               >
                 <GameTooltipItemIcon
-                  :item="eventItemId(ev) ? items[eventItemId(ev)] ?? null : null"
+                  :item="resolveEventItemId(ev) ? items[resolveEventItemId(ev)] ?? null : null"
                   :width="28"
                   :height="28"
                   class="size-7 rounded"

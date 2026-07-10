@@ -1,4 +1,5 @@
 using Core.Lol.Patches;
+using Core.Lol.Ranking;
 using Core.Options;
 using Data;
 using Microsoft.EntityFrameworkCore;
@@ -48,13 +49,20 @@ public sealed class ChampionPowerspikesQueryService(
         int championId,
         string position,
         string? patch,
+        string? eloBracket,
         CancellationToken ct)
     {
         var normalizedPatch = string.IsNullOrWhiteSpace(patch)
             ? null
             : PatchVersion.TryParse(patch, out var parsed) ? parsed.ToMajorMinor() : null;
 
-        var cacheKey = $"champions:powerspikes:{championId}:{position}:{normalizedPatch ?? "all"}";
+        // Resolve the elo filter to its bands (null = ALL, no clause); the cache
+        // key carries the bracket so each band caches separately. The global
+        // per-minute sigma stays unfiltered — it is just a normalising scale.
+        var bands = EloBracket.ResolveFilter(eloBracket);
+        var bracketToken = bands is null ? "all" : EloBracket.Normalize(eloBracket)!;
+
+        var cacheKey = $"champions:powerspikes:{championId}:{position}:{normalizedPatch ?? "all"}:{bracketToken}";
         if (cache.TryGetValue<ChampionPowerspikesResponse>(cacheKey, out var cached) && cached is not null)
         {
             return cached;
@@ -83,6 +91,12 @@ public sealed class ChampionPowerspikesQueryService(
                 m.Id == p1.MatchId
                 && m.QueueId == queueId
                 && (normalizedPatch == null || EF.Functions.Like(m.GameVersion, patchPrefix!))));
+
+        // Narrow the champion side to the requested elo bands (null = every band).
+        if (bands is not null)
+        {
+            championRows = championRows.Where(p1 => bands.Contains(p1.EloBracket));
+        }
 
         var diffRows = await championRows
             .SelectMany(

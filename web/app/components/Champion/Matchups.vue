@@ -9,6 +9,8 @@ const props = defineProps<{
   champions: ChampionStaticListItem[]
   /** When set, scope the matchups to this player's games. */
   nameTag?: string
+  /** Elo filter (exact tier or "X+" threshold); ignored for the player scope. */
+  eloBracket?: string
 }>()
 
 const TOP_N = 5
@@ -21,6 +23,7 @@ const { data, status, error } = useChampionMatchups(
   {
     nameTag: () => props.nameTag,
     opponentChampionId: () => selectedOpponentId.value,
+    eloBracket: () => props.eloBracket,
   },
 )
 

@@ -61,6 +61,18 @@ export interface ChampionResponse {
    * above). `ALL` by default.
    */
   eloBracket: string
+  /**
+   * Games in the selected bracket as a fraction of all games on this champion at
+   * the resolved patch + position. `1` for the `ALL` bracket; lower for narrow
+   * high-elo bands, so the page can flag how representative the slice is.
+   */
+  eloCoverage: number
+  /**
+   * False when `totalGames` is below the trustworthy-build floor (tiny
+   * high-bracket slices). The page still renders the data but flags it as
+   * low-confidence.
+   */
+  minSampleMet: boolean
   totalGames: number
   totalWins: number
   builds: ChampionBuild[]
@@ -98,12 +110,12 @@ export interface ChampionPatchDiffSide {
   games: number
   wins: number
   winRate: number
-  /** Most popular completed-build first item on the patch; 0 when none qualifies. */
-  topFirstItemId: number
-  /** Most popular primary keystone on the patch; 0 when none qualifies. */
-  topKeystoneId: number
-  /** Dominant skill-order sequence (e.g. ['Q', 'E', 'W']); empty when unavailable. */
-  topSkillOrder: string[]
+  /** Top build's completed core item order on the patch; null when none qualifies. */
+  itemPath: BuildItemPath | null
+  /** Top build's full rune page on the patch; null when unavailable. */
+  runePage: BuildRunePage | null
+  /** Top build's dominant skill-order sequence; null when unavailable. */
+  skillOrder: BuildSkillOrder | null
 }
 
 export interface ChampionPatchDiffDelta {

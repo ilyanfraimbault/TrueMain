@@ -1,16 +1,21 @@
 using System.Collections.Concurrent;
 using Core.Lol.Identifiers;
+using Core.Options;
 using Data.Entities;
 using Data.Repositories;
 using Ingestor.Riot;
 using Ingestor.Riot.Dto;
+using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes.Components.MatchIngestion;
 
 public sealed class MatchSnapshotWriter(
     IRiotMatchClient riotMatchClient,
-    TimeProvider timeProvider) : IMatchSnapshotWriter
+    TimeProvider timeProvider,
+    IOptions<MainAnalysisOptions> mainAnalysisOptions) : IMatchSnapshotWriter
 {
+    private readonly int _targetQueueId = (int)mainAnalysisOptions.Value.QueueId;
+
     public async Task<SnapshotIngestionResult> IngestSnapshotsAsync(
         IDataSession session,
         string platformId,
@@ -37,6 +42,7 @@ public sealed class MatchSnapshotWriter(
         }
 
         var inserted = 0;
+        var persistedIds = new List<string>(scan.Fresh.Count);
         for (var i = 0; i < scan.Fresh.Count; i += batchSize)
         {
             var batchIds = scan.Fresh.Skip(i).Take(batchSize).ToList();
@@ -57,6 +63,17 @@ public sealed class MatchSnapshotWriter(
                     fetched.Add((matchId, await riotMatchClient.GetMatchAsync(matchId, region, token)));
                 });
 
+            // Only the tracked queue (ranked solo/duo) is stored. Riot's type=ranked
+            // id fetch still returns other ranked queues (notably flex); drop them up
+            // front — before building perk-catalog keys or persisting — so a discarded
+            // match neither upserts catalog rows nor enters match_participants / the
+            // timeline tables. Keeping them out of persistedIds also keeps them out of
+            // the new-match set the timeline pass consumes, so no orphan timeline is
+            // fetched or written (#680).
+            var targetMatches = fetched
+                .Where(item => item.Dto.Info.QueueId == _targetQueueId)
+                .ToList();
+
             // Pre-resolve perk catalog ids for the whole batch BEFORE we add
             // any match/participant entities to the change tracker. The
             // catalog upsert performs its own SaveChanges; if it ran while
@@ -65,23 +82,24 @@ public sealed class MatchSnapshotWriter(
             // ChangeTracker.Clear() would silently drop those entities,
             // leaving us free to commit orphan perk_selections in the
             // batch's final SaveChanges.
-            var catalogKeys = fetched
+            var catalogKeys = targetMatches
                 .SelectMany(item => RiotMatchMapper.BuildPerkSelectionRows(item.Dto, item.Id))
                 .Select(selection => selection.Key)
                 .ToArray();
             var catalogIds = await session.MatchParticipants.GetOrCreatePerkCatalogIdsAsync(catalogKeys, ct);
 
             var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
-            foreach (var (_, dto) in fetched)
+            foreach (var (matchId, dto) in targetMatches)
             {
                 await PersistMatchAsync(session, dto, platformId, catalogIds, nowUtc, ct);
+                persistedIds.Add(matchId);
                 inserted++;
             }
 
             await session.SaveChangesAsync(ct);
         }
 
-        return new SnapshotIngestionResult(allMatchIds, scan.Fresh, inserted, allMatchIds.Count - scan.Fresh.Count);
+        return new SnapshotIngestionResult(allMatchIds, persistedIds, inserted, allMatchIds.Count - scan.Fresh.Count);
     }
 
     private static async Task PersistMatchAsync(

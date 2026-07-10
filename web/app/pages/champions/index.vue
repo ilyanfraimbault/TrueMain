@@ -2,6 +2,7 @@
 import type { ChampionSummaryResponse } from '~~/shared/types/champions'
 import type { RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
 import { POSITION_OPTIONS, isChampionPosition, type ChampionPosition } from '~/utils/positions'
+import { ELO_BRACKET_ALL, normalizeEloBracket } from '~/utils/elo-brackets'
 
 // Whole-percent format used for both WR and PR in the list — matches the
 // terse style used by the in-game stats and the detail-page build tabs.
@@ -64,14 +65,24 @@ const {
   error: summariesError,
   status: summariesStatus,
 } = useLazyAsyncData<ChampionSummaryResponse[]>(
-  () => `champions-list-${filters.value.patch ?? 'latest'}`,
+  () => `champions-list-${filters.value.patch ?? 'latest'}-${filters.value.eloBracket ?? 'ALL'}`,
   () => {
     const patch = filters.value.patch
+    const elo = filters.value.eloBracket
     return $fetch<ChampionSummaryResponse[]>('/api/champions', {
-      query: patch ? { patch } : {},
+      query: {
+        ...(patch ? { patch } : {}),
+        // Cumulative "X+" threshold; the composable already omits the default
+        // ALL, so a value here is always a real filter the backend expands.
+        ...(elo ? { eloBracket: elo } : {}),
+      },
     })
   },
-  { watch: [() => filters.value.patch], server: false, default: () => [] },
+  {
+    watch: [() => filters.value.patch, () => filters.value.eloBracket],
+    server: false,
+    default: () => [],
+  },
 )
 // Static fetches use `useLazyAsyncData` (not `useLazyFetch`) so the handler
 // closure can call `markStaticFetched` after the network round trip — the
@@ -179,6 +190,10 @@ const selectedPosition = computed<ChampionPosition | null>(() => {
   return isChampionPosition(value) ? value : null
 })
 
+// ALL when the `?elo=` param is absent (the composable omits the default), so
+// the picker always reflects a valid threshold.
+const selectedEloBracket = computed<string>(() => normalizeEloBracket(filters.value.eloBracket))
+
 // Champion filter sources from `?championId=` so deep links and back/forward
 // keep the selection. Uses the same ChampionPicker as the truemain
 // leaderboard so the UX matches across the two list pages.
@@ -196,6 +211,7 @@ async function applyFilterReset(updates: {
   patch?: string | null
   position?: ChampionPosition | null
   championId?: number | null
+  eloBracket?: string | null
 }) {
   const nextQuery: Record<string, string> = {}
   for (const [key, value] of Object.entries(route.query)) {
@@ -216,6 +232,12 @@ async function applyFilterReset(updates: {
     if (updates.championId) nextQuery.championId = String(updates.championId)
     else delete nextQuery.championId
   }
+  if (updates.eloBracket !== undefined) {
+    // `ALL` is the default, so clear the param rather than pin it — keeps the
+    // URL and the list cache key identical to an unfiltered request.
+    if (updates.eloBracket && updates.eloBracket !== ELO_BRACKET_ALL) nextQuery.elo = updates.eloBracket
+    else delete nextQuery.elo
+  }
   await router.replace({ query: nextQuery })
 }
 
@@ -230,6 +252,10 @@ async function selectPosition(value: ChampionPosition | null) {
 
 async function selectChampion(value: number | null) {
   await applyFilterReset({ championId: value })
+}
+
+function onEloBracketChange(value: string) {
+  void applyFilterReset({ eloBracket: value })
 }
 
 const baseRows = computed(() => {
@@ -323,6 +349,11 @@ function staticItem(id: number | undefined) {
           @update:champion-id="selectChampion"
         />
 
+        <ChampionEloFilter
+          :model-value="selectedEloBracket"
+          @update:model-value="onEloBracketChange"
+        />
+
         <USelect
           :model-value="selectedPatch || undefined"
           :items="patchOptions"
@@ -339,19 +370,10 @@ function staticItem(id: number | undefined) {
          plugin priming the payload and the page's own `useLazyAsyncData`
          setup could leave the server rendering one tree (e.g. `<ul>`) while
          the client expected another (the skeleton), producing the
-         `<UProgress>` / `<ul>` hydration node mismatches reported in #149.
-         The `<template #fallback>` matches the SSR shell so the user sees
-         the same progress bar before the client takes over. -->
+         hydration node mismatches reported in #149. The `<template #fallback>`
+         renders the same skeleton list as the SSR shell so the user sees
+         placeholder rows before the client takes over. -->
     <ClientOnly>
-      <div class="h-0.5">
-        <UProgress
-          v-if="isPending"
-          size="xs"
-          color="primary"
-          aria-label="Loading champions"
-        />
-      </div>
-
       <UAlert
         v-if="error"
         color="error"
@@ -360,12 +382,17 @@ function staticItem(id: number | undefined) {
         :description="error.message"
       />
 
+      <!-- Cold load: placeholder rows in the real row layout so there's no
+           blank area and no layout shift when the data resolves. Gated on all
+           four sources (see `isPending`) so we never flash rows with fallback
+           `Champion {id}` names or missing rune / item icons. -->
+      <ul v-else-if="isPending" class="space-y-1" aria-hidden="true">
+        <li v-for="i in PAGE_SIZE" :key="`skeleton-${i}`">
+          <ChampionRowSkeleton />
+        </li>
+      </ul>
+
       <template v-else>
-        <!-- During fetch the UProgress bar above is the only loading signal;
-             empty rectangles below it carried no information and looked worse
-             than the implicit empty state. Rows mount as soon as summaries
-             resolve, with per-icon SkeletonImage placeholders covering the
-             remaining image loads. -->
         <ul class="space-y-1">
           <li
             v-for="row in pagedRows"
@@ -479,17 +506,17 @@ function staticItem(id: number | undefined) {
         </ul>
 
         <p
-          v-if="!isPending && filteredRows.length === 0"
+          v-if="filteredRows.length === 0"
           class="text-sm text-muted"
         >
           No champions match these filters.
         </p>
 
-        <!-- Only show pagination when there's more than one page of results
-             on the backend. The component is hidden during the pending state
-             to avoid flashing stale page counts between fetches. -->
+        <!-- Only show pagination when there's more than one page of results.
+             This branch only renders once the data has resolved, so the count
+             is never stale. -->
         <div
-          v-if="!isPending && totalCount > PAGE_SIZE"
+          v-if="totalCount > PAGE_SIZE"
           class="flex justify-center pt-2"
         >
           <UPagination
@@ -507,13 +534,11 @@ function staticItem(id: number | undefined) {
       </template>
 
       <template #fallback>
-        <div class="h-0.5">
-          <UProgress
-            size="xs"
-            color="primary"
-            aria-label="Loading champions"
-          />
-        </div>
+        <ul class="space-y-1" aria-hidden="true">
+          <li v-for="i in PAGE_SIZE" :key="`skeleton-${i}`">
+            <ChampionRowSkeleton />
+          </li>
+        </ul>
       </template>
     </ClientOnly>
   </main>

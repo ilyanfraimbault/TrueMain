@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using AwesomeAssertions;
+using Core.Lol.Ranking;
 using Data.Entities;
 using Microsoft.AspNetCore.Mvc.Testing;
 using TrueMain.ReadModels.Champions;
@@ -116,6 +117,33 @@ public sealed class ChampionScalingApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetChampionScalingAsync_FiltersToRequestedEloBracket()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedBracketedScalingSampleAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // ALL (no bracket) sums both slices: 12 Gold + 12 Iron short games.
+        var all = await client.GetFromJsonAsync<ChampionScalingResponse>(
+            $"/champions/{Champion}/scaling?position={Position}");
+        all!.Buckets.Single(b => b.Bucket == 0).Games.Should().Be(24);
+
+        // A bare Gold filter counts only the Gold-stamped games.
+        var gold = await client.GetFromJsonAsync<ChampionScalingResponse>(
+            $"/champions/{Champion}/scaling?position={Position}&eloBracket=GOLD");
+        var goldBucket = gold!.Buckets.Single(b => b.Bucket == 0);
+        goldBucket.Games.Should().Be(12, "only the Gold-stamped games count");
+        goldBucket.WinRate.Should().BeApproximately(8d / 12d, 1e-9);
+
+        // GOLD_PLUS unions Gold and every tier above; Iron sits below and drops.
+        var goldPlus = await client.GetFromJsonAsync<ChampionScalingResponse>(
+            $"/champions/{Champion}/scaling?position={Position}&eloBracket=GOLD_PLUS");
+        goldPlus!.Buckets.Single(b => b.Bucket == 0).Games.Should().Be(12, "Iron is below Gold and drops out");
+    }
+
+    [Fact]
     public async Task GetChampionScalingAsync_ReturnsBadRequestForInvalidPosition()
     {
         await _fixture.ResetDatabaseAsync();
@@ -144,8 +172,31 @@ public sealed class ChampionScalingApiIntegrationTests
         await db.SaveChangesAsync();
     }
 
+    /// <summary>
+    /// Seeds two short-game slices for one tracked account, stamped with distinct
+    /// elo bands so the bracket filter can be exercised: 12 Gold games (8 won) and
+    /// 12 Iron games. Both land in bucket 0 and clear the per-bucket floor.
+    /// </summary>
+    private async Task SeedBracketedScalingSampleAsync()
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        var account = new RiotAccountBuilder()
+            .WithGameName("ScalingBracket")
+            .WithTagLine("KR1")
+            .WithPuuid("scaling-bracket-puuid")
+            .Build();
+        db.RiotAccounts.Add(account);
+
+        AddGames(db, "gold", ShortGameSeconds, games: 12, wins: 8, account.Id, EloBracket.Gold);
+        AddGames(db, "iron", ShortGameSeconds, games: 12, wins: 6, account.Id, EloBracket.Iron);
+
+        await db.SaveChangesAsync();
+    }
+
     private static void AddGames(
-        Data.TrueMainDbContext db, string prefix, int durationSeconds, int games, int wins, Guid accountId)
+        Data.TrueMainDbContext db, string prefix, int durationSeconds, int games, int wins, Guid accountId,
+        string eloBracket = "")
     {
         for (var i = 0; i < games; i++)
         {
@@ -157,11 +208,13 @@ public sealed class ChampionScalingApiIntegrationTests
                 .WithGameDurationSeconds(durationSeconds)
                 .Build());
 
-            db.MatchParticipants.Add(Participant(matchId, Champion, win: i < wins, riotAccountId: accountId));
+            db.MatchParticipants.Add(
+                Participant(matchId, Champion, win: i < wins, riotAccountId: accountId, eloBracket));
         }
     }
 
-    private static MatchParticipant Participant(string matchId, int championId, bool win, Guid? riotAccountId)
+    private static MatchParticipant Participant(
+        string matchId, int championId, bool win, Guid? riotAccountId, string eloBracket = "")
         => new()
         {
             MatchId = matchId,
@@ -180,6 +233,7 @@ public sealed class ChampionScalingApiIntegrationTests
             ChampLevel = 16,
             Item6 = 3363,
             TrinketItemId = 3363,
+            EloBracket = eloBracket,
             ItemEvents = [],
             SkillEvents = []
         };

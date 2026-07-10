@@ -12,6 +12,22 @@ export interface StaticItemData {
    * tooltip-parser; not preprocessed server-side.
    */
   description?: string
+  /**
+   * Whether the item can be bought directly in the shop (DDragon
+   * `item.gold.purchasable`). Auto-granted transforms — support/role quest
+   * upgrade stages, the empowered-recall boots upgrade — are `false`. Absent
+   * defaults to purchasable. Used to keep such non-shop steps out of a
+   * player's build order (they surface as `ITEM_PURCHASED` events even though
+   * the player never bought them). See also `inStore`.
+   */
+  purchasable?: boolean
+  /**
+   * Whether the item is listed in the shop at all (DDragon `item.inStore`,
+   * only ever emitted as `false`). Some quest transforms keep
+   * `gold.purchasable = true` yet set `inStore = false`, so both flags are
+   * checked when filtering non-shop build-order steps.
+   */
+  inStore?: boolean
 }
 
 export interface StaticSummonerSpellData {

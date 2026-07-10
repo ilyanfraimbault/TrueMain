@@ -22,7 +22,7 @@ namespace Data.CompiledModels
                 "Data.Entities.MatchParticipant",
                 typeof(MatchParticipant),
                 baseEntityType,
-                propertyCount: 40,
+                propertyCount: 41,
                 navigationCount: 2,
                 foreignKeyCount: 2,
                 unnamedIndexCount: 4,
@@ -69,6 +69,17 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(MatchParticipant).GetField("<Deaths>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: 0);
             deaths.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var eloBracket = runtimeEntityType.AddProperty(
+                "EloBracket",
+                typeof(string),
+                propertyInfo: typeof(MatchParticipant).GetProperty("EloBracket", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MatchParticipant).GetField("<EloBracket>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                maxLength: 20);
+            eloBracket.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            eloBracket.AddAnnotation("Relational:ColumnName", "elo_bracket");
+            eloBracket.AddAnnotation("Relational:DefaultValue", "");
 
             var goldEarned = runtimeEntityType.AddProperty(
                 "GoldEarned",
@@ -362,17 +373,17 @@ namespace Data.CompiledModels
                 new[] { riotAccountId });
 
             var index0 = runtimeEntityType.AddIndex(
-                new[] { championId, teamPosition });
-            index0.AddAnnotation("Relational:Filter", "\"RiotAccountId\" IS NOT NULL");
-            index0.AddAnnotation("Relational:Name", "IX_match_participants_champion_position_tracked");
-
-            var index1 = runtimeEntityType.AddIndex(
                 new[] { matchId, participantId },
                 unique: true);
 
-            var index2 = runtimeEntityType.AddIndex(
+            var index1 = runtimeEntityType.AddIndex(
                 new[] { puuid, matchId });
-            index2.AddAnnotation("Relational:Name", "IX_match_participants_puuid_match");
+            index1.AddAnnotation("Relational:Name", "IX_match_participants_puuid_match");
+
+            var index2 = runtimeEntityType.AddIndex(
+                new[] { championId, teamPosition, eloBracket });
+            index2.AddAnnotation("Relational:Filter", "\"RiotAccountId\" IS NOT NULL");
+            index2.AddAnnotation("Relational:Name", "IX_match_participants_champion_position_tracked");
 
             return runtimeEntityType;
         }

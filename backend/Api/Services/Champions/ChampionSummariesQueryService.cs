@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Core.Lol.Ranking;
 using Core.Options;
 using Data;
 using Microsoft.EntityFrameworkCore;
@@ -38,9 +39,16 @@ public sealed class ChampionSummariesQueryService(
         Size = 1,
     };
 
-    public async Task<IReadOnlyList<ChampionSummaryReadModel>> GetAllSummariesAsync(string? patch, CancellationToken ct)
+    public async Task<IReadOnlyList<ChampionSummaryReadModel>> GetAllSummariesAsync(
+        string? patch, string? eloBracket, CancellationToken ct)
     {
         var totalSw = Stopwatch.StartNew();
+
+        // Resolve the filter to its per-tier bands: cumulative "X+" expands, an
+        // exact tier selects only itself. Null → ALL: no elo clause, full union.
+        var normalizedBracket = EloBracket.Normalize(eloBracket);
+        var bracketBands = EloBracket.ResolveFilter(normalizedBracket);
+        var bracketKey = bracketBands is null ? EloBracket.All : normalizedBracket!;
 
         var resolveSw = Stopwatch.StartNew();
         var activePatch = await ResolveActivePatchAsync(patch, ct);
@@ -58,15 +66,17 @@ public sealed class ChampionSummariesQueryService(
             return [];
         }
 
-        return await GetOrComputeSummariesAsync(activePatch, totalSw, ct);
+        return await GetOrComputeSummariesAsync(activePatch, bracketKey, bracketBands, totalSw, ct);
     }
 
     private async Task<IReadOnlyList<ChampionSummaryReadModel>> GetOrComputeSummariesAsync(
         string activePatch,
+        string bracketKey,
+        IReadOnlyList<string>? bracketBands,
         Stopwatch totalSw,
         CancellationToken ct)
     {
-        var cacheKey = $"champions:summaries:{activePatch}";
+        var cacheKey = $"champions:summaries:{activePatch}:{bracketKey}";
         if (cache.TryGetValue<IReadOnlyList<ChampionSummaryReadModel>>(cacheKey, out var cached) && cached is not null)
         {
             totalSw.Stop();
@@ -77,7 +87,7 @@ public sealed class ChampionSummariesQueryService(
         }
 
         var computeSw = Stopwatch.StartNew();
-        var summaries = await ComputeAllSummariesAsync(activePatch, ct);
+        var summaries = await ComputeAllSummariesAsync(activePatch, bracketBands, ct);
         computeSw.Stop();
         cache.Set(cacheKey, summaries, CacheEntry(SummariesCacheTtl));
         totalSw.Stop();
@@ -119,7 +129,8 @@ public sealed class ChampionSummariesQueryService(
         return resolved;
     }
 
-    private async Task<IReadOnlyList<ChampionSummaryReadModel>> ComputeAllSummariesAsync(string activePatch, CancellationToken ct)
+    private async Task<IReadOnlyList<ChampionSummaryReadModel>> ComputeAllSummariesAsync(
+        string activePatch, IReadOnlyList<string>? bracketBands, CancellationToken ct)
     {
         // Aggregate per (champion, position) in SQL: a single GROUP BY with
         // SUM(games)/SUM(wins), MAX(aggregated_at) and COUNT(DISTINCT
@@ -131,11 +142,21 @@ public sealed class ChampionSummariesQueryService(
         // Trim() != "" preserves the previous IsNullOrWhiteSpace semantics
         // and translates to Postgres btrim(...) <> '' under Npgsql.
         var groupsSw = Stopwatch.StartNew();
-        var groups = await db.ChampionAggregateScopes
+        var groupsQuery = db.ChampionAggregateScopes
             .AsNoTracking()
             .Where(scope => scope.QueueId == (int)options.Value.QueueId)
             .Where(scope => scope.GameVersion == activePatch)
-            .Where(scope => scope.Position.Trim() != string.Empty)
+            .Where(scope => scope.Position.Trim() != string.Empty);
+
+        // Cumulative elo filter: a null / empty band set is ALL (no clause, the
+        // full union incl. Unranked); a non-empty set restricts to the bands at
+        // or above the requested threshold (`elo_bracket = ANY(@bands)`).
+        if (bracketBands is { Count: > 0 })
+        {
+            groupsQuery = groupsQuery.Where(scope => bracketBands.Contains(scope.EloBracket));
+        }
+
+        var groups = await groupsQuery
             .GroupBy(scope => new { scope.ChampionId, scope.Position })
             .Select(group => new ChampionSummaryGroup(
                 group.Key.ChampionId,
@@ -156,7 +177,7 @@ public sealed class ChampionSummariesQueryService(
         }
 
         var topBuildsSw = Stopwatch.StartNew();
-        var topBuilds = await LoadTopBuildsAsync(activePatch, ct);
+        var topBuilds = await LoadTopBuildsAsync(activePatch, bracketBands, ct);
         topBuildsSw.Stop();
         logger.LogInformation(
             "[champions-summaries] load_top_builds buckets={Buckets} elapsed={ElapsedMs}ms",
@@ -254,16 +275,25 @@ public sealed class ChampionSummariesQueryService(
     /// </summary>
     private async Task<IReadOnlyDictionary<(int ChampionId, string Position), TopBuildReadModel>> LoadTopBuildsAsync(
         string activePatch,
+        IReadOnlyList<string>? bracketBands,
         CancellationToken ct)
     {
         var queueId = (int)options.Value.QueueId;
+
+        // Mirror the summaries elo filter so the row's shown build matches the
+        // slice its WR / PR are computed from (null / empty = ALL, no clause).
+        var scopeQuery = db.ChampionAggregateScopes.AsNoTracking()
+            .Where(scope => scope.QueueId == queueId && scope.GameVersion == activePatch);
+        if (bracketBands is { Count: > 0 })
+        {
+            scopeQuery = scopeQuery.Where(scope => bracketBands.Contains(scope.EloBracket));
+        }
 
         var groupedSw = Stopwatch.StartNew();
         var grouped = await db.ChampionAggregatePatterns
             .AsNoTracking()
             .Join(
-                db.ChampionAggregateScopes.AsNoTracking()
-                    .Where(scope => scope.QueueId == queueId && scope.GameVersion == activePatch),
+                scopeQuery,
                 pattern => pattern.ScopeId,
                 scope => scope.Id,
                 (pattern, scope) => new

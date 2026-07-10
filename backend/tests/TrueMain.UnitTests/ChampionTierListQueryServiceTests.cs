@@ -13,11 +13,11 @@ public sealed class ChampionTierListQueryServiceTests
     public async Task GetTierListAsync_returns_empty_model_when_no_summaries()
     {
         var summaries = Substitute.For<IChampionSummariesQueryService>();
-        summaries.GetAllSummariesAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>())
+        summaries.GetAllSummariesAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(new List<ChampionSummaryReadModel>());
         var service = new ChampionTierListQueryService(summaries);
 
-        var result = await service.GetTierListAsync("16.5", position: null, CancellationToken.None);
+        var result = await service.GetTierListAsync("16.5", position: null, eloBracket: null, CancellationToken.None);
 
         result.PatchVersion.Should().Be("16.5");
         result.Tiers.Should().BeEmpty();
@@ -33,7 +33,7 @@ public sealed class ChampionTierListQueryServiceTests
             .ToList();
         var service = ServiceReturning(rows);
 
-        var result = await service.GetTierListAsync(patch: null, position: null, CancellationToken.None);
+        var result = await service.GetTierListAsync(patch: null, position: null, eloBracket: null, CancellationToken.None);
 
         result.PatchVersion.Should().Be("16.5", "the resolved patch is read off the summary rows");
 
@@ -66,7 +66,7 @@ public sealed class ChampionTierListQueryServiceTests
                 winRate: 0.40 + (i * 0.005), pickRate: 0.05)));
         var service = ServiceReturning(rows);
 
-        var result = await service.GetTierListAsync(patch: null, position: null, CancellationToken.None);
+        var result = await service.GetTierListAsync(patch: null, position: null, eloBracket: null, CancellationToken.None);
 
         var topRow = result.Tiers
             .SelectMany(group => group.Entries.Select(entry => (group.Tier, entry)))
@@ -91,7 +91,7 @@ public sealed class ChampionTierListQueryServiceTests
         };
         var service = ServiceReturning(rows);
 
-        var result = await service.GetTierListAsync(patch: null, position: "TOP", CancellationToken.None);
+        var result = await service.GetTierListAsync(patch: null, position: "TOP", eloBracket: null, CancellationToken.None);
 
         result.Position.Should().Be("TOP");
         result.Tiers.SelectMany(group => group.Entries)
@@ -102,7 +102,7 @@ public sealed class ChampionTierListQueryServiceTests
     private static ChampionTierListQueryService ServiceReturning(IReadOnlyList<ChampionSummaryReadModel> rows)
     {
         var summaries = Substitute.For<IChampionSummariesQueryService>();
-        summaries.GetAllSummariesAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(rows);
+        summaries.GetAllSummariesAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(rows);
         return new ChampionTierListQueryService(summaries);
     }
 

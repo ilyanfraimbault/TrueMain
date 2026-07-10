@@ -38,9 +38,11 @@ public sealed record ChampionPatchDiffReadModel
 
 /// <summary>
 /// One patch's snapshot in the diff: the headline win rate plus the dominant
-/// (most-played) first item, skill order and keystone for the resolved
-/// position. These mirror the top entries the build endpoint surfaces for the
-/// same patch + position so the diff and the full build view agree.
+/// (most-played) build's full core — the completed item path, the whole rune
+/// page and the skill order — for the resolved position. These are the exact
+/// <see cref="BuildCoreReadModel"/> entries the build endpoint surfaces for the
+/// same patch + position, so the diff renders side-by-side with the same
+/// reusable widgets the build view uses and the two never disagree.
 /// </summary>
 public sealed record ChampionPatchDiffSide
 {
@@ -54,23 +56,23 @@ public sealed record ChampionPatchDiffSide
     public double WinRate { get; init; }
 
     /// <summary>
-    /// Most popular completed-build first item on this patch (the top build
-    /// tab's <c>FirstItemId</c>). Zero when the champion has no qualifying
-    /// build on the patch.
+    /// The top build's completed core item order on this patch (its
+    /// <see cref="BuildCoreReadModel.ItemPath"/>). Null when the champion has no
+    /// qualifying build on the patch.
     /// </summary>
-    public int TopFirstItemId { get; init; }
+    public BuildItemPathReadModel? ItemPath { get; init; }
 
     /// <summary>
-    /// Most popular primary keystone on this patch (the top build tab's
-    /// keystone). Zero when the champion has no qualifying build.
+    /// The top build's dominant rune page on this patch (primary tree +
+    /// keystone, secondary tree and stat shards). Null when unavailable.
     /// </summary>
-    public int TopKeystoneId { get; init; }
+    public BuildRunePageReadModel? RunePage { get; init; }
 
     /// <summary>
-    /// Dominant skill-order sequence (e.g. <c>["Q", "E", "W"]</c>) for the top
-    /// build on this patch. Empty when unavailable.
+    /// The top build's dominant skill-order sequence on this patch. Null when
+    /// unavailable.
     /// </summary>
-    public IReadOnlyList<string> TopSkillOrder { get; init; } = [];
+    public BuildSkillOrderReadModel? SkillOrder { get; init; }
 }
 
 /// <summary>

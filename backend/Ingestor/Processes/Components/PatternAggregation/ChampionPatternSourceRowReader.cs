@@ -225,26 +225,23 @@ public sealed class ChampionPatternSourceRowReader(
 
         var snapshotsByAccount = snapshots
             .GroupBy(snapshot => snapshot.RiotAccountId)
-            .ToDictionary(group => group.Key, group => group.ToList());
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyCollection<(DateTime, string?)>)group
+                    .Select(snapshot => (snapshot.CapturedAtUtc, (string?)snapshot.Tier))
+                    .ToList());
 
         foreach (var row in sourceRows)
         {
-            if (!snapshotsByAccount.TryGetValue(row.RiotAccountId, out var accountSnapshots)
-                || accountSnapshots.Count == 0)
+            if (!snapshotsByAccount.TryGetValue(row.RiotAccountId, out var accountSnapshots))
             {
                 // No snapshot for this account → already UNRANKED by default.
                 continue;
             }
 
-            // Nearest capture to the game start (absolute distance); ties break
-            // toward the earlier capture (deterministic) so the same game always
-            // buckets the same way across re-aggregations.
-            var nearest = accountSnapshots
-                .OrderBy(snapshot => Math.Abs((snapshot.CapturedAtUtc - row.GameStartTimeUtc).Ticks))
-                .ThenBy(snapshot => snapshot.CapturedAtUtc)
-                .First();
-
-            row.EloBracket = EloBracket.FromTier(nearest.Tier);
+            // Shared nearest-capture resolution so this and the match_participants
+            // enrichment pass bucket every game identically.
+            row.EloBracket = EloBracketResolver.FromNearestSnapshot(accountSnapshots, row.GameStartTimeUtc);
         }
     }
 
