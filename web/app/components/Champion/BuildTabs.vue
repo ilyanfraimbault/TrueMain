@@ -72,7 +72,7 @@ const items = computed(() =>
               :style="runeTree?.perkStyles[item.build.core.runePage.secondaryStyleId] ?? null"
               :width="14"
               :height="14"
-              class="absolute -bottom-1 -right-1.5 size-3.5"
+              class="absolute -bottom-0.5 -right-1 size-3.5"
             />
           </div>
         </div>

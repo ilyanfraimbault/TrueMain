@@ -54,6 +54,14 @@ const selectedTier = computed<string | null>(() => {
 function onChange(value: string) {
   emit('update:modelValue', value)
 }
+
+// Declaring the #leading slot makes Nuxt UI reserve its start padding (ps-9 at
+// the default md size) on the trigger, even when the slot renders nothing. On
+// "All ranks" there is no emblem, so that padding just indents the label — drop
+// it back to the base horizontal padding so the text sits flush.
+const selectUi = computed(() =>
+  selectedTier.value ? undefined : { base: 'ps-2.5' },
+)
 </script>
 
 <template>
@@ -64,6 +72,7 @@ function onChange(value: string) {
     label-key="label"
     aria-label="Rank"
     class="w-44"
+    :ui="selectUi"
     @update:model-value="onChange"
   >
     <template #leading>

@@ -50,7 +50,7 @@ defineProps<{
                A2 grows to fill the remainder of Section A. justify-around
                distributes the two fixed-width cards evenly inside A2. -->
           <div class="flex flex-1 flex-col gap-5">
-            <!-- A2a: Skill order (216 px) and Boots (76 px) evenly spaced -->
+            <!-- A2a: Skill order (156 px) and Boots (76 px) evenly spaced -->
             <div class="flex flex-wrap items-start justify-around gap-6">
               <ChampionCoreSkillOrder
                 :skill-order="build.core.skillOrder"
