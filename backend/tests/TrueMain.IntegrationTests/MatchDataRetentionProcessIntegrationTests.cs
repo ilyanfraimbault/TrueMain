@@ -21,31 +21,12 @@ public sealed class MatchDataRetentionProcessIntegrationTests
     }
 
     [Fact]
-    public async Task RunAsync_ShouldDeleteRawMatchesOutsideRetainedPatchWindow()
+    public async Task RunAsync_ShouldDeleteOutOfWindowRankedAndAllNonRankedMatches()
     {
         await _fixture.ResetDatabaseAsync();
         await SeedRetentionDataAsync();
 
-        var process = new MatchDataRetentionProcess(
-            NullLogger<MatchDataRetentionProcess>.Instance,
-            new TestDbContextFactory(_fixture),
-            Microsoft.Extensions.Options.Options.Create(new MatchDataRetentionOptions
-            {
-                RetainedPatchCount = 1
-            }),
-            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions
-            {
-                QueueId = LolQueueId.RankedSoloDuo
-            }),
-            Microsoft.Extensions.Options.Options.Create(new CandidatePruningOptions
-            {
-                Enabled = false
-            }));
-        var recorded = new RecordedProcess<MatchDataRetentionProcess>(
-            process,
-            new ProcessRunRecorder(_fixture.CreateSessionFactory(), new IterationContext()),
-            TimeProvider.System,
-            NullLogger<RecordedProcess<MatchDataRetentionProcess>>.Instance);
+        var recorded = BuildRecordedProcess(retainedPatchCount: 1);
 
         await recorded.RunCoreAsync(CancellationToken.None);
 
@@ -56,9 +37,64 @@ public sealed class MatchDataRetentionProcessIntegrationTests
             .Select(match => match.Id)
             .ToListAsync();
 
-        remainingMatchIds.Should().BeEquivalentTo(["RET_2", "RET_4", "RET_5"]);
-        (await db.MatchParticipants.AsNoTracking().CountAsync()).Should().Be(3);
+        // RET_1/RET_3: out-of-window ranked patches → pruned. RET_5: ARAM (450), a
+        // non-ranked queue → drained even though it is on the newest patch. Only the
+        // two in-window ranked matches survive.
+        remainingMatchIds.Should().BeEquivalentTo(["RET_2", "RET_4"]);
+        (await db.MatchParticipants.AsNoTracking().CountAsync()).Should().Be(2);
         (await db.ProcessRuns.AsNoTracking().AnyAsync(run => run.ProcessName == "MatchDataRetention")).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldDrainNonRankedMatchesEvenWithNoRankedMatchesPresent()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        var now = DateTime.UtcNow;
+        await using (var seedDb = _fixture.CreateDbContext())
+        {
+            seedDb.Matches.AddRange(
+                BuildMatch("NR_1", "KR", now.AddHours(-2), "16.6.1", queueId: 450, gameMode: "ARAM", mapId: 12),
+                BuildMatch("NR_2", "NA1", now.AddHours(-1), "16.6.1", queueId: 440));
+            seedDb.MatchParticipants.AddRange(
+                BuildParticipant(Guid.Parse("88888888-8888-8888-8888-8888888888a1"), "NR_1"),
+                BuildParticipant(Guid.Parse("88888888-8888-8888-8888-8888888888a2"), "NR_2"));
+            await seedDb.SaveChangesAsync();
+        }
+
+        var recorded = BuildRecordedProcess(retainedPatchCount: 2);
+
+        await recorded.RunCoreAsync(CancellationToken.None);
+
+        await using var db = _fixture.CreateDbContext();
+        (await db.Matches.AsNoTracking().CountAsync()).Should().Be(0);
+        (await db.MatchParticipants.AsNoTracking().CountAsync()).Should().Be(0);
+    }
+
+    private RecordedProcess<MatchDataRetentionProcess> BuildRecordedProcess(int retainedPatchCount)
+    {
+        var process = new MatchDataRetentionProcess(
+            NullLogger<MatchDataRetentionProcess>.Instance,
+            new TestDbContextFactory(_fixture),
+            Microsoft.Extensions.Options.Options.Create(new MatchDataRetentionOptions
+            {
+                RetainedPatchCount = retainedPatchCount,
+                NonRankedDeleteBatchSize = 1
+            }),
+            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions
+            {
+                QueueId = LolQueueId.RankedSoloDuo
+            }),
+            Microsoft.Extensions.Options.Options.Create(new CandidatePruningOptions
+            {
+                Enabled = false
+            }));
+
+        return new RecordedProcess<MatchDataRetentionProcess>(
+            process,
+            new ProcessRunRecorder(_fixture.CreateSessionFactory(), new IterationContext()),
+            TimeProvider.System,
+            NullLogger<RecordedProcess<MatchDataRetentionProcess>>.Instance);
     }
 
     private async Task SeedRetentionDataAsync()

@@ -1,4 +1,5 @@
 using Core.Lol.Map;
+using Core.Options;
 using Core.Lol.Identifiers;
 using Data.Entities;
 using AwesomeAssertions;
@@ -24,7 +25,7 @@ public sealed class MatchSnapshotWriterIntegrationTests
         await _fixture.ResetDatabaseAsync();
 
         await using var session = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None);
-        var service = new MatchSnapshotWriter(new FakeRiotMatchClient(), TimeProvider.System);
+        var service = new MatchSnapshotWriter(new FakeRiotMatchClient(), TimeProvider.System, Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }));
 
         var result = await service.IngestSnapshotsAsync(
             session,
@@ -79,7 +80,7 @@ public sealed class MatchSnapshotWriterIntegrationTests
     public async Task IngestSnapshotsAsync_ShouldSkipAlreadyPersistedMatches()
     {
         await _fixture.ResetDatabaseAsync();
-        var service = new MatchSnapshotWriter(new FakeRiotMatchClient(), TimeProvider.System);
+        var service = new MatchSnapshotWriter(new FakeRiotMatchClient(), TimeProvider.System, Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }));
 
         await using (var firstSession = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None))
         {
@@ -119,7 +120,7 @@ public sealed class MatchSnapshotWriterIntegrationTests
     public async Task IngestSnapshotsAsync_ShouldBackfillTrackedRiotAccountIdForExistingMatches()
     {
         await _fixture.ResetDatabaseAsync();
-        var service = new MatchSnapshotWriter(new FakeRiotMatchClient(), TimeProvider.System);
+        var service = new MatchSnapshotWriter(new FakeRiotMatchClient(), TimeProvider.System, Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }));
         var now = DateTime.UtcNow;
 
         await using (var seedDb = _fixture.CreateDbContext())
@@ -199,7 +200,7 @@ public sealed class MatchSnapshotWriterIntegrationTests
     public async Task IngestSnapshotsAsync_ShouldAssignKnownRiotAccountIdsForAllKnownParticipantsInANewMatch()
     {
         await _fixture.ResetDatabaseAsync();
-        var service = new MatchSnapshotWriter(new FakeRiotMatchClient(), TimeProvider.System);
+        var service = new MatchSnapshotWriter(new FakeRiotMatchClient(), TimeProvider.System, Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }));
         var now = DateTime.UtcNow;
 
         await using (var seedDb = _fixture.CreateDbContext())
@@ -259,7 +260,41 @@ public sealed class MatchSnapshotWriterIntegrationTests
         participants[1].RiotAccountId.Should().Be(Guid.Parse("44444444-4444-4444-4444-444444444444"));
     }
 
-    private sealed class FakeRiotMatchClient : IRiotMatchClient
+    [Fact]
+    public async Task IngestSnapshotsAsync_ShouldSkipMatchesFromOtherQueues()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        await using var session = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None);
+        var service = new MatchSnapshotWriter(
+            new FakeRiotMatchClient(queueId: (int)LolQueueId.RankedFlex),
+            TimeProvider.System,
+            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }));
+
+        var result = await service.IngestSnapshotsAsync(
+            session,
+            "KR",
+            "puuid-1",
+            RegionalRoute.Asia,
+            matchesPerAccount: 10,
+            saveBatchSize: 10,
+            maxFetchConcurrency: 4,
+            CancellationToken.None);
+
+        // The flex match is fetched (so its id is in AllMatchIds) but never persisted,
+        // and it must not leak into NewMatchIds — that set drives the timeline pass, so
+        // an entry there would trigger an orphan timeline fetch/write (#680).
+        result.Inserted.Should().Be(0);
+        result.NewMatchIds.Should().BeEmpty();
+        result.AllMatchIds.Should().ContainSingle().Which.Should().Be("KR_100");
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        verifyDb.Matches.Should().BeEmpty();
+        verifyDb.MatchParticipants.Should().BeEmpty();
+        verifyDb.ParticipantPerkSelections.Should().BeEmpty();
+    }
+
+    private sealed class FakeRiotMatchClient(int queueId = (int)LolQueueId.RankedSoloDuo) : IRiotMatchClient
     {
         public Task<List<string>> GetMatchIdsAsync(string puuid, RegionalRoute region, int count, CancellationToken ct)
             => Task.FromResult(new List<string> { "KR_100" });
@@ -274,7 +309,7 @@ public sealed class MatchSnapshotWriterIntegrationTests
                 },
                 Info = new RiotMatchInfoDto
                 {
-                    QueueId = (int)LolQueueId.RankedSoloDuo,
+                    QueueId = queueId,
                     MapId = (int)LolMapId.SummonersRift,
                     GameMode = "CLASSIC",
                     GameType = "MATCHED_GAME",
