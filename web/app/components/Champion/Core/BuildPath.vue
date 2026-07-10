@@ -25,7 +25,7 @@ const items = computed<StaticItemData[]>(() => {
     <h2 class="text-sm font-medium text-muted">
       Build path
     </h2>
-    <div class="mt-2 flex h-9 items-center gap-1 overflow-hidden sm:w-[336px]">
+    <div class="mt-2 flex h-9 items-center justify-center gap-1 overflow-hidden sm:w-[336px]">
       <template
         v-for="(item, index) in items"
         :key="`bp-${item.id}-${index}`"
