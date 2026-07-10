@@ -146,23 +146,10 @@ function winRateLabel(side: ChampionPatchDiffSide | null): string {
           </span>
         </div>
 
-        <!-- Core build — ChampionCoreBuildPath self-titles "Build path". The
-             divider row carries the dimension's own changed/unchanged badge,
-             restoring the per-dimension signal the old single-block layout had. -->
-        <div class="col-span-2 flex items-center justify-between border-t border-default/60 pt-3">
+        <!-- Core build — ChampionCoreBuildPath self-titles "Build path"; the
+             divider row just labels the dimension. -->
+        <div class="col-span-2 border-t border-default/60 pt-3">
           <span class="text-xs font-medium uppercase tracking-wide text-muted">Core build</span>
-          <UBadge
-            v-if="diff?.delta?.firstItemChanged"
-            color="primary"
-            variant="soft"
-            size="sm"
-          >
-            Changed
-          </UBadge>
-          <span
-            v-else-if="hasBothSides"
-            class="text-xs text-dimmed"
-          >Unchanged</span>
         </div>
         <div class="flex justify-center">
           <ChampionCoreBuildPath
@@ -178,20 +165,8 @@ function winRateLabel(side: ChampionPatchDiffSide | null): string {
         </div>
 
         <!-- Runes -->
-        <div class="col-span-2 flex items-center justify-between border-t border-default/60 pt-3">
+        <div class="col-span-2 border-t border-default/60 pt-3">
           <span class="text-xs font-medium uppercase tracking-wide text-muted">Runes</span>
-          <UBadge
-            v-if="diff?.delta?.keystoneChanged"
-            color="primary"
-            variant="soft"
-            size="sm"
-          >
-            Changed
-          </UBadge>
-          <span
-            v-else-if="hasBothSides"
-            class="text-xs text-dimmed"
-          >Unchanged</span>
         </div>
         <div class="flex justify-center overflow-hidden">
           <ChampionCoreRunes
@@ -219,20 +194,8 @@ function winRateLabel(side: ChampionPatchDiffSide | null): string {
         </div>
 
         <!-- Skill order — ChampionCoreSkillOrder self-titles "Skill order". -->
-        <div class="col-span-2 flex items-center justify-between border-t border-default/60 pt-3">
+        <div class="col-span-2 border-t border-default/60 pt-3">
           <span class="text-xs font-medium uppercase tracking-wide text-muted">Skill order</span>
-          <UBadge
-            v-if="diff?.delta?.skillOrderChanged"
-            color="primary"
-            variant="soft"
-            size="sm"
-          >
-            Changed
-          </UBadge>
-          <span
-            v-else-if="hasBothSides"
-            class="text-xs text-dimmed"
-          >Unchanged</span>
         </div>
         <div class="flex justify-center">
           <ChampionCoreSkillOrder
