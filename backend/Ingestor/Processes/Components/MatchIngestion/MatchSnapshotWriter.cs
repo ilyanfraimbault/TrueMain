@@ -63,6 +63,17 @@ public sealed class MatchSnapshotWriter(
                     fetched.Add((matchId, await riotMatchClient.GetMatchAsync(matchId, region, token)));
                 });
 
+            // Only the tracked queue (ranked solo/duo) is stored. Riot's type=ranked
+            // id fetch still returns other ranked queues (notably flex); drop them up
+            // front — before building perk-catalog keys or persisting — so a discarded
+            // match neither upserts catalog rows nor enters match_participants / the
+            // timeline tables. Keeping them out of persistedIds also keeps them out of
+            // the new-match set the timeline pass consumes, so no orphan timeline is
+            // fetched or written (#680).
+            var targetMatches = fetched
+                .Where(item => item.Dto.Info.QueueId == _targetQueueId)
+                .ToList();
+
             // Pre-resolve perk catalog ids for the whole batch BEFORE we add
             // any match/participant entities to the change tracker. The
             // catalog upsert performs its own SaveChanges; if it ran while
@@ -71,26 +82,15 @@ public sealed class MatchSnapshotWriter(
             // ChangeTracker.Clear() would silently drop those entities,
             // leaving us free to commit orphan perk_selections in the
             // batch's final SaveChanges.
-            var catalogKeys = fetched
+            var catalogKeys = targetMatches
                 .SelectMany(item => RiotMatchMapper.BuildPerkSelectionRows(item.Dto, item.Id))
                 .Select(selection => selection.Key)
                 .ToArray();
             var catalogIds = await session.MatchParticipants.GetOrCreatePerkCatalogIdsAsync(catalogKeys, ct);
 
             var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
-            foreach (var (matchId, dto) in fetched)
+            foreach (var (matchId, dto) in targetMatches)
             {
-                // Only the tracked queue (ranked solo/duo) is stored. Every other
-                // queue that Riot's type=ranked id fetch still returns — notably
-                // ranked flex — is dropped here so it never enters match_participants
-                // or the timeline tables. Excluding it from persistedIds also keeps
-                // it out of the new-match set the timeline pass consumes, so no
-                // orphan timeline is fetched or written for it (#680).
-                if (dto.Info.QueueId != _targetQueueId)
-                {
-                    continue;
-                }
-
                 await PersistMatchAsync(session, dto, platformId, catalogIds, nowUtc, ct);
                 persistedIds.Add(matchId);
                 inserted++;
