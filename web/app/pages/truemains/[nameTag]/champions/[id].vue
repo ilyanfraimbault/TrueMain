@@ -329,6 +329,7 @@ const staticBundleReady = computed(() =>
             :items="itemsMap ?? {}"
             :summoner-spells="summonersMap ?? {}"
             :rune-tree="runeTree!"
+            :name-tag="nameTag"
           />
           <div
             v-if="matchesTotal > matchesPageSize"
