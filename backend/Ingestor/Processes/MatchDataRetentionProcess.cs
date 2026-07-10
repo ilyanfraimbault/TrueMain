@@ -23,24 +23,43 @@ public sealed class MatchDataRetentionProcess(
         var prunedCandidates = await PruneStaleCandidatesAsync(ct);
 
         var retentionPlan = await LoadRetentionPlanAsync(ct);
-        if (retentionPlan.RetainedPatchesByPlatform.Count == 0
-            || retentionPlan.DeletableMatchIds.Count == 0)
+
+        // Patch-window pruning of the tracked queue: keep the last N patches per
+        // platform, delete older ones. Skipped when nothing is out of window.
+        var patchDeletion = retentionPlan.DeletableMatchIds.Count == 0
+            ? DeletionResult.Empty
+            : await DeleteExpiredMatchDataAsync(retentionPlan.DeletableMatchIds, ct);
+
+        // Drain every queue other than the tracked one. The site only serves ranked
+        // solo/duo (all aggregates, the leaderboard and the champion pages are scoped
+        // to it), so non-ranked matches have no downstream consumer and otherwise grow
+        // unbounded — retention never considered them before (#680).
+        var nonRankedDeletion = await DeleteNonRankedMatchDataAsync(retentionPlan.QueueId, ct);
+
+        var deletedMatches = patchDeletion.DeletedMatches + nonRankedDeletion.DeletedMatches;
+        var deletedParticipants = patchDeletion.DeletedParticipants + nonRankedDeletion.DeletedParticipants;
+
+        if (deletedMatches > 0 || deletedParticipants > 0)
         {
-            return BuildRetentionPayload(retentionPlan, 0, 0, prunedCandidates);
+            logger.LogInformation(
+                "Match data retention removed {DeletedMatches} matches and {DeletedParticipants} participants "
+                + "({NonRankedMatches} non-ranked) while keeping patches {RetainedPatches}.",
+                deletedMatches,
+                deletedParticipants,
+                nonRankedDeletion.DeletedMatches,
+                string.Join(
+                    ", ",
+                    retentionPlan.RetainedPatchesByPlatform
+                        .OrderBy(entry => entry.Key)
+                        .Select(entry => $"{entry.Key}=[{string.Join("|", entry.Value.Order())}]")));
         }
 
-        var deletionResult = await DeleteExpiredMatchDataAsync(retentionPlan.DeletableMatchIds, ct);
-        logger.LogInformation(
-            "Match data retention removed {DeletedMatches} matches and {DeletedParticipants} participants while keeping patches {RetainedPatches}.",
-            deletionResult.DeletedMatches,
-            deletionResult.DeletedParticipants,
-            string.Join(
-                ", ",
-                retentionPlan.RetainedPatchesByPlatform
-                    .OrderBy(entry => entry.Key)
-                    .Select(entry => $"{entry.Key}=[{string.Join("|", entry.Value.Order())}]")));
-
-        return BuildRetentionPayload(retentionPlan, deletionResult.DeletedMatches, deletionResult.DeletedParticipants, prunedCandidates);
+        return BuildRetentionPayload(
+            retentionPlan,
+            deletedMatches,
+            deletedParticipants,
+            nonRankedDeletion.DeletedMatches,
+            prunedCandidates);
     }
 
     private async Task<int> PruneStaleCandidatesAsync(CancellationToken ct)
@@ -161,10 +180,55 @@ public sealed class MatchDataRetentionProcess(
         return new DeletionResult(deletedMatches, deletedParticipants);
     }
 
+    private async Task<DeletionResult> DeleteNonRankedMatchDataAsync(int queueId, CancellationToken ct)
+    {
+        var batchSize = Math.Max(1, retentionOptions.Value.NonRankedDeleteBatchSize);
+        var deletedMatches = 0;
+        var deletedParticipants = 0;
+
+        // Delete in bounded batches, one transaction each: the cascading removal of
+        // timeline snapshots / kill positions / jungle clears / perk selections makes
+        // a single unbounded delete a lock and WAL hazard, especially right after a
+        // disk-full incident. Each committed batch frees space and lets an interrupted
+        // drain resume next run.
+        while (true)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            await using var db = await dbContextFactory.CreateDbContextAsync(ct);
+            var batchIds = await db.Matches
+                .AsNoTracking()
+                .Where(match => match.QueueId != queueId)
+                .OrderBy(match => match.Id)
+                .Select(match => match.Id)
+                .Take(batchSize)
+                .ToListAsync(ct);
+
+            if (batchIds.Count == 0)
+            {
+                break;
+            }
+
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            // MatchParticipant -> Match is Restrict, so participants must be deleted
+            // before the match; the remaining child tables cascade on the match delete.
+            deletedParticipants += await db.MatchParticipants
+                .Where(participant => batchIds.Contains(participant.MatchId))
+                .ExecuteDeleteAsync(ct);
+            deletedMatches += await db.Matches
+                .Where(match => batchIds.Contains(match.Id))
+                .ExecuteDeleteAsync(ct);
+            await transaction.CommitAsync(ct);
+        }
+
+        return new DeletionResult(deletedMatches, deletedParticipants);
+    }
+
     private static object BuildRetentionPayload(
         RetentionPlan retentionPlan,
         int deletedMatches,
         int deletedParticipants,
+        int deletedNonRankedMatches,
         int prunedCandidates)
     {
         return new
@@ -173,6 +237,7 @@ public sealed class MatchDataRetentionProcess(
             queueId = retentionPlan.QueueId,
             deletedMatches,
             deletedParticipants,
+            deletedNonRankedMatches,
             prunedCandidates,
             retainedPatchesByPlatform = retentionPlan.RetainedPatchesByPlatform
                 .OrderBy(entry => entry.Key)
@@ -187,7 +252,10 @@ public sealed class MatchDataRetentionProcess(
 
     private sealed record ObservedMatch(string PlatformId, string GameVersion);
 
-    private sealed record DeletionResult(int DeletedMatches, int DeletedParticipants);
+    private sealed record DeletionResult(int DeletedMatches, int DeletedParticipants)
+    {
+        public static DeletionResult Empty { get; } = new(0, 0);
+    }
 
     private sealed record RetentionPlan(
         int RetainedPatchCount,

@@ -1,16 +1,21 @@
 using System.Collections.Concurrent;
 using Core.Lol.Identifiers;
+using Core.Options;
 using Data.Entities;
 using Data.Repositories;
 using Ingestor.Riot;
 using Ingestor.Riot.Dto;
+using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes.Components.MatchIngestion;
 
 public sealed class MatchSnapshotWriter(
     IRiotMatchClient riotMatchClient,
-    TimeProvider timeProvider) : IMatchSnapshotWriter
+    TimeProvider timeProvider,
+    IOptions<MainAnalysisOptions> mainAnalysisOptions) : IMatchSnapshotWriter
 {
+    private readonly int _targetQueueId = (int)mainAnalysisOptions.Value.QueueId;
+
     public async Task<SnapshotIngestionResult> IngestSnapshotsAsync(
         IDataSession session,
         string platformId,
@@ -37,6 +42,7 @@ public sealed class MatchSnapshotWriter(
         }
 
         var inserted = 0;
+        var persistedIds = new List<string>(scan.Fresh.Count);
         for (var i = 0; i < scan.Fresh.Count; i += batchSize)
         {
             var batchIds = scan.Fresh.Skip(i).Take(batchSize).ToList();
@@ -72,16 +78,28 @@ public sealed class MatchSnapshotWriter(
             var catalogIds = await session.MatchParticipants.GetOrCreatePerkCatalogIdsAsync(catalogKeys, ct);
 
             var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
-            foreach (var (_, dto) in fetched)
+            foreach (var (matchId, dto) in fetched)
             {
+                // Only the tracked queue (ranked solo/duo) is stored. Every other
+                // queue that Riot's type=ranked id fetch still returns — notably
+                // ranked flex — is dropped here so it never enters match_participants
+                // or the timeline tables. Excluding it from persistedIds also keeps
+                // it out of the new-match set the timeline pass consumes, so no
+                // orphan timeline is fetched or written for it (#680).
+                if (dto.Info.QueueId != _targetQueueId)
+                {
+                    continue;
+                }
+
                 await PersistMatchAsync(session, dto, platformId, catalogIds, nowUtc, ct);
+                persistedIds.Add(matchId);
                 inserted++;
             }
 
             await session.SaveChangesAsync(ct);
         }
 
-        return new SnapshotIngestionResult(allMatchIds, scan.Fresh, inserted, allMatchIds.Count - scan.Fresh.Count);
+        return new SnapshotIngestionResult(allMatchIds, persistedIds, inserted, allMatchIds.Count - scan.Fresh.Count);
     }
 
     private static async Task PersistMatchAsync(
