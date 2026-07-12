@@ -2,7 +2,7 @@
 // Recursive renderer for a process run's free-form `summary` payload. Each
 // process records whatever shape suits it (flat scalar maps, nested objects,
 // or arrays of per-platform rows), so a single fixed field list can't display
-// them all — anything non-flat used to fall back to a raw JSON dump.
+// them all — without this, anything non-flat would only read as raw JSON.
 //
 // This component classifies the value at each level and renders accordingly:
 //   - scalar            -> formatted text

@@ -1,14 +1,9 @@
 <script setup lang="ts">
 import type { ChampionSummaryResponse } from '~~/shared/types/champions'
-import type { RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
-import { POSITION_OPTIONS, isChampionPosition, type ChampionPosition } from '~/utils/positions'
-import { ELO_BRACKET_ALL, normalizeEloBracket } from '~/utils/elo-brackets'
-
-// Whole-percent format used for both WR and PR in the list — matches the
-// terse style used by the in-game stats and the detail-page build tabs.
-function pct(value: number): string {
-  return `${Math.round(value * 100)}%`
-}
+import { POSITION_BY_VALUE, isChampionPosition, type ChampionPosition } from '~/utils/positions'
+import { normalizeEloBracket } from '~/utils/elo-brackets'
+import { isLoadingStatus } from '~/utils/async-data'
+import { formatPercentage } from '~~/shared/utils/ddragon'
 
 // Mirrors the backend default; the page size is fixed in the UI (no
 // per-page selector) so the only stateful pagination value carried in the
@@ -20,34 +15,11 @@ useSeoMeta({
   description: 'Browse champions by lane with the most-played build, winrate and pickrate.',
 })
 
-const route = useRoute()
 const router = useRouter()
 
-const { filters } = useChampionFilters()
+const { filters, setFilter } = useChampionFilters()
 
-const nuxtApp = useNuxtApp()
-
-// Current 1-indexed page, sourced from `?page=` so back/forward + direct
-// links stay in sync with the list state. Coerce non-numeric or <1 values
-// to 1 — that's the same clamping the backend does for safety, but doing
-// it here keeps the URL stable while the page mounts.
-const currentPage = computed<number>(() => {
-  const raw = Array.isArray(route.query.page) ? route.query.page[0] : route.query.page
-  const parsed = Number.parseInt(typeof raw === 'string' ? raw : '', 10)
-  return Number.isFinite(parsed) && parsed >= 1 ? parsed : 1
-})
-
-async function setPage(next: number) {
-  const clamped = Math.max(1, Math.floor(next))
-  if (clamped === currentPage.value) return
-  // Strip `?page=` when the user lands back on page 1 — keeps the URL
-  // identical to the natural landing state instead of carrying a
-  // redundant `?page=1`.
-  const nextQuery = { ...route.query }
-  if (clamped === 1) delete nextQuery.page
-  else nextQuery.page = String(clamped)
-  await router.replace({ query: nextQuery })
-}
+const { currentPage, setPage } = useRoutePage()
 
 // All four fetches are client-only (`server: false`) so SSR ships a
 // deterministic empty shell under the skeleton/progress bar instead of
@@ -108,24 +80,7 @@ const {
   error: itemsError,
   status: itemsStatus,
   execute: fetchItems,
-} = useLazyAsyncData<Record<number, StaticItemData>>(
-  () => `static-items-${selectedPatch.value || 'pending'}`,
-  async () => {
-    const key = `static-items-${selectedPatch.value || 'pending'}`
-    const data = await $fetch<Record<number, StaticItemData>>('/api/static/items', {
-      query: { patch: selectedPatch.value },
-    })
-    markStaticFetched(key, nuxtApp)
-    return data
-  },
-  {
-    watch: [selectedPatch],
-    immediate: false,
-    default: () => ({}),
-    getCachedData: key => getStaticCachedData(key, nuxtApp),
-    server: false,
-  },
-)
+} = useStaticItems(selectedPatch, { immediate: false, unresolvedKeySegment: 'pending' })
 watch(selectedPatch, (patch) => {
   if (patch) void fetchItems()
 }, { immediate: true })
@@ -138,30 +93,14 @@ const {
   data: runeTree,
   error: runeTreeError,
   status: runeTreeStatus,
-} = useLazyAsyncData<RuneTreeResponse>(
-  () => `rune-tree-${selectedPatch.value || 'latest'}`,
-  async () => {
-    const key = `rune-tree-${selectedPatch.value || 'latest'}`
-    const data = await $fetch<RuneTreeResponse>('/api/static/rune-tree', {
-      query: selectedPatch.value ? { patch: selectedPatch.value } : {},
-    })
-    markStaticFetched(key, nuxtApp)
-    return data
-  },
-  {
-    watch: [selectedPatch],
-    getCachedData: key => getStaticCachedData(key, nuxtApp),
-    server: false,
-  },
-)
+} = useStaticRuneTree(selectedPatch)
 
 const error = computed(() => summariesError.value ?? staticError.value ?? itemsError.value ?? runeTreeError.value)
-// Treat the pre-fetch `'idle'` state from `useLazy*` the same as `'pending'`,
-// otherwise the SSR shell briefly renders the empty `<ul>` (and the "No
-// champions match…" copy below) before the client kicks off the first fetch.
-// All four sources gate the skeleton so we never show rows with placeholder
-// `Champion {id}` names or missing rune / item icons.
-const isLoadingStatus = (s: 'idle' | 'pending' | 'success' | 'error') => s === 'idle' || s === 'pending'
+// Treat the pre-fetch `'idle'` state from `useLazy*` the same as `'pending'`
+// (see isLoadingStatus), otherwise the SSR shell briefly renders the empty
+// `<ul>` (and the "No champions match…" copy below) before the client kicks
+// off the first fetch. All four sources gate the skeleton so we never show
+// rows with placeholder `Champion {id}` names or missing rune / item icons.
 const isPending = computed(() =>
   isLoadingStatus(summariesStatus.value)
   || isLoadingStatus(staticStatus.value)
@@ -169,19 +108,7 @@ const isPending = computed(() =>
   || isLoadingStatus(itemsStatus.value),
 )
 
-const patchOptions = computed(() => {
-  const seen = new Set<string>(
-    (versions.value ?? [])
-      .map(p => p.split('.').slice(0, 2).join('.'))
-      .filter(Boolean)
-      .slice(0, 12),
-  )
-  if (apiPatch.value) seen.add(apiPatch.value)
-  if (filters.value.patch) seen.add(filters.value.patch)
-  return [...seen]
-    .map(p => ({ label: p, value: p }))
-    .sort((a, b) => b.value.localeCompare(a.value, undefined, { numeric: true }))
-})
+const patchOptions = usePatchOptions(versions, apiPatch, () => filters.value.patch)
 
 // null = "All positions" — matches the RolePicker contract shared with
 // the leaderboard filter strip.
@@ -197,75 +124,36 @@ const selectedEloBracket = computed<string>(() => normalizeEloBracket(filters.va
 // Champion filter sources from `?championId=` so deep links and back/forward
 // keep the selection. Uses the same ChampionPicker as the truemain
 // leaderboard so the UX matches across the two list pages.
-const filterChampionId = computed<number | null>(() => {
-  const raw = Array.isArray(route.query.championId) ? route.query.championId[0] : route.query.championId
-  const parsed = Number.parseInt(typeof raw === 'string' ? raw : '', 10)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
-})
+const filterChampionId = useRouteQueryChampionId()
 
-// Filter changes must reset to page 1 — otherwise switching from a
-// 5-page result to a single-page one leaves `?page=4` in the URL and the
-// list silently renders empty. Use a single router.replace so the patch /
-// position / championId / page params transition atomically.
-async function applyFilterReset(updates: {
-  patch?: string | null
-  position?: ChampionPosition | null
-  championId?: number | null
-  eloBracket?: string | null
-}) {
-  const nextQuery: Record<string, string> = {}
-  for (const [key, value] of Object.entries(route.query)) {
-    if (typeof value === 'string') nextQuery[key] = value
-  }
-  // Drop `?page=` on any filter change to anchor on page 1.
-  delete nextQuery.page
-
-  if (updates.patch !== undefined) {
-    if (updates.patch) nextQuery.patch = updates.patch
-    else delete nextQuery.patch
-  }
-  if (updates.position !== undefined) {
-    if (!updates.position) delete nextQuery.position
-    else nextQuery.position = updates.position
-  }
-  if (updates.championId !== undefined) {
-    if (updates.championId) nextQuery.championId = String(updates.championId)
-    else delete nextQuery.championId
-  }
-  if (updates.eloBracket !== undefined) {
-    // `ALL` is the default, so clear the param rather than pin it — keeps the
-    // URL and the list cache key identical to an unfiltered request.
-    if (updates.eloBracket && updates.eloBracket !== ELO_BRACKET_ALL) nextQuery.elo = updates.eloBracket
-    else delete nextQuery.elo
-  }
-  await router.replace({ query: nextQuery })
-}
-
+// Filter changes go through the shared composable with `resetPage` so any
+// change anchors back on page 1 in the same atomic router.replace.
 function onPatchChange(value: unknown) {
   if (typeof value !== 'string' || !value) return
-  void applyFilterReset({ patch: value })
+  void setFilter({ patch: value }, { resetPage: true })
 }
 
 async function selectPosition(value: ChampionPosition | null) {
-  await applyFilterReset({ position: value })
+  await setFilter({ position: value }, { resetPage: true })
 }
 
 async function selectChampion(value: number | null) {
-  await applyFilterReset({ championId: value })
+  await setFilter({ championId: value }, { resetPage: true })
 }
 
 function onEloBracketChange(value: string) {
-  void applyFilterReset({ eloBracket: value })
+  void setFilter({ eloBracket: value }, { resetPage: true })
 }
 
-const baseRows = computed(() => {
-  const nameById = new Map((staticList.value ?? []).map(item => [item.championId, item]))
-  return (summaries.value ?? []).map(summary => ({
+const championsById = useChampionsById(staticList)
+
+const baseRows = computed(() =>
+  (summaries.value ?? []).map(summary => ({
     ...summary,
-    name: nameById.get(summary.championId)?.name ?? `Champion ${summary.championId}`,
-    iconUrl: nameById.get(summary.championId)?.iconUrl ?? '',
-  }))
-})
+    name: championsById.value.get(summary.championId)?.name ?? `Champion ${summary.championId}`,
+    iconUrl: championsById.value.get(summary.championId)?.iconUrl ?? '',
+  })),
+)
 
 const filteredRows = computed(() => {
   let rows = baseRows.value
@@ -293,8 +181,6 @@ watch(totalCount, (count) => {
   if (count > 0 && start >= count) void setPage(1)
 })
 
-const positionByValue = new Map(POSITION_OPTIONS.map(option => [option.value as string, option]))
-
 // Per #147, the row is not a `<NuxtLink>` (and therefore not an `<a>`) because
 // the navigation target shows accounts main-ing the champion, and the user
 // asked for a button-style click target. We push the route programmatically
@@ -315,18 +201,9 @@ function onRowActivate(row: { championId: number, position: string }) {
   void router.push(rowDestination(row))
 }
 
-function perk(id: number | undefined) {
-  if (!id) return null
-  return runeTree.value?.perks?.[id] ?? null
-}
-function perkStyle(id: number | undefined) {
-  if (!id) return null
-  return runeTree.value?.perkStyles?.[id] ?? null
-}
-function staticItem(id: number | undefined) {
-  if (!id) return null
-  return itemsMap.value?.[id] ?? null
-}
+// Resolve build ids the same way the leaderboard surfaces do. `item` keeps
+// its historical `staticItem` name at the template call sites.
+const { perk, perkStyle, item: staticItem } = useBuildResolvers(runeTree, itemsMap)
 </script>
 
 <template>
@@ -421,8 +298,8 @@ function staticItem(id: number | undefined) {
 
               <!-- Position -->
               <SkeletonImage
-                v-if="positionByValue.get(row.position)?.iconUrl"
-                :src="positionByValue.get(row.position)!.iconUrl"
+                v-if="POSITION_BY_VALUE.get(row.position)?.iconUrl"
+                :src="POSITION_BY_VALUE.get(row.position)!.iconUrl"
                 :alt="row.position"
                 :width="22"
                 :height="22"
@@ -493,11 +370,11 @@ function staticItem(id: number | undefined) {
                    noisy against the rest of the row. -->
               <div class="flex shrink-0 items-center gap-5 tabular-nums">
                 <div class="flex min-w-[3rem] flex-col items-center">
-                  <span class="text-lg font-bold leading-none">{{ pct(row.winRate) }}</span>
+                  <span class="text-lg font-bold leading-none">{{ formatPercentage(row.winRate, 0) }}</span>
                   <span class="mt-0.5 text-xs text-muted">WR</span>
                 </div>
                 <div class="flex min-w-[3rem] flex-col items-center">
-                  <span class="text-lg font-bold leading-none">{{ pct(row.pickRate) }}</span>
+                  <span class="text-lg font-bold leading-none">{{ formatPercentage(row.pickRate, 0) }}</span>
                   <span class="mt-0.5 text-xs text-muted">PR</span>
                 </div>
               </div>

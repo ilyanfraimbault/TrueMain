@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Core.Lol.Map;
 using Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -38,10 +39,10 @@ public sealed class TruemainsLeaderboardQueryService(
     // ChampionSummariesQueryService uses for the same reason.
     private static readonly TimeSpan ResponseCacheTtl = TimeSpan.FromSeconds(30);
 
-    // Ranked solo queue id (420). Matches the queue used by MainStatsCalculator
+    // Ranked solo queue. Matches the queue used by MainStatsCalculator
     // for main_champion_stats, so the "games" / KDA / winrate cell stays
     // consistent with the player's top-champions cell on the same row.
-    private const int RankedQueueId = 420;
+    private const int RankedQueueId = (int)LolQueueId.RankedSoloDuo;
 
     // A position filter surfaces every player who plays that position on a
     // main champion at least this share of the time, not just players whose
@@ -246,7 +247,7 @@ public sealed class TruemainsLeaderboardQueryService(
                     Wins = stats?.Wins,
                     Losses = stats?.Losses,
                     WinRate = stats is not null
-                        ? ComputeWinRate(stats.Wins, stats.Losses)
+                        ? RateMath.WinRate(stats.Wins, stats.Losses)
                         : null,
                     Kda = stats?.Kda,
                 },
@@ -823,17 +824,6 @@ public sealed class TruemainsLeaderboardQueryService(
             "TOP" or "JUNGLE" or "MIDDLE" or "BOTTOM" or "UTILITY" => normalized,
             _ => null,
         };
-    }
-
-    private static double? ComputeWinRate(int? wins, int? losses)
-    {
-        if (wins is null || losses is null)
-        {
-            return null;
-        }
-
-        var total = wins.Value + losses.Value;
-        return total == 0 ? null : (double)wins.Value / total;
     }
 
     private static LeaderboardResponse Empty(int page, int pageSize) => new()

@@ -6,6 +6,7 @@ import type {
   StaticItemData,
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
+import { formatPercentage } from '~~/shared/utils/ddragon'
 
 const props = defineProps<{
   participants: MatchDetailParticipant[]
@@ -171,7 +172,7 @@ function fmtGold(value: number) {
         <!-- CS + KP -->
         <div class="flex w-[3.5rem] shrink-0 flex-col items-center text-[10px] text-muted tabular-nums">
           <span>{{ p.cs }} CS</span>
-          <span>{{ Math.round(p.killParticipation * 100) }}% KP</span>
+          <span>{{ formatPercentage(p.killParticipation, 0) }} KP</span>
         </div>
 
         <!-- Damage bar -->

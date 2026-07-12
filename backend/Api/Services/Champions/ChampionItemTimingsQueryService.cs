@@ -42,7 +42,7 @@ public sealed class ChampionItemTimingsQueryService(
         // mirroring the patch-prefix pattern below. The cache key carries the band.
         var bands = EloBracket.ResolveFilter(eloBracket);
         var bandsArray = bands?.ToArray();
-        var bracketToken = bands is null ? "all" : EloBracket.Normalize(eloBracket)!;
+        var bracketToken = EloBracket.ResolveToken(eloBracket);
 
         var cacheKey = $"champions:item-timings:{championId}:{position}:{normalizedPatch ?? "all"}:{bracketToken}";
         if (cache.TryGetValue<ChampionItemTimingsResponse>(cacheKey, out var cached) && cached is not null)

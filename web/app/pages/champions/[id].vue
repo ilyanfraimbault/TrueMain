@@ -1,18 +1,13 @@
 <script setup lang="ts">
-import type {
-  RuneTreeResponse,
-  StaticItemData,
-  StaticSummonerSpellData,
-} from '~~/shared/types/static-data'
-import { isChampionPosition, type ChampionPosition } from '~/utils/positions'
+import type { ChampionPosition } from '~/utils/positions'
 import { ELO_BRACKET_ALL, eloBracketLabel, normalizeEloBracket } from '~/utils/elo-brackets'
 import { describeFetchError } from '~/utils/errors'
+import { isLoadingStatus } from '~/utils/async-data'
 
 const route = useRoute()
 const championId = computed(() => Number.parseInt(String(route.params.id), 10))
 
 const { filters, setFilter } = useChampionFilters()
-const nuxtApp = useNuxtApp()
 
 const {
   data: champion,
@@ -26,10 +21,31 @@ const {
 // notEnoughData and we render a dedicated empty state instead.
 useErrorToast(championError, { title: 'Failed to load champion' })
 
-const activePatch = computed(() => champion.value?.patch || filters.value.patch || null)
-
-const { data: staticData } = useChampionStatic(championId, activePatch)
-const { data: versions } = useDDragonVersions()
+// Static-data plumbing shared with the player-scoped champion page: the
+// patch-pinned rune tree / items / summoner spells (keys shared with
+// /champions so the patch-keyed maps stay deduped across the
+// list→detail→list round-trip), the display name/icon fallbacks and the
+// patch/position selector state. `selectedPatch` binds to the API-returned
+// patch once available so the picker reflects what's actually being shown —
+// covers the 404 fallback in useChampion where the URL filter is dropped (no
+// data for the champion on that patch) and the API returns its default
+// patch. The URL-filter fallback only applies on the initial load
+// (champion.value still null); on later patch swaps champion.value holds the
+// previous (stale) data, so the selector keeps showing the old patch until
+// the refetch resolves — intentional, and identical to selectedPosition.
+const {
+  staticData,
+  versions,
+  staticList,
+  runeTree,
+  itemsMap,
+  summonersMap,
+  displayName,
+  displayIconUrl,
+  patchOptions,
+  selectedPatch,
+  selectedPosition,
+} = useChampionDetailStatics(championId, champion, filters)
 
 // Winrate/pickrate trend across the last five patches (issues #89, #112).
 // Follows the resolved lane so it tracks whatever slice the page is showing,
@@ -42,115 +58,11 @@ const trendReady = computed(() => champion.value !== null)
 const trendPosition = computed(() => champion.value?.position || filters.value.position || null)
 const { data: championTrend, status: trendStatus } = useChampionTrend(championId, trendPosition, trendReady)
 
-// Share keys with /champions so the patch-keyed maps stay deduped across the
-// list→detail→list round-trip. The list page issues these same fetches with
-// the same keys; without that alignment Nuxt would re-resolve them on mount.
-// Each fetch wraps the network call so `markStaticFetched` runs after success
-// and `getCachedData` reuses entries across navigations within
-// `STATIC_CACHE_TTL_MS` (see static-cache.ts).
-const { data: staticList } = useChampionStaticList()
-// Pin rune-tree to the champion's active patch so the icon URLs we render
-// hit CommunityDragon's per-patch (year-cacheable) tree, and so cached
-// payloads don't bleed across patches when the user navigates between them.
-const { data: runeTree } = useLazyAsyncData<RuneTreeResponse>(
-  () => `rune-tree-${activePatch.value || 'latest'}`,
-  async () => {
-    const key = `rune-tree-${activePatch.value || 'latest'}`
-    const data = await $fetch<RuneTreeResponse>('/api/static/rune-tree', {
-      query: activePatch.value ? { patch: activePatch.value } : {},
-    })
-    markStaticFetched(key, nuxtApp)
-    return data
-  },
-  {
-    watch: [activePatch],
-    getCachedData: key => getStaticCachedData(key, nuxtApp),
-    server: false,
-  },
-)
-const { data: itemsMap } = useLazyAsyncData<Record<number, StaticItemData>>(
-  () => `static-items-${activePatch.value || 'latest'}`,
-  async () => {
-    const key = `static-items-${activePatch.value || 'latest'}`
-    const data = await $fetch<Record<number, StaticItemData>>('/api/static/items', {
-      query: activePatch.value ? { patch: activePatch.value } : {},
-    })
-    markStaticFetched(key, nuxtApp)
-    return data
-  },
-  {
-    watch: [activePatch],
-    getCachedData: key => getStaticCachedData(key, nuxtApp),
-    server: false,
-  },
-)
-const { data: summonersMap } = useLazyAsyncData<Record<number, StaticSummonerSpellData>>(
-  () => `static-summoners-${activePatch.value || 'latest'}`,
-  async () => {
-    const key = `static-summoners-${activePatch.value || 'latest'}`
-    const data = await $fetch<Record<number, StaticSummonerSpellData>>('/api/static/summoner-spells', {
-      query: activePatch.value ? { patch: activePatch.value } : {},
-    })
-    markStaticFetched(key, nuxtApp)
-    return data
-  },
-  {
-    watch: [activePatch],
-    getCachedData: key => getStaticCachedData(key, nuxtApp),
-    server: false,
-  },
-)
-
-// Fall back to the list-page entry when the per-champion endpoint is still
-// pending or the patch failed to resolve — keeps the header readable instead
-// of flashing the numeric id.
-const championListEntry = computed(() =>
-  (staticList.value ?? []).find(item => item.championId === championId.value) ?? null,
-)
-const displayName = computed(() =>
-  staticData.value?.championName || championListEntry.value?.name || null,
-)
-const displayIconUrl = computed(() =>
-  staticData.value?.championIconUrl || championListEntry.value?.iconUrl || null,
-)
-
 useSeoMeta({
   title: () => displayName.value ?? 'TrueMain',
   description: () => `Champion ${championId.value} builds, runes and skill order.`,
 })
 
-const patchOptions = computed(() => {
-  const seen = new Set<string>(
-    (versions.value ?? [])
-      .map(p => p.split('.').slice(0, 2).join('.'))
-      .filter(Boolean)
-      .slice(0, 12),
-  )
-  if (champion.value?.patch) seen.add(champion.value.patch)
-  if (filters.value.patch) seen.add(filters.value.patch)
-  return [...seen]
-    .map(p => ({ label: p, value: p }))
-    .sort((a, b) => b.value.localeCompare(a.value, undefined, { numeric: true }))
-})
-
-// Bind to the API-returned patch once available so the picker reflects what's
-// actually being shown — covers the 404 fallback in useChampion where the URL
-// filter is dropped (no data for the champion on that patch) and the API
-// returns its default patch. Mirrors selectedPosition so a no-data patch
-// snaps the selector back to the loaded patch instead of leaving the dead
-// filter pinned. The URL-filter fallback only applies on the initial load
-// (champion.value still null); on later patch swaps champion.value holds the
-// previous (stale) data, so the selector keeps showing the old patch until the
-// refetch resolves — intentional, and identical to selectedPosition.
-const selectedPatch = computed(() => champion.value?.patch || filters.value.patch || '')
-// Bind to the API-returned position once available so the picker reflects
-// what's actually being shown — covers the 404 fallback in useChampion
-// where the URL filter is dropped and the API returns the default position.
-// Fall back to the URL filter for the optimistic render before the fetch resolves.
-const selectedPosition = computed<ChampionPosition | null>(() => {
-  const value = champion.value?.position || filters.value.position || ''
-  return isChampionPosition(value) ? value : null
-})
 // Elo filter (issue #526). Bind to the API-returned filter once available so
 // the rank select reflects what's actually shown; fall back to the URL filter
 // for the optimistic render before the fetch resolves.
@@ -295,10 +207,8 @@ watch(champion, (data) => {
   if (updates.patch !== undefined || updates.position !== undefined) setFilter(updates).catch(console.error)
 }, { immediate: true })
 
-// Each section drives its own skeleton off its own async status; `idle` is
-// the pre-fetch state from useLazy* before the client kicks it off — treat it
-// as loading too.
-const isLoadingStatus = (s: 'idle' | 'pending' | 'success' | 'error') => s === 'idle' || s === 'pending'
+// Each section drives its own skeleton off its own async status via the
+// shared isLoadingStatus util.
 </script>
 
 <template>

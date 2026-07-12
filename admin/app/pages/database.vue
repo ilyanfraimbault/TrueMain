@@ -69,17 +69,15 @@ const topTables = computed(() =>
 )
 // Chart grows with the number of bars; the skeleton mirrors it to avoid CLS.
 const topTablesChartHeight = computed(() =>
-  Math.max(260, topTables.value.length * 28),
+  barChartHeight(topTables.value.length, { min: 260, step: 28 }),
 )
-const sizeCategories = { bytes: { name: 'Total size', color: '#34d399' } }
+const sizeCategories = { bytes: { name: 'Total size', color: CHART_PRIMARY } }
 // Bottom (value) axis — humanized bytes. Also used by the tooltip value.
 const sizeValueFormatter = (tick: number | Date) => humanizeBytes(Number(tick), 0)
 // Left (category) axis — table name looked up by bar index.
 const sizeLabelFormatter = computed(() =>
   indexLabelFormatter(topTables.value, t => t.label),
 )
-// Tooltip title = the full table name for the hovered bar.
-const sizeTooltipTitle = (d: { label: string }) => d.label
 </script>
 
 <template>
@@ -160,7 +158,7 @@ const sizeTooltipTitle = (d: { label: string }) => d.label
             :x-formatter="sizeValueFormatter"
             :y-formatter="sizeLabelFormatter"
             :y-num-ticks="topTables.length"
-            :tooltip-title-formatter="sizeTooltipTitle"
+            :tooltip-title-formatter="labelTooltipTitle"
             v-bind="horizontalBarProps(180)"
           />
           <template #fallback>

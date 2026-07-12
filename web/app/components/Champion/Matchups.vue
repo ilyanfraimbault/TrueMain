@@ -32,11 +32,7 @@ const { data, status, error } = useChampionMatchups(
 const isLoading = computed(() => status.value === 'pending' && !data.value)
 
 // Champion id → static entry for icon + name lookups.
-const championById = computed(() => {
-  const map = new Map<number, ChampionStaticListItem>()
-  for (const c of props.champions) map.set(c.championId, c)
-  return map
-})
+const championById = useChampionsById(() => props.champions)
 
 // Exclude the champion itself from the opponent search.
 const opponentOptions = computed(() =>

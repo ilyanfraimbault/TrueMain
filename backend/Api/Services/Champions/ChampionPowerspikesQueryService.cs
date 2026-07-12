@@ -60,7 +60,7 @@ public sealed class ChampionPowerspikesQueryService(
         // key carries the bracket so each band caches separately. The global
         // per-minute sigma stays unfiltered — it is just a normalising scale.
         var bands = EloBracket.ResolveFilter(eloBracket);
-        var bracketToken = bands is null ? "all" : EloBracket.Normalize(eloBracket)!;
+        var bracketToken = EloBracket.ResolveToken(eloBracket);
 
         var cacheKey = $"champions:powerspikes:{championId}:{position}:{normalizedPatch ?? "all"}:{bracketToken}";
         if (cache.TryGetValue<ChampionPowerspikesResponse>(cacheKey, out var cached) && cached is not null)

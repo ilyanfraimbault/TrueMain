@@ -1,11 +1,8 @@
 <script setup lang="ts">
-import type {
-  RuneTreeResponse,
-  StaticItemData,
-  StaticSummonerSpellData,
-} from '~~/shared/types/static-data'
-import { isChampionPosition, type ChampionPosition } from '~/utils/positions'
+import type { ChampionPosition } from '~/utils/positions'
 import { describeFetchError } from '~/utils/errors'
+import { isLoadingStatus } from '~/utils/async-data'
+import { parseRouteParam } from '~/utils/route-params'
 
 // Player-scoped mirror of pages/champions/[id].vue. The static-data fetches,
 // loading bar and build tabs are intentionally identical so the page looks
@@ -18,13 +15,9 @@ import { describeFetchError } from '~/utils/errors'
 const route = useRoute()
 
 const championId = computed(() => Number.parseInt(String(route.params.id), 10))
-const nameTag = computed(() => {
-  const param = route.params.nameTag
-  return Array.isArray(param) ? param[0] ?? '' : (param ?? '')
-})
+const nameTag = computed(() => parseRouteParam(route.params.nameTag))
 
 const { filters, setFilter } = useChampionFilters()
-const nuxtApp = useNuxtApp()
 
 const {
   data: champion,
@@ -48,70 +41,28 @@ const playerLabel = computed(() => {
 })
 const profilePath = computed(() => `/truemains/${encodeURIComponent(nameTag.value)}`)
 
-const activePatch = computed(() => champion.value?.patch || filters.value.patch || null)
-
-const { data: staticData, status: staticStatus } = useChampionStatic(championId, activePatch)
-const { data: versions } = useDDragonVersions()
-
-const { data: staticList, status: staticListStatus } = useChampionStaticList()
-const { data: runeTree, status: runeTreeStatus } = useLazyAsyncData<RuneTreeResponse>(
-  () => `rune-tree-${activePatch.value || 'latest'}`,
-  async () => {
-    const key = `rune-tree-${activePatch.value || 'latest'}`
-    const data = await $fetch<RuneTreeResponse>('/api/static/rune-tree', {
-      query: activePatch.value ? { patch: activePatch.value } : {},
-    })
-    markStaticFetched(key, nuxtApp)
-    return data
-  },
-  {
-    watch: [activePatch],
-    getCachedData: key => getStaticCachedData(key, nuxtApp),
-    server: false,
-  },
-)
-const { data: itemsMap, status: itemsStatus } = useLazyAsyncData<Record<number, StaticItemData>>(
-  () => `static-items-${activePatch.value || 'latest'}`,
-  async () => {
-    const key = `static-items-${activePatch.value || 'latest'}`
-    const data = await $fetch<Record<number, StaticItemData>>('/api/static/items', {
-      query: activePatch.value ? { patch: activePatch.value } : {},
-    })
-    markStaticFetched(key, nuxtApp)
-    return data
-  },
-  {
-    watch: [activePatch],
-    getCachedData: key => getStaticCachedData(key, nuxtApp),
-    server: false,
-  },
-)
-const { data: summonersMap, status: summonersStatus } = useLazyAsyncData<Record<number, StaticSummonerSpellData>>(
-  () => `static-summoners-${activePatch.value || 'latest'}`,
-  async () => {
-    const key = `static-summoners-${activePatch.value || 'latest'}`
-    const data = await $fetch<Record<number, StaticSummonerSpellData>>('/api/static/summoner-spells', {
-      query: activePatch.value ? { patch: activePatch.value } : {},
-    })
-    markStaticFetched(key, nuxtApp)
-    return data
-  },
-  {
-    watch: [activePatch],
-    getCachedData: key => getStaticCachedData(key, nuxtApp),
-    server: false,
-  },
-)
-
-const championListEntry = computed(() =>
-  (staticList.value ?? []).find(item => item.championId === championId.value) ?? null,
-)
-const displayName = computed(() =>
-  staticData.value?.championName || championListEntry.value?.name || null,
-)
-const displayIconUrl = computed(() =>
-  staticData.value?.championIconUrl || championListEntry.value?.iconUrl || null,
-)
+// Shared static-data plumbing (see useChampionDetailStatics). This page
+// prefers the URL filter over the API-returned patch in `selectedPatch` —
+// the historical behaviour of the player-scoped page, deliberately not
+// unified with the global page's API-first order.
+const {
+  versions,
+  staticData,
+  staticStatus,
+  staticList,
+  staticListStatus,
+  runeTree,
+  runeTreeStatus,
+  itemsMap,
+  itemsStatus,
+  summonersMap,
+  summonersStatus,
+  displayName,
+  displayIconUrl,
+  patchOptions,
+  selectedPatch,
+  selectedPosition,
+} = useChampionDetailStatics(championId, champion, filters, { preferFilterPatch: true })
 
 useSeoMeta({
   title: () => {
@@ -121,27 +72,6 @@ useSeoMeta({
   description: () => `How ${playerLabel.value} plays ${displayName.value ?? `champion ${championId.value}`}: their build path, runes and skill order.`,
 })
 
-const patchOptions = computed(() => {
-  const seen = new Set<string>(
-    (versions.value ?? [])
-      .map(p => p.split('.').slice(0, 2).join('.'))
-      .filter(Boolean)
-      .slice(0, 12),
-  )
-  if (champion.value?.patch) seen.add(champion.value.patch)
-  if (filters.value.patch) seen.add(filters.value.patch)
-  return [...seen]
-    .map(p => ({ label: p, value: p }))
-    .sort((a, b) => b.value.localeCompare(a.value, undefined, { numeric: true }))
-})
-
-const selectedPatch = computed(() => filters.value.patch || champion.value?.patch || '')
-const selectedPosition = computed<ChampionPosition | null>(() => {
-  const value = champion.value?.position || filters.value.position || ''
-  return isChampionPosition(value) ? value : null
-})
-
-const isLoadingStatus = (s: 'idle' | 'pending' | 'success' | 'error') => s === 'idle' || s === 'pending'
 const isRefetching = computed(() =>
   isLoadingStatus(championStatus.value)
   || isLoadingStatus(staticStatus.value)

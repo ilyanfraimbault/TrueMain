@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { LeaderboardRowResponse } from '~~/shared/types/leaderboard'
 import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
-import { getPositionIconUrl, getProfileIconUrl } from '~~/shared/utils/ddragon'
-import { POSITION_OPTIONS } from '~/utils/positions'
+import { formatPercentage, getPositionIconUrl, getProfileIconUrl } from '~~/shared/utils/ddragon'
+import { POSITION_BY_VALUE } from '~/utils/positions'
 import { isApexTier } from '~/utils/tiers'
 
 // One row of the leaderboard. The whole row navigates to the player's profile
@@ -48,7 +48,7 @@ const showDivision = computed(() => ranked.value !== null && !isApexTier(ranked.
 
 const winRateLabel = computed(() => {
   const wr = props.row.stats.winRate
-  return wr === null ? null : `${Math.round(wr * 100)}%`
+  return wr === null ? null : formatPercentage(wr, 0)
 })
 const kdaLabel = computed(() => {
   const kda = props.row.stats.kda
@@ -67,11 +67,10 @@ function championIcon(id: number): string | null {
 }
 
 // Riot-stored position string → label for the role-icon tooltips. Reuses the
-// canonical POSITION_OPTIONS (shared with the role picker and tier list) so the
-// leaderboard label never drifts from the rest of the app.
-const positionLabelByValue = new Map(POSITION_OPTIONS.map(o => [o.value as string, o.label]))
+// canonical POSITION_BY_VALUE (shared with the role picker and tier list) so
+// the leaderboard label never drifts from the rest of the app.
 function positionLabel(position: string): string {
-  return positionLabelByValue.get(position) ?? position
+  return POSITION_BY_VALUE.get(position)?.label ?? position
 }
 
 // Primary + secondary lane icons. Each entry carries its icon URL and a
