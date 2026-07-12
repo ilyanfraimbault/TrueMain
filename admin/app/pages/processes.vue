@@ -12,10 +12,6 @@ import { PIPELINE_CHAIN } from '~~/shared/types/ops'
 import { formatDateTime, formatDuration, formatNumber } from '~~/shared/utils/format'
 
 // --- Filters -----------------------------------------------------------------
-// Reka UI forbids an empty-string SelectItem value, so "All …" uses the
-// non-empty `'all'` sentinel; `filters` maps it back to `undefined` (param
-// omitted) so the backend still sees "no filter".
-const ALL = 'all'
 const processName = ref('')
 const status = ref<'all' | ProcessRunStatus>(ALL)
 // Relative window -> ISO `since`. "All" omits the param.
@@ -28,25 +24,11 @@ const statusItems = [
   { label: 'Failed', value: 'Failed' },
   { label: 'Abandoned', value: 'Abandoned' },
 ]
-const sinceItems = [
-  { label: 'All time', value: ALL },
-  { label: 'Last hour', value: '1h' },
-  { label: 'Last 24 hours', value: '24h' },
-  { label: 'Last 7 days', value: '7d' },
-  { label: 'Last 30 days', value: '30d' },
-]
-
-const WINDOW_MS: Record<string, number> = {
-  '1h': 60 * 60 * 1000,
-  '24h': 24 * 60 * 60 * 1000,
-  '7d': 7 * 24 * 60 * 60 * 1000,
-  '30d': 30 * 24 * 60 * 60 * 1000,
-}
 
 // Default view = the most recent runs regardless of recency: send NO `since`
 // lower bound. The backend applies no time floor unless `since` is explicitly
-// provided, so older-but-real runs still show up (this fixes the misleading
-// "0 runs" when nothing ran recently). The time-window select is purely an
+// provided, so older-but-real runs still show up instead of a misleading
+// "0 runs" when nothing ran recently. The time-window select is purely an
 // OPTIONAL filter: "All time" omits `since`; the relative windows send their
 // computed `since`.
 const page = ref(1)
@@ -57,7 +39,7 @@ const filters = computed(() => ({
   status: status.value === ALL ? undefined : status.value,
   since: sinceWindow.value === ALL
     ? undefined
-    : new Date(Date.now() - WINDOW_MS[sinceWindow.value]!).toISOString(),
+    : sinceToIso(sinceWindow.value),
   page: page.value,
   pageSize,
 }))
@@ -265,7 +247,7 @@ function chainLabel(processName: string): string {
 
 // Failure-cell coloring. The window always holds thousands of failures, so the
 // raw count is always > 0 and coloring by it would keep the cell permanently
-// red (the bug). Color instead by a meaningful signal:
+// red. Color instead by a meaningful signal:
 //   - the latest run is currently failing  -> error (the process is unhealthy now)
 //   - else a high recent failure *rate*     -> warning (degraded but recovered)
 //   - else                                  -> neutral
@@ -463,7 +445,7 @@ const selectedIterationTally = computed(() => {
           />
           <USelect
             v-model="sinceWindow"
-            :items="sinceItems"
+            :items="SINCE_ITEMS"
             icon="i-lucide-clock"
             placeholder="Since"
             class="w-44"

@@ -514,8 +514,8 @@ export type DataQualityIssueType
     | 'zeroDuration'
     | 'duplicateChampion'
 
-/** Nuxt UI badge/icon color for an issue type's severity. */
-export type BadgeColor = 'error' | 'warning' | 'info' | 'neutral'
+/** Nuxt UI badge/icon color used by the admin panels' status/severity badges. */
+export type BadgeColor = 'error' | 'warning' | 'info' | 'neutral' | 'success' | 'primary'
 
 /**
  * Presentation metadata for one issue type — label, icon and badge color. Drives

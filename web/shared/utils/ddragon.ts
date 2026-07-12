@@ -15,15 +15,6 @@ export function normalizeDataDragonPatch(patch?: string | null): string | null {
   return patch
 }
 
-export function getItemImageUrl(itemId: number, patch?: string | null): string | null {
-  const normalizedPatch = normalizeDataDragonPatch(patch)
-  if (!normalizedPatch) {
-    return null
-  }
-
-  return `https://ddragon.leagueoflegends.com/cdn/${normalizedPatch}/img/item/${itemId}.png`
-}
-
 export function getSummonerSpellImageUrl(imageFileName: string, patch?: string | null): string | null {
   const normalizedPatch = normalizeDataDragonPatch(patch)
   if (!normalizedPatch) {

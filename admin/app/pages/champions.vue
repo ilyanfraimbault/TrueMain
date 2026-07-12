@@ -16,21 +16,11 @@ interface ChampionRowView extends ChampionStatsRow {
 }
 
 // --- Filters -----------------------------------------------------------------
-// Reka UI forbids an empty-string SelectItem value, so "All …" uses the
-// non-empty `'all'` sentinel; `filters` maps it back to `undefined` (param
-// omitted) so the backend still sees "no filter".
-const ALL = 'all'
 const region = ref<string>(ALL)
 const patch = ref<string>('')
 const position = ref<string>(ALL)
 const queue = ref<string>(ALL)
 
-const regionItems = [
-  { label: 'All regions', value: ALL },
-  { label: 'EUW1', value: 'EUW1' },
-  { label: 'KR', value: 'KR' },
-  { label: 'NA1', value: 'NA1' },
-]
 const positionItems = [
   { label: 'All positions', value: ALL },
   { label: 'Top', value: 'TOP' },
@@ -139,15 +129,15 @@ const topByMains = computed(() =>
 
 // Charts grow with the number of bars; the skeletons mirror it to avoid CLS.
 const topByGamesChartHeight = computed(() =>
-  Math.max(260, topByGames.value.length * 28),
+  barChartHeight(topByGames.value.length, { min: 260, step: 28 }),
 )
 const topByMainsChartHeight = computed(() =>
-  Math.max(260, topByMains.value.length * 28),
+  barChartHeight(topByMains.value.length, { min: 260, step: 28 }),
 )
 
-const gamesCategories = { games: { name: 'Games', color: '#34d399' } }
+const gamesCategories = { games: { name: 'Games', color: CHART_PRIMARY } }
 // amber-400 for the secondary metric so the two charts read as distinct series.
-const mainsCategories = { mains: { name: 'Mains', color: '#fbbf24' } }
+const mainsCategories = { mains: { name: 'Mains', color: CHART_ACCENT_AMBER } }
 
 // Horizontal bars: the champion name lives on the LEFT (category) axis, looked
 // up by bar index, so these feed `:y-formatter` (not `:x-formatter`).
@@ -182,7 +172,7 @@ const mainsLabelFormatter = computed(() =>
         <template #left>
           <USelect
             v-model="region"
-            :items="regionItems"
+            :items="REGION_ITEMS"
             icon="i-lucide-globe"
             placeholder="Region"
             class="w-40"

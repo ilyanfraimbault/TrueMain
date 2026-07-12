@@ -65,7 +65,7 @@ public sealed class ChampionBuildsQueryService(
             ? totalGames
             : await CountAllBracketGamesAsync(
                 scopes[0], scope?.RiotAccountId, scope?.PlatformId, ct);
-        var coverage = allBracketGames == 0 ? 0d : (double)totalGames / allBracketGames;
+        var coverage = RateMath.Rate(totalGames, allBracketGames);
 
         // Player-scoped requests carry a minimum-games floor: a champion the
         // player has barely touched would produce a sparse, misleading build,
@@ -352,10 +352,8 @@ public sealed class ChampionBuildsQueryService(
         {
             ItemIds = aggregates.ItemPath,
             Games = aggregates.ItemPathGames,
-            PickRate = sliceGames == 0 ? 0 : (double)aggregates.ItemPathGames / sliceGames,
-            WinRate = aggregates.ItemPathGames == 0
-                ? 0
-                : (double)aggregates.ItemPathWins / aggregates.ItemPathGames
+            PickRate = RateMath.Rate(aggregates.ItemPathGames, sliceGames),
+            WinRate = RateMath.Rate(aggregates.ItemPathWins, aggregates.ItemPathGames)
         };
 
         return new ChampionBuildReadModel
@@ -363,8 +361,8 @@ public sealed class ChampionBuildsQueryService(
             FirstItemId = aggregates.Key.FirstItemId,
             PrimaryKeystoneId = aggregates.Key.PrimaryKeystoneId,
             Games = sliceGames,
-            PickRate = totalGames == 0 ? 0 : (double)sliceGames / totalGames,
-            WinRate = sliceGames == 0 ? 0 : (double)aggregates.Wins / sliceGames,
+            PickRate = RateMath.Rate(sliceGames, totalGames),
+            WinRate = RateMath.Rate(aggregates.Wins, sliceGames),
             Core = new BuildCoreReadModel
             {
                 ItemPath = itemPath,
@@ -402,8 +400,8 @@ public sealed class ChampionBuildsQueryService(
             Spell1Id = dim.Spell1Id,
             Spell2Id = dim.Spell2Id,
             Games = aggregate.Games,
-            PickRate = sliceGames == 0 ? 0 : (double)aggregate.Games / sliceGames,
-            WinRate = aggregate.Games == 0 ? 0 : (double)aggregate.Wins / aggregate.Games
+            PickRate = RateMath.Rate(aggregate.Games, sliceGames),
+            WinRate = RateMath.Rate(aggregate.Wins, aggregate.Games)
         };
     }
 
@@ -423,8 +421,8 @@ public sealed class ChampionBuildsQueryService(
         {
             Sequence = sequence,
             Games = aggregate.Games,
-            PickRate = sliceGames == 0 ? 0 : (double)aggregate.Games / sliceGames,
-            WinRate = aggregate.Games == 0 ? 0 : (double)aggregate.Wins / aggregate.Games
+            PickRate = RateMath.Rate(aggregate.Games, sliceGames),
+            WinRate = RateMath.Rate(aggregate.Wins, aggregate.Games)
         };
     }
 
@@ -441,8 +439,8 @@ public sealed class ChampionBuildsQueryService(
         {
             ItemIds = dim.StarterItems,
             Games = aggregate.Games,
-            PickRate = sliceGames == 0 ? 0 : (double)aggregate.Games / sliceGames,
-            WinRate = aggregate.Games == 0 ? 0 : (double)aggregate.Wins / aggregate.Games
+            PickRate = RateMath.Rate(aggregate.Games, sliceGames),
+            WinRate = RateMath.Rate(aggregate.Wins, aggregate.Games)
         };
     }
 
@@ -451,8 +449,8 @@ public sealed class ChampionBuildsQueryService(
         {
             ItemIds = [aggregate.ItemId],
             Games = aggregate.Games,
-            PickRate = sliceGames == 0 ? 0 : (double)aggregate.Games / sliceGames,
-            WinRate = aggregate.Games == 0 ? 0 : (double)aggregate.Wins / aggregate.Games
+            PickRate = RateMath.Rate(aggregate.Games, sliceGames),
+            WinRate = RateMath.Rate(aggregate.Wins, aggregate.Games)
         };
 
     private static BuildRunePageReadModel? MaterializeRunePage(
@@ -478,8 +476,8 @@ public sealed class ChampionBuildsQueryService(
             StatFlex = dim.StatFlex,
             StatDefense = dim.StatDefense,
             Games = aggregate.Games,
-            PickRate = sliceGames == 0 ? 0 : (double)aggregate.Games / sliceGames,
-            WinRate = aggregate.Games == 0 ? 0 : (double)aggregate.Wins / aggregate.Games
+            PickRate = RateMath.Rate(aggregate.Games, sliceGames),
+            WinRate = RateMath.Rate(aggregate.Wins, aggregate.Games)
         };
     }
 
@@ -489,7 +487,7 @@ public sealed class ChampionBuildsQueryService(
             ItemId = node.ItemId,
             Games = node.Games,
             Wins = node.Wins,
-            PickRate = parentGames == 0 ? 0 : (double)node.Games / parentGames,
+            PickRate = RateMath.Rate(node.Games, parentGames),
             Children = node.Children.Values
                 .OrderByDescending(child => child.Games)
                 .ThenByDescending(child => child.Wins)

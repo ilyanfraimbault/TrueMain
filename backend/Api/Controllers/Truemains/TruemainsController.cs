@@ -149,7 +149,7 @@ public sealed class TruemainsController(
         var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
         if (normalizedPosition is null)
         {
-            return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+            return ValidationProblem(ChampionQueryParameterNormalizer.InvalidPositionMessage);
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);

@@ -40,7 +40,7 @@ public sealed class ChampionTimelineLeadsQueryService(
         // Resolve the elo filter to its bands (null = ALL, no clause); the cache
         // key carries the bracket so each band caches separately.
         var bands = EloBracket.ResolveFilter(eloBracket);
-        var bracketToken = bands is null ? "all" : EloBracket.Normalize(eloBracket)!;
+        var bracketToken = EloBracket.ResolveToken(eloBracket);
 
         var cacheKey = $"champions:timeline-leads:{championId}:{position}:{normalizedPatch ?? "all"}:{bracketToken}";
         if (cache.TryGetValue<ChampionTimelineLeadsResponse>(cacheKey, out var cached) && cached is not null)
