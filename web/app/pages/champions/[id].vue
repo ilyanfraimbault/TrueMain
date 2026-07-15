@@ -31,6 +31,11 @@ const activePatch = computed(() => champion.value?.patch || filters.value.patch 
 const { data: staticData } = useChampionStatic(championId, activePatch)
 const { data: versions } = useDDragonVersions()
 
+// Full ddragon version for the truemains sidebar's profile-icon URLs — the
+// short activePatch ("15.13") isn't a ddragon CDN path segment. Mirrors what
+// /truemains passes to the same rows.
+const latestVersion = computed(() => versions.value?.[0] ?? null)
+
 // Winrate/pickrate trend across the last five patches (issues #89, #112).
 // Follows the resolved lane so it tracks whatever slice the page is showing,
 // but is deliberately cross-patch: the composable forwards only the position,
@@ -302,7 +307,7 @@ const isLoadingStatus = (s: 'idle' | 'pending' | 'success' | 'error') => s === '
 </script>
 
 <template>
-  <main class="mx-auto max-w-5xl space-y-6 p-4 md:p-6">
+  <main class="mx-auto w-full max-w-[96rem] space-y-6 p-4 md:p-6">
     <UAlert
       v-if="championError"
       color="error"
@@ -424,68 +429,87 @@ const isLoadingStatus = (s: 'idle' | 'pending' | 'success' | 'error') => s === '
         icon="i-lucide-triangle-alert"
       />
 
-      <ChampionBuildTabs
-        v-if="champion && staticData"
-        :builds="champion.builds"
-        :champion-static="staticData"
-        :items-map="itemsMap ?? {}"
-        :summoners-map="summonersMap ?? {}"
-        :rune-tree="runeTree ?? null"
-      />
-      <ChampionBuildTabsSkeleton v-else />
+      <!--
+        Two-column layout on wide screens: builds + charts on the left, the
+        champion's truemains + matchups in a right sidebar. Below xl the
+        sidebar stacks under the main column.
+      -->
+      <div class="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
+        <div class="min-w-0 space-y-6">
+          <ChampionBuildTabs
+            v-if="champion && staticData"
+            :builds="champion.builds"
+            :champion-static="staticData"
+            :items-map="itemsMap ?? {}"
+            :summoners-map="summonersMap ?? {}"
+            :rune-tree="runeTree ?? null"
+          />
+          <ChampionBuildTabsSkeleton v-else />
 
-      <ChampionMatchups
-        :champion-id="championId"
-        :position="selectedPosition"
-        :champions="staticList ?? []"
-        :elo-bracket="eloBracketParam"
-      />
+          <ChampionTrendChart
+            :points="championTrend?.points ?? []"
+            :loading="isLoadingStatus(trendStatus)"
+          />
 
-      <ChampionTrendChart
-        :points="championTrend?.points ?? []"
-        :loading="isLoadingStatus(trendStatus)"
-      />
+          <ChampionPatchDiff
+            :diff="championPatchDiff ?? null"
+            :items-map="itemsMap ?? {}"
+            :rune-tree="runeTree ?? null"
+            :champion-static="staticData"
+            :patch-options="patchDiffOptions"
+            :from-patch="patchDiffFrom"
+            :to-patch="patchDiffTo"
+            :loading="isLoadingStatus(patchDiffStatus)"
+            @update:from-patch="value => { patchDiffFrom = value }"
+            @update:to-patch="value => { patchDiffTo = value }"
+          />
 
-      <ChampionPatchDiff
-        :diff="championPatchDiff ?? null"
-        :items-map="itemsMap ?? {}"
-        :rune-tree="runeTree ?? null"
-        :champion-static="staticData"
-        :patch-options="patchDiffOptions"
-        :from-patch="patchDiffFrom"
-        :to-patch="patchDiffTo"
-        :loading="isLoadingStatus(patchDiffStatus)"
-        @update:from-patch="value => { patchDiffFrom = value }"
-        @update:to-patch="value => { patchDiffTo = value }"
-      />
+          <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <ChampionTimelineLeadsChart
+              :intervals="championLeads?.intervals ?? []"
+              :loading="isLoadingStatus(leadsStatus)"
+            />
 
-      <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <ChampionTimelineLeadsChart
-          :intervals="championLeads?.intervals ?? []"
-          :loading="isLoadingStatus(leadsStatus)"
-        />
+            <ChampionScalingChart
+              :buckets="championScaling?.buckets ?? []"
+              :scaling-index="championScaling?.scalingIndex ?? null"
+              :loading="isLoadingStatus(scalingStatus)"
+            />
+          </div>
 
-        <ChampionScalingChart
-          :buckets="championScaling?.buckets ?? []"
-          :scaling-index="championScaling?.scalingIndex ?? null"
-          :loading="isLoadingStatus(scalingStatus)"
-        />
+          <ChampionPowerspikesChart
+            :events="championPowerspikes?.events ?? []"
+            :items-map="itemsMap ?? {}"
+            :loading="isLoadingStatus(powerspikesStatus)"
+          />
+
+          <ChampionRoam
+            v-if="trendPosition !== 'JUNGLE'"
+            :kp5="championRoam?.roamKp5 ?? null"
+            :kp10="championRoam?.roamKp10 ?? null"
+            :kp15="championRoam?.roamKp15 ?? null"
+            :games="championRoam?.games ?? 0"
+            :loading="isLoadingStatus(roamStatus)"
+          />
+        </div>
+
+        <aside class="min-w-0 space-y-6">
+          <ChampionTruemains
+            :champion-id="championId"
+            :champions="staticList ?? []"
+            :rune-tree="runeTree ?? null"
+            :items-map="itemsMap ?? {}"
+            :patch="latestVersion"
+          />
+
+          <ChampionMatchups
+            :champion-id="championId"
+            :position="selectedPosition"
+            :champions="staticList ?? []"
+            :elo-bracket="eloBracketParam"
+          />
+        </aside>
       </div>
-
-      <ChampionPowerspikesChart
-        :events="championPowerspikes?.events ?? []"
-        :items-map="itemsMap ?? {}"
-        :loading="isLoadingStatus(powerspikesStatus)"
-      />
-
-      <ChampionRoam
-        v-if="trendPosition !== 'JUNGLE'"
-        :kp5="championRoam?.roamKp5 ?? null"
-        :kp10="championRoam?.roamKp10 ?? null"
-        :kp15="championRoam?.roamKp15 ?? null"
-        :games="championRoam?.games ?? 0"
-        :loading="isLoadingStatus(roamStatus)"
-      />
     </template>
   </main>
 </template>
