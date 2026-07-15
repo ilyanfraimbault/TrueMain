@@ -244,11 +244,19 @@ const staticBundleReady = computed(() =>
           />
         </div>
 
-        <template v-if="matchesInitialLoading || !staticBundleReady">
+        <!--
+          Same ordering as the profile page: the empty / not-found state
+          needs no static data, so it must not sit behind staticBundleReady —
+          a failing static fetch would pin the skeletons forever.
+        -->
+        <template v-if="matchesInitialLoading">
           <MatchRowSkeleton v-for="i in 5" :key="`match-skel-${i}`" />
         </template>
         <template v-else-if="matchesNotFound || matches.length === 0">
-          <MatchHistoryEmpty :not-found="matchesNotFound" />
+          <MatchHistoryEmpty :not-found="matchesNotFound" :filtered="matchPosition !== null" />
+        </template>
+        <template v-else-if="!staticBundleReady">
+          <MatchRowSkeleton v-for="i in 5" :key="`match-skel-${i}`" />
         </template>
         <template v-else>
           <MatchRow

@@ -94,6 +94,8 @@ const staticBundleReady = computed(() =>
   && Object.keys(summonerSpells.value).length > 0
   && (runeTree.value?.styles.length ?? 0) > 0,
 )
+
+const hasActiveFilters = computed(() => Boolean(filterPosition.value || filterChampionId.value))
 </script>
 
 <template>
@@ -159,11 +161,20 @@ const staticBundleReady = computed(() =>
           />
         </div>
 
-        <template v-if="matchesInitialLoading || !staticBundleReady">
+        <!--
+          The empty / not-found state must not wait on the static bundle:
+          rendering it needs no item, spell or rune data, and a failing
+          static fetch (e.g. CDragon lagging a new patch) would otherwise
+          keep the skeletons up forever on a perfectly valid empty result.
+        -->
+        <template v-if="matchesInitialLoading">
           <MatchRowSkeleton v-for="i in MATCHES_PAGE_SIZE" :key="`match-skel-${i}`" />
         </template>
         <template v-else-if="matchesNotFound || matches.length === 0">
-          <MatchHistoryEmpty :not-found="matchesNotFound" />
+          <MatchHistoryEmpty :not-found="matchesNotFound" :filtered="hasActiveFilters" />
+        </template>
+        <template v-else-if="!staticBundleReady">
+          <MatchRowSkeleton v-for="i in MATCHES_PAGE_SIZE" :key="`match-skel-${i}`" />
         </template>
         <template v-else>
           <MatchRow
