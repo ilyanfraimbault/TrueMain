@@ -1,4 +1,4 @@
-name: Publish QA Docker Images
+name: Publish Preprod Docker Images
 
 on:
   push:
@@ -17,8 +17,8 @@ env:
   IMAGE_ADMIN: ghcr.io/${{ github.repository_owner }}/truemain-admin
 
 jobs:
-  publish-qa:
-    name: Publish QA Images
+  publish-preprod:
+    name: Publish Preprod Images
     runs-on: ubuntu-24.04
 
     steps:
@@ -43,7 +43,7 @@ jobs:
           push: true
           cache-from: type=gha,scope=api
           cache-to: type=gha,mode=max,scope=api
-          tags: ${{ env.IMAGE_API }}:qa
+          tags: ${{ env.IMAGE_API }}:preprod
 
       - name: Build and push Ingestor image
         uses: docker/build-push-action@v7
@@ -53,7 +53,7 @@ jobs:
           push: true
           cache-from: type=gha,scope=ingestor
           cache-to: type=gha,mode=max,scope=ingestor
-          tags: ${{ env.IMAGE_INGESTOR }}:qa
+          tags: ${{ env.IMAGE_INGESTOR }}:preprod
 
       - name: Build and push Web image
         uses: docker/build-push-action@v7
@@ -63,7 +63,7 @@ jobs:
           push: true
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
-          tags: ${{ env.IMAGE_WEB }}:qa
+          tags: ${{ env.IMAGE_WEB }}:preprod
 
       - name: Build and push Admin image
         uses: docker/build-push-action@v7
@@ -73,4 +73,4 @@ jobs:
           push: true
           cache-from: type=gha,scope=admin
           cache-to: type=gha,mode=max,scope=admin
-          tags: ${{ env.IMAGE_ADMIN }}:qa
+          tags: ${{ env.IMAGE_ADMIN }}:preprod

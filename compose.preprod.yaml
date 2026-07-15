@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:17.2
-    container_name: truemain-qa-postgres
+    container_name: truemain-preprod-postgres
     restart: unless-stopped
     shm_size: "256m"
     # Disable parallel query: parallel workers allocate DSM segments in /dev/shm,
@@ -13,7 +13,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
-      - truemain_qa_db_data:/var/lib/postgresql/data
+      - truemain_preprod_db_data:/var/lib/postgresql/data
     ports:
       - "127.0.0.1:5432:5432"
     healthcheck:
@@ -27,7 +27,7 @@ services:
 
   pgbouncer:
     image: edoburu/pgbouncer:v1.23.1-p3
-    container_name: truemain-qa-pgbouncer
+    container_name: truemain-preprod-pgbouncer
     restart: unless-stopped
     environment:
       DB_HOST: postgres
@@ -58,13 +58,13 @@ services:
 
   mongo:
     image: mongo:8.0.24
-    container_name: truemain-qa-mongo
+    container_name: truemain-preprod-mongo
     restart: unless-stopped
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
     volumes:
-      - truemain_qa_mongo_data:/data/db
+      - truemain_preprod_mongo_data:/data/db
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
       interval: 10s
@@ -75,8 +75,8 @@ services:
       - truemain_internal
 
   api:
-    image: ghcr.io/ilyanfraimbault/truemain-api:qa
-    container_name: truemain-qa-api
+    image: ghcr.io/ilyanfraimbault/truemain-api:preprod
+    container_name: truemain-preprod-api
     restart: unless-stopped
     environment:
       ASPNETCORE_ENVIRONMENT: Production
@@ -89,7 +89,7 @@ services:
       Cors__Origins__0: "http://localhost:3001"
       MongoLogging__CrashFilePath: /home/app/crashes
     volumes:
-      - truemain_qa_api_crashes:/home/app/crashes
+      - truemain_preprod_api_crashes:/home/app/crashes
     depends_on:
       postgres:
         condition: service_healthy
@@ -103,8 +103,8 @@ services:
       - truemain_internal
 
   web:
-    image: ghcr.io/ilyanfraimbault/truemain-web:qa
-    container_name: truemain-qa-web
+    image: ghcr.io/ilyanfraimbault/truemain-web:preprod
+    container_name: truemain-preprod-web
     restart: unless-stopped
     environment:
       NITRO_HOST: 0.0.0.0
@@ -119,8 +119,8 @@ services:
       - truemain_internal
 
   admin:
-    image: ghcr.io/ilyanfraimbault/truemain-admin:qa
-    container_name: truemain-qa-admin
+    image: ghcr.io/ilyanfraimbault/truemain-admin:preprod
+    container_name: truemain-preprod-admin
     restart: unless-stopped
     environment:
       NITRO_HOST: 0.0.0.0
@@ -141,8 +141,8 @@ services:
       - truemain_internal
 
   ingestor:
-    image: ghcr.io/ilyanfraimbault/truemain-ingestor:qa
-    container_name: truemain-qa-ingestor
+    image: ghcr.io/ilyanfraimbault/truemain-ingestor:preprod
+    container_name: truemain-preprod-ingestor
     restart: unless-stopped
     environment:
       DOTNET_ENVIRONMENT: Production
@@ -151,8 +151,30 @@ services:
       Riot__ApiKey: ${RIOT_API_KEY}
       Job__Mode: ${INGESTOR_JOB_MODE:-Full}
       MongoLogging__CrashFilePath: /home/app/crashes
+      # --- Preprod data diet -------------------------------------------------
+      # The preprod database must stay tiny: just enough matches for every
+      # feature (aggregates, matchups, timeline leads, builds, leaderboard) to
+      # have data. The accounts/mains base is never purged by retention — only
+      # match data is — so the pipeline keeps its player base while match
+      # volume stays bounded. All knobs below override appsettings.json.
+      #
+      # Keep only the current patch's match data (prod keeps 2 patches).
+      MatchDataRetention__RetainedPatchCount: "1"
+      # Ladder discovery: smaller crawl window and fewer new accounts per run.
+      Discovery__MaxAccountsPerPlatformPerRun: "100"
+      Discovery__NewAccountsTarget: "15"
+      # Score fewer candidates into the ingestion queue per platform.
+      Scoring__TopNPerPlatform: "50"
+      # Participant harvest: cap candidate generation from orphan participants.
+      Harvest__MaxCandidatesPerRun: "500"
+      # Fetch fewer accounts and fewer matches per account each cycle.
+      MatchIngestion__BatchSize: "25"
+      MatchIngestion__MatchesPerAccount: "10"
+      # Flag mains sooner on the smaller sample so features light up quickly.
+      MainAnalysis__MatchesToConsider: "30"
+      MainAnalysis__MinMatchesToEvaluate: "10"
     volumes:
-      - truemain_qa_ingestor_crashes:/home/app/crashes
+      - truemain_preprod_ingestor_crashes:/home/app/crashes
     depends_on:
       postgres:
         condition: service_healthy
@@ -165,7 +187,7 @@ services:
 
   pgadmin:
     image: dpage/pgadmin4:9.11
-    container_name: truemain-qa-pgadmin
+    container_name: truemain-preprod-pgadmin
     restart: unless-stopped
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
@@ -173,7 +195,7 @@ services:
     ports:
       - "5051:80"
     volumes:
-      - truemain_qa_pgadmin_data:/var/lib/pgadmin
+      - truemain_preprod_pgadmin_data:/var/lib/pgadmin
     depends_on:
       postgres:
         condition: service_healthy
@@ -181,18 +203,18 @@ services:
       - truemain_internal
 
 volumes:
-  truemain_qa_db_data:
-    name: truemain_qa_db_data
-  truemain_qa_mongo_data:
-    name: truemain_qa_mongo_data
-  truemain_qa_pgadmin_data:
-    name: truemain_qa_pgadmin_data
-  truemain_qa_api_crashes:
-    name: truemain_qa_api_crashes
-  truemain_qa_ingestor_crashes:
-    name: truemain_qa_ingestor_crashes
+  truemain_preprod_db_data:
+    name: truemain_preprod_db_data
+  truemain_preprod_mongo_data:
+    name: truemain_preprod_mongo_data
+  truemain_preprod_pgadmin_data:
+    name: truemain_preprod_pgadmin_data
+  truemain_preprod_api_crashes:
+    name: truemain_preprod_api_crashes
+  truemain_preprod_ingestor_crashes:
+    name: truemain_preprod_ingestor_crashes
 
 networks:
   truemain_internal:
-    name: truemain_qa_internal
+    name: truemain_preprod_internal
     driver: bridge

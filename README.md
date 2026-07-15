@@ -51,7 +51,7 @@ backend/   .NET solution — Api, Ingestor, Core, Data, tests (unit, integration
 web/       public Nuxt frontend
 admin/     standalone Nuxt admin portal
 docs/      API reference, RFCs, production migration notes
-compose*.yaml  Docker stacks (dev with hot-reload, QA and prod from published images)
+compose*.yaml  Docker stacks (dev with hot-reload, preprod and prod from published images)
 ```
 
 ## Infrastructure
@@ -61,5 +61,6 @@ Everything runs as Docker containers on a single host. In production, Caddy term
 ## Further reading
 
 - [`docs/api.md`](docs/api.md) — HTTP endpoint reference (parameters and response shapes).
+- [`docs/preprod.md`](docs/preprod.md) — preprod environment: `:preprod` images tracking `develop`, fresh database with a dedicated Riot API key, data-diet knobs, deployment runbook.
 - [`docs/diagrams/architecture.drawio`](docs/diagrams/architecture.drawio) — architecture diagram.
 - `docs/phase-*.md` — RFCs behind the major evolutions of the data model and pipeline.
