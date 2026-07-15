@@ -53,6 +53,7 @@ public sealed class WorkerResilienceTests
             "MatchParticipantEloBracketEnrichment",
             "ChampionPatternAggregation",
             "ChampionMatchupLeadAggregation",
+            "ChampionPowerspikeAggregation",
             "AccountRefresh",
             "MatchDataRetention"
         };
