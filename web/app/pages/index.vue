@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { ChampionSummaryResponse } from '~~/shared/types/champions'
-import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import type { RegionSlug } from '~~/shared/types/leaderboard'
 
 useSeoMeta({
@@ -25,11 +24,7 @@ const {
 // search and the other pages, so the prefetch-warmed payload is reused.
 const { data: staticList } = useChampionStaticList()
 
-const championsById = computed(() => {
-  const map = new Map<number, ChampionStaticListItem>()
-  for (const champion of staticList.value ?? []) map.set(champion.championId, champion)
-  return map
-})
+const championsById = useChampionsById(staticList)
 
 const { data: versions } = useDDragonVersions()
 const ddragonPatch = computed(() => versions.value?.[0] ?? null)

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Core.Lol.Map;
 using Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -19,15 +20,6 @@ public sealed class TruemainsLeaderboardQueryService(
     private const int MaxPageSize = 50;
     private const int TopChampionsPerRow = 3;
 
-    // The profile derives a player's primary/secondary lane from only their
-    // N most-played mains (ProfileQueryService.FetchMainsAsync). The leaderboard
-    // must aggregate over the same slice or a heavy-flex player's lanes diverge
-    // between the two views: MainStatsCalculator can flag more than this many
-    // champions IsMain when coverage is thin (CriticalPlayRateThreshold can drop
-    // to 0.1), so ">6 mains" is a real shape, not a corner case. Single source of
-    // truth in MainChampionsPolicy so the two views can't drift apart.
-    private const int MainChampionsCap = MainChampionsPolicy.Cap;
-
     // The leaderboard is dominated by page-1 traffic with no filters, and the
     // four SQL queries that make a fresh response (Count + FetchPage +
     // FetchTopChampions + FetchStats) cost more than the response itself is
@@ -38,17 +30,19 @@ public sealed class TruemainsLeaderboardQueryService(
     // ChampionSummariesQueryService uses for the same reason.
     private static readonly TimeSpan ResponseCacheTtl = TimeSpan.FromSeconds(30);
 
-    // Ranked solo queue id (420). Matches the queue used by MainStatsCalculator
+    // Ranked solo queue. Matches the queue used by MainStatsCalculator
     // for main_champion_stats, so the "games" / KDA / winrate cell stays
     // consistent with the player's top-champions cell on the same row.
-    private const int RankedQueueId = 420;
+    private const int RankedQueueId = (int)LolQueueId.RankedSoloDuo;
 
     // A position filter surfaces every player who plays that position on a
     // main champion at least this share of the time, not just players whose
     // single most-played position matches. The bar is low (20%) on purpose:
     // any meaningful flex into the lane should make the player visible there,
     // and only one-off cameos (<20% of a champion's games) stay filtered out.
-    private const double MinPositionShare = 0.2d;
+    // Shared with the primary/secondary derivation in MainPositions so the
+    // filter bar and the "secondary lane" bar can't drift apart.
+    private const double MinPositionShare = MainPositions.MinShare;
 
     public async Task<LeaderboardResponse> GetAsync(
         int page,
@@ -246,7 +240,7 @@ public sealed class TruemainsLeaderboardQueryService(
                     Wins = stats?.Wins,
                     Losses = stats?.Losses,
                     WinRate = stats is not null
-                        ? ComputeWinRate(stats.Wins, stats.Losses)
+                        ? RateMath.WinRate(stats.Wins, stats.Losses)
                         : null,
                     Kda = stats?.Kda,
                 },
@@ -717,97 +711,10 @@ public sealed class TruemainsLeaderboardQueryService(
         }
 
         // Own short-lived context: this runs concurrently with the other page
-        // hydration fetches, and a single DbContext is not thread-safe.
+        // hydration fetches, and a single DbContext is not thread-safe. The
+        // derivation itself lives in MainPositions, shared with search.
         await using var ctx = await dbFactory.CreateDbContextAsync(ct);
-
-        // Pull the per-champion position breakdown for the page's mains so we can
-        // derive each player's primary / secondary lane from position *share*
-        // (same approach as the profile, #205) rather than the single
-        // most-played PrimaryPosition. PositionBreakdown is JSONB on the row;
-        // EF materialises it as List<PositionStat>, so the share aggregation runs
-        // in memory over the page slice (~25 players × few mains each). PlayRate /
-        // ChampionMatches come along so we can cap each player to their top mains
-        // below, exactly as the profile does.
-        var rows = await ctx.MainChampionStats
-            .AsNoTracking()
-            .Where(m => puuids.Contains(m.Puuid) && m.IsMain)
-            .Select(m => new { m.Puuid, m.PlayRate, m.ChampionMatches, m.PositionBreakdown })
-            .ToListAsync(ct);
-
-        var result = new Dictionary<string, LeaderboardPositionsReadModel>(puuids.Length);
-        foreach (var group in rows.GroupBy(r => r.Puuid))
-        {
-            // Mirror ProfileQueryService.FetchMainsAsync exactly: order by
-            // PlayRate desc, ChampionMatches desc and keep only the top mains
-            // before summing position shares. Without the cap a player flagged
-            // IsMain on more than MainChampionsCap champions would have lanes
-            // aggregated over champions the profile never counts, so the
-            // leaderboard and profile could show a different primary/secondary
-            // for the same player.
-            var topMains = group
-                .OrderByDescending(r => r.PlayRate)
-                .ThenByDescending(r => r.ChampionMatches)
-                .Take(MainChampionsCap);
-            var positions = ComputePositions(topMains.SelectMany(r => r.PositionBreakdown));
-            if (positions is not null)
-            {
-                result[group.Key] = positions;
-            }
-        }
-
-        return result;
-    }
-
-    // Primary + secondary lane from position share across a player's mains.
-    // Mirrors the profile's #205 aggregation: sum games per lane across every
-    // main, then share = lane games / total games. The primary is the
-    // highest-share lane (always shown when the player has any positioned
-    // games); the secondary is the next lane down, shown only when its share
-    // clears the noise floor — otherwise it would surface a one-off off-role
-    // cameo that doesn't reflect how the player actually flexes.
-    private static LeaderboardPositionsReadModel? ComputePositions(IEnumerable<Data.Entities.PositionStat> breakdown)
-    {
-        var positionSums = breakdown
-            .Where(p => !string.IsNullOrWhiteSpace(p.Position))
-            .GroupBy(p => p.Position)
-            .Select(g => new { Position = g.Key, Games = g.Sum(x => x.Games) })
-            .Where(p => p.Games > 0)
-            // Deterministic tiebreak: equal-games lanes would otherwise pick a
-            // primary/secondary at random across requests, making the row flap.
-            .OrderByDescending(p => p.Games)
-            .ThenBy(p => p.Position, StringComparer.Ordinal)
-            .ToList();
-
-        if (positionSums.Count == 0)
-        {
-            return null;
-        }
-
-        // Every group cleared the Games > 0 filter and at least one survives, so
-        // totalGames is always > 0 here — safe to divide for the share below.
-        var totalGames = positionSums.Sum(p => p.Games);
-
-        var primary = positionSums[0];
-
-        string? secondary = null;
-        if (positionSums.Count > 1)
-        {
-            var candidate = positionSums[1];
-            var share = (double)candidate.Games / totalGames;
-            // Below the primary by construction (ordered desc) and meaningful —
-            // reuse MinPositionShare so the "secondary lane" bar matches the
-            // position-filter bar the leaderboard already exposes.
-            if (share >= MinPositionShare)
-            {
-                secondary = candidate.Position;
-            }
-        }
-
-        return new LeaderboardPositionsReadModel
-        {
-            Primary = primary.Position,
-            Secondary = secondary,
-        };
+        return await MainPositions.FetchAsync(ctx, puuids, ct);
     }
 
     private static string? NormalizePosition(string? position)
@@ -823,17 +730,6 @@ public sealed class TruemainsLeaderboardQueryService(
             "TOP" or "JUNGLE" or "MIDDLE" or "BOTTOM" or "UTILITY" => normalized,
             _ => null,
         };
-    }
-
-    private static double? ComputeWinRate(int? wins, int? losses)
-    {
-        if (wins is null || losses is null)
-        {
-            return null;
-        }
-
-        var total = wins.Value + losses.Value;
-        return total == 0 ? null : (double)wins.Value / total;
     }
 
     private static LeaderboardResponse Empty(int page, int pageSize) => new()

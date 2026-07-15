@@ -1,15 +1,8 @@
-<script lang="ts">
-import { POSITION_OPTIONS } from '~/utils/positions'
-
-// Hoisted to module scope — it depends only on the POSITION_OPTIONS constant,
-// so there's no need to rebuild the lookup on every component instantiation.
-const positionByValue = new Map(POSITION_OPTIONS.map(option => [option.value as string, option]))
-</script>
-
 <script setup lang="ts">
 import type { ChampionSummaryResponse } from '~~/shared/types/champions'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { formatPercentage } from '~~/shared/utils/ddragon'
+import { POSITION_BY_VALUE } from '~/utils/positions'
 
 // Homepage teaser of the champion tier list: the strongest rows of the
 // active patch, linking through to the full /champions directory. Purely
@@ -41,7 +34,7 @@ const rows = computed(() =>
         ...summary,
         name: champ?.name ?? `Champion ${summary.championId}`,
         iconUrl: champ?.iconUrl ?? '',
-        positionOption: positionByValue.get(summary.position),
+        positionOption: POSITION_BY_VALUE.get(summary.position),
       }
     }),
 )

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Mvc;
 using TrueMain.ReadModels.Champions;
 using TrueMain.Services.Champions;
@@ -63,7 +64,7 @@ public sealed class ChampionsController(
             normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
             if (normalizedPosition is null)
             {
-                return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+                return ValidationProblem(ChampionQueryParameterNormalizer.InvalidPositionMessage);
             }
         }
 
@@ -167,10 +168,9 @@ public sealed class ChampionsController(
         [FromQuery][Range(1, int.MaxValue)] int? opponent,
         CancellationToken ct = default)
     {
-        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
-        if (normalizedPosition is null)
+        if (!TryRequirePosition(position, out var normalizedPosition, out var problem))
         {
-            return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+            return problem;
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
@@ -208,10 +208,9 @@ public sealed class ChampionsController(
         [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
-        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
-        if (normalizedPosition is null)
+        if (!TryRequirePosition(position, out var normalizedPosition, out var problem))
         {
-            return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+            return problem;
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
@@ -246,10 +245,9 @@ public sealed class ChampionsController(
         [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
-        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
-        if (normalizedPosition is null)
+        if (!TryRequirePosition(position, out var normalizedPosition, out var problem))
         {
-            return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+            return problem;
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
@@ -284,10 +282,9 @@ public sealed class ChampionsController(
         [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
-        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
-        if (normalizedPosition is null)
+        if (!TryRequirePosition(position, out var normalizedPosition, out var problem))
         {
-            return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+            return problem;
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
@@ -321,10 +318,9 @@ public sealed class ChampionsController(
         [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
-        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
-        if (normalizedPosition is null)
+        if (!TryRequirePosition(position, out var normalizedPosition, out var problem))
         {
-            return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+            return problem;
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
@@ -359,10 +355,9 @@ public sealed class ChampionsController(
         [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
-        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
-        if (normalizedPosition is null)
+        if (!TryRequirePosition(position, out var normalizedPosition, out var problem))
         {
-            return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+            return problem;
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
@@ -376,5 +371,28 @@ public sealed class ChampionsController(
             ct);
 
         return Ok(response);
+    }
+
+    /// <summary>
+    /// Canonicalises a required <c>position</c> query parameter; a missing or
+    /// unrecognised value yields a 400 <paramref name="problem"/>. Endpoints
+    /// where position is optional (champion detail, trend, patch-diff) call
+    /// <see cref="ChampionQueryParameterNormalizer.NormalizePosition"/>
+    /// directly and treat null as "no filter" instead.
+    /// </summary>
+    private bool TryRequirePosition(
+        string? position,
+        [NotNullWhen(true)] out string? normalizedPosition,
+        [NotNullWhen(false)] out ActionResult? problem)
+    {
+        normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+        if (normalizedPosition is null)
+        {
+            problem = ValidationProblem(ChampionQueryParameterNormalizer.InvalidPositionMessage);
+            return false;
+        }
+
+        problem = null;
+        return true;
     }
 }

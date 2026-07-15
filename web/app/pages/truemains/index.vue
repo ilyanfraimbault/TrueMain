@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import type { RegionSlug } from '~~/shared/types/leaderboard'
-import { isChampionPosition, type ChampionPosition } from '~/utils/positions'
+import type { ChampionPosition } from '~/utils/positions'
 
 useSeoMeta({
   title: 'Truemains · TrueMain',
@@ -12,67 +11,34 @@ const LEADERBOARD_PAGE_SIZE = 25
 const VALID_REGIONS: ReadonlySet<RegionSlug> = new Set(['europe', 'americas', 'korea'])
 
 const route = useRoute()
-const router = useRouter()
 
-// URL state — same coercion pattern as champions/index.vue + the matches
+// URL state — shared coercion helpers with champions/index.vue + the matches
 // feed: invalid values fall back to "no filter" / page 1 instead of
 // reflecting attacker-controlled query params back through the API.
-const currentPage = computed<number>(() => {
-  const raw = Array.isArray(route.query.page) ? route.query.page[0] : route.query.page
-  const parsed = Number.parseInt(typeof raw === 'string' ? raw : '', 10)
-  return Number.isFinite(parsed) && parsed >= 1 ? parsed : 1
-})
+const { currentPage, setPage } = useRoutePage()
 
 const filterRegion = computed<RegionSlug | null>(() => {
   const raw = Array.isArray(route.query.region) ? route.query.region[0] : route.query.region
   return typeof raw === 'string' && VALID_REGIONS.has(raw as RegionSlug) ? (raw as RegionSlug) : null
 })
 
-const filterPosition = computed<ChampionPosition | null>(() => {
-  const raw = Array.isArray(route.query.position) ? route.query.position[0] : route.query.position
-  return isChampionPosition(raw) ? raw : null
-})
-
-const filterChampionId = computed<number | null>(() => {
-  const raw = Array.isArray(route.query.championId) ? route.query.championId[0] : route.query.championId
-  const parsed = Number.parseInt(typeof raw === 'string' ? raw : '', 10)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
-})
-
-async function setPage(next: number) {
-  const clamped = Math.max(1, Math.floor(next))
-  if (clamped === currentPage.value) return
-  const nextQuery = { ...route.query }
-  if (clamped === 1) delete nextQuery.page
-  else nextQuery.page = String(clamped)
-  await router.replace({ query: nextQuery })
-}
+const filterPosition = useRouteQueryPosition()
+const filterChampionId = useRouteQueryChampionId()
 
 // Any filter change drops `?page=` — staying on page 5 after narrowing the
-// filter set risks landing past the new total. Matches the pattern in
-// pages/champions/index.vue (`applyFilterReset`).
+// filter set risks landing past the new total (see useRouteFilterSetter).
+const setQueryFilter = useRouteFilterSetter()
+
 async function setRegion(next: RegionSlug | null) {
-  const nextQuery = { ...route.query }
-  if (next) nextQuery.region = next
-  else delete nextQuery.region
-  delete nextQuery.page
-  await router.replace({ query: nextQuery })
+  await setQueryFilter('region', next)
 }
 
 async function setPosition(next: ChampionPosition | null) {
-  const nextQuery = { ...route.query }
-  if (next) nextQuery.position = next
-  else delete nextQuery.position
-  delete nextQuery.page
-  await router.replace({ query: nextQuery })
+  await setQueryFilter('position', next)
 }
 
 async function setChampionId(next: number | null) {
-  const nextQuery = { ...route.query }
-  if (next) nextQuery.championId = String(next)
-  else delete nextQuery.championId
-  delete nextQuery.page
-  await router.replace({ query: nextQuery })
+  await setQueryFilter('championId', next ? String(next) : null)
 }
 
 // ─── Leaderboard fetch ────────────────────────────────────────────────────
@@ -103,11 +69,7 @@ const latestPatch = computed(() => versions.value?.[0] ?? null)
 const { runeTree, itemsMap } = useBuildAssets(latestPatch)
 
 // Map keyed lookup for the row's top-3 — avoids a linear scan per icon.
-const championsById = computed(() => {
-  const map = new Map<number, ChampionStaticListItem>()
-  for (const c of champions.value ?? []) map.set(c.championId, c)
-  return map
-})
+const championsById = useChampionsById(champions)
 </script>
 
 <template>

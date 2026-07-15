@@ -6,7 +6,7 @@ import type { CurveType, LegendPosition } from 'vue-chrts/enums'
 // the `Nc` prefix in `nuxt.config.ts` so the wrapper can reference it
 // without colliding with its own auto-imported `<ChartsLineChart>` name).
 // Purpose:
-//   1. apply the TrueMain palette (emerald primary, muted neutral guides)
+//   1. apply the TrueMain palette (rose-gold primary, muted neutral guides)
 //      so callers don't repeat hex codes on every chart;
 //   2. fix the container size so an empty/loading state never collapses
 //      the surrounding layout (matches the pattern from issue #192);

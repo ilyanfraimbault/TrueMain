@@ -24,5 +24,14 @@ public class Match
 
     public bool TimelineIngested { get; set; }
 
+    /// <summary>
+    /// Set once this match has been folded into the champion powerspike aggregates
+    /// (#694). Gates the incremental aggregation (each match is aggregated exactly
+    /// once) and the snapshot pruning (only a flagged match's intermediate-minute
+    /// timeline snapshots may be dropped). Dies with the match on retention, so an
+    /// aged-out patch's aggregate rows simply freeze.
+    /// </summary>
+    public bool PowerspikeAggregated { get; set; }
+
     public ICollection<MatchParticipant> Participants { get; set; } = new List<MatchParticipant>();
 }

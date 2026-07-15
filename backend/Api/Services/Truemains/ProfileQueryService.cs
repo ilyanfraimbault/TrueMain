@@ -103,7 +103,7 @@ public sealed class ProfileQueryService(
             {
                 Position = p.Position,
                 Games = p.Games,
-                Rate = totalPositionGames == 0 ? 0d : (double)p.Games / totalPositionGames,
+                Rate = RateMath.Rate(p.Games, totalPositionGames),
             })
             .ToList();
 
@@ -116,7 +116,7 @@ public sealed class ProfileQueryService(
                 LeaguePoints = snapshot.LeaguePoints,
                 Wins = snapshot.Wins,
                 Losses = snapshot.Losses,
-                WinRate = ComputeWinRate(snapshot.Wins, snapshot.Losses),
+                WinRate = RateMath.WinRate(snapshot.Wins, snapshot.Losses),
             };
 
         logger.LogInformation(
@@ -182,16 +182,5 @@ public sealed class ProfileQueryService(
                 m.IsOtp,
                 m.PositionBreakdown))
             .ToListAsync(ct);
-    }
-
-    private static double? ComputeWinRate(int? wins, int? losses)
-    {
-        if (wins is null || losses is null)
-        {
-            return null;
-        }
-
-        var total = wins.Value + losses.Value;
-        return total == 0 ? null : (double)wins.Value / total;
     }
 }

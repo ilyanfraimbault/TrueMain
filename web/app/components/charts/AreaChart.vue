@@ -2,7 +2,7 @@
 import type { axisFormatter, BulletLegendItemInterface } from 'vue-chrts/types'
 import type { CurveType, LegendPosition } from 'vue-chrts/enums'
 
-// Sibling of <ChartsLineChart>. Same defaults — emerald palette, fixed
+// Sibling of <ChartsLineChart>. Same defaults — rose-gold palette, fixed
 // container, decoupled API — but renders the filled area beneath the
 // line. Exposes <c>gradientStops</c> so callers can flatten or fade the
 // fill without dropping back to the upstream component directly. The

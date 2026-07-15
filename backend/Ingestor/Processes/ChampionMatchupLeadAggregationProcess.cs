@@ -158,8 +158,8 @@ public sealed class ChampionMatchupLeadAggregationProcess(
         // main_champion_stats (small: one row per tracked account/champion)
         // rather than a DISTINCT over match_participants, which scanned the whole
         // 35 GB table and blew the command timeout now that parallel query is
-        // disabled (max_parallel_workers_per_gather=0, #589) — the same failure
-        // mode already fixed for pattern aggregation in #604.
+        // disabled (max_parallel_workers_per_gather=0) — the same failure mode
+        // the pattern aggregation avoids the same way.
         var tracked = await db.MainChampionStats
             .AsNoTracking()
             .Where(stat => stat.IsMain)

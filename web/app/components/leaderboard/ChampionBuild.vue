@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { LeaderboardTopChampion } from '~~/shared/types/leaderboard'
 import type { StaticItemData, StaticPerkData, StaticPerkStyleData } from '~~/shared/types/static-data'
+import { formatPercentage } from '~~/shared/utils/ddragon'
 
 // The "this is what they main" cluster used on the truemains leaderboard and
 // the homepage teaser: champion icon + play rate + the player's keystone (with
@@ -38,7 +39,7 @@ const championHref = computed(() =>
 
 const playRatePct = computed(() => {
   const rate = props.champion.playRate
-  return Number.isFinite(rate) ? Math.round(rate * 100) : null
+  return Number.isFinite(rate) ? formatPercentage(rate, 0) : null
 })
 
 const iconSize = computed(() => (props.compact ? 32 : 36))
@@ -71,7 +72,7 @@ const championTitle = computed(() => `${props.name} · ${props.champion.games} g
       <span
         class="font-semibold tabular-nums"
         :class="compact ? 'text-xs' : 'text-sm'"
-      >{{ playRatePct }}%</span>
+      >{{ playRatePct }}</span>
       <span
         v-if="!compact"
         class="mt-0.5 text-[11px] text-muted"

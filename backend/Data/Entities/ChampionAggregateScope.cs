@@ -6,8 +6,7 @@ namespace Data.Entities;
 /// slice, carrying the scope-level totals (Games / Wins / aggregated-at).
 /// Per-combo counts live on <see cref="ChampionAggregatePattern"/> with
 /// FKs to the deduplicated <c>ChampionDim*</c> tables — the scope itself
-/// no longer owns dimension rows directly (Phase 6 removed the
-/// per-scope dim tables in favour of the junction).
+/// owns no dimension rows, only the slice identity and its totals.
 /// </summary>
 public class ChampionAggregateScope
 {

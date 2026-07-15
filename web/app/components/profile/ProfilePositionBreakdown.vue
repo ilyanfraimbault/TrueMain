@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ProfilePositionStat } from '~~/shared/types/profile'
-import { getPositionIconUrl } from '~~/shared/utils/ddragon'
+import { formatPercentage, getPositionIconUrl } from '~~/shared/utils/ddragon'
 
 const props = defineProps<{
   positions: ProfilePositionStat[]
@@ -65,7 +65,7 @@ const sorted = computed<RoleRow[]>(() =>
           {{ role.games }} games
         </span>
         <span class="w-12 text-right text-sm font-semibold tabular-nums text-default">
-          {{ Math.round(role.rate * 100) }}%
+          {{ formatPercentage(role.rate, 0) }}
         </span>
       </li>
     </ul>
