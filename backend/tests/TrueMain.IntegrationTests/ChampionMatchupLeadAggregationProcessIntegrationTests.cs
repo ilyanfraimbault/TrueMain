@@ -77,7 +77,10 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests
     {
         await _fixture.ResetDatabaseAsync();
         await SeedGamesAsync(games: 12, version: "16.4.521.123", wins: 7);
-        await SeedGamesAsync(games: 8, version: "16.4.521.123", wins: 3, matchPrefix: "ahri", champion: 103, opponent: 134);
+        // No main_champion_stats row for Ahri: she must reach the write path
+        // purely through the global pass (tracked account on a non-main champion),
+        // the case the per-champion work-list used to skip.
+        await SeedGamesAsync(games: 8, version: "16.4.521.123", wins: 3, matchPrefix: "ahri", champion: 103, opponent: 134, main: false);
 
         await CreateProcess().RunCoreAsync(CancellationToken.None);
 
@@ -167,7 +170,8 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests
             TimeProvider.System);
 
     private async Task SeedGamesAsync(
-        int games, string version, int wins, string matchPrefix = "m", int champion = Champion, int opponent = Opponent)
+        int games, string version, int wins, string matchPrefix = "m", int champion = Champion, int opponent = Opponent,
+        bool main = true)
     {
         await using var db = _fixture.CreateDbContext();
 
@@ -187,9 +191,9 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests
         }
 
         // The champion write-list unions main_champion_stats champions (#606
-        // fix mirroring #604) with what the global pass surfaces, so the main
-        // row also keeps stale-champion clearing covered here.
-        if (!await db.MainChampionStats.AnyAsync(s => s.Puuid == account.Puuid && s.ChampionId == champion))
+        // fix mirroring #604) with what the global pass surfaces; seeding with
+        // main: false exercises the global-pass-only path.
+        if (main && !await db.MainChampionStats.AnyAsync(s => s.Puuid == account.Puuid && s.ChampionId == champion))
         {
             db.MainChampionStats.Add(new MainChampionStat
             {
