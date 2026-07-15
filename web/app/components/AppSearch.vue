@@ -70,6 +70,15 @@ const router = useRouter()
 // Champions — shared static list, filtered locally by the palette's Fuse.
 const { data: champions } = useChampionStaticList()
 
+// The applied champion filter, resolved to its static entry so the field
+// trigger can show *which* champion is filtering the leaderboard (icon +
+// name) instead of the generic placeholder — otherwise nothing on the page
+// says a filter is active.
+const activeChampion = computed(() => {
+  if (props.championMode !== 'filter' || props.activeChampionId == null) return null
+  return champions.value?.find(c => c.championId === props.activeChampionId) ?? null
+})
+
 // Truemains — debounced server search, reusing the existing composable.
 const { results, status, tooShort } = useTruemainSearch(term)
 
@@ -282,31 +291,50 @@ defineShortcuts(computed(() => ({
 
 <template>
   <div>
-    <!-- Field trigger: looks like a search bar (page hero, leaderboard). -->
-    <button
-      v-if="props.variant === 'field'"
-      type="button"
-      class="group flex w-full items-center gap-3 border border-default bg-default/60 text-left backdrop-blur-md transition-colors hover:border-primary/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-      :class="fieldSizeClass"
-      aria-label="Search a champion or player"
-      @click="open = true"
-    >
-      <UIcon
-        name="i-lucide-search"
-        class="size-5 shrink-0 text-dimmed transition-colors group-hover:text-primary"
+    <!-- Field trigger: looks like a search bar (page hero, leaderboard). When
+         a champion filter is applied (filter mode), the trigger shows that
+         champion (icon + name) with a primary-tinted border instead of the
+         placeholder, and a clear button sits on the right — a sibling, not a
+         nested button, which would be invalid HTML. -->
+    <div v-if="props.variant === 'field'" class="relative">
+      <button
+        type="button"
+        class="group flex w-full items-center gap-3 border bg-default/60 text-left backdrop-blur-md transition-colors hover:border-primary/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        :class="[fieldSizeClass, activeChampion ? 'border-primary/50 pr-12' : 'border-default']"
+        :aria-label="activeChampion ? `Filtering by ${activeChampion.name} — search a champion or player` : 'Search a champion or player'"
+        @click="open = true"
+      >
+        <UIcon
+          name="i-lucide-search"
+          class="size-5 shrink-0 text-dimmed transition-colors group-hover:text-primary"
+        />
+        <span v-if="activeChampion" class="flex min-w-0 flex-1 items-center gap-2">
+          <UAvatar :src="activeChampion.iconUrl" :alt="''" size="2xs" />
+          <span class="truncate font-medium text-highlighted">{{ activeChampion.name }}</span>
+        </span>
+        <span v-else class="flex-1 truncate text-dimmed">
+          {{ props.placeholder }}
+        </span>
+        <!-- ⌘K hint on the prominent hero bar only. The shortcut itself is owned
+             by the always-mounted header instance; pressing ⌘K opens the
+             (identical) unified search, and `usingInput` blocks it while a modal
+             input is focused, so it can't stack a second modal. -->
+        <span v-if="props.size === 'lg'" class="hidden items-center gap-0.5 sm:flex">
+          <UKbd value="meta" />
+          <UKbd value="K" />
+        </span>
+      </button>
+      <UButton
+        v-if="activeChampion"
+        icon="i-lucide-x"
+        color="neutral"
+        variant="ghost"
+        size="xs"
+        class="absolute right-2 top-1/2 -translate-y-1/2"
+        :aria-label="`Clear champion filter (${activeChampion.name})`"
+        @click="emit('filterChampion', null)"
       />
-      <span class="flex-1 truncate text-dimmed">
-        {{ props.placeholder }}
-      </span>
-      <!-- ⌘K hint on the prominent hero bar only. The shortcut itself is owned
-           by the always-mounted header instance; pressing ⌘K opens the
-           (identical) unified search, and `usingInput` blocks it while a modal
-           input is focused, so it can't stack a second modal. -->
-      <span v-if="props.size === 'lg'" class="hidden items-center gap-0.5 sm:flex">
-        <UKbd value="meta" />
-        <UKbd value="K" />
-      </span>
-    </button>
+    </div>
 
     <!-- Compact trigger: icon button (header). -->
     <UButton
