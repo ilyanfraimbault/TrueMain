@@ -73,6 +73,43 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests
     }
 
     [Fact]
+    public async Task RunAsync_AggregatesAllChampionsInOneGlobalPass()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedGamesAsync(games: 12, version: "16.4.521.123", wins: 7);
+        await SeedGamesAsync(games: 8, version: "16.4.521.123", wins: 3, matchPrefix: "ahri", champion: 103, opponent: 134);
+
+        await CreateProcess().RunCoreAsync(CancellationToken.None);
+
+        await using var db = _fixture.CreateDbContext();
+
+        // The single global pass must land each champion's rows separately and
+        // untangled — counts stay per (champion, opponent), never merged.
+        var matchups = await db.ChampionMatchupStats.AsNoTracking()
+            .OrderBy(s => s.ChampionId)
+            .ToListAsync();
+        matchups.Should().HaveCount(2);
+
+        var ahri = matchups.Single(m => m.ChampionId == 103);
+        ahri.OpponentChampionId.Should().Be(134);
+        ahri.Games.Should().Be(8);
+        ahri.Wins.Should().Be(3);
+
+        var yone = matchups.Single(m => m.ChampionId == Champion);
+        yone.OpponentChampionId.Should().Be(Opponent);
+        yone.Games.Should().Be(12);
+        yone.Wins.Should().Be(7);
+
+        var leadChampions = await db.ChampionTimelineLeadStats.AsNoTracking()
+            .GroupBy(s => s.ChampionId)
+            .Select(g => new { ChampionId = g.Key, Rows = g.Count() })
+            .OrderBy(x => x.ChampionId)
+            .ToListAsync();
+        leadChampions.Select(x => x.ChampionId).Should().Equal(103, Champion);
+        leadChampions.Should().OnlyContain(x => x.Rows == Intervals.Length);
+    }
+
+    [Fact]
     public async Task RunAsync_ReplacesByScopeWithoutDuplicatesOnRerun()
     {
         await _fixture.ResetDatabaseAsync();
@@ -129,13 +166,15 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests
             new TestDbContextFactory(_fixture),
             TimeProvider.System);
 
-    private async Task SeedGamesAsync(int games, string version, int wins, string matchPrefix = "m")
+    private async Task SeedGamesAsync(
+        int games, string version, int wins, string matchPrefix = "m", int champion = Champion, int opponent = Opponent)
     {
         await using var db = _fixture.CreateDbContext();
 
-        // First seed creates the tracked account; the freeze test's second seed
-        // reuses it (its Id is set client-side by the builder, so it is usable
-        // before SaveChanges for the participant rows below).
+        // First seed creates the tracked account; later seeds (freeze test,
+        // multi-champion test) reuse it (its Id is set client-side by the
+        // builder, so it is usable before SaveChanges for the participant rows
+        // below).
         var account = await db.RiotAccounts.FirstOrDefaultAsync();
         if (account is null)
         {
@@ -147,16 +186,16 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests
             db.RiotAccounts.Add(account);
         }
 
-        // The champion work-list is now derived from main_champion_stats (#606
-        // fix mirroring #604), not from a DISTINCT scan over match_participants,
-        // so the aggregation only visits champions with a "main" row here.
-        if (!await db.MainChampionStats.AnyAsync(s => s.Puuid == account.Puuid && s.ChampionId == Champion))
+        // The champion write-list unions main_champion_stats champions (#606
+        // fix mirroring #604) with what the global pass surfaces, so the main
+        // row also keeps stale-champion clearing covered here.
+        if (!await db.MainChampionStats.AnyAsync(s => s.Puuid == account.Puuid && s.ChampionId == champion))
         {
             db.MainChampionStats.Add(new MainChampionStat
             {
                 PlatformId = account.PlatformId,
                 Puuid = account.Puuid,
-                ChampionId = Champion,
+                ChampionId = champion,
                 TotalMatches = games,
                 ChampionMatches = games,
                 PlayRate = 1.0,
@@ -172,8 +211,8 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests
             var match = new MatchBuilder().WithId(matchId).WithQueueId(QueueId).WithGameVersion(version).Build();
             db.Matches.Add(match);
 
-            db.MatchParticipants.Add(Participant(matchId, 1, Champion, teamId: 100, win: i < wins, riotAccountId: account.Id));
-            db.MatchParticipants.Add(Participant(matchId, 2, Opponent, teamId: 200, win: i >= wins));
+            db.MatchParticipants.Add(Participant(matchId, 1, champion, teamId: 100, win: i < wins, riotAccountId: account.Id));
+            db.MatchParticipants.Add(Participant(matchId, 2, opponent, teamId: 200, win: i >= wins));
 
             foreach (var minute in Intervals)
             {

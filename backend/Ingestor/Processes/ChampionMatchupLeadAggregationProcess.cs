@@ -14,13 +14,20 @@ namespace Ingestor.Processes;
 /// <c>match_participant_timeline_snapshots</c> tables, single-threaded since
 /// parallel query is disabled (#589) — so they dominated champion-page latency.
 ///
-/// Work is chunked per champion: each champion's matchup counts and timeline diff
-/// totals are computed by a GROUP BY pushed entirely to Postgres (only the small
+/// The whole slice is computed in TWO global GROUP BY queries (one matchup, one
+/// lead) with <c>ChampionId</c> in the grouping key, not per champion: Postgres
+/// plans the per-champion variant as full seq scans of the source tables no
+/// matter the filter (its row estimates on <c>(MatchId, ParticipantId)</c> are
+/// ~15× off, so index plans lose every time), which meant re-reading ~24 GB per
+/// champion — 173 × ≈73 s ≈ 4 h per cycle on prod. One global pass reads the
+/// same tables once (~3.5 min measured on prod, cold cache). Only the small
 /// aggregated rows cross the wire, never the raw rows — so no OOM, unlike the
-/// pattern aggregation #600), then written under a per-champion transaction with
-/// freeze-safe replace-by-scope. Rows are stored WITHOUT the games floor: the read
-/// side folds them to the requested patch scope and applies the floor on the
-/// merged total, so the all-patches view floors on the real total.
+/// pattern aggregation #600. Writes stay chunked per champion under a
+/// transaction with freeze-safe replace-by-scope, so a mid-run crash leaves
+/// processed champions fresh and the rest on their previous data. Rows are
+/// stored WITHOUT the games floor: the read side folds them to the requested
+/// patch scope and applies the floor on the merged total, so the all-patches
+/// view floors on the real total.
 /// </summary>
 public sealed class ChampionMatchupLeadAggregationProcess(
     ILogger<ChampionMatchupLeadAggregationProcess> logger,
@@ -47,34 +54,45 @@ public sealed class ChampionMatchupLeadAggregationProcess(
 
         HashSet<string> livePatches;
         List<int> championIds;
+        List<ChampionMatchupStat> matchupRows;
+        List<ChampionTimelineLeadStat> leadRows;
         await using (var db = await dbContextFactory.CreateDbContextAsync(ct))
         {
             livePatches = await LoadLivePatchesAsync(db, queueId, ct);
+            if (livePatches.Count == 0)
+            {
+                logger.LogInformation("No live patches available for champion matchup/lead aggregation.");
+                return new { reason = "No live patches available.", champions = 0, matchupRows = 0, leadRows = 0 };
+            }
+
             championIds = await LoadChampionIdsAsync(db, ct);
+            matchupRows = await ComputeMatchupRowsAsync(db, queueId, livePatches, aggregatedAtUtc, ct);
+            leadRows = await ComputeLeadRowsAsync(db, queueId, livePatches, aggregatedAtUtc, ct);
         }
 
-        if (livePatches.Count == 0)
-        {
-            logger.LogInformation("No live patches available for champion matchup/lead aggregation.");
-            return new { reason = "No live patches available.", champions = 0, matchupRows = 0, leadRows = 0 };
-        }
+        var matchupsByChampion = matchupRows.ToLookup(row => row.ChampionId);
+        var leadsByChampion = leadRows.ToLookup(row => row.ChampionId);
 
-        // EF translates List.Contains to `= ANY (...)`; HashSet does not. Keep both
-        // shapes: the list for the SQL delete, the set for the in-memory merge.
+        // The write universe is the known champions (tracked mains ∪ champions
+        // with existing aggregate rows — they need their stale live rows cleared)
+        // plus whatever the global pass surfaced: tracked rows can exist for a
+        // champion nobody mains, which the per-champion work-list used to skip.
+        var writeTargets = championIds
+            .Union(matchupsByChampion.Select(group => group.Key))
+            .Union(leadsByChampion.Select(group => group.Key))
+            .OrderBy(championId => championId)
+            .ToList();
+
+        // EF translates List.Contains to `= ANY (...)`; HashSet does not.
         var livePatchList = livePatches.ToList();
 
         var processed = 0;
-        var matchupRowCount = 0;
-        var leadRowCount = 0;
 
-        foreach (var championId in championIds)
+        foreach (var championId in writeTargets)
         {
             ct.ThrowIfCancellationRequested();
 
             await using var db = await dbContextFactory.CreateDbContextAsync(ct);
-
-            var matchupRows = await ComputeMatchupRowsAsync(db, championId, queueId, livePatches, aggregatedAtUtc, ct);
-            var leadRows = await ComputeLeadRowsAsync(db, championId, queueId, livePatches, aggregatedAtUtc, ct);
 
             // Freeze-safe replace-by-scope: delete only this champion's LIVE-patch
             // rows, then insert the freshly computed ones. Patches whose match data
@@ -91,36 +109,27 @@ public sealed class ChampionMatchupLeadAggregationProcess(
                 .Where(s => s.ChampionId == championId && livePatchList.Contains(s.Patch))
                 .ExecuteDeleteAsync(ct);
 
-            if (matchupRows.Count > 0)
-            {
-                db.ChampionMatchupStats.AddRange(matchupRows);
-            }
-
-            if (leadRows.Count > 0)
-            {
-                db.ChampionTimelineLeadStats.AddRange(leadRows);
-            }
+            db.ChampionMatchupStats.AddRange(matchupsByChampion[championId]);
+            db.ChampionTimelineLeadStats.AddRange(leadsByChampion[championId]);
 
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
 
             processed++;
-            matchupRowCount += matchupRows.Count;
-            leadRowCount += leadRows.Count;
         }
 
         logger.LogInformation(
             "Champion matchup/lead aggregation summary: champions={Champions}, matchupRows={MatchupRows}, leadRows={LeadRows}, livePatches={LivePatches}.",
             processed,
-            matchupRowCount,
-            leadRowCount,
+            matchupRows.Count,
+            leadRows.Count,
             livePatchList.Count);
 
         return new
         {
             champions = processed,
-            matchupRows = matchupRowCount,
-            leadRows = leadRowCount,
+            matchupRows = matchupRows.Count,
+            leadRows = leadRows.Count,
             livePatches = livePatchList.Count
         };
     }
@@ -151,11 +160,10 @@ public sealed class ChampionMatchupLeadAggregationProcess(
         TrueMainDbContext db,
         CancellationToken ct)
     {
-        // Champions with at least one "main" account — a superset of the champions
-        // that can produce source rows. The per-champion matchup/lead queries
-        // re-apply the full tracked-account/queue filter, so a champion with no
-        // qualifying rows just yields empty results. Derived from
-        // main_champion_stats (small: one row per tracked account/champion)
+        // Champions whose live-patch rows must be replaced or cleared even when
+        // the global pass yields nothing for them this cycle: mains (their games
+        // may have aged out) and champions with existing aggregate rows. Derived
+        // from main_champion_stats (small: one row per tracked account/champion)
         // rather than a DISTINCT over match_participants, which scanned the whole
         // 35 GB table and blew the command timeout now that parallel query is
         // disabled (max_parallel_workers_per_gather=0, #589) — the same failure
@@ -188,20 +196,18 @@ public sealed class ChampionMatchupLeadAggregationProcess(
 
     private static async Task<List<ChampionMatchupStat>> ComputeMatchupRowsAsync(
         TrueMainDbContext db,
-        int championId,
         int queueId,
         HashSet<string> livePatches,
         DateTime aggregatedAtUtc,
         CancellationToken ct)
     {
-        // Self-join the champion's tracked rows to each lane opponent (same match
-        // + position, opposite team) and count games / wins per (position,
-        // opponent, raw GameVersion). Postgres does the GROUP BY; only the
-        // aggregated rows return.
+        // Self-join every tracked row to its lane opponent (same match +
+        // position, opposite team) and count games / wins per (champion,
+        // position, opponent, raw GameVersion, band) — all champions in one
+        // pass. Postgres does the GROUP BY; only the aggregated rows return.
         var raw = await db.MatchParticipants
             .AsNoTracking()
-            .Where(p1 => p1.ChampionId == championId
-                && p1.RiotAccountId != null
+            .Where(p1 => p1.RiotAccountId != null
                 && CanonicalPositions.Contains(p1.TeamPosition))
             .Join(
                 db.Matches.AsNoTracking().Where(m => m.QueueId == queueId),
@@ -213,10 +219,11 @@ public sealed class ChampionMatchupLeadAggregationProcess(
                     p2.MatchId == x.P1.MatchId
                     && p2.TeamPosition == x.P1.TeamPosition
                     && p2.TeamId != x.P1.TeamId),
-                (x, p2) => new { x.P1.TeamPosition, Opponent = p2.ChampionId, x.GameVersion, x.P1.EloBracket, x.P1.Win })
-            .GroupBy(x => new { x.TeamPosition, x.Opponent, x.GameVersion, x.EloBracket })
+                (x, p2) => new { x.P1.ChampionId, x.P1.TeamPosition, Opponent = p2.ChampionId, x.GameVersion, x.P1.EloBracket, x.P1.Win })
+            .GroupBy(x => new { x.ChampionId, x.TeamPosition, x.Opponent, x.GameVersion, x.EloBracket })
             .Select(g => new
             {
+                g.Key.ChampionId,
                 g.Key.TeamPosition,
                 g.Key.Opponent,
                 g.Key.GameVersion,
@@ -227,14 +234,14 @@ public sealed class ChampionMatchupLeadAggregationProcess(
             .ToListAsync(ct);
 
         // Fold the raw Riot versions (hotfix builds) down to the canonical patch.
-        // The elo band is carried through so one row per (position, opponent,
-        // patch, band) is stored — the read seeks the bands it wants.
+        // The elo band is carried through so one row per (champion, position,
+        // opponent, patch, band) is stored — the read seeks the bands it wants.
         return raw
-            .GroupBy(r => new { r.TeamPosition, r.Opponent, Patch = PatchVersion.Normalize(r.GameVersion), r.EloBracket })
+            .GroupBy(r => new { r.ChampionId, r.TeamPosition, r.Opponent, Patch = PatchVersion.Normalize(r.GameVersion), r.EloBracket })
             .Where(g => livePatches.Contains(g.Key.Patch))
             .Select(g => new ChampionMatchupStat
             {
-                ChampionId = championId,
+                ChampionId = g.Key.ChampionId,
                 TeamPosition = g.Key.TeamPosition,
                 OpponentChampionId = g.Key.Opponent,
                 Patch = g.Key.Patch,
@@ -248,21 +255,20 @@ public sealed class ChampionMatchupLeadAggregationProcess(
 
     private static async Task<List<ChampionTimelineLeadStat>> ComputeLeadRowsAsync(
         TrueMainDbContext db,
-        int championId,
         int queueId,
         HashSet<string> livePatches,
         DateTime aggregatedAtUtc,
         CancellationToken ct)
     {
-        // Pair the champion with its lane opponent, join both sides' per-interval
-        // snapshots on the same minute mark, and sum the per-game diffs + count
-        // games per (position, raw GameVersion, interval). The sargable IN on the
+        // Pair every tracked row with its lane opponent, join both sides'
+        // per-interval snapshots on the same minute mark, and sum the per-game
+        // diffs + count games per (champion, position, raw GameVersion, band,
+        // interval) — all champions in one pass. The sargable IN on the
         // opponent snapshot mirrors the live read's #594 fix (prunes the opponent
         // side to the five marks up front instead of a full single-threaded scan).
         var raw = await db.MatchParticipants
             .AsNoTracking()
-            .Where(p1 => p1.ChampionId == championId
-                && p1.RiotAccountId != null
+            .Where(p1 => p1.RiotAccountId != null
                 && CanonicalPositions.Contains(p1.TeamPosition))
             .Join(
                 db.Matches.AsNoTracking().Where(m => m.QueueId == queueId),
@@ -276,6 +282,7 @@ public sealed class ChampionMatchupLeadAggregationProcess(
                     && p2.TeamId != x.P1.TeamId),
                 (x, p2) => new
                 {
+                    x.P1.ChampionId,
                     x.GameVersion,
                     Position = x.P1.TeamPosition,
                     x.P1.EloBracket,
@@ -289,7 +296,7 @@ public sealed class ChampionMatchupLeadAggregationProcess(
                     s1.MatchId == x.P1MatchId
                     && s1.ParticipantId == x.P1ParticipantId
                     && LeadIntervalMinutes.Contains(s1.IntervalMinute)),
-                (x, s1) => new { x.GameVersion, x.Position, x.EloBracket, x.P2MatchId, x.P2ParticipantId, S1 = s1 })
+                (x, s1) => new { x.ChampionId, x.GameVersion, x.Position, x.EloBracket, x.P2MatchId, x.P2ParticipantId, S1 = s1 })
             .SelectMany(
                 x => db.MatchParticipantTimelineSnapshots.Where(s2 =>
                     s2.MatchId == x.P2MatchId
@@ -298,6 +305,7 @@ public sealed class ChampionMatchupLeadAggregationProcess(
                     && s2.IntervalMinute == x.S1.IntervalMinute),
                 (x, s2) => new
                 {
+                    x.ChampionId,
                     x.GameVersion,
                     x.Position,
                     x.EloBracket,
@@ -309,9 +317,10 @@ public sealed class ChampionMatchupLeadAggregationProcess(
                     XpDiff = x.S1.Xp - s2.Xp,
                     DamageDiff = x.S1.DamageToChampions - s2.DamageToChampions,
                 })
-            .GroupBy(x => new { x.GameVersion, x.Position, x.EloBracket, x.IntervalMinute })
+            .GroupBy(x => new { x.ChampionId, x.GameVersion, x.Position, x.EloBracket, x.IntervalMinute })
             .Select(g => new
             {
+                g.Key.ChampionId,
                 g.Key.GameVersion,
                 g.Key.Position,
                 g.Key.EloBracket,
@@ -327,11 +336,11 @@ public sealed class ChampionMatchupLeadAggregationProcess(
             .ToListAsync(ct);
 
         return raw
-            .GroupBy(r => new { r.Position, Patch = PatchVersion.Normalize(r.GameVersion), r.EloBracket, r.IntervalMinute })
+            .GroupBy(r => new { r.ChampionId, r.Position, Patch = PatchVersion.Normalize(r.GameVersion), r.EloBracket, r.IntervalMinute })
             .Where(g => livePatches.Contains(g.Key.Patch))
             .Select(g => new ChampionTimelineLeadStat
             {
-                ChampionId = championId,
+                ChampionId = g.Key.ChampionId,
                 TeamPosition = g.Key.Position,
                 Patch = g.Key.Patch,
                 EloBracket = g.Key.EloBracket,
