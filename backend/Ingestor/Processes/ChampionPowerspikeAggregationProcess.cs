@@ -369,7 +369,7 @@ public sealed class ChampionPowerspikeAggregationProcess(
             int? reached = null;
             foreach (var (minute, diff) in series)
             {
-                if (diff.Level >= milestone && (reached is null || minute < reached))
+                if (diff.ChampionLevel >= milestone && (reached is null || minute < reached))
                 {
                     reached = minute;
                 }
@@ -608,7 +608,7 @@ public sealed class ChampionPowerspikeAggregationProcess(
 
     private readonly record struct ParticipantMinute(int Gold, int Damage, int Level);
 
-    private readonly record struct DiffMinute(long GoldDiff, long DamageDiff, int Level);
+    private readonly record struct DiffMinute(long GoldDiff, long DamageDiff, int ChampionLevel);
 
     private readonly record struct CurveKey(int ChampionId, string TeamPosition, string Patch, string EloBracket, int IntervalMinute);
 

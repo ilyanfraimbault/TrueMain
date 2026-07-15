@@ -128,10 +128,43 @@ public sealed class ChampionPowerspikeAggregationProcessIntegrationTests
         return row.SumMinute / row.Games;
     }
 
-    private ChampionPowerspikeAggregationProcess CreateProcess()
+    [Fact]
+    public async Task RunAsync_SplitsAcrossBatches_WithoutDoubleCountingOrLosingSigmaMerge()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedGamesAsync();
+
+        // Two matches per batch over six games → three batches in one run, so the
+        // cross-batch σ merge (MergeSigmaAsync reloads the prior batch's committed
+        // sums) is exercised. The result must equal the single-batch aggregate.
+        await CreateProcess(new PowerspikeAggregationOptions { MatchBatchSize = 2 })
+            .RunCoreAsync(CancellationToken.None);
+
+        await using var db = _fixture.CreateDbContext();
+
+        var expectedGold = Enumerable.Range(0, Games).Sum(i => GoldBase + i);
+        foreach (var point in await db.ChampionPowerspikeCurveStats.AsNoTracking().ToListAsync())
+        {
+            point.Games.Should().Be(Games);
+            point.TotalGoldDiff.Should().Be(expectedGold);
+        }
+
+        foreach (var row in await db.PowerspikeSigmaStats.AsNoTracking().ToListAsync())
+        {
+            row.SampleCount.Should().Be(2L * Games, "each of the six games' two directed pairs is counted once across batches");
+            row.SumGoldDiff.Should().BeApproximately(0, 1e-6);
+        }
+
+        foreach (var row in await db.ChampionPowerspikeEventStats.AsNoTracking().ToListAsync())
+        {
+            row.Games.Should().Be(Games);
+        }
+    }
+
+    private ChampionPowerspikeAggregationProcess CreateProcess(PowerspikeAggregationOptions? options = null)
         => new(
             NullLogger<ChampionPowerspikeAggregationProcess>.Instance,
-            Microsoft.Extensions.Options.Options.Create(new PowerspikeAggregationOptions()),
+            Microsoft.Extensions.Options.Options.Create(options ?? new PowerspikeAggregationOptions()),
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
             new TestDbContextFactory(_fixture),
             TimeProvider.System);
