@@ -813,6 +813,8 @@ function mockSearch(q: string): SearchResponse {
         ranked: p.row.ranked
           ? { tier: p.row.ranked.tier, division: p.row.ranked.division, leaguePoints: p.row.ranked.leaguePoints }
           : null,
+        topChampionIds: p.row.topChampions.map(c => c.championId),
+        positions: p.row.positions,
       })),
   }
 }

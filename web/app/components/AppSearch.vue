@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import type { CommandPaletteGroup, CommandPaletteItem } from '@nuxt/ui'
 import { isNavigationFailure } from 'vue-router'
-import { getProfileIconUrl } from '~~/shared/utils/ddragon'
+import { getPositionIconUrl, getProfileIconUrl } from '~~/shared/utils/ddragon'
 import type { SearchResult } from '~~/shared/types/search'
+import { POSITION_BY_VALUE } from '~/utils/positions'
 import { formatTier } from '~/utils/tiers'
 // Explicit (over Nuxt auto-import) so the template's {{ SEARCH_MIN_LENGTH }} has
 // a visible source.
@@ -85,9 +86,52 @@ const { results, status, tooShort } = useTruemainSearch(term)
 const { data: versions } = useDDragonVersions()
 const latestPatch = computed(() => versions.value?.[0] ?? null)
 
-// Carries the full result through to the trailing slot (rank + region) on top
-// of the standard label/suffix/avatar fields.
+// championId → static entry, for the truemained-champion icons on each result
+// row. Shares the `champion-static-list` cache with the palette's champion
+// group, so this costs no extra request.
+const championsById = useChampionsById(champions)
+
+// Carries the full result through to the row's label/trailing slots (region
+// under the name, lanes + mains + rank on the right) on top of the standard
+// label/suffix/avatar fields.
 type SearchItem = CommandPaletteItem & { truemain?: SearchResult }
+
+// Primary / secondary lane icons for a result row — same visual contract as
+// the leaderboard row (primary brighter than secondary, label tooltips from
+// the canonical POSITION_BY_VALUE map).
+function positionIconsFor(result: SearchResult | undefined) {
+  const positions = result?.positions
+  if (!positions) return []
+  const label = (position: string) => POSITION_BY_VALUE.get(position)?.label ?? position
+  const icons = [{
+    position: positions.primary,
+    iconUrl: getPositionIconUrl(positions.primary),
+    title: `Primary: ${label(positions.primary)}`,
+    primary: true,
+  }]
+  if (positions.secondary) {
+    icons.push({
+      position: positions.secondary,
+      iconUrl: getPositionIconUrl(positions.secondary),
+      title: `Secondary: ${label(positions.secondary)}`,
+      primary: false,
+    })
+  }
+  return icons
+}
+
+// Truemained-champion icons for a result row. Entries whose static lookup
+// hasn't resolved yet (list still loading) are dropped rather than rendered
+// as broken images.
+function championIconsFor(result: SearchResult | undefined) {
+  if (!result) return []
+  return result.topChampionIds
+    .map((id) => {
+      const champion = championsById.value.get(id)
+      return champion ? { id, name: champion.name, iconUrl: champion.iconUrl } : null
+    })
+    .filter(champion => champion !== null)
+}
 
 function go(path: string) {
   open.value = false
@@ -367,20 +411,59 @@ defineShortcuts(computed(() => ({
           class="h-96"
           :close="{ onClick: () => { open = false } }"
         >
-          <template #truemain-trailing="{ item }">
-            <div class="flex items-center gap-2">
+          <!-- Result row: name#tag with the region flag underneath on the
+               left; lanes, truemained champions and the rank emblem (icon
+               only — the tier name stays in the tooltip, never spelled out)
+               on the right. -->
+          <template #truemain-label="{ item }">
+            <div class="flex min-w-0 flex-col items-start gap-0.5">
+              <span class="truncate">
+                {{ item.truemain?.identity.gameName ?? item.label }}<span
+                  v-if="item.truemain?.identity.tagLine"
+                  class="text-dimmed"
+                > #{{ item.truemain.identity.tagLine }}</span>
+              </span>
               <LeaderboardRegionFlag
                 v-if="item.truemain?.region"
                 :region="item.truemain.region"
                 :width="16"
               />
-              <div
-                v-if="item.truemain?.ranked"
-                class="flex items-center gap-1.5 text-sm text-muted"
-              >
-                <RankIcon :tier="item.truemain.ranked.tier" :size="20" />
-                <span class="tabular-nums">{{ formatTier(item.truemain.ranked.tier, item.truemain.ranked.division) }}</span>
+            </div>
+          </template>
+          <template #truemain-trailing="{ item }">
+            <div class="flex items-center gap-3">
+              <div v-if="positionIconsFor(item.truemain).length > 0" class="flex items-center gap-1">
+                <img
+                  v-for="role in positionIconsFor(item.truemain)"
+                  :key="role.position"
+                  :src="role.iconUrl"
+                  :alt="role.title"
+                  :title="role.title"
+                  class="size-4 shrink-0"
+                  :class="role.primary ? 'opacity-70' : 'opacity-40'"
+                  width="16"
+                  height="16"
+                >
               </div>
+              <div v-if="championIconsFor(item.truemain).length > 0" class="flex items-center gap-1">
+                <img
+                  v-for="champion in championIconsFor(item.truemain)"
+                  :key="champion.id"
+                  :src="champion.iconUrl"
+                  :alt="champion.name"
+                  :title="champion.name"
+                  class="size-5 shrink-0 rounded"
+                  width="20"
+                  height="20"
+                >
+              </div>
+              <span
+                v-if="item.truemain?.ranked"
+                :title="formatTier(item.truemain.ranked.tier, item.truemain.ranked.division)"
+                class="shrink-0"
+              >
+                <RankIcon :tier="item.truemain.ranked.tier" :size="22" />
+              </span>
             </div>
           </template>
         </UCommandPalette>
