@@ -29,6 +29,7 @@ public sealed class WorkerProcessIsolationTests
         "MatchParticipantEloBracketEnrichment",
         "ChampionPatternAggregation",
         "ChampionMatchupLeadAggregation",
+        "ChampionPowerspikeAggregation",
         "AccountRefresh",
         "MatchDataRetention"
     ];
