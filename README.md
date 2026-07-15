@@ -22,7 +22,7 @@ TrueMain/
 │   └── package.json
 ├── compose.yaml             # stack production locale (images build)
 ├── compose.dev.yaml         # stack dev avec dotnet watch + Vite HMR
-├── compose.qa.yaml          # stack QA (images ghcr)
+├── compose.preprod.yaml     # stack preprod (images ghcr :preprod, buildées depuis develop)
 ├── compose.prod.yaml        # stack prod (images ghcr)
 ├── docs/
 │   ├── diagrams/            # architecture.drawio (draw.io)
@@ -51,13 +51,15 @@ docker compose -f compose.dev.yaml up --build --watch
 docker compose -f compose.yaml up --build
 ```
 
-### Stacks QA / prod (images publiées sur GHCR)
+### Stacks preprod / prod (images publiées sur GHCR)
 
 ```bash
-docker compose -f compose.qa.yaml up
+docker compose -f compose.preprod.yaml up
 # ou
 docker compose -f compose.prod.yaml up
 ```
+
+La stack preprod suit `develop` : chaque push publie les images `:preprod` sur GHCR. Le déploiement complet (base vierge, clé Riot dédiée, volumes de données réduits) est décrit dans [`docs/preprod.md`](docs/preprod.md).
 
 ### Reverse proxy & HTTPS (prod)
 
@@ -84,13 +86,13 @@ En prod, tout le trafic public passe par **Caddy**, qui termine le TLS et obtien
 
 > Mongo et Postgres ne sont pas publiés (réseau interne uniquement). Les anciens ports `3000`/`3001` ne sont plus exposés — tu peux fermer les règles firewall correspondantes.
 
-### Accès au dashboard admin (qa)
+### Accès au dashboard admin (preprod)
 
-La stack **qa** reste publiée directement sur l'hôte sans TLS : `http://<hôte>:3002` (login `ADMIN_USERNAME` / `ADMIN_PASSWORD`). Identifiants et cookie en clair — ne l'expose pas sans restreindre le port par firewall :
+La stack **preprod** reste publiée directement sur l'hôte sans TLS : `http://<hôte>:3002` (login `ADMIN_USERNAME` / `ADMIN_PASSWORD`). Identifiants et cookie en clair — ne l'expose pas sans restreindre le port par firewall :
 ```bash
 ufw allow from <IP_de_confiance> to any port 3002
 ```
-(Passer la qa derrière le même Caddy est un suivi possible si elle partage l'hôte de la prod.)
+(Passer la preprod derrière un Caddy dédié est un suivi possible.)
 
 ## Build / test séparé
 
@@ -116,7 +118,7 @@ npm run build    # production build dans .output/
 
 ## Variables d'environnement
 
-Toutes les valeurs nécessaires sont listées dans `.env.example` (dev/prod) et `.env.qa.example` (QA). Au minimum :
+Toutes les valeurs nécessaires sont listées dans `.env.example` (dev/prod) et `.env.preprod.example` (preprod). Au minimum :
 
 - `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`
 - `RIOT_API_KEY` — clé Riot Developer (`RGAPI-…`)
@@ -124,7 +126,7 @@ Toutes les valeurs nécessaires sont listées dans `.env.example` (dev/prod) et 
 - `MONGO_USER`, `MONGO_PASSWORD` — credentials MongoDB (logs + audit + métriques d'usage Riot ; alphanumériques, ils entrent dans l'URI de connexion). **MongoDB 5.0+ requis** — le panneau d'usage Riot agrège avec `$dateTrunc` ; les images compose épinglent `mongo:8.0`/`8.0.24`
 - `ADMIN_USERNAME`, `ADMIN_PASSWORD` — login du dashboard admin. **Définir un vrai `ADMIN_PASSWORD` est obligatoire** (seule barrière devant les outils d'ops) ; `.env.example` met volontairement `REPLACE_ME`
 - `ADMIN_SESSION_PASSWORD` — scelle le cookie de session admin (32+ caractères aléatoires, ex. `openssl rand -hex 32`)
-- `NUXT_SESSION_COOKIE_SECURE`, `NUXT_TRUST_PROXY` — réglés par environnement dans les fichiers compose (pas via `.env`) : `"true"` en prod (admin derrière Caddy/TLS) → cookie `Secure` + confiance au `X-Forwarded-For` pour le throttle de login ; `false` en qa/local (exposition HTTP directe)
+- `NUXT_SESSION_COOKIE_SECURE`, `NUXT_TRUST_PROXY` — réglés par environnement dans les fichiers compose (pas via `.env`) : `"true"` en prod (admin derrière Caddy/TLS) → cookie `Secure` + confiance au `X-Forwarded-For` pour le throttle de login ; `false` en preprod/local (exposition HTTP directe)
 - `PGADMIN_DEFAULT_EMAIL`, `PGADMIN_DEFAULT_PASSWORD`
 - `NUXT_API_BASE_URL` (côté web, généralement `http://api:8080` dans Docker)
 
