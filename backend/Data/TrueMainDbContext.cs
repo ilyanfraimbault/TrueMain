@@ -27,6 +27,14 @@ public class TrueMainDbContext : DbContext
     public DbSet<ChampionMatchupStat> ChampionMatchupStats => Set<ChampionMatchupStat>();
     public DbSet<ChampionTimelineLeadStat> ChampionTimelineLeadStats => Set<ChampionTimelineLeadStat>();
 
+    // Pre-aggregated champion powerspikes (#694): the per-minute power curve, the
+    // per-event slope-change spikes, and the global per-minute lead spread. Populated
+    // incrementally by ChampionPowerspikeAggregationProcess so the dense per-minute
+    // MatchParticipantTimelineSnapshot rows can be pruned to the canonical marks.
+    public DbSet<ChampionPowerspikeCurveStat> ChampionPowerspikeCurveStats => Set<ChampionPowerspikeCurveStat>();
+    public DbSet<ChampionPowerspikeEventStat> ChampionPowerspikeEventStats => Set<ChampionPowerspikeEventStat>();
+    public DbSet<PowerspikeSigmaStat> PowerspikeSigmaStats => Set<PowerspikeSigmaStat>();
+
     public DbSet<ChampionAggregateScope> ChampionAggregateScopes => Set<ChampionAggregateScope>();
 
     // Junction-table aggregate + globally-deduplicated dimension tables:
