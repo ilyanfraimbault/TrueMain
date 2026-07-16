@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ProfileMainChampion } from '~~/shared/types/profile'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
-import { getPositionIconUrl } from '~~/shared/utils/ddragon'
+import { formatPercentage, getPositionIconUrl } from '~~/shared/utils/ddragon'
 
 const props = defineProps<{
   mains: ProfileMainChampion[]
@@ -19,7 +19,7 @@ function lookupChampionName(championId: number): string {
 }
 
 function formatPlayRate(rate: number): string {
-  return `${Math.round(rate * 100)}%`
+  return formatPercentage(rate, 0)
 }
 
 // Drill into how THIS player builds the champion (player-scoped page), not the

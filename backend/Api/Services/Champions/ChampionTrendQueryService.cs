@@ -93,8 +93,8 @@ public sealed class ChampionTrendQueryService(
                 {
                     Patch = row.Patch,
                     Games = row.Games,
-                    WinRate = row.Games == 0 ? 0 : (double)row.Wins / row.Games,
-                    PickRate = laneTotal == 0 ? 0 : (double)row.Games / laneTotal,
+                    WinRate = RateMath.Rate(row.Wins, row.Games),
+                    PickRate = RateMath.Rate(row.Games, laneTotal),
                 };
             })
             .ToList();

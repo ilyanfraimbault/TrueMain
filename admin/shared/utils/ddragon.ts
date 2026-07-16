@@ -1,7 +1,3 @@
-export function formatPercentage(value: number, digits = 1): string {
-  return `${(value * 100).toFixed(digits)}%`
-}
-
 export function normalizeDataDragonPatch(patch?: string | null): string | null {
   if (!patch) {
     return null
@@ -13,44 +9,4 @@ export function normalizeDataDragonPatch(patch?: string | null): string | null {
   }
 
   return patch
-}
-
-export function getItemImageUrl(itemId: number, patch?: string | null): string | null {
-  const normalizedPatch = normalizeDataDragonPatch(patch)
-  if (!normalizedPatch) {
-    return null
-  }
-
-  return `https://ddragon.leagueoflegends.com/cdn/${normalizedPatch}/img/item/${itemId}.png`
-}
-
-export function getSummonerSpellImageUrl(imageFileName: string, patch?: string | null): string | null {
-  const normalizedPatch = normalizeDataDragonPatch(patch)
-  if (!normalizedPatch) {
-    return null
-  }
-
-  return `https://ddragon.leagueoflegends.com/cdn/${normalizedPatch}/img/spell/${imageFileName}`
-}
-
-export function getChampionSpellImageUrl(imageFileName: string, patch?: string | null): string | null {
-  const normalizedPatch = normalizeDataDragonPatch(patch)
-  if (!normalizedPatch) {
-    return null
-  }
-
-  return `https://ddragon.leagueoflegends.com/cdn/${normalizedPatch}/img/spell/${imageFileName}`
-}
-
-export function getPositionIconUrl(position: string): string {
-  return `/positions/icon-position-${position.toLowerCase()}.png`
-}
-
-export function getProfileIconUrl(profileIconId: number, patch?: string | null): string | null {
-  const normalizedPatch = normalizeDataDragonPatch(patch)
-  if (!normalizedPatch) {
-    return null
-  }
-
-  return `https://ddragon.leagueoflegends.com/cdn/${normalizedPatch}/img/profileicon/${profileIconId}.png`
 }

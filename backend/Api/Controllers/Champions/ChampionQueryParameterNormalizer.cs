@@ -16,6 +16,14 @@ namespace TrueMain.Controllers.Champions;
 internal static class ChampionQueryParameterNormalizer
 {
     /// <summary>
+    /// Client-error detail returned when a <c>position</c> query parameter
+    /// that must canonicalise fails to (missing where required, or
+    /// unrecognised).
+    /// </summary>
+    public const string InvalidPositionMessage =
+        "position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.";
+
+    /// <summary>
     /// Normalises a Riot patch string (e.g. <c>16.4.521.123</c>) to the
     /// canonical <c>major.minor</c> form persisted on aggregates.
     /// Returns <c>null</c> for null / whitespace input or for any value that

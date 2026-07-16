@@ -199,6 +199,22 @@ html {
   }
 }
 
+/*
+ * Loader icons always spin. UIcon renders these as a bare masked span, so
+ * without a rotation the "loading" glyph reads as a frozen broken circle.
+ * Applying it globally (both the `i-lucide-loader` and `i-lucide:loader`
+ * class forms, covering `-circle`/`-2` variants) means no call site can
+ * forget `animate-spin` again.
+ */
+[class*="i-lucide-loader"],
+[class*="i-lucide:loader"] {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 .dark {
   --ui-bg: var(--ui-color-neutral-900);
   --ui-bg-muted: var(--ui-color-neutral-800);

@@ -53,6 +53,10 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
             .IsRequired()
             .HasDefaultValue(false);
 
+        entity.Property(e => e.PowerspikeAggregated)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         entity.HasIndex(e => e.PlatformId);
 
         entity.HasIndex(e => new { e.PlatformId, e.QueueId, e.GameStartTimeUtc })
@@ -60,6 +64,13 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
 
         entity.HasIndex(e => e.TimelineIngested)
             .HasDatabaseName("IX_matches_timeline_ingested");
+
+        // Partial index over the not-yet-aggregated tail so the incremental
+        // powerspike batch selection stays cheap; once backfilled almost every row
+        // is aggregated, so the filtered index holds only the recent pending matches.
+        entity.HasIndex(e => e.QueueId)
+            .HasDatabaseName("IX_matches_powerspike_pending")
+            .HasFilter("\"PowerspikeAggregated\" = false");
 
         entity.HasMany(e => e.Participants)
             .WithOne(e => e.Match)

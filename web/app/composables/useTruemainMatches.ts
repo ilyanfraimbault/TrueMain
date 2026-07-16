@@ -20,14 +20,14 @@ interface UseTruemainMatchesOptions {
  *
  * `null` from the API (malformed nameTag or no matching Riot account) is
  * surfaced as <c>notFound = true</c> — the page renders an empty state
- * rather than an error.
+ * rather than an error. Same contract as the profile composable, shared via
+ * {@link useTruemainFetch}.
  */
 export function useTruemainMatches(
   nameTag: MaybeRefOrGetter<string>,
   page: MaybeRefOrGetter<number>,
   options: UseTruemainMatchesOptions = {},
 ) {
-  const nameTagRef = computed(() => toValue(nameTag))
   const pageRef = computed(() => {
     const value = toValue(page)
     return Number.isFinite(value) && value >= 1 ? Math.floor(value) : 1
@@ -44,23 +44,10 @@ export function useTruemainMatches(
   const matches = ref<MatchSummaryResponse[]>([])
   const total = ref(0)
   const pageSize = ref(options.pageSize ?? 20)
-  const isLoading = ref(false)
-  const isInitialLoading = ref(true)
-  const notFound = ref(false)
-  const error = ref<unknown>(null)
 
-  async function fetchPage() {
-    if (!nameTagRef.value) {
-      matches.value = []
-      total.value = 0
-      notFound.value = false
-      isInitialLoading.value = false
-      return
-    }
-
-    isLoading.value = true
-    error.value = null
-    try {
+  const { isLoading, isInitialLoading, notFound, error, execute } = useTruemainFetch<MatchSummariesResponse>(nameTag, {
+    watch: [pageRef, positionRef, championIdRef],
+    request: (tag) => {
       const query: Record<string, string | number> = {
         page: pageRef.value,
       }
@@ -68,46 +55,27 @@ export function useTruemainMatches(
       if (positionRef.value) query.position = positionRef.value
       if (championIdRef.value) query.championId = championIdRef.value
 
-      const response = await $fetch<MatchSummariesResponse | null>(
-        `/api/truemains/${encodeURIComponent(nameTagRef.value)}/matches`,
+      return $fetch<MatchSummariesResponse | null>(
+        `/api/truemains/${encodeURIComponent(tag)}/matches`,
         {
           query,
           ignoreResponseError: true,
         },
       )
-
-      // 404 from the controller bubbles up as null thanks to
-      // `ignoreResponseError`. Anything else missing the matches array we
-      // also treat as not-found — same contract as the profile composable.
-      if (!response || !Array.isArray(response.matches)) {
-        notFound.value = true
-        matches.value = []
-        total.value = 0
-        return
-      }
-
-      notFound.value = false
+    },
+    // Anything missing the matches array we treat as not-found.
+    validate: (response): response is MatchSummariesResponse =>
+      Boolean(response && Array.isArray(response.matches)),
+    onResponse: (response) => {
       matches.value = response.matches
       total.value = response.total
       pageSize.value = response.pageSize
-    }
-    catch (err) {
-      error.value = err
-    }
-    finally {
-      isLoading.value = false
-      isInitialLoading.value = false
-    }
-  }
-
-  // Refetch on any reactive arg change. Empty nameTag short-circuits inside
-  // fetchPage so a parent page can bind to a still-empty ref without
-  // triggering a 404 round trip on the first tick.
-  watch(
-    [nameTagRef, pageRef, positionRef, championIdRef],
-    () => { void fetchPage() },
-    { immediate: true },
-  )
+    },
+    onClear: () => {
+      matches.value = []
+      total.value = 0
+    },
+  })
 
   return {
     matches,
@@ -117,6 +85,6 @@ export function useTruemainMatches(
     isInitialLoading,
     notFound,
     error,
-    refresh: fetchPage,
+    refresh: execute,
   }
 }

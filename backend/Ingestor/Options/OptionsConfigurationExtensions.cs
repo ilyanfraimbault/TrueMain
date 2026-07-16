@@ -111,11 +111,18 @@ public static class OptionsConfigurationExtensions
             .Bind(configuration.GetSection(MatchDataRetentionOptions.SectionName))
             .Validate(options => options.RetainedPatchCount > 0, "MatchDataRetention:RetainedPatchCount must be greater than 0.")
             .Validate(options => options.NonRankedDeleteBatchSize > 0, "MatchDataRetention:NonRankedDeleteBatchSize must be greater than 0.")
+            .Validate(options => options.AggregateRetainedPatchCount >= 0, "MatchDataRetention:AggregateRetainedPatchCount must be >= 0 (0 disables aggregate retention).")
             .ValidateOnStart();
 
         services.AddOptions<CandidatePruningOptions>()
             .Bind(configuration.GetSection(CandidatePruningOptions.SectionName))
             .Validate(options => options.PruneAfterDays >= 0, "CandidatePruning:PruneAfterDays must be >= 0.")
+            .ValidateOnStart();
+
+        services.AddOptions<PowerspikeAggregationOptions>()
+            .Bind(configuration.GetSection(PowerspikeAggregationOptions.SectionName))
+            .Validate(options => options.MatchBatchSize > 0, "PowerspikeAggregation:MatchBatchSize must be greater than 0.")
+            .Validate(options => options.MaxMatchesPerRun >= 0, "PowerspikeAggregation:MaxMatchesPerRun must be >= 0.")
             .ValidateOnStart();
 
         services.AddOptions<JobOptions>()

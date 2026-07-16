@@ -5,12 +5,9 @@
 // memory/GC snapshot, and the log lines captured just before it); the whole report
 // is copyable as text for pasting into an issue/chat.
 import type { TableColumn } from '@nuxt/ui'
-import type { CrashReport, CrashSource, LogLevel } from '~~/shared/types/ops'
+import type { BadgeColor, CrashReport, CrashSource } from '~~/shared/types/ops'
 import { formatDateTime, formatDuration, humanizeBytes } from '~~/shared/utils/format'
 
-// Reka UI forbids an empty-string SelectItem value, so "All …" uses the non-empty
-// 'all' sentinel; `filters` maps it back to undefined (param omitted).
-const ALL = 'all'
 const processFilter = ref<string>(ALL)
 const sourceFilter = ref<string>(ALL)
 const sinceWindow = ref<'all' | '1h' | '24h' | '7d' | '30d'>(ALL)
@@ -20,26 +17,11 @@ const search = refDebounced(searchInput, 300)
 const page = ref(1)
 const pageSize = 25
 
-const sinceItems = [
-  { label: 'All time', value: ALL },
-  { label: 'Last hour', value: '1h' },
-  { label: 'Last 24 hours', value: '24h' },
-  { label: 'Last 7 days', value: '7d' },
-  { label: 'Last 30 days', value: '30d' },
-]
-
-const WINDOW_MS: Record<string, number> = {
-  '1h': 60 * 60 * 1000,
-  '24h': 24 * 60 * 60 * 1000,
-  '7d': 7 * 24 * 60 * 60 * 1000,
-  '30d': 30 * 24 * 60 * 60 * 1000,
-}
-
 // Freeze `since` when the window changes, not on every filters recompute — otherwise
 // paging would re-sample Date.now() and drift the window forward between pages.
 const sinceFrom = ref<string | undefined>(undefined)
 watch(sinceWindow, (w) => {
-  sinceFrom.value = w === ALL ? undefined : new Date(Date.now() - WINDOW_MS[w]!).toISOString()
+  sinceFrom.value = w === ALL ? undefined : sinceToIso(w)
 }, { immediate: true })
 
 const filters = computed(() => ({
@@ -91,7 +73,6 @@ watch([processFilter, sourceFilter, sinceWindow, search], () => {
 })
 
 // --- Source styling ----------------------------------------------------------
-type BadgeColor = 'error' | 'warning' | 'success' | 'neutral'
 function sourceColor(s: CrashSource): BadgeColor {
   switch (s) {
     case 'UncleanShutdown':
@@ -130,19 +111,6 @@ function sourceLabel(s: CrashSource): string {
       return 'Unobserved task'
     default:
       return s
-  }
-}
-function levelColor(l: LogLevel): BadgeColor {
-  switch (l) {
-    case 'Critical':
-    case 'Error':
-      return 'error'
-    case 'Warning':
-      return 'warning'
-    case 'Information':
-      return 'success'
-    default:
-      return 'neutral'
   }
 }
 const shortExceptionType = (full: string | null) =>
@@ -235,7 +203,7 @@ function crashToText(c: CrashReport): string {
       />
       <USelect
         v-model="sinceWindow"
-        :items="sinceItems"
+        :items="SINCE_ITEMS"
         icon="i-lucide-clock"
         placeholder="Since"
         class="w-44"

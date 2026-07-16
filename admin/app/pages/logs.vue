@@ -23,10 +23,6 @@ watch(view, (v) => {
 })
 
 // --- Filters -----------------------------------------------------------------
-// Reka UI forbids an empty-string SelectItem value, so "All …" uses the
-// non-empty `'all'` sentinel; `filters` maps it back to `undefined` (param
-// omitted) so the backend still sees "no filter".
-const ALL = 'all'
 // `level` is a MINIMUM threshold: Warning returns Warning + Error + Critical.
 const level = ref<'all' | LogLevel>(ALL)
 // Named ops event (exact match); the option list comes from the response's
@@ -52,27 +48,13 @@ const levelItems = [
   { label: 'Error', value: 'Error' },
   { label: 'Critical', value: 'Critical' },
 ]
-const sinceItems = [
-  { label: 'All time', value: ALL },
-  { label: 'Last hour', value: '1h' },
-  { label: 'Last 24 hours', value: '24h' },
-  { label: 'Last 7 days', value: '7d' },
-  { label: 'Last 30 days', value: '30d' },
-]
-
-const WINDOW_MS: Record<string, number> = {
-  '1h': 60 * 60 * 1000,
-  '24h': 24 * 60 * 60 * 1000,
-  '7d': 7 * 24 * 60 * 60 * 1000,
-  '30d': 30 * 24 * 60 * 60 * 1000,
-}
 
 const filters = computed(() => ({
   level: level.value === ALL ? undefined : level.value,
   category: category.value.trim() || undefined,
   since: sinceWindow.value === ALL
     ? undefined
-    : new Date(Date.now() - WINDOW_MS[sinceWindow.value]!).toISOString(),
+    : sinceToIso(sinceWindow.value),
   search: search.value.trim() || undefined,
   eventType: eventType.value === ALL ? undefined : eventType.value,
   page: page.value,
@@ -118,37 +100,6 @@ const eventItems = computed(() => [
 watch([level, eventType, category, sinceWindow, search], () => {
   page.value = 1
 })
-
-// --- Severity styling --------------------------------------------------------
-type BadgeColor = 'error' | 'warning' | 'success' | 'neutral'
-function levelColor(l: LogLevel): BadgeColor {
-  switch (l) {
-    case 'Critical':
-    case 'Error':
-      return 'error'
-    case 'Warning':
-      return 'warning'
-    case 'Information':
-      return 'success'
-    default:
-      // Debug / Trace — muted.
-      return 'neutral'
-  }
-}
-function levelIcon(l: LogLevel): string {
-  switch (l) {
-    case 'Critical':
-      return 'i-lucide-octagon-alert'
-    case 'Error':
-      return 'i-lucide-circle-x'
-    case 'Warning':
-      return 'i-lucide-triangle-alert'
-    case 'Information':
-      return 'i-lucide-info'
-    default:
-      return 'i-lucide-bug'
-  }
-}
 
 // --- Table -------------------------------------------------------------------
 const columns: TableColumn<LogEntry>[] = [
@@ -261,7 +212,7 @@ function openDetail(entry: LogEntry) {
           />
           <USelect
             v-model="sinceWindow"
-            :items="sinceItems"
+            :items="SINCE_ITEMS"
             icon="i-lucide-clock"
             placeholder="Since"
             class="w-44"
@@ -295,213 +246,213 @@ function openDetail(entry: LogEntry) {
     <template #body>
       <CrashesPanel v-if="view === 'crashes'" />
       <template v-else>
-      <UAlert
-        v-if="error"
-        color="error"
-        variant="subtle"
-        icon="i-lucide-triangle-alert"
-        title="Failed to load logs"
-        :description="error.message"
-        class="mb-6"
-      />
-
-      <!-- Hint: level is a minimum threshold, not an exact match. -->
-      <p v-if="level !== ALL" class="text-xs text-dimmed mb-3">
-        Showing <span class="font-medium">{{ level }}</span> and above.
-      </p>
-
-      <UCard :ui="{ body: 'p-0 sm:p-0' }">
-        <template #header>
-          <div class="flex items-center justify-between gap-2">
-            <p class="text-sm font-medium text-highlighted">
-              Log entries
-            </p>
-            <UBadge
-              v-if="!pending"
-              color="neutral"
-              variant="subtle"
-              :label="`${total.toLocaleString('en-US')} ${total === 1 ? 'entry' : 'entries'}`"
-            />
-          </div>
-        </template>
-
-        <UTable
-          :data="entries"
-          :columns="columns"
-          :meta="tableMeta"
-          :loading="pending"
-          loading-color="primary"
-          :ui="{ td: 'py-2', tr: 'cursor-pointer' }"
-          @select="(_event, row) => openDetail(row.original)"
-        >
-          <template #timestampUtc-cell="{ row }">
-            <span class="text-muted whitespace-nowrap tabular-nums">
-              {{ formatDateTime(row.original.timestampUtc) }}
-            </span>
-          </template>
-          <template #level-cell="{ row }">
-            <UBadge
-              :color="levelColor(row.original.level)"
-              :icon="levelIcon(row.original.level)"
-              variant="subtle"
-              size="sm"
-              :label="row.original.level"
-            />
-          </template>
-          <template #eventType-cell="{ row }">
-            <UBadge
-              v-if="row.original.eventType"
-              color="primary"
-              variant="subtle"
-              size="sm"
-              :label="row.original.eventType"
-            />
-            <span v-else class="text-dimmed text-xs">—</span>
-          </template>
-          <template #category-cell="{ row }">
-            <span
-              class="font-mono text-xs text-muted line-clamp-1 max-w-[16rem]"
-              :title="row.original.category"
-            >
-              {{ row.original.category }}
-            </span>
-          </template>
-          <template #message-cell="{ row }">
-            <span
-              class="font-mono text-xs line-clamp-1 max-w-[32rem]"
-              :title="row.original.message"
-            >
-              {{ row.original.message }}
-            </span>
-          </template>
-          <template #processName-cell="{ row }">
-            <span class="text-muted font-mono text-xs whitespace-nowrap">
-              {{ row.original.processName ?? '—' }}
-            </span>
-          </template>
-
-          <template #empty>
-            <div class="py-10 text-center text-sm text-muted">
-              No log entries match these filters.
-            </div>
-          </template>
-        </UTable>
-      </UCard>
-
-      <!-- Server-side pagination: total/page/pageSize come from the response. -->
-      <div
-        v-if="total > serverPageSize"
-        class="flex items-center justify-between gap-2 mt-4"
-      >
-        <p class="text-xs text-muted tabular-nums">
-          Page {{ serverPage.toLocaleString('en-US') }} of
-          {{ Math.max(1, Math.ceil(total / serverPageSize)).toLocaleString('en-US') }}
-        </p>
-        <UPagination
-          v-model:page="page"
-          :total="total"
-          :items-per-page="serverPageSize"
-          :sibling-count="1"
-          active-color="primary"
+        <UAlert
+          v-if="error"
+          color="error"
           variant="subtle"
-          :disabled="pending"
+          icon="i-lucide-triangle-alert"
+          title="Failed to load logs"
+          :description="error.message"
+          class="mb-6"
         />
-      </div>
 
-      <!-- Entry detail slide-over -->
-      <USlideover
-        v-model:open="detailOpen"
-        :title="selectedEntry?.level ?? 'Log entry'"
-        :description="selectedEntry
-          ? formatDateTime(selectedEntry.timestampUtc)
-          : ''"
-      >
-        <template #body>
-          <div v-if="selectedEntry" class="space-y-5">
-            <dl class="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-              <div>
-                <dt class="text-muted text-xs uppercase mb-0.5">
-                  Level
-                </dt>
-                <dd>
-                  <UBadge
-                    :color="levelColor(selectedEntry.level)"
-                    :icon="levelIcon(selectedEntry.level)"
-                    variant="subtle"
-                    size="sm"
-                    :label="selectedEntry.level"
-                  />
-                </dd>
-              </div>
-              <div>
-                <dt class="text-muted text-xs uppercase mb-0.5">
-                  Timestamp
-                </dt>
-                <dd class="tabular-nums">
-                  {{ formatDateTime(selectedEntry.timestampUtc) }}
-                </dd>
-              </div>
-              <div class="col-span-2">
-                <dt class="text-muted text-xs uppercase mb-0.5">
-                  Category
-                </dt>
-                <dd class="font-mono text-xs break-all">
-                  {{ selectedEntry.category }}
-                </dd>
-              </div>
-              <div>
-                <dt class="text-muted text-xs uppercase mb-0.5">
-                  Process
-                </dt>
-                <dd class="font-mono text-xs">
-                  {{ selectedEntry.processName ?? '—' }}
-                </dd>
-              </div>
-              <div>
-                <dt class="text-muted text-xs uppercase mb-0.5">
-                  Host
-                </dt>
-                <dd class="font-mono text-xs">
-                  {{ selectedEntry.host ?? '—' }}
-                </dd>
-              </div>
-              <div v-if="selectedEntry.eventType" class="col-span-2">
-                <dt class="text-muted text-xs uppercase mb-0.5">
-                  Event
-                </dt>
-                <dd>
-                  <UBadge
-                    color="primary"
-                    variant="subtle"
-                    size="sm"
-                    :label="selectedEntry.eventType"
-                  />
-                </dd>
-              </div>
-            </dl>
+        <!-- Hint: level is a minimum threshold, not an exact match. -->
+        <p v-if="level !== ALL" class="text-xs text-dimmed mb-3">
+          Showing <span class="font-medium">{{ level }}</span> and above.
+        </p>
 
-            <div>
-              <div class="flex items-center justify-between mb-1.5">
-                <p class="text-muted text-xs uppercase">
-                  Message
-                </p>
-                <CopyButton :text="selectedEntry.message" label="Copy" />
-              </div>
-              <pre class="text-xs bg-elevated/50 border border-default rounded-md p-3 overflow-auto whitespace-pre-wrap">{{ selectedEntry.message }}</pre>
+        <UCard :ui="{ body: 'p-0 sm:p-0' }">
+          <template #header>
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-sm font-medium text-highlighted">
+                Log entries
+              </p>
+              <UBadge
+                v-if="!pending"
+                color="neutral"
+                variant="subtle"
+                :label="`${total.toLocaleString('en-US')} ${total === 1 ? 'entry' : 'entries'}`"
+              />
             </div>
+          </template>
 
-            <div v-if="selectedEntry.exception">
-              <div class="flex items-center justify-between mb-1.5">
-                <p class="text-muted text-xs uppercase">
-                  Exception
-                </p>
-                <CopyButton :text="selectedEntry.exception" label="Copy" />
+          <UTable
+            :data="entries"
+            :columns="columns"
+            :meta="tableMeta"
+            :loading="pending"
+            loading-color="primary"
+            :ui="{ td: 'py-2', tr: 'cursor-pointer' }"
+            @select="(_event, row) => openDetail(row.original)"
+          >
+            <template #timestampUtc-cell="{ row }">
+              <span class="text-muted whitespace-nowrap tabular-nums">
+                {{ formatDateTime(row.original.timestampUtc) }}
+              </span>
+            </template>
+            <template #level-cell="{ row }">
+              <UBadge
+                :color="levelColor(row.original.level)"
+                :icon="levelIcon(row.original.level)"
+                variant="subtle"
+                size="sm"
+                :label="row.original.level"
+              />
+            </template>
+            <template #eventType-cell="{ row }">
+              <UBadge
+                v-if="row.original.eventType"
+                color="primary"
+                variant="subtle"
+                size="sm"
+                :label="row.original.eventType"
+              />
+              <span v-else class="text-dimmed text-xs">—</span>
+            </template>
+            <template #category-cell="{ row }">
+              <span
+                class="font-mono text-xs text-muted line-clamp-1 max-w-[16rem]"
+                :title="row.original.category"
+              >
+                {{ row.original.category }}
+              </span>
+            </template>
+            <template #message-cell="{ row }">
+              <span
+                class="font-mono text-xs line-clamp-1 max-w-[32rem]"
+                :title="row.original.message"
+              >
+                {{ row.original.message }}
+              </span>
+            </template>
+            <template #processName-cell="{ row }">
+              <span class="text-muted font-mono text-xs whitespace-nowrap">
+                {{ row.original.processName ?? '—' }}
+              </span>
+            </template>
+
+            <template #empty>
+              <div class="py-10 text-center text-sm text-muted">
+                No log entries match these filters.
               </div>
-              <pre class="text-xs text-error bg-error/5 border border-error/20 rounded-md p-3 overflow-auto whitespace-pre-wrap">{{ selectedEntry.exception }}</pre>
+            </template>
+          </UTable>
+        </UCard>
+
+        <!-- Server-side pagination: total/page/pageSize come from the response. -->
+        <div
+          v-if="total > serverPageSize"
+          class="flex items-center justify-between gap-2 mt-4"
+        >
+          <p class="text-xs text-muted tabular-nums">
+            Page {{ serverPage.toLocaleString('en-US') }} of
+            {{ Math.max(1, Math.ceil(total / serverPageSize)).toLocaleString('en-US') }}
+          </p>
+          <UPagination
+            v-model:page="page"
+            :total="total"
+            :items-per-page="serverPageSize"
+            :sibling-count="1"
+            active-color="primary"
+            variant="subtle"
+            :disabled="pending"
+          />
+        </div>
+
+        <!-- Entry detail slide-over -->
+        <USlideover
+          v-model:open="detailOpen"
+          :title="selectedEntry?.level ?? 'Log entry'"
+          :description="selectedEntry
+            ? formatDateTime(selectedEntry.timestampUtc)
+            : ''"
+        >
+          <template #body>
+            <div v-if="selectedEntry" class="space-y-5">
+              <dl class="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                <div>
+                  <dt class="text-muted text-xs uppercase mb-0.5">
+                    Level
+                  </dt>
+                  <dd>
+                    <UBadge
+                      :color="levelColor(selectedEntry.level)"
+                      :icon="levelIcon(selectedEntry.level)"
+                      variant="subtle"
+                      size="sm"
+                      :label="selectedEntry.level"
+                    />
+                  </dd>
+                </div>
+                <div>
+                  <dt class="text-muted text-xs uppercase mb-0.5">
+                    Timestamp
+                  </dt>
+                  <dd class="tabular-nums">
+                    {{ formatDateTime(selectedEntry.timestampUtc) }}
+                  </dd>
+                </div>
+                <div class="col-span-2">
+                  <dt class="text-muted text-xs uppercase mb-0.5">
+                    Category
+                  </dt>
+                  <dd class="font-mono text-xs break-all">
+                    {{ selectedEntry.category }}
+                  </dd>
+                </div>
+                <div>
+                  <dt class="text-muted text-xs uppercase mb-0.5">
+                    Process
+                  </dt>
+                  <dd class="font-mono text-xs">
+                    {{ selectedEntry.processName ?? '—' }}
+                  </dd>
+                </div>
+                <div>
+                  <dt class="text-muted text-xs uppercase mb-0.5">
+                    Host
+                  </dt>
+                  <dd class="font-mono text-xs">
+                    {{ selectedEntry.host ?? '—' }}
+                  </dd>
+                </div>
+                <div v-if="selectedEntry.eventType" class="col-span-2">
+                  <dt class="text-muted text-xs uppercase mb-0.5">
+                    Event
+                  </dt>
+                  <dd>
+                    <UBadge
+                      color="primary"
+                      variant="subtle"
+                      size="sm"
+                      :label="selectedEntry.eventType"
+                    />
+                  </dd>
+                </div>
+              </dl>
+
+              <div>
+                <div class="flex items-center justify-between mb-1.5">
+                  <p class="text-muted text-xs uppercase">
+                    Message
+                  </p>
+                  <CopyButton :text="selectedEntry.message" label="Copy" />
+                </div>
+                <pre class="text-xs bg-elevated/50 border border-default rounded-md p-3 overflow-auto whitespace-pre-wrap">{{ selectedEntry.message }}</pre>
+              </div>
+
+              <div v-if="selectedEntry.exception">
+                <div class="flex items-center justify-between mb-1.5">
+                  <p class="text-muted text-xs uppercase">
+                    Exception
+                  </p>
+                  <CopyButton :text="selectedEntry.exception" label="Copy" />
+                </div>
+                <pre class="text-xs text-error bg-error/5 border border-error/20 rounded-md p-3 overflow-auto whitespace-pre-wrap">{{ selectedEntry.exception }}</pre>
+              </div>
             </div>
-          </div>
-        </template>
-      </USlideover>
+          </template>
+        </USlideover>
       </template>
     </template>
   </UDashboardPanel>

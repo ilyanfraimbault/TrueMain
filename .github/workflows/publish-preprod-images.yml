@@ -1,4 +1,4 @@
-name: Publish QA Docker Images
+name: Publish Preprod Docker Images
 
 on:
   push:
@@ -17,8 +17,8 @@ env:
   IMAGE_ADMIN: ghcr.io/${{ github.repository_owner }}/truemain-admin
 
 jobs:
-  publish-qa:
-    name: Publish QA Images
+  publish-preprod:
+    name: Publish Preprod Images
     runs-on: ubuntu-24.04
 
     steps:
@@ -43,7 +43,7 @@ jobs:
           push: true
           cache-from: type=gha,scope=api
           cache-to: type=gha,mode=max,scope=api
-          tags: ${{ env.IMAGE_API }}:qa
+          tags: ${{ env.IMAGE_API }}:preprod
 
       - name: Build and push Ingestor image
         uses: docker/build-push-action@v7
@@ -53,7 +53,7 @@ jobs:
           push: true
           cache-from: type=gha,scope=ingestor
           cache-to: type=gha,mode=max,scope=ingestor
-          tags: ${{ env.IMAGE_INGESTOR }}:qa
+          tags: ${{ env.IMAGE_INGESTOR }}:preprod
 
       - name: Build and push Web image
         uses: docker/build-push-action@v7
@@ -63,7 +63,7 @@ jobs:
           push: true
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
-          tags: ${{ env.IMAGE_WEB }}:qa
+          tags: ${{ env.IMAGE_WEB }}:preprod
 
       - name: Build and push Admin image
         uses: docker/build-push-action@v7
@@ -73,4 +73,32 @@ jobs:
           push: true
           cache-from: type=gha,scope=admin
           cache-to: type=gha,mode=max,scope=admin
-          tags: ${{ env.IMAGE_ADMIN }}:qa
+          tags: ${{ env.IMAGE_ADMIN }}:preprod
+
+  deploy-preprod:
+    name: Deploy Preprod VPS
+    runs-on: ubuntu-24.04
+    needs: publish-preprod
+    # No-op until the Hostinger credentials are configured: set the
+    # HOSTINGER_PREPROD_VM_ID repository variable plus the HOSTINGER_API_KEY
+    # and PREPROD_ENV_FILE secrets (see docs/preprod.md). success() must be
+    # explicit — a custom `if:` replaces the implicit needs-succeeded check,
+    # and deploying after a failed publish would ship stale/mixed images.
+    if: success() && vars.HOSTINGER_PREPROD_VM_ID != ''
+    concurrency:
+      group: deploy-preprod
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Redeploy Docker Manager project
+        uses: hostinger/deploy-on-vps@v2
+        with:
+          api-key: ${{ secrets.HOSTINGER_API_KEY }}
+          virtual-machine: ${{ vars.HOSTINGER_PREPROD_VM_ID }}
+          project-name: truemain-preprod
+          docker-compose-path: compose.preprod.yaml
+          # Newline-separated KEY=value pairs mirroring the VPS .env.
+          environment-variables: ${{ secrets.PREPROD_ENV_FILE }}

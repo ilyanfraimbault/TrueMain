@@ -8,6 +8,7 @@ import type {
   StaticPerkStyleData,
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
+import { formatPercentage } from '~~/shared/utils/ddragon'
 import { getQueueLabel } from '~/utils/queues'
 import { formatDuration, formatRelativeTime } from '~/utils/relativeTime'
 
@@ -122,7 +123,7 @@ const csPerMin = computed(() => {
   return (self.value.cs / minutes).toFixed(1)
 })
 
-const kpPercent = computed(() => `${Math.round(self.value.killParticipation * 100)}%`)
+const kpPercent = computed(() => formatPercentage(self.value.killParticipation, 0))
 
 const resultLabel = computed(() => (self.value.win ? 'Victory' : 'Defeat'))
 

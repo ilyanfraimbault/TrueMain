@@ -43,7 +43,7 @@ function clearAttempts(ip: string): void {
 
 // Constant-time string comparison. A plain `!==` short-circuits on the first
 // differing byte, leaking length/prefix information through response timing.
-// timingSafeEqual requires equal byte length, so encode each side into a fixed
+// timingSafeEqual requires equal byte length, so encode each side into a
 // fixed-size, zero-filled buffer. We size by *bytes* (not characters):
 // `String.padEnd` pads UTF-16 code units, but UTF-8 encoding emits a variable
 // number of bytes per character, so a multi-byte character (accent, emoji)
