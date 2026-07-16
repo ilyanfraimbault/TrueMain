@@ -111,6 +111,7 @@ public static class OptionsConfigurationExtensions
             .Bind(configuration.GetSection(MatchDataRetentionOptions.SectionName))
             .Validate(options => options.RetainedPatchCount > 0, "MatchDataRetention:RetainedPatchCount must be greater than 0.")
             .Validate(options => options.NonRankedDeleteBatchSize > 0, "MatchDataRetention:NonRankedDeleteBatchSize must be greater than 0.")
+            .Validate(options => options.AggregateRetainedPatchCount >= 0, "MatchDataRetention:AggregateRetainedPatchCount must be >= 0 (0 disables aggregate retention).")
             .ValidateOnStart();
 
         services.AddOptions<CandidatePruningOptions>()

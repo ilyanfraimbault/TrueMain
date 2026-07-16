@@ -85,8 +85,10 @@ public sealed class MatchDataRetentionProcessIntegrationTests
         (await db.ChampionAggregateScopes.AsNoTracking().Select(s => s.GameVersion).Distinct().ToListAsync())
             .Should().BeEquivalentTo(["16.5"]);
         (await db.ChampionAggregatePatterns.AsNoTracking().CountAsync()).Should().Be(1);
+        // The "unknown" row survives: unparseable patch strings are never deleted,
+        // the safety net for a destructive operation on a format surprise.
         (await db.ChampionMatchupStats.AsNoTracking().Select(s => s.Patch).ToListAsync())
-            .Should().BeEquivalentTo(["16.5"]);
+            .Should().BeEquivalentTo(["16.5", "unknown"]);
         (await db.ChampionTimelineLeadStats.AsNoTracking().Select(s => s.Patch).ToListAsync())
             .Should().BeEquivalentTo(["16.5"]);
         (await db.ChampionPowerspikeCurveStats.AsNoTracking().Select(s => s.Patch).ToListAsync())
@@ -109,7 +111,7 @@ public sealed class MatchDataRetentionProcessIntegrationTests
         (await db.ChampionAggregateScopes.AsNoTracking().Select(s => s.GameVersion).Distinct().ToListAsync())
             .Should().BeEquivalentTo(["16.4", "16.5"]);
         (await db.ChampionAggregatePatterns.AsNoTracking().CountAsync()).Should().Be(2);
-        (await db.ChampionMatchupStats.AsNoTracking().CountAsync()).Should().Be(2);
+        (await db.ChampionMatchupStats.AsNoTracking().CountAsync()).Should().Be(3);
         (await db.ChampionTimelineLeadStats.AsNoTracking().CountAsync()).Should().Be(2);
         (await db.ChampionPowerspikeCurveStats.AsNoTracking().CountAsync()).Should().Be(2);
         (await db.ChampionPowerspikeEventStats.AsNoTracking().CountAsync()).Should().Be(2);
@@ -183,6 +185,21 @@ public sealed class MatchDataRetentionProcessIntegrationTests
                 AggregatedAtUtc = aggregatedAt
             });
         }
+
+        // An unparseable patch string must survive aggregate retention: rows are
+        // only deleted for patches that parse and fall outside the retained window.
+        db.ChampionMatchupStats.Add(new ChampionMatchupStat
+        {
+            Id = Guid.NewGuid(),
+            ChampionId = 22,
+            TeamPosition = "BOTTOM",
+            OpponentChampionId = 51,
+            Patch = "unknown",
+            EloBracket = "GOLD",
+            Games = 5,
+            Wins = 3,
+            AggregatedAtUtc = aggregatedAt
+        });
 
         await seeder.SaveAsync(db);
         await db.SaveChangesAsync();
