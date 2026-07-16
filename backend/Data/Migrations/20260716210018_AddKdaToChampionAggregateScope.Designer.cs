@@ -6,6 +6,7 @@ using Data;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -14,9 +15,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Data.Migrations
 {
     [DbContext(typeof(TrueMainDbContext))]
-    partial class TrueMainDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260716210018_AddKdaToChampionAggregateScope")]
+    partial class AddKdaToChampionAggregateScope
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -356,111 +359,6 @@ namespace Data.Migrations
                     b.ToTable("champion_matchup_stats", (string)null);
                 });
 
-            modelBuilder.Entity("Data.Entities.ChampionPowerspikeCurveStat", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("AggregatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("ChampionId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("EloBracket")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasDefaultValue("")
-                        .HasColumnName("elo_bracket");
-
-                    b.Property<int>("Games")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("IntervalMinute")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Patch")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
-
-                    b.Property<string>("TeamPosition")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
-
-                    b.Property<long>("TotalDamageDiff")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("TotalGoldDiff")
-                        .HasColumnType("bigint");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ChampionId", "TeamPosition", "Patch", "EloBracket", "IntervalMinute")
-                        .IsUnique();
-
-                    b.ToTable("champion_powerspike_curve_stats", (string)null);
-                });
-
-            modelBuilder.Entity("Data.Entities.ChampionPowerspikeEventStat", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("AggregatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("ChampionId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("EloBracket")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasDefaultValue("")
-                        .HasColumnName("elo_bracket");
-
-                    b.Property<string>("EventType")
-                        .IsRequired()
-                        .HasMaxLength(8)
-                        .HasColumnType("character varying(8)");
-
-                    b.Property<int>("Games")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Patch")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
-
-                    b.Property<int>("RefId")
-                        .HasColumnType("integer");
-
-                    b.Property<double>("SumMinute")
-                        .HasColumnType("double precision");
-
-                    b.Property<double>("SumSpike")
-                        .HasColumnType("double precision");
-
-                    b.Property<string>("TeamPosition")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ChampionId", "TeamPosition", "Patch", "EloBracket", "EventType", "RefId")
-                        .IsUnique();
-
-                    b.ToTable("champion_powerspike_event_stats", (string)null);
-                });
-
             modelBuilder.Entity("Data.Entities.ChampionTimelineLeadStat", b =>
                 {
                     b.Property<Guid>("Id")
@@ -754,11 +652,6 @@ namespace Data.Migrations
                         .HasMaxLength(8)
                         .HasColumnType("character varying(8)");
 
-                    b.Property<bool>("PowerspikeAggregated")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
-
                     b.Property<int>("QueueId")
                         .HasColumnType("integer");
 
@@ -770,10 +663,6 @@ namespace Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("PlatformId");
-
-                    b.HasIndex("QueueId")
-                        .HasDatabaseName("IX_matches_powerspike_pending")
-                        .HasFilter("\"PowerspikeAggregated\" = false");
 
                     b.HasIndex("TimelineIngested")
                         .HasDatabaseName("IX_matches_timeline_ingested");
@@ -1112,44 +1001,6 @@ namespace Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("personas", (string)null);
-                });
-
-            modelBuilder.Entity("Data.Entities.PowerspikeSigmaStat", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("AggregatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("IntervalMinute")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("QueueId")
-                        .HasColumnType("integer");
-
-                    b.Property<long>("SampleCount")
-                        .HasColumnType("bigint");
-
-                    b.Property<double>("SumDamageDiff")
-                        .HasColumnType("double precision");
-
-                    b.Property<double>("SumDamageDiffSq")
-                        .HasColumnType("double precision");
-
-                    b.Property<double>("SumGoldDiff")
-                        .HasColumnType("double precision");
-
-                    b.Property<double>("SumGoldDiffSq")
-                        .HasColumnType("double precision");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("QueueId", "IntervalMinute")
-                        .IsUnique();
-
-                    b.ToTable("powerspike_sigma_stats", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.ProcessRun", b =>

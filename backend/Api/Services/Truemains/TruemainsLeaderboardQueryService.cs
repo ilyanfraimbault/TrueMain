@@ -137,8 +137,9 @@ public sealed class TruemainsLeaderboardQueryService(
         }
 
         // Hydrate the page slice with derived data. Four batched queries — the
-        // top-3 champions (main_champion_stats) and KDA / W-L (match_participants)
-        // keyed by puuid, the latest rank cells (tier/div/LP) keyed by account id,
+        // top-3 champions (main_champion_stats) and Games / KDA / W-L
+        // (champion_aggregate_scopes) keyed by account, the latest rank cells
+        // (tier/div/LP) keyed by account id,
         // and the dominant build per (account, champion) from the aggregate
         // schema. The heavy ordering + pagination already happened on
         // riot_accounts."Score", so these only touch the ~25 rows on the page.
@@ -159,8 +160,12 @@ public sealed class TruemainsLeaderboardQueryService(
         var accountIdByPuuid = pageRows
             .GroupBy(r => r.Puuid)
             .ToDictionary(g => g.Key, g => g.First().Id);
+        // Account id → puuid, the inverse the stats fetch needs: aggregate
+        // scopes are keyed by RiotAccountId, but the row is keyed by puuid.
+        // Id is the PK and puuid is unique per account, so this stays 1:1.
+        var puuidByAccountId = accountIdByPuuid.ToDictionary(kv => kv.Value, kv => kv.Key);
 
-        var statsTask = TimedAsync(() => FetchStatsAsync(puuids, ct));
+        var statsTask = TimedAsync(() => FetchStatsAsync(accountIds, puuidByAccountId, ct));
         var ranksTask = TimedAsync(() => FetchLatestRanksAsync(accountIds, ct));
         var positionsTask = TimedAsync(() => FetchPositionsAsync(puuids, ct));
 
@@ -654,10 +659,11 @@ public sealed class TruemainsLeaderboardQueryService(
     }
 
     private async Task<Dictionary<string, StatsRow>> FetchStatsAsync(
-        string[] puuids,
+        Guid[] accountIds,
+        IReadOnlyDictionary<Guid, string> puuidByAccountId,
         CancellationToken ct)
     {
-        if (puuids.Length == 0)
+        if (accountIds.Length == 0)
         {
             return new Dictionary<string, StatsRow>();
         }
@@ -667,38 +673,54 @@ public sealed class TruemainsLeaderboardQueryService(
         await using var ctx = await dbFactory.CreateDbContextAsync(ct);
 
         var queue = RankedQueueId;
-        // Lifetime ranked-solo stats per puuid. Joining to matches lets us
-        // filter by QueueId — match_participants doesn't store the queue
-        // itself. CHERRY (Arena) is excluded so historical rows from before
-        // the type=ranked ingestor filter don't pollute KDA / W-L.
-        FormattableString sql = $"""
-            SELECT
-                p."Puuid" AS "Puuid",
-                COUNT(*)::int AS "Games",
-                SUM(CASE WHEN p."Win" THEN 1 ELSE 0 END)::int AS "Wins",
-                SUM(CASE WHEN NOT p."Win" THEN 1 ELSE 0 END)::int AS "Losses",
-                SUM(p."Kills")::int AS "Kills",
-                SUM(p."Deaths")::int AS "Deaths",
-                SUM(p."Assists")::int AS "Assists"
-            FROM match_participants p
-            INNER JOIN matches m ON m."Id" = p."MatchId"
-            WHERE p."Puuid" = ANY ({puuids})
-              AND m."QueueId" = {queue}
-              AND m."GameMode" <> 'CHERRY'
-            GROUP BY p."Puuid"
-            """;
+        // Games / W-L / KDA summed from the frozen per-champion aggregate scopes
+        // (champion_aggregate_scopes), not live match_participants. Retention
+        // hard-deletes participants beyond the last couple of patches, which
+        // zeroed this cell for players whose recent ranked games have aged out
+        // (a #1-LP main could read "0 games"); scopes persist because old
+        // patches are frozen, so the numbers stay stable — and one indexed SUM
+        // is cheaper than the old join over participants.
+        //
+        // Each scope row is already one (champion, patch, position, elo bracket)
+        // slice and every match maps to exactly one row, so a straight SUM never
+        // double-counts. The synthetic ALL bracket is a read-time union that is
+        // never stored, so summing every persisted row for the account is its
+        // total. This covers the player's main champions only (the aggregation
+        // source is gated on IsMain) — off-champion ranked games are out of
+        // scope by design, matching the mains-centric top-champions cell.
+        var rows = await ctx.ChampionAggregateScopes
+            .AsNoTracking()
+            .Where(scope => scope.QueueId == queue && accountIds.Contains(scope.RiotAccountId))
+            .GroupBy(scope => scope.RiotAccountId)
+            .Select(group => new
+            {
+                RiotAccountId = group.Key,
+                Games = group.Sum(scope => scope.Games),
+                Wins = group.Sum(scope => scope.Wins),
+                Kills = group.Sum(scope => scope.Kills),
+                Deaths = group.Sum(scope => scope.Deaths),
+                Assists = group.Sum(scope => scope.Assists),
+            })
+            .ToListAsync(ct);
 
-        var rows = await ctx.Database.SqlQuery<StatsAggregateRow>(sql).ToListAsync(ct);
+        var result = new Dictionary<string, StatsRow>(rows.Count);
+        foreach (var row in rows)
+        {
+            if (!puuidByAccountId.TryGetValue(row.RiotAccountId, out var puuid))
+            {
+                continue;
+            }
 
-        return rows.ToDictionary(
-            r => r.Puuid,
-            r => new StatsRow(
-                Games: r.Games,
-                Wins: r.Wins,
-                Losses: r.Losses,
-                Kda: r.Deaths > 0
-                    ? (double)(r.Kills + r.Assists) / r.Deaths
-                    : r.Kills + r.Assists));
+            result[puuid] = new StatsRow(
+                Games: row.Games,
+                Wins: row.Wins,
+                Losses: row.Games - row.Wins,
+                Kda: row.Deaths > 0
+                    ? (double)(row.Kills + row.Assists) / row.Deaths
+                    : row.Kills + row.Assists);
+        }
+
+        return result;
     }
 
     private async Task<Dictionary<string, LeaderboardPositionsReadModel>> FetchPositionsAsync(
@@ -760,15 +782,6 @@ public sealed class TruemainsLeaderboardQueryService(
     private readonly record struct ChampionBuild(int? PrimaryKeystoneId, int? SecondaryStyleId, int? FirstItemId);
 
     private readonly record struct RunePageDim(int PrimaryKeystoneId, int SecondaryStyleId);
-
-    private sealed record StatsAggregateRow(
-        string Puuid,
-        int Games,
-        int Wins,
-        int Losses,
-        int Kills,
-        int Deaths,
-        int Assists);
 
     private sealed record StatsRow(int Games, int Wins, int Losses, double Kda);
 }
