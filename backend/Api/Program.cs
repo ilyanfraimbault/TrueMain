@@ -129,6 +129,16 @@ builder.Services.AddOptions<ChampionsListOptions>()
     .Validate(options => options.MinMatchupGames >= 0, "ChampionsList:MinMatchupGames must be >= 0.")
     .Validate(options => options.MinPlayerMatchupGames >= 0, "ChampionsList:MinPlayerMatchupGames must be >= 0.")
     .ValidateOnStart();
+builder.Services.AddOptions<CompositionSearchOptions>()
+    .Bind(builder.Configuration.GetSection(CompositionSearchOptions.SectionName))
+    .Validate(
+        options => options.LaneOpponentWeight >= 0 && options.EnemyWeight >= 0 && options.AllyWeight >= 0,
+        "CompositionSearch weights must be >= 0.")
+    .Validate(options => options.TopK > 0, "CompositionSearch:TopK must be > 0.")
+    .Validate(
+        options => options.CandidatePoolCap >= options.TopK,
+        "CompositionSearch:CandidatePoolCap must be >= TopK.")
+    .ValidateOnStart();
 builder.Services.AddOptions<DatabaseOptions>()
     .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName));
 
@@ -162,6 +172,7 @@ builder.Services.AddScoped<IChampionSummariesQueryService, ChampionSummariesQuer
 builder.Services.AddScoped<IChampionTierListQueryService, ChampionTierListQueryService>();
 builder.Services.AddScoped<IChampionBuildsQueryService, ChampionBuildsQueryService>();
 builder.Services.AddScoped<IChampionMatchupQueryService, ChampionMatchupQueryService>();
+builder.Services.AddScoped<ICompositionMatchQueryService, CompositionMatchQueryService>();
 builder.Services.AddScoped<IChampionTimelineLeadsQueryService, ChampionTimelineLeadsQueryService>();
 builder.Services.AddScoped<IChampionScalingQueryService, ChampionScalingQueryService>();
 builder.Services.AddScoped<IChampionItemTimingsQueryService, ChampionItemTimingsQueryService>();
