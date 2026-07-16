@@ -41,9 +41,13 @@ docker image prune -a
 Then deploy preprod:
 
 ```bash
-mkdir -p ~/truemain-preprod && cd ~/truemain-preprod
+# /docker is where Hostinger's Docker Manager keeps its compose projects —
+# deploying there keeps the stack visible/manageable from hPanel.
+mkdir -p /docker/truemain-preprod && cd /docker/truemain-preprod
 # Fetch the compose file and env template from the repo (develop branch):
-curl -fsSLO https://raw.githubusercontent.com/ilyanfraimbault/TrueMain/develop/compose.preprod.yaml
+# Named docker-compose.yml on the host so plain `docker compose` (and Docker
+# Manager) picks it up without -f.
+curl -fsSL https://raw.githubusercontent.com/ilyanfraimbault/TrueMain/develop/compose.preprod.yaml -o docker-compose.yml
 curl -fsSL https://raw.githubusercontent.com/ilyanfraimbault/TrueMain/develop/.env.preprod.example -o .env
 
 # Fill in the secrets: the NEW preprod Riot API key (RGAPI-…), strong
@@ -51,7 +55,7 @@ curl -fsSL https://raw.githubusercontent.com/ilyanfraimbault/TrueMain/develop/.e
 # ADMIN_SESSION_PASSWORD (e.g. `openssl rand -hex 32`).
 vim .env
 
-docker compose -f compose.preprod.yaml up -d
+docker compose up -d
 ```
 
 The compose file uses `truemain_preprod_*` volume names, so even on the old
@@ -71,13 +75,33 @@ Exposed ports (HTTP, no TLS — restrict by firewall to trusted IPs):
 
 ## Updating preprod to the latest develop
 
+### Automatic (Hostinger Docker Manager API)
+
+The `deploy-preprod` job in `publish-preprod-images.yml` redeploys the
+`truemain-preprod` Docker Manager project right after the `:preprod` images are
+published, using the official `hostinger/deploy-on-vps` action (a pure API
+call — no SSH material in CI). It is a no-op until three pieces of repository
+configuration exist:
+
+| Kind | Name | Value |
+| ---- | ---- | ----- |
+| variable | `HOSTINGER_PREPROD_VM_ID` | the preprod VPS id (or name) from the Hostinger API |
+| secret | `HOSTINGER_API_KEY` | API token generated in hPanel → Account → API |
+| secret | `PREPROD_ENV_FILE` | newline-separated `KEY=value` pairs mirroring the VPS `.env` |
+
+The action points Docker Manager at `compose.preprod.yaml` at the deployed
+commit, so the project on the VPS always matches the repo. Keep
+`PREPROD_ENV_FILE` in sync when a new variable is added to the compose file.
+
+### Manual fallback
+
 ```bash
-cd ~/truemain-preprod
-docker compose -f compose.preprod.yaml pull
-docker compose -f compose.preprod.yaml up -d
+cd /docker/truemain-preprod
+docker compose pull
+docker compose up -d
 ```
 
-If `compose.preprod.yaml` itself changed on `develop`, re-download it before
+If the compose file itself changed on `develop`, re-download it before
 pulling.
 
 ## Data-diet knobs
