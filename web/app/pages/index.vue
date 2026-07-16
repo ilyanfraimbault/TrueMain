@@ -94,7 +94,7 @@ function formatCount(value: number): string {
           <span class="text-primary">real mains</span>.
         </h1>
         <p class="mt-5 max-w-xl text-base leading-relaxed text-muted sm:text-lg">
-          Builds, runes and skill orders from the players who truly mastered your champion — not an average of everyone who picked it once.
+          Builds, runes and skill orders from the players who truly mastered your champion.
         </p>
 
         <AppSearch
