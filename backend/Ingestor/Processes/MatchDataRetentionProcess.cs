@@ -54,12 +54,114 @@ public sealed class MatchDataRetentionProcess(
                         .Select(entry => $"{entry.Key}=[{string.Join("|", entry.Value.Order())}]")));
         }
 
+        var aggregateDeletion = await DeleteExpiredAggregatesAsync(ct);
+
         return BuildRetentionPayload(
             retentionPlan,
             deletedMatches,
             deletedParticipants,
             nonRankedDeletion.DeletedMatches,
-            prunedCandidates);
+            prunedCandidates,
+            aggregateDeletion);
+    }
+
+    /// <summary>
+    /// Deletes champion aggregates for patches older than the
+    /// <see cref="MatchDataRetentionOptions.AggregateRetainedPatchCount"/> most
+    /// recent ones. Disabled by default (0): aggregates are the site's frozen
+    /// patch history (#466) and can never be recomputed once their raw matches
+    /// are retired, so only small environments (preprod) opt in.
+    /// </summary>
+    private async Task<AggregateDeletionResult> DeleteExpiredAggregatesAsync(CancellationToken ct)
+    {
+        var retainedPatchCount = retentionOptions.Value.AggregateRetainedPatchCount;
+        if (retainedPatchCount <= 0)
+        {
+            return AggregateDeletionResult.Empty;
+        }
+
+        await using var db = await dbContextFactory.CreateDbContextAsync(ct);
+
+        var observedPatches = new HashSet<string>(StringComparer.Ordinal);
+        observedPatches.UnionWith(await db.ChampionAggregateScopes
+            .AsNoTracking().Select(scope => scope.GameVersion).Distinct().ToListAsync(ct));
+        observedPatches.UnionWith(await db.ChampionMatchupStats
+            .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
+        observedPatches.UnionWith(await db.ChampionTimelineLeadStats
+            .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
+        observedPatches.UnionWith(await db.ChampionPowerspikeCurveStats
+            .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
+        observedPatches.UnionWith(await db.ChampionPowerspikeEventStats
+            .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
+
+        // Rank the observed patch strings by parsed version and keep the N most
+        // recent. Unparseable strings are never deleted — better to leave an odd
+        // row behind than to wipe data on a format surprise.
+        var parsedPatches = observedPatches
+            .Select(raw => PatchVersion.TryParse(raw, out var version)
+                ? (Raw: raw, Version: version)
+                : default((string Raw, PatchVersion Version)?))
+            .Where(entry => entry is not null)
+            .Select(entry => entry!.Value)
+            .ToList();
+
+        var retainedVersions = parsedPatches
+            .Select(entry => new PatchVersion(entry.Version.Major, entry.Version.Minor))
+            .Distinct()
+            .OrderDescending()
+            .Take(retainedPatchCount)
+            .ToHashSet();
+
+        var stalePatches = parsedPatches
+            .Where(entry => !retainedVersions.Contains(new PatchVersion(entry.Version.Major, entry.Version.Minor)))
+            .Select(entry => entry.Raw)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        if (stalePatches.Count == 0)
+        {
+            return AggregateDeletionResult.Empty;
+        }
+
+        var result = AggregateDeletionResult.Empty;
+
+        // One patch at a time keeps each delete's lock footprint and WAL bounded:
+        // a scope delete cascades to its pattern rows, and years of frozen patches
+        // could otherwise pile into one huge transaction. Global champion_dim_*
+        // rows are left alone — they are deduplicated across patches and other
+        // scopes may still reference them.
+        foreach (var stalePatch in stalePatches)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            result = new AggregateDeletionResult(
+                result.DeletedScopes + await db.ChampionAggregateScopes
+                    .Where(scope => scope.GameVersion == stalePatch).ExecuteDeleteAsync(ct),
+                result.DeletedMatchupStats + await db.ChampionMatchupStats
+                    .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct),
+                result.DeletedTimelineLeadStats + await db.ChampionTimelineLeadStats
+                    .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct),
+                result.DeletedPowerspikeCurveStats + await db.ChampionPowerspikeCurveStats
+                    .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct),
+                result.DeletedPowerspikeEventStats + await db.ChampionPowerspikeEventStats
+                    .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct));
+        }
+
+        if (result.TotalDeleted > 0)
+        {
+            logger.LogInformation(
+                "Aggregate retention removed {DeletedScopes} scopes, {DeletedMatchups} matchup, "
+                + "{DeletedLeads} timeline-lead and {DeletedPowerspikes} powerspike rows for stale patches "
+                + "{StalePatches} (keeping {RetainedPatches}).",
+                result.DeletedScopes,
+                result.DeletedMatchupStats,
+                result.DeletedTimelineLeadStats,
+                result.DeletedPowerspikeCurveStats + result.DeletedPowerspikeEventStats,
+                string.Join("|", stalePatches),
+                string.Join("|", retainedVersions.OrderDescending().Select(version => version.ToString())));
+        }
+
+        return result;
     }
 
     private async Task<int> PruneStaleCandidatesAsync(CancellationToken ct)
@@ -229,7 +331,8 @@ public sealed class MatchDataRetentionProcess(
         int deletedMatches,
         int deletedParticipants,
         int deletedNonRankedMatches,
-        int prunedCandidates)
+        int prunedCandidates,
+        AggregateDeletionResult aggregateDeletion)
     {
         return new
         {
@@ -239,6 +342,11 @@ public sealed class MatchDataRetentionProcess(
             deletedParticipants,
             deletedNonRankedMatches,
             prunedCandidates,
+            deletedAggregateScopes = aggregateDeletion.DeletedScopes,
+            deletedMatchupStats = aggregateDeletion.DeletedMatchupStats,
+            deletedTimelineLeadStats = aggregateDeletion.DeletedTimelineLeadStats,
+            deletedPowerspikeCurveStats = aggregateDeletion.DeletedPowerspikeCurveStats,
+            deletedPowerspikeEventStats = aggregateDeletion.DeletedPowerspikeEventStats,
             retainedPatchesByPlatform = retentionPlan.RetainedPatchesByPlatform
                 .OrderBy(entry => entry.Key)
                 .Select(entry => new
@@ -255,6 +363,23 @@ public sealed class MatchDataRetentionProcess(
     private sealed record DeletionResult(int DeletedMatches, int DeletedParticipants)
     {
         public static DeletionResult Empty { get; } = new(0, 0);
+    }
+
+    private sealed record AggregateDeletionResult(
+        int DeletedScopes,
+        int DeletedMatchupStats,
+        int DeletedTimelineLeadStats,
+        int DeletedPowerspikeCurveStats,
+        int DeletedPowerspikeEventStats)
+    {
+        public static AggregateDeletionResult Empty { get; } = new(0, 0, 0, 0, 0);
+
+        public int TotalDeleted
+            => DeletedScopes
+                + DeletedMatchupStats
+                + DeletedTimelineLeadStats
+                + DeletedPowerspikeCurveStats
+                + DeletedPowerspikeEventStats;
     }
 
     private sealed record RetentionPlan(
