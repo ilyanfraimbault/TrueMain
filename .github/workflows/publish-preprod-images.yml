@@ -81,8 +81,10 @@ jobs:
     needs: publish-preprod
     # No-op until the Hostinger credentials are configured: set the
     # HOSTINGER_PREPROD_VM_ID repository variable plus the HOSTINGER_API_KEY
-    # and PREPROD_ENV_FILE secrets (see docs/preprod.md).
-    if: vars.HOSTINGER_PREPROD_VM_ID != ''
+    # and PREPROD_ENV_FILE secrets (see docs/preprod.md). success() must be
+    # explicit — a custom `if:` replaces the implicit needs-succeeded check,
+    # and deploying after a failed publish would ship stale/mixed images.
+    if: success() && vars.HOSTINGER_PREPROD_VM_ID != ''
     concurrency:
       group: deploy-preprod
       cancel-in-progress: false
