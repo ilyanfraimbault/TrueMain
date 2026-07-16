@@ -80,26 +80,6 @@ function formatCount(value: number): string {
   return value.toLocaleString('en-US')
 }
 
-const steps = [
-  {
-    step: '01',
-    icon: 'i-lucide-radar',
-    title: 'We find the real mains',
-    description: 'Players who actually one-trick a champion game after game — no smurfs, no off-role fill picks.',
-  },
-  {
-    step: '02',
-    icon: 'i-lucide-database',
-    title: 'We read their games',
-    description: 'Every item, rune and skill order from their ranked games, wins and losses alike.',
-  },
-  {
-    step: '03',
-    icon: 'i-lucide-sparkles',
-    title: 'You see what wins',
-    description: 'Pick a champion and get the builds, runes and skill orders their best mains are winning with right now.',
-  },
-]
 </script>
 
 <template>
@@ -116,7 +96,7 @@ const steps = [
           <span class="text-primary">real mains</span>.
         </h1>
         <p class="mt-5 max-w-xl text-base leading-relaxed text-muted sm:text-lg">
-          See what real mains build, rune and max — straight from their ranked games.
+          Builds, runes and skill orders from the players who truly mastered your champion — not an average of everyone who picked it once.
         </p>
 
         <AppSearch
@@ -204,45 +184,6 @@ const steps = [
         :loading="truemainsLoading"
         :patch="ddragonPatch"
       />
-    </section>
-
-    <!-- How it works — three columns, no cards. Transparent so the global
-         AppBackdrop reads through; a hairline divider is all the separation
-         it needs. -->
-    <section
-      id="how-it-works"
-      class="border-t border-default/60"
-    >
-      <div class="mx-auto max-w-5xl px-6 py-16 sm:py-20">
-        <p class="text-center text-sm font-medium text-primary">
-          How it works
-        </p>
-        <h2 class="mx-auto mt-3 max-w-2xl text-center text-2xl font-semibold tracking-tight sm:text-3xl">
-          Real games in, real builds out.
-        </h2>
-
-        <div class="mt-12 grid gap-8 sm:grid-cols-3">
-          <div
-            v-for="step in steps"
-            :key="step.step"
-            class="space-y-3"
-          >
-            <div class="flex items-center gap-3">
-              <span class="text-sm font-semibold tabular-nums text-primary">{{ step.step }}</span>
-              <UIcon
-                :name="step.icon"
-                class="size-5 text-primary"
-              />
-            </div>
-            <h3 class="text-lg font-semibold text-highlighted">
-              {{ step.title }}
-            </h3>
-            <p class="text-sm leading-relaxed text-muted">
-              {{ step.description }}
-            </p>
-          </div>
-        </div>
-      </div>
     </section>
 
     <!-- CTA -->
