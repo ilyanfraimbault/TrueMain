@@ -125,15 +125,18 @@ public sealed class MatchDataRetentionProcess(
 
         var result = AggregateDeletionResult.Empty;
 
-        // One patch at a time keeps each delete's lock footprint and WAL bounded:
-        // a scope delete cascades to its pattern rows, and years of frozen patches
-        // could otherwise pile into one huge transaction. Global champion_dim_*
-        // rows are left alone — they are deduplicated across patches and other
-        // scopes may still reference them.
+        // One patch per transaction keeps each delete's lock footprint and WAL
+        // bounded — a scope delete cascades to its pattern rows, and years of
+        // frozen patches could otherwise pile into one huge transaction — while
+        // a patch's five tables still go together (no half-deleted patch left
+        // behind by an interruption). Global champion_dim_* rows are left
+        // alone: they are deduplicated across patches and other scopes may
+        // still reference them.
         foreach (var stalePatch in stalePatches)
         {
             ct.ThrowIfCancellationRequested();
 
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
             result = new AggregateDeletionResult(
                 result.DeletedScopes + await db.ChampionAggregateScopes
                     .Where(scope => scope.GameVersion == stalePatch).ExecuteDeleteAsync(ct),
@@ -145,6 +148,7 @@ public sealed class MatchDataRetentionProcess(
                     .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct),
                 result.DeletedPowerspikeEventStats + await db.ChampionPowerspikeEventStats
                     .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct));
+            await transaction.CommitAsync(ct);
         }
 
         if (result.TotalDeleted > 0)
