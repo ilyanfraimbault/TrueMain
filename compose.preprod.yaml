@@ -160,6 +160,8 @@ services:
       #
       # Keep only the current patch's match data (prod keeps 2 patches).
       MatchDataRetention__RetainedPatchCount: "1"
+      # Drain the manual-seed queue fast enough for bulk imports (default 25/run).
+      ManualSeed__BatchSize: "250"
       # Ladder discovery: smaller crawl window and fewer new accounts per run.
       Discovery__MaxAccountsPerPlatformPerRun: "100"
       Discovery__NewAccountsTarget: "15"
