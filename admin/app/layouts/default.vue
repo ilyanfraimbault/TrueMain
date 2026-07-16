@@ -15,6 +15,7 @@ const items = computed<NavigationMenuItem[]>(() => [
   { label: 'Processes', icon: 'i-lucide-activity', to: '/processes' },
   { label: 'Logs', icon: 'i-lucide-scroll-text', to: '/logs' },
   { label: 'Riot API', icon: 'i-lucide-gauge', to: '/riot-api' },
+  { label: 'Analytics', icon: 'i-lucide-chart-line', to: '/analytics' },
   { label: 'Add mains', icon: 'i-lucide-user-plus', to: '/seed' },
 ].map(item => ({
   ...item,

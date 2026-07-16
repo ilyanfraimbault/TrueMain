@@ -8,7 +8,8 @@
 #
 # Requirements on the host:
 #   - ports 80 AND 443 open to the internet (HTTP-01 / TLS-ALPN-01 challenges)
-#   - DNS A records: truemain.lol, www.truemain.lol, admin.truemain.lol -> VPS IP
+#   - DNS A records: truemain.lol, www.truemain.lol, admin.truemain.lol,
+#     analytics.truemain.lol -> VPS IP
 #
 # This file must sit next to compose.prod.yaml on the server (it is bind-mounted
 # read-only into the caddy container).
@@ -33,5 +34,17 @@ admin.truemain.lol {
 	# admin container is not published on the host — only Caddy reaches it.
 	reverse_proxy admin:3000 {
 		header_up X-Forwarded-For {remote_host}
+	}
+}
+
+# Self-hosted Umami analytics (#728): serves the tracker script loaded by
+# truemain.lol pages and the dashboard embedded by the admin Analytics tab.
+analytics.truemain.lol {
+	reverse_proxy umami:3000 {
+		# Umami bakes `frame-ancestors 'self'` into its CSP at image build
+		# time (ALLOWED_FRAME_URLS only applies to source builds), which
+		# blocks the admin portal's Analytics iframe. Rewrite the directive
+		# on the way out to also allow the admin origin.
+		header_down Content-Security-Policy "frame-ancestors 'self'" "frame-ancestors 'self' https://admin.truemain.lol"
 	}
 }

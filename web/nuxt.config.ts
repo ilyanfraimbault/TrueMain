@@ -95,7 +95,16 @@ export default defineNuxtConfig({
   runtimeConfig: {
     apiBaseUrl: process.env.NUXT_API_BASE_URL
       ?? 'http://localhost:5008',
-    public: {},
+    public: {
+      // Self-hosted Umami analytics (app/plugins/umami.client.ts). Both must
+      // be set (NUXT_PUBLIC_UMAMI_HOST / NUXT_PUBLIC_UMAMI_WEBSITE_ID) for the
+      // tracker to load — dev and preview environments leave them empty, so
+      // no tracking script ships there.
+      umami: {
+        host: '',
+        websiteId: '',
+      },
+    },
   },
   // Production-only overrides. `$production` applies on `nuxt build` and is
   // skipped under `nuxt dev`, so the dev playground stays available locally.
