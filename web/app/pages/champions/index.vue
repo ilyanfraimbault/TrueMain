@@ -332,11 +332,16 @@ function staticItem(id: number | undefined) {
 <template>
   <main class="mx-auto max-w-6xl space-y-6 p-4 md:p-6">
     <PageHeader
-      eyebrow="Tier list"
+      eyebrow="Builds & stats"
       title="Champions"
     >
-      <div class="flex flex-wrap items-center justify-between gap-3">
+      <!-- Position anchored left, champion search dead-center, rank + patch
+           grouped right as compact secondary filters. The 1fr side columns
+           keep the search centered regardless of how wide the flanks are;
+           below md everything stacks. -->
+      <div class="grid grid-cols-1 items-center gap-3 md:grid-cols-[1fr_auto_1fr]">
         <RolePicker
+          class="justify-self-start"
           :position="selectedPosition"
           @update:position="selectPosition"
         />
@@ -345,22 +350,26 @@ function staticItem(id: number | undefined) {
           :champions="staticList ?? []"
           :champion-id="filterChampionId"
           placeholder="Search for a champion"
-          trigger-class="w-64"
+          trigger-class="w-56"
           @update:champion-id="selectChampion"
         />
 
-        <ChampionEloFilter
-          :model-value="selectedEloBracket"
-          @update:model-value="onEloBracketChange"
-        />
+        <div class="flex items-center gap-2 md:justify-self-end">
+          <ChampionEloFilter
+            size="sm"
+            :model-value="selectedEloBracket"
+            @update:model-value="onEloBracketChange"
+          />
 
-        <USelect
-          :model-value="selectedPatch || undefined"
-          :items="patchOptions"
-          placeholder="Patch"
-          class="w-28"
-          @update:model-value="onPatchChange"
-        />
+          <USelect
+            :model-value="selectedPatch || undefined"
+            :items="patchOptions"
+            placeholder="Patch"
+            size="sm"
+            class="w-20"
+            @update:model-value="onPatchChange"
+          />
+        </div>
       </div>
     </PageHeader>
 
