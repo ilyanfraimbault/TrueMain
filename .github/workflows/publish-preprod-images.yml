@@ -74,3 +74,31 @@ jobs:
           cache-from: type=gha,scope=admin
           cache-to: type=gha,mode=max,scope=admin
           tags: ${{ env.IMAGE_ADMIN }}:preprod
+
+  deploy-preprod:
+    name: Deploy Preprod VPS
+    runs-on: ubuntu-24.04
+    needs: publish-preprod
+    # No-op until the Hostinger credentials are configured: set the
+    # HOSTINGER_PREPROD_VM_ID repository variable plus the HOSTINGER_API_KEY
+    # and PREPROD_ENV_FILE secrets (see docs/preprod.md). success() must be
+    # explicit — a custom `if:` replaces the implicit needs-succeeded check,
+    # and deploying after a failed publish would ship stale/mixed images.
+    if: success() && vars.HOSTINGER_PREPROD_VM_ID != ''
+    concurrency:
+      group: deploy-preprod
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Redeploy Docker Manager project
+        uses: hostinger/deploy-on-vps@v2
+        with:
+          api-key: ${{ secrets.HOSTINGER_API_KEY }}
+          virtual-machine: ${{ vars.HOSTINGER_PREPROD_VM_ID }}
+          project-name: truemain-preprod
+          docker-compose-path: compose.preprod.yaml
+          # Newline-separated KEY=value pairs mirroring the VPS .env.
+          environment-variables: ${{ secrets.PREPROD_ENV_FILE }}
