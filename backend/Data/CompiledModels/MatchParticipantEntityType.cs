@@ -25,7 +25,8 @@ namespace Data.CompiledModels
                 propertyCount: 41,
                 navigationCount: 2,
                 foreignKeyCount: 2,
-                unnamedIndexCount: 4,
+                unnamedIndexCount: 3,
+                namedIndexCount: 2,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -380,10 +381,14 @@ namespace Data.CompiledModels
                 new[] { puuid, matchId });
             index1.AddAnnotation("Relational:Name", "IX_match_participants_puuid_match");
 
-            var index2 = runtimeEntityType.AddIndex(
-                new[] { championId, teamPosition, eloBracket });
-            index2.AddAnnotation("Relational:Filter", "\"RiotAccountId\" IS NOT NULL");
-            index2.AddAnnotation("Relational:Name", "IX_match_participants_champion_position_tracked");
+            var iX_match_participants_champion_position_full = runtimeEntityType.AddIndex(
+                new[] { championId, teamPosition, eloBracket },
+                name: "IX_match_participants_champion_position_full");
+
+            var iX_match_participants_champion_position_tracked = runtimeEntityType.AddIndex(
+                new[] { championId, teamPosition, eloBracket },
+                name: "IX_match_participants_champion_position_tracked");
+            iX_match_participants_champion_position_tracked.AddAnnotation("Relational:Filter", "\"RiotAccountId\" IS NOT NULL");
 
             return runtimeEntityType;
         }
