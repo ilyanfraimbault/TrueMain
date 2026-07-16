@@ -114,7 +114,7 @@ const staticBundleReady = computed(() =>
 </script>
 
 <template>
-  <main class="mx-auto max-w-5xl space-y-6 p-4 md:p-6">
+  <main class="mx-auto w-full max-w-[96rem] space-y-6 p-4 md:p-6">
     <!-- Breadcrumb: Truemain {name} > {champion}, linking back to the profile. -->
     <nav aria-label="Breadcrumb" class="text-sm text-muted">
       <ol class="flex flex-wrap items-center gap-1.5">
@@ -215,78 +215,90 @@ const staticBundleReady = computed(() =>
         />
       </header>
 
-      <ChampionBuildTabs
-        :builds="champion.builds"
-        :champion-static="staticData"
-        :items-map="itemsMap ?? {}"
-        :summoners-map="summonersMap ?? {}"
-        :rune-tree="runeTree ?? null"
-      />
-
-      <ChampionMatchups
-        :champion-id="championId"
-        :position="selectedPosition"
-        :champions="staticList ?? []"
-        :name-tag="nameTag"
-      />
-
-      <!-- This player's recent games on this champion. The champion is fixed;
-           the lane filter is its own RolePicker, independent of the build's
-           position filter above. -->
-      <section class="flex min-w-0 flex-col gap-3">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
-            Recent {{ displayName ?? '' }} games
-          </h2>
-          <RolePicker
-            :position="matchPosition"
-            @update:position="setMatchPosition"
+      <!--
+        Same two-column layout as the global champion page (#703): builds and
+        match history in the main column, matchups in a right sidebar from the
+        xl breakpoint. No truemains panel here — the page is already scoped to
+        one player. Below xl the sidebar stacks under the main column.
+      -->
+      <div class="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
+        <div class="min-w-0 space-y-6">
+          <ChampionBuildTabs
+            :builds="champion.builds"
+            :champion-static="staticData"
+            :items-map="itemsMap ?? {}"
+            :summoners-map="summonersMap ?? {}"
+            :rune-tree="runeTree ?? null"
           />
+
+          <!-- This player's recent games on this champion. The champion is fixed;
+               the lane filter is its own RolePicker, independent of the build's
+               position filter above. -->
+          <section class="flex min-w-0 flex-col gap-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
+                Recent {{ displayName ?? '' }} games
+              </h2>
+              <RolePicker
+                :position="matchPosition"
+                @update:position="setMatchPosition"
+              />
+            </div>
+
+            <!--
+              Same ordering as the profile page: the empty / not-found state
+              needs no static data, so it must not sit behind staticBundleReady —
+              a failing static fetch would pin the skeletons forever.
+            -->
+            <template v-if="matchesInitialLoading">
+              <MatchRowSkeleton v-for="i in 5" :key="`match-skel-${i}`" />
+            </template>
+            <template v-else-if="matchesNotFound || matches.length === 0">
+              <MatchHistoryEmpty :not-found="matchesNotFound" :filtered="matchPosition !== null" />
+            </template>
+            <template v-else-if="!staticBundleReady">
+              <MatchRowSkeleton v-for="i in 5" :key="`match-skel-${i}`" />
+            </template>
+            <template v-else>
+              <MatchRow
+                v-for="match in matches"
+                :key="match.matchId"
+                :match="match"
+                :champions="staticList ?? []"
+                :items="itemsMap ?? {}"
+                :summoner-spells="summonersMap ?? {}"
+                :rune-tree="runeTree!"
+                :name-tag="nameTag"
+              />
+              <div
+                v-if="matchesTotal > matchesPageSize"
+                class="flex justify-center pt-2"
+              >
+                <UPagination
+                  :page="matchesPage"
+                  :total="matchesTotal"
+                  :items-per-page="matchesPageSize"
+                  :sibling-count="1"
+                  color="neutral"
+                  variant="ghost"
+                  active-color="primary"
+                  active-variant="soft"
+                  @update:page="setMatchesPage"
+                />
+              </div>
+            </template>
+          </section>
         </div>
 
-        <!--
-          Same ordering as the profile page: the empty / not-found state
-          needs no static data, so it must not sit behind staticBundleReady —
-          a failing static fetch would pin the skeletons forever.
-        -->
-        <template v-if="matchesInitialLoading">
-          <MatchRowSkeleton v-for="i in 5" :key="`match-skel-${i}`" />
-        </template>
-        <template v-else-if="matchesNotFound || matches.length === 0">
-          <MatchHistoryEmpty :not-found="matchesNotFound" :filtered="matchPosition !== null" />
-        </template>
-        <template v-else-if="!staticBundleReady">
-          <MatchRowSkeleton v-for="i in 5" :key="`match-skel-${i}`" />
-        </template>
-        <template v-else>
-          <MatchRow
-            v-for="match in matches"
-            :key="match.matchId"
-            :match="match"
+        <aside class="min-w-0 space-y-6">
+          <ChampionMatchups
+            :champion-id="championId"
+            :position="selectedPosition"
             :champions="staticList ?? []"
-            :items="itemsMap ?? {}"
-            :summoner-spells="summonersMap ?? {}"
-            :rune-tree="runeTree!"
             :name-tag="nameTag"
           />
-          <div
-            v-if="matchesTotal > matchesPageSize"
-            class="flex justify-center pt-2"
-          >
-            <UPagination
-              :page="matchesPage"
-              :total="matchesTotal"
-              :items-per-page="matchesPageSize"
-              :sibling-count="1"
-              color="neutral"
-              variant="ghost"
-              active-color="primary"
-              active-variant="soft"
-              @update:page="setMatchesPage"
-            />
-          </div>
-        </template>
-      </section>
+        </aside>
+      </div>
     </template>
   </main>
 </template>
