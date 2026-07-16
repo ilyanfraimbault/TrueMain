@@ -16,7 +16,7 @@ function pct(value: number): string {
 const PAGE_SIZE = 50
 
 useSeoMeta({
-  title: 'Champions · TrueMain',
+  title: 'Champions',
   description: 'Browse champions by lane with the most-played build, winrate and pickrate.',
 })
 

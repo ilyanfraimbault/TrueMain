@@ -9,7 +9,7 @@ function pct(value: number): string {
 }
 
 useSeoMeta({
-  title: 'Tier List · TrueMain',
+  title: 'Tier List',
   description: 'Champion meta tier list ranking champions by winrate and pickrate per role for the current patch.',
 })
 

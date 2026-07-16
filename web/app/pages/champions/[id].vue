@@ -115,7 +115,7 @@ const displayIconUrl = computed(() =>
 )
 
 useSeoMeta({
-  title: () => displayName.value ?? 'TrueMain',
+  title: () => displayName.value ?? `Champion ${championId.value}`,
   description: () => `Champion ${championId.value} builds, runes and skill order.`,
 })
 
