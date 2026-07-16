@@ -387,7 +387,7 @@ defineShortcuts(computed(() => ({
       color="neutral"
       variant="ghost"
       aria-label="Search a champion or player"
-      @click="open = true"
+      @click="() => { open = true }"
     />
 
     <UModal
