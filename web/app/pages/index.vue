@@ -2,6 +2,9 @@
 import type { ChampionSummaryResponse } from '~~/shared/types/champions'
 import type { RegionSlug } from '~~/shared/types/leaderboard'
 
+// The homepage title leads with the brand, so opt out of the global
+// `%s · TrueMain` template — it would duplicate the name in search results.
+useHead({ titleTemplate: null })
 useSeoMeta({
   title: 'TrueMain — Champion builds from real mains',
   description: 'League of Legends champion builds, runes and skill orders from true main players.',

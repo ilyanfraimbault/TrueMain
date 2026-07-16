@@ -45,9 +45,8 @@ const {
 useSeoMeta({
   title: () => {
     const identity = profile.value?.identity
-    if (!identity) return `${nameTag.value} · TrueMain`
-    const display = identity.tagLine ? `${identity.gameName}#${identity.tagLine}` : identity.gameName
-    return `${display} · TrueMain`
+    if (!identity) return nameTag.value
+    return identity.tagLine ? `${identity.gameName}#${identity.tagLine}` : identity.gameName
   },
   description: () => {
     const identity = profile.value?.identity

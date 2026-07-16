@@ -3,7 +3,7 @@ import type { RegionSlug } from '~~/shared/types/leaderboard'
 import type { ChampionPosition } from '~/utils/positions'
 
 useSeoMeta({
-  title: 'Truemains · TrueMain',
+  title: 'Truemains',
   description: 'Tracked truemains sorted by current rank, filterable by region, role and champion.',
 })
 

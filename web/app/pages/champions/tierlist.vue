@@ -6,7 +6,7 @@ import { isLoadingStatus } from '~/utils/async-data'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 
 useSeoMeta({
-  title: 'Tier List · TrueMain',
+  title: 'Tier List',
   description: 'Champion meta tier list ranking champions by winrate and pickrate per role for the current patch.',
 })
 

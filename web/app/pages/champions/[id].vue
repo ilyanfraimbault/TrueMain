@@ -64,7 +64,7 @@ const trendPosition = computed(() => champion.value?.position || filters.value.p
 const { data: championTrend, status: trendStatus } = useChampionTrend(championId, trendPosition, trendReady)
 
 useSeoMeta({
-  title: () => displayName.value ?? 'TrueMain',
+  title: () => displayName.value ?? `Champion ${championId.value}`,
   description: () => `Champion ${championId.value} builds, runes and skill order.`,
 })
 

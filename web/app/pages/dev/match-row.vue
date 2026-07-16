@@ -10,7 +10,7 @@ import type {
 definePageMeta({ layout: 'default' })
 
 useSeoMeta({
-  title: 'MatchRow playground · TrueMain',
+  title: 'MatchRow playground',
   description: 'Isolated visual review of the match history row component.',
 })
 
