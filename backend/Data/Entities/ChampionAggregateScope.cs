@@ -32,6 +32,19 @@ public class ChampionAggregateScope
 
     public int Games { get; set; }
     public int Wins { get; set; }
+
+    /// <summary>
+    /// Kill / death / assist totals summed across the scope's contributing
+    /// games. Lets the truemains leaderboard derive a player's KDA from the
+    /// frozen aggregates instead of live <c>match_participants</c> (which
+    /// retention hard-deletes beyond the last few patches). Scopes aggregated
+    /// before these columns existed carry 0 until re-aggregated — frozen
+    /// old-patch scopes never are, so their KDA stays understated by design.
+    /// </summary>
+    public int Kills { get; set; }
+    public int Deaths { get; set; }
+    public int Assists { get; set; }
+
     public DateTime LastGameStartTimeUtc { get; set; }
     public DateTime AggregatedAtUtc { get; set; }
 }

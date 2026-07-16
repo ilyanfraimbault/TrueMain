@@ -32,10 +32,10 @@ public sealed class ChampionPatternAggregateBuilderScopeTests
         var accountB = Guid.NewGuid();
         var sourceRows = new List<AggregateSourceRow>
         {
-            BuildRow(accountA, championId: 22, win: true, summoner1: 4, summoner2: 7, skillBias: 1),
-            BuildRow(accountA, championId: 22, win: false, summoner1: 4, summoner2: 7, skillBias: 1),
-            BuildRow(accountA, championId: 22, win: true, summoner1: 4, summoner2: 11, skillBias: 2),
-            BuildRow(accountB, championId: 22, win: true, summoner1: 4, summoner2: 11, skillBias: 2)
+            BuildRow(accountA, championId: 22, win: true, summoner1: 4, summoner2: 7, skillBias: 1, kills: 5, deaths: 2, assists: 8),
+            BuildRow(accountA, championId: 22, win: false, summoner1: 4, summoner2: 7, skillBias: 1, kills: 1, deaths: 6, assists: 3),
+            BuildRow(accountA, championId: 22, win: true, summoner1: 4, summoner2: 11, skillBias: 2, kills: 10, deaths: 0, assists: 4),
+            BuildRow(accountB, championId: 22, win: true, summoner1: 4, summoner2: 11, skillBias: 2, kills: 7, deaths: 3, assists: 12)
         };
 
         var result = await builder.BuildAggregatesAsync(
@@ -45,6 +45,12 @@ public sealed class ChampionPatternAggregateBuilderScopeTests
 
         result.Scopes.Sum(s => s.Games).Should().Be(sourceRows.Count);
         result.Scopes.Sum(s => s.Wins).Should().Be(sourceRows.Count(row => row.Win));
+
+        // KDA totals feed the truemains leaderboard's per-player KDA cell, so
+        // they must sum losslessly across scopes just like Games / Wins.
+        result.Scopes.Sum(s => s.Kills).Should().Be(sourceRows.Sum(row => row.Kills));
+        result.Scopes.Sum(s => s.Deaths).Should().Be(sourceRows.Sum(row => row.Deaths));
+        result.Scopes.Sum(s => s.Assists).Should().Be(sourceRows.Sum(row => row.Assists));
 
         // Each pattern intent represents one (scope + full combo) — summing
         // games across patterns must equal the scope totals (no observation
@@ -149,7 +155,10 @@ public sealed class ChampionPatternAggregateBuilderScopeTests
         int skillBias,
         string position = "BOTTOM",
         string patch = "16.4",
-        PageSpec? page = null)
+        PageSpec? page = null,
+        int kills = 0,
+        int deaths = 0,
+        int assists = 0)
     {
         var runePage = page ?? new PageSpec(
             PrimaryStyleId: 8100, PrimaryKeystoneId: 0,
@@ -168,6 +177,9 @@ public sealed class ChampionPatternAggregateBuilderScopeTests
             GameStartTimeUtc = DateTime.UtcNow.AddHours(-1),
             GameDurationSeconds = 1_800,
             Win = win,
+            Kills = kills,
+            Deaths = deaths,
+            Assists = assists,
             Position = position,
             Summoner1Id = summoner1,
             Summoner2Id = summoner2,
