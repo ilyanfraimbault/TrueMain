@@ -3,8 +3,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Core.Lol.Items;
 using Core.Lol.Patches;
+using Microsoft.Extensions.Logging;
 
-namespace Ingestor.Processes.Components.PatternAggregation;
+namespace Data.BuildFacts;
 
 public sealed class CommunityDragonItemMetadataProvider(
     HttpClient httpClient,

@@ -1,4 +1,4 @@
-namespace Ingestor.Processes.Components.PatternAggregation;
+namespace Data.BuildFacts;
 
 public interface IItemMetadataProvider
 {

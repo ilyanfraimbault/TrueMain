@@ -1,7 +1,7 @@
 using Core.Lol.Items;
 using Data.Entities;
 
-namespace Ingestor.Processes.Components.PatternAggregation;
+namespace Data.BuildFacts;
 
 public static class StarterItemAnalyzer
 {

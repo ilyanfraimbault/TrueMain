@@ -1,4 +1,5 @@
 using Core.Lol.Spells;
+using Data.BuildFacts;
 using Data.Entities;
 
 namespace Ingestor.Processes.Components.PatternAggregation;

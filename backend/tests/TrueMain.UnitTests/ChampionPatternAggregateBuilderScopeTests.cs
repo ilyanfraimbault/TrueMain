@@ -1,4 +1,5 @@
 using Core.Lol.Patches;
+using Data.BuildFacts;
 using Data.Entities;
 using AwesomeAssertions;
 using Ingestor.Processes.Components.PatternAggregation;

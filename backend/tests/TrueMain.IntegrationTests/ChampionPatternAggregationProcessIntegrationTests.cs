@@ -1,6 +1,7 @@
 using Core.Lol.Map;
 using Core.Lol.Ranking;
 using Core.Options;
+using Data.BuildFacts;
 using Data.Entities;
 using AwesomeAssertions;
 using Ingestor.Processes;
