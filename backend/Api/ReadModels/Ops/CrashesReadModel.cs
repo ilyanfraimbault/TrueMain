@@ -41,6 +41,13 @@ public sealed record CrashReportReadModel
 
     public string Source { get; init; } = string.Empty;
 
+    /// <summary>
+    /// Plain-language reading of the crash (#722), derived from the source, the
+    /// exception chain and — for unclean shutdowns — the memory snapshot and exit
+    /// code. Heuristic display text; the raw fields below remain authoritative.
+    /// </summary>
+    public string Explanation { get; init; } = string.Empty;
+
     public string? ExceptionType { get; init; }
 
     public string? Message { get; init; }

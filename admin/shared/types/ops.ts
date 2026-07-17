@@ -250,6 +250,8 @@ export interface LogsResponse {
    * active filters) — feeds the event filter select.
    */
   eventTypes: string[]
+  /** The producing processes ("Api", "Ingestor") — feeds the process filter select. */
+  processes: string[]
 }
 
 /** Filters for `GET /api/ops/logs`. Empty/undefined = no filter. */
@@ -264,6 +266,10 @@ export interface LogsFilters {
   search?: string
   /** Exact (case-insensitive) ops-event name; omit for all rows. */
   eventType?: string
+  /** Exact (case-insensitive) process name ("Api"/"Ingestor"); omit for all. */
+  process?: string
+  /** True keeps only rows carrying a formatted exception; omit/false = no filter. */
+  hasException?: boolean
   /** 1-based page index. */
   page?: number
   /** Rows per page; backend clamps to [1, 200], default 50. */
@@ -305,6 +311,12 @@ export interface CrashReport {
   /** Producing process: "Api" or "Ingestor". */
   processName: string
   source: CrashSource
+  /**
+   * Plain-language reading of the crash derived server-side from the source,
+   * exception chain and memory snapshot (#722). Heuristic display text — the
+   * raw fields stay authoritative.
+   */
+  explanation: string
   /** Top-level exception type; null for an unclean shutdown. */
   exceptionType: string | null
   message: string | null

@@ -1,3 +1,4 @@
+using Data.Logging;
 using Ingestor.Services;
 
 namespace Ingestor.Processes;
@@ -40,7 +41,17 @@ public sealed class RecordedProcess<TInner>(
         try
         {
             var payload = await inner.RunCoreAsync(ct);
-            await recorder.RecordSuccessAsync(runId, Name, startedAt, timeProvider.GetUtcNow().UtcDateTime, payload, ct);
+            var finishedAt = timeProvider.GetUtcNow().UtcDateTime;
+            await recorder.RecordSuccessAsync(runId, Name, startedAt, finishedAt, payload, ct);
+            // Ops event (#722): persisted by the Mongo sink despite being
+            // Information, so every pipeline step's completion is visible and
+            // filterable in the admin Logs panel alongside real diagnostics.
+            logger.LogInformation(
+                OpsEvents.ProcessRunCompleted,
+                "Process {ProcessName} completed in {DurationMs} ms. Summary: {Summary}",
+                Name,
+                (long)(finishedAt - startedAt).TotalMilliseconds,
+                payload);
             return payload;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -55,7 +66,14 @@ public sealed class RecordedProcess<TInner>(
         }
         catch (Exception ex)
         {
-            await recorder.RecordFailureAsync(runId, Name, startedAt, timeProvider.GetUtcNow().UtcDateTime, ex, ct);
+            var finishedAt = timeProvider.GetUtcNow().UtcDateTime;
+            await recorder.RecordFailureAsync(runId, Name, startedAt, finishedAt, ex, ct);
+            logger.LogError(
+                OpsEvents.ProcessRunFailed,
+                ex,
+                "Process {ProcessName} failed after {DurationMs} ms.",
+                Name,
+                (long)(finishedAt - startedAt).TotalMilliseconds);
             throw;
         }
         finally

@@ -21,6 +21,12 @@ public sealed record LogsReadModel
     /// <c>distinct</c> per load. Independent of the active filters.
     /// </summary>
     public IReadOnlyList<string> EventTypes { get; init; } = [];
+
+    /// <summary>
+    /// The producing processes ("Api", "Ingestor"), for the process filter —
+    /// static catalog, independent of the active filters.
+    /// </summary>
+    public IReadOnlyList<string> Processes { get; init; } = [];
 }
 
 /// <summary>
