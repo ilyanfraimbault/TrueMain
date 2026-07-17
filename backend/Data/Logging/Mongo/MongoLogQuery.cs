@@ -18,6 +18,11 @@ namespace Data.Logging.Mongo;
 ///   <item><c>since</c> is a lower bound on the timestamp; results are newest-first.</item>
 ///   <item><c>eventType</c> is a case-insensitive <b>exact</b> match on the
 ///   ops-event name (#444); rows that are not named events never match.</item>
+///   <item><c>process</c> is a case-insensitive <b>exact</b> match on the
+///   producing process name ("Api" / "Ingestor"); rows without a stamped
+///   process never match.</item>
+///   <item><c>hasException</c> true restricts to rows carrying a formatted
+///   exception; false/null applies no exception filter.</item>
 /// </list>
 /// </summary>
 public sealed class MongoLogQuery(MongoLogContext context) : IMongoLogQuery
@@ -35,6 +40,8 @@ public sealed class MongoLogQuery(MongoLogContext context) : IMongoLogQuery
         DateTime? since,
         string? search,
         string? eventType,
+        string? process,
+        bool? hasException,
         int? page,
         int? pageSize,
         CancellationToken ct)
@@ -49,7 +56,7 @@ public sealed class MongoLogQuery(MongoLogContext context) : IMongoLogQuery
             return new MongoLogPage([], 0, effectivePage, effectivePageSize);
         }
 
-        var filter = BuildFilter(level, category, since, search, eventType);
+        var filter = BuildFilter(level, category, since, search, eventType, process, hasException);
 
         var total = await context.Logs.CountDocumentsAsync(filter, cancellationToken: ct);
 
@@ -83,7 +90,9 @@ public sealed class MongoLogQuery(MongoLogContext context) : IMongoLogQuery
         string? category,
         DateTime? since,
         string? search,
-        string? eventType)
+        string? eventType,
+        string? process,
+        bool? hasException)
     {
         var filters = new List<FilterDefinition<MongoLogDocument>>();
 
@@ -140,6 +149,29 @@ public sealed class MongoLogQuery(MongoLogContext context) : IMongoLogQuery
                     string.Equals(name, normalizedEventType, StringComparison.OrdinalIgnoreCase))
                 ?? normalizedEventType;
             filters.Add(Filter.Eq(doc => doc.EventType, canonical));
+        }
+
+        var normalizedProcess = string.IsNullOrWhiteSpace(process) ? null : process.Trim();
+        if (normalizedProcess is not null)
+        {
+            // Exact match, case-insensitive: the UI sends the catalog values
+            // ("Api"/"Ingestor") verbatim, but a hand-typed query must not fail on
+            // casing. Resolved against the known catalog in memory so the filter
+            // stays an indexable $eq; an unknown name falls through as-is and
+            // matches nothing. Rows without a stamped process never match.
+            var canonical = LogProcesses.KnownProcessNames.FirstOrDefault(name =>
+                    string.Equals(name, normalizedProcess, StringComparison.OrdinalIgnoreCase))
+                ?? normalizedProcess;
+            filters.Add(Filter.Eq(doc => doc.ProcessName, canonical));
+        }
+
+        if (hasException is true)
+        {
+            // Only rows carrying a formatted exception — the "show me the crashes
+            // and faults" view. False is deliberately a no-op rather than an
+            // exception-free filter: operators either want everything or only the
+            // exceptional rows.
+            filters.Add(Filter.Ne(doc => doc.Exception, null));
         }
 
         return filters.Count == 0 ? Filter.Empty : Filter.And(filters);

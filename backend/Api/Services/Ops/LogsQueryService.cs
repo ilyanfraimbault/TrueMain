@@ -14,8 +14,11 @@ namespace TrueMain.Services.Ops;
 /// <c>level</c> filter is a <b>minimum</b> threshold, <c>category</c> is a prefix
 /// match, <c>search</c> matches message/exception case-insensitively, and
 /// <c>eventType</c> (#444) is a case-insensitive exact match on the ops-event
-/// name. The known event names ride on every response (static
-/// <see cref="OpsEvents"/> catalog — no Mongo <c>distinct</c>).
+/// name, <c>process</c> a case-insensitive exact match on the producing host
+/// ("Api"/"Ingestor"), and <c>hasException</c> true restricts to rows carrying a
+/// formatted exception. The known event and process names ride on every response
+/// (static <see cref="OpsEvents"/>/<see cref="LogProcesses"/> catalogs — no
+/// Mongo <c>distinct</c>).
 /// </summary>
 public sealed class LogsQueryService(IMongoLogQuery query) : ILogsQueryService
 {
@@ -25,11 +28,14 @@ public sealed class LogsQueryService(IMongoLogQuery query) : ILogsQueryService
         DateTime? since,
         string? search,
         string? eventType,
+        string? process,
+        bool? hasException,
         int? page,
         int? pageSize,
         CancellationToken ct)
     {
-        var result = await query.GetAsync(level, category, since, search, eventType, page, pageSize, ct);
+        var result = await query.GetAsync(
+            level, category, since, search, eventType, process, hasException, page, pageSize, ct);
 
         return new LogsReadModel
         {
@@ -50,7 +56,8 @@ public sealed class LogsQueryService(IMongoLogQuery query) : ILogsQueryService
             Total = result.Total,
             Page = result.Page,
             PageSize = result.PageSize,
-            EventTypes = OpsEvents.KnownEventTypes
+            EventTypes = OpsEvents.KnownEventTypes,
+            Processes = LogProcesses.KnownProcessNames
         };
     }
 }

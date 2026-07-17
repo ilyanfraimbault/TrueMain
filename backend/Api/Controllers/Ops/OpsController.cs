@@ -181,6 +181,15 @@ public sealed class OpsController(
         return Ok(readModel);
     }
 
+    /// <summary>
+    /// One page of persisted diagnostic logs, newest-first. <paramref name="level"/>
+    /// is a minimum-severity threshold; <paramref name="category"/> a
+    /// case-insensitive prefix; <paramref name="search"/> a case-insensitive
+    /// substring over message/exception; <paramref name="eventType"/> and
+    /// <paramref name="process"/> case-insensitive exact matches on the ops-event
+    /// name and the producing host ("Api"/"Ingestor"); <paramref name="hasException"/>
+    /// true restricts to rows carrying a formatted exception.
+    /// </summary>
     [HttpGet("logs")]
     [ProducesResponseType(typeof(LogsReadModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
@@ -190,11 +199,14 @@ public sealed class OpsController(
         [FromQuery] DateTime? since,
         [FromQuery] string? search,
         [FromQuery] string? eventType,
+        [FromQuery] string? process,
+        [FromQuery] bool? hasException,
         [FromQuery] int? page,
         [FromQuery] int? pageSize,
         CancellationToken ct)
     {
-        var readModel = await logsQueryService.GetAsync(level, category, since, search, eventType, page, pageSize, ct);
+        var readModel = await logsQueryService.GetAsync(
+            level, category, since, search, eventType, process, hasException, page, pageSize, ct);
         return Ok(readModel);
     }
 

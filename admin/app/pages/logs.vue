@@ -1,11 +1,14 @@
 <script setup lang="ts">
 // Logs panel — server-paginated application logs from `GET /api/ops/logs`.
 // Filterable by minimum severity (`level`), category, named ops event
-// (`eventType`, exact match against the backend's static catalog), relative time
-// window and a free-text search (matched against message + exception). The
-// endpoint paginates, so we only ever hold one page in memory and drive
-// UPagination off the response's `total`/`page`/`pageSize`. Each row's full
-// detail + exception stack is inspectable in a slide-over.
+// (`eventType`, exact match against the backend's static catalog), producing
+// process, exception presence, relative time window and a free-text search
+// (matched against message + exception). The endpoint paginates, so we only
+// ever hold one page in memory and drive UPagination off the response's
+// `total`/`page`/`pageSize`. Each row's full detail + exception stack is
+// inspectable in a slide-over; rows are checkbox-selectable and the selection
+// can be copied as JSON (#722).
+import { h, resolveComponent } from 'vue'
 import type { TableColumn } from '@nuxt/ui'
 import type { LogEntry, LogLevel } from '~~/shared/types/ops'
 import { formatDateTime } from '~~/shared/utils/format'
@@ -28,6 +31,10 @@ const level = ref<'all' | LogLevel>(ALL)
 // Named ops event (exact match); the option list comes from the response's
 // static `eventTypes` catalog.
 const eventType = ref<string>(ALL)
+// Producing process ("Api"/"Ingestor"); catalog rides on the response.
+const process = ref<string>(ALL)
+// True keeps only rows carrying a formatted exception.
+const exceptionsOnly = ref(false)
 const category = ref('')
 // Relative window -> ISO `since`. "All" omits the param.
 const sinceWindow = ref<'all' | '1h' | '24h' | '7d' | '30d'>(ALL)
@@ -57,6 +64,8 @@ const filters = computed(() => ({
     : sinceToIso(sinceWindow.value),
   search: search.value.trim() || undefined,
   eventType: eventType.value === ALL ? undefined : eventType.value,
+  process: process.value === ALL ? undefined : process.value,
+  hasException: exceptionsOnly.value || undefined,
   page: page.value,
   pageSize,
 }))
@@ -65,6 +74,8 @@ const hasActiveFilters = computed(() =>
   Boolean(
     level.value !== ALL
     || eventType.value !== ALL
+    || process.value !== ALL
+    || exceptionsOnly.value
     || category.value.trim()
     || sinceWindow.value !== ALL
     || searchInput.value.trim(),
@@ -73,6 +84,8 @@ const hasActiveFilters = computed(() =>
 function resetFilters() {
   level.value = ALL
   eventType.value = ALL
+  process.value = ALL
+  exceptionsOnly.value = false
   category.value = ''
   sinceWindow.value = ALL
   searchInput.value = ''
@@ -94,15 +107,59 @@ const eventItems = computed(() => [
   ...(data.value?.eventTypes ?? []).map(name => ({ label: name, value: name })),
 ])
 
+// Process filter options — same static-catalog-on-response pattern as events.
+const processItems = computed(() => [
+  { label: 'All processes', value: ALL },
+  ...(data.value?.processes ?? []).map(name => ({ label: name, value: name })),
+])
+
 // Any filter change must reset to the first page — otherwise a narrower filter
 // could leave us stranded on a now-out-of-range page. `search` (debounced) is
 // watched rather than the raw input so the reset lands with the actual query.
-watch([level, eventType, category, sinceWindow, search], () => {
+watch([level, eventType, process, exceptionsOnly, category, sinceWindow, search], () => {
   page.value = 1
 })
 
+// --- Row selection (#722) ------------------------------------------------------
+// Checkbox multi-select keyed by entry id (`get-row-id`), so the selection maps
+// straight back to entries. Cleared whenever the visible set changes (filter or
+// page) — a hidden selection would silently ride into the copied JSON.
+const rowSelection = ref<Record<string, boolean>>({})
+watch([filters], () => {
+  rowSelection.value = {}
+})
+
+const selectedEntries = computed(() =>
+  entries.value.filter(entry => rowSelection.value[String(entry.id)]))
+// Full entries, pretty-printed — not the truncated table cells.
+const selectionJson = computed(() => JSON.stringify(selectedEntries.value, null, 2))
+
+const UCheckbox = resolveComponent('UCheckbox')
+
 // --- Table -------------------------------------------------------------------
 const columns: TableColumn<LogEntry>[] = [
+  {
+    id: 'select',
+    header: ({ table }) =>
+      h(UCheckbox, {
+        'modelValue': table.getIsSomePageRowsSelected()
+          ? 'indeterminate'
+          : table.getIsAllPageRowsSelected(),
+        'onUpdate:modelValue': (value: boolean | 'indeterminate') =>
+          table.toggleAllPageRowsSelected(!!value),
+        'aria-label': 'Select all rows',
+      }),
+    cell: ({ row }) =>
+      h(UCheckbox, {
+        'modelValue': row.getIsSelected(),
+        'onUpdate:modelValue': (value: boolean | 'indeterminate') =>
+          row.toggleSelected(!!value),
+        // The row itself opens the detail slide-over on click; the checkbox
+        // must not bubble into that.
+        'onClick': (event: Event) => event.stopPropagation(),
+        'aria-label': 'Select row',
+      }),
+  },
   {
     accessorKey: 'timestampUtc',
     header: 'Time',
@@ -194,51 +251,66 @@ function openDetail(entry: LogEntry) {
         </template>
       </UDashboardToolbar>
 
-      <UDashboardToolbar v-if="view === 'logs'">
-        <template #left>
-          <USelect
-            v-model="level"
-            :items="levelItems"
-            icon="i-lucide-bar-chart-3"
-            placeholder="Level"
-            class="w-40"
-          />
-          <USelect
-            v-model="eventType"
-            :items="eventItems"
-            icon="i-lucide-zap"
-            placeholder="Event"
-            class="w-52"
-          />
-          <USelect
-            v-model="sinceWindow"
-            :items="SINCE_ITEMS"
-            icon="i-lucide-clock"
-            placeholder="Since"
-            class="w-44"
-          />
-          <UInput
-            v-model="category"
-            icon="i-lucide-folder"
-            placeholder="Category…"
-            class="w-56"
-          />
-          <UInput
-            v-model="searchInput"
-            icon="i-lucide-search"
-            placeholder="Search message…"
-            class="w-64"
-          />
-        </template>
-        <template #right>
-          <UButton
-            v-if="hasActiveFilters"
-            icon="i-lucide-x"
-            color="neutral"
-            variant="ghost"
-            label="Clear"
-            @click="resetFilters"
-          />
+      <!-- `h-auto` + wrapping: seven filter controls no longer fit one fixed-height
+           row, so let them flow onto a second line instead of clipping. -->
+      <UDashboardToolbar v-if="view === 'logs'" :ui="{ root: 'h-auto py-2' }">
+        <template #default>
+          <div class="flex flex-wrap items-center gap-2 w-full">
+            <USelect
+              v-model="level"
+              :items="levelItems"
+              icon="i-lucide-bar-chart-3"
+              placeholder="Level"
+              class="w-40"
+            />
+            <USelect
+              v-model="eventType"
+              :items="eventItems"
+              icon="i-lucide-zap"
+              placeholder="Event"
+              class="w-52"
+            />
+            <USelect
+              v-model="process"
+              :items="processItems"
+              icon="i-lucide-server"
+              placeholder="Process"
+              class="w-40"
+            />
+            <USelect
+              v-model="sinceWindow"
+              :items="SINCE_ITEMS"
+              icon="i-lucide-clock"
+              placeholder="Since"
+              class="w-44"
+            />
+            <UInput
+              v-model="category"
+              icon="i-lucide-folder"
+              placeholder="Category…"
+              class="w-56"
+            />
+            <UInput
+              v-model="searchInput"
+              icon="i-lucide-search"
+              placeholder="Search message…"
+              class="w-64"
+            />
+            <USwitch
+              v-model="exceptionsOnly"
+              label="Exceptions only"
+              size="sm"
+            />
+            <div class="flex-1" />
+            <UButton
+              v-if="hasActiveFilters"
+              icon="i-lucide-x"
+              color="neutral"
+              variant="ghost"
+              label="Clear"
+              @click="resetFilters"
+            />
+          </div>
         </template>
       </UDashboardToolbar>
     </template>
@@ -267,19 +339,28 @@ function openDetail(entry: LogEntry) {
               <p class="text-sm font-medium text-highlighted">
                 Log entries
               </p>
-              <UBadge
-                v-if="!pending"
-                color="neutral"
-                variant="subtle"
-                :label="`${total.toLocaleString('en-US')} ${total === 1 ? 'entry' : 'entries'}`"
-              />
+              <div class="flex items-center gap-2">
+                <CopyButton
+                  v-if="selectedEntries.length"
+                  :text="selectionJson"
+                  :label="`Copy JSON (${selectedEntries.length})`"
+                />
+                <UBadge
+                  v-if="!pending"
+                  color="neutral"
+                  variant="subtle"
+                  :label="`${total.toLocaleString('en-US')} ${total === 1 ? 'entry' : 'entries'}`"
+                />
+              </div>
             </div>
           </template>
 
           <UTable
+            v-model:row-selection="rowSelection"
             :data="entries"
             :columns="columns"
             :meta="tableMeta"
+            :get-row-id="row => String(row.id)"
             :loading="pending"
             loading-color="primary"
             :ui="{ td: 'py-2', tr: 'cursor-pointer' }"

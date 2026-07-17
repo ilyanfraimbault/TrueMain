@@ -42,7 +42,7 @@ public sealed class LogsApiIntegrationTests
         var json = await response.Content.ReadAsStringAsync();
         using var document = JsonDocument.Parse(json);
         document.RootElement.EnumerateObject().Select(property => property.Name)
-            .Should().BeEquivalentTo(["entries", "total", "page", "pageSize", "eventTypes"]);
+            .Should().BeEquivalentTo(["entries", "total", "page", "pageSize", "eventTypes", "processes"]);
 
         var firstEntry = document.RootElement.GetProperty("entries")[0];
         firstEntry.EnumerateObject().Select(property => property.Name)
@@ -233,6 +233,51 @@ public sealed class LogsApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetLogsAsync_ShouldFilterByProcessCaseInsensitivelyAndExposeCatalog()
+    {
+        await ResetAsync();
+        await SeedLogsAsync();
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        // Only the "Ingestor.Worker" row is stamped Ingestor by the seed; the
+        // filter is an exact match resolved case-insensitively against the
+        // static catalog (#722).
+        var payload = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs?process=ingestor");
+        payload.Should().NotBeNull();
+
+        payload!.Total.Should().Be(1);
+        var entry = payload.Entries.Should().ContainSingle().Subject;
+        entry.ProcessName.Should().Be("Ingestor");
+        entry.Message.Should().Be("ingest failed");
+
+        // The process catalog rides on every response (static list, no Mongo
+        // distinct) so the admin UI can build its filter select.
+        payload.Processes.Should().BeEquivalentTo(["Api", "Ingestor"]);
+    }
+
+    [Fact]
+    public async Task GetLogsAsync_ShouldFilterToExceptionCarryingRows()
+    {
+        await ResetAsync();
+        await SeedLogsAsync();
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        // hasException=true keeps only rows with a formatted exception — one in
+        // the seed; hasException=false is a no-op (same as omitting it).
+        var filtered = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs?hasException=true");
+        filtered.Should().NotBeNull();
+        filtered!.Total.Should().Be(1);
+        filtered.Entries.Should().ContainSingle().Which.Exception.Should().Contain("TimeoutException");
+
+        var unfiltered = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs?hasException=false");
+        unfiltered!.Total.Should().Be(5);
+    }
+
+    [Fact]
     public async Task GetLogsAsync_ShouldClampPageSizeToCeiling()
     {
         await ResetAsync();
@@ -347,6 +392,8 @@ public sealed class LogsApiIntegrationTests
         public int PageSize { get; init; }
 
         public IReadOnlyList<string> EventTypes { get; init; } = [];
+
+        public IReadOnlyList<string> Processes { get; init; } = [];
     }
 
     private sealed class LogEntryTestContract

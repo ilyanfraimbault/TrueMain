@@ -88,6 +88,8 @@ services:
       Ops__ApiKey: "${OPS_API_KEY:?set OPS_API_KEY before deploying}"
       Cors__Origins__0: "http://localhost:3001"
       MongoLogging__CrashFilePath: /home/app/crashes
+      # Preprod keeps diagnostic logs at most 1 month (default is 90 days).
+      MongoLogging__LogsRetention: "30.00:00:00"
     volumes:
       - truemain_preprod_api_crashes:/home/app/crashes
     depends_on:
@@ -151,6 +153,8 @@ services:
       Riot__ApiKey: ${RIOT_API_KEY}
       Job__Mode: ${INGESTOR_JOB_MODE:-Full}
       MongoLogging__CrashFilePath: /home/app/crashes
+      # Preprod keeps diagnostic logs at most 1 month (default is 90 days).
+      MongoLogging__LogsRetention: "30.00:00:00"
       # --- Preprod data diet -------------------------------------------------
       # The preprod database must stay tiny: just enough matches for every
       # feature (aggregates, matchups, timeline leads, builds, leaderboard) to
