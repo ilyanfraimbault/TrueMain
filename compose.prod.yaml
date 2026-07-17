@@ -4,9 +4,6 @@ services:
     container_name: truemain-postgres
     restart: unless-stopped
     shm_size: "256m"
-    # Disable parallel query: parallel workers allocate DSM segments in /dev/shm,
-    # and concurrent aggregate queries exhausted it (53100: could not resize shared
-    # memory segment / No space left on device), crashing the API and ingestor.
     command: ["postgres", "-c", "max_parallel_workers_per_gather=0"]
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -89,8 +86,6 @@ services:
       Cors__Origins__2: "https://admin.truemain.lol"
       MongoLogging__CrashFilePath: /home/app/crashes
     volumes:
-      # Durable crash logs survive container recreation. Named volume so it inherits
-      # the app-user ownership prepared in the image (a bind mount would not).
       - truemain_api_crashes:/home/app/crashes
     depends_on:
       postgres:
@@ -112,8 +107,6 @@ services:
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: 3000
       NUXT_API_BASE_URL: http://api:8080
-      # Umami tracker (#728). The website id is created in the Umami UI after
-      # the first deploy; the tracker stays disabled while it is empty.
       NUXT_PUBLIC_UMAMI_HOST: https://analytics.truemain.lol
       NUXT_PUBLIC_UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
     depends_on:
@@ -136,9 +129,6 @@ services:
       NUXT_ADMIN_PASSWORD: "${ADMIN_PASSWORD:?set a strong ADMIN_PASSWORD before deploying}"
       NUXT_SESSION_COOKIE_SECURE: "true"
       NUXT_TRUST_PROXY: "true"
-      # Umami dashboard embed for the Analytics tab (#728). The share URL is
-      # created in the Umami UI (website → Share); while empty the tab embeds
-      # the app URL instead (requires an Umami login inside the iframe).
       NUXT_PUBLIC_UMAMI_URL: https://analytics.truemain.lol
       NUXT_PUBLIC_UMAMI_SHARE_URL: ${UMAMI_SHARE_URL:-}
     depends_on:
@@ -166,9 +156,6 @@ services:
     networks:
       - truemain_internal
 
-  # Self-hosted Umami analytics (#728) — visitor/session tracking for
-  # truemain.lol, embedded by the admin portal's Analytics tab. Fully separate
-  # from the TrueMain backend: own container, own database, no API coupling.
   umami-db:
     image: postgres:17.2
     container_name: truemain-umami-db
