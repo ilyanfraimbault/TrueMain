@@ -105,6 +105,39 @@ public sealed class CompositionBuildApiIntegrationTests
         result.Build.RunePage.Should().BeNull();
     }
 
+    [Fact]
+    public async Task PostCompositionBuild_ExplicitNullSlotLists_AreTreatedAsEmpty()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // An explicit "allies": null / "enemies": null in the body overrides
+        // the DTO's empty-list default at binding time — it must read as an
+        // empty draft, not crash the validation into a 500.
+        var response = await client.PostAsJsonAsync(
+            $"/champions/{Champion}/composition-build",
+            new { position = Position, allies = (object?)null, enemies = (object?)null });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<CompositionBuildResponse>();
+        result!.Confidence.MaxPossibleScore.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task PostCompositionBuild_NullSlotEntry_Returns400()
+    {
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var response = await client.PostAsJsonAsync(
+            $"/champions/{Champion}/composition-build",
+            new { position = Position, enemies = new object?[] { null } });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("NOT_A_LANE")]

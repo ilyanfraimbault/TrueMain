@@ -428,18 +428,21 @@ public sealed class ChampionsController(
     /// <summary>
     /// Canonicalises one team's slot list into a position→champion map; any
     /// non-positive champion id, unrecognised position, or duplicated position
-    /// within the team yields a 400 <paramref name="problem"/>.
+    /// within the team yields a 400 <paramref name="problem"/>. Null tolerated:
+    /// the DTO defaults to an empty list, but an explicit <c>"allies": null</c>
+    /// in the JSON body overrides that default with null at binding time.
     /// </summary>
     private bool TryNormalizeSlots(
-        IReadOnlyList<CompositionSlotInput> slots,
+        IReadOnlyList<CompositionSlotInput>? slots,
         string teamLabel,
         out Dictionary<string, int> byPosition,
         [NotNullWhen(false)] out ActionResult? problem)
     {
         byPosition = new Dictionary<string, int>(StringComparer.Ordinal);
-        foreach (var slot in slots)
+        foreach (var slot in slots ?? [])
         {
-            if (slot.ChampionId <= 0)
+            // A literal null entry in the JSON array binds as a null element.
+            if (slot is null || slot.ChampionId <= 0)
             {
                 problem = ValidationProblem($"{teamLabel} contains a slot without a positive championId.");
                 return false;

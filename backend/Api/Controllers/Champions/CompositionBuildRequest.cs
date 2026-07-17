@@ -20,11 +20,13 @@ public sealed record CompositionBuildRequest
     /// <summary>
     /// Known allied picks, excluding the player's own champion (a slot at the
     /// player's position is rejected — that slot is the route's champion).
+    /// Nullable so an explicit <c>"allies": null</c> reads as an empty draft
+    /// instead of tripping MVC's implicit-required validation.
     /// </summary>
-    public IReadOnlyList<CompositionSlotInput> Allies { get; init; } = [];
+    public IReadOnlyList<CompositionSlotInput>? Allies { get; init; }
 
-    /// <summary>Known enemy picks.</summary>
-    public IReadOnlyList<CompositionSlotInput> Enemies { get; init; } = [];
+    /// <summary>Known enemy picks. Null reads as empty, like <see cref="Allies"/>.</summary>
+    public IReadOnlyList<CompositionSlotInput>? Enemies { get; init; }
 }
 
 /// <summary>One known pick of the draft: a champion at a position.</summary>
