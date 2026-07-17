@@ -19,7 +19,8 @@ public sealed class ChampionsController(
     IChampionScalingQueryService scalingQueryService,
     IChampionItemTimingsQueryService itemTimingsQueryService,
     IChampionRoamQueryService roamQueryService,
-    IChampionPowerspikesQueryService powerspikesQueryService) : ControllerBase
+    IChampionPowerspikesQueryService powerspikesQueryService,
+    ICompositionRecommendationQueryService compositionRecommendationQueryService) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<ChampionSummaryReadModel>), StatusCodes.Status200OK)]
@@ -371,6 +372,96 @@ public sealed class ChampionsController(
             ct);
 
         return Ok(response);
+    }
+
+    /// <summary>
+    /// Build recommendation for a (possibly partial) draft: the player's
+    /// champion (route) and position plus the known ally/enemy picks. The
+    /// composition ranks historical games, it never hard-filters — a sparse
+    /// draft degrades to the champion's recent games at the position and the
+    /// confidence block says so. POST because the input — up to nine
+    /// champion/position slots — is too rich for query parameters.
+    /// </summary>
+    [HttpPost("{championId:int}/composition-build")]
+    [ProducesResponseType(typeof(CompositionBuildResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<CompositionBuildResponse>> PostCompositionBuildAsync(
+        int championId,
+        [FromBody] CompositionBuildRequest request,
+        CancellationToken ct = default)
+    {
+        if (championId <= 0)
+        {
+            return ValidationProblem("championId must be a positive champion id.");
+        }
+
+        if (!TryRequirePosition(request.Position, out var normalizedPosition, out var positionProblem))
+        {
+            return positionProblem;
+        }
+
+        if (!TryNormalizeSlots(request.Allies, "allies", out var allies, out var slotProblem)
+            || !TryNormalizeSlots(request.Enemies, "enemies", out var enemies, out slotProblem))
+        {
+            return slotProblem;
+        }
+
+        if (allies.ContainsKey(normalizedPosition))
+        {
+            return ValidationProblem(
+                "allies must not contain the player's own position — that slot is the champion of the route.");
+        }
+
+        var criteria = new CompositionSearchCriteria
+        {
+            ChampionId = championId,
+            Position = normalizedPosition,
+            Allies = allies,
+            Enemies = enemies,
+            Patch = ChampionQueryParameterNormalizer.NormalizePatch(request.Patch),
+            EloBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(request.EloBracket),
+        };
+
+        return Ok(await compositionRecommendationQueryService.GetAsync(criteria, ct));
+    }
+
+    /// <summary>
+    /// Canonicalises one team's slot list into a position→champion map; any
+    /// non-positive champion id, unrecognised position, or duplicated position
+    /// within the team yields a 400 <paramref name="problem"/>.
+    /// </summary>
+    private bool TryNormalizeSlots(
+        IReadOnlyList<CompositionSlotInput> slots,
+        string teamLabel,
+        out Dictionary<string, int> byPosition,
+        [NotNullWhen(false)] out ActionResult? problem)
+    {
+        byPosition = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var slot in slots)
+        {
+            if (slot.ChampionId <= 0)
+            {
+                problem = ValidationProblem($"{teamLabel} contains a slot without a positive championId.");
+                return false;
+            }
+
+            var position = ChampionQueryParameterNormalizer.NormalizePosition(slot.Position);
+            if (position is null)
+            {
+                problem = ValidationProblem(
+                    $"{teamLabel}: {ChampionQueryParameterNormalizer.InvalidPositionMessage}");
+                return false;
+            }
+
+            if (!byPosition.TryAdd(position, slot.ChampionId))
+            {
+                problem = ValidationProblem($"{teamLabel} contains two slots at position {position}.");
+                return false;
+            }
+        }
+
+        problem = null;
+        return true;
     }
 
     /// <summary>
