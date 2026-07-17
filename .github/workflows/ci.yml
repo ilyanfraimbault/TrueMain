@@ -167,6 +167,8 @@ jobs:
           ADMIN_PASSWORD: truemain
           MONGO_USER: truemain_preprod
           MONGO_PASSWORD: truemain_preprod
+          UMAMI_DB_PASSWORD: truemain_preprod
+          UMAMI_APP_SECRET: ci-umami-app-secret-min-32-characters
         run: docker compose -f compose.preprod.yaml config
 
   docker-build:

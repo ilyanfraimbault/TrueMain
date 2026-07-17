@@ -1,0 +1,17 @@
+# Preprod Umami front (#742). Preprod has no DNS/TLS, so Umami is published
+# through this plain-HTTP Caddy instead of prod's `analytics.truemain.lol`
+# vhost (see Caddyfile). Besides proxying, its one job is the same CSP
+# rewrite as prod: Umami bakes `frame-ancestors 'self'` into its image at
+# build time (ALLOWED_FRAME_URLS only applies to source builds), which would
+# block the admin portal's Analytics iframe. The allowed admin origin comes
+# from the environment so the VPS address never lives in the repo.
+
+{
+	auto_https off
+}
+
+:3100 {
+	reverse_proxy umami:3000 {
+		header_down Content-Security-Policy "frame-ancestors 'self'" "frame-ancestors 'self' {$UMAMI_ALLOWED_FRAME_ORIGIN}"
+	}
+}
