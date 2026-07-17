@@ -37,9 +37,16 @@ public sealed class CompositionBuildQueryService(
 
         var options = searchOptions.Value;
         var matchIds = matches.Select(m => m.MatchId).Distinct().ToList();
-        var selectedKeys = matches
-            .Select(m => (m.MatchId, m.ParticipantId))
-            .ToHashSet();
+
+        // The incoming top-K is deterministically ranked (score, then game
+        // time). That order matters downstream: the aggregator's vote breaks
+        // exact weight+games ties on insertion order, so the facts must follow
+        // the ranking, not whatever order Postgres returns the rows in.
+        var rankByKey = new Dictionary<(string MatchId, int ParticipantId), int>(matches.Count);
+        foreach (var match in matches)
+        {
+            rankByKey.TryAdd((match.MatchId, match.ParticipantId), rankByKey.Count);
+        }
 
         // The champion+position filter re-identifies the selected rows without
         // a tuple IN — at most one row per match can be the searched champion
@@ -77,15 +84,19 @@ public sealed class CompositionBuildQueryService(
                     p.PerksDefense,
                 })
             .ToListAsync(ct);
-        rows.RemoveAll(r => !selectedKeys.Contains((r.MatchId, r.ParticipantId)));
+        rows.RemoveAll(r => !rankByKey.ContainsKey((r.MatchId, r.ParticipantId)));
+        rows.Sort((a, b) => rankByKey[(a.MatchId, a.ParticipantId)]
+            .CompareTo(rankByKey[(b.MatchId, b.ParticipantId)]));
 
-        var runePages = await LoadRunePagesAsync(matchIds, selectedKeys, ct);
+        var runePages = await LoadRunePagesAsync(matchIds, rankByKey.Keys.ToHashSet(), ct);
 
         var facts = new List<CompositionParticipantFacts>(rows.Count);
         foreach (var row in rows)
         {
             var itemMetadata = await GetItemMetadataAsync(row.GameVersion, ct);
             runePages.TryGetValue((row.MatchId, row.ParticipantId), out var selections);
+
+            var spellPair = new SummonerSpellPair(row.Summoner1Id, row.Summoner2Id).Canonical();
 
             if (itemMetadata is null)
             {
@@ -94,8 +105,8 @@ public sealed class CompositionBuildQueryService(
                 facts.Add(new CompositionParticipantFacts
                 {
                     Win = row.Win,
-                    Spell1Id = new SummonerSpellPair(row.Summoner1Id, row.Summoner2Id).Canonical().Spell1Id,
-                    Spell2Id = new SummonerSpellPair(row.Summoner1Id, row.Summoner2Id).Canonical().Spell2Id,
+                    Spell1Id = spellPair.Spell1Id,
+                    Spell2Id = spellPair.Spell2Id,
                     SkillOrderKey = SkillOrderBuilder.Build(row.SkillEvents),
                     RunePage = BuildRunePageFacts(
                         row.PrimaryStyleId, row.SubStyleId,
@@ -106,7 +117,6 @@ public sealed class CompositionBuildQueryService(
 
             int[] finalItems = [row.Item0, row.Item1, row.Item2, row.Item3, row.Item4, row.Item5, row.Item6];
             var starterAnalysis = StarterItemAnalyzer.Analyze(row.ItemEvents, finalItems, itemMetadata);
-            var spellPair = new SummonerSpellPair(row.Summoner1Id, row.Summoner2Id).Canonical();
 
             facts.Add(new CompositionParticipantFacts
             {

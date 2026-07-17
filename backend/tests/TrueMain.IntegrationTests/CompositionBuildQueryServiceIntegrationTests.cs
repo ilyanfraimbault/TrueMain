@@ -114,6 +114,33 @@ public sealed class CompositionBuildQueryServiceIntegrationTests
     }
 
     [Fact]
+    public async Task AggregateAsync_ExactVoteTie_BreaksOnTheTopKRanking()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        // Two losses with different builds: every dimension ties on weight and
+        // raw games, so the tie must fall to the top-K ranking — the better-
+        // scored match wins — regardless of the database's row order.
+        await SeedGameAsync("COMPB_TIE_A", win: false, buildOrder: [3031, 3153], withRunes: false);
+        await SeedGameAsync("COMPB_TIE_B", win: false, buildOrder: [3072, 3026], withRunes: false);
+
+        var ranked = await CreateService().AggregateAsync(
+            Champion, Position,
+            [Ref("COMPB_TIE_B", false), Ref("COMPB_TIE_A", false)],
+            CancellationToken.None);
+
+        // The tie breaks toward the higher-ranked match of the top-K.
+        ranked.CorePath!.ItemIds.Should().Equal(3072, 3026);
+
+        var reversed = await CreateService().AggregateAsync(
+            Champion, Position,
+            [Ref("COMPB_TIE_A", false), Ref("COMPB_TIE_B", false)],
+            CancellationToken.None);
+
+        reversed.CorePath!.ItemIds.Should().Equal(3031, 3153);
+    }
+
+    [Fact]
     public async Task AggregateAsync_EmptyTopK_ReturnsEmptyRecommendation()
     {
         await _fixture.ResetDatabaseAsync();
