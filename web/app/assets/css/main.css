@@ -122,23 +122,24 @@
 
   /*
    * Champion performance-tier scale (S → D) for the champions-list tier
-   * column. A sanctioned exception to the rose-gold-only surface rule: a blue→red
-   * ramp where a better tier is a lighter blue and a worse tier a darker red,
-   * so the badge reads as a ranked scale at a glance. Kept saturated enough to
-   * stay legible on the dark surface — a washed-out scale just reads as noise.
+   * column. Reads as a medal ladder — a metaphor every LoL player already
+   * knows from ranked (Iron → Bronze → Silver → Gold): better tier = more
+   * precious metal. S sits above gold on the brand rose-gold primary, so the
+   * best tier is also the one wearing the app's accent. Kept saturated enough
+   * to stay legible on the dark surface.
    * Tailwind v4 auto-generates `text-tier-*` utilities from these vars;
    * TierBadge.vue colours the bare letter with the matching one.
-   *   S — light blue   (best)
-   *   A — blue
-   *   B — violet
-   *   C — red
-   *   D — dark red      (worst)
+   *   S — rose-gold (brand primary, best)
+   *   A — gold
+   *   B — silver
+   *   C — bronze
+   *   D — iron       (worst)
    */
-  --color-tier-s: #6bb4f7;               /* light blue (best) */
-  --color-tier-a: #4f8fe0;               /* blue */
-  --color-tier-b: #a06ec4;               /* violet */
-  --color-tier-c: #cc5f60;               /* red */
-  --color-tier-d: #9a2f33;               /* dark red (worst) */
+  --color-tier-s: #e58f83;               /* rose-gold — rosegold-400 (best) */
+  --color-tier-a: #e2b95c;               /* gold */
+  --color-tier-b: #b9c2cd;               /* silver */
+  --color-tier-c: #b3763f;               /* bronze */
+  --color-tier-d: #837a7c;               /* iron (worst) */
 
   /* Misc / structural */
   --color-stat-status: #9366a9;          /* status / CC keywords (Slowing, Immobilizing, Airborne, Stun) — muted violet */
