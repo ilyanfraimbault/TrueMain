@@ -1,4 +1,6 @@
-name: Publish Docker Images
+# Triggered when a GitHub Release is published: builds and publishes the
+# versioned + :latest images, then redeploys the prod VPS (deploy-prod job).
+name: Deploy Prod
 
 on:
   release:
@@ -17,7 +19,7 @@ env:
 
 jobs:
   publish:
-    name: Publish Release Images
+    name: Build & Publish Release Images
     runs-on: ubuntu-24.04
 
     steps:

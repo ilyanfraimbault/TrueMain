@@ -2,7 +2,7 @@
 
 Production runs the released images (`:latest`, tagged with the release
 version), which are built and published when a GitHub Release is published
-(see `.github/workflows/publish-images.yml`). The stack is defined by
+(see `.github/workflows/deploy-prod.yml`). The stack is defined by
 `compose.prod.yaml`.
 
 Design goals:
@@ -18,7 +18,7 @@ Design goals:
 
 ### Automatic (Hostinger Docker Manager API)
 
-The `deploy-prod` job in `publish-images.yml` redeploys the `truemain` Docker
+The `deploy-prod` job in `deploy-prod.yml` redeploys the `truemain` Docker
 Manager project right after the release images are published, using the
 official `hostinger/deploy-on-vps` action (a pure API call — no SSH material in
 CI). It is a no-op until three pieces of repository configuration exist:

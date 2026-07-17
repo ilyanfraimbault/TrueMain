@@ -1,4 +1,6 @@
-name: Publish Preprod Docker Images
+# Triggered on every push to develop: builds and publishes the :preprod
+# images, then redeploys the preprod VPS (deploy-preprod job).
+name: Deploy Preprod
 
 on:
   push:
@@ -18,7 +20,7 @@ env:
 
 jobs:
   publish-preprod:
-    name: Publish Preprod Images
+    name: Build & Publish Preprod Images
     runs-on: ubuntu-24.04
 
     steps:
