@@ -153,21 +153,21 @@ jobs:
           UMAMI_APP_SECRET: ci-umami-app-secret-min-32-characters
         run: docker compose -f compose.prod.yaml config
 
-      - name: Validate QA compose file
+      - name: Validate preprod compose file
         env:
-          POSTGRES_USER: truemain_qa
-          POSTGRES_PASSWORD: truemain_qa
-          POSTGRES_DB: truemain_qa
-          RIOT_API_KEY: RGAPI-REPLACE_ME_QA
+          POSTGRES_USER: truemain_preprod
+          POSTGRES_PASSWORD: truemain_preprod
+          POSTGRES_DB: truemain_preprod
+          RIOT_API_KEY: RGAPI-REPLACE_ME_PREPROD
           OPS_API_KEY: ci-ops-api-key-min-32-characters-padding
-          PGADMIN_DEFAULT_EMAIL: admin@truemain-qa.dev
+          PGADMIN_DEFAULT_EMAIL: admin@truemain-preprod.dev
           PGADMIN_DEFAULT_PASSWORD: admin
           ADMIN_SESSION_PASSWORD: ci-admin-session-min-32-characters-padding
           ADMIN_USERNAME: truemain
           ADMIN_PASSWORD: truemain
-          MONGO_USER: truemain_qa
-          MONGO_PASSWORD: truemain_qa
-        run: docker compose -f compose.qa.yaml config
+          MONGO_USER: truemain_preprod
+          MONGO_PASSWORD: truemain_preprod
+        run: docker compose -f compose.preprod.yaml config
 
   docker-build:
     name: Docker Build Sanity (${{ matrix.name }})

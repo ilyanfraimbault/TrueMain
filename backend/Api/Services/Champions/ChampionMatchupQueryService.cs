@@ -99,16 +99,7 @@ public sealed class ChampionMatchupQueryService(
             .Where(x => x.Games >= minGames)
             .ToListAsync(ct);
 
-        return rows
-            .Select(x => new ChampionMatchupEntry
-            {
-                OpponentChampionId = x.Opponent,
-                Games = x.Games,
-                Wins = x.Wins,
-                WinRate = (double)x.Wins / x.Games,
-            })
-            .OrderByDescending(m => m.WinRate)
-            .ToList();
+        return ToOrderedEntries(rows.Select(x => (x.Opponent, x.Games, x.Wins)));
     }
 
     private async Task<List<ChampionMatchupEntry>> ComputeLiveAsync(
@@ -183,15 +174,24 @@ public sealed class ChampionMatchupQueryService(
             .Where(x => x.Games >= minGames)
             .ToListAsync(ct);
 
-        return rows
+        return ToOrderedEntries(rows.Select(x => (x.Opponent, x.Games, x.Wins)));
+    }
+
+    /// <summary>
+    /// Shared final projection for both read paths: materialised
+    /// (opponent, games, wins) rows — every one already above its floor, so
+    /// games is never zero — mapped to entries ordered best-winrate first.
+    /// </summary>
+    private static List<ChampionMatchupEntry> ToOrderedEntries(
+        IEnumerable<(int Opponent, int Games, int Wins)> rows)
+        => rows
             .Select(x => new ChampionMatchupEntry
             {
                 OpponentChampionId = x.Opponent,
                 Games = x.Games,
                 Wins = x.Wins,
-                WinRate = (double)x.Wins / x.Games,
+                WinRate = RateMath.Rate(x.Wins, x.Games),
             })
             .OrderByDescending(m => m.WinRate)
             .ToList();
-    }
 }

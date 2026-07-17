@@ -19,7 +19,10 @@ public sealed class PipelineHealthQueryService(
         "Scoring",
         "MatchIngestion",
         "MainAnalysis",
+        "MatchParticipantEloBracketEnrichment",
         "ChampionPatternAggregation",
+        "ChampionMatchupLeadAggregation",
+        "ChampionPowerspikeAggregation",
         "AccountRefresh",
         "MatchDataRetention"
     ];

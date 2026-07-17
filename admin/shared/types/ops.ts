@@ -147,10 +147,14 @@ export interface ProcessRunsResponse {
 export const PIPELINE_CHAIN: readonly string[] = [
   'Discovery',
   'ManualSeed',
+  'Harvest',
   'Scoring',
   'MatchIngestion',
   'MainAnalysis',
+  'MatchParticipantEloBracketEnrichment',
   'ChampionPatternAggregation',
+  'ChampionMatchupLeadAggregation',
+  'ChampionPowerspikeAggregation',
   'AccountRefresh',
   'MatchDataRetention',
 ]
@@ -514,8 +518,8 @@ export type DataQualityIssueType
     | 'zeroDuration'
     | 'duplicateChampion'
 
-/** Nuxt UI badge/icon color for an issue type's severity. */
-export type BadgeColor = 'error' | 'warning' | 'info' | 'neutral'
+/** Nuxt UI badge/icon color used by the admin panels' status/severity badges. */
+export type BadgeColor = 'error' | 'warning' | 'info' | 'neutral' | 'success' | 'primary'
 
 /**
  * Presentation metadata for one issue type — label, icon and badge color. Drives
@@ -696,4 +700,56 @@ export interface RiotApiUsage {
   statusCodes: RiotStatusCount[]
   timeSeries: RiotUsageBucket[]
   rateLimit: RiotRateLimit | null
+}
+
+/**
+ * One aggregation family from `GET /api/ops/stats/aggregations` — a group of
+ * aggregate tables produced by a single ingestor process (builds patterns,
+ * matchups, timeline leads, powerspikes, mains).
+ */
+export interface AggregationFamily {
+  /** Stable identifier: "builds" | "matchups" | "timelineLeads" | "powerspikes" | "mains". */
+  key: string
+  /** The recorded ingestor process producing this family. */
+  processName: string
+  tables: { table: string, rows: number }[]
+  totalRows: number
+  distinctChampions: number
+  /** Distinct normalized patches; null when the family has no patch axis (mains). */
+  distinctPatches: number | null
+  /** Most recent aggregate-row write — data freshness independent of run records. */
+  lastAggregatedAtUtc: string | null
+  /** Latest recorded run of the producing process; null when it never ran. */
+  lastRun: AggregationRun | null
+}
+
+/**
+ * Rollup of the producing process's runs: the latest run's outcome plus the
+ * last success (they differ exactly when the latest run failed/was abandoned).
+ */
+export interface AggregationRun {
+  status: string
+  lastStartedAtUtc: string | null
+  lastFinishedAtUtc: string | null
+  lastSuccessAtUtc: string | null
+  durationMs: number | null
+  /** JSONB summary the process returned on its last success (per-run counts). */
+  lastSuccessSummary: Record<string, unknown> | null
+}
+
+/** Aggregation-side backlogs — both read zero when the pipeline is caught up. */
+export interface AggregationBacklog {
+  /** Queue-scoped timeline-ingested matches not yet folded into powerspikes. */
+  pendingPowerspikeMatches: number
+  /** Tracked participants still missing their elo bracket stamp. */
+  pendingEloBracketParticipants: number
+  /** Queue-scoped matches with an ingested timeline (backlog denominator). */
+  timelineIngestedMatches: number
+}
+
+/** `GET /api/ops/stats/aggregations` — the Aggregation panel payload. */
+export interface AggregationsResponse {
+  queueId: number
+  families: AggregationFamily[]
+  backlog: AggregationBacklog
 }

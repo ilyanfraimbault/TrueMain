@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Riot API usage panel (#93) — call counts per endpoint, status-code breakdown,
+// Riot API usage panel — call counts per endpoint, status-code breakdown,
 // rate-limit status and a call-volume time-series from `GET /api/ops/riot-usage`,
 // over a relative window. Metrics are sourced from the per-call `riot_api_calls`
 // Mongo collection the Ingestor writes via its HTTP metrics handler.
@@ -151,15 +151,17 @@ function rateColor(bucket: RateBucket): 'primary' | 'warning' | 'error' {
 // pattern). Bucket size is fixed by the window (5m / 1h / 6h) server-side.
 const timeSeriesData = computed(() =>
   (data.value?.timeSeries ?? []).map(bucket => ({
-    label: formatBucketLabel(bucket.bucketUtc),
+    label: formatCallBucketLabel(bucket.bucketUtc),
     calls: bucket.calls,
   })),
 )
-const timeSeriesCategories = { calls: { name: 'Calls', color: '#34d399' } }
+const timeSeriesCategories = { calls: { name: 'Calls', color: CHART_PRIMARY } }
 const timeSeriesXFormatter = computed(() =>
   indexLabelFormatter(timeSeriesData.value, row => row.label),
 )
-function formatBucketLabel(iso: string): string {
+// Named distinctly from the auto-imported `formatBucketLabel` (charts.ts),
+// which formats matches-over-time buckets per granularity.
+function formatCallBucketLabel(iso: string): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) {
     return iso

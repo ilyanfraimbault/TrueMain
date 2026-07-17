@@ -3,9 +3,8 @@ namespace Data.Entities;
 /// <summary>
 /// Transport DTO carried between <c>ChampionPatternProjector</c> (which
 /// builds it from <see cref="ChampionAggregatePattern"/> + <see cref="ChampionDimBuild"/>)
-/// and the per-dimension aggregators in the API. No longer an EF entity
-/// since Phase 6.4 dropped the per-scope <c>champion_aggregate_builds</c>
-/// table; the type stays only because the aggregators consume it.
+/// and the per-dimension aggregators in the API. Not an EF entity — it has
+/// no backing table and exists only as the aggregators' input shape.
 /// </summary>
 public class ChampionAggregateBuild
 {

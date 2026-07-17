@@ -140,6 +140,18 @@ public static class EloBracket
         return andAbove ? Ladder.Skip(index).ToList() : [Ladder[index]];
     }
 
+    /// <summary>
+    /// Cache-key token for a filter: the canonical <see cref="Normalize"/> form
+    /// (e.g. <c>GOLD_PLUS</c>), or <c>"all"</c> for the every-bucket case
+    /// (blank / <see cref="All"/> / unrecognised — exactly the inputs for which
+    /// <see cref="ResolveFilter"/> yields no bands).
+    /// </summary>
+    public static string ResolveToken(string? filter)
+    {
+        var normalized = Normalize(filter);
+        return normalized is null or All ? "all" : normalized;
+    }
+
     private static (string Tier, bool AndAbove) SplitFilter(string value)
         => value.EndsWith(PlusSuffix, StringComparison.Ordinal)
             ? (value[..^PlusSuffix.Length], true)

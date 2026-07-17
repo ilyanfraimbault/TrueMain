@@ -19,6 +19,10 @@ export default defineNuxtConfig({
     url: 'https://truemain.lol',
     name: 'TrueMain',
     description: 'League of Legends champion builds, runes and skill orders from true main players.',
+    // seo-utils appends `%separator %siteName` to every page title — pages
+    // must NOT hardcode the brand themselves or it shows up twice in search
+    // results. `·` matches the separator style used inside compound titles.
+    separator: '·',
   },
   sitemap: {
     // Static pages are auto-discovered from the file-based routes; the dynamic

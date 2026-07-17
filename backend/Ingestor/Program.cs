@@ -73,6 +73,7 @@ builder.Services.AddRecordedProcess<MainAnalysisProcess>();
 builder.Services.AddRecordedProcess<MatchParticipantEloBracketEnrichmentProcess>();
 builder.Services.AddRecordedProcess<ChampionPatternAggregationProcess>();
 builder.Services.AddRecordedProcess<ChampionMatchupLeadAggregationProcess>();
+builder.Services.AddRecordedProcess<ChampionPowerspikeAggregationProcess>();
 builder.Services.AddRecordedProcess<AccountRefreshProcess>();
 builder.Services.AddRecordedProcess<MatchDataRetentionProcess>();
 

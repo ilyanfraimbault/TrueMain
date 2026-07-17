@@ -19,6 +19,7 @@
 // classification happen on the NEXT Ingestor cycle, not synchronously.
 import type { FormError, FormSubmitEvent, TableColumn } from '@nuxt/ui'
 import type {
+  BadgeColor,
   SeedRequestReadModel,
   SeedRequestStatus,
 } from '~~/shared/types/ops'
@@ -37,22 +38,6 @@ const regionItems: { label: string, value: string }[] = TRACKED_REGIONS.map(
 )
 
 const toast = useToast()
-
-// Pull a human message out of an ofetch error (400 body, then statusMessage).
-function extractError(err: unknown): string {
-  const e = err as {
-    data?: { message?: string, statusMessage?: string }
-    statusMessage?: string
-    message?: string
-  }
-  return (
-    e?.data?.message
-    ?? e?.data?.statusMessage
-    ?? e?.statusMessage
-    ?? e?.message
-    ?? 'Unexpected error'
-  )
-}
 
 // =============================================================================
 // 1) SINGLE ADD — 3-field form + live status polling
@@ -192,7 +177,7 @@ async function onSubmit(event: FormSubmitEvent<SeedFormState>) {
     startPolling(res.id)
   }
   catch (err: unknown) {
-    submitError.value = extractError(err)
+    submitError.value = extractFetchError(err)
     toast.add({
       title: 'Seed request failed',
       description: submitError.value,
@@ -489,7 +474,7 @@ async function seedAll() {
         }
       }
       catch (err: unknown) {
-        outcomes.value[row.key] = { outcome: 'failed', status: null, error: extractError(err) }
+        outcomes.value[row.key] = { outcome: 'failed', status: null, error: extractFetchError(err) }
       }
       finally {
         doneCount.value += 1
@@ -546,7 +531,6 @@ const previewTableMeta = {
   },
 }
 
-type BadgeColor = 'neutral' | 'info' | 'success' | 'error' | 'warning'
 function outcomeBadge(row: PreviewRow): { color: BadgeColor, icon: string, label: string } {
   if (!row.valid) {
     return { color: 'error', icon: 'i-lucide-circle-x', label: 'Invalid' }
@@ -568,9 +552,6 @@ function outcomeBadge(row: PreviewRow): { color: BadgeColor, icon: string, label
 // =============================================================================
 // SHARED — recent seed requests history (reflects single + bulk submits)
 // =============================================================================
-// Reka UI forbids an empty-string SelectItem value, so "All statuses" uses the
-// non-empty `'all'` sentinel, mapped back to `undefined` (param omitted) below.
-const ALL = 'all'
 const statusFilter = ref<'all' | SeedRequestStatus>(ALL)
 const statusFilterItems = [
   { label: 'All statuses', value: ALL },

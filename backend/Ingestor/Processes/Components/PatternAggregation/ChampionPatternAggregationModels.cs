@@ -37,6 +37,9 @@ internal sealed class AggregateSourceRow
     public int GameDurationSeconds { get; init; }
     public Guid RiotAccountId { get; init; }
     public bool Win { get; init; }
+    public int Kills { get; init; }
+    public int Deaths { get; init; }
+    public int Assists { get; init; }
     public string? Position { get; init; }
     public int Summoner1Id { get; init; }
     public int Summoner2Id { get; init; }
@@ -104,6 +107,9 @@ internal sealed record ExpandedSourceRow(
     int BuildItem5,
     int BuildItem6,
     bool Win,
+    int Kills,
+    int Deaths,
+    int Assists,
     DateTime GameStartTimeUtc)
 {
     public string StarterItemsKey { get; } = string.Join("-", StarterItems);

@@ -60,7 +60,7 @@ public sealed class ChampionPowerspikesQueryService(
         // key carries the bracket so each band caches separately. The global
         // per-minute sigma stays unfiltered — it is just a normalising scale.
         var bands = EloBracket.ResolveFilter(eloBracket);
-        var bracketToken = bands is null ? "all" : EloBracket.Normalize(eloBracket)!;
+        var bracketToken = EloBracket.ResolveToken(eloBracket);
 
         var cacheKey = $"champions:powerspikes:{championId}:{position}:{normalizedPatch ?? "all"}:{bracketToken}";
         if (cache.TryGetValue<ChampionPowerspikesResponse>(cacheKey, out var cached) && cached is not null)
@@ -228,7 +228,7 @@ public sealed class ChampionPowerspikesQueryService(
         }
 
         // Item events: the champion's dominant build's completed items.
-        var coreItems = await LoadDominantBuildItemsAsync(championId, position, queueId, normalizedPatch, patchPrefix, ct);
+        var coreItems = await LoadDominantBuildItemsAsync(championId, position, queueId, normalizedPatch, ct);
         if (coreItems.Count > 0)
         {
             var itemFirstByMatch = await LoadItemFirstPurchasesAsync(
@@ -325,15 +325,16 @@ public sealed class ChampionPowerspikesQueryService(
         string position,
         int queueId,
         string? normalizedPatch,
-        string? patchPrefix,
         CancellationToken ct)
     {
+        // Aggregate scopes store the normalized major.minor patch ("16.14"), not
+        // the raw Riot build the matches carry — equality, not the LIKE prefix.
         var topBuildId = await (
                 from scope in db.ChampionAggregateScopes.AsNoTracking()
                 where scope.ChampionId == championId
                     && scope.Position == position
                     && scope.QueueId == queueId
-                    && (normalizedPatch == null || EF.Functions.Like(scope.GameVersion, patchPrefix!))
+                    && (normalizedPatch == null || scope.GameVersion == normalizedPatch)
                 join pattern in db.ChampionAggregatePatterns.AsNoTracking() on scope.Id equals pattern.ScopeId
                 group pattern by pattern.BuildId into g
                 orderby g.Sum(p => p.Games) descending

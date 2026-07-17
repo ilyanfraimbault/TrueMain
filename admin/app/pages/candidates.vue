@@ -11,6 +11,7 @@
 // Read-only — no write actions in v1 (use "Add mains" to queue a request).
 import type { TableColumn } from '@nuxt/ui'
 import type {
+  BadgeColor,
   CandidateDetail,
   CandidateRow,
   MainCandidateStatus,
@@ -19,24 +20,7 @@ import type {
 } from '~~/shared/types/ops'
 import { formatDateTime, formatNumber } from '~~/shared/utils/format'
 
-const route = useRoute()
-const router = useRouter()
-
 const { nameFor, iconFor } = useChampionStatic()
-
-type BadgeColor = 'neutral' | 'info' | 'success' | 'error' | 'warning' | 'primary'
-
-// --- Shared filter sentinel --------------------------------------------------
-// Reka UI forbids an empty-string SelectItem value, so "All …" uses the
-// non-empty `'all'` sentinel; the filter getters map it back to `undefined`.
-const ALL = 'all'
-
-const regionItems = [
-  { label: 'All regions', value: ALL },
-  { label: 'EUW1', value: 'EUW1' },
-  { label: 'KR', value: 'KR' },
-  { label: 'NA1', value: 'NA1' },
-]
 
 // =============================================================================
 // View 1 — Candidates
@@ -214,56 +198,17 @@ function refreshAll() {
 // =============================================================================
 // Candidate detail slide-over (Data Quality pattern: imperative + deep-linkable)
 // =============================================================================
-const detailOpen = ref(false)
-const detail = ref<CandidateDetail | null>(null)
-const detailPending = ref(false)
-const detailError = ref<string | null>(null)
-const detailId = ref<string | null>(null)
-
-async function openDetail(id: string) {
-  const candidateId = id.trim()
-  if (!candidateId) {
-    return
-  }
-  detailId.value = candidateId
-  detailOpen.value = true
-  detailPending.value = true
-  detailError.value = null
-  detail.value = null
-  // Reflect the open candidate in the URL so the view is deep-linkable.
-  if (route.query.candidate !== candidateId) {
-    router.replace({ query: { ...route.query, candidate: candidateId } })
-  }
-  try {
-    detail.value = await getCandidateDetail(candidateId)
-  }
-  catch (err: unknown) {
-    const e = err as { statusCode?: number, data?: { message?: string }, message?: string }
-    detailError.value = e?.statusCode === 404
-      ? `No candidate found with id "${candidateId}".`
-      : (e?.data?.message ?? e?.message ?? 'Failed to load candidate detail.')
-  }
-  finally {
-    detailPending.value = false
-  }
-}
-
-// Drop the `?candidate=` query when the slide-over closes so a refresh doesn't
-// re-open it unexpectedly.
-watch(detailOpen, (open) => {
-  if (!open && route.query.candidate) {
-    const { candidate: _candidate, ...rest } = route.query
-    router.replace({ query: rest })
-  }
-})
-
-// Deep-link: open the slide-over on initial load when `?candidate=ID` is present.
-onMounted(() => {
-  const fromQuery = route.query.candidate
-  const id = Array.isArray(fromQuery) ? fromQuery[0] : fromQuery
-  if (id) {
-    openDetail(id)
-  }
+const {
+  detailOpen,
+  detail,
+  detailPending,
+  detailError,
+  openDetail,
+} = useDeepLinkedDetail<CandidateDetail>({
+  queryKey: 'candidate',
+  fetch: getCandidateDetail,
+  notFoundMessage: id => `No candidate found with id "${id}".`,
+  loadErrorMessage: 'Failed to load candidate detail.',
 })
 
 const detailTitle = computed(() =>
@@ -348,7 +293,7 @@ function isRejected(status: MainCandidateStatus | undefined): boolean {
               />
               <USelect
                 v-model="candidateRegion"
-                :items="regionItems"
+                :items="REGION_ITEMS"
                 icon="i-lucide-globe"
                 placeholder="Region"
                 class="w-40"
@@ -449,14 +394,18 @@ function isRejected(status: MainCandidateStatus | undefined): boolean {
           v-if="candidateTotal > candidatePageSize"
           class="flex items-center justify-between gap-2 border-t border-default px-4 py-3"
         >
-          <span class="text-xs text-muted">
-            Page {{ candidatePage }} of {{ Math.ceil(candidateTotal / candidatePageSize) }}
-          </span>
+          <p class="text-xs text-muted tabular-nums">
+            Page {{ candidatePage.toLocaleString('en-US') }} of
+            {{ Math.max(1, Math.ceil(candidateTotal / candidatePageSize)).toLocaleString('en-US') }}
+          </p>
           <UPagination
             v-model:page="candidatePage"
             :total="candidateTotal"
             :items-per-page="candidatePageSize"
             :sibling-count="1"
+            active-color="primary"
+            variant="subtle"
+            :disabled="candidatePending"
             show-edges
           />
         </div>

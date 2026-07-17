@@ -11,6 +11,10 @@ public sealed class SearchQueryService(
     private const int DefaultLimit = 10;
     private const int MaxLimit = 25;
 
+    // Same top-champions slice the leaderboard row shows, so a player's
+    // search entry and their leaderboard row surface the same mains.
+    private const int TopChampionsPerResult = 3;
+
     // Minimum searchable length. pg_trgm only extracts usable trigrams from 3+
     // literal characters, so at 2 the GIN index isn't selective on its own —
     // but the Score / platform / IsMain filters narrow the candidate set before
@@ -95,6 +99,7 @@ public sealed class SearchQueryService(
             .Take(clampedLimit)
             .Select(a => new AccountRow(
                 a.Id,
+                a.Puuid,
                 a.GameName,
                 a.TagLine,
                 a.PlatformId,
@@ -110,7 +115,15 @@ public sealed class SearchQueryService(
             return Empty;
         }
 
+        // Hydrate the handful of result rows sequentially on the single scoped
+        // context — at most MaxLimit rows, three cheap keyed lookups. The
+        // leaderboard parallelises the same shape across factory contexts
+        // because it does it per page under sustained traffic; search doesn't
+        // need that machinery.
+        var puuids = rows.Select(r => r.Puuid).ToArray();
         var ranksByAccount = await FetchLatestRanksAsync(rows.Select(r => r.Id).ToArray(), ct);
+        var topChampionsByPuuid = await FetchTopChampionIdsAsync(puuids, ct);
+        var positionsByPuuid = await MainPositions.FetchAsync(db, puuids, ct);
 
         var results = rows
             .Select(r =>
@@ -135,6 +148,8 @@ public sealed class SearchQueryService(
                             Division = rank.Division,
                             LeaguePoints = rank.LeaguePoints,
                         },
+                    TopChampionIds = topChampionsByPuuid.GetValueOrDefault(r.Puuid) ?? [],
+                    Positions = positionsByPuuid.GetValueOrDefault(r.Puuid),
                 };
             })
             .ToList();
@@ -216,10 +231,48 @@ public sealed class SearchQueryService(
         return rows.ToDictionary(r => r.AccountId);
     }
 
+    private async Task<Dictionary<string, List<int>>> FetchTopChampionIdsAsync(string[] puuids, CancellationToken ct)
+    {
+        if (puuids.Length == 0)
+        {
+            return new Dictionary<string, List<int>>();
+        }
+
+        var take = TopChampionsPerResult;
+        // Same ROW_NUMBER shape as the leaderboard's FetchTopChampionsAsync
+        // (PlayRate desc, ChampionMatches desc) so a player's search entry and
+        // their leaderboard row agree on which mains are shown — only the ids
+        // here, the dropdown doesn't render games/build.
+        FormattableString sql = $"""
+            WITH ranked AS (
+                SELECT
+                    m."Puuid" AS "Puuid",
+                    m."ChampionId" AS "ChampionId",
+                    ROW_NUMBER() OVER (
+                        PARTITION BY m."Puuid"
+                        ORDER BY m."PlayRate" DESC, m."ChampionMatches" DESC
+                    ) AS rn
+                FROM main_champion_stats m
+                WHERE m."Puuid" = ANY ({puuids})
+                  AND m."IsMain" = true
+            )
+            SELECT "Puuid", "ChampionId"
+            FROM ranked
+            WHERE rn <= {take}
+            ORDER BY "Puuid", rn
+            """;
+
+        var rows = await db.Database.SqlQuery<ChampionIdRow>(sql).ToListAsync(ct);
+        return rows
+            .GroupBy(r => r.Puuid)
+            .ToDictionary(g => g.Key, g => g.Select(r => r.ChampionId).ToList());
+    }
+
     private static readonly SearchResponse Empty = new();
 
     private sealed record AccountRow(
         Guid Id,
+        string Puuid,
         string GameName,
         string? TagLine,
         string PlatformId,
@@ -227,4 +280,6 @@ public sealed class SearchQueryService(
         int SummonerLevel);
 
     private sealed record RankRow(Guid AccountId, string Tier, string Division, int LeaguePoints);
+
+    private sealed record ChampionIdRow(string Puuid, int ChampionId);
 }

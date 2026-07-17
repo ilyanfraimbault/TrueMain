@@ -25,46 +25,70 @@ function normalizeCdragonPatch(patch: string | null | undefined): string | null 
   return `${segments[0]}.${segments[1]}`
 }
 
+async function fetchRuneTree(patch: string | null): Promise<RuneTreeResponse> {
+  const prefix = communityDragonPrefix(patch)
+
+  const [perks, perkStyles] = await Promise.all([
+    $fetch<CdragonPerkRow[]>(`${prefix}/v1/perks.json`),
+    $fetch<PerkStylesResponse>(`${prefix}/v1/perkstyles.json`),
+  ])
+
+  const perkMap = buildPerkMap(perks, patch)
+  const perkStyleMap = buildPerkStyleMap(perkStyles.styles, patch)
+
+  // CommunityDragon emits 7 slots per style: 0 = keystone, 1-3 = regular
+  // sub-rows, 4-6 = stat shards (same triplets for every style, so we read
+  // them once from any style).
+  const styles: RuneTreeStyle[] = perkStyles.styles.map(style => ({
+    styleId: style.id,
+    name: style.name,
+    iconUrl: rewriteCdragonAsset(style.iconPath, patch),
+    keystones: style.slots[0]?.perks ?? [],
+    subRows: style.slots.slice(1, 4).map(slot => slot.perks),
+  }))
+
+  const firstStyle = perkStyles.styles[0]
+  const shardSlots = firstStyle ? firstStyle.slots.slice(4, 7).map(slot => slot.perks) : []
+
+  return {
+    styles,
+    perks: perkMap,
+    perkStyles: perkStyleMap,
+    shardSlots,
+  }
+}
+
 const loadRuneTree = defineCachedFunction(
   async (_event, patch: string | null): Promise<RuneTreeResponse> => {
-    const prefix = communityDragonPrefix(patch)
-
-    // Let any CommunityDragon failure bubble up — we'd rather return 502 once
-    // and let the next request retry than cache an empty `RuneTreeResponse`
-    // for 1h on a transient outage. Same trade-off as champions.get.ts.
-    const [perks, perkStyles] = await Promise.all([
-      $fetch<CdragonPerkRow[]>(`${prefix}/v1/perks.json`),
-      $fetch<PerkStylesResponse>(`${prefix}/v1/perkstyles.json`),
-    ]).catch((error) => {
-      throw createError({
-        statusCode: 502,
-        statusMessage: 'CommunityDragon rune tree fetch failed',
-        cause: error,
+    // CommunityDragon publishes the per-patch directory hours-to-days after
+    // DDragon lists the version in versions.json, so early in a patch cycle
+    // the pinned URL 404s while `latest` already serves the new data. Fall
+    // back to `latest` (icon URLs included) rather than 502ing — a 502 here
+    // starves `staticBundleReady` on every profile page. The fallback payload
+    // does get cached under the patch key for 1h, which is fine: rune data
+    // barely changes between patches and the next miss retries the pinned URL.
+    try {
+      return await fetchRuneTree(patch)
+    }
+    catch (patchError) {
+      // On errors with `latest` itself, bubble up as 502 — we'd rather fail
+      // once and let the next request retry than cache an empty
+      // `RuneTreeResponse` for 1h on a transient outage. Same trade-off as
+      // champions.get.ts.
+      if (patch === null) {
+        throw createError({
+          statusCode: 502,
+          statusMessage: 'CommunityDragon rune tree fetch failed',
+          cause: patchError,
+        })
+      }
+      return fetchRuneTree(null).catch((error) => {
+        throw createError({
+          statusCode: 502,
+          statusMessage: 'CommunityDragon rune tree fetch failed',
+          cause: error,
+        })
       })
-    })
-
-    const perkMap = buildPerkMap(perks, patch)
-    const perkStyleMap = buildPerkStyleMap(perkStyles.styles, patch)
-
-    // CommunityDragon emits 7 slots per style: 0 = keystone, 1-3 = regular
-    // sub-rows, 4-6 = stat shards (same triplets for every style, so we read
-    // them once from any style).
-    const styles: RuneTreeStyle[] = perkStyles.styles.map(style => ({
-      styleId: style.id,
-      name: style.name,
-      iconUrl: rewriteCdragonAsset(style.iconPath, patch),
-      keystones: style.slots[0]?.perks ?? [],
-      subRows: style.slots.slice(1, 4).map(slot => slot.perks),
-    }))
-
-    const firstStyle = perkStyles.styles[0]
-    const shardSlots = firstStyle ? firstStyle.slots.slice(4, 7).map(slot => slot.perks) : []
-
-    return {
-      styles,
-      perks: perkMap,
-      perkStyles: perkStyleMap,
-      shardSlots,
     }
   },
   {

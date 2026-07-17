@@ -83,6 +83,51 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
     }
 
     [Fact]
+    public async Task List_serves_games_kda_winrate_from_aggregate_scopes_without_match_participants()
+    {
+        // Regression for #719: the Games / KDA / WR cell used to COUNT over live
+        // match_participants, which retention hard-deletes beyond the last few
+        // patches — a high-LP main could read "0 games". It now sums the frozen
+        // champion_aggregate_scopes, so it must resolve even with zero
+        // participant rows, and must sum across an account's scopes (patches /
+        // brackets) without double-counting.
+        await _fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var player = Account("scoped", "ScopedMain", "EUW1");
+            db.RiotAccounts.Add(player);
+            db.RankSnapshots.Add(Snapshot(player, "DIAMOND", "I", 50, now));
+            db.MainChampionStats.Add(MainStat("scoped", "EUW1", 1, "MIDDLE", isMain: true));
+
+            // Two scopes for the same champion on different patches: the read
+            // path sums them into one player total. Games 30+20=50, Wins
+            // 18+7=25 (WR 0.5), Kills 100+50=150, Deaths 40+20=60, Assists
+            // 200+80=280 → KDA (150+280)/60 = 7.1667.
+            db.ChampionAggregateScopes.AddRange(
+                Scope(player.Id, championId: 1, patch: "16.5", games: 30, wins: 18, kills: 100, deaths: 40, assists: 200, now),
+                Scope(player.Id, championId: 1, patch: "16.4", games: 20, wins: 7, kills: 50, deaths: 20, assists: 80, now));
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        var leaderboard = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        leaderboard!.Rows.Should().ContainSingle();
+
+        var stats = leaderboard.Rows[0].Stats;
+        stats.Should().NotBeNull();
+        stats!.Games.Should().Be(50);
+        stats.Wins.Should().Be(25);
+        stats.Losses.Should().Be(25);
+        stats.WinRate.Should().BeApproximately(0.5d, 1e-6);
+        stats.Kda.Should().BeApproximately((150d + 280d) / 60d, 1e-6);
+    }
+
+    [Fact]
     public async Task List_filters_by_region_and_maps_platform_to_region_slug()
     {
         await _fixture.ResetDatabaseAsync();
@@ -711,6 +756,35 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
             PrimaryPosition = primaryPosition,
             PositionBreakdown = breakdown,
             CalculatedAtUtc = DateTime.UtcNow,
+        };
+
+    private static ChampionAggregateScope Scope(
+        Guid riotAccountId,
+        int championId,
+        string patch,
+        int games,
+        int wins,
+        int kills,
+        int deaths,
+        int assists,
+        DateTime now)
+        => new()
+        {
+            Id = Guid.NewGuid(),
+            RiotAccountId = riotAccountId,
+            ChampionId = championId,
+            GameVersion = patch,
+            PlatformId = "EUW1",
+            QueueId = 420,
+            Position = "MIDDLE",
+            EloBracket = EloBracket.Diamond,
+            Games = games,
+            Wins = wins,
+            Kills = kills,
+            Deaths = deaths,
+            Assists = assists,
+            LastGameStartTimeUtc = now,
+            AggregatedAtUtc = now,
         };
 
     private ApiWebApplicationFactory CreateFactory() => new(_fixture);

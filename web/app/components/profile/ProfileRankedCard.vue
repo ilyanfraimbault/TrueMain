@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ProfileRanked } from '~~/shared/types/profile'
 import type { RankHistoryEntry } from '~~/shared/types/rank-history'
+import { formatPercentage } from '~~/shared/utils/ddragon'
 import {
   formatTier,
   rankScore,
@@ -34,7 +35,7 @@ const recordLabel = computed(() => {
   const l = props.ranked.losses
   if (w === null && l === null) return null
   const record = `${w ?? '?'}W – ${l ?? '?'}L`
-  const wr = props.ranked.winRate === null ? null : `${Math.round(props.ranked.winRate * 100)}%`
+  const wr = props.ranked.winRate === null ? null : formatPercentage(props.ranked.winRate, 0)
   return wr ? `${record} (${wr})` : record
 })
 

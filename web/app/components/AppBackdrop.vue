@@ -13,8 +13,8 @@
 //
 // Degrades gracefully: no WebGL → the static CSS wash below; reduced-motion →
 // a single rendered frame, no loop; tab hidden / off-screen → the loop parks.
-// Output is additive-over-transparent (colour normalised by luminance, alpha
-// = luminance) so only the light composites onto the page surface.
+// Output is premultiplied additive-over-transparent (colour scaled to its
+// luminance-derived alpha) so only the light composites onto the page surface.
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 
@@ -142,11 +142,15 @@ void main() {
   col += (hash2(gl_FragCoord.xy + fract(t) * 61.0) - 0.5) * 0.02;
   col = max(col, 0.0);
 
-  // Additive-over-transparent: normalise colour by luminance and carry the
-  // luminance as alpha, so compositing over the page reproduces col + bg.
+  // Premultiplied-alpha output: colour carries its own intensity and alpha =
+  // luminance, composited as src + dst*(1-a) — same additive-over-the-page
+  // result as the previous unpremultiplied form, but iOS Safari ignores
+  // premultipliedAlpha:false and composited the normalised (full-brightness)
+  // colours directly, flooding the page rose and turning the grain into
+  // static. Premultiplied is honoured everywhere.
   float lum = max(col.r, max(col.g, col.b));
   float alpha = clamp(lum, 0.0, 0.95);
-  gl_FragColor = vec4(col / max(lum, 1e-4), alpha);
+  gl_FragColor = vec4(col * (alpha / max(lum, 1e-4)), alpha);
 }
 `
 
@@ -168,7 +172,7 @@ onMounted(() => {
     antialias: false,
     depth: false,
     stencil: false,
-    premultipliedAlpha: false,
+    premultipliedAlpha: true,
     powerPreference: 'low-power',
   })
   if (!gl) return

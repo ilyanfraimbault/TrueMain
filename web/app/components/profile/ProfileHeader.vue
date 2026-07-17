@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ProfileIdentity } from '~~/shared/types/profile'
 import { getProfileIconUrl } from '~~/shared/utils/ddragon'
+import { platformIdToRegion } from '~~/shared/utils/region'
 
 const props = defineProps<{
   identity: ProfileIdentity
@@ -8,6 +9,8 @@ const props = defineProps<{
 }>()
 
 const iconUrl = computed(() => getProfileIconUrl(props.identity.profileIconId, props.patch))
+
+const region = computed(() => platformIdToRegion(props.identity.platformId))
 
 const displayName = computed(() => {
   return props.identity.tagLine
@@ -28,9 +31,7 @@ const displayName = computed(() => {
         {{ displayName }}
       </h1>
       <div class="flex flex-wrap items-center gap-2 text-sm text-muted">
-        <span class="inline-flex items-center rounded-full bg-elevated/60 px-2 py-0.5 font-mono text-xs uppercase ring-1 ring-default/60">
-          {{ identity.platformId }}
-        </span>
+        <LeaderboardRegionFlag :region="region" :width="18" />
         <span>Level {{ identity.summonerLevel }}</span>
       </div>
     </div>
