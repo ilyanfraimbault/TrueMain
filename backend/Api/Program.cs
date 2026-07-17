@@ -179,6 +179,7 @@ builder.Services.AddScoped<IChampionBuildsQueryService, ChampionBuildsQueryServi
 builder.Services.AddScoped<IChampionMatchupQueryService, ChampionMatchupQueryService>();
 builder.Services.AddScoped<ICompositionMatchQueryService, CompositionMatchQueryService>();
 builder.Services.AddScoped<ICompositionBuildQueryService, CompositionBuildQueryService>();
+builder.Services.AddScoped<ICompositionRecommendationQueryService, CompositionRecommendationQueryService>();
 // Same CommunityDragon item-metadata source as the ingestor's pattern
 // aggregation, so the composition recommender reads a game's items
 // identically. Patch-cached inside the provider.
