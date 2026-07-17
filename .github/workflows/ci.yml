@@ -115,6 +115,8 @@ jobs:
           ADMIN_PASSWORD: truemain
           MONGO_USER: truemain
           MONGO_PASSWORD: truemain
+          UMAMI_DB_PASSWORD: truemain
+          UMAMI_APP_SECRET: ci-umami-app-secret-min-32-characters
         run: docker compose -f compose.yaml config
 
       - name: Validate dev watch compose file
@@ -147,6 +149,8 @@ jobs:
           ADMIN_PASSWORD: truemain
           MONGO_USER: truemain
           MONGO_PASSWORD: truemain
+          UMAMI_DB_PASSWORD: truemain
+          UMAMI_APP_SECRET: ci-umami-app-secret-min-32-characters
         run: docker compose -f compose.prod.yaml config
 
       - name: Validate QA compose file
