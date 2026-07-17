@@ -2,7 +2,6 @@
 import type { CompositionSlotInput } from '~~/shared/types/composition'
 import { POSITION_OPTIONS, isChampionPosition, type ChampionPosition } from '~/utils/positions'
 import { describeFetchError } from '~/utils/errors'
-import { formatPercentage } from '~~/shared/utils/ddragon'
 
 useSeoMeta({
   title: 'Composition Builder',
@@ -102,11 +101,6 @@ function resetDraft() {
 const playedChampionName = computed(() =>
   playedChampionId.value === null ? null : championsById.value.get(playedChampionId.value)?.name ?? null,
 )
-
-const winRate = computed(() => {
-  const build = recommendation.value?.build
-  return build && build.gamesConsidered > 0 ? build.wins / build.gamesConsidered : null
-})
 
 const allyRows = computed(() =>
   POSITION_OPTIONS.filter(option => option.value !== playedPosition.value))
@@ -239,36 +233,23 @@ const allyRows = computed(() =>
       :description="describeFetchError(error)"
     />
 
-    <SectionCard
-      v-if="recommendation"
-      :title="playedChampionName ? `Recommended for ${playedChampionName}` : 'Recommendation'"
-    >
-      <div v-if="recommendation.build.gamesConsidered === 0" class="glass rounded-lg px-6 py-12 text-center">
-        <p class="font-medium">No similar games found</p>
-        <p class="mt-1 text-sm text-muted">
-          Nothing recorded for this champion at this position yet — try clearing the patch filter.
-        </p>
-      </div>
-      <dl v-else class="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div>
-          <dt class="text-sm text-muted">Games sampled</dt>
-          <dd class="text-lg font-semibold">{{ recommendation.build.gamesConsidered }}</dd>
+    <template v-if="recommendation">
+      <SectionCard
+        v-if="recommendation.build.gamesConsidered === 0"
+        :title="playedChampionName ? `Recommended for ${playedChampionName}` : 'Recommendation'"
+      >
+        <div class="glass rounded-lg px-6 py-12 text-center">
+          <p class="font-medium">No similar games found</p>
+          <p class="mt-1 text-sm text-muted">
+            Nothing recorded for this champion at this position yet — try clearing the patch filter.
+          </p>
         </div>
-        <div>
-          <dt class="text-sm text-muted">Win rate</dt>
-          <dd class="text-lg font-semibold">{{ winRate === null ? '—' : formatPercentage(winRate) }}</dd>
-        </div>
-        <div>
-          <dt class="text-sm text-muted">Draft similarity</dt>
-          <dd class="text-lg font-semibold">
-            {{ recommendation.confidence.maxPossibleScore === 0 ? '—' : formatPercentage(recommendation.confidence.meanSimilarity) }}
-          </dd>
-        </div>
-        <div>
-          <dt class="text-sm text-muted">Pool scanned</dt>
-          <dd class="text-lg font-semibold">{{ recommendation.confidence.candidatePoolSize }}</dd>
-        </div>
-      </dl>
-    </SectionCard>
+      </SectionCard>
+      <BuilderRecommendationPanel
+        v-else
+        :recommendation="recommendation"
+        :champion-name="playedChampionName"
+      />
+    </template>
   </main>
 </template>
