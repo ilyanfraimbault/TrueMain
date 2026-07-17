@@ -37,4 +37,16 @@ public sealed class CompositionSearchOptions
     /// similarity ranking needs, and Postgres runs the scan single-threaded.
     /// </summary>
     public int CandidatePoolCap { get; set; } = 5_000;
+
+    /// <summary>
+    /// Vote weight of a winning game in the build aggregation (losses weigh
+    /// 1). Weights only pick each dimension's winner — reported games and
+    /// rates stay raw counts.
+    /// </summary>
+    public double WinWeight { get; set; } = 2d;
+
+    /// <summary>
+    /// Number of situational (non-core) items surfaced by the aggregation.
+    /// </summary>
+    public int SituationalItemCount { get; set; } = 5;
 }

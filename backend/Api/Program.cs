@@ -1,6 +1,7 @@
 using System.Threading.RateLimiting;
 using Core.Options;
 using Data;
+using Data.BuildFacts;
 using Data.Logging.Crash;
 using Data.Logging.Mongo;
 using Microsoft.AspNetCore.Authentication;
@@ -138,6 +139,10 @@ builder.Services.AddOptions<CompositionSearchOptions>()
     .Validate(
         options => options.CandidatePoolCap >= options.TopK,
         "CompositionSearch:CandidatePoolCap must be >= TopK.")
+    .Validate(options => options.WinWeight >= 1d, "CompositionSearch:WinWeight must be >= 1.")
+    .Validate(
+        options => options.SituationalItemCount >= 0,
+        "CompositionSearch:SituationalItemCount must be >= 0.")
     .ValidateOnStart();
 builder.Services.AddOptions<DatabaseOptions>()
     .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName));
@@ -173,6 +178,11 @@ builder.Services.AddScoped<IChampionTierListQueryService, ChampionTierListQueryS
 builder.Services.AddScoped<IChampionBuildsQueryService, ChampionBuildsQueryService>();
 builder.Services.AddScoped<IChampionMatchupQueryService, ChampionMatchupQueryService>();
 builder.Services.AddScoped<ICompositionMatchQueryService, CompositionMatchQueryService>();
+builder.Services.AddScoped<ICompositionBuildQueryService, CompositionBuildQueryService>();
+// Same CommunityDragon item-metadata source as the ingestor's pattern
+// aggregation, so the composition recommender reads a game's items
+// identically. Patch-cached inside the provider.
+builder.Services.AddHttpClient<IItemMetadataProvider, CommunityDragonItemMetadataProvider>();
 builder.Services.AddScoped<IChampionTimelineLeadsQueryService, ChampionTimelineLeadsQueryService>();
 builder.Services.AddScoped<IChampionScalingQueryService, ChampionScalingQueryService>();
 builder.Services.AddScoped<IChampionItemTimingsQueryService, ChampionItemTimingsQueryService>();

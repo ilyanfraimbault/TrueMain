@@ -1,6 +1,6 @@
+using Data.BuildFacts;
 using Data.Entities;
 using AwesomeAssertions;
-using Ingestor.Processes.Components.PatternAggregation;
 using TrueMain.UnitTests.Fixtures;
 
 namespace TrueMain.UnitTests;
