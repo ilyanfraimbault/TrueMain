@@ -75,8 +75,8 @@ const canSubmit = computed(() => playedChampionId.value !== null && playedPositi
 
 function toSlots(slots: Record<ChampionPosition, number | null>): CompositionSlotInput[] {
   return POSITION_OPTIONS
-    .map(option => ({ position: option.value, championId: slots[option.value] }))
-    .filter((slot): slot is CompositionSlotInput => slot.championId !== null)
+    .filter(option => slots[option.value] !== null)
+    .map(option => ({ position: option.value, championId: slots[option.value] as number }))
 }
 
 async function recommend() {
