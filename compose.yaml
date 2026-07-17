@@ -118,6 +118,10 @@ services:
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: 3000
       NUXT_API_BASE_URL: http://api:8080
+      # Umami tracker (#728) — disabled until a website id is created in the
+      # local Umami UI (http://localhost:3100) and set in .env.
+      NUXT_PUBLIC_UMAMI_HOST: http://localhost:3100
+      NUXT_PUBLIC_UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
     depends_on:
       api:
         condition: service_healthy
@@ -140,6 +144,9 @@ services:
       NUXT_SESSION_PASSWORD: ${ADMIN_SESSION_PASSWORD}
       NUXT_ADMIN_USERNAME: ${ADMIN_USERNAME:-truemain}
       NUXT_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-truemain}
+      # Umami dashboard embed for the Analytics tab (#728).
+      NUXT_PUBLIC_UMAMI_URL: http://localhost:3100
+      NUXT_PUBLIC_UMAMI_SHARE_URL: ${UMAMI_SHARE_URL:-}
     depends_on:
       api:
         condition: service_healthy
@@ -173,6 +180,45 @@ services:
     networks:
       - truemain_internal
 
+  # Self-hosted Umami analytics (#728) — visitor/session tracking for the
+  # public site, embedded by the admin portal's Analytics tab. Fully separate
+  # from the TrueMain backend: own container, own database, no API coupling.
+  # Default login on a fresh volume: admin / umami.
+  umami-db:
+    image: postgres:17.2
+    container_name: truemain-umami-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: umami
+      POSTGRES_PASSWORD: ${UMAMI_DB_PASSWORD}
+      POSTGRES_DB: umami
+    volumes:
+      - truemain_umami_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U umami -d umami"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - truemain_internal
+
+  umami:
+    image: umamisoftware/umami:3.2.0
+    container_name: truemain-umami
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://umami:${UMAMI_DB_PASSWORD}@umami-db:5432/umami
+      DATABASE_TYPE: postgresql
+      APP_SECRET: ${UMAMI_APP_SECRET}
+    depends_on:
+      umami-db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3100:3000"
+    networks:
+      - truemain_internal
+
   pgadmin:
     image: dpage/pgadmin4:9.11
     container_name: truemain-pgadmin
@@ -196,6 +242,7 @@ volumes:
   truemain_pgadmin_data:
   truemain_api_crashes:
   truemain_ingestor_crashes:
+  truemain_umami_db_data:
 
 networks:
   truemain_internal:
