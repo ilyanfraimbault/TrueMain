@@ -30,6 +30,7 @@ import type {
   LeaderboardRowResponse,
   RegionSlug,
 } from '~~/shared/types/leaderboard'
+import type { CompositionBuildResponse } from '~~/shared/types/composition'
 import type { MatchSummariesResponse, MatchSummaryResponse } from '~~/shared/types/matches'
 import type { ProfileResponse } from '~~/shared/types/profile'
 import type { RankHistoryResponse } from '~~/shared/types/rank-history'
@@ -985,11 +986,72 @@ function safeDecodeURIComponent(value: string): string | undefined {
  *   (e.g. `/champions/64/matchups`).
  * @param query - Parsed query params.
  */
+// ─── Composition build (builder page) ────────────────────────────────────────
+// Deterministic per champion; the POST body is deliberately ignored — the
+// builder page only needs a realistic payload to render, and a body-sensitive
+// mock would just re-implement the backend scorer.
+
+async function mockCompositionBuild(id: number): Promise<CompositionBuildResponse> {
+  // Unseeded champions still get a plausible payload (fighter defaults): the
+  // builder lets you pick any champion, unlike the seeded directory pages.
+  const s = seedsById.get(id) ?? seed(id, 'MIDDLE', 'fighter', 8010, 8000, 8400, 0.508, 0.04)
+  const patch = await latestShortPatch()
+  const rng = mulberry32(s.id * 131 + 7)
+  const archetype = ARCHETYPES[s.archetype]
+
+  const games = 100
+  const wins = Math.round(games * Math.min(0.6, s.wr + rng() * 0.02))
+  const set = (itemIds: number[], shareOf: number) => ({
+    itemIds,
+    games: Math.max(4, Math.round(games * shareOf)),
+    pickRate: round3(shareOf),
+    winRate: round3(Math.min(0.62, Math.max(0.42, s.wr + (rng() - 0.5) * 0.08))),
+  })
+
+  return {
+    championId: s.id,
+    position: s.position,
+    patch,
+    eloBracket: 'all',
+    confidence: {
+      sampleSize: games,
+      candidatePoolSize: 2400 + Math.round(rng() * 2000),
+      maxPossibleScore: 34,
+      meanSimilarity: round3(0.3 + rng() * 0.35),
+    },
+    build: {
+      gamesConsidered: games,
+      wins,
+      runePage: runePage(s, s.keystone, Math.round(games * 0.46), 0.46, s.wr + 0.008, rng),
+      starterItems: set(archetype.starterItems, 0.6 + rng() * 0.1),
+      boots: set([archetype.boots[0]!], 0.55 + rng() * 0.1),
+      corePath: set(archetype.items.slice(0, 3), 0.38 + rng() * 0.1),
+      situationalItems: archetype.items.slice(3, 8).map(item => set([item], 0.1 + rng() * 0.22)),
+      summonerSpells: {
+        spell1Id: archetype.spells[0],
+        spell2Id: archetype.spells[1],
+        games: Math.round(games * 0.9),
+        pickRate: 0.9,
+        winRate: round3(s.wr),
+      },
+      skillOrder: {
+        sequence: [...archetype.skillOrders[0]!],
+        games: Math.round(games * 0.72),
+        pickRate: 0.72,
+        winRate: round3(s.wr + 0.004),
+      },
+    },
+  }
+}
+
 export async function resolveDevApiMock(
   path: string,
   query: Record<string, unknown>,
 ): Promise<unknown | undefined> {
   if (path === '/champions') return mockChampionSummaries()
+
+  const compositionMatch = path.match(/^\/champions\/(\d+)\/composition-build$/)
+  if (compositionMatch) return mockCompositionBuild(Number(compositionMatch[1]))
 
   const championMatch = path.match(/^\/champions\/(\d+)(?:\/([a-z-]+))?$/)
   if (championMatch) {
