@@ -1,5 +1,6 @@
 import type { MaybeRefOrGetter } from 'vue'
 import type {
+  AggregationsResponse,
   CandidateDetail,
   CandidatesFilters,
   CandidatesResponse,
@@ -114,6 +115,15 @@ export function useMatchesOverTime(
 /** `GET /api/ops/db/tables` — table sizes/row estimates, sorted by total bytes. */
 export function useDbTables() {
   return useOps<DbTableRow[]>('/db/tables')
+}
+
+/**
+ * `GET /api/ops/stats/aggregations` — per-family aggregate coverage (exact row
+ * counts, champions/patches, freshness, latest run) plus the ingestion backlogs
+ * that should read zero when the pipeline is caught up.
+ */
+export function useAggregations() {
+  return useOps<AggregationsResponse>('/stats/aggregations')
 }
 
 /**

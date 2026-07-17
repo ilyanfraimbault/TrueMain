@@ -234,10 +234,14 @@ function outcomeLabel(outcome: ChainOutcome): string {
 const CHAIN_LABELS: Record<string, string> = {
   Discovery: 'Discovery',
   ManualSeed: 'Manual Seed',
+  Harvest: 'Harvest',
   Scoring: 'Scoring',
   MatchIngestion: 'Match Ingest',
   MainAnalysis: 'Main Analysis',
+  MatchParticipantEloBracketEnrichment: 'Elo Enrich',
   ChampionPatternAggregation: 'Pattern Agg.',
+  ChampionMatchupLeadAggregation: 'Matchup Agg.',
+  ChampionPowerspikeAggregation: 'Spike Agg.',
   AccountRefresh: 'Acct Refresh',
   MatchDataRetention: 'Retention',
 }

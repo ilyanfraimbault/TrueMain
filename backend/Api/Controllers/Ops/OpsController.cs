@@ -23,7 +23,8 @@ public sealed class OpsController(
     ISeedRequestService seedRequestService,
     ISeedRequestQueryService seedRequestQueryService,
     ICandidateQueryService candidateQueryService,
-    ICrashesQueryService crashesQueryService) : ControllerBase
+    ICrashesQueryService crashesQueryService,
+    IAggregationStatsQueryService aggregationStatsQueryService) : ControllerBase
 {
     [HttpGet("pipeline-health")]
     [ProducesResponseType(typeof(PipelineHealthReadModel), StatusCodes.Status200OK)]
@@ -90,6 +91,22 @@ public sealed class OpsController(
 
         var rows = await matchesOverTimeQueryService.GetAsync(parsed, region, ct);
         return Ok(rows);
+    }
+
+    /// <summary>
+    /// Aggregation pipelines snapshot for the admin Aggregation panel: per family
+    /// (builds patterns, matchups, timeline leads, powerspikes, mains) the exact
+    /// row counts of its tables, champion/patch coverage, data freshness and the
+    /// latest recorded run, plus the ingestion backlogs that should read zero when
+    /// aggregations are caught up.
+    /// </summary>
+    [HttpGet("stats/aggregations")]
+    [ProducesResponseType(typeof(AggregationsReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<AggregationsReadModel>> GetAggregationsAsync(CancellationToken ct)
+    {
+        var readModel = await aggregationStatsQueryService.GetAsync(ct);
+        return Ok(readModel);
     }
 
     [HttpGet("db/tables")]
