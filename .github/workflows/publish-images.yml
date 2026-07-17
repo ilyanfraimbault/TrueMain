@@ -83,3 +83,35 @@ jobs:
           tags: |
             ${{ env.IMAGE_ADMIN }}:${{ github.event.release.tag_name }}
             ${{ env.IMAGE_ADMIN }}:latest
+
+  deploy-prod:
+    name: Deploy Prod VPS
+    runs-on: ubuntu-24.04
+    needs: publish
+    # No-op until the Hostinger credentials are configured: set the
+    # HOSTINGER_PROD_VM_ID repository variable plus the HOSTINGER_PROD_API_KEY
+    # and PROD_ENV_FILE secrets (see docs/prod.md). Prod and preprod live on
+    # separate Hostinger accounts, so prod needs its own API key — the shared
+    # HOSTINGER_API_KEY only authenticates the preprod account. success() must
+    # be explicit — a custom `if:` replaces the implicit needs-succeeded check,
+    # and deploying after a failed publish would ship stale/mixed images.
+    if: success() && vars.HOSTINGER_PROD_VM_ID != ''
+    concurrency:
+      group: deploy-prod
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Redeploy Docker Manager project
+        uses: hostinger/deploy-on-vps@v2
+        with:
+          api-key: ${{ secrets.HOSTINGER_PROD_API_KEY }}
+          virtual-machine: ${{ vars.HOSTINGER_PROD_VM_ID }}
+          project-name: truemain
+          docker-compose-path: compose.prod.yaml
+          # Newline-separated KEY=value pairs mirroring the VPS .env.
+          environment-variables: ${{ secrets.PROD_ENV_FILE }}
