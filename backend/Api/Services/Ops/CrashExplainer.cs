@@ -103,7 +103,6 @@ public static class CrashExplainer
             }
 
             if (typeName.Contains("MongoDB", StringComparison.OrdinalIgnoreCase)
-                || typeName.StartsWith("MongoDB.", StringComparison.Ordinal)
                 || typeName.Contains(".Mongo", StringComparison.OrdinalIgnoreCase))
             {
                 return "The exception chain points at MongoDB (connectivity or timeout).";
