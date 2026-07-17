@@ -76,6 +76,9 @@ services:
 
   api:
     image: ghcr.io/ilyanfraimbault/truemain-api:preprod
+    # Docker Manager redeploys reuse a locally present tag; always pull so a
+    # CD-triggered restart actually ships the freshly published :preprod image.
+    pull_policy: always
     container_name: truemain-preprod-api
     restart: unless-stopped
     environment:
@@ -106,6 +109,9 @@ services:
 
   web:
     image: ghcr.io/ilyanfraimbault/truemain-web:preprod
+    # Docker Manager redeploys reuse a locally present tag; always pull so a
+    # CD-triggered restart actually ships the freshly published :preprod image.
+    pull_policy: always
     container_name: truemain-preprod-web
     restart: unless-stopped
     environment:
@@ -122,6 +128,9 @@ services:
 
   admin:
     image: ghcr.io/ilyanfraimbault/truemain-admin:preprod
+    # Docker Manager redeploys reuse a locally present tag; always pull so a
+    # CD-triggered restart actually ships the freshly published :preprod image.
+    pull_policy: always
     container_name: truemain-preprod-admin
     restart: unless-stopped
     environment:
@@ -144,6 +153,9 @@ services:
 
   ingestor:
     image: ghcr.io/ilyanfraimbault/truemain-ingestor:preprod
+    # Docker Manager redeploys reuse a locally present tag; always pull so a
+    # CD-triggered restart actually ships the freshly published :preprod image.
+    pull_policy: always
     container_name: truemain-preprod-ingestor
     restart: unless-stopped
     environment:
