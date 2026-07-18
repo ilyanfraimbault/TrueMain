@@ -232,77 +232,83 @@ const staticBundleReady = computed(() =>
     />
 
     <!--
-      Empty / fallback state: the player has fewer than the backend's
-      min-games floor on this champion (or the account is unknown). We show a
-      small notice rather than fabricating a build from one or two games, and
-      point back to the global champion page for the meta view.
+      Player build page, resilient by design: a champion the profile lists as a
+      main must always show *something* on click. The build breakdown renders
+      whenever the backend holds any aggregate for the player (however thin);
+      when it holds none (`notEnoughData` — no timeline-complete ranked game on
+      record) we show a soft notice instead of a dead-end, and either way still
+      render the player's recent games on the champion below (a separate data
+      source that has the raw matches even when the build aggregate doesn't).
     -->
-    <div
-      v-else-if="notEnoughData && !isRefetching"
-      class="flex flex-col items-center gap-3 glass rounded-lg px-6 py-12 text-center"
-    >
-      <SkeletonImage
-        v-if="displayIconUrl"
-        :src="displayIconUrl"
-        :alt="displayName ?? ''"
-        width="64"
-        height="64"
-        class="size-16 rounded opacity-80"
-      />
-      <div class="space-y-1">
-        <p class="text-sm font-medium text-default">
-          Not enough games to build a profile
-        </p>
-        <p class="text-sm text-muted">
-          {{ playerLabel }} hasn't played {{ displayName ?? 'this champion' }} enough for a
-          personal build breakdown yet.
-        </p>
-      </div>
-      <NuxtLink
-        :to="`/champions/${championId}`"
-        class="rounded text-sm text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+    <template v-else>
+      <div
+        v-if="notEnoughData && !isRefetching"
+        class="flex flex-col items-center gap-3 glass rounded-lg px-6 py-8 text-center"
       >
-        See the global build for {{ displayName ?? `champion ${championId}` }}
-      </NuxtLink>
-    </div>
+        <SkeletonImage
+          v-if="displayIconUrl"
+          :src="displayIconUrl"
+          :alt="displayName ?? ''"
+          width="64"
+          height="64"
+          class="size-16 rounded opacity-80"
+        />
+        <div class="space-y-1">
+          <p class="text-sm font-medium text-default">
+            No personal build breakdown yet
+          </p>
+          <p class="text-sm text-muted">
+            {{ playerLabel }} hasn't played {{ displayName ?? 'this champion' }} on a recent
+            patch often enough for a build breakdown. Their recent games are below.
+          </p>
+        </div>
+        <NuxtLink
+          :to="`/champions/${championId}`"
+          class="rounded text-sm text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          See the global build for {{ displayName ?? `champion ${championId}` }}
+        </NuxtLink>
+      </div>
 
-    <template v-else-if="champion && staticData">
-      <header class="flex flex-wrap items-center gap-4">
-        <ChampionHeader
-          :champion-name="displayName"
-          :champion-icon-url="displayIconUrl"
+      <template v-if="champion && staticData">
+        <header class="flex flex-wrap items-center gap-4">
+          <ChampionHeader
+            :champion-name="displayName"
+            :champion-icon-url="displayIconUrl"
+            :champion-id="championId"
+            :position="champion.position"
+            :total-games="champion.totalGames"
+            :total-wins="champion.totalWins"
+          />
+          <ChampionFilters
+            :selected-patch="selectedPatch"
+            :selected-position="selectedPosition"
+            :patch-options="patchOptions"
+            @update:patch="value => setFilter({ patch: value })"
+            @update:position="value => setFilter({ position: value })"
+          />
+        </header>
+
+        <ChampionBuildTabs
+          :builds="champion.builds"
+          :champion-static="staticData"
+          :items-map="itemsMap ?? {}"
+          :summoners-map="summonersMap ?? {}"
+          :rune-tree="runeTree ?? null"
+        />
+
+        <ChampionMatchups
           :champion-id="championId"
-          :position="champion.position"
-          :total-games="champion.totalGames"
-          :total-wins="champion.totalWins"
+          :position="selectedPosition"
+          :champions="staticList ?? []"
+          :name-tag="nameTag"
         />
-        <ChampionFilters
-          :selected-patch="selectedPatch"
-          :selected-position="selectedPosition"
-          :patch-options="patchOptions"
-          @update:patch="value => setFilter({ patch: value })"
-          @update:position="value => setFilter({ position: value })"
-        />
-      </header>
+      </template>
 
-      <ChampionBuildTabs
-        :builds="champion.builds"
-        :champion-static="staticData"
-        :items-map="itemsMap ?? {}"
-        :summoners-map="summonersMap ?? {}"
-        :rune-tree="runeTree ?? null"
-      />
-
-      <ChampionMatchups
-        :champion-id="championId"
-        :position="selectedPosition"
-        :champions="staticList ?? []"
-        :name-tag="nameTag"
-      />
-
-      <!-- This player's recent games on this champion. The champion is fixed;
-           the lane filter is its own RolePicker, independent of the build's
-           position filter above. -->
+      <!-- This player's recent games on this champion — rendered even when the
+           build breakdown above is absent, so clicking a main always surfaces
+           their actual games. The champion is fixed; the lane filter is its own
+           RolePicker, independent of the build's position filter. -->
       <section class="flex min-w-0 flex-col gap-3">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">

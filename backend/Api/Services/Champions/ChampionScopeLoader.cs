@@ -51,12 +51,17 @@ internal static class ChampionScopeLoader
 
         // Player-scoped views (minGames set) default to the most recent patch
         // where the player actually has enough games, not the global latest — a
-        // champion main whose newest patch is thin would otherwise render an
-        // empty "not enough games" state. An explicit patch request still wins.
+        // champion main whose newest patch is thin would otherwise render a
+        // sparse slice. This is a *preference*, not a gate: when no patch clears
+        // the floor we still fall back to the latest patch that has any games so
+        // a champion the player has genuinely played renders a (thin) build
+        // rather than 404-ing. An explicit patch request still wins.
         var selectedPatch = normalizedPatch is null && minGames is { } floor
             ? ChampionAggregateScopeResolver.ResolveLatestPatchAboveFloor(
-                resolutionRows.Select(row => (row.GameVersion, row.Position, row.Games)),
-                floor)
+                  resolutionRows.Select(row => (row.GameVersion, row.Position, row.Games)),
+                  floor)
+              ?? ChampionAggregateScopeResolver.ResolvePatchVersion(
+                  resolutionRows.Select(row => row.GameVersion), null)
             : ChampionAggregateScopeResolver.ResolvePatchVersion(
                 resolutionRows.Select(row => row.GameVersion),
                 normalizedPatch);
