@@ -67,17 +67,13 @@ public sealed class ChampionBuildsQueryService(
                 scopes[0], scope?.RiotAccountId, scope?.PlatformId, ct);
         var coverage = RateMath.Rate(totalGames, allBracketGames);
 
-        // Player-scoped requests carry a minimum-games floor: a champion the
-        // player has barely touched would produce a sparse, misleading build,
-        // so we report "no data" (null → 404 → empty state) rather than a
-        // thin payload. The floor is evaluated against the resolved
-        // patch+position slice — the same denominator the page renders.
-        // Global callers pass no scope, so no floor applies.
-        if (scope is not null && totalGames < scope.MinGames)
-        {
-            return null;
-        }
-
+        // A champion the profile lists as a main must never dead-end on click:
+        // the min-games floor (scope.MinGames) now only *prefers* a patch with
+        // enough games (see ChampionScopeLoader) — it no longer gates. Whatever
+        // aggregate the player actually has renders, flagged low-confidence via
+        // MinSampleMet when the sample is thin, rather than 404-ing as if they
+        // never played it. A genuine 404 still comes from an absent scope
+        // (LoadAsync → null above): no timeline-complete ranked game on record.
         var resolvedPatch = scopes.First().GameVersion;
         var resolvedPosition = scopes.First().Position;
 

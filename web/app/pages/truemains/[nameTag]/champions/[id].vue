@@ -162,143 +162,168 @@ const staticBundleReady = computed(() =>
     />
 
     <!--
-      Empty / fallback state: the player has fewer than the backend's
-      min-games floor on this champion (or the account is unknown). We show a
-      small notice rather than fabricating a build from one or two games, and
-      point back to the global champion page for the meta view.
+      Player build page, resilient by design: a champion the profile lists as a
+      main must always show *something* on click. The build breakdown renders
+      whenever the backend holds any aggregate for the player (however thin);
+      when it holds none (`notEnoughData` — no timeline-complete ranked game on
+      record) we show a soft notice instead of a dead-end, and either way still
+      render the player's recent games on the champion below (a separate data
+      source that has the raw matches even when the build aggregate doesn't).
     -->
-    <div
-      v-else-if="notEnoughData && !isRefetching"
-      class="flex flex-col items-center gap-3 glass rounded-lg px-6 py-12 text-center"
-    >
-      <SkeletonImage
-        v-if="displayIconUrl"
-        :src="displayIconUrl"
-        :alt="displayName ?? ''"
-        width="64"
-        height="64"
-        class="size-16 rounded opacity-80"
-      />
-      <div class="space-y-1">
-        <p class="text-sm font-medium text-default">
-          Not enough games to build a profile
-        </p>
-        <p class="text-sm text-muted">
-          {{ playerLabel }} hasn't played {{ displayName ?? 'this champion' }} enough for a
-          personal build breakdown yet.
-        </p>
-      </div>
-      <NuxtLink
-        :to="`/champions/${championId}`"
-        class="rounded text-sm text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+    <template v-else>
+      <div
+        v-if="notEnoughData && !isRefetching"
+        class="flex flex-col items-center gap-3 glass rounded-lg px-6 py-8 text-center"
       >
-        See the global build for {{ displayName ?? `champion ${championId}` }}
-      </NuxtLink>
-    </div>
-
-    <template v-else-if="champion && staticData">
-      <header class="flex flex-wrap items-center gap-4">
-        <ChampionHeader
-          :champion-name="displayName"
-          :champion-icon-url="displayIconUrl"
-          :champion-id="championId"
-          :position="champion.position"
-          :total-games="champion.totalGames"
-          :total-wins="champion.totalWins"
+        <SkeletonImage
+          v-if="displayIconUrl"
+          :src="displayIconUrl"
+          :alt="displayName ?? ''"
+          width="64"
+          height="64"
+          class="size-16 rounded opacity-80"
         />
-        <ChampionFilters
-          :selected-patch="selectedPatch"
-          :selected-position="selectedPosition"
-          :patch-options="patchOptions"
-          @update:patch="value => setFilter({ patch: value })"
-          @update:position="value => setFilter({ position: value })"
-        />
-      </header>
+        <div class="space-y-1">
+          <p class="text-sm font-medium text-default">
+            No personal build breakdown yet
+          </p>
+          <p class="text-sm text-muted">
+            We don't have an aggregated build for {{ playerLabel }} on
+            {{ displayName ?? 'this champion' }} yet. Their recent games are below.
+          </p>
+        </div>
+        <NuxtLink
+          :to="`/champions/${championId}`"
+          class="rounded text-sm text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          See the global build for {{ displayName ?? `champion ${championId}` }}
+        </NuxtLink>
+      </div>
 
-      <!--
-        Same two-column layout as the global champion page (#703): builds and
-        match history in the main column, matchups in a right sidebar from the
-        xl breakpoint. No truemains panel here — the page is already scoped to
-        one player. Below xl the sidebar stacks under the main column.
-      -->
-      <div class="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
-        <div class="min-w-0 space-y-6">
-          <ChampionBuildTabs
-            :builds="champion.builds"
-            :champion-static="staticData"
-            :items-map="itemsMap ?? {}"
-            :summoners-map="summonersMap ?? {}"
-            :rune-tree="runeTree ?? null"
+      <template v-if="champion && staticData">
+        <header class="flex flex-wrap items-center gap-4">
+          <ChampionHeader
+            :champion-name="displayName"
+            :champion-icon-url="displayIconUrl"
+            :champion-id="championId"
+            :position="champion.position"
+            :total-games="champion.totalGames"
+            :total-wins="champion.totalWins"
           />
+          <ChampionFilters
+            :selected-patch="selectedPatch"
+            :selected-position="selectedPosition"
+            :patch-options="patchOptions"
+            @update:patch="value => setFilter({ patch: value })"
+            @update:position="value => setFilter({ position: value })"
+          />
+        </header>
 
-          <!-- This player's recent games on this champion. The champion is fixed;
-               the lane filter is its own RolePicker, independent of the build's
-               position filter above. -->
-          <section class="flex min-w-0 flex-col gap-3">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
-                Recent {{ displayName ?? '' }} games
-              </h2>
-              <RolePicker
-                :position="matchPosition"
-                @update:position="setMatchPosition"
-              />
-            </div>
+        <!--
+          Thin-sample caution. The backend renders a build for any number of
+          games (down to one) rather than 404-ing, flagging small samples with
+          minSampleMet=false. Surface that so a build inferred from a handful of
+          games reads as a rough personal signal, not an authoritative meta
+          build — mirroring the global page's low-sample notice.
+        -->
+        <UAlert
+          v-if="!champion.minSampleMet"
+          color="warning"
+          variant="soft"
+          icon="i-lucide-triangle-alert"
+          :title="`Only ${champion.totalGames} ${champion.totalGames === 1 ? 'game' : 'games'} on record`"
+          description="This build is inferred from a small personal sample — treat it as a rough signal rather than a reliable recommendation."
+        />
 
-            <!--
-              Same ordering as the profile page: the empty / not-found state
-              needs no static data, so it must not sit behind staticBundleReady —
-              a failing static fetch would pin the skeletons forever.
-            -->
-            <template v-if="matchesInitialLoading">
-              <MatchRowSkeleton v-for="i in 5" :key="`match-skel-${i}`" />
-            </template>
-            <template v-else-if="matchesNotFound || matches.length === 0">
-              <MatchHistoryEmpty :not-found="matchesNotFound" :filtered="matchPosition !== null" />
-            </template>
-            <template v-else-if="!staticBundleReady">
-              <MatchRowSkeleton v-for="i in 5" :key="`match-skel-${i}`" />
-            </template>
-            <template v-else>
-              <MatchRow
-                v-for="match in matches"
-                :key="match.matchId"
-                :match="match"
-                :champions="staticList ?? []"
-                :items="itemsMap ?? {}"
-                :summoner-spells="summonersMap ?? {}"
-                :rune-tree="runeTree!"
-                :name-tag="nameTag"
-              />
-              <div
-                v-if="matchesTotal > matchesPageSize"
-                class="flex justify-center pt-2"
-              >
-                <UPagination
-                  :page="matchesPage"
-                  :total="matchesTotal"
-                  :items-per-page="matchesPageSize"
-                  :sibling-count="1"
-                  color="neutral"
-                  variant="ghost"
-                  active-color="primary"
-                  active-variant="soft"
-                  @update:page="setMatchesPage"
-                />
-              </div>
-            </template>
-          </section>
+        <!--
+          Same two-column layout as the global champion page (#703): the build
+          breakdown in the main column, matchups in a right sidebar from the xl
+          breakpoint. No truemains panel here — the page is already scoped to one
+          player. Below xl the sidebar stacks under the main column. The recent
+          games list sits below, full-width, so it renders in the degraded
+          (no-build) state too.
+        -->
+        <div class="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
+          <div class="min-w-0 space-y-6">
+            <ChampionBuildTabs
+              :builds="champion.builds"
+              :champion-static="staticData"
+              :items-map="itemsMap ?? {}"
+              :summoners-map="summonersMap ?? {}"
+              :rune-tree="runeTree ?? null"
+            />
+          </div>
+
+          <aside class="min-w-0 space-y-6">
+            <ChampionMatchups
+              :champion-id="championId"
+              :position="selectedPosition"
+              :champions="staticList ?? []"
+              :name-tag="nameTag"
+            />
+          </aside>
+        </div>
+      </template>
+
+      <!-- This player's recent games on this champion — rendered even when the
+           build breakdown above is absent (the degraded state), so clicking a
+           main always surfaces their actual games. The champion is fixed; the
+           lane filter is its own RolePicker, independent of the build's position
+           filter. -->
+      <section class="flex min-w-0 flex-col gap-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
+            Recent {{ displayName ?? '' }} games
+          </h2>
+          <RolePicker
+            :position="matchPosition"
+            @update:position="setMatchPosition"
+          />
         </div>
 
-        <aside class="min-w-0 space-y-6">
-          <ChampionMatchups
-            :champion-id="championId"
-            :position="selectedPosition"
+        <!--
+          Same ordering as the profile page: the empty / not-found state needs no
+          static data, so it must not sit behind staticBundleReady — a failing
+          static fetch would pin the skeletons forever.
+        -->
+        <template v-if="matchesInitialLoading">
+          <MatchRowSkeleton v-for="i in 5" :key="`match-skel-${i}`" />
+        </template>
+        <template v-else-if="matchesNotFound || matches.length === 0">
+          <MatchHistoryEmpty :not-found="matchesNotFound" :filtered="matchPosition !== null" />
+        </template>
+        <template v-else-if="!staticBundleReady">
+          <MatchRowSkeleton v-for="i in 5" :key="`match-skel-${i}`" />
+        </template>
+        <template v-else>
+          <MatchRow
+            v-for="match in matches"
+            :key="match.matchId"
+            :match="match"
             :champions="staticList ?? []"
+            :items="itemsMap ?? {}"
+            :summoner-spells="summonersMap ?? {}"
+            :rune-tree="runeTree!"
             :name-tag="nameTag"
           />
-        </aside>
-      </div>
+          <div
+            v-if="matchesTotal > matchesPageSize"
+            class="flex justify-center pt-2"
+          >
+            <UPagination
+              :page="matchesPage"
+              :total="matchesTotal"
+              :items-per-page="matchesPageSize"
+              :sibling-count="1"
+              color="neutral"
+              variant="ghost"
+              active-color="primary"
+              active-variant="soft"
+              @update:page="setMatchesPage"
+            />
+          </div>
+        </template>
+      </section>
     </template>
   </main>
 </template>
