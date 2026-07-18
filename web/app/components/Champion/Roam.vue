@@ -96,7 +96,7 @@ const verdict = computed<{ label: string, tone: string } | null>(() => {
           </span>
           <div class="relative h-16 w-full overflow-hidden rounded-md bg-elevated">
             <div
-              class="absolute inset-x-0 bottom-0 rounded-md bg-primary/70 transition-[height] duration-500"
+              class="absolute inset-x-0 bottom-0 rounded-md bg-gradient-to-t from-emerald-600/70 to-emerald-400 transition-[height] duration-500"
               :style="{ height: barHeight(window.value) }"
             />
           </div>
