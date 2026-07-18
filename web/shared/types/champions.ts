@@ -100,6 +100,8 @@ export interface ChampionTrendPoint {
 export interface ChampionPatchDiffResponse {
   championId: number
   position: string
+  /** Distinct patches with data for this champion/position; the section hides below 2. */
+  availablePatchCount: number
   from: ChampionPatchDiffSide | null
   to: ChampionPatchDiffSide | null
   delta: ChampionPatchDiffDelta | null

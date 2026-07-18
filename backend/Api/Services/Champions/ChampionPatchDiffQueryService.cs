@@ -89,6 +89,7 @@ public sealed class ChampionPatchDiffQueryService(
         {
             ChampionId = championId,
             Position = resolvedPosition,
+            AvailablePatchCount = lanePatches.Count,
             From = fromSide,
             To = toSide,
             Delta = BuildDelta(fromSide, toSide),

@@ -266,6 +266,13 @@ const { data: championPatchDiff, status: patchDiffStatus } = useChampionPatchDif
 // can be older than the 12 newest ddragon versions for a sparsely-played
 // champion. Union the resolved from/to in (newest first) so a selector never
 // shows blank for a value that isn't in the recent list.
+// Hide the whole section when the champion/lane has fewer than two patches of
+// data: a single-patch diff can only compare a patch against itself (flat,
+// meaningless). Kept visible while loading so the skeleton still shows.
+const showPatchDiff = computed(() =>
+  isLoadingStatus(patchDiffStatus.value)
+  || (championPatchDiff.value?.availablePatchCount ?? 0) >= 2,
+)
 const patchDiffOptions = computed(() => {
   const seen = new Map(patchOptions.value.map(option => [option.value, option]))
   for (const patch of [championPatchDiff.value?.from?.patch, championPatchDiff.value?.to?.patch]) {
@@ -447,6 +454,7 @@ const isLoadingStatus = (s: 'idle' | 'pending' | 'success' | 'error') => s === '
       />
 
       <ChampionPatchDiff
+        v-if="showPatchDiff"
         :diff="championPatchDiff ?? null"
         :items-map="itemsMap ?? {}"
         :rune-tree="runeTree ?? null"

@@ -23,6 +23,13 @@ public sealed record ChampionPatchDiffReadModel
     /// </summary>
     public string Position { get; init; } = string.Empty;
 
+    /// <summary>
+    /// How many distinct patches have data for this (champion, position). The
+    /// frontend hides the whole section below 2 — a single-patch champion can
+    /// only be diffed against itself, which is a flat, meaningless comparison.
+    /// </summary>
+    public int AvailablePatchCount { get; init; }
+
     /// <summary>Older patch's slice, or null when the champion has no data there.</summary>
     public ChampionPatchDiffSide? From { get; init; }
 
