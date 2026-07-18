@@ -14,10 +14,13 @@ namespace TrueMain.Services.Champions;
 /// account id so the SQL filter hits the composite scope index.
 /// </param>
 /// <param name="MinGames">
-/// Minimum number of games (across the resolved patch + position) required to
-/// return a payload. Below this floor the service returns <see langword="null"/>
-/// so the page renders a "not enough games" notice instead of a sparse,
-/// misleading build. <c>0</c> disables the floor (global callers).
+/// Preferred minimum games (across a single patch + position) when resolving
+/// which patch to render: the loader picks the most recent patch that clears
+/// this floor so a thin newest patch doesn't shadow a meaningful earlier one.
+/// It no longer gates the response — a champion the player has genuinely played
+/// still renders a (thin, low-confidence) build, flagged via
+/// <c>ChampionResponse.MinSampleMet</c>. <c>0</c> disables the preference
+/// (global callers).
 /// </param>
 public sealed record ChampionBuildsScope(
     Guid RiotAccountId,

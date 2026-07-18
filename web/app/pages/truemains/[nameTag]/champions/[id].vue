@@ -188,8 +188,8 @@ const staticBundleReady = computed(() =>
             No personal build breakdown yet
           </p>
           <p class="text-sm text-muted">
-            {{ playerLabel }} hasn't played {{ displayName ?? 'this champion' }} on a recent
-            patch often enough for a build breakdown. Their recent games are below.
+            We don't have an aggregated build for {{ playerLabel }} on
+            {{ displayName ?? 'this champion' }} yet. Their recent games are below.
           </p>
         </div>
         <NuxtLink
