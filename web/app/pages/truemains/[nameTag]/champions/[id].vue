@@ -220,6 +220,22 @@ const staticBundleReady = computed(() =>
         </header>
 
         <!--
+          Thin-sample caution. The backend renders a build for any number of
+          games (down to one) rather than 404-ing, flagging small samples with
+          minSampleMet=false. Surface that so a build inferred from a handful of
+          games reads as a rough personal signal, not an authoritative meta
+          build — mirroring the global page's low-sample notice.
+        -->
+        <UAlert
+          v-if="!champion.minSampleMet"
+          color="warning"
+          variant="soft"
+          icon="i-lucide-triangle-alert"
+          :title="`Only ${champion.totalGames} ${champion.totalGames === 1 ? 'game' : 'games'} on record`"
+          description="This build is inferred from a small personal sample — treat it as a rough signal rather than a reliable recommendation."
+        />
+
+        <!--
           Same two-column layout as the global champion page (#703): the build
           breakdown in the main column, matchups in a right sidebar from the xl
           breakpoint. No truemains panel here — the page is already scoped to one
