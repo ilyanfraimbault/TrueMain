@@ -19,6 +19,19 @@ public sealed record CompositionBuildResponse
     /// <summary>Resolved elo filter token (<c>ALL</c> when unfiltered).</summary>
     public required string EloBracket { get; init; }
 
+    /// <summary>
+    /// True when the draft pinned the lane opponent — the matchup is then a
+    /// hard requirement on the sampled games, not a ranking signal.
+    /// </summary>
+    public required bool MatchupRequested { get; init; }
+
+    /// <summary>
+    /// False only when the lane opponent was requested and no recorded game
+    /// has that matchup — the build is then empty and the client should fall
+    /// back to the champion's baseline build.
+    /// </summary>
+    public required bool MatchupFound { get; init; }
+
     public required CompositionConfidenceReadModel Confidence { get; init; }
 
     public required CompositionBuildRecommendation Build { get; init; }

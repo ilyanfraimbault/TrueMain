@@ -5,14 +5,15 @@ import { formatPercentage } from '~~/shared/utils/ddragon'
 /**
  * Full composition recommendation (#563): confidence strip + the same core
  * panels the champion page renders (spells, starter, skill order, boots, core
- * path, runes) plus the situational-items row specific to this feature.
- * Self-contained: mounts only when a recommendation exists, so the static
- * asset fetches (items, rune tree, summoners, champion spells) fire lazily
- * with the right patch instead of on page load.
+ * path, runes), the pruned build tree, plus the situational-items row specific
+ * to this feature. Self-contained: mounts only when a recommendation exists,
+ * so the static asset fetches (items, rune tree, summoners, champion spells)
+ * fire lazily with the right patch instead of on page load.
  */
 const props = defineProps<{
   recommendation: CompositionBuildResponse
   championName: string | null
+  championIconUrl: string | null
 }>()
 
 /**
@@ -55,30 +56,62 @@ const lowDataMessage = computed(() => {
   }
   return null
 })
+
+const stats = computed(() => [
+  {
+    label: 'Games sampled',
+    value: String(build.value.gamesConsidered),
+    hint: 'Most similar games the build is computed from',
+  },
+  {
+    label: 'Win rate',
+    value: winRate.value === null ? '—' : formatPercentage(winRate.value),
+    hint: 'Across the sampled games',
+  },
+  {
+    label: 'Draft similarity',
+    value: draftRequested.value ? formatPercentage(confidence.value.meanSimilarity) : '—',
+    hint: 'How closely the sample reproduces your draft',
+  },
+  {
+    label: 'Pool scanned',
+    value: String(confidence.value.candidatePoolSize),
+    hint: 'Recent games considered for the sample',
+  },
+])
 </script>
 
 <template>
-  <SectionCard :title="championName ? `Recommended for ${championName}` : 'Recommendation'">
+  <SectionCard>
+    <template #title>
+      <div class="flex items-center gap-2.5">
+        <SkeletonImage
+          v-if="championIconUrl"
+          :src="championIconUrl"
+          :alt="championName ?? ''"
+          :width="28"
+          :height="28"
+          class="size-7 rounded-lg ring-1 ring-primary/40"
+        />
+        <h2 class="text-sm font-medium text-default">
+          {{ championName ? `Recommended build for ${championName}` : 'Recommended build' }}
+        </h2>
+      </div>
+    </template>
     <div class="space-y-6">
       <!-- Confidence strip — always first: the numbers qualify everything below. -->
       <dl class="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div>
-          <dt class="text-sm text-muted">Games sampled</dt>
-          <dd class="text-lg font-semibold">{{ build.gamesConsidered }}</dd>
-        </div>
-        <div>
-          <dt class="text-sm text-muted">Win rate</dt>
-          <dd class="text-lg font-semibold">{{ winRate === null ? '—' : formatPercentage(winRate) }}</dd>
-        </div>
-        <div>
-          <dt class="text-sm text-muted">Draft similarity</dt>
+        <div
+          v-for="stat in stats"
+          :key="stat.label"
+          :title="stat.hint"
+        >
+          <dt class="text-sm text-muted">
+            {{ stat.label }}
+          </dt>
           <dd class="text-lg font-semibold">
-            {{ draftRequested ? formatPercentage(confidence.meanSimilarity) : '—' }}
+            {{ stat.value }}
           </dd>
-        </div>
-        <div>
-          <dt class="text-sm text-muted">Pool scanned</dt>
-          <dd class="text-lg font-semibold">{{ confidence.candidatePoolSize }}</dd>
         </div>
       </dl>
 
@@ -132,15 +165,30 @@ const lowDataMessage = computed(() => {
             :page="build.runePage"
             :tree="runeTree"
           />
-          <p v-else class="text-sm text-muted">
+          <p
+            v-else
+            class="text-sm text-muted"
+          >
             No rune data in the sampled games.
           </p>
         </div>
       </div>
 
+      <!-- Build tree — same component as the champion page, recomputed from the
+           sampled games only. -->
+      <ChampionBuildPanelBuildTree
+        v-if="build.buildTree.length > 0"
+        :tree="build.buildTree"
+        :first-item-id="build.firstItemId"
+        :item-path="build.corePath?.itemIds ?? []"
+        :items-map="itemsMap"
+      />
+
       <!-- Situational items — specific to the composition recommender. -->
       <div v-if="build.situationalItems.length > 0">
-        <h2 class="text-sm font-medium text-muted">Situational items</h2>
+        <h3 class="text-sm font-medium text-muted">
+          Situational items
+        </h3>
         <ul class="mt-2 flex flex-wrap gap-4">
           <li
             v-for="slot in build.situationalItems"
@@ -154,8 +202,12 @@ const lowDataMessage = computed(() => {
               class="size-8"
             />
             <div class="text-xs leading-tight">
-              <p class="font-medium">{{ formatPercentage(slot.winRate) }} WR</p>
-              <p class="text-muted">{{ formatPercentage(slot.pickRate) }} of games</p>
+              <p class="font-medium">
+                {{ formatPercentage(slot.winRate) }} WR
+              </p>
+              <p class="text-muted">
+                {{ formatPercentage(slot.pickRate) }} of games
+              </p>
             </div>
           </li>
         </ul>

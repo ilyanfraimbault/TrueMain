@@ -4,6 +4,7 @@ import type {
   BuildRunePage,
   BuildSkillOrder,
   BuildSummonerSpells,
+  BuildTreeNode,
 } from './champions'
 
 /** One known pick of the draft: a champion at a position. */
@@ -33,8 +34,9 @@ export interface CompositionConfidence {
 }
 
 /**
- * Win-weighted build aggregated from the most similar games. Every dimension
- * is nullable: sparse data drops the dimension instead of fabricating one.
+ * Similarity-and-win-weighted build aggregated from the most similar games.
+ * Every dimension is nullable: sparse data drops the dimension instead of
+ * fabricating one.
  */
 export interface CompositionBuildRecommendation {
   gamesConsidered: number
@@ -46,6 +48,10 @@ export interface CompositionBuildRecommendation {
   situationalItems: BuildItemSet[]
   summonerSpells: BuildSummonerSpells | null
   skillOrder: BuildSkillOrder | null
+  /** First item of `corePath` (the build-tree root), 0 when unresolved. */
+  firstItemId: number
+  /** Item-progression tree of the sampled games opening with `firstItemId`. */
+  buildTree: BuildTreeNode[]
 }
 
 export interface CompositionBuildResponse {
@@ -53,6 +59,13 @@ export interface CompositionBuildResponse {
   position: string
   patch: string | null
   eloBracket: string
+  /** True when the draft pinned the lane opponent (hard requirement). */
+  matchupRequested: boolean
+  /**
+   * False only when the lane opponent was requested and no recorded game has
+   * that matchup — the client then falls back to the champion's baseline build.
+   */
+  matchupFound: boolean
   confidence: CompositionConfidence
   build: CompositionBuildRecommendation
 }

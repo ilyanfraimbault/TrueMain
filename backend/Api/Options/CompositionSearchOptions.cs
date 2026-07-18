@@ -46,6 +46,14 @@ public sealed class CompositionSearchOptions
     public double WinWeight { get; set; } = 2d;
 
     /// <summary>
+    /// Extra vote weight granted at full draft similarity: a game's vote is
+    /// multiplied by <c>1 + boost × (score / maxScore)</c>, so a perfect
+    /// reproduction of the draft outweighs a barely-matching game by
+    /// <c>1 + boost</c> while a slotless request leaves every game at 1.
+    /// </summary>
+    public double SimilarityWeightBoost { get; set; } = 3d;
+
+    /// <summary>
     /// Number of situational (non-core) items surfaced by the aggregation.
     /// </summary>
     public int SituationalItemCount { get; set; } = 5;

@@ -22,10 +22,12 @@ public sealed class CompositionBuildAggregatorTests
         int spell1 = 0,
         int spell2 = 0,
         string skillOrderKey = "",
-        CompositionRunePageFacts? runePage = null)
+        CompositionRunePageFacts? runePage = null,
+        double similarityWeight = 1d)
         => new()
         {
             Win = win,
+            SimilarityWeight = similarityWeight,
             BuildItems = buildItems ?? [],
             BootsItemId = bootsItemId,
             StarterItems = starterItems ?? [],
@@ -72,6 +74,74 @@ public sealed class CompositionBuildAggregatorTests
         result.SkillOrder.Games.Should().Be(2);
         result.SkillOrder.PickRate.Should().BeApproximately(2d / 5d, 1e-9);
         result.SkillOrder.WinRate.Should().Be(1d);
+    }
+
+    [Fact]
+    public void Aggregate_SimilarityWeighting_LetsTheClosestGamesOutvoteTheMajority()
+    {
+        // Three barely-similar losses on Q-W-E (weight 3×1) vs one highly
+        // similar loss on Q-E-W (weight 1×4): the closest game must win the
+        // vote even though it is a 1-vs-3 minority with no win bonus.
+        var facts = new[]
+        {
+            Facts(win: false, skillOrderKey: "Q-W-E"),
+            Facts(win: false, skillOrderKey: "Q-W-E"),
+            Facts(win: false, skillOrderKey: "Q-W-E"),
+            Facts(win: false, skillOrderKey: "Q-E-W", similarityWeight: 4d),
+        };
+
+        var result = CompositionBuildAggregator.Aggregate(facts, WinWeight, SituationalCount);
+
+        result.SkillOrder.Should().NotBeNull();
+        result.SkillOrder!.Sequence.Should().Equal("Q", "E", "W");
+        // Reported numbers stay raw counts regardless of the weights.
+        result.SkillOrder.Games.Should().Be(1);
+        result.SkillOrder.PickRate.Should().BeApproximately(1d / 4d, 1e-9);
+    }
+
+    [Fact]
+    public void Aggregate_SimilarityWeighting_ScalesSituationalItemVotes()
+    {
+        // Item 3036 appears in two barely-similar games (weight 2), item 3033
+        // in one highly similar game (weight 4) — 3033 must rank first.
+        var facts = new[]
+        {
+            Facts(win: false, buildItems: [3031, 3153, 3072, 3036]),
+            Facts(win: false, buildItems: [3031, 3153, 3072, 3036]),
+            Facts(win: false, buildItems: [3031, 3153, 3072, 3033], similarityWeight: 4d),
+        };
+
+        var result = CompositionBuildAggregator.Aggregate(facts, winWeight: 1d, SituationalCount);
+
+        result.SituationalItems.Should().HaveCount(2);
+        result.SituationalItems[0].ItemIds.Should().Equal(3033);
+        result.SituationalItems[1].ItemIds.Should().Equal(3036);
+    }
+
+    [Fact]
+    public void Aggregate_BuildTree_RootsOnTheCorePathFirstItemWithRawCounts()
+    {
+        var facts = new[]
+        {
+            Facts(win: true, buildItems: [3031, 3153, 3036]),
+            Facts(win: true, buildItems: [3031, 3153, 3072]),
+            Facts(win: false, buildItems: [3031, 3153, 3036]),
+            // Different opening — outside the tree rooted on 3031.
+            Facts(win: false, buildItems: [3072, 3026]),
+        };
+
+        var result = CompositionBuildAggregator.Aggregate(facts, WinWeight, SituationalCount);
+
+        result.FirstItemId.Should().Be(3031);
+        result.BuildTree.Should().HaveCount(1);
+        var second = result.BuildTree[0];
+        second.ItemId.Should().Be(3153);
+        second.Games.Should().Be(3);
+        second.Wins.Should().Be(2);
+        second.PickRate.Should().Be(1d);
+        // 3036 (2 games) survives the prune; the 1-game 3072 branch is below
+        // the tree's minimum support and drops out.
+        second.Children.Select(c => c.ItemId).Should().Equal(3036);
     }
 
     [Fact]

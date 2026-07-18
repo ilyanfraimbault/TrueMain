@@ -6,7 +6,7 @@ import { describeFetchError } from '~/utils/errors'
 useSeoMeta({
   title: 'Composition Builder',
   description:
-    'Pick your champion, your role and both team comps to get a build recommendation drawn from the most similar real games.',
+    'Pick your champion and role, sketch both team comps, and watch the build from the most similar real games update live.',
 })
 
 const route = useRoute()
@@ -22,7 +22,6 @@ const initialPosition = typeof route.query.position === 'string' ? route.query.p
 const playedPosition = ref<ChampionPosition | null>(
   isChampionPosition(initialPosition) ? initialPosition : null,
 )
-const selectedPatch = ref(typeof route.query.patch === 'string' ? route.query.patch : '')
 
 function emptySlots(): Record<ChampionPosition, number | null> {
   return { TOP: null, JUNGLE: null, MIDDLE: null, BOTTOM: null, UTILITY: null }
@@ -39,14 +38,13 @@ watch(playedPosition, (position) => {
   }
 })
 
-// Deep-link the player pick (champion, position, patch) — the nine team slots
-// stay ephemeral, a full draft in the URL would be noise.
-watch([playedChampionId, playedPosition, selectedPatch], ([champion, position, patch]) => {
+// Deep-link the player pick (champion, position) — the nine team slots stay
+// ephemeral, a full draft in the URL would be noise.
+watch([playedChampionId, playedPosition], ([champion, position]) => {
   void router.replace({
     query: {
       ...(champion ? { champion: String(champion) } : {}),
       ...(position ? { position } : {}),
-      ...(patch ? { patch } : {}),
     },
   })
 })
@@ -57,21 +55,22 @@ const { data: staticList, error: staticError } = useChampionStaticList()
 const champions = computed(() => staticList.value ?? [])
 const championsById = useChampionsById(champions)
 
-const { data: versions } = useDDragonVersions()
-// Reka UI selects reject an empty-string item value, so "All patches" rides a
-// sentinel and the page state keeps '' for "no filter".
-const ALL_PATCHES = 'all'
-const recentPatchOptions = usePatchOptions(() => versions.value, () => selectedPatch.value)
-const patchOptions = computed(() => [
-  { label: 'All patches', value: ALL_PATCHES },
-  ...recentPatchOptions.value,
-])
+const playedChampion = computed(() =>
+  playedChampionId.value === null ? null : championsById.value.get(playedChampionId.value) ?? null)
 
-// ─── Submit ──────────────────────────────────────────────────────────────────
+const laneOpponentName = computed(() => {
+  if (playedPosition.value === null) {
+    return null
+  }
+  const id = enemySlots.value[playedPosition.value]
+  return id === null ? null : championsById.value.get(id)?.name ?? null
+})
+
+// ─── Live recommendation ─────────────────────────────────────────────────────
 
 const { data: recommendation, isLoading, error, submit, clear } = useCompositionBuild()
 
-const canSubmit = computed(() => playedChampionId.value !== null && playedPosition.value !== null)
+const isDraftReady = computed(() => playedChampionId.value !== null && playedPosition.value !== null)
 
 function toSlots(slots: Record<ChampionPosition, number | null>): CompositionSlotInput[] {
   return POSITION_OPTIONS
@@ -79,31 +78,66 @@ function toSlots(slots: Record<ChampionPosition, number | null>): CompositionSlo
     .map(option => ({ position: option.value, championId: slots[option.value] as number }))
 }
 
-async function recommend() {
-  if (playedChampionId.value === null || playedPosition.value === null) {
-    return
-  }
+/**
+ * Debounce window between the last draft edit and the refetch. Long enough to
+ * swallow a burst of picks, short enough that the page still feels live.
+ */
+const REFETCH_DEBOUNCE_MS = 400
 
-  await submit(playedChampionId.value, {
-    position: playedPosition.value,
-    ...(selectedPatch.value ? { patch: selectedPatch.value } : {}),
-    allies: toSlots(allySlots.value),
-    enemies: toSlots(enemySlots.value),
-  })
-}
+let refetchTimer: ReturnType<typeof setTimeout> | undefined
+
+// Live mode: every draft edit re-queries after a short debounce — there is no
+// submit button. The previous recommendation stays on screen while the next
+// one loads (the composable also drops out-of-order responses).
+watch(
+  [playedChampionId, playedPosition, allySlots, enemySlots],
+  () => {
+    clearTimeout(refetchTimer)
+    if (playedChampionId.value === null || playedPosition.value === null) {
+      clear()
+      return
+    }
+    const championId = playedChampionId.value
+    const position = playedPosition.value
+    refetchTimer = setTimeout(() => {
+      void submit(championId, {
+        position,
+        allies: toSlots(allySlots.value),
+        enemies: toSlots(enemySlots.value),
+      })
+    }, REFETCH_DEBOUNCE_MS)
+  },
+  { deep: true, immediate: true },
+)
+
+onBeforeUnmount(() => clearTimeout(refetchTimer))
 
 function resetDraft() {
   allySlots.value = emptySlots()
   enemySlots.value = emptySlots()
-  clear()
 }
 
-const playedChampionName = computed(() =>
-  playedChampionId.value === null ? null : championsById.value.get(playedChampionId.value)?.name ?? null,
-)
+const hasDraftPicks = computed(() =>
+  POSITION_OPTIONS.some(option =>
+    allySlots.value[option.value] !== null || enemySlots.value[option.value] !== null))
 
 const allyRows = computed(() =>
   POSITION_OPTIONS.filter(option => option.value !== playedPosition.value))
+
+// The lane opponent drives the matchup requirement, so it leads the enemy
+// column when the player's role is known.
+const enemyRows = computed(() => {
+  if (playedPosition.value === null) {
+    return POSITION_OPTIONS
+  }
+  return [...POSITION_OPTIONS].sort((a, b) =>
+    Number(b.value === playedPosition.value) - Number(a.value === playedPosition.value))
+})
+
+const matchupMissing = computed(() =>
+  recommendation.value !== null
+  && recommendation.value.matchupRequested
+  && !recommendation.value.matchupFound)
 </script>
 
 <template>
@@ -111,29 +145,8 @@ const allyRows = computed(() =>
     <PageHeader
       eyebrow="Draft tools"
       title="Composition builder"
-      description="Pick your champion and both comps — even partially — and get the build that won the most similar real games."
-    >
-      <div class="flex flex-wrap items-center gap-3">
-        <ChampionPicker
-          :champions="champions"
-          :champion-id="playedChampionId"
-          placeholder="Your champion"
-          @update:champion-id="playedChampionId = $event"
-        />
-        <RolePicker
-          :position="playedPosition"
-          hide-all
-          @update:position="playedPosition = $event"
-        />
-        <USelect
-          :items="patchOptions"
-          :model-value="selectedPatch || ALL_PATCHES"
-          class="w-36"
-          aria-label="Patch"
-          @update:model-value="selectedPatch = $event === ALL_PATCHES ? '' : String($event ?? '')"
-        />
-      </div>
-    </PageHeader>
+      description="Pick your champion and role — the build below updates live as you fill in the draft."
+    />
 
     <UAlert
       v-if="staticError"
@@ -143,26 +156,114 @@ const allyRows = computed(() =>
       :description="describeFetchError(staticError)"
     />
 
-    <div class="grid gap-6 lg:grid-cols-2">
-      <SectionCard title="Your team" subtitle="The four picks around you — leave unknown lanes empty.">
-        <ul class="space-y-2">
+    <!-- Step 1 — the player pick, deliberately the biggest control on the page. -->
+    <section
+      class="glass rounded-xl p-4 sm:p-6"
+      aria-label="Your pick"
+    >
+      <div class="flex flex-wrap items-center gap-4 sm:gap-6">
+        <SkeletonImage
+          v-if="playedChampion"
+          :src="playedChampion.iconUrl"
+          :alt="playedChampion.name"
+          :width="80"
+          :height="80"
+          class="size-16 shrink-0 rounded-2xl ring-2 ring-primary/50 sm:size-20"
+        />
+        <div
+          v-else
+          class="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-elevated/60 ring-1 ring-accented sm:size-20"
+        >
+          <UIcon
+            name="i-lucide-user-round-search"
+            class="size-7 text-dimmed sm:size-8"
+          />
+        </div>
+
+        <div class="flex min-w-0 flex-1 flex-col gap-2">
+          <p class="text-xs font-medium uppercase tracking-wider text-muted">
+            You are playing
+          </p>
+          <div class="flex flex-wrap items-center gap-3">
+            <ChampionPicker
+              :champions="champions"
+              :champion-id="playedChampionId"
+              placeholder="Choose your champion"
+              size="lg"
+              trigger-class="w-full max-w-64 sm:w-64"
+              @update:champion-id="playedChampionId = $event"
+            />
+            <RolePicker
+              :position="playedPosition"
+              hide-all
+              @update:position="playedPosition = $event"
+            />
+          </div>
+        </div>
+
+        <!-- Live status — quietly reassures that no submit button is coming. -->
+        <div
+          class="flex items-center gap-2 text-xs text-muted"
+          role="status"
+        >
+          <template v-if="isLoading">
+            <UIcon
+              name="i-lucide-loader-circle"
+              class="size-4 animate-spin text-primary"
+            />
+            Updating…
+          </template>
+          <template v-else-if="isDraftReady">
+            <span
+              class="size-2 rounded-full bg-primary"
+              aria-hidden="true"
+            />
+            Live — edits update the build
+          </template>
+        </div>
+      </div>
+    </section>
+
+    <!-- Step 2 — the draft around the player, intentionally more compact. -->
+    <div
+      v-if="isDraftReady"
+      class="grid gap-4 lg:grid-cols-2"
+    >
+      <SectionCard
+        title="Your team"
+        subtitle="Leave unknown lanes empty."
+      >
+        <template #actions>
+          <UButton
+            v-if="hasDraftPicks"
+            variant="ghost"
+            color="neutral"
+            size="xs"
+            icon="i-lucide-eraser"
+            @click="resetDraft"
+          >
+            Clear draft
+          </UButton>
+        </template>
+        <ul class="space-y-1.5">
           <li
             v-for="option in allyRows"
             :key="option.value"
-            class="glass-hover flex items-center gap-3 rounded-lg px-3 py-2"
+            class="glass-hover flex items-center gap-3 rounded-lg px-2.5 py-1.5"
           >
             <SkeletonImage
               :src="option.iconUrl"
               :alt="option.label"
-              :width="20"
-              :height="20"
-              class="size-5 opacity-80"
+              :width="18"
+              :height="18"
+              class="size-[18px] shrink-0 opacity-80"
             />
-            <span class="w-20 text-sm text-muted">{{ option.label }}</span>
+            <span class="w-16 shrink-0 text-xs text-muted">{{ option.label }}</span>
             <ChampionPicker
               :champions="champions"
               :champion-id="allySlots[option.value]"
               placeholder="Any champion"
+              size="sm"
               trigger-class="w-full"
               class="flex-1"
               @update:champion-id="allySlots[option.value] = $event"
@@ -171,28 +272,38 @@ const allyRows = computed(() =>
         </ul>
       </SectionCard>
 
-      <SectionCard title="Enemy team" subtitle="The lane opponent weighs the most — fill it first if you know it.">
-        <ul class="space-y-2">
+      <SectionCard
+        title="Enemy team"
+        subtitle="Your lane opponent matters most — games without that matchup are skipped."
+      >
+        <ul class="space-y-1.5">
           <li
-            v-for="option in POSITION_OPTIONS"
+            v-for="option in enemyRows"
             :key="option.value"
-            class="glass-hover flex items-center gap-3 rounded-lg px-3 py-2"
+            class="flex items-center gap-3 rounded-lg px-2.5 py-1.5"
+            :class="option.value === playedPosition
+              ? 'bg-primary/5 ring-1 ring-inset ring-primary/25'
+              : 'glass-hover'"
           >
             <SkeletonImage
               :src="option.iconUrl"
               :alt="option.label"
-              :width="20"
-              :height="20"
-              class="size-5 opacity-80"
+              :width="18"
+              :height="18"
+              class="size-[18px] shrink-0 opacity-80"
             />
-            <span class="w-20 text-sm text-muted">
+            <span class="w-16 shrink-0 text-xs text-muted">
               {{ option.label }}
-              <span v-if="option.value === playedPosition" class="block text-xs text-primary">vs you</span>
+              <span
+                v-if="option.value === playedPosition"
+                class="block text-[11px] font-medium text-primary"
+              >vs you</span>
             </span>
             <ChampionPicker
               :champions="champions"
               :champion-id="enemySlots[option.value]"
-              placeholder="Any champion"
+              :placeholder="option.value === playedPosition ? 'Your lane opponent' : 'Any champion'"
+              size="sm"
               trigger-class="w-full"
               class="flex-1"
               @update:champion-id="enemySlots[option.value] = $event"
@@ -202,26 +313,21 @@ const allyRows = computed(() =>
       </SectionCard>
     </div>
 
-    <div class="flex flex-wrap items-center gap-3">
-      <UButton
-        size="lg"
-        icon="i-lucide-wand-sparkles"
-        :loading="isLoading"
-        :disabled="!canSubmit"
-        @click="recommend"
-      >
-        Recommend a build
-      </UButton>
-      <UButton
-        variant="ghost"
-        color="neutral"
-        :disabled="isLoading"
-        @click="resetDraft"
-      >
-        Reset draft
-      </UButton>
-      <p v-if="!canSubmit" class="text-sm text-muted">
-        Pick your champion and role to get a recommendation.
+    <!-- Empty state until the player pick is complete. -->
+    <div
+      v-if="!isDraftReady"
+      class="glass rounded-xl px-6 py-14 text-center"
+    >
+      <UIcon
+        name="i-lucide-wand-sparkles"
+        class="mx-auto size-8 text-primary/70"
+      />
+      <p class="mt-3 font-medium">
+        Start with your own pick
+      </p>
+      <p class="mx-auto mt-1 max-w-md text-sm text-muted">
+        Choose the champion you are playing and your role above. You can then sketch both
+        team comps — the recommended build refreshes automatically after every change.
       </p>
     </div>
 
@@ -233,23 +339,53 @@ const allyRows = computed(() =>
       :description="describeFetchError(error)"
     />
 
-    <template v-if="recommendation">
+    <template v-if="recommendation && isDraftReady">
+      <!-- Matchup requested but never recorded: say so and fall back to the
+           champion's baseline build instead of fabricating a draft-specific one. -->
+      <template v-if="matchupMissing">
+        <UAlert
+          color="warning"
+          variant="soft"
+          icon="i-lucide-search-x"
+          title="No game with this matchup"
+          :description="`We have no recorded ${playedChampion?.name ?? 'games'} game against ${laneOpponentName ?? 'that champion'} ${playedPosition ? 'at ' + playedPosition.toLowerCase() : ''} — showing the champion's standard build instead.`"
+        />
+        <BuilderFallbackBuild
+          v-if="playedChampionId !== null && playedPosition !== null"
+          :champion-id="playedChampionId"
+          :position="playedPosition"
+          :champion-name="playedChampion?.name ?? null"
+        />
+      </template>
+
       <SectionCard
-        v-if="recommendation.build.gamesConsidered === 0"
-        :title="playedChampionName ? `Recommended for ${playedChampionName}` : 'Recommendation'"
+        v-else-if="recommendation.build.gamesConsidered === 0"
+        :title="playedChampion ? `Recommended for ${playedChampion.name}` : 'Recommendation'"
       >
         <div class="glass rounded-lg px-6 py-12 text-center">
-          <p class="font-medium">No similar games found</p>
+          <p class="font-medium">
+            No similar games found
+          </p>
           <p class="mt-1 text-sm text-muted">
-            Nothing recorded for this champion at this position yet — try clearing the patch filter.
+            Nothing recorded for this champion at this position yet.
           </p>
         </div>
       </SectionCard>
-      <BuilderRecommendationPanel
+
+      <div
         v-else
-        :recommendation="recommendation"
-        :champion-name="playedChampionName"
-      />
+        class="transition-opacity duration-200"
+        :class="isLoading ? 'opacity-60' : ''"
+      >
+        <BuilderRecommendationPanel
+          :recommendation="recommendation"
+          :champion-name="playedChampion?.name ?? null"
+          :champion-icon-url="playedChampion?.iconUrl ?? null"
+        />
+      </div>
     </template>
+
+    <!-- First fetch after the pick: a lightweight skeleton instead of a blank page. -->
+    <ChampionBuildTabsSkeleton v-else-if="isDraftReady && isLoading" />
   </main>
 </template>

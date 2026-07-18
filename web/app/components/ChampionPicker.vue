@@ -27,6 +27,8 @@ const props = withDefaults(
      * is much faster when only one filter needs to change.
      */
     clearable?: boolean
+    /** Control size forwarded to the underlying USelectMenu. */
+    size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
   }>(),
   { clearable: true },
 )
@@ -68,6 +70,8 @@ function clear(event: Event) {
       :model-value="selectedChampion"
       :items="championItems"
       :placeholder="placeholder ?? 'Any champion'"
+      :avatar="selectedChampion?.avatar"
+      :size="size"
       searchable
       searchable-placeholder="Search champion…"
       class="w-full"

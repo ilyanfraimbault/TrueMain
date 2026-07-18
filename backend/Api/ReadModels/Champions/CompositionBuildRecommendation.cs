@@ -37,4 +37,16 @@ public sealed record CompositionBuildRecommendation
     public BuildSummonerSpellsReadModel? SummonerSpells { get; init; }
 
     public BuildSkillOrderReadModel? SkillOrder { get; init; }
+
+    /// <summary>
+    /// First completed item of <see cref="CorePath"/> (the build-tree root),
+    /// 0 when no core path was resolved.
+    /// </summary>
+    public int FirstItemId { get; init; }
+
+    /// <summary>
+    /// Pruned item-progression tree of the sampled games that opened with
+    /// <see cref="FirstItemId"/> — same shape the champion page renders.
+    /// </summary>
+    public IReadOnlyList<BuildTreeNodeReadModel> BuildTree { get; init; } = [];
 }
