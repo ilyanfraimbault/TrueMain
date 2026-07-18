@@ -15,6 +15,8 @@
 import type {
   ChampionBuild,
   ChampionMatchups,
+  ChampionPatchDiffResponse,
+  ChampionPatchDiffSide,
   ChampionPowerspikeEvent,
   ChampionPowerspikesResponse,
   ChampionResponse,
@@ -501,6 +503,53 @@ async function mockChampionDetail(
 }
 
 // ─── Champion insight endpoints ──────────────────────────────────────────────
+
+// Two-patch diff for the champion detail page. Uses the champion's dominant
+// build on the newer patch and its alternate on the older one so first item /
+// keystone / skill order visibly move (variants 0 and 1 of makeBuild differ),
+// exercising the delta badges. availablePatchCount is 2, so the section renders;
+// a real single-patch champion returns 1 and the page hides the whole section.
+async function mockPatchDiff(
+  id: number,
+  fromQuery: string | undefined,
+  toQuery: string | undefined,
+): Promise<ChampionPatchDiffResponse | null> {
+  const s = seedsById.get(id)
+  if (!s) return null
+  const latest = await latestShortPatch()
+  const [olderPatch, newerPatch] = trendPatches(latest, 2)
+  const totalGames = Math.max(120, Math.round(s.pr * POOL_GAMES))
+
+  const side = (patch: string, variant: 0 | 1): ChampionPatchDiffSide => {
+    const build = makeBuild(s, variant, totalGames)
+    return {
+      patch,
+      games: build.games,
+      wins: Math.round(build.games * build.winRate),
+      winRate: build.winRate,
+      itemPath: build.core.itemPath,
+      runePage: build.core.runePage,
+      skillOrder: build.core.skillOrder,
+    }
+  }
+
+  const from = side(fromQuery || olderPatch!, 1)
+  const to = side(toQuery || newerPatch!, 0)
+  const firstItem = (s: ChampionPatchDiffSide) => s.itemPath?.itemIds[0] ?? 0
+  return {
+    championId: id,
+    position: s.position,
+    availablePatchCount: 2,
+    from,
+    to,
+    delta: {
+      winRateChange: round3(to.winRate - from.winRate),
+      firstItemChanged: firstItem(from) !== firstItem(to),
+      keystoneChanged: (from.runePage?.primaryKeystoneId ?? 0) !== (to.runePage?.primaryKeystoneId ?? 0),
+      skillOrderChanged: (from.skillOrder?.sequence ?? []).join() !== (to.skillOrder?.sequence ?? []).join(),
+    },
+  }
+}
 
 async function mockTrend(id: number): Promise<ChampionTrendResponse | null> {
   const s = seedsById.get(id)
@@ -1132,6 +1181,7 @@ export async function resolveDevApiMock(
     const payload = await (
       sub === undefined ? mockChampionDetail(id, position, eloBracket)
       : sub === 'trend' ? mockTrend(id)
+      : sub === 'patch-diff' ? mockPatchDiff(id, typeof query.from === 'string' ? query.from : undefined, typeof query.to === 'string' ? query.to : undefined)
       : sub === 'timeline-leads' ? mockTimelineLeads(id)
       : sub === 'scaling' ? mockScaling(id)
       : sub === 'powerspikes' ? mockPowerspikes(id)

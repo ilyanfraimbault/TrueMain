@@ -190,6 +190,22 @@ const patchDiffOptions = computed(() => {
   }
   return [...seen.values()].sort((a, b) => b.value.localeCompare(a.value, undefined, { numeric: true }))
 })
+// The patch-diff fetch is gated on `trendReady` (the champion fetch, which is
+// server:false so null on mount). While the gate is closed the composable
+// resolves an empty stub straight to `success`, so we must treat "gate closed"
+// as loading too — otherwise the section would flash hidden (a `success` status
+// with availablePatchCount 0) for the whole champion fetch before reappearing.
+const patchDiffLoading = computed(() =>
+  !trendReady.value || isLoadingStatus(patchDiffStatus.value),
+)
+// Hide the whole section when the champion/lane has fewer than two patches of
+// data: a single-patch diff can only compare a patch against itself (flat,
+// meaningless). Kept visible while loading so the skeleton stays mounted and
+// the layout below never shifts.
+const showPatchDiff = computed(() =>
+  patchDiffLoading.value
+  || (championPatchDiff.value?.availablePatchCount ?? 0) >= 2,
+)
 
 // When useChampion's 404 fallback drops the URL filters (no data for the
 // champion on that patch/position) the API returns the default slice, but the
@@ -362,6 +378,7 @@ watch(champion, (data) => {
           />
 
           <ChampionPatchDiff
+            v-if="showPatchDiff"
             :diff="championPatchDiff ?? null"
             :items-map="itemsMap ?? {}"
             :rune-tree="runeTree ?? null"
@@ -369,7 +386,7 @@ watch(champion, (data) => {
             :patch-options="patchDiffOptions"
             :from-patch="patchDiffFrom"
             :to-patch="patchDiffTo"
-            :loading="isLoadingStatus(patchDiffStatus)"
+            :loading="patchDiffLoading"
             @update:from-patch="value => { patchDiffFrom = value }"
             @update:to-patch="value => { patchDiffTo = value }"
           />
