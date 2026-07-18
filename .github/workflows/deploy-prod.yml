@@ -96,19 +96,38 @@ jobs:
     # separate Hostinger accounts, so prod needs its own API key — the shared
     # HOSTINGER_API_KEY only authenticates the preprod account. success() must
     # be explicit — a custom `if:` replaces the implicit needs-succeeded check,
-    # and deploying after a failed publish would ship stale/mixed images.
+    # and deploying after a failed publish would ship stale/mixed images. The
+    # `secrets` context is unavailable in a job-level `if:`, so the presence of
+    # PROD_ENV_FILE is checked in the guard step below rather than here.
     if: success() && vars.HOSTINGER_PROD_VM_ID != ''
     concurrency:
       group: deploy-prod
       cancel-in-progress: false
 
     steps:
+      # The deploy action overwrites the project's .env from PROD_ENV_FILE on
+      # every run, so an empty secret would wipe the prod .env. Skip the deploy
+      # (green no-op) until the secret is set, instead of shipping a broken .env.
+      - name: Guard on PROD_ENV_FILE
+        id: guard
+        env:
+          PROD_ENV_FILE: ${{ secrets.PROD_ENV_FILE }}
+        run: |
+          if [ -z "$PROD_ENV_FILE" ]; then
+            echo "::warning::PROD_ENV_FILE is empty — skipping prod deploy to avoid wiping the VPS .env. Set the secret to enable auto-deploy."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout
+        if: steps.guard.outputs.ready == 'true'
         uses: actions/checkout@v7
         with:
           ref: ${{ github.event.release.tag_name }}
 
       - name: Redeploy Docker Manager project
+        if: steps.guard.outputs.ready == 'true'
         uses: hostinger/deploy-on-vps@v2
         with:
           api-key: ${{ secrets.HOSTINGER_PROD_API_KEY }}

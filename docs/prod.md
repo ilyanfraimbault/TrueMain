@@ -37,6 +37,12 @@ The action points Docker Manager at `compose.prod.yaml` at the released commit,
 so the project on the VPS always matches the release. Keep `PROD_ENV_FILE` in
 sync when a new variable is added to the compose file.
 
+The job is gated on the `HOSTINGER_PROD_VM_ID` variable, and a guard step skips
+the deploy (green no-op) while `PROD_ENV_FILE` is empty — the action overwrites
+the project `.env` on every run, so deploying with an empty secret would wipe
+the prod `.env`. Auto-deploy therefore only becomes active once all three are
+set.
+
 The prod stack already lives in Docker Manager as the `truemain` project
 (`/docker/truemain/docker-compose.yml`), so no adoption step is needed — the
 action overwrites that project's compose with `compose.prod.yaml` and redeploys.
