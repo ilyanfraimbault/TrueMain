@@ -1,3 +1,5 @@
+using TrueMain.ReadModels.Champions;
+
 namespace TrueMain.Services.Champions;
 
 /// <summary>
@@ -144,6 +146,27 @@ internal static class ChampionBuildPathAnalyzer
 
         return (path, finalGames, finalWins);
     }
+
+    /// <summary>
+    /// Converts one pruned tree node (and its subtree) to the read model,
+    /// with pick rates relative to <paramref name="parentGames"/>. Shared by
+    /// the champion-page builds query and the composition recommender so both
+    /// serialize the tree identically.
+    /// </summary>
+    public static BuildTreeNodeReadModel ToReadModel(TreeNode node, int parentGames)
+        => new()
+        {
+            ItemId = node.ItemId,
+            Games = node.Games,
+            Wins = node.Wins,
+            PickRate = RateMath.Rate(node.Games, parentGames),
+            Children = node.Children.Values
+                .OrderByDescending(child => child.Games)
+                .ThenByDescending(child => child.Wins)
+                .ThenBy(child => child.ItemId)
+                .Select(child => ToReadModel(child, node.Games))
+                .ToList()
+        };
 
     private static IReadOnlyList<TreeNode> PruneTreeLevel(
         IDictionary<int, TreeNode> level,

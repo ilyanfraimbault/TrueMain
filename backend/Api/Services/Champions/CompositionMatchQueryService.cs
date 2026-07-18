@@ -93,28 +93,40 @@ public sealed class CompositionMatchQueryService(
 
         var maxScore = CompositionSimilarityScorer.MaxScore(criteria, weights);
 
+        // The lane opponent, when pinned, is a hard requirement (#563 rev):
+        // a build only transfers between games of the same matchup, so a
+        // candidate without it is filtered out instead of merely out-scored.
+        var matchupRequested = criteria.Enemies.TryGetValue(criteria.Position, out var laneOpponentId);
+
         var scored = rows
             .GroupBy(r => (r.MatchId, r.ParticipantId))
             .Select(g =>
             {
                 var first = g.First();
-                var score = CompositionSimilarityScorer.Score(
-                    criteria,
-                    weights,
-                    g.Select(r => new CompositionSlot(
-                        r.OtherTeamId != first.TeamId, r.OtherPosition, r.OtherChampionId)));
-                return new CompositionMatchRef
+                var slots = g
+                    .Select(r => new CompositionSlot(
+                        r.OtherTeamId != first.TeamId, r.OtherPosition, r.OtherChampionId))
+                    .ToList();
+                var score = CompositionSimilarityScorer.Score(criteria, weights, slots);
+                return new
                 {
-                    MatchId = g.Key.MatchId,
-                    ParticipantId = g.Key.ParticipantId,
-                    Score = score,
-                    Win = first.Win,
-                    GameStartTimeUtc = first.GameStartTimeUtc,
+                    HasMatchup = !matchupRequested || slots.Any(s =>
+                        s.IsEnemy && s.TeamPosition == criteria.Position && s.ChampionId == laneOpponentId),
+                    Match = new CompositionMatchRef
+                    {
+                        MatchId = g.Key.MatchId,
+                        ParticipantId = g.Key.ParticipantId,
+                        Score = score,
+                        Win = first.Win,
+                        GameStartTimeUtc = first.GameStartTimeUtc,
+                    },
                 };
             })
             .ToList();
 
         var selected = scored
+            .Where(m => m.HasMatchup)
+            .Select(m => m.Match)
             .OrderByDescending(m => m.Score)
             .ThenByDescending(m => m.GameStartTimeUtc)
             .Take(options.TopK)
@@ -130,6 +142,8 @@ public sealed class CompositionMatchQueryService(
             MeanSimilarity = maxScore == 0 || selected.Count == 0
                 ? 0d
                 : selected.Average(m => (double)m.Score / maxScore),
+            MatchupRequested = matchupRequested,
+            MatchupFound = !matchupRequested || selected.Count > 0,
             Matches = selected,
         };
     }

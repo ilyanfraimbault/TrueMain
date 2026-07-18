@@ -32,6 +32,20 @@ public sealed class CompositionMatchesResult
     /// </summary>
     public required double MeanSimilarity { get; init; }
 
+    /// <summary>
+    /// True when the request pinned the lane opponent (an enemy at the
+    /// player's own position). The matchup is then a hard requirement, not a
+    /// ranking signal: only games with that exact matchup are selectable.
+    /// </summary>
+    public required bool MatchupRequested { get; init; }
+
+    /// <summary>
+    /// False only when the lane opponent was requested and no scanned game
+    /// contains that matchup — <see cref="Matches"/> is then empty and the
+    /// caller should fall back to the champion's baseline build.
+    /// </summary>
+    public required bool MatchupFound { get; init; }
+
     /// <summary>Selected games, best score first (recency breaks ties).</summary>
     public required IReadOnlyList<CompositionMatchRef> Matches { get; init; }
 }

@@ -13,11 +13,15 @@ public interface ICompositionBuildQueryService
     /// Loads the selected participants' raw build data (items, timeline
     /// events, spells, rune selections) and folds it into one recommendation.
     /// <paramref name="championId"/> / <paramref name="position"/> re-identify
-    /// the selected rows inside their matches.
+    /// the selected rows inside their matches;
+    /// <paramref name="maxPossibleScore"/> normalises each match's similarity
+    /// score into its vote weight (0 when no slot was requested — every game
+    /// then votes with weight 1).
     /// </summary>
     Task<CompositionBuildRecommendation> AggregateAsync(
         int championId,
         string position,
         IReadOnlyList<CompositionMatchRef> matches,
+        int maxPossibleScore,
         CancellationToken ct);
 }

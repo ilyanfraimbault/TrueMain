@@ -3,12 +3,13 @@ using TrueMain.ReadModels.Champions;
 namespace TrueMain.Services.Champions;
 
 /// <summary>
-/// Pure win-weighted aggregation of per-participant build facts into a
+/// Pure aggregation of per-participant build facts into a
 /// <see cref="CompositionBuildRecommendation"/>. Each game votes for its
-/// choice on every dimension it has data for; winning games vote with
-/// <c>winWeight</c>, losses with 1. The weights only pick the winner —
-/// the reported Games / PickRate / WinRate stay raw counts so the numbers
-/// remain honest.
+/// choice on every dimension it has data for; a vote weighs
+/// <c>SimilarityWeight × (winWeight when won, 1 otherwise)</c>, so the games
+/// closest to the requested draft dominate. The weights only pick the
+/// winner — the reported Games / PickRate / WinRate stay raw counts so the
+/// numbers remain honest.
 /// </summary>
 public static class CompositionBuildAggregator
 {
@@ -32,6 +33,7 @@ public static class CompositionBuildAggregator
             winWeight,
             comparer: ItemListComparer.Instance);
         var corePathItems = corePath?.Key ?? [];
+        var firstItemId = corePathItems.Count > 0 ? corePathItems[0] : 0;
 
         return new CompositionBuildRecommendation
         {
@@ -91,7 +93,43 @@ public static class CompositionBuildAggregator
                     WinRate = RateMath.Rate(skills.Wins, skills.Games),
                 }
                 : null,
+            FirstItemId = firstItemId,
+            BuildTree = BuildTree(facts, firstItemId),
         };
+    }
+
+    /// <summary>
+    /// Item-progression tree of the sampled games opening with
+    /// <paramref name="firstItemId"/> (the build-tree root the frontend
+    /// renders), pruned by the same thresholds as the champion page. Raw
+    /// per-game counts — the tree is a support map, not a weighted vote.
+    /// </summary>
+    private static IReadOnlyList<BuildTreeNodeReadModel> BuildTree(
+        IReadOnlyList<CompositionParticipantFacts> facts,
+        int firstItemId)
+    {
+        if (firstItemId <= 0)
+        {
+            return [];
+        }
+
+        var sequences = facts
+            .Where(f => f.BuildItems.Count > 0 && f.BuildItems[0] == firstItemId)
+            .Select(f => new ChampionBuildPathAnalyzer.BuildSequence(
+                f.BuildItems.ElementAtOrDefault(1),
+                f.BuildItems.ElementAtOrDefault(2),
+                f.BuildItems.ElementAtOrDefault(3),
+                f.BuildItems.ElementAtOrDefault(4),
+                f.BuildItems.ElementAtOrDefault(5),
+                f.BuildItems.ElementAtOrDefault(6),
+                Games: 1,
+                Wins: f.Win ? 1 : 0))
+            .ToList();
+
+        return ChampionBuildPathAnalyzer
+            .BuildItemTree(sequences, sequences.Count)
+            .Select(node => ChampionBuildPathAnalyzer.ToReadModel(node, sequences.Count))
+            .ToList();
     }
 
     /// <summary>
@@ -111,14 +149,14 @@ public static class CompositionBuildAggregator
             .SelectMany(f => f.BuildItems
                 .Where(item => !core.Contains(item))
                 .Distinct()
-                .Select(item => (Item: item, f.Win)))
+                .Select(item => (Item: item, f.Win, f.SimilarityWeight)))
             .GroupBy(x => x.Item)
             .Select(g => new
             {
                 Item = g.Key,
                 Games = g.Count(),
                 Wins = g.Count(x => x.Win),
-                Weight = g.Sum(x => x.Win ? winWeight : 1d),
+                Weight = g.Sum(x => x.SimilarityWeight * (x.Win ? winWeight : 1d)),
             })
             .OrderByDescending(x => x.Weight)
             .ThenByDescending(x => x.Games)
@@ -134,8 +172,8 @@ public static class CompositionBuildAggregator
 
     /// <summary>
     /// Groups the eligible facts by <paramref name="keySelector"/> and returns
-    /// the group with the highest win-weighted vote (ties: raw games, then
-    /// insertion order). Null when nothing was eligible.
+    /// the group with the highest similarity-and-win-weighted vote (ties: raw
+    /// games, then insertion order). Null when nothing was eligible.
     /// </summary>
     private static TopGroup<TKey>? PickTop<TKey>(
         IEnumerable<CompositionParticipantFacts> eligible,
@@ -151,7 +189,7 @@ public static class CompositionBuildAggregator
                 g.Key,
                 Games = g.Count(),
                 Wins = g.Count(f => f.Win),
-                Weight = g.Sum(f => f.Win ? winWeight : 1d),
+                Weight = g.Sum(f => f.SimilarityWeight * (f.Win ? winWeight : 1d)),
             })
             .OrderByDescending(x => x.Weight)
             .ThenByDescending(x => x.Games)

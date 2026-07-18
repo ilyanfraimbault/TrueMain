@@ -34,7 +34,7 @@ public sealed class CompositionRecommendationQueryService(
 
         var matches = await matchQueryService.FindTopMatchesAsync(criteria, ct);
         var build = await buildQueryService.AggregateAsync(
-            criteria.ChampionId, criteria.Position, matches.Matches, ct);
+            criteria.ChampionId, criteria.Position, matches.Matches, matches.MaxPossibleScore, ct);
 
         var response = new CompositionBuildResponse
         {
@@ -42,6 +42,8 @@ public sealed class CompositionRecommendationQueryService(
             Position = criteria.Position,
             Patch = matches.Patch,
             EloBracket = bracketToken,
+            MatchupRequested = matches.MatchupRequested,
+            MatchupFound = matches.MatchupFound,
             Confidence = new CompositionConfidenceReadModel
             {
                 SampleSize = build.GamesConsidered,

@@ -28,6 +28,7 @@ public sealed class CompositionBuildQueryService(
         int championId,
         string position,
         IReadOnlyList<CompositionMatchRef> matches,
+        int maxPossibleScore,
         CancellationToken ct)
     {
         if (matches.Count == 0)
@@ -43,9 +44,17 @@ public sealed class CompositionBuildQueryService(
         // exact weight+games ties on insertion order, so the facts must follow
         // the ranking, not whatever order Postgres returns the rows in.
         var rankByKey = new Dictionary<(string MatchId, int ParticipantId), int>(matches.Count);
+        var weightByKey = new Dictionary<(string MatchId, int ParticipantId), double>(matches.Count);
         foreach (var match in matches)
         {
-            rankByKey.TryAdd((match.MatchId, match.ParticipantId), rankByKey.Count);
+            if (rankByKey.TryAdd((match.MatchId, match.ParticipantId), rankByKey.Count))
+            {
+                // Similarity-proportional vote multiplier: a game reproducing
+                // the full draft weighs 1 + boost, an unrelated one weighs 1.
+                weightByKey[(match.MatchId, match.ParticipantId)] = maxPossibleScore <= 0
+                    ? 1d
+                    : 1d + options.SimilarityWeightBoost * match.Score / maxPossibleScore;
+            }
         }
 
         // The champion+position filter re-identifies the selected rows without
@@ -105,6 +114,7 @@ public sealed class CompositionBuildQueryService(
                 facts.Add(new CompositionParticipantFacts
                 {
                     Win = row.Win,
+                    SimilarityWeight = weightByKey[(row.MatchId, row.ParticipantId)],
                     Spell1Id = spellPair.Spell1Id,
                     Spell2Id = spellPair.Spell2Id,
                     SkillOrderKey = SkillOrderBuilder.Build(row.SkillEvents),
@@ -121,6 +131,7 @@ public sealed class CompositionBuildQueryService(
             facts.Add(new CompositionParticipantFacts
             {
                 Win = row.Win,
+                SimilarityWeight = weightByKey[(row.MatchId, row.ParticipantId)],
                 BuildItems = FinalBuildResolver.Resolve(
                     row.ItemEvents, finalItems, starterAnalysis.Items, itemMetadata),
                 BootsItemId = BootsResolver.Resolve(

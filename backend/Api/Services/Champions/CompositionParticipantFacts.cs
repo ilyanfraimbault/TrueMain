@@ -11,6 +11,14 @@ public sealed record CompositionParticipantFacts
 {
     public required bool Win { get; init; }
 
+    /// <summary>
+    /// Vote multiplier derived from the game's draft similarity
+    /// (<c>1 + boost × score/maxScore</c>); 1 when no slot was requested.
+    /// Scales every dimension's vote so the games closest to the requested
+    /// draft dominate the aggregation.
+    /// </summary>
+    public double SimilarityWeight { get; init; } = 1d;
+
     /// <summary>Completed build items in completion order (boots excluded).</summary>
     public IReadOnlyList<int> BuildItems { get; init; } = [];
 

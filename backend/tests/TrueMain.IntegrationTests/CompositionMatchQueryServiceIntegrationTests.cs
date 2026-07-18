@@ -40,8 +40,10 @@ public sealed class CompositionMatchQueryServiceIntegrationTests
         // (vs Zed MIDDLE + Aatrox TOP, with Lee Sin JUNGLE):
         //   full-hit   — lane opponent + enemy top + ally jungle = 10+4+2 = 16
         //   lane-only  — lane opponent only                       = 10
-        //   unrelated  — Talon mid, nothing requested matches     = 0
-        // The unrelated game is the most recent: similarity must outrank recency.
+        //   unrelated  — Talon mid: no matchup, hard-filtered out
+        // The unrelated game is the most recent: with the lane opponent
+        // pinned, the matchup requirement must drop it entirely instead of
+        // merely out-scoring it.
         await SeedGameAsync("COMP_FULLHIT", daysAgo: 3, win: true, enemyMid: LaneOpponent, enemyTop: EnemyTop, allyJungle: AllyJungle);
         await SeedGameAsync("COMP_LANEONLY", daysAgo: 2, win: false, enemyMid: LaneOpponent);
         await SeedGameAsync("COMP_UNRELATED", daysAgo: 1, win: true, enemyMid: OtherOpponent);
@@ -59,12 +61,38 @@ public sealed class CompositionMatchQueryServiceIntegrationTests
 
         result.CandidatePoolSize.Should().Be(3);
         result.MaxPossibleScore.Should().Be(16);
-        result.Matches.Select(m => m.MatchId).Should().Equal(
-            "COMP_FULLHIT", "COMP_LANEONLY", "COMP_UNRELATED");
-        result.Matches.Select(m => m.Score).Should().Equal(16, 10, 0);
+        result.MatchupRequested.Should().BeTrue();
+        result.MatchupFound.Should().BeTrue();
+        result.Matches.Select(m => m.MatchId).Should().Equal("COMP_FULLHIT", "COMP_LANEONLY");
+        result.Matches.Select(m => m.Score).Should().Equal(16, 10);
         result.Matches[0].ParticipantId.Should().Be(1, "the selected row is the searched champion");
         result.Matches[0].Win.Should().BeTrue();
-        result.MeanSimilarity.Should().BeApproximately((16d / 16 + 10d / 16 + 0) / 3, 1e-9);
+        result.MeanSimilarity.Should().BeApproximately((16d / 16 + 10d / 16) / 2, 1e-9);
+    }
+
+    [Fact]
+    public async Task FindTopMatchesAsync_NoGameWithTheRequestedMatchup_ReturnsEmptyWithTheFlag()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        await SeedGameAsync("COMP_OTHERMID", daysAgo: 1, win: true, enemyMid: OtherOpponent);
+
+        await using var db = _fixture.CreateDbContext();
+        var result = await CreateService(db).FindTopMatchesAsync(
+            new CompositionSearchCriteria
+            {
+                ChampionId = Champion,
+                Position = Position,
+                Enemies = new Dictionary<string, int> { ["MIDDLE"] = LaneOpponent },
+            },
+            CancellationToken.None);
+
+        // The pool was scanned but nothing has the matchup: the caller falls
+        // back to the champion's baseline build and says so.
+        result.CandidatePoolSize.Should().Be(1);
+        result.MatchupRequested.Should().BeTrue();
+        result.MatchupFound.Should().BeFalse();
+        result.Matches.Should().BeEmpty();
     }
 
     [Fact]

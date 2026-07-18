@@ -104,6 +104,8 @@ public sealed class CompositionRecommendationQueryServiceTests
                 CandidatePoolSize = 0,
                 MaxPossibleScore = 0,
                 MeanSimilarity = 0,
+                MatchupRequested = false,
+                MatchupFound = true,
                 Matches = [],
             });
         }
@@ -117,6 +119,7 @@ public sealed class CompositionRecommendationQueryServiceTests
             int championId,
             string position,
             IReadOnlyList<CompositionMatchRef> matches,
+            int maxPossibleScore,
             CancellationToken ct)
         {
             Calls++;

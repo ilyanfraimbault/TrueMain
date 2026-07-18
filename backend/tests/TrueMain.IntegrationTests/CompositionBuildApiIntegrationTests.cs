@@ -40,9 +40,9 @@ public sealed class CompositionBuildApiIntegrationTests
         await _fixture.ResetDatabaseAsync();
 
         // Two wins vs the requested lane opponent on the same build, one loss
-        // vs another mid on a different build. All three stay in the sample
-        // (the composition ranks, it never filters) but the win build must
-        // carry the recommendation.
+        // vs another mid on a different build. The lane opponent is a hard
+        // requirement: only the two matchup games enter the sample, and the
+        // win build carries the recommendation.
         await SeedGameAsync("COMPE_WIN1", win: true, enemyMid: LaneOpponent, buildOrder: [3031, 3153]);
         await SeedGameAsync("COMPE_WIN2", win: true, enemyMid: LaneOpponent, buildOrder: [3031, 3153]);
         await SeedGameAsync("COMPE_LOSS", win: false, enemyMid: OtherOpponent, buildOrder: [3072, 3026]);
@@ -65,12 +65,15 @@ public sealed class CompositionBuildApiIntegrationTests
         result.Position.Should().Be(Position);
         result.EloBracket.Should().Be("all", "the resolved token mirrors the sibling champion endpoints");
 
-        result.Confidence.SampleSize.Should().Be(3);
+        result.MatchupRequested.Should().BeTrue();
+        result.MatchupFound.Should().BeTrue();
+
+        result.Confidence.SampleSize.Should().Be(2, "the non-matchup loss is hard-filtered out");
         result.Confidence.CandidatePoolSize.Should().Be(3);
         result.Confidence.MaxPossibleScore.Should().Be(10, "one lane-opponent slot was requested");
-        result.Confidence.MeanSimilarity.Should().BeApproximately(2d / 3d, 1e-9);
+        result.Confidence.MeanSimilarity.Should().BeApproximately(1d, 1e-9);
 
-        result.Build.GamesConsidered.Should().Be(3);
+        result.Build.GamesConsidered.Should().Be(2);
         result.Build.Wins.Should().Be(2);
         result.Build.CorePath.Should().NotBeNull();
         result.Build.CorePath!.ItemIds.Should().Equal(3031, 3153);

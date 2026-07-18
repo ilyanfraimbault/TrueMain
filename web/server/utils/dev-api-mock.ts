@@ -991,13 +991,29 @@ function safeDecodeURIComponent(value: string): string | undefined {
 // builder page only needs a realistic payload to render, and a body-sensitive
 // mock would just re-implement the backend scorer.
 
-async function mockCompositionBuild(id: number): Promise<CompositionBuildResponse> {
+async function mockCompositionBuild(id: number, body?: unknown): Promise<CompositionBuildResponse> {
   // Unseeded champions still get a plausible payload (fighter defaults): the
   // builder lets you pick any champion, unlike the seeded directory pages.
   const s = seedsById.get(id) ?? seed(id, 'MIDDLE', 'fighter', 8010, 8000, 8400, 0.508, 0.04)
   const patch = await latestShortPatch()
   const rng = mulberry32(s.id * 131 + 7)
   const archetype = ARCHETYPES[s.archetype]
+
+  // Mirror the backend's matchup requirement from the request body: the lane
+  // opponent is the enemy slot at the player's own position. A deterministic
+  // sliver of opponents (id % 23 === 0, e.g. Kayn 141… pick around to find
+  // one) reads as "never recorded" so the fallback path can be eyeballed.
+  const draft = (body ?? {}) as {
+    position?: string
+    allies?: Array<{ championId?: number, position?: string }>
+    enemies?: Array<{ championId?: number, position?: string }>
+  }
+  const position = typeof draft.position === 'string' ? draft.position.toUpperCase() : s.position
+  const laneOpponent = (draft.enemies ?? []).find(slot =>
+    typeof slot.position === 'string' && slot.position.toUpperCase() === position)
+  const matchupRequested = laneOpponent?.championId !== undefined
+  const matchupFound = !matchupRequested || (laneOpponent!.championId! % 23 !== 0)
+  const slotCount = (draft.allies?.length ?? 0) + (draft.enemies?.length ?? 0)
 
   const games = 100
   const wins = Math.round(games * Math.min(0.6, s.wr + rng() * 0.02))
@@ -1008,16 +1024,67 @@ async function mockCompositionBuild(id: number): Promise<CompositionBuildRespons
     winRate: round3(Math.min(0.62, Math.max(0.42, s.wr + (rng() - 0.5) * 0.08))),
   })
 
+  if (!matchupFound) {
+    return {
+      championId: s.id,
+      position,
+      patch,
+      eloBracket: 'all',
+      matchupRequested,
+      matchupFound,
+      confidence: {
+        sampleSize: 0,
+        candidatePoolSize: 2400 + Math.round(rng() * 2000),
+        maxPossibleScore: 10 + slotCount * 3,
+        meanSimilarity: 0,
+      },
+      build: {
+        gamesConsidered: 0,
+        wins: 0,
+        runePage: null,
+        starterItems: null,
+        boots: null,
+        corePath: null,
+        situationalItems: [],
+        summonerSpells: null,
+        skillOrder: null,
+        firstItemId: 0,
+        buildTree: [],
+      },
+    }
+  }
+
+  const treeItems = archetype.items
+  const treeChild = (index: number, share: number) => ({
+    itemId: treeItems[index]!,
+    games: Math.round(games * share),
+    wins: Math.round(games * share * s.wr),
+    pickRate: round3(share),
+    children: treeItems[index + 2] === undefined
+      ? []
+      : [{
+          itemId: treeItems[index + 2]!,
+          games: Math.round(games * share * 0.4),
+          wins: Math.round(games * share * 0.4 * s.wr),
+          pickRate: round3(0.4),
+          children: [],
+        }],
+  })
+
   return {
     championId: s.id,
-    position: s.position,
+    position,
     patch,
     eloBracket: 'all',
+    matchupRequested,
+    matchupFound,
     confidence: {
       sampleSize: games,
       candidatePoolSize: 2400 + Math.round(rng() * 2000),
-      maxPossibleScore: 34,
-      meanSimilarity: round3(0.3 + rng() * 0.35),
+      maxPossibleScore: 10 + slotCount * 3,
+      // More filled slots read as a tighter (lower) mean similarity, so the
+      // confidence strip visibly reacts to draft edits in mock mode.
+      meanSimilarity: round3(Math.max(0.18, 0.75 - slotCount * 0.05 + rng() * 0.1)),
     },
     build: {
       gamesConsidered: games,
@@ -1040,6 +1107,8 @@ async function mockCompositionBuild(id: number): Promise<CompositionBuildRespons
         pickRate: 0.72,
         winRate: round3(s.wr + 0.004),
       },
+      firstItemId: treeItems[0]!,
+      buildTree: [treeChild(1, 0.55), treeChild(2, 0.3)].filter(node => node.itemId !== undefined),
     },
   }
 }
@@ -1047,11 +1116,12 @@ async function mockCompositionBuild(id: number): Promise<CompositionBuildRespons
 export async function resolveDevApiMock(
   path: string,
   query: Record<string, unknown>,
+  body?: unknown,
 ): Promise<unknown | undefined> {
   if (path === '/champions') return mockChampionSummaries()
 
   const compositionMatch = path.match(/^\/champions\/(\d+)\/composition-build$/)
-  if (compositionMatch) return mockCompositionBuild(Number(compositionMatch[1]))
+  if (compositionMatch) return mockCompositionBuild(Number(compositionMatch[1]), body)
 
   const championMatch = path.match(/^\/champions\/(\d+)(?:\/([a-z-]+))?$/)
   if (championMatch) {

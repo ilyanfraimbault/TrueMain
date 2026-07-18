@@ -380,7 +380,7 @@ public sealed class ChampionBuildsQueryService(
                 SkillOrder = skillVariations
             },
             BuildTree = aggregates.BuildTree
-                .Select(node => ConvertTreeNode(node, sliceGames))
+                .Select(node => ChampionBuildPathAnalyzer.ToReadModel(node, sliceGames))
                 .ToList(),
             RunePages = runePages
         };
@@ -480,21 +480,6 @@ public sealed class ChampionBuildsQueryService(
             WinRate = RateMath.Rate(aggregate.Wins, aggregate.Games)
         };
     }
-
-    private static BuildTreeNodeReadModel ConvertTreeNode(ChampionBuildPathAnalyzer.TreeNode node, int parentGames)
-        => new()
-        {
-            ItemId = node.ItemId,
-            Games = node.Games,
-            Wins = node.Wins,
-            PickRate = RateMath.Rate(node.Games, parentGames),
-            Children = node.Children.Values
-                .OrderByDescending(child => child.Games)
-                .ThenByDescending(child => child.Wins)
-                .ThenBy(child => child.ItemId)
-                .Select(child => ConvertTreeNode(child, node.Games))
-                .ToList()
-        };
 
     private readonly record struct BuildKey(int FirstItemId, int PrimaryKeystoneId);
 

@@ -46,6 +46,7 @@ public sealed class CompositionBuildQueryServiceIntegrationTests
             Champion,
             Position,
             [Ref("COMPB_WIN1", true), Ref("COMPB_WIN2", true), Ref("COMPB_LOSS", false)],
+            maxPossibleScore: 0,
             CancellationToken.None);
 
         result.GamesConsidered.Should().Be(3);
@@ -100,7 +101,7 @@ public sealed class CompositionBuildQueryServiceIntegrationTests
             gameVersion: UnknownVersion);
 
         var result = await CreateService().AggregateAsync(
-            Champion, Position, [Ref("COMPB_SPARSE", true)], CancellationToken.None);
+            Champion, Position, [Ref("COMPB_SPARSE", true)], maxPossibleScore: 0, CancellationToken.None);
 
         result.GamesConsidered.Should().Be(1);
         result.Wins.Should().Be(1);
@@ -127,6 +128,7 @@ public sealed class CompositionBuildQueryServiceIntegrationTests
         var ranked = await CreateService().AggregateAsync(
             Champion, Position,
             [Ref("COMPB_TIE_B", false), Ref("COMPB_TIE_A", false)],
+            maxPossibleScore: 0,
             CancellationToken.None);
 
         // The tie breaks toward the higher-ranked match of the top-K.
@@ -135,6 +137,7 @@ public sealed class CompositionBuildQueryServiceIntegrationTests
         var reversed = await CreateService().AggregateAsync(
             Champion, Position,
             [Ref("COMPB_TIE_A", false), Ref("COMPB_TIE_B", false)],
+            maxPossibleScore: 0,
             CancellationToken.None);
 
         reversed.CorePath!.ItemIds.Should().Equal(3031, 3153);
@@ -146,7 +149,7 @@ public sealed class CompositionBuildQueryServiceIntegrationTests
         await _fixture.ResetDatabaseAsync();
 
         var result = await CreateService().AggregateAsync(
-            Champion, Position, [], CancellationToken.None);
+            Champion, Position, [], maxPossibleScore: 0, CancellationToken.None);
 
         result.GamesConsidered.Should().Be(0);
         result.SituationalItems.Should().BeEmpty();
