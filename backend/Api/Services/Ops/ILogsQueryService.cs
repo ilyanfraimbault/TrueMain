@@ -10,6 +10,8 @@ public interface ILogsQueryService
         DateTime? since,
         string? search,
         string? eventType,
+        string? process,
+        bool? hasException,
         int? page,
         int? pageSize,
         CancellationToken ct);

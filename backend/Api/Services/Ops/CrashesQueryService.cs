@@ -12,7 +12,7 @@ namespace TrueMain.Services.Ops;
 /// </summary>
 public sealed class CrashesQueryService(ICrashQuery query) : ICrashesQueryService
 {
-    private static readonly IReadOnlyList<string> ProcessNames = ["Api", "Ingestor"];
+    private static readonly IReadOnlyList<string> ProcessNames = Data.Logging.LogProcesses.KnownProcessNames;
     private static readonly IReadOnlyList<string> SourceNames = Enum.GetNames<CrashSource>();
 
     public async Task<CrashesReadModel> GetAsync(
@@ -43,6 +43,7 @@ public sealed class CrashesQueryService(ICrashQuery query) : ICrashesQueryServic
         TimestampUtc = row.TimestampUtc,
         ProcessName = row.ProcessName,
         Source = row.Source,
+        Explanation = CrashExplainer.Explain(row),
         ExceptionType = row.ExceptionType,
         Message = row.Message,
         StackTrace = row.StackTrace,

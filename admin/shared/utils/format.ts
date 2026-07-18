@@ -87,3 +87,32 @@ export function formatDuration(ms: number | null | undefined): string {
   const remMinutes = minutes % 60
   return remMinutes ? `${hours}h ${remMinutes}m` : `${hours}h`
 }
+
+/**
+ * Compact relative-time label for an ISO timestamp (e.g. "3m ago", "2h ago",
+ * "5d ago"). Sub-minute renders as "just now"; null/invalid as an em dash.
+ * Freshness cue only — pair it with `formatDateTime` for the exact instant.
+ */
+export function formatTimeAgo(iso: string | null | undefined): string {
+  if (!iso) {
+    return '—'
+  }
+  const timestamp = new Date(iso).getTime()
+  if (Number.isNaN(timestamp)) {
+    return '—'
+  }
+  const elapsedMs = Date.now() - timestamp
+  if (elapsedMs < 60_000) {
+    return 'just now'
+  }
+  const minutes = Math.floor(elapsedMs / 60_000)
+  if (minutes < 60) {
+    return `${minutes}m ago`
+  }
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) {
+    return `${hours}h ago`
+  }
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
+}

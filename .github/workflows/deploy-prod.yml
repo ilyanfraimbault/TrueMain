@@ -1,0 +1,138 @@
+# Triggered when a GitHub Release is published: builds and publishes the
+# versioned + :latest images, then redeploys the prod VPS (deploy-prod job).
+name: Deploy Prod
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_API: ghcr.io/${{ github.repository_owner }}/truemain-api
+  IMAGE_INGESTOR: ghcr.io/${{ github.repository_owner }}/truemain-ingestor
+  IMAGE_WEB: ghcr.io/${{ github.repository_owner }}/truemain-web
+  IMAGE_ADMIN: ghcr.io/${{ github.repository_owner }}/truemain-admin
+
+jobs:
+  publish:
+    name: Build & Publish Release Images
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./backend
+          file: backend/Api/Dockerfile
+          push: true
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+          tags: |
+            ${{ env.IMAGE_API }}:${{ github.event.release.tag_name }}
+            ${{ env.IMAGE_API }}:latest
+
+      - name: Build and push Ingestor image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./backend
+          file: backend/Ingestor/Dockerfile
+          push: true
+          cache-from: type=gha,scope=ingestor
+          cache-to: type=gha,mode=max,scope=ingestor
+          tags: |
+            ${{ env.IMAGE_INGESTOR }}:${{ github.event.release.tag_name }}
+            ${{ env.IMAGE_INGESTOR }}:latest
+
+      - name: Build and push Web image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./web
+          file: web/Dockerfile
+          push: true
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+          tags: |
+            ${{ env.IMAGE_WEB }}:${{ github.event.release.tag_name }}
+            ${{ env.IMAGE_WEB }}:latest
+
+      - name: Build and push Admin image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./admin
+          file: admin/Dockerfile
+          push: true
+          cache-from: type=gha,scope=admin
+          cache-to: type=gha,mode=max,scope=admin
+          tags: |
+            ${{ env.IMAGE_ADMIN }}:${{ github.event.release.tag_name }}
+            ${{ env.IMAGE_ADMIN }}:latest
+
+  deploy-prod:
+    name: Deploy Prod VPS
+    runs-on: ubuntu-24.04
+    needs: publish
+    # No-op until the Hostinger credentials are configured: set the
+    # HOSTINGER_PROD_VM_ID repository variable plus the HOSTINGER_PROD_API_KEY
+    # and PROD_ENV_FILE secrets (see docs/prod.md). Prod and preprod live on
+    # separate Hostinger accounts, so prod needs its own API key — the shared
+    # HOSTINGER_API_KEY only authenticates the preprod account. success() must
+    # be explicit — a custom `if:` replaces the implicit needs-succeeded check,
+    # and deploying after a failed publish would ship stale/mixed images. The
+    # `secrets` context is unavailable in a job-level `if:`, so the presence of
+    # PROD_ENV_FILE is checked in the guard step below rather than here.
+    if: success() && vars.HOSTINGER_PROD_VM_ID != ''
+    concurrency:
+      group: deploy-prod
+      cancel-in-progress: false
+
+    steps:
+      # The deploy action overwrites the project's .env from PROD_ENV_FILE on
+      # every run, so an empty secret would wipe the prod .env. Skip the deploy
+      # (green no-op) until the secret is set, instead of shipping a broken .env.
+      - name: Guard on PROD_ENV_FILE
+        id: guard
+        env:
+          PROD_ENV_FILE: ${{ secrets.PROD_ENV_FILE }}
+        run: |
+          if [ -z "$PROD_ENV_FILE" ]; then
+            echo "::warning::PROD_ENV_FILE is empty — skipping prod deploy to avoid wiping the VPS .env. Set the secret to enable auto-deploy."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.guard.outputs.ready == 'true'
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Redeploy Docker Manager project
+        if: steps.guard.outputs.ready == 'true'
+        uses: hostinger/deploy-on-vps@v2
+        with:
+          api-key: ${{ secrets.HOSTINGER_PROD_API_KEY }}
+          virtual-machine: ${{ vars.HOSTINGER_PROD_VM_ID }}
+          project-name: truemain
+          docker-compose-path: compose.prod.yaml
+          # Newline-separated KEY=value pairs mirroring the VPS .env.
+          environment-variables: ${{ secrets.PROD_ENV_FILE }}

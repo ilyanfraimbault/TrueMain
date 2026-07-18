@@ -1,5 +1,5 @@
 using Core.Lol.Items;
-using Ingestor.Processes.Components.PatternAggregation;
+using Data.BuildFacts;
 
 namespace TrueMain.UnitTests.Fixtures;
 

@@ -1,142 +1,66 @@
 # TrueMain
 
-TrueMain ingère les données League of Legends de la Riot API, agrège ce que jouent les *vrais mains* (joueurs aux ratios games / mastery élevés sur un champion), et expose ces agrégats à un frontend Nuxt qui les présente comme un guide par champion.
+TrueMain is a League of Legends analytics site. It answers one question per champion: **what do the players who truly main this champion actually do?** — and turns that into build, rune, skill-order and matchup guidance backed by real match data instead of raw pick-rate averages.
 
-## Structure du repo
+The site is live at [truemain.lol](https://truemain.lol).
+
+## The idea
+
+Most stat sites aggregate every game played on a champion, which drowns the signal in one-trick-free noise. TrueMain instead identifies *true mains* — players whose games-played-to-mastery ratio on a champion shows sustained, current investment — and computes its statistics from their matches only. The result is closer to "what do dedicated specialists build and how do they play the early game" than "what does the average queue do".
+
+## How it works
+
+Data flows through three .NET services and two Nuxt frontends:
 
 ```
-TrueMain/
-├── backend/                 # solution .NET (Api, Core, Data, Ingestor, tests)
-│   ├── Api/                 # ASP.NET Core, surface HTTP
-│   ├── Core/                # types LoL communs (PlatformId, RegionalRoute, …)
-│   ├── Data/                # DbContext, migrations EF, repositories
-│   ├── Ingestor/            # worker .NET qui appelle Riot et persiste
-│   ├── tests/               # UnitTests, IntegrationTests, TestKit
-│   ├── TrueMain.sln
-│   ├── Directory.Build.props
-│   └── Directory.Packages.props
-├── web/                     # frontend Nuxt 4
-│   ├── app/
-│   ├── server/              # proxy Nitro vers l'API
-│   ├── nuxt.config.ts
-│   └── package.json
-├── compose.yaml             # stack production locale (images build)
-├── compose.dev.yaml         # stack dev avec dotnet watch + Vite HMR
-├── compose.qa.yaml          # stack QA (images ghcr)
-├── compose.prod.yaml        # stack prod (images ghcr)
-├── docs/
-│   ├── diagrams/            # architecture.drawio (draw.io)
-│   └── *.md                 # RFCs et roadmaps
-├── .github/                 # workflows CI/CD + dependabot
-└── README.md
+Riot API ──► Ingestor ──► PostgreSQL ──► Api ──► web (truemain.lol)
+                              │                └─► admin (ops portal)
+                              └── MongoDB (logs, audit, Riot-usage metrics)
 ```
 
-## Démarrage rapide
+### Ingestor — the data pipeline
 
-### Dev (hot-reload backend + frontend)
+A .NET worker that runs a set of scheduled, independently recorded processes:
 
-Prérequis : Docker, un fichier `.env` à la racine (cf. `.env.example`).
+- **Discovery** walks ranked ladders across platforms to find candidate players.
+- **Match ingestion / harvest** pulls solo/duo (queue 420) match and timeline data for known accounts. Other queues are dropped at ingest — TrueMain is ranked-only by design.
+- **Scoring / main analysis** computes the games-vs-mastery signal that promotes a player to *true main* status for a champion.
+- **Aggregation** folds match participants into per-champion aggregates: builds, runes, skill orders, matchups, timeline leads (gold/XP deltas), kill positions, jungle clears. Aggregates are computed per patch and rank scope; past patches are frozen once their live matches are retired.
+- **Retention** trims raw match data that has already been aggregated, keeping the database bounded.
 
-```bash
-docker compose -f compose.dev.yaml up --build --watch
+### Api
+
+An ASP.NET Core service exposing the read side: champion aggregates, true-main leaderboards, player profiles, and authenticated `/ops` endpoints for the admin portal. Reads are purpose-built query objects in the `Data` project returning read models — the API layer stays persistence-ignorant.
+
+### Data & Core
+
+`Data` owns the EF Core model (PostgreSQL), migrations, repositories used by the ingestion write side, and the Mongo-backed logging/metrics sinks. `Core` holds shared League domain types (platforms, regional routing, queues, ranks).
+
+### web
+
+The public Nuxt frontend: champion pages (builds, runes, skill order, matchups, timeline leads), player pages, and search. It talks to the Api through a Nitro server proxy, so the browser never reaches the backend directly.
+
+### admin
+
+A standalone Nuxt portal (separate deployable, not a route of `web`) for operating the pipeline: process runs and health, manual seeding, Riot API usage metrics, and data audits. Sits behind session authentication.
+
+## Repository layout
+
+```
+backend/   .NET solution — Api, Ingestor, Core, Data, tests (unit, integration, test kit)
+web/       public Nuxt frontend
+admin/     standalone Nuxt admin portal
+docs/      API reference, RFCs, production migration notes
+compose*.yaml  Docker stacks (dev with hot-reload, preprod and prod from published images)
 ```
 
-- API : http://localhost:8080
-- Web : http://localhost:3000
-- pgAdmin : http://localhost:5050
+## Infrastructure
 
-### Production (build local)
+Everything runs as Docker containers on a single host. In production, Caddy terminates TLS (Let's Encrypt) and is the only public entry point; the frontends and databases live on an internal network. CI builds the backend in Release with analyzers as errors, runs unit and integration tests (against real PostgreSQL), builds both frontends, and publishes images to GHCR. Pull requests get an automated Claude code review with a blocking verdict.
 
-```bash
-docker compose -f compose.yaml up --build
-```
+## Further reading
 
-### Stacks QA / prod (images publiées sur GHCR)
-
-```bash
-docker compose -f compose.qa.yaml up
-# ou
-docker compose -f compose.prod.yaml up
-```
-
-### Reverse proxy & HTTPS (prod)
-
-En prod, tout le trafic public passe par **Caddy**, qui termine le TLS et obtient/renouvelle automatiquement les certificats Let's Encrypt (cf. [`Caddyfile`](Caddyfile)) :
-
-- Site public : `https://truemain.lol` (et `www` → redirigé vers l'apex)
-- Dashboard admin : `https://admin.truemain.lol` — login via `ADMIN_USERNAME` / `ADMIN_PASSWORD`
-
-`web` et `admin` ne sont plus publiés sur l'hôte : seul Caddy les atteint via le réseau interne `truemain_internal`. En prod le service `admin` est lancé avec `NUXT_SESSION_COOKIE_SECURE=true` et `NUXT_TRUST_PROXY=true` : le cookie de session est marqué `Secure` (accepté par le navigateur uniquement sur HTTPS, fourni par Caddy) et le throttle de login fait confiance au `X-Forwarded-For` posé par Caddy.
-
-**Prérequis côté serveur :**
-
-1. Enregistrements DNS `A` pointant vers l'IP publique du VPS (en DNS direct, **pas** en proxy Cloudflare, sinon le challenge Let's Encrypt échoue) :
-   ```
-   truemain.lol        A   <IP_du_VPS>
-   www.truemain.lol    A   <IP_du_VPS>
-   admin.truemain.lol  A   <IP_du_VPS>
-   ```
-2. Ports 80 **et** 443 ouverts (challenges HTTP-01 / TLS-ALPN-01) :
-   ```bash
-   ufw allow 80,443/tcp
-   ```
-3. Le [`Caddyfile`](Caddyfile) doit être présent à côté de `compose.prod.yaml` sur le serveur (monté en lecture seule dans le conteneur `caddy`).
-
-> Mongo et Postgres ne sont pas publiés (réseau interne uniquement). Les anciens ports `3000`/`3001` ne sont plus exposés — tu peux fermer les règles firewall correspondantes.
-
-### Accès au dashboard admin (qa)
-
-La stack **qa** reste publiée directement sur l'hôte sans TLS : `http://<hôte>:3002` (login `ADMIN_USERNAME` / `ADMIN_PASSWORD`). Identifiants et cookie en clair — ne l'expose pas sans restreindre le port par firewall :
-```bash
-ufw allow from <IP_de_confiance> to any port 3002
-```
-(Passer la qa derrière le même Caddy est un suivi possible si elle partage l'hôte de la prod.)
-
-## Build / test séparé
-
-### Backend .NET
-
-```bash
-cd backend
-dotnet restore TrueMain.sln
-dotnet build TrueMain.sln --configuration Release
-dotnet test tests/TrueMain.UnitTests/TrueMain.UnitTests.csproj
-dotnet test tests/TrueMain.IntegrationTests/TrueMain.IntegrationTests.csproj
-```
-
-### Frontend Nuxt
-
-```bash
-cd web
-npm ci
-npm run typecheck
-npm run dev      # serveur de dev sur http://localhost:3000
-npm run build    # production build dans .output/
-```
-
-## Variables d'environnement
-
-Toutes les valeurs nécessaires sont listées dans `.env.example` (dev/prod) et `.env.qa.example` (QA). Au minimum :
-
-- `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`
-- `RIOT_API_KEY` — clé Riot Developer (`RGAPI-…`)
-- `OPS_API_KEY` — clé pour `/ops/*` (32+ caractères)
-- `MONGO_USER`, `MONGO_PASSWORD` — credentials MongoDB (logs + audit + métriques d'usage Riot ; alphanumériques, ils entrent dans l'URI de connexion). **MongoDB 5.0+ requis** — le panneau d'usage Riot agrège avec `$dateTrunc` ; les images compose épinglent `mongo:8.0`/`8.0.24`
-- `ADMIN_USERNAME`, `ADMIN_PASSWORD` — login du dashboard admin. **Définir un vrai `ADMIN_PASSWORD` est obligatoire** (seule barrière devant les outils d'ops) ; `.env.example` met volontairement `REPLACE_ME`
-- `ADMIN_SESSION_PASSWORD` — scelle le cookie de session admin (32+ caractères aléatoires, ex. `openssl rand -hex 32`)
-- `NUXT_SESSION_COOKIE_SECURE`, `NUXT_TRUST_PROXY` — réglés par environnement dans les fichiers compose (pas via `.env`) : `"true"` en prod (admin derrière Caddy/TLS) → cookie `Secure` + confiance au `X-Forwarded-For` pour le throttle de login ; `false` en qa/local (exposition HTTP directe)
-- `PGADMIN_DEFAULT_EMAIL`, `PGADMIN_DEFAULT_PASSWORD`
-- `NUXT_API_BASE_URL` (côté web, généralement `http://api:8080` dans Docker)
-
-## Architecture
-
-Le diagramme d'architecture est dans [`docs/diagrams/architecture.drawio`](docs/diagrams/architecture.drawio) — à ouvrir avec [draw.io](https://app.diagrams.net/) ou l'extension VS Code.
-
-La référence des endpoints HTTP (paramètres + formes de réponse) est dans [`docs/api.md`](docs/api.md). En dev, l'UI Scalar est aussi servie sur `http://localhost:8080/scalar/v1`.
-
-Les RFCs détaillant les phases majeures :
-
-- [`docs/phase-5-data-split-rfc.md`](docs/phase-5-data-split-rfc.md)
-- [`docs/phase-5-runes-rfc.md`](docs/phase-5-runes-rfc.md)
-- [`docs/phase-6-pattern-junction-rfc.md`](docs/phase-6-pattern-junction-rfc.md)
-- [`docs/refactor-option-c.md`](docs/refactor-option-c.md) — backlog refactors lourds
+- [`docs/api.md`](docs/api.md) — HTTP endpoint reference (parameters and response shapes).
+- [`docs/preprod.md`](docs/preprod.md) — preprod environment: `:preprod` images tracking `develop`, fresh database with a dedicated Riot API key, data-diet knobs, deployment runbook.
+- [`docs/diagrams/architecture.drawio`](docs/diagrams/architecture.drawio) — architecture diagram.
+- `docs/phase-*.md` — RFCs behind the major evolutions of the data model and pipeline.

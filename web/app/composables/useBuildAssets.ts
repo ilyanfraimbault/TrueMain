@@ -1,4 +1,4 @@
-import type { RuneTreeResponse, StaticItemData, StaticPerkData, StaticPerkStyleData } from '~~/shared/types/static-data'
+import type { RuneTreeResponse, StaticItemData, StaticPerkData, StaticPerkStyleData, StaticSummonerSpellData } from '~~/shared/types/static-data'
 
 /**
  * Turns build ids (keystone / secondary style / first item) into the icon
@@ -24,6 +24,77 @@ export function useBuildResolvers(
   return { perk, perkStyle, item }
 }
 
+interface StaticFetchOptions {
+  /**
+   * Defer the first fetch until the caller triggers `execute` (used by the
+   * champion list, which waits for the patch to resolve so it doesn't issue
+   * a redundant `latest` round trip and immediately refetch under the
+   * resolved patch key).
+   */
+  immediate?: boolean
+  /**
+   * Key segment used while the patch is still unresolved. Defaults to
+   * `latest` — pair a different segment with `immediate: false` when the
+   * unresolved key must never collide with a real `latest` payload.
+   */
+  unresolvedKeySegment?: string
+}
+
+/**
+ * Shared factory for the patch-keyed static lookups below. Each fetch is
+ * client-only and TTL-cached (see static-cache.ts) under a canonical
+ * `{prefix}-{patch}` key, so every page that needs the same static payload
+ * dedupes against the same Nuxt cache entry across navigations. The key is
+ * captured before the network round trip so `markStaticFetched` can't stamp
+ * a different key if the patch changes mid-flight.
+ */
+function useStaticFetch<T>(
+  keyPrefix: string,
+  endpoint: string,
+  patch: MaybeRefOrGetter<string | null | undefined>,
+  options: StaticFetchOptions = {},
+) {
+  const nuxtApp = useNuxtApp()
+  const patchRef = computed(() => toValue(patch) || null)
+  const keyRef = computed(() => `${keyPrefix}-${patchRef.value || (options.unresolvedKeySegment ?? 'latest')}`)
+
+  return useLazyAsyncData<T>(
+    () => keyRef.value,
+    async () => {
+      const key = keyRef.value
+      const data = await $fetch<T>(endpoint, {
+        query: patchRef.value ? { patch: patchRef.value } : {},
+      })
+      markStaticFetched(key, nuxtApp)
+      return data
+    },
+    {
+      watch: [patchRef],
+      immediate: options.immediate ?? true,
+      server: false,
+      getCachedData: key => getStaticCachedData(key, nuxtApp),
+    },
+  )
+}
+
+/** Static rune tree for a patch, keyed `rune-tree-{patch}`. */
+export function useStaticRuneTree(patch: MaybeRefOrGetter<string | null | undefined>) {
+  return useStaticFetch<RuneTreeResponse>('rune-tree', '/api/static/rune-tree', patch)
+}
+
+/** Static item map for a patch, keyed `static-items-{patch}`. */
+export function useStaticItems(
+  patch: MaybeRefOrGetter<string | null | undefined>,
+  options: StaticFetchOptions = {},
+) {
+  return useStaticFetch<Record<number, StaticItemData>>('static-items', '/api/static/items', patch, options)
+}
+
+/** Static summoner-spell map for a patch, keyed `static-summoners-{patch}`. */
+export function useStaticSummonerSpells(patch: MaybeRefOrGetter<string | null | undefined>) {
+  return useStaticFetch<Record<number, StaticSummonerSpellData>>('static-summoners', '/api/static/summoner-spells', patch)
+}
+
 /**
  * Fetches the static rune tree + item map for a patch and exposes resolvers
  * that turn build ids (keystone / secondary style / first item) into the icon
@@ -35,38 +106,11 @@ export function useBuildResolvers(
  * to show each player's main-champion build.
  */
 export function useBuildAssets(patch: MaybeRefOrGetter<string | null | undefined>) {
-  const nuxtApp = useNuxtApp()
-  const patchRef = computed(() => toValue(patch) || null)
+  const { data: runeTreeData } = useStaticRuneTree(patch)
+  const { data: itemsData } = useStaticItems(patch)
 
-  // Single source for each cache key — reused as the useAsyncData key and by
-  // markStaticFetched, so the two can't drift out of sync (a mismatch would
-  // make getStaticCachedData miss the stored entry every time).
-  const runeTreeKey = computed(() => `rune-tree-${patchRef.value || 'latest'}`)
-  const itemsKey = computed(() => `static-items-${patchRef.value || 'latest'}`)
-
-  const { data: runeTree } = useLazyAsyncData<RuneTreeResponse | null>(
-    () => runeTreeKey.value,
-    async () => {
-      const data = await $fetch<RuneTreeResponse>('/api/static/rune-tree', {
-        query: patchRef.value ? { patch: patchRef.value } : {},
-      })
-      markStaticFetched(runeTreeKey.value, nuxtApp)
-      return data
-    },
-    { watch: [patchRef], server: false, default: () => null, getCachedData: key => getStaticCachedData(key, nuxtApp) },
-  )
-
-  const { data: itemsMap } = useLazyAsyncData<Record<number, StaticItemData>>(
-    () => itemsKey.value,
-    async () => {
-      const data = await $fetch<Record<number, StaticItemData>>('/api/static/items', {
-        query: patchRef.value ? { patch: patchRef.value } : {},
-      })
-      markStaticFetched(itemsKey.value, nuxtApp)
-      return data
-    },
-    { watch: [patchRef], server: false, default: () => ({}), getCachedData: key => getStaticCachedData(key, nuxtApp) },
-  )
+  const runeTree = computed(() => runeTreeData.value ?? null)
+  const itemsMap = computed(() => itemsData.value ?? {})
 
   const { perk, perkStyle, item } = useBuildResolvers(runeTree, itemsMap)
 

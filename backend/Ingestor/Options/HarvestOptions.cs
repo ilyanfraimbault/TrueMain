@@ -1,3 +1,5 @@
+using Core.Lol.Map;
+
 namespace Ingestor.Options;
 
 /// <summary>
@@ -18,8 +20,8 @@ public class HarvestOptions
     /// </summary>
     public List<string> Platforms { get; set; } = new() { "KR", "EUW1", "NA1" };
 
-    /// <summary>Queue to aggregate over. 420 = ranked solo, the main-detection queue.</summary>
-    public int QueueId { get; set; } = 420;
+    /// <summary>Queue to aggregate over. Defaults to ranked solo, the main-detection queue.</summary>
+    public int QueueId { get; set; } = (int)LolQueueId.RankedSoloDuo;
 
     /// <summary>
     /// Anti-noise / anti-explosion gate: only emit a candidate for a (puuid, champion)

@@ -21,7 +21,7 @@ namespace Data.CompiledModels
                 "Data.Entities.ChampionAggregateScope",
                 typeof(ChampionAggregateScope),
                 baseEntityType,
-                propertyCount: 12,
+                propertyCount: 15,
                 navigationCount: 1,
                 foreignKeyCount: 1,
                 unnamedIndexCount: 4,
@@ -45,6 +45,16 @@ namespace Data.CompiledModels
                 sentinel: new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified));
             aggregatedAtUtc.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
+            var assists = runtimeEntityType.AddProperty(
+                "Assists",
+                typeof(int),
+                propertyInfo: typeof(ChampionAggregateScope).GetProperty("Assists", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(ChampionAggregateScope).GetField("<Assists>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: 0);
+            assists.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            assists.AddAnnotation("Relational:DefaultValue", 0);
+
             var championId = runtimeEntityType.AddProperty(
                 "ChampionId",
                 typeof(int),
@@ -52,6 +62,16 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(ChampionAggregateScope).GetField("<ChampionId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: 0);
             championId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var deaths = runtimeEntityType.AddProperty(
+                "Deaths",
+                typeof(int),
+                propertyInfo: typeof(ChampionAggregateScope).GetProperty("Deaths", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(ChampionAggregateScope).GetField("<Deaths>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: 0);
+            deaths.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            deaths.AddAnnotation("Relational:DefaultValue", 0);
 
             var eloBracket = runtimeEntityType.AddProperty(
                 "EloBracket",
@@ -77,6 +97,16 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(ChampionAggregateScope).GetField("<Games>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: 0);
             games.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var kills = runtimeEntityType.AddProperty(
+                "Kills",
+                typeof(int),
+                propertyInfo: typeof(ChampionAggregateScope).GetProperty("Kills", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(ChampionAggregateScope).GetField("<Kills>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: 0);
+            kills.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            kills.AddAnnotation("Relational:DefaultValue", 0);
 
             var lastGameStartTimeUtc = runtimeEntityType.AddProperty(
                 "LastGameStartTimeUtc",

@@ -2,8 +2,8 @@ namespace Data.Entities;
 
 /// <summary>
 /// Transport DTO carried between <c>ChampionPatternProjector</c> and the
-/// API skill-order aggregator. No longer an EF entity since Phase 6.4
-/// dropped the per-scope <c>champion_aggregate_skill_orders</c> table.
+/// API skill-order aggregator. Not an EF entity — it has no backing
+/// table and exists only as the aggregator's input shape.
 /// </summary>
 public class ChampionAggregateSkillOrder
 {

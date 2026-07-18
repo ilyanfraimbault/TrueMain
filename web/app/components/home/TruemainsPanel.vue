@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { LeaderboardRowResponse, RegionSlug } from '~~/shared/types/leaderboard'
 import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
-import { getProfileIconUrl } from '~~/shared/utils/ddragon'
+import { formatPercentage, getProfileIconUrl } from '~~/shared/utils/ddragon'
 import { formatTier, isApexTier } from '~/utils/tiers'
 
 // Homepage teaser of the truemains leaderboard: top rows with a region
@@ -45,7 +45,7 @@ function profileHref(row: LeaderboardRowResponse): string {
 
 function winRateLabel(row: LeaderboardRowResponse): string | null {
   const wr = row.stats.winRate
-  return wr === null ? null : `${Math.round(wr * 100)}%`
+  return wr === null ? null : formatPercentage(wr, 0)
 }
 
 function iconUrl(row: LeaderboardRowResponse): string | null {

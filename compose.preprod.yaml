@@ -1,0 +1,280 @@
+services:
+  postgres:
+    image: postgres:17.2
+    container_name: truemain-preprod-postgres
+    restart: unless-stopped
+    shm_size: "256m"
+    command: ["postgres", "-c", "max_parallel_workers_per_gather=0"]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - truemain_preprod_db_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - truemain_internal
+
+  pgbouncer:
+    image: edoburu/pgbouncer:v1.23.1-p3
+    container_name: truemain-preprod-pgbouncer
+    restart: unless-stopped
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
+      LISTEN_PORT: "6432"
+      AUTH_TYPE: scram-sha-256
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: "1000"
+      DEFAULT_POOL_SIZE: "25"
+      MIN_POOL_SIZE: "5"
+      RESERVE_POOL_SIZE: "5"
+      RESERVE_POOL_TIMEOUT: "3"
+      STATS_USERS: ${POSTGRES_USER}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -p 6432 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - truemain_internal
+
+  mongo:
+    image: mongo:8.0.24
+    container_name: truemain-preprod-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+    volumes:
+      - truemain_preprod_mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - truemain_internal
+
+  api:
+    image: ghcr.io/ilyanfraimbault/truemain-api:preprod
+    pull_policy: always
+    container_name: truemain-preprod-api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      Database__ApplyMigrationsOnStartup: "true"
+      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=100;No Reset On Close=true;Application Name=truemain-api
+      ConnectionStrings__TrueMainMigrations: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Application Name=truemain-migrator
+      MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
+      Ops__ApiKey: "${OPS_API_KEY:?set OPS_API_KEY before deploying}"
+      Cors__Origins__0: "http://localhost:3001"
+      MongoLogging__CrashFilePath: /home/app/crashes
+      MongoLogging__LogsRetention: "30.00:00:00"
+    volumes:
+      - truemain_preprod_api_crashes:/home/app/crashes
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    ports:
+      - "8081:8080"
+    networks:
+      - truemain_internal
+
+  web:
+    image: ghcr.io/ilyanfraimbault/truemain-web:preprod
+    pull_policy: always
+    container_name: truemain-preprod-web
+    restart: unless-stopped
+    environment:
+      NITRO_HOST: 0.0.0.0
+      NITRO_PORT: 3000
+      NUXT_API_BASE_URL: http://api:8080
+      NUXT_PUBLIC_UMAMI_HOST: ${UMAMI_PUBLIC_URL:-}
+      NUXT_PUBLIC_UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "3001:3000"
+    networks:
+      - truemain_internal
+
+  admin:
+    image: ghcr.io/ilyanfraimbault/truemain-admin:preprod
+    pull_policy: always
+    container_name: truemain-preprod-admin
+    restart: unless-stopped
+    environment:
+      NITRO_HOST: 0.0.0.0
+      NITRO_PORT: 3000
+      NUXT_OPS_API_BASE_URL: http://api:8080
+      NUXT_OPS_KEY: ${OPS_API_KEY}
+      NUXT_SESSION_PASSWORD: "${ADMIN_SESSION_PASSWORD:?set ADMIN_SESSION_PASSWORD before deploying}"
+      NUXT_ADMIN_USERNAME: ${ADMIN_USERNAME:-truemain}
+      NUXT_ADMIN_PASSWORD: "${ADMIN_PASSWORD:?set ADMIN_PASSWORD before deploying - admin is exposed on 0.0.0.0}"
+      NUXT_SESSION_COOKIE_SECURE: "false"
+      NUXT_TRUST_PROXY: "false"
+      NUXT_PUBLIC_UMAMI_URL: ${UMAMI_PUBLIC_URL:-}
+      NUXT_PUBLIC_UMAMI_SHARE_URL: ${UMAMI_SHARE_URL:-}
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "3002:3000"
+    networks:
+      - truemain_internal
+
+  ingestor:
+    image: ghcr.io/ilyanfraimbault/truemain-ingestor:preprod
+    pull_policy: always
+    container_name: truemain-preprod-ingestor
+    restart: unless-stopped
+    environment:
+      DOTNET_ENVIRONMENT: Production
+      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=40;No Reset On Close=true;Application Name=truemain-ingestor
+      MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
+      Riot__ApiKey: ${RIOT_API_KEY}
+      Job__Mode: ${INGESTOR_JOB_MODE:-Full}
+      MongoLogging__CrashFilePath: /home/app/crashes
+      MongoLogging__LogsRetention: "30.00:00:00"
+      MatchDataRetention__RetainedPatchCount: "1"
+      MatchDataRetention__AggregateRetainedPatchCount: "2"
+      ManualSeed__BatchSize: "250"
+      Discovery__MaxAccountsPerPlatformPerRun: "100"
+      Discovery__NewAccountsTarget: "15"
+      Scoring__TopNPerPlatform: "50"
+      Harvest__MaxCandidatesPerRun: "500"
+      MatchIngestion__BatchSize: "25"
+      MatchIngestion__MatchesPerAccount: "10"
+      MainAnalysis__MatchesToConsider: "30"
+      MainAnalysis__MinMatchesToEvaluate: "10"
+    volumes:
+      - truemain_preprod_ingestor_crashes:/home/app/crashes
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    networks:
+      - truemain_internal
+
+  umami-db:
+    image: postgres:17.2
+    container_name: truemain-preprod-umami-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: umami
+      POSTGRES_PASSWORD: "${UMAMI_DB_PASSWORD:?set UMAMI_DB_PASSWORD before deploying}"
+      POSTGRES_DB: umami
+    volumes:
+      - truemain_preprod_umami_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U umami -d umami"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - truemain_internal
+
+  umami:
+    image: umamisoftware/umami:3.2.0
+    container_name: truemain-preprod-umami
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://umami:${UMAMI_DB_PASSWORD}@umami-db:5432/umami
+      DATABASE_TYPE: postgresql
+      APP_SECRET: "${UMAMI_APP_SECRET:?set UMAMI_APP_SECRET before deploying}"
+    depends_on:
+      umami-db:
+        condition: service_healthy
+    networks:
+      - truemain_internal
+
+  umami-proxy:
+    image: caddy:2-alpine
+    container_name: truemain-preprod-umami-proxy
+    restart: unless-stopped
+    environment:
+      UMAMI_ALLOWED_FRAME_ORIGIN: ${UMAMI_ALLOWED_FRAME_ORIGIN:-}
+    configs:
+      - source: umami_proxy_caddyfile
+        target: /etc/caddy/Caddyfile
+    ports:
+      - "3100:3100"
+    depends_on:
+      - umami
+    networks:
+      - truemain_internal
+
+  pgadmin:
+    image: dpage/pgadmin4:9.11
+    container_name: truemain-preprod-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    ports:
+      - "5051:80"
+    volumes:
+      - truemain_preprod_pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - truemain_internal
+
+configs:
+  umami_proxy_caddyfile:
+    content: |
+      {
+      	auto_https off
+      }
+
+      :3100 {
+      	reverse_proxy umami:3000 {
+      		header_down Content-Security-Policy "frame-ancestors 'self'" "frame-ancestors 'self' {$$UMAMI_ALLOWED_FRAME_ORIGIN}"
+      	}
+      }
+
+volumes:
+  truemain_preprod_db_data:
+    name: truemain_preprod_db_data
+  truemain_preprod_mongo_data:
+    name: truemain_preprod_mongo_data
+  truemain_preprod_pgadmin_data:
+    name: truemain_preprod_pgadmin_data
+  truemain_preprod_api_crashes:
+    name: truemain_preprod_api_crashes
+  truemain_preprod_ingestor_crashes:
+    name: truemain_preprod_ingestor_crashes
+  truemain_preprod_umami_db_data:
+    name: truemain_preprod_umami_db_data
+
+networks:
+  truemain_internal:
+    name: truemain_preprod_internal
+    driver: bridge

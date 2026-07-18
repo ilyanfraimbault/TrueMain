@@ -15,9 +15,16 @@ import {
 // each tier's "+" floor ("that rank and above") — Challenger has no "+" as it
 // tops the ladder. Every option carries its rank emblem (shared RankIcon,
 // Community Dragon) in both the trigger and the option rows.
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   modelValue: string
-}>()
+  /**
+   * Forwarded to the USelect. Also drives the trigger width: the compact
+   * `sm` form (filter strips) gets a narrower box than the default `md`
+   * (build page), since the longest label ("Grandmaster+") needs less room
+   * at text-xs.
+   */
+  size?: 'sm' | 'md'
+}>(), { size: 'md' })
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
@@ -71,7 +78,8 @@ const selectUi = computed(() =>
     value-key="value"
     label-key="label"
     aria-label="Rank"
-    class="w-44"
+    :size="size"
+    :class="size === 'sm' ? 'w-38' : 'w-44'"
     :ui="selectUi"
     @update:model-value="onChange"
   >

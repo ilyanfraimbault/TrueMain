@@ -1,16 +1,15 @@
 <script setup lang="ts">
 // Crashes panel — server-paginated process crash reports from
 // `GET /api/ops/crashes`, rendered as the "Crashes" tab of the Logs page. Each
-// crash is fully inspectable in a slide-over (exception chain, environment +
-// memory/GC snapshot, and the log lines captured just before it); the whole report
-// is copyable as text for pasting into an issue/chat.
+// crash carries a server-derived plain-language explanation (#722) and is fully
+// inspectable in a slide-over (exception chain, environment + memory/GC
+// snapshot, and the log lines captured just before it); the whole report is
+// copyable as text, and a checkbox selection can be copied as JSON.
+import { h, resolveComponent } from 'vue'
 import type { TableColumn } from '@nuxt/ui'
-import type { CrashReport, CrashSource, LogLevel } from '~~/shared/types/ops'
+import type { BadgeColor, CrashReport, CrashSource } from '~~/shared/types/ops'
 import { formatDateTime, formatDuration, humanizeBytes } from '~~/shared/utils/format'
 
-// Reka UI forbids an empty-string SelectItem value, so "All …" uses the non-empty
-// 'all' sentinel; `filters` maps it back to undefined (param omitted).
-const ALL = 'all'
 const processFilter = ref<string>(ALL)
 const sourceFilter = ref<string>(ALL)
 const sinceWindow = ref<'all' | '1h' | '24h' | '7d' | '30d'>(ALL)
@@ -20,26 +19,11 @@ const search = refDebounced(searchInput, 300)
 const page = ref(1)
 const pageSize = 25
 
-const sinceItems = [
-  { label: 'All time', value: ALL },
-  { label: 'Last hour', value: '1h' },
-  { label: 'Last 24 hours', value: '24h' },
-  { label: 'Last 7 days', value: '7d' },
-  { label: 'Last 30 days', value: '30d' },
-]
-
-const WINDOW_MS: Record<string, number> = {
-  '1h': 60 * 60 * 1000,
-  '24h': 24 * 60 * 60 * 1000,
-  '7d': 7 * 24 * 60 * 60 * 1000,
-  '30d': 30 * 24 * 60 * 60 * 1000,
-}
-
 // Freeze `since` when the window changes, not on every filters recompute — otherwise
 // paging would re-sample Date.now() and drift the window forward between pages.
 const sinceFrom = ref<string | undefined>(undefined)
 watch(sinceWindow, (w) => {
-  sinceFrom.value = w === ALL ? undefined : new Date(Date.now() - WINDOW_MS[w]!).toISOString()
+  sinceFrom.value = w === ALL ? undefined : sinceToIso(w)
 }, { immediate: true })
 
 const filters = computed(() => ({
@@ -91,7 +75,6 @@ watch([processFilter, sourceFilter, sinceWindow, search], () => {
 })
 
 // --- Source styling ----------------------------------------------------------
-type BadgeColor = 'error' | 'warning' | 'success' | 'neutral'
 function sourceColor(s: CrashSource): BadgeColor {
   switch (s) {
     case 'UncleanShutdown':
@@ -132,27 +115,52 @@ function sourceLabel(s: CrashSource): string {
       return s
   }
 }
-function levelColor(l: LogLevel): BadgeColor {
-  switch (l) {
-    case 'Critical':
-    case 'Error':
-      return 'error'
-    case 'Warning':
-      return 'warning'
-    case 'Information':
-      return 'success'
-    default:
-      return 'neutral'
-  }
-}
 const shortExceptionType = (full: string | null) =>
   full ? (full.split('.').pop() ?? full) : null
 
+// --- Row selection (#722) ------------------------------------------------------
+// Checkbox multi-select keyed by report id; cleared whenever the visible set
+// changes (filter or page) so a hidden selection can't ride into the copied JSON.
+const rowSelection = ref<Record<string, boolean>>({})
+watch([filters], () => {
+  rowSelection.value = {}
+})
+
+const selectedEntries = computed(() =>
+  entries.value.filter(entry => rowSelection.value[entry.id]))
+// Full reports, pretty-printed — not the truncated table cells.
+const selectionJson = computed(() => JSON.stringify(selectedEntries.value, null, 2))
+
+const UCheckbox = resolveComponent('UCheckbox')
+
 // --- Table -------------------------------------------------------------------
 const columns: TableColumn<CrashReport>[] = [
+  {
+    id: 'select',
+    header: ({ table }) =>
+      h(UCheckbox, {
+        'modelValue': table.getIsSomePageRowsSelected()
+          ? 'indeterminate'
+          : table.getIsAllPageRowsSelected(),
+        'onUpdate:modelValue': (value: boolean | 'indeterminate') =>
+          table.toggleAllPageRowsSelected(!!value),
+        'aria-label': 'Select all rows',
+      }),
+    cell: ({ row }) =>
+      h(UCheckbox, {
+        'modelValue': row.getIsSelected(),
+        'onUpdate:modelValue': (value: boolean | 'indeterminate') =>
+          row.toggleSelected(!!value),
+        // The row itself opens the detail slide-over on click; the checkbox
+        // must not bubble into that.
+        'onClick': (event: Event) => event.stopPropagation(),
+        'aria-label': 'Select row',
+      }),
+  },
   { accessorKey: 'timestampUtc', header: 'Time' },
   { accessorKey: 'processName', header: 'Process' },
   { accessorKey: 'source', header: 'Source' },
+  { accessorKey: 'explanation', header: 'Explanation' },
   { accessorKey: 'exceptionType', header: 'Exception' },
   { accessorKey: 'message', header: 'Message' },
 ]
@@ -176,6 +184,9 @@ function openDetail(entry: CrashReport) {
 function crashToText(c: CrashReport): string {
   const lines: string[] = []
   lines.push(`Crash report — ${c.processName} — ${sourceLabel(c.source)}`)
+  if (c.explanation) {
+    lines.push(`Reading:   ${c.explanation}`)
+  }
   lines.push(`Time:      ${c.timestampUtc}`)
   if (c.exceptionType) {
     lines.push(`Exception: ${c.exceptionType}`)
@@ -235,7 +246,7 @@ function crashToText(c: CrashReport): string {
       />
       <USelect
         v-model="sinceWindow"
-        :items="sinceItems"
+        :items="SINCE_ITEMS"
         icon="i-lucide-clock"
         placeholder="Since"
         class="w-44"
@@ -281,19 +292,28 @@ function crashToText(c: CrashReport): string {
           <p class="text-sm font-medium text-highlighted">
             Crash reports
           </p>
-          <UBadge
-            v-if="!pending"
-            color="neutral"
-            variant="subtle"
-            :label="`${total.toLocaleString('en-US')} ${total === 1 ? 'crash' : 'crashes'}`"
-          />
+          <div class="flex items-center gap-2">
+            <CopyButton
+              v-if="selectedEntries.length"
+              :text="selectionJson"
+              :label="`Copy JSON (${selectedEntries.length})`"
+            />
+            <UBadge
+              v-if="!pending"
+              color="neutral"
+              variant="subtle"
+              :label="`${total.toLocaleString('en-US')} ${total === 1 ? 'crash' : 'crashes'}`"
+            />
+          </div>
         </div>
       </template>
 
       <UTable
+        v-model:row-selection="rowSelection"
         :data="entries"
         :columns="columns"
         :meta="tableMeta"
+        :get-row-id="row => row.id"
         :loading="pending"
         loading-color="primary"
         :ui="{ td: 'py-2', tr: 'cursor-pointer' }"
@@ -315,6 +335,14 @@ function crashToText(c: CrashReport): string {
             size="sm"
             :label="sourceLabel(row.original.source)"
           />
+        </template>
+        <template #explanation-cell="{ row }">
+          <span
+            class="text-xs line-clamp-2 max-w-[24rem] whitespace-normal"
+            :title="row.original.explanation"
+          >
+            {{ row.original.explanation }}
+          </span>
         </template>
         <template #exceptionType-cell="{ row }">
           <span
@@ -383,6 +411,16 @@ function crashToText(c: CrashReport): string {
               :label="sourceLabel(selectedEntry.source)"
             />
           </div>
+
+          <!-- Server-derived plain-language reading of the crash (#722). -->
+          <UAlert
+            v-if="selectedEntry.explanation"
+            color="warning"
+            variant="subtle"
+            icon="i-lucide-lightbulb"
+            title="What likely happened"
+            :description="selectedEntry.explanation"
+          />
 
           <dl class="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
             <div>
