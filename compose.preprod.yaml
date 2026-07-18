@@ -4,9 +4,6 @@ services:
     container_name: truemain-preprod-postgres
     restart: unless-stopped
     shm_size: "256m"
-    # Disable parallel query: parallel workers allocate DSM segments in /dev/shm,
-    # and concurrent aggregate queries exhausted it (53100: could not resize shared
-    # memory segment / No space left on device), crashing the API and ingestor.
     command: ["postgres", "-c", "max_parallel_workers_per_gather=0"]
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -76,8 +73,6 @@ services:
 
   api:
     image: ghcr.io/ilyanfraimbault/truemain-api:preprod
-    # Docker Manager redeploys reuse a locally present tag; always pull so a
-    # CD-triggered restart actually ships the freshly published :preprod image.
     pull_policy: always
     container_name: truemain-preprod-api
     restart: unless-stopped
@@ -91,7 +86,6 @@ services:
       Ops__ApiKey: "${OPS_API_KEY:?set OPS_API_KEY before deploying}"
       Cors__Origins__0: "http://localhost:3001"
       MongoLogging__CrashFilePath: /home/app/crashes
-      # Preprod keeps diagnostic logs at most 1 month (default is 90 days).
       MongoLogging__LogsRetention: "30.00:00:00"
     volumes:
       - truemain_preprod_api_crashes:/home/app/crashes
@@ -109,8 +103,6 @@ services:
 
   web:
     image: ghcr.io/ilyanfraimbault/truemain-web:preprod
-    # Docker Manager redeploys reuse a locally present tag; always pull so a
-    # CD-triggered restart actually ships the freshly published :preprod image.
     pull_policy: always
     container_name: truemain-preprod-web
     restart: unless-stopped
@@ -118,9 +110,6 @@ services:
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: 3000
       NUXT_API_BASE_URL: http://api:8080
-      # Umami tracker (#742). UMAMI_PUBLIC_URL is the browser-reachable proxy
-      # URL (http://<vps>:3100) and lives in .env so the VPS address stays out
-      # of the repo. The tracker is disabled while either variable is empty.
       NUXT_PUBLIC_UMAMI_HOST: ${UMAMI_PUBLIC_URL:-}
       NUXT_PUBLIC_UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
     depends_on:
@@ -133,8 +122,6 @@ services:
 
   admin:
     image: ghcr.io/ilyanfraimbault/truemain-admin:preprod
-    # Docker Manager redeploys reuse a locally present tag; always pull so a
-    # CD-triggered restart actually ships the freshly published :preprod image.
     pull_policy: always
     container_name: truemain-preprod-admin
     restart: unless-stopped
@@ -148,8 +135,6 @@ services:
       NUXT_ADMIN_PASSWORD: "${ADMIN_PASSWORD:?set ADMIN_PASSWORD before deploying - admin is exposed on 0.0.0.0}"
       NUXT_SESSION_COOKIE_SECURE: "false"
       NUXT_TRUST_PROXY: "false"
-      # Umami dashboard embed for the Analytics tab (#742). Share URL is
-      # created in the Umami UI; while empty the tab embeds the app URL.
       NUXT_PUBLIC_UMAMI_URL: ${UMAMI_PUBLIC_URL:-}
       NUXT_PUBLIC_UMAMI_SHARE_URL: ${UMAMI_SHARE_URL:-}
     depends_on:
@@ -162,8 +147,6 @@ services:
 
   ingestor:
     image: ghcr.io/ilyanfraimbault/truemain-ingestor:preprod
-    # Docker Manager redeploys reuse a locally present tag; always pull so a
-    # CD-triggered restart actually ships the freshly published :preprod image.
     pull_policy: always
     container_name: truemain-preprod-ingestor
     restart: unless-stopped
@@ -174,32 +157,16 @@ services:
       Riot__ApiKey: ${RIOT_API_KEY}
       Job__Mode: ${INGESTOR_JOB_MODE:-Full}
       MongoLogging__CrashFilePath: /home/app/crashes
-      # Preprod keeps diagnostic logs at most 1 month (default is 90 days).
       MongoLogging__LogsRetention: "30.00:00:00"
-      # --- Preprod data diet -------------------------------------------------
-      # The preprod database must stay tiny: just enough matches for every
-      # feature (aggregates, matchups, timeline leads, builds, leaderboard) to
-      # have data. The accounts/mains base is never purged by retention — only
-      # match data is — so the pipeline keeps its player base while match
-      # volume stays bounded. All knobs below override appsettings.json.
-      #
-      # Keep only the current patch's match data (prod keeps 2 patches).
       MatchDataRetention__RetainedPatchCount: "1"
-      # Also drop champion aggregates older than 2 patches (0/prod = frozen forever).
       MatchDataRetention__AggregateRetainedPatchCount: "2"
-      # Drain the manual-seed queue fast enough for bulk imports (default 25/run).
       ManualSeed__BatchSize: "250"
-      # Ladder discovery: smaller crawl window and fewer new accounts per run.
       Discovery__MaxAccountsPerPlatformPerRun: "100"
       Discovery__NewAccountsTarget: "15"
-      # Score fewer candidates into the ingestion queue per platform.
       Scoring__TopNPerPlatform: "50"
-      # Participant harvest: cap candidate generation from orphan participants.
       Harvest__MaxCandidatesPerRun: "500"
-      # Fetch fewer accounts and fewer matches per account each cycle.
       MatchIngestion__BatchSize: "25"
       MatchIngestion__MatchesPerAccount: "10"
-      # Flag mains sooner on the smaller sample so features light up quickly.
       MainAnalysis__MatchesToConsider: "30"
       MainAnalysis__MinMatchesToEvaluate: "10"
     volumes:
@@ -214,13 +181,6 @@ services:
     networks:
       - truemain_internal
 
-  # Self-hosted Umami analytics (#742), mirroring prod (#728): own container +
-  # database, no coupling with the TrueMain backend. Preprod has no DNS/TLS,
-  # so instead of prod's `analytics.truemain.lol` vhost, Umami sits behind a
-  # plain-HTTP Caddy (`umami-proxy`) published on host port 3100 whose job is
-  # the same CSP `frame-ancestors` rewrite (Umami bakes `frame-ancestors
-  # 'self'` into its image at build time, which would block the admin portal's
-  # Analytics iframe). Default login on a fresh volume: admin / umami.
   umami-db:
     image: postgres:17.2
     container_name: truemain-preprod-umami-db
@@ -259,9 +219,6 @@ services:
     container_name: truemain-preprod-umami-proxy
     restart: unless-stopped
     environment:
-      # Admin portal origin allowed to iframe the dashboard
-      # (http://<vps>:3002). Lives in .env so the VPS address stays out of
-      # the repo; empty leaves Umami's own `frame-ancestors 'self'` policy.
       UMAMI_ALLOWED_FRAME_ORIGIN: ${UMAMI_ALLOWED_FRAME_ORIGIN:-}
     configs:
       - source: umami_proxy_caddyfile
@@ -290,11 +247,6 @@ services:
     networks:
       - truemain_internal
 
-# Inlined instead of a bind-mounted repo file: the preprod host deploys from
-# the compose file alone (Docker manager), so a `./Caddyfile.preprod-umami`
-# mount would not exist there (Docker then auto-creates a directory and the
-# file mount fails). `{$VAR}` is Caddy's own runtime env placeholder — not
-# compose interpolation — resolved from the service environment above.
 configs:
   umami_proxy_caddyfile:
     content: |
