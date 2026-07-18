@@ -2,7 +2,7 @@
 
 Preprod is the pre-production stack: it runs the `:preprod` images, which are
 built and published from `develop` on every push (see
-`.github/workflows/publish-preprod-images.yml`). It replaces the former "QA"
+`.github/workflows/deploy-preprod.yml`). It replaces the former "QA"
 stack and typically lives on a dedicated host (historically the old production
 VPS).
 
@@ -77,7 +77,7 @@ Exposed ports (HTTP, no TLS — restrict by firewall to trusted IPs):
 
 ### Automatic (Hostinger Docker Manager API)
 
-The `deploy-preprod` job in `publish-preprod-images.yml` redeploys the
+The `deploy-preprod` job in `deploy-preprod.yml` redeploys the
 `truemain-preprod` Docker Manager project right after the `:preprod` images are
 published, using the official `hostinger/deploy-on-vps` action (a pure API
 call — no SSH material in CI). It is a no-op until three pieces of repository

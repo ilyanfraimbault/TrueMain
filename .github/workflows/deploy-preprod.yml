@@ -1,9 +1,12 @@
-name: Publish Docker Images
+# Triggered on every push to develop: builds and publishes the :preprod
+# images, then redeploys the preprod VPS (deploy-preprod job).
+name: Deploy Preprod
 
 on:
-  release:
-    types:
-      - published
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -16,15 +19,13 @@ env:
   IMAGE_ADMIN: ghcr.io/${{ github.repository_owner }}/truemain-admin
 
 jobs:
-  publish:
-    name: Publish Release Images
+  publish-preprod:
+    name: Build & Publish Preprod Images
     runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.release.tag_name }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -44,9 +45,7 @@ jobs:
           push: true
           cache-from: type=gha,scope=api
           cache-to: type=gha,mode=max,scope=api
-          tags: |
-            ${{ env.IMAGE_API }}:${{ github.event.release.tag_name }}
-            ${{ env.IMAGE_API }}:latest
+          tags: ${{ env.IMAGE_API }}:preprod
 
       - name: Build and push Ingestor image
         uses: docker/build-push-action@v7
@@ -56,9 +55,7 @@ jobs:
           push: true
           cache-from: type=gha,scope=ingestor
           cache-to: type=gha,mode=max,scope=ingestor
-          tags: |
-            ${{ env.IMAGE_INGESTOR }}:${{ github.event.release.tag_name }}
-            ${{ env.IMAGE_INGESTOR }}:latest
+          tags: ${{ env.IMAGE_INGESTOR }}:preprod
 
       - name: Build and push Web image
         uses: docker/build-push-action@v7
@@ -68,9 +65,7 @@ jobs:
           push: true
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
-          tags: |
-            ${{ env.IMAGE_WEB }}:${{ github.event.release.tag_name }}
-            ${{ env.IMAGE_WEB }}:latest
+          tags: ${{ env.IMAGE_WEB }}:preprod
 
       - name: Build and push Admin image
         uses: docker/build-push-action@v7
@@ -80,6 +75,32 @@ jobs:
           push: true
           cache-from: type=gha,scope=admin
           cache-to: type=gha,mode=max,scope=admin
-          tags: |
-            ${{ env.IMAGE_ADMIN }}:${{ github.event.release.tag_name }}
-            ${{ env.IMAGE_ADMIN }}:latest
+          tags: ${{ env.IMAGE_ADMIN }}:preprod
+
+  deploy-preprod:
+    name: Deploy Preprod VPS
+    runs-on: ubuntu-24.04
+    needs: publish-preprod
+    # No-op until the Hostinger credentials are configured: set the
+    # HOSTINGER_PREPROD_VM_ID repository variable plus the HOSTINGER_API_KEY
+    # and PREPROD_ENV_FILE secrets (see docs/preprod.md). success() must be
+    # explicit — a custom `if:` replaces the implicit needs-succeeded check,
+    # and deploying after a failed publish would ship stale/mixed images.
+    if: success() && vars.HOSTINGER_PREPROD_VM_ID != ''
+    concurrency:
+      group: deploy-preprod
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Redeploy Docker Manager project
+        uses: hostinger/deploy-on-vps@v2
+        with:
+          api-key: ${{ secrets.HOSTINGER_API_KEY }}
+          virtual-machine: ${{ vars.HOSTINGER_PREPROD_VM_ID }}
+          project-name: truemain-preprod
+          docker-compose-path: compose.preprod.yaml
+          # Newline-separated KEY=value pairs mirroring the VPS .env.
+          environment-variables: ${{ secrets.PREPROD_ENV_FILE }}
