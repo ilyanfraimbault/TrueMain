@@ -134,6 +134,45 @@ public sealed class TruemainsSearchApiIntegrationTests
         response.Results[0].Ranked!.Tier.Should().Be("DIAMOND");
     }
 
+    [Fact]
+    public async Task Search_hydrates_top_champions_and_positions()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var account = Account("hydra", "Hydrate", "EUW1");
+            db.RiotAccounts.Add(account);
+            db.RankSnapshots.Add(Snapshot(account, "MASTER", "I", 300, now));
+            db.MainChampionStats.AddRange(
+                // Two mains with distinct play rates and lanes: the ids must
+                // come back ordered by descending play rate, and the lanes
+                // must aggregate to TOP primary / JUNGLE secondary (30/90
+                // games clears the 20% share floor).
+                MainStat("hydra", "EUW1", 157, isMain: true, playRate: 0.6d, championMatches: 60,
+                    positionBreakdown: [new PositionStat { Position = "TOP", Games = 60, Rate = 1d }]),
+                MainStat("hydra", "EUW1", 86, isMain: true, playRate: 0.3d, championMatches: 30,
+                    positionBreakdown: [new PositionStat { Position = "JUNGLE", Games = 30, Rate = 1d }]),
+                // Non-main rows must not leak into the top-champion ids.
+                MainStat("hydra", "EUW1", 25, isMain: false, playRate: 0.1d, championMatches: 10));
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        var response = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=Hydrate");
+        response!.Results.Should().ContainSingle();
+
+        var result = response.Results[0];
+        result.TopChampionIds.Should().Equal(157, 86);
+        result.Positions.Should().NotBeNull();
+        result.Positions!.Primary.Should().Be("TOP");
+        result.Positions.Secondary.Should().Be("JUNGLE");
+    }
+
     [Theory]
     [InlineData("/truemains/search")]
     [InlineData("/truemains/search?q=")]
@@ -353,7 +392,14 @@ public sealed class TruemainsSearchApiIntegrationTests
         };
     }
 
-    private static MainChampionStat MainStat(string puuid, string platformId, int championId, bool isMain)
+    private static MainChampionStat MainStat(
+        string puuid,
+        string platformId,
+        int championId,
+        bool isMain,
+        double playRate = 1d,
+        int championMatches = 100,
+        List<PositionStat>? positionBreakdown = null)
         => new()
         {
             Id = Guid.NewGuid(),
@@ -361,12 +407,12 @@ public sealed class TruemainsSearchApiIntegrationTests
             Puuid = puuid,
             ChampionId = championId,
             TotalMatches = 100,
-            ChampionMatches = 100,
-            PlayRate = 1d,
+            ChampionMatches = championMatches,
+            PlayRate = playRate,
             IsMain = isMain,
             IsOtp = false,
             PrimaryPosition = "MIDDLE",
-            PositionBreakdown = [new PositionStat { Position = "MIDDLE", Games = 50, Rate = 1d }],
+            PositionBreakdown = positionBreakdown ?? [new PositionStat { Position = "MIDDLE", Games = 50, Rate = 1d }],
             CalculatedAtUtc = DateTime.UtcNow,
         };
 

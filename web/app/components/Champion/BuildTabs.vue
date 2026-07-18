@@ -26,25 +26,28 @@ const items = computed(() =>
 
 <template>
   <!-- Single card wrapping the whole tab-dependent section. The tab bar is
-       docked flush to the top edge (body padding removed, list background and
-       rounding stripped, full-width from the horizontal orientation) with a
-       divider separating it from the panel content, which carries the card's
-       own padding via the `content` slot. -->
+       docked to the top edge (body padding removed at every breakpoint — a
+       bare `p-0` loses to the theme's `sm:p-6` in tw-merge — list background
+       and rounding stripped, full-width from the horizontal orientation) with
+       a divider separating it from the panel content, which carries the
+       card's own padding via the `content` slot. The active pill is a dark
+       overlay instead of the theme's white `bg-inverted`. -->
   <UCard
     v-if="items.length"
-    :ui="{ body: 'p-0' }"
+    :ui="{ body: 'p-0 sm:p-0' }"
   >
     <UTabs
       :items="items"
       :default-value="items[0]?.value"
       variant="pill"
       color="neutral"
-      size="sm"
+      size="md"
       class="w-full"
       :unmount-on-hide="false"
       :ui="{
-        list: 'rounded-none border-b border-default bg-transparent p-0',
-        trigger: 'flex-1 gap-1.5',
+        list: 'rounded-none border-b border-default bg-transparent p-1.5',
+        indicator: 'rounded-lg bg-black/30 shadow-none inset-y-1.5',
+        trigger: 'flex-1 gap-1.5 py-2.5 data-[state=active]:text-highlighted',
         content: 'p-3 sm:p-4',
       }"
     >

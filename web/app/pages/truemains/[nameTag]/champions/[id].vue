@@ -1,11 +1,8 @@
 <script setup lang="ts">
-import type {
-  RuneTreeResponse,
-  StaticItemData,
-  StaticSummonerSpellData,
-} from '~~/shared/types/static-data'
-import { isChampionPosition, type ChampionPosition } from '~/utils/positions'
+import type { ChampionPosition } from '~/utils/positions'
 import { describeFetchError } from '~/utils/errors'
+import { isLoadingStatus } from '~/utils/async-data'
+import { parseRouteParam } from '~/utils/route-params'
 
 // Player-scoped mirror of pages/champions/[id].vue. The static-data fetches,
 // loading bar and build tabs are intentionally identical so the page looks
@@ -18,13 +15,9 @@ import { describeFetchError } from '~/utils/errors'
 const route = useRoute()
 
 const championId = computed(() => Number.parseInt(String(route.params.id), 10))
-const nameTag = computed(() => {
-  const param = route.params.nameTag
-  return Array.isArray(param) ? param[0] ?? '' : (param ?? '')
-})
+const nameTag = computed(() => parseRouteParam(route.params.nameTag))
 
 const { filters, setFilter } = useChampionFilters()
-const nuxtApp = useNuxtApp()
 
 const {
   data: champion,
@@ -48,100 +41,37 @@ const playerLabel = computed(() => {
 })
 const profilePath = computed(() => `/truemains/${encodeURIComponent(nameTag.value)}`)
 
-const activePatch = computed(() => champion.value?.patch || filters.value.patch || null)
-
-const { data: staticData, status: staticStatus } = useChampionStatic(championId, activePatch)
-const { data: versions } = useDDragonVersions()
-
-const { data: staticList, status: staticListStatus } = useChampionStaticList()
-const { data: runeTree, status: runeTreeStatus } = useLazyAsyncData<RuneTreeResponse>(
-  () => `rune-tree-${activePatch.value || 'latest'}`,
-  async () => {
-    const key = `rune-tree-${activePatch.value || 'latest'}`
-    const data = await $fetch<RuneTreeResponse>('/api/static/rune-tree', {
-      query: activePatch.value ? { patch: activePatch.value } : {},
-    })
-    markStaticFetched(key, nuxtApp)
-    return data
-  },
-  {
-    watch: [activePatch],
-    getCachedData: key => getStaticCachedData(key, nuxtApp),
-    server: false,
-  },
-)
-const { data: itemsMap, status: itemsStatus } = useLazyAsyncData<Record<number, StaticItemData>>(
-  () => `static-items-${activePatch.value || 'latest'}`,
-  async () => {
-    const key = `static-items-${activePatch.value || 'latest'}`
-    const data = await $fetch<Record<number, StaticItemData>>('/api/static/items', {
-      query: activePatch.value ? { patch: activePatch.value } : {},
-    })
-    markStaticFetched(key, nuxtApp)
-    return data
-  },
-  {
-    watch: [activePatch],
-    getCachedData: key => getStaticCachedData(key, nuxtApp),
-    server: false,
-  },
-)
-const { data: summonersMap, status: summonersStatus } = useLazyAsyncData<Record<number, StaticSummonerSpellData>>(
-  () => `static-summoners-${activePatch.value || 'latest'}`,
-  async () => {
-    const key = `static-summoners-${activePatch.value || 'latest'}`
-    const data = await $fetch<Record<number, StaticSummonerSpellData>>('/api/static/summoner-spells', {
-      query: activePatch.value ? { patch: activePatch.value } : {},
-    })
-    markStaticFetched(key, nuxtApp)
-    return data
-  },
-  {
-    watch: [activePatch],
-    getCachedData: key => getStaticCachedData(key, nuxtApp),
-    server: false,
-  },
-)
-
-const championListEntry = computed(() =>
-  (staticList.value ?? []).find(item => item.championId === championId.value) ?? null,
-)
-const displayName = computed(() =>
-  staticData.value?.championName || championListEntry.value?.name || null,
-)
-const displayIconUrl = computed(() =>
-  staticData.value?.championIconUrl || championListEntry.value?.iconUrl || null,
-)
+// Shared static-data plumbing (see useChampionDetailStatics). This page
+// prefers the URL filter over the API-returned patch in `selectedPatch` —
+// the historical behaviour of the player-scoped page, deliberately not
+// unified with the global page's API-first order.
+const {
+  versions,
+  staticData,
+  staticStatus,
+  staticList,
+  staticListStatus,
+  runeTree,
+  runeTreeStatus,
+  itemsMap,
+  itemsStatus,
+  summonersMap,
+  summonersStatus,
+  displayName,
+  displayIconUrl,
+  patchOptions,
+  selectedPatch,
+  selectedPosition,
+} = useChampionDetailStatics(championId, champion, filters, { preferFilterPatch: true })
 
 useSeoMeta({
   title: () => {
     const champ = displayName.value ?? `Champion ${championId.value}`
-    return `${champ} · ${playerLabel.value} · TrueMain`
+    return `${champ} · ${playerLabel.value}`
   },
   description: () => `How ${playerLabel.value} plays ${displayName.value ?? `champion ${championId.value}`}: their build path, runes and skill order.`,
 })
 
-const patchOptions = computed(() => {
-  const seen = new Set<string>(
-    (versions.value ?? [])
-      .map(p => p.split('.').slice(0, 2).join('.'))
-      .filter(Boolean)
-      .slice(0, 12),
-  )
-  if (champion.value?.patch) seen.add(champion.value.patch)
-  if (filters.value.patch) seen.add(filters.value.patch)
-  return [...seen]
-    .map(p => ({ label: p, value: p }))
-    .sort((a, b) => b.value.localeCompare(a.value, undefined, { numeric: true }))
-})
-
-const selectedPatch = computed(() => filters.value.patch || champion.value?.patch || '')
-const selectedPosition = computed<ChampionPosition | null>(() => {
-  const value = champion.value?.position || filters.value.position || ''
-  return isChampionPosition(value) ? value : null
-})
-
-const isLoadingStatus = (s: 'idle' | 'pending' | 'success' | 'error') => s === 'idle' || s === 'pending'
 const isRefetching = computed(() =>
   isLoadingStatus(championStatus.value)
   || isLoadingStatus(staticStatus.value)
@@ -184,7 +114,7 @@ const staticBundleReady = computed(() =>
 </script>
 
 <template>
-  <main class="mx-auto max-w-5xl space-y-6 p-4 md:p-6">
+  <main class="mx-auto w-full max-w-[96rem] space-y-6 p-4 md:p-6">
     <!-- Breadcrumb: Truemain {name} > {champion}, linking back to the profile. -->
     <nav aria-label="Breadcrumb" class="text-sm text-muted">
       <ol class="flex flex-wrap items-center gap-1.5">
@@ -232,77 +162,114 @@ const staticBundleReady = computed(() =>
     />
 
     <!--
-      Empty / fallback state: the player has fewer than the backend's
-      min-games floor on this champion (or the account is unknown). We show a
-      small notice rather than fabricating a build from one or two games, and
-      point back to the global champion page for the meta view.
+      Player build page, resilient by design: a champion the profile lists as a
+      main must always show *something* on click. The build breakdown renders
+      whenever the backend holds any aggregate for the player (however thin);
+      when it holds none (`notEnoughData` — no timeline-complete ranked game on
+      record) we show a soft notice instead of a dead-end, and either way still
+      render the player's recent games on the champion below (a separate data
+      source that has the raw matches even when the build aggregate doesn't).
     -->
-    <div
-      v-else-if="notEnoughData && !isRefetching"
-      class="flex flex-col items-center gap-3 glass rounded-lg px-6 py-12 text-center"
-    >
-      <SkeletonImage
-        v-if="displayIconUrl"
-        :src="displayIconUrl"
-        :alt="displayName ?? ''"
-        width="64"
-        height="64"
-        class="size-16 rounded opacity-80"
-      />
-      <div class="space-y-1">
-        <p class="text-sm font-medium text-default">
-          Not enough games to build a profile
-        </p>
-        <p class="text-sm text-muted">
-          {{ playerLabel }} hasn't played {{ displayName ?? 'this champion' }} enough for a
-          personal build breakdown yet.
-        </p>
-      </div>
-      <NuxtLink
-        :to="`/champions/${championId}`"
-        class="rounded text-sm text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+    <template v-else>
+      <div
+        v-if="notEnoughData && !isRefetching"
+        class="flex flex-col items-center gap-3 glass rounded-lg px-6 py-8 text-center"
       >
-        See the global build for {{ displayName ?? `champion ${championId}` }}
-      </NuxtLink>
-    </div>
-
-    <template v-else-if="champion && staticData">
-      <header class="flex flex-wrap items-center gap-4">
-        <ChampionHeader
-          :champion-name="displayName"
-          :champion-icon-url="displayIconUrl"
-          :champion-id="championId"
-          :position="champion.position"
-          :total-games="champion.totalGames"
-          :total-wins="champion.totalWins"
+        <SkeletonImage
+          v-if="displayIconUrl"
+          :src="displayIconUrl"
+          :alt="displayName ?? ''"
+          width="64"
+          height="64"
+          class="size-16 rounded opacity-80"
         />
-        <ChampionFilters
-          :selected-patch="selectedPatch"
-          :selected-position="selectedPosition"
-          :patch-options="patchOptions"
-          @update:patch="value => setFilter({ patch: value })"
-          @update:position="value => setFilter({ position: value })"
+        <div class="space-y-1">
+          <p class="text-sm font-medium text-default">
+            No personal build breakdown yet
+          </p>
+          <p class="text-sm text-muted">
+            We don't have an aggregated build for {{ playerLabel }} on
+            {{ displayName ?? 'this champion' }} yet. Their recent games are below.
+          </p>
+        </div>
+        <NuxtLink
+          :to="`/champions/${championId}`"
+          class="rounded text-sm text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          See the global build for {{ displayName ?? `champion ${championId}` }}
+        </NuxtLink>
+      </div>
+
+      <template v-if="champion && staticData">
+        <header class="flex flex-wrap items-center gap-4">
+          <ChampionHeader
+            :champion-name="displayName"
+            :champion-icon-url="displayIconUrl"
+            :champion-id="championId"
+            :position="champion.position"
+            :total-games="champion.totalGames"
+            :total-wins="champion.totalWins"
+          />
+          <ChampionFilters
+            :selected-patch="selectedPatch"
+            :selected-position="selectedPosition"
+            :patch-options="patchOptions"
+            @update:patch="value => setFilter({ patch: value })"
+            @update:position="value => setFilter({ position: value })"
+          />
+        </header>
+
+        <!--
+          Thin-sample caution. The backend renders a build for any number of
+          games (down to one) rather than 404-ing, flagging small samples with
+          minSampleMet=false. Surface that so a build inferred from a handful of
+          games reads as a rough personal signal, not an authoritative meta
+          build — mirroring the global page's low-sample notice.
+        -->
+        <UAlert
+          v-if="!champion.minSampleMet"
+          color="warning"
+          variant="soft"
+          icon="i-lucide-triangle-alert"
+          :title="`Only ${champion.totalGames} ${champion.totalGames === 1 ? 'game' : 'games'} on record`"
+          description="This build is inferred from a small personal sample — treat it as a rough signal rather than a reliable recommendation."
         />
-      </header>
 
-      <ChampionBuildTabs
-        :builds="champion.builds"
-        :champion-static="staticData"
-        :items-map="itemsMap ?? {}"
-        :summoners-map="summonersMap ?? {}"
-        :rune-tree="runeTree ?? null"
-      />
+        <!--
+          Same two-column layout as the global champion page (#703): the build
+          breakdown in the main column, matchups in a right sidebar from the xl
+          breakpoint. No truemains panel here — the page is already scoped to one
+          player. Below xl the sidebar stacks under the main column. The recent
+          games list sits below, full-width, so it renders in the degraded
+          (no-build) state too.
+        -->
+        <div class="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
+          <div class="min-w-0 space-y-6">
+            <ChampionBuildTabs
+              :builds="champion.builds"
+              :champion-static="staticData"
+              :items-map="itemsMap ?? {}"
+              :summoners-map="summonersMap ?? {}"
+              :rune-tree="runeTree ?? null"
+            />
+          </div>
 
-      <ChampionMatchups
-        :champion-id="championId"
-        :position="selectedPosition"
-        :champions="staticList ?? []"
-        :name-tag="nameTag"
-      />
+          <aside class="min-w-0 space-y-6">
+            <ChampionMatchups
+              :champion-id="championId"
+              :position="selectedPosition"
+              :champions="staticList ?? []"
+              :name-tag="nameTag"
+            />
+          </aside>
+        </div>
+      </template>
 
-      <!-- This player's recent games on this champion. The champion is fixed;
-           the lane filter is its own RolePicker, independent of the build's
-           position filter above. -->
+      <!-- This player's recent games on this champion — rendered even when the
+           build breakdown above is absent (the degraded state), so clicking a
+           main always surfaces their actual games. The champion is fixed; the
+           lane filter is its own RolePicker, independent of the build's position
+           filter. -->
       <section class="flex min-w-0 flex-col gap-3">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
@@ -314,11 +281,19 @@ const staticBundleReady = computed(() =>
           />
         </div>
 
-        <template v-if="matchesInitialLoading || !staticBundleReady">
+        <!--
+          Same ordering as the profile page: the empty / not-found state needs no
+          static data, so it must not sit behind staticBundleReady — a failing
+          static fetch would pin the skeletons forever.
+        -->
+        <template v-if="matchesInitialLoading">
           <MatchRowSkeleton v-for="i in 5" :key="`match-skel-${i}`" />
         </template>
         <template v-else-if="matchesNotFound || matches.length === 0">
-          <MatchHistoryEmpty :not-found="matchesNotFound" />
+          <MatchHistoryEmpty :not-found="matchesNotFound" :filtered="matchPosition !== null" />
+        </template>
+        <template v-else-if="!staticBundleReady">
+          <MatchRowSkeleton v-for="i in 5" :key="`match-skel-${i}`" />
         </template>
         <template v-else>
           <MatchRow

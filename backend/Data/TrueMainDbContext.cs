@@ -27,14 +27,19 @@ public class TrueMainDbContext : DbContext
     public DbSet<ChampionMatchupStat> ChampionMatchupStats => Set<ChampionMatchupStat>();
     public DbSet<ChampionTimelineLeadStat> ChampionTimelineLeadStats => Set<ChampionTimelineLeadStat>();
 
+    // Pre-aggregated champion powerspikes (#694): the per-minute power curve, the
+    // per-event slope-change spikes, and the global per-minute lead spread. Populated
+    // incrementally by ChampionPowerspikeAggregationProcess so the dense per-minute
+    // MatchParticipantTimelineSnapshot rows can be pruned to the canonical marks.
+    public DbSet<ChampionPowerspikeCurveStat> ChampionPowerspikeCurveStats => Set<ChampionPowerspikeCurveStat>();
+    public DbSet<ChampionPowerspikeEventStat> ChampionPowerspikeEventStats => Set<ChampionPowerspikeEventStat>();
+    public DbSet<PowerspikeSigmaStat> PowerspikeSigmaStats => Set<PowerspikeSigmaStat>();
+
     public DbSet<ChampionAggregateScope> ChampionAggregateScopes => Set<ChampionAggregateScope>();
 
-    // Phase 6: junction-table aggregate + globally-deduplicated dimension
-    // tables. Phase 6.4 dropped the legacy ChampionPatternAggregate +
-    // per-scope ChampionAggregate{Build,RunePage,SkillOrder,SpellPair,
-    // StarterItems} tables; the aggregator writes patterns + dim rows
-    // exclusively now and the read side projects them via
-    // ChampionPatternProjector.
+    // Junction-table aggregate + globally-deduplicated dimension tables:
+    // the aggregator writes pattern + dim rows exclusively, and the read
+    // side projects them via ChampionPatternProjector.
     public DbSet<ChampionAggregatePattern> ChampionAggregatePatterns => Set<ChampionAggregatePattern>();
     public DbSet<ChampionDimBuild> ChampionDimBuilds => Set<ChampionDimBuild>();
     public DbSet<ChampionDimRunePage> ChampionDimRunePages => Set<ChampionDimRunePage>();

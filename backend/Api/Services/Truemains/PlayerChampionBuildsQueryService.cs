@@ -10,12 +10,14 @@ public sealed class PlayerChampionBuildsQueryService(
     IChampionBuildsQueryService buildsQueryService) : IPlayerChampionBuildsQueryService
 {
     /// <summary>
-    /// Minimum games the player must have on the champion (at the resolved
-    /// patch + position) for a build payload to be returned. Below this the
-    /// service yields <see langword="null"/> so the page shows a "not enough
-    /// games" notice instead of a build inferred from one or two matches.
-    /// Five is the smallest sample where a dominant build path starts to mean
-    /// something rather than echoing a single game.
+    /// Preferred minimum games on the champion (at a single patch + position)
+    /// when resolving which patch to render. The loader picks the most recent
+    /// patch that clears this floor so a thin newest patch doesn't shadow a
+    /// meaningful earlier one. It is a *preference only* — a champion the
+    /// player has genuinely played still renders a (thin, low-confidence)
+    /// build rather than 404-ing, so a main listed on the profile never
+    /// dead-ends on click. Five is the smallest sample where a dominant build
+    /// path starts to mean something rather than echoing a single game.
     /// </summary>
     public const int MinPlayerGames = 5;
 

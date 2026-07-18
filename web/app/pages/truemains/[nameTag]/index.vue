@@ -1,71 +1,33 @@
 <script setup lang="ts">
-import type {
-  ChampionStaticListItem,
-  RuneTreeResponse,
-  StaticItemData,
-  StaticSummonerSpellData,
-} from '~~/shared/types/static-data'
-import { isChampionPosition, type ChampionPosition } from '~/utils/positions'
+import type { ChampionPosition } from '~/utils/positions'
+import { parseRouteParam } from '~/utils/route-params'
 
 const route = useRoute()
-const router = useRouter()
 
-const nameTag = computed(() => {
-  const param = route.params.nameTag
-  return Array.isArray(param) ? param[0] ?? '' : (param ?? '')
-})
+const nameTag = computed(() => parseRouteParam(route.params.nameTag))
 
 const MATCHES_PAGE_SIZE = 20
 
-// 1-indexed current page, sourced from `?page=` so back/forward + direct
-// links stay in sync with the matches feed. Same coercion as
-// pages/champions/index.vue — invalid values clamp to page 1.
-const currentMatchesPage = computed<number>(() => {
-  const raw = Array.isArray(route.query.page) ? route.query.page[0] : route.query.page
-  const parsed = Number.parseInt(typeof raw === 'string' ? raw : '', 10)
-  return Number.isFinite(parsed) && parsed >= 1 ? parsed : 1
-})
+// URL state for the matches feed — page, position and champion filters are
+// shareable and survive back/forward. Shared coercion helpers with the other
+// list pages: invalid values fall back to "no filter" / page 1 so an
+// attacker-controlled query never reaches the API.
+const { currentPage: currentMatchesPage, setPage: setMatchesPage } = useRoutePage()
 
-// Filters live alongside the page in the URL so they're shareable. Position
-// is the Riot uppercase enum (TOP/JUNGLE/...); the helper guards against
-// garbage values so an attacker-controlled query never reaches the API.
-const filterPosition = computed<ChampionPosition | null>(() => {
-  const raw = Array.isArray(route.query.position) ? route.query.position[0] : route.query.position
-  return isChampionPosition(raw) ? raw : null
-})
-
-const filterChampionId = computed<number | null>(() => {
-  const raw = Array.isArray(route.query.championId) ? route.query.championId[0] : route.query.championId
-  const parsed = Number.parseInt(typeof raw === 'string' ? raw : '', 10)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
-})
-
-async function setMatchesPage(next: number) {
-  const clamped = Math.max(1, Math.floor(next))
-  if (clamped === currentMatchesPage.value) return
-  const nextQuery = { ...route.query }
-  if (clamped === 1) delete nextQuery.page
-  else nextQuery.page = String(clamped)
-  await router.replace({ query: nextQuery })
-}
+const filterPosition = useRouteQueryPosition()
+const filterChampionId = useRouteQueryChampionId()
 
 // Filter mutations always reset the page back to 1 — staying on, say,
 // page 5 after switching to "MID only" risks landing on an out-of-range
-// page since the total just shrank.
+// page since the total just shrank (see useRouteFilterSetter).
+const setQueryFilter = useRouteFilterSetter()
+
 async function setFilterPosition(next: ChampionPosition | null) {
-  const nextQuery = { ...route.query }
-  if (next) nextQuery.position = next
-  else delete nextQuery.position
-  delete nextQuery.page
-  await router.replace({ query: nextQuery })
+  await setQueryFilter('position', next)
 }
 
 async function setFilterChampionId(next: number | null) {
-  const nextQuery = { ...route.query }
-  if (next) nextQuery.championId = String(next)
-  else delete nextQuery.championId
-  delete nextQuery.page
-  await router.replace({ query: nextQuery })
+  await setQueryFilter('championId', next ? String(next) : null)
 }
 
 // ─── Profile fetch ─────────────────────────────────────────────────────────
@@ -83,9 +45,8 @@ const {
 useSeoMeta({
   title: () => {
     const identity = profile.value?.identity
-    if (!identity) return `${nameTag.value} · TrueMain`
-    const display = identity.tagLine ? `${identity.gameName}#${identity.tagLine}` : identity.gameName
-    return `${display} · TrueMain`
+    if (!identity) return nameTag.value
+    return identity.tagLine ? `${identity.gameName}#${identity.tagLine}` : identity.gameName
   },
   description: () => {
     const identity = profile.value?.identity
@@ -108,82 +69,23 @@ const {
 })
 
 // ─── Static lookups for MatchRow + identity icon ───────────────────────────
+// Shared canonical cache keys (`champion-static-list`, `static-items-*`,
+// `static-summoners-*`, `rune-tree-*`) so the payloads warmed by the
+// champion pages / prefetch plugin are reused here instead of refetched
+// under profile-specific keys.
 const { data: versions } = useDDragonVersions()
 const latestPatch = computed(() => versions.value?.[0] ?? null)
 
-const nuxtApp = useNuxtApp()
+const { data: championsData } = useChampionStaticList()
+const champions = computed(() => championsData.value ?? [])
 
-const { data: champions } = useLazyAsyncData<ChampionStaticListItem[]>(
-  'truemain-profile-champions',
-  async () => {
-    const key = 'truemain-profile-champions'
-    const data = await $fetch<ChampionStaticListItem[]>('/api/static/champions')
-    markStaticFetched(key, nuxtApp)
-    return data
-  },
-  {
-    default: () => [],
-    server: false,
-    getCachedData: key => getStaticCachedData(key, nuxtApp),
-  },
-)
+const { data: itemsData } = useStaticItems(latestPatch)
+const items = computed(() => itemsData.value ?? {})
 
-const { data: items } = useLazyAsyncData<Record<number, StaticItemData>>(
-  () => `truemain-profile-items-${latestPatch.value ?? 'none'}`,
-  async () => {
-    const patch = latestPatch.value ?? ''
-    const key = `truemain-profile-items-${patch || 'none'}`
-    const data = await $fetch<Record<number, StaticItemData>>('/api/static/items', {
-      query: { patch },
-    })
-    markStaticFetched(key, nuxtApp)
-    return data
-  },
-  {
-    default: () => ({}),
-    server: false,
-    watch: [latestPatch],
-    getCachedData: key => getStaticCachedData(key, nuxtApp),
-  },
-)
+const { data: summonerSpellsData } = useStaticSummonerSpells(latestPatch)
+const summonerSpells = computed(() => summonerSpellsData.value ?? {})
 
-const { data: summonerSpells } = useLazyAsyncData<Record<number, StaticSummonerSpellData>>(
-  () => `truemain-profile-summoner-spells-${latestPatch.value ?? 'none'}`,
-  async () => {
-    const patch = latestPatch.value ?? ''
-    const key = `truemain-profile-summoner-spells-${patch || 'none'}`
-    const data = await $fetch<Record<number, StaticSummonerSpellData>>('/api/static/summoner-spells', {
-      query: { patch },
-    })
-    markStaticFetched(key, nuxtApp)
-    return data
-  },
-  {
-    default: () => ({}),
-    server: false,
-    watch: [latestPatch],
-    getCachedData: key => getStaticCachedData(key, nuxtApp),
-  },
-)
-
-const { data: runeTree } = useLazyAsyncData<RuneTreeResponse>(
-  () => `truemain-profile-rune-tree-${latestPatch.value ?? 'none'}`,
-  async () => {
-    const patch = latestPatch.value ?? ''
-    const key = `truemain-profile-rune-tree-${patch || 'none'}`
-    const data = await $fetch<RuneTreeResponse>('/api/static/rune-tree', {
-      query: { patch },
-    })
-    markStaticFetched(key, nuxtApp)
-    return data
-  },
-  {
-    default: () => ({ styles: [], perks: {}, perkStyles: {}, shardSlots: [] }),
-    server: false,
-    watch: [latestPatch],
-    getCachedData: key => getStaticCachedData(key, nuxtApp),
-  },
-)
+const { data: runeTree } = useStaticRuneTree(latestPatch)
 
 const staticBundleReady = computed(() =>
   champions.value.length > 0
@@ -191,6 +93,8 @@ const staticBundleReady = computed(() =>
   && Object.keys(summonerSpells.value).length > 0
   && (runeTree.value?.styles.length ?? 0) > 0,
 )
+
+const hasActiveFilters = computed(() => Boolean(filterPosition.value || filterChampionId.value))
 </script>
 
 <template>
@@ -256,11 +160,20 @@ const staticBundleReady = computed(() =>
           />
         </div>
 
-        <template v-if="matchesInitialLoading || !staticBundleReady">
+        <!--
+          The empty / not-found state must not wait on the static bundle:
+          rendering it needs no item, spell or rune data, and a failing
+          static fetch (e.g. CDragon lagging a new patch) would otherwise
+          keep the skeletons up forever on a perfectly valid empty result.
+        -->
+        <template v-if="matchesInitialLoading">
           <MatchRowSkeleton v-for="i in MATCHES_PAGE_SIZE" :key="`match-skel-${i}`" />
         </template>
         <template v-else-if="matchesNotFound || matches.length === 0">
-          <MatchHistoryEmpty :not-found="matchesNotFound" />
+          <MatchHistoryEmpty :not-found="matchesNotFound" :filtered="hasActiveFilters" />
+        </template>
+        <template v-else-if="!staticBundleReady">
+          <MatchRowSkeleton v-for="i in MATCHES_PAGE_SIZE" :key="`match-skel-${i}`" />
         </template>
         <template v-else>
           <MatchRow
@@ -270,7 +183,7 @@ const staticBundleReady = computed(() =>
             :champions="champions"
             :items="items"
             :summoner-spells="summonerSpells"
-            :rune-tree="runeTree"
+            :rune-tree="runeTree!"
             :name-tag="nameTag"
           />
           <div

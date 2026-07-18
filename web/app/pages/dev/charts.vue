@@ -5,7 +5,7 @@ import type { StaticItemData } from '~~/shared/types/static-data'
 definePageMeta({ layout: 'default' })
 
 useSeoMeta({
-  title: 'Charts playground · TrueMain',
+  title: 'Charts playground',
   description: 'Visual review of the ChartsLineChart wrapper with mock data.',
 })
 

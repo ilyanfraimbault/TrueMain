@@ -19,6 +19,10 @@ export default defineNuxtConfig({
     url: 'https://truemain.lol',
     name: 'TrueMain',
     description: 'League of Legends champion builds, runes and skill orders from true main players.',
+    // seo-utils appends `%separator %siteName` to every page title — pages
+    // must NOT hardcode the brand themselves or it shows up twice in search
+    // results. `·` matches the separator style used inside compound titles.
+    separator: '·',
   },
   sitemap: {
     // Static pages are auto-discovered from the file-based routes; the dynamic
@@ -95,7 +99,16 @@ export default defineNuxtConfig({
   runtimeConfig: {
     apiBaseUrl: process.env.NUXT_API_BASE_URL
       ?? 'http://localhost:5008',
-    public: {},
+    public: {
+      // Self-hosted Umami analytics (app/plugins/umami.client.ts). Both must
+      // be set (NUXT_PUBLIC_UMAMI_HOST / NUXT_PUBLIC_UMAMI_WEBSITE_ID) for the
+      // tracker to load — dev and preview environments leave them empty, so
+      // no tracking script ships there.
+      umami: {
+        host: '',
+        websiteId: '',
+      },
+    },
   },
   // Production-only overrides. `$production` applies on `nuxt build` and is
   // skipped under `nuxt dev`, so the dev playground stays available locally.

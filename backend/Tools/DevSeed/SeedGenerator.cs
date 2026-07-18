@@ -1,3 +1,4 @@
+using Core.Lol.Map;
 using Data.Entities;
 using EloBracket = Core.Lol.Ranking.EloBracket;
 
@@ -27,7 +28,7 @@ public sealed class SeedGenerator(
     int patchCount,
     int gamesPerPatch)
 {
-    private const int QueueId = 420;
+    private const int QueueId = (int)LolQueueId.RankedSoloDuo;
     private const string PlatformId = "EUW1";
     private const int BlueTeamId = 100;
     private const int RedTeamId = 200;

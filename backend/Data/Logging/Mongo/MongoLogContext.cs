@@ -128,7 +128,12 @@ public sealed class MongoLogContext : IDisposable
             // so the index stays tiny while sparing event-filtered reads a full
             // collection scan.
             new(Builders<MongoLogDocument>.IndexKeys.Ascending(doc => doc.EventType),
-                new CreateIndexOptions { Name = "ix_event_type", Sparse = true })
+                new CreateIndexOptions { Name = "ix_event_type", Sparse = true }),
+            // Back the /ops/logs process filter (#722) — an $eq on the stamped
+            // producing host ("Api"/"Ingestor"), same shape as the crashes'
+            // ix_process.
+            new(Builders<MongoLogDocument>.IndexKeys.Ascending(doc => doc.ProcessName),
+                new CreateIndexOptions { Name = "ix_process_name" })
         };
 
         await Logs.Indexes.CreateManyAsync(logModels, ct);

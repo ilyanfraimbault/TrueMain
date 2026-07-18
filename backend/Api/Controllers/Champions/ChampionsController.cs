@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Mvc;
 using TrueMain.ReadModels.Champions;
 using TrueMain.Services.Champions;
@@ -18,7 +19,8 @@ public sealed class ChampionsController(
     IChampionScalingQueryService scalingQueryService,
     IChampionItemTimingsQueryService itemTimingsQueryService,
     IChampionRoamQueryService roamQueryService,
-    IChampionPowerspikesQueryService powerspikesQueryService) : ControllerBase
+    IChampionPowerspikesQueryService powerspikesQueryService,
+    ICompositionRecommendationQueryService compositionRecommendationQueryService) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<ChampionSummaryReadModel>), StatusCodes.Status200OK)]
@@ -63,7 +65,7 @@ public sealed class ChampionsController(
             normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
             if (normalizedPosition is null)
             {
-                return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+                return ValidationProblem(ChampionQueryParameterNormalizer.InvalidPositionMessage);
             }
         }
 
@@ -167,10 +169,9 @@ public sealed class ChampionsController(
         [FromQuery][Range(1, int.MaxValue)] int? opponent,
         CancellationToken ct = default)
     {
-        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
-        if (normalizedPosition is null)
+        if (!TryRequirePosition(position, out var normalizedPosition, out var problem))
         {
-            return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+            return problem;
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
@@ -208,10 +209,9 @@ public sealed class ChampionsController(
         [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
-        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
-        if (normalizedPosition is null)
+        if (!TryRequirePosition(position, out var normalizedPosition, out var problem))
         {
-            return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+            return problem;
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
@@ -246,10 +246,9 @@ public sealed class ChampionsController(
         [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
-        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
-        if (normalizedPosition is null)
+        if (!TryRequirePosition(position, out var normalizedPosition, out var problem))
         {
-            return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+            return problem;
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
@@ -284,10 +283,9 @@ public sealed class ChampionsController(
         [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
-        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
-        if (normalizedPosition is null)
+        if (!TryRequirePosition(position, out var normalizedPosition, out var problem))
         {
-            return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+            return problem;
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
@@ -321,10 +319,9 @@ public sealed class ChampionsController(
         [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
-        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
-        if (normalizedPosition is null)
+        if (!TryRequirePosition(position, out var normalizedPosition, out var problem))
         {
-            return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+            return problem;
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
@@ -359,10 +356,9 @@ public sealed class ChampionsController(
         [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
-        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
-        if (normalizedPosition is null)
+        if (!TryRequirePosition(position, out var normalizedPosition, out var problem))
         {
-            return ValidationProblem("position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.");
+            return problem;
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
@@ -376,5 +372,121 @@ public sealed class ChampionsController(
             ct);
 
         return Ok(response);
+    }
+
+    /// <summary>
+    /// Build recommendation for a (possibly partial) draft: the player's
+    /// champion (route) and position plus the known ally/enemy picks. The
+    /// composition ranks historical games, it never hard-filters — a sparse
+    /// draft degrades to the champion's recent games at the position and the
+    /// confidence block says so. POST because the input — up to nine
+    /// champion/position slots — is too rich for query parameters.
+    /// </summary>
+    [HttpPost("{championId:int}/composition-build")]
+    [ProducesResponseType(typeof(CompositionBuildResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<CompositionBuildResponse>> PostCompositionBuildAsync(
+        int championId,
+        [FromBody] CompositionBuildRequest request,
+        CancellationToken ct = default)
+    {
+        if (championId <= 0)
+        {
+            return ValidationProblem("championId must be a positive champion id.");
+        }
+
+        if (!TryRequirePosition(request.Position, out var normalizedPosition, out var positionProblem))
+        {
+            return positionProblem;
+        }
+
+        if (!TryNormalizeSlots(request.Allies, "allies", out var allies, out var slotProblem)
+            || !TryNormalizeSlots(request.Enemies, "enemies", out var enemies, out slotProblem))
+        {
+            return slotProblem;
+        }
+
+        if (allies.ContainsKey(normalizedPosition))
+        {
+            return ValidationProblem(
+                "allies must not contain the player's own position — that slot is the champion of the route.");
+        }
+
+        var criteria = new CompositionSearchCriteria
+        {
+            ChampionId = championId,
+            Position = normalizedPosition,
+            Allies = allies,
+            Enemies = enemies,
+            Patch = ChampionQueryParameterNormalizer.NormalizePatch(request.Patch),
+            EloBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(request.EloBracket),
+        };
+
+        return Ok(await compositionRecommendationQueryService.GetAsync(criteria, ct));
+    }
+
+    /// <summary>
+    /// Canonicalises one team's slot list into a position→champion map; any
+    /// non-positive champion id, unrecognised position, or duplicated position
+    /// within the team yields a 400 <paramref name="problem"/>. Null tolerated:
+    /// the DTO defaults to an empty list, but an explicit <c>"allies": null</c>
+    /// in the JSON body overrides that default with null at binding time.
+    /// </summary>
+    private bool TryNormalizeSlots(
+        IReadOnlyList<CompositionSlotInput>? slots,
+        string teamLabel,
+        out Dictionary<string, int> byPosition,
+        [NotNullWhen(false)] out ActionResult? problem)
+    {
+        byPosition = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var slot in slots ?? [])
+        {
+            // A literal null entry in the JSON array binds as a null element.
+            if (slot is null || slot.ChampionId <= 0)
+            {
+                problem = ValidationProblem($"{teamLabel} contains a slot without a positive championId.");
+                return false;
+            }
+
+            var position = ChampionQueryParameterNormalizer.NormalizePosition(slot.Position);
+            if (position is null)
+            {
+                problem = ValidationProblem(
+                    $"{teamLabel}: {ChampionQueryParameterNormalizer.InvalidPositionMessage}");
+                return false;
+            }
+
+            if (!byPosition.TryAdd(position, slot.ChampionId))
+            {
+                problem = ValidationProblem($"{teamLabel} contains two slots at position {position}.");
+                return false;
+            }
+        }
+
+        problem = null;
+        return true;
+    }
+
+    /// <summary>
+    /// Canonicalises a required <c>position</c> query parameter; a missing or
+    /// unrecognised value yields a 400 <paramref name="problem"/>. Endpoints
+    /// where position is optional (champion detail, trend, patch-diff) call
+    /// <see cref="ChampionQueryParameterNormalizer.NormalizePosition"/>
+    /// directly and treat null as "no filter" instead.
+    /// </summary>
+    private bool TryRequirePosition(
+        string? position,
+        [NotNullWhen(true)] out string? normalizedPosition,
+        [NotNullWhen(false)] out ActionResult? problem)
+    {
+        normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+        if (normalizedPosition is null)
+        {
+            problem = ValidationProblem(ChampionQueryParameterNormalizer.InvalidPositionMessage);
+            return false;
+        }
+
+        problem = null;
+        return true;
     }
 }

@@ -79,7 +79,7 @@ const yFormatter = (value: number): string => formatSigned(value, activeMetric.v
           size="xs"
           :color="metric.key === selectedKey ? 'primary' : 'neutral'"
           :variant="metric.key === selectedKey ? 'soft' : 'ghost'"
-          @click="selectedKey = metric.key"
+          @click="() => { selectedKey = metric.key }"
         >
           {{ metric.label }}
         </UButton>

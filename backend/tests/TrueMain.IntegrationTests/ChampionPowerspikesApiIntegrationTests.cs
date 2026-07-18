@@ -18,6 +18,10 @@ public sealed class ChampionPowerspikesApiIntegrationTests
     private const string Position = "MIDDLE";
     private const string GameVersion = "16.4.521.123";
 
+    // Aggregate scopes carry the normalized major.minor patch, not the raw Riot
+    // build — mirror production so the patch-filtered read resolves the build.
+    private const string ScopePatch = "16.4";
+
     private const int CoreItem = 3153;   // completed item in the dominant build
     private const int NoiseItem = 1001;   // a non-build purchase that must be ignored
 
@@ -72,6 +76,26 @@ public sealed class ChampionPowerspikesApiIntegrationTests
         level6.Should().NotBeNull();
         level6!.SpikeMagnitude.Should().BePositive();
         level6.AvgMinute.Should().BeApproximately(KinkMinute, 0.5);
+    }
+
+    [Fact]
+    public async Task GetChampionPowerspikesAsync_PatchFilterStillResolvesDominantBuildItems()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedAsync(games: 12);
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // The scope stores the normalized patch ("16.4") while matches carry the
+        // raw Riot build ("16.4.521.123"); the patch-scoped read must match both
+        // sides, or the dominant build — and every item spike — silently vanishes.
+        var spikes = await client.GetFromJsonAsync<ChampionPowerspikesResponse>(
+            $"/champions/{Champion}/powerspikes?position={Position}&patch={ScopePatch}");
+
+        spikes!.Patch.Should().Be(ScopePatch);
+        spikes.Curve.Should().NotBeEmpty();
+        spikes.Events.Should().Contain(e => e.Type == "item" && e.RefId == CoreItem);
     }
 
     [Fact]
@@ -135,7 +159,7 @@ public sealed class ChampionPowerspikesApiIntegrationTests
         var aggregatedAt = new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc);
         await new ChampionAggregateSeeder()
             .AddPatternDefaults(
-                account.Id, Champion, GameVersion, platformId: "EUW1", QueueId, Position,
+                account.Id, Champion, ScopePatch, platformId: "EUW1", QueueId, Position,
                 summoner1Id: 4, summoner2Id: 14, skillOrderKey: "Q",
                 buildItems: [CoreItem], bootsItemId: 0, games: games, wins: games / 2, aggregatedAt)
             .SaveAsync(db);

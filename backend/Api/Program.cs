@@ -1,6 +1,7 @@
 using System.Threading.RateLimiting;
 using Core.Options;
 using Data;
+using Data.BuildFacts;
 using Data.Logging.Crash;
 using Data.Logging.Mongo;
 using Microsoft.AspNetCore.Authentication;
@@ -129,6 +130,20 @@ builder.Services.AddOptions<ChampionsListOptions>()
     .Validate(options => options.MinMatchupGames >= 0, "ChampionsList:MinMatchupGames must be >= 0.")
     .Validate(options => options.MinPlayerMatchupGames >= 0, "ChampionsList:MinPlayerMatchupGames must be >= 0.")
     .ValidateOnStart();
+builder.Services.AddOptions<CompositionSearchOptions>()
+    .Bind(builder.Configuration.GetSection(CompositionSearchOptions.SectionName))
+    .Validate(
+        options => options.LaneOpponentWeight >= 0 && options.EnemyWeight >= 0 && options.AllyWeight >= 0,
+        "CompositionSearch weights must be >= 0.")
+    .Validate(options => options.TopK > 0, "CompositionSearch:TopK must be > 0.")
+    .Validate(
+        options => options.CandidatePoolCap >= options.TopK,
+        "CompositionSearch:CandidatePoolCap must be >= TopK.")
+    .Validate(options => options.WinWeight >= 1d, "CompositionSearch:WinWeight must be >= 1.")
+    .Validate(
+        options => options.SituationalItemCount >= 0,
+        "CompositionSearch:SituationalItemCount must be >= 0.")
+    .ValidateOnStart();
 builder.Services.AddOptions<DatabaseOptions>()
     .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName));
 
@@ -162,6 +177,13 @@ builder.Services.AddScoped<IChampionSummariesQueryService, ChampionSummariesQuer
 builder.Services.AddScoped<IChampionTierListQueryService, ChampionTierListQueryService>();
 builder.Services.AddScoped<IChampionBuildsQueryService, ChampionBuildsQueryService>();
 builder.Services.AddScoped<IChampionMatchupQueryService, ChampionMatchupQueryService>();
+builder.Services.AddScoped<ICompositionMatchQueryService, CompositionMatchQueryService>();
+builder.Services.AddScoped<ICompositionBuildQueryService, CompositionBuildQueryService>();
+builder.Services.AddScoped<ICompositionRecommendationQueryService, CompositionRecommendationQueryService>();
+// Same CommunityDragon item-metadata source as the ingestor's pattern
+// aggregation, so the composition recommender reads a game's items
+// identically. Patch-cached inside the provider.
+builder.Services.AddHttpClient<IItemMetadataProvider, CommunityDragonItemMetadataProvider>();
 builder.Services.AddScoped<IChampionTimelineLeadsQueryService, ChampionTimelineLeadsQueryService>();
 builder.Services.AddScoped<IChampionScalingQueryService, ChampionScalingQueryService>();
 builder.Services.AddScoped<IChampionItemTimingsQueryService, ChampionItemTimingsQueryService>();
@@ -191,6 +213,7 @@ builder.Services.AddScoped<IDataQualityQueryService, DataQualityQueryService>();
 builder.Services.AddScoped<ISeedRequestService, SeedRequestService>();
 builder.Services.AddScoped<ISeedRequestQueryService, SeedRequestQueryService>();
 builder.Services.AddScoped<ICandidateQueryService, CandidateQueryService>();
+builder.Services.AddScoped<IAggregationStatsQueryService, AggregationStatsQueryService>();
 builder.Services.AddDbContext<TrueMainDbContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("TrueMain");

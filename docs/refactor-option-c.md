@@ -47,7 +47,7 @@ Closed by Phase 6 (RFC: [`docs/phase-6-pattern-junction-rfc.md`](./phase-6-patte
 ## C-4. Externalise compose secrets
 
 - Zone: Infra
-- Why: `compose.yaml`, `compose.dev.yaml`, `compose.qa.yaml` and
+- Why: `compose.yaml`, `compose.dev.yaml`, `compose.preprod.yaml` and
   `compose.prod.yaml` interpolate `POSTGRES_PASSWORD`, `RIOT_API_KEY`,
   etc. from `.env`. The variables end up in container env, visible to
   anything that can `docker inspect`.
@@ -55,7 +55,7 @@ Closed by Phase 6 (RFC: [`docs/phase-6-pattern-junction-rfc.md`](./phase-6-patte
   store passwords in the host's secret manager (1Password / Bitwarden /
   Doppler), and update `Api/Program.cs` + `Ingestor/Program.cs` to read
   the connection string from the mounted file when present.
-- Risk: every environment (local dev, QA, prod) needs the secret bag
+- Risk: every environment (local dev, preprod, prod) needs the secret bag
   provisioned before the next deploy.
 
 ## C-5. Move the API key for `/ops/*` to a token store
@@ -81,7 +81,7 @@ Closed by Phase 6 (RFC: [`docs/phase-6-pattern-junction-rfc.md`](./phase-6-patte
   `GetRetryDelay` for the `Retry-After` header (Polly does not honour it
   natively for arbitrary delegates).
 - Risk: behavioural change in retry timing; acceptance criteria need a
-  full match-ingestion run in QA before promoting.
+  full match-ingestion run in preprod before promoting.
 
 ## C-7. Idempotent match ingestion via `ON CONFLICT`
 

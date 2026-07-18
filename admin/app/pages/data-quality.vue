@@ -13,16 +13,9 @@ import type {
 } from '~~/shared/types/ops'
 import { formatDateTime, formatDuration } from '~~/shared/utils/format'
 
-const route = useRoute()
-const router = useRouter()
-
 const { nameFor, iconFor } = useChampionStatic()
 
 // --- Filters -----------------------------------------------------------------
-// Reka UI forbids an empty-string SelectItem value, so "All …" uses the
-// non-empty `'all'` sentinel; `filters` maps it back to `undefined`.
-const ALL = 'all'
-
 const issue = ref<'all' | DataQualityIssueType>(ALL)
 const queue = ref<string>(ALL)
 const ageWindow = ref<'all' | '6' | '24' | '72' | '168'>(ALL)
@@ -146,65 +139,29 @@ const staleHours = computed(() => data.value?.staleTimelineThresholdHours ?? 6)
 // --- Match-ID search / deep link --------------------------------------------
 const matchIdInput = ref('')
 
-// Detail slide-over state.
-const detailOpen = ref(false)
-const detail = ref<MatchDataQualityDetail | null>(null)
-const detailPending = ref(false)
-const detailError = ref<string | null>(null)
-const detailId = ref<string | null>(null)
-
-async function openDetail(matchId: string) {
-  const id = matchId.trim()
-  if (!id) {
-    return
-  }
-  detailId.value = id
-  detailOpen.value = true
-  detailPending.value = true
-  detailError.value = null
-  detail.value = null
-  // Reflect the open match in the URL so the view is deep-linkable / shareable.
-  if (route.query.match !== id) {
-    router.replace({ query: { ...route.query, match: id } })
-  }
-  try {
-    detail.value = await getMatchDataQuality(id)
-  }
-  catch (err: unknown) {
-    const e = err as { statusCode?: number, data?: { message?: string }, message?: string }
-    detailError.value = e?.statusCode === 404
-      ? `No match found with id "${id}".`
-      : (e?.data?.message ?? e?.message ?? 'Failed to load match detail.')
-  }
-  finally {
-    detailPending.value = false
-  }
-}
+// Detail slide-over state (mirrors the open match into `?match=ID`).
+const {
+  detailOpen,
+  detail,
+  detailPending,
+  detailError,
+  detailId,
+  openDetail,
+} = useDeepLinkedDetail<MatchDataQualityDetail>({
+  queryKey: 'match',
+  fetch: getMatchDataQuality,
+  notFoundMessage: id => `No match found with id "${id}".`,
+  loadErrorMessage: 'Failed to load match detail.',
+  onDeepLink: (id) => {
+    matchIdInput.value = id
+  },
+})
 
 function submitMatchSearch() {
   if (matchIdInput.value.trim()) {
     openDetail(matchIdInput.value)
   }
 }
-
-// Drop the `?match=` query when the slide-over closes so a refresh doesn't
-// re-open it unexpectedly.
-watch(detailOpen, (open) => {
-  if (!open && route.query.match) {
-    const { match: _match, ...rest } = route.query
-    router.replace({ query: rest })
-  }
-})
-
-// Deep-link: open the slide-over on initial load when `?match=ID` is present.
-onMounted(() => {
-  const fromQuery = route.query.match
-  const id = Array.isArray(fromQuery) ? fromQuery[0] : fromQuery
-  if (id) {
-    matchIdInput.value = id
-    openDetail(id)
-  }
-})
 
 // --- Detail layout helpers ---------------------------------------------------
 const detailTitle = computed(() => detail.value?.matchId ?? detailId.value ?? 'Match detail')

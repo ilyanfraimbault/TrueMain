@@ -21,6 +21,9 @@ public sealed class ChampionAggregateScopeConfiguration : IEntityTypeConfigurati
         entity.Property(e => e.EloBracket).IsRequired().HasMaxLength(20).HasColumnName("elo_bracket");
         entity.Property(e => e.Games).IsRequired();
         entity.Property(e => e.Wins).IsRequired();
+        entity.Property(e => e.Kills).IsRequired().HasDefaultValue(0);
+        entity.Property(e => e.Deaths).IsRequired().HasDefaultValue(0);
+        entity.Property(e => e.Assists).IsRequired().HasDefaultValue(0);
         entity.Property(e => e.LastGameStartTimeUtc).IsRequired();
         entity.Property(e => e.AggregatedAtUtc).IsRequired();
 

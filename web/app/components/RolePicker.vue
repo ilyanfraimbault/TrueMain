@@ -28,7 +28,10 @@ function select(value: ChampionPosition | null) {
 </script>
 
 <template>
-  <UFieldGroup size="md">
+  <!-- Same surface as the USelect `outline` trigger (bg-default + accented
+       inset ring) so the segmented control reads as one control among the
+       filter selects instead of a bare transparent button strip. -->
+  <UFieldGroup size="md" class="rounded-md bg-default ring ring-inset ring-accented">
     <UButton
       v-if="!hideAll"
       :variant="position === null ? 'soft' : 'ghost'"

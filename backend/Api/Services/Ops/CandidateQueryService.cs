@@ -30,7 +30,9 @@ public sealed class CandidateQueryService(TrueMainDbContext db) : ICandidateQuer
         int? pageSize,
         CancellationToken ct)
     {
-        var effectivePage = Math.Max(1, page ?? 1);
+        // Upper bound keeps `(page - 1) * pageSize` within int range even at the
+        // maximum page size, mirroring ProcessRunsQueryService.
+        var effectivePage = Math.Clamp(page ?? 1, 1, int.MaxValue / MaxPageSize);
         var effectivePageSize = Math.Clamp(pageSize ?? DefaultPageSize, MinPageSize, MaxPageSize);
 
         // Left-join each candidate to its RiotAccount on PUUID. A candidate is

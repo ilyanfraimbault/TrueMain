@@ -49,6 +49,16 @@ public static class OpsEvents
     /// </summary>
     public static readonly EventId MatchRevertFailed = new(1005, nameof(MatchRevertFailed));
 
+    /// <summary>
+    /// A recorded ingestor process run finished successfully (#722): every pipeline
+    /// step (discovery, ingestion, aggregations, retention…) emits one per pass,
+    /// with its duration and summary counters.
+    /// </summary>
+    public static readonly EventId ProcessRunCompleted = new(1006, nameof(ProcessRunCompleted));
+
+    /// <summary>A recorded ingestor process run failed (#722); carries the exception.</summary>
+    public static readonly EventId ProcessRunFailed = new(1007, nameof(ProcessRunFailed));
+
     // Single source for the lookup + the UI-facing list, so a new event only has
     // to be added in two places (its field above and this array).
     private static readonly EventId[] All =
@@ -58,7 +68,9 @@ public static class OpsEvents
         SeedRequestFailed,
         DiscoveryCycleCompleted,
         HarvestCycleCompleted,
-        MatchRevertFailed
+        MatchRevertFailed,
+        ProcessRunCompleted,
+        ProcessRunFailed
     ];
 
     private static readonly Dictionary<string, int> IdByName =
