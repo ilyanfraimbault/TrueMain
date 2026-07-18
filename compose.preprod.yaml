@@ -263,8 +263,9 @@ services:
       # (http://<vps>:3002). Lives in .env so the VPS address stays out of
       # the repo; empty leaves Umami's own `frame-ancestors 'self'` policy.
       UMAMI_ALLOWED_FRAME_ORIGIN: ${UMAMI_ALLOWED_FRAME_ORIGIN:-}
-    volumes:
-      - ./Caddyfile.preprod-umami:/etc/caddy/Caddyfile:ro
+    configs:
+      - source: umami_proxy_caddyfile
+        target: /etc/caddy/Caddyfile
     ports:
       - "3100:3100"
     depends_on:
@@ -288,6 +289,24 @@ services:
         condition: service_healthy
     networks:
       - truemain_internal
+
+# Inlined instead of a bind-mounted repo file: the preprod host deploys from
+# the compose file alone (Docker manager), so a `./Caddyfile.preprod-umami`
+# mount would not exist there (Docker then auto-creates a directory and the
+# file mount fails). `{$VAR}` is Caddy's own runtime env placeholder — not
+# compose interpolation — resolved from the service environment above.
+configs:
+  umami_proxy_caddyfile:
+    content: |
+      {
+      	auto_https off
+      }
+
+      :3100 {
+      	reverse_proxy umami:3000 {
+      		header_down Content-Security-Policy "frame-ancestors 'self'" "frame-ancestors 'self' {$$UMAMI_ALLOWED_FRAME_ORIGIN}"
+      	}
+      }
 
 volumes:
   truemain_preprod_db_data:
