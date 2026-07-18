@@ -21,6 +21,16 @@ const windows = computed(() => [
 
 const fmt = (value: number | null) => (value === null ? '–' : value.toFixed(1))
 
+// Bar heights share one scale so the three windows read as a single ramp and
+// stay comparable across champions. The 1.5 reference is the "high roamer"
+// threshold, so a full bar means "roams as much as a dedicated roamer".
+const BAR_SCALE = 1.5
+
+const barHeight = (value: number | null) => {
+  if (!value || value <= 0) return '0%'
+  return `${Math.min(100, (value / BAR_SCALE) * 100)}%`
+}
+
 // Verdict on the @15 average (out-of-lane kills + assists per game). Heuristic
 // thresholds: 1.5+ reads as a roamer, 0.5 or fewer as lane-bound. Only roamers
 // get the accent tone so the emphasis lands on them; the others stay muted.
@@ -57,12 +67,12 @@ const verdict = computed<{ label: string, tone: string } | null>(() => {
 
     <div
       v-else
-      class="glass flex flex-col gap-3 rounded-lg p-4"
+      class="glass flex flex-col gap-4 rounded-lg p-4"
     >
-      <div class="flex items-center justify-between">
-        <span class="text-xs font-medium uppercase tracking-wide text-muted">
-          Roaming KP
-        </span>
+      <div class="flex items-baseline justify-between gap-2">
+        <p class="text-xs text-muted">
+          {{ games.toLocaleString('en-US') }} games analysed
+        </p>
         <span
           v-if="verdict"
           class="text-sm font-medium"
@@ -72,24 +82,29 @@ const verdict = computed<{ label: string, tone: string } | null>(() => {
         </span>
       </div>
 
-      <div class="grid grid-cols-3 gap-2">
+      <div class="flex items-end gap-4">
         <div
           v-for="window in windows"
           :key="window.label"
-          class="flex flex-col items-center gap-0.5 rounded-lg bg-elevated px-2 py-3"
+          class="flex flex-1 flex-col items-center gap-2"
         >
-          <span class="text-2xl font-semibold tabular-nums">
+          <span
+            class="text-xl font-semibold tabular-nums"
+            :class="window.value === null ? 'text-muted' : ''"
+          >
             {{ fmt(window.value) }}
           </span>
+          <div class="relative h-16 w-full overflow-hidden rounded-md bg-elevated">
+            <div
+              class="absolute inset-x-0 bottom-0 rounded-md bg-primary/70 transition-[height] duration-500"
+              :style="{ height: barHeight(window.value) }"
+            />
+          </div>
           <span class="text-xs text-muted">
-            {{ window.label }}
+            {{ window.label }} min
           </span>
         </div>
       </div>
-
-      <p class="text-xs text-muted">
-        out-of-lane kill participations per game · {{ games.toLocaleString('en-US') }} games
-      </p>
     </div>
   </section>
 </template>
