@@ -36,11 +36,15 @@ public sealed class ChampionPowerspikesApiIntegrationTests
     private const int CoreItem = 3153;   // completed item in the dominant build
     private const int NoiseItem = 1001;   // a non-build purchase that must be ignored
 
-    // The gold/damage lead is flat up to this minute, then rises — a deliberate
-    // upward kink. The first level-6 minute and the core item completion are both
-    // placed here, so both events must show a positive spike (the slope of the
-    // power curve increases right after them).
+    // The gold/damage lead is flat until each game's own kink minute, then rises —
+    // a deliberate upward slope kink. The level-6 minute and the core item completion
+    // are both placed at that kink. The kink minute is spread across games (centred
+    // here) so the mean curve smears into a gentle ramp: each game keeps a sharp local
+    // spike while the population baseline stays shallow, so the baseline-subtracted
+    // spike (#775) comes out clearly positive — a single shared kink would cancel to
+    // ~zero against its own baseline.
     private const int KinkMinute = 12;
+    private const int KinkSpread = 2; // kink minutes span [KinkMinute - 2, KinkMinute + 2]
     private const int MaxMinute = 30;
 
     private readonly PostgresFixture _fixture;
@@ -233,6 +237,11 @@ public sealed class ChampionPowerspikesApiIntegrationTests
             .WithTimelineIngested()
             .Build());
 
+        // Each game's kink sits at a different minute in [KinkMinute ± KinkSpread], so
+        // the cohort's kinks average out to ~KinkMinute while no single minute carries
+        // the whole slope change — the population baseline stays shallow.
+        var kink = KinkMinute + (index % (2 * KinkSpread + 1)) - KinkSpread;
+
         var champion = Participant(matchId, 1, Champion, teamId: 100, win: true, accountId, eloBracket);
         // The aggregation keys item spikes off the participant's completed inventory
         // (Item0..6), timed from ItemEvents — so the core item must sit in a build slot.
@@ -240,7 +249,7 @@ public sealed class ChampionPowerspikesApiIntegrationTests
         champion.ItemEvents =
         [
             new ItemEvent { EventType = "ITEM_PURCHASED", ItemId = NoiseItem, TimestampMs = 5 * 60_000 },
-            new ItemEvent { EventType = "ITEM_PURCHASED", ItemId = CoreItem, TimestampMs = KinkMinute * 60_000 }
+            new ItemEvent { EventType = "ITEM_PURCHASED", ItemId = CoreItem, TimestampMs = kink * 60_000 }
         ];
         db.MatchParticipants.Add(champion);
         db.MatchParticipants.Add(Participant(matchId, 2, Opponent, teamId: 200, win: false));
@@ -251,9 +260,9 @@ public sealed class ChampionPowerspikesApiIntegrationTests
 
         for (var minute = 1; minute <= MaxMinute; minute++)
         {
-            var goldDiff = GoldDiffBase(minute) + variance;
-            var dmgDiff = DamageDiffBase(minute) + variance;
-            var level = minute < KinkMinute ? 5 : Math.Min(18, 6 + (minute - KinkMinute) / 3);
+            var goldDiff = GoldDiffBase(minute, kink) + variance;
+            var dmgDiff = DamageDiffBase(minute, kink) + variance;
+            var level = minute < kink ? 5 : Math.Min(18, 6 + (minute - kink) / 3);
 
             var championGold = minute * 300;
             var championDamage = minute * 150;
@@ -265,12 +274,12 @@ public sealed class ChampionPowerspikesApiIntegrationTests
         }
     }
 
-    // Flat lead up to the kink minute, then a linear rise — an upward slope kink.
-    private static int GoldDiffBase(int minute)
-        => minute <= KinkMinute ? 100 : 100 + (minute - KinkMinute) * 80;
+    // Flat lead up to the game's kink minute, then a linear rise — an upward slope kink.
+    private static int GoldDiffBase(int minute, int kink)
+        => minute <= kink ? 100 : 100 + (minute - kink) * 80;
 
-    private static int DamageDiffBase(int minute)
-        => minute <= KinkMinute ? 50 : 50 + (minute - KinkMinute) * 40;
+    private static int DamageDiffBase(int minute, int kink)
+        => minute <= kink ? 50 : 50 + (minute - kink) * 40;
 
     private static MatchParticipantTimelineSnapshot Snapshot(
         string matchId, int participantId, int minute, int gold, int level, int damage)

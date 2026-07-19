@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChampionPowerspikeEvent } from '~~/shared/types/champions'
+import type { ChampionPowerCurvePoint, ChampionPowerspikeEvent } from '~~/shared/types/champions'
 import type { StaticItemData } from '~~/shared/types/static-data'
 
 definePageMeta({ layout: 'default' })
@@ -92,6 +92,11 @@ const spikeEvents: ChampionPowerspikeEvent[] = [
   { type: 'item', refId: 3071, avgMinute: 24.9, spikeMagnitude: -0.018, games: 176 },
   { type: 'item', refId: 3026, avgMinute: 31.2, spikeMagnitude: -0.041, games: 88 },
 ]
+// A gently concave opponent-relative power curve for the demo hero chart.
+const spikeCurve: ChampionPowerCurvePoint[] = Array.from({ length: 30 }, (_, i) => {
+  const minute = i + 1
+  return { minute, power: Math.round((Math.log(minute + 1) * 0.6 - 0.4) * 100) / 100, games: 470 }
+})
 </script>
 
 <template>
@@ -145,6 +150,7 @@ const spikeEvents: ChampionPowerspikeEvent[] = [
         Champion power spikes (item bars)
       </h2>
       <ChampionPowerspikesChart
+        :curve="spikeCurve"
         :events="spikeEvents"
         :items-map="spikeItemsMap"
       />

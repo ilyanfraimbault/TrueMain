@@ -27,8 +27,12 @@ namespace TrueMain.Services.Champions;
 /// A spike is the slope-change of that power around an event — a completed build item
 /// or a level milestone (6/11/16) — computed per game at aggregation time and kept as
 /// additive sums in <c>champion_powerspike_event_stats</c>; the read divides
-/// <c>SumSpike</c>/<c>SumMinute</c> by the game count. Item events are intersected with
-/// the champion's dominant aggregated build for display. Correlational, not causal:
+/// <c>SumSpike</c>/<c>SumMinute</c> by the game count and then subtracts the ambient
+/// curvature the mean curve already shows at the event's minute. That baseline
+/// subtraction removes the lead curve's global concavity — leads decelerate over time,
+/// so the raw slope-change is negative for nearly every event and the "clear spike"
+/// view would be permanently empty (#775). Item events are intersected with the
+/// champion's dominant aggregated build for display. Correlational, not causal:
 /// a champion completes an item earlier partly because it is already ahead; the
 /// opponent-relative + slope-change framing dampens that but does not remove it.
 /// Same queue / patch / tracked-account population as the sibling reads.
@@ -41,6 +45,10 @@ public sealed class ChampionPowerspikesQueryService(
     : IChampionPowerspikesQueryService
 {
     private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(60);
+
+    // Half-window (minutes) each side of an event for the slope-change spike.
+    // Mirrors ChampionPowerspikeAggregationProcess.
+    private const int SpikeWindowMinutes = 3;
 
     public async Task<ChampionPowerspikesResponse> GetAsync(
         int championId,
@@ -94,8 +102,10 @@ public sealed class ChampionPowerspikesQueryService(
             return empty;
         }
 
-        var curve = await BuildCurveAsync(championId, position, normalizedPatch, bands, minGames, sigmaByMinute, ct);
-        var events = await BuildEventsAsync(championId, position, queueId, normalizedPatch, bands, minGames, ct);
+        var (curve, powerByMinute) = await BuildCurveAsync(
+            championId, position, normalizedPatch, bands, minGames, sigmaByMinute, ct);
+        var events = await BuildEventsAsync(
+            championId, position, queueId, normalizedPatch, bands, minGames, powerByMinute, ct);
 
         var response = new ChampionPowerspikesResponse
         {
@@ -112,7 +122,10 @@ public sealed class ChampionPowerspikesQueryService(
 
     // Fold the curve stats to the requested scope (sum totals + games per minute),
     // then divide by games and normalise by σ(m) to recover the mean power point.
-    private async Task<List<ChampionPowerCurvePoint>> BuildCurveAsync(
+    // Returns the displayed curve (games floor applied) plus the full mean-power
+    // series keyed by minute — the latter is the baseline the event spikes are
+    // measured against (no floor, so the ±window lookups stay populated).
+    private async Task<(List<ChampionPowerCurvePoint> Curve, IReadOnlyDictionary<int, double> PowerByMinute)> BuildCurveAsync(
         int championId,
         string position,
         string? normalizedPatch,
@@ -147,9 +160,10 @@ public sealed class ChampionPowerspikesQueryService(
             .ToListAsync(ct);
 
         var curve = new List<ChampionPowerCurvePoint>();
+        var powerByMinute = new Dictionary<int, double>();
         foreach (var row in rows.OrderBy(r => r.Minute))
         {
-            if (row.Games < minGames || !sigmaByMinute.TryGetValue(row.Minute, out var sigma))
+            if (!sigmaByMinute.TryGetValue(row.Minute, out var sigma))
             {
                 continue;
             }
@@ -163,15 +177,22 @@ public sealed class ChampionPowerspikesQueryService(
                 continue;
             }
 
-            curve.Add(new ChampionPowerCurvePoint { Minute = row.Minute, Power = power, Games = row.Games });
+            // The baseline series carries every minute with a computable mean power;
+            // the displayed curve keeps the games floor so thin minutes stay hidden.
+            powerByMinute[row.Minute] = power;
+            if (row.Games >= minGames)
+            {
+                curve.Add(new ChampionPowerCurvePoint { Minute = row.Minute, Power = power, Games = row.Games });
+            }
         }
 
-        return curve;
+        return (curve, powerByMinute);
     }
 
     // Fold the event spikes to the requested scope (sum spike/minute + games per
-    // event), divide by games, and keep item events only if they belong to the
-    // dominant build. Ordered by descending magnitude.
+    // event), divide by games, subtract the population's baseline curvature at the
+    // event's mean minute, and keep item events only if they belong to the dominant
+    // build. Ordered by descending magnitude.
     private async Task<List<ChampionPowerspikeEvent>> BuildEventsAsync(
         int championId,
         string position,
@@ -179,6 +200,7 @@ public sealed class ChampionPowerspikesQueryService(
         string? normalizedPatch,
         IReadOnlyList<string>? bands,
         int minGames,
+        IReadOnlyDictionary<int, double> powerByMinute,
         CancellationToken ct)
     {
         var query = db.ChampionPowerspikeEventStats
@@ -223,16 +245,41 @@ public sealed class ChampionPowerspikesQueryService(
 
         return rows
             .Where(r => r.EventType != "item" || coreItems.Contains(r.RefId))
-            .Select(r => new ChampionPowerspikeEvent
+            .Select(r =>
             {
-                Type = r.EventType,
-                RefId = r.RefId,
-                AvgMinute = r.SumMinute / r.Games,
-                SpikeMagnitude = r.SumSpike / r.Games,
-                Games = r.Games
+                var avgMinute = r.SumMinute / r.Games;
+                return new ChampionPowerspikeEvent
+                {
+                    Type = r.EventType,
+                    RefId = r.RefId,
+                    AvgMinute = avgMinute,
+                    // Excess over the ambient curvature: the raw slope-change minus
+                    // what the mean curve does anyway at this minute. Without it the
+                    // metric inherits the lead curve's global concavity (leads
+                    // decelerate over time), so every event reads negative and the
+                    // "clear spike" view is permanently empty.
+                    SpikeMagnitude = r.SumSpike / r.Games - BaselineCurvature(powerByMinute, avgMinute),
+                    Games = r.Games
+                };
             })
             .OrderByDescending(e => e.SpikeMagnitude)
             .ToList();
+    }
+
+    // Second difference of the mean power curve around a minute, on the same ±window
+    // and scale as the per-game spike: (P(m+w) − 2·P(m) + P(m−w)) / w. Zero when any
+    // of the three minutes is missing — the event then keeps its raw slope-change.
+    private static double BaselineCurvature(IReadOnlyDictionary<int, double> powerByMinute, double avgMinute)
+    {
+        var m = (int)Math.Round(avgMinute);
+        if (powerByMinute.TryGetValue(m - SpikeWindowMinutes, out var before)
+            && powerByMinute.TryGetValue(m, out var at)
+            && powerByMinute.TryGetValue(m + SpikeWindowMinutes, out var after))
+        {
+            return (after - 2 * at + before) / SpikeWindowMinutes;
+        }
+
+        return 0;
     }
 
     // The completed items of the dominant build for the slice: pick the build id

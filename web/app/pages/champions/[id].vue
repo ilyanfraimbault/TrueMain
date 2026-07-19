@@ -413,6 +413,7 @@ watch(champion, (data) => {
           </div>
 
           <ChampionPowerspikesChart
+            :curve="championPowerspikes?.curve ?? []"
             :events="championPowerspikes?.events ?? []"
             :items-map="itemsMap ?? {}"
             :loading="isLoadingStatus(powerspikesStatus)"
