@@ -70,7 +70,7 @@ services:
       - truemain_internal
 
   api:
-    image: ghcr.io/ilyanfraimbault/truemain-api:latest
+    image: ghcr.io/ilyanfraimbault/truemain-api:${IMAGE_TAG:-latest}
     container_name: truemain-api
     restart: unless-stopped
     environment:
@@ -100,7 +100,7 @@ services:
       - truemain_internal
 
   web:
-    image: ghcr.io/ilyanfraimbault/truemain-web:latest
+    image: ghcr.io/ilyanfraimbault/truemain-web:${IMAGE_TAG:-latest}
     container_name: truemain-web
     restart: unless-stopped
     environment:
@@ -116,7 +116,7 @@ services:
       - truemain_internal
 
   admin:
-    image: ghcr.io/ilyanfraimbault/truemain-admin:latest
+    image: ghcr.io/ilyanfraimbault/truemain-admin:${IMAGE_TAG:-latest}
     container_name: truemain-admin
     restart: unless-stopped
     environment:
@@ -190,7 +190,7 @@ services:
       - truemain_internal
 
   ingestor:
-    image: ghcr.io/ilyanfraimbault/truemain-ingestor:latest
+    image: ghcr.io/ilyanfraimbault/truemain-ingestor:${IMAGE_TAG:-latest}
     container_name: truemain-ingestor
     restart: unless-stopped
     environment:
