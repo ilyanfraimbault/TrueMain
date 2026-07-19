@@ -25,6 +25,14 @@ const filterRegion = computed<RegionSlug | null>(() => {
 const filterPosition = useRouteQueryPosition()
 const filterChampionId = useRouteQueryChampionId()
 
+// OTP-only toggle — a truthy `?otpOnly=` narrows the list to one-trick ponies.
+// Read tolerantly (`true`/`1`) so a hand-typed or legacy link still resolves,
+// but only ever written back as the canonical `true`.
+const filterOtpOnly = computed<boolean>(() => {
+  const raw = Array.isArray(route.query.otpOnly) ? route.query.otpOnly[0] : route.query.otpOnly
+  return raw === 'true' || raw === '1'
+})
+
 // Any filter change drops `?page=` — staying on page 5 after narrowing the
 // filter set risks landing past the new total (see useRouteFilterSetter).
 const setQueryFilter = useRouteFilterSetter()
@@ -41,6 +49,12 @@ async function setChampionId(next: number | null) {
   await setQueryFilter('championId', next ? String(next) : null)
 }
 
+async function setOtpOnly(next: boolean) {
+  // Drop the param entirely when off so the default (all truemains) has a clean
+  // URL and shares the unfiltered cache key.
+  await setQueryFilter('otpOnly', next ? 'true' : null)
+}
+
 // ─── Leaderboard fetch ────────────────────────────────────────────────────
 const {
   rows,
@@ -54,6 +68,7 @@ const {
   region: filterRegion,
   position: filterPosition,
   championId: filterChampionId,
+  otpOnly: filterOtpOnly,
 })
 
 // ─── Static lookups ───────────────────────────────────────────────────────
@@ -91,8 +106,10 @@ const championsById = useChampionsById(champions)
     <LeaderboardFilters
       :region="filterRegion"
       :position="filterPosition"
+      :otp-only="filterOtpOnly"
       @update:region="setRegion"
       @update:position="setPosition"
+      @update:otp-only="setOtpOnly"
     />
 
     <ClientOnly>

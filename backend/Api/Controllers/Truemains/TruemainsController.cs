@@ -58,6 +58,7 @@ public sealed class TruemainsController(
         [FromQuery] string? region,
         [FromQuery] string? position,
         [FromQuery] int? championId,
+        [FromQuery] bool? otpOnly,
         CancellationToken ct = default)
     {
         var response = await leaderboardQueryService.GetAsync(
@@ -66,6 +67,7 @@ public sealed class TruemainsController(
             region,
             position,
             championId,
+            otpOnly ?? false,
             ct);
 
         // Let shared caches (CDN / reverse proxy) serve the leaderboard for the

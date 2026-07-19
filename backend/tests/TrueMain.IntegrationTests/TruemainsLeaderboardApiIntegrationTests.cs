@@ -625,6 +625,87 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
     }
 
     [Fact]
+    public async Task List_surfaces_otp_flag_and_filters_by_otp_only()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        // Two Yasuo (157) mains: one flagged OTP by main analysis, one not.
+        // The IsOtp flag must ride through to the top-champions cell, and
+        // ?otpOnly=true must drop the non-OTP main.
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var oneTrick = Account("one-trick", "OneTrick", "EUW1");
+            var flexMain = Account("flex-main", "FlexMain", "EUW1");
+
+            db.RiotAccounts.AddRange(oneTrick, flexMain);
+            db.RankSnapshots.AddRange(
+                Snapshot(oneTrick, "DIAMOND", "I", 80, now),
+                Snapshot(flexMain, "DIAMOND", "I", 50, now));
+            db.MainChampionStats.AddRange(
+                MainStat("one-trick", "EUW1", 157, "MIDDLE", isMain: true, isOtp: true),
+                MainStat("flex-main", "EUW1", 157, "MIDDLE", isMain: true, isOtp: false));
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        // Unfiltered: both rows appear, each carrying the right IsOtp flag on
+        // their Yasuo top-champion cell.
+        var all = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        all!.Total.Should().Be(2);
+        var byName = all.Rows.ToDictionary(r => r.Identity.GameName);
+        byName["OneTrick"].TopChampions.Single(c => c.ChampionId == 157).IsOtp.Should().BeTrue();
+        byName["FlexMain"].TopChampions.Single(c => c.ChampionId == 157).IsOtp.Should().BeFalse();
+
+        // otpOnly=true → only the one-trick survives.
+        var otp = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?otpOnly=true");
+        otp!.Total.Should().Be(1);
+        otp.Rows.Single().Identity.GameName.Should().Be("OneTrick");
+        otp.Rows.Single().TopChampions.Single(c => c.ChampionId == 157).IsOtp.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task List_otp_only_composes_with_champion_filter()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        // A player who is an OTP of Ahri (103) but only a flex main of Yasuo
+        // (157). ?otpOnly=true&championId=157 must return nothing — the OTP
+        // predicate and the champion predicate land on the same
+        // main_champion_stats row, so it means "OTP of Yasuo", which they aren't.
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var ahriOtp = Account("ahri-otp", "AhriOtp", "EUW1");
+
+            db.RiotAccounts.Add(ahriOtp);
+            db.RankSnapshots.Add(Snapshot(ahriOtp, "DIAMOND", "I", 80, now));
+            db.MainChampionStats.AddRange(
+                MainStat("ahri-otp", "EUW1", 103, "MIDDLE", isMain: true, isOtp: true),
+                MainStat("ahri-otp", "EUW1", 157, "MIDDLE", isMain: true, isOtp: false));
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        // OTP of Ahri → shows under otpOnly + championId=103.
+        var ahri = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?otpOnly=true&championId=103");
+        ahri!.Total.Should().Be(1);
+        ahri.Rows.Single().Identity.GameName.Should().Be("AhriOtp");
+
+        // Not an OTP of Yasuo → excluded under otpOnly + championId=157, even
+        // though the player is a Yasuo main and an OTP (of a different champion).
+        var yasuo = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?otpOnly=true&championId=157");
+        yasuo!.Total.Should().Be(0);
+        yasuo.Rows.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task List_caches_response_for_identical_request_shape()
     {
         // Proves the 30s response cache short-circuits the four SQL queries
@@ -713,7 +794,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
         };
     }
 
-    private static MainChampionStat MainStat(string puuid, string platformId, int championId, string primaryPosition, bool isMain, int totalMatches = 100)
+    private static MainChampionStat MainStat(string puuid, string platformId, int championId, string primaryPosition, bool isMain, int totalMatches = 100, bool isOtp = false)
         => new()
         {
             Id = Guid.NewGuid(),
@@ -727,7 +808,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
             ChampionMatches = totalMatches,
             PlayRate = totalMatches > 0 ? 1d : 0d,
             IsMain = isMain,
-            IsOtp = false,
+            IsOtp = isOtp,
             PrimaryPosition = primaryPosition,
             PositionBreakdown = [new PositionStat { Position = primaryPosition, Games = 50, Rate = 1d }],
             CalculatedAtUtc = DateTime.UtcNow,

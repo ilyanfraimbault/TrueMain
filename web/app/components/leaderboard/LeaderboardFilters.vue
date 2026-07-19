@@ -11,11 +11,13 @@ import type { ChampionPosition } from '~/utils/positions'
 const props = defineProps<{
   region: RegionSlug | null
   position: ChampionPosition | null
+  otpOnly: boolean
 }>()
 
 const emit = defineEmits<{
   'update:region': [value: RegionSlug | null]
   'update:position': [value: ChampionPosition | null]
+  'update:otpOnly': [value: boolean]
 }>()
 
 interface RegionItem {
@@ -42,12 +44,30 @@ function onRegionChange(item: RegionItem | undefined) {
 
 <template>
   <div class="flex flex-wrap items-center justify-between gap-3">
-    <!-- Position: leftmost, narrowest filter. Reuses the same component
-         the /champions page uses so the two filter strips feel identical. -->
-    <RolePicker
-      :position="position"
-      @update:position="value => emit('update:position', value)"
-    />
+    <!-- Position + OTP toggle share the left cluster; region stays right. -->
+    <div class="flex flex-wrap items-center gap-3">
+      <!-- Position: narrowest filter. Reuses the same component the /champions
+           page uses so the two filter strips feel identical. -->
+      <RolePicker
+        :position="position"
+        @update:position="value => emit('update:position', value)"
+      />
+
+      <!-- OTP-only toggle. Amber when active to echo the row's OTP badge; a
+           pressed button rather than a switch so it matches the RolePicker's
+           button-strip affordance. `aria-pressed` exposes the toggle state. -->
+      <UButton
+        :color="otpOnly ? 'warning' : 'neutral'"
+        :variant="otpOnly ? 'soft' : 'ghost'"
+        size="sm"
+        icon="i-lucide-target"
+        :aria-pressed="otpOnly"
+        title="Show only one-trick ponies (≥85% on a single champion)"
+        @click="emit('update:otpOnly', !otpOnly)"
+      >
+        OTP only
+      </UButton>
+    </div>
 
     <!-- Region: rightmost, single dropdown so the strip stays compact and
          each region is reachable in one click. The flag renders in both

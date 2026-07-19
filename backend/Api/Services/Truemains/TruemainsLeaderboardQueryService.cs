@@ -50,6 +50,7 @@ public sealed class TruemainsLeaderboardQueryService(
         string? region,
         string? position,
         int? championId,
+        bool otpOnly,
         CancellationToken ct)
     {
         var totalSw = Stopwatch.StartNew();
@@ -82,19 +83,19 @@ public sealed class TruemainsLeaderboardQueryService(
         // moves on a multi-minute cadence (RankSnapshotIngestion + match
         // ingest), so the TTL trades a few seconds of staleness for a large
         // drop in DB load. Mirrors ChampionSummariesQueryService's TTL.
-        var cacheKey = BuildCacheKey(platforms, championFilter, normalizedPosition, minGames, clampedPage, clampedPageSize);
+        var cacheKey = BuildCacheKey(platforms, championFilter, normalizedPosition, minGames, otpOnly, clampedPage, clampedPageSize);
         if (cache.TryGetValue<LeaderboardResponse>(cacheKey, out var cached) && cached is not null)
         {
             totalSw.Stop();
             logger.LogInformation(
-                "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} rows={Rows} total={Total} elapsed={ElapsedMs}ms result=cache_hit",
-                clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames,
+                "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} otpOnly={OtpOnly} rows={Rows} total={Total} elapsed={ElapsedMs}ms result=cache_hit",
+                clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames, otpOnly,
                 cached.Rows.Count, cached.Total, totalSw.ElapsedMilliseconds);
             return cached;
         }
 
         var (total, countMs) = await TimedAsync(() =>
-            CountAsync(platforms, championFilter, normalizedPosition, minGames, ct));
+            CountAsync(platforms, championFilter, normalizedPosition, minGames, otpOnly, ct));
         if (total == 0)
         {
             var empty = Empty(clampedPage, clampedPageSize);
@@ -107,14 +108,14 @@ public sealed class TruemainsLeaderboardQueryService(
             // diagnosed here, not on the populated path.
             totalSw.Stop();
             logger.LogInformation(
-                "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} rows=0 total=0 countMs={CountMs:F1} elapsed={ElapsedMs}ms result=empty",
-                clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames,
+                "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} otpOnly={OtpOnly} rows=0 total=0 countMs={CountMs:F1} elapsed={ElapsedMs}ms result=empty",
+                clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames, otpOnly,
                 countMs, totalSw.ElapsedMilliseconds);
             return empty;
         }
 
         var (pageRows, pageMs) = await TimedAsync(() => FetchPageAsync(
-            platforms, championFilter, normalizedPosition, minGames, offset, clampedPageSize, ct));
+            platforms, championFilter, normalizedPosition, minGames, otpOnly, offset, clampedPageSize, ct));
         if (pageRows.Count == 0)
         {
             // The caller asked for a page past the end. Return an empty slice
@@ -130,8 +131,8 @@ public sealed class TruemainsLeaderboardQueryService(
             cache.Set(cacheKey, pastEnd, CacheEntry(ResponseCacheTtl));
             totalSw.Stop();
             logger.LogInformation(
-                "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} rows=0 total={Total} countMs={CountMs:F1} pageMs={PageMs:F1} elapsed={ElapsedMs}ms result=past_end",
-                clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames,
+                "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} otpOnly={OtpOnly} rows=0 total={Total} countMs={CountMs:F1} pageMs={PageMs:F1} elapsed={ElapsedMs}ms result=past_end",
+                clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames, otpOnly,
                 total, countMs, pageMs, totalSw.ElapsedMilliseconds);
             return pastEnd;
         }
@@ -265,8 +266,8 @@ public sealed class TruemainsLeaderboardQueryService(
 
         totalSw.Stop();
         logger.LogInformation(
-            "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} rows={Rows} total={Total} countMs={CountMs:F1} pageMs={PageMs:F1} topChampMs={TopChampMs:F1} statsMs={StatsMs:F1} ranksMs={RanksMs:F1} buildsContinuationMs={BuildsContinuationMs:F1} positionsMs={PositionsMs:F1} elapsed={ElapsedMs}ms result=miss",
-            clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames,
+            "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} otpOnly={OtpOnly} rows={Rows} total={Total} countMs={CountMs:F1} pageMs={PageMs:F1} topChampMs={TopChampMs:F1} statsMs={StatsMs:F1} ranksMs={RanksMs:F1} buildsContinuationMs={BuildsContinuationMs:F1} positionsMs={PositionsMs:F1} elapsed={ElapsedMs}ms result=miss",
+            clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames, otpOnly,
             rows.Count, total, countMs, pageMs, topChampMs, statsMs, ranksMs, buildsContinuationMs, positionsMs, totalSw.ElapsedMilliseconds);
 
         return response;
@@ -277,6 +278,7 @@ public sealed class TruemainsLeaderboardQueryService(
         int? championFilter,
         string? position,
         int minGames,
+        bool otpOnly,
         int page,
         int pageSize)
     {
@@ -289,7 +291,8 @@ public sealed class TruemainsLeaderboardQueryService(
         var platformPart = string.Join(",", platforms.OrderBy(p => p, StringComparer.Ordinal));
         var championPart = championFilter?.ToString() ?? "_";
         var positionPart = position ?? "_";
-        return $"truemains:leaderboard:{platformPart}:{championPart}:{positionPart}:{minGames}:{page}:{pageSize}";
+        var otpPart = otpOnly ? "otp" : "_";
+        return $"truemains:leaderboard:{platformPart}:{championPart}:{positionPart}:{minGames}:{otpPart}:{page}:{pageSize}";
     }
 
     // Every cache entry must carry a Size because the shared MemoryCache runs
@@ -321,14 +324,17 @@ public sealed class TruemainsLeaderboardQueryService(
         int? championFilter,
         string? position,
         int minGames,
+        bool otpOnly,
         CancellationToken ct)
     {
         // The /truemains leaderboard is, by definition, the list of truemains
         // — so the `IsMain = true` EXISTS is unconditional. Accounts that
         // haven't been through main analysis yet (fresh ingests) are out of
-        // scope until they do. The `championFilter` / `position` parameters
-        // degrade to "any champion / any position" via IS NULL so they
-        // compose inside the same EXISTS clause without an outer toggle.
+        // scope until they do. The `championFilter` / `position` / `otpOnly`
+        // parameters degrade to "any champion / any position / any main" so they
+        // compose inside the same EXISTS clause without an outer toggle. When
+        // `otpOnly` is set with a champion filter, both land on the same
+        // main_champion_stats row, so it means "OTP of that champion".
         //
         // The ranked-games floor reads main_champion_stats."TotalMatches"
         // rather than a correlated COUNT(*) over match_participants: that
@@ -349,6 +355,7 @@ public sealed class TruemainsLeaderboardQueryService(
                     AND m."Puuid" = a."Puuid"
                     AND m."IsMain" = true
                     AND m."TotalMatches" >= {minGames}
+                    AND ({otpOnly}::bool = false OR m."IsOtp" = true)
                     AND ({championFilter}::int IS NULL OR m."ChampionId" = {championFilter})
                     AND ({position}::text IS NULL OR EXISTS (
                         SELECT 1
@@ -371,6 +378,7 @@ public sealed class TruemainsLeaderboardQueryService(
         int? championFilter,
         string? position,
         int minGames,
+        bool otpOnly,
         int offset,
         int pageSize,
         CancellationToken ct)
@@ -399,6 +407,7 @@ public sealed class TruemainsLeaderboardQueryService(
                     AND m."Puuid" = a."Puuid"
                     AND m."IsMain" = true
                     AND m."TotalMatches" >= {minGames}
+                    AND ({otpOnly}::bool = false OR m."IsOtp" = true)
                     AND ({championFilter}::int IS NULL OR m."ChampionId" = {championFilter})
                     AND ({position}::text IS NULL OR EXISTS (
                         SELECT 1
@@ -468,6 +477,7 @@ public sealed class TruemainsLeaderboardQueryService(
                     m."ChampionId" AS "ChampionId",
                     m."ChampionMatches" AS "Games",
                     m."PlayRate" AS "PlayRate",
+                    m."IsOtp" AS "IsOtp",
                     ROW_NUMBER() OVER (
                         PARTITION BY m."Puuid"
                         ORDER BY m."PlayRate" DESC, m."ChampionMatches" DESC
@@ -476,7 +486,7 @@ public sealed class TruemainsLeaderboardQueryService(
                 WHERE m."Puuid" = ANY ({puuids})
                   AND m."IsMain" = true
             )
-            SELECT "Puuid", "ChampionId", "Games", "PlayRate"
+            SELECT "Puuid", "ChampionId", "Games", "PlayRate", "IsOtp"
             FROM ranked
             WHERE rn <= {take}
             ORDER BY "Puuid", rn
@@ -496,6 +506,7 @@ public sealed class TruemainsLeaderboardQueryService(
                     ChampionId = r.ChampionId,
                     Games = r.Games,
                     PlayRate = r.PlayRate,
+                    IsOtp = r.IsOtp,
                 }).ToList());
     }
 
@@ -774,7 +785,7 @@ public sealed class TruemainsLeaderboardQueryService(
 
     private sealed record RankRow(Guid AccountId, string Tier, string Division, int LeaguePoints);
 
-    private sealed record TopChampionRow(string Puuid, int ChampionId, int Games, double PlayRate);
+    private sealed record TopChampionRow(string Puuid, int ChampionId, int Games, double PlayRate, bool IsOtp);
 
     // Value type so a missing (puuid, champion) lookup yields all-null build ids
     // via GetValueOrDefault instead of needing a null-reference guard at the
