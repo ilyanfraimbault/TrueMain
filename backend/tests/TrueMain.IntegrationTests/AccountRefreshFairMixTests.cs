@@ -259,6 +259,38 @@ public sealed class AccountRefreshFairMixTests
             "puuid-truemain-unranked");
     }
 
+    [Fact]
+    public async Task GetAccountsForRefreshAsync_ExcludesInvalidAccounts()
+    {
+        // An account whose PUUID no longer resolves is marked Invalid and must
+        // never be re-selected — otherwise the refresh keeps burning a request
+        // on the same dead PUUID every cycle.
+        await _fixture.ResetDatabaseAsync();
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var now = DateTime.UtcNow;
+
+            var invalidTruemain = NewAccount("puuid-invalid-truemain", "gone", "KR1", now.AddDays(-1));
+            invalidTruemain.Status = RiotAccountStatus.Invalid;
+            var invalidOther = NewAccount("puuid-invalid-other", "gone2", "KR1", now.AddDays(-1));
+            invalidOther.Status = RiotAccountStatus.Invalid;
+            var activeOther = NewAccount("puuid-active-other", "here", "KR1", now.AddDays(-1));
+
+            db.RiotAccounts.AddRange(invalidTruemain, invalidOther, activeOther);
+            db.MainChampionStats.Add(NewMainStat(invalidTruemain.Puuid));
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var verify = _fixture.CreateDbContext();
+        var repo = new RiotAccountRepository(verify);
+
+        var batch = await repo.GetAccountsForRefreshAsync(100, CancellationToken.None);
+
+        batch.Select(a => a.Puuid).Should().BeEquivalentTo(["puuid-active-other"]);
+    }
+
     private async Task SeedAccountsAsync(int truemainCount, int otherCount)
     {
         await using var db = _fixture.CreateDbContext();
