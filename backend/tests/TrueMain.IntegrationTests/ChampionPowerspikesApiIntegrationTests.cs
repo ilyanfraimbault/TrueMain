@@ -1,14 +1,25 @@
 using System.Net;
 using System.Net.Http.Json;
 using AwesomeAssertions;
+using Core.Lol.Map;
 using Core.Lol.Ranking;
+using Core.Options;
 using Data.Entities;
+using Ingestor.Options;
+using Ingestor.Processes;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Logging.Abstractions;
 using TrueMain.ReadModels.Champions;
 using TrueMain.TestKit.EntityBuilders;
 
 namespace TrueMain.IntegrationTests;
 
+/// <summary>
+/// End-to-end powerspikes read: seeds the dense per-minute snapshots + item events,
+/// runs <see cref="ChampionPowerspikeAggregationProcess"/> to fold them into the
+/// pre-aggregated stat tables, then asserts the endpoint reconstructs the curve and
+/// event spikes from those stats (#694) — the read no longer touches the raw grid.
+/// </summary>
 [Collection(IntegrationCollection.Name)]
 public sealed class ChampionPowerspikesApiIntegrationTests
 {
@@ -163,6 +174,8 @@ public sealed class ChampionPowerspikesApiIntegrationTests
                 summoner1Id: 4, summoner2Id: 14, skillOrderKey: "Q",
                 buildItems: [CoreItem], bootsItemId: 0, games: games, wins: games / 2, aggregatedAt)
             .SaveAsync(db);
+
+        await RunAggregationAsync();
     }
 
     /// <summary>
@@ -192,6 +205,22 @@ public sealed class ChampionPowerspikesApiIntegrationTests
         }
 
         await db.SaveChangesAsync();
+
+        await RunAggregationAsync();
+    }
+
+    // Fold the seeded dense snapshots into the powerspike stat tables the read now
+    // consumes, exactly as the ingestor's incremental aggregation does in production.
+    private async Task RunAggregationAsync()
+    {
+        var process = new ChampionPowerspikeAggregationProcess(
+            NullLogger<ChampionPowerspikeAggregationProcess>.Instance,
+            Microsoft.Extensions.Options.Options.Create(new PowerspikeAggregationOptions()),
+            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
+            new TestDbContextFactory(_fixture),
+            TimeProvider.System);
+
+        await process.RunCoreAsync(CancellationToken.None);
     }
 
     private static void AddSpikeGame(
@@ -201,9 +230,13 @@ public sealed class ChampionPowerspikesApiIntegrationTests
             .WithId(matchId)
             .WithQueueId(QueueId)
             .WithGameVersion(GameVersion)
+            .WithTimelineIngested()
             .Build());
 
         var champion = Participant(matchId, 1, Champion, teamId: 100, win: true, accountId, eloBracket);
+        // The aggregation keys item spikes off the participant's completed inventory
+        // (Item0..6), timed from ItemEvents — so the core item must sit in a build slot.
+        champion.Item0 = CoreItem;
         champion.ItemEvents =
         [
             new ItemEvent { EventType = "ITEM_PURCHASED", ItemId = NoiseItem, TimestampMs = 5 * 60_000 },

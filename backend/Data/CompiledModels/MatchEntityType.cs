@@ -20,9 +20,10 @@ namespace Data.CompiledModels
                 "Data.Entities.Match",
                 typeof(Match),
                 baseEntityType,
-                propertyCount: 12,
+                propertyCount: 13,
                 navigationCount: 1,
                 unnamedIndexCount: 4,
+                namedIndexCount: 1,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -128,6 +129,16 @@ namespace Data.CompiledModels
             timelineIngested.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
             timelineIngested.AddAnnotation("Relational:DefaultValue", false);
 
+            var timelineSnapshotsPruned = runtimeEntityType.AddProperty(
+                "TimelineSnapshotsPruned",
+                typeof(bool),
+                propertyInfo: typeof(Match).GetProperty("TimelineSnapshotsPruned", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Match).GetField("<TimelineSnapshotsPruned>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: false);
+            timelineSnapshotsPruned.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            timelineSnapshotsPruned.AddAnnotation("Relational:DefaultValue", false);
+
             var key = runtimeEntityType.AddKey(
                 new[] { id });
             runtimeEntityType.SetPrimaryKey(key);
@@ -147,6 +158,11 @@ namespace Data.CompiledModels
             var index2 = runtimeEntityType.AddIndex(
                 new[] { platformId, queueId, gameStartTimeUtc });
             index2.AddAnnotation("Relational:Name", "IX_matches_platform_queue_game_start");
+
+            var iX_matches_snapshot_prune_pending = runtimeEntityType.AddIndex(
+                new[] { queueId },
+                name: "IX_matches_snapshot_prune_pending");
+            iX_matches_snapshot_prune_pending.AddAnnotation("Relational:Filter", "\"PowerspikeAggregated\" = true AND \"TimelineSnapshotsPruned\" = false");
 
             return runtimeEntityType;
         }

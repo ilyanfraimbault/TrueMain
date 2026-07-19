@@ -16,6 +16,12 @@ public sealed class MatchDataRetentionProcess(
 {
     public string Name => "MatchDataRetention";
 
+    // The marks kept forever: the timeline-leads / matchup-lead aggregations only
+    // read these, and match-detail reads minute 15. The dense per-minute grid in
+    // between exists solely to feed the one-shot powerspike aggregation and is pruned
+    // once a match is folded. Mirrors ChampionMatchupLeadAggregationProcess.
+    private static readonly int[] CanonicalSnapshotMinutes = [5, 10, 15, 20, 30];
+
     public async Task<object?> RunCoreAsync(CancellationToken ct)
     {
         // Prune stale never-promoted candidates first (#487) — independent of match
@@ -56,13 +62,83 @@ public sealed class MatchDataRetentionProcess(
 
         var aggregateDeletion = await DeleteExpiredAggregatesAsync(ct);
 
+        // Prune the dense per-minute snapshot grid of already-aggregated matches down
+        // to the canonical marks — the storage the powerspike pre-aggregation (#694)
+        // was built to reclaim. Independent of the deletions above.
+        var snapshotPrune = await PruneAggregatedTimelineSnapshotsAsync(retentionPlan.QueueId, ct);
+
         return BuildRetentionPayload(
             retentionPlan,
             deletedMatches,
             deletedParticipants,
             nonRankedDeletion.DeletedMatches,
             prunedCandidates,
-            aggregateDeletion);
+            aggregateDeletion,
+            snapshotPrune);
+    }
+
+    /// <summary>
+    /// Reduces the timeline snapshots of matches already folded into the powerspike
+    /// aggregates (<see cref="Data.Entities.Match.PowerspikeAggregated"/>) to the
+    /// <see cref="CanonicalSnapshotMinutes"/>, deleting every intermediate minute and
+    /// flagging the match so it is never re-scanned. Batched, one transaction each:
+    /// the first run backfills tens of millions of rows across the existing dense grid,
+    /// so an unbounded delete would be a lock and WAL hazard — each committed batch frees
+    /// space and lets an interrupted run resume. The IX_matches_snapshot_prune_pending
+    /// partial index keeps the batch selection cheap and empties as pruning catches up.
+    /// </summary>
+    private async Task<SnapshotPruneResult> PruneAggregatedTimelineSnapshotsAsync(int queueId, CancellationToken ct)
+    {
+        if (!retentionOptions.Value.PruneAggregatedTimelineSnapshots)
+        {
+            return SnapshotPruneResult.Empty;
+        }
+
+        var batchSize = Math.Max(1, retentionOptions.Value.TimelineSnapshotPruneBatchSize);
+        var prunedMatches = 0;
+        var deletedSnapshots = 0;
+
+        while (true)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            await using var db = await dbContextFactory.CreateDbContextAsync(ct);
+            var batchIds = await db.Matches
+                .AsNoTracking()
+                .Where(match => match.QueueId == queueId
+                    && match.PowerspikeAggregated
+                    && !match.TimelineSnapshotsPruned)
+                .OrderBy(match => match.Id)
+                .Select(match => match.Id)
+                .Take(batchSize)
+                .ToListAsync(ct);
+
+            if (batchIds.Count == 0)
+            {
+                break;
+            }
+
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            deletedSnapshots += await db.MatchParticipantTimelineSnapshots
+                .Where(snapshot => batchIds.Contains(snapshot.MatchId)
+                    && !CanonicalSnapshotMinutes.Contains(snapshot.IntervalMinute))
+                .ExecuteDeleteAsync(ct);
+            prunedMatches += await db.Matches
+                .Where(match => batchIds.Contains(match.Id))
+                .ExecuteUpdateAsync(setters => setters.SetProperty(match => match.TimelineSnapshotsPruned, true), ct);
+            await transaction.CommitAsync(ct);
+        }
+
+        if (prunedMatches > 0)
+        {
+            logger.LogInformation(
+                "Timeline snapshot pruning reduced {PrunedMatches} aggregated match(es) to the canonical marks, "
+                + "removing {DeletedSnapshots} intermediate-minute snapshot(s).",
+                prunedMatches,
+                deletedSnapshots);
+        }
+
+        return new SnapshotPruneResult(prunedMatches, deletedSnapshots);
     }
 
     /// <summary>
@@ -336,7 +412,8 @@ public sealed class MatchDataRetentionProcess(
         int deletedParticipants,
         int deletedNonRankedMatches,
         int prunedCandidates,
-        AggregateDeletionResult aggregateDeletion)
+        AggregateDeletionResult aggregateDeletion,
+        SnapshotPruneResult snapshotPrune)
     {
         return new
         {
@@ -346,6 +423,8 @@ public sealed class MatchDataRetentionProcess(
             deletedParticipants,
             deletedNonRankedMatches,
             prunedCandidates,
+            prunedSnapshotMatches = snapshotPrune.PrunedMatches,
+            deletedIntermediateSnapshots = snapshotPrune.DeletedSnapshots,
             deletedAggregateScopes = aggregateDeletion.DeletedScopes,
             deletedMatchupStats = aggregateDeletion.DeletedMatchupStats,
             deletedTimelineLeadStats = aggregateDeletion.DeletedTimelineLeadStats,
@@ -363,6 +442,11 @@ public sealed class MatchDataRetentionProcess(
     }
 
     private sealed record ObservedMatch(string PlatformId, string GameVersion);
+
+    private sealed record SnapshotPruneResult(int PrunedMatches, int DeletedSnapshots)
+    {
+        public static SnapshotPruneResult Empty { get; } = new(0, 0);
+    }
 
     private sealed record DeletionResult(int DeletedMatches, int DeletedParticipants)
     {
