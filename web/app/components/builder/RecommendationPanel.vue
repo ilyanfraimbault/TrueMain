@@ -45,14 +45,14 @@ const lowSample = computed(() => confidence.value.sampleSize < LOW_SAMPLE_FLOOR)
 const lowSimilarity = computed(() =>
   draftRequested.value && confidence.value.meanSimilarity < LOW_SIMILARITY_FLOOR)
 
+// A terse warning shown inline next to the title when the sample is thin —
+// just the fact, no advisory tail (the numbers strip already qualifies it).
 const lowDataMessage = computed(() => {
   if (lowSample.value) {
-    return `Only ${confidence.value.sampleSize} similar game${confidence.value.sampleSize === 1 ? '' : 's'} `
-      + 'back this recommendation — treat it as a hint, not a consensus.'
+    return `Only ${confidence.value.sampleSize} similar game${confidence.value.sampleSize === 1 ? '' : 's'}`
   }
   if (lowSimilarity.value) {
-    return 'Few recorded games actually resemble this draft — the build below leans '
-      + 'on the champion\'s general games more than on your specific composition.'
+    return 'Few games resemble this draft'
   }
   return null
 })
@@ -85,7 +85,7 @@ const stats = computed(() => [
 <template>
   <SectionCard>
     <template #title>
-      <div class="flex items-center gap-2.5">
+      <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1">
         <SkeletonImage
           v-if="championIconUrl"
           :src="championIconUrl"
@@ -97,6 +97,18 @@ const stats = computed(() => [
         <h2 class="text-sm font-medium text-default">
           {{ championName ? `Recommended build for ${championName}` : 'Recommended build' }}
         </h2>
+        <!-- Thin-data qualifier: only the icon shows next to the title; the
+             message lives in its tooltip so it never crowds the header. -->
+        <UTooltip
+          v-if="lowDataMessage"
+          :text="lowDataMessage"
+          :delay-duration="150"
+        >
+          <UIcon
+            name="i-lucide-triangle-alert"
+            class="size-4 text-warning"
+          />
+        </UTooltip>
       </div>
     </template>
     <div class="space-y-6">
@@ -118,15 +130,6 @@ const stats = computed(() => [
           </dd>
         </div>
       </dl>
-
-      <UAlert
-        v-if="lowDataMessage"
-        color="warning"
-        variant="soft"
-        icon="i-lucide-triangle-alert"
-        title="Thin data for this draft"
-        :description="lowDataMessage"
-      />
 
       <!-- Same layout skeleton as the champion page's build panel: flexible
            left column, fixed 240px runes column at lg+ (see BuildPanel.vue for
