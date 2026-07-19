@@ -2,6 +2,14 @@
   "name": "truemain-web",
   "type": "module",
   "private": true,
+  "//browserslist": "Includes modern Firefox so Lightning CSS keeps the unprefixed `backdrop-filter` (Firefox never supported `-webkit-backdrop-filter`). Without a Firefox target it collapses the glass blur to `-webkit-` only and Firefox renders flat panels. Kept modern enough that oklch/color-mix stay native (no rgb downlevel).",
+  "browserslist": [
+    "Chrome >= 111",
+    "Edge >= 111",
+    "Firefox >= 113",
+    "Safari >= 16.4",
+    "iOS >= 16.4"
+  ],
   "scripts": {
     "build": "nuxt build",
     "dev": "nuxt dev",
