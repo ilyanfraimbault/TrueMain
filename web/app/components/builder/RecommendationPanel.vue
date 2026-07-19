@@ -85,7 +85,7 @@ const stats = computed(() => [
 <template>
   <SectionCard>
     <template #title>
-      <div class="flex items-center gap-2.5">
+      <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1">
         <SkeletonImage
           v-if="championIconUrl"
           :src="championIconUrl"
