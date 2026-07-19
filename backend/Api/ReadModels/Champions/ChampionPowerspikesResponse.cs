@@ -51,8 +51,11 @@ public sealed record ChampionPowerspikeEvent
 
     /// <summary>
     /// Mean change in the power-curve slope across a ±3 min window around the
-    /// event (after-slope − before-slope). Positive = the champion's advantage
-    /// accelerates after the event — the power spike. Correlational, not causal.
+    /// event (after-slope − before-slope), in excess of the ambient curvature the
+    /// mean curve shows at that minute anyway. Positive = the champion's advantage
+    /// accelerates after the event beyond the baseline — the power spike. The
+    /// baseline subtraction removes the lead curve's global concavity, which would
+    /// otherwise drive every event negative. Correlational, not causal.
     /// </summary>
     public double SpikeMagnitude { get; init; }
 
