@@ -5,8 +5,8 @@ namespace TrueMain.ReadModels.Champions;
 /// mean opponent-relative "power" per minute (a global-normalized blend of gold
 /// and combat lead); the events are the items the champion completes and the
 /// level milestones (6/11/16), each carrying how much the power curve
-/// accelerates around it — the spike. Computed live from per-minute timeline
-/// snapshots and item events; same queue / patch / tracked-account population as
+/// accelerates around it — the spike. Reconstructed from the pre-aggregated
+/// powerspike stats (#694); same queue / patch / tracked-account population as
 /// the sibling champion reads.
 /// </summary>
 public sealed record ChampionPowerspikesResponse
@@ -51,8 +51,11 @@ public sealed record ChampionPowerspikeEvent
 
     /// <summary>
     /// Mean change in the power-curve slope across a ±3 min window around the
-    /// event (after-slope − before-slope). Positive = the champion's advantage
-    /// accelerates after the event — the power spike. Correlational, not causal.
+    /// event (after-slope − before-slope), in excess of the ambient curvature the
+    /// mean curve shows at that minute anyway. Positive = the champion's advantage
+    /// accelerates after the event beyond the baseline — the power spike. The
+    /// baseline subtraction removes the lead curve's global concavity, which would
+    /// otherwise drive every event negative. Correlational, not causal.
     /// </summary>
     public double SpikeMagnitude { get; init; }
 

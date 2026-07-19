@@ -1,4 +1,4 @@
-import { createError, defineEventHandler, getQuery, getRequestURL, proxyRequest } from 'h3'
+import { createError, defineEventHandler, getQuery, getRequestURL, proxyRequest, readBody } from 'h3'
 
 export default defineEventHandler(async (event) => {
   // Dev-only, opt-in backend mock (`NUXT_DEV_MOCK_API=1`): serve deterministic
@@ -8,7 +8,11 @@ export default defineEventHandler(async (event) => {
   // the real local backend.
   if (import.meta.dev && devApiMockEnabled()) {
     const pathname = getRequestURL(event).pathname.replace(/^\/api/, '')
-    const mock = await resolveDevApiMock(pathname, getQuery(event))
+    // POST mocks (composition-build) shape their payload from the body.
+    const body = event.method === 'POST'
+      ? await readBody(event).catch(() => undefined)
+      : undefined
+    const mock = await resolveDevApiMock(pathname, getQuery(event), body)
     if (mock !== undefined) return mock
   }
 

@@ -65,19 +65,15 @@ public sealed class ChampionBuildsQueryService(
             ? totalGames
             : await CountAllBracketGamesAsync(
                 scopes[0], scope?.RiotAccountId, scope?.PlatformId, ct);
-        var coverage = allBracketGames == 0 ? 0d : (double)totalGames / allBracketGames;
+        var coverage = RateMath.Rate(totalGames, allBracketGames);
 
-        // Player-scoped requests carry a minimum-games floor: a champion the
-        // player has barely touched would produce a sparse, misleading build,
-        // so we report "no data" (null → 404 → empty state) rather than a
-        // thin payload. The floor is evaluated against the resolved
-        // patch+position slice — the same denominator the page renders.
-        // Global callers pass no scope, so no floor applies.
-        if (scope is not null && totalGames < scope.MinGames)
-        {
-            return null;
-        }
-
+        // A champion the profile lists as a main must never dead-end on click:
+        // the min-games floor (scope.MinGames) now only *prefers* a patch with
+        // enough games (see ChampionScopeLoader) — it no longer gates. Whatever
+        // aggregate the player actually has renders, flagged low-confidence via
+        // MinSampleMet when the sample is thin, rather than 404-ing as if they
+        // never played it. A genuine 404 still comes from an absent scope
+        // (LoadAsync → null above): no timeline-complete ranked game on record.
         var resolvedPatch = scopes.First().GameVersion;
         var resolvedPosition = scopes.First().Position;
 
@@ -352,10 +348,8 @@ public sealed class ChampionBuildsQueryService(
         {
             ItemIds = aggregates.ItemPath,
             Games = aggregates.ItemPathGames,
-            PickRate = sliceGames == 0 ? 0 : (double)aggregates.ItemPathGames / sliceGames,
-            WinRate = aggregates.ItemPathGames == 0
-                ? 0
-                : (double)aggregates.ItemPathWins / aggregates.ItemPathGames
+            PickRate = RateMath.Rate(aggregates.ItemPathGames, sliceGames),
+            WinRate = RateMath.Rate(aggregates.ItemPathWins, aggregates.ItemPathGames)
         };
 
         return new ChampionBuildReadModel
@@ -363,8 +357,8 @@ public sealed class ChampionBuildsQueryService(
             FirstItemId = aggregates.Key.FirstItemId,
             PrimaryKeystoneId = aggregates.Key.PrimaryKeystoneId,
             Games = sliceGames,
-            PickRate = totalGames == 0 ? 0 : (double)sliceGames / totalGames,
-            WinRate = sliceGames == 0 ? 0 : (double)aggregates.Wins / sliceGames,
+            PickRate = RateMath.Rate(sliceGames, totalGames),
+            WinRate = RateMath.Rate(aggregates.Wins, sliceGames),
             Core = new BuildCoreReadModel
             {
                 ItemPath = itemPath,
@@ -382,7 +376,7 @@ public sealed class ChampionBuildsQueryService(
                 SkillOrder = skillVariations
             },
             BuildTree = aggregates.BuildTree
-                .Select(node => ConvertTreeNode(node, sliceGames))
+                .Select(node => ChampionBuildPathAnalyzer.ToReadModel(node, sliceGames))
                 .ToList(),
             RunePages = runePages
         };
@@ -402,8 +396,8 @@ public sealed class ChampionBuildsQueryService(
             Spell1Id = dim.Spell1Id,
             Spell2Id = dim.Spell2Id,
             Games = aggregate.Games,
-            PickRate = sliceGames == 0 ? 0 : (double)aggregate.Games / sliceGames,
-            WinRate = aggregate.Games == 0 ? 0 : (double)aggregate.Wins / aggregate.Games
+            PickRate = RateMath.Rate(aggregate.Games, sliceGames),
+            WinRate = RateMath.Rate(aggregate.Wins, aggregate.Games)
         };
     }
 
@@ -423,8 +417,8 @@ public sealed class ChampionBuildsQueryService(
         {
             Sequence = sequence,
             Games = aggregate.Games,
-            PickRate = sliceGames == 0 ? 0 : (double)aggregate.Games / sliceGames,
-            WinRate = aggregate.Games == 0 ? 0 : (double)aggregate.Wins / aggregate.Games
+            PickRate = RateMath.Rate(aggregate.Games, sliceGames),
+            WinRate = RateMath.Rate(aggregate.Wins, aggregate.Games)
         };
     }
 
@@ -441,8 +435,8 @@ public sealed class ChampionBuildsQueryService(
         {
             ItemIds = dim.StarterItems,
             Games = aggregate.Games,
-            PickRate = sliceGames == 0 ? 0 : (double)aggregate.Games / sliceGames,
-            WinRate = aggregate.Games == 0 ? 0 : (double)aggregate.Wins / aggregate.Games
+            PickRate = RateMath.Rate(aggregate.Games, sliceGames),
+            WinRate = RateMath.Rate(aggregate.Wins, aggregate.Games)
         };
     }
 
@@ -451,8 +445,8 @@ public sealed class ChampionBuildsQueryService(
         {
             ItemIds = [aggregate.ItemId],
             Games = aggregate.Games,
-            PickRate = sliceGames == 0 ? 0 : (double)aggregate.Games / sliceGames,
-            WinRate = aggregate.Games == 0 ? 0 : (double)aggregate.Wins / aggregate.Games
+            PickRate = RateMath.Rate(aggregate.Games, sliceGames),
+            WinRate = RateMath.Rate(aggregate.Wins, aggregate.Games)
         };
 
     private static BuildRunePageReadModel? MaterializeRunePage(
@@ -478,25 +472,10 @@ public sealed class ChampionBuildsQueryService(
             StatFlex = dim.StatFlex,
             StatDefense = dim.StatDefense,
             Games = aggregate.Games,
-            PickRate = sliceGames == 0 ? 0 : (double)aggregate.Games / sliceGames,
-            WinRate = aggregate.Games == 0 ? 0 : (double)aggregate.Wins / aggregate.Games
+            PickRate = RateMath.Rate(aggregate.Games, sliceGames),
+            WinRate = RateMath.Rate(aggregate.Wins, aggregate.Games)
         };
     }
-
-    private static BuildTreeNodeReadModel ConvertTreeNode(ChampionBuildPathAnalyzer.TreeNode node, int parentGames)
-        => new()
-        {
-            ItemId = node.ItemId,
-            Games = node.Games,
-            Wins = node.Wins,
-            PickRate = parentGames == 0 ? 0 : (double)node.Games / parentGames,
-            Children = node.Children.Values
-                .OrderByDescending(child => child.Games)
-                .ThenByDescending(child => child.Wins)
-                .ThenBy(child => child.ItemId)
-                .Select(child => ConvertTreeNode(child, node.Games))
-                .ToList()
-        };
 
     private readonly record struct BuildKey(int FirstItemId, int PrimaryKeystoneId);
 

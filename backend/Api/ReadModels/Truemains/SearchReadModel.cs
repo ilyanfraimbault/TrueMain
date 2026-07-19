@@ -27,6 +27,21 @@ public sealed record SearchResultReadModel
     /// happens transiently between discovery and the first rank sync.
     /// </summary>
     public SearchRankedReadModel? Ranked { get; init; }
+
+    /// <summary>
+    /// Up to 3 most-played champion ids (descending play rate), same slice
+    /// the leaderboard row shows, so the dropdown can render the player's
+    /// truemained champions at a glance. Empty when no main-champion analysis
+    /// has run yet.
+    /// </summary>
+    public IReadOnlyList<int> TopChampionIds { get; init; } = Array.Empty<int>();
+
+    /// <summary>
+    /// Primary + secondary lane from position share across the player's mains
+    /// (same derivation as the leaderboard, via <c>MainPositions</c>). Null
+    /// when no main-champion analysis has run.
+    /// </summary>
+    public LeaderboardPositionsReadModel? Positions { get; init; }
 }
 
 public sealed record SearchRankedReadModel

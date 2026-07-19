@@ -1,3 +1,4 @@
+using Data.BuildFacts;
 using Data;
 using Data.Logging.Crash;
 using Data.Logging.Mongo;
@@ -73,6 +74,7 @@ builder.Services.AddRecordedProcess<MainAnalysisProcess>();
 builder.Services.AddRecordedProcess<MatchParticipantEloBracketEnrichmentProcess>();
 builder.Services.AddRecordedProcess<ChampionPatternAggregationProcess>();
 builder.Services.AddRecordedProcess<ChampionMatchupLeadAggregationProcess>();
+builder.Services.AddRecordedProcess<ChampionPowerspikeAggregationProcess>();
 builder.Services.AddRecordedProcess<AccountRefreshProcess>();
 builder.Services.AddRecordedProcess<MatchDataRetentionProcess>();
 

@@ -91,7 +91,7 @@ public sealed class PlayerChampionBuildsApiIntegrationTests
     }
 
     [Fact]
-    public async Task GetPlayerChampion_returns_404_below_the_minimum_games_floor()
+    public async Task GetPlayerChampion_below_the_floor_renders_a_thin_low_confidence_build()
     {
         await _fixture.ResetDatabaseAsync();
         await SeedAsync();
@@ -100,9 +100,18 @@ public sealed class PlayerChampionBuildsApiIntegrationTests
         using var client = CreateClient(factory);
 
         // Champion 103 has a single Phantasm game seeded — under the 5-game
-        // floor — so the scoped endpoint must report it as "not enough data".
+        // preference floor. A champion the profile lists as a main must not
+        // dead-end on click, so the endpoint still renders that one game's
+        // build, flagged low-confidence (minSampleMet = false), rather than 404.
         var response = await client.GetAsync("/truemains/Phantasm-EUW1/champions/103");
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var payload = await response.Content.ReadFromJsonAsync<ChampionResponse>();
+        payload.Should().NotBeNull();
+        payload!.ChampionId.Should().Be(103);
+        payload.TotalGames.Should().Be(1);
+        payload.MinSampleMet.Should().BeFalse("one game is far below the trustworthy-sample floor");
+        payload.Builds.Should().NotBeEmpty("the single game still yields one build path");
     }
 
     [Fact]

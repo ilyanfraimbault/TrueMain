@@ -42,6 +42,7 @@ public sealed class ChampionPatchDiffApiIntegrationTests
         diff.Should().NotBeNull();
         diff!.ChampionId.Should().Be(ChampionId);
         diff.Position.Should().Be("MIDDLE");
+        diff.AvailablePatchCount.Should().Be(2, "the champion has data on exactly two patches — the frontend keeps the section visible");
 
         diff.From.Should().NotBeNull();
         diff.To.Should().NotBeNull();
@@ -125,6 +126,7 @@ public sealed class ChampionPatchDiffApiIntegrationTests
         diff.Should().NotBeNull();
         diff!.To!.Patch.Should().Be("16.4", "the explicit to endpoint is honoured");
         diff.From!.Patch.Should().Be("16.3", "from defaults to the patch immediately older than to");
+        diff.AvailablePatchCount.Should().Be(3, "the champion has data on three patches regardless of the two selected");
     }
 
     [Fact]
@@ -172,6 +174,7 @@ public sealed class ChampionPatchDiffApiIntegrationTests
         diff!.From.Should().BeNull();
         diff.To.Should().BeNull();
         diff.Delta.Should().BeNull();
+        diff.AvailablePatchCount.Should().Be(0, "no data at all — the frontend hides the whole section");
     }
 
     // Two MIDDLE patches for the champion: 16.4 (3153 first item, Q-W-E, 40% WR)

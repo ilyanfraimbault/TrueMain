@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("0aecdd4a-5889-4ed3-a238-1f4b6e205551"), entityTypeCount: 24)
+            : base(skipDetectChanges: false, modelId: new Guid("802e802a-0a59-40dd-b361-f8e78dc515ac"), entityTypeCount: 27)
         {
         }
 
@@ -26,6 +26,8 @@ namespace Data.CompiledModels
             var championDimSpellPair = ChampionDimSpellPairEntityType.Create(this);
             var championDimStarterItems = ChampionDimStarterItemsEntityType.Create(this);
             var championMatchupStat = ChampionMatchupStatEntityType.Create(this);
+            var championPowerspikeCurveStat = ChampionPowerspikeCurveStatEntityType.Create(this);
+            var championPowerspikeEventStat = ChampionPowerspikeEventStatEntityType.Create(this);
             var championTimelineLeadStat = ChampionTimelineLeadStatEntityType.Create(this);
             var discoveryCursor = DiscoveryCursorEntityType.Create(this);
             var jungleFirstClear = JungleFirstClearEntityType.Create(this);
@@ -38,6 +40,7 @@ namespace Data.CompiledModels
             var participantPerkSelection = ParticipantPerkSelectionEntityType.Create(this);
             var perkSelectionCatalog = PerkSelectionCatalogEntityType.Create(this);
             var persona = PersonaEntityType.Create(this);
+            var powerspikeSigmaStat = PowerspikeSigmaStatEntityType.Create(this);
             var processRun = ProcessRunEntityType.Create(this);
             var rankSnapshot = RankSnapshotEntityType.Create(this);
             var riotAccount = RiotAccountEntityType.Create(this);
@@ -68,6 +71,8 @@ namespace Data.CompiledModels
             ChampionDimSpellPairEntityType.CreateAnnotations(championDimSpellPair);
             ChampionDimStarterItemsEntityType.CreateAnnotations(championDimStarterItems);
             ChampionMatchupStatEntityType.CreateAnnotations(championMatchupStat);
+            ChampionPowerspikeCurveStatEntityType.CreateAnnotations(championPowerspikeCurveStat);
+            ChampionPowerspikeEventStatEntityType.CreateAnnotations(championPowerspikeEventStat);
             ChampionTimelineLeadStatEntityType.CreateAnnotations(championTimelineLeadStat);
             DiscoveryCursorEntityType.CreateAnnotations(discoveryCursor);
             JungleFirstClearEntityType.CreateAnnotations(jungleFirstClear);
@@ -80,6 +85,7 @@ namespace Data.CompiledModels
             ParticipantPerkSelectionEntityType.CreateAnnotations(participantPerkSelection);
             PerkSelectionCatalogEntityType.CreateAnnotations(perkSelectionCatalog);
             PersonaEntityType.CreateAnnotations(persona);
+            PowerspikeSigmaStatEntityType.CreateAnnotations(powerspikeSigmaStat);
             ProcessRunEntityType.CreateAnnotations(processRun);
             RankSnapshotEntityType.CreateAnnotations(rankSnapshot);
             RiotAccountEntityType.CreateAnnotations(riotAccount);

@@ -41,6 +41,7 @@ export function useChampionPatchDiff(
         return Promise.resolve({
           championId: championIdRef.value,
           position: positionRef.value ?? '',
+          availablePatchCount: 0,
           from: null,
           to: null,
           delta: null,

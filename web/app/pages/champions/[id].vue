@@ -1,18 +1,13 @@
 <script setup lang="ts">
-import type {
-  RuneTreeResponse,
-  StaticItemData,
-  StaticSummonerSpellData,
-} from '~~/shared/types/static-data'
-import { isChampionPosition, type ChampionPosition } from '~/utils/positions'
+import type { ChampionPosition } from '~/utils/positions'
 import { ELO_BRACKET_ALL, eloBracketLabel, normalizeEloBracket } from '~/utils/elo-brackets'
 import { describeFetchError } from '~/utils/errors'
+import { isLoadingStatus } from '~/utils/async-data'
 
 const route = useRoute()
 const championId = computed(() => Number.parseInt(String(route.params.id), 10))
 
 const { filters, setFilter } = useChampionFilters()
-const nuxtApp = useNuxtApp()
 
 const {
   data: champion,
@@ -26,10 +21,36 @@ const {
 // notEnoughData and we render a dedicated empty state instead.
 useErrorToast(championError, { title: 'Failed to load champion' })
 
-const activePatch = computed(() => champion.value?.patch || filters.value.patch || null)
+// Static-data plumbing shared with the player-scoped champion page: the
+// patch-pinned rune tree / items / summoner spells (keys shared with
+// /champions so the patch-keyed maps stay deduped across the
+// list→detail→list round-trip), the display name/icon fallbacks and the
+// patch/position selector state. `selectedPatch` binds to the API-returned
+// patch once available so the picker reflects what's actually being shown —
+// covers the 404 fallback in useChampion where the URL filter is dropped (no
+// data for the champion on that patch) and the API returns its default
+// patch. The URL-filter fallback only applies on the initial load
+// (champion.value still null); on later patch swaps champion.value holds the
+// previous (stale) data, so the selector keeps showing the old patch until
+// the refetch resolves — intentional, and identical to selectedPosition.
+const {
+  staticData,
+  versions,
+  staticList,
+  runeTree,
+  itemsMap,
+  summonersMap,
+  displayName,
+  displayIconUrl,
+  patchOptions,
+  selectedPatch,
+  selectedPosition,
+} = useChampionDetailStatics(championId, champion, filters)
 
-const { data: staticData } = useChampionStatic(championId, activePatch)
-const { data: versions } = useDDragonVersions()
+// Full ddragon version for the truemains sidebar's profile-icon URLs — the
+// short activePatch ("15.13") isn't a ddragon CDN path segment. Mirrors what
+// /truemains passes to the same rows.
+const latestVersion = computed(() => versions.value?.[0] ?? null)
 
 // Winrate/pickrate trend across the last five patches (issues #89, #112).
 // Follows the resolved lane so it tracks whatever slice the page is showing,
@@ -42,115 +63,11 @@ const trendReady = computed(() => champion.value !== null)
 const trendPosition = computed(() => champion.value?.position || filters.value.position || null)
 const { data: championTrend, status: trendStatus } = useChampionTrend(championId, trendPosition, trendReady)
 
-// Share keys with /champions so the patch-keyed maps stay deduped across the
-// list→detail→list round-trip. The list page issues these same fetches with
-// the same keys; without that alignment Nuxt would re-resolve them on mount.
-// Each fetch wraps the network call so `markStaticFetched` runs after success
-// and `getCachedData` reuses entries across navigations within
-// `STATIC_CACHE_TTL_MS` (see static-cache.ts).
-const { data: staticList } = useChampionStaticList()
-// Pin rune-tree to the champion's active patch so the icon URLs we render
-// hit CommunityDragon's per-patch (year-cacheable) tree, and so cached
-// payloads don't bleed across patches when the user navigates between them.
-const { data: runeTree } = useLazyAsyncData<RuneTreeResponse>(
-  () => `rune-tree-${activePatch.value || 'latest'}`,
-  async () => {
-    const key = `rune-tree-${activePatch.value || 'latest'}`
-    const data = await $fetch<RuneTreeResponse>('/api/static/rune-tree', {
-      query: activePatch.value ? { patch: activePatch.value } : {},
-    })
-    markStaticFetched(key, nuxtApp)
-    return data
-  },
-  {
-    watch: [activePatch],
-    getCachedData: key => getStaticCachedData(key, nuxtApp),
-    server: false,
-  },
-)
-const { data: itemsMap } = useLazyAsyncData<Record<number, StaticItemData>>(
-  () => `static-items-${activePatch.value || 'latest'}`,
-  async () => {
-    const key = `static-items-${activePatch.value || 'latest'}`
-    const data = await $fetch<Record<number, StaticItemData>>('/api/static/items', {
-      query: activePatch.value ? { patch: activePatch.value } : {},
-    })
-    markStaticFetched(key, nuxtApp)
-    return data
-  },
-  {
-    watch: [activePatch],
-    getCachedData: key => getStaticCachedData(key, nuxtApp),
-    server: false,
-  },
-)
-const { data: summonersMap } = useLazyAsyncData<Record<number, StaticSummonerSpellData>>(
-  () => `static-summoners-${activePatch.value || 'latest'}`,
-  async () => {
-    const key = `static-summoners-${activePatch.value || 'latest'}`
-    const data = await $fetch<Record<number, StaticSummonerSpellData>>('/api/static/summoner-spells', {
-      query: activePatch.value ? { patch: activePatch.value } : {},
-    })
-    markStaticFetched(key, nuxtApp)
-    return data
-  },
-  {
-    watch: [activePatch],
-    getCachedData: key => getStaticCachedData(key, nuxtApp),
-    server: false,
-  },
-)
-
-// Fall back to the list-page entry when the per-champion endpoint is still
-// pending or the patch failed to resolve — keeps the header readable instead
-// of flashing the numeric id.
-const championListEntry = computed(() =>
-  (staticList.value ?? []).find(item => item.championId === championId.value) ?? null,
-)
-const displayName = computed(() =>
-  staticData.value?.championName || championListEntry.value?.name || null,
-)
-const displayIconUrl = computed(() =>
-  staticData.value?.championIconUrl || championListEntry.value?.iconUrl || null,
-)
-
 useSeoMeta({
-  title: () => displayName.value ?? 'TrueMain',
+  title: () => displayName.value ?? `Champion ${championId.value}`,
   description: () => `Champion ${championId.value} builds, runes and skill order.`,
 })
 
-const patchOptions = computed(() => {
-  const seen = new Set<string>(
-    (versions.value ?? [])
-      .map(p => p.split('.').slice(0, 2).join('.'))
-      .filter(Boolean)
-      .slice(0, 12),
-  )
-  if (champion.value?.patch) seen.add(champion.value.patch)
-  if (filters.value.patch) seen.add(filters.value.patch)
-  return [...seen]
-    .map(p => ({ label: p, value: p }))
-    .sort((a, b) => b.value.localeCompare(a.value, undefined, { numeric: true }))
-})
-
-// Bind to the API-returned patch once available so the picker reflects what's
-// actually being shown — covers the 404 fallback in useChampion where the URL
-// filter is dropped (no data for the champion on that patch) and the API
-// returns its default patch. Mirrors selectedPosition so a no-data patch
-// snaps the selector back to the loaded patch instead of leaving the dead
-// filter pinned. The URL-filter fallback only applies on the initial load
-// (champion.value still null); on later patch swaps champion.value holds the
-// previous (stale) data, so the selector keeps showing the old patch until the
-// refetch resolves — intentional, and identical to selectedPosition.
-const selectedPatch = computed(() => champion.value?.patch || filters.value.patch || '')
-// Bind to the API-returned position once available so the picker reflects
-// what's actually being shown — covers the 404 fallback in useChampion
-// where the URL filter is dropped and the API returns the default position.
-// Fall back to the URL filter for the optimistic render before the fetch resolves.
-const selectedPosition = computed<ChampionPosition | null>(() => {
-  const value = champion.value?.position || filters.value.position || ''
-  return isChampionPosition(value) ? value : null
-})
 // Elo filter (issue #526). Bind to the API-returned filter once available so
 // the rank select reflects what's actually shown; fall back to the URL filter
 // for the optimistic render before the fetch resolves.
@@ -273,6 +190,22 @@ const patchDiffOptions = computed(() => {
   }
   return [...seen.values()].sort((a, b) => b.value.localeCompare(a.value, undefined, { numeric: true }))
 })
+// The patch-diff fetch is gated on `trendReady` (the champion fetch, which is
+// server:false so null on mount). While the gate is closed the composable
+// resolves an empty stub straight to `success`, so we must treat "gate closed"
+// as loading too — otherwise the section would flash hidden (a `success` status
+// with availablePatchCount 0) for the whole champion fetch before reappearing.
+const patchDiffLoading = computed(() =>
+  !trendReady.value || isLoadingStatus(patchDiffStatus.value),
+)
+// Hide the whole section when the champion/lane has fewer than two patches of
+// data: a single-patch diff can only compare a patch against itself (flat,
+// meaningless). Kept visible while loading so the skeleton stays mounted and
+// the layout below never shifts.
+const showPatchDiff = computed(() =>
+  patchDiffLoading.value
+  || (championPatchDiff.value?.availablePatchCount ?? 0) >= 2,
+)
 
 // When useChampion's 404 fallback drops the URL filters (no data for the
 // champion on that patch/position) the API returns the default slice, but the
@@ -295,14 +228,12 @@ watch(champion, (data) => {
   if (updates.patch !== undefined || updates.position !== undefined) setFilter(updates).catch(console.error)
 }, { immediate: true })
 
-// Each section drives its own skeleton off its own async status; `idle` is
-// the pre-fetch state from useLazy* before the client kicks it off — treat it
-// as loading too.
-const isLoadingStatus = (s: 'idle' | 'pending' | 'success' | 'error') => s === 'idle' || s === 'pending'
+// Each section drives its own skeleton off its own async status via the
+// shared isLoadingStatus util.
 </script>
 
 <template>
-  <main class="mx-auto max-w-5xl space-y-6 p-4 md:p-6">
+  <main class="mx-auto w-full max-w-[96rem] space-y-6 p-4 md:p-6">
     <UAlert
       v-if="championError"
       color="error"
@@ -361,30 +292,38 @@ const isLoadingStatus = (s: 'idle' | 'pending' | 'success' | 'error') => s === '
       patch/position was pinned, the fallback 404'd too) — we simply don't hold
       any aggregate for them yet (a brand-new champion, or one nobody in the
       dataset has played). This is deliberately distinct from the error alert
-      above: a 404 is "no data", not a transient failure to retry.
+      above: a 404 is "no data", not a transient failure to retry. We still
+      render the base header (name + patch/position/rank pickers) so the user
+      can switch slice from here instead of hitting a dead end, and show a plain
+      "Not enough data" notice below.
     -->
-    <div
-      v-else-if="notEnoughData"
-      class="flex flex-col items-center gap-3 glass rounded-lg px-6 py-12 text-center"
-    >
-      <SkeletonImage
-        v-if="displayIconUrl"
-        :src="displayIconUrl"
-        :alt="displayName ?? ''"
-        width="64"
-        height="64"
-        class="size-16 rounded opacity-80"
-      />
-      <div class="space-y-1">
-        <p class="text-sm font-medium text-default">
-          No data yet for {{ displayName ?? 'this champion' }}
-        </p>
+    <template v-else-if="notEnoughData">
+      <header class="flex flex-wrap items-center gap-4">
+        <ChampionHeader
+          :champion-name="displayName"
+          :champion-icon-url="displayIconUrl"
+          :champion-id="championId"
+          :position="champion?.position || selectedPosition || ''"
+          :total-games="champion?.totalGames ?? 0"
+          :total-wins="champion?.totalWins ?? 0"
+        />
+        <ChampionFilters
+          :selected-patch="selectedPatch"
+          :selected-position="selectedPosition"
+          :selected-elo-bracket="selectedEloBracket"
+          :patch-options="patchOptions"
+          @update:patch="value => setFilter({ patch: value })"
+          @update:position="value => setFilter({ position: value })"
+          @update:elo-bracket="value => setFilter({ eloBracket: value })"
+        />
+      </header>
+
+      <div class="flex flex-col items-center gap-1 glass rounded-lg px-6 py-12 text-center">
         <p class="text-sm text-muted">
-          We don't have any games on {{ displayName ?? 'this champion' }} yet — once it's
-          been played enough, its builds, runes and stats will show up here.
+          Not enough data
         </p>
       </div>
-    </div>
+    </template>
 
     <!--
       Everything below renders immediately and independently — no gate on
@@ -424,68 +363,89 @@ const isLoadingStatus = (s: 'idle' | 'pending' | 'success' | 'error') => s === '
         icon="i-lucide-triangle-alert"
       />
 
-      <ChampionBuildTabs
-        v-if="champion && staticData"
-        :builds="champion.builds"
-        :champion-static="staticData"
-        :items-map="itemsMap ?? {}"
-        :summoners-map="summonersMap ?? {}"
-        :rune-tree="runeTree ?? null"
-      />
-      <ChampionBuildTabsSkeleton v-else />
+      <!--
+        Two-column layout on wide screens: builds + charts on the left, the
+        champion's truemains + matchups in a right sidebar. Below xl the
+        sidebar stacks under the main column.
+      -->
+      <div class="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
+        <div class="min-w-0 space-y-6">
+          <ChampionBuildTabs
+            v-if="champion && staticData"
+            :builds="champion.builds"
+            :champion-static="staticData"
+            :items-map="itemsMap ?? {}"
+            :summoners-map="summonersMap ?? {}"
+            :rune-tree="runeTree ?? null"
+          />
+          <ChampionBuildTabsSkeleton v-else />
 
-      <ChampionMatchups
-        :champion-id="championId"
-        :position="selectedPosition"
-        :champions="staticList ?? []"
-        :elo-bracket="eloBracketParam"
-      />
+          <ChampionTrendChart
+            :points="championTrend?.points ?? []"
+            :loading="isLoadingStatus(trendStatus)"
+          />
 
-      <ChampionTrendChart
-        :points="championTrend?.points ?? []"
-        :loading="isLoadingStatus(trendStatus)"
-      />
+          <ChampionPatchDiff
+            v-if="showPatchDiff"
+            :diff="championPatchDiff ?? null"
+            :items-map="itemsMap ?? {}"
+            :rune-tree="runeTree ?? null"
+            :champion-static="staticData"
+            :patch-options="patchDiffOptions"
+            :from-patch="patchDiffFrom"
+            :to-patch="patchDiffTo"
+            :loading="patchDiffLoading"
+            @update:from-patch="value => { patchDiffFrom = value }"
+            @update:to-patch="value => { patchDiffTo = value }"
+          />
 
-      <ChampionPatchDiff
-        :diff="championPatchDiff ?? null"
-        :items-map="itemsMap ?? {}"
-        :rune-tree="runeTree ?? null"
-        :champion-static="staticData"
-        :patch-options="patchDiffOptions"
-        :from-patch="patchDiffFrom"
-        :to-patch="patchDiffTo"
-        :loading="isLoadingStatus(patchDiffStatus)"
-        @update:from-patch="value => { patchDiffFrom = value }"
-        @update:to-patch="value => { patchDiffTo = value }"
-      />
+          <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <ChampionTimelineLeadsChart
+              :intervals="championLeads?.intervals ?? []"
+              :loading="isLoadingStatus(leadsStatus)"
+            />
 
-      <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <ChampionTimelineLeadsChart
-          :intervals="championLeads?.intervals ?? []"
-          :loading="isLoadingStatus(leadsStatus)"
-        />
+            <ChampionScalingChart
+              :buckets="championScaling?.buckets ?? []"
+              :scaling-index="championScaling?.scalingIndex ?? null"
+              :loading="isLoadingStatus(scalingStatus)"
+            />
+          </div>
 
-        <ChampionScalingChart
-          :buckets="championScaling?.buckets ?? []"
-          :scaling-index="championScaling?.scalingIndex ?? null"
-          :loading="isLoadingStatus(scalingStatus)"
-        />
+          <ChampionPowerspikesChart
+            :curve="championPowerspikes?.curve ?? []"
+            :events="championPowerspikes?.events ?? []"
+            :items-map="itemsMap ?? {}"
+            :loading="isLoadingStatus(powerspikesStatus)"
+          />
+
+          <ChampionRoam
+            v-if="trendPosition !== 'JUNGLE'"
+            :kp5="championRoam?.roamKp5 ?? null"
+            :kp10="championRoam?.roamKp10 ?? null"
+            :kp15="championRoam?.roamKp15 ?? null"
+            :games="championRoam?.games ?? 0"
+            :loading="isLoadingStatus(roamStatus)"
+          />
+        </div>
+
+        <aside class="min-w-0 space-y-6">
+          <ChampionTruemains
+            :champion-id="championId"
+            :champions="staticList ?? []"
+            :rune-tree="runeTree ?? null"
+            :items-map="itemsMap ?? {}"
+            :patch="latestVersion"
+          />
+
+          <ChampionMatchups
+            :champion-id="championId"
+            :position="selectedPosition"
+            :champions="staticList ?? []"
+            :elo-bracket="eloBracketParam"
+          />
+        </aside>
       </div>
-
-      <ChampionPowerspikesChart
-        :events="championPowerspikes?.events ?? []"
-        :items-map="itemsMap ?? {}"
-        :loading="isLoadingStatus(powerspikesStatus)"
-      />
-
-      <ChampionRoam
-        v-if="trendPosition !== 'JUNGLE'"
-        :kp5="championRoam?.roamKp5 ?? null"
-        :kp10="championRoam?.roamKp10 ?? null"
-        :kp15="championRoam?.roamKp15 ?? null"
-        :games="championRoam?.games ?? 0"
-        :loading="isLoadingStatus(roamStatus)"
-      />
     </template>
   </main>
 </template>

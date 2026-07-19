@@ -81,6 +81,14 @@ export default defineNuxtConfig({
       // cookie is `Secure` over HTTPS.
       cookie: { secure: process.env.NUXT_SESSION_COOKIE_SECURE === 'true' },
     },
-    public: {},
+    public: {
+      // Self-hosted Umami analytics instance embedded by the Analytics page
+      // (#728). `umamiUrl` is the Umami app URL, used for the "Open in Umami"
+      // link and as the iframe fallback; `umamiShareUrl` is a public
+      // share-link dashboard that embeds without an Umami login inside the
+      // iframe. Both empty (dev default) → the page shows a setup notice.
+      umamiUrl: process.env.NUXT_PUBLIC_UMAMI_URL ?? '',
+      umamiShareUrl: process.env.NUXT_PUBLIC_UMAMI_SHARE_URL ?? '',
+    },
   },
 })

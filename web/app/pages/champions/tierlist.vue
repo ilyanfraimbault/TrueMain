@@ -1,15 +1,12 @@
 <script setup lang="ts">
 import type { ChampionTierListResponse } from '~~/shared/types/champions'
-import { POSITION_OPTIONS, isChampionPosition, type ChampionPosition } from '~/utils/positions'
+import { POSITION_BY_VALUE, isChampionPosition, type ChampionPosition } from '~/utils/positions'
 import { ELO_BRACKET_ALL, normalizeEloBracket } from '~/utils/elo-brackets'
-
-// Whole-percent format, same terse style as the /champions directory rows.
-function pct(value: number): string {
-  return `${Math.round(value * 100)}%`
-}
+import { isLoadingStatus } from '~/utils/async-data'
+import { formatPercentage } from '~~/shared/utils/ddragon'
 
 useSeoMeta({
-  title: 'Tier List · TrueMain',
+  title: 'Tier List',
   description: 'Champion meta tier list ranking champions by winrate and pickrate per role for the current patch.',
 })
 
@@ -62,24 +59,11 @@ const apiPatch = computed(() => tierList.value?.patchVersion ?? '')
 const selectedPatch = computed(() => filters.value.patch || apiPatch.value || '')
 
 const error = computed(() => tierListError.value ?? staticError.value)
-const isLoadingStatus = (s: 'idle' | 'pending' | 'success' | 'error') => s === 'idle' || s === 'pending'
 const isPending = computed(() =>
   isLoadingStatus(tierListStatus.value) || isLoadingStatus(staticStatus.value),
 )
 
-const patchOptions = computed(() => {
-  const seen = new Set<string>(
-    (versions.value ?? [])
-      .map(p => p.split('.').slice(0, 2).join('.'))
-      .filter(Boolean)
-      .slice(0, 12),
-  )
-  if (apiPatch.value) seen.add(apiPatch.value)
-  if (filters.value.patch) seen.add(filters.value.patch)
-  return [...seen]
-    .map(p => ({ label: p, value: p }))
-    .sort((a, b) => b.value.localeCompare(a.value, undefined, { numeric: true }))
-})
+const patchOptions = usePatchOptions(versions, apiPatch, () => filters.value.patch)
 
 // Filter changes go through the shared composable so this page handles patch /
 // position clearing exactly like the /champions directory and the champion
@@ -97,7 +81,7 @@ function onEloBracketChange(value: string) {
   void setFilter({ eloBracket: value === ELO_BRACKET_ALL ? null : value })
 }
 
-const nameById = computed(() => new Map((staticList.value ?? []).map(item => [item.championId, item])))
+const nameById = useChampionsById(staticList)
 
 // Flatten the tier groups into rows decorated with name + icon, carrying the
 // tier letter so the template can render one badge per group and the row data.
@@ -116,8 +100,6 @@ const tierGroups = computed(() =>
 )
 
 const hasRows = computed(() => tierGroups.value.some(group => group.entries.length > 0))
-
-const positionByValue = new Map(POSITION_OPTIONS.map(option => [option.value as string, option]))
 
 // Each row links to the champion page, pinned to the current patch + the row's
 // own position — same destination shape as the /champions directory rows.
@@ -194,7 +176,7 @@ function championDestination(entry: { championId: number, position: string }) {
               >
                 <NuxtLink
                   :to="championDestination(entry)"
-                  :aria-label="`View ${entry.name} (${pct(entry.winRate)} WR, ${pct(entry.pickRate)} PR)`"
+                  :aria-label="`View ${entry.name} (${formatPercentage(entry.winRate, 0)} WR, ${formatPercentage(entry.pickRate, 0)} PR)`"
                   class="glass-hover flex items-center gap-2 rounded-md border border-default/60 bg-elevated/40 px-2 py-1.5"
                 >
                   <SkeletonImage
@@ -208,8 +190,8 @@ function championDestination(entry: { championId: number, position: string }) {
                     <div class="flex items-center gap-1">
                       <span class="truncate text-sm font-medium">{{ entry.name }}</span>
                       <SkeletonImage
-                        v-if="positionByValue.get(entry.position)?.iconUrl"
-                        :src="positionByValue.get(entry.position)!.iconUrl"
+                        v-if="POSITION_BY_VALUE.get(entry.position)?.iconUrl"
+                        :src="POSITION_BY_VALUE.get(entry.position)!.iconUrl"
                         :alt="entry.position"
                         :width="14"
                         :height="14"
@@ -217,7 +199,7 @@ function championDestination(entry: { championId: number, position: string }) {
                       />
                     </div>
                     <span class="text-xs text-muted tabular-nums">
-                      {{ pct(entry.winRate) }} WR · {{ pct(entry.pickRate) }} PR
+                      {{ formatPercentage(entry.winRate, 0) }} WR · {{ formatPercentage(entry.pickRate, 0) }} PR
                     </span>
                   </div>
                 </NuxtLink>

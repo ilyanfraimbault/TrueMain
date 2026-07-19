@@ -71,7 +71,194 @@ public sealed class MatchDataRetentionProcessIntegrationTests
         (await db.MatchParticipants.AsNoTracking().CountAsync()).Should().Be(0);
     }
 
-    private RecordedProcess<MatchDataRetentionProcess> BuildRecordedProcess(int retainedPatchCount)
+    [Fact]
+    public async Task RunAsync_ShouldDeleteAggregatesForStalePatchesWhenEnabled()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedAggregateDataAsync();
+
+        var recorded = BuildRecordedProcess(retainedPatchCount: 2, aggregateRetainedPatchCount: 1);
+
+        await recorded.RunCoreAsync(CancellationToken.None);
+
+        await using var db = _fixture.CreateDbContext();
+        (await db.ChampionAggregateScopes.AsNoTracking().Select(s => s.GameVersion).Distinct().ToListAsync())
+            .Should().BeEquivalentTo(["16.5"]);
+        (await db.ChampionAggregatePatterns.AsNoTracking().CountAsync()).Should().Be(1);
+        // The "unknown" row survives: unparseable patch strings are never deleted,
+        // the safety net for a destructive operation on a format surprise.
+        (await db.ChampionMatchupStats.AsNoTracking().Select(s => s.Patch).ToListAsync())
+            .Should().BeEquivalentTo(["16.5", "unknown"]);
+        (await db.ChampionTimelineLeadStats.AsNoTracking().Select(s => s.Patch).ToListAsync())
+            .Should().BeEquivalentTo(["16.5"]);
+        (await db.ChampionPowerspikeCurveStats.AsNoTracking().Select(s => s.Patch).ToListAsync())
+            .Should().BeEquivalentTo(["16.5"]);
+        (await db.ChampionPowerspikeEventStats.AsNoTracking().Select(s => s.Patch).ToListAsync())
+            .Should().BeEquivalentTo(["16.5"]);
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldKeepAllAggregatesWhenAggregateRetentionDisabled()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedAggregateDataAsync();
+
+        var recorded = BuildRecordedProcess(retainedPatchCount: 1);
+
+        await recorded.RunCoreAsync(CancellationToken.None);
+
+        await using var db = _fixture.CreateDbContext();
+        (await db.ChampionAggregateScopes.AsNoTracking().Select(s => s.GameVersion).Distinct().ToListAsync())
+            .Should().BeEquivalentTo(["16.4", "16.5"]);
+        (await db.ChampionAggregatePatterns.AsNoTracking().CountAsync()).Should().Be(2);
+        (await db.ChampionMatchupStats.AsNoTracking().CountAsync()).Should().Be(3);
+        (await db.ChampionTimelineLeadStats.AsNoTracking().CountAsync()).Should().Be(2);
+        (await db.ChampionPowerspikeCurveStats.AsNoTracking().CountAsync()).Should().Be(2);
+        (await db.ChampionPowerspikeEventStats.AsNoTracking().CountAsync()).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldPruneAggregatedSnapshotsToCanonicalMarksOnce()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        var now = DateTime.UtcNow;
+        await using (var seedDb = _fixture.CreateDbContext())
+        {
+            // Both ranked and in-window, so only the snapshot pruning acts on them.
+            seedDb.Matches.AddRange(
+                BuildMatch("PRUNE_AGG", "KR", now.AddHours(-2), "16.4.1", powerspikeAggregated: true),
+                BuildMatch("PRUNE_PENDING", "KR", now.AddHours(-1), "16.4.1", powerspikeAggregated: false));
+            seedDb.MatchParticipants.AddRange(
+                BuildParticipant(Guid.Parse("88888888-8888-8888-8888-8888888888b1"), "PRUNE_AGG"),
+                BuildParticipant(Guid.Parse("88888888-8888-8888-8888-8888888888b2"), "PRUNE_PENDING"));
+            for (var minute = 1; minute <= 30; minute++)
+            {
+                seedDb.MatchParticipantTimelineSnapshots.Add(SnapshotAt("PRUNE_AGG", minute));
+                seedDb.MatchParticipantTimelineSnapshots.Add(SnapshotAt("PRUNE_PENDING", minute));
+            }
+
+            await seedDb.SaveChangesAsync();
+        }
+
+        await BuildRecordedProcess(retainedPatchCount: 2).RunCoreAsync(CancellationToken.None);
+
+        await using var db = _fixture.CreateDbContext();
+
+        // The aggregated match is reduced to the canonical marks and flagged, so a
+        // second run skips it.
+        var aggMinutes = await db.MatchParticipantTimelineSnapshots.AsNoTracking()
+            .Where(snapshot => snapshot.MatchId == "PRUNE_AGG")
+            .Select(snapshot => snapshot.IntervalMinute)
+            .OrderBy(minute => minute)
+            .ToListAsync();
+        aggMinutes.Should().Equal(5, 10, 15, 20, 30);
+        (await db.Matches.AsNoTracking()
+            .Where(match => match.Id == "PRUNE_AGG")
+            .Select(match => match.TimelineSnapshotsPruned)
+            .SingleAsync()).Should().BeTrue();
+
+        // The not-yet-aggregated match keeps its full dense grid and stays unflagged —
+        // the powerspike aggregation still needs those minutes.
+        (await db.MatchParticipantTimelineSnapshots.AsNoTracking()
+            .CountAsync(snapshot => snapshot.MatchId == "PRUNE_PENDING")).Should().Be(30);
+        (await db.Matches.AsNoTracking()
+            .Where(match => match.Id == "PRUNE_PENDING")
+            .Select(match => match.TimelineSnapshotsPruned)
+            .SingleAsync()).Should().BeFalse();
+    }
+
+    private async Task SeedAggregateDataAsync()
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        var account = new TrueMain.TestKit.EntityBuilders.RiotAccountBuilder()
+            .WithGameName("RetentionMain")
+            .WithTagLine("KR1")
+            .WithPuuid("retention-main-puuid")
+            .Build();
+        db.RiotAccounts.Add(account);
+        await db.SaveChangesAsync();
+
+        var aggregatedAt = new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc);
+        var seeder = new TrueMain.TestKit.EntityBuilders.ChampionAggregateSeeder();
+        foreach (var patch in new[] { "16.4", "16.5" })
+        {
+            seeder.AddPatternDefaults(
+                account.Id, championId: 22, patch, platformId: "KR", queueId: 420, position: "BOTTOM",
+                summoner1Id: 4, summoner2Id: 7, skillOrderKey: "Q",
+                buildItems: [6672], bootsItemId: 0, games: 5, wins: 3, aggregatedAt);
+
+            db.ChampionMatchupStats.Add(new ChampionMatchupStat
+            {
+                Id = Guid.NewGuid(),
+                ChampionId = 22,
+                TeamPosition = "BOTTOM",
+                OpponentChampionId = 51,
+                Patch = patch,
+                EloBracket = "GOLD",
+                Games = 5,
+                Wins = 3,
+                AggregatedAtUtc = aggregatedAt
+            });
+            db.ChampionTimelineLeadStats.Add(new ChampionTimelineLeadStat
+            {
+                Id = Guid.NewGuid(),
+                ChampionId = 22,
+                TeamPosition = "BOTTOM",
+                Patch = patch,
+                IntervalMinute = 10,
+                EloBracket = "GOLD",
+                Games = 5,
+                AggregatedAtUtc = aggregatedAt
+            });
+            db.ChampionPowerspikeCurveStats.Add(new ChampionPowerspikeCurveStat
+            {
+                Id = Guid.NewGuid(),
+                ChampionId = 22,
+                TeamPosition = "BOTTOM",
+                Patch = patch,
+                EloBracket = "GOLD",
+                IntervalMinute = 10,
+                Games = 5,
+                AggregatedAtUtc = aggregatedAt
+            });
+            db.ChampionPowerspikeEventStats.Add(new ChampionPowerspikeEventStat
+            {
+                Id = Guid.NewGuid(),
+                ChampionId = 22,
+                TeamPosition = "BOTTOM",
+                Patch = patch,
+                EloBracket = "GOLD",
+                EventType = "level",
+                RefId = 6,
+                Games = 5,
+                AggregatedAtUtc = aggregatedAt
+            });
+        }
+
+        // An unparseable patch string must survive aggregate retention: rows are
+        // only deleted for patches that parse and fall outside the retained window.
+        db.ChampionMatchupStats.Add(new ChampionMatchupStat
+        {
+            Id = Guid.NewGuid(),
+            ChampionId = 22,
+            TeamPosition = "BOTTOM",
+            OpponentChampionId = 51,
+            Patch = "unknown",
+            EloBracket = "GOLD",
+            Games = 5,
+            Wins = 3,
+            AggregatedAtUtc = aggregatedAt
+        });
+
+        await seeder.SaveAsync(db);
+        await db.SaveChangesAsync();
+    }
+
+    private RecordedProcess<MatchDataRetentionProcess> BuildRecordedProcess(
+        int retainedPatchCount,
+        int aggregateRetainedPatchCount = 0)
     {
         var process = new MatchDataRetentionProcess(
             NullLogger<MatchDataRetentionProcess>.Instance,
@@ -79,7 +266,8 @@ public sealed class MatchDataRetentionProcessIntegrationTests
             Microsoft.Extensions.Options.Options.Create(new MatchDataRetentionOptions
             {
                 RetainedPatchCount = retainedPatchCount,
-                NonRankedDeleteBatchSize = 1
+                NonRankedDeleteBatchSize = 1,
+                AggregateRetainedPatchCount = aggregateRetainedPatchCount
             }),
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions
             {
@@ -126,7 +314,8 @@ public sealed class MatchDataRetentionProcessIntegrationTests
         string gameVersion,
         int queueId = 420,
         string gameMode = "CLASSIC",
-        int mapId = 11)
+        int mapId = 11,
+        bool powerspikeAggregated = false)
     {
         return new Match
         {
@@ -140,9 +329,23 @@ public sealed class MatchDataRetentionProcessIntegrationTests
             GameDurationSeconds = 1800,
             GameVersion = gameVersion,
             CreatedAtUtc = gameStartTimeUtc,
-            TimelineIngested = true
+            TimelineIngested = true,
+            PowerspikeAggregated = powerspikeAggregated
         };
     }
+
+    private static MatchParticipantTimelineSnapshot SnapshotAt(string matchId, int minute)
+        => new()
+        {
+            MatchId = matchId,
+            ParticipantId = 1,
+            IntervalMinute = minute,
+            TimestampMs = minute * 60_000,
+            TotalGold = minute * 300,
+            Level = Math.Min(18, 1 + minute / 2),
+            Xp = minute * 250,
+            DamageToChampions = minute * 150
+        };
 
     private static MatchParticipant BuildParticipant(Guid id, string matchId)
     {

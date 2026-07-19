@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import type { ChampionPowerspikeEvent } from '~~/shared/types/champions'
+import type { ChampionPowerCurvePoint, ChampionPowerspikeEvent } from '~~/shared/types/champions'
 import type { StaticItemData } from '~~/shared/types/static-data'
 import { formatDuration } from '~/utils/relativeTime'
 
 const props = withDefaults(defineProps<{
+  curve: ChampionPowerCurvePoint[]
   events: ChampionPowerspikeEvent[]
   itemsMap: Record<number, StaticItemData>
   loading?: boolean
@@ -11,12 +12,44 @@ const props = withDefaults(defineProps<{
   loading: false,
 })
 
-// One bar per completed build item, in the order the build comes online. Level
-// milestones (6/11/16) are also in the payload but out of scope for this bar
-// view. The endpoint orders by *signed* magnitude, so re-rank by absolute
-// magnitude before capping — a strong negative spike is as worth showing as a
-// strong positive one.
-const MAX_ITEMS = 8
+// The hero is the opponent-relative power curve: 0 = even with the role
+// opponent, positive = ahead. Unitless (σ-normalized blend of gold and damage
+// lead), so the shape carries the meaning, not the absolute value.
+interface CurveRow extends Record<string, unknown> {
+  minute: number
+  power: number
+  games: number
+}
+
+const curveRows = computed<CurveRow[]>(() =>
+  props.curve.map(point => ({
+    minute: point.minute,
+    power: point.power,
+    games: point.games,
+  })),
+)
+
+const hasCurve = computed(() => curveRows.value.length > 0)
+
+const PRIMARY = defaultSeriesColor(0) // app primary (rosegold-400)
+const curveCategories = { power: { name: 'Power', color: PRIMARY } }
+const curveGradient = [
+  { offset: '0%', stopOpacity: 0.35 },
+  { offset: '100%', stopOpacity: 0.03 },
+]
+
+const xFormatter = (minute: number): string => `${minute}m`
+const yFormatter = (value: number): string => {
+  const sign = value > 0 ? '+' : ''
+  return `${sign}${value.toFixed(1)}`
+}
+
+// One bar per completed build item that actually makes the champion stronger:
+// positive spikes only, strongest first when capping, then re-ordered by the
+// average completion time so the chart reads as a build timeline. The spike is
+// baseline-subtracted (excess over the curve's ambient curvature), so a positive
+// value now means "accelerates the lead more than usual at that minute".
+const MAX_ITEMS = 6
 
 interface SpikeBar {
   item: StaticItemData
@@ -27,7 +60,7 @@ interface SpikeBar {
 
 const bars = computed<SpikeBar[]>(() =>
   props.events
-    .filter(event => event.type === 'item')
+    .filter(event => event.type === 'item' && event.spikeMagnitude > 0)
     .map(event => ({
       item: props.itemsMap[event.refId],
       avgMinute: event.avgMinute,
@@ -35,115 +68,116 @@ const bars = computed<SpikeBar[]>(() =>
       games: event.games,
     }))
     .filter((entry): entry is SpikeBar => entry.item !== undefined)
-    .sort((left, right) => Math.abs(right.spikeMagnitude) - Math.abs(left.spikeMagnitude))
+    .sort((left, right) => right.spikeMagnitude - left.spikeMagnitude)
     .slice(0, MAX_ITEMS)
     .sort((left, right) => left.avgMinute - right.avgMinute),
 )
 
-const hasData = computed(() => bars.value.length > 0)
+const hasBars = computed(() => bars.value.length > 0)
 
-// Split the chart area between the positive (above baseline) and negative
-// (below) regions proportionally to the data, so an all-positive read uses the
-// full height instead of wasting the bottom half.
-const maxPositive = computed(() =>
+// Bars are drawn by hand (not <ChartsBarChart>) so each bar shares the exact same
+// grid column as its icon below — the unovis band scale insets the first/last bar
+// from the plot edges, which the full-width icon grid does not, leaving them
+// visibly misaligned. Heights are relative to the strongest spike; a small floor
+// keeps the weakest bar visible.
+const MIN_BAR_PERCENT = 8
+
+const maxSpike = computed(() =>
   bars.value.reduce((max, bar) => Math.max(max, bar.spikeMagnitude), 0),
 )
-const maxNegative = computed(() =>
-  bars.value.reduce((max, bar) => Math.max(max, -bar.spikeMagnitude), 0),
-)
-const positiveRatio = computed(() => {
-  const total = maxPositive.value + maxNegative.value
-  return total > 0 ? maxPositive.value / total : 1
-})
 
-function barHeightPercent(bar: SpikeBar): number {
-  const magnitude = Math.abs(bar.spikeMagnitude)
-  const scale = bar.spikeMagnitude >= 0 ? maxPositive.value : maxNegative.value
-  return scale > 0 ? (magnitude / scale) * 100 : 0
-}
+const barHeightPercent = (spike: number): number =>
+  maxSpike.value <= 0
+    ? MIN_BAR_PERCENT
+    : MIN_BAR_PERCENT + (100 - MIN_BAR_PERCENT) * (spike / maxSpike.value)
 
 const formatGameTime = (minutes: number): string => formatDuration(Math.round(minutes * 60))
-
-// Sign off the *rounded* value so a near-zero negative never reads "−0.00".
-function formatMagnitude(value: number): string {
-  const rounded = Number(value.toFixed(2))
-  if (rounded === 0) return '0.00'
-  return `${rounded > 0 ? '+' : '−'}${Math.abs(rounded).toFixed(2)}`
-}
-
-function barTooltip(bar: SpikeBar): string {
-  return `${bar.item.name} · ${formatMagnitude(bar.spikeMagnitude)} spike at ${formatGameTime(bar.avgMinute)} · ${bar.games.toLocaleString('en-US')} games`
-}
+const formatGames = (count: number): string => count.toLocaleString('en-US')
 </script>
 
 <template>
   <SectionCard
     :level="2"
     title="Power spikes"
-    subtitle="How much the champion's lead accelerates once each core item is completed, at its average completion time."
+    subtitle="The champion's power relative to its role opponent over the game (positive = ahead), and which core items accelerate that lead the most once completed."
   >
     <USkeleton
       v-if="loading"
-      class="h-52 w-full rounded-lg"
+      class="h-64 w-full rounded-lg"
     />
 
     <p
-      v-else-if="!hasData"
+      v-else-if="!hasCurve"
       class="py-8 text-center text-sm text-muted"
     >
-      No power-spike data yet for this champion and lane.
+      Not enough games yet to chart this champion's power curve in this role.
     </p>
 
     <div
       v-else
-      class="flex items-stretch justify-start gap-3 sm:gap-4"
+      class="space-y-4"
     >
-      <div
-        v-for="bar in bars"
-        :key="bar.item.id"
-        class="flex w-14 flex-col items-center gap-1.5"
+      <ChartsAreaChart
+        :data="curveRows"
+        :categories="curveCategories"
+        :height="220"
+        :x-formatter="xFormatter"
+        :y-formatter="yFormatter"
+        :gradient-stops="curveGradient"
+        hide-legend
       >
-        <UTooltip
-          :text="barTooltip(bar)"
-          :delay-duration="150"
-          class="w-full"
-        >
-          <div class="flex h-36 w-full flex-col">
-            <!-- Positive region: bars grow up from the baseline. -->
-            <div
-              class="flex min-h-0 flex-col items-center justify-end"
-              :style="{ flexGrow: positiveRatio }"
-            >
-              <div
-                v-if="bar.spikeMagnitude >= 0"
-                class="w-6 rounded-t bg-gradient-to-t from-emerald-600/70 to-emerald-400"
-                :style="{ height: `${barHeightPercent(bar)}%` }"
-              />
-            </div>
-            <div class="w-full border-t border-default/60" />
-            <!-- Negative region: bars grow down from the baseline. -->
-            <div
-              class="flex min-h-0 flex-col items-center justify-start"
-              :style="{ flexGrow: 1 - positiveRatio }"
-            >
-              <div
-                v-if="bar.spikeMagnitude < 0"
-                class="w-6 rounded-b bg-gradient-to-b from-amber-400 to-amber-600/70"
-                :style="{ height: `${barHeightPercent(bar)}%` }"
-              />
-            </div>
+        <template #tooltip="{ values }">
+          <div
+            v-if="values"
+            class="rounded-md border border-default bg-elevated px-2 py-1.5 text-xs shadow-md"
+          >
+            <p class="font-semibold text-default">
+              {{ values.minute }} min
+            </p>
+            <p class="mt-0.5 tabular-nums text-muted">
+              {{ yFormatter(values.power) }} power vs opponent
+            </p>
+            <p class="mt-0.5 text-muted">
+              {{ values.games.toLocaleString('en-US') }} games
+            </p>
           </div>
-        </UTooltip>
+        </template>
+      </ChartsAreaChart>
 
-        <GameTooltipItemIcon
-          :item="bar.item"
-          :width="32"
-          :height="32"
-          class="size-8 rounded"
-        />
-        <span class="text-xs font-medium tabular-nums text-muted">
-          {{ formatGameTime(bar.avgMinute) }}
-        </span>
+      <div v-if="hasBars">
+        <p class="mb-1 text-xs font-medium text-muted">
+          Item power spikes
+        </p>
+        <!-- Bar + icon + completion time share one grid column each, so the bar
+             sits exactly above its icon. -->
+        <div
+          class="grid items-end gap-2"
+          :style="{ gridTemplateColumns: `repeat(${bars.length}, minmax(0, 1fr))` }"
+        >
+          <UTooltip
+            v-for="bar in bars"
+            :key="bar.item.id"
+            :text="`${bar.item.name} · +${bar.spikeMagnitude.toFixed(2)} lead acceleration · completed ~${formatGameTime(bar.avgMinute)} · ${formatGames(bar.games)} games`"
+          >
+            <div class="flex flex-col items-center gap-1">
+              <div class="flex h-28 w-full items-end justify-center">
+                <div
+                  class="w-6 rounded-t bg-primary transition-[height]"
+                  :style="{ height: `${barHeightPercent(bar.spikeMagnitude)}%` }"
+                />
+              </div>
+              <GameTooltipItemIcon
+                :item="bar.item"
+                :width="32"
+                :height="32"
+                class="size-8 rounded"
+              />
+              <span class="text-xs font-medium tabular-nums text-muted">
+                {{ formatGameTime(bar.avgMinute) }}
+              </span>
+            </div>
+          </UTooltip>
+        </div>
       </div>
     </div>
   </SectionCard>

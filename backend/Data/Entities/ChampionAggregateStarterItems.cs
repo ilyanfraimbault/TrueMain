@@ -2,8 +2,8 @@ namespace Data.Entities;
 
 /// <summary>
 /// Transport DTO carried between <c>ChampionPatternProjector</c> and the
-/// API starter-items aggregator. No longer an EF entity since Phase 6.4
-/// dropped the per-scope <c>champion_aggregate_starter_items</c> table.
+/// API starter-items aggregator. Not an EF entity — it has no backing
+/// table and exists only as the aggregator's input shape.
 /// </summary>
 public class ChampionAggregateStarterItems
 {

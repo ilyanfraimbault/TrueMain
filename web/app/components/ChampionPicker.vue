@@ -27,6 +27,10 @@ const props = withDefaults(
      * is much faster when only one filter needs to change.
      */
     clearable?: boolean
+    /** Control size forwarded to the underlying USelectMenu. */
+    size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
+    /** Lock the picker: no dropdown, no clear button (read-only display). */
+    disabled?: boolean
   }>(),
   { clearable: true },
 )
@@ -48,7 +52,7 @@ const championItems = computed(() =>
 const selectedChampion = computed(() =>
   championItems.value.find(c => c.value === props.championId))
 
-const showClear = computed(() => props.clearable && props.championId !== null)
+const showClear = computed(() => props.clearable && !props.disabled && props.championId !== null)
 
 function onChange(value: { value: number } | undefined) {
   emit('update:championId', value?.value ?? null)
@@ -68,6 +72,9 @@ function clear(event: Event) {
       :model-value="selectedChampion"
       :items="championItems"
       :placeholder="placeholder ?? 'Any champion'"
+      :avatar="selectedChampion?.avatar"
+      :size="size"
+      :disabled="disabled"
       searchable
       searchable-placeholder="Search champion…"
       class="w-full"

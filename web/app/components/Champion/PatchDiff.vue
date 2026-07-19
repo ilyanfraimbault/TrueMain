@@ -53,13 +53,6 @@ function onToChange(value: unknown) {
   if (typeof value === 'string' && value) emit('update:toPatch', value)
 }
 
-// True when both sides are present but nothing notable moved — drives the
-// "no notable changes" footnote so the section doesn't read as broken.
-const noChanges = computed(() => {
-  const delta = props.diff?.delta
-  return Boolean(delta) && !delta!.firstItemChanged && !delta!.keystoneChanged && !delta!.skillOrderChanged
-})
-
 // One side resolved but the other didn't: the user picked (or defaulted into) a
 // patch the champion has no data on. Distinct from "no history at all" (both
 // sides missing) so the footnote can point at the fix ("pick another patch")
@@ -98,11 +91,11 @@ function winRateLabel(side: ChampionPatchDiffSide | null): string {
 
     <div
       v-else
-      class="flex flex-col gap-5"
+      class="flex flex-col gap-3"
     >
       <!-- Two sides, each with its own patch selector and win rate. The grid
            keeps every dimension row aligned left ⇄ right. -->
-      <div class="grid grid-cols-2 gap-x-4 gap-y-6 sm:gap-x-8">
+      <div class="grid grid-cols-2 gap-x-4 gap-y-3 sm:gap-x-8">
         <!-- Column headers: patch selector + win rate -->
         <div class="flex flex-col items-center gap-1">
           <USelect
@@ -148,7 +141,7 @@ function winRateLabel(side: ChampionPatchDiffSide | null): string {
 
         <!-- Core build — ChampionCoreBuildPath self-titles "Build path"; the
              divider row just labels the dimension. -->
-        <div class="col-span-2 border-t border-default/60 pt-3">
+        <div class="col-span-2 border-t border-default/60 pt-2">
           <span class="text-xs font-medium uppercase tracking-wide text-muted">Core build</span>
         </div>
         <div class="flex justify-center">
@@ -165,7 +158,7 @@ function winRateLabel(side: ChampionPatchDiffSide | null): string {
         </div>
 
         <!-- Runes -->
-        <div class="col-span-2 border-t border-default/60 pt-3">
+        <div class="col-span-2 border-t border-default/60 pt-2">
           <span class="text-xs font-medium uppercase tracking-wide text-muted">Runes</span>
         </div>
         <div class="flex justify-center overflow-hidden">
@@ -194,7 +187,7 @@ function winRateLabel(side: ChampionPatchDiffSide | null): string {
         </div>
 
         <!-- Skill order — ChampionCoreSkillOrder self-titles "Skill order". -->
-        <div class="col-span-2 border-t border-default/60 pt-3">
+        <div class="col-span-2 border-t border-default/60 pt-2">
           <span class="text-xs font-medium uppercase tracking-wide text-muted">Skill order</span>
         </div>
         <div class="flex justify-center">
@@ -232,12 +225,6 @@ function winRateLabel(side: ChampionPatchDiffSide | null): string {
         class="text-center text-xs text-muted"
       >
         No data for this champion on either selected patch.
-      </p>
-      <p
-        v-else-if="noChanges"
-        class="text-center text-xs text-muted"
-      >
-        No notable build, rune or skill changes between these patches.
       </p>
     </div>
   </SectionCard>

@@ -15,6 +15,8 @@
 import type {
   ChampionBuild,
   ChampionMatchups,
+  ChampionPatchDiffResponse,
+  ChampionPatchDiffSide,
   ChampionPowerspikeEvent,
   ChampionPowerspikesResponse,
   ChampionResponse,
@@ -30,6 +32,7 @@ import type {
   LeaderboardRowResponse,
   RegionSlug,
 } from '~~/shared/types/leaderboard'
+import type { CompositionBuildResponse } from '~~/shared/types/composition'
 import type { MatchSummariesResponse, MatchSummaryResponse } from '~~/shared/types/matches'
 import type { ProfileResponse } from '~~/shared/types/profile'
 import type { RankHistoryResponse } from '~~/shared/types/rank-history'
@@ -501,6 +504,53 @@ async function mockChampionDetail(
 
 // ─── Champion insight endpoints ──────────────────────────────────────────────
 
+// Two-patch diff for the champion detail page. Uses the champion's dominant
+// build on the newer patch and its alternate on the older one so first item /
+// keystone / skill order visibly move (variants 0 and 1 of makeBuild differ),
+// exercising the delta badges. availablePatchCount is 2, so the section renders;
+// a real single-patch champion returns 1 and the page hides the whole section.
+async function mockPatchDiff(
+  id: number,
+  fromQuery: string | undefined,
+  toQuery: string | undefined,
+): Promise<ChampionPatchDiffResponse | null> {
+  const s = seedsById.get(id)
+  if (!s) return null
+  const latest = await latestShortPatch()
+  const [olderPatch, newerPatch] = trendPatches(latest, 2)
+  const totalGames = Math.max(120, Math.round(s.pr * POOL_GAMES))
+
+  const side = (patch: string, variant: 0 | 1): ChampionPatchDiffSide => {
+    const build = makeBuild(s, variant, totalGames)
+    return {
+      patch,
+      games: build.games,
+      wins: Math.round(build.games * build.winRate),
+      winRate: build.winRate,
+      itemPath: build.core.itemPath,
+      runePage: build.core.runePage,
+      skillOrder: build.core.skillOrder,
+    }
+  }
+
+  const from = side(fromQuery || olderPatch!, 1)
+  const to = side(toQuery || newerPatch!, 0)
+  const firstItem = (s: ChampionPatchDiffSide) => s.itemPath?.itemIds[0] ?? 0
+  return {
+    championId: id,
+    position: s.position,
+    availablePatchCount: 2,
+    from,
+    to,
+    delta: {
+      winRateChange: round3(to.winRate - from.winRate),
+      firstItemChanged: firstItem(from) !== firstItem(to),
+      keystoneChanged: (from.runePage?.primaryKeystoneId ?? 0) !== (to.runePage?.primaryKeystoneId ?? 0),
+      skillOrderChanged: (from.skillOrder?.sequence ?? []).join() !== (to.skillOrder?.sequence ?? []).join(),
+    },
+  }
+}
+
 async function mockTrend(id: number): Promise<ChampionTrendResponse | null> {
   const s = seedsById.get(id)
   if (!s) return null
@@ -813,6 +863,8 @@ function mockSearch(q: string): SearchResponse {
         ranked: p.row.ranked
           ? { tier: p.row.ranked.tier, division: p.row.ranked.division, leaguePoints: p.row.ranked.leaguePoints }
           : null,
+        topChampionIds: p.row.topChampions.map(c => c.championId),
+        positions: p.row.positions,
       })),
   }
 }
@@ -983,11 +1035,146 @@ function safeDecodeURIComponent(value: string): string | undefined {
  *   (e.g. `/champions/64/matchups`).
  * @param query - Parsed query params.
  */
+// ─── Composition build (builder page) ────────────────────────────────────────
+// Deterministic per champion; the POST body is deliberately ignored — the
+// builder page only needs a realistic payload to render, and a body-sensitive
+// mock would just re-implement the backend scorer.
+
+async function mockCompositionBuild(id: number, body?: unknown): Promise<CompositionBuildResponse> {
+  // Unseeded champions still get a plausible payload (fighter defaults): the
+  // builder lets you pick any champion, unlike the seeded directory pages.
+  const s = seedsById.get(id) ?? seed(id, 'MIDDLE', 'fighter', 8010, 8000, 8400, 0.508, 0.04)
+  const patch = await latestShortPatch()
+  const rng = mulberry32(s.id * 131 + 7)
+  const archetype = ARCHETYPES[s.archetype]
+
+  // Mirror the backend's matchup requirement from the request body: the lane
+  // opponent is the enemy slot at the player's own position. A deterministic
+  // sliver of opponents (id % 23 === 0, e.g. Kayn 141… pick around to find
+  // one) reads as "never recorded" so the fallback path can be eyeballed.
+  const draft = (body ?? {}) as {
+    position?: string
+    allies?: Array<{ championId?: number, position?: string }>
+    enemies?: Array<{ championId?: number, position?: string }>
+  }
+  const position = typeof draft.position === 'string' ? draft.position.toUpperCase() : s.position
+  const laneOpponent = (draft.enemies ?? []).find(slot =>
+    typeof slot.position === 'string' && slot.position.toUpperCase() === position)
+  const matchupRequested = laneOpponent?.championId !== undefined
+  const matchupFound = !matchupRequested || (laneOpponent!.championId! % 23 !== 0)
+  const slotCount = (draft.allies?.length ?? 0) + (draft.enemies?.length ?? 0)
+
+  // Fewer games as the draft gets more constrained, so the thin-data state is
+  // reachable in mock mode (the real API returns the true selected count).
+  const games = Math.max(6, Math.round(100 - slotCount * 11))
+  const wins = Math.round(games * Math.min(0.6, s.wr + rng() * 0.02))
+  const set = (itemIds: number[], shareOf: number) => ({
+    itemIds,
+    games: Math.max(4, Math.round(games * shareOf)),
+    pickRate: round3(shareOf),
+    winRate: round3(Math.min(0.62, Math.max(0.42, s.wr + (rng() - 0.5) * 0.08))),
+  })
+
+  if (!matchupFound) {
+    return {
+      championId: s.id,
+      position,
+      patch,
+      eloBracket: 'all',
+      matchupRequested,
+      matchupFound,
+      confidence: {
+        sampleSize: 0,
+        candidatePoolSize: 2400 + Math.round(rng() * 2000),
+        truemainGameCount: 0,
+        maxPossibleScore: 10 + slotCount * 3,
+        meanSimilarity: 0,
+      },
+      build: {
+        gamesConsidered: 0,
+        wins: 0,
+        runePage: null,
+        starterItems: null,
+        boots: null,
+        corePath: null,
+        situationalItems: [],
+        summonerSpells: null,
+        skillOrder: null,
+        firstItemId: 0,
+        buildTree: [],
+      },
+    }
+  }
+
+  const treeItems = archetype.items
+  const treeChild = (index: number, share: number) => ({
+    itemId: treeItems[index]!,
+    games: Math.round(games * share),
+    wins: Math.round(games * share * s.wr),
+    pickRate: round3(share),
+    children: treeItems[index + 2] === undefined
+      ? []
+      : [{
+          itemId: treeItems[index + 2]!,
+          games: Math.round(games * share * 0.4),
+          wins: Math.round(games * share * 0.4 * s.wr),
+          pickRate: round3(0.4),
+          children: [],
+        }],
+  })
+
+  return {
+    championId: s.id,
+    position,
+    patch,
+    eloBracket: 'all',
+    matchupRequested,
+    matchupFound,
+    confidence: {
+      sampleSize: games,
+      candidatePoolSize: 2400 + Math.round(rng() * 2000),
+      truemainGameCount: Math.round(games * (0.6 + rng() * 0.35)),
+      maxPossibleScore: 10 + slotCount * 3,
+      // More filled slots read as a tighter (lower) mean similarity, so the
+      // confidence strip visibly reacts to draft edits in mock mode.
+      meanSimilarity: round3(Math.max(0.18, 0.75 - slotCount * 0.05 + rng() * 0.1)),
+    },
+    build: {
+      gamesConsidered: games,
+      wins,
+      runePage: runePage(s, s.keystone, Math.round(games * 0.46), 0.46, s.wr + 0.008, rng),
+      starterItems: set(archetype.starterItems, 0.6 + rng() * 0.1),
+      boots: set([archetype.boots[0]!], 0.55 + rng() * 0.1),
+      corePath: set(archetype.items.slice(0, 3), 0.38 + rng() * 0.1),
+      situationalItems: archetype.items.slice(3, 8).map(item => set([item], 0.1 + rng() * 0.22)),
+      summonerSpells: {
+        spell1Id: archetype.spells[0],
+        spell2Id: archetype.spells[1],
+        games: Math.round(games * 0.9),
+        pickRate: 0.9,
+        winRate: round3(s.wr),
+      },
+      skillOrder: {
+        sequence: [...archetype.skillOrders[0]!],
+        games: Math.round(games * 0.72),
+        pickRate: 0.72,
+        winRate: round3(s.wr + 0.004),
+      },
+      firstItemId: treeItems[0]!,
+      buildTree: [treeChild(1, 0.55), treeChild(2, 0.3)].filter(node => node.itemId !== undefined),
+    },
+  }
+}
+
 export async function resolveDevApiMock(
   path: string,
   query: Record<string, unknown>,
+  body?: unknown,
 ): Promise<unknown | undefined> {
   if (path === '/champions') return mockChampionSummaries()
+
+  const compositionMatch = path.match(/^\/champions\/(\d+)\/composition-build$/)
+  if (compositionMatch) return mockCompositionBuild(Number(compositionMatch[1]), body)
 
   const championMatch = path.match(/^\/champions\/(\d+)(?:\/([a-z-]+))?$/)
   if (championMatch) {
@@ -998,6 +1185,7 @@ export async function resolveDevApiMock(
     const payload = await (
       sub === undefined ? mockChampionDetail(id, position, eloBracket)
       : sub === 'trend' ? mockTrend(id)
+      : sub === 'patch-diff' ? mockPatchDiff(id, typeof query.from === 'string' ? query.from : undefined, typeof query.to === 'string' ? query.to : undefined)
       : sub === 'timeline-leads' ? mockTimelineLeads(id)
       : sub === 'scaling' ? mockScaling(id)
       : sub === 'powerspikes' ? mockPowerspikes(id)

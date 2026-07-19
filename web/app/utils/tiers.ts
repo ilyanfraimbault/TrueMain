@@ -1,3 +1,5 @@
+import { ELO_TIERS } from '~/utils/elo-brackets'
+
 // Tier visual + label helpers shared across the profile card and the
 // leaderboard row. The colour map intentionally keeps the warm cues for
 // Iron→Gold (players read those ranks from the colour first) and uses the
@@ -33,10 +35,9 @@ export const TIER_HEX: Record<string, string> = {
   CHALLENGER: '#a5f3fc',  // cyan-200
 }
 
-const TIER_ORDER = [
-  'IRON', 'BRONZE', 'SILVER', 'GOLD', 'PLATINUM',
-  'EMERALD', 'DIAMOND', 'MASTER', 'GRANDMASTER', 'CHALLENGER',
-] as const
+// The ranked ladder order is owned by elo-brackets.ts (mirroring the backend
+// EloBracket enum) — alias it so the two lists can't drift.
+const TIER_ORDER = ELO_TIERS
 
 const DIVISION_ORDER: Record<string, number> = {
   IV: 0, III: 1, II: 2, I: 3,
@@ -68,12 +69,6 @@ export function rankScore(tier: string, division: string, leaguePoints: number):
 
   const divisionScore = (DIVISION_ORDER[division.toUpperCase()] ?? 0) * 100
   return tierIndex * 400 + divisionScore + leaguePoints
-}
-
-/** Inverse-ish of <c>rankScore</c>: the score floor of each tier in the chart. */
-export function tierFloor(tier: string): number {
-  const idx = TIER_ORDER.indexOf(tier.toUpperCase() as typeof TIER_ORDER[number])
-  return idx === -1 ? 0 : idx * 400
 }
 
 /** The ordered list of tier names — exposed so callers can iterate Y-axis bands. */

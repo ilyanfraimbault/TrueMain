@@ -151,9 +151,25 @@ public sealed class MatchParticipantConfiguration : IEntityTypeConfiguration<Mat
         // match_participants table. EloBracket is the trailing column so the same
         // index serves both the unfiltered (champion, lane) prefix reads and the
         // rank-filtered (champion, lane, band) reads.
-        entity.HasIndex(e => new { e.ChampionId, e.TeamPosition, e.EloBracket })
-            .HasFilter("\"RiotAccountId\" IS NOT NULL")
-            .HasDatabaseName("IX_match_participants_champion_position_tracked");
+        // Both indexes below share the same columns, so each needs an explicit
+        // model name — two unnamed HasIndex calls on the same property set would
+        // collapse into a single model index.
+        entity.HasIndex(
+                e => new { e.ChampionId, e.TeamPosition, e.EloBracket },
+                "IX_match_participants_champion_position_tracked")
+            .HasFilter("\"RiotAccountId\" IS NOT NULL");
+
+        // The composition-build recommender (#563) searches the FULL participant
+        // pool — harvested rows included, because itemization/rune data is valid
+        // regardless of whether the player is tracked. The partial index above
+        // cannot serve that read, so this one carries no filter. Same column
+        // order: the (champion, lane) prefix serves the unfiltered search and
+        // EloBracket keeps a future rank filter cheap. In prod this index must be
+        // pre-created out-of-band (CREATE INDEX CONCURRENTLY) — the migration is
+        // IF NOT EXISTS so startup stays a fast no-op.
+        entity.HasIndex(
+            e => new { e.ChampionId, e.TeamPosition, e.EloBracket },
+            "IX_match_participants_champion_position_full");
 
         entity.HasOne(e => e.RiotAccount)
             .WithMany()

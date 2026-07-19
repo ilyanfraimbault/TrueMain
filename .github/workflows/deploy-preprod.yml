@@ -1,0 +1,123 @@
+# Triggered on every push to develop: builds and publishes the :preprod
+# images, then redeploys the preprod VPS (deploy-preprod job).
+name: Deploy Preprod
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_API: ghcr.io/${{ github.repository_owner }}/truemain-api
+  IMAGE_INGESTOR: ghcr.io/${{ github.repository_owner }}/truemain-ingestor
+  IMAGE_WEB: ghcr.io/${{ github.repository_owner }}/truemain-web
+  IMAGE_ADMIN: ghcr.io/${{ github.repository_owner }}/truemain-admin
+
+jobs:
+  publish-preprod:
+    name: Build & Publish Preprod Images
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./backend
+          file: backend/Api/Dockerfile
+          push: true
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+          # Immutable per-commit tag alongside the moving :preprod pointer, so
+          # the deploy references an image name that actually changes each merge
+          # (mutable-tag redeploys never recreate the containers — see #765).
+          tags: |
+            ${{ env.IMAGE_API }}:preprod
+            ${{ env.IMAGE_API }}:${{ github.sha }}
+
+      - name: Build and push Ingestor image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./backend
+          file: backend/Ingestor/Dockerfile
+          push: true
+          cache-from: type=gha,scope=ingestor
+          cache-to: type=gha,mode=max,scope=ingestor
+          tags: |
+            ${{ env.IMAGE_INGESTOR }}:preprod
+            ${{ env.IMAGE_INGESTOR }}:${{ github.sha }}
+
+      - name: Build and push Web image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./web
+          file: web/Dockerfile
+          push: true
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+          tags: |
+            ${{ env.IMAGE_WEB }}:preprod
+            ${{ env.IMAGE_WEB }}:${{ github.sha }}
+
+      - name: Build and push Admin image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./admin
+          file: admin/Dockerfile
+          push: true
+          cache-from: type=gha,scope=admin
+          cache-to: type=gha,mode=max,scope=admin
+          tags: |
+            ${{ env.IMAGE_ADMIN }}:preprod
+            ${{ env.IMAGE_ADMIN }}:${{ github.sha }}
+
+  deploy-preprod:
+    name: Deploy Preprod VPS
+    runs-on: ubuntu-24.04
+    needs: publish-preprod
+    # No-op until the Hostinger credentials are configured: set the
+    # HOSTINGER_PREPROD_VM_ID repository variable plus the HOSTINGER_API_KEY
+    # and PREPROD_ENV_FILE secrets (see docs/preprod.md). success() must be
+    # explicit — a custom `if:` replaces the implicit needs-succeeded check,
+    # and deploying after a failed publish would ship stale/mixed images.
+    if: success() && vars.HOSTINGER_PREPROD_VM_ID != ''
+    concurrency:
+      group: deploy-preprod
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Redeploy Docker Manager project
+        uses: hostinger/deploy-on-vps@v2
+        with:
+          api-key: ${{ secrets.HOSTINGER_API_KEY }}
+          virtual-machine: ${{ vars.HOSTINGER_PREPROD_VM_ID }}
+          project-name: truemain-preprod
+          docker-compose-path: compose.preprod.yaml
+          # Newline-separated KEY=value pairs mirroring the VPS .env, plus the
+          # immutable image tag for this commit. IMAGE_TAG makes compose resolve
+          # each service image to an absent :<sha>, so Docker Manager pulls it
+          # and recreates the containers instead of reusing the cached :preprod
+          # image (#765). It defaults to :preprod in the file for manual runs.
+          environment-variables: |
+            ${{ secrets.PREPROD_ENV_FILE }}
+            IMAGE_TAG=${{ github.sha }}

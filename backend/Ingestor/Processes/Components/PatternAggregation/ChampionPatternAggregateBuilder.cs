@@ -1,4 +1,5 @@
 using Core.Lol.Spells;
+using Data.BuildFacts;
 using Data.Entities;
 
 namespace Ingestor.Processes.Components.PatternAggregation;
@@ -128,6 +129,9 @@ public sealed class ChampionPatternAggregateBuilder(
             EloBracket = group.Key.EloBracket,
             Games = rows.Count,
             Wins = rows.Count(row => row.Win),
+            Kills = rows.Sum(row => row.Kills),
+            Deaths = rows.Sum(row => row.Deaths),
+            Assists = rows.Sum(row => row.Assists),
             LastGameStartTimeUtc = rows.Max(row => row.GameStartTimeUtc),
             AggregatedAtUtc = aggregatedAtUtc
         };
@@ -183,6 +187,9 @@ public sealed class ChampionPatternAggregateBuilder(
                 slots[5],
                 slots[6],
                 row.Win,
+                row.Kills,
+                row.Deaths,
+                row.Assists,
                 row.GameStartTimeUtc));
         }
 

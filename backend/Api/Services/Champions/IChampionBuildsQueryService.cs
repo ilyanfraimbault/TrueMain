@@ -25,9 +25,10 @@ public interface IChampionBuildsQueryService
     /// Optional player narrowing. When omitted the response aggregates the
     /// global pool; when a player scope is supplied every aggregate is
     /// computed only from that player's games on the champion. The
-    /// <see cref="ChampionBuildsScope.MinGames"/> floor lets the caller treat
-    /// a thinly-played champion as "not enough data" (returns
-    /// <see langword="null"/>) so the page can show an empty state.
+    /// <see cref="ChampionBuildsScope.MinGames"/> value only *prefers* a patch
+    /// with enough games when resolving which to render — it no longer gates:
+    /// a thinly-played champion still returns a (low-confidence) build. Only a
+    /// total absence of aggregated data yields <see langword="null"/> (404).
     /// </param>
     /// <param name="eloBracket">
     /// Optional elo filter (per <c>Core.Lol.Ranking.EloBracket</c>): <c>ALL</c>,

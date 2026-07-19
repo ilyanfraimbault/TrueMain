@@ -4,8 +4,8 @@ namespace Data.Entities;
 /// Transport DTO carried between <c>ChampionPatternProjector</c> (which
 /// builds it from <see cref="ChampionAggregatePattern"/> + <see cref="ChampionDimRunePage"/>
 /// + <see cref="ChampionDimBuild"/>) and the per-dimension aggregators in
-/// the API. No longer an EF entity since Phase 6.4 dropped the per-scope
-/// <c>champion_aggregate_rune_pages</c> table.
+/// the API. Not an EF entity — it has no backing table and exists only as
+/// the aggregators' input shape.
 /// </summary>
 public class ChampionAggregateRunePage
 {

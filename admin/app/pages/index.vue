@@ -35,7 +35,7 @@ const matchesChartData = computed(() =>
   })),
 )
 const matchesChartCategories = {
-  matches: { name: 'Matches', color: '#34d399' },
+  matches: { name: 'Matches', color: CHART_PRIMARY },
 }
 // nuxt-charts feeds the numeric tick index for a categorical x-axis; map it back
 // to the formatted bucket label. Recomputed so labels track the current data.
@@ -144,11 +144,11 @@ const candidateChartData = computed(() =>
   candidateBuckets.value.map(b => ({ label: b.label, count: b.count ?? 0 })),
 )
 const candidateChartCategories = {
-  count: { name: 'Candidates', color: '#34d399' },
+  count: { name: 'Candidates', color: CHART_PRIMARY },
 }
 // Chart grows with the number of bars; the skeleton mirrors it to avoid CLS.
 const candidateChartHeight = computed(() =>
-  Math.max(200, candidateChartData.value.length * 34),
+  barChartHeight(candidateChartData.value.length, { min: 200, step: 34 }),
 )
 // Wrapped in a computed so the label lookup tracks `candidateChartData`
 // instead of closing over its initial (empty) value before stats load.
@@ -156,20 +156,21 @@ const candidateLabelFormatter = computed(() =>
   indexLabelFormatter(candidateChartData.value, row => row.label),
 )
 
-// Top 10 champions by games for the bottom chart.
+// Top-N champions by games for the bottom chart.
+const TOP_N = 10
 const topChampions = computed(() => {
   const rows = champions.value ?? []
-  return rows.slice(0, 10).map(row => ({
+  return rows.slice(0, TOP_N).map(row => ({
     label: nameFor(row.championId),
     games: row.games,
   }))
 })
 const championChartCategories = {
-  games: { name: 'Games', color: '#34d399' },
+  games: { name: 'Games', color: CHART_PRIMARY },
 }
 // Chart grows with the number of bars; the skeleton mirrors it to avoid CLS.
 const topChampionsChartHeight = computed(() =>
-  Math.max(240, topChampions.value.length * 30),
+  barChartHeight(topChampions.value.length, { min: 240, step: 30 }),
 )
 // Horizontal bars: champion name lives on the LEFT (category) axis, looked up
 // by bar index. Recomputed against the current slice so labels track the data.

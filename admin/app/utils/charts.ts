@@ -2,32 +2,16 @@ import { CurveType, Orientation } from 'vue-chrts'
 
 // Chart palette + axis helpers for the admin dashboard.
 //
-// Mirrors `web/app/utils/chart-palette.ts`: TrueMain is intentionally
-// emerald-only on surfaces, so single-series charts pick up emerald-400 and
-// extra series fall back to neutral zincs rather than rainbow hues. Callers
-// needing a contrasting second series should pass `categories[key].color`
-// explicitly (e.g. amber-400) rather than padding this list.
-export const CHART_SERIES_PALETTE = [
-  '#34d399', // emerald-400
-  '#71717a', // zinc-500
-  '#a1a1aa', // zinc-400
-  '#3f3f46', // zinc-700
-] as const
-
-// Crosshair / grid / axis stroke. One shade lighter than `--ui-border`
-// (zinc-800) so guides stay legible against card backgrounds.
-export const CHART_GUIDE_COLOR = '#3f3f46' // zinc-700
+// TrueMain is intentionally emerald-only on surfaces, so every single-series
+// chart picks up emerald-400. Callers needing a contrasting second series pass
+// `categories[key].color` explicitly (amber-400 below).
+export const CHART_PRIMARY = '#34d399' // emerald-400
+export const CHART_ACCENT_AMBER = '#fbbf24' // amber-400
 
 // Axis tick text colour — zinc-400, matching `text-muted` so axis labels read
 // as quiet metadata rather than competing with the data.
 const CHART_AXIS_TEXT_COLOR = '#a1a1aa' // zinc-400
 const CHART_AXIS_TEXT_SIZE = '11px'
-
-// Pull the Nth default series color, wrapping around if there are more series
-// than the palette defines.
-export function defaultSeriesColor(index: number): string {
-  return CHART_SERIES_PALETTE[index % CHART_SERIES_PALETTE.length]!
-}
 
 // --- Nuxt UI dashboard styling --------------------------------------------
 //
@@ -76,8 +60,8 @@ export function areaChartProps() {
     // on NcAreaChart injecting the series colour into each stop, and if it ever
     // doesn't, raw SVG defaults `stop-color` to black → a black→transparent fade.
     gradientStops: [
-      { offset: '0%', stopColor: '#34d399', stopOpacity: 0.4 },
-      { offset: '100%', stopColor: '#34d399', stopOpacity: 0 },
+      { offset: '0%', stopColor: CHART_PRIMARY, stopOpacity: 0.4 },
+      { offset: '100%', stopColor: CHART_PRIMARY, stopOpacity: 0 },
     ],
     // Quiet axes: keep the labels, drop every line/grid so the area is the focus.
     xGridLine: false,
@@ -89,7 +73,7 @@ export function areaChartProps() {
     yNumTicks: 4,
     xAxisConfig: { ...AXIS_TEXT_CONFIG },
     yAxisConfig: { ...AXIS_TEXT_CONFIG },
-    crosshairConfig: { color: '#34d399', strokeColor: '#34d399', strokeWidth: 1 },
+    crosshairConfig: { color: CHART_PRIMARY, strokeColor: CHART_PRIMARY, strokeWidth: 1 },
     hideLegend: true,
     padding: { top: 8, right: 8, bottom: 4, left: 8 },
   }
@@ -126,6 +110,13 @@ export function horizontalBarProps(labelWidth: number) {
     hideLegend: true,
     padding: { top: 4, right: 16, bottom: 4, left: labelWidth + 12 },
   }
+}
+
+// Height for a bar chart that grows with its row count: `step` px per bar with
+// a `min` floor so short lists don't collapse. Callers mirror the same height
+// on their loading skeletons to avoid CLS.
+export function barChartHeight(count: number, { min, step }: { min: number, step: number }): number {
+  return Math.max(min, count * step)
 }
 
 // Build an `xFormatter` that maps the chart's numeric tick index back to a

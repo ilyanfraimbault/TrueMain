@@ -110,6 +110,27 @@ public sealed class EloBracketTests
         EloBracket.ResolveFilter(filter).Should().BeNull();
     }
 
+    [Theory]
+    [InlineData("gold", EloBracket.Gold)]
+    [InlineData(" gold_plus ", "GOLD_PLUS")]
+    [InlineData("DIAMOND_PLUS", "DIAMOND_PLUS")]
+    public void ResolveToken_UsesTheCanonicalFormForRecognisedFilters(string raw, string expected)
+    {
+        EloBracket.ResolveToken(raw).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("ALL")]
+    [InlineData("garbage")]
+    public void ResolveToken_IsAllForTheEveryTierCase(string? filter)
+    {
+        // Mirrors ResolveFilter's null cases so the cache token and the band
+        // set can never disagree on what "every bucket" means.
+        EloBracket.ResolveToken(filter).Should().Be("all");
+    }
+
     [Fact]
     public void Persisted_IsTheLadderPlusUnrankedAndExcludesAll()
     {

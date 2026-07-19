@@ -127,6 +127,7 @@ public sealed class Worker(
             JobMode.MainAnalysisOnly => ["MainAnalysis"],
             JobMode.PatternAggregationOnly => ["ChampionPatternAggregation"],
             JobMode.MatchupLeadAggregationOnly => ["ChampionMatchupLeadAggregation"],
+            JobMode.PowerspikeAggregationOnly => ["ChampionPowerspikeAggregation"],
             JobMode.EloBracketEnrichmentOnly => ["MatchParticipantEloBracketEnrichment"],
             JobMode.AccountRefreshOnly => ["AccountRefresh"],
             JobMode.MatchDataRetentionOnly => ["MatchDataRetention"],
@@ -151,6 +152,10 @@ public sealed class Worker(
                 "MatchParticipantEloBracketEnrichment",
                 "ChampionPatternAggregation",
                 "ChampionMatchupLeadAggregation",
+                // Folds each newly-ingested match into the powerspike aggregates
+                // (#694) while its dense per-minute snapshots still exist, so
+                // MatchDataRetention can then prune them to the canonical marks.
+                "ChampionPowerspikeAggregation",
                 "AccountRefresh",
                 "MatchDataRetention"
             ]

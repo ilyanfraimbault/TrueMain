@@ -100,6 +100,8 @@ export interface ChampionTrendPoint {
 export interface ChampionPatchDiffResponse {
   championId: number
   position: string
+  /** Distinct patches with data for this champion/position; the section hides below 2. */
+  availablePatchCount: number
   from: ChampionPatchDiffSide | null
   to: ChampionPatchDiffSide | null
   delta: ChampionPatchDiffDelta | null
@@ -206,8 +208,9 @@ export interface ChampionPowerspikeEvent {
   avgMinute: number
   /**
    * Mean change in the power-curve slope across a ±3 min window around the
-   * event (after − before). Positive = the champion's advantage accelerates
-   * after the event — the power spike.
+   * event (after − before), in excess of the baseline curvature the mean curve
+   * shows at that minute. Positive = the champion's advantage accelerates after
+   * the event beyond the norm — the power spike.
    */
   spikeMagnitude: number
   games: number

@@ -14,7 +14,7 @@ import type {
 definePageMeta({ layout: 'default' })
 
 useSeoMeta({
-  title: 'Profile playground · TrueMain',
+  title: 'Profile playground',
   description: 'Isolated visual review of the truemain profile page with mock fixtures.',
 })
 

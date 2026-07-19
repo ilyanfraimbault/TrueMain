@@ -2,7 +2,7 @@
 // See #520.
 
 import type { ProfileIdentity } from './profile'
-import type { RegionSlug } from './leaderboard'
+import type { LeaderboardPositions, RegionSlug } from './leaderboard'
 
 export interface SearchResponse {
   results: SearchResult[]
@@ -19,6 +19,13 @@ export interface SearchResult {
   region: RegionSlug
   /** Latest tier/division/LP, or null when the account has no rank snapshot yet. */
   ranked: SearchRanked | null
+  /**
+   * Up to 3 most-played champion ids (descending play rate) — the same slice
+   * the leaderboard row shows. Empty when no main-champion analysis has run.
+   */
+  topChampionIds: number[]
+  /** Primary + secondary lane from position share across the player's mains, or null when unanalysed. */
+  positions: LeaderboardPositions | null
 }
 
 export interface SearchRanked {
