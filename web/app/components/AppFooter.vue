@@ -2,6 +2,8 @@
 const links = [
   { label: 'Champions', to: '/champions' },
   { label: 'Truemains', to: '/truemains' },
+  { label: 'Privacy', to: '/privacy' },
+  { label: 'Terms', to: '/terms' },
 ]
 
 const year = new Date().getUTCFullYear()
