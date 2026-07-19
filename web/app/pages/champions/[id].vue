@@ -292,30 +292,38 @@ watch(champion, (data) => {
       patch/position was pinned, the fallback 404'd too) — we simply don't hold
       any aggregate for them yet (a brand-new champion, or one nobody in the
       dataset has played). This is deliberately distinct from the error alert
-      above: a 404 is "no data", not a transient failure to retry.
+      above: a 404 is "no data", not a transient failure to retry. We still
+      render the base header (name + patch/position/rank pickers) so the user
+      can switch slice from here instead of hitting a dead end, and show a plain
+      "Not enough data" notice below.
     -->
-    <div
-      v-else-if="notEnoughData"
-      class="flex flex-col items-center gap-3 glass rounded-lg px-6 py-12 text-center"
-    >
-      <SkeletonImage
-        v-if="displayIconUrl"
-        :src="displayIconUrl"
-        :alt="displayName ?? ''"
-        width="64"
-        height="64"
-        class="size-16 rounded opacity-80"
-      />
-      <div class="space-y-1">
-        <p class="text-sm font-medium text-default">
-          No data yet for {{ displayName ?? 'this champion' }}
-        </p>
+    <template v-else-if="notEnoughData">
+      <header class="flex flex-wrap items-center gap-4">
+        <ChampionHeader
+          :champion-name="displayName"
+          :champion-icon-url="displayIconUrl"
+          :champion-id="championId"
+          :position="champion?.position || selectedPosition || ''"
+          :total-games="champion?.totalGames ?? 0"
+          :total-wins="champion?.totalWins ?? 0"
+        />
+        <ChampionFilters
+          :selected-patch="selectedPatch"
+          :selected-position="selectedPosition"
+          :selected-elo-bracket="selectedEloBracket"
+          :patch-options="patchOptions"
+          @update:patch="value => setFilter({ patch: value })"
+          @update:position="value => setFilter({ position: value })"
+          @update:elo-bracket="value => setFilter({ eloBracket: value })"
+        />
+      </header>
+
+      <div class="flex flex-col items-center gap-1 glass rounded-lg px-6 py-12 text-center">
         <p class="text-sm text-muted">
-          We don't have any games on {{ displayName ?? 'this champion' }} yet — once it's
-          been played enough, its builds, runes and stats will show up here.
+          Not enough data
         </p>
       </div>
-    </div>
+    </template>
 
     <!--
       Everything below renders immediately and independently — no gate on

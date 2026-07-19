@@ -68,8 +68,8 @@ const yFormatter = (value: number): string => formatSigned(value, activeMetric.v
 <template>
   <SectionCard
     :level="2"
-    title="Lead vs lane opponent"
-    subtitle="Average advantage over the opposing lane at each minute mark. Positive is ahead."
+    title="Lead vs role opponent"
+    subtitle="Average advantage over the opposing role at each minute mark. Positive is ahead."
   >
     <template v-if="hasData" #actions>
       <div class="flex flex-wrap gap-1">
@@ -95,7 +95,7 @@ const yFormatter = (value: number): string => formatSigned(value, activeMetric.v
       v-else-if="!hasData"
       class="py-8 text-center text-sm text-muted"
     >
-      No timeline data yet for this champion and lane.
+      No timeline data yet for this champion and role.
     </p>
 
     <ChartsAreaChart
