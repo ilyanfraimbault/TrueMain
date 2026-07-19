@@ -72,7 +72,7 @@ services:
       - truemain_internal
 
   api:
-    image: ghcr.io/ilyanfraimbault/truemain-api:preprod
+    image: ghcr.io/ilyanfraimbault/truemain-api:${IMAGE_TAG:-preprod}
     pull_policy: always
     container_name: truemain-preprod-api
     restart: unless-stopped
@@ -102,7 +102,7 @@ services:
       - truemain_internal
 
   web:
-    image: ghcr.io/ilyanfraimbault/truemain-web:preprod
+    image: ghcr.io/ilyanfraimbault/truemain-web:${IMAGE_TAG:-preprod}
     pull_policy: always
     container_name: truemain-preprod-web
     restart: unless-stopped
@@ -121,7 +121,7 @@ services:
       - truemain_internal
 
   admin:
-    image: ghcr.io/ilyanfraimbault/truemain-admin:preprod
+    image: ghcr.io/ilyanfraimbault/truemain-admin:${IMAGE_TAG:-preprod}
     pull_policy: always
     container_name: truemain-preprod-admin
     restart: unless-stopped
@@ -146,7 +146,7 @@ services:
       - truemain_internal
 
   ingestor:
-    image: ghcr.io/ilyanfraimbault/truemain-ingestor:preprod
+    image: ghcr.io/ilyanfraimbault/truemain-ingestor:${IMAGE_TAG:-preprod}
     pull_policy: always
     container_name: truemain-preprod-ingestor
     restart: unless-stopped
