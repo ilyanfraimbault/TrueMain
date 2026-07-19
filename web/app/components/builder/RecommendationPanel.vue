@@ -97,23 +97,18 @@ const stats = computed(() => [
         <h2 class="text-sm font-medium text-default">
           {{ championName ? `Recommended build for ${championName}` : 'Recommended build' }}
         </h2>
-        <span
+        <!-- Thin-data qualifier: only the icon shows next to the title; the
+             message lives in its tooltip so it never crowds the header. -->
+        <UTooltip
           v-if="lowDataMessage"
-          class="inline-flex items-center gap-1 text-xs font-medium text-warning"
+          :text="lowDataMessage"
+          :delay-duration="150"
         >
-          <UTooltip
-            :text="lowSample
-              ? 'Treat this as a hint, not a consensus.'
-              : 'Leans on the champion\'s general games more than your specific draft.'"
-            :delay-duration="150"
-          >
-            <UIcon
-              name="i-lucide-triangle-alert"
-              class="size-3.5"
-            />
-          </UTooltip>
-          {{ lowDataMessage }}
-        </span>
+          <UIcon
+            name="i-lucide-triangle-alert"
+            class="size-4 text-warning"
+          />
+        </UTooltip>
       </div>
     </template>
     <div class="space-y-6">
