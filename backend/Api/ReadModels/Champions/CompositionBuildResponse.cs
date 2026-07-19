@@ -51,6 +51,12 @@ public sealed record CompositionConfidenceReadModel
     /// <summary>Candidate games scanned (bounded by the configured pool cap).</summary>
     public required int CandidatePoolSize { get; init; }
 
+    /// <summary>
+    /// How many of the aggregated games were piloted by a main of the champion
+    /// (mains are preferred in selection).
+    /// </summary>
+    public required int TruemainGameCount { get; init; }
+
     /// <summary>Score a game reproducing every requested slot would reach.</summary>
     public required int MaxPossibleScore { get; init; }
 

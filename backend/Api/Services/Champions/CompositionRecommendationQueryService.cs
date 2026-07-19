@@ -48,6 +48,7 @@ public sealed class CompositionRecommendationQueryService(
             {
                 SampleSize = build.GamesConsidered,
                 CandidatePoolSize = matches.CandidatePoolSize,
+                TruemainGameCount = matches.TruemainGameCount,
                 MaxPossibleScore = matches.MaxPossibleScore,
                 MeanSimilarity = matches.MeanSimilarity,
             },

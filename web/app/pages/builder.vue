@@ -121,18 +121,8 @@ const hasDraftPicks = computed(() =>
   POSITION_OPTIONS.some(option =>
     allySlots.value[option.value] !== null || enemySlots.value[option.value] !== null))
 
-const allyRows = computed(() =>
-  POSITION_OPTIONS.filter(option => option.value !== playedPosition.value))
-
-// The lane opponent drives the matchup requirement, so it leads the enemy
-// column when the player's role is known.
-const enemyRows = computed(() => {
-  if (playedPosition.value === null) {
-    return POSITION_OPTIONS
-  }
-  return [...POSITION_OPTIONS].sort((a, b) =>
-    Number(b.value === playedPosition.value) - Number(a.value === playedPosition.value))
-})
+// Both columns keep the canonical role order so every ally row sits directly
+// across from the enemy in the same lane (top vs top, jungle vs jungle, …).
 
 const matchupMissing = computed(() =>
   recommendation.value !== null
@@ -156,180 +146,132 @@ const matchupMissing = computed(() =>
       :description="describeFetchError(staticError)"
     />
 
-    <!-- Step 1 — the player pick, deliberately the biggest control on the page. -->
+    <!-- One card: the player pick and both team drafts, all draft configuration
+         in a single surface. -->
     <section
-      class="glass rounded-xl p-4 sm:p-6"
-      aria-label="Your pick"
+      class="glass space-y-5 rounded-xl p-4 sm:p-6"
+      aria-label="Draft"
     >
-      <div class="flex flex-wrap items-center gap-4 sm:gap-6">
-        <SkeletonImage
-          v-if="playedChampion"
-          :src="playedChampion.iconUrl"
-          :alt="playedChampion.name"
-          :width="80"
-          :height="80"
-          class="size-16 shrink-0 rounded-2xl ring-2 ring-primary/50 sm:size-20"
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <p class="text-xs font-medium uppercase tracking-wider text-muted">
+          You are playing
+        </p>
+        <ChampionPicker
+          :champions="champions"
+          :champion-id="playedChampionId"
+          placeholder="Choose your champion"
+          size="lg"
+          trigger-class="w-full max-w-64 sm:w-64"
+          @update:champion-id="playedChampionId = $event"
         />
-        <div
-          v-else
-          class="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-elevated/60 ring-1 ring-accented sm:size-20"
+        <RolePicker
+          :position="playedPosition"
+          hide-all
+          @update:position="playedPosition = $event"
+        />
+        <UButton
+          v-if="isDraftReady && hasDraftPicks"
+          class="ms-auto"
+          variant="ghost"
+          color="neutral"
+          size="xs"
+          icon="i-lucide-eraser"
+          @click="resetDraft"
         >
-          <UIcon
-            name="i-lucide-user-round-search"
-            class="size-7 text-dimmed sm:size-8"
-          />
+          Clear draft
+        </UButton>
+      </div>
+
+      <div
+        v-if="isDraftReady"
+        class="grid gap-x-6 gap-y-4 sm:grid-cols-2"
+      >
+        <div class="space-y-2">
+          <h3 class="text-xs font-medium uppercase tracking-wider text-muted">
+            Your team
+          </h3>
+          <ul class="space-y-1.5">
+            <li
+              v-for="option in POSITION_OPTIONS"
+              :key="option.value"
+              class="flex items-center gap-3 rounded-lg px-2.5 py-1.5"
+              :class="option.value === playedPosition
+                ? 'bg-primary/5 ring-1 ring-inset ring-primary/25'
+                : 'glass-hover'"
+            >
+              <SkeletonImage
+                :src="option.iconUrl"
+                :alt="option.label"
+                :width="18"
+                :height="18"
+                class="size-[18px] shrink-0 opacity-80"
+              />
+              <!-- The player's own lane is locked: it mirrors the pick above and
+                   can only change from the "You are playing" control. -->
+              <ChampionPicker
+                v-if="option.value === playedPosition"
+                :champions="champions"
+                :champion-id="playedChampionId"
+                size="sm"
+                trigger-class="w-full"
+                class="flex-1"
+                disabled
+              />
+              <ChampionPicker
+                v-else
+                :champions="champions"
+                :champion-id="allySlots[option.value]"
+                placeholder="Any champion"
+                size="sm"
+                trigger-class="w-full"
+                class="flex-1"
+                @update:champion-id="allySlots[option.value] = $event"
+              />
+            </li>
+          </ul>
         </div>
 
-        <div class="flex min-w-0 flex-1 flex-col gap-2">
-          <p class="text-xs font-medium uppercase tracking-wider text-muted">
-            You are playing
-          </p>
-          <div class="flex flex-wrap items-center gap-3">
-            <ChampionPicker
-              :champions="champions"
-              :champion-id="playedChampionId"
-              placeholder="Choose your champion"
-              size="lg"
-              trigger-class="w-full max-w-64 sm:w-64"
-              @update:champion-id="playedChampionId = $event"
-            />
-            <RolePicker
-              :position="playedPosition"
-              hide-all
-              @update:position="playedPosition = $event"
-            />
-          </div>
-        </div>
-
-        <!-- Live status — quietly reassures that no submit button is coming. -->
-        <div
-          class="flex items-center gap-2 text-xs text-muted"
-          role="status"
-        >
-          <template v-if="isLoading">
-            <UIcon
-              name="i-lucide-loader-circle"
-              class="size-4 animate-spin text-primary"
-            />
-            Updating…
-          </template>
-          <template v-else-if="isDraftReady">
-            <span
-              class="size-2 rounded-full bg-primary"
-              aria-hidden="true"
-            />
-            Live — edits update the build
-          </template>
+        <div class="space-y-2">
+          <h3 class="text-xs font-medium uppercase tracking-wider text-muted">
+            Enemy team
+          </h3>
+          <ul class="space-y-1.5">
+            <li
+              v-for="option in POSITION_OPTIONS"
+              :key="option.value"
+              class="flex items-center gap-3 rounded-lg px-2.5 py-1.5"
+              :class="option.value === playedPosition
+                ? 'bg-primary/5 ring-1 ring-inset ring-primary/25'
+                : 'glass-hover'"
+            >
+              <SkeletonImage
+                :src="option.iconUrl"
+                :alt="option.label"
+                :width="18"
+                :height="18"
+                class="size-[18px] shrink-0 opacity-80"
+              />
+              <ChampionPicker
+                :champions="champions"
+                :champion-id="enemySlots[option.value]"
+                :placeholder="option.value === playedPosition ? 'Your lane opponent' : 'Any champion'"
+                size="sm"
+                trigger-class="w-full"
+                class="flex-1"
+                @update:champion-id="enemySlots[option.value] = $event"
+              />
+            </li>
+          </ul>
         </div>
       </div>
+
+      <p
+        v-else
+        class="text-sm text-muted"
+      >
+        Choose your champion and role to sketch both teams — the build updates live below.
+      </p>
     </section>
-
-    <!-- Step 2 — the draft around the player, intentionally more compact. -->
-    <div
-      v-if="isDraftReady"
-      class="grid gap-4 lg:grid-cols-2"
-    >
-      <SectionCard
-        title="Your team"
-        subtitle="Leave unknown lanes empty."
-      >
-        <template #actions>
-          <UButton
-            v-if="hasDraftPicks"
-            variant="ghost"
-            color="neutral"
-            size="xs"
-            icon="i-lucide-eraser"
-            @click="resetDraft"
-          >
-            Clear draft
-          </UButton>
-        </template>
-        <ul class="space-y-1.5">
-          <li
-            v-for="option in allyRows"
-            :key="option.value"
-            class="glass-hover flex items-center gap-3 rounded-lg px-2.5 py-1.5"
-          >
-            <SkeletonImage
-              :src="option.iconUrl"
-              :alt="option.label"
-              :width="18"
-              :height="18"
-              class="size-[18px] shrink-0 opacity-80"
-            />
-            <span class="w-16 shrink-0 text-xs text-muted">{{ option.label }}</span>
-            <ChampionPicker
-              :champions="champions"
-              :champion-id="allySlots[option.value]"
-              placeholder="Any champion"
-              size="sm"
-              trigger-class="w-full"
-              class="flex-1"
-              @update:champion-id="allySlots[option.value] = $event"
-            />
-          </li>
-        </ul>
-      </SectionCard>
-
-      <SectionCard
-        title="Enemy team"
-        subtitle="Your lane opponent matters most — games without that matchup are skipped."
-      >
-        <ul class="space-y-1.5">
-          <li
-            v-for="option in enemyRows"
-            :key="option.value"
-            class="flex items-center gap-3 rounded-lg px-2.5 py-1.5"
-            :class="option.value === playedPosition
-              ? 'bg-primary/5 ring-1 ring-inset ring-primary/25'
-              : 'glass-hover'"
-          >
-            <SkeletonImage
-              :src="option.iconUrl"
-              :alt="option.label"
-              :width="18"
-              :height="18"
-              class="size-[18px] shrink-0 opacity-80"
-            />
-            <span class="w-16 shrink-0 text-xs text-muted">
-              {{ option.label }}
-              <span
-                v-if="option.value === playedPosition"
-                class="block text-[11px] font-medium text-primary"
-              >vs you</span>
-            </span>
-            <ChampionPicker
-              :champions="champions"
-              :champion-id="enemySlots[option.value]"
-              :placeholder="option.value === playedPosition ? 'Your lane opponent' : 'Any champion'"
-              size="sm"
-              trigger-class="w-full"
-              class="flex-1"
-              @update:champion-id="enemySlots[option.value] = $event"
-            />
-          </li>
-        </ul>
-      </SectionCard>
-    </div>
-
-    <!-- Empty state until the player pick is complete. -->
-    <div
-      v-if="!isDraftReady"
-      class="glass rounded-xl px-6 py-14 text-center"
-    >
-      <UIcon
-        name="i-lucide-wand-sparkles"
-        class="mx-auto size-8 text-primary/70"
-      />
-      <p class="mt-3 font-medium">
-        Start with your own pick
-      </p>
-      <p class="mx-auto mt-1 max-w-md text-sm text-muted">
-        Choose the champion you are playing and your role above. You can then sketch both
-        team comps — the recommended build refreshes automatically after every change.
-      </p>
-    </div>
 
     <UAlert
       v-if="error"

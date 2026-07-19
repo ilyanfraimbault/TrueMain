@@ -59,24 +59,25 @@ const lowDataMessage = computed(() => {
 
 const stats = computed(() => [
   {
-    label: 'Games sampled',
+    label: 'Games used',
     value: String(build.value.gamesConsidered),
-    hint: 'Most similar games the build is computed from',
+    caption: `${confidence.value.truemainGameCount} by mains · of `
+      + `${confidence.value.candidatePoolSize.toLocaleString('en-US')} scanned`,
+    hint: 'The build below is computed from these games only — games piloted by a '
+      + 'main of the champion first, then the most similar to your draft, out of all '
+      + 'recent games scanned for this champion and role.',
+  },
+  {
+    label: 'Draft match',
+    value: draftRequested.value ? formatPercentage(confidence.value.meanSimilarity) : '—',
+    caption: 'avg similarity',
+    hint: 'Average similarity between those games and your draft.',
   },
   {
     label: 'Win rate',
     value: winRate.value === null ? '—' : formatPercentage(winRate.value),
-    hint: 'Across the sampled games',
-  },
-  {
-    label: 'Draft similarity',
-    value: draftRequested.value ? formatPercentage(confidence.value.meanSimilarity) : '—',
-    hint: 'How closely the sample reproduces your draft',
-  },
-  {
-    label: 'Pool scanned',
-    value: String(confidence.value.candidatePoolSize),
-    hint: 'Recent games considered for the sample',
+    caption: 'across those games',
+    hint: 'Win rate across the games the build is computed from.',
   },
 ])
 </script>
@@ -100,7 +101,7 @@ const stats = computed(() => [
     </template>
     <div class="space-y-6">
       <!-- Confidence strip — always first: the numbers qualify everything below. -->
-      <dl class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <dl class="grid grid-cols-3 gap-4">
         <div
           v-for="stat in stats"
           :key="stat.label"
@@ -109,8 +110,11 @@ const stats = computed(() => [
           <dt class="text-sm text-muted">
             {{ stat.label }}
           </dt>
-          <dd class="text-lg font-semibold">
+          <dd class="text-lg font-semibold leading-tight">
             {{ stat.value }}
+          </dd>
+          <dd class="text-xs text-dimmed">
+            {{ stat.caption }}
           </dd>
         </div>
       </dl>
@@ -183,35 +187,6 @@ const stats = computed(() => [
         :item-path="build.corePath?.itemIds ?? []"
         :items-map="itemsMap"
       />
-
-      <!-- Situational items — specific to the composition recommender. -->
-      <div v-if="build.situationalItems.length > 0">
-        <h3 class="text-sm font-medium text-muted">
-          Situational items
-        </h3>
-        <ul class="mt-2 flex flex-wrap gap-4">
-          <li
-            v-for="slot in build.situationalItems"
-            :key="slot.itemIds[0]"
-            class="glass-hover flex items-center gap-3 rounded-lg px-3 py-2"
-          >
-            <GameTooltipItemIcon
-              :item="itemsMap[slot.itemIds[0]!] ?? null"
-              :width="32"
-              :height="32"
-              class="size-8"
-            />
-            <div class="text-xs leading-tight">
-              <p class="font-medium">
-                {{ formatPercentage(slot.winRate) }} WR
-              </p>
-              <p class="text-muted">
-                {{ formatPercentage(slot.pickRate) }} of games
-              </p>
-            </div>
-          </li>
-        </ul>
-      </div>
     </div>
   </SectionCard>
 </template>

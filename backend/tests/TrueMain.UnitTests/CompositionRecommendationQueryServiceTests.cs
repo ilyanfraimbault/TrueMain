@@ -102,6 +102,7 @@ public sealed class CompositionRecommendationQueryServiceTests
                 Position = criteria.Position,
                 Patch = null,
                 CandidatePoolSize = 0,
+                TruemainGameCount = 0,
                 MaxPossibleScore = 0,
                 MeanSimilarity = 0,
                 MatchupRequested = false,

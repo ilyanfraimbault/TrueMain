@@ -1084,6 +1084,7 @@ async function mockCompositionBuild(id: number, body?: unknown): Promise<Composi
       confidence: {
         sampleSize: 0,
         candidatePoolSize: 2400 + Math.round(rng() * 2000),
+        truemainGameCount: 0,
         maxPossibleScore: 10 + slotCount * 3,
         meanSimilarity: 0,
       },
@@ -1130,6 +1131,7 @@ async function mockCompositionBuild(id: number, body?: unknown): Promise<Composi
     confidence: {
       sampleSize: games,
       candidatePoolSize: 2400 + Math.round(rng() * 2000),
+      truemainGameCount: Math.round(games * (0.6 + rng() * 0.35)),
       maxPossibleScore: 10 + slotCount * 3,
       // More filled slots read as a tighter (lower) mean similarity, so the
       // confidence strip visibly reacts to draft edits in mock mode.

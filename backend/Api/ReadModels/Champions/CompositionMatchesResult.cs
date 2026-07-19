@@ -21,6 +21,13 @@ public sealed class CompositionMatchesResult
     public required int CandidatePoolSize { get; init; }
 
     /// <summary>
+    /// How many of the selected games were piloted by a main of the champion.
+    /// Games by mains are preferred over incidental games, so this is the share
+    /// of the build that comes from dedicated players.
+    /// </summary>
+    public required int TruemainGameCount { get; init; }
+
+    /// <summary>
     /// Score a game reproducing every requested slot would reach; zero when
     /// the request carried no composition slots.
     /// </summary>
@@ -46,7 +53,10 @@ public sealed class CompositionMatchesResult
     /// </summary>
     public required bool MatchupFound { get; init; }
 
-    /// <summary>Selected games, best score first (recency breaks ties).</summary>
+    /// <summary>
+    /// Selected games: mains of the champion first, then best score, recency
+    /// breaking ties.
+    /// </summary>
     public required IReadOnlyList<CompositionMatchRef> Matches { get; init; }
 }
 

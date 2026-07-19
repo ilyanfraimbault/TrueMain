@@ -66,7 +66,7 @@ public sealed class CompositionMatchQueryService(
                     && (patchPrefix == null || EF.Functions.Like(m.GameVersion, patchPrefix))),
                 p => p.MatchId,
                 m => m.Id,
-                (p, m) => new { p.MatchId, p.ParticipantId, p.TeamId, p.Win, m.GameStartTimeUtc })
+                (p, m) => new { p.MatchId, p.ParticipantId, p.TeamId, p.Win, p.Puuid, m.GameStartTimeUtc })
             .OrderByDescending(x => x.GameStartTimeUtc)
             .Take(options.CandidatePoolCap);
 
@@ -84,12 +84,24 @@ public sealed class CompositionMatchQueryService(
                     c.ParticipantId,
                     c.TeamId,
                     c.Win,
+                    c.Puuid,
                     c.GameStartTimeUtc,
                     OtherTeamId = o.TeamId,
                     OtherPosition = o.TeamPosition,
                     OtherChampionId = o.ChampionId,
                 })
             .ToListAsync(ct);
+
+        // Roster of accounts that main this champion — the whole set for one
+        // champion is bounded (served by the partial IsMain index) and lets the
+        // selection prefer games actually piloted by a main over incidental
+        // games by non-mains, per-Puuid, in memory.
+        var mainPuuids = (await db.MainChampionStats
+                .AsNoTracking()
+                .Where(s => s.ChampionId == criteria.ChampionId && s.IsMain)
+                .Select(s => s.Puuid)
+                .ToListAsync(ct))
+            .ToHashSet(StringComparer.Ordinal);
 
         var maxScore = CompositionSimilarityScorer.MaxScore(criteria, weights);
 
@@ -112,6 +124,7 @@ public sealed class CompositionMatchQueryService(
                 {
                     HasMatchup = !matchupRequested || slots.Any(s =>
                         s.IsEnemy && s.TeamPosition == criteria.Position && s.ChampionId == laneOpponentId),
+                    IsTruemain = mainPuuids.Contains(first.Puuid),
                     Match = new CompositionMatchRef
                     {
                         MatchId = g.Key.MatchId,
@@ -124,13 +137,20 @@ public sealed class CompositionMatchQueryService(
             })
             .ToList();
 
+        // Two-tier selection: games piloted by a main of the champion come
+        // first, similarity ordering within each tier. Non-main games only
+        // backfill the top-K when there aren't enough main games to fill it —
+        // similarity still ranks, but a main's game is never displaced by a
+        // more-similar non-main game.
         var selected = scored
             .Where(m => m.HasMatchup)
-            .Select(m => m.Match)
-            .OrderByDescending(m => m.Score)
-            .ThenByDescending(m => m.GameStartTimeUtc)
+            .OrderByDescending(m => m.IsTruemain)
+            .ThenByDescending(m => m.Match.Score)
+            .ThenByDescending(m => m.Match.GameStartTimeUtc)
             .Take(options.TopK)
             .ToList();
+
+        var selectedMatches = selected.Select(m => m.Match).ToList();
 
         return new CompositionMatchesResult
         {
@@ -138,13 +158,14 @@ public sealed class CompositionMatchQueryService(
             Position = criteria.Position,
             Patch = normalizedPatch,
             CandidatePoolSize = scored.Count,
+            TruemainGameCount = selected.Count(m => m.IsTruemain),
             MaxPossibleScore = maxScore,
-            MeanSimilarity = maxScore == 0 || selected.Count == 0
+            MeanSimilarity = maxScore == 0 || selectedMatches.Count == 0
                 ? 0d
-                : selected.Average(m => (double)m.Score / maxScore),
+                : selectedMatches.Average(m => (double)m.Score / maxScore),
             MatchupRequested = matchupRequested,
-            MatchupFound = !matchupRequested || selected.Count > 0,
-            Matches = selected,
+            MatchupFound = !matchupRequested || selectedMatches.Count > 0,
+            Matches = selectedMatches,
         };
     }
 }
