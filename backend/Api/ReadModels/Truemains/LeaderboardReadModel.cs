@@ -83,6 +83,13 @@ public sealed record LeaderboardTopChampionReadModel
     /// <summary>The player's authoritative play rate for this champion (0..1), as stored by main analysis (<c>games / total games on the account</c>).</summary>
     public double PlayRate { get; init; }
 
+    /// <summary>
+    /// True when the player is a one-trick pony on this champion — <see cref="PlayRate"/>
+    /// clears the OTP threshold (<c>MainAnalysisOptions.OtpPlayRateThreshold</c>, 85%),
+    /// as flagged at ingest time by main analysis. Drives the "OTP" badge on the row.
+    /// </summary>
+    public bool IsOtp { get; init; }
+
     /// <summary>Keystone rune of the player's dominant build for this champion. Null when no aggregated build exists for the player on this champion.</summary>
     public int? PrimaryKeystoneId { get; init; }
 
