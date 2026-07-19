@@ -1064,7 +1064,9 @@ async function mockCompositionBuild(id: number, body?: unknown): Promise<Composi
   const matchupFound = !matchupRequested || (laneOpponent!.championId! % 23 !== 0)
   const slotCount = (draft.allies?.length ?? 0) + (draft.enemies?.length ?? 0)
 
-  const games = 100
+  // Fewer games as the draft gets more constrained, so the thin-data state is
+  // reachable in mock mode (the real API returns the true selected count).
+  const games = Math.max(6, Math.round(100 - slotCount * 11))
   const wins = Math.round(games * Math.min(0.6, s.wr + rng() * 0.02))
   const set = (itemIds: number[], shareOf: number) => ({
     itemIds,
