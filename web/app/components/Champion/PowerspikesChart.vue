@@ -75,28 +75,24 @@ const bars = computed<SpikeBar[]>(() =>
 
 const hasBars = computed(() => bars.value.length > 0)
 
-// Chart rows for <ChartsBarChart>. The magnitude is a unitless slope change,
-// so the y-axis is hidden — bar heights carry the relative read and the
-// tooltip carries the exact numbers.
-interface BarRow extends Record<string, unknown> {
-  spike: number
-  name: string
-  minute: number
-  games: number
-}
+// Bars are drawn by hand (not <ChartsBarChart>) so each bar shares the exact same
+// grid column as its icon below — the unovis band scale insets the first/last bar
+// from the plot edges, which the full-width icon grid does not, leaving them
+// visibly misaligned. Heights are relative to the strongest spike; a small floor
+// keeps the weakest bar visible.
+const MIN_BAR_PERCENT = 8
 
-const barRows = computed<BarRow[]>(() =>
-  bars.value.map(bar => ({
-    spike: bar.spikeMagnitude,
-    name: bar.item.name,
-    minute: bar.avgMinute,
-    games: bar.games,
-  })),
+const maxSpike = computed(() =>
+  bars.value.reduce((max, bar) => Math.max(max, bar.spikeMagnitude), 0),
 )
 
-const barCategories = { spike: { name: 'Power spike' } }
+const barHeightPercent = (spike: number): number =>
+  maxSpike.value <= 0
+    ? MIN_BAR_PERCENT
+    : MIN_BAR_PERCENT + (100 - MIN_BAR_PERCENT) * (spike / maxSpike.value)
 
 const formatGameTime = (minutes: number): string => formatDuration(Math.round(minutes * 60))
+const formatGames = (count: number): string => count.toLocaleString('en-US')
 </script>
 
 <template>
@@ -152,57 +148,35 @@ const formatGameTime = (minutes: number): string => formatDuration(Math.round(mi
         <p class="mb-1 text-xs font-medium text-muted">
           Item power spikes
         </p>
-        <ChartsBarChart
-          :data="barRows"
-          :categories="barCategories"
-          :y-axis="['spike']"
-          :height="140"
-          :bar-padding="0.7"
-          :y-grid-line="false"
-          hide-legend
-          hide-x-axis
-          hide-y-axis
-        >
-          <template #tooltip="{ values }">
-            <div
-              v-if="values"
-              class="rounded-md border border-default bg-elevated px-2 py-1.5 text-xs shadow-md"
-            >
-              <p class="font-semibold text-default">
-                {{ values.name }}
-              </p>
-              <p class="mt-0.5 tabular-nums text-muted">
-                +{{ values.spike.toFixed(2) }} lead acceleration · completed ~{{ formatGameTime(values.minute) }}
-              </p>
-              <p class="mt-0.5 text-muted">
-                {{ values.games.toLocaleString('en-US') }} games
-              </p>
-            </div>
-          </template>
-        </ChartsBarChart>
-
-        <!-- Icon + completion-time labels, one column per bar. The chart hides
-             both axes, so its plot area spans the full width and the unovis
-             band scale matches this equal-column grid. -->
+        <!-- Bar + icon + completion time share one grid column each, so the bar
+             sits exactly above its icon. -->
         <div
-          class="mt-2 grid"
+          class="grid items-end gap-2"
           :style="{ gridTemplateColumns: `repeat(${bars.length}, minmax(0, 1fr))` }"
         >
-          <div
+          <UTooltip
             v-for="bar in bars"
             :key="bar.item.id"
-            class="flex flex-col items-center gap-1"
+            :text="`${bar.item.name} · +${bar.spikeMagnitude.toFixed(2)} lead acceleration · completed ~${formatGameTime(bar.avgMinute)} · ${formatGames(bar.games)} games`"
           >
-            <GameTooltipItemIcon
-              :item="bar.item"
-              :width="32"
-              :height="32"
-              class="size-8 rounded"
-            />
-            <span class="text-xs font-medium tabular-nums text-muted">
-              {{ formatGameTime(bar.avgMinute) }}
-            </span>
-          </div>
+            <div class="flex flex-col items-center gap-1">
+              <div class="flex h-28 w-full items-end justify-center">
+                <div
+                  class="w-6 rounded-t bg-primary transition-[height]"
+                  :style="{ height: `${barHeightPercent(bar.spikeMagnitude)}%` }"
+                />
+              </div>
+              <GameTooltipItemIcon
+                :item="bar.item"
+                :width="32"
+                :height="32"
+                class="size-8 rounded"
+              />
+              <span class="text-xs font-medium tabular-nums text-muted">
+                {{ formatGameTime(bar.avgMinute) }}
+              </span>
+            </div>
+          </UTooltip>
         </div>
       </div>
     </div>
