@@ -100,12 +100,18 @@ const stats = computed(() => [
         <span
           v-if="lowDataMessage"
           class="inline-flex items-center gap-1 text-xs font-medium text-warning"
-          :title="lowSample ? 'Treat this as a hint, not a consensus.' : 'Leans on the champion\'s general games more than your specific draft.'"
         >
-          <UIcon
-            name="i-lucide-triangle-alert"
-            class="size-3.5"
-          />
+          <UTooltip
+            :text="lowSample
+              ? 'Treat this as a hint, not a consensus.'
+              : 'Leans on the champion\'s general games more than your specific draft.'"
+            :delay-duration="150"
+          >
+            <UIcon
+              name="i-lucide-triangle-alert"
+              class="size-3.5"
+            />
+          </UTooltip>
           {{ lowDataMessage }}
         </span>
       </div>
