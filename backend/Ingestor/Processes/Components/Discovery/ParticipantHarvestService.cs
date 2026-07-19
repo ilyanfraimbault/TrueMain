@@ -111,8 +111,9 @@ public sealed class ParticipantHarvestService : IParticipantHarvestService
     private static void AddMinimalAccount(IDataSession session, HarvestedCandidateRow row, DateTime nowUtc)
     {
         // Minimal account: puuid + platform only. GameName/TagLine left blank so the
-        // account is priority-0 for AccountRefreshProcess (identity backfill via
-        // account-v1). CreatedAtUtc/UpdatedAtUtc fall back to their now() DB defaults.
+        // account lands in AccountRefreshProcess's identity-backfill bucket (capped
+        // priority 0 across all accounts, #788) to be resolved via account-v1.
+        // CreatedAtUtc/UpdatedAtUtc fall back to their now() DB defaults.
         session.RiotAccounts.Add(new RiotAccount
         {
             Id = Guid.NewGuid(),

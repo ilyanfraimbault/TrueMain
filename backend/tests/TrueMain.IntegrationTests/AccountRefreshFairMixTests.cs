@@ -259,6 +259,123 @@ public sealed class AccountRefreshFairMixTests
             "puuid-truemain-unranked");
     }
 
+    [Fact]
+    public async Task GetAccountsForRefreshAsync_ExcludesInvalidAccounts()
+    {
+        // An account whose PUUID no longer resolves is marked Invalid and must
+        // never be re-selected — otherwise the refresh keeps burning a request
+        // on the same dead PUUID every cycle.
+        await _fixture.ResetDatabaseAsync();
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var now = DateTime.UtcNow;
+
+            var invalidTruemain = NewAccount("puuid-invalid-truemain", "gone", "KR1", now.AddDays(-1));
+            invalidTruemain.Status = RiotAccountStatus.Invalid;
+            var invalidOther = NewAccount("puuid-invalid-other", "gone2", "KR1", now.AddDays(-1));
+            invalidOther.Status = RiotAccountStatus.Invalid;
+            var activeOther = NewAccount("puuid-active-other", "here", "KR1", now.AddDays(-1));
+
+            db.RiotAccounts.AddRange(invalidTruemain, invalidOther, activeOther);
+            db.MainChampionStats.Add(NewMainStat(invalidTruemain.Puuid));
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var verify = _fixture.CreateDbContext();
+        var repo = new RiotAccountRepository(verify);
+
+        var batch = await repo.GetAccountsForRefreshAsync(100, CancellationToken.None);
+
+        batch.Select(a => a.Puuid).Should().BeEquivalentTo(["puuid-active-other"]);
+    }
+
+    [Fact]
+    public async Task GetAccountsForRefreshAsync_GivesIncompleteNonTruemainsHalfBatchFloor()
+    {
+        // #788: match-discovered PUUID-only accounts (identity-incomplete,
+        // non-truemains) used to be confined to the 25 % P1 bucket, so a large
+        // backlog never drained. They now get a dedicated priority-0.5 bucket
+        // capped at half the remaining batch, on top of the identity-first
+        // prefix of the P1 non-truemain bucket — so they land well above 25 %.
+        await _fixture.ResetDatabaseAsync();
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var now = DateTime.UtcNow;
+
+            // 100 identity-incomplete non-truemains (no MainChampionStat).
+            for (var i = 0; i < 100; i++)
+            {
+                db.RiotAccounts.Add(NewAccount(
+                    $"puuid-other-incomplete-{i:D3}", gameName: "", tagLine: null, now.AddDays(-2).AddMinutes(i)));
+            }
+
+            // Plenty of complete truemains that would otherwise take 75 % of the batch.
+            for (var i = 0; i < 500; i++)
+            {
+                var puuid = $"puuid-truemain-complete-{i:D3}";
+                db.RiotAccounts.Add(NewAccount(puuid, $"main-{i}", "KR1", now.AddDays(-1).AddMinutes(i)));
+                db.MainChampionStats.Add(NewMainStat(puuid));
+            }
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var verify = _fixture.CreateDbContext();
+        var repo = new RiotAccountRepository(verify);
+
+        var batch = await repo.GetAccountsForRefreshAsync(100, CancellationToken.None);
+
+        batch.Should().HaveCount(100);
+        var incompleteOthers = batch.Count(a => a.Puuid.StartsWith("puuid-other-incomplete-"));
+        var completeTruemains = batch.Count(a => a.Puuid.StartsWith("puuid-truemain-complete-"));
+
+        incompleteOthers.Should().Be(62,
+            "50 from the capped priority-0.5 bucket + 12 from the identity-first P1 non-truemain bucket, well above the old 25 %");
+        completeTruemains.Should().Be(38, "truemain refresh keeps 75 % of the 50 slots left after priority-0.5");
+    }
+
+    [Fact]
+    public async Task GetAccountsForRefreshAsync_DrainsIncompleteTruemainsAheadOfIncompleteNonTruemains()
+    {
+        // Priority 0 (incomplete truemains) has no quota and runs before the
+        // capped priority-0.5 (incomplete non-truemains): a truemain missing its
+        // Riot ID is never starved by the non-truemain backfill backlog.
+        await _fixture.ResetDatabaseAsync();
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var now = DateTime.UtcNow;
+
+            for (var i = 0; i < 30; i++)
+            {
+                var puuid = $"puuid-truemain-incomplete-{i:D3}";
+                db.RiotAccounts.Add(NewAccount(puuid, gameName: "", tagLine: null, now.AddDays(-2).AddMinutes(i)));
+                db.MainChampionStats.Add(NewMainStat(puuid));
+            }
+
+            for (var i = 0; i < 100; i++)
+            {
+                db.RiotAccounts.Add(NewAccount(
+                    $"puuid-other-incomplete-{i:D3}", gameName: "", tagLine: null, now.AddDays(-1).AddMinutes(i)));
+            }
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var verify = _fixture.CreateDbContext();
+        var repo = new RiotAccountRepository(verify);
+
+        var batch = await repo.GetAccountsForRefreshAsync(40, CancellationToken.None);
+
+        batch.Should().HaveCount(40);
+        var incompleteTruemains = batch.Count(a => a.Puuid.StartsWith("puuid-truemain-incomplete-"));
+        incompleteTruemains.Should().Be(30,
+            "all incomplete truemains drain first, before any non-truemain backfill capacity is used");
+    }
+
     private async Task SeedAccountsAsync(int truemainCount, int otherCount)
     {
         await using var db = _fixture.CreateDbContext();

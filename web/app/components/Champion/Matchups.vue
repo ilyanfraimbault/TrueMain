@@ -17,6 +17,15 @@ const TOP_N = 5
 
 const selectedOpponentId = ref<number | null>(null)
 
+// Jungle has no lane opponent — the matchup is the enemy jungler across the map —
+// so the copy says "role"/"jungle" there and "lane" for the four lanes.
+const isJungle = computed(() => props.position === 'JUNGLE')
+const subtitle = computed(() =>
+  isJungle.value ? 'Best and worst jungle matchups.' : 'Best and worst lane matchups.',
+)
+// Suffix for the empty-state notes, matched to the same scope.
+const scopeSuffix = computed(() => (isJungle.value ? 'in the jungle' : 'on this lane'))
+
 const { data, status, error } = useChampionMatchups(
   () => props.championId,
   () => props.position,
@@ -70,7 +79,7 @@ const searchedOpponent = computed(() =>
   <SectionCard
     :level="2"
     title="Matchups"
-    subtitle="Best and worst lane matchups."
+    :subtitle="subtitle"
   >
     <template #actions>
       <ChampionPicker
@@ -105,7 +114,7 @@ const searchedOpponent = computed(() =>
           v-else
           class="py-6 text-center text-sm text-muted"
         >
-          No recorded games against {{ searchedOpponent?.name ?? 'this opponent' }} on this lane yet.
+          No recorded games against {{ searchedOpponent?.name ?? 'this opponent' }} {{ scopeSuffix }} yet.
         </p>
       </template>
 
@@ -113,7 +122,7 @@ const searchedOpponent = computed(() =>
         v-else-if="!hasAny"
         class="py-6 text-center text-sm text-muted"
       >
-        No matchups with enough games on this lane yet.
+        No matchups with enough games {{ scopeSuffix }} yet.
       </p>
 
       <!-- Default: best / worst leaderboard. -->

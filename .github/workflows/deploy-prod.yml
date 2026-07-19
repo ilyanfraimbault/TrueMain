@@ -134,5 +134,12 @@ jobs:
           virtual-machine: ${{ vars.HOSTINGER_PROD_VM_ID }}
           project-name: truemain
           docker-compose-path: compose.prod.yaml
-          # Newline-separated KEY=value pairs mirroring the VPS .env.
-          environment-variables: ${{ secrets.PROD_ENV_FILE }}
+          # Newline-separated KEY=value pairs mirroring the VPS .env, plus the
+          # immutable image tag for this release. IMAGE_TAG makes compose resolve
+          # each service image to an absent :<version>, so Docker Manager pulls it
+          # and recreates the containers instead of reusing the cached :latest
+          # image (which up -d never re-pulls — the whole stack silently stayed on
+          # a stale build). It defaults to :latest in the file for manual runs.
+          environment-variables: |
+            ${{ secrets.PROD_ENV_FILE }}
+            IMAGE_TAG=${{ github.event.release.tag_name }}

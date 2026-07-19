@@ -21,7 +21,7 @@ namespace Data.CompiledModels
                 "Data.Entities.RiotAccount",
                 typeof(RiotAccount),
                 baseEntityType,
-                propertyCount: 18,
+                propertyCount: 19,
                 navigationCount: 1,
                 foreignKeyCount: 1,
                 unnamedIndexCount: 5,
@@ -144,6 +144,16 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(RiotAccount).GetField("<Score>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 nullable: true);
             score.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var status = runtimeEntityType.AddProperty(
+                "Status",
+                typeof(RiotAccountStatus),
+                propertyInfo: typeof(RiotAccount).GetProperty("Status", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(RiotAccount).GetField("<Status>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd);
+            status.SetSentinelFromProviderValue(0);
+            status.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            status.AddAnnotation("Relational:DefaultValue", RiotAccountStatus.Active);
 
             var summonerId = runtimeEntityType.AddProperty(
                 "SummonerId",

@@ -1,3 +1,4 @@
+using System.Net;
 using Core.Lol.Identifiers;
 using Data.Entities;
 using AwesomeAssertions;
@@ -310,6 +311,105 @@ public sealed class RankSnapshotIngestionTests
         await using var verify = _fixture.CreateDbContext();
         (await verify.RankSnapshots.AnyAsync(s => s.RiotAccountId == account.Id))
             .Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task RunCoreAsync_ByPuuid404_WithResolvableRiotId_RecoversPuuidAndStaysActive()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var account = await SeedAccountAsync("puuid-stale");
+
+        var accountClient = Substitute.For<IRiotAccountClient>();
+        // account-v1 by-puuid no longer resolves the stored PUUID.
+        accountClient.GetAccountByPuuidAsync("puuid-stale", Arg.Any<RegionalRoute>(), Arg.Any<CancellationToken>())
+            .Returns<Task<RiotAccountDto>>(_ => throw new HttpRequestException(null, null, HttpStatusCode.NotFound));
+        // ...but by-riot-id resolves to a fresh PUUID for the same Riot ID.
+        accountClient.GetByRiotIdAsync("player", "KR1", Arg.Any<RegionalRoute>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<RiotAccountDto?>(new RiotAccountDto
+            {
+                Puuid = "puuid-fresh",
+                GameName = "player",
+                TagLine = "KR1"
+            }));
+
+        var platformClient = Substitute.For<IRiotPlatformClient>();
+        platformClient.GetLeagueEntriesByPuuidAsync(Arg.Any<PlatformRoute>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new List<RiotLeagueEntryByPuuidDto>()));
+
+        var process = BuildProcessWithClients(accountClient, platformClient);
+        await process.RunCoreAsync(CancellationToken.None);
+
+        await using var verify = _fixture.CreateDbContext();
+        var refreshed = await verify.RiotAccounts.SingleAsync(a => a.Id == account.Id);
+        refreshed.Puuid.Should().Be("puuid-fresh", "the account is re-resolved by Riot ID and its PUUID refreshed");
+        refreshed.Status.Should().Be(RiotAccountStatus.Active, "a recovered account must stay active");
+    }
+
+    [Fact]
+    public async Task RunCoreAsync_ByPuuid404_WithUnresolvableRiotId_MarksInvalid()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var account = await SeedAccountAsync("puuid-gone");
+
+        var accountClient = Substitute.For<IRiotAccountClient>();
+        accountClient.GetAccountByPuuidAsync("puuid-gone", Arg.Any<RegionalRoute>(), Arg.Any<CancellationToken>())
+            .Returns<Task<RiotAccountDto>>(_ => throw new HttpRequestException(null, null, HttpStatusCode.NotFound));
+        // by-riot-id also 404s (returns null): nothing left to recover.
+        accountClient.GetByRiotIdAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<RegionalRoute>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<RiotAccountDto?>(null));
+
+        var platformClient = Substitute.For<IRiotPlatformClient>();
+
+        var process = BuildProcessWithClients(accountClient, platformClient);
+        await process.RunCoreAsync(CancellationToken.None);
+
+        await using var verify = _fixture.CreateDbContext();
+        var refreshed = await verify.RiotAccounts.SingleAsync(a => a.Id == account.Id);
+        refreshed.Status.Should().Be(RiotAccountStatus.Invalid);
+        refreshed.Puuid.Should().Be("puuid-gone", "the row is invalidated, not mutated or deleted");
+        await platformClient.DidNotReceive().GetLeagueEntriesByPuuidAsync(
+            Arg.Any<PlatformRoute>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunCoreAsync_ByPuuid404_WithNoRiotId_MarksInvalidWithoutLookup()
+    {
+        await _fixture.ResetDatabaseAsync();
+        Guid accountId;
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var account = new RiotAccount
+            {
+                Puuid = "puuid-anon",
+                PlatformId = Platform,
+                GameName = string.Empty,
+                TagLine = null,
+                SummonerId = "sum-anon",
+                ProfileIconId = 1,
+                SummonerLevel = 100,
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow.AddDays(-1)
+            };
+            db.RiotAccounts.Add(account);
+            await db.SaveChangesAsync();
+            accountId = account.Id;
+        }
+
+        var accountClient = Substitute.For<IRiotAccountClient>();
+        accountClient.GetAccountByPuuidAsync("puuid-anon", Arg.Any<RegionalRoute>(), Arg.Any<CancellationToken>())
+            .Returns<Task<RiotAccountDto>>(_ => throw new HttpRequestException(null, null, HttpStatusCode.NotFound));
+
+        var platformClient = Substitute.For<IRiotPlatformClient>();
+
+        var process = BuildProcessWithClients(accountClient, platformClient);
+        await process.RunCoreAsync(CancellationToken.None);
+
+        await using var verify = _fixture.CreateDbContext();
+        var refreshed = await verify.RiotAccounts.SingleAsync(a => a.Id == accountId);
+        refreshed.Status.Should().Be(RiotAccountStatus.Invalid);
+        // No Riot ID to look up: the by-riot-id call must not even be attempted.
+        await accountClient.DidNotReceive().GetByRiotIdAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<RegionalRoute>(), Arg.Any<CancellationToken>());
     }
 
     private AccountRefreshProcess BuildProcess(

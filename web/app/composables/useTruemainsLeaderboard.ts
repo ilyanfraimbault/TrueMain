@@ -6,6 +6,8 @@ interface UseTruemainsLeaderboardOptions {
   region?: MaybeRefOrGetter<RegionSlug | null | undefined>
   position?: MaybeRefOrGetter<string | null | undefined>
   championId?: MaybeRefOrGetter<number | null | undefined>
+  /** When true, restrict the leaderboard to one-trick ponies (OTP flag on a main champion). */
+  otpOnly?: MaybeRefOrGetter<boolean | null | undefined>
 }
 
 /**
@@ -48,15 +50,17 @@ export function useTruemainsLeaderboard(
     const value = toValue(options.championId)
     return typeof value === 'number' && value > 0 ? value : null
   })
+  const otpOnlyRef = computed(() => toValue(options.otpOnly) === true)
 
   function buildQuery() {
-    const query: Record<string, string | number> = {
+    const query: Record<string, string | number | boolean> = {
       page: pageRef.value,
     }
     if (options.pageSize != null) query.pageSize = options.pageSize
     if (regionRef.value) query.region = regionRef.value
     if (positionRef.value) query.position = positionRef.value
     if (championIdRef.value) query.championId = championIdRef.value
+    if (otpOnlyRef.value) query.otpOnly = true
     return query
   }
 
@@ -71,15 +75,16 @@ export function useTruemainsLeaderboard(
       const region = regionRef.value ?? 'all'
       const position = positionRef.value ?? 'all'
       const championId = championIdRef.value ?? 'all'
+      const otpOnly = otpOnlyRef.value ? 'otp' : 'all'
       // pageSize is part of the key: the homepage teaser (pageSize 5) and the
       // /truemains page (pageSize 25) both request page 1, and a shared key
       // would hydrate the full leaderboard from the teaser's 5 cached rows.
-      return `truemains-leaderboard-${pageRef.value}-${fallbackPageSize}-${region}-${position}-${championId}`
+      return `truemains-leaderboard-${pageRef.value}-${fallbackPageSize}-${region}-${position}-${championId}-${otpOnly}`
     },
     () => $fetch<LeaderboardResponse>('/api/truemains', { query: buildQuery() }),
     {
       server: true,
-      watch: [pageRef, regionRef, positionRef, championIdRef],
+      watch: [pageRef, regionRef, positionRef, championIdRef, otpOnlyRef],
       // Deterministic placeholder so `rows` is always an array (never
       // `undefined`) on both the server and the client's first render.
       default: (): LeaderboardResponse => ({

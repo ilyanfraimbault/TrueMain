@@ -784,11 +784,18 @@ function buildPlayers(): MockPlayer[] {
           kda: round3(1.9 + rng() * 3.4),
         },
         topChampions: mains.map((m, idx) => {
-          const playRate = [0.44, 0.21, 0.12][idx]! + rng() * 0.08
+          // A single-main player is a one-trick: that champion clears the 85%
+          // OTP bar, so isOtp rides through and the row shows the OTP badge.
+          // Multi-main players spread their play rate and never trip the flag.
+          const soloMain = mains.length === 1
+          const playRate = soloMain
+            ? 0.86 + rng() * 0.1
+            : [0.44, 0.21, 0.12][idx]! + rng() * 0.08
           return {
             championId: m.id,
             games: Math.round(games * playRate),
             playRate: round3(playRate),
+            isOtp: soloMain,
             primaryKeystoneId: m.keystone,
             secondaryStyleId: m.secondaryStyle,
             firstItemId: ARCHETYPES[m.archetype].items[0]!,
@@ -834,11 +841,19 @@ function mockLeaderboard(query: Record<string, unknown>): LeaderboardResponse {
   const region = typeof query.region === 'string' ? query.region : null
   const position = typeof query.position === 'string' ? query.position : null
   const championId = Number.parseInt(String(query.championId ?? ''), 10) || null
+  const otpOnly = query.otpOnly === 'true' || query.otpOnly === true || query.otpOnly === '1'
 
   let rows = players()
   if (region) rows = rows.filter(p => p.row.region === region)
   if (position) rows = rows.filter(p => p.position === position)
   if (championId) rows = rows.filter(p => p.row.topChampions.some(c => c.championId === championId))
+  // otpOnly narrows to one-tricks; with a champion filter it means "OTP of that
+  // champion", mirroring the backend's single-row predicate.
+  if (otpOnly) {
+    rows = championId
+      ? rows.filter(p => p.row.topChampions.some(c => c.championId === championId && c.isOtp))
+      : rows.filter(p => p.row.topChampions.some(c => c.isOtp))
+  }
 
   const start = (page - 1) * pageSize
   return {
@@ -892,7 +907,7 @@ function mockProfile(player: MockPlayer): ProfileResponse {
       games: c.games,
       playRate: c.playRate,
       primaryPosition: seedsById.get(c.championId)?.position ?? '',
-      isOtp: c.playRate > 0.6,
+      isOtp: c.isOtp,
     })),
     positions: [
       { position: player.position, games: Math.round(stats.games * 0.78), rate: 0.78 },

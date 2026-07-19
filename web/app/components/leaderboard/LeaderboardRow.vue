@@ -43,6 +43,12 @@ const profileAriaLabel = computed(() => {
 const profileIconUrl = computed(() =>
   getProfileIconUrl(props.row.identity.profileIconId, props.patch))
 
+// One-trick pony marker next to the name. A player can be an OTP of at most one
+// champion (play rate ≥ 85% leaves no room for a second main), so any flagged
+// top champion makes the whole player an OTP — mirrors the profile page's
+// per-champion amber pill, surfaced here at the player level.
+const isOtp = computed(() => props.row.topChampions.some(champion => champion.isOtp))
+
 const ranked = computed(() => props.row.ranked)
 const showDivision = computed(() => ranked.value !== null && !isApexTier(ranked.value.tier))
 
@@ -144,6 +150,15 @@ const positionIcons = computed(() => {
       <div class="flex items-baseline gap-1 truncate">
         <span class="truncate font-bold text-default">{{ row.identity.gameName }}</span>
         <span v-if="row.identity.tagLine" class="shrink-0 text-xs text-muted">#{{ row.identity.tagLine }}</span>
+        <!-- One-trick pony marker. `relative z-10` lifts it above the stretched
+             profile-link overlay so its tooltip is reachable on hover. -->
+        <span
+          v-if="isOtp"
+          class="relative z-10 shrink-0 self-center rounded-full bg-amber-400/25 px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none tracking-wide text-amber-200 ring-1 ring-amber-400/50"
+          title="One-trick pony"
+        >
+          OTP
+        </span>
       </div>
       <LeaderboardRegionFlag :region="row.region" :width="18" class="mt-0.5" />
     </div>

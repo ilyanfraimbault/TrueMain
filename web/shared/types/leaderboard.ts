@@ -64,6 +64,8 @@ export interface LeaderboardTopChampion {
   games: number
   /** Player's authoritative play rate for this champion (0..1), from main-champion stats. */
   playRate: number
+  /** True when the player is a one-trick pony on this champion (play rate ≥ the OTP threshold), as flagged by main analysis. */
+  isOtp: boolean
   /** Player's most-played build on this champion — null when no aggregated build exists yet. */
   primaryKeystoneId: number | null
   secondaryStyleId: number | null

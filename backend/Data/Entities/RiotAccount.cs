@@ -39,6 +39,13 @@ public class RiotAccount
     public DateTime? MatchIngestClaimedAtUtc { get; set; }
 
     /// <summary>
+    /// Lifecycle state against the Riot API. <see cref="RiotAccountStatus.Invalid"/>
+    /// rows no longer resolve by PUUID and are skipped by every refresh/ingest
+    /// selection so the pipeline stops retrying a permanent 404.
+    /// </summary>
+    public RiotAccountStatus Status { get; set; } = RiotAccountStatus.Active;
+
+    /// <summary>
     /// Denormalised leaderboard sort key derived from the account's latest
     /// rank (tier/division/LP), maintained by the rank ingestion writer. Null
     /// when the account has no known/ranked tier (sorts last). This is an

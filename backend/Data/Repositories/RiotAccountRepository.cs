@@ -63,21 +63,30 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
 
     public async Task<List<RiotAccount>> GetAccountsForRefreshAsync(int batchSize, CancellationToken ct)
     {
-        // Two-stage prioritisation:
+        // Prioritisation, in order:
         //
-        // Priority 0 (no quota): every truemain whose identity is incomplete
-        //   (GameName or TagLine empty). These back the public surfaces
-        //   (/truemains, /profile) and AccountRefresh is the only writer for
-        //   that identity (account-v1). When the backlog is large — e.g.
-        //   1514 accounts after the #182 clobber fix shipped — the entire
-        //   batch goes to draining it.
+        // Priority 0 (incomplete-identity truemains — no quota): every truemain
+        //   whose identity is incomplete (GameName or TagLine empty). These back
+        //   the public surfaces (/truemains, /profile) and AccountRefresh is the
+        //   only writer for that identity (account-v1). When the backlog is large
+        //   the entire batch goes to draining it.
+        //
+        // Priority 0.5 (incomplete-identity non-truemains — capped at 50 %):
+        //   match discovery inserts PUUID-only accounts continuously
+        //   (ParticipantHarvestService), almost all non-truemains; before #788
+        //   they were confined to the 25 % P1 non-truemain share and the backlog
+        //   never drained. An account with no Riot ID also cannot be recovered
+        //   once its PUUID stops resolving — a rotated PUUID / API-key change
+        //   404s and the row is marked Invalid (#785/#787) — so backfilling it is
+        //   high value. Capped at half the remaining batch so it can never fully
+        //   starve truemain rank refresh.
         //
         // Priority 1 (75 % truemain / 25 % non-truemain fair-mix): applied to
-        //   whatever capacity remains after priority 0. Truemains still
-        //   matter more because they back public surfaces (#86, #118); the
-        //   25 % budget for non-truemains prevents starvation. Quota
-        //   underflow in either P1 bucket is rebalanced to the other so we
-        //   always fill the batch when work is available.
+        //   whatever capacity remains after the identity buckets. Truemains still
+        //   matter more because they back public surfaces (#86, #118); the 25 %
+        //   budget for non-truemains prevents starvation. Quota underflow in
+        //   either P1 bucket is rebalanced to the other so we always fill the
+        //   batch when work is available.
         var safe = Math.Max(1, batchSize);
 
         var truemainKeys = db.MainChampionStats
@@ -102,33 +111,63 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
         // EF's ThenByDescending on a nullable column emits plain DESC, which on
         // Postgres sorts NULLs FIRST; the leading `a.Score == null` key flips
         // that to NULLS LAST without needing a raw NULLS LAST clause.
-        // Priority 0 (incomplete-truemain backlog, #188) and the P1 non-truemain
-        // bucket keep their UpdatedAtUtc oldest-first drain order and are NOT
-        // reordered by score.
+        // The identity-backfill buckets (P0/P0.5, #188/#788) and the P1
+        // non-truemain bucket keep their UpdatedAtUtc oldest-first drain order
+        // and are NOT reordered by score.
 
-        // ── Priority 0 ───────────────────────────────────────────────────
-        // Drain the identity backlog oldest-first (#188). Every row here is
-        // identity-incomplete, so score is intentionally not a sort key — a
-        // recently-updated high-rank account must not jump ahead of older ones.
-        var incompleteTruemains = await db.RiotAccounts
-            .Where(a => (string.IsNullOrEmpty(a.GameName) || string.IsNullOrEmpty(a.TagLine))
+        // ── Priority 0: incomplete-identity truemains (no quota) ─────────
+        // Drain the truemain identity backlog oldest-first (#188). Every row
+        // here is identity-incomplete, so score is intentionally not a sort key
+        // — a recently-updated high-rank account must not jump ahead of older
+        // ones.
+        var selected = await db.RiotAccounts
+            .Where(a => a.Status == RiotAccountStatus.Active
+                        && (string.IsNullOrEmpty(a.GameName) || string.IsNullOrEmpty(a.TagLine))
                         && truemainKeys.Any(m => m.PlatformId == a.PlatformId && m.Puuid == a.Puuid))
             .OrderBy(a => a.UpdatedAtUtc)
             .Take(safe)
             .ToListAsync(ct);
 
-        var remaining = safe - incompleteTruemains.Count;
+        var remaining = safe - selected.Count;
         if (remaining <= 0)
         {
-            return incompleteTruemains;
+            return selected;
+        }
+
+        var pickedIds = selected.Select(a => a.Id).ToHashSet();
+
+        // ── Priority 0.5: incomplete-identity non-truemains (capped 50 %) ─
+        // #788: give match-discovered PUUID-only accounts a dedicated share so
+        // they are not confined to the 25 % P1 bucket and can actually keep up
+        // with discovery inflow. Capped at half the remaining batch so a large
+        // backlog can't starve truemain refresh. Oldest-first (#188).
+        var identityQuota = Math.Max(1, (int)Math.Ceiling(remaining * 0.5d));
+        var incompleteOthers = await db.RiotAccounts
+            .Where(a => a.Status == RiotAccountStatus.Active
+                        && (string.IsNullOrEmpty(a.GameName) || string.IsNullOrEmpty(a.TagLine))
+                        && !truemainKeys.Any(m => m.PlatformId == a.PlatformId && m.Puuid == a.Puuid))
+            .OrderBy(a => a.UpdatedAtUtc)
+            .Take(identityQuota)
+            .ToListAsync(ct);
+
+        foreach (var account in incompleteOthers)
+        {
+            pickedIds.Add(account.Id);
+        }
+
+        selected.AddRange(incompleteOthers);
+        remaining -= incompleteOthers.Count;
+        if (remaining <= 0)
+        {
+            return selected;
         }
 
         // ── Priority 1: 75 % truemains ───────────────────────────────────
-        var pickedIds = incompleteTruemains.Select(a => a.Id).ToHashSet();
         var truemainQuota = (int)Math.Ceiling(remaining * 0.75d);
 
         var truemains = await db.RiotAccounts
-            .Where(a => !pickedIds.Contains(a.Id)
+            .Where(a => a.Status == RiotAccountStatus.Active
+                        && !pickedIds.Contains(a.Id)
                         && truemainKeys.Any(m => m.PlatformId == a.PlatformId && m.Puuid == a.Puuid))
             .OrderBy(a =>
                 (string.IsNullOrEmpty(a.GameName) || string.IsNullOrEmpty(a.TagLine))
@@ -148,15 +187,16 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
         var leftover = remaining - truemains.Count;
         if (leftover <= 0)
         {
-            incompleteTruemains.AddRange(truemains);
-            return incompleteTruemains;
+            selected.AddRange(truemains);
+            return selected;
         }
 
         // ── Priority 1: 25 % non-truemains (absorbs any truemain underflow) ─
         // Not the truemain bucket: keep identity-missing-first then oldest-first
         // (#188). Score ordering (#194) is intentionally scoped to truemains only.
         var others = await db.RiotAccounts
-            .Where(a => !pickedIds.Contains(a.Id)
+            .Where(a => a.Status == RiotAccountStatus.Active
+                        && !pickedIds.Contains(a.Id)
                         && !truemainKeys.Any(m => m.PlatformId == a.PlatformId && m.Puuid == a.Puuid))
             .OrderBy(a =>
                 (string.IsNullOrEmpty(a.GameName) || string.IsNullOrEmpty(a.TagLine))
@@ -166,9 +206,9 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
             .Take(leftover)
             .ToListAsync(ct);
 
-        incompleteTruemains.AddRange(truemains);
-        incompleteTruemains.AddRange(others);
-        return incompleteTruemains;
+        selected.AddRange(truemains);
+        selected.AddRange(others);
+        return selected;
     }
 
     public Task<List<AccountKey>> GetAccountsForMainAnalysisAsync(DateTime cutoff, int batchSize, CancellationToken ct)
@@ -178,6 +218,7 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
             join candidate in db.MainCandidates.AsNoTracking()
                 on new { account.PlatformId, account.Puuid } equals new { candidate.PlatformId, candidate.Puuid }
             where candidate.Status == MainCandidateStatus.Validated
+                  && account.Status == RiotAccountStatus.Active
             select account;
 
         if (cutoff > DateTime.MinValue)
@@ -237,10 +278,11 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
                 join account in db.RiotAccounts.AsNoTracking()
                     on new { candidate.PlatformId, candidate.Puuid }
                     equals new { account.PlatformId, account.Puuid }
-                where account.MatchIngestStatus == MatchIngestStatus.Idle
-                      || (account.MatchIngestStatus == MatchIngestStatus.Processing
-                          && account.MatchIngestClaimedAtUtc != null
-                          && account.MatchIngestClaimedAtUtc < leaseCutoff)
+                where account.Status == RiotAccountStatus.Active
+                      && (account.MatchIngestStatus == MatchIngestStatus.Idle
+                          || (account.MatchIngestStatus == MatchIngestStatus.Processing
+                              && account.MatchIngestClaimedAtUtc != null
+                              && account.MatchIngestClaimedAtUtc < leaseCutoff))
                 orderby account.LastMatchIngestAtUtc == null ? 0 : 1,
                     account.LastMatchIngestAtUtc
                 select new AccountKey(candidate.PlatformId, candidate.Puuid)
