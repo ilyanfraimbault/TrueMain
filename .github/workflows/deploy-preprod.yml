@@ -45,7 +45,12 @@ jobs:
           push: true
           cache-from: type=gha,scope=api
           cache-to: type=gha,mode=max,scope=api
-          tags: ${{ env.IMAGE_API }}:preprod
+          # Immutable per-commit tag alongside the moving :preprod pointer, so
+          # the deploy references an image name that actually changes each merge
+          # (mutable-tag redeploys never recreate the containers — see #765).
+          tags: |
+            ${{ env.IMAGE_API }}:preprod
+            ${{ env.IMAGE_API }}:${{ github.sha }}
 
       - name: Build and push Ingestor image
         uses: docker/build-push-action@v7
@@ -55,7 +60,9 @@ jobs:
           push: true
           cache-from: type=gha,scope=ingestor
           cache-to: type=gha,mode=max,scope=ingestor
-          tags: ${{ env.IMAGE_INGESTOR }}:preprod
+          tags: |
+            ${{ env.IMAGE_INGESTOR }}:preprod
+            ${{ env.IMAGE_INGESTOR }}:${{ github.sha }}
 
       - name: Build and push Web image
         uses: docker/build-push-action@v7
@@ -65,7 +72,9 @@ jobs:
           push: true
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
-          tags: ${{ env.IMAGE_WEB }}:preprod
+          tags: |
+            ${{ env.IMAGE_WEB }}:preprod
+            ${{ env.IMAGE_WEB }}:${{ github.sha }}
 
       - name: Build and push Admin image
         uses: docker/build-push-action@v7
@@ -75,7 +84,9 @@ jobs:
           push: true
           cache-from: type=gha,scope=admin
           cache-to: type=gha,mode=max,scope=admin
-          tags: ${{ env.IMAGE_ADMIN }}:preprod
+          tags: |
+            ${{ env.IMAGE_ADMIN }}:preprod
+            ${{ env.IMAGE_ADMIN }}:${{ github.sha }}
 
   deploy-preprod:
     name: Deploy Preprod VPS
@@ -102,5 +113,11 @@ jobs:
           virtual-machine: ${{ vars.HOSTINGER_PREPROD_VM_ID }}
           project-name: truemain-preprod
           docker-compose-path: compose.preprod.yaml
-          # Newline-separated KEY=value pairs mirroring the VPS .env.
-          environment-variables: ${{ secrets.PREPROD_ENV_FILE }}
+          # Newline-separated KEY=value pairs mirroring the VPS .env, plus the
+          # immutable image tag for this commit. IMAGE_TAG makes compose resolve
+          # each service image to an absent :<sha>, so Docker Manager pulls it
+          # and recreates the containers instead of reusing the cached :preprod
+          # image (#765). It defaults to :preprod in the file for manual runs.
+          environment-variables: |
+            ${{ secrets.PREPROD_ENV_FILE }}
+            IMAGE_TAG=${{ github.sha }}

@@ -93,6 +93,16 @@ The action points Docker Manager at `compose.preprod.yaml` at the deployed
 commit, so the project on the VPS always matches the repo. Keep
 `PREPROD_ENV_FILE` in sync when a new variable is added to the compose file.
 
+Each build publishes two tags per image: the moving `:preprod` pointer and an
+immutable `:<commit-sha>`. The deploy step injects `IMAGE_TAG=<commit-sha>`
+into the project env, and the compose file references
+`ghcr.io/…/truemain-<svc>:${IMAGE_TAG:-preprod}`. Because the resolved image
+name changes on every merge, Docker Manager sees an image it doesn't have
+locally and pulls + recreates the containers — a bare `:preprod` would leave
+the previous image running, since redeploying an unchanged mutable tag never
+recreates anything (#765). `IMAGE_TAG` is unset outside CI, so the manual
+fallback below (and a first bring-up) resolves to `:preprod` as before.
+
 ### Manual fallback
 
 ```bash
