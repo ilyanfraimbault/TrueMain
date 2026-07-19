@@ -71,6 +71,35 @@ public sealed class CompositionMatchQueryServiceIntegrationTests
     }
 
     [Fact]
+    public async Task FindTopMatchesAsync_PrefersGamesPilotedByAMain_ThenSimilarity()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        // A less-similar game piloted by a main of the champion (lane opponent
+        // only = 10) versus a more-similar game by a non-main (full hit = 16).
+        // The main's game must still lead: mains form the first tier, similarity
+        // only orders within a tier — a more-similar non-main never displaces it.
+        await SeedGameAsync("COMP_MAIN_LANEONLY", daysAgo: 2, win: true, enemyMid: LaneOpponent);
+        await SeedGameAsync("COMP_NONMAIN_FULL", daysAgo: 1, win: false, enemyMid: LaneOpponent, enemyTop: EnemyTop, allyJungle: AllyJungle);
+        await SeedMainAsync("puuid-COMP_MAIN_LANEONLY-1");
+
+        await using var db = _fixture.CreateDbContext();
+        var result = await CreateService(db).FindTopMatchesAsync(
+            new CompositionSearchCriteria
+            {
+                ChampionId = Champion,
+                Position = Position,
+                Enemies = new Dictionary<string, int> { ["MIDDLE"] = LaneOpponent, ["TOP"] = EnemyTop },
+                Allies = new Dictionary<string, int> { ["JUNGLE"] = AllyJungle },
+            },
+            CancellationToken.None);
+
+        result.Matches.Select(m => m.MatchId).Should().Equal("COMP_MAIN_LANEONLY", "COMP_NONMAIN_FULL");
+        result.Matches.Select(m => m.Score).Should().Equal(10, 16);
+        result.TruemainGameCount.Should().Be(1);
+    }
+
+    [Fact]
     public async Task FindTopMatchesAsync_NoGameWithTheRequestedMatchup_ReturnsEmptyWithTheFlag()
     {
         await _fixture.ResetDatabaseAsync();
@@ -224,6 +253,31 @@ public sealed class CompositionMatchQueryServiceIntegrationTests
             db.MatchParticipants.Add(Participant(matchId, participantId++, championId, 200, position, !win));
         }
 
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Marks the given account as a main of the searched champion, so its games
+    /// enter the preferred first selection tier.
+    /// </summary>
+    private async Task SeedMainAsync(string puuid)
+    {
+        await using var db = _fixture.CreateDbContext();
+        db.MainChampionStats.Add(new MainChampionStat
+        {
+            PlatformId = "EUW1",
+            Puuid = puuid,
+            ChampionId = Champion,
+            TotalMatches = 100,
+            ChampionMatches = 60,
+            PlayRate = 0.6,
+            IsMain = true,
+            IsOtp = false,
+            IsExtendedSample = false,
+            PrimaryPosition = Position,
+            PositionBreakdown = [],
+            CalculatedAtUtc = DateTime.UtcNow,
+        });
         await db.SaveChangesAsync();
     }
 

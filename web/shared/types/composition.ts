@@ -29,6 +29,7 @@ export interface CompositionBuildRequest {
 export interface CompositionConfidence {
   sampleSize: number
   candidatePoolSize: number
+  truemainGameCount: number
   maxPossibleScore: number
   meanSimilarity: number
 }
