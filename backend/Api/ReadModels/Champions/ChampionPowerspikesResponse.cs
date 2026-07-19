@@ -5,8 +5,8 @@ namespace TrueMain.ReadModels.Champions;
 /// mean opponent-relative "power" per minute (a global-normalized blend of gold
 /// and combat lead); the events are the items the champion completes and the
 /// level milestones (6/11/16), each carrying how much the power curve
-/// accelerates around it — the spike. Computed live from per-minute timeline
-/// snapshots and item events; same queue / patch / tracked-account population as
+/// accelerates around it — the spike. Reconstructed from the pre-aggregated
+/// powerspike stats (#694); same queue / patch / tracked-account population as
 /// the sibling champion reads.
 /// </summary>
 public sealed record ChampionPowerspikesResponse

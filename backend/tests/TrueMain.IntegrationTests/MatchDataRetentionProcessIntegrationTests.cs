@@ -117,6 +117,57 @@ public sealed class MatchDataRetentionProcessIntegrationTests
         (await db.ChampionPowerspikeEventStats.AsNoTracking().CountAsync()).Should().Be(2);
     }
 
+    [Fact]
+    public async Task RunAsync_ShouldPruneAggregatedSnapshotsToCanonicalMarksOnce()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        var now = DateTime.UtcNow;
+        await using (var seedDb = _fixture.CreateDbContext())
+        {
+            // Both ranked and in-window, so only the snapshot pruning acts on them.
+            seedDb.Matches.AddRange(
+                BuildMatch("PRUNE_AGG", "KR", now.AddHours(-2), "16.4.1", powerspikeAggregated: true),
+                BuildMatch("PRUNE_PENDING", "KR", now.AddHours(-1), "16.4.1", powerspikeAggregated: false));
+            seedDb.MatchParticipants.AddRange(
+                BuildParticipant(Guid.Parse("88888888-8888-8888-8888-8888888888b1"), "PRUNE_AGG"),
+                BuildParticipant(Guid.Parse("88888888-8888-8888-8888-8888888888b2"), "PRUNE_PENDING"));
+            for (var minute = 1; minute <= 30; minute++)
+            {
+                seedDb.MatchParticipantTimelineSnapshots.Add(SnapshotAt("PRUNE_AGG", minute));
+                seedDb.MatchParticipantTimelineSnapshots.Add(SnapshotAt("PRUNE_PENDING", minute));
+            }
+
+            await seedDb.SaveChangesAsync();
+        }
+
+        await BuildRecordedProcess(retainedPatchCount: 2).RunCoreAsync(CancellationToken.None);
+
+        await using var db = _fixture.CreateDbContext();
+
+        // The aggregated match is reduced to the canonical marks and flagged, so a
+        // second run skips it.
+        var aggMinutes = await db.MatchParticipantTimelineSnapshots.AsNoTracking()
+            .Where(snapshot => snapshot.MatchId == "PRUNE_AGG")
+            .Select(snapshot => snapshot.IntervalMinute)
+            .OrderBy(minute => minute)
+            .ToListAsync();
+        aggMinutes.Should().Equal(5, 10, 15, 20, 30);
+        (await db.Matches.AsNoTracking()
+            .Where(match => match.Id == "PRUNE_AGG")
+            .Select(match => match.TimelineSnapshotsPruned)
+            .SingleAsync()).Should().BeTrue();
+
+        // The not-yet-aggregated match keeps its full dense grid and stays unflagged —
+        // the powerspike aggregation still needs those minutes.
+        (await db.MatchParticipantTimelineSnapshots.AsNoTracking()
+            .CountAsync(snapshot => snapshot.MatchId == "PRUNE_PENDING")).Should().Be(30);
+        (await db.Matches.AsNoTracking()
+            .Where(match => match.Id == "PRUNE_PENDING")
+            .Select(match => match.TimelineSnapshotsPruned)
+            .SingleAsync()).Should().BeFalse();
+    }
+
     private async Task SeedAggregateDataAsync()
     {
         await using var db = _fixture.CreateDbContext();
@@ -263,7 +314,8 @@ public sealed class MatchDataRetentionProcessIntegrationTests
         string gameVersion,
         int queueId = 420,
         string gameMode = "CLASSIC",
-        int mapId = 11)
+        int mapId = 11,
+        bool powerspikeAggregated = false)
     {
         return new Match
         {
@@ -277,9 +329,23 @@ public sealed class MatchDataRetentionProcessIntegrationTests
             GameDurationSeconds = 1800,
             GameVersion = gameVersion,
             CreatedAtUtc = gameStartTimeUtc,
-            TimelineIngested = true
+            TimelineIngested = true,
+            PowerspikeAggregated = powerspikeAggregated
         };
     }
+
+    private static MatchParticipantTimelineSnapshot SnapshotAt(string matchId, int minute)
+        => new()
+        {
+            MatchId = matchId,
+            ParticipantId = 1,
+            IntervalMinute = minute,
+            TimestampMs = minute * 60_000,
+            TotalGold = minute * 300,
+            Level = Math.Min(18, 1 + minute / 2),
+            Xp = minute * 250,
+            DamageToChampions = minute * 150
+        };
 
     private static MatchParticipant BuildParticipant(Guid id, string matchId)
     {
