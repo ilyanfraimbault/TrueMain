@@ -111,7 +111,8 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
         // identity-incomplete, so score is intentionally not a sort key — a
         // recently-updated high-rank account must not jump ahead of older ones.
         var incompleteTruemains = await db.RiotAccounts
-            .Where(a => (string.IsNullOrEmpty(a.GameName) || string.IsNullOrEmpty(a.TagLine))
+            .Where(a => a.Status == RiotAccountStatus.Active
+                        && (string.IsNullOrEmpty(a.GameName) || string.IsNullOrEmpty(a.TagLine))
                         && truemainKeys.Any(m => m.PlatformId == a.PlatformId && m.Puuid == a.Puuid))
             .OrderBy(a => a.UpdatedAtUtc)
             .Take(safe)
@@ -128,7 +129,8 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
         var truemainQuota = (int)Math.Ceiling(remaining * 0.75d);
 
         var truemains = await db.RiotAccounts
-            .Where(a => !pickedIds.Contains(a.Id)
+            .Where(a => a.Status == RiotAccountStatus.Active
+                        && !pickedIds.Contains(a.Id)
                         && truemainKeys.Any(m => m.PlatformId == a.PlatformId && m.Puuid == a.Puuid))
             .OrderBy(a =>
                 (string.IsNullOrEmpty(a.GameName) || string.IsNullOrEmpty(a.TagLine))
@@ -156,7 +158,8 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
         // Not the truemain bucket: keep identity-missing-first then oldest-first
         // (#188). Score ordering (#194) is intentionally scoped to truemains only.
         var others = await db.RiotAccounts
-            .Where(a => !pickedIds.Contains(a.Id)
+            .Where(a => a.Status == RiotAccountStatus.Active
+                        && !pickedIds.Contains(a.Id)
                         && !truemainKeys.Any(m => m.PlatformId == a.PlatformId && m.Puuid == a.Puuid))
             .OrderBy(a =>
                 (string.IsNullOrEmpty(a.GameName) || string.IsNullOrEmpty(a.TagLine))
@@ -178,6 +181,7 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
             join candidate in db.MainCandidates.AsNoTracking()
                 on new { account.PlatformId, account.Puuid } equals new { candidate.PlatformId, candidate.Puuid }
             where candidate.Status == MainCandidateStatus.Validated
+                  && account.Status == RiotAccountStatus.Active
             select account;
 
         if (cutoff > DateTime.MinValue)
@@ -237,10 +241,11 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
                 join account in db.RiotAccounts.AsNoTracking()
                     on new { candidate.PlatformId, candidate.Puuid }
                     equals new { account.PlatformId, account.Puuid }
-                where account.MatchIngestStatus == MatchIngestStatus.Idle
-                      || (account.MatchIngestStatus == MatchIngestStatus.Processing
-                          && account.MatchIngestClaimedAtUtc != null
-                          && account.MatchIngestClaimedAtUtc < leaseCutoff)
+                where account.Status == RiotAccountStatus.Active
+                      && (account.MatchIngestStatus == MatchIngestStatus.Idle
+                          || (account.MatchIngestStatus == MatchIngestStatus.Processing
+                              && account.MatchIngestClaimedAtUtc != null
+                              && account.MatchIngestClaimedAtUtc < leaseCutoff))
                 orderby account.LastMatchIngestAtUtc == null ? 0 : 1,
                     account.LastMatchIngestAtUtc
                 select new AccountKey(candidate.PlatformId, candidate.Puuid)

@@ -66,6 +66,10 @@ public sealed class RiotAccountConfiguration : IEntityTypeConfiguration<RiotAcco
 
         entity.Property(e => e.MatchIngestClaimedAtUtc);
 
+        entity.Property(e => e.Status)
+            .IsRequired()
+            .HasDefaultValue(RiotAccountStatus.Active);
+
         entity.HasIndex(e => e.Puuid)
             .IsUnique();
 
