@@ -4,11 +4,13 @@ public class MainCandidate
 {
     public Guid Id { get; set; }
 
-    public string PlatformId { get; set; } = string.Empty;
+    // The (platform, puuid, champion) identity of a candidate never changes after
+    // it is created — only its scoring/lifecycle fields do — so it is required + init.
+    public required string PlatformId { get; init; }
 
-    public string Puuid { get; set; } = string.Empty;
+    public required string Puuid { get; init; }
 
-    public int ChampionId { get; set; }
+    public required int ChampionId { get; init; }
 
     public int ChampionRankInMasteryTop { get; set; }
 

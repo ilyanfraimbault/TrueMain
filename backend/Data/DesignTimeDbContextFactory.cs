@@ -11,9 +11,7 @@ public class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<TrueMainDb
         var connectionFromArgs = TryGetConnectionFromArgs(args);
         if (!string.IsNullOrWhiteSpace(connectionFromArgs))
         {
-            var optionsFromArgs = new DbContextOptionsBuilder<TrueMainDbContext>();
-            optionsFromArgs.UseNpgsql(connectionFromArgs);
-            return new TrueMainDbContext(optionsFromArgs.Options);
+            return CreateDbContext(connectionFromArgs);
         }
 
         var configuration = new ConfigurationBuilder()
@@ -32,8 +30,18 @@ public class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<TrueMainDb
                 "Missing connection string. Add ConnectionStrings:TrueMain to user secrets.");
         }
 
-        var optionsBuilder = new DbContextOptionsBuilder<TrueMainDbContext>();
-        optionsBuilder.UseNpgsql(connectionString);
+        return CreateDbContext(connectionString);
+    }
+
+    private static TrueMainDbContext CreateDbContext(string connectionString)
+    {
+        // Build the same EnableDynamicJson data source as the runtime hosts so
+        // migrations / scaffolding that touch jsonb columns (item and skill events,
+        // position breakdowns, summaries, starter items) map identically at design
+        // time and at runtime.
+        var dataSource = DataServiceCollectionExtensions.BuildDataSource(connectionString);
+        var optionsBuilder = new DbContextOptionsBuilder<TrueMainDbContext>()
+            .UseNpgsql(dataSource);
 
         return new TrueMainDbContext(optionsBuilder.Options);
     }

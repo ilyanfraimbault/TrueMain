@@ -5,9 +5,7 @@ using Data.BuildFacts;
 using Data.Logging.Crash;
 using Data.Logging.Mongo;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using Npgsql;
 using Scalar.AspNetCore;
 using TrueMain.Authentication;
 using TrueMain.Options;
@@ -214,33 +212,12 @@ builder.Services.AddScoped<ISeedRequestService, SeedRequestService>();
 builder.Services.AddScoped<ISeedRequestQueryService, SeedRequestQueryService>();
 builder.Services.AddScoped<ICandidateQueryService, CandidateQueryService>();
 builder.Services.AddScoped<IAggregationStatsQueryService, AggregationStatsQueryService>();
-builder.Services.AddDbContext<TrueMainDbContext>(options =>
-{
-    var connectionString = builder.Configuration.GetConnectionString("TrueMain");
-
-    if (string.IsNullOrWhiteSpace(connectionString))
-    {
-        throw new InvalidOperationException(
-            "Missing connection string. Add ConnectionStrings:TrueMain to user secrets.");
-    }
-
-    var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
-    dataSourceBuilder.EnableDynamicJson();
-    var dataSource = dataSourceBuilder.Build();
-
-    options.UseNpgsql(dataSource);
-});
-// IDbContextFactory lets services that fire concurrent queries (e.g.
-// ProfileQueryService) create short-lived, independently owned contexts per
-// parallel branch. No options lambda on purpose: AddDbContext above already
-// registered DbContextOptions<TrueMainDbContext> (via TryAdd), so the factory
-// reuses that exact registration — same NpgsqlDataSource, connection pool and
-// EF model. Passing an options lambda here would be dead code (its own TryAdd
-// is a no-op once AddDbContext has run) and would risk silently building a
-// second data source if the two registrations were ever reordered. The Scoped
-// lifetime matches AddDbContext's options lifetime and leaves the scoped
-// TrueMainDbContext registration untouched.
-builder.Services.AddDbContextFactory<TrueMainDbContext>(lifetime: ServiceLifetime.Scoped);
+// AddTrueMainData registers the IDbContextFactory<TrueMainDbContext> — which
+// services that fire concurrent queries (e.g. ProfileQueryService) use to create
+// short-lived, independently owned contexts per parallel branch — and, in the
+// same call, the scoped TrueMainDbContext for the common request-scoped
+// injection. Both share the one NpgsqlDataSource built inside the extension.
+builder.Services.AddTrueMainData(builder.Configuration);
 
 // Persist Warning+ logs to MongoDB (see Data/Logging/Mongo) so the /ops/logs
 // admin endpoint can serve them, and expose the lossless operator-action audit

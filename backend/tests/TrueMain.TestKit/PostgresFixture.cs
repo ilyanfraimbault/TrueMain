@@ -112,9 +112,5 @@ public sealed class PostgresFixture : IAsyncLifetime
     }
 
     private NpgsqlDataSource CreateDataSource()
-    {
-        var dataSourceBuilder = new NpgsqlDataSourceBuilder(ConnectionString);
-        dataSourceBuilder.EnableDynamicJson();
-        return dataSourceBuilder.Build();
-    }
+        => DataServiceCollectionExtensions.BuildDataSource(ConnectionString);
 }

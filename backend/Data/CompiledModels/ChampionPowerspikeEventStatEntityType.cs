@@ -98,6 +98,8 @@ namespace Data.CompiledModels
                 typeof(double),
                 propertyInfo: typeof(ChampionPowerspikeEventStat).GetProperty("SumMinute", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 fieldInfo: typeof(ChampionPowerspikeEventStat).GetField("<SumMinute>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                precision: 18,
+                scale: 6,
                 sentinel: 0.0);
             sumMinute.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
@@ -106,6 +108,8 @@ namespace Data.CompiledModels
                 typeof(double),
                 propertyInfo: typeof(ChampionPowerspikeEventStat).GetProperty("SumSpike", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 fieldInfo: typeof(ChampionPowerspikeEventStat).GetField("<SumSpike>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                precision: 18,
+                scale: 6,
                 sentinel: 0.0);
             sumSpike.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 

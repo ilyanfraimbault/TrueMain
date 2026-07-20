@@ -70,6 +70,15 @@ public sealed class RiotAccountConfiguration : IEntityTypeConfiguration<RiotAcco
             .IsRequired()
             .HasDefaultValue(RiotAccountStatus.Active);
 
+        // Optimistic concurrency on the whole row via Postgres' system xmin column
+        // (#231). MatchIngestStatus and Status are mutated by both the API and the
+        // Ingestor; the predicate-filtered ExecuteUpdateAsync in RiotAccountRepository
+        // guards the specific status transition, but xmin extends that protection to
+        // any tracked SaveChanges (e.g. a profile refresh) so a stale read cannot
+        // silently clobber a concurrent write. xmin is a system column, so this adds
+        // no physical schema — only a shadow concurrency token in the model.
+        entity.UseXminAsConcurrencyToken();
+
         entity.HasIndex(e => e.Puuid)
             .IsUnique();
 
