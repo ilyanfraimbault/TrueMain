@@ -9,7 +9,7 @@ namespace TrueMain.Controllers.Truemains;
 
 [ApiController]
 [Route("truemains")]
-[Produces("application/json")]
+[Produces("application/json", "application/problem+json")]
 [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
 public sealed class TruemainsController(
     IMatchSummariesQueryService matchSummariesQueryService,

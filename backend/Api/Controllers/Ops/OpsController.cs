@@ -9,7 +9,7 @@ namespace TrueMain.Controllers.Ops;
 [ApiController]
 [Route("ops")]
 [Authorize(AuthenticationSchemes = ApiKeyAuthenticationDefaults.Scheme)]
-[Produces("application/json")]
+[Produces("application/json", "application/problem+json")]
 [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
 public sealed class OpsController(
     IPipelineHealthQueryService pipelineHealthQueryService,
