@@ -107,6 +107,19 @@ const isRefetching = computed(() =>
 // Patch for the profile icon in the player header.
 const latestPatch = computed(() => versions.value?.[0] ?? null)
 
+// Thin-sample caution. The backend renders a build for any number of games
+// (down to one) rather than 404-ing, flagging small samples with
+// minSampleMet=false. Surface that as a warning icon next to the champion title
+// — like the builder's RecommendationPanel — so a build inferred from a handful
+// of games reads as a rough personal signal, not an authoritative meta build.
+const lowSampleMessage = computed(() => {
+  if (!champion.value || champion.value.minSampleMet)
+    return null
+  const games = champion.value.totalGames
+  return `Only ${games} ${games === 1 ? 'game' : 'games'} on record — this build is inferred from a small personal sample, `
+    + 'so treat it as a rough signal rather than a reliable recommendation.'
+})
+
 // ─── Match history ─────────────────────────────────────────────────────────
 // This player's recent games on THIS champion. The champion is fixed to the
 // page; the lane filter is its OWN control, independent of the build's position
@@ -232,6 +245,7 @@ const staticBundleReady = computed(() =>
             :position="champion.position"
             :total-games="champion.totalGames"
             :total-wins="champion.totalWins"
+            :low-sample-message="lowSampleMessage"
           />
           <ChampionFilters
             :selected-patch="selectedPatch"
@@ -241,22 +255,6 @@ const staticBundleReady = computed(() =>
             @update:position="value => setFilter({ position: value })"
           />
         </header>
-
-        <!--
-          Thin-sample caution. The backend renders a build for any number of
-          games (down to one) rather than 404-ing, flagging small samples with
-          minSampleMet=false. Surface that so a build inferred from a handful of
-          games reads as a rough personal signal, not an authoritative meta
-          build — mirroring the global page's low-sample notice.
-        -->
-        <UAlert
-          v-if="!champion.minSampleMet"
-          color="warning"
-          variant="soft"
-          icon="i-lucide-triangle-alert"
-          :title="`Only ${champion.totalGames} ${champion.totalGames === 1 ? 'game' : 'games'} on record`"
-          description="This build is inferred from a small personal sample — treat it as a rough signal rather than a reliable recommendation."
-        />
 
         <!--
           Same two-column layout as the global champion page (#703): the build
