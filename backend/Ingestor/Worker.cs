@@ -129,6 +129,7 @@ public sealed class Worker(
             JobMode.MatchupLeadAggregationOnly => ["ChampionMatchupLeadAggregation"],
             JobMode.PowerspikeAggregationOnly => ["ChampionPowerspikeAggregation"],
             JobMode.EloBracketEnrichmentOnly => ["MatchParticipantEloBracketEnrichment"],
+            JobMode.TeamPositionCorrectionOnly => ["MatchTeamPositionCorrection"],
             JobMode.AccountRefreshOnly => ["AccountRefresh"],
             JobMode.MatchDataRetentionOnly => ["MatchDataRetention"],
             _ => (string[])
@@ -145,6 +146,12 @@ public sealed class Worker(
                 "Harvest",
                 "Scoring",
                 "MatchIngestion",
+                // Backfills any pre-existing "Missing team position" gap left by
+                // upstream Riot data before the champion aggregations read
+                // TeamPosition. RiotMatchMapper already self-heals newly-ingested
+                // matches, so steady-state this only drains the pre-existing
+                // backlog.
+                "MatchTeamPositionCorrection",
                 "MainAnalysis",
                 // Stamps match_participants.elo_bracket from the nearest rank
                 // snapshot BEFORE the champion aggregations, so they (and the live
