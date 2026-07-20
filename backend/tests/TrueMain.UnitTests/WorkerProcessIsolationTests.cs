@@ -25,6 +25,7 @@ public sealed class WorkerProcessIsolationTests
         "Harvest",
         "Scoring",
         "MatchIngestion",
+        "MatchTeamPositionCorrection",
         "MainAnalysis",
         "MatchParticipantEloBracketEnrichment",
         "ChampionPatternAggregation",
