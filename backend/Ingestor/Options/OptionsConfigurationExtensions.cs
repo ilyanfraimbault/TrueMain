@@ -125,6 +125,12 @@ public static class OptionsConfigurationExtensions
             .Validate(options => options.MaxMatchesPerRun >= 0, "PowerspikeAggregation:MaxMatchesPerRun must be >= 0.")
             .ValidateOnStart();
 
+        services.AddOptions<MatchupLeadAggregationOptions>()
+            .Bind(configuration.GetSection(MatchupLeadAggregationOptions.SectionName))
+            .Validate(options => options.MatchBatchSize > 0, "MatchupLeadAggregation:MatchBatchSize must be greater than 0.")
+            .Validate(options => options.MaxMatchesPerRun >= 0, "MatchupLeadAggregation:MaxMatchesPerRun must be >= 0.")
+            .ValidateOnStart();
+
         services.AddOptions<JobOptions>()
             .Bind(configuration.GetSection(JobOptions.SectionName))
             .Validate(options => JobModeParser.TryParse(options.Mode, out _),

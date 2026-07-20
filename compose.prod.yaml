@@ -200,6 +200,11 @@ services:
       Riot__ApiKey: ${RIOT_API_KEY}
       Job__Mode: ${INGESTOR_JOB_MODE:-Full}
       MongoLogging__CrashFilePath: /home/app/crashes
+      Discovery__MaxAccountsPerPlatformPerRun: "750"
+      Discovery__NewAccountsTarget: "75"
+      Scoring__TopNPerPlatform: "300"
+      Harvest__MaxCandidatesPerRun: "7500"
+      MatchIngestion__BatchSize: "75"
     volumes:
       - truemain_ingestor_crashes:/home/app/crashes
     depends_on:
