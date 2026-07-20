@@ -17,15 +17,16 @@ const items = computed<StaticItemData[]>(() => {
 
 <template>
   <!-- Fixed from sm: 6 items × 36 px + 5 chevrons × 16 px + 10 gaps × 4 px = 336 px
-       wide, 36 px tall. Width locks at the 6-item worst case; height is pinned
-       so no-data state doesn't collapse the row. On mobile (< sm) the fixed
-       width is removed and items can wrap naturally inside available width.
-       justify-center keeps a short chain centred in its parent's A2 area. -->
+       (--width-build-path in main.css), 36 px tall. Width locks at the 6-item
+       worst case; height is pinned so no-data state doesn't collapse the row.
+       On mobile (< sm) the fixed width is removed and items can wrap naturally
+       inside available width. justify-center keeps a short chain centred in
+       its parent's A2 area. -->
   <div class="flex flex-col items-center">
     <h2 class="text-sm font-medium text-muted">
       Build path
     </h2>
-    <div class="mt-2 flex h-9 items-center justify-center gap-1 overflow-hidden sm:w-[336px]">
+    <div class="mt-2 flex h-9 items-center justify-center gap-1 overflow-hidden sm:w-build-path">
       <template
         v-for="(item, index) in items"
         :key="`bp-${item.id}-${index}`"

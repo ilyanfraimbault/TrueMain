@@ -36,7 +36,7 @@
           </div>
           <div class="flex flex-col gap-2">
             <USkeleton class="h-3 w-16" />
-            <div class="flex h-9 w-full items-center gap-1 sm:w-[116px]">
+            <div class="flex h-9 w-full items-center gap-1 sm:w-starter-items">
               <USkeleton
                 v-for="i in 3"
                 :key="i"
@@ -69,7 +69,7 @@
             </div>
           </div>
           <div class="flex justify-center">
-            <div class="flex h-9 items-center gap-1 sm:w-[336px]">
+            <div class="flex h-9 items-center gap-1 sm:w-build-path">
               <USkeleton
                 v-for="i in 6"
                 :key="i"
