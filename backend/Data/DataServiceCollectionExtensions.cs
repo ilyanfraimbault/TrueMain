@@ -26,11 +26,13 @@ public static class DataServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddTrueMainData(this IServiceCollection services, IConfiguration configuration)
     {
-        var connectionString = GetRequiredConnectionString(configuration);
-
         // Registered as a singleton so the pool and its type mappings are shared
-        // process-wide and the source is disposed with the container.
-        services.AddSingleton(_ => BuildDataSource(connectionString));
+        // process-wide and the source is disposed with the container. The connection
+        // string is read inside the factory (lazily, at first resolution) rather than
+        // here: hosts register this during startup, but the integration-test
+        // WebApplicationFactory only injects ConnectionStrings:TrueMain later via
+        // ConfigureAppConfiguration, so an eager read would throw before it lands.
+        services.AddSingleton(_ => BuildDataSource(GetRequiredConnectionString(configuration)));
         services.AddDbContextFactory<TrueMainDbContext>(
             (serviceProvider, options) => options.UseNpgsql(serviceProvider.GetRequiredService<NpgsqlDataSource>()));
 
