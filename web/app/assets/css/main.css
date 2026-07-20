@@ -78,6 +78,15 @@
   --animate-shimmer: shimmer 8s ease-in-out infinite alternate;
 
   /*
+   * Fixed row widths for the build-path/starter item rows (Champion/Core).
+   * Named so the sizing math lives in one place instead of being repeated as
+   * arbitrary `w-[…]` values at each call site — see the components for the
+   * item-count math behind each figure.
+   */
+  --width-build-path: 336px;
+  --width-starter-items: 116px;
+
+  /*
    * Stat / damage-type colors for rich game-entity tooltips. Text emphasis
    * only — the app is rose-gold-only on surfaces, so do NOT use these as
    * `bg-*` / `ring-*` / `border-*`. Tailwind v4 auto-generates `text-stat-*`
