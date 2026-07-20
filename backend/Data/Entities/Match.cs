@@ -44,5 +44,13 @@ public class Match
     /// </summary>
     public bool TimelineSnapshotsPruned { get; set; }
 
+    /// <summary>
+    /// Set once this match has been folded into the champion matchup/lead aggregates
+    /// (#811). Gates the incremental aggregation (each match is aggregated exactly
+    /// once) the same way <see cref="PowerspikeAggregated"/> does. Dies with the match
+    /// on retention, so an aged-out patch's aggregate rows simply freeze.
+    /// </summary>
+    public bool MatchupLeadAggregated { get; set; }
+
     public ICollection<MatchParticipant> Participants { get; set; } = new List<MatchParticipant>();
 }

@@ -5,6 +5,7 @@ using Core.Lol.Map;
 using Core.Lol.Ranking;
 using Core.Options;
 using Data.Entities;
+using Ingestor.Options;
 using Ingestor.Processes;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -224,6 +225,7 @@ public sealed class ChampionTimelineLeadsApiIntegrationTests
             .WithId(matchId)
             .WithQueueId(QueueId)
             .WithGameVersion("16.4.521.123")
+            .WithTimelineIngested()
             .Build());
 
         db.MatchParticipants.Add(
@@ -259,6 +261,7 @@ public sealed class ChampionTimelineLeadsApiIntegrationTests
         var process = new ChampionMatchupLeadAggregationProcess(
             NullLogger<ChampionMatchupLeadAggregationProcess>.Instance,
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
+            Microsoft.Extensions.Options.Options.Create(new MatchupLeadAggregationOptions()),
             new TestDbContextFactory(_fixture),
             TimeProvider.System);
         await process.RunCoreAsync(CancellationToken.None);
