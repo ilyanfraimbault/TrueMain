@@ -8,7 +8,6 @@ namespace TrueMain.Controllers.Champions;
 
 [ApiController]
 [Route("champions")]
-[Produces("application/json", "application/problem+json")]
 [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
 public sealed class ChampionsController(
     IChampionSummariesQueryService summariesQueryService,
