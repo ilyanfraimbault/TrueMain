@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChampionPosition } from '~/utils/positions'
+import { POSITION_BY_VALUE, type ChampionPosition } from '~/utils/positions'
 import { ELO_BRACKET_ALL, eloBracketLabel, normalizeEloBracket } from '~/utils/elo-brackets'
 import { describeFetchError } from '~/utils/errors'
 import { isLoadingStatus } from '~/utils/async-data'
@@ -63,10 +63,44 @@ const trendReady = computed(() => champion.value !== null)
 const trendPosition = computed(() => champion.value?.position || filters.value.position || null)
 const { data: championTrend, status: trendStatus } = useChampionTrend(championId, trendPosition, trendReady)
 
+// Meta-only fetch: `displayName` above is sourced from client-only
+// (`server: false`) statics chosen to avoid hydration mismatches on the
+// visual build content, which means it's always null during SSR — the exact
+// HTML Google indexes would permanently show "Champion {id}" instead of the
+// champion name. `<head>` tags aren't part of Vue's DOM diff, so a dedicated
+// SSR-enabled fetch here carries no hydration risk. Hits the same
+// `defineCachedEventHandler` (1h TTL) as useChampionStatic, so it's a cache
+// hit, not an extra DDragon round-trip.
+const { data: seoStatic } = await useFetch(
+  () => `/api/static/${championId.value}`,
+  { key: () => `champion-seo-name-${championId.value}`, query: { patch: selectedPatch.value || undefined } },
+)
+const seoDisplayName = computed(() => seoStatic.value?.championName ?? displayName.value)
+const seoPositionLabel = computed(() => POSITION_BY_VALUE.get(trendPosition.value ?? '')?.label)
+
 useSeoMeta({
-  title: () => displayName.value ?? `Champion ${championId.value}`,
-  description: () => `Champion ${championId.value} builds, runes and skill order.`,
+  title: () => seoDisplayName.value
+    ? `${seoDisplayName.value}${seoPositionLabel.value ? ` ${seoPositionLabel.value}` : ''} Build`
+    : `Champion ${championId.value} Build`,
+  description: () => seoDisplayName.value
+    ? `${seoDisplayName.value} build guide: best runes, items and skill order`
+      + `${seoPositionLabel.value ? ` for ${seoPositionLabel.value}` : ''}, based on real ranked games. `
+      + `See the top OTP ${seoDisplayName.value} one-tricks on TrueMain.`
+    : `Champion builds, runes and skill order from true main players.`,
 })
+
+useSchemaOrg([
+  defineWebPage({
+    name: () => seoDisplayName.value ? `${seoDisplayName.value} Build` : undefined,
+    description: () => `${seoDisplayName.value ?? 'Champion'} runes, items and skill order.`,
+  }),
+  defineBreadcrumb({
+    itemListElement: [
+      { name: 'Champions', item: '/champions' },
+      { name: () => seoDisplayName.value ?? `Champion ${championId.value}` },
+    ],
+  }),
+])
 
 // Elo filter (issue #526). Bind to the API-returned filter once available so
 // the rank select reflects what's actually shown; fall back to the URL filter

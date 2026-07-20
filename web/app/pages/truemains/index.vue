@@ -3,9 +3,13 @@ import type { RegionSlug } from '~~/shared/types/leaderboard'
 import type { ChampionPosition } from '~/utils/positions'
 
 useSeoMeta({
-  title: 'Truemains',
-  description: 'Tracked truemains sorted by current rank, filterable by region, role and champion.',
+  title: 'OTP Leaderboard',
+  description: 'Leaderboard of tracked one-trick (OTP) League of Legends players, ranked live and filterable by region, role and champion.',
 })
+
+useSchemaOrg([
+  defineWebPage({ name: 'OTP Leaderboard', description: 'Tracked one-trick League of Legends players ranked by rank.' }),
+])
 
 const LEADERBOARD_PAGE_SIZE = 25
 const VALID_REGIONS: ReadonlySet<RegionSlug> = new Set(['europe', 'americas', 'korea'])
