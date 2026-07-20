@@ -61,13 +61,21 @@ public sealed class MainCandidateConfiguration : IEntityTypeConfiguration<MainCa
 
         entity.Property(e => e.ValidatedAtUtc);
 
+        // Optimistic concurrency via Postgres' system xmin column (#231). The
+        // candidate Status is advanced concurrently by the discovery, scoring and
+        // main-analysis passes; xmin makes a tracked SaveChanges fail loudly on a
+        // lost update instead of silently overwriting. System column, so no
+        // physical schema change — a shadow concurrency token only.
+        entity.UseXminAsConcurrencyToken();
+
         entity.HasIndex(e => new { e.PlatformId, e.Puuid, e.ChampionId })
             .IsUnique();
 
-        entity.HasIndex(e => e.PlatformId);
-
-        entity.HasIndex(e => e.ChampionId);
-
+        // (PlatformId) and (ChampionId) single-column indexes dropped (#236): the
+        // composite unique above is a prefix index for any PlatformId-leading scan,
+        // and no query filters MainCandidate by ChampionId alone (the only
+        // ChampionId predicate is the composite-covered (PlatformId, Puuid,
+        // ChampionId) lookup in MainCandidateRepository).
         entity.HasIndex(e => new { e.PlatformId, e.Status, e.Score });
     }
 }

@@ -60,4 +60,27 @@ public class TrueMainDbContext : DbContext
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(TrueMainDbContext).Assembly);
     }
+
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        base.ConfigureConventions(configurationBuilder);
+
+        // A single, explicit scale rule for the EF-mapped stat doubles (e.g.
+        // MainChampionStat.PlayRate and the champion_powerspike_* rates) instead of
+        // per-property guesswork. Npgsql maps double to `double precision` and
+        // ignores the facet, so this carries no schema delta — it documents intent
+        // and applies automatically to any future double property. (It does not
+        // reach doubles nested inside jsonb columns such as PositionStat.Rate, which
+        // are serialized as a blob rather than mapped as columns.)
+        //
+        // A matching Properties<DateTime>().HavePrecision(6) was deliberately left
+        // out: our timestamps are already `timestamp with time zone`, which stores
+        // microseconds (precision 6) natively, so the facet changes nothing at
+        // runtime — but EF still scaffolds an ALTER COLUMN TYPE for every timestamp
+        // column (~30, across matches/rank_snapshots and other populated tables),
+        // and Postgres does not guarantee a metadata-only path for a timestamp
+        // typmod change. That is a schema-wide rewrite risk for zero functional
+        // gain, which the "keep migrations fast" rule rules out. See issue #228.
+        configurationBuilder.Properties<double>().HavePrecision(18, 6);
+    }
 }

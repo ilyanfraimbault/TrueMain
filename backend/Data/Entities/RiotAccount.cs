@@ -4,13 +4,20 @@ public class RiotAccount
 {
     public Guid Id { get; set; }
 
-    public string Puuid { get; set; } = string.Empty;
+    // required (not init): Puuid and PlatformId are mandatory at construction, but
+    // both are reassigned by the pipeline — Puuid on 404 re-resolution
+    // (AccountRefreshProcess) and PlatformId on a region-transfer upsert
+    // (AccountUpsertService) — so they keep a settable accessor.
+    public required string Puuid { get; set; }
 
+    // Not required: account-v1 owns GameName/TagLine, so a summoner-v4 insert
+    // (AccountUpsertService) deliberately leaves the empty-string default until the
+    // next AccountRefresh cycle resolves the Riot ID.
     public string GameName { get; set; } = string.Empty;
 
     public string? TagLine { get; set; }
 
-    public string PlatformId { get; set; } = string.Empty;
+    public required string PlatformId { get; set; }
 
     public Guid? PersonaId { get; set; }
 

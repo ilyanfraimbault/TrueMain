@@ -22,7 +22,7 @@ namespace Data.CompiledModels
                 typeof(MainChampionStat),
                 baseEntityType,
                 propertyCount: 13,
-                unnamedIndexCount: 4,
+                unnamedIndexCount: 3,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -98,6 +98,8 @@ namespace Data.CompiledModels
                 typeof(double),
                 propertyInfo: typeof(MainChampionStat).GetProperty("PlayRate", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 fieldInfo: typeof(MainChampionStat).GetField("<PlayRate>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                precision: 18,
+                scale: 6,
                 sentinel: 0.0);
             playRate.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
@@ -146,9 +148,6 @@ namespace Data.CompiledModels
                 new[] { platformId, isMain });
 
             var index1 = runtimeEntityType.AddIndex(
-                new[] { platformId, puuid });
-
-            var index2 = runtimeEntityType.AddIndex(
                 new[] { platformId, puuid, championId },
                 unique: true);
 

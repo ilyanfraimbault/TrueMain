@@ -2,9 +2,11 @@ namespace Data.Entities;
 
 public class Match
 {
-    public string Id { get; set; } = string.Empty;
+    // A match row is immutable identity-wise once created (only the ingest/aggregate
+    // bool flags below are ever flipped), so the id and platform are required + init.
+    public required string Id { get; init; }
 
-    public string PlatformId { get; set; } = string.Empty;
+    public required string PlatformId { get; init; }
 
     public int QueueId { get; set; }
 
