@@ -2,6 +2,12 @@
 @import "@nuxt/ui";
 
 /*
+ * See ../../docs/DESIGN_SYSTEM.md for the semantic text hierarchy
+ * (text-default / text-muted / text-dimmed / text-highlighted), component
+ * naming conventions, and prop-vs-slot guidance.
+ */
+
+/*
  * Tailwind v4 only generates utilities for class names it can statically
  * detect in source files. The tag-class map in shared/utils/tooltip-parser
  * is built outside Tailwind's default scan root, so explicitly include it
