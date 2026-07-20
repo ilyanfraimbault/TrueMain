@@ -64,15 +64,6 @@ const {
   selectedPosition,
 } = useChampionDetailStatics(championId, champion, filters, { preferFilterPatch: true })
 
-// Truemains > {player} > {champion}, mirroring the schema.org breadcrumb below.
-// The champion crumb uses client-only `displayName` (the last crumb is not a
-// link, so its SSR fallback to `Champion {id}` is cosmetic only).
-const breadcrumbItems = computed(() => [
-  { label: 'Truemains', to: '/truemains' },
-  { label: playerLabel.value, to: profilePath.value },
-  { label: displayName.value ?? `Champion ${championId.value}` },
-])
-
 // Meta-only fetch: see the identical comment on pages/champions/[id].vue —
 // `displayName` is sourced from client-only statics, so it's always null
 // during SSR. Hits the same 1h-cached endpoint, so it's a cache hit. Only
@@ -84,6 +75,16 @@ const seoStaticFetch = useFetch(
 if (import.meta.server) await seoStaticFetch
 const { data: seoStatic } = seoStaticFetch
 const seoDisplayName = computed(() => seoStatic.value?.championName ?? displayName.value)
+
+// Truemains > {player} > {champion}, mirroring the schema.org breadcrumb below.
+// The champion crumb uses the SSR-safe `seoDisplayName` (client-only
+// `displayName` is null during SSR) so the server HTML shows the real name
+// rather than `Champion {id}`, matching the global champion page.
+const breadcrumbItems = computed(() => [
+  { label: 'Truemains', to: '/truemains' },
+  { label: playerLabel.value, to: profilePath.value },
+  { label: seoDisplayName.value ?? `Champion ${championId.value}` },
+])
 
 useSeoMeta({
   title: () => `${seoDisplayName.value ?? `Champion ${championId.value}`} Build by ${playerLabel.value}`,
