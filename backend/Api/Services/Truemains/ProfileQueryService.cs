@@ -13,6 +13,7 @@ public sealed class ProfileQueryService(
     // Shared with the leaderboard so both views derive a player's mains from the
     // same top-N slice (see MainChampionsPolicy / #521).
     private const int MainChampionsCap = MainChampionsPolicy.Cap;
+    private const string Surface = "truemain-profile";
 
     // Private DTOs used to carry query results out of factory-owned contexts.
     private sealed record SnapshotDto(
@@ -120,7 +121,8 @@ public sealed class ProfileQueryService(
             };
 
         logger.LogInformation(
-            "[truemain-profile] nameTag={NameTag} account_id={AccountId} mains={MainCount} ranked={Ranked}",
+            "{Surface} nameTag={NameTag} account_id={AccountId} mains={MainCount} ranked={Ranked}",
+            Surface,
             nameTag,
             account.Id,
             mains.Count,

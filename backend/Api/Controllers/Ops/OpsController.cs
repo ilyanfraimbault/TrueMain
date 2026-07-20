@@ -9,6 +9,8 @@ namespace TrueMain.Controllers.Ops;
 [ApiController]
 [Route("ops")]
 [Authorize(AuthenticationSchemes = ApiKeyAuthenticationDefaults.Scheme)]
+[Produces("application/json")]
+[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
 public sealed class OpsController(
     IPipelineHealthQueryService pipelineHealthQueryService,
     IOverviewQueryService overviewQueryService,
@@ -29,7 +31,7 @@ public sealed class OpsController(
     [HttpGet("pipeline-health")]
     [ProducesResponseType(typeof(PipelineHealthReadModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
-    public async Task<ActionResult<PipelineHealthReadModel>> GetPipelineHealthAsync(CancellationToken ct)
+    public async Task<ActionResult<PipelineHealthReadModel>> GetPipelineHealthAsync(CancellationToken ct = default)
     {
         var readModel = await pipelineHealthQueryService.GetAsync(ct);
         return Ok(readModel);
