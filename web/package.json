@@ -34,7 +34,7 @@
     "tailwindcss": "^4.3.2",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10",
-    "vue-chrts": "2.1.4",
+    "vue-chrts": "2.2.0",
     "vue-tsc": "^3.3.7"
   }
 }
