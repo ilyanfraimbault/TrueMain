@@ -196,6 +196,17 @@ html {
     0 10px 30px -18px color-mix(in oklch, black 60%, transparent);
 }
 
+/*
+ * Shared "not the selected option" treatment for images (rune/perk icons) —
+ * faded and desaturated so the selected sibling reads as the pick at a
+ * glance. Built on the `opacity`/`grayscale` utilities via `@apply` so it
+ * composes with Tailwind's filter pipeline the same way a one-off
+ * `opacity-40 grayscale` would.
+ */
+@utility deselected {
+  @apply opacity-40 grayscale;
+}
+
 @utility glass-hover {
   transition: background-color 150ms ease, border-color 150ms ease;
 
