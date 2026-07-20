@@ -76,6 +76,16 @@ if (import.meta.server) await seoStaticFetch
 const { data: seoStatic } = seoStaticFetch
 const seoDisplayName = computed(() => seoStatic.value?.championName ?? displayName.value)
 
+// Truemains > {player} > {champion}, mirroring the schema.org breadcrumb below.
+// The champion crumb uses the SSR-safe `seoDisplayName` (client-only
+// `displayName` is null during SSR) so the server HTML shows the real name
+// rather than `Champion {id}`, matching the global champion page.
+const breadcrumbItems = computed(() => [
+  { label: 'Truemains', to: '/truemains' },
+  { label: playerLabel.value, to: profilePath.value },
+  { label: seoDisplayName.value ?? `Champion ${championId.value}` },
+])
+
 useSeoMeta({
   title: () => `${seoDisplayName.value ?? `Champion ${championId.value}`} Build by ${playerLabel.value}`,
   description: () => `${playerLabel.value}'s ${seoDisplayName.value ?? `champion ${championId.value}`} build: `
@@ -151,25 +161,9 @@ const staticBundleReady = computed(() =>
 
 <template>
   <main class="mx-auto w-full max-w-[96rem] space-y-6 p-4 md:p-6">
-    <!-- Breadcrumb: Truemain {name} > {champion}, linking back to the profile. -->
-    <nav aria-label="Breadcrumb" class="text-sm text-muted">
-      <ol class="flex flex-wrap items-center gap-1.5">
-        <li>
-          <NuxtLink
-            :to="profilePath"
-            class="rounded text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          >
-            Truemain {{ playerLabel }}
-          </NuxtLink>
-        </li>
-        <li aria-hidden="true" class="text-muted/60">
-          /
-        </li>
-        <li class="truncate font-medium text-default">
-          {{ displayName ?? `Champion ${championId}` }}
-        </li>
-      </ol>
-    </nav>
+    <!-- Truemains > {player} > {champion}, linking back to the leaderboard and
+         the player's profile. -->
+    <UBreadcrumb :items="breadcrumbItems" />
 
     <!-- Player identity up top so it's obvious this is the truemain's page,
          not the global champion page. -->
