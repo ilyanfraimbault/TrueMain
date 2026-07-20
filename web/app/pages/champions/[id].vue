@@ -107,6 +107,14 @@ useSchemaOrg([
   }),
 ])
 
+// Visible breadcrumb, mirroring the schema.org hierarchy above. Uses the
+// SSR-safe `seoDisplayName` (client-only `displayName` is null during SSR) so
+// the crumb renders the champion name in the server HTML, not `Champion {id}`.
+const breadcrumbItems = computed(() => [
+  { label: 'Champions', to: '/champions' },
+  { label: seoDisplayName.value ?? `Champion ${championId.value}` },
+])
+
 // Elo filter (issue #526). Bind to the API-returned filter once available so
 // the rank select reflects what's actually shown; fall back to the URL filter
 // for the optimistic render before the fetch resolves.
@@ -273,6 +281,10 @@ watch(champion, (data) => {
 
 <template>
   <main class="mx-auto w-full max-w-[96rem] space-y-6 p-4 md:p-6">
+    <!-- Champions > {champion}, mirroring the schema.org breadcrumb. Shown
+         across every state (error / no-data / normal) as the first child. -->
+    <UBreadcrumb :items="breadcrumbItems" />
+
     <UAlert
       v-if="championError"
       color="error"
