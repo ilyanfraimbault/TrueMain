@@ -70,11 +70,16 @@ const { data: championTrend, status: trendStatus } = useChampionTrend(championId
 // champion name. `<head>` tags aren't part of Vue's DOM diff, so a dedicated
 // SSR-enabled fetch here carries no hydration risk. Hits the same
 // `defineCachedEventHandler` (1h TTL) as useChampionStatic, so it's a cache
-// hit, not an extra DDragon round-trip.
-const { data: seoStatic } = await useFetch(
+// hit, not an extra DDragon round-trip. Only awaited server-side: the app has
+// no NuxtLoadingIndicator/Suspense fallback on <NuxtPage>, so awaiting this on
+// the client would freeze the outgoing page with no feedback on every
+// client-side champion navigation, purely for a `<head>`-only value.
+const seoStaticFetch = useFetch(
   () => `/api/static/${championId.value}`,
-  { key: () => `champion-seo-name-${championId.value}`, query: { patch: selectedPatch.value || undefined } },
+  { key: () => `champion-seo-name-${championId.value}-${selectedPatch.value || 'none'}`, query: { patch: selectedPatch.value || undefined } },
 )
+if (import.meta.server) await seoStaticFetch
+const { data: seoStatic } = seoStaticFetch
 const seoDisplayName = computed(() => seoStatic.value?.championName ?? displayName.value)
 const seoPositionLabel = computed(() => POSITION_BY_VALUE.get(trendPosition.value ?? '')?.label)
 
