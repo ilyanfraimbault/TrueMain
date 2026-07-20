@@ -18,5 +18,6 @@ public enum JobMode
     HarvestOnly = 9,
     MatchupLeadAggregationOnly = 10,
     EloBracketEnrichmentOnly = 11,
-    PowerspikeAggregationOnly = 12
+    PowerspikeAggregationOnly = 12,
+    TeamPositionCorrectionOnly = 13
 }
