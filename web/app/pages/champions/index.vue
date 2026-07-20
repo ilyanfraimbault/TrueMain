@@ -11,9 +11,13 @@ import { formatPercentage } from '~~/shared/utils/ddragon'
 const PAGE_SIZE = 50
 
 useSeoMeta({
-  title: 'Champions',
-  description: 'Browse champions by lane with the most-played build, winrate and pickrate.',
+  title: 'Champion Builds',
+  description: 'Browse every champion build by lane — most-played runes, items and skill order, winrate and pickrate for the current patch.',
 })
+
+useSchemaOrg([
+  defineWebPage({ name: 'Champion Builds' }),
+])
 
 const router = useRouter()
 

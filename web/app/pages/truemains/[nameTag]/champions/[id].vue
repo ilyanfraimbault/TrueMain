@@ -64,13 +64,36 @@ const {
   selectedPosition,
 } = useChampionDetailStatics(championId, champion, filters, { preferFilterPatch: true })
 
+// Meta-only fetch: see the identical comment on pages/champions/[id].vue —
+// `displayName` is sourced from client-only statics, so it's always null
+// during SSR. Hits the same 1h-cached endpoint, so it's a cache hit. Only
+// awaited server-side, same reasoning as the global champion page.
+const seoStaticFetch = useFetch(
+  () => `/api/static/${championId.value}`,
+  { key: () => `champion-seo-name-${championId.value}-${selectedPatch.value || 'none'}`, query: { patch: selectedPatch.value || undefined } },
+)
+if (import.meta.server) await seoStaticFetch
+const { data: seoStatic } = seoStaticFetch
+const seoDisplayName = computed(() => seoStatic.value?.championName ?? displayName.value)
+
 useSeoMeta({
-  title: () => {
-    const champ = displayName.value ?? `Champion ${championId.value}`
-    return `${champ} · ${playerLabel.value}`
-  },
-  description: () => `How ${playerLabel.value} plays ${displayName.value ?? `champion ${championId.value}`}: their build path, runes and skill order.`,
+  title: () => `${seoDisplayName.value ?? `Champion ${championId.value}`} Build by ${playerLabel.value}`,
+  description: () => `${playerLabel.value}'s ${seoDisplayName.value ?? `champion ${championId.value}`} build: `
+    + `runes, items and skill order from their real ranked games as a ${seoDisplayName.value ?? 'this champion'} OTP.`,
 })
+
+useSchemaOrg([
+  defineWebPage({
+    name: () => `${seoDisplayName.value ?? 'Champion'} Build by ${playerLabel.value}`,
+  }),
+  defineBreadcrumb({
+    itemListElement: [
+      { name: 'Truemains', item: '/truemains' },
+      { name: playerLabel.value, item: profilePath.value },
+      { name: () => seoDisplayName.value ?? `Champion ${championId.value}` },
+    ],
+  }),
+])
 
 const isRefetching = computed(() =>
   isLoadingStatus(championStatus.value)
