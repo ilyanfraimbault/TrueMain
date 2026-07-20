@@ -10,6 +10,7 @@ public sealed class MatchSummariesQueryService(
 {
     private const int DefaultPageSize = 20;
     private const int MaxPageSize = 50;
+    private const string Surface = "match-summaries";
 
     public async Task<MatchSummariesResponse?> GetAsync(
         string nameTag,
@@ -96,10 +97,13 @@ public sealed class MatchSummariesQueryService(
         var total = await matchesQuery.CountAsync(ct);
         if (total == 0)
         {
+            // Same clamped page as the past-end-page branch below, so an empty
+            // result never disagrees with an out-of-range one about which page
+            // it's reporting (#222).
             return new MatchSummariesResponse
             {
                 Matches = Array.Empty<MatchSummaryReadModel>(),
-                Page = 1,
+                Page = clampedPage,
                 PageSize = clampedPageSize,
                 Total = 0,
             };
@@ -230,8 +234,8 @@ public sealed class MatchSummariesQueryService(
             if (!participantsByMatch.TryGetValue(match.Id, out var partList))
             {
                 logger.LogWarning(
-                    "[match-summaries] match has no participant rows match_id={MatchId}",
-                    match.Id);
+                    "{Surface} match has no participant rows match_id={MatchId}",
+                    Surface, match.Id);
                 continue;
             }
 
@@ -239,8 +243,8 @@ public sealed class MatchSummariesQueryService(
             if (self is null)
             {
                 logger.LogWarning(
-                    "[match-summaries] match missing self participant match_id={MatchId} puuid={Puuid}",
-                    match.Id, account.Puuid);
+                    "{Surface} match missing self participant match_id={MatchId} puuid={Puuid}",
+                    Surface, match.Id, account.Puuid);
                 continue;
             }
 

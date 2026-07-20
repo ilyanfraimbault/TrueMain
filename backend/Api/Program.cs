@@ -98,6 +98,7 @@ builder.Services.AddOptions<OpsOptions>()
     .ValidateOnStart();
 builder.Services.AddOptions<TruemainsLeaderboardOptions>()
     .Bind(builder.Configuration.GetSection(TruemainsLeaderboardOptions.SectionName))
+    .ValidateDataAnnotations()
     // MinRankedGames is compared against main_champion_stats.TotalMatches,
     // which saturates at MainAnalysis.MatchesToConsider — so the real upper
     // bound is that option, not a constant. Cross-validate the two instead of
@@ -145,7 +146,9 @@ builder.Services.AddOptions<CompositionSearchOptions>()
         "CompositionSearch:SituationalItemCount must be >= 0.")
     .ValidateOnStart();
 builder.Services.AddOptions<DatabaseOptions>()
-    .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName));
+    .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 
 builder.Services
     .AddAuthentication(ApiKeyAuthenticationDefaults.Scheme)
@@ -271,21 +274,21 @@ if (app.Environment.IsDevelopment()
         frontendCorsPolicy);
 }
 
-// Wrap unhandled exceptions in RFC 7807 ProblemDetails so clients
-// always see a structured payload instead of HTML stack traces, and
-// emit StatusCodePages for 4xx/5xx responses without a body so things
-// like a bare 404 still arrive as ProblemDetails JSON.
-app.UseExceptionHandler();
-app.UseStatusCodePages();
-
-// The OpenAPI JSON document (default /openapi/v1.json) and the Scalar UI
-// at /scalar/v1 are served only in Development so no API surface metadata
-// is exposed in production.
+// Development gets the rich debug page (source snippets, full stack trace);
+// everywhere else keeps the RFC 7807 ProblemDetails handler so clients always
+// see a structured payload instead of HTML stack traces. StatusCodePages
+// covers 4xx/5xx responses without a body so things like a bare 404 still
+// arrive as ProblemDetails JSON.
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
-    app.MapScalarApiReference();
+    app.UseDeveloperExceptionPage();
 }
+else
+{
+    app.UseExceptionHandler();
+}
+
+app.UseStatusCodePages();
 
 // HSTS instructs browsers to only reach the API over HTTPS. Skip it in
 // Development (localhost is typically HTTP and a cached HSTS policy would
@@ -297,6 +300,16 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// The OpenAPI JSON document (default /openapi/v1.json) and the Scalar UI
+// at /scalar/v1 are served only in Development so no API surface metadata
+// is exposed in production.
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+    app.MapScalarApiReference();
+}
+
 app.UseCors(frontendCorsPolicy);
 
 app.UseAuthentication();
