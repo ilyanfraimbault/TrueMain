@@ -22,15 +22,7 @@ public class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<TrueMainDb
             .AddEnvironmentVariables()
             .Build();
 
-        var connectionString = configuration.GetConnectionString("TrueMain");
-
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            throw new InvalidOperationException(
-                "Missing connection string. Add ConnectionStrings:TrueMain to user secrets.");
-        }
-
-        return CreateDbContext(connectionString);
+        return CreateDbContext(DataServiceCollectionExtensions.GetRequiredConnectionString(configuration));
     }
 
     private static TrueMainDbContext CreateDbContext(string connectionString)
