@@ -99,6 +99,13 @@ public sealed record MatchSummaryParticipantReadModel
 
     public int TeamId { get; init; }
 
+    /// <summary>
+    /// Riot team position (TOP/JUNGLE/MIDDLE/BOTTOM/UTILITY). Null when Riot
+    /// did not assign one (non-SR modes, remakes) — the frontend then falls
+    /// back to raw participant order for the composition columns.
+    /// </summary>
+    public string? Position { get; init; }
+
     /// <summary>Riot game name (Riot ID prefix). Null when the participant is not a tracked account.</summary>
     public string? GameName { get; init; }
 

@@ -120,16 +120,16 @@ const mockRankHistory: RankHistoryEntry[] = (() => {
 
 function makeMockParticipants(): MatchSummaryResponse['participants'] {
   return [
-    { championId: 157, teamId: 100, gameName: 'BlueTop', tagLine: 'EUW' },
-    { championId: 64, teamId: 100, gameName: 'BlueJng', tagLine: 'EUW' },
-    { championId: 99, teamId: 100, gameName: 'BlueMid', tagLine: 'EUW' },
-    { championId: 222, teamId: 100, gameName: 'BlueBot', tagLine: 'EUW' },
-    { championId: 412, teamId: 100, gameName: 'BlueSup', tagLine: 'EUW' },
-    { championId: 86, teamId: 200, gameName: 'RedTop', tagLine: 'EUW' },
-    { championId: 121, teamId: 200, gameName: 'RedJng', tagLine: 'EUW' },
-    { championId: 103, teamId: 200, gameName: 'RedMid', tagLine: 'EUW' },
-    { championId: 51, teamId: 200, gameName: 'RedBot', tagLine: 'EUW' },
-    { championId: 117, teamId: 200, gameName: 'RedSup', tagLine: 'EUW' },
+    { championId: 157, teamId: 100, position: 'TOP', gameName: 'BlueTop', tagLine: 'EUW' },
+    { championId: 64, teamId: 100, position: 'JUNGLE', gameName: 'BlueJng', tagLine: 'EUW' },
+    { championId: 99, teamId: 100, position: 'MIDDLE', gameName: 'BlueMid', tagLine: 'EUW' },
+    { championId: 222, teamId: 100, position: 'BOTTOM', gameName: 'BlueBot', tagLine: 'EUW' },
+    { championId: 412, teamId: 100, position: 'UTILITY', gameName: 'BlueSup', tagLine: 'EUW' },
+    { championId: 86, teamId: 200, position: 'TOP', gameName: 'RedTop', tagLine: 'EUW' },
+    { championId: 121, teamId: 200, position: 'JUNGLE', gameName: 'RedJng', tagLine: 'EUW' },
+    { championId: 103, teamId: 200, position: 'MIDDLE', gameName: 'RedMid', tagLine: 'EUW' },
+    { championId: 51, teamId: 200, position: 'BOTTOM', gameName: 'RedBot', tagLine: 'EUW' },
+    { championId: 117, teamId: 200, position: 'UTILITY', gameName: 'RedSup', tagLine: 'EUW' },
   ]
 }
 

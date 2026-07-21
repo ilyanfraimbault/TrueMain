@@ -39,6 +39,8 @@ export interface MatchSummarySelf {
 export interface MatchSummaryParticipant {
   championId: number
   teamId: number
+  /** Riot team position (TOP/JUNGLE/MIDDLE/BOTTOM/UTILITY). Null when Riot did not assign one. */
+  position: string | null
   gameName: string | null
   tagLine: string | null
 }

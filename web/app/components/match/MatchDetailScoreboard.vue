@@ -7,6 +7,7 @@ import type {
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
 import { formatPercentage } from '~~/shared/utils/ddragon'
+import { formatTier } from '~/utils/tiers'
 
 const props = defineProps<{
   participants: MatchDetailParticipant[]
@@ -150,14 +151,14 @@ function fmtGold(value: number) {
           <NuxtLink
             v-if="profileSlug(p)"
             :to="profileSlug(p)!"
-            class="truncate text-xs font-medium text-default hover:underline"
+            class="truncate text-xs font-medium text-default transition-colors hover:text-primary"
           >
             {{ p.gameName }}
           </NuxtLink>
           <span v-else class="truncate text-xs font-medium text-muted">{{ p.gameName ?? p.summonerName }}</span>
           <span v-if="p.rank" class="flex items-center gap-1 text-[10px] text-muted">
             <RankIcon :tier="p.rank.tier" :size="14" />
-            {{ p.rank.tier }} {{ p.rank.division }}
+            {{ formatTier(p.rank.tier, p.rank.division) }}
           </span>
         </div>
 
