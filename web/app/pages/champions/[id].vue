@@ -431,13 +431,21 @@ watch(champion, (data) => {
           />
           <ChampionBuildTabsSkeleton v-else />
 
-          <ChampionTrendChart
+          <!--
+            Everything below the build tabs is below the fold and pulls the
+            heavy charting bundle (nuxt-charts). Lazy-load each so its JS lands
+            in its own chunk and only downloads/hydrates once scrolled into
+            view — keeps the champion detail route's initial JS lean (#820).
+          -->
+          <LazyChampionTrendChart
+            hydrate-on-visible
             :points="championTrend?.points ?? []"
             :loading="isLoadingStatus(trendStatus)"
           />
 
-          <ChampionPatchDiff
+          <LazyChampionPatchDiff
             v-if="showPatchDiff"
+            hydrate-on-visible
             :diff="championPatchDiff ?? null"
             :items-map="itemsMap ?? {}"
             :rune-tree="runeTree ?? null"
@@ -451,27 +459,31 @@ watch(champion, (data) => {
           />
 
           <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <ChampionTimelineLeadsChart
+            <LazyChampionTimelineLeadsChart
+              hydrate-on-visible
               :intervals="championLeads?.intervals ?? []"
               :loading="isLoadingStatus(leadsStatus)"
             />
 
-            <ChampionScalingChart
+            <LazyChampionScalingChart
+              hydrate-on-visible
               :buckets="championScaling?.buckets ?? []"
               :scaling-index="championScaling?.scalingIndex ?? null"
               :loading="isLoadingStatus(scalingStatus)"
             />
           </div>
 
-          <ChampionPowerspikesChart
+          <LazyChampionPowerspikesChart
+            hydrate-on-visible
             :curve="championPowerspikes?.curve ?? []"
             :events="championPowerspikes?.events ?? []"
             :items-map="itemsMap ?? {}"
             :loading="isLoadingStatus(powerspikesStatus)"
           />
 
-          <ChampionRoam
+          <LazyChampionRoam
             v-if="trendPosition !== 'JUNGLE'"
+            hydrate-on-visible
             :kp5="championRoam?.roamKp5 ?? null"
             :kp10="championRoam?.roamKp10 ?? null"
             :kp15="championRoam?.roamKp15 ?? null"
@@ -481,7 +493,8 @@ watch(champion, (data) => {
         </div>
 
         <aside class="min-w-0 space-y-6">
-          <ChampionTruemains
+          <LazyChampionTruemains
+            hydrate-on-visible
             :champion-id="championId"
             :champions="staticList ?? []"
             :rune-tree="runeTree ?? null"
@@ -489,7 +502,8 @@ watch(champion, (data) => {
             :patch="latestVersion"
           />
 
-          <ChampionMatchups
+          <LazyChampionMatchups
+            hydrate-on-visible
             :champion-id="championId"
             :position="selectedPosition"
             :champions="staticList ?? []"

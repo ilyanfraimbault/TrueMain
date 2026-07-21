@@ -270,7 +270,10 @@ const staticBundleReady = computed(() =>
           </div>
 
           <aside class="min-w-0 space-y-6">
-            <ChampionMatchups
+            <!-- Below-the-fold sidebar: lazy-load so it lands in its own chunk
+                 and hydrates only once scrolled into view (#820). -->
+            <LazyChampionMatchups
+              hydrate-on-visible
               :champion-id="championId"
               :position="selectedPosition"
               :champions="staticList ?? []"
@@ -311,9 +314,10 @@ const staticBundleReady = computed(() =>
           <MatchRowSkeleton v-for="i in 5" :key="`match-skel-${i}`" />
         </template>
         <template v-else>
-          <MatchRow
+          <LazyMatchRow
             v-for="match in matches"
             :key="match.matchId"
+            hydrate-on-visible
             :match="match"
             :champions="staticList ?? []"
             :items="itemsMap ?? {}"
