@@ -230,15 +230,26 @@ const staticBundleReady = computed(() =>
         </NuxtLink>
       </div>
 
-      <template v-if="champion && staticData">
+      <!--
+        Build region renders whenever we're not settled into the no-build state,
+        independently of the client-only `champion`/`staticData` resolving — the
+        same pattern (and rationale) as the global champion page. The header and
+        the two-column grid reserve their space from SSR: the header falls back
+        to the URL filters, and the build tabs show a dedicated skeleton until
+        real champion + static data land. This keeps the recent-games section
+        below from being shoved down when the client fetch completes (#834 — the
+        section used to jump ~1700px, wrecking CLS, because the whole grid was
+        gated on `champion && staticData` and so was absent from the SSR HTML).
+      -->
+      <template v-if="!notEnoughData">
         <header class="flex flex-wrap items-center gap-4">
           <ChampionHeader
             :champion-name="displayName"
             :champion-icon-url="displayIconUrl"
             :champion-id="championId"
-            :position="champion.position"
-            :total-games="champion.totalGames"
-            :total-wins="champion.totalWins"
+            :position="champion?.position || selectedPosition || ''"
+            :total-games="champion?.totalGames ?? 0"
+            :total-wins="champion?.totalWins ?? 0"
             :low-sample-message="lowSampleMessage"
           />
           <ChampionFilters
@@ -261,12 +272,14 @@ const staticBundleReady = computed(() =>
         <div class="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
           <div class="min-w-0 space-y-6">
             <ChampionBuildTabs
+              v-if="champion && staticData"
               :builds="champion.builds"
               :champion-static="staticData"
               :items-map="itemsMap ?? {}"
               :summoners-map="summonersMap ?? {}"
               :rune-tree="runeTree ?? null"
             />
+            <ChampionBuildTabsSkeleton v-else />
           </div>
 
           <aside class="min-w-0 space-y-6">
