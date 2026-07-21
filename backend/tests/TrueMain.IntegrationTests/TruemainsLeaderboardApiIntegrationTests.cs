@@ -83,14 +83,19 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
     }
 
     [Fact]
-    public async Task List_serves_games_kda_winrate_from_aggregate_scopes_without_match_participants()
+    public async Task List_serves_games_kda_from_aggregate_scopes_and_winrate_from_rank_snapshot()
     {
-        // Regression for #719: the Games / KDA / WR cell used to COUNT over live
+        // Regression for #719: the Games / KDA cell used to COUNT over live
         // match_participants, which retention hard-deletes beyond the last few
         // patches — a high-LP main could read "0 games". It now sums the frozen
         // champion_aggregate_scopes, so it must resolve even with zero
         // participant rows, and must sum across an account's scopes (patches /
         // brackets) without double-counting.
+        //
+        // #824: the WR / W-L cell is sourced from the latest rank snapshot's
+        // overall split totals, NOT the aggregate's win count. The snapshot here
+        // carries 60/40 while the scopes only sum to 25 wins over 50 games, so a
+        // WR of 0.6 proves the cell tracks the snapshot and not the scopes.
         await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
@@ -98,13 +103,14 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
         {
             var player = Account("scoped", "ScopedMain", "EUW1");
             db.RiotAccounts.Add(player);
-            db.RankSnapshots.Add(Snapshot(player, "DIAMOND", "I", 50, now));
+            db.RankSnapshots.Add(Snapshot(player, "DIAMOND", "I", 50, now, wins: 60, losses: 40));
             db.MainChampionStats.Add(MainStat("scoped", "EUW1", 1, "MIDDLE", isMain: true));
 
             // Two scopes for the same champion on different patches: the read
-            // path sums them into one player total. Games 30+20=50, Wins
-            // 18+7=25 (WR 0.5), Kills 100+50=150, Deaths 40+20=60, Assists
-            // 200+80=280 → KDA (150+280)/60 = 7.1667.
+            // path sums them into one player total. Games 30+20=50, Kills
+            // 100+50=150, Deaths 40+20=60, Assists 200+80=280 → KDA
+            // (150+280)/60 = 7.1667. The scope win count (25) is deliberately
+            // NOT the WR source anymore.
             db.ChampionAggregateScopes.AddRange(
                 Scope(player.Id, championId: 1, patch: "16.5", games: 30, wins: 18, kills: 100, deaths: 40, assists: 200, now),
                 Scope(player.Id, championId: 1, patch: "16.4", games: 20, wins: 7, kills: 50, deaths: 20, assists: 80, now));
@@ -121,10 +127,53 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
         var stats = leaderboard.Rows[0].Stats;
         stats.Should().NotBeNull();
         stats!.Games.Should().Be(50);
-        stats.Wins.Should().Be(25);
-        stats.Losses.Should().Be(25);
-        stats.WinRate.Should().BeApproximately(0.5d, 1e-6);
         stats.Kda.Should().BeApproximately((150d + 280d) / 60d, 1e-6);
+        // WR / W-L from the rank snapshot (60/40 → 0.6), independent of the
+        // aggregate's 25 wins.
+        stats.Wins.Should().Be(60);
+        stats.Losses.Should().Be(40);
+        stats.WinRate.Should().BeApproximately(0.6d, 1e-6);
+    }
+
+    [Fact]
+    public async Task List_serves_winrate_from_rank_snapshot_when_player_has_no_aggregate_scopes()
+    {
+        // #824: a main whose tracked-champion games have all aged out of
+        // champion_aggregate_scopes (or whose displayed main is a stale snapshot
+        // they no longer play) has no aggregate to sum, so Games/KDA are empty —
+        // but the account still has a live overall ranked W-L on its latest rank
+        // snapshot. The WR cell must come from that snapshot so a #1-LP main
+        // doesn't render with a blank win rate.
+        await _fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var player = Account("staleMain", "StaleMain", "EUW1");
+            db.RiotAccounts.Add(player);
+            db.RankSnapshots.Add(Snapshot(player, "CHALLENGER", "I", 900, now, wins: 714, losses: 602));
+            // A main-champion stat exists (so the account is a truemain) but NO
+            // champion_aggregate_scopes rows are seeded for it.
+            db.MainChampionStats.Add(MainStat("staleMain", "EUW1", 1, "MIDDLE", isMain: true));
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        var leaderboard = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        leaderboard!.Rows.Should().ContainSingle();
+
+        var stats = leaderboard.Rows[0].Stats;
+        stats.Should().NotBeNull();
+        // No aggregate scopes → no games / KDA…
+        stats!.Games.Should().Be(0);
+        stats.Kda.Should().BeNull();
+        // …but the WR is still present, sourced from the snapshot (714/602).
+        stats.Wins.Should().Be(714);
+        stats.Losses.Should().Be(602);
+        stats.WinRate.Should().BeApproximately(714d / (714d + 602d), 1e-6);
     }
 
     [Fact]
@@ -773,7 +822,14 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
             LastMatchIngestAtUtc = DateTime.UtcNow,
         };
 
-    private static RankSnapshot Snapshot(RiotAccount account, string tier, string division, int leaguePoints, DateTime now)
+    private static RankSnapshot Snapshot(
+        RiotAccount account,
+        string tier,
+        string division,
+        int leaguePoints,
+        DateTime now,
+        int? wins = 50,
+        int? losses = 50)
     {
         // Mirror the ingestion writer: a snapshot's rank determines the
         // account's denormalised leaderboard Score, which the query orders on.
@@ -789,8 +845,11 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
             Tier = tier,
             Division = division,
             LeaguePoints = leaguePoints,
-            Wins = 50,
-            Losses = 50,
+            // The leaderboard WR is sourced from these split totals (League-V4),
+            // not the champion aggregate; overridable so a test can prove the WR
+            // cell tracks the snapshot and not the scopes' win count.
+            Wins = wins,
+            Losses = losses,
         };
     }
 

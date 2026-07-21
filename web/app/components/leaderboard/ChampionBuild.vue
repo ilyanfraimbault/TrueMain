@@ -42,8 +42,9 @@ const playRatePct = computed(() => {
   return Number.isFinite(rate) ? formatPercentage(rate, 0) : null
 })
 
-const iconSize = computed(() => (props.compact ? 32 : 36))
-const buildSize = computed(() => (props.compact ? 24 : 28))
+const iconSize = computed(() => (props.compact ? 28 : 30))
+const buildSize = computed(() => (props.compact ? 20 : 22))
+const secondaryOverlaySize = computed(() => (props.compact ? 11 : 13))
 const championTitle = computed(() => `${props.name} · ${props.champion.games} games`)
 </script>
 
@@ -65,6 +66,8 @@ const championTitle = computed(() => `${props.name} · ${props.champion.games} g
       :style="{ width: `${iconSize}px`, height: `${iconSize}px` }"
     />
 
+    <!-- Play rate with a "PR" label, mirroring the "WR" label under the row's
+         win rate so the two percentages read as a matched pair. -->
     <div
       v-if="playRatePct !== null"
       class="flex flex-col leading-none"
@@ -73,10 +76,7 @@ const championTitle = computed(() => `${props.name} · ${props.champion.games} g
         class="font-semibold tabular-nums"
         :class="compact ? 'text-xs' : 'text-sm'"
       >{{ playRatePct }}</span>
-      <span
-        v-if="!compact"
-        class="mt-0.5 text-[11px] text-muted"
-      >play rate</span>
+      <span class="mt-0.5 text-[10px] font-normal uppercase tracking-wide text-muted">PR</span>
     </div>
 
     <!-- Keystone with the secondary tree as a small overlay badge — same
@@ -96,10 +96,10 @@ const championTitle = computed(() => `${props.name} · ${props.champion.games} g
       <GameTooltipPerkStyleIcon
         v-if="secondaryStyle"
         :style="secondaryStyle"
-        :width="compact ? 13 : 15"
-        :height="compact ? 13 : 15"
+        :width="secondaryOverlaySize"
+        :height="secondaryOverlaySize"
         class="absolute -bottom-1 -right-1.5"
-        :class="compact ? 'size-[13px]' : 'size-[15px]'"
+        :class="compact ? 'size-[11px]' : 'size-[13px]'"
       />
     </div>
 

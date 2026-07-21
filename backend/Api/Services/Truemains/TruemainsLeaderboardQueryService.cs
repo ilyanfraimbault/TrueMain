@@ -243,11 +243,17 @@ public sealed class TruemainsLeaderboardQueryService(
                 Stats = new LeaderboardStatsReadModel
                 {
                     Games = stats?.Games ?? 0,
-                    Wins = stats?.Wins,
-                    Losses = stats?.Losses,
-                    WinRate = stats is not null
-                        ? RateMath.WinRate(stats.Wins, stats.Losses)
-                        : null,
+                    // WR / W-L are the player's overall ranked split totals from the
+                    // latest rank snapshot (League-V4 Wins/Losses), not the
+                    // main-champion aggregate. A main whose tracked-champion games
+                    // have aged out of champion_aggregate_scopes (or whose displayed
+                    // main is a stale snapshot they no longer play) still has a live
+                    // ranked W-L on their snapshot, so the WR cell stays populated
+                    // instead of vanishing. Games / KDA remain the main-champion
+                    // aggregate (games on tracked mains), so games and W+L can differ.
+                    Wins = latestRank?.Wins,
+                    Losses = latestRank?.Losses,
+                    WinRate = RateMath.WinRate(latestRank?.Wins, latestRank?.Losses),
                     Kda = stats?.Kda,
                 },
                 TopChampions = topChamps,
@@ -442,7 +448,9 @@ public sealed class TruemainsLeaderboardQueryService(
                 rs."RiotAccountId" AS "AccountId",
                 rs."Tier" AS "Tier",
                 rs."Division" AS "Division",
-                rs."LeaguePoints" AS "LeaguePoints"
+                rs."LeaguePoints" AS "LeaguePoints",
+                rs."Wins" AS "Wins",
+                rs."Losses" AS "Losses"
             FROM rank_snapshots rs
             WHERE rs."RiotAccountId" = ANY ({accountIds})
             ORDER BY rs."RiotAccountId", rs."CapturedAtUtc" DESC
@@ -783,7 +791,7 @@ public sealed class TruemainsLeaderboardQueryService(
         int SummonerLevel,
         int Score);
 
-    private sealed record RankRow(Guid AccountId, string Tier, string Division, int LeaguePoints);
+    private sealed record RankRow(Guid AccountId, string Tier, string Division, int LeaguePoints, int? Wins, int? Losses);
 
     private sealed record TopChampionRow(string Puuid, int ChampionId, int Games, double PlayRate, bool IsOtp);
 

@@ -60,14 +60,16 @@ public sealed record LeaderboardRankedReadModel
 
 public sealed record LeaderboardStatsReadModel
 {
+    /// <summary>Games on the player's tracked main champions, summed from <c>champion_aggregate_scopes</c>. May be 0 while <see cref="Wins"/>/<see cref="Losses"/> are non-zero — those are the overall ranked totals, this counts only tracked mains.</summary>
     public int Games { get; init; }
 
-    /// <summary>Wins across the visible games window (currently lifetime ranked). Null when no participant rows attributed to the account.</summary>
+    /// <summary>Overall ranked-split wins from the latest <c>rank_snapshots</c> row (League-V4), independent of which champions are tracked. Null when the snapshot has no win/loss totals.</summary>
     public int? Wins { get; init; }
 
+    /// <summary>Overall ranked-split losses from the latest <c>rank_snapshots</c> row. Null when the snapshot has no win/loss totals.</summary>
     public int? Losses { get; init; }
 
-    /// <summary><c>wins / (wins + losses)</c> when both are known, otherwise null — the frontend hides the cell instead of rendering 0% / NaN.</summary>
+    /// <summary><c>wins / (wins + losses)</c> over the overall ranked split (from the latest rank snapshot) when both are known, otherwise null — the frontend hides the cell instead of rendering 0% / NaN.</summary>
     public double? WinRate { get; init; }
 
     /// <summary><c>(kills + assists) / max(1, deaths)</c> across attributed participant rows, null when none.</summary>
