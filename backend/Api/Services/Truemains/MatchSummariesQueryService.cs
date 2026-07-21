@@ -332,6 +332,7 @@ public sealed class MatchSummariesQueryService(
                     },
                     TrinketItemId = self.TrinketItemId,
                     TeamId = self.TeamId,
+                    Position = string.IsNullOrEmpty(self.TeamPosition) ? null : self.TeamPosition,
                     Win = self.Win,
                     LpDelta = null,
                     IsMvp = isMvp,

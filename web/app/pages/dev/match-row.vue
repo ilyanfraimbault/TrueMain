@@ -94,6 +94,7 @@ const mockMatches = computed<MatchSummaryResponse[]>(() => [
       items: [3031, 3046, 3036, 3072, 3009, 3026],
       trinketItemId: 3340,
       teamId: 100,
+      position: 'TOP',
       win: true,
       lpDelta: 23,
       isMvp: true,
@@ -124,9 +125,9 @@ const mockMatches = computed<MatchSummaryResponse[]>(() => [
       // Herald eye in the trinket slot — must be filtered out (not a build item).
       trinketItemId: 3513,
       // Team 100 to line up with the shared participants fixture, where
-      // champion 222 sits on the blue side — keeps the self-highlight in the
-      // composition columns pointing at the right icon.
+      // champion 222 sits on the blue side.
       teamId: 100,
+      position: 'BOTTOM',
       win: false,
       lpDelta: -30,
       isMvp: false,
@@ -157,6 +158,7 @@ const mockMatches = computed<MatchSummaryResponse[]>(() => [
       items: [6655, 3020, 3157, 3165, 3513, 0],
       trinketItemId: 3340,
       teamId: 100,
+      position: 'MIDDLE',
       win: false,
       lpDelta: -18,
       isMvp: false,

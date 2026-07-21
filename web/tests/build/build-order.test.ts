@@ -1,7 +1,7 @@
 import type { MatchDetailItemEvent } from '~~/shared/types/match-detail'
 import type { StaticItemData } from '~~/shared/types/static-data'
 import { describe, expect, it } from 'vitest'
-import { isBuildOrderEvent, resolveEventItemId } from '~~/shared/utils/build'
+import { isBootsItem, isBuildOrderEvent, isNonBuildItem, resolveEventItemId } from '~~/shared/utils/build'
 
 function ev(partial: Partial<MatchDetailItemEvent> & { eventType: string }): MatchDetailItemEvent {
   return { timestampMs: 0, itemId: 0, beforeId: null, afterId: null, ...partial }
@@ -58,5 +58,28 @@ describe('isBuildOrderEvent', () => {
   it('keeps deliberate sells and undos', () => {
     expect(isBuildOrderEvent(ev({ eventType: 'ITEM_SOLD', itemId: 1001 }), CATALOG)).toBe(true)
     expect(isBuildOrderEvent(ev({ eventType: 'ITEM_UNDO', itemId: 0, beforeId: 1001 }), CATALOG)).toBe(true)
+  })
+})
+
+describe('isNonBuildItem', () => {
+  it('flags the Eye of the Herald (Rift Herald summon, not a build item)', () => {
+    expect(isNonBuildItem(3513)).toBe(true)
+  })
+
+  it('does not flag a real item', () => {
+    expect(isNonBuildItem(3031)).toBe(false)
+    expect(isNonBuildItem(3006)).toBe(false)
+  })
+})
+
+describe('isBootsItem', () => {
+  it('is true when the DDragon tags include "Boots"', () => {
+    expect(isBootsItem(item(3006, { tags: ['Boots'] }))).toBe(true)
+  })
+
+  it('is false for a non-boots item, a tag-less item, and null', () => {
+    expect(isBootsItem(item(3031, { tags: ['Damage', 'CriticalStrike'] }))).toBe(false)
+    expect(isBootsItem(item(3031))).toBe(false)
+    expect(isBootsItem(null)).toBe(false)
   })
 })

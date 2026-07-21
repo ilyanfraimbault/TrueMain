@@ -1004,6 +1004,7 @@ function mockMatches(player: MockPlayer, query: Record<string, unknown>): MatchS
         items: [...archetype.items.slice(0, 5), archetype.boots[0]!],
         trinketItemId: 3364,
         teamId: selfTeam,
+        position: (['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'] as const)[index % 5]!,
         win,
         lpDelta: win ? 14 + Math.floor(rng() * 12) : -(12 + Math.floor(rng() * 12)),
         isMvp: win && rng() > 0.72,

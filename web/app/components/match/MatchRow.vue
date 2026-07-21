@@ -153,15 +153,12 @@ const trinket = computed<StaticItemData | null>(() => {
   return props.items[id] ?? null
 })
 
-// The viewing player's assigned role, resolved from the participant list so the
-// portrait can badge a position icon instead of the champion level. Null when
-// Riot never assigned one (old rows, non-SR modes) — the level shows instead.
-const selfPosition = computed<string | null>(() => {
-  const me = props.match.participants.find(
-    p => p.teamId === self.value.teamId && p.championId === self.value.championId,
-  )
-  return me?.position ?? null
-})
+// The viewing player's assigned role, taken straight from the PUUID-matched
+// self read-model so the portrait can badge a position icon instead of the
+// champion level. Null when Riot never assigned one (old rows, non-SR modes) —
+// the level shows instead. Resolved server-side, so it stays correct even in
+// queues that allow duplicate champions on a team.
+const selfPosition = computed<string | null>(() => self.value.position ?? null)
 
 const durationLabel = computed(() => formatDuration(props.match.gameDurationSeconds))
 
