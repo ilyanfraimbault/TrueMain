@@ -402,7 +402,13 @@ defineShortcuts(computed(() => ({
         <div class="sr-only" role="status" aria-live="polite" aria-atomic="true">
           {{ truemainAnnouncement }}
         </div>
-        <UCommandPalette
+        <!-- Lazy on purpose: the header mounts this component on every page, so a
+             static `UCommandPalette` reference would ship the palette chunk (its
+             render logic + Fuse) into the site-wide initial JS (#832). The Lazy
+             variant is an async-import boundary; it sits inside UModal's #content
+             (only rendered when `open`), so the chunk loads on the first search
+             open, not on page load. The ⌘K shortcut + trigger button stay eager. -->
+        <LazyUCommandPalette
           v-model:search-term="term"
           :groups="groups"
           :placeholder="props.placeholder"
@@ -466,7 +472,7 @@ defineShortcuts(computed(() => ({
               </span>
             </div>
           </template>
-        </UCommandPalette>
+        </LazyUCommandPalette>
       </template>
     </UModal>
   </div>
