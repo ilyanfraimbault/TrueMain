@@ -283,10 +283,15 @@ const staticBundleReady = computed(() =>
           </div>
 
           <aside class="min-w-0 space-y-6">
-            <!-- Below-the-fold sidebar: lazy-load so it lands in its own chunk
-                 and hydrates only once scrolled into view (#820). -->
+            <!-- Below-the-fold sidebar: lazy-load so its JS lands in its own
+                 chunk (#820), but hydrate immediately, not deferred until
+                 scrolled into view. This grid renders unconditionally at SSR
+                 (see the skeleton above), so ChampionMatchups gets real SSR
+                 markup from its client-only data's loading/empty state;
+                 deferring hydration to visibility let that data resolve
+                 before the scroll-triggered hydration ran, causing a mismatch
+                 (#834 — same root cause as the global champion page). -->
             <LazyChampionMatchups
-              hydrate-on-visible
               :champion-id="championId"
               :position="selectedPosition"
               :champions="staticList ?? []"
