@@ -11,8 +11,9 @@
 // Cursor-reactive: the corona surges on the side of the orb facing the
 // mouse while it moves, and settles a few seconds after it rests.
 //
-// Degrades gracefully: no WebGL → the static CSS wash below; reduced-motion →
-// a single rendered frame, no loop; tab hidden / off-screen → the loop parks.
+// Degrades gracefully: no WebGL → the static CSS wash below; reduced-motion or
+// a very small viewport → a single rendered frame, no loop; tab hidden /
+// off-screen → the loop parks.
 // Output is premultiplied additive-over-transparent (colour scaled to its
 // luminance-derived alpha) so only the light composites onto the page surface.
 
@@ -286,8 +287,16 @@ onMounted(() => {
     draw((now - startTime) / 1000)
   }
 
+  // The loop should stay parked (a single static frame instead of a live
+  // animation) whenever the user asked for reduced motion or the viewport is
+  // too small to be worth the continuous fill cost. `document.hidden` is a
+  // separate, transient park handled by start()/onVisibilityChange.
+  function motionOff() {
+    return reducedMotion.matches || window.innerWidth < SMALL_VIEWPORT_MAX
+  }
+
   function start() {
-    if (rafId || reducedMotion.matches || document.hidden) return
+    if (rafId || motionOff() || document.hidden) return
     rafId = requestAnimationFrame(loop)
   }
 
@@ -298,7 +307,7 @@ onMounted(() => {
   }
 
   function syncMotion() {
-    if (reducedMotion.matches) {
+    if (motionOff()) {
       stop()
       draw(STATIC_FRAME_SECONDS)
     }
@@ -308,12 +317,21 @@ onMounted(() => {
   }
 
   const resizeObserver = new ResizeObserver(() => {
-    // Only repaint when the loop is parked, and keep the timestamp consistent
-    // with the loop (relative to the first frame) rather than raw page time.
     if (rafId) return
-    draw(reducedMotion.matches
-      ? STATIC_FRAME_SECONDS
-      : startTime ? (performance.now() - startTime) / 1000 : 0)
+    // A resize can cross the small-viewport threshold, so re-evaluate whether
+    // the loop should now run (e.g. a phone rotated into landscape). When it
+    // stays parked, repaint one frame — a developed static frame if motion is
+    // off, otherwise timed relative to the first frame (matching the loop),
+    // never raw page time.
+    if (motionOff()) {
+      draw(STATIC_FRAME_SECONDS)
+    }
+    else if (document.hidden) {
+      draw(startTime ? (performance.now() - startTime) / 1000 : 0)
+    }
+    else {
+      start()
+    }
   })
   resizeObserver.observe(canvas)
 
