@@ -38,15 +38,34 @@ interface StaticFetchOptions {
    * unresolved key must never collide with a real `latest` payload.
    */
   unresolvedKeySegment?: string
+  /**
+   * Run the fetch during SSR so the payload is present at hydration instead of
+   * only after a post-hydration client round trip (issue #818 — the static
+   * maps were the last thing gating the build breakdown behind
+   * SSR → hydration → client fetch). Defaults to `false` to preserve the
+   * historical client-only behaviour; opt in per lookup where the SSR payload
+   * cost is worth the earlier paint. See the size trade-off below the
+   * `useStaticItems` factory. The endpoints are 1h `defineCachedFunction`s, so
+   * an SSR fetch is a Nitro cache hit rather than an extra upstream round trip.
+   */
+  server?: boolean
 }
 
 /**
  * Shared factory for the patch-keyed static lookups below. Each fetch is
- * client-only and TTL-cached (see static-cache.ts) under a canonical
- * `{prefix}-{patch}` key, so every page that needs the same static payload
- * dedupes against the same Nuxt cache entry across navigations. The key is
- * captured before the network round trip so `markStaticFetched` can't stamp
- * a different key if the patch changes mid-flight.
+ * TTL-cached (see static-cache.ts) under a canonical `{prefix}-{patch}` key, so
+ * every page that needs the same static payload dedupes against the same Nuxt
+ * cache entry across navigations. The key is captured before the network round
+ * trip so `markStaticFetched` can't stamp a different key if the patch changes
+ * mid-flight.
+ *
+ * `options.server` decides whether the fetch also runs during SSR. When it
+ * does, `useLazyAsyncData` serialises the result into the Nuxt payload and the
+ * client hydrates from it (no post-hydration round trip); the
+ * `getStaticCachedData` server guard still forces the handler to run on the
+ * server rather than short-circuiting on a cache value, so the SSR render and
+ * the client's initial hydration always agree on the payload. Subsequent
+ * client-side remounts keep deduping through the TTL cache exactly as before.
  */
 function useStaticFetch<T>(
   keyPrefix: string,
@@ -71,21 +90,40 @@ function useStaticFetch<T>(
     {
       watch: [patchRef],
       immediate: options.immediate ?? true,
-      server: false,
+      server: options.server ?? false,
       getCachedData: key => getStaticCachedData(key, nuxtApp),
     },
   )
 }
 
-/** Static rune tree for a patch, keyed `rune-tree-{patch}`. */
+/**
+ * Static rune tree for a patch, keyed `rune-tree-{patch}`. SSR-rendered by
+ * default: the tree is small and feeds the keystone / secondary-rune icons in
+ * the build breakdown, so having it in the payload at hydration removes one of
+ * the client round trips gating that content (issue #818). Callers can still
+ * override via `options` — the champion detail page defers it with
+ * `{ immediate: false }` to avoid the unresolved-patch double fetch (issue #817).
+ */
 export function useStaticRuneTree(
   patch: MaybeRefOrGetter<string | null | undefined>,
   options: StaticFetchOptions = {},
 ) {
-  return useStaticFetch<RuneTreeResponse>('rune-tree', '/api/static/rune-tree', patch, options)
+  return useStaticFetch<RuneTreeResponse>('rune-tree', '/api/static/rune-tree', patch, { server: true, ...options })
 }
 
-/** Static item map for a patch, keyed `static-items-{patch}`. */
+/**
+ * Static item map for a patch, keyed `static-items-{patch}`.
+ *
+ * Client-only by default (`server: false`), deliberately unlike the rune /
+ * summoner maps: this payload carries every item's full `description` /
+ * `plaintext` (for the hover tooltips), which makes it ~373 KiB (the figure
+ * measured in #818) — the rune tree and summoner map are a fraction of that.
+ * SSR-ing it would inline that blob into the HTML of every page that renders a
+ * build,
+ * including the homepage teaser and the truemains leaderboard (both via
+ * `useBuildAssets`), for a below-the-fold benefit there. Callers where the
+ * earlier paint is worth the payload can opt in with `{ server: true }`.
+ */
 export function useStaticItems(
   patch: MaybeRefOrGetter<string | null | undefined>,
   options: StaticFetchOptions = {},
@@ -93,12 +131,18 @@ export function useStaticItems(
   return useStaticFetch<Record<number, StaticItemData>>('static-items', '/api/static/items', patch, options)
 }
 
-/** Static summoner-spell map for a patch, keyed `static-summoners-{patch}`. */
+/**
+ * Static summoner-spell map for a patch, keyed `static-summoners-{patch}`.
+ * SSR-rendered by default: only ~18 entries, so the payload cost is negligible
+ * and the summoner-spell icons render straight from the hydration payload
+ * (issue #818). Callers can override via `options` — the champion detail page
+ * defers it with `{ immediate: false }` (issue #817).
+ */
 export function useStaticSummonerSpells(
   patch: MaybeRefOrGetter<string | null | undefined>,
   options: StaticFetchOptions = {},
 ) {
-  return useStaticFetch<Record<number, StaticSummonerSpellData>>('static-summoners', '/api/static/summoner-spells', patch, options)
+  return useStaticFetch<Record<number, StaticSummonerSpellData>>('static-summoners', '/api/static/summoner-spells', patch, { server: true, ...options })
 }
 
 /**
