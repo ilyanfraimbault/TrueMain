@@ -8,10 +8,13 @@ const props = withDefaults(defineProps<{
   style?: StaticPerkStyleData | null
   width?: number | string
   height?: number | string
+  /** Native lazy-loading hint forwarded to the icon (`'lazy'` below the fold). */
+  loading?: 'lazy' | 'eager'
 }>(), {
   style: null,
   width: 36,
   height: 36,
+  loading: undefined,
 })
 
 const hasStyle = computed(() => Boolean(props.style))
@@ -30,6 +33,7 @@ const tooltipText = computed(() => props.style?.name ?? '')
       :alt="style?.name"
       :width="width"
       :height="height"
+      :loading="loading"
     />
   </UTooltip>
 </template>

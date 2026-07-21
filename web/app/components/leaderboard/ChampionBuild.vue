@@ -62,7 +62,6 @@ const championTitle = computed(() => `${props.name} · ${props.champion.games} g
       :width="iconSize"
       :height="iconSize"
       class="shrink-0 rounded-md ring-1 ring-default/40"
-      :style="{ width: `${iconSize}px`, height: `${iconSize}px` }"
     />
 
     <div
