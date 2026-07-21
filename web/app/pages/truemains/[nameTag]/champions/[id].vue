@@ -3,6 +3,7 @@ import type { ChampionPosition } from '~/utils/positions'
 import { describeFetchError } from '~/utils/errors'
 import { isLoadingStatus } from '~/utils/async-data'
 import { parseRouteParam } from '~/utils/route-params'
+import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 
 // Player-scoped mirror of pages/champions/[id].vue. The static-data fetches,
 // loading bar and build tabs are intentionally identical so the page looks
@@ -157,6 +158,15 @@ function setMatchPosition(next: ChampionPosition | null) {
 const staticBundleReady = computed(() =>
   Boolean(staticList.value && itemsMap.value && summonersMap.value && runeTree.value),
 )
+
+// Frozen prop bundle for the lazy (hydrate-on-visible) matchups sidebar — see
+// useLazyHydrationSnapshot / the identical pattern on pages/champions/[id].vue
+// for why: `staticList` is client-only (`server: false`), so freezing it
+// until the child actually mounts avoids a hydration mismatch (#834/#837).
+const matchupsSnapshot = useLazyHydrationSnapshot(
+  { champions: [] as ChampionStaticListItem[] },
+  () => ({ champions: staticList.value ?? [] }),
+)
 </script>
 
 <template>
@@ -284,18 +294,19 @@ const staticBundleReady = computed(() =>
 
           <aside class="min-w-0 space-y-6">
             <!-- Below-the-fold sidebar: lazy-load so its JS lands in its own
-                 chunk (#820), but hydrate immediately, not deferred until
-                 scrolled into view. This grid renders unconditionally at SSR
-                 (see the skeleton above), so ChampionMatchups gets real SSR
-                 markup from its client-only data's loading/empty state;
-                 deferring hydration to visibility let that data resolve
-                 before the scroll-triggered hydration ran, causing a mismatch
-                 (#834 — same root cause as the global champion page). -->
+                 chunk and only hydrates once scrolled into view (#820).
+                 `:champions` comes from `matchupsSnapshot` (frozen at its
+                 SSR-matching empty value until `@vue:mounted` reveals the
+                 live, already-loaded `staticList`) so the deferred hydration
+                 doesn't mismatch (#834/#837) — same pattern as the global
+                 champion page. -->
             <LazyChampionMatchups
+              hydrate-on-visible
               :champion-id="championId"
               :position="selectedPosition"
-              :champions="staticList ?? []"
               :name-tag="nameTag"
+              v-bind="matchupsSnapshot.value"
+              @vue:mounted="matchupsSnapshot.reveal"
             />
           </aside>
         </div>

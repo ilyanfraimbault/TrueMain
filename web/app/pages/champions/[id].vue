@@ -3,6 +3,15 @@ import { POSITION_BY_VALUE, type ChampionPosition } from '~/utils/positions'
 import { ELO_BRACKET_ALL, eloBracketLabel, normalizeEloBracket } from '~/utils/elo-brackets'
 import { describeFetchError } from '~/utils/errors'
 import { isLoadingStatus } from '~/utils/async-data'
+import type {
+  ChampionPatchDiffResponse,
+  ChampionPowerCurvePoint,
+  ChampionPowerspikeEvent,
+  ChampionScalingBucket,
+  ChampionTimelineLeadsInterval,
+  ChampionTrendPoint,
+} from '~~/shared/types/champions'
+import type { ChampionStaticData, ChampionStaticListItem, StaticItemData } from '~~/shared/types/static-data'
 
 const route = useRoute()
 const championId = computed(() => Number.parseInt(String(route.params.id), 10))
@@ -277,6 +286,84 @@ watch(champion, (data) => {
 
 // Each section drives its own skeleton off its own async status via the
 // shared isLoadingStatus util.
+
+// ─── Lazy-hydration snapshots ───────────────────────────────────────────────
+// The charts/panels below are `hydrate-on-visible` (their JS is heavy —
+// nuxt-charts — so it's kept out of the initial hydration pass, #820) but
+// every value they render comes from client-only (`server: false`)
+// composables. SSR always renders their empty/loading state; without
+// freezing, a child's *deferred* hydration (on scroll, well after the
+// client-only fetches have resolved) would reconcile against that stale SSR
+// snapshot using already-loaded data — a hydration mismatch on every one of
+// them, forcing Vue to discard and rebuild each subtree exactly as it enters
+// the viewport (#834/#837 — that's what caused the reported scroll jank).
+// `useLazyHydrationSnapshot` keeps each child's first (hydration) render
+// identical to SSR; `@vue:mounted="…Snapshot.reveal"` on the child then swaps
+// in the live, reactive value as a normal post-hydration update.
+const trendSnapshot = useLazyHydrationSnapshot(
+  { points: [] as ChampionTrendPoint[], loading: true },
+  () => ({ points: championTrend.value?.points ?? [], loading: isLoadingStatus(trendStatus.value) }),
+)
+const patchDiffSnapshot = useLazyHydrationSnapshot(
+  {
+    diff: null as ChampionPatchDiffResponse | null,
+    itemsMap: {} as Record<number, StaticItemData>,
+    championStatic: null as ChampionStaticData | null,
+    patchOptions: [] as Array<{ label: string, value: string }>,
+    loading: true,
+  },
+  () => ({
+    diff: championPatchDiff.value ?? null,
+    itemsMap: itemsMap.value ?? {},
+    championStatic: staticData.value ?? null,
+    patchOptions: patchDiffOptions.value,
+    loading: patchDiffLoading.value,
+  }),
+)
+const leadsSnapshot = useLazyHydrationSnapshot(
+  { intervals: [] as ChampionTimelineLeadsInterval[], loading: true },
+  () => ({ intervals: championLeads.value?.intervals ?? [], loading: isLoadingStatus(leadsStatus.value) }),
+)
+const scalingSnapshot = useLazyHydrationSnapshot(
+  { buckets: [] as ChampionScalingBucket[], scalingIndex: null as number | null, loading: true },
+  () => ({
+    buckets: championScaling.value?.buckets ?? [],
+    scalingIndex: championScaling.value?.scalingIndex ?? null,
+    loading: isLoadingStatus(scalingStatus.value),
+  }),
+)
+const powerspikesSnapshot = useLazyHydrationSnapshot(
+  {
+    curve: [] as ChampionPowerCurvePoint[],
+    events: [] as ChampionPowerspikeEvent[],
+    itemsMap: {} as Record<number, StaticItemData>,
+    loading: true,
+  },
+  () => ({
+    curve: championPowerspikes.value?.curve ?? [],
+    events: championPowerspikes.value?.events ?? [],
+    itemsMap: itemsMap.value ?? {},
+    loading: isLoadingStatus(powerspikesStatus.value),
+  }),
+)
+const roamSnapshot = useLazyHydrationSnapshot(
+  { kp5: null as number | null, kp10: null as number | null, kp15: null as number | null, games: 0, loading: true },
+  () => ({
+    kp5: championRoam.value?.roamKp5 ?? null,
+    kp10: championRoam.value?.roamKp10 ?? null,
+    kp15: championRoam.value?.roamKp15 ?? null,
+    games: championRoam.value?.games ?? 0,
+    loading: isLoadingStatus(roamStatus.value),
+  }),
+)
+const truemainsSnapshot = useLazyHydrationSnapshot(
+  { champions: [] as ChampionStaticListItem[], itemsMap: {} as Record<number, StaticItemData>, patch: null as string | null },
+  () => ({ champions: staticList.value ?? [], itemsMap: itemsMap.value ?? {}, patch: latestVersion.value }),
+)
+const matchupsSnapshot = useLazyHydrationSnapshot(
+  { champions: [] as ChampionStaticListItem[] },
+  () => ({ champions: staticList.value ?? [] }),
+)
 </script>
 
 <template>
@@ -434,85 +521,76 @@ watch(champion, (data) => {
           <!--
             Everything below the build tabs is below the fold and pulls the
             heavy charting bundle (nuxt-charts). Lazy-load each so its JS lands
-            in its own chunk, keeping the champion detail route's initial JS
-            lean (#820) — but hydrate immediately (no `hydrate-on-visible`),
-            not deferred until scrolled into view (#834). These components'
-            props derive from client-only (`server: false`) data: SSR always
-            captures the empty/loading snapshot, and the parent page's fetches
-            resolve almost immediately on the client (well before any scroll).
-            Deferring hydration to visibility meant Vue reconciled that stale
-            SSR snapshot against already-loaded data whenever the user
-            eventually scrolled to it — a hydration mismatch on every one of
-            these 8 components, forcing a full client-side rebuild of each
-            subtree exactly as it entered the viewport, which is what tanked
-            scroll FPS. Hydrating immediately (as part of the single
-            synchronous post-SSR hydration pass, before the async fetches can
-            resolve) keeps the client's first render in sync with the SSR
-            snapshot, so there's nothing to reconcile.
+            in its own chunk and only downloads/hydrates once scrolled into
+            view — keeps the champion detail route's initial JS lean (#820).
+            Props come from the `…Snapshot` bundles above (frozen at their
+            SSR-matching value until `@vue:mounted` reveals the live data) so
+            the deferred hydration doesn't mismatch (#834/#837); `rune-tree`,
+            `from-patch` and `to-patch` are bound directly since they're
+            SSR-safe/locally-stable and don't need freezing.
           -->
           <LazyChampionTrendChart
-            :points="championTrend?.points ?? []"
-            :loading="isLoadingStatus(trendStatus)"
+            hydrate-on-visible
+            v-bind="trendSnapshot.value"
+            @vue:mounted="trendSnapshot.reveal"
           />
 
           <LazyChampionPatchDiff
             v-if="showPatchDiff"
-            :diff="championPatchDiff ?? null"
-            :items-map="itemsMap ?? {}"
+            hydrate-on-visible
+            v-bind="patchDiffSnapshot.value"
             :rune-tree="runeTree ?? null"
-            :champion-static="staticData"
-            :patch-options="patchDiffOptions"
             :from-patch="patchDiffFrom"
             :to-patch="patchDiffTo"
-            :loading="patchDiffLoading"
+            @vue:mounted="patchDiffSnapshot.reveal"
             @update:from-patch="value => { patchDiffFrom = value }"
             @update:to-patch="value => { patchDiffTo = value }"
           />
 
           <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <LazyChampionTimelineLeadsChart
-              :intervals="championLeads?.intervals ?? []"
-              :loading="isLoadingStatus(leadsStatus)"
+              hydrate-on-visible
+              v-bind="leadsSnapshot.value"
+              @vue:mounted="leadsSnapshot.reveal"
             />
 
             <LazyChampionScalingChart
-              :buckets="championScaling?.buckets ?? []"
-              :scaling-index="championScaling?.scalingIndex ?? null"
-              :loading="isLoadingStatus(scalingStatus)"
+              hydrate-on-visible
+              v-bind="scalingSnapshot.value"
+              @vue:mounted="scalingSnapshot.reveal"
             />
           </div>
 
           <LazyChampionPowerspikesChart
-            :curve="championPowerspikes?.curve ?? []"
-            :events="championPowerspikes?.events ?? []"
-            :items-map="itemsMap ?? {}"
-            :loading="isLoadingStatus(powerspikesStatus)"
+            hydrate-on-visible
+            v-bind="powerspikesSnapshot.value"
+            @vue:mounted="powerspikesSnapshot.reveal"
           />
 
           <LazyChampionRoam
             v-if="trendPosition !== 'JUNGLE'"
-            :kp5="championRoam?.roamKp5 ?? null"
-            :kp10="championRoam?.roamKp10 ?? null"
-            :kp15="championRoam?.roamKp15 ?? null"
-            :games="championRoam?.games ?? 0"
-            :loading="isLoadingStatus(roamStatus)"
+            hydrate-on-visible
+            v-bind="roamSnapshot.value"
+            @vue:mounted="roamSnapshot.reveal"
           />
         </div>
 
         <aside class="min-w-0 space-y-6">
           <LazyChampionTruemains
+            hydrate-on-visible
             :champion-id="championId"
-            :champions="staticList ?? []"
             :rune-tree="runeTree ?? null"
-            :items-map="itemsMap ?? {}"
-            :patch="latestVersion"
+            v-bind="truemainsSnapshot.value"
+            @vue:mounted="truemainsSnapshot.reveal"
           />
 
           <LazyChampionMatchups
+            hydrate-on-visible
             :champion-id="championId"
             :position="selectedPosition"
-            :champions="staticList ?? []"
             :elo-bracket="eloBracketParam"
+            v-bind="matchupsSnapshot.value"
+            @vue:mounted="matchupsSnapshot.reveal"
           />
         </aside>
       </div>
