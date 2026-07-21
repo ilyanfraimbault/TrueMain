@@ -56,7 +56,7 @@ float vnoise(vec2 p) {
 
 float fbm(vec2 p) {
   float v = 0.0, a = 0.5;
-  for (int i = 0; i < 5; i++) { v += a * vnoise(p); p = p * 2.03 + vec2(7.3, 3.1); a *= 0.5; }
+  for (int i = 0; i < 3; i++) { v += a * vnoise(p); p = p * 2.03 + vec2(7.3, 3.1); a *= 0.5; }
   return v;
 }
 
@@ -83,12 +83,14 @@ void main() {
   const vec3 ROSE = vec3(0.80, 0.36, 0.32);
   const vec3 CHAMPAGNE = vec3(0.95, 0.70, 0.48);
 
-  // The orb drifts on two superposed slow oscillations — never still, never
-  // going anywhere. The reading shield below stays put, so the text zone is
-  // protected wherever the rim wanders.
+  // The orb drifts on two superposed slow oscillations — never still, but
+  // barely wandering: the amplitudes are deliberately small so it sits close
+  // to upper-center and the motion reads as a gentle breath, not travel. The
+  // reading shield below stays put, so the text zone is protected wherever the
+  // rim lands.
   vec2 c = anchor(vec2(
-    0.5 + 0.020 * sin(t * 0.19) + 0.006 * sin(t * 0.53 + 1.3),
-    0.66 + 0.024 * sin(t * 0.14 + 2.1) + 0.006 * sin(t * 0.47)));
+    0.5 + 0.010 * sin(t * 0.19) + 0.003 * sin(t * 0.53 + 1.3),
+    0.68 + 0.012 * sin(t * 0.14 + 2.1) + 0.003 * sin(t * 0.47)));
   vec2 d2c = p - c;
   float d = length(d2c);
   float R = 0.38;
@@ -155,10 +157,13 @@ void main() {
 }
 `
 
-const FRAME_INTERVAL_MS = 1000 / 30
+const FRAME_INTERVAL_MS = 1000 / 24
 // Everything is soft gradients + grain; capped so 4K/retina doesn't
 // quadruple the fill cost for detail that isn't there.
 const MAX_DPR = 1.5
+// Below this CSS-pixel width the continuous fill isn't worth its cost, so the
+// loop stays parked on a single static frame (same path as reduced-motion).
+const SMALL_VIEWPORT_MAX = 640
 // Arbitrary mid-animation timestamp for the single frame drawn when motion is
 // off (reduced-motion / pre-loop resize) — far enough in that the folds are
 // developed rather than the near-empty t=0 field.
@@ -255,13 +260,14 @@ onMounted(() => {
 
   function draw(timeSeconds: number) {
     resize()
-    // Runs at ~30fps (loop is frame-gated), so these fixed factors act as
-    // time constants: ~0.3s for the position trail, ~1s in / ~2s out for the
-    // cursor's influence.
-    pointer.x += (pointerTarget.x - pointer.x) * 0.12
-    pointer.y += (pointerTarget.y - pointer.y) * 0.12
+    // Runs at ~24fps (loop is frame-gated). These per-frame factors act as
+    // time constants; they're scaled by 30/24 from the previous 30fps loop so
+    // the cursor response is unchanged in wall-clock time (~0.3s for the
+    // position trail, ~1s in / ~2s out for the cursor's influence).
+    pointer.x += (pointerTarget.x - pointer.x) * 0.15
+    pointer.y += (pointerTarget.y - pointer.y) * 0.15
     const pointerActive = performance.now() - lastPointerMoveAt < 3000
-    pointerK += ((pointerActive ? 1 : 0) - pointerK) * (pointerActive ? 0.1 : 0.02)
+    pointerK += ((pointerActive ? 1 : 0) - pointerK) * (pointerActive ? 0.125 : 0.025)
     gl!.uniform2f(uResolution, canvas!.width, canvas!.height)
     gl!.uniform1f(uTime, timeSeconds)
     gl!.uniform2f(uPointer, pointer.x, pointer.y)
