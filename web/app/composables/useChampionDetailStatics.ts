@@ -44,9 +44,39 @@ export function useChampionDetailStatics(
   // patch so the icon URLs we render hit the per-patch (year-cacheable)
   // upstream assets, and so cached payloads don't bleed across patches when
   // the user navigates between them.
-  const { data: runeTree, status: runeTreeStatus } = useStaticRuneTree(activePatch)
-  const { data: itemsMap, status: itemsStatus } = useStaticItems(activePatch)
-  const { data: summonersMap, status: summonersStatus } = useStaticSummonerSpells(activePatch)
+  //
+  // `immediate: false` + the watcher below defers each first fetch until
+  // `activePatch` resolves, so we don't issue a throwaway `latest` round trip
+  // (these payloads are large — items alone is ~370 KiB) and immediately
+  // refetch under the resolved patch key. The `unresolvedKeySegment` guarantees
+  // the pre-resolution key can never collide with a real `latest` cache entry.
+  const staticFetchOptions = { immediate: false, unresolvedKeySegment: 'pending' } as const
+  const {
+    data: runeTree,
+    status: runeTreeStatus,
+    execute: fetchRuneTree,
+  } = useStaticRuneTree(activePatch, staticFetchOptions)
+  const {
+    data: itemsMap,
+    status: itemsStatus,
+    execute: fetchItems,
+  } = useStaticItems(activePatch, staticFetchOptions)
+  const {
+    data: summonersMap,
+    status: summonersStatus,
+    execute: fetchSummoners,
+  } = useStaticSummonerSpells(activePatch, staticFetchOptions)
+
+  // Kick off the deferred static fetches once (and each time) the patch
+  // resolves. `immediate: true` so it fires synchronously when `activePatch`
+  // is already known on mount; the `patch` guard keeps it a no-op while the
+  // patch is still null, so no request goes out under the unresolved key.
+  watch(activePatch, (patch) => {
+    if (!patch) return
+    void fetchRuneTree()
+    void fetchItems()
+    void fetchSummoners()
+  }, { immediate: true })
 
   // Fall back to the list-page entry when the per-champion endpoint is still
   // pending or the patch failed to resolve — keeps the header readable

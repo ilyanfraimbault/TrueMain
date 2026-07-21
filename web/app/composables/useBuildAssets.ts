@@ -78,8 +78,11 @@ function useStaticFetch<T>(
 }
 
 /** Static rune tree for a patch, keyed `rune-tree-{patch}`. */
-export function useStaticRuneTree(patch: MaybeRefOrGetter<string | null | undefined>) {
-  return useStaticFetch<RuneTreeResponse>('rune-tree', '/api/static/rune-tree', patch)
+export function useStaticRuneTree(
+  patch: MaybeRefOrGetter<string | null | undefined>,
+  options: StaticFetchOptions = {},
+) {
+  return useStaticFetch<RuneTreeResponse>('rune-tree', '/api/static/rune-tree', patch, options)
 }
 
 /** Static item map for a patch, keyed `static-items-{patch}`. */
@@ -91,8 +94,11 @@ export function useStaticItems(
 }
 
 /** Static summoner-spell map for a patch, keyed `static-summoners-{patch}`. */
-export function useStaticSummonerSpells(patch: MaybeRefOrGetter<string | null | undefined>) {
-  return useStaticFetch<Record<number, StaticSummonerSpellData>>('static-summoners', '/api/static/summoner-spells', patch)
+export function useStaticSummonerSpells(
+  patch: MaybeRefOrGetter<string | null | undefined>,
+  options: StaticFetchOptions = {},
+) {
+  return useStaticFetch<Record<number, StaticSummonerSpellData>>('static-summoners', '/api/static/summoner-spells', patch, options)
 }
 
 /**
