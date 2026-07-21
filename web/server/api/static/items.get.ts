@@ -9,6 +9,7 @@ interface ItemListResponse {
     inStore?: boolean
     plaintext?: string
     description?: string
+    tags?: string[]
   }>
 }
 
@@ -40,6 +41,7 @@ const loadItemsForPatch = defineCachedFunction(
           inStore: item.inStore,
           plaintext: item.plaintext,
           description: item.description,
+          tags: item.tags,
         } satisfies StaticItemData,
       ]),
     )

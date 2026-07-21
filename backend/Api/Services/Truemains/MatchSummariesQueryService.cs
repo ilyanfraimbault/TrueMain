@@ -150,6 +150,7 @@ public sealed class MatchSummariesQueryService(
                 p.ChampionId,
                 p.ChampLevel,
                 p.TeamId,
+                p.TeamPosition,
                 p.Win,
                 p.Kills,
                 p.Deaths,
@@ -293,6 +294,10 @@ public sealed class MatchSummariesQueryService(
                     {
                         ChampionId = p.ChampionId,
                         TeamId = p.TeamId,
+                        // Riot leaves TeamPosition empty on modes without
+                        // assigned roles; normalize to null so the JSON stays
+                        // a clean tri-state for the frontend.
+                        Position = string.IsNullOrEmpty(p.TeamPosition) ? null : p.TeamPosition,
                         GameName = gameName,
                         TagLine = tagLine,
                     };
@@ -327,6 +332,7 @@ public sealed class MatchSummariesQueryService(
                     },
                     TrinketItemId = self.TrinketItemId,
                     TeamId = self.TeamId,
+                    Position = string.IsNullOrEmpty(self.TeamPosition) ? null : self.TeamPosition,
                     Win = self.Win,
                     LpDelta = null,
                     IsMvp = isMvp,
@@ -363,6 +369,7 @@ public sealed class MatchSummariesQueryService(
         int ChampionId,
         int ChampLevel,
         int TeamId,
+        string? TeamPosition,
         bool Win,
         int Kills,
         int Deaths,

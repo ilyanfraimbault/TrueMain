@@ -76,20 +76,33 @@ const buildGroups = computed<BuildGroup[]>(() => {
   return groups
 })
 
+// Champion static (Q/W/E/R spell icons) for this participant's champion. Fetched
+// at the latest patch — kit icons are stable across patches, so we skip threading
+// the per-match gameVersion through just to pick a spell image. Cached per
+// champion by useChampionStatic, so re-selecting a player never re-downloads.
+const { data: championStatic } = useChampionStatic(
+  () => props.participant.championId,
+  () => null,
+)
+
 // Skill order grid — one column per level (chronological), one row per slot.
-// Palette-safe per-slot colours (sky / amber / emerald / rose); no violet.
-const SKILL_META: Record<number, { letter: string, fill: string }> = {
-  1: { letter: 'Q', fill: 'bg-sky-500 text-white' },
-  2: { letter: 'W', fill: 'bg-amber-500 text-black' },
-  3: { letter: 'E', fill: 'bg-emerald-500 text-black' },
-  4: { letter: 'R', fill: 'bg-rose-500 text-white' },
+// Each slot's row header is the real spell icon (with a Q/W/E/R key badge), not
+// a bare letter. Fills keep a palette-safe per-slot hue (sky / amber / emerald /
+// rose, no violet) and the level number is always white for legibility — the
+// amber/emerald rows are one shade darker so white stays readable on them.
+const SKILL_META: Record<number, { key: 'Q' | 'W' | 'E' | 'R', fill: string }> = {
+  1: { key: 'Q', fill: 'bg-sky-500 text-white' },
+  2: { key: 'W', fill: 'bg-amber-600 text-white' },
+  3: { key: 'E', fill: 'bg-emerald-600 text-white' },
+  4: { key: 'R', fill: 'bg-rose-500 text-white' },
 }
 const skillRows = computed(() => {
   const events = props.participant.skillEvents
   const maxLevel = events.length
   return [1, 2, 3, 4].map(slot => ({
     slot,
-    letter: SKILL_META[slot]!.letter,
+    key: SKILL_META[slot]!.key,
+    spell: championStatic.value?.championSpells[SKILL_META[slot]!.key] ?? null,
     fill: SKILL_META[slot]!.fill,
     levels: Array.from({ length: maxLevel }, (_, i) => events[i]?.skillSlot === slot),
   }))
@@ -206,11 +219,16 @@ const hasSkills = computed(() => props.participant.skillEvents.length > 0)
           :key="`skill-${row.slot}`"
           class="flex items-center gap-0.5"
         >
-          <span
-            class="flex size-5 shrink-0 items-center justify-center rounded bg-default/50 text-[10px] font-bold text-default"
-          >
-            {{ row.letter }}
-          </span>
+          <div class="relative mr-1 size-7 shrink-0">
+            <GameTooltipChampionSpellIcon
+              :spell="row.spell"
+              :fallback-label="row.key"
+              :width="28"
+              :height="28"
+              class="size-7 rounded"
+            />
+            <ItemRankBadge :value="row.key" />
+          </div>
           <span
             v-for="(filled, lvl) in row.levels"
             :key="`lvl-${lvl}`"

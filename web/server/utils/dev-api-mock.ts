@@ -974,6 +974,9 @@ function mockMatches(player: MockPlayer, query: Record<string, unknown>): MatchS
       return {
         championId: slot === 0 ? main.championId : pool[(index * 7 + slot * 13) % pool.length]!.id,
         teamId: slot < 5 ? selfTeam : selfTeam === 100 ? 200 : 100,
+        // Slots 0-4 / 5-9 are each a full team in role order, so slot % 5
+        // yields a valid one-of-each position assignment per side.
+        position: (['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'] as const)[slot % 5]!,
         gameName: slot === 0 ? player.row.identity.gameName : other.row.identity.gameName,
         tagLine: slot === 0 ? player.row.identity.tagLine : other.row.identity.tagLine,
       }
@@ -1001,6 +1004,7 @@ function mockMatches(player: MockPlayer, query: Record<string, unknown>): MatchS
         items: [...archetype.items.slice(0, 5), archetype.boots[0]!],
         trinketItemId: 3364,
         teamId: selfTeam,
+        position: (['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'] as const)[index % 5]!,
         win,
         lpDelta: win ? 14 + Math.floor(rng() * 12) : -(12 + Math.floor(rng() * 12)),
         isMvp: win && rng() > 0.72,

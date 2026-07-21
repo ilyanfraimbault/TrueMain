@@ -58,16 +58,16 @@ function makeMockParticipants(): MatchSummaryResponse['participants'] {
   // Champion ids picked to be widely available across patches so the icons
   // resolve cleanly (Yasuo, Lux, Garen, Ahri, Thresh on each side).
   return [
-    { championId: 157, teamId: 100, gameName: 'BlueTop', tagLine: 'EUW' },
-    { championId: 64, teamId: 100, gameName: 'BlueJng', tagLine: 'EUW' },
-    { championId: 99, teamId: 100, gameName: 'BlueMid', tagLine: 'EUW' },
-    { championId: 222, teamId: 100, gameName: 'BlueBot', tagLine: 'EUW' },
-    { championId: 412, teamId: 100, gameName: 'BlueSup', tagLine: 'EUW' },
-    { championId: 86, teamId: 200, gameName: 'RedTop', tagLine: 'EUW' },
-    { championId: 121, teamId: 200, gameName: 'RedJng', tagLine: 'EUW' },
-    { championId: 103, teamId: 200, gameName: 'RedMid', tagLine: 'EUW' },
-    { championId: 51, teamId: 200, gameName: 'RedBot', tagLine: 'EUW' },
-    { championId: 117, teamId: 200, gameName: 'RedSup', tagLine: 'EUW' },
+    { championId: 157, teamId: 100, position: 'TOP', gameName: 'BlueTop', tagLine: 'EUW' },
+    { championId: 64, teamId: 100, position: 'JUNGLE', gameName: 'BlueJng', tagLine: 'EUW' },
+    { championId: 99, teamId: 100, position: 'MIDDLE', gameName: 'BlueMid', tagLine: 'EUW' },
+    { championId: 222, teamId: 100, position: 'BOTTOM', gameName: 'BlueBot', tagLine: 'EUW' },
+    { championId: 412, teamId: 100, position: 'UTILITY', gameName: 'BlueSup', tagLine: 'EUW' },
+    { championId: 86, teamId: 200, position: 'TOP', gameName: 'RedTop', tagLine: 'EUW' },
+    { championId: 121, teamId: 200, position: 'JUNGLE', gameName: 'RedJng', tagLine: 'EUW' },
+    { championId: 103, teamId: 200, position: 'MIDDLE', gameName: 'RedMid', tagLine: 'EUW' },
+    { championId: 51, teamId: 200, position: 'BOTTOM', gameName: 'RedBot', tagLine: 'EUW' },
+    { championId: 117, teamId: 200, position: 'UTILITY', gameName: 'RedSup', tagLine: 'EUW' },
   ]
 }
 
@@ -94,6 +94,7 @@ const mockMatches = computed<MatchSummaryResponse[]>(() => [
       items: [3031, 3046, 3036, 3072, 3009, 3026],
       trinketItemId: 3340,
       teamId: 100,
+      position: 'TOP',
       win: true,
       lpDelta: 23,
       isMvp: true,
@@ -121,8 +122,12 @@ const mockMatches = computed<MatchSummaryResponse[]>(() => [
       cs: 263,
       killParticipation: 0.67,
       items: [6672, 3094, 3006, 3031, 3036, 0],
-      trinketItemId: 3340,
-      teamId: 200,
+      // Herald eye in the trinket slot — must be filtered out (not a build item).
+      trinketItemId: 3513,
+      // Team 100 to line up with the shared participants fixture, where
+      // champion 222 sits on the blue side.
+      teamId: 100,
+      position: 'BOTTOM',
       win: false,
       lpDelta: -30,
       isMvp: false,
@@ -149,9 +154,11 @@ const mockMatches = computed<MatchSummaryResponse[]>(() => [
       assists: 8,
       cs: 188,
       killParticipation: 0.42,
-      items: [6655, 3020, 3157, 3165, 0, 0],
+      // Herald eye sitting among the inventory items — must be filtered from the grid.
+      items: [6655, 3020, 3157, 3165, 3513, 0],
       trinketItemId: 3340,
       teamId: 100,
+      position: 'MIDDLE',
       win: false,
       lpDelta: -18,
       isMvp: false,
