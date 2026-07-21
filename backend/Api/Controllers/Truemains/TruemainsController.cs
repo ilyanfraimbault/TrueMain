@@ -9,6 +9,7 @@ namespace TrueMain.Controllers.Truemains;
 
 [ApiController]
 [Route("truemains")]
+[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
 public sealed class TruemainsController(
     IMatchSummariesQueryService matchSummariesQueryService,
     IMatchDetailQueryService matchDetailQueryService,
@@ -36,7 +37,6 @@ public sealed class TruemainsController(
     /// <param name="ct">Request cancellation token.</param>
     [HttpGet("search")]
     [ProducesResponseType(typeof(SearchResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<SearchResponse>> SearchAsync(
         [FromQuery] string? q,
         [FromQuery] int? limit,
@@ -51,23 +51,18 @@ public sealed class TruemainsController(
 
     [HttpGet("")]
     [ProducesResponseType(typeof(LeaderboardResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<LeaderboardResponse>> ListLeaderboardAsync(
-        [FromQuery] int? page,
-        [FromQuery] int? pageSize,
-        [FromQuery] string? region,
-        [FromQuery] string? position,
-        [FromQuery] int? championId,
-        [FromQuery] bool? otpOnly,
+        [FromQuery] LeaderboardQuery query,
         CancellationToken ct = default)
     {
         var response = await leaderboardQueryService.GetAsync(
-            page ?? 1,
-            pageSize ?? 0,
-            region,
-            position,
-            championId,
-            otpOnly ?? false,
+            query.Page ?? 1,
+            query.PageSize ?? 0,
+            query.Region,
+            query.Position,
+            query.ChampionId,
+            query.OtpOnly ?? false,
             ct);
 
         // Let shared caches (CDN / reverse proxy) serve the leaderboard for the
@@ -85,7 +80,6 @@ public sealed class TruemainsController(
     [HttpGet("{nameTag}/profile")]
     [ProducesResponseType(typeof(ProfileReadModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<ProfileReadModel>> GetProfileAsync(
         string nameTag,
         CancellationToken ct = default)
@@ -103,8 +97,8 @@ public sealed class TruemainsController(
     /// </summary>
     [HttpGet("{nameTag}/champions/{championId:int}")]
     [ProducesResponseType(typeof(ChampionResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<ChampionResponse>> GetPlayerChampionAsync(
         string nameTag,
         int championId,
@@ -112,8 +106,20 @@ public sealed class TruemainsController(
         [FromQuery] string? position,
         CancellationToken ct = default)
     {
+        // A blank/absent position means "all positions"; only a non-blank
+        // value that fails to canonicalise is a client error (mirrors
+        // ChampionsController.TryNormalizeOptionalPosition).
+        string? normalizedPosition = null;
+        if (!string.IsNullOrWhiteSpace(position))
+        {
+            normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+            if (normalizedPosition is null)
+            {
+                return ValidationProblem(ChampionQueryParameterNormalizer.InvalidPositionMessage);
+            }
+        }
+
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
-        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
 
         var response = await playerChampionBuildsQueryService.GetAsync(
             nameTag,
@@ -139,7 +145,6 @@ public sealed class TruemainsController(
     [ProducesResponseType(typeof(ChampionMatchupsResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<ChampionMatchupsResponse>> GetPlayerChampionMatchupsAsync(
         string nameTag,
         int championId,
@@ -170,7 +175,6 @@ public sealed class TruemainsController(
     [HttpGet("{nameTag}/rank-history")]
     [ProducesResponseType(typeof(RankHistoryReadModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<RankHistoryReadModel>> GetRankHistoryAsync(
         string nameTag,
         [FromQuery] int? days,
@@ -183,7 +187,6 @@ public sealed class TruemainsController(
     [HttpGet("{nameTag}/matches")]
     [ProducesResponseType(typeof(MatchSummariesResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<MatchSummariesResponse>> GetMatchesAsync(
         string nameTag,
         [FromQuery] int? page,
@@ -214,7 +217,6 @@ public sealed class TruemainsController(
     [HttpGet("{nameTag}/matches/{matchId}")]
     [ProducesResponseType(typeof(MatchDetailReadModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<MatchDetailReadModel>> GetMatchDetailAsync(
         string nameTag,
         string matchId,
@@ -223,4 +225,28 @@ public sealed class TruemainsController(
         var response = await matchDetailQueryService.GetAsync(nameTag, matchId, ct);
         return response is null ? NotFound() : Ok(response);
     }
+}
+
+/// <summary>
+/// Query parameters for <c>GET /truemains</c>. <see cref="Page"/> and
+/// <see cref="PageSize"/> carry <see cref="RangeAttribute"/>s so
+/// <c>[ApiController]</c> rejects an out-of-range value with a 400
+/// ProblemDetails at binding time, instead of the service silently clamping
+/// it.
+/// </summary>
+public sealed record LeaderboardQuery
+{
+    [Range(1, int.MaxValue)]
+    public int? Page { get; init; }
+
+    [Range(1, 50)]
+    public int? PageSize { get; init; }
+
+    public string? Region { get; init; }
+
+    public string? Position { get; init; }
+
+    public int? ChampionId { get; init; }
+
+    public bool? OtpOnly { get; init; }
 }

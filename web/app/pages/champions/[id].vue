@@ -1,8 +1,17 @@
 <script setup lang="ts">
-import type { ChampionPosition } from '~/utils/positions'
+import { POSITION_BY_VALUE, type ChampionPosition } from '~/utils/positions'
 import { ELO_BRACKET_ALL, eloBracketLabel, normalizeEloBracket } from '~/utils/elo-brackets'
 import { describeFetchError } from '~/utils/errors'
 import { isLoadingStatus } from '~/utils/async-data'
+import type {
+  ChampionPatchDiffResponse,
+  ChampionPowerCurvePoint,
+  ChampionPowerspikeEvent,
+  ChampionScalingBucket,
+  ChampionTimelineLeadsInterval,
+  ChampionTrendPoint,
+} from '~~/shared/types/champions'
+import type { ChampionStaticData, ChampionStaticListItem, StaticItemData } from '~~/shared/types/static-data'
 
 const route = useRoute()
 const championId = computed(() => Number.parseInt(String(route.params.id), 10))
@@ -63,10 +72,57 @@ const trendReady = computed(() => champion.value !== null)
 const trendPosition = computed(() => champion.value?.position || filters.value.position || null)
 const { data: championTrend, status: trendStatus } = useChampionTrend(championId, trendPosition, trendReady)
 
+// Meta-only fetch: `displayName` above is sourced from client-only
+// (`server: false`) statics chosen to avoid hydration mismatches on the
+// visual build content, which means it's always null during SSR — the exact
+// HTML Google indexes would permanently show "Champion {id}" instead of the
+// champion name. `<head>` tags aren't part of Vue's DOM diff, so a dedicated
+// SSR-enabled fetch here carries no hydration risk. Hits the same
+// `defineCachedEventHandler` (1h TTL) as useChampionStatic, so it's a cache
+// hit, not an extra DDragon round-trip. Only awaited server-side: the app has
+// no NuxtLoadingIndicator/Suspense fallback on <NuxtPage>, so awaiting this on
+// the client would freeze the outgoing page with no feedback on every
+// client-side champion navigation, purely for a `<head>`-only value.
+const seoStaticFetch = useFetch(
+  () => `/api/static/${championId.value}`,
+  { key: () => `champion-seo-name-${championId.value}-${selectedPatch.value || 'none'}`, query: { patch: selectedPatch.value || undefined } },
+)
+if (import.meta.server) await seoStaticFetch
+const { data: seoStatic } = seoStaticFetch
+const seoDisplayName = computed(() => seoStatic.value?.championName ?? displayName.value)
+const seoPositionLabel = computed(() => POSITION_BY_VALUE.get(trendPosition.value ?? '')?.label)
+
 useSeoMeta({
-  title: () => displayName.value ?? `Champion ${championId.value}`,
-  description: () => `Champion ${championId.value} builds, runes and skill order.`,
+  title: () => seoDisplayName.value
+    ? `${seoDisplayName.value}${seoPositionLabel.value ? ` ${seoPositionLabel.value}` : ''} Build`
+    : `Champion ${championId.value} Build`,
+  description: () => seoDisplayName.value
+    ? `${seoDisplayName.value} build guide: best runes, items and skill order`
+      + `${seoPositionLabel.value ? ` for ${seoPositionLabel.value}` : ''}, based on real ranked games. `
+      + `See the top OTP ${seoDisplayName.value} one-tricks on TrueMain.`
+    : `Champion builds, runes and skill order from true main players.`,
 })
+
+useSchemaOrg([
+  defineWebPage({
+    name: () => seoDisplayName.value ? `${seoDisplayName.value} Build` : undefined,
+    description: () => `${seoDisplayName.value ?? 'Champion'} runes, items and skill order.`,
+  }),
+  defineBreadcrumb({
+    itemListElement: [
+      { name: 'Champions', item: '/champions' },
+      { name: () => seoDisplayName.value ?? `Champion ${championId.value}` },
+    ],
+  }),
+])
+
+// Visible breadcrumb, mirroring the schema.org hierarchy above. Uses the
+// SSR-safe `seoDisplayName` (client-only `displayName` is null during SSR) so
+// the crumb renders the champion name in the server HTML, not `Champion {id}`.
+const breadcrumbItems = computed(() => [
+  { label: 'Champions', to: '/champions' },
+  { label: seoDisplayName.value ?? `Champion ${championId.value}` },
+])
 
 // Elo filter (issue #526). Bind to the API-returned filter once available so
 // the rank select reflects what's actually shown; fall back to the URL filter
@@ -230,10 +286,92 @@ watch(champion, (data) => {
 
 // Each section drives its own skeleton off its own async status via the
 // shared isLoadingStatus util.
+
+// ─── Lazy-hydration snapshots ───────────────────────────────────────────────
+// The charts/panels below are `hydrate-on-visible` (their JS is heavy —
+// nuxt-charts — so it's kept out of the initial hydration pass, #820) but
+// every value they render comes from client-only (`server: false`)
+// composables. SSR always renders their empty/loading state; without
+// freezing, a child's *deferred* hydration (on scroll, well after the
+// client-only fetches have resolved) would reconcile against that stale SSR
+// snapshot using already-loaded data — a hydration mismatch on every one of
+// them, forcing Vue to discard and rebuild each subtree exactly as it enters
+// the viewport (#834/#837 — that's what caused the reported scroll jank).
+// `useLazyHydrationSnapshot` keeps each child's first (hydration) render
+// identical to SSR; `@vue:mounted="…Snapshot.reveal"` on the child then swaps
+// in the live, reactive value as a normal post-hydration update.
+const trendSnapshot = useLazyHydrationSnapshot(
+  { points: [] as ChampionTrendPoint[], loading: true },
+  () => ({ points: championTrend.value?.points ?? [], loading: isLoadingStatus(trendStatus.value) }),
+)
+const patchDiffSnapshot = useLazyHydrationSnapshot(
+  {
+    diff: null as ChampionPatchDiffResponse | null,
+    itemsMap: {} as Record<number, StaticItemData>,
+    championStatic: null as ChampionStaticData | null,
+    patchOptions: [] as Array<{ label: string, value: string }>,
+    loading: true,
+  },
+  () => ({
+    diff: championPatchDiff.value ?? null,
+    itemsMap: itemsMap.value ?? {},
+    championStatic: staticData.value ?? null,
+    patchOptions: patchDiffOptions.value,
+    loading: patchDiffLoading.value,
+  }),
+)
+const leadsSnapshot = useLazyHydrationSnapshot(
+  { intervals: [] as ChampionTimelineLeadsInterval[], loading: true },
+  () => ({ intervals: championLeads.value?.intervals ?? [], loading: isLoadingStatus(leadsStatus.value) }),
+)
+const scalingSnapshot = useLazyHydrationSnapshot(
+  { buckets: [] as ChampionScalingBucket[], scalingIndex: null as number | null, loading: true },
+  () => ({
+    buckets: championScaling.value?.buckets ?? [],
+    scalingIndex: championScaling.value?.scalingIndex ?? null,
+    loading: isLoadingStatus(scalingStatus.value),
+  }),
+)
+const powerspikesSnapshot = useLazyHydrationSnapshot(
+  {
+    curve: [] as ChampionPowerCurvePoint[],
+    events: [] as ChampionPowerspikeEvent[],
+    itemsMap: {} as Record<number, StaticItemData>,
+    loading: true,
+  },
+  () => ({
+    curve: championPowerspikes.value?.curve ?? [],
+    events: championPowerspikes.value?.events ?? [],
+    itemsMap: itemsMap.value ?? {},
+    loading: isLoadingStatus(powerspikesStatus.value),
+  }),
+)
+const roamSnapshot = useLazyHydrationSnapshot(
+  { kp5: null as number | null, kp10: null as number | null, kp15: null as number | null, games: 0, loading: true },
+  () => ({
+    kp5: championRoam.value?.roamKp5 ?? null,
+    kp10: championRoam.value?.roamKp10 ?? null,
+    kp15: championRoam.value?.roamKp15 ?? null,
+    games: championRoam.value?.games ?? 0,
+    loading: isLoadingStatus(roamStatus.value),
+  }),
+)
+const truemainsSnapshot = useLazyHydrationSnapshot(
+  { champions: [] as ChampionStaticListItem[], itemsMap: {} as Record<number, StaticItemData>, patch: null as string | null },
+  () => ({ champions: staticList.value ?? [], itemsMap: itemsMap.value ?? {}, patch: latestVersion.value }),
+)
+const matchupsSnapshot = useLazyHydrationSnapshot(
+  { champions: [] as ChampionStaticListItem[] },
+  () => ({ champions: staticList.value ?? [] }),
+)
 </script>
 
 <template>
   <main class="mx-auto w-full max-w-[96rem] space-y-6 p-4 md:p-6">
+    <!-- Champions > {champion}, mirroring the schema.org breadcrumb. Shown
+         across every state (error / no-data / normal) as the first child. -->
+    <UBreadcrumb :items="breadcrumbItems" />
+
     <UAlert
       v-if="championError"
       color="error"
@@ -380,69 +518,79 @@ watch(champion, (data) => {
           />
           <ChampionBuildTabsSkeleton v-else />
 
-          <ChampionTrendChart
-            :points="championTrend?.points ?? []"
-            :loading="isLoadingStatus(trendStatus)"
+          <!--
+            Everything below the build tabs is below the fold and pulls the
+            heavy charting bundle (nuxt-charts). Lazy-load each so its JS lands
+            in its own chunk and only downloads/hydrates once scrolled into
+            view — keeps the champion detail route's initial JS lean (#820).
+            Props come from the `…Snapshot` bundles above (frozen at their
+            SSR-matching value until `@vue:mounted` reveals the live data) so
+            the deferred hydration doesn't mismatch (#834/#837); `rune-tree`,
+            `from-patch` and `to-patch` are bound directly since they're
+            SSR-safe/locally-stable and don't need freezing.
+          -->
+          <LazyChampionTrendChart
+            hydrate-on-visible
+            v-bind="trendSnapshot.value"
+            @vue:mounted="trendSnapshot.reveal"
           />
 
-          <ChampionPatchDiff
+          <LazyChampionPatchDiff
             v-if="showPatchDiff"
-            :diff="championPatchDiff ?? null"
-            :items-map="itemsMap ?? {}"
+            hydrate-on-visible
+            v-bind="patchDiffSnapshot.value"
             :rune-tree="runeTree ?? null"
-            :champion-static="staticData"
-            :patch-options="patchDiffOptions"
             :from-patch="patchDiffFrom"
             :to-patch="patchDiffTo"
-            :loading="patchDiffLoading"
+            @vue:mounted="patchDiffSnapshot.reveal"
             @update:from-patch="value => { patchDiffFrom = value }"
             @update:to-patch="value => { patchDiffTo = value }"
           />
 
           <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <ChampionTimelineLeadsChart
-              :intervals="championLeads?.intervals ?? []"
-              :loading="isLoadingStatus(leadsStatus)"
+            <LazyChampionTimelineLeadsChart
+              hydrate-on-visible
+              v-bind="leadsSnapshot.value"
+              @vue:mounted="leadsSnapshot.reveal"
             />
 
-            <ChampionScalingChart
-              :buckets="championScaling?.buckets ?? []"
-              :scaling-index="championScaling?.scalingIndex ?? null"
-              :loading="isLoadingStatus(scalingStatus)"
+            <LazyChampionScalingChart
+              hydrate-on-visible
+              v-bind="scalingSnapshot.value"
+              @vue:mounted="scalingSnapshot.reveal"
             />
           </div>
 
-          <ChampionPowerspikesChart
-            :curve="championPowerspikes?.curve ?? []"
-            :events="championPowerspikes?.events ?? []"
-            :items-map="itemsMap ?? {}"
-            :loading="isLoadingStatus(powerspikesStatus)"
+          <LazyChampionPowerspikesChart
+            hydrate-on-visible
+            v-bind="powerspikesSnapshot.value"
+            @vue:mounted="powerspikesSnapshot.reveal"
           />
 
-          <ChampionRoam
+          <LazyChampionRoam
             v-if="trendPosition !== 'JUNGLE'"
-            :kp5="championRoam?.roamKp5 ?? null"
-            :kp10="championRoam?.roamKp10 ?? null"
-            :kp15="championRoam?.roamKp15 ?? null"
-            :games="championRoam?.games ?? 0"
-            :loading="isLoadingStatus(roamStatus)"
+            hydrate-on-visible
+            v-bind="roamSnapshot.value"
+            @vue:mounted="roamSnapshot.reveal"
           />
         </div>
 
         <aside class="min-w-0 space-y-6">
-          <ChampionTruemains
+          <LazyChampionTruemains
+            hydrate-on-visible
             :champion-id="championId"
-            :champions="staticList ?? []"
             :rune-tree="runeTree ?? null"
-            :items-map="itemsMap ?? {}"
-            :patch="latestVersion"
+            v-bind="truemainsSnapshot.value"
+            @vue:mounted="truemainsSnapshot.reveal"
           />
 
-          <ChampionMatchups
+          <LazyChampionMatchups
+            hydrate-on-visible
             :champion-id="championId"
             :position="selectedPosition"
-            :champions="staticList ?? []"
             :elo-bracket="eloBracketParam"
+            v-bind="matchupsSnapshot.value"
+            @vue:mounted="matchupsSnapshot.reveal"
           />
         </aside>
       </div>

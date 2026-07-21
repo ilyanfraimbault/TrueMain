@@ -270,6 +270,7 @@ const rowTint = computed(() =>
             :src="championIconUrl"
             :alt="championName"
             :title="championName"
+            loading="lazy"
             class="size-12 rounded"
           />
           <span
@@ -321,12 +322,14 @@ const rowTint = computed(() =>
               :spell="summoner1"
               :width="22"
               :height="22"
+              loading="lazy"
               class="size-[22px] rounded"
             />
             <GameTooltipSummonerSpellIcon
               :spell="summoner2"
               :width="22"
               :height="22"
+              loading="lazy"
               class="size-[22px] rounded"
             />
           </div>
@@ -335,12 +338,14 @@ const rowTint = computed(() =>
               :perk="keystone"
               :width="22"
               :height="22"
+              loading="lazy"
               class="size-[22px] rounded-full bg-black/40"
             />
             <GameTooltipPerkStyleIcon
               :style="subStyle"
               :width="18"
               :height="18"
+              loading="lazy"
               class="size-[18px]"
             />
           </div>
@@ -376,6 +381,7 @@ const rowTint = computed(() =>
                 :item="trinket"
                 :width="24"
                 :height="24"
+                loading="lazy"
                 class="size-6 rounded-full"
               />
               <div
@@ -413,6 +419,7 @@ const rowTint = computed(() =>
               :src="championById.get(p.championId)?.iconUrl ?? null"
               :alt="participantTooltip(p)"
               :title="participantTooltip(p)"
+              loading="lazy"
               class="size-6 rounded"
             />
           </div>
@@ -423,6 +430,7 @@ const rowTint = computed(() =>
               :src="championById.get(p.championId)?.iconUrl ?? null"
               :alt="participantTooltip(p)"
               :title="participantTooltip(p)"
+              loading="lazy"
               class="size-6 rounded"
             />
           </div>

@@ -80,7 +80,13 @@ const items = computed(() =>
           </div>
         </div>
       </template>
-      <template #default="{ item }">
+      <template #default="{ item, index }">
+        <!-- The leading item/rune icons already carry their own accessible
+             names (see GameTooltip*Icon `alt`), but without this prefix the
+             tab's full accessible name reads as just those names + a bare
+             percentage — ambiguous with several builds open. sr-only text
+             disambiguates without changing the visible design. -->
+        <span class="sr-only">Build {{ index + 1 }}, </span>
         <span class="text-xs tabular-nums text-muted">
           {{ (item.build.pickRate * 100).toFixed(0) }}%
         </span>

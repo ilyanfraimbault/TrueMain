@@ -61,6 +61,10 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
             .IsRequired()
             .HasDefaultValue(false);
 
+        entity.Property(e => e.MatchupLeadAggregated)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         entity.HasIndex(e => e.PlatformId);
 
         entity.HasIndex(e => new { e.PlatformId, e.QueueId, e.GameStartTimeUtc })
@@ -83,6 +87,11 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
         // above (both key on QueueId, so EF would otherwise fold them into one).
         entity.HasIndex(e => e.QueueId, "IX_matches_snapshot_prune_pending")
             .HasFilter("\"PowerspikeAggregated\" = true AND \"TimelineSnapshotsPruned\" = false");
+
+        // Partial index over the not-yet-aggregated tail so the incremental
+        // matchup/lead batch selection stays cheap, mirroring IX_matches_powerspike_pending.
+        entity.HasIndex(e => e.QueueId, "IX_matches_matchup_lead_pending")
+            .HasFilter("\"MatchupLeadAggregated\" = false");
 
         entity.HasMany(e => e.Participants)
             .WithOne(e => e.Match)

@@ -35,5 +35,19 @@ export default defineAppConfig({
         variant: 'soft',
       },
     },
+    // `subtle` already ships a translucent `bg-{color}/10` fill + a matching
+    // `ring ring-inset ring-{color}/25` per Nuxt UI's badge theme — the same
+    // ring+translucency shape as the app's other glass elements. Adding just
+    // `backdrop-blur-sm` on top brings it in line with the `glass` card
+    // material and `ItemRankBadge`'s pill, without flattening the per-color
+    // (pick vs. win) distinction those variants carry.
+    badge: {
+      slots: {
+        base: 'backdrop-blur-sm',
+      },
+      defaultVariants: {
+        variant: 'subtle',
+      },
+    },
   },
 })

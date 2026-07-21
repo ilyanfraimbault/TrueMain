@@ -14,9 +14,7 @@ using Ingestor.Processes.Components.PatternAggregation;
 using Ingestor.Ranking;
 using Ingestor.Riot;
 using Ingestor.Services;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using Npgsql;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -70,6 +68,7 @@ builder.Services.AddRecordedProcess<ManualSeedProcess>();
 builder.Services.AddRecordedProcess<HarvestProcess>();
 builder.Services.AddRecordedProcess<ScoringProcess>();
 builder.Services.AddRecordedProcess<MatchIngestionProcess>();
+builder.Services.AddRecordedProcess<MatchTeamPositionCorrectionProcess>();
 builder.Services.AddRecordedProcess<MainAnalysisProcess>();
 builder.Services.AddRecordedProcess<MatchParticipantEloBracketEnrichmentProcess>();
 builder.Services.AddRecordedProcess<ChampionPatternAggregationProcess>();
@@ -78,22 +77,7 @@ builder.Services.AddRecordedProcess<ChampionPowerspikeAggregationProcess>();
 builder.Services.AddRecordedProcess<AccountRefreshProcess>();
 builder.Services.AddRecordedProcess<MatchDataRetentionProcess>();
 
-builder.Services.AddDbContextFactory<TrueMainDbContext>(options =>
-{
-    var connectionString = builder.Configuration.GetConnectionString("TrueMain");
-
-    if (string.IsNullOrWhiteSpace(connectionString))
-    {
-        throw new InvalidOperationException(
-            "Missing connection string. Add ConnectionStrings:TrueMain to user secrets.");
-    }
-
-    var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
-    dataSourceBuilder.EnableDynamicJson();
-    var dataSource = dataSourceBuilder.Build();
-
-    options.UseNpgsql(dataSource);
-});
+builder.Services.AddTrueMainData(builder.Configuration);
 
 builder.Services.AddSingleton<IDataRepositoryFactory, DataRepositoryFactory>();
 builder.Services.AddSingleton<IDataSessionFactory, DataSessionFactory>();

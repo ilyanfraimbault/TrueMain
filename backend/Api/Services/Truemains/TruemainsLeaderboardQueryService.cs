@@ -19,6 +19,7 @@ public sealed class TruemainsLeaderboardQueryService(
     private const int DefaultPageSize = 25;
     private const int MaxPageSize = 50;
     private const int TopChampionsPerRow = 3;
+    private const string Surface = "truemain-leaderboard";
 
     // The leaderboard is dominated by page-1 traffic with no filters, and the
     // four SQL queries that make a fresh response (Count + FetchPage +
@@ -88,8 +89,8 @@ public sealed class TruemainsLeaderboardQueryService(
         {
             totalSw.Stop();
             logger.LogInformation(
-                "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} otpOnly={OtpOnly} rows={Rows} total={Total} elapsed={ElapsedMs}ms result=cache_hit",
-                clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames, otpOnly,
+                "{Surface} page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} otpOnly={OtpOnly} rows={Rows} total={Total} elapsed={ElapsedMs}ms result=cache_hit",
+                Surface, clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames, otpOnly,
                 cached.Rows.Count, cached.Total, totalSw.ElapsedMilliseconds);
             return cached;
         }
@@ -108,8 +109,8 @@ public sealed class TruemainsLeaderboardQueryService(
             // diagnosed here, not on the populated path.
             totalSw.Stop();
             logger.LogInformation(
-                "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} otpOnly={OtpOnly} rows=0 total=0 countMs={CountMs:F1} elapsed={ElapsedMs}ms result=empty",
-                clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames, otpOnly,
+                "{Surface} page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} otpOnly={OtpOnly} rows=0 total=0 countMs={CountMs:F1} elapsed={ElapsedMs}ms result=empty",
+                Surface, clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames, otpOnly,
                 countMs, totalSw.ElapsedMilliseconds);
             return empty;
         }
@@ -131,8 +132,8 @@ public sealed class TruemainsLeaderboardQueryService(
             cache.Set(cacheKey, pastEnd, CacheEntry(ResponseCacheTtl));
             totalSw.Stop();
             logger.LogInformation(
-                "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} otpOnly={OtpOnly} rows=0 total={Total} countMs={CountMs:F1} pageMs={PageMs:F1} elapsed={ElapsedMs}ms result=past_end",
-                clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames, otpOnly,
+                "{Surface} page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} otpOnly={OtpOnly} rows=0 total={Total} countMs={CountMs:F1} pageMs={PageMs:F1} elapsed={ElapsedMs}ms result=past_end",
+                Surface, clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames, otpOnly,
                 total, countMs, pageMs, totalSw.ElapsedMilliseconds);
             return pastEnd;
         }
@@ -243,11 +244,17 @@ public sealed class TruemainsLeaderboardQueryService(
                 Stats = new LeaderboardStatsReadModel
                 {
                     Games = stats?.Games ?? 0,
-                    Wins = stats?.Wins,
-                    Losses = stats?.Losses,
-                    WinRate = stats is not null
-                        ? RateMath.WinRate(stats.Wins, stats.Losses)
-                        : null,
+                    // WR / W-L are the player's overall ranked split totals from the
+                    // latest rank snapshot (League-V4 Wins/Losses), not the
+                    // main-champion aggregate. A main whose tracked-champion games
+                    // have aged out of champion_aggregate_scopes (or whose displayed
+                    // main is a stale snapshot they no longer play) still has a live
+                    // ranked W-L on their snapshot, so the WR cell stays populated
+                    // instead of vanishing. Games / KDA remain the main-champion
+                    // aggregate (games on tracked mains), so games and W+L can differ.
+                    Wins = latestRank?.Wins,
+                    Losses = latestRank?.Losses,
+                    WinRate = RateMath.WinRate(latestRank?.Wins, latestRank?.Losses),
                     Kda = stats?.Kda,
                 },
                 TopChampions = topChamps,
@@ -266,8 +273,8 @@ public sealed class TruemainsLeaderboardQueryService(
 
         totalSw.Stop();
         logger.LogInformation(
-            "[truemain-leaderboard] page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} otpOnly={OtpOnly} rows={Rows} total={Total} countMs={CountMs:F1} pageMs={PageMs:F1} topChampMs={TopChampMs:F1} statsMs={StatsMs:F1} ranksMs={RanksMs:F1} buildsContinuationMs={BuildsContinuationMs:F1} positionsMs={PositionsMs:F1} elapsed={ElapsedMs}ms result=miss",
-            clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames, otpOnly,
+            "{Surface} page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} otpOnly={OtpOnly} rows={Rows} total={Total} countMs={CountMs:F1} pageMs={PageMs:F1} topChampMs={TopChampMs:F1} statsMs={StatsMs:F1} ranksMs={RanksMs:F1} buildsContinuationMs={BuildsContinuationMs:F1} positionsMs={PositionsMs:F1} elapsed={ElapsedMs}ms result=miss",
+            Surface, clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames, otpOnly,
             rows.Count, total, countMs, pageMs, topChampMs, statsMs, ranksMs, buildsContinuationMs, positionsMs, totalSw.ElapsedMilliseconds);
 
         return response;
@@ -442,7 +449,9 @@ public sealed class TruemainsLeaderboardQueryService(
                 rs."RiotAccountId" AS "AccountId",
                 rs."Tier" AS "Tier",
                 rs."Division" AS "Division",
-                rs."LeaguePoints" AS "LeaguePoints"
+                rs."LeaguePoints" AS "LeaguePoints",
+                rs."Wins" AS "Wins",
+                rs."Losses" AS "Losses"
             FROM rank_snapshots rs
             WHERE rs."RiotAccountId" = ANY ({accountIds})
             ORDER BY rs."RiotAccountId", rs."CapturedAtUtc" DESC
@@ -783,7 +792,7 @@ public sealed class TruemainsLeaderboardQueryService(
         int SummonerLevel,
         int Score);
 
-    private sealed record RankRow(Guid AccountId, string Tier, string Division, int LeaguePoints);
+    private sealed record RankRow(Guid AccountId, string Tier, string Division, int LeaguePoints, int? Wins, int? Losses);
 
     private sealed record TopChampionRow(string Puuid, int ChampionId, int Games, double PlayRate, bool IsOtp);
 

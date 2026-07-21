@@ -155,6 +155,28 @@ public sealed class MainAnalysisProcess(
             coverage,
             nowUtc);
 
+        // Every stat the calculator emits carries the account's total valid
+        // sample size; 0 rows means no classifiable games this cycle.
+        var newTotalMatches = newStats.Count > 0 ? newStats[0].TotalMatches : 0;
+        var hasEstablishedMain = existingStats.Any(stat => stat.IsMain);
+
+        // Thin-sample guard (#825): an established main that became eligible via
+        // the passive-harvest path can arrive with a recent sample too small to
+        // classify anyone as a main (< MinMatchesToEvaluate). Applying the delta
+        // then would delete the existing main (RemoveMissingChampionStats) and
+        // replace it with non-main rows, dropping the player off the leaderboard
+        // on a sample we explicitly deem insufficient. Leave the established main
+        // untouched instead, but still stamp LastMainCalcAtUtc so the account
+        // waits a full recompute cycle before we retry — by then more games may
+        // have been harvested. Accounts with no established main keep the prior
+        // behaviour (nothing to protect).
+        if (hasEstablishedMain && newTotalMatches < options.MinMatchesToEvaluate)
+        {
+            TouchAccountLastMainCalc(account, accountEntitiesByKey, nowUtc);
+            summary.Processed++;
+            return summary;
+        }
+
         var newStatsByChampion = newStats.ToDictionary(stat => stat.ChampionId);
         ApplyStatsDelta(session, existingStats, newStats, summary);
         TouchAccountLastMainCalc(account, accountEntitiesByKey, nowUtc);

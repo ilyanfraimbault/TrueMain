@@ -42,12 +42,23 @@ const {
   isInitialLoading: rankHistoryLoading,
 } = useTruemainRankHistory(nameTag)
 
+// Human label for the breadcrumb / SEO title — `gameName#tagLine`, falling
+// back to the raw nameTag slug while the profile fetch is in flight.
+const playerLabel = computed(() => {
+  const identity = profile.value?.identity
+  if (!identity) return nameTag.value
+  return identity.tagLine ? `${identity.gameName}#${identity.tagLine}` : identity.gameName
+})
+
+// Truemains > {player}. Rendered even in the loading / not-found states so the
+// page always has a way back up to the leaderboard.
+const breadcrumbItems = computed(() => [
+  { label: 'Truemains', to: '/truemains' },
+  { label: playerLabel.value },
+])
+
 useSeoMeta({
-  title: () => {
-    const identity = profile.value?.identity
-    if (!identity) return nameTag.value
-    return identity.tagLine ? `${identity.gameName}#${identity.tagLine}` : identity.gameName
-  },
+  title: () => playerLabel.value,
   description: () => {
     const identity = profile.value?.identity
     if (!identity) return 'TrueMain player profile.'
@@ -109,6 +120,9 @@ const hasActiveFilters = computed(() => Boolean(filterPosition.value || filterCh
     more data per row.
   -->
   <main class="mx-auto w-full max-w-7xl p-4 md:p-6">
+    <!-- Truemains > {player}, linking back to the OTP leaderboard. -->
+    <UBreadcrumb :items="breadcrumbItems" class="mb-6" />
+
     <template v-if="profileNotFound">
       <ProfileNotFound :name-tag="nameTag" />
     </template>

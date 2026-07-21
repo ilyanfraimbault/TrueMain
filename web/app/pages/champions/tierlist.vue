@@ -6,9 +6,13 @@ import { isLoadingStatus } from '~/utils/async-data'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 
 useSeoMeta({
-  title: 'Tier List',
+  title: 'Champion Tier List',
   description: 'Champion meta tier list ranking champions by winrate and pickrate per role for the current patch.',
 })
+
+useSchemaOrg([
+  defineWebPage({ name: 'Champion Tier List' }),
+])
 
 const { filters, setFilter } = useChampionFilters()
 

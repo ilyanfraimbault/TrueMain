@@ -1,6 +1,5 @@
 using AwesomeAssertions;
 using Data;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -49,20 +48,16 @@ public sealed class DatabaseMigratorTests
 
         // The migrator resolves IConfiguration to look up the optional
         // direct-to-Postgres migrations connection string. An empty config leaves
-        // it unset, so the migrator falls through to the factory path below.
+        // it unset, so the migrator falls through to the scoped-context path below.
         services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
 
-        // Register only the factory (the Ingestor wiring style). Creating a
-        // context throws so the test never touches a real database while still
-        // proving whether the migrator reached the resolution path.
-        services.AddSingleton<IDbContextFactory<TrueMainDbContext>, ThrowingDbContextFactory>();
+        // Both hosts register the context through AddDbContextFactory, which also
+        // registers a scoped TrueMainDbContext — the path the migrator now resolves.
+        // Resolving it throws so the test proves the migrator reached that path
+        // without ever touching a real database.
+        services.AddScoped<TrueMainDbContext>(_ => throw new MigratorReachedException());
 
         return services.BuildServiceProvider();
-    }
-
-    private sealed class ThrowingDbContextFactory : IDbContextFactory<TrueMainDbContext>
-    {
-        public TrueMainDbContext CreateDbContext() => throw new MigratorReachedException();
     }
 
     private sealed class MigratorReachedException : Exception

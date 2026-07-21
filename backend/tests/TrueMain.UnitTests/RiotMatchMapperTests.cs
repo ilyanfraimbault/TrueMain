@@ -173,6 +173,57 @@ public sealed class RiotMatchMapperTests
         result.Participants.Select(p => p.ParticipantId).Should().BeInAscendingOrder();
     }
 
+    [Fact]
+    public void Map_CorrectsTeamPosition_WhenOneLaneIsMissingAndOneMemberIsUnresolved()
+    {
+        var dto = BuildMatch();
+        dto.Info.Participants.Add(BuildParticipant(1, "p-1", teamId: 100, teamPosition: "TOP"));
+        dto.Info.Participants.Add(BuildParticipant(2, "p-2", teamId: 100, teamPosition: "JUNGLE"));
+        // MIDDLE is missing on team 100, and this member's position is blank —
+        // the unambiguous pairing this fix targets.
+        dto.Info.Participants.Add(BuildParticipant(3, "p-3", teamId: 100, teamPosition: ""));
+        dto.Info.Participants.Add(BuildParticipant(4, "p-4", teamId: 100, teamPosition: "BOTTOM"));
+        dto.Info.Participants.Add(BuildParticipant(5, "p-5", teamId: 100, teamPosition: "UTILITY"));
+
+        var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow);
+
+        result.Participants.Single(p => p.ParticipantId == 3).TeamPosition.Should().Be("MIDDLE");
+    }
+
+    [Fact]
+    public void Map_LeavesTeamPositionsUntouched_WhenMultipleMembersAreUnresolved()
+    {
+        var dto = BuildMatch();
+        dto.Info.Participants.Add(BuildParticipant(1, "p-1", teamId: 100, teamPosition: "TOP"));
+        dto.Info.Participants.Add(BuildParticipant(2, "p-2", teamId: 100, teamPosition: "JUNGLE"));
+        // Two gaps (MIDDLE, UTILITY) and two unresolved members — ambiguous which
+        // unresolved member goes where, so neither is guessed.
+        dto.Info.Participants.Add(BuildParticipant(3, "p-3", teamId: 100, teamPosition: ""));
+        dto.Info.Participants.Add(BuildParticipant(4, "p-4", teamId: 100, teamPosition: "BOTTOM"));
+        dto.Info.Participants.Add(BuildParticipant(5, "p-5", teamId: 100, teamPosition: ""));
+
+        var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow);
+
+        result.Participants.Single(p => p.ParticipantId == 3).TeamPosition.Should().BeEmpty();
+        result.Participants.Single(p => p.ParticipantId == 5).TeamPosition.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Map_LeavesTeamPositionsUntouched_WhenTeamIsNotFullHeadcount()
+    {
+        var dto = BuildMatch();
+        dto.Info.Participants.Add(BuildParticipant(1, "p-1", teamId: 100, teamPosition: "TOP"));
+        dto.Info.Participants.Add(BuildParticipant(2, "p-2", teamId: 100, teamPosition: "JUNGLE"));
+        // Only 4 members on the team — the wrong-headcount case is already flagged
+        // separately and must not be papered over with a guessed lane.
+        dto.Info.Participants.Add(BuildParticipant(3, "p-3", teamId: 100, teamPosition: ""));
+        dto.Info.Participants.Add(BuildParticipant(4, "p-4", teamId: 100, teamPosition: "BOTTOM"));
+
+        var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow);
+
+        result.Participants.Single(p => p.ParticipantId == 3).TeamPosition.Should().BeEmpty();
+    }
+
     private static IReadOnlyDictionary<AccountKey, RiotAccount> EmptyAccountMap()
         => new Dictionary<AccountKey, RiotAccount>();
 
@@ -204,17 +255,19 @@ public sealed class RiotMatchMapperTests
         int participantId,
         string puuid,
         int primaryStyleId = 0,
-        int subStyleId = 0)
+        int subStyleId = 0,
+        int teamId = 100,
+        string teamPosition = "BOTTOM")
     {
         return new RiotParticipantDto
         {
             ParticipantId = participantId,
             Puuid = puuid,
             ChampionId = 22,
-            TeamId = 100,
-            TeamPosition = "BOTTOM",
-            IndividualPosition = "BOTTOM",
-            Lane = "BOTTOM",
+            TeamId = teamId,
+            TeamPosition = teamPosition,
+            IndividualPosition = teamPosition,
+            Lane = teamPosition,
             Role = "CARRY",
             Win = true,
             Perks = new RiotPerksDto

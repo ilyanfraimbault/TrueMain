@@ -3,6 +3,7 @@ import type { ChampionPosition } from '~/utils/positions'
 import { describeFetchError } from '~/utils/errors'
 import { isLoadingStatus } from '~/utils/async-data'
 import { parseRouteParam } from '~/utils/route-params'
+import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 
 // Player-scoped mirror of pages/champions/[id].vue. The static-data fetches,
 // loading bar and build tabs are intentionally identical so the page looks
@@ -64,13 +65,46 @@ const {
   selectedPosition,
 } = useChampionDetailStatics(championId, champion, filters, { preferFilterPatch: true })
 
+// Meta-only fetch: see the identical comment on pages/champions/[id].vue —
+// `displayName` is sourced from client-only statics, so it's always null
+// during SSR. Hits the same 1h-cached endpoint, so it's a cache hit. Only
+// awaited server-side, same reasoning as the global champion page.
+const seoStaticFetch = useFetch(
+  () => `/api/static/${championId.value}`,
+  { key: () => `champion-seo-name-${championId.value}-${selectedPatch.value || 'none'}`, query: { patch: selectedPatch.value || undefined } },
+)
+if (import.meta.server) await seoStaticFetch
+const { data: seoStatic } = seoStaticFetch
+const seoDisplayName = computed(() => seoStatic.value?.championName ?? displayName.value)
+
+// Truemains > {player} > {champion}, mirroring the schema.org breadcrumb below.
+// The champion crumb uses the SSR-safe `seoDisplayName` (client-only
+// `displayName` is null during SSR) so the server HTML shows the real name
+// rather than `Champion {id}`, matching the global champion page.
+const breadcrumbItems = computed(() => [
+  { label: 'Truemains', to: '/truemains' },
+  { label: playerLabel.value, to: profilePath.value },
+  { label: seoDisplayName.value ?? `Champion ${championId.value}` },
+])
+
 useSeoMeta({
-  title: () => {
-    const champ = displayName.value ?? `Champion ${championId.value}`
-    return `${champ} · ${playerLabel.value}`
-  },
-  description: () => `How ${playerLabel.value} plays ${displayName.value ?? `champion ${championId.value}`}: their build path, runes and skill order.`,
+  title: () => `${seoDisplayName.value ?? `Champion ${championId.value}`} Build by ${playerLabel.value}`,
+  description: () => `${playerLabel.value}'s ${seoDisplayName.value ?? `champion ${championId.value}`} build: `
+    + `runes, items and skill order from their real ranked games as a ${seoDisplayName.value ?? 'this champion'} OTP.`,
 })
+
+useSchemaOrg([
+  defineWebPage({
+    name: () => `${seoDisplayName.value ?? 'Champion'} Build by ${playerLabel.value}`,
+  }),
+  defineBreadcrumb({
+    itemListElement: [
+      { name: 'Truemains', item: '/truemains' },
+      { name: playerLabel.value, item: profilePath.value },
+      { name: () => seoDisplayName.value ?? `Champion ${championId.value}` },
+    ],
+  }),
+])
 
 const isRefetching = computed(() =>
   isLoadingStatus(championStatus.value)
@@ -83,6 +117,19 @@ const isRefetching = computed(() =>
 
 // Patch for the profile icon in the player header.
 const latestPatch = computed(() => versions.value?.[0] ?? null)
+
+// Thin-sample caution. The backend renders a build for any number of games
+// (down to one) rather than 404-ing, flagging small samples with
+// minSampleMet=false. Surface that as a warning icon next to the champion title
+// — like the builder's RecommendationPanel — so a build inferred from a handful
+// of games reads as a rough personal signal, not an authoritative meta build.
+const lowSampleMessage = computed(() => {
+  if (!champion.value || champion.value.minSampleMet)
+    return null
+  const games = champion.value.totalGames
+  return `Only ${games} ${games === 1 ? 'game' : 'games'} on record — this build is inferred from a small personal sample, `
+    + 'so treat it as a rough signal rather than a reliable recommendation.'
+})
 
 // ─── Match history ─────────────────────────────────────────────────────────
 // This player's recent games on THIS champion. The champion is fixed to the
@@ -111,29 +158,22 @@ function setMatchPosition(next: ChampionPosition | null) {
 const staticBundleReady = computed(() =>
   Boolean(staticList.value && itemsMap.value && summonersMap.value && runeTree.value),
 )
+
+// Frozen prop bundle for the lazy (hydrate-on-visible) matchups sidebar — see
+// useLazyHydrationSnapshot / the identical pattern on pages/champions/[id].vue
+// for why: `staticList` is client-only (`server: false`), so freezing it
+// until the child actually mounts avoids a hydration mismatch (#834/#837).
+const matchupsSnapshot = useLazyHydrationSnapshot(
+  { champions: [] as ChampionStaticListItem[] },
+  () => ({ champions: staticList.value ?? [] }),
+)
 </script>
 
 <template>
   <main class="mx-auto w-full max-w-[96rem] space-y-6 p-4 md:p-6">
-    <!-- Breadcrumb: Truemain {name} > {champion}, linking back to the profile. -->
-    <nav aria-label="Breadcrumb" class="text-sm text-muted">
-      <ol class="flex flex-wrap items-center gap-1.5">
-        <li>
-          <NuxtLink
-            :to="profilePath"
-            class="rounded text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          >
-            Truemain {{ playerLabel }}
-          </NuxtLink>
-        </li>
-        <li aria-hidden="true" class="text-muted/60">
-          /
-        </li>
-        <li class="truncate font-medium text-default">
-          {{ displayName ?? `Champion ${championId}` }}
-        </li>
-      </ol>
-    </nav>
+    <!-- Truemains > {player} > {champion}, linking back to the leaderboard and
+         the player's profile. -->
+    <UBreadcrumb :items="breadcrumbItems" />
 
     <!-- Player identity up top so it's obvious this is the truemain's page,
          not the global champion page. -->
@@ -200,15 +240,27 @@ const staticBundleReady = computed(() =>
         </NuxtLink>
       </div>
 
-      <template v-if="champion && staticData">
+      <!--
+        Build region renders whenever we're not settled into the no-build state,
+        independently of the client-only `champion`/`staticData` resolving — the
+        same pattern (and rationale) as the global champion page. The header and
+        the two-column grid reserve their space from SSR: the header falls back
+        to the URL filters, and the build tabs show a dedicated skeleton until
+        real champion + static data land. This keeps the recent-games section
+        below from being shoved down when the client fetch completes (#834 — the
+        section used to jump ~1700px, wrecking CLS, because the whole grid was
+        gated on `champion && staticData` and so was absent from the SSR HTML).
+      -->
+      <template v-if="!notEnoughData">
         <header class="flex flex-wrap items-center gap-4">
           <ChampionHeader
             :champion-name="displayName"
             :champion-icon-url="displayIconUrl"
             :champion-id="championId"
-            :position="champion.position"
-            :total-games="champion.totalGames"
-            :total-wins="champion.totalWins"
+            :position="champion?.position || selectedPosition || ''"
+            :total-games="champion?.totalGames ?? 0"
+            :total-wins="champion?.totalWins ?? 0"
+            :low-sample-message="lowSampleMessage"
           />
           <ChampionFilters
             :selected-patch="selectedPatch"
@@ -218,22 +270,6 @@ const staticBundleReady = computed(() =>
             @update:position="value => setFilter({ position: value })"
           />
         </header>
-
-        <!--
-          Thin-sample caution. The backend renders a build for any number of
-          games (down to one) rather than 404-ing, flagging small samples with
-          minSampleMet=false. Surface that so a build inferred from a handful of
-          games reads as a rough personal signal, not an authoritative meta
-          build — mirroring the global page's low-sample notice.
-        -->
-        <UAlert
-          v-if="!champion.minSampleMet"
-          color="warning"
-          variant="soft"
-          icon="i-lucide-triangle-alert"
-          :title="`Only ${champion.totalGames} ${champion.totalGames === 1 ? 'game' : 'games'} on record`"
-          description="This build is inferred from a small personal sample — treat it as a rough signal rather than a reliable recommendation."
-        />
 
         <!--
           Same two-column layout as the global champion page (#703): the build
@@ -246,20 +282,31 @@ const staticBundleReady = computed(() =>
         <div class="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
           <div class="min-w-0 space-y-6">
             <ChampionBuildTabs
+              v-if="champion && staticData"
               :builds="champion.builds"
               :champion-static="staticData"
               :items-map="itemsMap ?? {}"
               :summoners-map="summonersMap ?? {}"
               :rune-tree="runeTree ?? null"
             />
+            <ChampionBuildTabsSkeleton v-else />
           </div>
 
           <aside class="min-w-0 space-y-6">
-            <ChampionMatchups
+            <!-- Below-the-fold sidebar: lazy-load so its JS lands in its own
+                 chunk and only hydrates once scrolled into view (#820).
+                 `:champions` comes from `matchupsSnapshot` (frozen at its
+                 SSR-matching empty value until `@vue:mounted` reveals the
+                 live, already-loaded `staticList`) so the deferred hydration
+                 doesn't mismatch (#834/#837) — same pattern as the global
+                 champion page. -->
+            <LazyChampionMatchups
+              hydrate-on-visible
               :champion-id="championId"
               :position="selectedPosition"
-              :champions="staticList ?? []"
               :name-tag="nameTag"
+              v-bind="matchupsSnapshot.value"
+              @vue:mounted="matchupsSnapshot.reveal"
             />
           </aside>
         </div>
@@ -296,9 +343,10 @@ const staticBundleReady = computed(() =>
           <MatchRowSkeleton v-for="i in 5" :key="`match-skel-${i}`" />
         </template>
         <template v-else>
-          <MatchRow
+          <LazyMatchRow
             v-for="match in matches"
             :key="match.matchId"
+            hydrate-on-visible
             :match="match"
             :champions="staticList ?? []"
             :items="itemsMap ?? {}"

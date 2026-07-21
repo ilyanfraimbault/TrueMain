@@ -443,9 +443,11 @@ namespace Data.Migrations
                         .HasColumnType("integer");
 
                     b.Property<double>("SumMinute")
+                        .HasPrecision(18, 6)
                         .HasColumnType("double precision");
 
                     b.Property<double>("SumSpike")
+                        .HasPrecision(18, 6)
                         .HasColumnType("double precision");
 
                     b.Property<string>("TeamPosition")
@@ -615,6 +617,7 @@ namespace Data.Migrations
                         .HasColumnType("character varying(128)");
 
                     b.Property<double>("Score")
+                        .HasPrecision(18, 6)
                         .HasColumnType("double precision");
 
                     b.Property<DateTime?>("ScoredAtUtc")
@@ -631,11 +634,13 @@ namespace Data.Migrations
                     b.Property<DateTime?>("ValidatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.HasKey("Id");
-
-                    b.HasIndex("ChampionId");
-
-                    b.HasIndex("PlatformId");
 
                     b.HasIndex("PlatformId", "Puuid", "ChampionId")
                         .IsUnique();
@@ -677,6 +682,7 @@ namespace Data.Migrations
                         .HasColumnType("character varying(8)");
 
                     b.Property<double>("PlayRate")
+                        .HasPrecision(18, 6)
                         .HasColumnType("double precision");
 
                     b.Property<List<PositionStat>>("PositionBreakdown")
@@ -705,8 +711,6 @@ namespace Data.Migrations
                     b.HasIndex("PlatformId", "IsMain");
 
                     NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("PlatformId", "IsMain"), new[] { "Puuid" });
-
-                    b.HasIndex("PlatformId", "Puuid");
 
                     b.HasIndex("PlatformId", "Puuid", "ChampionId")
                         .IsUnique();
@@ -749,6 +753,11 @@ namespace Data.Migrations
                     b.Property<int>("MapId")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("MatchupLeadAggregated")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("PlatformId")
                         .IsRequired()
                         .HasMaxLength(8)
@@ -785,6 +794,9 @@ namespace Data.Migrations
 
                     b.HasIndex("PlatformId", "QueueId", "GameStartTimeUtc")
                         .HasDatabaseName("IX_matches_platform_queue_game_start");
+
+                    b.HasIndex(new[] { "QueueId" }, "IX_matches_matchup_lead_pending")
+                        .HasFilter("\"MatchupLeadAggregated\" = false");
 
                     b.HasIndex(new[] { "QueueId" }, "IX_matches_snapshot_prune_pending")
                         .HasFilter("\"PowerspikeAggregated\" = true AND \"TimelineSnapshotsPruned\" = false");
@@ -1142,15 +1154,19 @@ namespace Data.Migrations
                         .HasColumnType("bigint");
 
                     b.Property<double>("SumDamageDiff")
+                        .HasPrecision(18, 6)
                         .HasColumnType("double precision");
 
                     b.Property<double>("SumDamageDiffSq")
+                        .HasPrecision(18, 6)
                         .HasColumnType("double precision");
 
                     b.Property<double>("SumGoldDiff")
+                        .HasPrecision(18, 6)
                         .HasColumnType("double precision");
 
                     b.Property<double>("SumGoldDiffSq")
+                        .HasPrecision(18, 6)
                         .HasColumnType("double precision");
 
                     b.HasKey("Id");
@@ -1328,6 +1344,12 @@ namespace Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("now()");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
 
                     b.HasKey("Id");
 
