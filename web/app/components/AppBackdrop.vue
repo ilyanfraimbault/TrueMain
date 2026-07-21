@@ -11,8 +11,9 @@
 // Cursor-reactive: the corona surges on the side of the orb facing the
 // mouse while it moves, and settles a few seconds after it rests.
 //
-// Degrades gracefully: no WebGL → the static CSS wash below; reduced-motion →
-// a single rendered frame, no loop; tab hidden / off-screen → the loop parks.
+// Degrades gracefully: no WebGL → the static CSS wash below; reduced-motion or
+// a very small viewport → a single rendered frame, no loop; tab hidden /
+// off-screen → the loop parks.
 // Output is premultiplied additive-over-transparent (colour scaled to its
 // luminance-derived alpha) so only the light composites onto the page surface.
 
@@ -55,7 +56,7 @@ float vnoise(vec2 p) {
 
 float fbm(vec2 p) {
   float v = 0.0, a = 0.5;
-  for (int i = 0; i < 5; i++) { v += a * vnoise(p); p = p * 2.03 + vec2(7.3, 3.1); a *= 0.5; }
+  for (int i = 0; i < 3; i++) { v += a * vnoise(p); p = p * 2.03 + vec2(7.3, 3.1); a *= 0.5; }
   return v;
 }
 
@@ -82,12 +83,14 @@ void main() {
   const vec3 ROSE = vec3(0.80, 0.36, 0.32);
   const vec3 CHAMPAGNE = vec3(0.95, 0.70, 0.48);
 
-  // The orb drifts on two superposed slow oscillations — never still, never
-  // going anywhere. The reading shield below stays put, so the text zone is
-  // protected wherever the rim wanders.
+  // The orb drifts on two superposed slow oscillations — never still, but
+  // barely wandering: the amplitudes are deliberately small so it sits close
+  // to upper-center and the motion reads as a gentle breath, not travel. The
+  // reading shield below stays put, so the text zone is protected wherever the
+  // rim lands.
   vec2 c = anchor(vec2(
-    0.5 + 0.020 * sin(t * 0.19) + 0.006 * sin(t * 0.53 + 1.3),
-    0.66 + 0.024 * sin(t * 0.14 + 2.1) + 0.006 * sin(t * 0.47)));
+    0.5 + 0.010 * sin(t * 0.19) + 0.003 * sin(t * 0.53 + 1.3),
+    0.68 + 0.012 * sin(t * 0.14 + 2.1) + 0.003 * sin(t * 0.47)));
   vec2 d2c = p - c;
   float d = length(d2c);
   float R = 0.38;
@@ -154,10 +157,13 @@ void main() {
 }
 `
 
-const FRAME_INTERVAL_MS = 1000 / 30
+const FRAME_INTERVAL_MS = 1000 / 24
 // Everything is soft gradients + grain; capped so 4K/retina doesn't
 // quadruple the fill cost for detail that isn't there.
 const MAX_DPR = 1.5
+// Below this CSS-pixel width the continuous fill isn't worth its cost, so the
+// loop stays parked on a single static frame (same path as reduced-motion).
+const SMALL_VIEWPORT_MAX = 640
 // Arbitrary mid-animation timestamp for the single frame drawn when motion is
 // off (reduced-motion / pre-loop resize) — far enough in that the folds are
 // developed rather than the near-empty t=0 field.
@@ -254,13 +260,14 @@ onMounted(() => {
 
   function draw(timeSeconds: number) {
     resize()
-    // Runs at ~30fps (loop is frame-gated), so these fixed factors act as
-    // time constants: ~0.3s for the position trail, ~1s in / ~2s out for the
-    // cursor's influence.
-    pointer.x += (pointerTarget.x - pointer.x) * 0.12
-    pointer.y += (pointerTarget.y - pointer.y) * 0.12
+    // Runs at ~24fps (loop is frame-gated). These per-frame factors act as
+    // time constants; they're scaled by 30/24 from the previous 30fps loop so
+    // the cursor response is unchanged in wall-clock time (~0.3s for the
+    // position trail, ~1s in / ~2s out for the cursor's influence).
+    pointer.x += (pointerTarget.x - pointer.x) * 0.15
+    pointer.y += (pointerTarget.y - pointer.y) * 0.15
     const pointerActive = performance.now() - lastPointerMoveAt < 3000
-    pointerK += ((pointerActive ? 1 : 0) - pointerK) * (pointerActive ? 0.1 : 0.02)
+    pointerK += ((pointerActive ? 1 : 0) - pointerK) * (pointerActive ? 0.125 : 0.025)
     gl!.uniform2f(uResolution, canvas!.width, canvas!.height)
     gl!.uniform1f(uTime, timeSeconds)
     gl!.uniform2f(uPointer, pointer.x, pointer.y)
@@ -286,8 +293,16 @@ onMounted(() => {
     draw((now - startTime) / 1000)
   }
 
+  // The loop should stay parked (a single static frame instead of a live
+  // animation) whenever the user asked for reduced motion or the viewport is
+  // too small to be worth the continuous fill cost. `document.hidden` is a
+  // separate, transient park handled by start()/onVisibilityChange.
+  function motionOff() {
+    return reducedMotion.matches || window.innerWidth < SMALL_VIEWPORT_MAX
+  }
+
   function start() {
-    if (rafId || reducedMotion.matches || document.hidden) return
+    if (rafId || motionOff() || document.hidden) return
     rafId = requestAnimationFrame(loop)
   }
 
@@ -298,7 +313,7 @@ onMounted(() => {
   }
 
   function syncMotion() {
-    if (reducedMotion.matches) {
+    if (motionOff()) {
       stop()
       draw(STATIC_FRAME_SECONDS)
     }
@@ -308,12 +323,21 @@ onMounted(() => {
   }
 
   const resizeObserver = new ResizeObserver(() => {
-    // Only repaint when the loop is parked, and keep the timestamp consistent
-    // with the loop (relative to the first frame) rather than raw page time.
     if (rafId) return
-    draw(reducedMotion.matches
-      ? STATIC_FRAME_SECONDS
-      : startTime ? (performance.now() - startTime) / 1000 : 0)
+    // A resize can cross the small-viewport threshold, so re-evaluate whether
+    // the loop should now run (e.g. a phone rotated into landscape). When it
+    // stays parked, repaint one frame — a developed static frame if motion is
+    // off, otherwise timed relative to the first frame (matching the loop),
+    // never raw page time.
+    if (motionOff()) {
+      draw(STATIC_FRAME_SECONDS)
+    }
+    else if (document.hidden) {
+      draw(startTime ? (performance.now() - startTime) / 1000 : 0)
+    }
+    else {
+      start()
+    }
   })
   resizeObserver.observe(canvas)
 
