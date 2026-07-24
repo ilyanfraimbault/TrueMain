@@ -184,7 +184,12 @@ public sealed class WorkerProcessIsolationTests
         });
 
         return new Worker(
-            NullLogger<Worker>.Instance, scopeFactory, jobOptions, iterationContext, lifetime);
+            NullLogger<Worker>.Instance,
+            scopeFactory,
+            jobOptions,
+            iterationContext,
+            lifetime,
+            TestIngestorMetrics.Create());
     }
 
     private sealed class RecordingProcess(string name, List<string> executed) : IIngestorProcess

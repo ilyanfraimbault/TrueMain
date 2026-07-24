@@ -91,7 +91,12 @@ builder.Services.AddMongoLogging(builder.Configuration, processName: "Ingestor")
 // Durable crash capture (file first, then Mongo) layered on the Mongo logging it
 // depends on. This is what makes a silent ingestor crash visible: a fault that
 // escapes the worker, or an OOM/SIGKILL the restart policy hides, leaves a record.
-builder.Services.AddCrashReporting();
+// Metrics pipeline: AddMetrics registers the IMeterFactory that IngestorMetrics builds
+// the "TrueMain.Ingestor" meter from, so the meter's lifetime is the host's instead of a
+// process-wide static. It is idempotent (TryAdd), so calling it explicitly here is safe
+// and keeps the registration visible next to its consumer.
+builder.Services.AddMetrics();
+builder.Services.AddSingleton<IngestorMetrics>();
 
 builder.Services.AddHostedService<Worker>();
 
