@@ -59,7 +59,7 @@ jobs:
         run: dotnet test tests/TrueMain.IntegrationTests/TrueMain.IntegrationTests.csproj --configuration Release --no-build --verbosity normal
 
   frontend:
-    name: Frontend Build (${{ matrix.app }})
+    name: Frontend Build and Test (${{ matrix.app }})
     runs-on: ubuntu-24.04
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
 
@@ -88,6 +88,9 @@ jobs:
 
       - name: Typecheck Nuxt app
         run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test
 
       - name: Build Nuxt app
         run: npm run build
