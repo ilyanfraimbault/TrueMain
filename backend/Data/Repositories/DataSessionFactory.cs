@@ -5,19 +5,15 @@ namespace Data.Repositories;
 public sealed class DataSessionFactory : IDataSessionFactory
 {
     private readonly IDbContextFactory<TrueMainDbContext> _dbContextFactory;
-    private readonly IDataRepositoryFactory _repositoryFactory;
 
-    public DataSessionFactory(
-        IDbContextFactory<TrueMainDbContext> dbContextFactory,
-        IDataRepositoryFactory repositoryFactory)
+    public DataSessionFactory(IDbContextFactory<TrueMainDbContext> dbContextFactory)
     {
         _dbContextFactory = dbContextFactory;
-        _repositoryFactory = repositoryFactory;
     }
 
     public async Task<IDataSession> CreateAsync(CancellationToken ct)
     {
         var db = await _dbContextFactory.CreateDbContextAsync(ct);
-        return new DataSession(db, _repositoryFactory);
+        return new DataSession(db);
     }
 }

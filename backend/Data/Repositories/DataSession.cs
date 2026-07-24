@@ -6,22 +6,22 @@ public sealed class DataSession : IDataSession
 {
     private readonly TrueMainDbContext _db;
 
-    public DataSession(TrueMainDbContext db, IDataRepositoryFactory repositoryFactory)
+    public DataSession(TrueMainDbContext db)
     {
         _db = db;
 
-        MainCandidates = repositoryFactory.CreateMainCandidateRepository(_db);
-        MainChampionStats = repositoryFactory.CreateMainChampionStatRepository(_db);
-        RiotAccounts = repositoryFactory.CreateRiotAccountRepository(_db);
-        Matches = repositoryFactory.CreateMatchRepository(_db);
-        MatchParticipants = repositoryFactory.CreateMatchParticipantRepository(_db);
-        MatchParticipantTimelineSnapshots = repositoryFactory.CreateMatchParticipantTimelineSnapshotRepository(_db);
-        MatchParticipantKillPositions = repositoryFactory.CreateMatchParticipantKillPositionRepository(_db);
-        JungleFirstClears = repositoryFactory.CreateJungleFirstClearRepository(_db);
-        ProcessRuns = repositoryFactory.CreateProcessRunRepository(_db);
-        RankSnapshots = repositoryFactory.CreateRankSnapshotRepository(_db);
-        SeedRequests = repositoryFactory.CreateSeedRequestRepository(_db);
-        DiscoveryCursors = repositoryFactory.CreateDiscoveryCursorRepository(_db);
+        MainCandidates = new MainCandidateRepository(_db);
+        MainChampionStats = new MainChampionStatRepository(_db);
+        RiotAccounts = new RiotAccountRepository(_db);
+        Matches = new MatchRepository(_db);
+        MatchParticipants = new MatchParticipantRepository(_db);
+        MatchParticipantTimelineSnapshots = new MatchParticipantTimelineSnapshotRepository(_db);
+        MatchParticipantKillPositions = new MatchParticipantKillPositionRepository(_db);
+        JungleFirstClears = new JungleFirstClearRepository(_db);
+        ProcessRuns = new ProcessRunRepository(_db);
+        RankSnapshots = new RankSnapshotRepository(_db);
+        SeedRequests = new SeedRequestRepository(_db);
+        DiscoveryCursors = new DiscoveryCursorRepository(_db);
     }
 
     public IMainCandidateRepository MainCandidates { get; }
