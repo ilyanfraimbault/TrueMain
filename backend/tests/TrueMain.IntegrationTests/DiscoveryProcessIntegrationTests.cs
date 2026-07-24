@@ -104,6 +104,41 @@ public sealed class DiscoveryProcessIntegrationTests
         (await ReadCursorOffsetAsync("KR")).Should().Be(0);
     }
 
+    [Fact]
+    public async Task UpsertOffsetAsync_InsertsThenUpdatesTheSameRow_WithoutSaveChanges()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        var sessionFactory = _fixture.CreateSessionFactory();
+        var insertedAtUtc = new DateTime(2026, 7, 1, 12, 0, 0, DateTimeKind.Utc);
+        var updatedAtUtc = insertedAtUtc.AddHours(1);
+
+        // #500: the upsert is a single INSERT … ON CONFLICT statement, so it lands
+        // without a SaveChanges call and its conflict target must match a real
+        // constraint (the "discovery_cursors" primary key on "PlatformId").
+        await using (var session = await sessionFactory.CreateAsync(CancellationToken.None))
+        {
+            await session.DiscoveryCursors.UpsertOffsetAsync("KR", 10, insertedAtUtc, CancellationToken.None);
+        }
+
+        (await ReadCursorOffsetAsync("KR")).Should().Be(10);
+
+        await using (var session = await sessionFactory.CreateAsync(CancellationToken.None))
+        {
+            await session.DiscoveryCursors.UpsertOffsetAsync("KR", 20, updatedAtUtc, CancellationToken.None);
+
+            // Reads are no-tracking, so the same session sees the row it just wrote
+            // rather than a stale tracked instance.
+            (await session.DiscoveryCursors.GetOffsetAsync("KR", CancellationToken.None)).Should().Be(20);
+        }
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        var cursors = await verifyDb.DiscoveryCursors.AsNoTracking().ToListAsync();
+        cursors.Should().ContainSingle("the second upsert conflicts on the primary key and updates in place");
+        cursors[0].Offset.Should().Be(20);
+        cursors[0].UpdatedAtUtc.Should().Be(updatedAtUtc);
+    }
+
     private async Task<int?> ReadCursorOffsetAsync(string platformId)
     {
         await using var db = _fixture.CreateDbContext();

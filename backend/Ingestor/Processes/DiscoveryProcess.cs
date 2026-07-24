@@ -143,7 +143,8 @@ public sealed class DiscoveryProcess(
         var discovered = result.Discovered;
 
         // Advance the cursor past this window for the next run, wrapping at the ladder
-        // end. Tracked here and persisted by the SaveChanges calls below.
+        // end. Written immediately by its own upsert statement, independently of the
+        // SaveChanges calls below.
         if (options.SlidingWindowEnabled && result.LadderSize > 0)
         {
             var window = Math.Max(1, options.MaxAccountsPerPlatformPerRun);
@@ -159,9 +160,9 @@ public sealed class DiscoveryProcess(
         if (discovered.Count == 0)
         {
             logger.LogInformation("No ladder entries for platform {Platform}.", platformId);
-            // Persist the cursor advance even when this window resolved no summoners,
-            // so the next run still moves forward rather than re-scanning the same slice.
-            await session.SaveChangesAsync(ct);
+            // The cursor advance is already persisted by the upsert above, so an empty
+            // window still moves the next run forward rather than re-scanning the same
+            // slice — and nothing else is staged on this session yet.
             return summary;
         }
 
