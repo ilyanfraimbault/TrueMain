@@ -101,13 +101,11 @@ public sealed class PostgresFixture : IAsyncLifetime
 
     private sealed class TestDataSessionFactory(PostgresFixture fixture) : IDataSessionFactory
     {
-        private static readonly IDataRepositoryFactory RepositoryFactory = new DataRepositoryFactory();
-
         [SuppressMessage("Reliability", "CA2000", Justification = "Ownership is transferred to the caller via IDataSession.")]
         public Task<IDataSession> CreateAsync(CancellationToken ct)
         {
             var db = fixture.CreateDbContext();
-            return Task.FromResult<IDataSession>(new DataSession(db, RepositoryFactory));
+            return Task.FromResult<IDataSession>(new DataSession(db));
         }
     }
 

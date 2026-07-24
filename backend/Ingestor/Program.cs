@@ -79,7 +79,6 @@ builder.Services.AddRecordedProcess<MatchDataRetentionProcess>();
 
 builder.Services.AddTrueMainData(builder.Configuration);
 
-builder.Services.AddSingleton<IDataRepositoryFactory, DataRepositoryFactory>();
 builder.Services.AddSingleton<IDataSessionFactory, DataSessionFactory>();
 
 // Persist Warning+ logs to MongoDB (see Data/Logging/Mongo). This is what makes

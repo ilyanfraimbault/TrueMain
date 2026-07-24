@@ -28,7 +28,7 @@ public sealed class MatchTimelineRecoveryIntegrationTests
         await SeedPendingMatchAsync(matchId);
 
         await using var db = _fixture.CreateDbContext();
-        await using var session = new DataSession(db, new DataRepositoryFactory());
+        await using var session = new DataSession(db);
         var service = new TimelineIngestionService(new FakeRiotMatchClient());
 
         var updated = await service.IngestTimelinesAsync(
