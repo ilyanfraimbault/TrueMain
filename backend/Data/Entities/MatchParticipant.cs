@@ -93,23 +93,15 @@ public class MatchParticipant
 
     public int Summoner2Id { get; set; }
 
+    /// <summary>
+    /// Item timeline events, stored as <c>jsonb</c>. See <see cref="ItemEvent"/> for the
+    /// pinned on-disk key names.
+    /// </summary>
     public List<ItemEvent> ItemEvents { get; set; } = new();
 
+    /// <summary>
+    /// Skill level-up events, stored as <c>jsonb</c>. See <see cref="SkillEvent"/> for the
+    /// pinned on-disk key names.
+    /// </summary>
     public List<SkillEvent> SkillEvents { get; set; } = new();
-}
-
-public class ItemEvent
-{
-    public int TimestampMs { get; set; }
-    public string EventType { get; set; } = string.Empty;
-    public int ItemId { get; set; }
-    public int? BeforeId { get; set; }
-    public int? AfterId { get; set; }
-}
-
-public class SkillEvent
-{
-    public int TimestampMs { get; set; }
-    public int SkillSlot { get; set; }
-    public string LevelUpType { get; set; } = string.Empty;
 }
