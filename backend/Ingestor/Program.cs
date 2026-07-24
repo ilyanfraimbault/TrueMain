@@ -4,6 +4,7 @@ using Data.Logging.Crash;
 using Data.Logging.Mongo;
 using Data.Repositories;
 using Ingestor;
+using Ingestor.BuildFacts;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.Coverage;
@@ -53,7 +54,14 @@ builder.Services.AddScoped<IAccountValidationService, AccountValidationService>(
 builder.Services.AddScoped<IMainStatsCalculator, MainStatsCalculator>();
 builder.Services.AddScoped<IMainDemotionPolicy, MainDemotionPolicy>();
 builder.Services.AddScoped<IChampionCoverageProvider, ChampionCoverageProvider>();
-builder.Services.AddHttpClient<IItemMetadataProvider, CommunityDragonItemMetadataProvider>();
+// CommunityDragon is a community-run mirror: it is flakier than the Riot API and lags
+// behind on patch day, so the item-metadata fetch runs behind the same standard
+// resilience handler as the Riot clients (#251). The provider fetches with
+// CancellationToken.None (it caches the in-flight task per patch), so the pipeline's
+// total timeout — and the client timeout above it — are the only bounds on the call.
+builder.Services
+    .AddHttpClient<IItemMetadataProvider, CommunityDragonItemMetadataProvider>(ConfigureCommunityDragonClient)
+    .AddCommunityDragonResilienceHandler();
 builder.Services.AddScoped<ChampionPatternSourceRowReader>();
 builder.Services.AddScoped<ChampionPatternAggregateBuilder>();
 builder.Services.AddScoped<ChampionPatternAggregatePersister>();
@@ -124,4 +132,17 @@ static void ConfigureRiotClient(IServiceProvider serviceProvider, HttpClient cli
 {
     var options = serviceProvider.GetRequiredService<IOptions<RiotOptions>>().Value;
     client.DefaultRequestHeaders.Add("X-Riot-Token", options.ApiKey);
+}
+
+static void ConfigureCommunityDragonClient(IServiceProvider serviceProvider, HttpClient client)
+{
+    var options = serviceProvider.GetRequiredService<IOptions<CommunityDragonOptions>>().Value;
+
+    // HttpClient.Timeout wraps the whole resilience pipeline, and its 100s default would
+    // silently cut a longer pipeline short — surfacing an opaque TaskCanceledException
+    // instead of the handler's timeout. Sizing it just above the configured total keeps
+    // the pipeline the single authority on how long a metadata fetch may take. The
+    // handler never raises the total above this value (it clamps the per-attempt timeout
+    // instead), so this margin always holds.
+    client.Timeout = TimeSpan.FromSeconds(options.TotalRequestTimeoutSeconds + 5);
 }
