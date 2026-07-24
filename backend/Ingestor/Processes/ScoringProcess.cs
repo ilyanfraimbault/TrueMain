@@ -20,6 +20,14 @@ public sealed class ScoringProcess(
     /// </summary>
     private const double ChampionPointsLogNormalizer = 6.0;
 
+    // Weights used by the defensive fallback in ComputeScore when the configured ones sum to
+    // <= 0. They mirror the ScoringOptions defaults, except scarcity which stays 0 so the
+    // fallback ranks on merit alone. Startup validation makes that fallback unreachable in
+    // production; it only guards a bypassed validator (e.g. a direct unit test).
+    private const double FallbackRecencyWeight = 0.65;
+    private const double FallbackRankWeight = 0.20;
+    private const double FallbackPointsWeight = 0.15;
+
     public string Name => "Scoring";
 
     public async Task<object?> RunCoreAsync(CancellationToken ct)
@@ -169,6 +177,21 @@ public sealed class ScoringProcess(
         var scarcityWeight = Math.Max(0, scoring.ScarcityWeight);
         var scarcityScore = coverage.Deficit(candidate.ChampionId);
 
+        // Defensive only: startup validation guarantees the four weights sum to > 0, so this
+        // branch is unreachable in production. It guards against a divide-by-zero if the
+        // validator is ever bypassed (e.g. a future refactor or a direct test). Substituting
+        // the documented defaults keeps a usable ranking, where a flat 0 would make every
+        // candidate tie. Applied before the source split so both branches degrade the same way
+        // (#497) — the ladder branch used to own this fallback while the harvest branch fell
+        // back to a 0 score.
+        if (recencyWeight + rankWeight + pointsWeight + scarcityWeight <= 0)
+        {
+            recencyWeight = FallbackRecencyWeight;
+            rankWeight = FallbackRankWeight;
+            pointsWeight = FallbackPointsWeight;
+            scarcityWeight = 0;
+        }
+
         // Harvested candidates (#485) have no mastery rank/points — only observed games
         // from orphan participant rows. They reuse the combined rank+points weight as a
         // single observed-games merit term, keeping the same weight denominator (and so the
@@ -199,24 +222,40 @@ public sealed class ScoringProcess(
 
         var pointsScore = Clamp(Math.Log10(candidate.ChampionPoints + 1) / ChampionPointsLogNormalizer, 0, 1);
 
-        // Including scarcityWeight in the denominator is deliberate: it normalises the total
-        // while compressing covered-champion scores proportionally, which is what gives
-        // under-covered champions their relative boost. With defaults (0.65+0.20+0.15+0.25=1.25)
-        // a fully-covered champion (deficit 0) tops out at ~80, while an under-covered one
-        // (deficit 1) can reach 100. ScarcityWeight is validated at startup to not exceed the
-        // combined merit weights (recency + rank + points), so scarcity cannot outweigh merit.
+        return ComputeWeightedScore(
+            recencyWeight, recencyScore,
+            rankWeight, rankScore,
+            pointsWeight, pointsScore,
+            scarcityWeight, scarcityScore);
+    }
+
+    /// <summary>
+    /// Weighted blend of the ladder terms (recency, rank, points, scarcity) on a 0-100 scale,
+    /// normalised by the weight sum. Single source of the weighted-sum arithmetic: the harvest
+    /// branch reaches it through the three-term overload below (#497).
+    /// </summary>
+    /// <remarks>
+    /// Including scarcityWeight in the denominator is deliberate: it normalises the total
+    /// while compressing covered-champion scores proportionally, which is what gives
+    /// under-covered champions their relative boost. With defaults (0.65+0.20+0.15+0.25=1.25)
+    /// a fully-covered champion (deficit 0) tops out at ~80, while an under-covered one
+    /// (deficit 1) can reach 100. ScarcityWeight is validated at startup to not exceed the
+    /// combined merit weights (recency + rank + points), so scarcity cannot outweigh merit.
+    /// </remarks>
+    private static double ComputeWeightedScore(
+        double recencyWeight, double recencyScore,
+        double rankWeight, double rankScore,
+        double pointsWeight, double pointsScore,
+        double scarcityWeight, double scarcityScore)
+    {
         var weightSum = recencyWeight + rankWeight + pointsWeight + scarcityWeight;
 
-        // Defensive only: startup validation guarantees the base weights sum to > 0,
-        // so this branch is unreachable in practice. It guards against a divide-by-zero
-        // if the validator is ever bypassed (e.g. a future refactor or a direct test).
+        // Defensive only: ComputeScore already substitutes the fallback weights when the
+        // configured ones sum to <= 0, so neither branch can reach this. It stays as the
+        // last divide-by-zero guard of the formula itself.
         if (weightSum <= 0)
         {
-            recencyWeight = 0.65;
-            rankWeight = 0.20;
-            pointsWeight = 0.15;
-            scarcityWeight = 0;
-            weightSum = 1.0;
+            return 0;
         }
 
         return 100 * ((recencyWeight / weightSum) * recencyScore
@@ -225,25 +264,27 @@ public sealed class ScoringProcess(
                       + (scarcityWeight / weightSum) * scarcityScore);
     }
 
-    // Weighted blend of (recency, merit, scarcity) on a 0-100 scale, normalised by the
-    // weight sum so harvested candidates land on the same scale as the ladder formula
-    // above (whose weight denominator is recency + rank + points + scarcity — here
-    // merit = rank + points). Startup validation guarantees the sum is > 0; the guard
-    // is defensive only, mirroring the ladder branch.
+    /// <summary>
+    /// Three-term form for candidates whose merit is a single signal (harvest: observed games),
+    /// so they land on the same 0-100 scale as ladder candidates.
+    /// </summary>
+    /// <remarks>
+    /// The merit term simply takes the rank slot with a zero-weight points term, which keeps the
+    /// denominator at recency + merit + scarcity. It is deliberately NOT the mirror operation —
+    /// collapsing the ladder's rank + points into a blended merit score would have to divide by
+    /// rankWeight + pointsWeight, and a valid configuration may set both to 0 (startup validation
+    /// only guarantees the four weights sum to > 0), yielding NaN. See #497.
+    /// </remarks>
     private static double ComputeWeightedScore(
         double recencyWeight, double recencyScore,
         double meritWeight, double meritScore,
         double scarcityWeight, double scarcityScore)
     {
-        var weightSum = recencyWeight + meritWeight + scarcityWeight;
-        if (weightSum <= 0)
-        {
-            return 0;
-        }
-
-        return 100 * ((recencyWeight / weightSum) * recencyScore
-                      + (meritWeight / weightSum) * meritScore
-                      + (scarcityWeight / weightSum) * scarcityScore);
+        return ComputeWeightedScore(
+            recencyWeight, recencyScore,
+            meritWeight, meritScore,
+            0, 0,
+            scarcityWeight, scarcityScore);
     }
 
     private static double Clamp(double value, double min, double max)
