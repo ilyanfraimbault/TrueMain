@@ -100,16 +100,38 @@ public sealed class MainAnalysisProcess(
     {
         var summary = new AnalysisSummary();
         await using var session = await sessionFactory.CreateAsync(ct);
-        await using var transaction = await session.BeginTransactionAsync(ct);
+
+        // The three reads stay OUTSIDE the transaction (#264). They only feed an
+        // in-memory computation, and running them under BEGIN held their locks —
+        // and, behind pgbouncer's transaction pooling, a server connection — for the
+        // whole batch for nothing. Nothing here depends on read-then-write
+        // atomicity: on the default Read Committed level every statement takes its
+        // own snapshot, so grouping these SELECTs with the writes never gave the
+        // batch a consistent read snapshot either, and no read is repeated after a
+        // write. The read-to-write window is unchanged — the reads already happened
+        // before the mutation loop — so the xmin optimistic-concurrency guard on
+        // riot_accounts is exposed exactly as before.
+        //
+        // The stats and accounts come back tracked on purpose: the batch's writes
+        // are change-tracked mutations of those very entities (in-place stat
+        // updates, Remove, LastMainCalcAtUtc stamping), so AsNoTracking would break
+        // them (and those repository methods are shared with other processes). The
+        // participant rows are already untracked — a projection over raw SQL,
+        // chunked per platform and capped at MatchesToConsider rows per account, so
+        // nothing extra is pulled into memory here.
         var existingStatsByAccount = await session.MainChampionStats.GetByAccountsAsync(batch, ct);
         var accountEntitiesByKey = await session.RiotAccounts.GetByKeysAsync(batch, ct);
         var participantRowsByAccount = await session.MatchParticipants
             .GetRecentParticipantsByAccountsAsync(batch, (int)options.QueueId, Math.Max(1, options.MatchesToConsider), ct);
 
+        // At most one key per account in the batch, so this cannot grow with the
+        // dataset.
+        var accountsToDemote = new List<AccountKey>();
+
         foreach (var account in batch)
         {
             ct.ThrowIfCancellationRequested();
-            var accountResult = await AnalyzeSingleAccountAsync(
+            var accountResult = AnalyzeSingleAccount(
                 session,
                 account,
                 participantRowsByAccount,
@@ -118,16 +140,25 @@ public sealed class MainAnalysisProcess(
                 options,
                 coverage,
                 nowUtc,
-                ct);
+                accountsToDemote);
             summary.Merge(accountResult);
         }
 
+        // Only the writes are transacted, keeping the per-batch write boundary: the
+        // stat delta, the LastMainCalcAtUtc stamps and the candidate demotions still
+        // commit — or roll back — as one unit. The demotions moved after
+        // SaveChangesAsync instead of running interleaved in the loop; they are
+        // predicate-filtered ExecuteUpdates on another table (main_candidates) that
+        // nothing in this batch reads back, so the outcome is identical while the
+        // rows they lock are held for a shorter time.
+        await using var transaction = await session.BeginTransactionAsync(ct);
         await session.SaveChangesAsync(ct);
+        summary.DemotedAccounts += await DemoteCandidatesAsync(session, accountsToDemote, ct);
         await transaction.CommitAsync(ct);
         return summary;
     }
 
-    private async Task<AnalysisSummary> AnalyzeSingleAccountAsync(
+    private AnalysisSummary AnalyzeSingleAccount(
         IDataSession session,
         AccountKey account,
         IReadOnlyDictionary<AccountKey, List<ParticipantRow>> participantRowsByAccount,
@@ -136,7 +167,7 @@ public sealed class MainAnalysisProcess(
         MainAnalysisOptions options,
         ChampionCoverageSnapshot coverage,
         DateTime nowUtc,
-        CancellationToken ct)
+        ICollection<AccountKey> accountsToDemote)
     {
         var summary = new AnalysisSummary();
         var participantRows = participantRowsByAccount.TryGetValue(account, out var rows)
@@ -188,7 +219,7 @@ public sealed class MainAnalysisProcess(
 
         if (shouldDemote)
         {
-            await TryDemoteCandidateAsync(session, account, summary, ct);
+            accountsToDemote.Add(account);
         }
 
         summary.Processed++;
@@ -217,23 +248,28 @@ public sealed class MainAnalysisProcess(
         }
     }
 
-    private async Task TryDemoteCandidateAsync(
+    private async Task<int> DemoteCandidatesAsync(
         IDataSession session,
-        AccountKey account,
-        AnalysisSummary summary,
+        IReadOnlyCollection<AccountKey> accountsToDemote,
         CancellationToken ct)
     {
-        var updated = await session.MainCandidates
-            .SetStatusForAccountAsync(account.PlatformId, account.Puuid, MainCandidateStatus.Validated, MainCandidateStatus.Scored, ct);
-
-        if (updated > 0)
+        var demoted = 0;
+        foreach (var account in accountsToDemote)
         {
-            summary.DemotedAccounts++;
-            logger.LogInformation(
-                "Demoted candidates for {Platform}/{Puuid} to Scored due to critical play rate.",
-                account.PlatformId,
-                account.Puuid);
+            var updated = await session.MainCandidates
+                .SetStatusForAccountAsync(account.PlatformId, account.Puuid, MainCandidateStatus.Validated, MainCandidateStatus.Scored, ct);
+
+            if (updated > 0)
+            {
+                demoted++;
+                logger.LogInformation(
+                    "Demoted candidates for {Platform}/{Puuid} to Scored due to critical play rate.",
+                    account.PlatformId,
+                    account.Puuid);
+            }
         }
+
+        return demoted;
     }
 
     private static int RemoveMissingChampionStats(
