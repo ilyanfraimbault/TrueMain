@@ -17,6 +17,16 @@ public static class OptionsConfigurationExtensions
                 "Riot:TotalRequestTimeoutSeconds must be >= Riot:AttemptTimeoutSeconds.")
             .ValidateOnStart();
 
+        services.AddOptions<CommunityDragonOptions>()
+            .Bind(configuration.GetSection(CommunityDragonOptions.SectionName))
+            .Validate(options => options.MaxRetryAttempts > 0, "CommunityDragon:MaxRetryAttempts must be greater than 0.")
+            .Validate(options => options.AttemptTimeoutSeconds is > 0 and <= 600, "CommunityDragon:AttemptTimeoutSeconds must be between 1 and 600.")
+            .Validate(options => options.TotalRequestTimeoutSeconds is > 0 and <= 3600, "CommunityDragon:TotalRequestTimeoutSeconds must be between 1 and 3600.")
+            .Validate(
+                options => options.TotalRequestTimeoutSeconds > options.AttemptTimeoutSeconds,
+                "CommunityDragon:TotalRequestTimeoutSeconds must be > CommunityDragon:AttemptTimeoutSeconds.")
+            .ValidateOnStart();
+
         services.AddOptions<SeedOptions>()
             .Bind(configuration.GetSection(SeedOptions.SectionName))
             .ValidateOnStart();
