@@ -110,14 +110,14 @@ function onSortChange(item: SortItem | undefined) {
            shows in the dropdown (SelectMenu's default `descriptionKey`).
            Same USelectMenu pattern as the region filter below. -->
       <div class="flex items-center gap-2">
-        <span class="text-sm text-muted">Sort by</span>
+        <span id="leaderboard-sort-label" class="text-sm text-muted">Sort by</span>
         <USelectMenu
           :model-value="selectedSort"
           :items="SORT_OPTIONS"
           :search-input="false"
           :ui="{ content: 'w-64' }"
           class="w-48"
-          aria-label="Sort by"
+          aria-labelledby="leaderboard-sort-label"
           @update:model-value="onSortChange"
         >
           <template #leading>
@@ -136,6 +136,7 @@ function onSortChange(item: SortItem | undefined) {
     <USelectMenu
       :model-value="selectedRegion"
       :items="REGION_OPTIONS"
+      :search-input="false"
       class="w-40"
       @update:model-value="onRegionChange"
     >
