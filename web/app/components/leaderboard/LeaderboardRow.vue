@@ -155,7 +155,7 @@ const positionIcons = computed(() => {
       class="absolute inset-0 z-[1] rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
     />
     <!-- Rank -->
-    <span class="w-6 shrink-0 text-center text-sm font-semibold tabular-nums text-muted">
+    <span class="w-8 shrink-0 text-center text-sm font-semibold tabular-nums text-muted">
       #{{ row.rank }}
     </span>
 
