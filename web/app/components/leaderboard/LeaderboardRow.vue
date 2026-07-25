@@ -87,11 +87,26 @@ function positionLabel(position: string): string {
 const dedicationLabel = computed(() =>
   props.row.dedication === null ? null : formatDedicationScore(props.row.dedication.score))
 
-const dedicationTitle = computed(() => {
+// Tier word + colour replace the old static "dedication" caption, so the
+// score reads (rose-gold→iron, best→worst) without needing the hover below.
+const dedicationTierLabel = computed(() =>
+  props.row.dedication === null ? null : dedicationTier(props.row.dedication.score))
+
+const dedicationColorClass = computed(() =>
+  props.row.dedication === null ? 'text-muted' : dedicationTierColor(props.row.dedication.score))
+
+const dedicationChampionName = computed(() => {
   const dedication = props.row.dedication
-  if (!dedication) return undefined
-  return describeDedication(dedication, championName(dedication.championId))
+  return dedication ? championName(dedication.championId) : null
 })
+
+const dedicationBreakdown = computed(() => {
+  const dedication = props.row.dedication
+  return dedication ? dedicationComponents(dedication) : []
+})
+
+const dedicationScoreLabel = computed(() =>
+  props.row.dedication === null ? null : props.row.dedication.score.toFixed(1))
 
 // Primary + secondary lane icons. Each entry carries its icon URL and a
 // tooltip. The list is empty when the backend has no position data (no main
@@ -244,19 +259,37 @@ const positionIcons = computed(() => {
          main-champion analysis yet) so the LP and stat columns never shift.
          Kept visible at every row width, unlike the games/KDA/WR cluster: it is
          the leaderboard's signature column, and the sort key when the board is
-         ranked by it. The `title` carries the full component breakdown — a rich
-         popover would fight the row's stretched profile link. -->
-    <div
+         ranked by it. Coloured by tier (rose-gold→iron, same scale as
+         `TierBadge`'s S..D) so the score reads without a hover; the tooltip
+         underneath still carries the full component breakdown. `relative z-10`
+         lifts the trigger above the stretched profile-link overlay — like the
+         champion column below — so it actually receives the hover/focus that
+         opens it. -->
+    <UTooltip
       v-if="row.dedication"
-      class="flex w-16 shrink-0 flex-col items-end"
-      :title="dedicationTitle"
+      :delay-duration="150"
+      :ui="{ content: 'p-0 h-auto max-w-none bg-transparent ring-0 shadow-none text-default' }"
     >
-      <span
-        class="text-sm font-semibold tabular-nums"
-        :class="highlightDedication ? 'text-primary' : 'text-default'"
-      >{{ dedicationLabel }}</span>
-      <span class="text-[10px] text-muted">dedication</span>
-    </div>
+      <div class="relative z-10 flex w-16 shrink-0 flex-col items-end">
+        <span
+          class="text-sm font-semibold tabular-nums"
+          :class="[dedicationColorClass, { 'underline decoration-dotted underline-offset-2': highlightDedication }]"
+        >{{ dedicationLabel }}</span>
+        <span
+          class="text-[10px] font-medium"
+          :class="dedicationColorClass"
+        >{{ dedicationTierLabel }}</span>
+      </div>
+
+      <template #content>
+        <GameTooltipSurface>
+          <p class="mb-2 text-xs font-semibold text-default">
+            Dedication {{ dedicationScoreLabel }}/100 · {{ dedicationChampionName }}
+          </p>
+          <DedicationBreakdown :components="dedicationBreakdown" />
+        </GameTooltipSurface>
+      </template>
+    </UTooltip>
     <div v-else class="w-16 shrink-0" />
 
     <!-- Rank emblem. The tier crest carries the visual weight; the LP figure
