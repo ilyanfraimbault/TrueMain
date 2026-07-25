@@ -128,7 +128,7 @@ const positionIcons = computed(() => {
        the width it's actually given — full-width on /truemains, compact in
        the champion-page sidebar — instead of the viewport. -->
   <ListRowSurface
-    class="group @container relative gap-3"
+    class="group @container relative gap-2"
   >
     <!-- Stretched profile link: a sibling overlay (not a wrapper) so the
          champion icons can be their own links without nesting <a> in <a>.
@@ -140,7 +140,7 @@ const positionIcons = computed(() => {
       class="absolute inset-0 z-[1] rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
     />
     <!-- Rank -->
-    <span class="w-10 shrink-0 text-center text-sm font-semibold tabular-nums text-muted">
+    <span class="w-6 shrink-0 text-center text-sm font-semibold tabular-nums text-muted">
       #{{ row.rank }}
     </span>
 
@@ -259,19 +259,21 @@ const positionIcons = computed(() => {
     </div>
     <div v-else class="w-16 shrink-0" />
 
-    <!-- LP + rank emblem. LP is shown (matches the homepage teaser); the
-         division replaces it for the few non-apex rows. -->
+    <!-- Rank emblem. The tier crest carries the visual weight; the LP figure
+         is dropped (too wide for the row) and only the division survives for
+         the few non-apex rows, since the crest alone can't show it. Full LP
+         is still available on hover via the title. -->
     <div
       v-if="ranked"
-      class="flex w-24 shrink-0 items-center justify-end gap-1.5"
+      class="flex w-12 shrink-0 items-center justify-end gap-1"
       :title="`${ranked.tier}${showDivision ? ' ' + ranked.division : ''} · ${ranked.leaguePoints.toLocaleString('en-US')} LP`"
     >
       <RankIcon :tier="ranked.tier" :size="26" />
-      <span class="text-sm font-semibold tabular-nums">
-        {{ showDivision ? ranked.division : `${ranked.leaguePoints.toLocaleString('en-US')} LP` }}
+      <span v-if="showDivision" class="text-sm font-semibold tabular-nums">
+        {{ ranked.division }}
       </span>
     </div>
-    <div v-else class="w-24 shrink-0" />
+    <div v-else class="w-12 shrink-0" />
 
     <!-- Flex spacer pushes the stat block to the far right while the columns
          above stay fixed. -->
