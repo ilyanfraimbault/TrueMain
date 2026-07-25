@@ -12,8 +12,18 @@ export interface ParsedRiotId {
   tagLine: string
 }
 
+/**
+ * Upper bound on an accepted Riot ID. Keep in sync with
+ * `NameTagParser.MaxRiotIdLength` on the backend — no shared contract enforces
+ * it, and a drift here would let the panel fire a request the API answers with
+ * a 400 (which the composable swallows, leaving the user with no feedback).
+ */
+export const RIOT_ID_MAX_LENGTH = 64
+
 /** Parses `Name#TAG`; null when the input isn't a well-formed Riot ID. */
 export function parseRiotId(input: string | null | undefined): ParsedRiotId | null {
+  if (input != null && input.length > RIOT_ID_MAX_LENGTH) return null
+
   const trimmed = input?.trim()
   if (!trimmed) return null
 

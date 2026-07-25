@@ -53,9 +53,17 @@ public sealed record ChampionMainsComparisonResponse
     public ChampionComparisonSideReadModel? Player { get; init; }
 
     /// <summary>
-    /// The mains' side: the aggregate of every tracked main of this champion
-    /// (excluding the compared account itself), or the single main the caller
-    /// targeted. Null when the account is unknown, or when a targeted main is.
+    /// The yardstick column: by default the aggregate of every tracked main of
+    /// this champion, excluding the compared account itself.
+    ///
+    /// A <c>main</c> target narrows it to that one account's games on the
+    /// champion. The target is resolved as <em>any</em> account we hold — it is
+    /// deliberately not required to be flagged a main of this champion, so a
+    /// caller can measure themselves against a specific rival. Only the default
+    /// (pool) column is restricted to actual mains. The UI only ever offers
+    /// real mains as targets.
+    ///
+    /// Null when the account is unknown, or when a targeted account is.
     /// </summary>
     public ChampionComparisonSideReadModel? Mains { get; init; }
 }
@@ -77,7 +85,12 @@ public static class ChampionComparisonStatus
     /// </summary>
     public const string UnknownAccount = "UNKNOWN_ACCOUNT";
 
-    /// <summary>The targeted main's Riot ID is not in our database.</summary>
+    /// <summary>
+    /// The targeted <c>main</c>'s Riot ID is not in our database. The compared
+    /// account resolved fine, so
+    /// <see cref="ChampionMainsComparisonResponse.Player"/> is still populated —
+    /// only the yardstick is missing.
+    /// </summary>
     public const string UnknownTarget = "UNKNOWN_TARGET";
 
     /// <summary>

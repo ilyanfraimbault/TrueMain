@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatRiotId, isValidRiotId, parseRiotId } from '~~/app/utils/riot-id'
+import { RIOT_ID_MAX_LENGTH, formatRiotId, isValidRiotId, parseRiotId } from '~~/app/utils/riot-id'
 
 // Mirror of the backend's NameTagParserTests.TryParseRiotId cases: the panel
 // only submits what the API can parse, so both sides must agree on what a
@@ -26,6 +26,18 @@ describe('parseRiotId', () => {
     expect(parseRiotId('#EUW1')).toBeNull()
     expect(parseRiotId('Phantasm#')).toBeNull()
     expect(parseRiotId('Phantasm#EUW#1')).toBeNull()
+  })
+
+  it('rejects input past the length cap', () => {
+    // Pins the value against NameTagParser.MaxRiotIdLength on the backend: a
+    // drift lets the panel submit something the API 400s on.
+    expect(RIOT_ID_MAX_LENGTH).toBe(64)
+
+    const atCap = `${'a'.repeat(RIOT_ID_MAX_LENGTH - 5)}#EUW1`
+    expect(atCap).toHaveLength(RIOT_ID_MAX_LENGTH)
+    expect(parseRiotId(atCap)).not.toBeNull()
+
+    expect(parseRiotId(`${'a'.repeat(RIOT_ID_MAX_LENGTH - 4)}#EUW1`)).toBeNull()
   })
 
   it('drives the submit guard', () => {

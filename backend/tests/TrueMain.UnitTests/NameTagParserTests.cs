@@ -68,4 +68,19 @@ public sealed class NameTagParserTests
         parsed.Should().BeFalse();
         result.Should().Be(default);
     }
+
+    [Fact]
+    public void TryParseRiotId_rejects_input_past_the_length_cap()
+    {
+        // The DB caps GameName at 32 and TagLine at 8, so anything past the cap
+        // is junk or abuse. The cap lives here so the controller (which turns a
+        // failure into a 400) and the query service can't disagree on it.
+        var atCap = new string('a', NameTagParser.MaxRiotIdLength - 5) + "#EUW1";
+        atCap.Length.Should().Be(NameTagParser.MaxRiotIdLength);
+        NameTagParser.TryParseRiotId(atCap, out _).Should().BeTrue();
+
+        var pastCap = new string('a', NameTagParser.MaxRiotIdLength - 4) + "#EUW1";
+        NameTagParser.TryParseRiotId(pastCap, out var result).Should().BeFalse();
+        result.Should().Be(default);
+    }
 }

@@ -166,7 +166,7 @@ public sealed class ChampionMainsComparisonApiIntegrationTests
     }
 
     [Fact]
-    public async Task GetMainsComparisonAsync_ReturnsUnknownTargetForAnUntrackedMain()
+    public async Task GetMainsComparisonAsync_ReturnsUnknownTargetButKeepsThePlayerColumn()
     {
         await _fixture.ResetDatabaseAsync();
         await SeedComparisonSampleAsync();
@@ -174,13 +174,52 @@ public sealed class ChampionMainsComparisonApiIntegrationTests
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
+        // Only the yardstick is missing here: the compared account resolved, so
+        // its column must still come back populated. Player's contract is
+        // "null only when the Riot ID is unknown to us" — an unresolvable
+        // `main` is a statement about the target, not about the player.
         var comparison = await client.GetFromJsonAsync<ChampionMainsComparisonResponse>(
             $"/champions/{Champion}/mains-comparison"
             + $"?account={Uri.EscapeDataString($"{PlayerName}#{Tag}")}"
-            + $"&main={Uri.EscapeDataString("Ghost#KR1")}");
+            + $"&main={Uri.EscapeDataString("Ghost#KR1")}&position={Position}&patch=16.4");
         comparison.Should().NotBeNull();
         comparison!.Status.Should().Be(ChampionComparisonStatus.UnknownTarget);
         comparison.Mains.Should().BeNull();
+
+        comparison.Player.Should().NotBeNull();
+        var player = comparison.Player!;
+        player.Identity.Should().NotBeNull();
+        player.Identity!.GameName.Should().Be(PlayerName);
+        player.Games.Should().Be(6, "the player's own slice is unaffected by an unknown target");
+        player.Wins.Should().Be(4);
+        player.WinRate.Should().BeApproximately(4d / 6d, 1e-9);
+        player.SampleMet.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetMainsComparisonAsync_TargetsAnyTrackedAccountNotJustAMain()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedComparisonSampleAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // `main` resolves any account we hold — being flagged a main of the
+        // champion is deliberately not required, so a caller can measure against
+        // a specific rival. NotAMain has 4 recorded games on the champion yet
+        // never joins the pool column; targeting them directly still works.
+        var comparison = await client.GetFromJsonAsync<ChampionMainsComparisonResponse>(
+            $"/champions/{Champion}/mains-comparison"
+            + $"?account={Uri.EscapeDataString($"{PlayerName}#{Tag}")}"
+            + $"&main={Uri.EscapeDataString($"NotAMain#{Tag}")}&position={Position}&patch=16.4");
+        comparison.Should().NotBeNull();
+
+        comparison!.Mains.Should().NotBeNull();
+        var mains = comparison.Mains!;
+        mains.Identity!.GameName.Should().Be("NotAMain");
+        mains.Players.Should().Be(1);
+        mains.Games.Should().Be(4);
     }
 
     [Fact]
@@ -252,6 +291,59 @@ public sealed class ChampionMainsComparisonApiIntegrationTests
         using var client = CreateClient(factory);
 
         var response = await client.GetAsync($"/champions/{Champion}/mains-comparison");
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Theory]
+    [InlineData("NoSeparator")]
+    [InlineData("#OnlyTag")]
+    [InlineData("OnlyName#")]
+    [InlineData("Two#Hash#es")]
+    public async Task GetMainsComparisonAsync_ReturnsBadRequestForAMalformedAccount(string account)
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // Malformed input is a client error, kept distinct from the 200 +
+        // UNKNOWN_ACCOUNT that a *well-formed* Riot ID we don't hold returns —
+        // otherwise a typo would render as "we don't track this account yet".
+        var response = await client.GetAsync(
+            $"/champions/{Champion}/mains-comparison?account={Uri.EscapeDataString(account)}");
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task GetMainsComparisonAsync_ReturnsBadRequestForAnOverlongAccount()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // Past NameTagParser.MaxRiotIdLength: junk or abuse, rejected before it
+        // ever reaches a query.
+        var overlong = $"{new string('a', 80)}#{Tag}";
+        var response = await client.GetAsync(
+            $"/champions/{Champion}/mains-comparison?account={Uri.EscapeDataString(overlong)}");
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task GetMainsComparisonAsync_ReturnsBadRequestForAMalformedMain()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedComparisonSampleAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // A malformed target is the same client error as a malformed account —
+        // UNKNOWN_TARGET is reserved for a well-formed Riot ID we don't hold.
+        var response = await client.GetAsync(
+            $"/champions/{Champion}/mains-comparison"
+            + $"?account={Uri.EscapeDataString($"{PlayerName}#{Tag}")}&main=NoSeparator");
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 

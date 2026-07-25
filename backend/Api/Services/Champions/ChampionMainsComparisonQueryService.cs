@@ -44,13 +44,6 @@ public sealed class ChampionMainsComparisonQueryService(
     /// </summary>
     private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(60);
 
-    /// <summary>
-    /// Upper bound on an accepted Riot ID. The database caps GameName at 32 and
-    /// TagLine at 8, so anything longer is junk or abuse and is rejected before
-    /// it reaches the ILIKE. Mirrors <c>SearchQueryService.MaxQueryLength</c>.
-    /// </summary>
-    private const int MaxRiotIdLength = 64;
-
     public async Task<ChampionMainsComparisonResponse> GetAsync(
         int championId,
         string? account,
@@ -70,23 +63,20 @@ public sealed class ChampionMainsComparisonQueryService(
         var playerAccount = await ResolveAccountAsync(account, ct);
         if (playerAccount is null)
         {
-            return Unresolved(championId, normalizedPatch, position, minGames, ChampionComparisonStatus.UnknownAccount);
+            return UnknownAccount(championId, normalizedPatch, position, minGames);
         }
 
-        AccountRow? targetAccount = null;
-        if (!string.IsNullOrWhiteSpace(target))
-        {
-            targetAccount = await ResolveAccountAsync(target, ct);
-            if (targetAccount is null)
-            {
-                return Unresolved(championId, normalizedPatch, position, minGames, ChampionComparisonStatus.UnknownTarget);
-            }
-        }
+        var targetRequested = !string.IsNullOrWhiteSpace(target);
+        var targetAccount = targetRequested ? await ResolveAccountAsync(target, ct) : null;
+        var targetMissing = targetRequested && targetAccount is null;
 
         // Key the cache on the *resolved* account ids rather than the raw text,
-        // so casing variants of the same Riot ID share one entry.
+        // so casing variants of the same Riot ID share one entry. An unresolved
+        // target gets its own token: its response holds the player column only,
+        // so it must never be served for a pool comparison (or vice versa).
+        var targetKey = targetAccount?.Id.ToString() ?? (targetMissing ? "unknown" : "pool");
         var cacheKey = $"champions:mains-comparison:{championId}:{position ?? "all"}:{normalizedPatch ?? "all"}"
-                       + $":{playerAccount.Id}:{targetAccount?.Id.ToString() ?? "pool"}";
+                       + $":{playerAccount.Id}:{targetKey}";
         if (cache.TryGetValue<ChampionMainsComparisonResponse>(cacheKey, out var cached) && cached is not null)
         {
             return cached;
@@ -104,6 +94,24 @@ public sealed class ChampionMainsComparisonQueryService(
             patchPrefix,
             p => p.RiotAccountId == playerAccount.Id,
             ct);
+        var player = ToSide(playerTotals, Identity(playerAccount), minGames);
+
+        // A named target we don't hold: the account side is already resolved and
+        // aggregated, so return it rather than nulling both columns. Only the
+        // yardstick is missing, and Player's contract promises a side for every
+        // account we do know.
+        if (targetMissing)
+        {
+            return Cache(cacheKey, new ChampionMainsComparisonResponse
+            {
+                ChampionId = championId,
+                Patch = normalizedPatch,
+                Position = position,
+                MinGames = minGames,
+                Status = ChampionComparisonStatus.UnknownTarget,
+                Player = player,
+            });
+        }
 
         // The mains pool is every tracked main of this champion *except* the
         // account being compared: leaving them in would fold their own games
@@ -132,10 +140,9 @@ public sealed class ChampionMainsComparisonQueryService(
                 p => p.RiotAccountId == targetAccount.Id,
                 ct);
 
-        var player = ToSide(playerTotals, Identity(playerAccount), minGames);
         var mains = ToSide(mainsTotals, targetAccount is null ? null : Identity(targetAccount), minGames);
 
-        var response = new ChampionMainsComparisonResponse
+        return Cache(cacheKey, new ChampionMainsComparisonResponse
         {
             ChampionId = championId,
             Patch = normalizedPatch,
@@ -146,10 +153,16 @@ public sealed class ChampionMainsComparisonQueryService(
                 : ChampionComparisonStatus.InsufficientSample,
             Player = player,
             Mains = mains,
-        };
+        });
+    }
 
-        // Every entry must carry a Size — the shared MemoryCache runs with a
-        // SizeLimit, and a Set without one is silently dropped.
+    /// <summary>
+    /// Stores an assembled response under its request-shape key and hands it
+    /// back. Every entry must carry a Size — the shared MemoryCache runs with a
+    /// SizeLimit, and a Set without one is silently dropped.
+    /// </summary>
+    private ChampionMainsComparisonResponse Cache(string cacheKey, ChampionMainsComparisonResponse response)
+    {
         cache.Set(cacheKey, response, new MemoryCacheEntryOptions
         {
             AbsoluteExpirationRelativeToNow = CacheTtl,
@@ -237,14 +250,14 @@ public sealed class ChampionMainsComparisonQueryService(
     /// a literal <c>%</c> in the input widen the match. The tag is compared with
     /// a lower() equality instead: it is raw user input too, and equality
     /// sidesteps LIKE metacharacters entirely.
+    ///
+    /// The parse (including the length cap) is <see cref="NameTagParser"/>'s.
+    /// The controller rejects a malformed Riot ID with a 400 before we get
+    /// here, so in practice this only fails for callers reaching the service
+    /// directly — it stays defensive rather than assuming MVC ran first.
     /// </summary>
     private async Task<AccountRow?> ResolveAccountAsync(string? riotId, CancellationToken ct)
     {
-        if (riotId is null || riotId.Length > MaxRiotIdLength)
-        {
-            return null;
-        }
-
         if (!NameTagParser.TryParseRiotId(riotId, out var parsed))
         {
             return null;
@@ -280,18 +293,25 @@ public sealed class ChampionMainsComparisonQueryService(
         .Replace("%", "\\%")
         .Replace("_", "\\_");
 
-    private static ChampionMainsComparisonResponse Unresolved(
+    /// <summary>
+    /// The columnless response for an account we don't hold. Only reachable for
+    /// <see cref="ChampionComparisonStatus.UnknownAccount"/> — an unresolved
+    /// <c>main</c> still returns the player's column, so it does not come
+    /// through here. Deliberately uncached: the lookup is one indexed equality,
+    /// and caching a negative would keep a freshly-ingested account "unknown"
+    /// for the whole TTL.
+    /// </summary>
+    private static ChampionMainsComparisonResponse UnknownAccount(
         int championId,
         string? patch,
         string? position,
-        int minGames,
-        string status) => new()
+        int minGames) => new()
         {
             ChampionId = championId,
             Patch = patch,
             Position = position,
             MinGames = minGames,
-            Status = status,
+            Status = ChampionComparisonStatus.UnknownAccount,
         };
 
     private static ProfileIdentityReadModel Identity(AccountRow account) => new()
