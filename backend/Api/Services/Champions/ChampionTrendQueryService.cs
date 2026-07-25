@@ -1,4 +1,3 @@
-using Core.Lol.Patches;
 using Core.Options;
 using Data;
 using Microsoft.EntityFrameworkCore;
@@ -9,7 +8,8 @@ namespace TrueMain.Services.Champions;
 
 public sealed class ChampionTrendQueryService(
     TrueMainDbContext db,
-    IOptions<MainAnalysisOptions> options)
+    IOptions<MainAnalysisOptions> options,
+    ILogger<ChampionTrendQueryService> logger)
     : IChampionTrendQueryService
 {
     // Trend window: the chart reads at a glance, so cap it at the five most
@@ -19,6 +19,7 @@ public sealed class ChampionTrendQueryService(
     // endpoint takes no patch filter, so the page's active patch never scopes
     // the series.
     private const int MaxPatches = 5;
+    private const string Surface = "champions-trend";
 
     public async Task<ChampionTrendReadModel> GetTrendAsync(
         int championId,
@@ -54,10 +55,15 @@ public sealed class ChampionTrendQueryService(
             return new ChampionTrendReadModel { ChampionId = championId };
         }
 
+        // One resolver for the whole query: every patch ordering below shares it,
+        // so a corrupt gameVersion repeated across rows (or re-read by a second
+        // ordering) is warned about once, not once per row.
+        var patchSortKeys = new PatchSortKeyResolver(logger, Surface, championId);
+
         // `position` is already canonicalised by the controller's
         // NormalizePosition (null or a Riot lane string), and ResolvePosition +
         // the empty-result guard below tolerate null/empty, so no second pass.
-        var resolvedPosition = ResolvePosition(champRows, position);
+        var resolvedPosition = ResolvePosition(champRows, position, patchSortKeys);
         if (string.IsNullOrEmpty(resolvedPosition))
         {
             return new ChampionTrendReadModel { ChampionId = championId };
@@ -68,7 +74,7 @@ public sealed class ChampionTrendQueryService(
         // history; the final series is re-sorted oldest → newest below.
         var lanePatches = champRows
             .Where(row => string.Equals(row.Position, resolvedPosition, StringComparison.Ordinal))
-            .OrderByDescending(row => ParsePatch(row.Patch))
+            .OrderByDescending(row => patchSortKeys.Resolve(row.Patch))
             .Take(MaxPatches)
             .ToList();
 
@@ -85,7 +91,7 @@ public sealed class ChampionTrendQueryService(
             queueId, resolvedPosition, lanePatches.Select(row => row.Patch).ToList(), ct);
 
         var points = lanePatches
-            .OrderBy(row => ParsePatch(row.Patch))
+            .OrderBy(row => patchSortKeys.Resolve(row.Patch))
             .Select(row =>
             {
                 var laneTotal = laneTotals.GetValueOrDefault(row.Patch, 0L);
@@ -109,7 +115,8 @@ public sealed class ChampionTrendQueryService(
 
     private static string ResolvePosition(
         IReadOnlyList<ChampionPatchRow> champRows,
-        string? requestedPosition)
+        string? requestedPosition,
+        PatchSortKeyResolver patchSortKeys)
     {
         if (!string.IsNullOrWhiteSpace(requestedPosition))
         {
@@ -124,7 +131,7 @@ public sealed class ChampionTrendQueryService(
         // page lands on when no filter is set.
         var latestPatch = champRows
             .Select(row => row.Patch)
-            .OrderByDescending(ParsePatch)
+            .OrderByDescending(patchSortKeys.Resolve)
             .First();
 
         return ChampionAggregateScopeResolver.ResolveDominantPosition(
@@ -157,11 +164,6 @@ public sealed class ChampionTrendQueryService(
 
         return totals.ToDictionary(row => row.Patch, row => row.Games, StringComparer.Ordinal);
     }
-
-    private static (int Major, int Minor) ParsePatch(string gameVersion)
-        => PatchVersion.TryParse(gameVersion, out var version)
-            ? (version.Major, version.Minor)
-            : (0, 0);
 
     private sealed record ChampionPatchRow(string Patch, string Position, int Games, int Wins);
 }

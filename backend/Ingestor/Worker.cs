@@ -10,7 +10,8 @@ public sealed class Worker(
     IServiceScopeFactory scopeFactory,
     IOptions<JobOptions> jobOptions,
     IIterationContext iterationContext,
-    IHostApplicationLifetime applicationLifetime) : BackgroundService
+    IHostApplicationLifetime applicationLifetime,
+    IngestorMetrics metrics) : BackgroundService
 {
     private const string HeartbeatEnvironmentVariable = "INGESTOR_HEARTBEAT_PATH";
 
@@ -104,6 +105,9 @@ public sealed class Worker(
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
+            // A cooperative shutdown is not a failure (#255): it keeps propagating
+            // untouched and must never reach the failure counter, otherwise every
+            // redeploy would look like a broken pipeline.
             throw;
         }
         catch (Exception ex)
@@ -112,6 +116,11 @@ public sealed class Worker(
             // ingestion services should self-heal across runs (transient DB / Riot
             // hiccups, schema drift caught by validation, etc.).
             logger.LogError(ex, "Ingestor run failed; will retry on next interval.");
+
+            // ...but a log line alone is not alertable, so the failure is also
+            // published as a counter (#260). Failures escaping this far are not
+            // attributable to one process (those are counted in RunModeAsync).
+            metrics.RecordRunFailure(IngestorMetrics.WholeRunProcess, mode);
         }
     }
 
@@ -198,6 +207,7 @@ public sealed class Worker(
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
+                // Shutdown, not a failure (#255) — propagate without counting it.
                 throw;
             }
             catch (Exception ex)
@@ -211,6 +221,12 @@ public sealed class Worker(
                     ex,
                     "Process {ProcessName} failed; continuing with the next process in the sequence.",
                     processName);
+
+                // This is the catch that hides the failures worth alerting on: a dead
+                // Riot key or schema drift surfaces here, per process, and never reaches
+                // RunOnceAsync. Counting only the outer catch would leave the counter at
+                // zero in exactly the scenario it exists for (#260).
+                metrics.RecordRunFailure(processName, mode);
             }
         }
     }

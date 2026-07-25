@@ -3,7 +3,7 @@ import type { ChampionPosition } from '~/utils/positions'
 import { describeFetchError } from '~/utils/errors'
 import { isLoadingStatus } from '~/utils/async-data'
 import { parseRouteParam } from '~/utils/route-params'
-import type { ChampionStaticListItem } from '~~/shared/types/static-data'
+import type { ChampionStaticData, ChampionStaticListItem, StaticItemData } from '~~/shared/types/static-data'
 
 // Player-scoped mirror of pages/champions/[id].vue. The static-data fetches,
 // loading bar and build tabs are intentionally identical so the page looks
@@ -167,6 +167,22 @@ const matchupsSnapshot = useLazyHydrationSnapshot(
   { champions: [] as ChampionStaticListItem[] },
   () => ({ champions: staticList.value ?? [] }),
 )
+
+// Same treatment for the "you vs mains" card (#529): `itemsMap` and
+// `staticData` are client-only too, so the icons it renders have to stay at
+// their SSR-empty value until it mounts. `patch`/`position` are NOT in the
+// bundle — they only feed the card's fetch key, never its markup, so keeping
+// them live can't desynchronise hydration.
+const divergenceSnapshot = useLazyHydrationSnapshot(
+  {
+    itemsMap: {} as Record<number, StaticItemData>,
+    championStatic: null as ChampionStaticData | null,
+  },
+  () => ({
+    itemsMap: itemsMap.value ?? {},
+    championStatic: staticData.value ?? null,
+  }),
+)
 </script>
 
 <template>
@@ -290,6 +306,22 @@ const matchupsSnapshot = useLazyHydrationSnapshot(
               :rune-tree="runeTree ?? null"
             />
             <ChampionBuildTabsSkeleton v-else />
+
+            <!-- "You vs mains" (#529): the same aggregates the tabs above are
+                 built from, read a second time across every *other* main on
+                 this champion + patch + position, so the build the player
+                 actually runs can be put next to the one the mains run. Lazy +
+                 hydrate-on-visible like the sidebar, with the client-only
+                 static maps frozen until it mounts (#834/#837). -->
+            <LazyChampionMainsDivergence
+              hydrate-on-visible
+              :name-tag="nameTag"
+              :champion-id="championId"
+              :patch="selectedPatch"
+              :position="selectedPosition"
+              v-bind="divergenceSnapshot.value"
+              @vue:mounted="divergenceSnapshot.reveal"
+            />
           </div>
 
           <aside class="min-w-0 space-y-6">

@@ -168,9 +168,10 @@ const kdaRatio = computed(() => {
   return `${((kills + assists) / deaths).toFixed(2)} KDA`
 })
 
-// Value-graded accent on the KDA ratio (op.gg-style): gold for standout
+// Value-graded accent on the KDA ratio (op.gg-style): amber for standout
 // games (Perfect or 5+), sky for solid ones (3+), muted otherwise. Sky
-// intentionally matches the win axis, amber matches the MVP crown.
+// intentionally matches the win axis; amber is a warm standout accent, close
+// to but not the same token as the `gold` MVP crown below.
 const kdaColor = computed(() => {
   const { kills, deaths, assists } = self.value
   const ratio = deaths === 0 ? Infinity : (kills + assists) / deaths
@@ -435,9 +436,11 @@ const rowTint = computed(() =>
 
         <!--
           Right cluster: MVP / ACE accolade + expand chevron, edge-aligned with
-          `ml-auto`. MVP = a gold crown (best player of the game); ACE = an award
-          rosette in the brand rose-gold (best player of the losing team).
-          Distinct icon *and* colour so the two never blur together. A UTooltip
+          `ml-auto`. MVP = a crown in the brand `gold` accent (best player of the
+          game); ACE = an award rosette in the rose `primary` (best player of the
+          losing team). Distinct icon *and* colour so the two never blur together,
+          and the same two tokens the expanded MatchDetailScoreboard uses, so the
+          collapsed crown and the scoreboard crown are the same gold. A UTooltip
           spells out which accolade it is on hover/focus. Chevron rotates 180°.
         -->
         <div class="ml-auto flex shrink-0 items-center gap-2">
@@ -448,7 +451,7 @@ const rowTint = computed(() =>
             <UIcon
               :name="self.isMvp ? 'i-lucide-crown' : 'i-lucide-award'"
               class="size-5 drop-shadow"
-              :class="self.isMvp ? 'text-amber-400' : 'text-primary'"
+              :class="self.isMvp ? 'text-gold' : 'text-primary'"
               :aria-label="self.isMvp ? 'MVP' : 'ACE'"
             />
           </UTooltip>
