@@ -33,6 +33,11 @@ import type {
   RegionSlug,
 } from '~~/shared/types/leaderboard'
 import type { CompositionBuildResponse } from '~~/shared/types/composition'
+import type {
+  BuildChoice,
+  BuildDivergence,
+  PlayerBuildDivergenceResponse,
+} from '~~/shared/types/divergence'
 import type { MatchSummariesResponse, MatchSummaryResponse } from '~~/shared/types/matches'
 import type { ProfileResponse } from '~~/shared/types/profile'
 import type { RankHistoryResponse } from '~~/shared/types/rank-history'
@@ -720,6 +725,90 @@ async function mockMatchups(id: number): Promise<ChampionMatchups | null> {
   }
 }
 
+/**
+ * "You vs mains" for the player-scoped champion page. Built from the same two
+ * build variants `makeBuild` already produces: variant 1 stands in for the
+ * player's habits, variant 0 for the mains' — they differ by construction, so
+ * the card renders both a diverging and a matching row without any bespoke
+ * fixture. Nothing here reaches production (dev mock only).
+ */
+async function mockPlayerDivergence(id: number): Promise<PlayerBuildDivergenceResponse | null> {
+  const s = seedsById.get(id)
+  if (!s) return null
+
+  const mainsGames = Math.max(120, Math.round(s.pr * POOL_GAMES))
+  const playerGames = 24
+  const playerBuild = makeBuild(s, 1, playerGames)
+  const mainsBuild = makeBuild(s, 0, mainsGames)
+
+  const choice = (
+    itemIds: number[],
+    skills: string[],
+    games: number,
+    pickRate: number,
+    winRate: number,
+  ): BuildChoice => ({ itemIds, skills, games, pickRate: round3(pickRate), winRate: round3(winRate) })
+
+  const row = (
+    dimension: BuildDivergence['dimension'],
+    playerChoice: BuildChoice,
+    mainsChoice: BuildChoice,
+  ): BuildDivergence => {
+    const diverges = playerChoice.itemIds.join() !== mainsChoice.itemIds.join()
+      || playerChoice.skills.join() !== mainsChoice.skills.join()
+    const rateOnPlayerChoice = diverges ? 0.09 : mainsChoice.pickRate
+    return {
+      dimension,
+      diverges,
+      player: playerChoice,
+      mains: mainsChoice,
+      mainsGamesOnPlayerChoice: Math.round(mainsGames * rateOnPlayerChoice),
+      mainsRateOnPlayerChoice: round3(rateOnPlayerChoice),
+      mainsWinRateOnPlayerChoice: round3(s.wr - 0.03),
+    }
+  }
+
+  const dimensions: BuildDivergence[] = [
+    row(
+      'starterItems',
+      choice(playerBuild.core.starterItems?.itemIds ?? [], [], 17, 0.71, s.wr - 0.02),
+      choice(mainsBuild.core.starterItems?.itemIds ?? [], [], Math.round(mainsGames * 0.68), 0.68, s.wr),
+    ),
+    row(
+      'boots',
+      choice(playerBuild.core.boots?.itemIds ?? [], [], 14, 0.58, s.wr - 0.01),
+      choice(mainsBuild.core.boots?.itemIds ?? [], [], Math.round(mainsGames * 0.61), 0.61, s.wr),
+    ),
+    row(
+      'itemPath',
+      choice((playerBuild.core.itemPath?.itemIds ?? []).slice(0, 3), [], 11, 0.46, s.wr - 0.04),
+      choice((mainsBuild.core.itemPath?.itemIds ?? []).slice(0, 3), [], Math.round(mainsGames * 0.52), 0.52, s.wr),
+    ),
+    row(
+      'skillOrder',
+      choice([], playerBuild.core.skillOrder?.sequence ?? [], 20, 0.83, s.wr),
+      choice([], mainsBuild.core.skillOrder?.sequence ?? [], Math.round(mainsGames * 0.88), 0.88, s.wr),
+    ),
+  ]
+
+  return {
+    championId: s.id,
+    patch: await latestShortPatch(),
+    position: s.position,
+    playerGames,
+    mainsGames,
+    mainsPlayers: Math.max(1, Math.round(mainsGames / 9)),
+    minPlayerGames: 5,
+    minMainsGames: 20,
+    minSampleMet: true,
+    referenceSampleMet: true,
+    // Same ordering rule as the backend: what differs first, then by how
+    // strongly the mains agree on their own pick.
+    dimensions: dimensions.sort((a, b) =>
+      Number(b.diverges) - Number(a.diverges) || b.mains.pickRate - a.mains.pickRate),
+  }
+}
+
 // ─── Truemains leaderboard / search / profiles ──────────────────────────────
 
 const NAME_PREFIXES = ['Kass', 'Vex', 'Luna', 'Drak', 'Zephyr', 'Nox', 'Aurel', 'Milo', 'Rift', 'Umbra', 'Iron', 'Swift', 'Crimson', 'Echo', 'Frost', 'Blaze', 'Storm', 'Nyx', 'Silver', 'Wisp']
@@ -1233,10 +1322,14 @@ export async function resolveDevApiMock(
 
   // Player-scoped champion aggregate: reuse the global build payload so the
   // page renders; the numbers just read as the player's sample.
-  const playerChampionMatch = path.match(/^\/truemains\/[^/]+\/champions\/(\d+)(?:\/matchups)?$/)
+  const playerChampionMatch = path.match(/^\/truemains\/[^/]+\/champions\/(\d+)(?:\/(matchups|divergence))?$/)
   if (playerChampionMatch) {
     const id = Number(playerChampionMatch[1])
-    const payload = path.endsWith('/matchups') ? await mockMatchups(id) : await mockChampionDetail(id, undefined, undefined)
+    const sub = playerChampionMatch[2]
+    let payload: unknown = null
+    if (sub === 'matchups') payload = await mockMatchups(id)
+    else if (sub === 'divergence') payload = await mockPlayerDivergence(id)
+    else payload = await mockChampionDetail(id, undefined, undefined)
     if (payload === null) throw createError({ statusCode: 404, statusMessage: 'No data (dev mock)' })
     return payload
   }
