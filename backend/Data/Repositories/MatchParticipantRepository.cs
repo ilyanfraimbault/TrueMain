@@ -10,6 +10,21 @@ public sealed class MatchParticipantRepository(TrueMainDbContext db) : IMatchPar
         int ChampionId,
         string TeamPosition);
 
+    /// <summary>
+    /// <see cref="HarvestedCandidateRow"/> plus the per-class size the harvest query
+    /// carries on every row (#495). Kept private: the class total is a scan detail that
+    /// is folded into <see cref="HarvestPlatformEligibility"/> before leaving the repository.
+    /// </summary>
+    private sealed record HarvestCandidateScanRow(
+        string PlatformId,
+        string Puuid,
+        int ChampionId,
+        int ObservedGames,
+        int ObservedWins,
+        DateTime LastSeenUtc,
+        bool IsKnownCandidate,
+        int BucketTotal);
+
     public Task<List<MatchParticipant>> GetByMatchIdAsync(string matchId, CancellationToken ct)
         => db.MatchParticipants.Where(p => p.MatchId == matchId).ToListAsync(ct);
 
@@ -128,11 +143,11 @@ public sealed class MatchParticipantRepository(TrueMainDbContext db) : IMatchPar
         return result;
     }
 
-    public async Task<List<HarvestedCandidateRow>> GetHarvestCandidatesAsync(
+    public async Task<HarvestCandidateBatch> GetHarvestCandidatesAsync(
         IReadOnlyCollection<string> platformIds,
         int queueId,
         int minObservedGames,
-        int maxRows,
+        int maxRowsPerBucket,
         DateTime sinceUtc,
         CancellationToken ct)
     {
@@ -144,11 +159,13 @@ public sealed class MatchParticipantRepository(TrueMainDbContext db) : IMatchPar
 
         if (normalizedPlatforms.Length == 0)
         {
-            return [];
+            return HarvestCandidateBatch.Empty;
         }
 
         var safeMinGames = Math.Max(1, minObservedGames);
-        var safeMaxRows = Math.Max(1, maxRows);
+        var safeMaxRows = Math.Max(1, maxRowsPerBucket);
+        var harvestSource = (int)MainCandidateSource.Harvest;
+        var rejectedStatus = (int)MainCandidateStatus.Rejected;
 
         // Aggregate one platform at a time instead of PlatformId = ANY(...) (#632). The
         // cross-platform statement hash-aggregated the orphan rows of the whole live
@@ -159,55 +176,116 @@ public sealed class MatchParticipantRepository(TrueMainDbContext db) : IMatchPar
         // chunking of #601. The durable complement is a partial index on the orphan scan
         // (#498), built CONCURRENTLY out-of-band.
         //
-        // Each per-platform query returns that platform's own top safeMaxRows; the union is
-        // re-ordered and re-capped in memory below. This reproduces the previous global
-        // top-N exactly: any row in the global top-N is necessarily within its own
-        // platform's top-N (at most N-1 rows outrank it globally, hence at most N-1 within
-        // its platform), so the per-platform slices are a superset of the global result.
-        var merged = new List<HarvestedCandidateRow>(safeMaxRows * normalizedPlatforms.Length);
+        // Each per-platform query returns that platform's own top safeMaxRows PER CLASS
+        // (new / known, #495); the union is re-ordered and budgeted by the caller. Any row
+        // in a global top-N of one class is necessarily within its own platform's top-N of
+        // that class (at most N-1 rows outrank it globally, hence at most N-1 within its
+        // platform), so the per-platform slices stay a superset of the caller's selection.
+        var merged = new List<HarvestedCandidateRow>(safeMaxRows * normalizedPlatforms.Length * 2);
+        var eligibility = new List<HarvestPlatformEligibility>(normalizedPlatforms.Length);
         foreach (var platform in normalizedPlatforms)
         {
-            // Index-friendly GROUP BY over orphan participant rows (RiotAccountId IS NULL =
-            // untracked players). The GameStartTimeUtc >= sinceUtc predicate bounds the scan
-            // explicitly (a caller-supplied lookback) instead of relying on MatchDataRetention
-            // having physically deleted older rows. The (Puuid, MatchId) index supports the
-            // join. SUM over the bool Win column needs an explicit CASE for Postgres. Columns
-            // are aliased to match HarvestedCandidateRow. PlatformId is constant here but kept
-            // in the projection/GROUP BY so the row shape and merge below are unchanged.
-            var platformRows = await db.Database
-                .SqlQuery<HarvestedCandidateRow>(
+            // `observed`: index-friendly GROUP BY over orphan participant rows (RiotAccountId
+            // IS NULL = untracked players). The GameStartTimeUtc >= sinceUtc predicate bounds
+            // the scan explicitly (a caller-supplied lookback) instead of relying on
+            // MatchDataRetention having physically deleted older rows. The (Puuid, MatchId)
+            // index supports the join. SUM over the bool Win column needs an explicit CASE for
+            // Postgres. PlatformId is constant here but kept in the projection/GROUP BY so the
+            // row shape is unchanged.
+            //
+            // `classified`: anti-starvation split (#495). Ordering the whole pool by observed
+            // games and cutting at the cap hands every slot to the most-observed players, who
+            // are already candidates — a pair that just crossed MinObservedGames would never
+            // reach the window once the pool outgrows the cap. Tagging each pair with whether
+            // it already has a candidate lets the caller budget discovery separately from
+            // refresh. The join is on the unique (PlatformId, Puuid, ChampionId) index, with
+            // the platform pinned to the literal (equal to o.platform_id here) so the planner
+            // gets a sargable leading-column predicate. Pairs whose candidate exists but is
+            // NOT refreshable are dropped from both classes: a ladder/manual-seed candidate is
+            // left untouched by the harvest on purpose (observed stats stay 0 outside Harvest)
+            // and a Rejected one must not be resurrected, so returning either would only burn
+            // budget on a no-op.
+            //
+            // `ranked`: rank within each class and carry the class's exact size. The window
+            // COUNT is computed before the LIMIT, so the caller can report what it dropped
+            // instead of truncating silently. The puuid/champion tiebreak keeps the cut
+            // deterministic when observed games and last-seen collide.
+            var scanRows = await db.Database
+                .SqlQuery<HarvestCandidateScanRow>(
                     $"""
+                    WITH observed AS (
+                        SELECT
+                            m."PlatformId" AS platform_id,
+                            p."Puuid" AS puuid,
+                            p."ChampionId" AS champion_id,
+                            COUNT(*)::int AS observed_games,
+                            SUM(CASE WHEN p."Win" THEN 1 ELSE 0 END)::int AS observed_wins,
+                            MAX(m."GameStartTimeUtc") AS last_seen_utc
+                        FROM "match_participants" AS p
+                        INNER JOIN "matches" AS m ON p."MatchId" = m."Id"
+                        WHERE p."RiotAccountId" IS NULL
+                          AND m."PlatformId" = {platform}
+                          AND m."QueueId" = {queueId}
+                          AND m."GameStartTimeUtc" >= {sinceUtc}
+                        GROUP BY m."PlatformId", p."Puuid", p."ChampionId"
+                        HAVING COUNT(*) >= {safeMinGames}
+                    ),
+                    classified AS (
+                        SELECT
+                            o.*,
+                            c."Id" IS NOT NULL AS is_known
+                        FROM observed AS o
+                        LEFT JOIN "main_candidates" AS c
+                            ON c."PlatformId" = {platform}
+                           AND c."Puuid" = o.puuid
+                           AND c."ChampionId" = o.champion_id
+                        WHERE c."Id" IS NULL
+                           OR (c."Source" = {harvestSource} AND c."Status" <> {rejectedStatus})
+                    ),
+                    ranked AS (
+                        SELECT
+                            c.*,
+                            ROW_NUMBER() OVER (
+                                PARTITION BY c.is_known
+                                ORDER BY c.observed_games DESC, c.last_seen_utc DESC, c.puuid, c.champion_id
+                            ) AS bucket_rank,
+                            COUNT(*) OVER (PARTITION BY c.is_known)::int AS bucket_total
+                        FROM classified AS c
+                    )
                     SELECT
-                        m."PlatformId" AS "PlatformId",
-                        p."Puuid" AS "Puuid",
-                        p."ChampionId" AS "ChampionId",
-                        COUNT(*)::int AS "ObservedGames",
-                        SUM(CASE WHEN p."Win" THEN 1 ELSE 0 END)::int AS "ObservedWins",
-                        MAX(m."GameStartTimeUtc") AS "LastSeenUtc"
-                    FROM "match_participants" AS p
-                    INNER JOIN "matches" AS m ON p."MatchId" = m."Id"
-                    WHERE p."RiotAccountId" IS NULL
-                      AND m."PlatformId" = {platform}
-                      AND m."QueueId" = {queueId}
-                      AND m."GameStartTimeUtc" >= {sinceUtc}
-                    GROUP BY m."PlatformId", p."Puuid", p."ChampionId"
-                    HAVING COUNT(*) >= {safeMinGames}
-                    ORDER BY COUNT(*) DESC, MAX(m."GameStartTimeUtc") DESC
-                    LIMIT {safeMaxRows}
+                        r.platform_id AS "PlatformId",
+                        r.puuid AS "Puuid",
+                        r.champion_id AS "ChampionId",
+                        r.observed_games AS "ObservedGames",
+                        r.observed_wins AS "ObservedWins",
+                        r.last_seen_utc AS "LastSeenUtc",
+                        r.is_known AS "IsKnownCandidate",
+                        r.bucket_total AS "BucketTotal"
+                    FROM ranked AS r
+                    WHERE r.bucket_rank <= {safeMaxRows}
+                    ORDER BY r.is_known, r.bucket_rank
                     """)
                 .ToListAsync(ct);
 
-            merged.AddRange(platformRows);
+            // Every row of a class carries that class's total, so the first row of each is
+            // enough; an empty class is genuinely empty (safeMaxRows >= 1 always returns a
+            // row when the class has any).
+            eligibility.Add(new HarvestPlatformEligibility(
+                platform,
+                scanRows.FirstOrDefault(row => !row.IsKnownCandidate)?.BucketTotal ?? 0,
+                scanRows.FirstOrDefault(row => row.IsKnownCandidate)?.BucketTotal ?? 0));
+
+            merged.AddRange(scanRows.Select(row => new HarvestedCandidateRow(
+                row.PlatformId,
+                row.Puuid,
+                row.ChampionId,
+                row.ObservedGames,
+                row.ObservedWins,
+                row.LastSeenUtc,
+                row.IsKnownCandidate)));
         }
 
-        // Single global cap across platforms, preserving the previous ANY-query ordering
-        // (observed games desc, then most-recently-seen desc). A high-traffic region can
-        // still consume most of the quota — unchanged behaviour, see #495.
-        return merged
-            .OrderByDescending(row => row.ObservedGames)
-            .ThenByDescending(row => row.LastSeenUtc)
-            .Take(safeMaxRows)
-            .ToList();
+        return new HarvestCandidateBatch(merged, eligibility);
     }
 
     public void AddRange(IEnumerable<MatchParticipant> participants)

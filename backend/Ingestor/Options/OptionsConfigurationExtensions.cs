@@ -92,6 +92,8 @@ public static class OptionsConfigurationExtensions
             .Validate(options => options.QueueId > 0, "Harvest:QueueId must be greater than 0.")
             .Validate(options => options.MinObservedGames > 0, "Harvest:MinObservedGames must be greater than 0.")
             .Validate(options => options.MaxCandidatesPerRun > 0, "Harvest:MaxCandidatesPerRun must be greater than 0.")
+            .Validate(options => options.NewCandidateShare is >= 0 and <= 1,
+                "Harvest:NewCandidateShare must be between 0 and 1.")
             .Validate(options => options.SaveBatchSize > 0, "Harvest:SaveBatchSize must be greater than 0.")
             .Validate(options => options.LookbackDays >= 0, "Harvest:LookbackDays must be >= 0.")
             .ValidateOnStart();
