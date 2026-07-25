@@ -21,6 +21,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The ingestor's shipped configuration, under a distinct name so it can never be
+         picked up as the test host's own appsettings.json. -->
+    <Content Include="..\..\Ingestor\appsettings.json" Link="IngestorAppSettings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\Api\Api.csproj" />
     <ProjectReference Include="..\..\Ingestor\Ingestor.csproj" />
     <ProjectReference Include="..\..\Data\Data.csproj" />
