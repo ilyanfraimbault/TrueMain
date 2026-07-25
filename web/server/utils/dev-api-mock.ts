@@ -1040,68 +1040,122 @@ export function devApiMockEnabled(): boolean {
  * Nitro 500.
  */
 /**
+ * Whether a Riot ID is well-formed, mirroring `NameTagParser.TryParseRiotId`:
+ * the typed `Name#TAG` form or the `Name-TAG` slug, both halves non-empty, at
+ * most 64 characters. Deliberately *not* the app's stricter `parseRiotId`
+ * (which requires the `#`) — the API accepts the slug form, and a mock that
+ * rejected it would invent a divergence rather than remove one.
+ */
+function wellFormedRiotId(riotId: string): boolean {
+  const trimmed = riotId.trim()
+  if (!trimmed || riotId.length > 64) return false
+
+  const hash = trimmed.indexOf('#')
+  if (hash < 0) {
+    // Slug fallback: split on the last '-', so game names may contain hyphens.
+    const dash = trimmed.lastIndexOf('-')
+    return dash > 0 && dash < trimmed.length - 1
+  }
+
+  const gameName = trimmed.slice(0, hash).trim()
+  const tagLine = trimmed.slice(hash + 1).trim()
+  return Boolean(gameName) && Boolean(tagLine) && !tagLine.includes('#')
+}
+
+/**
  * Account-vs-mains head-to-head (#528). Mirrors the backend's database-only
- * contract: a Riot ID that matches no mock player comes back as
- * `UNKNOWN_ACCOUNT` rather than as an error, so the panel's empty state is
- * reachable in dev.
+ * contract, including the parts that only differ in edge cases — a mock that
+ * contradicts the contract is worse than none, because it makes a wrong
+ * frontend look right locally:
+ *
+ * - A Riot ID that is not well-formed is a **400** (the controller validates
+ *   before the service ever runs); a well-formed one we hold no player for is
+ *   a **200** carrying `UNKNOWN_ACCOUNT`.
+ * - `UNKNOWN_TARGET` keeps the `player` column populated — only the yardstick
+ *   is missing. Every other field is derived rather than asserted, so the
+ *   invariants the read model documents (`winRate = wins / games`,
+ *   `sampleMet = games >= minGames`, `status` following from both sides)
+ *   cannot drift out of the mock the way a hardcoded `status: 'OK'` did.
  */
 async function mockMainsComparison(
   id: number,
   account: string | undefined,
   main: string | undefined,
   position: string | undefined,
+  patch: string | undefined,
 ): Promise<ChampionMainsComparison | null> {
   const s = seedsById.get(id)
   if (!s) return null
 
+  if (!account || !wellFormedRiotId(account)) {
+    throw createError({ statusCode: 400, statusMessage: 'account must be a Riot ID of the form Name#TAG (dev mock)' })
+  }
+  if (main && !wellFormedRiotId(main)) {
+    throw createError({ statusCode: 400, statusMessage: 'main must be a Riot ID of the form Name#TAG (dev mock)' })
+  }
+
+  // Mirrors ChampionsList:MinComparisonGames, whose default is 5.
   const minGames = 5
   const base = {
     championId: id,
-    patch: null,
+    // The endpoint echoes the *normalised* patch it resolved (major.minor), or
+    // null when the caller pinned none.
+    patch: patch ? patch.split('.').slice(0, 2).join('.') : null,
     position: position ?? null,
     minGames,
   }
 
   // The mock players are keyed on the `Name-TAG` slug; the endpoint takes the
   // typed `Name#TAG` form, so normalise before the lookup.
-  const player = account ? findPlayer(account.replace('#', '-')) : undefined
+  const player = findPlayer(account.replace('#', '-'))
   if (!player) return { ...base, status: 'UNKNOWN_ACCOUNT', player: null, mains: null }
-
-  const target = main ? findPlayer(main.replace('#', '-')) : undefined
-  if (main && !target) return { ...base, status: 'UNKNOWN_TARGET', player: null, mains: null }
 
   const side = (seed: number, identity: ProfileIdentity | null, players: number): ChampionComparisonSide => {
     const rng = mulberry32(seed)
     const games = 6 + Math.floor(rng() * 60) + (players > 1 ? 200 : 0)
-    const winRate = round3(0.45 + rng() * 0.15)
     const deaths = round3(3 + rng() * 3)
     const kills = round3(4 + rng() * 5)
     const assists = round3(4 + rng() * 5)
     const goldPerMin = Math.round(360 + rng() * 120)
+    // Derive wins first, then the rate from it, so the rendered win rate always
+    // agrees with the rendered W/games — the backend divides the same way.
+    const wins = Math.round(games * (0.45 + rng() * 0.15))
     return {
       identity,
       players,
       games,
-      wins: Math.round(games * winRate),
-      winRate,
+      wins,
+      winRate: round3(wins / games),
       kills,
       deaths,
       assists,
       kda: round3((kills + assists) / deaths),
       csPerMin: round3(5.5 + rng() * 3),
       goldPerMin,
+      // Mock games are a flat 30 minutes, so per-game gold follows the rate.
       goldPerGame: Math.round(goldPerMin * 30),
-      sampleMet: true,
+      sampleMet: games >= minGames,
     }
   }
 
+  const playerSide = side(s.id * 907 + 11, player.row.identity, 1)
+
+  // A named target we don't hold: the player column stays populated, matching
+  // ChampionMainsComparisonQueryService — only the yardstick is missing.
+  const target = main ? findPlayer(main.replace('#', '-')) : undefined
+  if (main && !target) {
+    return { ...base, status: 'UNKNOWN_TARGET', player: playerSide, mains: null }
+  }
+
+  const mainsSide = target
+    ? side(s.id * 911 + 13, target.row.identity, 1)
+    : side(s.id * 919 + 17, null, 12)
+
   return {
     ...base,
-    status: 'OK',
-    player: side(s.id * 907 + 11, player.row.identity, 1),
-    mains: target
-      ? side(s.id * 911 + 13, target.row.identity, 1)
-      : side(s.id * 919 + 17, null, 12),
+    status: playerSide.sampleMet && mainsSide.sampleMet ? 'OK' : 'INSUFFICIENT_SAMPLE',
+    player: playerSide,
+    mains: mainsSide,
   }
 }
 
@@ -1283,6 +1337,7 @@ export async function resolveDevApiMock(
           typeof query.account === 'string' ? query.account : undefined,
           typeof query.main === 'string' ? query.main : undefined,
           position,
+          typeof query.patch === 'string' && query.patch ? query.patch : undefined,
         )
       : Promise.resolve(undefined))
     if (payload === undefined) return undefined

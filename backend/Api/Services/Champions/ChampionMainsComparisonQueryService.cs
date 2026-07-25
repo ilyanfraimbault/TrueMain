@@ -54,6 +54,17 @@ public sealed class ChampionMainsComparisonQueryService(
     {
         // Canonicalise to major.minor ("16.4.521.123" → "16.4"); null or
         // unparseable input means "every patch we still hold".
+        //
+        // The MVC controller already ran ChampionQueryParameterNormalizer over
+        // this, so on that path the second pass is a no-op (both go through
+        // PatchVersion.TryParse + ToMajorMinor, which is idempotent). It stays
+        // for the same reason ResolveAccountAsync parses defensively: the
+        // interface is reachable without MVC, and a raw GameVersion arriving
+        // here would otherwise be compared against the major.minor LIKE prefix
+        // and silently match nothing. Every sibling champion read
+        // (scaling / matchups / roam / item-timings / powerspikes / leads /
+        // composition) normalises the same way for the same reason — dropping
+        // it here alone would make this the one service that trusts its caller.
         var normalizedPatch = string.IsNullOrWhiteSpace(patch)
             ? null
             : PatchVersion.TryParse(patch, out var parsed) ? parsed.ToMajorMinor() : null;
