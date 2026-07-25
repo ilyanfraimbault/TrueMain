@@ -310,7 +310,7 @@ public sealed class DiscoveryProcessIntegrationTests
         // through the recorder's own serializer so the assertion sees exactly the
         // JSON that lands in process_runs.summary.
         payload.Should().NotBeNull();
-        var json = ProcessRunSummaryJson.Serialize(payload);
+        var json = ProcessRunSummaryJson.Serialize(payload!);
         json.Should().Contain("EUW1").And.Contain("simulated ladder outage");
     }
 
