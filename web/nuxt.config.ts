@@ -31,7 +31,9 @@ export default defineNuxtConfig({
     // build entirely (hook below) but exclude it here too so a dev-mode
     // sitemap stays clean.
     sources: ['/__sitemap__/urls'],
-    exclude: ['/dev/**'],
+    // `/truemains/favorites` renders a per-visitor localStorage list — there is
+    // nothing stable for a crawler to index (the page also sets `noindex`).
+    exclude: ['/dev/**', '/truemains/favorites'],
   },
   // No dedicated social-share artwork yet — skip the on-demand OG image
   // renderer (it would pull a Satori/resvg toolchain into the build for no

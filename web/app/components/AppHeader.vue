@@ -36,6 +36,12 @@ const items = computed<NavigationMenuItem[]>(() => [
     // shouldn't light up the leaderboard entry in the nav.
     active: route.path === '/truemains',
   },
+  {
+    label: 'Favorites',
+    icon: 'i-lucide-star',
+    to: '/truemains/favorites',
+    active: route.path === '/truemains/favorites',
+  },
 ])
 </script>
 
