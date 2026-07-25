@@ -88,6 +88,9 @@ public sealed class WorkerResilienceTests
         // Satisfies the startup orphaned-run reconciliation so the only error the
         // logger captures is the one this test is about.
         services.AddSingleton(Substitute.For<IProcessRunRecorder>());
+        // A process registered under a DIFFERENT mode, so the message has
+        // something truthful to report as registered.
+        services.AddKeyedSingleton<IIngestorProcess>(JobMode.DiscoveryOnly, new NamedProcess("Discovery"));
         var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
         var logger = new CapturingLogger<Worker>();
         var lifetime = Substitute.For<IHostApplicationLifetime>();
@@ -104,8 +107,12 @@ public sealed class WorkerResilienceTests
         await worker.ExecuteTask!;
 
         var failure = logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Error).Subject;
-        failure.Exception.Should().BeOfType<InvalidOperationException>()
-            .Which.Message.Should().Contain(nameof(JobMode.ScoringOnly));
+        var message = failure.Exception.Should().BeOfType<InvalidOperationException>().Subject.Message;
+
+        // Whoever reads this at 2am needs both halves: which mode failed to
+        // resolve, and which ones actually are registered.
+        message.Should().Contain(nameof(JobMode.ScoringOnly), "the unresolved mode must be named");
+        message.Should().Contain(nameof(JobMode.DiscoveryOnly), "the registered modes must be listed");
         lifetime.Received(1).StopApplication();
     }
 

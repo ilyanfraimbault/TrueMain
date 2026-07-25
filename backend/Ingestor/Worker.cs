@@ -143,8 +143,10 @@ public sealed class Worker(
             // registration is loud in the logs instead of crash-looping the host.
             var process = scope.ServiceProvider.GetKeyedService<IIngestorProcess>(step)
                 ?? throw new InvalidOperationException(
-                    $"No IIngestorProcess is registered for {nameof(JobMode)}.{step}. "
-                    + "Every step of a Job:Mode sequence must be registered via AddRecordedProcess.");
+                    $"No IIngestorProcess is registered for {nameof(JobMode)}.{step} "
+                    + $"(reached while running Job:Mode '{mode}'). "
+                    + $"Registered modes: {DescribeRegisteredModes(scope.ServiceProvider)}. "
+                    + "Register the missing one via AddRecordedProcess<T>(JobMode) in AddIngestorProcesses.");
 
             try
             {
@@ -167,5 +169,26 @@ public sealed class Worker(
                     process.Name);
             }
         }
+    }
+
+    private static string DescribeRegisteredModes(IServiceProvider serviceProvider)
+    {
+        // Keyed DI has no equivalent of the old name-indexed dictionary to read the
+        // registrations off, but IServiceProviderIsKeyedService answers "is this key
+        // registered?" without constructing anything. Enumerating
+        // GetKeyedServices(AnyKey) instead would instantiate every process — each
+        // with its DbContext and scoped dependencies — just to format an error
+        // message, and could throw while doing so and mask the real fault.
+        var probe = serviceProvider.GetService<IServiceProviderIsKeyedService>();
+        if (probe is null)
+        {
+            return "unavailable (this container cannot be probed for keyed registrations)";
+        }
+
+        var registered = Enum.GetValues<JobMode>()
+            .Where(candidate => probe.IsKeyedService(typeof(IIngestorProcess), candidate))
+            .ToArray();
+
+        return registered.Length == 0 ? "none" : string.Join(", ", registered);
     }
 }
