@@ -137,6 +137,32 @@ public class PlatformScopeValidationTests
             .WithMessage("*Platforms:Active contains unknown platform id(s): EUW*");
     }
 
+    /// <summary>
+    /// Pins the options-pipeline ordering the validator's messages describe: the section lists are
+    /// resolved against the shared scope in <c>PostConfigure</c>, and validation must therefore see
+    /// the effective list rather than the raw configured one. The validator stays correct either
+    /// way (its <c>Resolve</c> call is idempotent), but the error messages it produces would name
+    /// the wrong list if this ever flipped.
+    /// </summary>
+    [Fact]
+    public void PostConfigure_RunsBeforeValidate()
+    {
+        var calls = new List<string>();
+        var services = new ServiceCollection();
+        services.AddOptions<OrderProbeOptions>()
+            .PostConfigure(_ => calls.Add("post-configure"))
+            .Validate(_ =>
+            {
+                calls.Add("validate");
+                return true;
+            });
+
+        using var provider = services.BuildServiceProvider();
+        _ = provider.GetRequiredService<IOptions<OrderProbeOptions>>().Value;
+
+        calls.Should().Equal("post-configure", "validate");
+    }
+
     private static List<List<string>> EffectivePlatforms(IServiceProvider provider)
     {
         return
@@ -175,4 +201,7 @@ public class PlatformScopeValidationTests
             .AddInMemoryCollection(new Dictionary<string, string?> { [ApiKeyOverride] = "test-key" })
             .Build();
     }
+
+    /// <summary>Empty options type used only to observe the options pipeline ordering.</summary>
+    private sealed class OrderProbeOptions;
 }

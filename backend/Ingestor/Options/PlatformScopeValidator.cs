@@ -23,10 +23,15 @@ namespace Ingestor.Options;
 /// <param name="platformScope">
 /// The shared scope, bound from configuration by <see cref="OptionsConfigurationExtensions"/>.
 /// </param>
-/// <param name="matchIngestionOptions">Ingested platforms, for the harvest subset check.</param>
+/// <param name="matchIngestionPlatforms">
+/// <c>MatchIngestion:Platforms</c> as configured, for the harvest subset check. Passed in as plain
+/// data rather than injected as <c>IOptions&lt;MatchIngestionOptions&gt;</c>: a validator of an
+/// option type cannot depend on that same option type, because building it needs the very options
+/// factory that is waiting on this validator.
+/// </param>
 internal sealed class PlatformScopeValidator(
     PlatformScopeOptions platformScope,
-    IOptions<MatchIngestionOptions> matchIngestionOptions) :
+    IEnumerable<string> matchIngestionPlatforms) :
     IValidateOptions<PlatformScopeOptions>,
     IValidateOptions<DiscoveryOptions>,
     IValidateOptions<MatchIngestionOptions>,
@@ -73,20 +78,10 @@ internal sealed class PlatformScopeValidator(
             return scopeResult;
         }
 
-        // MatchIngestion is read through IOptions here, so its own validation runs first; when it
-        // fails, that failure is already reported on its own and repeating it per section would
-        // only bury the actionable message. MatchIngestion never reads Harvest back, so the two
-        // option types cannot cycle.
-        List<string> ingested;
-        try
-        {
-            ingested = platformScope.Resolve(matchIngestionOptions.Value.Platforms);
-        }
-        catch (OptionsValidationException)
-        {
-            return ValidateOptionsResult.Skip;
-        }
-
+        // Resolved the same way MatchIngestion's own post-configure does, so the comparison is
+        // between effective lists: an absent MatchIngestion:Platforms means "inherits the shared
+        // scope", not "ingests nothing".
+        var ingested = platformScope.Resolve(matchIngestionPlatforms);
         var notIngested = Missing(platformScope.Resolve(options.Platforms), ingested);
         return notIngested.Count == 0
             ? ValidateOptionsResult.Success
@@ -103,6 +98,12 @@ internal sealed class PlatformScopeValidator(
             return ValidateOptionsResult.Skip;
         }
 
+        // Resolve rather than just normalize: the section's post-configure has already replaced an
+        // empty list with the shared scope by the time validation runs (PostConfigure precedes
+        // Validate in the options pipeline — pinned by PostConfigure_RunsBeforeValidate), so this
+        // is idempotent there. Doing it anyway keeps the check correct for any options instance
+        // that reaches the validator without that step, instead of reading "no platforms" as a
+        // section that merely inherits.
         var active = PlatformNormalizer.Normalize(platformScope.Active);
         var outOfScope = Missing(platformScope.Resolve(sectionPlatforms), active);
 

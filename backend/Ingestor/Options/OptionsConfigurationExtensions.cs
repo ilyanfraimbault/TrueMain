@@ -15,16 +15,22 @@ public static class OptionsConfigurationExtensions
         var platformScope = configuration.GetSection(PlatformScopeOptions.SectionName).Get<PlatformScopeOptions>()
             ?? new PlatformScopeOptions();
 
+        // Same reasoning for the ingested platforms the harvest is validated against: a validator
+        // of MatchIngestionOptions may not depend on IOptions<MatchIngestionOptions>, since
+        // building those options is what resolves the validator in the first place.
+        var matchIngestionPlatforms = configuration
+            .GetSection($"{MatchIngestionOptions.SectionName}:{nameof(MatchIngestionOptions.Platforms)}")
+            .Get<List<string>>() ?? [];
+
         // Single owner of the cross-section platform invariants: it validates the shared scope and
         // every section that carries its own Platforms list, so a divergence fails the boot instead
-        // of silently skipping a region for one pipeline stage.
-        services.AddSingleton(provider => new PlatformScopeValidator(
-            platformScope,
-            provider.GetRequiredService<IOptions<MatchIngestionOptions>>()));
-        services.AddSingleton<IValidateOptions<PlatformScopeOptions>>(provider => provider.GetRequiredService<PlatformScopeValidator>());
-        services.AddSingleton<IValidateOptions<DiscoveryOptions>>(provider => provider.GetRequiredService<PlatformScopeValidator>());
-        services.AddSingleton<IValidateOptions<MatchIngestionOptions>>(provider => provider.GetRequiredService<PlatformScopeValidator>());
-        services.AddSingleton<IValidateOptions<HarvestOptions>>(provider => provider.GetRequiredService<PlatformScopeValidator>());
+        // of silently skipping a region for one pipeline stage. Registered as a plain instance —
+        // it holds configuration data only, and depends on no service.
+        var platformScopeValidator = new PlatformScopeValidator(platformScope, matchIngestionPlatforms);
+        services.AddSingleton<IValidateOptions<PlatformScopeOptions>>(platformScopeValidator);
+        services.AddSingleton<IValidateOptions<DiscoveryOptions>>(platformScopeValidator);
+        services.AddSingleton<IValidateOptions<MatchIngestionOptions>>(platformScopeValidator);
+        services.AddSingleton<IValidateOptions<HarvestOptions>>(platformScopeValidator);
 
         services.AddOptions<PlatformScopeOptions>()
             .Bind(configuration.GetSection(PlatformScopeOptions.SectionName))

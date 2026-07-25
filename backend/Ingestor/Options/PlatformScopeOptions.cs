@@ -22,8 +22,15 @@ public class PlatformScopeOptions
     /// Platform identifiers the pipeline runs on (e.g. <c>KR</c>, <c>EUW1</c>). Must be non-empty
     /// and contain only known Riot platform ids; every section's effective platform list must be
     /// a subset of it.
+    /// <para>
+    /// Deliberately empty by default, with the shipped value living in <c>appsettings.json</c>:
+    /// <see cref="Microsoft.Extensions.Configuration.ConfigurationBinder"/> <em>appends</em> bound
+    /// entries to a list that already has items, so a hard-coded default would survive — and be
+    /// silently unioned into — any narrower list an operator configures. An empty list fails
+    /// startup validation with an explicit message instead.
+    /// </para>
     /// </summary>
-    public List<string> Active { get; set; } = ["KR", "EUW1", "NA1"];
+    public List<string> Active { get; set; } = [];
 
     /// <summary>
     /// Resolves the effective platform list of a section: its own override when it declares one,
