@@ -12,7 +12,10 @@ public class CommunityDragonOptions
     /// <summary>
     /// Number of retries the resilience handler performs on a transient failure. The
     /// metadata payload is fetched at most once per patch and then cached in-process, so
-    /// a handful of retries costs nothing while covering a mirror hiccup.
+    /// a handful of retries costs nothing while covering a mirror hiccup. Bounded to 10 by
+    /// startup validation: the handler divides the total budget across the attempts, so an
+    /// absurd value would shrink every attempt to a uselessly short timeout, and there is
+    /// no legitimate reason to hammer a community-run mirror harder than that.
     /// </summary>
     public int MaxRetryAttempts { get; set; } = 3;
 

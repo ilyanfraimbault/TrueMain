@@ -41,7 +41,9 @@ public static class CommunityDragonResilienceExtensions
 
             // Invariant: every attempt must fit inside the total budget, whatever values are
             // configured. Shrinking the attempt timeout keeps the total — and therefore the
-            // caller's HttpClient.Timeout — authoritative.
+            // caller's HttpClient.Timeout — authoritative. Startup validation bounds the
+            // retry count and requires a total of at least one second per attempt, so this
+            // division can never collapse the attempt timeout toward zero.
             var attemptBudget = options.TotalRequestTimeout.Timeout / (communityDragonOptions.MaxRetryAttempts + 1);
             if (options.AttemptTimeout.Timeout > attemptBudget)
             {

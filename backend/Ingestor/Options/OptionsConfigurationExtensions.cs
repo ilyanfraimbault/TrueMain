@@ -19,12 +19,20 @@ public static class OptionsConfigurationExtensions
 
         services.AddOptions<CommunityDragonOptions>()
             .Bind(configuration.GetSection(CommunityDragonOptions.SectionName))
-            .Validate(options => options.MaxRetryAttempts > 0, "CommunityDragon:MaxRetryAttempts must be greater than 0.")
+            .Validate(options => options.MaxRetryAttempts is > 0 and <= 10, "CommunityDragon:MaxRetryAttempts must be between 1 and 10.")
             .Validate(options => options.AttemptTimeoutSeconds is > 0 and <= 600, "CommunityDragon:AttemptTimeoutSeconds must be between 1 and 600.")
             .Validate(options => options.TotalRequestTimeoutSeconds is > 0 and <= 3600, "CommunityDragon:TotalRequestTimeoutSeconds must be between 1 and 3600.")
             .Validate(
                 options => options.TotalRequestTimeoutSeconds > options.AttemptTimeoutSeconds,
                 "CommunityDragon:TotalRequestTimeoutSeconds must be > CommunityDragon:AttemptTimeoutSeconds.")
+            // The resilience handler divides the total budget across the attempts, so this
+            // keeps every attempt worth at least a full second. Without it, a large retry
+            // count against a small total would shrink the per-attempt timeout until every
+            // attempt times out instantly — or, at the extreme, until the standard handler
+            // rejects a sub-millisecond timeout and crash-loops the ingestor at startup.
+            .Validate(
+                options => options.TotalRequestTimeoutSeconds >= options.MaxRetryAttempts + 1,
+                "CommunityDragon:TotalRequestTimeoutSeconds must be >= CommunityDragon:MaxRetryAttempts + 1, so every attempt gets at least one second.")
             .ValidateOnStart();
 
         services.AddOptions<SeedOptions>()
