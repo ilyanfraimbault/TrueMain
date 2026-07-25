@@ -427,8 +427,13 @@ Leaderboard paginé des truemains. Pose un en-tête
 - `stats.wins`/`losses`/`winRate`/`kda` peuvent être `null` si aucune game attribuée.
 - `dedication` : score de dédication (0..100) du champion signature de la ligne,
   avec ses quatre composantes et leurs entrées brutes. `null` si l'analyse des
-  mains n'a pas encore tourné. Sous un filtre `championId`, le score porte sur ce
-  champion. Formule et calibrage : [`docs/dedication-score.md`](dedication-score.md).
+  mains n'a pas encore tourné. `championId` est le **seul** filtre qui déplace le
+  score sur un autre champion ; `position`, `otpOnly` et le plancher
+  `MinRankedGames` ne font que restreindre la population — un toplaner qui main
+  aussi un champion mid garde donc son score toplane sous `?position=MIDDLE`.
+  Corollaire : pour un même compte, le score et son `championId` sont identiques
+  quel que soit le `sort`, et identiques à ceux du profil.
+  Formule et calibrage : [`docs/dedication-score.md`](dedication-score.md).
 
 ## `GET /truemains/{nameTag}/profile`
 

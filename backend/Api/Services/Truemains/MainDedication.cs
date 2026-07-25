@@ -17,9 +17,20 @@ namespace TrueMain.Services.Truemains;
 /// <para>
 /// The signature champion is the player's most-played main (PlayRate desc, then
 /// ChampionMatches desc — the same order the profile and the leaderboard use to
-/// pick a player's top champion). When the caller passes a champion filter, the
-/// score is about that champion instead: the leaderboard filtered to Yasuo must
-/// rank Yasuo dedication, not each player's unrelated top main.
+/// pick a player's top champion). <b>Only the champion filter re-points it</b>:
+/// the leaderboard filtered to Yasuo must rank Yasuo dedication, not each
+/// player's unrelated top main.
+/// </para>
+/// <para>
+/// Every other leaderboard filter — <c>position</c>, <c>otpOnly</c>, the
+/// ranked-games floor — decides which players are <em>eligible</em> and never
+/// which champion they are scored on. A lane filter means "show me players who
+/// play this lane", so a top-laner who also mains a mid champion still shows
+/// their top-lane score under <c>?position=MIDDLE</c>. That keeps the dedication
+/// cell about the same champion as the row's leading champion icon (which is
+/// likewise position-blind), and keeps the leaderboard column equal to the
+/// profile card for the same player. Letting a lane filter reach the pick is
+/// exactly what once made the score change when the sort was toggled.
 /// </para>
 /// <para>
 /// Play rate comes from <c>main_champion_stats</c> (main analysis' rolling
@@ -44,10 +55,17 @@ internal static class MainDedication
     private const int RankedQueueId = (int)LolQueueId.RankedSoloDuo;
 
     /// <summary>
-    /// Dedication for a known set of accounts (a leaderboard page slice, or a
-    /// single profile). Accounts with no classified main are absent from the
-    /// result — the caller renders nothing rather than a zero.
+    /// Dedication for a known set of accounts (a leaderboard page slice, a
+    /// dedication-ranked candidate set, or a single profile). Accounts with no
+    /// classified main are absent from the result — the caller renders nothing
+    /// rather than a zero.
     /// </summary>
+    /// <remarks>
+    /// The single entry point for scoring: every surface funnels through here, so
+    /// the signature champion for a given (account, championId) pair is the same
+    /// whatever the caller. Note the parameter list — there is deliberately no
+    /// position or otpOnly argument, because neither may influence the pick.
+    /// </remarks>
     /// <param name="ctx">Context to run on. Callers hydrating concurrently must pass their own short-lived context (a single DbContext is not thread-safe).</param>
     /// <param name="accountIds">Accounts to score.</param>
     /// <param name="championId">When set, score this champion instead of each account's top main.</param>
@@ -114,12 +132,24 @@ internal static class MainDedication
     /// column to ORDER BY in SQL.
     /// </summary>
     /// <remarks>
-    /// The candidate scan is capped at <paramref name="limit"/> rows taken by
-    /// descending play rate. Play rate carries the heaviest weight
-    /// (<see cref="DedicationScore.CommitmentWeight"/>), so the rows the cap
-    /// drops are the least committed of the population — the safety valve
-    /// protects the API from an unbounded scan if the tracked population grows
-    /// by orders of magnitude, at the cost of the deep tail of the ranking.
+    /// <para>
+    /// Two phases, deliberately split: eligibility (which accounts the filters
+    /// admit) then scoring (which champion each of them is scored on, and how it
+    /// measures). The scoring phase is <see cref="FetchAsync"/> — literally the
+    /// same call the rank-sorted leaderboard and the profile make — so the
+    /// signature champion cannot depend on which sort is active. Folding the
+    /// filters into the <c>DISTINCT ON</c> that picks the champion is what made
+    /// <c>?position=X</c> score a different champion per sort; keeping the phases
+    /// apart makes that class of drift structurally impossible.
+    /// </para>
+    /// <para>
+    /// The candidate scan is capped at <paramref name="limit"/> accounts taken by
+    /// descending play rate on their best matching main. Play rate carries the
+    /// heaviest weight (<see cref="DedicationScore.CommitmentWeight"/>), so the
+    /// rows the cap drops are the least committed of the population — the safety
+    /// valve protects the API from an unbounded scan if the tracked population
+    /// grows by orders of magnitude, at the cost of the deep tail of the ranking.
+    /// </para>
     /// </remarks>
     public static async Task<List<DedicationCandidate>> FetchCandidatesAsync(
         TrueMainDbContext ctx,
@@ -138,15 +168,53 @@ internal static class MainDedication
             return [];
         }
 
-        // The WHERE clause must stay in lock-step with
-        // TruemainsLeaderboardQueryService.CountAsync: the same population, just
-        // resolved to one row per account (DISTINCT ON) instead of tested with
-        // EXISTS, so the total and the ranked slice agree on who is eligible.
+        var accountIds = await FetchEligibleAccountIdsAsync(
+            ctx, platforms, championId, position, minGames, otpOnly, minPositionShare, limit, ct);
+
+        if (accountIds.Length == 0)
+        {
+            return [];
+        }
+
+        var byAccount = await FetchAsync(ctx, accountIds, championId, nowUtc, ct);
+
+        return byAccount
+            .Select(entry => new DedicationCandidate(entry.Key, entry.Value))
+            // Descending score, then a deterministic tiebreak on the account id
+            // so two genuinely tied players keep a stable order across requests
+            // (otherwise page 2 could repeat or skip a row).
+            .OrderByDescending(candidate => candidate.Dedication.Score)
+            .ThenBy(candidate => candidate.AccountId)
+            .ToList();
+    }
+
+    /// <summary>
+    /// The accounts the leaderboard's filters admit, one id per account.
+    /// </summary>
+    /// <remarks>
+    /// The predicate must stay in lock-step with
+    /// <c>TruemainsLeaderboardQueryService.CountAsync</c> — every filter lands on
+    /// the same <c>main_champion_stats</c> row, so <c>?championId=X&amp;position=Y</c>
+    /// means "has an X main played in Y" and the total agrees with the ranked
+    /// slice. This is membership only: nothing selected here reaches the score,
+    /// which is why the <c>DISTINCT ON</c> below projects a play rate (for the cap
+    /// ordering) and no champion id.
+    /// </remarks>
+    private static async Task<Guid[]> FetchEligibleAccountIdsAsync(
+        TrueMainDbContext ctx,
+        string[] platforms,
+        int? championId,
+        string? position,
+        int minGames,
+        bool otpOnly,
+        double minPositionShare,
+        int limit,
+        CancellationToken ct)
+    {
         FormattableString sql = $"""
-            WITH mains AS (
+            WITH matching AS (
                 SELECT DISTINCT ON (a."Id")
                     a."Id" AS "AccountId",
-                    m."ChampionId" AS "ChampionId",
                     m."PlayRate" AS "PlayRate"
                 FROM riot_accounts a
                 JOIN main_champion_stats m
@@ -164,40 +232,15 @@ internal static class MainDedication
                         AND (pos->>'Rate')::float8 >= {minPositionShare}
                   ))
                 ORDER BY a."Id", m."PlayRate" DESC, m."ChampionMatches" DESC
-            ),
-            capped AS (
-                SELECT * FROM mains ORDER BY mains."PlayRate" DESC, mains."AccountId" LIMIT {limit}
             )
-            SELECT
-                capped."AccountId" AS "AccountId",
-                capped."ChampionId" AS "ChampionId",
-                capped."PlayRate" AS "PlayRate",
-                COALESCE(career."CareerGames", 0) AS "CareerGames",
-                COALESCE(career."PatchSpan", 0) AS "PatchSpan",
-                career."LastGameUtc" AS "LastGameUtc"
-            FROM capped
-            LEFT JOIN LATERAL (
-                SELECT
-                    SUM(s."Games")::int AS "CareerGames",
-                    COUNT(DISTINCT s."GameVersion")::int AS "PatchSpan",
-                    MAX(s."LastGameStartTimeUtc") AS "LastGameUtc"
-                FROM champion_aggregate_scopes s
-                WHERE s."RiotAccountId" = capped."AccountId"
-                  AND s."ChampionId" = capped."ChampionId"
-                  AND s."QueueId" = {RankedQueueId}
-            ) career ON TRUE
+            SELECT "AccountId" AS "Value"
+            FROM matching
+            ORDER BY "PlayRate" DESC, "AccountId"
+            LIMIT {limit}
             """;
 
-        var rows = await ctx.Database.SqlQuery<DedicationRow>(sql).ToListAsync(ct);
-
-        return rows
-            .Select(row => new DedicationCandidate(row.AccountId, Project(row, nowUtc)))
-            // Descending score, then a deterministic tiebreak on the account id
-            // so two genuinely tied players keep a stable order across requests
-            // (otherwise page 2 could repeat or skip a row).
-            .OrderByDescending(candidate => candidate.Dedication.Score)
-            .ThenBy(candidate => candidate.AccountId)
-            .ToList();
+        var ids = await ctx.Database.SqlQuery<Guid>(sql).ToListAsync(ct);
+        return [.. ids];
     }
 
     private static DedicationReadModel Project(DedicationRow row, DateTime nowUtc)

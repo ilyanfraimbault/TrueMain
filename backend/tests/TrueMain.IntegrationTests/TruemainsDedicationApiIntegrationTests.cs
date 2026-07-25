@@ -214,6 +214,66 @@ public sealed class TruemainsDedicationApiIntegrationTests
         dedication.CareerGames.Should().Be(30);
     }
 
+    /// <summary>
+    /// The PR's central claim: the scored champion is a property of the player,
+    /// not of the active sort. A lane filter decides which players are eligible,
+    /// never which of their champions gets scored — so an account whose top main
+    /// plays a different lane than the filter must still be scored on that top
+    /// main under both orderings.
+    /// </summary>
+    [Fact]
+    public async Task Leaderboard_scores_the_same_champion_under_both_sorts_with_a_position_filter()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        // One account, two mains in different lanes. The TOP main is the top main
+        // by play rate; only the MIDDLE main clears the MIDDLE position share, so
+        // the account is eligible under ?position=MIDDLE — but the champion that
+        // gets scored must stay the TOP one, which is what the profile shows.
+        var account = Account("lanes-puuid", "TwoLanes", "EUW1");
+        await using (var db = _fixture.CreateDbContext())
+        {
+            db.RiotAccounts.Add(account);
+            db.RankSnapshots.Add(Snapshot(account, "DIAMOND", "I", 40, now));
+            db.MainChampionStats.AddRange(
+                MainStat(account, championId: 122, playRate: 0.5d, now, position: "TOP"),
+                MainStat(account, championId: 103, playRate: 0.3d, now, position: "MIDDLE"));
+            db.ChampionAggregateScopes.AddRange(
+                Scope(account.Id, 122, "15.3.1", games: 50, now),
+                Scope(account.Id, 103, "15.3.1", games: 30, now));
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        var byRank = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?position=MIDDLE");
+        var byDedication = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?position=MIDDLE&sort=dedication");
+        var profile = await client.GetFromJsonAsync<ProfileReadModel>("/truemains/TwoLanes-EUW1/profile");
+
+        // The lane filter still gates membership: the account is visible because
+        // one of its mains is played in MIDDLE.
+        byRank!.Total.Should().Be(1);
+        byDedication!.Total.Should().Be(1);
+
+        var rankDedication = byRank.Rows.Single().Dedication;
+        var sortedDedication = byDedication.Rows.Single().Dedication;
+        rankDedication.Should().NotBeNull();
+        sortedDedication.Should().NotBeNull();
+
+        sortedDedication!.ChampionId.Should().Be(
+            rankDedication!.ChampionId,
+            "the scored champion must not depend on which sort is active");
+        sortedDedication.Score.Should().Be(rankDedication.Score);
+        sortedDedication.CareerGames.Should().Be(rankDedication.CareerGames);
+
+        // ... and it is the same champion the profile card shows.
+        profile!.Dedication!.ChampionId.Should().Be(122, "Darius is the top main by play rate");
+        rankDedication.ChampionId.Should().Be(122);
+        rankDedication.Score.Should().Be(profile.Dedication.Score);
+    }
+
     [Fact]
     public async Task Leaderboard_falls_back_to_the_rank_order_for_an_unknown_sort()
     {
@@ -279,7 +339,12 @@ public sealed class TruemainsDedicationApiIntegrationTests
         };
     }
 
-    private static MainChampionStat MainStat(RiotAccount account, int championId, double playRate, DateTime now)
+    private static MainChampionStat MainStat(
+        RiotAccount account,
+        int championId,
+        double playRate,
+        DateTime now,
+        string position = "MIDDLE")
         => new()
         {
             Id = Guid.NewGuid(),
@@ -291,8 +356,10 @@ public sealed class TruemainsDedicationApiIntegrationTests
             PlayRate = playRate,
             IsMain = true,
             IsOtp = playRate >= 0.85d,
-            PrimaryPosition = "MIDDLE",
-            PositionBreakdown = [new PositionStat { Position = "MIDDLE", Games = 50, Rate = 1d }],
+            PrimaryPosition = position,
+            // A single-lane breakdown (rate 1.0) so the champion cleanly clears
+            // that lane's share floor and no other.
+            PositionBreakdown = [new PositionStat { Position = position, Games = 50, Rate = 1d }],
             CalculatedAtUtc = now,
         };
 

@@ -40,6 +40,39 @@ The score is always about **one champion**, not the whole account:
   dedicated Yasuo players" ranks Yasuo dedication rather than each player's
   unrelated top main.
 
+`championId` is the **only** filter that re-points the score. Every other
+leaderboard filter — `position`, `otpOnly`, the `MinRankedGames` floor — decides
+which players are *eligible* and never which of their champions is scored:
+
+| Filter | Gates membership | Re-points the score |
+|---|---|---|
+| `championId` | yes | **yes** |
+| `position` | yes | no |
+| `otpOnly` | yes | no |
+| `MinRankedGames` | yes | no |
+
+So a top-laner who also mains a mid champion keeps their **top-lane** score under
+`?position=MIDDLE` — the filter surfaces them because they play the lane, it does
+not decide what they are known for. Two reasons this is the right side of the
+trade:
+
+1. It matches what a lane filter already means on this leaderboard — "every
+   player who plays that position on a main champion at least `MinShare` of the
+   time", a statement about players, not about champions. The row's leading
+   champion icon is position-blind for the same reason, so the dedication cell
+   and the icon next to it stay about the same champion.
+2. It makes the score a property of the player, not of the request. The
+   leaderboard column, the profile card and both sort orders all agree for the
+   same account.
+
+That last property is enforced structurally rather than by convention: every
+surface scores through the one `MainDedication.FetchAsync` entry point, whose
+signature takes `championId` and nothing else that could reach the pick. An
+earlier revision folded the filters into the same `DISTINCT ON` that chooses the
+champion, which made `?position=X` score a *different* champion depending on
+which sort was active; `TruemainsDedicationApiIntegrationTests` now pins the
+invariant.
+
 ## The four components
 
 | Component | Weight | Input | Source |
@@ -115,18 +148,29 @@ leaderboard order, so treat a change as a product decision and not a tweak.
 ## Ranking by dedication (`?sort=dedication`)
 
 The score is computed **at read time**; there is no materialised column, so
-there is no index to order by. The leaderboard therefore:
+there is no index to order by. The leaderboard therefore runs two deliberately
+separate phases:
 
-1. resolves one row per eligible account (`DISTINCT ON` over
-   `main_champion_stats`, joined laterally to that account's aggregate scopes) —
-   the same population predicate the default ranking counts;
-2. scores each candidate with the pure function and sorts in memory (score desc,
-   then account id as a stable tiebreak);
-3. slices the page and hydrates only those ~25 rows, exactly as the default
-   ranking does.
+1. **Eligibility** — the ids of the accounts the filters admit, with every filter
+   landing on the same `main_champion_stats` row (so `?championId=X&position=Y`
+   means "has an X main played in Y"). This predicate is the one the default
+   ranking counts with, so the total and the ranked slice always agree.
+2. **Scoring** — the *same* `MainDedication.FetchAsync` the rank-sorted
+   leaderboard and the profile call, which picks the signature champion and
+   measures its career. The filters from phase 1 do not reach it.
 
-The candidate scan is capped (`MaxDedicationCandidates`, 50 000, ordered by
-descending play rate). Below the cap the ranking is exact. Hitting it logs a
+Then the candidates are sorted in memory (score desc, account id as a stable
+tiebreak), the page is sliced, and only those ~25 rows are hydrated — exactly as
+the default ranking does.
+
+Splitting the phases is what guarantees the "same player, same score" invariant
+above. It costs one extra round trip per uncached dedication-sorted request,
+which is the right trade for making the whole class of filter-dependent scoring
+bugs unrepresentable.
+
+The eligibility scan is capped (`MaxDedicationCandidates`, 50 000, ordered by
+descending play rate on each account's best matching main, so the rows dropped
+are the least committed). Below the cap the ranking is exact. Hitting it logs a
 warning — that is the signal that the score has outgrown a read-time
 computation and should become a materialised column maintained by the ingestor
 (with the matching EF migration and a regenerated compiled model), the way
