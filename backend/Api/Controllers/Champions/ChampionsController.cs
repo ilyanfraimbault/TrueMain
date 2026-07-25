@@ -21,6 +21,7 @@ public sealed class ChampionsController(
     IChampionItemTimingsQueryService itemTimingsQueryService,
     IChampionRoamQueryService roamQueryService,
     IChampionPowerspikesQueryService powerspikesQueryService,
+    IChampionMainsComparisonQueryService mainsComparisonQueryService,
     ICompositionRecommendationQueryService compositionRecommendationQueryService) : ControllerBase
 {
     [HttpGet]
@@ -371,6 +372,56 @@ public sealed class ChampionsController(
             normalizedPosition,
             normalizedPatch,
             normalizedBracket,
+            ct);
+
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Head-to-head between a Riot account and this champion's mains (issue
+    /// #528): win rate, KDA, CS/min and gold side by side over the same queue,
+    /// patch and lane scope. <paramref name="account"/> is the Riot ID as a
+    /// player types it (<c>Name#TAG</c>; the <c>Name-TAG</c> slug is accepted
+    /// too) and is required — a missing or malformed one is a 400.
+    /// <paramref name="main"/> narrows the right-hand column to a single main;
+    /// omitted, it aggregates every tracked main of the champion.
+    ///
+    /// Always 200: the comparison only covers accounts already in our database
+    /// (there is no on-demand Riot fetch), so an untracked player comes back
+    /// with <c>status = UNKNOWN_ACCOUNT</c> and no columns rather than a 404 —
+    /// that is a normal answer for this endpoint, not a failure. A sample below
+    /// the configured floor comes back as <c>INSUFFICIENT_SAMPLE</c> with both
+    /// columns still populated so the caller can say which side is thin.
+    /// </summary>
+    [HttpGet("{championId:int}/mains-comparison")]
+    [ProducesResponseType(typeof(ChampionMainsComparisonResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ChampionMainsComparisonResponse>> GetChampionMainsComparisonAsync(
+        int championId,
+        [FromQuery] string? account,
+        [FromQuery] string? main,
+        [FromQuery] string? position,
+        [FromQuery] string? patch,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(account))
+        {
+            return ValidationProblem("account is required — pass the Riot ID as Name#TAG.");
+        }
+
+        if (!TryNormalizeOptionalPosition(position, out var normalizedPosition, out var problem))
+        {
+            return problem;
+        }
+
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+
+        var response = await mainsComparisonQueryService.GetAsync(
+            championId,
+            account,
+            main,
+            normalizedPosition,
+            normalizedPatch,
             ct);
 
         return Ok(response);
