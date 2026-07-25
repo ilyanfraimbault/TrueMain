@@ -34,6 +34,24 @@ public sealed class ParticipantHarvestService : IParticipantHarvestService
         // the repository, so pass them through here — the repository is the single guard.
         // MaxCandidatesPerRun caps each class on each platform there; the run-wide budget is
         // applied below, once, across the union.
+        //
+        // The full budget has to be the per-class cap, not a fraction of it: the reservation
+        // spills, so either class may legitimately take the whole budget when the other is
+        // short. Fetching less per class would let a row the run would have selected fall
+        // outside the slice.
+        //
+        // So the worst case (every class saturated on every platform) materialises
+        // platforms x 2 x MaxCandidatesPerRun rows before SelectWithinBudget re-caps —
+        // 3 x 2 x 5000 = 30k rows at the shipped defaults. A row is ~280 B (a ~56 B record,
+        // a ~180 B 78-char puuid string, a ~32 B platform string, an 8 B list slot), so
+        // ~8 MB. That is three orders of magnitude below the ~6 GB heap that OOM-killed the
+        // pattern aggregation (#600), and unlike that one it is flat: no timeline JSON, no
+        // per-match rows, and the per-platform scan list is garbage after each iteration.
+        //
+        // It scales linearly with the option — roughly 1.7 MB per extra 1000 of
+        // MaxCandidatesPerRun across three platforms, so raising it to 50k would cost ~85 MB
+        // of transient heap per run. Fine at that order; a raise into the millions would need
+        // this to stream instead of materialise.
         var batch = await session.MatchParticipants.GetHarvestCandidatesAsync(
             options.Platforms,
             options.QueueId,

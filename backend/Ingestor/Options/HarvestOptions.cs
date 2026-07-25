@@ -39,6 +39,11 @@ public class HarvestOptions
     /// of it and leave smaller regions behind on an imbalanced run. That bound is reported
     /// per platform on the <c>HarvestBudgetExhausted</c> ops event rather than fixed here;
     /// a per-platform quota remains a possible refinement.
+    ///
+    /// Raising this also raises the transient heap a run holds: it is the per-class,
+    /// per-platform fetch cap too, so a run materialises up to
+    /// <c>platforms x 2 x MaxCandidatesPerRun</c> rows (~8 MB at the defaults; see
+    /// <c>ParticipantHarvestService.HarvestAsync</c> for the arithmetic).
     /// </summary>
     public int MaxCandidatesPerRun { get; set; } = 5000;
 
@@ -51,8 +56,11 @@ public class HarvestOptions
     /// harvested (#495).
     ///
     /// The reservation is a floor, not a partition: whatever one class cannot fill spills to
-    /// the other, so a run always uses its full budget. <c>0</c> restores the pre-#495
-    /// refresh-first behaviour; <c>1</c> harvests new pairs only.
+    /// the other, so a run always uses its full budget. The extremes are priorities, not
+    /// filters — <c>0</c> serves refreshes first (the pre-#495 order) and <c>1</c> serves new
+    /// pairs first, but in both cases the class served second still takes whatever budget the
+    /// first one left unused. No value of this share disables a class: with <c>1</c>, a run
+    /// whose new pairs do not fill the budget still spends the remainder on refreshes.
     /// </summary>
     public double NewCandidateShare { get; set; } = 0.5;
 
