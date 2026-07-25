@@ -592,6 +592,17 @@ const matchupsSnapshot = useLazyHydrationSnapshot(
             v-bind="matchupsSnapshot.value"
             @vue:mounted="matchupsSnapshot.reveal"
           />
+
+          <!--
+            Account-vs-mains head-to-head (#528). Not lazily hydrated: it owns a
+            form the user types into, pulls no charting bundle, and takes no
+            client-only props — so there is no SSR snapshot to freeze and
+            nothing to defer.
+          -->
+          <ChampionMainsComparison
+            :champion-id="championId"
+            :position="selectedPosition"
+          />
         </aside>
       </div>
     </template>

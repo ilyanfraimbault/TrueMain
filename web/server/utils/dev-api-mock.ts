@@ -14,6 +14,8 @@
 
 import type {
   ChampionBuild,
+  ChampionComparisonSide,
+  ChampionMainsComparison,
   ChampionMatchups,
   ChampionPatchDiffResponse,
   ChampionPatchDiffSide,
@@ -34,7 +36,7 @@ import type {
 } from '~~/shared/types/leaderboard'
 import type { CompositionBuildResponse } from '~~/shared/types/composition'
 import type { MatchSummariesResponse, MatchSummaryResponse } from '~~/shared/types/matches'
-import type { ProfileResponse } from '~~/shared/types/profile'
+import type { ProfileIdentity, ProfileResponse } from '~~/shared/types/profile'
 import type { RankHistoryResponse } from '~~/shared/types/rank-history'
 import type { SearchResponse } from '~~/shared/types/search'
 
@@ -1037,6 +1039,72 @@ export function devApiMockEnabled(): boolean {
  * an unknown segment (clean 404) rather than letting it bubble up as a generic
  * Nitro 500.
  */
+/**
+ * Account-vs-mains head-to-head (#528). Mirrors the backend's database-only
+ * contract: a Riot ID that matches no mock player comes back as
+ * `UNKNOWN_ACCOUNT` rather than as an error, so the panel's empty state is
+ * reachable in dev.
+ */
+async function mockMainsComparison(
+  id: number,
+  account: string | undefined,
+  main: string | undefined,
+  position: string | undefined,
+): Promise<ChampionMainsComparison | null> {
+  const s = seedsById.get(id)
+  if (!s) return null
+
+  const minGames = 5
+  const base = {
+    championId: id,
+    patch: null,
+    position: position ?? null,
+    minGames,
+  }
+
+  // The mock players are keyed on the `Name-TAG` slug; the endpoint takes the
+  // typed `Name#TAG` form, so normalise before the lookup.
+  const player = account ? findPlayer(account.replace('#', '-')) : undefined
+  if (!player) return { ...base, status: 'UNKNOWN_ACCOUNT', player: null, mains: null }
+
+  const target = main ? findPlayer(main.replace('#', '-')) : undefined
+  if (main && !target) return { ...base, status: 'UNKNOWN_TARGET', player: null, mains: null }
+
+  const side = (seed: number, identity: ProfileIdentity | null, players: number): ChampionComparisonSide => {
+    const rng = mulberry32(seed)
+    const games = 6 + Math.floor(rng() * 60) + (players > 1 ? 200 : 0)
+    const winRate = round3(0.45 + rng() * 0.15)
+    const deaths = round3(3 + rng() * 3)
+    const kills = round3(4 + rng() * 5)
+    const assists = round3(4 + rng() * 5)
+    const goldPerMin = Math.round(360 + rng() * 120)
+    return {
+      identity,
+      players,
+      games,
+      wins: Math.round(games * winRate),
+      winRate,
+      kills,
+      deaths,
+      assists,
+      kda: round3((kills + assists) / deaths),
+      csPerMin: round3(5.5 + rng() * 3),
+      goldPerMin,
+      goldPerGame: Math.round(goldPerMin * 30),
+      sampleMet: true,
+    }
+  }
+
+  return {
+    ...base,
+    status: 'OK',
+    player: side(s.id * 907 + 11, player.row.identity, 1),
+    mains: target
+      ? side(s.id * 911 + 13, target.row.identity, 1)
+      : side(s.id * 919 + 17, null, 12),
+  }
+}
+
 function safeDecodeURIComponent(value: string): string | undefined {
   try {
     return decodeURIComponent(value)
@@ -1210,6 +1278,12 @@ export async function resolveDevApiMock(
       : sub === 'powerspikes' ? mockPowerspikes(id)
       : sub === 'roam' ? mockRoam(id)
       : sub === 'matchups' ? mockMatchups(id)
+      : sub === 'mains-comparison' ? mockMainsComparison(
+          id,
+          typeof query.account === 'string' ? query.account : undefined,
+          typeof query.main === 'string' ? query.main : undefined,
+          position,
+        )
       : Promise.resolve(undefined))
     if (payload === undefined) return undefined
     if (payload === null) {
