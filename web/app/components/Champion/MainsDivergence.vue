@@ -155,8 +155,12 @@ const emptyReason = computed(() => {
             <h3 class="text-sm font-medium text-default">
               {{ copyFor(row.dimension).noun }}
             </h3>
+            <!-- Brand primary for the row worth reading, neutral for the rest.
+                 Deliberately NOT a warning/success pair: a divergence is the
+                 interesting row, not the wrong one — the hint below can well
+                 read "and they win 52% of those". -->
             <UBadge
-              :color="row.diverges ? 'warning' : 'success'"
+              :color="row.diverges ? 'primary' : 'neutral'"
               variant="soft"
               size="sm"
             >
