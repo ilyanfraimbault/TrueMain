@@ -4,6 +4,7 @@ using Data.Entities;
 using AwesomeAssertions;
 using Ingestor.Options;
 using Ingestor.Processes;
+using Ingestor.Processes.Summaries;
 using Ingestor.Processes.Components.Coverage;
 using Ingestor.Processes.Components.MainAnalysis;
 using Microsoft.EntityFrameworkCore;
@@ -266,7 +267,7 @@ public sealed class MainAnalysisProcessIntegrationTests
         await db.Database.ExecuteSqlRawAsync(sql);
     }
 
-    private Task<object?> RunProcessAsync()
+    private Task<IProcessRunSummary?> RunProcessAsync()
     {
         var process = new MainAnalysisProcess(
             NullLogger<MainAnalysisProcess>.Instance,

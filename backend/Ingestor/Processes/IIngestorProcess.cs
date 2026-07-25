@@ -1,3 +1,5 @@
+using Ingestor.Processes.Summaries;
+
 namespace Ingestor.Processes;
 
 public interface IIngestorProcess
@@ -9,5 +11,5 @@ public interface IIngestorProcess
     /// the surrounding <c>RecordedProcess</c> decorator persists via the recorder.
     /// Implementations must NOT call <c>IProcessRunRecorder</c> themselves.
     /// </summary>
-    Task<object?> RunCoreAsync(CancellationToken ct);
+    Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct);
 }

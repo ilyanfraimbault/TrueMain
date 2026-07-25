@@ -3,6 +3,7 @@ using Data.Entities;
 using Data.Repositories;
 using Ingestor.Processes.Components.Coverage;
 using Ingestor.Processes.Components.MainAnalysis;
+using Ingestor.Processes.Summaries;
 using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
@@ -18,7 +19,7 @@ public sealed class MainAnalysisProcess(
 {
     public string Name => "MainAnalysis";
 
-    public async Task<object?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var options = analysisOptions.Value;
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
@@ -26,7 +27,7 @@ public sealed class MainAnalysisProcess(
         if (accounts.Count == 0)
         {
             logger.LogInformation("No accounts eligible for main analysis.");
-            return new { reason = "No accounts eligible for main analysis.", selected = 0 };
+            return new NoWorkSummary("No accounts eligible for main analysis.", 0);
         }
 
         var coverage = await LoadCoverageAsync(ct);
@@ -305,15 +306,13 @@ public sealed class MainAnalysisProcess(
         return newStats.Count;
     }
 
-    private static object BuildSuccessPayload(AnalysisSummary summary)
+    private static MainAnalysisSummary BuildSuccessPayload(AnalysisSummary summary)
     {
-        return new
-        {
-            accountsProcessed = summary.Processed,
-            statsUpserted = summary.TotalStatsUpserted,
-            statsRemoved = summary.TotalStatsRemoved,
-            demotedAccounts = summary.DemotedAccounts
-        };
+        return new MainAnalysisSummary(
+            summary.Processed,
+            summary.TotalStatsUpserted,
+            summary.TotalStatsRemoved,
+            summary.DemotedAccounts);
     }
 
     private sealed class AnalysisSummary

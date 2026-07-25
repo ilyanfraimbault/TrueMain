@@ -1,4 +1,5 @@
 using Data.Entities;
+using Ingestor.Processes.Summaries;
 using Ingestor.Services;
 
 namespace TrueMain.TestKit;
@@ -20,7 +21,7 @@ public sealed class FakeProcessRunRecorder : IProcessRunRecorder
         DateTime startedAtUtc,
         DateTime finishedAtUtc,
         ProcessRunStatus status,
-        object? summary,
+        IProcessRunSummary? summary,
         string? error,
         CancellationToken ct)
         => Task.CompletedTask;

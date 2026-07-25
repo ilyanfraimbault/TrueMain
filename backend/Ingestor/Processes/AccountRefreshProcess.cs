@@ -4,6 +4,7 @@ using Core.Lol.Identifiers;
 using Data.Entities;
 using Data.Repositories;
 using Ingestor.Options;
+using Ingestor.Processes.Summaries;
 using Ingestor.Ranking;
 using Ingestor.Riot;
 using Ingestor.Riot.Dto;
@@ -24,13 +25,13 @@ public sealed class AccountRefreshProcess(
 
     public string Name => "AccountRefresh";
 
-    public async Task<object?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var accounts = await LoadAccountsForRefreshAsync(ct);
         if (accounts.Count == 0)
         {
             logger.LogInformation("No riot accounts found for refresh.");
-            return new { reason = "No riot accounts found for refresh.", selected = 0 };
+            return new NoWorkSummary("No riot accounts found for refresh.", 0);
         }
 
         var summary = await RefreshAccountsAsync(accounts, ct);
@@ -288,22 +289,20 @@ public sealed class AccountRefreshProcess(
         return RecoveryOutcome.Recovered;
     }
 
-    private static object BuildSuccessPayload(RefreshSummary summary)
+    private static AccountRefreshSummary BuildSuccessPayload(RefreshSummary summary)
     {
-        return new
-        {
-            selected = summary.Selected,
-            profileUpdated = summary.ProfileUpdated,
-            profileRecovered = summary.ProfileRecovered,
-            profileInvalidated = summary.ProfileInvalidated,
-            profileSkipped = summary.ProfileSkipped,
-            profileFailed = summary.ProfileFailed,
-            rankInserted = summary.RankInserted,
-            rankUnchanged = summary.RankUnchanged,
-            rankSkippedUnranked = summary.RankSkippedUnranked,
-            rankSkippedFresh = summary.RankSkippedFresh,
-            rankFailed = summary.RankFailed
-        };
+        return new AccountRefreshSummary(
+            summary.Selected,
+            summary.ProfileUpdated,
+            summary.ProfileRecovered,
+            summary.ProfileInvalidated,
+            summary.ProfileSkipped,
+            summary.ProfileFailed,
+            summary.RankInserted,
+            summary.RankUnchanged,
+            summary.RankSkippedUnranked,
+            summary.RankSkippedFresh,
+            summary.RankFailed);
     }
 
     private enum RecoveryOutcome

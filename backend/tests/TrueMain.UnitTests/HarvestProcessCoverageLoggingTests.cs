@@ -69,7 +69,7 @@ public sealed class HarvestProcessCoverageLoggingTests
 
         // The same counters ride on the recorded process-run summary (#722).
         summary.Should().NotBeNull();
-        summary!.ToString().Should().Contain("budgetExhausted = False");
+        summary!.ToString().Should().Contain("BudgetExhausted = False");
     }
 
     private static HarvestProcess BuildProcess(ILogger<HarvestProcess> logger, HarvestCoverage coverage)

@@ -2,6 +2,7 @@ using AwesomeAssertions;
 using Ingestor;
 using Ingestor.Options;
 using Ingestor.Processes;
+using Ingestor.Processes.Summaries;
 using Ingestor.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -172,7 +173,7 @@ public sealed class WorkerResilienceTests
     {
         public string Name => name;
 
-        public Task<object?> RunCoreAsync(CancellationToken ct) => Task.FromResult<object?>(null);
+        public Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct) => Task.FromResult<IProcessRunSummary?>(null);
     }
 
     // Wraps the real scope factory so the test can assert that the worker
@@ -233,7 +234,7 @@ public sealed class WorkerResilienceTests
 
         public int CallCount { get; private set; }
 
-        public Task<object?> RunCoreAsync(CancellationToken ct)
+        public Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
         {
             CallCount++;
             if (CallCount <= throwOnCall)
@@ -241,7 +242,7 @@ public sealed class WorkerResilienceTests
                 throw new InvalidOperationException("simulated transient failure");
             }
 
-            return Task.FromResult<object?>(null);
+            return Task.FromResult<IProcessRunSummary?>(null);
         }
     }
 

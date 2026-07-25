@@ -2,6 +2,7 @@ using Data.Entities;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Components.Coverage;
+using Ingestor.Processes.Summaries;
 using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
@@ -30,7 +31,7 @@ public sealed class ScoringProcess(
 
     public string Name => "Scoring";
 
-    public async Task<object?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var scoring = scoringOptions.Value;
 
@@ -41,7 +42,7 @@ public sealed class ScoringProcess(
         if (scoringResult.TotalScored == 0)
         {
             logger.LogInformation("No new candidates to score.");
-            return new { reason = "No new candidates to score.", selected = 0 };
+            return new NoWorkSummary("No new candidates to score.", 0);
         }
 
         var platformSummaries = await PromoteTopCandidatesAsync(session, scoring, scoringResult.ScoredByPlatform, ct);
@@ -102,13 +103,13 @@ public sealed class ScoringProcess(
         return candidates;
     }
 
-    private async Task<List<object>> PromoteTopCandidatesAsync(
+    private async Task<List<ScoringPlatformSummary>> PromoteTopCandidatesAsync(
         IDataSession session,
         ScoringOptions scoring,
         IReadOnlyDictionary<string, int> scoredByPlatform,
         CancellationToken ct)
     {
-        var platformSummaries = new List<object>();
+        var platformSummaries = new List<ScoringPlatformSummary>();
 
         foreach (var platformId in scoredByPlatform.Keys.Order(StringComparer.OrdinalIgnoreCase))
         {
@@ -121,12 +122,7 @@ public sealed class ScoringProcess(
                 scoredCount,
                 queuedCandidates.Count);
 
-            platformSummaries.Add(new
-            {
-                platform = platformId,
-                scored = scoredCount,
-                queued = queuedCandidates.Count
-            });
+            platformSummaries.Add(new ScoringPlatformSummary(platformId, scoredCount, queuedCandidates.Count));
         }
 
         return platformSummaries;
@@ -148,9 +144,9 @@ public sealed class ScoringProcess(
         return queuedCandidates;
     }
 
-    private static object BuildSuccessPayload(IEnumerable<object> platformSummaries)
+    private static ScoringSummary BuildSuccessPayload(IEnumerable<ScoringPlatformSummary> platformSummaries)
     {
-        return new { platforms = platformSummaries.ToList() };
+        return new ScoringSummary(platformSummaries.ToList());
     }
 
     private sealed class ScoringResult

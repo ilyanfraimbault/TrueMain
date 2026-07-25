@@ -1,5 +1,6 @@
 using Core.Options;
 using Ingestor.Processes.Components.PatternAggregation;
+using Ingestor.Processes.Summaries;
 using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
@@ -14,7 +15,7 @@ public sealed class ChampionPatternAggregationProcess(
 {
     public string Name => "ChampionPatternAggregation";
 
-    public async Task<object?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var queueId = (int)analysisOptions.Value.QueueId;
 
@@ -32,7 +33,7 @@ public sealed class ChampionPatternAggregationProcess(
         if (championIds.Count == 0)
         {
             logger.LogInformation("No champions available for champion pattern aggregation.");
-            return new { reason = "No champions available for champion pattern aggregation.", patterns = 0 };
+            return new ChampionPatternNoWorkSummary("No champions available for champion pattern aggregation.", 0);
         }
 
         var aggregatedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
@@ -83,13 +84,11 @@ public sealed class ChampionPatternAggregationProcess(
             totalScopes,
             totalPatterns);
 
-        return new
-        {
-            sourceRows = totalSourceRows,
-            scopes = totalScopes,
-            patterns = totalPatterns,
-            gameVersions = gameVersions.Count,
-            champions = processedChampions
-        };
+        return new ChampionPatternAggregationSummary(
+            totalSourceRows,
+            totalScopes,
+            totalPatterns,
+            gameVersions.Count,
+            processedChampions);
     }
 }

@@ -3,6 +3,7 @@ using AwesomeAssertions;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.Discovery;
+using Ingestor.Processes.Summaries;
 using Ingestor.Ranking;
 using Ingestor.Riot;
 using Ingestor.Riot.Dto;
@@ -305,8 +306,11 @@ public sealed class DiscoveryProcessIntegrationTests
         var account = verifyDb.RiotAccounts.Single(a => a.Puuid == "puuid-discovered-1");
         account.PlatformId.Should().Be("KR");
 
-        // The recorded run detail names the failed platform and its error.
-        var json = System.Text.Json.JsonSerializer.Serialize(payload);
+        // The recorded run detail names the failed platform and its error. Goes
+        // through the recorder's own serializer so the assertion sees exactly the
+        // JSON that lands in process_runs.summary.
+        payload.Should().NotBeNull();
+        var json = ProcessRunSummaryJson.Serialize(payload!);
         json.Should().Contain("EUW1").And.Contain("simulated ladder outage");
     }
 

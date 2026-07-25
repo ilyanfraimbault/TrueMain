@@ -3,6 +3,7 @@ using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Common;
 using Ingestor.Processes.Components.Discovery;
+using Ingestor.Processes.Summaries;
 using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
@@ -22,7 +23,7 @@ public sealed class HarvestProcess(
 {
     public string Name => "Harvest";
 
-    public async Task<object?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var options = harvestOptions.Value;
 
@@ -32,7 +33,7 @@ public sealed class HarvestProcess(
         if (PlatformNormalizer.Normalize(options.Platforms).Count == 0)
         {
             logger.LogWarning("No platforms configured (Harvest:Platforms).");
-            return new { reason = "No platforms configured.", candidatesInserted = 0 };
+            return new HarvestNoWorkSummary("No platforms configured.", 0);
         }
 
         await using var session = await sessionFactory.CreateAsync(ct);
@@ -77,17 +78,15 @@ public sealed class HarvestProcess(
                 FormatPerPlatform(coverage));
         }
 
-        return new
-        {
-            candidatesInserted = result.CandidatesInserted,
-            candidatesUpdated = result.CandidatesUpdated,
-            accountsCreated = result.AccountsCreated,
-            eligibleNew = coverage.EligibleNew,
-            selectedNew = coverage.SelectedNew,
-            eligibleKnown = coverage.EligibleKnown,
-            selectedKnown = coverage.SelectedKnown,
-            budgetExhausted = coverage.IsBudgetBound
-        };
+        return new HarvestSummary(
+            result.CandidatesInserted,
+            result.CandidatesUpdated,
+            result.AccountsCreated,
+            coverage.EligibleNew,
+            coverage.SelectedNew,
+            coverage.EligibleKnown,
+            coverage.SelectedKnown,
+            coverage.IsBudgetBound);
     }
 
     private static string FormatPerPlatform(HarvestCoverage coverage)

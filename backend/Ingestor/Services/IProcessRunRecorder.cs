@@ -1,4 +1,5 @@
 using Data.Entities;
+using Ingestor.Processes.Summaries;
 
 namespace Ingestor.Services;
 
@@ -25,7 +26,7 @@ public interface IProcessRunRecorder
         DateTime startedAtUtc,
         DateTime finishedAtUtc,
         ProcessRunStatus status,
-        object? summary,
+        IProcessRunSummary? summary,
         string? error,
         CancellationToken ct);
 

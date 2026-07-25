@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using Ingestor.Options;
 using Ingestor.Processes;
+using Ingestor.Processes.Summaries;
 using Ingestor.Services;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
@@ -135,6 +136,6 @@ public sealed class IngestorProcessRegistrationTests
     {
         public string Name => "Stub";
 
-        public Task<object?> RunCoreAsync(CancellationToken ct) => Task.FromResult<object?>(null);
+        public Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct) => Task.FromResult<IProcessRunSummary?>(null);
     }
 }
