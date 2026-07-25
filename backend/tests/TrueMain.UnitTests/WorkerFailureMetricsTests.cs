@@ -20,21 +20,21 @@ namespace TrueMain.UnitTests;
 /// </summary>
 public sealed class WorkerFailureMetricsTests
 {
-    private static readonly string[] FullSequence =
+    private static readonly (string Name, JobMode Mode)[] FullSequence =
     [
-        "Discovery",
-        "ManualSeed",
-        "Harvest",
-        "Scoring",
-        "MatchIngestion",
-        "MatchTeamPositionCorrection",
-        "MainAnalysis",
-        "MatchParticipantEloBracketEnrichment",
-        "ChampionPatternAggregation",
-        "ChampionMatchupLeadAggregation",
-        "ChampionPowerspikeAggregation",
-        "AccountRefresh",
-        "MatchDataRetention"
+        ("Discovery", JobMode.DiscoveryOnly),
+        ("ManualSeed", JobMode.ManualSeedOnly),
+        ("Harvest", JobMode.HarvestOnly),
+        ("Scoring", JobMode.ScoringOnly),
+        ("MatchIngestion", JobMode.MatchIngestionOnly),
+        ("MatchTeamPositionCorrection", JobMode.TeamPositionCorrectionOnly),
+        ("MainAnalysis", JobMode.MainAnalysisOnly),
+        ("MatchParticipantEloBracketEnrichment", JobMode.EloBracketEnrichmentOnly),
+        ("ChampionPatternAggregation", JobMode.PatternAggregationOnly),
+        ("ChampionMatchupLeadAggregation", JobMode.MatchupLeadAggregationOnly),
+        ("ChampionPowerspikeAggregation", JobMode.PowerspikeAggregationOnly),
+        ("AccountRefresh", JobMode.AccountRefreshOnly),
+        ("MatchDataRetention", JobMode.MatchDataRetentionOnly)
     ];
 
     private static readonly string[] ThrowingProcessNames = ["Discovery", "MatchIngestion"];
@@ -48,7 +48,7 @@ public sealed class WorkerFailureMetricsTests
             meterFactory, IngestorMetrics.MeterName, IngestorMetrics.RunFailuresCounterName);
 
         var services = new ServiceCollection();
-        services.AddSingleton<IIngestorProcess>(new ThrowingProcess("Discovery"));
+        services.AddKeyedSingleton<IIngestorProcess>(JobMode.DiscoveryOnly, new ThrowingProcess("Discovery"));
 
         var lifetime = Substitute.For<IHostApplicationLifetime>();
         using var worker = BuildWorker(services, meterFactory, "DiscoveryOnly", lifetime);
@@ -74,9 +74,10 @@ public sealed class WorkerFailureMetricsTests
         // Two failures in a full pass: the counter must attribute each one to its own
         // process rather than collapsing the pass into a single increment.
         var services = new ServiceCollection();
-        foreach (var name in FullSequence)
+        foreach (var (name, mode) in FullSequence)
         {
-            services.AddSingleton<IIngestorProcess>(
+            services.AddKeyedSingleton<IIngestorProcess>(
+                mode,
                 ThrowingProcessNames.Contains(name, StringComparer.Ordinal)
                     ? new ThrowingProcess(name)
                     : new NoOpProcess(name));
@@ -107,7 +108,7 @@ public sealed class WorkerFailureMetricsTests
             meterFactory, IngestorMetrics.MeterName, IngestorMetrics.RunFailuresCounterName);
 
         var services = new ServiceCollection();
-        services.AddSingleton<IIngestorProcess>(new NoOpProcess("Discovery"));
+        services.AddKeyedSingleton<IIngestorProcess>(JobMode.DiscoveryOnly, new NoOpProcess("Discovery"));
 
         var lifetime = Substitute.For<IHostApplicationLifetime>();
         using var worker = BuildWorker(services, meterFactory, "DiscoveryOnly", lifetime);
@@ -128,7 +129,7 @@ public sealed class WorkerFailureMetricsTests
 
         using var cts = new CancellationTokenSource();
         var services = new ServiceCollection();
-        services.AddSingleton<IIngestorProcess>(new CancellingProcess("Discovery", cts));
+        services.AddKeyedSingleton<IIngestorProcess>(JobMode.DiscoveryOnly, new CancellingProcess("Discovery", cts));
 
         var lifetime = Substitute.For<IHostApplicationLifetime>();
         using var worker = BuildWorker(services, meterFactory, "DiscoveryOnly", lifetime);
