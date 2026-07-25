@@ -10,7 +10,8 @@ public sealed class Worker(
     IServiceScopeFactory scopeFactory,
     IOptions<JobOptions> jobOptions,
     IIterationContext iterationContext,
-    IHostApplicationLifetime applicationLifetime) : BackgroundService
+    IHostApplicationLifetime applicationLifetime,
+    IngestorMetrics metrics) : BackgroundService
 {
     private const string HeartbeatEnvironmentVariable = "INGESTOR_HEARTBEAT_PATH";
 
@@ -104,6 +105,9 @@ public sealed class Worker(
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
+            // A cooperative shutdown is not a failure (#255): it keeps propagating
+            // untouched and must never reach the failure counter, otherwise every
+            // redeploy would look like a broken pipeline.
             throw;
         }
         catch (Exception ex)
@@ -112,61 +116,17 @@ public sealed class Worker(
             // ingestion services should self-heal across runs (transient DB / Riot
             // hiccups, schema drift caught by validation, etc.).
             logger.LogError(ex, "Ingestor run failed; will retry on next interval.");
+
+            // ...but a log line alone is not alertable, so the failure is also
+            // published as a counter (#260). Failures escaping this far are not
+            // attributable to one process (those are counted in RunModeAsync).
+            metrics.RecordRunFailure(IngestorMetrics.WholeRunProcess, mode);
         }
     }
 
     private async Task RunModeAsync(JobMode mode, CancellationToken stoppingToken)
     {
-        var sequence = mode switch
-        {
-            JobMode.DiscoveryOnly => ["Discovery"],
-            JobMode.ManualSeedOnly => ["ManualSeed"],
-            JobMode.HarvestOnly => ["Harvest"],
-            JobMode.ScoringOnly => ["Scoring"],
-            JobMode.MatchIngestionOnly => ["MatchIngestion"],
-            JobMode.MainAnalysisOnly => ["MainAnalysis"],
-            JobMode.PatternAggregationOnly => ["ChampionPatternAggregation"],
-            JobMode.MatchupLeadAggregationOnly => ["ChampionMatchupLeadAggregation"],
-            JobMode.PowerspikeAggregationOnly => ["ChampionPowerspikeAggregation"],
-            JobMode.EloBracketEnrichmentOnly => ["MatchParticipantEloBracketEnrichment"],
-            JobMode.TeamPositionCorrectionOnly => ["MatchTeamPositionCorrection"],
-            JobMode.AccountRefreshOnly => ["AccountRefresh"],
-            JobMode.MatchDataRetentionOnly => ["MatchDataRetention"],
-            _ => (string[])
-            [
-                "Discovery",
-                // ManualSeed runs right after Discovery and before Scoring: it
-                // queues its candidates directly (skipping the competitive top-N
-                // ScoringProcess), so a seeded account is picked up by the same
-                // downstream MatchIngestion -> MainAnalysis pass in this run.
-                "ManualSeed",
-                // Harvest generates candidates from orphan match_participants rows at
-                // near-zero Riot cost (#485). It runs before Scoring so harvested
-                // candidates compete in the same per-platform top-N as ladder/manual ones.
-                "Harvest",
-                "Scoring",
-                "MatchIngestion",
-                // Backfills any pre-existing "Missing team position" gap left by
-                // upstream Riot data before the champion aggregations read
-                // TeamPosition. RiotMatchMapper already self-heals newly-ingested
-                // matches, so steady-state this only drains the pre-existing
-                // backlog.
-                "MatchTeamPositionCorrection",
-                "MainAnalysis",
-                // Stamps match_participants.elo_bracket from the nearest rank
-                // snapshot BEFORE the champion aggregations, so they (and the live
-                // panel reads) can filter by rank. Uses prior-cycle snapshots.
-                "MatchParticipantEloBracketEnrichment",
-                "ChampionPatternAggregation",
-                "ChampionMatchupLeadAggregation",
-                // Folds each newly-ingested match into the powerspike aggregates
-                // (#694) while its dense per-minute snapshots still exist, so
-                // MatchDataRetention can then prune them to the canonical marks.
-                "ChampionPowerspikeAggregation",
-                "AccountRefresh",
-                "MatchDataRetention"
-            ]
-        };
+        var sequence = JobModeSequence.For(mode);
 
         // Open a fresh iteration for this whole pass so every ProcessRun recorded
         // below (across the per-process scopes) is stamped with the same id and the
@@ -175,7 +135,7 @@ public sealed class Worker(
         using var iteration = iterationContext.BeginIteration();
         logger.LogInformation("Starting iteration {IterationId}.", iteration.IterationId);
 
-        foreach (var processName in sequence)
+        foreach (var step in sequence)
         {
             // A fresh scope per process gives each one its own DbContext and
             // scoped repositories. A single shared scope would let the
@@ -183,14 +143,19 @@ public sealed class Worker(
             // sequence and leak cached scoped state from one process into the
             // next. The scope is disposed before moving on to the next process.
             await using var scope = scopeFactory.CreateAsyncScope();
-            var processesByName = BuildProcessIndex(scope.ServiceProvider);
 
-            if (!processesByName.TryGetValue(processName, out var process))
-            {
-                throw new InvalidOperationException(
-                    $"No IIngestorProcess registered with Name '{processName}'. "
-                    + $"Registered: {string.Join(", ", processesByName.Keys.Order(StringComparer.Ordinal))}.");
-            }
+            // Resolve from THIS scope's provider (never the root one, see #256) so
+            // the process and its scoped dependencies die with the scope.
+            // GetRequiredKeyedService names only the key TYPE in its message, so
+            // resolve leniently and throw one that names the offending mode. The
+            // throw aborts this pass but is caught by RunOnceAsync, so a bad
+            // registration is loud in the logs instead of crash-looping the host.
+            var process = scope.ServiceProvider.GetKeyedService<IIngestorProcess>(step)
+                ?? throw new InvalidOperationException(
+                    $"No IIngestorProcess is registered for {nameof(JobMode)}.{step} "
+                    + $"(reached while running Job:Mode '{mode}'). "
+                    + $"Registered modes: {DescribeRegisteredModes(scope.ServiceProvider)}. "
+                    + "Register the missing one via AddRecordedProcess<T>(JobMode) in AddIngestorProcesses.");
 
             try
             {
@@ -198,6 +163,7 @@ public sealed class Worker(
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
+                // Shutdown, not a failure (#255) — propagate without counting it.
                 throw;
             }
             catch (Exception ex)
@@ -210,29 +176,35 @@ public sealed class Worker(
                 logger.LogError(
                     ex,
                     "Process {ProcessName} failed; continuing with the next process in the sequence.",
-                    processName);
+                    process.Name);
+
+                // This is the catch that hides the failures worth alerting on: a dead
+                // Riot key or schema drift surfaces here, per process, and never reaches
+                // RunOnceAsync. Counting only the outer catch would leave the counter at
+                // zero in exactly the scenario it exists for (#260).
+                metrics.RecordRunFailure(process.Name, mode);
             }
         }
     }
 
-    private static IReadOnlyDictionary<string, IIngestorProcess> BuildProcessIndex(IServiceProvider serviceProvider)
+    private static string DescribeRegisteredModes(IServiceProvider serviceProvider)
     {
-        // The per-process catch in RunModeAsync assumes every production
-        // registration is wrapped in RecordedProcess (via AddRecordedProcess) so a
-        // failure is still persisted as a Failed run. A process registered without
-        // the wrapper still runs and logs, but its runs are invisible to process
-        // health — always register through AddRecordedProcess.
-        var index = new Dictionary<string, IIngestorProcess>(StringComparer.Ordinal);
-        foreach (var process in serviceProvider.GetRequiredService<IEnumerable<IIngestorProcess>>())
+        // Keyed DI has no equivalent of the old name-indexed dictionary to read the
+        // registrations off, but IServiceProviderIsKeyedService answers "is this key
+        // registered?" without constructing anything. Enumerating
+        // GetKeyedServices(AnyKey) instead would instantiate every process — each
+        // with its DbContext and scoped dependencies — just to format an error
+        // message, and could throw while doing so and mask the real fault.
+        var probe = serviceProvider.GetService<IServiceProviderIsKeyedService>();
+        if (probe is null)
         {
-            if (!index.TryAdd(process.Name, process))
-            {
-                throw new InvalidOperationException(
-                    $"Duplicate IIngestorProcess registration for Name '{process.Name}'.");
-            }
+            return "unavailable (this container cannot be probed for keyed registrations)";
         }
 
-        return index;
-    }
+        var registered = Enum.GetValues<JobMode>()
+            .Where(candidate => probe.IsKeyedService(typeof(IIngestorProcess), candidate))
+            .ToArray();
 
+        return registered.Length == 0 ? "none" : string.Join(", ", registered);
+    }
 }

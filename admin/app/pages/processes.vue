@@ -10,6 +10,7 @@ import type { TableColumn } from '@nuxt/ui'
 import type { ProcessIteration, ProcessRollup, ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
 import { PIPELINE_CHAIN } from '~~/shared/types/ops'
 import { formatDateTime, formatDuration, formatNumber } from '~~/shared/utils/format'
+import { hasSummary } from '~~/shared/utils/process-summary'
 
 // --- Filters -----------------------------------------------------------------
 const processName = ref('')
@@ -332,22 +333,8 @@ const tableMeta = {
 // Process summaries are free-form JSON (flat scalar maps, nested objects, or
 // arrays of per-platform rows). `ProcessSummaryView` renders any of those shapes
 // as readable fields/tables; here we only decide whether a summary has content
-// to show and keep the raw JSON available as a collapsible fallback.
-function hasSummary(summary: ProcessRun['summary']): boolean {
-  if (summary === null || summary === undefined) {
-    return false
-  }
-  if (Array.isArray(summary)) {
-    return summary.length > 0
-  }
-  if (typeof summary === 'object') {
-    return Object.keys(summary).length > 0
-  }
-  // Scalar summary (unusual but tolerated): content unless it's an empty string,
-  // so an empty payload shows "No summary recorded" rather than a blank field.
-  return summary !== ''
-}
-
+// to show (`hasSummary`, in `shared/utils/process-summary`) and keep the raw
+// JSON available as a collapsible fallback.
 function summaryJson(summary: ProcessRun['summary']): string | null {
   if (summary === null || summary === undefined) {
     return null

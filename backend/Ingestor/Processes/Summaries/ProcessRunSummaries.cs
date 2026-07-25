@@ -75,11 +75,19 @@ public sealed record ManualSeedSummary(
     int Failed,
     int CandidatesQueued) : IProcessRunSummary;
 
-/// <summary>Participant harvest outcome.</summary>
+/// <summary>
+/// Participant harvest outcome, including the anti-starvation coverage split (#495)
+/// between newly-discovered and already-known (puuid, champion) pairs.
+/// </summary>
 public sealed record HarvestSummary(
     int CandidatesInserted,
     int CandidatesUpdated,
-    int AccountsCreated) : IProcessRunSummary;
+    int AccountsCreated,
+    int EligibleNew,
+    int SelectedNew,
+    int EligibleKnown,
+    int SelectedKnown,
+    bool BudgetExhausted) : IProcessRunSummary;
 
 /// <summary>Account refresh outcome, split by profile and rank sub-step.</summary>
 public sealed record AccountRefreshSummary(

@@ -1,3 +1,4 @@
+using Core.Lol.Performance;
 using Data;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -10,11 +11,13 @@ namespace TrueMain.Services.Truemains;
 /// (<c>GET /truemains/{nameTag}/matches/{matchId}</c>). Loads the match header,
 /// all 10 participants with their build order / skill order / rune page, the
 /// @15 timeline snapshots and a temporally-nearest rank snapshot per tracked
-/// account — then computes the derived per-minute rates and laning diffs
-/// server-side so the frontend renders them directly.
+/// account — then computes the derived per-minute rates, laning diffs and the
+/// performance score / placement / MVP / ACE accolades server-side so the
+/// frontend renders them directly.
 ///
-/// Scope per issue #523: no team objectives, no performance/MVP/ACE score, no
-/// ward counts — only data the DB already has.
+/// Scope per issues #523 and #639: no team objectives and no ward counts — only
+/// data the DB already has. The performance score is a derived metric
+/// (<see cref="PerformanceScore"/>), so it needs no schema of its own.
 /// </summary>
 public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetailQueryService
 {
@@ -184,10 +187,17 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
                 .Select(a => new { a.Id, a.GameName, a.TagLine })
                 .ToDictionaryAsync(a => a.Id, a => (a.GameName, a.TagLine), ct);
 
-        // Team kills per side for KP%.
+        // Team totals per side — kills for KP%, damage and gold for the share
+        // components of the performance score.
         var teamKills = participants
             .GroupBy(p => p.TeamId)
             .ToDictionary(g => g.Key, g => g.Sum(p => p.Kills));
+        var teamDamage = participants
+            .GroupBy(p => p.TeamId)
+            .ToDictionary(g => g.Key, g => g.Sum(p => p.TotalDamageDealtToChampions));
+        var teamGold = participants
+            .GroupBy(p => p.TeamId)
+            .ToDictionary(g => g.Key, g => g.Sum(p => p.GoldEarned));
 
         var durationMinutes = match.GameDurationSeconds > 0
             ? match.GameDurationSeconds / 60d
@@ -196,6 +206,35 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
         // Lane opponent = the participant on the other team sharing the same
         // non-empty TeamPosition. Built once; used for @15 diffs and first-to-2.
         var opponentByParticipant = BuildOpponentMap(participants);
+
+        // @15 diffs, resolved once: the performance score consumes them as an
+        // input and the payload exposes them as `laning15`.
+        var laning15ByParticipant = participants.ToDictionary(
+            p => p.ParticipantId,
+            p =>
+            {
+                opponentByParticipant.TryGetValue(p.ParticipantId, out var opponent);
+                return ComputeLaning15(p.ParticipantId, opponent, snapshotByParticipant);
+            });
+
+        // Performance score for all 10 participants, then the match-wide
+        // placement (1..10) and the MVP / ACE accolades derived from it.
+        var scoreByParticipant = participants.ToDictionary(
+            p => p.ParticipantId,
+            p => PerformanceScore.Compute(BuildScoreInput(
+                p, teamKills, teamDamage, teamGold, durationMinutes,
+                laning15ByParticipant[p.ParticipantId])));
+
+        var placementByParticipant = MatchPerformanceRanker.Rank(participants
+            .Select(p => new MatchPerformanceEntry
+            {
+                ParticipantId = p.ParticipantId,
+                Win = p.Win,
+                Score = scoreByParticipant[p.ParticipantId],
+                Kills = p.Kills,
+                Deaths = p.Deaths,
+                Assists = p.Assists,
+            }));
 
         var participantModels = participants
             .OrderBy(p => p.TeamId)
@@ -224,7 +263,7 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
 
                 opponentByParticipant.TryGetValue(p.ParticipantId, out var opponent);
 
-                var laning15 = ComputeLaning15(p.ParticipantId, opponent, snapshotByParticipant);
+                var laning15 = laning15ByParticipant[p.ParticipantId];
                 var firstToTwo = ComputeFirstToLevelTwo(p, opponent);
 
                 var primaryStyleId = p.PrimaryStyleId;
@@ -307,6 +346,10 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
                     DamagePerMin = PerMin(p.TotalDamageDealtToChampions, durationMinutes),
                     GoldPerMin = PerMin(p.GoldEarned, durationMinutes),
                     VisionPerMin = PerMin(p.VisionScore, durationMinutes),
+                    PerformanceScore = scoreByParticipant[p.ParticipantId],
+                    Placement = placementByParticipant[p.ParticipantId].Placement,
+                    IsMvp = placementByParticipant[p.ParticipantId].IsMvp,
+                    IsAce = placementByParticipant[p.ParticipantId].IsAce,
                     Laning15 = laning15,
                     FirstToLevelTwo = firstToTwo,
                     Runes = runes,
@@ -333,6 +376,38 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
 
     private static double PerMin(int value, double minutes)
         => minutes <= 0 ? 0d : value / minutes;
+
+    /// <summary>
+    /// Packs one participant's end-of-game totals, their side's totals and their
+    /// @15 laning diffs into the pure scoring function's input. A missing team
+    /// total or a missing <paramref name="laning15"/> simply drops the matching
+    /// component — see <see cref="PerformanceScore"/>.
+    /// </summary>
+    private static PerformanceScoreInput BuildScoreInput(
+        MatchParticipant p,
+        Dictionary<int, int> teamKills,
+        Dictionary<int, int> teamDamage,
+        Dictionary<int, int> teamGold,
+        double durationMinutes,
+        MatchDetailLaning15ReadModel? laning15)
+        => new()
+        {
+            TeamPosition = p.TeamPosition,
+            Kills = p.Kills,
+            Deaths = p.Deaths,
+            Assists = p.Assists,
+            TeamKills = teamKills.TryGetValue(p.TeamId, out var tk) ? tk : 0,
+            DamageToChampions = p.TotalDamageDealtToChampions,
+            TeamDamageToChampions = teamDamage.TryGetValue(p.TeamId, out var td) ? td : 0,
+            GoldEarned = p.GoldEarned,
+            TeamGoldEarned = teamGold.TryGetValue(p.TeamId, out var tg) ? tg : 0,
+            Cs = p.TotalMinionsKilled + p.NeutralMinionsKilled,
+            VisionScore = p.VisionScore,
+            GameDurationMinutes = durationMinutes,
+            CsDiff15 = laning15?.CsDiff,
+            GoldDiff15 = laning15?.GoldDiff,
+            XpDiff15 = laning15?.XpDiff,
+        };
 
     /// <summary>
     /// Maps each participant id to its lane opponent — the single participant on

@@ -198,8 +198,18 @@ public sealed class ProcessRunSummaryJsonTests
             new { claimed = 5, ingested = 3, notFound = 1, failed = 1, candidatesQueued = 2 });
 
         yield return (
-            new HarvestSummary(11, 6, 2),
-            new { candidatesInserted = 11, candidatesUpdated = 6, accountsCreated = 2 });
+            new HarvestSummary(11, 6, 2, 40, 25, 60, 35, true),
+            new
+            {
+                candidatesInserted = 11,
+                candidatesUpdated = 6,
+                accountsCreated = 2,
+                eligibleNew = 40,
+                selectedNew = 25,
+                eligibleKnown = 60,
+                selectedKnown = 35,
+                budgetExhausted = true
+            });
 
         yield return (
             new AccountRefreshSummary(50, 30, 2, 1, 10, 3, 20, 25, 4, 6, 2),

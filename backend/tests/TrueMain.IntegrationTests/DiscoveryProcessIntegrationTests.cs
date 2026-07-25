@@ -105,6 +105,80 @@ public sealed class DiscoveryProcessIntegrationTests
         (await ReadCursorOffsetAsync("KR")).Should().Be(0);
     }
 
+    [Fact]
+    public async Task RunAsync_WhenPerAccountWorkThrows_StillAdvancesTheCursorSoTheSweepMovesOn()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        var process = new DiscoveryProcess(
+            NullLogger<DiscoveryProcess>.Instance,
+            new MasteryFailingRiotPlatformClient(),
+            _fixture.CreateSessionFactory(),
+            new FixedSizeLadderDiscoveryService(ladderSize: 5),
+            new AccountUpsertService(),
+            new NoOpCandidateUpsertService(),
+            new RankSnapshotWriter(),
+            TimeProvider.System,
+            Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
+            {
+                Platforms = ["KR"],
+                SaveBatchSize = 1,
+                NewAccountsTarget = 0,
+                MaxAccountsPerPlatformPerRun = 2,
+                SlidingWindowEnabled = true
+            }));
+
+        var act = async () => await process.RunCoreAsync(CancellationToken.None);
+        (await act.Should().ThrowAsync<AggregateException>())
+            .Which.Message.Should().Contain("KR");
+
+        // The per-account work threw before its batch was saved, so nothing was
+        // persisted for this window...
+        await using var verifyDb = _fixture.CreateDbContext();
+        (await verifyDb.RiotAccounts.AnyAsync()).Should().BeFalse();
+
+        // ...yet the cursor still advanced. This is deliberate (see DiscoveryProcess):
+        // the offset wraps, so the window is covered again on the next sweep, whereas
+        // holding the cursor back would let one permanently failing account pin the
+        // sweep and starve new-account discovery.
+        (await ReadCursorOffsetAsync("KR")).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task UpsertOffsetAsync_InsertsThenUpdatesTheSameRow_WithoutSaveChanges()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        var sessionFactory = _fixture.CreateSessionFactory();
+        var insertedAtUtc = new DateTime(2026, 7, 1, 12, 0, 0, DateTimeKind.Utc);
+        var updatedAtUtc = insertedAtUtc.AddHours(1);
+
+        // #500: the upsert is a single INSERT … ON CONFLICT statement, so it lands
+        // without a SaveChanges call and its conflict target must match a real
+        // constraint (the "discovery_cursors" primary key on "PlatformId").
+        await using (var session = await sessionFactory.CreateAsync(CancellationToken.None))
+        {
+            await session.DiscoveryCursors.UpsertOffsetAsync("KR", 10, insertedAtUtc, CancellationToken.None);
+        }
+
+        (await ReadCursorOffsetAsync("KR")).Should().Be(10);
+
+        await using (var session = await sessionFactory.CreateAsync(CancellationToken.None))
+        {
+            await session.DiscoveryCursors.UpsertOffsetAsync("KR", 20, updatedAtUtc, CancellationToken.None);
+
+            // Reads are no-tracking, so the same session sees the row it just wrote
+            // rather than a stale tracked instance.
+            (await session.DiscoveryCursors.GetOffsetAsync("KR", CancellationToken.None)).Should().Be(20);
+        }
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        var cursors = await verifyDb.DiscoveryCursors.AsNoTracking().ToListAsync();
+        cursors.Should().ContainSingle("the second upsert conflicts on the primary key and updates in place");
+        cursors[0].Offset.Should().Be(20);
+        cursors[0].UpdatedAtUtc.Should().Be(updatedAtUtc);
+    }
+
     private async Task<int?> ReadCursorOffsetAsync(string platformId)
     {
         await using var db = _fixture.CreateDbContext();
@@ -397,6 +471,37 @@ public sealed class DiscoveryProcessIntegrationTests
 
         public Task<List<RiotLeagueEntryByPuuidDto>> GetLeagueEntriesByPuuidAsync(PlatformRoute platform, string puuid, CancellationToken ct)
             => throw new NotSupportedException();
+    }
+
+    /// <summary>
+    /// Fails the per-account champion-mastery call, i.e. the first Riot call that happens
+    /// after the cursor has been advanced — the real-world shape being a mastery 404 that
+    /// <c>EnsureSuccessStatusCode</c> turns into a throw.
+    /// </summary>
+    private sealed class MasteryFailingRiotPlatformClient : IRiotPlatformClient
+    {
+        private readonly FakeRiotPlatformClient _inner = new();
+
+        public Task<List<RiotChampionMasteryDto>> GetChampionMasteriesAsync(PlatformRoute platform, string puuid, CancellationToken ct)
+            => throw new HttpRequestException("simulated champion-mastery outage");
+
+        public Task<RiotLeagueListDto> GetChallengerLeagueAsync(PlatformRoute platform, string queue, CancellationToken ct)
+            => _inner.GetChallengerLeagueAsync(platform, queue, ct);
+
+        public Task<RiotLeagueListDto> GetGrandmasterLeagueAsync(PlatformRoute platform, string queue, CancellationToken ct)
+            => _inner.GetGrandmasterLeagueAsync(platform, queue, ct);
+
+        public Task<RiotLeagueListDto> GetMasterLeagueAsync(PlatformRoute platform, string queue, CancellationToken ct)
+            => _inner.GetMasterLeagueAsync(platform, queue, ct);
+
+        public Task<RiotSummonerDto> GetSummonerAsync(PlatformRoute platform, string summonerId, CancellationToken ct)
+            => _inner.GetSummonerAsync(platform, summonerId, ct);
+
+        public Task<RiotSummonerDto> GetSummonerByPuuidAsync(PlatformRoute platform, string puuid, CancellationToken ct)
+            => _inner.GetSummonerByPuuidAsync(platform, puuid, ct);
+
+        public Task<List<RiotLeagueEntryByPuuidDto>> GetLeagueEntriesByPuuidAsync(PlatformRoute platform, string puuid, CancellationToken ct)
+            => _inner.GetLeagueEntriesByPuuidAsync(platform, puuid, ct);
     }
 
     private sealed class NoOpCandidateUpsertService : ICandidateUpsertService

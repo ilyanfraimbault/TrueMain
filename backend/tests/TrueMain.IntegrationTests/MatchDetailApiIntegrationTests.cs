@@ -174,6 +174,25 @@ public sealed class MatchDetailApiIntegrationTests
         foe.FirstToLevelTwo.Should().BeFalse();
         foe.Laning15.Should().NotBeNull();
         foe.Laning15!.CsDiff.Should().Be(-20);
+
+        // ── Performance score / placement / MVP / ACE (#639) ────────────────
+        // The model itself is unit-tested (PerformanceScoreTests); here we only
+        // assert the read path wires it up: every participant scored and placed,
+        // one MVP on the winning side, one ACE on the losing side.
+        detail.Participants.Should().OnlyContain(p => p.PerformanceScore >= 0 && p.PerformanceScore <= 100);
+        detail.Participants.Select(p => p.Placement).Order()
+            .Should().Equal(Enumerable.Range(1, 10));
+
+        detail.Participants.Where(p => p.IsMvp).Select(p => p.ParticipantId).Should().Equal(1);
+        detail.Participants.Single(p => p.IsAce).Win.Should().BeFalse();
+
+        // The main player out-farms, out-damages and out-KDAs all nine others,
+        // so they top the whole match — not just their side.
+        main.Placement.Should().Be(1);
+        main.IsMvp.Should().BeTrue();
+        main.IsAce.Should().BeFalse();
+        main.PerformanceScore.Should()
+            .BeGreaterThan(detail.Participants.Where(p => p.ParticipantId != 1).Max(p => p.PerformanceScore));
     }
 
     private async Task SeedFullMatchAsync()

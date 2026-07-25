@@ -42,20 +42,56 @@ public sealed class HarvestProcess(
         var result = await harvestService.HarvestAsync(session, options, nowUtc, ct);
 
         // Named ops event (#444): one per harvest run, so the operator can follow the
-        // participant-harvest arm from /ops/logs alongside ladder discovery.
+        // participant-harvest arm from /ops/logs alongside ladder discovery. Coverage
+        // (#495) rides on it: how many (puuid, champion) pairs qualified versus how many
+        // the budget could take, split between new discovery and stat refresh.
+        var coverage = result.Coverage;
         logger.LogInformation(
             OpsEvents.HarvestCycleCompleted,
-            "Harvest summary: lookbackDays={LookbackDays}, maxCandidatesPerRun={MaxCandidatesPerRun}, minObservedGames={MinObservedGames}, candidatesInserted={Inserted}, candidatesUpdated={Updated}, accountsCreated={AccountsCreated}.",
+            "Harvest summary: lookbackDays={LookbackDays}, maxCandidatesPerRun={MaxCandidatesPerRun}, newCandidateShare={NewCandidateShare}, minObservedGames={MinObservedGames}, candidatesInserted={Inserted}, candidatesUpdated={Updated}, accountsCreated={AccountsCreated}, eligibleNew={EligibleNew}, selectedNew={SelectedNew}, eligibleKnown={EligibleKnown}, selectedKnown={SelectedKnown}.",
             options.LookbackDays,
             options.MaxCandidatesPerRun,
+            options.NewCandidateShare,
             options.MinObservedGames,
             result.CandidatesInserted,
             result.CandidatesUpdated,
-            result.AccountsCreated);
+            result.AccountsCreated,
+            coverage.EligibleNew,
+            coverage.SelectedNew,
+            coverage.EligibleKnown,
+            coverage.SelectedKnown);
+
+        // The cap is a real bound on coverage, so it is never applied silently (#495): every
+        // truncated run says so at Warning, with the per-platform split that also exposes an
+        // imbalanced run (one region eating the cross-platform budget). droppedNew > 0 is the
+        // one to act on — new discovery is being deferred, which is how the harvest starves.
+        if (coverage.IsBudgetBound)
+        {
+            logger.LogWarning(
+                OpsEvents.HarvestBudgetExhausted,
+                "Harvest budget exhausted: maxCandidatesPerRun={MaxCandidatesPerRun} did not cover the eligible pool — droppedNew={DroppedNew} of {EligibleNew}, droppedKnown={DroppedKnown} of {EligibleKnown}. Per platform: {PerPlatform}.",
+                options.MaxCandidatesPerRun,
+                coverage.DroppedNew,
+                coverage.EligibleNew,
+                coverage.DroppedKnown,
+                coverage.EligibleKnown,
+                FormatPerPlatform(coverage));
+        }
 
         return new HarvestSummary(
             result.CandidatesInserted,
             result.CandidatesUpdated,
-            result.AccountsCreated);
+            result.AccountsCreated,
+            coverage.EligibleNew,
+            coverage.SelectedNew,
+            coverage.EligibleKnown,
+            coverage.SelectedKnown,
+            coverage.IsBudgetBound);
     }
+
+    private static string FormatPerPlatform(HarvestCoverage coverage)
+        => string.Join(
+            ", ",
+            coverage.Platforms.Select(platform =>
+                $"{platform.PlatformId} new={platform.SelectedNew}/{platform.EligibleNew} known={platform.SelectedKnown}/{platform.EligibleKnown}"));
 }

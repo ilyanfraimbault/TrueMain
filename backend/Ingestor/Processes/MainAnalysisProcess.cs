@@ -101,16 +101,25 @@ public sealed class MainAnalysisProcess(
     {
         var summary = new AnalysisSummary();
         await using var session = await sessionFactory.CreateAsync(ct);
-        await using var transaction = await session.BeginTransactionAsync(ct);
+
+        // Reads stay outside the transaction (#264): they only feed an in-memory
+        // computation and take no row locks, so running them under BEGIN extended
+        // the lock lifetime for nothing. The stats and accounts must stay TRACKED —
+        // the writes below are change-tracked mutations of these very entities
+        // (in-place stat updates, Remove, LastMainCalcAtUtc stamping) — so no
+        // AsNoTracking here; the participant rows are already an untracked raw-SQL
+        // projection, capped at MatchesToConsider rows per account.
         var existingStatsByAccount = await session.MainChampionStats.GetByAccountsAsync(batch, ct);
         var accountEntitiesByKey = await session.RiotAccounts.GetByKeysAsync(batch, ct);
         var participantRowsByAccount = await session.MatchParticipants
             .GetRecentParticipantsByAccountsAsync(batch, (int)options.QueueId, Math.Max(1, options.MatchesToConsider), ct);
 
+        var accountsToDemote = new List<AccountKey>();
+
         foreach (var account in batch)
         {
             ct.ThrowIfCancellationRequested();
-            var accountResult = await AnalyzeSingleAccountAsync(
+            var accountResult = AnalyzeSingleAccount(
                 session,
                 account,
                 participantRowsByAccount,
@@ -119,16 +128,22 @@ public sealed class MainAnalysisProcess(
                 options,
                 coverage,
                 nowUtc,
-                ct);
+                accountsToDemote);
             summary.Merge(accountResult);
         }
 
+        // Deliberate write boundary (#264): the stat delta, the LastMainCalcAtUtc
+        // stamps and the candidate demotions commit — or roll back — as one unit.
+        // Pinned by MainAnalysisProcessIntegrationTests
+        // .RunAsync_ShouldRollBackStatWrites_WhenDemotionFails.
+        await using var transaction = await session.BeginTransactionAsync(ct);
         await session.SaveChangesAsync(ct);
+        summary.DemotedAccounts += await DemoteCandidatesAsync(session, accountsToDemote, ct);
         await transaction.CommitAsync(ct);
         return summary;
     }
 
-    private async Task<AnalysisSummary> AnalyzeSingleAccountAsync(
+    private AnalysisSummary AnalyzeSingleAccount(
         IDataSession session,
         AccountKey account,
         IReadOnlyDictionary<AccountKey, List<ParticipantRow>> participantRowsByAccount,
@@ -137,7 +152,7 @@ public sealed class MainAnalysisProcess(
         MainAnalysisOptions options,
         ChampionCoverageSnapshot coverage,
         DateTime nowUtc,
-        CancellationToken ct)
+        ICollection<AccountKey> accountsToDemote)
     {
         var summary = new AnalysisSummary();
         var participantRows = participantRowsByAccount.TryGetValue(account, out var rows)
@@ -189,7 +204,7 @@ public sealed class MainAnalysisProcess(
 
         if (shouldDemote)
         {
-            await TryDemoteCandidateAsync(session, account, summary, ct);
+            accountsToDemote.Add(account);
         }
 
         summary.Processed++;
@@ -218,23 +233,28 @@ public sealed class MainAnalysisProcess(
         }
     }
 
-    private async Task TryDemoteCandidateAsync(
+    private async Task<int> DemoteCandidatesAsync(
         IDataSession session,
-        AccountKey account,
-        AnalysisSummary summary,
+        IReadOnlyCollection<AccountKey> accountsToDemote,
         CancellationToken ct)
     {
-        var updated = await session.MainCandidates
-            .SetStatusForAccountAsync(account.PlatformId, account.Puuid, MainCandidateStatus.Validated, MainCandidateStatus.Scored, ct);
-
-        if (updated > 0)
+        var demoted = 0;
+        foreach (var account in accountsToDemote)
         {
-            summary.DemotedAccounts++;
-            logger.LogInformation(
-                "Demoted candidates for {Platform}/{Puuid} to Scored due to critical play rate.",
-                account.PlatformId,
-                account.Puuid);
+            var updated = await session.MainCandidates
+                .SetStatusForAccountAsync(account.PlatformId, account.Puuid, MainCandidateStatus.Validated, MainCandidateStatus.Scored, ct);
+
+            if (updated > 0)
+            {
+                demoted++;
+                logger.LogInformation(
+                    "Demoted candidates for {Platform}/{Puuid} to Scored due to critical play rate.",
+                    account.PlatformId,
+                    account.Puuid);
+            }
         }
+
+        return demoted;
     }
 
     private static int RemoveMissingChampionStats(
