@@ -15,12 +15,20 @@ const props = defineProps<{
 // twice, on a page that already renders it.
 const TOP_MAINS = 10
 
+/**
+ * Sentinel for "compare against the whole pool". A `USelect` item may not carry
+ * an empty-string value (Reka UI reserves it for "cleared, show the
+ * placeholder" and throws otherwise), and a real Riot ID always contains a
+ * `#`, so this can never collide with a main's option value.
+ */
+const ALL_MAINS = 'all-mains'
+
 /** What the user is typing; only committed to a fetch on submit. */
 const draft = ref('')
 /** The Riot ID actually being compared. Null until the first valid submit. */
 const submitted = ref<string | null>(null)
-/** Riot ID of the targeted main; empty string means "the whole main pool". */
-const target = ref('')
+/** Riot ID of the targeted main, or ALL_MAINS for the whole pool. */
+const target = ref(ALL_MAINS)
 
 const canSubmit = computed(() => isValidRiotId(draft.value))
 
@@ -38,7 +46,7 @@ const { rows: mainRows } = useTruemainsLeaderboard(1, {
 // can't be addressed as a Riot ID, so they're dropped rather than offered as a
 // target the API would fail to resolve.
 const targetOptions = computed(() => [
-  { label: 'All mains', value: '' },
+  { label: 'All mains', value: ALL_MAINS },
   ...mainRows.value.flatMap((row) => {
     const riotId = formatRiotId(row.identity.gameName, row.identity.tagLine)
     return riotId ? [{ label: riotId, value: riotId }] : []
@@ -48,12 +56,15 @@ const targetOptions = computed(() => [
 // Reset the target when the champion changes: a main of the previous champion
 // is meaningless here, and the API would compare against their games on a
 // champion they may never play.
-watch(() => props.championId, () => { target.value = '' })
+watch(() => props.championId, () => { target.value = ALL_MAINS })
 
 const { data, status, error } = useChampionMainsComparison(
   () => props.championId,
   submitted,
-  { mainRiotId: () => target.value, position: () => props.position },
+  {
+    mainRiotId: () => (target.value === ALL_MAINS ? null : target.value),
+    position: () => props.position,
+  },
 )
 
 const isLoading = computed(() => submitted.value !== null && status.value === 'pending')
