@@ -76,15 +76,25 @@ public sealed class PlayerBuildDivergenceQueryService(
         // comparable by construction. Deliberately not narrowed to the player's
         // platform: a main is a main whatever their region, and a wider pool is
         // what makes "x% of mains" mean anything.
-        var referenceScopes = await ChampionScopeLoader.LoadAsync(
-            db, queueId, championId, resolvedPatch, resolvedPosition, ct);
-
-        // The player's own scopes are part of that global pool — drop them, so
-        // "x% of mains" is never partly "x% of you". On a champion only this
-        // player mains, that empties the reference and the card says so.
-        var mainsScopes = (referenceScopes ?? [])
+        //
+        // Queried directly rather than through ChampionScopeLoader: the loader's
+        // job is to *resolve* an unspecified patch / position, and it spends a
+        // first round trip doing that. Here both are already known — they came
+        // off a scope row above, so they are canonical by construction — which
+        // makes that pass pure overhead. The player's own scopes are excluded in
+        // SQL so "x% of mains" is never partly "x% of you"; on a champion only
+        // this player mains, the reference comes back empty and the card says so.
+        var mainsScopes = await db.ChampionAggregateScopes
+            .AsNoTracking()
+            .WhereChampionScope(
+                championId,
+                queueId,
+                riotAccountId: null,
+                resolvedPatch,
+                platformId: null,
+                resolvedPosition)
             .Where(scope => scope.RiotAccountId != account.Id)
-            .ToList();
+            .ToListAsync(ct);
 
         var playerScopeIds = playerScopes.Select(scope => scope.Id).ToHashSet();
         var mainsScopeIds = mainsScopes.Select(scope => scope.Id).ToList();

@@ -3,6 +3,7 @@ import type { BuildDivergence, DivergenceDimension } from '~~/shared/types/diver
 import type { ChampionStaticData, StaticItemData } from '~~/shared/types/static-data'
 import type { ChampionPosition } from '~/utils/positions'
 import { formatPercentage } from '~~/shared/utils/ddragon'
+import { isLoadingStatus } from '~/utils/async-data'
 
 const props = defineProps<{
   nameTag: string
@@ -22,17 +23,27 @@ const { data, status, error } = usePlayerBuildDivergence(
   },
 )
 
-const isLoading = computed(() => status.value === 'pending' && !data.value)
+// `idle` counts as loading: with a lazy client-only fetch the SSR shell and the
+// first client tick sit in `idle`, and treating that as "settled" made the card
+// flash "No aggregated games on this champion yet" before the request even
+// started. Keeping `!data` in the condition still avoids a skeleton flash when a
+// patch/position change refetches over data already on screen.
+const isLoading = computed(() => isLoadingStatus(status.value) && !data.value)
 
 /**
- * Per-dimension wording. `noun` names the decision, `verb` completes the
- * coaching sentence ("… you <verb> X"). `ordered` decides whether the icons are
- * chained with chevrons — a starter set is a basket, a build path is a sequence.
+ * Per-dimension wording. `noun` names the decision for the row heading; `verb`
+ * is the predicate the hint sentence hangs on. `ordered` decides whether the
+ * icons are chained with chevrons — a starter set is a basket, a build path is a
+ * sequence.
+ *
+ * Each verb has to read correctly after both "Mains …" and "who … it", which is
+ * why they are per-dimension phrases rather than one generic word: the mains
+ * *open on* a starter, *finish* boots, *follow* a path and *max* a skill.
  */
 const DIMENSION_COPY: Record<DivergenceDimension, { noun: string, verb: string, ordered: boolean }> = {
-  starterItems: { noun: 'Starter', verb: 'start', ordered: false },
-  boots: { noun: 'Boots', verb: 'build', ordered: false },
-  itemPath: { noun: 'Core items', verb: 'build', ordered: true },
+  starterItems: { noun: 'Starter', verb: 'open on', ordered: false },
+  boots: { noun: 'Boots', verb: 'finish', ordered: false },
+  itemPath: { noun: 'Core items', verb: 'follow', ordered: true },
   skillOrder: { noun: 'Skill order', verb: 'max', ordered: true },
 }
 
@@ -43,18 +54,26 @@ function copyFor(dimension: DivergenceDimension) {
 /**
  * The coaching line under a row. Built entirely from the payload's own rates —
  * nothing here is estimated or rounded into a claim the API didn't make.
+ *
+ * The subject is always the mains (people, plural), never a percentage: a share
+ * of *games* cannot "build" or "max" anything, which is what made the earlier
+ * phrasing parse wrong halfway through. Shares stay in prepositional phrases,
+ * and "theirs" / "yours" point at the two labelled columns directly above.
  */
 function hintFor(row: BuildDivergence): string {
   const { verb } = copyFor(row.dimension)
   const mainsShare = formatPercentage(row.mains.pickRate)
-  const yoursAmongMains = formatPercentage(row.mainsRateOnPlayerChoice)
 
   if (!row.diverges) {
-    return `Same call as the mains — ${mainsShare} of their games ${verb} this too.`
+    return `Same as the mains, who ${verb} it in ${mainsShare} of their games.`
   }
 
-  return `${mainsShare} of mains games ${verb} theirs, and only ${yoursAmongMains} `
-    + `${verb} what you do.`
+  // "only 0.0%" would be a rounding artefact standing in for "nobody" — say so.
+  const yours = row.mainsGamesOnPlayerChoice === 0
+    ? 'none of them'
+    : `only ${formatPercentage(row.mainsRateOnPlayerChoice)}`
+
+  return `Mains ${verb} theirs in ${mainsShare} of their games — yours appears in ${yours}.`
 }
 
 const rows = computed(() => data.value?.dimensions ?? [])
@@ -191,8 +210,14 @@ const emptyReason = computed(() => {
           <p class="text-xs text-muted">
             {{ hintFor(row) }}
             <!-- Rare ≠ bad: when mains do play the player's choice, show how it
-                 goes for them rather than letting the low share imply a mistake. -->
-            <template v-if="row.diverges && row.mainsWinRateOnPlayerChoice !== null">
+                 goes for them rather than letting the low share imply a mistake.
+                 Gated on the game count as well as the win rate so this can
+                 never contradict the "none of them" wording above — the API
+                 nulls the rate at zero games, and this holds even if it didn't. -->
+            <template
+              v-if="row.diverges && row.mainsGamesOnPlayerChoice > 0
+                && row.mainsWinRateOnPlayerChoice !== null"
+            >
               They win {{ formatPercentage(row.mainsWinRateOnPlayerChoice) }} of those.
             </template>
           </p>
