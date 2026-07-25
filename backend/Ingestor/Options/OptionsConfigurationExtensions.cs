@@ -1,4 +1,5 @@
 using Core.Options;
+using Microsoft.Extensions.Options;
 
 namespace Ingestor.Options;
 
@@ -6,6 +7,35 @@ public static class OptionsConfigurationExtensions
 {
     public static IServiceCollection AddValidatedOptions(this IServiceCollection services, IConfiguration configuration)
     {
+        // Shared platform scope (#496). Bound eagerly instead of read through
+        // IOptions<PlatformScopeOptions> from each section, so an invalid shared list surfaces one
+        // actionable error rather than the same failure cascading through every section that
+        // inherits it. Both come from the same configuration section, which the ingestor reads
+        // once at boot.
+        var platformScope = configuration.GetSection(PlatformScopeOptions.SectionName).Get<PlatformScopeOptions>()
+            ?? new PlatformScopeOptions();
+
+        // Same reasoning for the ingested platforms the harvest is validated against: a validator
+        // of MatchIngestionOptions may not depend on IOptions<MatchIngestionOptions>, since
+        // building those options is what resolves the validator in the first place.
+        var matchIngestionPlatforms = configuration
+            .GetSection($"{MatchIngestionOptions.SectionName}:{nameof(MatchIngestionOptions.Platforms)}")
+            .Get<List<string>>() ?? [];
+
+        // Single owner of the cross-section platform invariants: it validates the shared scope and
+        // every section that carries its own Platforms list, so a divergence fails the boot instead
+        // of silently skipping a region for one pipeline stage. Registered as a plain instance —
+        // it holds configuration data only, and depends on no service.
+        var platformScopeValidator = new PlatformScopeValidator(platformScope, matchIngestionPlatforms);
+        services.AddSingleton<IValidateOptions<PlatformScopeOptions>>(platformScopeValidator);
+        services.AddSingleton<IValidateOptions<DiscoveryOptions>>(platformScopeValidator);
+        services.AddSingleton<IValidateOptions<MatchIngestionOptions>>(platformScopeValidator);
+        services.AddSingleton<IValidateOptions<HarvestOptions>>(platformScopeValidator);
+
+        services.AddOptions<PlatformScopeOptions>()
+            .Bind(configuration.GetSection(PlatformScopeOptions.SectionName))
+            .ValidateOnStart();
+
         services.AddOptions<RiotOptions>()
             .Bind(configuration.GetSection(RiotOptions.SectionName))
             .Validate(options => !string.IsNullOrWhiteSpace(options.ApiKey), "Riot:ApiKey is required.")
@@ -23,7 +53,7 @@ public static class OptionsConfigurationExtensions
 
         services.AddOptions<DiscoveryOptions>()
             .Bind(configuration.GetSection(DiscoveryOptions.SectionName))
-            .Validate(options => HasNonEmptyItems(options.Platforms), "Discovery:Platforms must contain at least one value.")
+            .PostConfigure(options => options.Platforms = platformScope.Resolve(options.Platforms))
             .Validate(options => HasNonEmptyItems(options.TierScope), "Discovery:TierScope must contain at least one value.")
             .Validate(options => options.TopChampionsPerAccount > 0, "Discovery:TopChampionsPerAccount must be greater than 0.")
             .Validate(options => options.MaxAccountsPerPlatformPerRun > 0, "Discovery:MaxAccountsPerPlatformPerRun must be greater than 0.")
@@ -58,10 +88,12 @@ public static class OptionsConfigurationExtensions
 
         services.AddOptions<HarvestOptions>()
             .Bind(configuration.GetSection(HarvestOptions.SectionName))
-            .Validate(options => HasNonEmptyItems(options.Platforms), "Harvest:Platforms must contain at least one value.")
+            .PostConfigure(options => options.Platforms = platformScope.Resolve(options.Platforms))
             .Validate(options => options.QueueId > 0, "Harvest:QueueId must be greater than 0.")
             .Validate(options => options.MinObservedGames > 0, "Harvest:MinObservedGames must be greater than 0.")
             .Validate(options => options.MaxCandidatesPerRun > 0, "Harvest:MaxCandidatesPerRun must be greater than 0.")
+            .Validate(options => options.NewCandidateShare is >= 0 and <= 1,
+                "Harvest:NewCandidateShare must be between 0 and 1.")
             .Validate(options => options.SaveBatchSize > 0, "Harvest:SaveBatchSize must be greater than 0.")
             .Validate(options => options.LookbackDays >= 0, "Harvest:LookbackDays must be >= 0.")
             .ValidateOnStart();
@@ -74,12 +106,12 @@ public static class OptionsConfigurationExtensions
 
         services.AddOptions<MatchIngestionOptions>()
             .Bind(configuration.GetSection(MatchIngestionOptions.SectionName))
+            .PostConfigure(options => options.Platforms = platformScope.Resolve(options.Platforms))
             .Validate(options => options.BatchSize > 0, "MatchIngestion:BatchSize must be greater than 0.")
             .Validate(options => options.MatchesPerAccount > 0, "MatchIngestion:MatchesPerAccount must be greater than 0.")
             .Validate(options => options.SaveBatchSizeMatches > 0, "MatchIngestion:SaveBatchSizeMatches must be greater than 0.")
             .Validate(options => options.MaxMatchFetchConcurrency > 0, "MatchIngestion:MaxMatchFetchConcurrency must be greater than 0.")
             .Validate(options => options.ClaimLeaseMinutes > 0, "MatchIngestion:ClaimLeaseMinutes must be greater than 0.")
-            .Validate(options => HasNonEmptyItems(options.Platforms), "MatchIngestion:Platforms must contain at least one value.")
             .ValidateOnStart();
 
         services.AddOptions<MainAnalysisOptions>()

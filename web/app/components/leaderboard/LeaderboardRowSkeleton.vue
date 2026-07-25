@@ -38,5 +38,7 @@
         <USkeleton class="h-3 w-8" />
       </div>
     </div>
+    <!-- Follow toggle slot — reserved on every breakpoint, like the real row. -->
+    <USkeleton class="size-7 shrink-0 rounded-md" />
   </div>
 </template>

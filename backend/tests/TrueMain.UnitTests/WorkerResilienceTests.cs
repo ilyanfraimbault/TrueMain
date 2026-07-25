@@ -26,7 +26,12 @@ public sealed class WorkerResilienceTests
         });
 
         using var worker = new Worker(
-            NullLogger<Worker>.Instance, serviceProvider, jobOptions, new IterationContext(), lifetime);
+            NullLogger<Worker>.Instance,
+            serviceProvider,
+            jobOptions,
+            new IterationContext(),
+            lifetime,
+            TestIngestorMetrics.Create());
 
         await worker.StartAsync(CancellationToken.None);
         await worker.ExecuteTask!;
@@ -63,7 +68,12 @@ public sealed class WorkerResilienceTests
         });
 
         using var worker = new Worker(
-            NullLogger<Worker>.Instance, countingScopeFactory, jobOptions, new IterationContext(), lifetime);
+            NullLogger<Worker>.Instance,
+            countingScopeFactory,
+            jobOptions,
+            new IterationContext(),
+            lifetime,
+            TestIngestorMetrics.Create());
 
         await worker.StartAsync(CancellationToken.None);
         await worker.ExecuteTask!;
@@ -101,7 +111,7 @@ public sealed class WorkerResilienceTests
         });
 
         using var worker = new Worker(
-            logger, scopeFactory, jobOptions, new IterationContext(), lifetime);
+            logger, scopeFactory, jobOptions, new IterationContext(), lifetime, TestIngestorMetrics.Create());
 
         await worker.StartAsync(CancellationToken.None);
         await worker.ExecuteTask!;
@@ -130,7 +140,12 @@ public sealed class WorkerResilienceTests
         });
 
         using var worker = new Worker(
-            NullLogger<Worker>.Instance, serviceProvider, jobOptions, new IterationContext(), lifetime);
+            NullLogger<Worker>.Instance,
+            serviceProvider,
+            jobOptions,
+            new IterationContext(),
+            lifetime,
+            TestIngestorMetrics.Create());
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
 
         await worker.StartAsync(cts.Token);

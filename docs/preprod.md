@@ -138,3 +138,18 @@ matchup/lead aggregation stopped dominating the loop's cycle time:
 Adjust them directly in the compose file on the host if preprod needs more (or
 less) data — no image rebuild required, `docker compose up -d` recreates the
 ingestor with the new values.
+
+## Platform scope
+
+The regions the pipeline runs on live in **one** list, `Platforms:Active`
+(`Platforms__Active__0`, `Platforms__Active__1`, … as environment variables).
+Discovery, match ingestion and the harvest inherit it, so a region is added in
+a single place instead of three.
+
+A section can still narrow the scope with its own `Discovery__Platforms__0`,
+`MatchIngestion__Platforms__0` or `Harvest__Platforms__0`, but the override is
+validated at startup: it must be a subset of `Platforms:Active`, and
+`Harvest:Platforms` must additionally be a subset of
+`MatchIngestion:Platforms` (the harvest only sees matches we ingest). A
+divergent configuration fails the ingestor boot with an explicit message
+instead of silently skipping the region for one stage (#496).

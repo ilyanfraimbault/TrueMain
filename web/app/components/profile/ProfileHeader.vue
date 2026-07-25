@@ -26,7 +26,7 @@ const displayName = computed(() => {
       :alt="`${identity.gameName} profile icon`"
       class="size-20 rounded-lg"
     />
-    <div class="flex flex-col gap-1">
+    <div class="flex min-w-0 flex-col items-start gap-1">
       <h1 class="text-2xl font-semibold leading-tight">
         {{ displayName }}
       </h1>
@@ -34,6 +34,14 @@ const displayName = computed(() => {
         <LeaderboardRegionFlag :region="region" :width="18" />
         <span>Level {{ identity.summonerLevel }}</span>
       </div>
+      <FavoriteToggle
+        class="mt-1"
+        with-label
+        :game-name="identity.gameName"
+        :tag-line="identity.tagLine"
+        :region="region"
+        :profile-icon-id="identity.profileIconId"
+      />
     </div>
   </section>
 </template>
