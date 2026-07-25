@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+
 namespace Ingestor.Options;
 
 /// <summary>
@@ -10,7 +12,10 @@ namespace Ingestor.Options;
 /// </summary>
 public static class JobModeSequence
 {
-    private static readonly JobMode[] FullPipeline =
+    // Wrapped rather than returned as the bare array: For() hands this instance
+    // straight back to every caller, and a JobMode[] would let one of them cast
+    // the IReadOnlyList back and reorder the shared pipeline.
+    private static readonly ReadOnlyCollection<JobMode> FullPipeline = Array.AsReadOnly<JobMode>(
     [
         JobMode.DiscoveryOnly,
         // ManualSeed runs right after Discovery and before Scoring: it queues its
@@ -42,7 +47,7 @@ public static class JobModeSequence
         JobMode.PowerspikeAggregationOnly,
         JobMode.AccountRefreshOnly,
         JobMode.MatchDataRetentionOnly
-    ];
+    ]);
 
     /// <summary>
     /// Returns the ordered steps to run for <paramref name="mode"/>.

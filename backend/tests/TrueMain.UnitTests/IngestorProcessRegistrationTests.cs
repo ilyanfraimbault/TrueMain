@@ -96,6 +96,20 @@ public sealed class IngestorProcessRegistrationTests
     }
 
     [Fact]
+    public void For_Full_HandsBackAnUnmodifiableSequence()
+    {
+        // For() returns the same shared instance to every caller, so it must not
+        // be castable back to something that can reorder the pipeline.
+        var full = JobModeSequence.For(JobMode.Full);
+
+        full.Should().NotBeAssignableTo<JobMode[]>();
+        ((IList<JobMode>)full).Invoking(list => list[0] = JobMode.MatchDataRetentionOnly)
+            .Should().Throw<NotSupportedException>();
+
+        JobModeSequence.For(JobMode.Full).Should().Equal(full);
+    }
+
+    [Fact]
     public void For_Throws_ForAnUndefinedMode()
     {
         // The old string mapping fell back to the full pipeline for any unmatched
