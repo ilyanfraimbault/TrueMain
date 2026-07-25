@@ -168,6 +168,18 @@ above. It costs one extra round trip per uncached dedication-sorted request,
 which is the right trade for making the whole class of filter-dependent scoring
 bugs unrepresentable.
 
+The ranked candidate set is cached per **filter shape** — region, champion,
+position, ranked-games floor, OTP-only — and deliberately *not* per page, since
+paging is the normal way people read a leaderboard and the per-page response
+cache alone would repeat the whole scan on every page change. So the scan and
+the scoring pass are paid once per sorted board, not once per page, and pages
+sliced from one cached ranking cannot repeat or skip a row when the data shifts
+underneath. The entry is charged against the shared cache's size budget in
+proportion to the population it holds (roughly one unit per 100 scored
+accounts, where one unit is about what a page response costs); a ranking that
+would exceed an eighth of the budget is not cached at all rather than evicting
+every other surface.
+
 The eligibility scan is capped (`MaxDedicationCandidates`, 50 000, ordered by
 descending play rate on each account's best matching main, so the rows dropped
 are the least committed). Below the cap — i.e. always, in practice — the ranking

@@ -327,6 +327,13 @@ public sealed class TruemainsLeaderboardQueryService(
     /// and the scores so the page slice needs neither a second scoring pass nor
     /// a separate count.
     /// </summary>
+    /// <remarks>
+    /// The result is cached per filter shape, without the page — paging is the
+    /// normal way people use a leaderboard, and the per-page response cache
+    /// alone would make every page change repeat the full scan and scoring pass.
+    /// The read-time design is defensible because that cost is paid once per
+    /// sorted board, not once per page.
+    /// </remarks>
     private async Task<Ranking> RankByDedicationAsync(
         string[] platforms,
         int? championFilter,
@@ -335,6 +342,16 @@ public sealed class TruemainsLeaderboardQueryService(
         bool otpOnly,
         CancellationToken ct)
     {
+        var rankingCacheKey = BuildRankingCacheKey(platforms, championFilter, position, minGames, otpOnly);
+        if (cache.TryGetValue<Ranking>(rankingCacheKey, out var cachedRanking) && cachedRanking is not null)
+        {
+            // Shared instance, read-only from here: GetAsync only slices
+            // OrderedAccountIds and looks up DedicationByAccount. Neither is ever
+            // mutated, so handing the same object to concurrent requests is safe
+            // — keep it that way if this grows.
+            return cachedRanking;
+        }
+
         // Own short-lived context: consistent with the other fetches, and this
         // one can be a long-running scan.
         await using var ctx = await dbFactory.CreateDbContextAsync(ct);
@@ -368,12 +385,30 @@ public sealed class TruemainsLeaderboardQueryService(
             ? await CountAsync(platforms, championFilter, position, minGames, otpOnly, ct)
             : candidates.Count;
 
-        return new Ranking(
+        var ranking = new Ranking(
             Total: total,
             OrderedAccountIds: candidates.Select(candidate => candidate.AccountId).ToList(),
             DedicationByAccount: candidates.ToDictionary(
                 candidate => candidate.AccountId,
                 candidate => candidate.Dedication));
+
+        // Caching the whole Ranking (not just the ids) is what keeps Truncated's
+        // consequences correct across pages: Total already folds in the extra
+        // CountAsync, and the migrate-to-a-materialised-column warning above sits
+        // on this miss path, so it fires once per ranking rather than once per
+        // page — and is never lost, since a cache hit means the same truncation
+        // verdict still applies.
+        var size = Math.Max(1, candidates.Count / CandidatesPerCacheUnit);
+        if (size <= MaxRankingCacheSize)
+        {
+            cache.Set(rankingCacheKey, ranking, new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = ResponseCacheTtl,
+                Size = size,
+            });
+        }
+
+        return ranking;
     }
 
     private async Task<Dictionary<Guid, DedicationReadModel>> FetchDedicationAsync(
@@ -392,15 +427,19 @@ public sealed class TruemainsLeaderboardQueryService(
         return await MainDedication.FetchAsync(ctx, accountIds, championFilter, DateTime.UtcNow, ct);
     }
 
-    private static string BuildCacheKey(
+    /// <summary>
+    /// Every input that decides <em>which accounts</em> the leaderboard shows and
+    /// in what order they rank. Both cache keys are built on this, so the
+    /// per-page response cache and the ranking cache can never disagree about
+    /// what a "filter shape" is — adding a filter here covers both by
+    /// construction.
+    /// </summary>
+    private static string BuildFilterKey(
         string[] platforms,
         int? championFilter,
         string? position,
         int minGames,
-        bool otpOnly,
-        LeaderboardSort sort,
-        int page,
-        int pageSize)
+        bool otpOnly)
     {
         // Caller-stable: platforms are normalised upstream (RegionFilterParser
         // returns a deterministic iteration), but sorting defends against
@@ -412,18 +451,60 @@ public sealed class TruemainsLeaderboardQueryService(
         var championPart = championFilter?.ToString() ?? "_";
         var positionPart = position ?? "_";
         var otpPart = otpOnly ? "otp" : "_";
-        return $"truemains:leaderboard:{platformPart}:{championPart}:{positionPart}:{minGames}:{otpPart}:{sort}:{page}:{pageSize}";
+        return $"{platformPart}:{championPart}:{positionPart}:{minGames}:{otpPart}";
     }
 
+    private static string BuildCacheKey(
+        string[] platforms,
+        int? championFilter,
+        string? position,
+        int minGames,
+        bool otpOnly,
+        LeaderboardSort sort,
+        int page,
+        int pageSize)
+        => $"truemains:leaderboard:{BuildFilterKey(platforms, championFilter, position, minGames, otpOnly)}:{sort}:{page}:{pageSize}";
+
+    /// <summary>
+    /// Key for the dedication ranking. Deliberately carries no page, page size
+    /// or sort: the ranking is a property of the filter shape alone, so paging
+    /// through one sorted board reuses a single scan instead of rescoring the
+    /// whole population per page.
+    /// </summary>
+    private static string BuildRankingCacheKey(
+        string[] platforms,
+        int? championFilter,
+        string? position,
+        int minGames,
+        bool otpOnly)
+        => $"truemains:dedication-ranking:{BuildFilterKey(platforms, championFilter, position, minGames, otpOnly)}";
+
     // Every cache entry must carry a Size because the shared MemoryCache runs
-    // with a SizeLimit (see Program.cs). Without a Size the Set is silently
-    // dropped and the value never caches — a cache-miss storm, not an error.
-    // Count-based: one entry counts as one unit.
+    // with a SizeLimit (see Program.cs, 1024). Without a Size the Set is
+    // silently dropped and the value never caches — a cache-miss storm, not an
+    // error. Count-based: one entry counts as one unit.
     private static MemoryCacheEntryOptions CacheEntry(TimeSpan ttl) => new()
     {
         AbsoluteExpirationRelativeToNow = ttl,
         Size = 1,
     };
+
+    // A ranking entry is not one response — it holds the whole scored
+    // population, so charging it 1 unit would let it evict the rest of the cache
+    // for free. One unit is roughly a page response (~25 hydrated rows, tens of
+    // KB); a scored candidate is ~200 bytes across the id list, the dictionary
+    // and the read model, so ~125 candidates cost about what one response does.
+    // Round to 100 per unit to charge slightly over the odds rather than under.
+    private const int CandidatesPerCacheUnit = 100;
+
+    // Cap one ranking at an eighth of the total budget. Beyond that the entry
+    // would distort eviction for every other surface sharing this cache, so the
+    // ranking simply is not cached and each page rescans — the same behaviour as
+    // before this cache existed. At the current ratio this covers populations up
+    // to ~12 800 accounts, comfortably above real scale; a board big enough to
+    // exceed it is already past the point where the score should be materialised
+    // rather than derived per request.
+    private const int MaxRankingCacheSize = 128;
 
     // Times a single sub-query so the cache-miss log line can carry a per-phase
     // latency breakdown (countMs/pageMs/topChampMs/statsMs/ranksMs). The whole

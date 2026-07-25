@@ -274,6 +274,76 @@ public sealed class TruemainsDedicationApiIntegrationTests
         rankDedication.Score.Should().Be(profile.Dedication.Score);
     }
 
+    /// <summary>
+    /// Paging a dedication-sorted board reuses one ranking instead of rescoring
+    /// the population per page. Proven the way the leaderboard's own cache test
+    /// proves its cache: mutate the data between two page requests and assert
+    /// the second page still reflects the snapshot the first one ranked.
+    /// </summary>
+    [Fact]
+    public async Task Leaderboard_pages_a_dedication_sort_from_one_cached_ranking()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        // Three accounts, descending dedication: play rate carries the heaviest
+        // weight and the careers are identical, so the order is deterministic.
+        var first = Account("first-puuid", "FirstMain", "EUW1");
+        var second = Account("second-puuid", "SecondMain", "EUW1");
+        var third = Account("third-puuid", "ThirdMain", "EUW1");
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            db.RiotAccounts.AddRange(first, second, third);
+            db.RankSnapshots.AddRange(
+                Snapshot(first, "DIAMOND", "I", 30, now),
+                Snapshot(second, "DIAMOND", "I", 20, now),
+                Snapshot(third, "DIAMOND", "I", 10, now));
+            db.MainChampionStats.AddRange(
+                MainStat(first, championId: 157, playRate: 0.9d, now),
+                MainStat(second, championId: 103, playRate: 0.6d, now),
+                MainStat(third, championId: 64, playRate: 0.3d, now));
+            db.ChampionAggregateScopes.AddRange(
+                Scope(first.Id, 157, "15.3.1", games: 40, now),
+                Scope(second.Id, 103, "15.3.1", games: 40, now),
+                Scope(third.Id, 64, "15.3.1", games: 40, now));
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        var page1 = await client.GetFromJsonAsync<LeaderboardResponse>(
+            "/truemains?sort=dedication&pageSize=2&page=1");
+        page1!.Total.Should().Be(3);
+        page1.Rows.Select(r => r.Identity.GameName)
+            .Should().ContainInOrder("FirstMain", "SecondMain");
+
+        // A fourth account that would outrank everyone, inserted between the two
+        // page requests. Page 2 has its own response-cache key, so it cannot come
+        // from the response cache — if it ignores this account, the ranking
+        // itself was reused.
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var latecomer = Account("late-puuid", "Latecomer", "EUW1");
+            db.RiotAccounts.Add(latecomer);
+            db.RankSnapshots.Add(Snapshot(latecomer, "DIAMOND", "I", 40, now));
+            db.MainChampionStats.Add(MainStat(latecomer, championId: 84, playRate: 0.99d, now));
+            db.ChampionAggregateScopes.Add(Scope(latecomer.Id, 84, "15.3.1", games: 200, now));
+            await db.SaveChangesAsync();
+        }
+
+        var page2 = await client.GetFromJsonAsync<LeaderboardResponse>(
+            "/truemains?sort=dedication&pageSize=2&page=2");
+
+        page2!.Total.Should().Be(3, "the cached ranking still describes the population it scored");
+        page2.Rows.Should().HaveCount(1);
+        page2.Rows.Single().Identity.GameName.Should().Be(
+            "ThirdMain",
+            "page 2 continues the ranking page 1 was sliced from, so no row is repeated or skipped");
+        page2.Rows.Single().Rank.Should().Be(3);
+    }
+
     [Fact]
     public async Task Leaderboard_falls_back_to_the_rank_order_for_an_unknown_sort()
     {
