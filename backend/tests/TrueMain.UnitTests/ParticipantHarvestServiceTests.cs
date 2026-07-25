@@ -15,7 +15,7 @@ public sealed class ParticipantHarvestServiceTests
     public async Task HarvestAsync_InsertsHarvestCandidateAndMinimalAccount_ForUnknownPuuid()
     {
         var harness = new Harness();
-        harness.SetRows(new HarvestedCandidateRow("KR", "puuid-new", 22, 8, 5, Now.AddDays(-1)));
+        harness.SetRows(new HarvestedCandidateRow("KR", "puuid-new", 22, 8, 5, Now.AddDays(-1), IsKnownCandidate: false));
 
         var result = await harness.RunAsync();
 
@@ -58,7 +58,7 @@ public sealed class ParticipantHarvestServiceTests
         };
         harness.ExistingCandidates.Add(existing);
         harness.ExistingAccountPuuids.Add("puuid-known");
-        harness.SetRows(new HarvestedCandidateRow("KR", "puuid-known", 22, 11, 7, Now.AddHours(-2)));
+        harness.SetRows(new HarvestedCandidateRow("KR", "puuid-known", 22, 11, 7, Now.AddHours(-2), IsKnownCandidate: true));
 
         var result = await harness.RunAsync();
 
@@ -93,7 +93,7 @@ public sealed class ParticipantHarvestServiceTests
         };
         harness.ExistingCandidates.Add(existing);
         harness.ExistingAccountPuuids.Add("puuid-queued");
-        harness.SetRows(new HarvestedCandidateRow("KR", "puuid-queued", 22, 12, 8, Now.AddHours(-1)));
+        harness.SetRows(new HarvestedCandidateRow("KR", "puuid-queued", 22, 12, 8, Now.AddHours(-1), IsKnownCandidate: true));
 
         await harness.RunAsync();
 
@@ -122,7 +122,7 @@ public sealed class ParticipantHarvestServiceTests
         };
         harness.ExistingCandidates.Add(existing);
         harness.ExistingAccountPuuids.Add("puuid-validated");
-        harness.SetRows(new HarvestedCandidateRow("KR", "puuid-validated", 22, 12, 8, Now.AddHours(-1)));
+        harness.SetRows(new HarvestedCandidateRow("KR", "puuid-validated", 22, 12, 8, Now.AddHours(-1), IsKnownCandidate: true));
 
         await harness.RunAsync();
 
@@ -150,7 +150,7 @@ public sealed class ParticipantHarvestServiceTests
         };
         harness.ExistingCandidates.Add(existing);
         harness.ExistingAccountPuuids.Add("puuid-processing");
-        harness.SetRows(new HarvestedCandidateRow("KR", "puuid-processing", 22, 12, 8, Now.AddHours(-1)));
+        harness.SetRows(new HarvestedCandidateRow("KR", "puuid-processing", 22, 12, 8, Now.AddHours(-1), IsKnownCandidate: true));
 
         await harness.RunAsync();
 
@@ -177,7 +177,7 @@ public sealed class ParticipantHarvestServiceTests
         };
         harness.ExistingCandidates.Add(existing);
         harness.ExistingAccountPuuids.Add("puuid-rejected");
-        harness.SetRows(new HarvestedCandidateRow("KR", "puuid-rejected", 22, 80, 50, Now.AddHours(-1)));
+        harness.SetRows(new HarvestedCandidateRow("KR", "puuid-rejected", 22, 80, 50, Now.AddHours(-1), IsKnownCandidate: true));
 
         await harness.RunAsync();
 
@@ -207,7 +207,7 @@ public sealed class ParticipantHarvestServiceTests
         };
         harness.ExistingCandidates.Add(existing);
         harness.ExistingAccountPuuids.Add("puuid-ladder");
-        harness.SetRows(new HarvestedCandidateRow("KR", "puuid-ladder", 22, 9, 4, Now.AddHours(-1)));
+        harness.SetRows(new HarvestedCandidateRow("KR", "puuid-ladder", 22, 9, 4, Now.AddHours(-1), IsKnownCandidate: true));
 
         var result = await harness.RunAsync();
 
@@ -224,8 +224,8 @@ public sealed class ParticipantHarvestServiceTests
     {
         var harness = new Harness();
         harness.SetRows(
-            new HarvestedCandidateRow("KR", "puuid-multi", 22, 8, 5, Now.AddDays(-1)),
-            new HarvestedCandidateRow("KR", "puuid-multi", 64, 6, 2, Now.AddDays(-2)));
+            new HarvestedCandidateRow("KR", "puuid-multi", 22, 8, 5, Now.AddDays(-1), IsKnownCandidate: false),
+            new HarvestedCandidateRow("KR", "puuid-multi", 64, 6, 2, Now.AddDays(-2), IsKnownCandidate: false));
 
         var result = await harness.RunAsync();
 
@@ -260,6 +260,143 @@ public sealed class ParticipantHarvestServiceTests
             DateTime.UnixEpoch, Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task HarvestAsync_StillHarvestsNewPairs_WhenKnownPairsCouldFillTheWholeBudget()
+    {
+        var harness = new Harness();
+        // The starvation scenario (#495): the four most-observed pairs are already
+        // candidates and would fill a budget of 4 on their own, leaving nothing for the two
+        // pairs that just crossed the observed-games gate.
+        foreach (var known in new[] { ("known-a", 90), ("known-b", 80), ("known-c", 70), ("known-d", 60) })
+        {
+            harness.ExistingCandidates.Add(new MainCandidate
+            {
+                PlatformId = "KR",
+                Puuid = known.Item1,
+                ChampionId = 22,
+                Source = MainCandidateSource.Harvest,
+                ObservedGames = known.Item2 - 10,
+                LastPlayTimeUtc = Now.AddDays(-3),
+                Status = MainCandidateStatus.Queued
+            });
+            harness.ExistingAccountPuuids.Add(known.Item1);
+        }
+
+        harness.SetRows(
+            new HarvestedCandidateRow("KR", "known-a", 22, 90, 50, Now.AddHours(-1), IsKnownCandidate: true),
+            new HarvestedCandidateRow("KR", "known-b", 22, 80, 40, Now.AddHours(-2), IsKnownCandidate: true),
+            new HarvestedCandidateRow("KR", "known-c", 22, 70, 35, Now.AddHours(-3), IsKnownCandidate: true),
+            new HarvestedCandidateRow("KR", "known-d", 22, 60, 30, Now.AddHours(-4), IsKnownCandidate: true),
+            new HarvestedCandidateRow("KR", "newcomer-a", 22, 6, 3, Now.AddHours(-5), IsKnownCandidate: false),
+            new HarvestedCandidateRow("KR", "newcomer-b", 22, 5, 2, Now.AddHours(-6), IsKnownCandidate: false));
+
+        var result = await harness.RunAsync(maxCandidatesPerRun: 4, newCandidateShare: 0.5);
+
+        // Half the budget is reserved for new discovery, so both newcomers are harvested
+        // even though every one of them ranks below every known pair.
+        result.CandidatesInserted.Should().Be(2);
+        harness.AddedCandidates.Select(candidate => candidate.Puuid)
+            .Should().BeEquivalentTo(["newcomer-a", "newcomer-b"]);
+        // The other half still refreshes, taking the most-observed known pairs first.
+        result.CandidatesUpdated.Should().Be(2);
+        harness.ExistingCandidates
+            .Where(candidate => candidate.ObservedGames >= 80)
+            .Select(candidate => candidate.Puuid)
+            .Should().BeEquivalentTo(["known-a", "known-b"]);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_SpendsTheReservationOnRefreshes_WhenTooFewNewPairsQualify()
+    {
+        var harness = new Harness();
+        foreach (var puuid in new[] { "known-a", "known-b", "known-c" })
+        {
+            harness.ExistingCandidates.Add(new MainCandidate
+            {
+                PlatformId = "KR",
+                Puuid = puuid,
+                ChampionId = 22,
+                Source = MainCandidateSource.Harvest,
+                LastPlayTimeUtc = Now.AddDays(-3),
+                Status = MainCandidateStatus.Queued
+            });
+            harness.ExistingAccountPuuids.Add(puuid);
+        }
+
+        harness.SetRows(
+            new HarvestedCandidateRow("KR", "known-a", 22, 90, 50, Now.AddHours(-1), IsKnownCandidate: true),
+            new HarvestedCandidateRow("KR", "known-b", 22, 80, 40, Now.AddHours(-2), IsKnownCandidate: true),
+            new HarvestedCandidateRow("KR", "known-c", 22, 70, 35, Now.AddHours(-3), IsKnownCandidate: true),
+            new HarvestedCandidateRow("KR", "newcomer", 22, 6, 3, Now.AddHours(-5), IsKnownCandidate: false));
+
+        var result = await harness.RunAsync(maxCandidatesPerRun: 4, newCandidateShare: 0.5);
+
+        // The reservation is a floor, not a partition: only one new pair qualifies, so the
+        // run spends the rest of the budget on refreshes instead of wasting the slots.
+        result.CandidatesInserted.Should().Be(1);
+        result.CandidatesUpdated.Should().Be(3);
+        result.Coverage.IsBudgetBound.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ReportsWhatTheBudgetLeftBehind()
+    {
+        var harness = new Harness();
+        // A pool far larger than the run's budget: 40 new and 100 known pairs qualified on
+        // KR, but only three rows fit. Coverage must carry the real totals so the process
+        // can log the shortfall instead of truncating silently.
+        harness.SetBatch(new HarvestCandidateBatch(
+            [
+                new HarvestedCandidateRow("KR", "newcomer-a", 22, 9, 5, Now.AddHours(-1), IsKnownCandidate: false),
+                new HarvestedCandidateRow("KR", "newcomer-b", 22, 8, 4, Now.AddHours(-2), IsKnownCandidate: false),
+                new HarvestedCandidateRow("KR", "known-a", 22, 90, 50, Now.AddHours(-3), IsKnownCandidate: true)
+            ],
+            [new HarvestPlatformEligibility("KR", EligibleNew: 40, EligibleKnown: 100)]));
+
+        var result = await harness.RunAsync(maxCandidatesPerRun: 2, newCandidateShare: 0.5);
+
+        var coverage = result.Coverage;
+        coverage.EligibleNew.Should().Be(40);
+        coverage.SelectedNew.Should().Be(1);
+        coverage.DroppedNew.Should().Be(39);
+        coverage.EligibleKnown.Should().Be(100);
+        coverage.SelectedKnown.Should().Be(1);
+        coverage.DroppedKnown.Should().Be(99);
+        coverage.IsBudgetBound.Should().BeTrue();
+        coverage.Platforms.Should().ContainSingle();
+        coverage.Platforms.Single().Should().BeEquivalentTo(
+            new { PlatformId = "KR", EligibleNew = 40, SelectedNew = 1, EligibleKnown = 100, SelectedKnown = 1 });
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ReportsFullCoverage_WhenTheBudgetFitsTheWholePool()
+    {
+        var harness = new Harness();
+        harness.SetRows(
+            new HarvestedCandidateRow("KR", "newcomer", 22, 9, 5, Now.AddHours(-1), IsKnownCandidate: false));
+
+        var result = await harness.RunAsync(maxCandidatesPerRun: 5000);
+
+        result.Coverage.IsBudgetBound.Should().BeFalse();
+        result.Coverage.DroppedNew.Should().Be(0);
+        result.Coverage.DroppedKnown.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_PassesMaxCandidatesPerRun_AsThePerBucketCap()
+    {
+        var harness = new Harness();
+        harness.SetRows();
+
+        await harness.RunAsync(maxCandidatesPerRun: 777);
+
+        // The repository caps each class on each platform; the run-wide budget is applied
+        // afterwards, over the union, so the cap it receives is the full budget.
+        await harness.Participants.Received(1).GetHarvestCandidatesAsync(
+            Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<int>(), Arg.Any<int>(), 777,
+            Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+    }
+
     private sealed class Harness
     {
         private readonly IDataSession _session = Substitute.For<IDataSession>();
@@ -290,15 +427,40 @@ public sealed class ParticipantHarvestServiceTests
                 .Do(call => AddedCandidates.Add(call.Arg<MainCandidate>()));
         }
 
+        /// <summary>
+        /// Returns <paramref name="rows"/> as a batch the repository could not truncate:
+        /// eligibility is derived from the rows themselves, so coverage comes back complete.
+        /// </summary>
         public void SetRows(params HarvestedCandidateRow[] rows)
+            => SetBatch(new HarvestCandidateBatch(
+                rows,
+                rows.GroupBy(row => row.PlatformId, StringComparer.Ordinal)
+                    .Select(group => new HarvestPlatformEligibility(
+                        group.Key,
+                        group.Count(row => !row.IsKnownCandidate),
+                        group.Count(row => row.IsKnownCandidate)))
+                    .ToList()));
+
+        /// <summary>Explicit batch, for the truncated-pool cases where eligibility exceeds the rows.</summary>
+        public void SetBatch(HarvestCandidateBatch batch)
             => Participants.GetHarvestCandidatesAsync(
                     Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
-                .Returns(Task.FromResult(rows.ToList()));
+                .Returns(Task.FromResult(batch));
 
-        public Task<HarvestResult> RunAsync(int lookbackDays = 0)
+        public Task<HarvestResult> RunAsync(
+            int lookbackDays = 0,
+            int maxCandidatesPerRun = 5000,
+            double newCandidateShare = 0.5)
             => new ParticipantHarvestService().HarvestAsync(
                 _session,
-                new HarvestOptions { Platforms = ["KR"], MinObservedGames = 5, LookbackDays = lookbackDays },
+                new HarvestOptions
+                {
+                    Platforms = ["KR"],
+                    MinObservedGames = 5,
+                    LookbackDays = lookbackDays,
+                    MaxCandidatesPerRun = maxCandidatesPerRun,
+                    NewCandidateShare = newCandidateShare
+                },
                 Now,
                 CancellationToken.None);
     }

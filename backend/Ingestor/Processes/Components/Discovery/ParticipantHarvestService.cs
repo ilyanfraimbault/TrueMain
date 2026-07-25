@@ -32,7 +32,9 @@ public sealed class ParticipantHarvestService : IParticipantHarvestService
 
         // MinObservedGames/MaxCandidatesPerRun are validated > 0 at startup and clamped by
         // the repository, so pass them through here — the repository is the single guard.
-        var rows = await session.MatchParticipants.GetHarvestCandidatesAsync(
+        // MaxCandidatesPerRun caps each class on each platform there; the run-wide budget is
+        // applied below, once, across the union.
+        var batch = await session.MatchParticipants.GetHarvestCandidatesAsync(
             options.Platforms,
             options.QueueId,
             options.MinObservedGames,
@@ -40,9 +42,12 @@ public sealed class ParticipantHarvestService : IParticipantHarvestService
             sinceUtc,
             ct);
 
+        var rows = SelectWithinBudget(batch, options);
+        var coverage = BuildCoverage(batch, rows);
+
         if (rows.Count == 0)
         {
-            return new HarvestResult(0, 0, 0);
+            return new HarvestResult(0, 0, 0, coverage);
         }
 
         var saveBatchSize = Math.Max(1, options.SaveBatchSize);
@@ -105,7 +110,92 @@ public sealed class ParticipantHarvestService : IParticipantHarvestService
             await session.SaveChangesAsync(ct);
         }
 
-        return new HarvestResult(inserted, updated, accountsCreated);
+        return new HarvestResult(inserted, updated, accountsCreated, coverage);
+    }
+
+    /// <summary>
+    /// Spends the run's budget across the two classes the repository tagged (#495).
+    ///
+    /// Ordering the whole eligible pool by observed games and cutting at
+    /// <see cref="HarvestOptions.MaxCandidatesPerRun"/> is self-defeating once the pool
+    /// outgrows the cap: the head of that order is the most-observed players, i.e. exactly
+    /// the ones already harvested, so the run spends its entire budget refreshing known
+    /// candidates and a pair that just crossed the observed-games gate never gets in.
+    /// Reserving <see cref="HarvestOptions.NewCandidateShare"/> of the budget for pairs with
+    /// no candidate yet guarantees discovery keeps moving, and because harvesting a pair
+    /// moves it to the known class, that reservation drains a different slice of the backlog
+    /// every run instead of re-reading the same head.
+    ///
+    /// The reservation is a floor, not a partition: each class may use whatever the other
+    /// leaves unused, so the run still fills its budget when one class is short.
+    /// </summary>
+    private static List<HarvestedCandidateRow> SelectWithinBudget(
+        HarvestCandidateBatch batch,
+        HarvestOptions options)
+    {
+        var budget = Math.Max(1, options.MaxCandidatesPerRun);
+        var newShare = Math.Clamp(options.NewCandidateShare, 0d, 1d);
+
+        var newRows = ByPriority(batch.Rows.Where(row => !row.IsKnownCandidate));
+        var knownRows = ByPriority(batch.Rows.Where(row => row.IsKnownCandidate));
+
+        var reservedForNew = Math.Clamp((int)Math.Ceiling(budget * newShare), 0, budget);
+        var takeNew = Math.Min(newRows.Count, Math.Max(reservedForNew, budget - knownRows.Count));
+        var takeKnown = Math.Min(knownRows.Count, budget - takeNew);
+
+        // New pairs first: they are the run's priority, and a failure part-way through leaves
+        // discovery advanced rather than only stats refreshed.
+        var selected = new List<HarvestedCandidateRow>(takeNew + takeKnown);
+        selected.AddRange(newRows.Take(takeNew));
+        selected.AddRange(knownRows.Take(takeKnown));
+        return selected;
+    }
+
+    // Most-observed first, then most recently seen. The puuid/champion tiebreak only makes
+    // the cut deterministic when those two collide.
+    private static List<HarvestedCandidateRow> ByPriority(IEnumerable<HarvestedCandidateRow> rows)
+        => rows
+            .OrderByDescending(row => row.ObservedGames)
+            .ThenByDescending(row => row.LastSeenUtc)
+            .ThenBy(row => row.Puuid, StringComparer.Ordinal)
+            .ThenBy(row => row.ChampionId)
+            .ToList();
+
+    /// <summary>
+    /// Pairs the exact eligible counts (computed over the full aggregate, before any cap)
+    /// with what the budget actually took, so <c>HarvestProcess</c> can report the shortfall
+    /// instead of truncating silently.
+    /// </summary>
+    private static HarvestCoverage BuildCoverage(
+        HarvestCandidateBatch batch,
+        List<HarvestedCandidateRow> selected)
+    {
+        var selectedByPlatform = selected
+            .GroupBy(row => row.PlatformId, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => (New: group.Count(row => !row.IsKnownCandidate), Known: group.Count(row => row.IsKnownCandidate)),
+                StringComparer.Ordinal);
+
+        var platforms = batch.Eligibility
+            .Select(platform =>
+            {
+                selectedByPlatform.TryGetValue(platform.PlatformId, out var taken);
+                return new HarvestPlatformCoverage(
+                    platform.PlatformId,
+                    platform.EligibleNew,
+                    taken.New,
+                    platform.EligibleKnown,
+                    taken.Known);
+            })
+            .ToList();
+
+        return new HarvestCoverage(
+            platforms.Sum(platform => platform.EligibleNew),
+            platforms.Sum(platform => platform.SelectedNew),
+            platforms.Sum(platform => platform.EligibleKnown),
+            platforms.Sum(platform => platform.SelectedKnown),
+            platforms);
     }
 
     private static void AddMinimalAccount(IDataSession session, HarvestedCandidateRow row, DateTime nowUtc)
