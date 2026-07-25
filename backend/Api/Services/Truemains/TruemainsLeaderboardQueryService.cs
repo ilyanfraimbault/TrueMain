@@ -338,16 +338,18 @@ public sealed class TruemainsLeaderboardQueryService(
         // Own short-lived context: consistent with the other fetches, and this
         // one can be a long-running scan.
         await using var ctx = await dbFactory.CreateDbContextAsync(ct);
-        var candidates = await MainDedication.FetchCandidatesAsync(
+        var (candidates, truncated) = await MainDedication.FetchCandidatesAsync(
             ctx, platforms, championFilter, position, minGames, otpOnly, MinPositionShare,
             DateTime.UtcNow, MaxDedicationCandidates, ct);
 
-        var capped = candidates.Count >= MaxDedicationCandidates;
-        if (capped)
+        if (truncated)
         {
             // Not an error: the ranking is still exact for every row above the
             // cap. It does mean the deep tail is unreachable, which is the
-            // signal that the score should move to a materialised column.
+            // signal that the score should move to a materialised column. The
+            // flag comes from a probe row past the cap, so this fires only when
+            // eligible accounts were genuinely left out — never when the
+            // population happens to land exactly on the cap.
             logger.LogWarning(
                 "{Surface} dedication ranking hit the candidate cap ({Cap}); the tail of the ranking is truncated.",
                 Surface, MaxDedicationCandidates);
@@ -356,13 +358,13 @@ public sealed class TruemainsLeaderboardQueryService(
         // `total` is a count of eligible *players*, not of reachable rows, and
         // the homepage renders it as a "truemains tracked" figure — so a
         // truncated candidate set must not silently under-report it. On the
-        // capped path pay one extra Count to keep the number true; the
+        // truncated path pay one extra Count to keep the number true; the
         // consequence is that the unreachable tail pages come back empty (the
         // past-end branch already returns an empty slice with the real total),
         // which is the honest failure mode: a page that can't be filled beats a
-        // population figure that is quietly wrong. Below the cap — i.e. always,
-        // in practice — the candidate count *is* the count, no extra query.
-        var total = capped
+        // population figure that is quietly wrong. Otherwise — i.e. always, in
+        // practice — the candidate count *is* the count, no extra query.
+        var total = truncated
             ? await CountAsync(platforms, championFilter, position, minGames, otpOnly, ct)
             : candidates.Count;
 

@@ -162,7 +162,7 @@ internal static class MainDedication
     /// so this cannot affect a score, only which far-tail rows exist at all.
     /// </para>
     /// </remarks>
-    public static async Task<List<DedicationCandidate>> FetchCandidatesAsync(
+    public static async Task<DedicationCandidates> FetchCandidatesAsync(
         TrueMainDbContext ctx,
         string[] platforms,
         int? championId,
@@ -176,20 +176,38 @@ internal static class MainDedication
     {
         if (platforms.Length == 0 || limit <= 0)
         {
-            return [];
+            return DedicationCandidates.Empty;
         }
 
+        // Ask for one id past the cap. A result of exactly `limit` rows is
+        // ambiguous on its own — a population sitting precisely at the cap looks
+        // identical to one the LIMIT cut short — and the truncation flag is not
+        // cosmetic: it gates the warning that tells us the score has outgrown a
+        // read-time computation. A signal that can cry wolf is one nobody can
+        // act on, so spend one row to make it exact. (The guard keeps
+        // limit + 1 from overflowing; at int.MaxValue truncation is unreachable
+        // anyway.)
+        var probeLimit = limit < int.MaxValue ? limit + 1 : limit;
         var accountIds = await FetchEligibleAccountIdsAsync(
-            ctx, platforms, championId, position, minGames, otpOnly, minPositionShare, limit, ct);
+            ctx, platforms, championId, position, minGames, otpOnly, minPositionShare, probeLimit, ct);
+
+        // Drop the probe row before anything else touches the set: it must not
+        // reach the scoring lateral, the ranking or the page — it exists only to
+        // answer "was there more?".
+        var truncated = accountIds.Length > limit;
+        if (truncated)
+        {
+            accountIds = accountIds[..limit];
+        }
 
         if (accountIds.Length == 0)
         {
-            return [];
+            return DedicationCandidates.Empty;
         }
 
         var byAccount = await FetchAsync(ctx, accountIds, championId, nowUtc, ct);
 
-        return byAccount
+        var ranked = byAccount
             .Select(entry => new DedicationCandidate(entry.Key, entry.Value))
             // Descending score, then a deterministic tiebreak on the account id
             // so two genuinely tied players keep a stable order across requests
@@ -197,6 +215,8 @@ internal static class MainDedication
             .OrderByDescending(candidate => candidate.Dedication.Score)
             .ThenBy(candidate => candidate.AccountId)
             .ToList();
+
+        return new DedicationCandidates(ranked, truncated);
     }
 
     /// <summary>
@@ -287,6 +307,21 @@ internal static class MainDedication
 
     /// <summary>One scored account, ready to be ranked by <see cref="DedicationReadModel.Score"/>.</summary>
     internal sealed record DedicationCandidate(Guid AccountId, DedicationReadModel Dedication);
+
+    /// <summary>
+    /// The scored, ranked candidate set plus whether the cap actually cut it
+    /// short. <see cref="Truncated"/> is only true when eligible accounts were
+    /// left out — a population landing exactly on the cap reports false, so the
+    /// caller's "migrate to a materialised column" warning never cries wolf.
+    /// </summary>
+    /// <param name="Candidates">Scored accounts, best first.</param>
+    /// <param name="Truncated">True when the cap dropped at least one eligible account.</param>
+    internal sealed record DedicationCandidates(
+        IReadOnlyList<DedicationCandidate> Candidates,
+        bool Truncated)
+    {
+        public static DedicationCandidates Empty { get; } = new([], false);
+    }
 
     // Raw SQL projection. Nullable LastGameUtc because the LEFT JOIN LATERAL
     // yields NULL for an account whose aggregates haven't been built yet.

@@ -171,10 +171,16 @@ bugs unrepresentable.
 The eligibility scan is capped (`MaxDedicationCandidates`, 50 000, ordered by
 descending play rate on each account's best matching main, so the rows dropped
 are the least committed). Below the cap — i.e. always, in practice — the ranking
-is exact. Hitting it logs a warning: that is the signal that the score has
+is exact. Truncating logs a warning: that is the signal that the score has
 outgrown a read-time computation and should become a materialised column
 maintained by the ingestor (with the matching EF migration and a regenerated
 compiled model), the way `riot_accounts."Score"` is.
+
+Because that warning is a call to action, it is made exact rather than
+approximate: the scan asks for `limit + 1` ids and treats only "more than the
+cap came back" as truncation, so a population landing precisely on 50 000 does
+not fire it. The probe row is dropped before scoring and never reaches the
+ranking or a page.
 
 Two details of the capped path, both deliberate:
 
