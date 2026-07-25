@@ -102,6 +102,17 @@ describe('normalizeFavorites', () => {
     expect(entries[0]!.gameName).toBe('Sheiden')
   })
 
+  it('collapses duplicates onto the newest record, whatever the input order', () => {
+    // Hand-edited storage can list the stale copy first; position must not
+    // decide which one survives.
+    const entries = normalizeFavorites([
+      { gameName: 'Sheiden', tagLine: '1234', profileIconId: 1, addedAt: 1 },
+      { gameName: 'Sheiden', tagLine: '1234', profileIconId: 2, addedAt: 9 },
+    ])
+    expect(entries).toHaveLength(1)
+    expect(entries[0]).toMatchObject({ profileIconId: 2, addedAt: 9 })
+  })
+
   it('caps the list at the storage limit', () => {
     const entries = normalizeFavorites(
       Array.from({ length: FAVORITES_LIMIT + 5 }, (_, i) => ({ gameName: `P${i}`, tagLine: '1', addedAt: i })),
@@ -198,7 +209,7 @@ describe('favorites store', () => {
     expect(stored()).toEqual([])
   })
 
-  it('flags the cap so the UI can refuse instead of evicting silently', () => {
+  it('flags the cap so the UI can decline the click', () => {
     let clock = 0
     const { store } = makeStore(() => ++clock)
     for (let i = 0; i < FAVORITES_LIMIT; i++) {
@@ -206,11 +217,24 @@ describe('favorites store', () => {
     }
     expect(store.atLimit.value).toBe(true)
     expect(store.favorites.value).toHaveLength(FAVORITES_LIMIT)
+  })
 
-    // Storage stays capped even if something pushes past the limit anyway.
+  it('evicts the oldest rather than refusing when added past the cap', () => {
+    // `add` is deliberately eviction-based: the cap lives in one place
+    // (normalizeFavorites) so reads and writes obey the same rule. The refusal
+    // is a UI affordance on top (see FavoriteToggle), not a store guarantee.
+    let clock = 0
+    const { store } = makeStore(() => ++clock)
+    for (let i = 0; i < FAVORITES_LIMIT; i++) {
+      store.add({ gameName: `P${i}`, tagLine: '1' })
+    }
+
     store.add({ gameName: 'Overflow', tagLine: '1' })
     expect(store.favorites.value).toHaveLength(FAVORITES_LIMIT)
     expect(store.favorites.value[0]!.gameName).toBe('Overflow')
+    // P0 was the oldest, so it is the one that fell off.
+    expect(store.isFavorite('P0-1')).toBe(false)
+    expect(store.isFavorite('P1-1')).toBe(true)
   })
 
   it('re-reads storage on demand, so a write from another tab is picked up', () => {

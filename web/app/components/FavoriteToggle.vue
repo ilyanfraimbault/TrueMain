@@ -52,9 +52,11 @@ onMounted(() => {
 
 const active = computed(() => mounted.value && isFavorite(nameTag.value))
 
-// Refuse rather than silently evicting somebody else's entry once the cap is
-// reached. Removing is always allowed. Mount-gated like `active`, since the cap
-// is a property of the stored list.
+// The store itself evicts the oldest entry past the cap (one cap policy, shared
+// by reads and writes — see `add`). Declining the click here layers a courtesy
+// on top of that: a user's own click should never silently drop someone they
+// followed earlier. Removing is always allowed. Mount-gated like `active`,
+// since the cap is a property of the stored list.
 const isFull = computed(() => mounted.value && !active.value && atLimit.value)
 
 const label = computed(() => (active.value ? 'Following' : 'Follow'))

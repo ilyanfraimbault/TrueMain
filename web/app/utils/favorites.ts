@@ -113,16 +113,20 @@ export function normalizeFavorite(value: unknown): FavoriteTruemain | null {
  * hold no matter which side (this tab, another tab, an old build) wrote the list.
  */
 export function normalizeFavorites(values: readonly unknown[]): FavoriteTruemain[] {
-  const seen = new Set<string>()
-  const entries: FavoriteTruemain[] = []
+  const byKey = new Map<string, FavoriteTruemain>()
   for (const value of values) {
     const entry = normalizeFavorite(value)
     if (!entry) continue
     const key = favoriteKey(entry.nameTag)
-    if (seen.has(key)) continue
-    seen.add(key)
-    entries.push(entry)
+    const existing = byKey.get(key)
+    // Duplicates collapse onto the most recent record, not onto whichever came
+    // first: input order is not authoritative here (hand-edited storage, or a
+    // list written by another build, can hold the stale copy first), so the
+    // timestamps decide. `Map.set` on an existing key keeps the original slot,
+    // which only matters for ties — the sort below settles the rest.
+    if (!existing || entry.addedAt > existing.addedAt) byKey.set(key, entry)
   }
+  const entries = [...byKey.values()]
   entries.sort((a, b) => b.addedAt - a.addedAt)
   return entries.slice(0, FAVORITES_LIMIT)
 }
@@ -166,6 +170,7 @@ export interface FavoritesStore {
   /** True once the list is full — further additions evict the oldest entry. */
   atLimit: ComputedRef<boolean>
   isFavorite: (nameTag: string) => boolean
+  /** Append a favorite. Past the cap this evicts the oldest — it does not refuse. */
   add: (input: FavoriteTruemainInput) => void
   remove: (nameTag: string) => void
   /** Flip the entry and return its new state (`true` = now followed). */
@@ -229,6 +234,21 @@ export function createFavoritesStore(
     return state.value.some(entry => favoriteKey(entry.nameTag) === key)
   }
 
+  /**
+   * Append a favorite. **Eviction-based, not refusing**: adding past
+   * {@link FAVORITES_LIMIT} drops the oldest entry rather than rejecting the
+   * new one.
+   *
+   * That is deliberate. The cap is enforced in exactly one place —
+   * `normalizeFavorites` — so reads and writes obey the same rule: a list that
+   * arrives over-long from storage is truncated the same way an over-long write
+   * is. Refusing here would introduce a *second*, different policy (refuse on
+   * write, truncate on read) for the same invariant.
+   *
+   * `atLimit` exists so the UI can decline the click before it gets here (see
+   * `FavoriteToggle`), which is a courtesy — a user's own click should never
+   * silently drop someone they followed earlier — not a store-level guarantee.
+   */
   function add(input: FavoriteTruemainInput) {
     const nameTag = favoriteNameTag(input.gameName, input.tagLine)
     if (!nameTag || isFavorite(nameTag)) return
