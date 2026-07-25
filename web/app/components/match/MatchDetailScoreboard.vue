@@ -84,7 +84,7 @@ function fmtGold(value: number) {
 function scoreClass(score: number) {
   if (score >= 80) return 'bg-primary/20 text-primary ring-primary/50'
   if (score >= 65) return 'bg-primary/12 text-primary ring-primary/30'
-  if (score >= 50) return 'bg-primary/6 text-primary/80 ring-primary/20'
+  if (score >= 50) return 'bg-primary/8 text-primary ring-primary/25'
   return 'bg-default/50 text-muted ring-default'
 }
 
