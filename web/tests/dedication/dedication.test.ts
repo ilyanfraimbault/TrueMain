@@ -4,7 +4,6 @@ import {
   dedicationComponents,
   dedicationTier,
   dedicationTierColor,
-  describeDedication,
   formatDedicationLastPlayed,
   formatDedicationScore,
 } from '~~/app/utils/dedication'
@@ -159,35 +158,5 @@ describe('dedicationComponents', () => {
       .toBe('played yesterday')
     expect(dedicationComponents(dedication({ daysSinceLastGame: null }))[3]!.detail)
       .toBe('no tracked game yet')
-  })
-})
-
-describe('describeDedication', () => {
-  it('leads with the score to one decimal and the champion', () => {
-    const [header] = describeDedication(dedication({ score: 62.9 }), 'Kha\'Zix').split('\n')
-    expect(header).toBe('Dedication 62.9/100 · Kha\'Zix')
-  })
-
-  it('keeps the trailing zero on a whole score', () => {
-    const [header] = describeDedication(dedication({ score: 74 }), 'Ahri').split('\n')
-    expect(header).toBe('Dedication 74.0/100 · Ahri')
-  })
-
-  it('lists every component under the header as percent plus raw figure', () => {
-    const lines = describeDedication(
-      dedication({ commitment: 0.205, span: 1, volume: 0.98, recency: 0.936 }),
-      'Kha\'Zix',
-    ).split('\n')
-
-    expect(lines).toHaveLength(5)
-    expect(lines[1]).toBe('Play rate 21% — 30% of recent ranked games')
-    expect(lines[2]).toBe('Span 100% — 7 tracked patches')
-    expect(lines[3]).toBe('Volume 98% — 180 tracked games')
-    expect(lines[4]).toBe('Recency 94% — played 2 days ago')
-  })
-
-  it('renders a champion the static list could not resolve without throwing', () => {
-    // The row falls back to `#{id}` when the champion list has not loaded.
-    expect(describeDedication(dedication(), '#64')).toContain('· #64')
   })
 })

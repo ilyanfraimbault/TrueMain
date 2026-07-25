@@ -101,14 +101,3 @@ export function dedicationComponents(dedication: TruemainDedication): Dedication
     },
   ]
 }
-
-/**
- * Plain-text breakdown for a `title` tooltip — used where a rich popover would
- * fight the row's stretched profile link.
- */
-export function describeDedication(dedication: TruemainDedication, championName: string): string {
-  const header = `Dedication ${dedication.score.toFixed(1)}/100 · ${championName}`
-  const lines = dedicationComponents(dedication)
-    .map(component => `${component.label} ${Math.round(component.value * 100)}% — ${component.detail}`)
-  return [header, ...lines].join('\n')
-}
