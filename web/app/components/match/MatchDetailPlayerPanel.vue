@@ -39,6 +39,9 @@ const wardStats = computed(() => [
   { label: 'killed', value: props.participant.wardsKilled },
   { label: 'control', value: props.participant.detectorWardsPlaced },
 ])
+// Strict `!== null`, never a truthiness test: a player who genuinely placed 0
+// wards has data and must read "0", not be folded into the empty state. Only a
+// row where all three counters are null falls back to the message.
 const hasWards = computed(() => wardStats.value.some(s => s.value !== null))
 function fmtCount(value: number | null) {
   return value === null ? '—' : `${value}`
@@ -187,7 +190,7 @@ const hasSkills = computed(() => props.participant.skillEvents.length > 0)
           <UIcon name="i-lucide-eye" class="size-3.5 text-primary" />
           Wards
         </p>
-        <div class="grid grid-cols-3 gap-2 text-center">
+        <div v-if="hasWards" class="grid grid-cols-3 gap-2 text-center">
           <div v-for="stat in wardStats" :key="stat.label">
             <p
               class="text-sm font-bold tabular-nums"
@@ -198,9 +201,7 @@ const hasSkills = computed(() => props.participant.skillEvents.length > 0)
             <p class="text-[10px] text-muted">{{ stat.label }}</p>
           </div>
         </div>
-        <p v-if="!hasWards" class="mt-2 text-[11px] text-muted">
-          No ward data for this game.
-        </p>
+        <p v-else class="text-[11px] text-muted">No ward data for this game.</p>
       </div>
     </div>
 
