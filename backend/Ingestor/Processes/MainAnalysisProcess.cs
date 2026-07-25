@@ -101,31 +101,18 @@ public sealed class MainAnalysisProcess(
         var summary = new AnalysisSummary();
         await using var session = await sessionFactory.CreateAsync(ct);
 
-        // The three reads stay OUTSIDE the transaction (#264). They only feed an
-        // in-memory computation, and running them under BEGIN held their locks —
-        // and, behind pgbouncer's transaction pooling, a server connection — for the
-        // whole batch for nothing. Nothing here depends on read-then-write
-        // atomicity: on the default Read Committed level every statement takes its
-        // own snapshot, so grouping these SELECTs with the writes never gave the
-        // batch a consistent read snapshot either, and no read is repeated after a
-        // write. The read-to-write window is unchanged — the reads already happened
-        // before the mutation loop — so the xmin optimistic-concurrency guard on
-        // riot_accounts is exposed exactly as before.
-        //
-        // The stats and accounts come back tracked on purpose: the batch's writes
-        // are change-tracked mutations of those very entities (in-place stat
-        // updates, Remove, LastMainCalcAtUtc stamping), so AsNoTracking would break
-        // them (and those repository methods are shared with other processes). The
-        // participant rows are already untracked — a projection over raw SQL,
-        // chunked per platform and capped at MatchesToConsider rows per account, so
-        // nothing extra is pulled into memory here.
+        // Reads stay outside the transaction (#264): they only feed an in-memory
+        // computation and take no row locks, so running them under BEGIN extended
+        // the lock lifetime for nothing. The stats and accounts must stay TRACKED —
+        // the writes below are change-tracked mutations of these very entities
+        // (in-place stat updates, Remove, LastMainCalcAtUtc stamping) — so no
+        // AsNoTracking here; the participant rows are already an untracked raw-SQL
+        // projection, capped at MatchesToConsider rows per account.
         var existingStatsByAccount = await session.MainChampionStats.GetByAccountsAsync(batch, ct);
         var accountEntitiesByKey = await session.RiotAccounts.GetByKeysAsync(batch, ct);
         var participantRowsByAccount = await session.MatchParticipants
             .GetRecentParticipantsByAccountsAsync(batch, (int)options.QueueId, Math.Max(1, options.MatchesToConsider), ct);
 
-        // At most one key per account in the batch, so this cannot grow with the
-        // dataset.
         var accountsToDemote = new List<AccountKey>();
 
         foreach (var account in batch)
@@ -144,13 +131,10 @@ public sealed class MainAnalysisProcess(
             summary.Merge(accountResult);
         }
 
-        // Only the writes are transacted, keeping the per-batch write boundary: the
-        // stat delta, the LastMainCalcAtUtc stamps and the candidate demotions still
-        // commit — or roll back — as one unit. The demotions moved after
-        // SaveChangesAsync instead of running interleaved in the loop; they are
-        // predicate-filtered ExecuteUpdates on another table (main_candidates) that
-        // nothing in this batch reads back, so the outcome is identical while the
-        // rows they lock are held for a shorter time.
+        // Deliberate write boundary (#264): the stat delta, the LastMainCalcAtUtc
+        // stamps and the candidate demotions commit — or roll back — as one unit.
+        // Pinned by MainAnalysisProcessIntegrationTests
+        // .RunAsync_ShouldRollBackStatWrites_WhenDemotionFails.
         await using var transaction = await session.BeginTransactionAsync(ct);
         await session.SaveChangesAsync(ct);
         summary.DemotedAccounts += await DemoteCandidatesAsync(session, accountsToDemote, ct);
