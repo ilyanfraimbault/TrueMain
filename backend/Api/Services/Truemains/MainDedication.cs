@@ -150,6 +150,17 @@ internal static class MainDedication
     /// valve protects the API from an unbounded scan if the tracked population
     /// grows by orders of magnitude, at the cost of the deep tail of the ranking.
     /// </para>
+    /// <para>
+    /// One deliberate asymmetry remains, scoped to that truncation: under a
+    /// position filter the play rate ordering the cap uses is the one of the main
+    /// that <em>satisfies the filter</em>, which need not be the top main
+    /// <see cref="FetchAsync"/> goes on to score. Ranking the accounts under the
+    /// cap by their true top-main play rate would need a correlated MAX per
+    /// candidate row — precisely the unbounded work the cap exists to avoid. So
+    /// the cap may drop a marginally different set at the very tail; every
+    /// account that survives it is still scored on its true signature champion,
+    /// so this cannot affect a score, only which far-tail rows exist at all.
+    /// </para>
     /// </remarks>
     public static async Task<List<DedicationCandidate>> FetchCandidatesAsync(
         TrueMainDbContext ctx,

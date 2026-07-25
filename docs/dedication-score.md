@@ -170,11 +170,26 @@ bugs unrepresentable.
 
 The eligibility scan is capped (`MaxDedicationCandidates`, 50 000, ordered by
 descending play rate on each account's best matching main, so the rows dropped
-are the least committed). Below the cap the ranking is exact. Hitting it logs a
-warning — that is the signal that the score has outgrown a read-time
-computation and should become a materialised column maintained by the ingestor
-(with the matching EF migration and a regenerated compiled model), the way
-`riot_accounts."Score"` is.
+are the least committed). Below the cap — i.e. always, in practice — the ranking
+is exact. Hitting it logs a warning: that is the signal that the score has
+outgrown a read-time computation and should become a materialised column
+maintained by the ingestor (with the matching EF migration and a regenerated
+compiled model), the way `riot_accounts."Score"` is.
+
+Two details of the capped path, both deliberate:
+
+- **`total` stays the true population.** It is a count of eligible players, not
+  of reachable rows, and the homepage renders it as a "truemains tracked"
+  figure — so the capped path pays one extra count rather than reporting 50 000.
+  The unreachable tail pages then come back empty, which is the honest failure
+  mode: a page that can't be filled beats a population figure that is quietly
+  wrong.
+- **The truncation order is approximate under a lane filter.** The play rate the
+  cap sorts on is that of the main satisfying the filter, which need not be the
+  top main that actually gets scored. Ordering by the true top main would need a
+  correlated `MAX` per candidate — the unbounded work the cap exists to avoid.
+  Every account that survives the cap is still scored on its true signature
+  champion, so this can only shift which far-tail rows exist, never a score.
 
 The default (`?sort=rank`) path is unchanged: it still counts and pages on the
 materialised rank score, and only pays a small extra query to attach the

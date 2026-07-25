@@ -342,7 +342,8 @@ public sealed class TruemainsLeaderboardQueryService(
             ctx, platforms, championFilter, position, minGames, otpOnly, MinPositionShare,
             DateTime.UtcNow, MaxDedicationCandidates, ct);
 
-        if (candidates.Count >= MaxDedicationCandidates)
+        var capped = candidates.Count >= MaxDedicationCandidates;
+        if (capped)
         {
             // Not an error: the ranking is still exact for every row above the
             // cap. It does mean the deep tail is unreachable, which is the
@@ -352,8 +353,21 @@ public sealed class TruemainsLeaderboardQueryService(
                 Surface, MaxDedicationCandidates);
         }
 
+        // `total` is a count of eligible *players*, not of reachable rows, and
+        // the homepage renders it as a "truemains tracked" figure — so a
+        // truncated candidate set must not silently under-report it. On the
+        // capped path pay one extra Count to keep the number true; the
+        // consequence is that the unreachable tail pages come back empty (the
+        // past-end branch already returns an empty slice with the real total),
+        // which is the honest failure mode: a page that can't be filled beats a
+        // population figure that is quietly wrong. Below the cap — i.e. always,
+        // in practice — the candidate count *is* the count, no extra query.
+        var total = capped
+            ? await CountAsync(platforms, championFilter, position, minGames, otpOnly, ct)
+            : candidates.Count;
+
         return new Ranking(
-            Total: candidates.Count,
+            Total: total,
             OrderedAccountIds: candidates.Select(candidate => candidate.AccountId).ToList(),
             DedicationByAccount: candidates.ToDictionary(
                 candidate => candidate.AccountId,
@@ -540,6 +554,12 @@ public sealed class TruemainsLeaderboardQueryService(
             return [];
         }
 
+        // `Score IS NOT NULL` is re-asserted even though the candidate scan
+        // already vetted these ids: that scan was a separate round trip, and an
+        // account whose rank snapshot is cleared in between would materialise a
+        // SQL NULL into PageRow's non-nullable int and throw. Re-stating the
+        // predicate turns that race into a dropped row, which the reordering
+        // below already tolerates — same reason FetchPageAsync carries it.
         FormattableString sql = $"""
             SELECT
                 a."Id" AS "Id",
@@ -552,13 +572,15 @@ public sealed class TruemainsLeaderboardQueryService(
                 a."Score" AS "Score"
             FROM riot_accounts a
             WHERE a."Id" = ANY ({accountIds})
+              AND a."Score" IS NOT NULL
             """;
 
         var rows = await db.Database.SqlQuery<PageRow>(sql).ToListAsync(ct);
         var byId = rows.ToDictionary(row => row.Id);
 
         // Preserve the ranking order; an id that vanished between the candidate
-        // scan and this fetch (account deleted mid-request) is simply dropped.
+        // scan and this fetch (account deleted or unranked mid-request) is
+        // simply dropped.
         return accountIds
             .Select(id => byId.GetValueOrDefault(id))
             .Where(row => row is not null)
