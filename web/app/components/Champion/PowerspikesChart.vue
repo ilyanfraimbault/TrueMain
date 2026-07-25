@@ -124,6 +124,7 @@ const formatGames = (count: number): string => count.toLocaleString('en-US')
         :x-formatter="xFormatter"
         :y-formatter="yFormatter"
         :gradient-stops="curveGradient"
+        :y-grid-line="false"
         hide-legend
       >
         <template #tooltip="{ values }">
