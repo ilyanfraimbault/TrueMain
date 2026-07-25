@@ -16,6 +16,8 @@ const props = defineProps<{
   runeTree: RuneTreeResponse | null
   itemsMap: Record<number, StaticItemData>
   patch: string | null
+  /** True when the leaderboard is ranked by dedication — accents the column that drives the order. */
+  highlightDedication?: boolean
 }>()
 
 const profileHref = computed(() => {
@@ -78,6 +80,18 @@ function championIcon(id: number): string | null {
 function positionLabel(position: string): string {
   return POSITION_BY_VALUE.get(position)?.label ?? position
 }
+
+// Dedication score for the row's signature champion. Every figure here comes
+// straight from the API payload — the breakdown is never recomputed client-side,
+// so the tooltip can't drift from the number the backend ranked on.
+const dedicationLabel = computed(() =>
+  props.row.dedication === null ? null : formatDedicationScore(props.row.dedication.score))
+
+const dedicationTitle = computed(() => {
+  const dedication = props.row.dedication
+  if (!dedication) return undefined
+  return describeDedication(dedication, championName(dedication.championId))
+})
 
 // Primary + secondary lane icons. Each entry carries its icon URL and a
 // tooltip. The list is empty when the backend has no position data (no main

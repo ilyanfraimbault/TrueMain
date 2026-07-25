@@ -45,6 +45,14 @@ public sealed class TruemainsLeaderboardQueryService(
     // filter bar and the "secondary lane" bar can't drift apart.
     private const double MinPositionShare = MainPositions.MinShare;
 
+    // Safety valve on the dedication ranking: the score is a read-time
+    // expression, so ordering by it means scoring every eligible account rather
+    // than seeking an index. The cap bounds that scan if the tracked population
+    // ever grows by orders of magnitude; below it the ranking is exact. Rows
+    // beyond the cap are the lowest play rates in the population (see
+    // MainDedication.FetchCandidatesAsync), i.e. the least committed players.
+    private const int MaxDedicationCandidates = 50_000;
+
     public async Task<LeaderboardResponse> GetAsync(
         int page,
         int pageSize,
@@ -52,6 +60,7 @@ public sealed class TruemainsLeaderboardQueryService(
         string? position,
         int? championId,
         bool otpOnly,
+        LeaderboardSort sort,
         CancellationToken ct)
     {
         var totalSw = Stopwatch.StartNew();
@@ -84,19 +93,26 @@ public sealed class TruemainsLeaderboardQueryService(
         // moves on a multi-minute cadence (RankSnapshotIngestion + match
         // ingest), so the TTL trades a few seconds of staleness for a large
         // drop in DB load. Mirrors ChampionSummariesQueryService's TTL.
-        var cacheKey = BuildCacheKey(platforms, championFilter, normalizedPosition, minGames, otpOnly, clampedPage, clampedPageSize);
+        var cacheKey = BuildCacheKey(platforms, championFilter, normalizedPosition, minGames, otpOnly, sort, clampedPage, clampedPageSize);
         if (cache.TryGetValue<LeaderboardResponse>(cacheKey, out var cached) && cached is not null)
         {
             totalSw.Stop();
             logger.LogInformation(
-                "{Surface} page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} otpOnly={OtpOnly} rows={Rows} total={Total} elapsed={ElapsedMs}ms result=cache_hit",
-                Surface, clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames, otpOnly,
+                "{Surface} page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} otpOnly={OtpOnly} sort={Sort} rows={Rows} total={Total} elapsed={ElapsedMs}ms result=cache_hit",
+                Surface, clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames, otpOnly, sort,
                 cached.Rows.Count, cached.Total, totalSw.ElapsedMilliseconds);
             return cached;
         }
 
-        var (total, countMs) = await TimedAsync(() =>
-            CountAsync(platforms, championFilter, normalizedPosition, minGames, otpOnly, ct));
+        // Ranking by dedication can't seek an index — the score is derived at
+        // read time — so that path scores the whole eligible population once and
+        // slices the page from it. The default rank ordering keeps the cheap
+        // Count + indexed OFFSET on riot_accounts."Score".
+        var (ranking, countMs) = await TimedAsync(() => sort == LeaderboardSort.Dedication
+            ? RankByDedicationAsync(platforms, championFilter, normalizedPosition, minGames, otpOnly, ct)
+            : CountByRankAsync(platforms, championFilter, normalizedPosition, minGames, otpOnly, ct));
+
+        var total = ranking.Total;
         if (total == 0)
         {
             var empty = Empty(clampedPage, clampedPageSize);
@@ -109,14 +125,15 @@ public sealed class TruemainsLeaderboardQueryService(
             // diagnosed here, not on the populated path.
             totalSw.Stop();
             logger.LogInformation(
-                "{Surface} page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} otpOnly={OtpOnly} rows=0 total=0 countMs={CountMs:F1} elapsed={ElapsedMs}ms result=empty",
-                Surface, clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames, otpOnly,
+                "{Surface} page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} otpOnly={OtpOnly} sort={Sort} rows=0 total=0 countMs={CountMs:F1} elapsed={ElapsedMs}ms result=empty",
+                Surface, clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames, otpOnly, sort,
                 countMs, totalSw.ElapsedMilliseconds);
             return empty;
         }
 
-        var (pageRows, pageMs) = await TimedAsync(() => FetchPageAsync(
-            platforms, championFilter, normalizedPosition, minGames, otpOnly, offset, clampedPageSize, ct));
+        var (pageRows, pageMs) = await TimedAsync(() => ranking.OrderedAccountIds is { } orderedIds
+            ? FetchPageByAccountIdsAsync(orderedIds.Skip(offset).Take(clampedPageSize).ToArray(), ct)
+            : FetchPageAsync(platforms, championFilter, normalizedPosition, minGames, otpOnly, offset, clampedPageSize, ct));
         if (pageRows.Count == 0)
         {
             // The caller asked for a page past the end. Return an empty slice
@@ -132,8 +149,8 @@ public sealed class TruemainsLeaderboardQueryService(
             cache.Set(cacheKey, pastEnd, CacheEntry(ResponseCacheTtl));
             totalSw.Stop();
             logger.LogInformation(
-                "{Surface} page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} otpOnly={OtpOnly} rows=0 total={Total} countMs={CountMs:F1} pageMs={PageMs:F1} elapsed={ElapsedMs}ms result=past_end",
-                Surface, clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames, otpOnly,
+                "{Surface} page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} otpOnly={OtpOnly} sort={Sort} rows=0 total={Total} countMs={CountMs:F1} pageMs={PageMs:F1} elapsed={ElapsedMs}ms result=past_end",
+                Surface, clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames, otpOnly, sort,
                 total, countMs, pageMs, totalSw.ElapsedMilliseconds);
             return pastEnd;
         }
@@ -171,6 +188,13 @@ public sealed class TruemainsLeaderboardQueryService(
         var ranksTask = TimedAsync(() => FetchLatestRanksAsync(accountIds, ct));
         var positionsTask = TimedAsync(() => FetchPositionsAsync(puuids, ct));
 
+        // The dedication-sorted path already scored every candidate to rank
+        // them, so the page's scores are in hand — only the rank-sorted path
+        // pays a query, and only for the page's ~25 accounts.
+        var dedicationTask = TimedAsync(() => ranking.DedicationByAccount is { } scored
+            ? Task.FromResult(scored)
+            : FetchDedicationAsync(accountIds, championFilter, ct));
+
         // Chain the build fetch off the top-3 result: it resolves the page's
         // (account, champion) pairs from the selected champions, and still runs
         // alongside stats / ranks. The metric is named `buildsContinuationMs`
@@ -184,13 +208,14 @@ public sealed class TruemainsLeaderboardQueryService(
             return await FetchTopChampionBuildsAsync(topChampions, accountIdByPuuid, ct);
         });
 
-        await Task.WhenAll(topChampionsTask, statsTask, ranksTask, buildsTask, positionsTask);
+        await Task.WhenAll(topChampionsTask, statsTask, ranksTask, buildsTask, positionsTask, dedicationTask);
 
         var (topChampionsByPuuid, topChampMs) = await topChampionsTask;
         var (statsByPuuid, statsMs) = await statsTask;
         var (ranksByAccount, ranksMs) = await ranksTask;
         var (buildsByPuuidChampion, buildsContinuationMs) = await buildsTask;
         var (positionsByPuuid, positionsMs) = await positionsTask;
+        var (dedicationByAccount, dedicationMs) = await dedicationTask;
 
         var rank = offset + 1;
         var rows = new List<LeaderboardRowReadModel>(pageRows.Count);
@@ -259,6 +284,7 @@ public sealed class TruemainsLeaderboardQueryService(
                 },
                 TopChampions = topChamps,
                 Positions = positionsByPuuid.GetValueOrDefault(row.Puuid),
+                Dedication = dedicationByAccount.GetValueOrDefault(row.Id),
             });
         }
 
@@ -273,11 +299,81 @@ public sealed class TruemainsLeaderboardQueryService(
 
         totalSw.Stop();
         logger.LogInformation(
-            "{Surface} page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} otpOnly={OtpOnly} rows={Rows} total={Total} countMs={CountMs:F1} pageMs={PageMs:F1} topChampMs={TopChampMs:F1} statsMs={StatsMs:F1} ranksMs={RanksMs:F1} buildsContinuationMs={BuildsContinuationMs:F1} positionsMs={PositionsMs:F1} elapsed={ElapsedMs}ms result=miss",
-            Surface, clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames, otpOnly,
-            rows.Count, total, countMs, pageMs, topChampMs, statsMs, ranksMs, buildsContinuationMs, positionsMs, totalSw.ElapsedMilliseconds);
+            "{Surface} page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} otpOnly={OtpOnly} sort={Sort} rows={Rows} total={Total} countMs={CountMs:F1} pageMs={PageMs:F1} topChampMs={TopChampMs:F1} statsMs={StatsMs:F1} ranksMs={RanksMs:F1} buildsContinuationMs={BuildsContinuationMs:F1} positionsMs={PositionsMs:F1} dedicationMs={DedicationMs:F1} elapsed={ElapsedMs}ms result=miss",
+            Surface, clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames, otpOnly, sort,
+            rows.Count, total, countMs, pageMs, topChampMs, statsMs, ranksMs, buildsContinuationMs, positionsMs, dedicationMs, totalSw.ElapsedMilliseconds);
 
         return response;
+    }
+
+    /// <summary>
+    /// Rank-sorted path: only the eligible count is needed up front, the page
+    /// itself is an indexed OFFSET on <c>riot_accounts."Score"</c>.
+    /// </summary>
+    private async Task<Ranking> CountByRankAsync(
+        string[] platforms,
+        int? championFilter,
+        string? position,
+        int minGames,
+        bool otpOnly,
+        CancellationToken ct)
+    {
+        var total = await CountAsync(platforms, championFilter, position, minGames, otpOnly, ct);
+        return new Ranking(total, OrderedAccountIds: null, DedicationByAccount: null);
+    }
+
+    /// <summary>
+    /// Dedication-sorted path: score every eligible account, keep the ordering
+    /// and the scores so the page slice needs neither a second scoring pass nor
+    /// a separate count.
+    /// </summary>
+    private async Task<Ranking> RankByDedicationAsync(
+        string[] platforms,
+        int? championFilter,
+        string? position,
+        int minGames,
+        bool otpOnly,
+        CancellationToken ct)
+    {
+        // Own short-lived context: consistent with the other fetches, and this
+        // one can be a long-running scan.
+        await using var ctx = await dbFactory.CreateDbContextAsync(ct);
+        var candidates = await MainDedication.FetchCandidatesAsync(
+            ctx, platforms, championFilter, position, minGames, otpOnly, MinPositionShare,
+            DateTime.UtcNow, MaxDedicationCandidates, ct);
+
+        if (candidates.Count >= MaxDedicationCandidates)
+        {
+            // Not an error: the ranking is still exact for every row above the
+            // cap. It does mean the deep tail is unreachable, which is the
+            // signal that the score should move to a materialised column.
+            logger.LogWarning(
+                "{Surface} dedication ranking hit the candidate cap ({Cap}); the tail of the ranking is truncated.",
+                Surface, MaxDedicationCandidates);
+        }
+
+        return new Ranking(
+            Total: candidates.Count,
+            OrderedAccountIds: candidates.Select(candidate => candidate.AccountId).ToList(),
+            DedicationByAccount: candidates.ToDictionary(
+                candidate => candidate.AccountId,
+                candidate => candidate.Dedication));
+    }
+
+    private async Task<Dictionary<Guid, DedicationReadModel>> FetchDedicationAsync(
+        Guid[] accountIds,
+        int? championFilter,
+        CancellationToken ct)
+    {
+        if (accountIds.Length == 0)
+        {
+            return new Dictionary<Guid, DedicationReadModel>();
+        }
+
+        // Own short-lived context: this runs concurrently with the other page
+        // hydration fetches, and a single DbContext is not thread-safe.
+        await using var ctx = await dbFactory.CreateDbContextAsync(ct);
+        return await MainDedication.FetchAsync(ctx, accountIds, championFilter, DateTime.UtcNow, ct);
     }
 
     private static string BuildCacheKey(
@@ -286,6 +382,7 @@ public sealed class TruemainsLeaderboardQueryService(
         string? position,
         int minGames,
         bool otpOnly,
+        LeaderboardSort sort,
         int page,
         int pageSize)
     {
@@ -299,7 +396,7 @@ public sealed class TruemainsLeaderboardQueryService(
         var championPart = championFilter?.ToString() ?? "_";
         var positionPart = position ?? "_";
         var otpPart = otpOnly ? "otp" : "_";
-        return $"truemains:leaderboard:{platformPart}:{championPart}:{positionPart}:{minGames}:{otpPart}:{page}:{pageSize}";
+        return $"truemains:leaderboard:{platformPart}:{championPart}:{positionPart}:{minGames}:{otpPart}:{sort}:{page}:{pageSize}";
     }
 
     // Every cache entry must carry a Size because the shared MemoryCache runs
@@ -428,6 +525,45 @@ public sealed class TruemainsLeaderboardQueryService(
             """;
 
         return await db.Database.SqlQuery<PageRow>(sql).ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// Identity cells for an already-ordered slice of accounts. Used by the
+    /// dedication ranking, whose ordering lives in memory (the score is derived
+    /// at read time, so there is no column to page on): SQL fetches the ~25 rows
+    /// by primary key and C# restores the caller's order.
+    /// </summary>
+    private async Task<List<PageRow>> FetchPageByAccountIdsAsync(Guid[] accountIds, CancellationToken ct)
+    {
+        if (accountIds.Length == 0)
+        {
+            return [];
+        }
+
+        FormattableString sql = $"""
+            SELECT
+                a."Id" AS "Id",
+                a."Puuid" AS "Puuid",
+                a."GameName" AS "GameName",
+                a."TagLine" AS "TagLine",
+                a."PlatformId" AS "PlatformId",
+                a."ProfileIconId" AS "ProfileIconId",
+                a."SummonerLevel" AS "SummonerLevel",
+                a."Score" AS "Score"
+            FROM riot_accounts a
+            WHERE a."Id" = ANY ({accountIds})
+            """;
+
+        var rows = await db.Database.SqlQuery<PageRow>(sql).ToListAsync(ct);
+        var byId = rows.ToDictionary(row => row.Id);
+
+        // Preserve the ranking order; an id that vanished between the candidate
+        // scan and this fetch (account deleted mid-request) is simply dropped.
+        return accountIds
+            .Select(id => byId.GetValueOrDefault(id))
+            .Where(row => row is not null)
+            .Select(row => row!)
+            .ToList();
     }
 
     private async Task<Dictionary<Guid, RankRow>> FetchLatestRanksAsync(Guid[] accountIds, CancellationToken ct)
@@ -781,6 +917,17 @@ public sealed class TruemainsLeaderboardQueryService(
         PageSize = pageSize,
         Total = 0,
     };
+
+    /// <summary>
+    /// What the ranking phase resolved before the page is hydrated.
+    /// <see cref="OrderedAccountIds"/> and <see cref="DedicationByAccount"/> are
+    /// null on the rank-sorted path, where SQL does the ordering and the page's
+    /// dedication is fetched per slice.
+    /// </summary>
+    private sealed record Ranking(
+        int Total,
+        IReadOnlyList<Guid>? OrderedAccountIds,
+        Dictionary<Guid, DedicationReadModel>? DedicationByAccount);
 
     private sealed record PageRow(
         Guid Id,

@@ -31,6 +31,15 @@ public sealed record LeaderboardRowReadModel
     /// main-champion analysis has run, so the UI omits the role icons entirely.
     /// </summary>
     public LeaderboardPositionsReadModel? Positions { get; init; }
+
+    /// <summary>
+    /// Dedication score (0..100) for the row's signature champion — the sort key
+    /// behind <c>?sort=dedication</c>, and the column shown on every row
+    /// whichever sort is active. Under a <c>championId</c> filter the score is
+    /// about that champion; otherwise it is about the player's top main. Null
+    /// when no main-champion analysis has run for the account.
+    /// </summary>
+    public DedicationReadModel? Dedication { get; init; }
 }
 
 /// <summary>

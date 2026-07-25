@@ -19,6 +19,14 @@ public sealed record ProfileReadModel
         = Array.Empty<ProfileMainChampionReadModel>();
 
     /// <summary>
+    /// How devoted the player is to their signature champion (their top main),
+    /// 0..100 with the full component breakdown. Null when the player has no
+    /// champion classified as a main yet — the profile hides the card rather
+    /// than showing a zero that would read as "not dedicated".
+    /// </summary>
+    public DedicationReadModel? Dedication { get; init; }
+
+    /// <summary>
     /// Account-level position distribution, summed across the player's main
     /// champions. Each entry covers TOP / JUNGLE / MIDDLE / BOTTOM / UTILITY
     /// (Riot strings, uppercase). Always present, possibly empty when the

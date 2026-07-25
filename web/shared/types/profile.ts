@@ -1,11 +1,15 @@
 // Mirrors backend/Api/ReadModels/Truemains/ProfileReadModel.cs.
 // See #118.
 
+import type { TruemainDedication } from './dedication'
+
 export interface ProfileResponse {
   identity: ProfileIdentity
   /** Null when the player has no ranked snapshot yet (unranked or not refreshed). */
   ranked: ProfileRanked | null
   mains: ProfileMainChampion[]
+  /** Dedication score for the player's signature champion. Null when no champion is classified as a main yet. */
+  dedication: TruemainDedication | null
   positions: ProfilePositionStat[]
 }
 

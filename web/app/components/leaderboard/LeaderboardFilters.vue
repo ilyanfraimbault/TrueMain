@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { RegionSlug } from '~~/shared/types/leaderboard'
+import type { LeaderboardSort, RegionSlug } from '~~/shared/types/leaderboard'
 import type { ChampionPosition } from '~/utils/positions'
 
 // Two independent filters, ordered visually as: position (left) → region
@@ -12,13 +12,38 @@ const props = defineProps<{
   region: RegionSlug | null
   position: ChampionPosition | null
   otpOnly: boolean
+  /** Active ranking column — drives the LP / Dedication segmented control. */
+  sort: LeaderboardSort
 }>()
 
 const emit = defineEmits<{
   'update:region': [value: RegionSlug | null]
   'update:position': [value: ChampionPosition | null]
   'update:otpOnly': [value: boolean]
+  'update:sort': [value: LeaderboardSort]
 }>()
+
+interface SortItem {
+  label: string
+  value: LeaderboardSort
+  icon: string
+  title: string
+}
+
+const SORT_OPTIONS: SortItem[] = [
+  {
+    label: 'LP',
+    value: 'rank',
+    icon: 'i-lucide-trophy',
+    title: 'Rank by current ranked standing (tier, then LP)',
+  },
+  {
+    label: 'Dedication',
+    value: 'dedication',
+    icon: 'i-lucide-heart',
+    title: 'Rank by dedication to the signature champion (share of games, patches played, volume, recency)',
+  },
+]
 
 interface RegionItem {
   label: string
@@ -67,6 +92,30 @@ function onRegionChange(item: RegionItem | undefined) {
       >
         OTP only
       </UButton>
+
+      <!-- Ranking column. A two-button segmented control rather than a select:
+           there are exactly two orders, and both stay one click away. Emerald
+           (primary) on the active side, matching the rest of the app's accent —
+           the amber above is reserved for the OTP semantics. -->
+      <div
+        class="flex items-center gap-1 rounded-md p-0.5 ring-1 ring-default/60"
+        role="group"
+        aria-label="Sort the leaderboard"
+      >
+        <UButton
+          v-for="option in SORT_OPTIONS"
+          :key="option.value"
+          :color="sort === option.value ? 'primary' : 'neutral'"
+          :variant="sort === option.value ? 'soft' : 'ghost'"
+          size="sm"
+          :icon="option.icon"
+          :aria-pressed="sort === option.value"
+          :title="option.title"
+          @click="emit('update:sort', option.value)"
+        >
+          {{ option.label }}
+        </UButton>
+      </div>
     </div>
 
     <!-- Region: rightmost, single dropdown so the strip stays compact and
