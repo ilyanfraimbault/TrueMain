@@ -87,6 +87,11 @@ function buildParticipant(entry: RosterEntry, index: number, durationSeconds: nu
     keystoneId: 8005,
     totalDamageDealtToChampions: damage,
     visionScore: 18 + index * 3,
+    // The last participant keeps null ward counters so the playground also
+    // exercises the pre-migration "—" rendering.
+    wardsPlaced: index === ROSTER.length - 1 ? null : 8 + index * 2,
+    wardsKilled: index === ROSTER.length - 1 ? null : 2 + (index % 4),
+    detectorWardsPlaced: index === ROSTER.length - 1 ? null : 1 + (index % 5),
     goldEarned: 11000 + index * 700,
     cs,
     rank: { tier: TIERS[index % TIERS.length]!, division: 'I', leaguePoints: 120 + index * 7 },

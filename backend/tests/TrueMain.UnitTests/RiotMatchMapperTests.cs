@@ -122,6 +122,38 @@ public sealed class RiotMatchMapperTests
     }
 
     [Fact]
+    public void Map_CopiesWardCounters()
+    {
+        var dto = BuildMatch();
+        var participantDto = BuildParticipant(participantId: 1, puuid: "p-1");
+        participantDto.WardsPlaced = 21;
+        participantDto.WardsKilled = 7;
+        participantDto.DetectorWardsPlaced = 4;
+        dto.Info.Participants.Add(participantDto);
+
+        var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow);
+
+        result.Participants[0].WardsPlaced.Should().Be(21);
+        result.Participants[0].WardsKilled.Should().Be(7);
+        result.Participants[0].DetectorWardsPlaced.Should().Be(4);
+    }
+
+    [Fact]
+    public void Map_LeavesWardCountersNull_WhenPayloadOmitsThem()
+    {
+        var dto = BuildMatch();
+        dto.Info.Participants.Add(BuildParticipant(participantId: 1, puuid: "p-1"));
+
+        var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow);
+
+        // Absent counters must stay null so the match detail can tell "not
+        // ingested" apart from a genuine zero.
+        result.Participants[0].WardsPlaced.Should().BeNull();
+        result.Participants[0].WardsKilled.Should().BeNull();
+        result.Participants[0].DetectorWardsPlaced.Should().BeNull();
+    }
+
+    [Fact]
     public void Map_AssignsRiotAccountId_WhenParticipantPuuidMatchesPlatformAndPuuid()
     {
         var accountId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");

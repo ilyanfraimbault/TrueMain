@@ -82,6 +82,13 @@ public sealed class MatchParticipantConfiguration : IEntityTypeConfiguration<Mat
             .IsRequired()
             .HasDefaultValue(0);
 
+        // Ward counters stay nullable with no default: matches ingested before
+        // these columns existed must stay distinguishable from a genuine 0, so
+        // the match detail can render "—" instead of a fabricated count.
+        entity.Property(e => e.WardsPlaced);
+        entity.Property(e => e.WardsKilled);
+        entity.Property(e => e.DetectorWardsPlaced);
+
         entity.Property(e => e.GoldEarned)
             .IsRequired();
 

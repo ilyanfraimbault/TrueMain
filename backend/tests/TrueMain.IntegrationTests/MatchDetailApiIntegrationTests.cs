@@ -170,10 +170,21 @@ public sealed class MatchDetailApiIntegrationTests
         // First to level 2: main's 2nd skill at 95s, foe's at 130s → main first.
         main.FirstToLevelTwo.Should().BeTrue();
 
+        // ── Ward counters (#637) ────────────────────────────────────────────
+        main.WardsPlaced.Should().Be(14);
+        main.WardsKilled.Should().Be(5);
+        main.DetectorWardsPlaced.Should().Be(3);
+
         var foe = detail.Participants.Single(p => p.ParticipantId == 6);
         foe.FirstToLevelTwo.Should().BeFalse();
         foe.Laning15.Should().NotBeNull();
         foe.Laning15!.CsDiff.Should().Be(-20);
+
+        // Rows ingested before the ward columns existed stay null instead of
+        // reading as a genuine 0.
+        foe.WardsPlaced.Should().BeNull();
+        foe.WardsKilled.Should().BeNull();
+        foe.DetectorWardsPlaced.Should().BeNull();
     }
 
     private async Task SeedFullMatchAsync()
@@ -276,6 +287,12 @@ public sealed class MatchDetailApiIntegrationTests
                 Assists = isMain ? 5 : 1,
                 TotalDamageDealtToChampions = isMain ? 30000 : 12000,
                 VisionScore = isMain ? 30 : 18,
+                // Ward counters are nullable: only the main player's row carries
+                // them, so the payload covers both the ingested and the
+                // pre-migration (null) shape.
+                WardsPlaced = isMain ? 14 : null,
+                WardsKilled = isMain ? 5 : null,
+                DetectorWardsPlaced = isMain ? 3 : null,
                 GoldEarned = isMain ? 15000 : 11000,
                 TotalMinionsKilled = isMain ? 200 : 150,
                 NeutralMinionsKilled = isMain ? 20 : 10,

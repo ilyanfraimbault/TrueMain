@@ -1,8 +1,9 @@
 // Mirrors backend/Api/ReadModels/Truemains/MatchDetailReadModel.cs.
 // Single-match detail payload for GET /truemains/{nameTag}/matches/{matchId}.
-// Per issue #523 this carries no team objectives, no performance/MVP/ACE score
-// and no ward counts — only data the DB already has. Derived per-minute rates
-// and laning diffs are computed server-side.
+// Per issue #523 this carries no team objectives and no performance/MVP/ACE
+// score — only data the DB already has. Ward counters were added in #637 and
+// are nullable: matches ingested before that migration have none. Derived
+// per-minute rates and laning diffs are computed server-side.
 
 export interface MatchDetailResponse {
   matchId: string
@@ -42,6 +43,12 @@ export interface MatchDetailParticipant {
   keystoneId: number
   totalDamageDealtToChampions: number
   visionScore: number
+  /** Wards placed. Null when the match was ingested before ward counters existed. */
+  wardsPlaced: number | null
+  /** Enemy wards destroyed. Null when the match predates ward counters. */
+  wardsKilled: number | null
+  /** Control wards placed (Riot `detectorWardsPlaced`). Null when the match predates ward counters. */
+  detectorWardsPlaced: number | null
   goldEarned: number
   /** Sum of lane minions + neutral monsters. */
   cs: number

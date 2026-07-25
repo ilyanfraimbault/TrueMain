@@ -22,7 +22,7 @@ namespace Data.CompiledModels
                 "Data.Entities.MatchParticipant",
                 typeof(MatchParticipant),
                 baseEntityType,
-                propertyCount: 41,
+                propertyCount: 44,
                 navigationCount: 2,
                 foreignKeyCount: 2,
                 unnamedIndexCount: 3,
@@ -70,6 +70,14 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(MatchParticipant).GetField("<Deaths>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: 0);
             deaths.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var detectorWardsPlaced = runtimeEntityType.AddProperty(
+                "DetectorWardsPlaced",
+                typeof(int?),
+                propertyInfo: typeof(MatchParticipant).GetProperty("DetectorWardsPlaced", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MatchParticipant).GetField("<DetectorWardsPlaced>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            detectorWardsPlaced.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var eloBracket = runtimeEntityType.AddProperty(
                 "EloBracket",
@@ -357,6 +365,22 @@ namespace Data.CompiledModels
                 sentinel: 0);
             visionScore.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
             visionScore.AddAnnotation("Relational:DefaultValue", 0);
+
+            var wardsKilled = runtimeEntityType.AddProperty(
+                "WardsKilled",
+                typeof(int?),
+                propertyInfo: typeof(MatchParticipant).GetProperty("WardsKilled", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MatchParticipant).GetField("<WardsKilled>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            wardsKilled.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var wardsPlaced = runtimeEntityType.AddProperty(
+                "WardsPlaced",
+                typeof(int?),
+                propertyInfo: typeof(MatchParticipant).GetProperty("WardsPlaced", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MatchParticipant).GetField("<WardsPlaced>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            wardsPlaced.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var win = runtimeEntityType.AddProperty(
                 "Win",

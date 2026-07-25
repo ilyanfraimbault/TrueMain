@@ -7,10 +7,11 @@ namespace TrueMain.ReadModels.Truemains;
 /// round trip: the match header, all 10 participants with their build order,
 /// skill order, rune page and timeline-derived laning stats.
 ///
-/// Per the story's "Out of scope" list this carries no team-objective counters,
-/// no performance/MVP/ACE score and no ward counts — only data already in the
-/// DB. Derived per-minute rates and laning diffs are computed server-side so the
-/// frontend renders them directly.
+/// Per the story's "Out of scope" list this carries no team-objective counters
+/// and no performance/MVP/ACE score — only data already in the DB. Ward counters
+/// joined that set in #637 (nullable: rows ingested before the columns existed
+/// have no value). Derived per-minute rates and laning diffs are computed
+/// server-side so the frontend renders them directly.
 /// </summary>
 public sealed record MatchDetailReadModel
 {
@@ -83,6 +84,15 @@ public sealed record MatchDetailParticipantReadModel
     public int TotalDamageDealtToChampions { get; init; }
 
     public int VisionScore { get; init; }
+
+    /// <summary>Wards placed. Null when the match was ingested before ward counters existed.</summary>
+    public int? WardsPlaced { get; init; }
+
+    /// <summary>Enemy wards destroyed. Null when the match predates ward counters.</summary>
+    public int? WardsKilled { get; init; }
+
+    /// <summary>Control wards placed (Riot <c>detectorWardsPlaced</c>). Null when the match predates ward counters.</summary>
+    public int? DetectorWardsPlaced { get; init; }
 
     public int GoldEarned { get; init; }
 

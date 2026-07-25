@@ -5,10 +5,10 @@ import { isBuildOrderEvent, resolveEventItemId } from '~~/shared/utils/build'
 
 /**
  * Full-width detail view for a single selected participant (the Details tab).
- * Lays out laning @15 + global per-minute stats on top, then the full build
- * order and skill order — mirroring the OP.GG-style single-player breakdown.
- * Ward counts and control wards are intentionally absent: the detail payload
- * doesn't carry them yet (tracked separately).
+ * Lays out laning @15 + global per-minute stats + wards on top, then the full
+ * build order and skill order — mirroring the OP.GG-style single-player
+ * breakdown. Ward counters are nullable (added in #637): matches ingested
+ * before that migration have none, and those render as "—", never as 0.
  */
 const props = defineProps<{
   participant: MatchDetailParticipant
@@ -30,6 +30,18 @@ function diffClass(value: number) {
 }
 function fmtDiff(value: number) {
   return value > 0 ? `+${value}` : `${value}`
+}
+
+// Ward counters are null for matches ingested before the columns existed —
+// show a dash rather than a fabricated 0.
+const wardStats = computed(() => [
+  { label: 'placed', value: props.participant.wardsPlaced },
+  { label: 'killed', value: props.participant.wardsKilled },
+  { label: 'control', value: props.participant.detectorWardsPlaced },
+])
+const hasWards = computed(() => wardStats.value.some(s => s.value !== null))
+function fmtCount(value: number | null) {
+  return value === null ? '—' : `${value}`
 }
 
 function fmtTime(ms: number) {
@@ -112,8 +124,8 @@ const hasSkills = computed(() => props.participant.skillEvents.length > 0)
 
 <template>
   <div class="flex flex-col gap-3">
-    <!-- Laning @15 + global per-minute stats -->
-    <div class="grid gap-3 sm:grid-cols-2">
+    <!-- Laning @15 + global per-minute stats + wards -->
+    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <div class="glass rounded-md border border-default/60 bg-elevated/60 p-3">
         <p class="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
           <UIcon name="i-lucide-swords" class="size-3.5 text-primary" />
@@ -168,6 +180,27 @@ const hasSkills = computed(() => props.participant.skillEvents.length > 0)
             <p class="text-[10px] text-muted">Gold/m</p>
           </div>
         </div>
+      </div>
+
+      <div class="glass rounded-md border border-default/60 bg-elevated/60 p-3">
+        <p class="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+          <UIcon name="i-lucide-eye" class="size-3.5 text-primary" />
+          Wards
+        </p>
+        <div class="grid grid-cols-3 gap-2 text-center">
+          <div v-for="stat in wardStats" :key="stat.label">
+            <p
+              class="text-sm font-bold tabular-nums"
+              :class="stat.value === null ? 'text-muted' : 'text-default'"
+            >
+              {{ fmtCount(stat.value) }}
+            </p>
+            <p class="text-[10px] text-muted">{{ stat.label }}</p>
+          </div>
+        </div>
+        <p v-if="!hasWards" class="mt-2 text-[11px] text-muted">
+          No ward data for this game.
+        </p>
       </div>
     </div>
 

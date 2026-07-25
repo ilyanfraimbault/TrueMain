@@ -55,6 +55,25 @@ public class MatchParticipant
 
     public int VisionScore { get; set; }
 
+    /// <summary>
+    /// Total wards placed (Riot <c>wardsPlaced</c>). Nullable on purpose: rows
+    /// ingested before the ward columns existed carry no value, and the match
+    /// detail must render them as "unknown" rather than as a real 0.
+    /// </summary>
+    public int? WardsPlaced { get; set; }
+
+    /// <summary>
+    /// Enemy wards destroyed (Riot <c>wardsKilled</c>). Null for rows ingested
+    /// before the ward columns existed — see <see cref="WardsPlaced"/>.
+    /// </summary>
+    public int? WardsKilled { get; set; }
+
+    /// <summary>
+    /// Control wards placed (Riot <c>detectorWardsPlaced</c>). Null for rows
+    /// ingested before the ward columns existed — see <see cref="WardsPlaced"/>.
+    /// </summary>
+    public int? DetectorWardsPlaced { get; set; }
+
     public int GoldEarned { get; set; }
 
     public int TotalMinionsKilled { get; set; }

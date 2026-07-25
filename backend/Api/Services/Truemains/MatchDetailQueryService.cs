@@ -13,8 +13,10 @@ namespace TrueMain.Services.Truemains;
 /// account — then computes the derived per-minute rates and laning diffs
 /// server-side so the frontend renders them directly.
 ///
-/// Scope per issue #523: no team objectives, no performance/MVP/ACE score, no
-/// ward counts — only data the DB already has.
+/// Scope per issue #523: no team objectives and no performance/MVP/ACE score —
+/// only data the DB already has. Ward counters were added to
+/// <c>match_participants</c> in #637 and are surfaced as nullable, so matches
+/// ingested before that migration stay blank instead of reading as 0.
 /// </summary>
 public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetailQueryService
 {
@@ -299,6 +301,9 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
                     KeystoneId = keystoneId,
                     TotalDamageDealtToChampions = p.TotalDamageDealtToChampions,
                     VisionScore = p.VisionScore,
+                    WardsPlaced = p.WardsPlaced,
+                    WardsKilled = p.WardsKilled,
+                    DetectorWardsPlaced = p.DetectorWardsPlaced,
                     GoldEarned = p.GoldEarned,
                     Cs = cs,
                     Rank = rank,

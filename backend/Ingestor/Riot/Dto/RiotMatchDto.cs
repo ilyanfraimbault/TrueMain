@@ -94,6 +94,18 @@ public class RiotParticipantDto
     [JsonPropertyName("visionScore")]
     public int VisionScore { get; set; }
 
+    // Ward counters are nullable so a payload that omits them (non-Summoner's
+    // Rift modes) stores NULL rather than a fabricated 0.
+    [JsonPropertyName("wardsPlaced")]
+    public int? WardsPlaced { get; set; }
+
+    [JsonPropertyName("wardsKilled")]
+    public int? WardsKilled { get; set; }
+
+    /// <summary>Control wards placed (Riot names them "detector wards").</summary>
+    [JsonPropertyName("detectorWardsPlaced")]
+    public int? DetectorWardsPlaced { get; set; }
+
     [JsonPropertyName("goldEarned")]
     public int GoldEarned { get; set; }
 
