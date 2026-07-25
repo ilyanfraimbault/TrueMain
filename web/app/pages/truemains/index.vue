@@ -153,7 +153,7 @@ const championsById = useChampionsById(champions)
       description="The API request failed. Try refreshing — if it keeps failing, the backend may be down."
     />
 
-    <div v-if="leaderboardInitialLoading" class="space-y-2">
+    <div v-if="leaderboardInitialLoading" class="space-y-1">
       <LeaderboardRowSkeleton v-for="i in LEADERBOARD_PAGE_SIZE" :key="`skel-${i}`" />
     </div>
 
@@ -161,7 +161,7 @@ const championsById = useChampionsById(champions)
       No truemains match these filters yet.
     </div>
 
-    <div v-else class="space-y-2">
+    <div v-else class="space-y-1">
       <LeaderboardRow
         v-for="row in rows"
         :key="row.rank"
