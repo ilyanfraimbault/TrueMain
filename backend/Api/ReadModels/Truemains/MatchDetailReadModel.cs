@@ -7,10 +7,10 @@ namespace TrueMain.ReadModels.Truemains;
 /// round trip: the match header, all 10 participants with their build order,
 /// skill order, rune page and timeline-derived laning stats.
 ///
-/// Per the story's "Out of scope" list this carries no team-objective counters,
-/// no performance/MVP/ACE score and no ward counts — only data already in the
-/// DB. Derived per-minute rates and laning diffs are computed server-side so the
-/// frontend renders them directly.
+/// Per the story's "Out of scope" list this carries no team-objective counters
+/// and no ward counts — only data already in the DB. Derived per-minute rates,
+/// laning diffs and the performance score / placement / MVP / ACE accolades
+/// (#639) are computed server-side so the frontend renders them directly.
 /// </summary>
 public sealed record MatchDetailReadModel
 {
@@ -112,6 +112,27 @@ public sealed record MatchDetailParticipantReadModel
 
     /// <summary>Vision score per minute.</summary>
     public double VisionPerMin { get; init; }
+
+    /// <summary>
+    /// TrueMain performance score, 0–100 — a weighted, role-aware blend of KDA,
+    /// kill participation, damage share, gold share, CS/min, vision/min and the
+    /// @15 laning leads. See <c>Core.Lol.Performance.PerformanceScore</c> for the
+    /// full model and its weights.
+    /// </summary>
+    public int PerformanceScore { get; init; }
+
+    /// <summary>
+    /// 1-based rank of this participant's <see cref="PerformanceScore"/> within the
+    /// match (1 = best of all 10). Ties break on takedowns, then deaths, then
+    /// participant id, so the placement is always a strict 1..N.
+    /// </summary>
+    public int Placement { get; init; }
+
+    /// <summary>True for the top-scoring participant of the winning side.</summary>
+    public bool IsMvp { get; init; }
+
+    /// <summary>True for the top-scoring participant of the losing side.</summary>
+    public bool IsAce { get; init; }
 
     /// <summary>Laning diffs @15 vs the opposing <c>TeamPosition</c>. Null when either side lacks a @15 snapshot.</summary>
     public MatchDetailLaning15ReadModel? Laning15 { get; init; }
