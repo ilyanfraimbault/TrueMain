@@ -72,6 +72,33 @@ const teamGold = computed(() => props.participants.reduce((sum, p) => sum + p.go
 function fmtGold(value: number) {
   return value >= 1000 ? `${(value / 1000).toFixed(1)}k` : `${value}`
 }
+
+// ── Performance score (#639) ─────────────────────────────────────────────
+// `performanceScore` / `placement` / `isMvp` / `isAce` all come from the API —
+// nothing here is computed or invented client-side, the component only picks
+// the presentation.
+
+// Four-step scale inside the brand rose-gold (`primary`) palette: the better
+// the game, the denser the pill. Sub-50 stays neutral glass so an average row
+// doesn't shout.
+function scoreClass(score: number) {
+  if (score >= 80) return 'bg-primary/20 text-primary ring-primary/50'
+  if (score >= 65) return 'bg-primary/12 text-primary ring-primary/30'
+  if (score >= 50) return 'bg-primary/6 text-primary/80 ring-primary/20'
+  return 'bg-default/50 text-muted ring-default'
+}
+
+// 1 → 1st, 2 → 2nd, 3 → 3rd, 11..13 → 11th..13th.
+function ordinal(placement: number) {
+  const mod100 = placement % 100
+  if (mod100 >= 11 && mod100 <= 13) return `${placement}th`
+  switch (placement % 10) {
+    case 1: return `${placement}st`
+    case 2: return `${placement}nd`
+    case 3: return `${placement}rd`
+    default: return `${placement}th`
+  }
+}
 </script>
 
 <template>
@@ -188,26 +215,59 @@ function fmtGold(value: number) {
           </div>
         </div>
 
-        <!-- Items -->
-        <div class="ml-auto hidden shrink-0 items-center gap-1 md:flex">
-          <div class="flex gap-0.5">
-            <template v-for="(itemId, idx) in inventory(p)" :key="`item-${idx}`">
-              <div v-if="!itemId" class="size-5 shrink-0" aria-hidden="true" />
-              <GameTooltipItemIcon
-                v-else
-                :item="items[itemId] ?? null"
-                :width="20"
-                :height="20"
-                class="size-5 rounded"
-              />
-            </template>
+        <!--
+          Right cluster: items then the performance score, edge-aligned with a
+          single `ml-auto` on the wrapper so the score stays flush right even at
+          the breakpoints where the items block is hidden.
+        -->
+        <div class="ml-auto flex shrink-0 items-center gap-2">
+          <!-- Items -->
+          <div class="hidden shrink-0 items-center gap-1 md:flex">
+            <div class="flex gap-0.5">
+              <template v-for="(itemId, idx) in inventory(p)" :key="`item-${idx}`">
+                <div v-if="!itemId" class="size-5 shrink-0" aria-hidden="true" />
+                <GameTooltipItemIcon
+                  v-else
+                  :item="items[itemId] ?? null"
+                  :width="20"
+                  :height="20"
+                  class="size-5 rounded"
+                />
+              </template>
+            </div>
+            <GameTooltipItemIcon
+              :item="p.trinketItemId ? items[p.trinketItemId] ?? null : null"
+              :width="20"
+              :height="20"
+              class="size-5 rounded-full"
+            />
           </div>
-          <GameTooltipItemIcon
-            :item="p.trinketItemId ? items[p.trinketItemId] ?? null : null"
-            :width="20"
-            :height="20"
-            class="size-5 rounded-full"
-          />
+
+          <!--
+            Performance score + placement. MVP = gold crown (best of the winning
+            side), ACE = rose-gold rosette (best of the losing side) — same icon
+            and colour convention as the collapsed MatchRow accolade.
+          -->
+          <div class="flex w-[3.25rem] shrink-0 flex-col items-end gap-0.5">
+            <UTooltip :text="`Performance score ${p.performanceScore}/100`">
+              <span
+                class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-bold leading-none tabular-nums ring-1 backdrop-blur-sm"
+                :class="scoreClass(p.performanceScore)"
+              >
+                <UIcon
+                  v-if="p.isMvp || p.isAce"
+                  :name="p.isMvp ? 'i-lucide-crown' : 'i-lucide-award'"
+                  class="size-3"
+                  :class="p.isMvp ? 'text-amber-400' : 'text-primary'"
+                  :aria-label="p.isMvp ? 'MVP' : 'ACE'"
+                />
+                {{ p.performanceScore }}
+              </span>
+            </UTooltip>
+            <span class="text-[10px] leading-none text-muted tabular-nums">
+              {{ ordinal(p.placement) }}
+            </span>
+          </div>
         </div>
       </li>
     </ul>
