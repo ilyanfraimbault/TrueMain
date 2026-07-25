@@ -47,7 +47,7 @@ const scoreLabel = computed(() => props.dedication.score.toFixed(1))
             {{ scoreLabel }}
           </span>
           <span class="mt-1 text-[10px] uppercase tracking-wide text-muted">
-            {{ tierLabel }} · / 100
+            {{ tierLabel }} · out of 100
           </span>
         </div>
 
