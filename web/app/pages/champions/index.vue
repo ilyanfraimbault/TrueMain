@@ -288,11 +288,11 @@ const { perk, perkStyle, item: staticItem } = useBuildResolvers(runeTree, itemsM
             v-for="row in pagedRows"
             :key="`${row.championId}-${row.position}`"
           >
-            <div
+            <ListRowSurface
               role="button"
               tabindex="0"
               :aria-label="`View ${row.name} builds`"
-              class="glass-hover flex cursor-pointer items-center gap-4 rounded-lg border border-default/60 bg-elevated/60 px-3 py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-default"
+              class="cursor-pointer gap-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-default"
               @click="onRowActivate(row)"
               @keydown.enter.prevent="onRowActivate(row)"
               @keydown.space.prevent="onRowActivate(row)"
@@ -391,7 +391,7 @@ const { perk, perkStyle, item: staticItem } = useBuildResolvers(runeTree, itemsM
                   <span class="mt-0.5 text-xs text-muted">PR</span>
                 </div>
               </div>
-            </div>
+            </ListRowSurface>
           </li>
         </ul>
 
