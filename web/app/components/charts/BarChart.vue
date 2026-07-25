@@ -57,6 +57,11 @@ const resolvedCategories = computed(() => {
 const isEmpty = computed(
   () => !props.loading && (props.data?.length ?? 0) === 0,
 )
+
+// Tick text is string-interpolated into an SVG fragment and parsed as strict
+// XML by @unovis/ts, so `&`/`<`/`>` in a label must be escaped here (#842).
+const safeXFormatter = computed(() => escapeTickFormatter(props.xFormatter))
+const safeYFormatter = computed(() => escapeTickFormatter(props.yFormatter))
 </script>
 
 <template>
@@ -79,8 +84,8 @@ const isEmpty = computed(
         :height="height"
         :x-label="xLabel"
         :y-label="yLabel"
-        :x-formatter="xFormatter"
-        :y-formatter="yFormatter"
+        :x-formatter="safeXFormatter"
+        :y-formatter="safeYFormatter"
         :bar-padding="barPadding"
         :radius="radius"
         :x-grid-line="xGridLine"
