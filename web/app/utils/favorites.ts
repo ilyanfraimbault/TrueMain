@@ -1,6 +1,7 @@
 import type { ComputedRef, Ref } from 'vue'
 import type { RegionSlug } from '~~/shared/types/leaderboard'
 import { computed } from 'vue'
+import { REGION_SLUGS } from '~~/shared/types/leaderboard'
 
 /**
  * Client-side "followed truemains" store (#531).
@@ -51,7 +52,9 @@ export interface FavoriteTruemainInput {
   profileIconId?: number | null
 }
 
-const VALID_REGIONS = new Set<string>(['europe', 'americas', 'korea'])
+// Derived from the canonical list, never retyped — a slug missing here would
+// silently null out a valid stored region.
+const VALID_REGIONS = new Set<string>(REGION_SLUGS)
 
 /**
  * App-wide profile slug for a Riot ID. Mirrors `LeaderboardRow` and the
