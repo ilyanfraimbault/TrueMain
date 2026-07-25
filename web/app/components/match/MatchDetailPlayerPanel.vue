@@ -127,8 +127,13 @@ const hasSkills = computed(() => props.participant.skillEvents.length > 0)
 
 <template>
   <div class="flex flex-col gap-3">
-    <!-- Laning @15 + global per-minute stats + wards -->
-    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <!-- Laning @15 + global per-minute stats + wards.
+         Three columns from `md` (768px): measured at 768 the cards are 224px
+         wide and nothing clips, while at 640 they drop to 187px and the wider
+         labels (gold diff, DMG/m) wrap. In the 640–767 band the grid stays
+         2-up and the wards card spans the full row, so the odd third card is
+         never orphaned next to an empty half. -->
+    <div class="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
       <div class="glass rounded-md border border-default/60 bg-elevated/60 p-3">
         <p class="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
           <UIcon name="i-lucide-swords" class="size-3.5 text-primary" />
@@ -185,7 +190,7 @@ const hasSkills = computed(() => props.participant.skillEvents.length > 0)
         </div>
       </div>
 
-      <div class="glass rounded-md border border-default/60 bg-elevated/60 p-3">
+      <div class="glass rounded-md border border-default/60 bg-elevated/60 p-3 sm:col-span-2 md:col-span-1">
         <p class="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
           <UIcon name="i-lucide-eye" class="size-3.5 text-primary" />
           Wards
