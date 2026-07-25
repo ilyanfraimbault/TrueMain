@@ -63,19 +63,10 @@ builder.Services.AddScoped<IChampionDimensionResolver, ChampionDimensionResolver
 // singletons; the AsyncLocal inside keeps the value isolated to each pass's flow.
 builder.Services.AddSingleton<IIterationContext, IterationContext>();
 builder.Services.AddSingleton<IProcessRunRecorder, ProcessRunRecorder>();
-builder.Services.AddRecordedProcess<DiscoveryProcess>();
-builder.Services.AddRecordedProcess<ManualSeedProcess>();
-builder.Services.AddRecordedProcess<HarvestProcess>();
-builder.Services.AddRecordedProcess<ScoringProcess>();
-builder.Services.AddRecordedProcess<MatchIngestionProcess>();
-builder.Services.AddRecordedProcess<MatchTeamPositionCorrectionProcess>();
-builder.Services.AddRecordedProcess<MainAnalysisProcess>();
-builder.Services.AddRecordedProcess<MatchParticipantEloBracketEnrichmentProcess>();
-builder.Services.AddRecordedProcess<ChampionPatternAggregationProcess>();
-builder.Services.AddRecordedProcess<ChampionMatchupLeadAggregationProcess>();
-builder.Services.AddRecordedProcess<ChampionPowerspikeAggregationProcess>();
-builder.Services.AddRecordedProcess<AccountRefreshProcess>();
-builder.Services.AddRecordedProcess<MatchDataRetentionProcess>();
+// Each process is keyed by the JobMode it implements; the Worker resolves the
+// one it needs per step. Kept in an extension method so the unit tests can
+// assert the real production wiring covers every JobMode.
+builder.Services.AddIngestorProcesses();
 
 builder.Services.AddTrueMainData(builder.Configuration);
 

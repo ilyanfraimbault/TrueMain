@@ -5,6 +5,7 @@ using Ingestor.Processes;
 using Ingestor.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
@@ -39,30 +40,16 @@ public sealed class WorkerResilienceTests
     [Fact]
     public async Task ExecuteAsync_CreatesAFreshScopePerProcess_WhenRunningFullSequence()
     {
-        // The full sequence drives twelve processes. Issue #256 requires each one
-        // to resolve from its own scope (its own DbContext / scoped services)
-        // rather than sharing a single scope across the whole run.
-        var processNames = new[]
-        {
-            "Discovery",
-            "ManualSeed",
-            "Harvest",
-            "Scoring",
-            "MatchIngestion",
-            "MatchTeamPositionCorrection",
-            "MainAnalysis",
-            "MatchParticipantEloBracketEnrichment",
-            "ChampionPatternAggregation",
-            "ChampionMatchupLeadAggregation",
-            "ChampionPowerspikeAggregation",
-            "AccountRefresh",
-            "MatchDataRetention"
-        };
+        // Issue #256 requires each process in the full sequence to resolve from
+        // its own scope (its own DbContext / scoped services) rather than sharing
+        // a single scope across the whole run — so the keyed lookup must happen on
+        // the scope's provider, not on the root one.
+        var steps = JobModeSequence.For(JobMode.Full);
 
         var services = new ServiceCollection();
-        foreach (var name in processNames)
+        foreach (var step in steps)
         {
-            services.AddSingleton<IIngestorProcess>(new NamedProcess(name));
+            services.AddKeyedSingleton<IIngestorProcess>(step, new NamedProcess(step.ToString()));
         }
 
         using var provider = services.BuildServiceProvider();
@@ -85,8 +72,40 @@ public sealed class WorkerResilienceTests
         // up front for the startup orphaned-run reconciliation (which runs once
         // before the main loop, in its own scope).
         const int reconciliationScopes = 1;
-        countingScopeFactory.ScopesCreated.Should().Be(processNames.Length + reconciliationScopes);
-        countingScopeFactory.ScopesDisposed.Should().Be(processNames.Length + reconciliationScopes);
+        countingScopeFactory.ScopesCreated.Should().Be(steps.Count + reconciliationScopes);
+        countingScopeFactory.ScopesDisposed.Should().Be(steps.Count + reconciliationScopes);
+        lifetime.Received(1).StopApplication();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_FailsLoudlyWithoutCrashing_WhenTheModeHasNoRegisteredProcess()
+    {
+        // A mode with no keyed registration is a wiring mistake, not a transient
+        // fault: it must surface as a logged error that names the mode, and let
+        // the host exit cleanly. It must never bubble out of ExecuteAsync, which
+        // would fault the host and crash-loop the container.
+        var services = new ServiceCollection();
+        // Satisfies the startup orphaned-run reconciliation so the only error the
+        // logger captures is the one this test is about.
+        services.AddSingleton(Substitute.For<IProcessRunRecorder>());
+        var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
+        var logger = new CapturingLogger<Worker>();
+        var lifetime = Substitute.For<IHostApplicationLifetime>();
+        var jobOptions = Microsoft.Extensions.Options.Options.Create(new JobOptions
+        {
+            Mode = "ScoringOnly",
+            RunOnce = true
+        });
+
+        using var worker = new Worker(
+            logger, scopeFactory, jobOptions, new IterationContext(), lifetime);
+
+        await worker.StartAsync(CancellationToken.None);
+        await worker.ExecuteTask!;
+
+        var failure = logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Error).Subject;
+        failure.Exception.Should().BeOfType<InvalidOperationException>()
+            .Which.Message.Should().Contain(nameof(JobMode.ScoringOnly));
         lifetime.Received(1).StopApplication();
     }
 
@@ -123,7 +142,7 @@ public sealed class WorkerResilienceTests
     private static IServiceScopeFactory BuildServiceProvider(FaultyProcess process)
     {
         var services = new ServiceCollection();
-        services.AddSingleton<IIngestorProcess>(process);
+        services.AddKeyedSingleton<IIngestorProcess>(JobMode.DiscoveryOnly, process);
         return services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
     }
 
@@ -202,5 +221,26 @@ public sealed class WorkerResilienceTests
 
             return Task.FromResult<object?>(null);
         }
+    }
+
+    private sealed record LogEntry(LogLevel Level, string Message, Exception? Exception);
+
+    private sealed class CapturingLogger<T> : ILogger<T>
+    {
+        public List<LogEntry> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull
+            => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+            => Entries.Add(new LogEntry(logLevel, formatter(state, exception), exception));
     }
 }
