@@ -1,5 +1,6 @@
 using Core.Lol.Ranking;
 using Data;
+using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
 
 namespace Ingestor.Processes;
@@ -38,7 +39,7 @@ public sealed class MatchParticipantEloBracketEnrichmentProcess(
 
     public string Name => "MatchParticipantEloBracketEnrichment";
 
-    public async Task<object?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var totalStamped = 0;
         var totalDeferred = 0;
@@ -147,6 +148,6 @@ public sealed class MatchParticipantEloBracketEnrichmentProcess(
             "(account not yet rank-synced) across {Batches} batch(es).",
             totalStamped, totalDeferred, batches);
 
-        return new { stamped = totalStamped, deferred = totalDeferred, batches };
+        return new EloBracketEnrichmentSummary(totalStamped, totalDeferred, batches);
     }
 }

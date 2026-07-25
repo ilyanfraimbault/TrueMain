@@ -1,4 +1,5 @@
 using Data.Logging;
+using Ingestor.Processes.Summaries;
 using Ingestor.Services;
 
 namespace Ingestor.Processes;
@@ -26,7 +27,7 @@ public sealed class RecordedProcess<TInner>(
 
     public string Name => inner.Name;
 
-    public async Task<object?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var startedAt = timeProvider.GetUtcNow().UtcDateTime;
         var runId = await recorder.RecordStartAsync(Name, startedAt, ct);

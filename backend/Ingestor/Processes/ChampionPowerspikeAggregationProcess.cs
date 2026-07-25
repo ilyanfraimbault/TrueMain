@@ -4,6 +4,7 @@ using Core.Options;
 using Data;
 using Data.Entities;
 using Ingestor.Options;
+using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Npgsql;
@@ -61,7 +62,7 @@ public sealed class ChampionPowerspikeAggregationProcess(
 
     public string Name => "ChampionPowerspikeAggregation";
 
-    public async Task<object?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var queueId = (int)analysisOptions.Value.QueueId;
         var batchSize = options.Value.MatchBatchSize;
@@ -112,7 +113,7 @@ public sealed class ChampionPowerspikeAggregationProcess(
             processedMatches,
             batches);
 
-        return new { matches = processedMatches, batches };
+        return new MatchAggregationSummary(processedMatches, batches);
     }
 
     private static async Task ProcessBatchAsync(

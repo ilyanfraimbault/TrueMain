@@ -5,6 +5,7 @@ using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Common;
 using Ingestor.Processes.Components.Discovery;
+using Ingestor.Processes.Summaries;
 using Ingestor.Ranking;
 using Ingestor.Riot;
 using Microsoft.Extensions.Options;
@@ -24,7 +25,7 @@ public sealed class DiscoveryProcess(
 {
     public string Name => "Discovery";
 
-    public async Task<object?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var options = discoveryOptions.Value;
         var platforms = PlatformNormalizer.Normalize(options.Platforms);
@@ -32,7 +33,7 @@ public sealed class DiscoveryProcess(
         if (platforms.Count == 0)
         {
             logger.LogWarning("No platforms configured (Discovery:Platforms).");
-            return new { reason = "No platforms configured.", selected = 0 };
+            return new NoWorkSummary("No platforms configured.", 0);
         }
 
         // Reduced cadence (#487): now that the participant harvest is the primary candidate
@@ -46,7 +47,7 @@ public sealed class DiscoveryProcess(
                 "Discovery skipped: last run {LastRunUtc:o} is within MinRunInterval {Interval}.",
                 lastRunUtc,
                 options.MinRunInterval);
-            return new { reason = "Within MinRunInterval; discovery skipped this iteration.", skipped = true };
+            return new SkippedSummary("Within MinRunInterval; discovery skipped this iteration.", true);
         }
 
         var summaries = await DiscoverAcrossPlatformsAsync(platforms, options, ct);
@@ -281,24 +282,21 @@ public sealed class DiscoveryProcess(
             platformSummary.RankSnapshotsUnchanged);
     }
 
-    private static object BuildSuccessPayload(IEnumerable<PlatformSummary> summaries)
+    private static DiscoverySummary BuildSuccessPayload(IEnumerable<PlatformSummary> summaries)
     {
-        return new
-        {
-            platforms = summaries.Select(summary => new
-            {
-                platform = summary.PlatformId,
-                accountsProcessed = summary.AccountsProcessed,
-                newAccounts = summary.NewAccountsDiscovered,
-                candidatesInserted = summary.CandidatesInserted,
-                candidatesUpdated = summary.CandidatesUpdated,
-                rankSnapshotsInserted = summary.RankSnapshotsInserted,
-                rankSnapshotsUnchanged = summary.RankSnapshotsUnchanged,
+        return new DiscoverySummary(summaries
+            .Select(summary => new DiscoveryPlatformSummary(
+                summary.PlatformId,
+                summary.AccountsProcessed,
+                summary.NewAccountsDiscovered,
+                summary.CandidatesInserted,
+                summary.CandidatesUpdated,
+                summary.RankSnapshotsInserted,
+                summary.RankSnapshotsUnchanged,
                 // Null for platforms that completed; the per-platform error message
                 // otherwise, so a partially failed run says which platform failed and why.
-                error = summary.FailureReason
-            })
-        };
+                summary.FailureReason))
+            .ToList());
     }
 
     private sealed class PlatformSummary(string platformId)

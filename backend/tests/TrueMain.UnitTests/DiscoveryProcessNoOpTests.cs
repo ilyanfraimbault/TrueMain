@@ -3,6 +3,7 @@ using Data.Entities;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes;
+using Ingestor.Processes.Summaries;
 using Ingestor.Processes.Components.Discovery;
 using Ingestor.Ranking;
 using Ingestor.Riot;
@@ -53,7 +54,7 @@ public sealed class DiscoveryProcessNoOpTests
             Arg.Any<DateTime>(),
             Arg.Any<DateTime>(),
             ProcessRunStatus.Success,
-            Arg.Any<object>(),
+            Arg.Any<IProcessRunSummary>(),
             null,
             Arg.Any<CancellationToken>());
 

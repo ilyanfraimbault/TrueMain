@@ -1,4 +1,5 @@
 using Data.Entities;
+using Ingestor.Processes.Summaries;
 
 namespace Ingestor.Services;
 
@@ -10,7 +11,7 @@ public static class ProcessRunRecorderExtensions
         string processName,
         DateTime startedAtUtc,
         DateTime finishedAtUtc,
-        object? summary,
+        IProcessRunSummary? summary,
         CancellationToken ct)
     {
         return runRecorder.RecordAsync(

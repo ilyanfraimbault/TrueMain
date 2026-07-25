@@ -3,6 +3,7 @@ using Data.Entities;
 using Ingestor;
 using Ingestor.Options;
 using Ingestor.Processes;
+using Ingestor.Processes.Summaries;
 using Ingestor.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -191,7 +192,7 @@ public sealed class WorkerProcessIsolationTests
     {
         public string Name => name;
 
-        public async Task<object?> RunCoreAsync(CancellationToken ct)
+        public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
         {
             await Task.Yield();
             executed.Add(name);
@@ -208,7 +209,7 @@ public sealed class WorkerProcessIsolationTests
     {
         public string Name => name;
 
-        public async Task<object?> RunCoreAsync(CancellationToken ct)
+        public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
         {
             await Task.Yield();
             observed.Add(iterationContext.CurrentIterationId);
@@ -220,7 +221,7 @@ public sealed class WorkerProcessIsolationTests
     {
         public string Name => name;
 
-        public async Task<object?> RunCoreAsync(CancellationToken ct)
+        public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
         {
             await Task.Yield();
             throw new InvalidOperationException("simulated process failure");
@@ -231,7 +232,7 @@ public sealed class WorkerProcessIsolationTests
     {
         public string Name => name;
 
-        public async Task<object?> RunCoreAsync(CancellationToken ct)
+        public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
         {
             await Task.Yield();
             await cts.CancelAsync();

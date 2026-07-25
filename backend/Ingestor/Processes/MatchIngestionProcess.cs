@@ -5,6 +5,7 @@ using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Common;
 using Ingestor.Processes.Components.MatchIngestion;
+using Ingestor.Processes.Summaries;
 using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
@@ -20,7 +21,7 @@ public sealed class MatchIngestionProcess(
 {
     public string Name => "MatchIngestion";
 
-    public async Task<object?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var options = matchOptions.Value;
         var platforms = PlatformNormalizer.Normalize(options.Platforms);
@@ -28,7 +29,7 @@ public sealed class MatchIngestionProcess(
         if (platforms.Count == 0)
         {
             logger.LogWarning("No platforms configured (MatchIngestion:Platforms).");
-            return new { reason = "No platforms configured.", selected = 0 };
+            return new NoWorkSummary("No platforms configured.", 0);
         }
 
         var claimedAccounts = await ClaimAccountsAsync(platforms, options, ct);
@@ -208,27 +209,23 @@ public sealed class MatchIngestionProcess(
         }
     }
 
-    private static object BuildSuccessPayload(IngestionSummary summary)
+    private static MatchIngestionSummary BuildSuccessPayload(IngestionSummary summary)
     {
-        return new
-        {
-            accountsProcessed = summary.TotalAccounts,
-            matchesInserted = summary.TotalInserted,
-            matchesSkipped = summary.TotalSkipped,
-            timelinesUpdated = summary.TotalTimelines,
-            errors = summary.TotalErrors,
-            byPlatform = summary.ByPlatform
+        return new MatchIngestionSummary(
+            summary.TotalAccounts,
+            summary.TotalInserted,
+            summary.TotalSkipped,
+            summary.TotalTimelines,
+            summary.TotalErrors,
+            summary.ByPlatform
                 .Where(entry => entry.Value.AccountsProcessed > 0)
-                .Select(entry => new
-                {
-                    platform = entry.Key,
-                    accountsProcessed = entry.Value.AccountsProcessed,
-                    matchesInserted = entry.Value.MatchesInserted,
-                    matchesSkipped = entry.Value.MatchesSkipped,
-                    timelinesUpdated = entry.Value.TimelinesUpdated
-                })
-                .ToList()
-        };
+                .Select(entry => new MatchIngestionPlatformSummary(
+                    entry.Key,
+                    entry.Value.AccountsProcessed,
+                    entry.Value.MatchesInserted,
+                    entry.Value.MatchesSkipped,
+                    entry.Value.TimelinesUpdated))
+                .ToList());
     }
 
     private sealed record AccountIngestionSummary(string PlatformId, int Inserted, int Skipped, int TimelinesUpdated);

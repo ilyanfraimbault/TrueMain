@@ -6,6 +6,7 @@ using Data.Logging.Mongo;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Components.Discovery;
+using Ingestor.Processes.Summaries;
 using Ingestor.Riot;
 using Microsoft.Extensions.Options;
 
@@ -43,7 +44,7 @@ public sealed class ManualSeedProcess(
 
     public string Name => "ManualSeed";
 
-    public async Task<object?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var options = manualSeedOptions.Value;
         var batchSize = Math.Max(1, options.BatchSize);
@@ -52,7 +53,7 @@ public sealed class ManualSeedProcess(
         if (pendingIds.Count == 0)
         {
             logger.LogInformation("No pending seed requests.");
-            return new { reason = "No pending seed requests.", claimed = 0 };
+            return new ManualSeedNoWorkSummary("No pending seed requests.", 0);
         }
 
         var summary = new SeedSummary();
@@ -70,14 +71,12 @@ public sealed class ManualSeedProcess(
             summary.Failed,
             summary.CandidatesQueued);
 
-        return new
-        {
-            claimed = summary.Claimed,
-            ingested = summary.Ingested,
-            notFound = summary.NotFound,
-            failed = summary.Failed,
-            candidatesQueued = summary.CandidatesQueued
-        };
+        return new ManualSeedSummary(
+            summary.Claimed,
+            summary.Ingested,
+            summary.NotFound,
+            summary.Failed,
+            summary.CandidatesQueued);
     }
 
     private async Task<List<Guid>> LoadPendingIdsAsync(int batchSize, CancellationToken ct)

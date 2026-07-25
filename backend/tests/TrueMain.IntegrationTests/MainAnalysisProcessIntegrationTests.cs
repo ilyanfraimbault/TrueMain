@@ -4,6 +4,7 @@ using Data.Entities;
 using AwesomeAssertions;
 using Ingestor.Options;
 using Ingestor.Processes;
+using Ingestor.Processes.Summaries;
 using Ingestor.Processes.Components.Coverage;
 using Ingestor.Processes.Components.MainAnalysis;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -176,7 +177,7 @@ public sealed class MainAnalysisProcessIntegrationTests
         account.LastMainCalcAtUtc.Should().NotBeNull("the account is still stamped so it waits a full recompute cycle");
     }
 
-    private Task<object?> RunProcessAsync()
+    private Task<IProcessRunSummary?> RunProcessAsync()
     {
         var process = new MainAnalysisProcess(
             NullLogger<MainAnalysisProcess>.Instance,

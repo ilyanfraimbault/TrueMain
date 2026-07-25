@@ -2,6 +2,7 @@ using Data.Entities;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes;
+using Ingestor.Processes.Summaries;
 using Ingestor.Processes.Components.MatchIngestion;
 using Ingestor.Services;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -47,7 +48,7 @@ public sealed class MatchIngestionProcessNoOpTests
             Arg.Any<DateTime>(),
             Arg.Any<DateTime>(),
             ProcessRunStatus.Success,
-            Arg.Any<object>(),
+            Arg.Any<IProcessRunSummary>(),
             null,
             Arg.Any<CancellationToken>());
 

@@ -1,5 +1,6 @@
 using Core.Lol.Map;
 using Data;
+using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
 
 namespace Ingestor.Processes;
@@ -27,7 +28,7 @@ public sealed class MatchTeamPositionCorrectionProcess(
 
     public string Name => "MatchTeamPositionCorrection";
 
-    public async Task<object?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
 
@@ -44,7 +45,7 @@ public sealed class MatchTeamPositionCorrectionProcess(
 
         if (candidateTeams.Count == 0)
         {
-            return new { correctedParticipants = 0, inspectedTeams = 0 };
+            return new TeamPositionCorrectionSummary(0, 0);
         }
 
         var matchIds = candidateTeams.Select(t => t.MatchId).Distinct().ToList();
@@ -98,6 +99,6 @@ public sealed class MatchTeamPositionCorrectionProcess(
                 candidateTeams.Count);
         }
 
-        return new { correctedParticipants = corrected, inspectedTeams = candidateTeams.Count };
+        return new TeamPositionCorrectionSummary(corrected, candidateTeams.Count);
     }
 }

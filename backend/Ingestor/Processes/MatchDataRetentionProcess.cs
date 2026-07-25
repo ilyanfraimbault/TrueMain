@@ -2,6 +2,7 @@ using Core.Lol.Patches;
 using Core.Options;
 using Data;
 using Ingestor.Options;
+using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -22,7 +23,7 @@ public sealed class MatchDataRetentionProcess(
     // once a match is folded. Mirrors ChampionMatchupLeadAggregationProcess.
     private static readonly int[] CanonicalSnapshotMinutes = [5, 10, 15, 20, 30];
 
-    public async Task<object?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         // Prune stale never-promoted candidates first (#487) — independent of match
         // retention, so it runs even when there is nothing to delete below.
@@ -406,7 +407,7 @@ public sealed class MatchDataRetentionProcess(
         return new DeletionResult(deletedMatches, deletedParticipants);
     }
 
-    private static object BuildRetentionPayload(
+    private static MatchDataRetentionSummary BuildRetentionPayload(
         RetentionPlan retentionPlan,
         int deletedMatches,
         int deletedParticipants,
@@ -415,30 +416,24 @@ public sealed class MatchDataRetentionProcess(
         AggregateDeletionResult aggregateDeletion,
         SnapshotPruneResult snapshotPrune)
     {
-        return new
-        {
-            retainedPatchCount = retentionPlan.RetainedPatchCount,
-            queueId = retentionPlan.QueueId,
+        return new MatchDataRetentionSummary(
+            retentionPlan.RetainedPatchCount,
+            retentionPlan.QueueId,
             deletedMatches,
             deletedParticipants,
             deletedNonRankedMatches,
             prunedCandidates,
-            prunedSnapshotMatches = snapshotPrune.PrunedMatches,
-            deletedIntermediateSnapshots = snapshotPrune.DeletedSnapshots,
-            deletedAggregateScopes = aggregateDeletion.DeletedScopes,
-            deletedMatchupStats = aggregateDeletion.DeletedMatchupStats,
-            deletedTimelineLeadStats = aggregateDeletion.DeletedTimelineLeadStats,
-            deletedPowerspikeCurveStats = aggregateDeletion.DeletedPowerspikeCurveStats,
-            deletedPowerspikeEventStats = aggregateDeletion.DeletedPowerspikeEventStats,
-            retainedPatchesByPlatform = retentionPlan.RetainedPatchesByPlatform
+            snapshotPrune.PrunedMatches,
+            snapshotPrune.DeletedSnapshots,
+            aggregateDeletion.DeletedScopes,
+            aggregateDeletion.DeletedMatchupStats,
+            aggregateDeletion.DeletedTimelineLeadStats,
+            aggregateDeletion.DeletedPowerspikeCurveStats,
+            aggregateDeletion.DeletedPowerspikeEventStats,
+            retentionPlan.RetainedPatchesByPlatform
                 .OrderBy(entry => entry.Key)
-                .Select(entry => new
-                {
-                    platformId = entry.Key,
-                    patches = entry.Value.Order().ToArray()
-                })
-                .ToArray()
-        };
+                .Select(entry => new RetainedPatchesSummary(entry.Key, entry.Value.Order().ToList()))
+                .ToList());
     }
 
     private sealed record ObservedMatch(string PlatformId, string GameVersion);
