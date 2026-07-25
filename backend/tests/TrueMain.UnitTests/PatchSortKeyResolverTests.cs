@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using Microsoft.Extensions.Logging;
 using TrueMain.Services.Champions;
+using TrueMain.UnitTests.Fixtures;
 
 namespace TrueMain.UnitTests;
 
@@ -11,7 +12,7 @@ public sealed class PatchSortKeyResolverTests
     [Fact]
     public void Resolve_returns_major_minor_and_stays_silent_on_a_valid_patch()
     {
-        var logger = new CapturingLogger();
+        var logger = new CapturingLogger<PatchSortKeyResolver>();
         var resolver = new PatchSortKeyResolver(logger, Surface, championId: 157);
 
         resolver.Resolve("16.4.521.9999").Should().Be((16, 4), "the hotfix build never enters the sort key");
@@ -23,7 +24,7 @@ public sealed class PatchSortKeyResolverTests
     [Fact]
     public void Resolve_warns_once_for_a_malformed_value_repeated_across_rows()
     {
-        var logger = new CapturingLogger();
+        var logger = new CapturingLogger<PatchSortKeyResolver>();
         var resolver = new PatchSortKeyResolver(logger, Surface, championId: 157);
 
         // The same corrupt row value re-read 50 times — once per row of the
@@ -45,7 +46,7 @@ public sealed class PatchSortKeyResolverTests
     [Fact]
     public void Resolve_warns_once_per_distinct_malformed_value()
     {
-        var logger = new CapturingLogger();
+        var logger = new CapturingLogger<PatchSortKeyResolver>();
         var resolver = new PatchSortKeyResolver(logger, Surface, championId: 157);
 
         string[] versions = ["", "16", "not-a-patch", "16", "16.4", "not-a-patch", "  "];
@@ -66,7 +67,7 @@ public sealed class PatchSortKeyResolverTests
     [Fact]
     public void Resolve_scopes_the_warned_set_to_one_instance()
     {
-        var logger = new CapturingLogger();
+        var logger = new CapturingLogger<PatchSortKeyResolver>();
 
         // One resolver per query: the same corrupt row seen by a later query is
         // a fresh signal, so it warns again instead of being silenced forever.
@@ -74,39 +75,5 @@ public sealed class PatchSortKeyResolverTests
         _ = new PatchSortKeyResolver(logger, Surface, championId: 157).Resolve("not-a-patch");
 
         logger.Entries.Should().HaveCount(2);
-    }
-
-    private sealed record LogEntry(
-        LogLevel Level,
-        string Message,
-        IReadOnlyList<KeyValuePair<string, object?>> Properties);
-
-    private sealed class CapturingLogger : ILogger
-    {
-        public List<LogEntry> Entries { get; } = [];
-
-        public IDisposable BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
-
-        public bool IsEnabled(LogLevel logLevel) => true;
-
-        public void Log<TState>(
-            LogLevel logLevel,
-            EventId eventId,
-            TState state,
-            Exception? exception,
-            Func<TState, Exception?, string> formatter)
-            => Entries.Add(new LogEntry(
-                logLevel,
-                formatter(state, exception),
-                state as IReadOnlyList<KeyValuePair<string, object?>> ?? []));
-
-        private sealed class NullScope : IDisposable
-        {
-            public static readonly NullScope Instance = new();
-
-            public void Dispose()
-            {
-            }
-        }
     }
 }
