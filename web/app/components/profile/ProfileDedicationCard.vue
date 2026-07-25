@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { TruemainDedication } from '~~/shared/types/dedication'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
-import { dedicationComponents, dedicationTier } from '~/utils/dedication'
+import { dedicationComponents, dedicationTier, dedicationTierColor } from '~/utils/dedication'
 
 // TrueMain's signature metric, on the player's signature champion. Every figure
 // on this card — the score, the four components, the raw counts — comes from
@@ -27,6 +27,10 @@ const components = computed(() => dedicationComponents(props.dedication))
 
 const tierLabel = computed(() => dedicationTier(props.dedication.score))
 
+// Colours the score by its own tier so the card reads at a glance, no hover
+// needed — the same rose-gold→iron scale `TierBadge` uses for S..D.
+const tierColorClass = computed(() => dedicationTierColor(props.dedication.score))
+
 // One decimal, matching what the backend ranks on — the leaderboard cell
 // rounds harder because it has a fifth of the room.
 const scoreLabel = computed(() => props.dedication.score.toFixed(1))
@@ -43,11 +47,22 @@ const scoreLabel = computed(() => props.dedication.score.toFixed(1))
            player's own build page for it, which is the natural next click. -->
       <div class="flex items-center gap-3">
         <div class="flex flex-col">
-          <span class="text-3xl font-bold leading-none tabular-nums text-primary">
-            {{ scoreLabel }}
-          </span>
+          <div class="flex items-baseline gap-1.5">
+            <span
+              class="text-3xl font-bold leading-none tabular-nums"
+              :class="tierColorClass"
+            >
+              {{ scoreLabel }}
+            </span>
+            <span
+              class="text-xs font-semibold uppercase tracking-wide"
+              :class="tierColorClass"
+            >
+              {{ tierLabel }}
+            </span>
+          </div>
           <span class="mt-1 text-[10px] uppercase tracking-wide text-muted">
-            {{ tierLabel }} · out of 100
+            out of 100
           </span>
         </div>
 
@@ -66,25 +81,8 @@ const scoreLabel = computed(() => props.dedication.score.toFixed(1))
 
       <!-- The four components, so the score is readable rather than asserted.
            Each bar is the normalised component; the caption is the raw figure
-           behind it. -->
-      <ul class="flex flex-col gap-2">
-        <li
-          v-for="component in components"
-          :key="component.key"
-          class="flex flex-col gap-1"
-        >
-          <div class="flex items-baseline justify-between gap-2 text-[11px]">
-            <span class="font-medium text-default">{{ component.label }}</span>
-            <span class="truncate text-muted">{{ component.detail }}</span>
-          </div>
-          <div class="h-1.5 w-full overflow-hidden rounded-full bg-elevated/60">
-            <div
-              class="h-full rounded-full bg-primary/70"
-              :style="{ width: `${Math.round(component.value * 100)}%` }"
-            />
-          </div>
-        </li>
-      </ul>
+           behind it. Shared with the leaderboard row's tooltip. -->
+      <DedicationBreakdown :components="components" />
 
       <p class="text-[10px] leading-snug text-muted">
         Weighted from the share of games on the champion, the patches played,

@@ -3,6 +3,7 @@ import type { TruemainDedication } from '~~/shared/types/dedication'
 import {
   dedicationComponents,
   dedicationTier,
+  dedicationTierColor,
   describeDedication,
   formatDedicationLastPlayed,
   formatDedicationScore,
@@ -72,6 +73,25 @@ describe('dedicationTier', () => {
     for (let score = 0; score <= 100; score += 0.5) {
       expect(dedicationTier(score)).toBeTruthy()
     }
+  })
+})
+
+describe('dedicationTierColor', () => {
+  // Mirrors the `TierBadge` S..D scale (best → worst) at the same
+  // boundaries as `dedicationTier`, so the word and the colour never drift.
+  it.each([
+    [100, 'text-tier-s'],
+    [85, 'text-tier-s'],
+    [84.9, 'text-tier-a'],
+    [70, 'text-tier-a'],
+    [69.9, 'text-tier-b'],
+    [50, 'text-tier-b'],
+    [49.9, 'text-tier-c'],
+    [30, 'text-tier-c'],
+    [29.9, 'text-tier-d'],
+    [0, 'text-tier-d'],
+  ])('colours %p as %s', (score, expected) => {
+    expect(dedicationTierColor(score)).toBe(expected)
   })
 })
 
@@ -160,7 +180,7 @@ describe('describeDedication', () => {
     ).split('\n')
 
     expect(lines).toHaveLength(5)
-    expect(lines[1]).toBe('Commitment 21% — 30% of recent ranked games')
+    expect(lines[1]).toBe('Play rate 21% — 30% of recent ranked games')
     expect(lines[2]).toBe('Span 100% — 7 tracked patches')
     expect(lines[3]).toBe('Volume 98% — 180 tracked games')
     expect(lines[4]).toBe('Recency 94% — played 2 days ago')

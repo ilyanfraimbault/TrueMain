@@ -25,16 +25,33 @@ export function formatDedicationScore(score: number): string {
 }
 
 /**
- * A one-word verdict for a score. Bands are presentation-only: they exist so a
- * reader can place a number without knowing the scale, and they never feed back
- * into ordering.
+ * One-word verdict bands for a score. Presentation-only: they exist so a
+ * reader can place a number without knowing the scale, and they never feed
+ * back into ordering. `colorClass` reuses the app's S/A/B/C/D performance-tier
+ * palette (see `--color-tier-*` in main.css, already worn by `TierBadge`) so
+ * the same rose-gold→iron read that means "best→worst" elsewhere in the app
+ * means the same thing here, without inventing a second colour language.
  */
+const DEDICATION_TIERS = [
+  { min: 85, label: 'Devoted', colorClass: 'text-tier-s' },
+  { min: 70, label: 'Committed', colorClass: 'text-tier-a' },
+  { min: 50, label: 'Invested', colorClass: 'text-tier-b' },
+  { min: 30, label: 'Casual', colorClass: 'text-tier-c' },
+  { min: 0, label: 'Dabbling', colorClass: 'text-tier-d' },
+] as const
+
+function dedicationTierEntry(score: number): typeof DEDICATION_TIERS[number] {
+  return DEDICATION_TIERS.find(tier => score >= tier.min) ?? DEDICATION_TIERS[DEDICATION_TIERS.length - 1]
+}
+
+/** A one-word verdict for a score — see {@link DEDICATION_TIERS}. */
 export function dedicationTier(score: number): string {
-  if (score >= 85) return 'Devoted'
-  if (score >= 70) return 'Committed'
-  if (score >= 50) return 'Invested'
-  if (score >= 30) return 'Casual'
-  return 'Dabbling'
+  return dedicationTierEntry(score).label
+}
+
+/** Tailwind text-colour utility for a score's tier — see {@link DEDICATION_TIERS}. */
+export function dedicationTierColor(score: number): string {
+  return dedicationTierEntry(score).colorClass
 }
 
 /** Days-since-last-game phrased for a human; null when nothing is tracked yet. */
@@ -50,7 +67,12 @@ export function dedicationComponents(dedication: TruemainDedication): Dedication
   return [
     {
       key: 'commitment',
-      label: 'Commitment',
+      // Labelled "Play rate" rather than "Commitment" so it reads distinctly
+      // from the parent "Dedication" score it feeds into — the two words were
+      // near-synonyms, which made the breakdown confusing rather than
+      // explanatory. The field name (`commitment`) and its weight are
+      // unchanged; this is a display label only.
+      label: 'Play rate',
       value: dedication.commitment,
       detail: `${(dedication.playRate * 100).toFixed(0)}% of recent ranked games`,
     },
