@@ -16,6 +16,7 @@ public sealed class TruemainsController(
     IProfileQueryService profileQueryService,
     IPlayerChampionBuildsQueryService playerChampionBuildsQueryService,
     IPlayerChampionMatchupQueryService playerChampionMatchupQueryService,
+    IPlayerBuildDivergenceQueryService playerBuildDivergenceQueryService,
     IRankHistoryQueryService rankHistoryQueryService,
     ITruemainsLeaderboardQueryService leaderboardQueryService,
     ISearchQueryService searchQueryService) : ControllerBase
@@ -130,6 +131,52 @@ public sealed class TruemainsController(
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
 
         var response = await playerChampionBuildsQueryService.GetAsync(
+            nameTag,
+            championId,
+            normalizedPatch,
+            normalizedPosition,
+            ct);
+
+        return response is null ? NotFound() : Ok(response);
+    }
+
+    /// <summary>
+    /// "You vs mains": how this player's dominant starter, boots, build path and
+    /// skill order compare to what the champion's other mains do at the same
+    /// patch and position. 400 for an unrecognised position; 404 when the name
+    /// tag is malformed, the account is unknown, or we hold no aggregate at all
+    /// for them on the champion. A known player whose sample is too thin — or a
+    /// champion + lane with too few other mains to compare against — is a 200
+    /// carrying the counts and no dimensions, so the page renders an honest
+    /// "not enough games yet" instead of a failure.
+    /// </summary>
+    [HttpGet("{nameTag}/champions/{championId:int}/divergence")]
+    [ProducesResponseType(typeof(PlayerBuildDivergenceResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<PlayerBuildDivergenceResponse>> GetPlayerChampionDivergenceAsync(
+        string nameTag,
+        int championId,
+        [FromQuery] string? patch,
+        [FromQuery] string? position,
+        CancellationToken ct = default)
+    {
+        // A blank/absent position means "the player's dominant lane"; only a
+        // non-blank value that fails to canonicalise is a client error — same
+        // rule as the player-scoped build endpoint above.
+        string? normalizedPosition = null;
+        if (!string.IsNullOrWhiteSpace(position))
+        {
+            normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+            if (normalizedPosition is null)
+            {
+                return ValidationProblem(ChampionQueryParameterNormalizer.InvalidPositionMessage);
+            }
+        }
+
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+
+        var response = await playerBuildDivergenceQueryService.GetAsync(
             nameTag,
             championId,
             normalizedPatch,

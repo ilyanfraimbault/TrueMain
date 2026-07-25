@@ -51,6 +51,11 @@ const isEmpty = computed(
   () => !props.loading && (props.data?.length ?? 0) === 0,
 )
 
+// Tick text is string-interpolated into an SVG fragment and parsed as strict
+// XML by @unovis/ts, so `&`/`<`/`>` in a label must be escaped here (#842).
+const safeXFormatter = computed(() => escapeTickFormatter(props.xFormatter))
+const safeYFormatter = computed(() => escapeTickFormatter(props.yFormatter))
+
 const crosshairConfig = { color: CHART_GUIDE_COLOR }
 </script>
 
@@ -73,8 +78,8 @@ const crosshairConfig = { color: CHART_GUIDE_COLOR }
         :height="height"
         :x-label="xLabel"
         :y-label="yLabel"
-        :x-formatter="xFormatter"
-        :y-formatter="yFormatter"
+        :x-formatter="safeXFormatter"
+        :y-formatter="safeYFormatter"
         :curve-type="curveType"
         :line-width="lineWidth"
         :y-grid-line="yGridLine"

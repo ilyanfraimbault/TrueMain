@@ -292,5 +292,14 @@ const positionIcons = computed(() => {
         <span class="text-[10px] text-muted">WR</span>
       </div>
     </div>
+
+    <!-- Follow toggle, pinned to the row's trailing edge on every breakpoint
+         (the stat block above collapses on narrow rows, the star does not). -->
+    <FavoriteToggle
+      :game-name="row.identity.gameName"
+      :tag-line="row.identity.tagLine"
+      :region="row.region"
+      :profile-icon-id="row.identity.profileIconId"
+    />
   </div>
 </template>

@@ -59,6 +59,15 @@ public static class OpsEvents
     /// <summary>A recorded ingestor process run failed (#722); carries the exception.</summary>
     public static readonly EventId ProcessRunFailed = new(1007, nameof(ProcessRunFailed));
 
+    /// <summary>
+    /// A participant harvest pass could not cover its eligible pool: more (puuid,
+    /// champion) pairs qualified than <c>Harvest:MaxCandidatesPerRun</c> allowed, so
+    /// some were left for a later run (#495). Carries the dropped counts, per class
+    /// (new discovery vs stat refresh) and per platform, so the operator can tell a
+    /// harmless refresh backlog from new discovery actually starving.
+    /// </summary>
+    public static readonly EventId HarvestBudgetExhausted = new(1008, nameof(HarvestBudgetExhausted));
+
     // Single source for the lookup + the UI-facing list, so a new event only has
     // to be added in two places (its field above and this array).
     private static readonly EventId[] All =
@@ -70,7 +79,8 @@ public static class OpsEvents
         HarvestCycleCompleted,
         MatchRevertFailed,
         ProcessRunCompleted,
-        ProcessRunFailed
+        ProcessRunFailed,
+        HarvestBudgetExhausted
     ];
 
     private static readonly Dictionary<string, int> IdByName =

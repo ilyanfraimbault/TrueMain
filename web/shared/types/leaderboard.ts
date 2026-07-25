@@ -5,11 +5,23 @@ import type { TruemainDedication } from './dedication'
 import type { ProfileIdentity } from './profile'
 
 /**
- * The three region pills the leaderboard exposes in V1. JP1 and SEA shards
- * are out of scope until there's demand — adding them is a `RegionSlug`
- * extension here + the matching pill on the frontend.
+ * Every region slug the leaderboard exposes, as a runtime list.
+ *
+ * This is the single source of truth: {@link RegionSlug} is *derived* from it
+ * rather than declared beside it, so the two cannot drift. That matters because
+ * the runtime copies are validation guards — they narrow untrusted input (query
+ * strings, `localStorage`) against this list, and a slug present in the type but
+ * missing from the list is silently dropped to `null` instead of failing loudly.
+ *
+ * JP1 and SEA shards are out of scope until there's demand. Adding a region
+ * touches more than this file — the display pills in `LeaderboardFilters.vue`
+ * and `home/TruemainsPanel.vue`, the flag artwork in `LeaderboardRegionFlag.vue`,
+ * and the platform mapping in `shared/utils/region.ts` all carry their own
+ * per-region entries and must be extended too.
  */
-export type RegionSlug = 'europe' | 'americas' | 'korea'
+export const REGION_SLUGS = ['europe', 'americas', 'korea'] as const
+
+export type RegionSlug = typeof REGION_SLUGS[number]
 
 /**
  * Ranking column of the leaderboard. `rank` is current ranked standing (the

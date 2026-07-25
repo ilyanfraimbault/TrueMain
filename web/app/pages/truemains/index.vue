@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { LeaderboardSort, RegionSlug } from '~~/shared/types/leaderboard'
 import type { ChampionPosition } from '~/utils/positions'
+import { REGION_SLUGS } from '~~/shared/types/leaderboard'
 
 useSeoMeta({
   title: 'OTP Leaderboard',
@@ -12,7 +13,7 @@ useSchemaOrg([
 ])
 
 const LEADERBOARD_PAGE_SIZE = 25
-const VALID_REGIONS: ReadonlySet<RegionSlug> = new Set(['europe', 'americas', 'korea'])
+const VALID_REGIONS: ReadonlySet<RegionSlug> = new Set(REGION_SLUGS)
 
 const route = useRoute()
 

@@ -95,6 +95,12 @@ function buildParticipant(entry: RosterEntry, index: number, durationSeconds: nu
     damagePerMin: damage / minutes,
     goldPerMin: (11000 + index * 700) / minutes,
     visionPerMin: (18 + index * 3) / minutes,
+    // Filled in by rankFixture() once the whole roster exists — the score is a
+    // match-relative metric, so it can't be decided one participant at a time.
+    performanceScore: 0,
+    placement: 0,
+    isMvp: false,
+    isAce: false,
     laning15: { csDiff: (index % 3 === 0 ? 12 : -8) + index, goldDiff: win ? 320 : -210, xpDiff: win ? 180 : -140 },
     firstToLevelTwo: win ? index % 2 === 0 : null,
     runes: RUNES,
@@ -104,6 +110,39 @@ function buildParticipant(entry: RosterEntry, index: number, durationSeconds: nu
     itemEvents: BUILD_EVENTS,
     skillEvents: SKILL_EVENTS,
   }
+}
+
+// Fixture stand-in for the API's real performance score — the authoritative
+// model lives in backend/Core/Lol/Performance/PerformanceScore.cs and is not
+// reproduced here. The playground only needs an internally consistent payload:
+// a plausible 0–100 spread, strictly distinct placements, and exactly one MVP
+// on the winning side / one ACE on the losing side.
+function rankFixture(participants: MatchDetailParticipant[]): MatchDetailParticipant[] {
+  const scored = participants.map(p => ({
+    p,
+    score: Math.max(0, Math.min(100, Math.round(
+      30 + 8 * ((p.kills + p.assists) / Math.max(1, p.deaths)) + 25 * p.killParticipation,
+    ))),
+  }))
+
+  // Same tiebreak chain as MatchPerformanceRanker: score, takedowns, deaths, id.
+  const order = [...scored].sort((a, b) =>
+    b.score - a.score
+    || (b.p.kills + b.p.assists) - (a.p.kills + a.p.assists)
+    || a.p.deaths - b.p.deaths
+    || a.p.participantId - b.p.participantId)
+
+  const mvpId = order.find(e => e.p.win)?.p.participantId
+  const aceId = order.find(e => !e.p.win)?.p.participantId
+  const placementById = new Map(order.map((e, i) => [e.p.participantId, i + 1]))
+
+  return scored.map(({ p, score }) => ({
+    ...p,
+    performanceScore: score,
+    placement: placementById.get(p.participantId) ?? 0,
+    isMvp: p.participantId === mvpId,
+    isAce: p.participantId === aceId,
+  }))
 }
 
 export default defineEventHandler((event): MatchDetailResponse => {
@@ -121,6 +160,8 @@ export default defineEventHandler((event): MatchDetailResponse => {
     gameStartTimeUtc: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
     gameDurationSeconds,
     gameVersion: '15.1.1',
-    participants: ROSTER.map((entry, i) => buildParticipant(entry, i, gameDurationSeconds)),
+    participants: rankFixture(
+      ROSTER.map((entry, i) => buildParticipant(entry, i, gameDurationSeconds)),
+    ),
   }
 })

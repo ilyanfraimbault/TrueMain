@@ -4,7 +4,13 @@ public class DiscoveryOptions
 {
     public const string SectionName = "Discovery";
 
-    public List<string> Platforms { get; set; } = new() { "KR", "EUW1", "NA1" };
+    /// <summary>
+    /// Optional narrowing override of the shared <c>Platforms:Active</c> list (#496). Left empty
+    /// — the default — ladder discovery inherits <see cref="PlatformScopeOptions.Active"/>, so a
+    /// region is added in one place instead of three. An override must be a subset of the shared
+    /// list; that is enforced at startup by <see cref="PlatformScopeValidator"/>.
+    /// </summary>
+    public List<string> Platforms { get; set; } = [];
 
     public List<string> TierScope { get; set; } = new() { "Master", "GM", "Challenger" };
 

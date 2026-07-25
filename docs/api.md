@@ -597,6 +597,10 @@ compte inconnu, ou match non joué par ce compte.
       "damagePerMin": 930.1,
       "goldPerMin": 465.0,
       "visionPerMin": 1.05,
+      "performanceScore": 86,
+      "placement": 1,
+      "isMvp": true,
+      "isAce": false,
       "laning15": { "csDiff": 12, "goldDiff": 480, "xpDiff": 210 },
       "firstToLevelTwo": true,
       "runes": [
@@ -626,6 +630,49 @@ compte inconnu, ou match non joué par ce compte.
 - `itemEvents.eventType` : `ITEM_PURCHASED` / `ITEM_SOLD` / `ITEM_DESTROYED` /
   `ITEM_UNDO` (`beforeId`/`afterId` renseignés sur un undo).
   `skillEvents.skillSlot` : 1=Q, 2=W, 3=E, 4=R.
+
+### Score de performance (`performanceScore` / `placement` / `isMvp` / `isAce`)
+
+Métrique **dérivée** (aucun stockage dédié), calculée à la lecture par
+`Core.Lol.Performance.PerformanceScore` — fonction pure et déterministe : mêmes
+entrées, même score. Sept composantes sont normalisées sur `0..1` puis moyennées
+avec des poids qui dépendent du rôle (`teamPosition`), le résultat étant remis à
+l'échelle `0..100` :
+
+| Composante | Normalisation |
+| --- | --- |
+| Combat | `(kills + assists) / max(1, deaths)`, linéaire jusqu'à 6.0 KDA = plein |
+| Kill participation | `(kills + assists) / teamKills`, borné à 1 |
+| Part de dégâts | part des dégâts aux champions de l'équipe, bande 5 % → 35 % |
+| Part d'or | part de l'or de l'équipe, bande 10 % → 30 % |
+| Farm | CS/min vs une référence par rôle (2.0 support … 9.5 bot) |
+| Vision | vision score/min vs une référence par rôle (0.8 bot … 2.4 support) |
+| Lane | avances @15 mixées or 50 % / cs 25 % / xp 25 %, centrées (lane égale = 0.5), saturées à ±1500 or, ±30 cs, ±1500 xp |
+
+Poids par rôle (somme = 100 ; `teamPosition` vide ou inconnu → profil neutre) :
+
+| Rôle | Combat | KP | Dégâts | Or | Farm | Vision | Lane |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| TOP | 22 | 16 | 18 | 8 | 16 | 6 | 14 |
+| JUNGLE | 20 | 20 | 16 | 8 | 16 | 8 | 12 |
+| MIDDLE | 22 | 16 | 20 | 8 | 16 | 6 | 12 |
+| BOTTOM | 22 | 14 | 22 | 8 | 18 | 4 | 12 |
+| UTILITY | 22 | 22 | 8 | 4 | 6 | 26 | 12 |
+| neutre | 22 | 18 | 18 | 8 | 14 | 8 | 12 |
+
+Une composante dont l'entrée manque (pas de snapshot @15, `teamKills` à 0, partie
+de durée nulle…) est **retirée** et son poids redistribué sur les autres — jamais
+comptée comme un zéro, ce qui pénaliserait un joueur pour un trou dans nos données.
+
+`placement` = rang 1..10 du score dans le match (1 = meilleur). Les égalités se
+départagent sur takedowns, puis morts, puis `participantId`, donc le classement est
+toujours strict et stable entre deux requêtes identiques. `isMvp` = meilleur score
+du camp gagnant, `isAce` = meilleur score du camp perdant.
+
+Hors modèle, faute de données stockées : participation aux objectifs (dragon /
+baron / tourelles), dégâts subis, soins/boucliers, wards posées. Pas de bonus de
+victoire non plus : le score note l'individu, et les vainqueurs remontent déjà
+naturellement via le KDA, le farm et les avances de lane.
 
 ---
 
