@@ -8,12 +8,17 @@ using Ingestor.Processes.Components.Coverage;
 using Ingestor.Processes.Components.MainAnalysis;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Npgsql;
 
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
 public sealed class MainAnalysisProcessIntegrationTests
 {
+    // Raised by the trigger the rollback test installs on main_candidates, and
+    // asserted on the exception it expects — one literal so the two cannot drift.
+    private const string DemotionFailureMessage = "main_candidates update rejected by test trigger";
+
     private readonly PostgresFixture _fixture;
 
     public MainAnalysisProcessIntegrationTests(PostgresFixture fixture)
@@ -206,10 +211,10 @@ public sealed class MainAnalysisProcessIntegrationTests
         // fail inside the write transaction, after SaveChangesAsync has already
         // flushed the stat delta and the timestamp stamp.
         await ExecuteSqlAsync(
-            """
+            $"""
             CREATE OR REPLACE FUNCTION fail_main_candidate_update() RETURNS trigger AS $$
             BEGIN
-                RAISE EXCEPTION 'main_candidates update rejected by test trigger';
+                RAISE EXCEPTION '{DemotionFailureMessage}';
             END;
             $$ LANGUAGE plpgsql;
             """);
@@ -222,9 +227,18 @@ public sealed class MainAnalysisProcessIntegrationTests
 
         try
         {
+            // Pin the exact failure: the demotion goes through ExecuteUpdate (raw
+            // SQL), not SaveChanges, so the trigger surfaces as a bare
+            // PostgresException — never wrapped in a DbUpdateException. Asserting
+            // the SQLSTATE and the message ties this to *our* trigger: with a broad
+            // Exception the test would still go green if the run blew up for an
+            // unrelated reason, because the rollback assertions below hold trivially
+            // when nothing was written in the first place.
             var run = () => RunProcessAsync();
-            await run.Should().ThrowAsync<Exception>(
+            var thrown = await run.Should().ThrowAsync<PostgresException>(
                 "the demotion statement fails inside the narrowed write transaction");
+            thrown.Which.SqlState.Should().Be(PostgresErrorCodes.RaiseException);
+            thrown.Which.MessageText.Should().Be(DemotionFailureMessage);
 
             await using var verifyDb = _fixture.CreateDbContext();
             var stats = verifyDb.MainChampionStats
