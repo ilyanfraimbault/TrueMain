@@ -69,8 +69,10 @@ public static class PerformanceScore
     private const double LaningXpWeight = 0.25d;
 
     /// <summary>
-    /// Grades one participant on 0–100. Returns 0 only in the degenerate case where
-    /// every component is unavailable.
+    /// Grades one participant on 0–100. The floor is reached when every component
+    /// that <em>is</em> available grades 0 — a 0/20/0 line with no farm, no vision
+    /// and a lost lane — and the ceiling when they all grade 1. Combat is always
+    /// available, so at least one component always contributes.
     /// </summary>
     public static int Compute(PerformanceScoreInput input)
     {
@@ -107,6 +109,11 @@ public static class PerformanceScore
             weighted += weight * value.Value;
         }
 
+        // Unreachable by construction: Combat is never null and every role profile
+        // weights it above 0, so totalWeight is always >= 20. Kept as a guard on the
+        // division below — should a future profile ever zero the combat weight, this
+        // degrades to 0 instead of dividing by zero and returning the unspecified
+        // int cast of a NaN.
         if (totalWeight <= 0d)
         {
             return 0;

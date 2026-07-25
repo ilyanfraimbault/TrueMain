@@ -244,9 +244,12 @@ function ordinal(placement: number) {
           </div>
 
           <!--
-            Performance score + placement. MVP = gold crown (best of the winning
-            side), ACE = rose-gold rosette (best of the losing side) — same icon
-            and colour convention as the collapsed MatchRow accolade.
+            Performance score + placement. MVP = crown (best of the winning side)
+            in the brand's single genuine-gold accent; ACE = rosette (best of the
+            losing side) in the rose `primary`. Both are palette tokens, so the
+            two accolades stay distinguishable *and* track the theme — `gold` is
+            declared alongside `rosegold` in main.css for exactly this
+            "rose GOLD" read, and is the closest token to the crown's meaning.
           -->
           <div class="flex w-[3.25rem] shrink-0 flex-col items-end gap-0.5">
             <UTooltip :text="`Performance score ${p.performanceScore}/100`">
@@ -258,7 +261,7 @@ function ordinal(placement: number) {
                   v-if="p.isMvp || p.isAce"
                   :name="p.isMvp ? 'i-lucide-crown' : 'i-lucide-award'"
                   class="size-3"
-                  :class="p.isMvp ? 'text-amber-400' : 'text-primary'"
+                  :class="p.isMvp ? 'text-gold' : 'text-primary'"
                   :aria-label="p.isMvp ? 'MVP' : 'ACE'"
                 />
                 {{ p.performanceScore }}
