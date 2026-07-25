@@ -41,7 +41,10 @@ const DEDICATION_TIERS = [
 ] as const
 
 function dedicationTierEntry(score: number): typeof DEDICATION_TIERS[number] {
-  return DEDICATION_TIERS.find(tier => score >= tier.min) ?? DEDICATION_TIERS[DEDICATION_TIERS.length - 1]
+  // The `min: 0` band matches any score >= 0, so the fallback below is only
+  // reachable for a negative score (unexpected, but not worth widening the
+  // return type over) — non-null because the last array element always exists.
+  return DEDICATION_TIERS.find(tier => score >= tier.min) ?? DEDICATION_TIERS[DEDICATION_TIERS.length - 1]!
 }
 
 /** A one-word verdict for a score — see {@link DEDICATION_TIERS}. */
