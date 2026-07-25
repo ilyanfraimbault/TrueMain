@@ -21,6 +21,37 @@ const breadcrumbItems = [
   { label: 'Favorites' },
 ]
 
+// ─── Clear all ─────────────────────────────────────────────────────────────
+// Two-step, because wiping the list is destructive and unrecoverable: there is
+// no undo and no server copy to restore from, so a misclick would cost someone
+// every player they follow. The repo has no confirmation-dialog convention yet,
+// so this stays in the button itself rather than introducing a modal for one
+// action. The armed state disarms itself so it can't be left hanging.
+const CLEAR_CONFIRM_TIMEOUT_MS = 5000
+
+const clearArmed = ref(false)
+let disarmTimer: ReturnType<typeof setTimeout> | null = null
+
+function disarmClear() {
+  if (disarmTimer) {
+    clearTimeout(disarmTimer)
+    disarmTimer = null
+  }
+  clearArmed.value = false
+}
+
+function onClearClick() {
+  if (clearArmed.value) {
+    disarmClear()
+    clear()
+    return
+  }
+  clearArmed.value = true
+  disarmTimer = setTimeout(disarmClear, CLEAR_CONFIRM_TIMEOUT_MS)
+}
+
+onBeforeUnmount(disarmClear)
+
 // ─── Static bundle for MatchRow ────────────────────────────────────────────
 // Fetched once here and passed into every card, under the same canonical cache
 // keys the profile and champion pages use — so navigating in from either
@@ -50,16 +81,24 @@ const runeTree = computed(() => runeTreeData.value ?? null)
       title="Favorites"
       description="Players you follow, with their latest ranked games. Saved in this browser only — signing in with Riot will sync them across devices later."
     >
-      <div v-if="hydrated && count > 0" class="flex items-center gap-3">
+      <div v-if="hydrated && count > 0" class="flex flex-wrap items-center gap-3">
         <span class="text-sm text-muted tabular-nums">{{ count }} followed</span>
         <UButton
           size="xs"
-          color="neutral"
-          variant="ghost"
+          :color="clearArmed ? 'error' : 'neutral'"
+          :variant="clearArmed ? 'soft' : 'ghost'"
           icon="i-lucide-trash-2"
-          label="Clear all"
-          @click="clear"
+          :label="clearArmed ? `Unfollow all ${count}?` : 'Clear all'"
+          :aria-label="clearArmed
+            ? `Confirm unfollowing all ${count} players`
+            : `Clear all ${count} favorites`"
+          @click="onClearClick"
+          @blur="disarmClear"
         />
+        <!-- role=status so the armed state is announced, not just recoloured. -->
+        <span v-if="clearArmed" role="status" class="text-xs text-muted">
+          Click again to confirm — this can't be undone.
+        </span>
       </div>
     </PageHeader>
 

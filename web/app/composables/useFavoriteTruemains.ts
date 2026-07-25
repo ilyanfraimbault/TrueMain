@@ -30,6 +30,48 @@ const FAVORITES_HYDRATED_STATE_KEY = 'favorite-truemains:hydrated'
  * long after `onMounted` filled the shared state, so it must gate on its own
  * per-instance mounted flag instead — see `FavoriteToggle`.
  */
+/**
+ * Cross-tab subscription, shared by every consumer.
+ *
+ * The state behind it is a single `useState` ref, so the subscription to it
+ * should be single too: a leaderboard page mounts one `FavoriteToggle` per row,
+ * and a per-instance listener would mean dozens of `window` handlers each
+ * re-reading and re-parsing `localStorage` on every cross-tab write. One
+ * refcounted registration does the same job once.
+ *
+ * Module-level mutable state is normally a cross-request hazard in Nuxt, but
+ * this block is only ever reached from inside `import.meta.client`: SSR never
+ * touches it, and the browser has exactly one app instance.
+ */
+let storageSubscriberCount = 0
+let detachStorageListener: (() => void) | null = null
+
+function subscribeToStorage(reload: () => void) {
+  storageSubscriberCount++
+  if (detachStorageListener) return
+
+  // Another tab added or dropped a favorite (or cleared storage entirely,
+  // which fires with `key === null`). Re-read so open tabs converge.
+  //
+  // `reload` closes over the shared `useState` ref rather than over the
+  // component that happened to subscribe first, so it stays correct after that
+  // component unmounts.
+  const onStorageEvent = (event: StorageEvent) => {
+    if (event.key !== null && event.key !== FAVORITES_STORAGE_KEY) return
+    reload()
+  }
+  window.addEventListener('storage', onStorageEvent)
+  detachStorageListener = () => window.removeEventListener('storage', onStorageEvent)
+}
+
+function unsubscribeFromStorage() {
+  storageSubscriberCount--
+  if (storageSubscriberCount > 0 || !detachStorageListener) return
+  detachStorageListener()
+  detachStorageListener = null
+  storageSubscriberCount = 0
+}
+
 export function useFavoriteTruemains() {
   const favorites = useState<FavoriteTruemain[]>(FAVORITES_STATE_KEY, () => [])
   const hydrated = useState<boolean>(FAVORITES_HYDRATED_STATE_KEY, () => false)
@@ -41,22 +83,23 @@ export function useFavoriteTruemains() {
     hydrated.value = true
   }
 
-  // Another tab added or dropped a favorite (or cleared storage entirely,
-  // which fires with `key === null`). Re-read so open tabs converge.
-  function onStorageEvent(event: StorageEvent) {
-    if (event.key !== null && event.key !== FAVORITES_STORAGE_KEY) return
-    store.loadFromStorage()
-  }
-
   if (import.meta.client) {
+    // Tracked per instance so an unmount can only ever release a subscription
+    // this instance actually took (a component created but never mounted must
+    // not decrement the shared count).
+    let subscribed = false
+
     onMounted(() => {
       // The read is idempotent, but the shared state only needs filling once
       // per client session — later mounts reuse it.
       if (!hydrated.value) syncFromStorage()
-      window.addEventListener('storage', onStorageEvent)
+      subscribeToStorage(() => store.loadFromStorage())
+      subscribed = true
     })
     onBeforeUnmount(() => {
-      window.removeEventListener('storage', onStorageEvent)
+      if (!subscribed) return
+      subscribed = false
+      unsubscribeFromStorage()
     })
   }
 

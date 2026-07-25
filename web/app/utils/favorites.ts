@@ -190,6 +190,23 @@ export function createFavoritesStore(
   const count = computed(() => state.value.length)
   const atLimit = computed(() => state.value.length >= FAVORITES_LIMIT)
 
+  /**
+   * Mirror the whole list to storage. Deliberately last-write-wins, not a
+   * merge.
+   *
+   * The concrete consequence: `storage` events do not fire in the tab that
+   * wrote, so two tabs open at once can hold divergent state, and whichever
+   * follows a stale read with a write drops what the other one added. It takes
+   * two tabs mutating the list between each other's events to lose an entry,
+   * and the cost is one re-click.
+   *
+   * Merging instead would mean a read-modify-write against `localStorage`,
+   * which offers no atomicity between tabs anyway — so it would trade a rare
+   * lost entry for a new class of interleaving bugs (resurrecting an entry the
+   * user just removed in the other tab, and a cap that two writers can push
+   * past). Not worth it for a browser-local bookmark list; the eventual Riot
+   * SSO sync makes the server the arbiter and retires the question.
+   */
   function persist() {
     const storage = getStorage()
     if (!storage) return
