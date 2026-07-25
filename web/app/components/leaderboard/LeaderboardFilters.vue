@@ -116,7 +116,8 @@ function onSortChange(item: SortItem | undefined) {
           :items="SORT_OPTIONS"
           :search-input="false"
           :ui="{ content: 'w-64' }"
-          class="w-40"
+          class="w-48"
+          aria-label="Sort by"
           @update:model-value="onSortChange"
         >
           <template #leading>
