@@ -12,13 +12,13 @@ public class HarvestOptions
     public const string SectionName = "Harvest";
 
     /// <summary>
-    /// Platforms to harvest. Should mirror <c>MatchIngestion:Platforms</c> (the harvest can
-    /// only see matches we ingest) and <c>Discovery:Platforms</c>. This list is duplicated
-    /// per section by the existing convention, so adding a region in one place but not here
-    /// silently skips it — keeping the lists consistent (or cross-validating them) is tracked
-    /// in #496.
+    /// Optional narrowing override of the shared <c>Platforms:Active</c> list (#496). Left empty
+    /// — the default — the harvest inherits <see cref="PlatformScopeOptions.Active"/>, so a region
+    /// is added in one place instead of three. An override must be a subset of the shared list
+    /// <em>and</em> of <c>MatchIngestion:Platforms</c> (the harvest can only see matches we
+    /// ingest); both are enforced at startup by <see cref="PlatformScopeValidator"/>.
     /// </summary>
-    public List<string> Platforms { get; set; } = new() { "KR", "EUW1", "NA1" };
+    public List<string> Platforms { get; set; } = [];
 
     /// <summary>Queue to aggregate over. Defaults to ranked solo, the main-detection queue.</summary>
     public int QueueId { get; set; } = (int)LolQueueId.RankedSoloDuo;
