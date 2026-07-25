@@ -127,8 +127,8 @@ const positionIcons = computed(() => {
        every row. The row is its own @container so the columns respond to
        the width it's actually given — full-width on /truemains, compact in
        the champion-page sidebar — instead of the viewport. -->
-  <div
-    class="glass-hover group @container relative flex items-center gap-2 rounded-md border border-default/60 bg-elevated/40 px-2.5 py-1.5"
+  <ListRowSurface
+    class="group @container relative gap-2"
   >
     <!-- Stretched profile link: a sibling overlay (not a wrapper) so the
          champion icons can be their own links without nesting <a> in <a>.
@@ -137,7 +137,7 @@ const positionIcons = computed(() => {
     <NuxtLink
       :to="profileHref"
       :aria-label="profileAriaLabel"
-      class="absolute inset-0 z-[1] rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      class="absolute inset-0 z-[1] rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
     />
     <!-- Rank -->
     <span class="w-6 shrink-0 text-center text-sm font-semibold tabular-nums text-muted">
@@ -303,5 +303,5 @@ const positionIcons = computed(() => {
       :region="row.region"
       :profile-icon-id="row.identity.profileIconId"
     />
-  </div>
+  </ListRowSurface>
 </template>
