@@ -23,11 +23,39 @@ const props = withDefaults(defineProps<{
 const { isFavorite, toggle, atLimit } = useFavoriteTruemains()
 
 const nameTag = computed(() => favoriteNameTag(props.gameName, props.tagLine))
-const active = computed(() => isFavorite(nameTag.value))
+
+/**
+ * Hydration guard, scoped to this component instance.
+ *
+ * The stored list is client-only, so this button's *first* render must not
+ * depend on it — otherwise the markup Vue reconciles against the server HTML
+ * differs and we are back to #838 / #840. `useFavoriteTruemains` already seeds
+ * an empty list for SSR, but that alone is not enough here: the control also
+ * renders inside `LeaderboardRow`, which the champion page mounts through
+ * `<LazyChampionTruemains hydrate-on-visible>`. That subtree hydrates long
+ * after the mount-time storage read has filled the shared state, so a
+ * state-derived first render would reconcile against stale DOM.
+ *
+ * A local mounted flag makes the guard hold whenever this instance happens to
+ * hydrate: its own first render is always the neutral "Follow" state, and the
+ * real state arrives as an ordinary post-hydration update. The markup itself is
+ * identical either way — only `aria-pressed`, the colours and the title change.
+ *
+ * (`<ClientOnly>` works in isolation but not here: on the profile page, whose
+ * SSR/client divergence predates this feature, mismatch recovery higher up the
+ * tree left the swap unperformed and the control stayed invisible.)
+ */
+const mounted = ref(false)
+onMounted(() => {
+  mounted.value = true
+})
+
+const active = computed(() => mounted.value && isFavorite(nameTag.value))
 
 // Refuse rather than silently evicting somebody else's entry once the cap is
-// reached. Removing is always allowed.
-const isFull = computed(() => !active.value && atLimit.value)
+// reached. Removing is always allowed. Mount-gated like `active`, since the cap
+// is a property of the stored list.
+const isFull = computed(() => mounted.value && !active.value && atLimit.value)
 
 const label = computed(() => (active.value ? 'Following' : 'Follow'))
 
@@ -52,45 +80,27 @@ function onClick() {
        profile-link overlay, so clicking the star follows the player instead of
        navigating to their page. -->
   <span class="relative z-10 inline-flex shrink-0">
-    <!--
-      Client-only by construction. `useFavoriteTruemains` already guarantees an
-      empty list during hydration, but this component also renders inside rows
-      that a page may later choose to hydrate lazily — and a deferred hydration
-      runs *after* the mount-time storage read, which would reconcile against
-      stale DOM. Rendering the control only on the client removes that whole
-      failure mode; the fallback reserves the exact same box, so nothing shifts.
-    -->
-    <ClientOnly>
-      <button
-        type="button"
-        :aria-pressed="active"
-        :aria-label="title"
-        :title="title"
-        :disabled="isFull"
-        class="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md ring-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
-        :class="[
-          withLabel ? 'h-8 px-2.5 text-xs font-semibold' : 'size-7',
-          active
-            ? 'bg-primary/15 text-primary ring-primary/40'
-            : 'text-muted ring-transparent hover:bg-primary/10 hover:text-primary',
-        ]"
-        @click.stop.prevent="onClick"
-      >
-        <UIcon
-          name="i-lucide-star"
-          class="size-4 shrink-0"
-          aria-hidden="true"
-        />
-        <span v-if="withLabel">{{ label }}</span>
-      </button>
-
-      <template #fallback>
-        <span
-          class="inline-flex shrink-0"
-          :class="withLabel ? 'h-8 w-24' : 'size-7'"
-          aria-hidden="true"
-        />
-      </template>
-    </ClientOnly>
+    <button
+      type="button"
+      :aria-pressed="active"
+      :aria-label="title"
+      :title="title"
+      :disabled="isFull"
+      class="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md ring-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+      :class="[
+        withLabel ? 'h-8 px-2.5 text-xs font-semibold' : 'size-7',
+        active
+          ? 'bg-primary/15 text-primary ring-primary/40'
+          : 'text-muted ring-transparent hover:bg-primary/10 hover:text-primary',
+      ]"
+      @click.stop.prevent="onClick"
+    >
+      <UIcon
+        name="i-lucide-star"
+        class="size-4 shrink-0"
+        aria-hidden="true"
+      />
+      <span v-if="withLabel">{{ label }}</span>
+    </button>
   </span>
 </template>

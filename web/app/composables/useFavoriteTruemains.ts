@@ -23,10 +23,12 @@ const FAVORITES_HYDRATED_STATE_KEY = 'favorite-truemains:hydrated'
  *      part of hydration.
  *
  * `hydrated` exposes step 3 so callers can render a skeleton (never a "you
- * have no favorites" claim) while the real answer is still unknown. Consumers
- * that render *inside* a lazily-hydrated subtree must additionally wrap the
- * favorite-dependent markup in `<ClientOnly>` — deferred hydration happens
- * after `onMounted` has already filled the state (see `FavoriteToggle`).
+ * have no favorites" claim) while the real answer is still unknown.
+ *
+ * Steps 1-2 only hold for consumers that hydrate with the page. A consumer
+ * rendered inside a *lazily* hydrated subtree (`hydrate-on-visible`) reconciles
+ * long after `onMounted` filled the shared state, so it must gate on its own
+ * per-instance mounted flag instead — see `FavoriteToggle`.
  */
 export function useFavoriteTruemains() {
   const favorites = useState<FavoriteTruemain[]>(FAVORITES_STATE_KEY, () => [])
