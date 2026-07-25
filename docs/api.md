@@ -393,6 +393,8 @@ Leaderboard paginé des truemains. Pose un en-tête
 | `region`     | string | non    | toutes | `europe`/`americas`/`korea`. |
 | `position`   | string | non    | toutes | Filtre position. |
 | `championId` | int    | non    | tous   | Filtre champion principal. |
+| `otpOnly`    | bool   | non    | false  | Restreint aux one-tricks. |
+| `sort`       | string | non    | `rank` | `dedication` classe par score de dédication ; toute autre valeur retombe sur le classement par rang. |
 
 **Réponse `200`** — `LeaderboardResponse`
 
@@ -407,7 +409,12 @@ Leaderboard paginé des truemains. Pose un en-tête
       "stats": { "games": 412, "wins": 240, "losses": 172, "winRate": 0.583, "kda": 3.4 },
       "topChampions": [
         { "championId": 103, "games": 120, "playRate": 0.29, "primaryKeystoneId": 8214, "secondaryStyleId": 8100, "firstItemId": 6653 }
-      ]
+      ],
+      "dedication": {
+        "score": 78.4, "championId": 103,
+        "commitment": 0.193, "span": 1, "volume": 0.912, "recency": 0.968,
+        "playRate": 0.29, "careerGames": 120, "patchSpan": 7, "daysSinceLastGame": 1
+      }
     }
   ],
   "page": 1,
@@ -418,6 +425,15 @@ Leaderboard paginé des truemains. Pose un en-tête
 
 - `ranked.score` : clé de tri SQL exposée. `ranked` peut être `null` (trié en dernier).
 - `stats.wins`/`losses`/`winRate`/`kda` peuvent être `null` si aucune game attribuée.
+- `dedication` : score de dédication (0..100) du champion signature de la ligne,
+  avec ses quatre composantes et leurs entrées brutes. `null` si l'analyse des
+  mains n'a pas encore tourné. `championId` est le **seul** filtre qui déplace le
+  score sur un autre champion ; `position`, `otpOnly` et le plancher
+  `MinRankedGames` ne font que restreindre la population — un toplaner qui main
+  aussi un champion mid garde donc son score toplane sous `?position=MIDDLE`.
+  Corollaire : pour un même compte, le score et son `championId` sont identiques
+  quel que soit le `sort`, et identiques à ceux du profil.
+  Formule et calibrage : [`docs/dedication-score.md`](dedication-score.md).
 
 ## `GET /truemains/{nameTag}/profile`
 
@@ -432,12 +448,21 @@ Profil d'un joueur. `nameTag` est le Riot ID (`Name#TAG`, URL-encodé).
   "mains": [
     { "championId": 103, "games": 120, "playRate": 0.29, "primaryPosition": "MIDDLE", "isOtp": false }
   ],
+  "dedication": {
+    "score": 78.4, "championId": 103,
+    "commitment": 0.193, "span": 1, "volume": 0.912, "recency": 0.968,
+    "playRate": 0.29, "careerGames": 120, "patchSpan": 7, "daysSinceLastGame": 1
+  },
   "positions": [
     { "position": "MIDDLE", "games": 300, "rate": 0.72 },
     { "position": "TOP", "games": 116, "rate": 0.28 }
   ]
 }
 ```
+
+`dedication` porte sur le champion signature du joueur (son main le plus joué) ;
+`null` si aucun champion n'est encore classé comme main. Voir
+[`docs/dedication-score.md`](dedication-score.md).
 
 ## `GET /truemains/{nameTag}/champions/{championId}`
 

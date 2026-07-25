@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { RegionSlug } from '~~/shared/types/leaderboard'
+import type { LeaderboardSort, RegionSlug } from '~~/shared/types/leaderboard'
 import type { ChampionPosition } from '~/utils/positions'
 import { REGION_SLUGS } from '~~/shared/types/leaderboard'
 
@@ -38,6 +38,14 @@ const filterOtpOnly = computed<boolean>(() => {
   return raw === 'true' || raw === '1'
 })
 
+// Ranking column. Only `dedication` switches away from the default ranked
+// standing; anything else (including a hand-typed value) falls back to `rank`,
+// which also keeps the canonical URL free of a redundant `?sort=rank`.
+const sort = computed<LeaderboardSort>(() => {
+  const raw = Array.isArray(route.query.sort) ? route.query.sort[0] : route.query.sort
+  return raw === 'dedication' ? 'dedication' : 'rank'
+})
+
 // Any filter change drops `?page=` — staying on page 5 after narrowing the
 // filter set risks landing past the new total (see useRouteFilterSetter).
 const setQueryFilter = useRouteFilterSetter()
@@ -60,6 +68,12 @@ async function setOtpOnly(next: boolean) {
   await setQueryFilter('otpOnly', next ? 'true' : null)
 }
 
+// Re-ranking reshuffles the whole list, so it resets to page 1 like any other
+// filter change (setQueryFilter drops `?page=`).
+async function setSort(next: LeaderboardSort) {
+  await setQueryFilter('sort', next === 'dedication' ? 'dedication' : null)
+}
+
 // ─── Leaderboard fetch ────────────────────────────────────────────────────
 const {
   rows,
@@ -74,6 +88,7 @@ const {
   position: filterPosition,
   championId: filterChampionId,
   otpOnly: filterOtpOnly,
+  sort,
 })
 
 // ─── Static lookups ───────────────────────────────────────────────────────
@@ -97,7 +112,9 @@ const championsById = useChampionsById(champions)
     <PageHeader
       eyebrow="Leaderboard"
       title="Truemains"
-      description="Tracked players ranked by current LP. Higher tier wins below Master; Master+ are ordered by raw LP."
+      :description="sort === 'dedication'
+        ? 'Tracked players ranked by dedication — how devoted each one is to their signature champion.'
+        : 'Tracked players ranked by current LP. Higher tier wins below Master; Master+ are ordered by raw LP.'"
     />
 
     <AppSearch
@@ -112,9 +129,11 @@ const championsById = useChampionsById(champions)
       :region="filterRegion"
       :position="filterPosition"
       :otp-only="filterOtpOnly"
+      :sort="sort"
       @update:region="setRegion"
       @update:position="setPosition"
       @update:otp-only="setOtpOnly"
+      @update:sort="setSort"
     />
 
     <ClientOnly>
@@ -151,6 +170,7 @@ const championsById = useChampionsById(champions)
         :rune-tree="runeTree"
         :items-map="itemsMap"
         :patch="latestPatch"
+        :highlight-dedication="sort === 'dedication'"
       />
     </div>
 

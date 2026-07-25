@@ -35,6 +35,21 @@ export const SHEIDEN_PROFILE: ProfileResponse = {
     { championId: 121, games: 96, playRate: 0.16, primaryPosition: 'JUNGLE', isOtp: false },
     { championId: 11, games: 70, playRate: 0.12, primaryPosition: 'JUNGLE', isOtp: false },
   ],
+  // Dedication on the top main (Kha'Zix): a wide-pool jungler, so commitment is
+  // modest while span / volume / recency are strong. Values mirror what
+  // backend/Core/Truemains/DedicationScore.cs would produce for these inputs.
+  dedication: {
+    score: 62.9,
+    championId: 64,
+    commitment: 0.205,
+    span: 1,
+    volume: 0.98,
+    recency: 0.936,
+    playRate: 0.30,
+    careerGames: 180,
+    patchSpan: 7,
+    daysSinceLastGame: 2,
+  },
   positions: [
     { position: 'JUNGLE', games: 520, rate: 520 / 600 },
     { position: 'MIDDLE', games: 60, rate: 60 / 600 },

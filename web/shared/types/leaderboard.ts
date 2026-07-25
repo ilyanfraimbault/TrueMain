@@ -1,6 +1,7 @@
 // Mirrors backend/Api/ReadModels/Truemains/LeaderboardReadModel.cs.
 // See #162.
 
+import type { TruemainDedication } from './dedication'
 import type { ProfileIdentity } from './profile'
 
 /**
@@ -21,6 +22,13 @@ import type { ProfileIdentity } from './profile'
 export const REGION_SLUGS = ['europe', 'americas', 'korea'] as const
 
 export type RegionSlug = typeof REGION_SLUGS[number]
+
+/**
+ * Ranking column of the leaderboard. `rank` is current ranked standing (the
+ * default); `dedication` ranks by the truemain dedication score. Anything the
+ * backend doesn't recognise falls back to `rank`.
+ */
+export type LeaderboardSort = 'rank' | 'dedication'
 
 export interface LeaderboardResponse {
   rows: LeaderboardRowResponse[]
@@ -44,6 +52,8 @@ export interface LeaderboardRowResponse {
   topChampions: LeaderboardTopChampion[]
   /** Primary + secondary lane from position share across the player's mains. Null when no main-champion analysis has run. */
   positions: LeaderboardPositions | null
+  /** Dedication score for the row's signature champion — the sort key behind `?sort=dedication`, shown on every row. Null when no main-champion analysis has run. */
+  dedication: TruemainDedication | null
 }
 
 export interface LeaderboardPositions {

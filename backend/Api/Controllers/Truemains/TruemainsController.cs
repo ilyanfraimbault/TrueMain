@@ -57,6 +57,13 @@ public sealed class TruemainsController(
         [FromQuery] LeaderboardQuery query,
         CancellationToken ct = default)
     {
+        // An unknown ?sort= falls back to the default ranking rather than a 400:
+        // it is a presentation preference, and a stale bookmark should still
+        // render the leaderboard.
+        var sort = string.Equals(query.Sort, "dedication", StringComparison.OrdinalIgnoreCase)
+            ? LeaderboardSort.Dedication
+            : LeaderboardSort.Rank;
+
         var response = await leaderboardQueryService.GetAsync(
             query.Page ?? 1,
             query.PageSize ?? 0,
@@ -64,6 +71,7 @@ public sealed class TruemainsController(
             query.Position,
             query.ChampionId,
             query.OtpOnly ?? false,
+            sort,
             ct);
 
         // Let shared caches (CDN / reverse proxy) serve the leaderboard for the
@@ -296,4 +304,11 @@ public sealed record LeaderboardQuery
     public int? ChampionId { get; init; }
 
     public bool? OtpOnly { get; init; }
+
+    /// <summary>
+    /// Ranking column: <c>dedication</c> ranks by TrueMain's dedication score,
+    /// anything else (including omitted) keeps the default ranked-standing
+    /// order.
+    /// </summary>
+    public string? Sort { get; init; }
 }

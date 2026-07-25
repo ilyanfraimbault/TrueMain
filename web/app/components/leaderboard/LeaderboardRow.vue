@@ -16,6 +16,8 @@ const props = defineProps<{
   runeTree: RuneTreeResponse | null
   itemsMap: Record<number, StaticItemData>
   patch: string | null
+  /** True when the leaderboard is ranked by dedication — accents the column that drives the order. */
+  highlightDedication?: boolean
 }>()
 
 const profileHref = computed(() => {
@@ -78,6 +80,18 @@ function championIcon(id: number): string | null {
 function positionLabel(position: string): string {
   return POSITION_BY_VALUE.get(position)?.label ?? position
 }
+
+// Dedication score for the row's signature champion. Every figure here comes
+// straight from the API payload — the breakdown is never recomputed client-side,
+// so the tooltip can't drift from the number the backend ranked on.
+const dedicationLabel = computed(() =>
+  props.row.dedication === null ? null : formatDedicationScore(props.row.dedication.score))
+
+const dedicationTitle = computed(() => {
+  const dedication = props.row.dedication
+  if (!dedication) return undefined
+  return describeDedication(dedication, championName(dedication.championId))
+})
 
 // Primary + secondary lane icons. Each entry carries its icon URL and a
 // tooltip. The list is empty when the backend has no position data (no main
@@ -225,6 +239,25 @@ const positionIcons = computed(() => {
         </div>
       </template>
     </div>
+
+    <!-- Dedication. Always reserved (empty slot when the account has no
+         main-champion analysis yet) so the LP and stat columns never shift.
+         Kept visible at every row width, unlike the games/KDA/WR cluster: it is
+         the leaderboard's signature column, and the sort key when the board is
+         ranked by it. The `title` carries the full component breakdown — a rich
+         popover would fight the row's stretched profile link. -->
+    <div
+      v-if="row.dedication"
+      class="flex w-16 shrink-0 flex-col items-end"
+      :title="dedicationTitle"
+    >
+      <span
+        class="text-sm font-semibold tabular-nums"
+        :class="highlightDedication ? 'text-primary' : 'text-default'"
+      >{{ dedicationLabel }}</span>
+      <span class="text-[10px] text-muted">dedication</span>
+    </div>
+    <div v-else class="w-16 shrink-0" />
 
     <!-- LP + rank emblem. LP is shown (matches the homepage teaser); the
          division replaces it for the few non-apex rows. -->

@@ -144,6 +144,14 @@ const hasActiveFilters = computed(() => Boolean(filterPosition.value || filterCh
           :history-loading="rankHistoryLoading"
         />
 
+        <ProfileDedicationCardSkeleton v-if="profileLoading || !profile" />
+        <ProfileDedicationCard
+          v-else-if="profile.dedication"
+          :dedication="profile.dedication"
+          :champions="champions"
+          :name-tag="nameTag"
+        />
+
         <ProfileMainChampionsSkeleton v-if="profileLoading || !profile" />
         <ProfileMainChampions
           v-else-if="profile.mains.length > 0"

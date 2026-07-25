@@ -35,6 +35,7 @@ import type {
   RegionSlug,
 } from '~~/shared/types/leaderboard'
 import type { CompositionBuildResponse } from '~~/shared/types/composition'
+import type { TruemainDedication } from '~~/shared/types/dedication'
 import type {
   BuildChoice,
   BuildDivergence,
@@ -847,6 +848,55 @@ interface MockPlayer {
 const DAY_MS = 24 * 60 * 60 * 1000
 const PLAYER_COUNT = 120
 
+// Mirrors backend/Core/Truemains/DedicationScore.cs. Duplicated here (like the
+// pagination clamping and the OTP threshold above) because the mock has to
+// produce a payload the real backend could have produced — see
+// docs/dedication-score.md for the formula and the constants.
+const DEDICATION_COMMITMENT_WEIGHT = 0.45
+const DEDICATION_SPAN_WEIGHT = 0.20
+const DEDICATION_VOLUME_WEIGHT = 0.20
+const DEDICATION_RECENCY_WEIGHT = 0.15
+const DEDICATION_COMMITMENT_FLOOR = 0.12
+const DEDICATION_SPAN_TARGET_PATCHES = 6
+const DEDICATION_VOLUME_TARGET_GAMES = 200
+const DEDICATION_RECENCY_HALF_LIFE_DAYS = 21
+
+function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, value))
+}
+
+function mockDedication(
+  championId: number,
+  playRate: number,
+  careerGames: number,
+  patchSpan: number,
+  daysSinceLastGame: number,
+): TruemainDedication {
+  const commitment = clamp01((playRate - DEDICATION_COMMITMENT_FLOOR) / (1 - DEDICATION_COMMITMENT_FLOOR))
+  const span = clamp01(patchSpan / DEDICATION_SPAN_TARGET_PATCHES)
+  const volume = clamp01(Math.log(1 + careerGames) / Math.log(1 + DEDICATION_VOLUME_TARGET_GAMES))
+  const recency = clamp01(0.5 ** (Math.max(0, daysSinceLastGame) / DEDICATION_RECENCY_HALF_LIFE_DAYS))
+  const score = 100 * clamp01(
+    DEDICATION_COMMITMENT_WEIGHT * commitment
+    + DEDICATION_SPAN_WEIGHT * span
+    + DEDICATION_VOLUME_WEIGHT * volume
+    + DEDICATION_RECENCY_WEIGHT * recency,
+  )
+
+  return {
+    score: Math.round(score * 10) / 10,
+    championId,
+    commitment: round3(commitment),
+    span: round3(span),
+    volume: round3(volume),
+    recency: round3(recency),
+    playRate: round3(playRate),
+    careerGames,
+    patchSpan,
+    daysSinceLastGame,
+  }
+}
+
 function buildPlayers(): MockPlayer[] {
   const players: MockPlayer[] = []
   for (let i = 0; i < PLAYER_COUNT; i++) {
@@ -873,6 +923,37 @@ function buildPlayers(): MockPlayer[] {
     const winRate = 0.5 + (0.62 - 0.5) * Math.exp(-i / 45) + (rng() - 0.5) * 0.04
     const wins = Math.round(games * winRate)
 
+    const topChampions = mains.map((m, idx) => {
+      // A single-main player is a one-trick: that champion clears the 85%
+      // OTP bar, so isOtp rides through and the row shows the OTP badge.
+      // Multi-main players spread their play rate and never trip the flag.
+      const soloMain = mains.length === 1
+      const playRate = soloMain
+        ? 0.86 + rng() * 0.1
+        : [0.44, 0.21, 0.12][idx]! + rng() * 0.08
+      return {
+        championId: m.id,
+        games: Math.round(games * playRate),
+        playRate: round3(playRate),
+        isOtp: soloMain,
+        primaryKeystoneId: m.keystone,
+        secondaryStyleId: m.secondaryStyle,
+        firstItemId: ARCHETYPES[m.archetype].items[0]!,
+      }
+    })
+
+    // Dedication on the signature champion (the top main), with a deterministic
+    // history: more patches and fresher games the higher up the ladder a player
+    // sits, so the mocked leaderboard reorders visibly under ?sort=dedication.
+    const signature = topChampions[0]!
+    const dedication = mockDedication(
+      signature.championId,
+      signature.playRate,
+      signature.games,
+      1 + Math.floor(rng() * 9),
+      Math.floor(rng() * 40),
+    )
+
     players.push({
       position: mains[0]!.position,
       nameTag: `${gameName}-${tagLine}`,
@@ -894,24 +975,8 @@ function buildPlayers(): MockPlayer[] {
           winRate: round3(winRate),
           kda: round3(1.9 + rng() * 3.4),
         },
-        topChampions: mains.map((m, idx) => {
-          // A single-main player is a one-trick: that champion clears the 85%
-          // OTP bar, so isOtp rides through and the row shows the OTP badge.
-          // Multi-main players spread their play rate and never trip the flag.
-          const soloMain = mains.length === 1
-          const playRate = soloMain
-            ? 0.86 + rng() * 0.1
-            : [0.44, 0.21, 0.12][idx]! + rng() * 0.08
-          return {
-            championId: m.id,
-            games: Math.round(games * playRate),
-            playRate: round3(playRate),
-            isOtp: soloMain,
-            primaryKeystoneId: m.keystone,
-            secondaryStyleId: m.secondaryStyle,
-            firstItemId: ARCHETYPES[m.archetype].items[0]!,
-          }
-        }),
+        topChampions,
+        dedication,
         // Primary is the top main's lane; secondary is the first differing lane
         // among the other mains (null when every main shares one lane), matching
         // the backend's primary/secondary derivation from position share.
@@ -964,6 +1029,15 @@ function mockLeaderboard(query: Record<string, unknown>): LeaderboardResponse {
     rows = championId
       ? rows.filter(p => p.row.topChampions.some(c => c.championId === championId && c.isOtp))
       : rows.filter(p => p.row.topChampions.some(c => c.isOtp))
+  }
+
+  // `?sort=dedication` re-ranks on the dedication score, as the backend does
+  // (score desc, then a stable tiebreak). Anything else keeps the seeded ladder
+  // order, which already stands in for the ranked-standing sort.
+  if (query.sort === 'dedication') {
+    rows = [...rows].sort((a, b) =>
+      (b.row.dedication?.score ?? -1) - (a.row.dedication?.score ?? -1)
+      || a.nameTag.localeCompare(b.nameTag))
   }
 
   const start = (page - 1) * pageSize
@@ -1020,6 +1094,9 @@ function mockProfile(player: MockPlayer): ProfileResponse {
       primaryPosition: seedsById.get(c.championId)?.position ?? '',
       isOtp: c.isOtp,
     })),
+    // Same payload the leaderboard row carries, so the profile card and the
+    // leaderboard column agree — exactly as they do against the real backend.
+    dedication: row.dedication,
     positions: [
       { position: player.position, games: Math.round(stats.games * 0.78), rate: 0.78 },
       { position: player.position === 'MIDDLE' ? 'TOP' : 'MIDDLE', games: Math.round(stats.games * 0.15), rate: 0.15 },

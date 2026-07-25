@@ -73,6 +73,20 @@ const mockProfile: ProfileResponse = {
     { championId: 99, games: 30, playRate: 0.15, primaryPosition: 'MIDDLE', isOtp: false },
     { championId: 222, games: 20, playRate: 0.1, primaryPosition: 'BOTTOM', isOtp: false },
   ],
+  // Dedication on the top main (Yasuo). Values mirror what
+  // backend/Core/Truemains/DedicationScore.cs would produce for these inputs.
+  dedication: {
+    score: 56.1,
+    championId: 157,
+    commitment: 0.318,
+    span: 0.667,
+    volume: 0.829,
+    recency: 0.794,
+    playRate: 0.4,
+    careerGames: 80,
+    patchSpan: 4,
+    daysSinceLastGame: 7,
+  },
   positions: [
     { position: 'MIDDLE', games: 170, rate: 170 / 190 },
     { position: 'BOTTOM', games: 20, rate: 20 / 190 },
@@ -213,6 +227,12 @@ const mockMatches = computed<MatchSummaryResponse[]>(() => [
 
     <ProfileHeader :identity="mockProfile.identity" :patch="latestPatch" />
     <ProfileRankedCard :ranked="mockProfile.ranked" :history="mockRankHistory" />
+    <ProfileDedicationCard
+      v-if="mockProfile.dedication"
+      :dedication="mockProfile.dedication"
+      :champions="champions"
+      name-tag="Phantasm-EUW1"
+    />
     <ProfileMainChampions :mains="mockProfile.mains" :champions="champions" name-tag="Phantasm-EUW1" />
     <ProfilePositionBreakdown :positions="mockProfile.positions" />
 
