@@ -211,6 +211,9 @@ public sealed class ParticipantHarvestServiceTests
 
         var result = await harness.RunAsync();
 
+        // The query no longer returns pairs whose candidate is not harvest-owned (#495), so
+        // this is the last line of defence: a ladder candidate created between the scan and
+        // the write must still be left alone.
         // Invariant: observed stats stay 0 outside Harvest, and mastery recency is untouched.
         result.CandidatesUpdated.Should().Be(0);
         existing.ObservedGames.Should().Be(0);
