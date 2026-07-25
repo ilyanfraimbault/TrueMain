@@ -22,8 +22,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The committed ingestor configuration is run through the real startup validation by
-         PlatformScopeValidationTests (#496), so a divergent Platforms list cannot be merged. -->
+    <!-- The ingestor's shipped configuration, linked twice under the two names the tests
+         that exercise it expect: IngestorAppSettingsBindingTests / CommunityDragonOptionsValidationTests
+         read "IngestorAppSettings.json", PlatformScopeValidationTests reads "ingestor.appsettings.json"
+         (run through the real startup validation, #496, so a divergent Platforms list cannot be merged). -->
+    <Content Include="..\..\Ingestor\appsettings.json" Link="IngestorAppSettings.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\Ingestor\appsettings.json" CopyToOutputDirectory="PreserveNewest">
       <Link>ingestor.appsettings.json</Link>
     </Content>
