@@ -240,6 +240,25 @@ const positionIcons = computed(() => {
       </template>
     </div>
 
+    <!-- Dedication. Always reserved (empty slot when the account has no
+         main-champion analysis yet) so the LP and stat columns never shift.
+         Kept visible at every row width, unlike the games/KDA/WR cluster: it is
+         the leaderboard's signature column, and the sort key when the board is
+         ranked by it. The `title` carries the full component breakdown — a rich
+         popover would fight the row's stretched profile link. -->
+    <div
+      v-if="row.dedication"
+      class="flex w-16 shrink-0 flex-col items-end"
+      :title="dedicationTitle"
+    >
+      <span
+        class="text-sm font-semibold tabular-nums"
+        :class="highlightDedication ? 'text-primary' : 'text-default'"
+      >{{ dedicationLabel }}</span>
+      <span class="text-[10px] text-muted">dedication</span>
+    </div>
+    <div v-else class="w-16 shrink-0" />
+
     <!-- LP + rank emblem. LP is shown (matches the homepage teaser); the
          division replaces it for the few non-apex rows. -->
     <div
