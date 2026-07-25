@@ -197,6 +197,43 @@ public sealed class ChampionMainsComparisonApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetMainsComparisonAsync_TargetingYourselfYieldsTwoIdenticalColumns()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedComparisonSampleAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // Both columns describe the same games, so they match exactly and every
+        // delta is zero. That is the arithmetic being right, not a bug — pinned
+        // here so nobody "fixes" it into a guard or a status of its own. The
+        // pool branch excludes the compared account to avoid *silent* self-
+        // contamination; an explicit self-target is the caller's own request,
+        // and the picker drops it client-side rather than the API refusing it.
+        var self = Uri.EscapeDataString($"{PlayerName}#{Tag}");
+        var comparison = await client.GetFromJsonAsync<ChampionMainsComparisonResponse>(
+            $"/champions/{Champion}/mains-comparison"
+            + $"?account={self}&main={self}&position={Position}&patch=16.4");
+        comparison.Should().NotBeNull();
+        comparison!.Status.Should().Be(ChampionComparisonStatus.Ok);
+
+        comparison.Player.Should().NotBeNull();
+        comparison.Mains.Should().NotBeNull();
+        var player = comparison.Player!;
+        var mains = comparison.Mains!;
+
+        mains.Identity!.GameName.Should().Be(PlayerName);
+        mains.Players.Should().Be(1);
+        mains.Games.Should().Be(player.Games);
+        mains.Wins.Should().Be(player.Wins);
+        mains.WinRate.Should().BeApproximately(player.WinRate, 1e-9);
+        mains.Kda.Should().BeApproximately(player.Kda, 1e-9);
+        mains.CsPerMin.Should().BeApproximately(player.CsPerMin, 1e-9);
+        mains.GoldPerMin.Should().BeApproximately(player.GoldPerMin, 1e-9);
+    }
+
+    [Fact]
     public async Task GetMainsComparisonAsync_TargetsAnyTrackedAccountNotJustAMain()
     {
         await _fixture.ResetDatabaseAsync();

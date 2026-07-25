@@ -63,6 +63,12 @@ public sealed record ChampionMainsComparisonResponse
     /// (pool) column is restricted to actual mains. The UI only ever offers
     /// real mains as targets.
     ///
+    /// Targeting the compared account itself is allowed and answered honestly:
+    /// both columns describe the same games, so they are identical and every
+    /// delta is zero. That is the arithmetic being right, not a special case —
+    /// it earns no guard and no status of its own. The picker drops the
+    /// compared account from its options so the UI never leads anyone into it.
+    ///
     /// Null when the account is unknown, or when a targeted account is.
     /// </summary>
     public ChampionComparisonSideReadModel? Mains { get; init; }

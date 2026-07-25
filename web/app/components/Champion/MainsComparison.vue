@@ -42,21 +42,43 @@ const { rows: mainRows } = useTruemainsLeaderboard(1, {
   championId: () => props.championId,
 })
 
-// "All mains" plus the champion's top tracked mains. Rows without a tag line
-// can't be addressed as a Riot ID, so they're dropped rather than offered as a
-// target the API would fail to resolve.
+/**
+ * The account under comparison, lowercased for matching. Falls back to the
+ * draft so the self entry disappears as the user types, not only after submit.
+ */
+const comparedRiotId = computed(() =>
+  (submitted.value ?? draft.value).trim().toLowerCase(),
+)
+
+// "All mains" plus the champion's top tracked mains. Two exclusions:
+// rows without a tag line can't be addressed as a Riot ID at all, and the
+// compared account itself is dropped — targeting yourself is a valid request
+// the API answers honestly (two identical columns, every delta zero), but it
+// tells the user nothing, so the picker doesn't offer it. The account can
+// legitimately appear in this list: it's the champion's top mains, and the
+// person comparing may well be one of them.
 const targetOptions = computed(() => [
   { label: 'All mains', value: ALL_MAINS },
   ...mainRows.value.flatMap((row) => {
     const riotId = formatRiotId(row.identity.gameName, row.identity.tagLine)
-    return riotId ? [{ label: riotId, value: riotId }] : []
+    if (!riotId || riotId.toLowerCase() === comparedRiotId.value) return []
+    return [{ label: riotId, value: riotId }]
   }),
 ])
 
 // Reset the target when the champion changes: a main of the previous champion
 // is meaningless here, and the API would compare against their games on a
-// champion they may never play.
+// champion they may never play. Keyed on championId rather than on the options
+// below because `mainRows` keeps the previous champion's rows while its refetch
+// is in flight — waiting for the options to change would let one request go out
+// against the stale target first.
 watch(() => props.championId, () => { target.value = ALL_MAINS })
+
+// Safety net for the other way a target can stop being offered: the user typed
+// their way into *being* the selected target, so it just left the list.
+watch(targetOptions, (options) => {
+  if (!options.some(option => option.value === target.value)) target.value = ALL_MAINS
+})
 
 const { data, status, error } = useChampionMainsComparison(
   () => props.championId,
@@ -158,11 +180,19 @@ const metricRows = computed(() => {
 
 const showMetrics = computed(() => comparison.value?.status === 'OK' && metricRows.value.length > 0)
 
-/** Which side is short of the floor, for the insufficient-sample notice. */
+/**
+ * Every side short of the floor, with its real count. Both can be thin at once,
+ * and naming only one sends the user chasing the wrong half of the problem —
+ * so this drives a list rather than a single sentence about the player.
+ */
 const thinSides = computed(() => {
-  const short: string[] = []
-  if (player.value && !player.value.sampleMet) short.push(playerLabel.value)
-  if (mains.value && !mains.value.sampleMet) short.push(mainsLabel.value)
+  const short: Array<{ label: string, games: number }> = []
+  if (player.value && !player.value.sampleMet) {
+    short.push({ label: playerLabel.value, games: player.value.games })
+  }
+  if (mains.value && !mains.value.sampleMet) {
+    short.push({ label: mainsLabel.value, games: mains.value.games })
+  }
   return short
 })
 </script>
@@ -271,19 +301,27 @@ const thinSides = computed(() => {
           Not enough games to compare
         </p>
         <p class="text-sm text-muted">
-          <template v-if="player && !player.sampleMet">
-            {{ playerLabel }} has {{ player.games }} recorded
-            {{ player.games === 1 ? 'game' : 'games' }} on this champion; we need
-            {{ comparison.minGames }}.
-          </template>
-          <template v-else-if="thinSides.length">
-            {{ thinSides.join(' and ') }} {{ thinSides.length > 1 ? 'have' : 'has' }} too few
-            recorded games on this champion.
-          </template>
-          <template v-else>
-            One side is below the {{ comparison.minGames }}-game floor.
-          </template>
+          Each side needs {{ comparison.minGames }} recorded
+          {{ comparison.minGames === 1 ? 'game' : 'games' }} on this champion.
         </p>
+        <!--
+          Every thin side is listed, never just the first: when both are short,
+          naming only the account would send the user hunting for more of their
+          own games when the mains pool is the half that's missing.
+        -->
+        <ul
+          v-if="thinSides.length"
+          class="flex flex-col gap-0.5"
+        >
+          <li
+            v-for="side in thinSides"
+            :key="side.label"
+            class="text-sm text-muted"
+          >
+            <span class="text-default">{{ side.label }}</span>:
+            {{ side.games }} {{ side.games === 1 ? 'game' : 'games' }}
+          </li>
+        </ul>
       </div>
 
       <div
