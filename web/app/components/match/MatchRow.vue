@@ -311,157 +311,169 @@ const rowTint = computed(() =>
 
         <!-- Loadout strip: summoner spells + runes + item block, tightly
              grouped (small internal gaps) so spells → runes → items read
-             left-to-right as one continuous build, shifted right off the KDA
-             block. Summoners and runes each stack 2-high to match the two rows
-             of the item grid. -->
-        <div class="ml-2 flex shrink-0 items-center gap-1">
-          <div class="flex flex-col gap-0.5">
-            <GameTooltipSummonerSpellIcon
-              :spell="summoner1"
-              :width="22"
-              :height="22"
-              loading="lazy"
-              class="size-[22px] rounded"
-            />
-            <GameTooltipSummonerSpellIcon
-              :spell="summoner2"
-              :width="22"
-              :height="22"
-              loading="lazy"
-              class="size-[22px] rounded"
-            />
-          </div>
-          <div class="flex flex-col items-center gap-0.5">
-            <GameTooltipPerkIcon
-              :perk="keystone"
-              :width="22"
-              :height="22"
-              loading="lazy"
-              class="size-[22px] rounded-full bg-black/40"
-            />
-            <GameTooltipPerkStyleIcon
-              :style="subStyle"
-              :width="18"
-              :height="18"
-              loading="lazy"
-              class="size-[18px]"
-            />
-          </div>
+             left-to-right as one continuous build. Wrapped in a flex-1
+             centering track (rather than sitting shrink-0 right off the KDA
+             block) so the build floats centred in whatever slack the row has
+             — the only variable-width zone — instead of hugging the KDA
+             block and dumping all the row's free space in one lump before
+             the right-edge group. Summoners and runes each stack 2-high to
+             match the two rows of the item grid. -->
+        <div class="flex flex-1 items-center justify-center">
+          <div class="flex shrink-0 items-center gap-1">
+            <div class="flex flex-col gap-0.5">
+              <GameTooltipSummonerSpellIcon
+                :spell="summoner1"
+                :width="22"
+                :height="22"
+                loading="lazy"
+                class="size-[22px] rounded"
+              />
+              <GameTooltipSummonerSpellIcon
+                :spell="summoner2"
+                :width="22"
+                :height="22"
+                loading="lazy"
+                class="size-[22px] rounded"
+              />
+            </div>
+            <div class="flex flex-col items-center gap-0.5">
+              <GameTooltipPerkIcon
+                :perk="keystone"
+                :width="22"
+                :height="22"
+                loading="lazy"
+                class="size-[22px] rounded-full bg-black/40"
+              />
+              <GameTooltipPerkStyleIcon
+                :style="subStyle"
+                :width="18"
+                :height="18"
+                loading="lazy"
+                class="size-[18px]"
+              />
+            </div>
 
-          <!-- Items: dark inset (scoreboard-style) with the six inventory
-               slots as a 3×2 grid, then a trailing column stacking the trinket
-               over the boots — boots are pulled out of the grid so they line up
-               with the trinket the way trackers show them. Empty slots stay as
-               transparent placeholders so the grid keeps its shape. The Eye of
-               the Herald is filtered out upstream (it's not a build item). -->
-          <div class="flex items-center gap-1.5 rounded-lg bg-black/25 p-1.5 ring-1 ring-white/5">
-            <div class="grid grid-cols-3 gap-1">
-              <template
-                v-for="(slot, idx) in inventoryItems"
-                :key="`item-${idx}`"
-              >
+            <!-- Items: dark inset (scoreboard-style) with the six inventory
+                 slots as a 3×2 grid, then a trailing column stacking the trinket
+                 over the boots — boots are pulled out of the grid so they line up
+                 with the trinket the way trackers show them. Empty slots stay as
+                 transparent placeholders so the grid keeps its shape. The Eye of
+                 the Herald is filtered out upstream (it's not a build item). -->
+            <div class="flex items-center gap-1.5 rounded-lg bg-black/25 p-1.5 ring-1 ring-white/5">
+              <div class="grid grid-cols-3 gap-1">
+                <template
+                  v-for="(slot, idx) in inventoryItems"
+                  :key="`item-${idx}`"
+                >
+                  <div
+                    v-if="slot.kind === 'empty'"
+                    class="size-6 shrink-0 rounded bg-white/5"
+                    aria-hidden="true"
+                  />
+                  <GameTooltipItemIcon
+                    v-else
+                    :item="slot.kind === 'item' ? slot.item : null"
+                    :width="24"
+                    :height="24"
+                    class="size-6 rounded"
+                  />
+                </template>
+              </div>
+              <div class="flex flex-col gap-1">
+                <GameTooltipItemIcon
+                  :item="trinket"
+                  :width="24"
+                  :height="24"
+                  loading="lazy"
+                  class="size-6 rounded-full"
+                />
                 <div
-                  v-if="slot.kind === 'empty'"
-                  class="size-6 shrink-0 rounded bg-white/5"
+                  v-if="bootsItem"
+                  class="size-6"
+                >
+                  <GameTooltipItemIcon
+                    :item="bootsItem"
+                    :width="24"
+                    :height="24"
+                    class="size-6 rounded"
+                  />
+                </div>
+                <div
+                  v-else
+                  class="size-6"
                   aria-hidden="true"
                 />
-                <GameTooltipItemIcon
-                  v-else
-                  :item="slot.kind === 'item' ? slot.item : null"
-                  :width="24"
-                  :height="24"
-                  class="size-6 rounded"
-                />
-              </template>
-            </div>
-            <div class="flex flex-col gap-1">
-              <GameTooltipItemIcon
-                :item="trinket"
-                :width="24"
-                :height="24"
-                loading="lazy"
-                class="size-6 rounded-full"
-              />
-              <div
-                v-if="bootsItem"
-                class="size-6"
-              >
-                <GameTooltipItemIcon
-                  :item="bootsItem"
-                  :width="24"
-                  :height="24"
-                  class="size-6 rounded"
-                />
               </div>
-              <div
-                v-else
-                class="size-6"
-                aria-hidden="true"
-              />
             </div>
           </div>
         </div>
 
-        <!-- Team compositions: two horizontal rows of 5, allies over enemies,
-             each sorted TOP → SUPPORT so a column pairs laner-vs-laner (ally
-             above enemy = same role). Left-packed right after the loadout (op.gg
-             convention) so the row's content stays together and the only slack
-             on a wide banner is a single trailing gap before the accolade —
-             rather than dead space scattered mid-row. Icons match the item
-             slots. Hidden below xl to keep core stats first on narrow layouts. -->
-        <div class="ml-2 hidden shrink-0 flex-col gap-0.5 xl:flex">
-          <div class="flex gap-0.5">
-            <SkeletonImage
-              v-for="(p, idx) in allies"
-              :key="`ally-${idx}`"
-              :src="championById.get(p.championId)?.iconUrl ?? null"
-              :alt="participantTooltip(p)"
-              :title="participantTooltip(p)"
-              loading="lazy"
-              class="size-6 rounded"
-            />
+        <!-- Right-edge group: team compositions + MVP/ACE accolade + expand
+             chevron, pinned together as one unit. No margin needed here —
+             the loadout's flex-1 track above already claims all of the row's
+             free space, so this group naturally lands flush against the row's
+             right edge right after it. -->
+        <div class="flex shrink-0 items-center gap-3">
+          <!-- Team compositions: two horizontal rows of 5, allies over
+               enemies, each sorted TOP → SUPPORT so a column pairs
+               laner-vs-laner (ally above enemy = same role). Icons match the
+               item slots. Hidden below xl to keep core stats first on
+               narrow layouts. -->
+          <div class="hidden shrink-0 flex-col gap-0.5 xl:flex">
+            <div class="flex gap-0.5">
+              <SkeletonImage
+                v-for="(p, idx) in allies"
+                :key="`ally-${idx}`"
+                :src="championById.get(p.championId)?.iconUrl ?? null"
+                :alt="participantTooltip(p)"
+                :title="participantTooltip(p)"
+                loading="lazy"
+                class="size-6 rounded"
+              />
+            </div>
+            <div class="flex gap-0.5">
+              <SkeletonImage
+                v-for="(p, idx) in enemies"
+                :key="`enemy-${idx}`"
+                :src="championById.get(p.championId)?.iconUrl ?? null"
+                :alt="participantTooltip(p)"
+                :title="participantTooltip(p)"
+                loading="lazy"
+                class="size-6 rounded"
+              />
+            </div>
           </div>
-          <div class="flex gap-0.5">
-            <SkeletonImage
-              v-for="(p, idx) in enemies"
-              :key="`enemy-${idx}`"
-              :src="championById.get(p.championId)?.iconUrl ?? null"
-              :alt="participantTooltip(p)"
-              :title="participantTooltip(p)"
-              loading="lazy"
-              class="size-6 rounded"
-            />
-          </div>
-        </div>
 
-        <!--
-          Right cluster: MVP / ACE accolade + expand chevron, edge-aligned with
-          `ml-auto`. MVP = a crown in the brand `gold` accent (best player of the
-          game); ACE = an award rosette in the rose `primary` (best player of the
-          losing team). Distinct icon *and* colour so the two never blur together,
-          and the same two tokens the expanded MatchDetailScoreboard uses, so the
-          collapsed crown and the scoreboard crown are the same gold. A UTooltip
-          spells out which accolade it is on hover/focus. Chevron rotates 180°.
-        -->
-        <div class="ml-auto flex shrink-0 items-center gap-2">
-          <UTooltip
-            v-if="self.isMvp || self.isAce"
-            :text="self.isMvp ? 'MVP' : 'ACE'"
-          >
+          <!--
+            MVP / ACE accolade + expand chevron. MVP = a crown in the brand
+            `gold` accent (best player of the game); ACE = an award rosette in
+            the rose `primary` (best player of the losing team). Distinct icon
+            *and* colour so the two never blur together, and the same two
+            tokens the expanded MatchDetailScoreboard uses, so the collapsed
+            crown and the scoreboard crown are the same gold. A UTooltip
+            spells out which accolade it is on hover/focus. Chevron rotates
+            180°.
+          -->
+          <div class="flex shrink-0 items-center gap-2">
+            <UTooltip
+              v-if="self.isMvp || self.isAce"
+              :text="self.isMvp ? 'MVP' : 'ACE'"
+            >
+              <UIcon
+                :name="self.isMvp ? 'i-lucide-crown' : 'i-lucide-award'"
+                class="size-5 drop-shadow"
+                :class="self.isMvp ? 'text-gold' : 'text-primary'"
+                :aria-label="self.isMvp ? 'MVP' : 'ACE'"
+              />
+            </UTooltip>
             <UIcon
-              :name="self.isMvp ? 'i-lucide-crown' : 'i-lucide-award'"
-              class="size-5 drop-shadow"
-              :class="self.isMvp ? 'text-gold' : 'text-primary'"
-              :aria-label="self.isMvp ? 'MVP' : 'ACE'"
+              v-if="canExpand"
+              name="i-lucide-chevron-down"
+              class="size-4 text-muted transition-transform duration-200"
+              :class="expanded ? 'rotate-180' : ''"
+              aria-hidden="true"
             />
-          </UTooltip>
-          <UIcon
-            v-if="canExpand"
-            name="i-lucide-chevron-down"
-            class="size-4 text-muted transition-transform duration-200"
-            :class="expanded ? 'rotate-180' : ''"
-            aria-hidden="true"
-          />
+          </div>
         </div>
       </div>
     </div>
