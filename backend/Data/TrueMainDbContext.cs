@@ -25,7 +25,6 @@ public class TrueMainDbContext : DbContext
     // (#606): the global matchups leaderboard and the lead-vs-lane-opponent
     // timeline curve. Populated by ChampionMatchupLeadAggregationProcess.
     public DbSet<ChampionMatchupStat> ChampionMatchupStats => Set<ChampionMatchupStat>();
-    public DbSet<ChampionTimelineLeadStat> ChampionTimelineLeadStats => Set<ChampionTimelineLeadStat>();
 
     // Pre-aggregated champion powerspikes (#694): the per-minute power curve, the
     // per-event slope-change spikes, and the global per-minute lead spread. Populated

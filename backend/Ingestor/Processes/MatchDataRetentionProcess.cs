@@ -17,10 +17,10 @@ public sealed class MatchDataRetentionProcess(
 {
     public string Name => "MatchDataRetention";
 
-    // The marks kept forever: the timeline-leads / matchup-lead aggregations only
-    // read these, and match-detail reads minute 15. The dense per-minute grid in
-    // between exists solely to feed the one-shot powerspike aggregation and is pruned
-    // once a match is folded. Mirrors ChampionMatchupLeadAggregationProcess.
+    // The marks kept forever: match-detail reads minute 15 for the laning-phase diff.
+    // The dense per-minute grid in between exists solely to feed the one-shot
+    // powerspike aggregation and is pruned once a match is folded. The other reader
+    // of these marks, the timeline-leads aggregate, was dropped in #889.
     private static readonly int[] CanonicalSnapshotMinutes = [5, 10, 15, 20, 30];
 
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
@@ -164,8 +164,6 @@ public sealed class MatchDataRetentionProcess(
             .AsNoTracking().Select(scope => scope.GameVersion).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.ChampionMatchupStats
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
-        observedPatches.UnionWith(await db.ChampionTimelineLeadStats
-            .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.ChampionPowerspikeCurveStats
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.ChampionPowerspikeEventStats
@@ -219,8 +217,6 @@ public sealed class MatchDataRetentionProcess(
                     .Where(scope => scope.GameVersion == stalePatch).ExecuteDeleteAsync(ct),
                 result.DeletedMatchupStats + await db.ChampionMatchupStats
                     .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct),
-                result.DeletedTimelineLeadStats + await db.ChampionTimelineLeadStats
-                    .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct),
                 result.DeletedPowerspikeCurveStats + await db.ChampionPowerspikeCurveStats
                     .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct),
                 result.DeletedPowerspikeEventStats + await db.ChampionPowerspikeEventStats
@@ -231,12 +227,11 @@ public sealed class MatchDataRetentionProcess(
         if (result.TotalDeleted > 0)
         {
             logger.LogInformation(
-                "Aggregate retention removed {DeletedScopes} scopes, {DeletedMatchups} matchup, "
-                + "{DeletedLeads} timeline-lead and {DeletedPowerspikes} powerspike rows for stale patches "
+                "Aggregate retention removed {DeletedScopes} scopes, {DeletedMatchups} matchup "
+                + "and {DeletedPowerspikes} powerspike rows for stale patches "
                 + "{StalePatches} (keeping {RetainedPatches}).",
                 result.DeletedScopes,
                 result.DeletedMatchupStats,
-                result.DeletedTimelineLeadStats,
                 result.DeletedPowerspikeCurveStats + result.DeletedPowerspikeEventStats,
                 string.Join("|", stalePatches),
                 string.Join("|", retainedVersions.OrderDescending().Select(version => version.ToString())));
@@ -427,7 +422,6 @@ public sealed class MatchDataRetentionProcess(
             snapshotPrune.DeletedSnapshots,
             aggregateDeletion.DeletedScopes,
             aggregateDeletion.DeletedMatchupStats,
-            aggregateDeletion.DeletedTimelineLeadStats,
             aggregateDeletion.DeletedPowerspikeCurveStats,
             aggregateDeletion.DeletedPowerspikeEventStats,
             retentionPlan.RetainedPatchesByPlatform
@@ -451,16 +445,14 @@ public sealed class MatchDataRetentionProcess(
     private sealed record AggregateDeletionResult(
         int DeletedScopes,
         int DeletedMatchupStats,
-        int DeletedTimelineLeadStats,
         int DeletedPowerspikeCurveStats,
         int DeletedPowerspikeEventStats)
     {
-        public static AggregateDeletionResult Empty { get; } = new(0, 0, 0, 0, 0);
+        public static AggregateDeletionResult Empty { get; } = new(0, 0, 0, 0);
 
         public int TotalDeleted
             => DeletedScopes
                 + DeletedMatchupStats
-                + DeletedTimelineLeadStats
                 + DeletedPowerspikeCurveStats
                 + DeletedPowerspikeEventStats;
     }

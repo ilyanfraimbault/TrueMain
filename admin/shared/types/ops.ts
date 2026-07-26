@@ -720,7 +720,7 @@ export interface RiotApiUsage {
  * matchups, timeline leads, powerspikes, mains).
  */
 export interface AggregationFamily {
-  /** Stable identifier: "builds" | "matchups" | "timelineLeads" | "powerspikes" | "mains". */
+  /** Stable identifier: "builds" | "matchups" | "powerspikes" | "mains". */
   key: string
   /** The recorded ingestor process producing this family. */
   processName: string

@@ -25,7 +25,6 @@ import type {
   ChampionRoamResponse,
   ChampionScalingResponse,
   ChampionSummaryResponse,
-  ChampionTimelineLeadsResponse,
   ChampionTrendResponse,
   BuildRunePage,
 } from '~~/shared/types/champions'
@@ -573,32 +572,6 @@ async function mockTrend(id: number): Promise<ChampionTrendResponse | null> {
       pickRate: round3(Math.max(0.004, s.pr + (rng() - 0.5) * 0.02)),
       games: Math.round(s.pr * POOL_GAMES * (0.8 + rng() * 0.4)),
     })),
-  }
-}
-
-async function mockTimelineLeads(id: number): Promise<ChampionTimelineLeadsResponse | null> {
-  const s = seedsById.get(id)
-  if (!s) return null
-  const rng = mulberry32(s.id * 211)
-  // Above-50% champions trend ahead, below-50% behind; leads widen with time.
-  const bias = (s.wr - 0.5) * 20
-  return {
-    championId: s.id,
-    position: s.position,
-    patch: await latestShortPatch(),
-    intervals: [5, 10, 15, 20, 30].map((minute, i) => {
-      const drift = (i + 1) * (bias + (rng() - 0.4) * 4)
-      return {
-        intervalMinute: minute,
-        games: Math.round(s.pr * POOL_GAMES * (1 - i * 0.13)),
-        goldDiff: Math.round(drift * 55),
-        csDiff: round3(drift * 0.55),
-        killsDiff: round3(drift * 0.045),
-        levelDiff: round3(drift * 0.02),
-        xpDiff: Math.round(drift * 38),
-        damageDiff: Math.round(drift * 140),
-      }
-    }),
   }
 }
 
@@ -1513,7 +1486,6 @@ export async function resolveDevApiMock(
       sub === undefined ? mockChampionDetail(id, position, eloBracket)
       : sub === 'trend' ? mockTrend(id)
       : sub === 'patch-diff' ? mockPatchDiff(id, typeof query.from === 'string' ? query.from : undefined, typeof query.to === 'string' ? query.to : undefined)
-      : sub === 'timeline-leads' ? mockTimelineLeads(id)
       : sub === 'scaling' ? mockScaling(id)
       : sub === 'powerspikes' ? mockPowerspikes(id)
       : sub === 'roam' ? mockRoam(id)
