@@ -203,6 +203,7 @@ const {
   detail,
   detailPending,
   detailError,
+  detailErrorTraceId,
   openDetail,
 } = useDeepLinkedDetail<CandidateDetail>({
   queryKey: 'candidate',
@@ -310,13 +311,10 @@ function isRejected(status: MainCandidateStatus | undefined): boolean {
           </div>
         </template>
 
-        <UAlert
+        <FetchErrorAlert
           v-if="candidateError"
-          color="error"
-          variant="subtle"
-          icon="i-lucide-triangle-alert"
+          :error="candidateError"
           title="Failed to load candidates"
-          :description="candidateError.message"
           class="m-4"
         />
 
@@ -461,13 +459,10 @@ function isRejected(status: MainCandidateStatus | undefined): boolean {
           </div>
         </template>
 
-        <UAlert
+        <FetchErrorAlert
           v-if="seedError"
-          color="error"
-          variant="subtle"
-          icon="i-lucide-triangle-alert"
+          :error="seedError"
           title="Failed to load seed requests"
-          :description="seedError.message"
           class="m-4"
         />
 
@@ -536,13 +531,11 @@ function isRejected(status: MainCandidateStatus | undefined): boolean {
             <USkeleton class="h-48 w-full" />
           </div>
 
-          <UAlert
+          <FetchErrorAlert
             v-else-if="detailError"
-            color="error"
-            variant="subtle"
-            icon="i-lucide-triangle-alert"
+            :message="detailError"
+            :trace-id="detailErrorTraceId"
             title="Could not load candidate"
-            :description="detailError"
           />
 
           <div v-else-if="detail" class="space-y-6">

@@ -239,13 +239,10 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
     </template>
 
     <template #body>
-      <UAlert
+      <FetchErrorAlert
         v-if="error"
-        color="error"
-        variant="subtle"
-        icon="i-lucide-triangle-alert"
+        :error="error"
         title="Failed to load Riot API usage"
-        :description="error.message"
         class="mb-6"
       />
 

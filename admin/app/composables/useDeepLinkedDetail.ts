@@ -26,6 +26,10 @@ export function useDeepLinkedDetail<T>(options: DeepLinkedDetailOptions<T>) {
   const detail = ref(null) as Ref<T | null>
   const detailPending = ref(false)
   const detailError = ref<string | null>(null)
+  // Only set for a genuine backend/network failure, never for the 404 case —
+  // a missing id is an expected outcome, not something worth correlating to a
+  // server log line.
+  const detailErrorTraceId = ref<string | undefined>(undefined)
   const detailId = ref<string | null>(null)
 
   async function openDetail(rawId: string) {
@@ -37,6 +41,7 @@ export function useDeepLinkedDetail<T>(options: DeepLinkedDetailOptions<T>) {
     detailOpen.value = true
     detailPending.value = true
     detailError.value = null
+    detailErrorTraceId.value = undefined
     detail.value = null
     // Reflect the open detail in the URL so the view is deep-linkable.
     if (route.query[options.queryKey] !== id) {
@@ -46,9 +51,13 @@ export function useDeepLinkedDetail<T>(options: DeepLinkedDetailOptions<T>) {
       detail.value = await options.fetch(id)
     }
     catch (err: unknown) {
-      detailError.value = (err as { statusCode?: number })?.statusCode === 404
-        ? options.notFoundMessage(id)
-        : extractFetchError(err, options.loadErrorMessage)
+      if ((err as { statusCode?: number })?.statusCode === 404) {
+        detailError.value = options.notFoundMessage(id)
+      }
+      else {
+        detailError.value = extractFetchError(err, options.loadErrorMessage)
+        detailErrorTraceId.value = extractFetchErrorTraceId(err)
+      }
     }
     finally {
       detailPending.value = false
@@ -74,5 +83,5 @@ export function useDeepLinkedDetail<T>(options: DeepLinkedDetailOptions<T>) {
     }
   })
 
-  return { detailOpen, detail, detailPending, detailError, detailId, openDetail }
+  return { detailOpen, detail, detailPending, detailError, detailErrorTraceId, detailId, openDetail }
 }
