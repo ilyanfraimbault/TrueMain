@@ -192,22 +192,24 @@ const positionIcons = computed(() => {
       <LeaderboardRegionFlag :region="row.region" :width="18" class="mt-0.5" />
     </div>
 
-    <!-- Primary / secondary lane. Small, muted role icons secondary to the
-         name. Fixed-width slot (room for two 16px icons + gap) reserved on
-         every row so the layout never shifts whether a player has a secondary
-         lane, or no position data at all. Hidden on narrow rows to keep them
-         readable. -->
-    <div class="hidden w-12 shrink-0 items-center gap-1 @xl:flex">
+    <!-- Primary / secondary lane. Same 22px icon as the champion list's
+         position column; the primary lane matches its full opacity, and only
+         the secondary lane (a concept the champion list has no equivalent of)
+         stays dimmed to read as lower priority. Fixed-width slot (room for two
+         22px icons + gap) reserved on every row so the layout never shifts
+         whether a player has a secondary lane, or no position data at all.
+         Hidden on narrow rows to keep them readable. -->
+    <div class="hidden w-16 shrink-0 items-center gap-1 @xl:flex">
       <NuxtImg
         v-for="role in positionIcons"
         :key="role.position"
         :src="role.iconUrl"
         :alt="role.title"
         :title="role.title"
-        class="size-4 shrink-0"
-        :class="role.primary ? 'opacity-70' : 'opacity-40'"
-        width="16"
-        height="16"
+        class="size-[22px] shrink-0"
+        :class="role.primary ? undefined : 'opacity-40'"
+        width="22"
+        height="22"
       />
     </div>
 
