@@ -86,8 +86,14 @@ public sealed class RiotAccountConfiguration : IEntityTypeConfiguration<RiotAcco
 
         entity.HasIndex(e => e.PersonaId);
 
-        entity.HasIndex(e => new { e.GameName, e.TagLine, e.PlatformId })
-            .IsUnique();
+        // Intentionally NOT unique: the Riot ID is a mutable, recyclable third-party
+        // attribute, not an identity — the PUUID above is. A player who renames frees
+        // their old Riot ID for someone else, so between two refresh cycles a stale row
+        // and a freshly renamed one legitimately hold the same GameName/TagLine on the
+        // same platform. A unique index turned that into a 23505 that failed the whole
+        // AccountRefresh batch every cycle. Reads already tolerate duplicates (they
+        // order by last activity and take the first match).
+        entity.HasIndex(e => new { e.GameName, e.TagLine, e.PlatformId });
 
         // Partial index: the match-ingest claim/lease scan only looks at
         // non-Idle rows, but ~99% of accounts sit at Idle. Filtering Idle out

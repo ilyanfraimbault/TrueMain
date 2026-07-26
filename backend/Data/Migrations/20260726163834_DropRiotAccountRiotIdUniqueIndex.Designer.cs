@@ -6,6 +6,7 @@ using Data;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -14,9 +15,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Data.Migrations
 {
     [DbContext(typeof(TrueMainDbContext))]
-    partial class TrueMainDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260726163834_DropRiotAccountRiotIdUniqueIndex")]
+    partial class DropRiotAccountRiotIdUniqueIndex
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -613,11 +616,6 @@ namespace Data.Migrations
                     b.Property<int>("ChampionMatches")
                         .HasColumnType("integer");
 
-                    b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
-
                     b.Property<bool>("IsExtendedSample")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -659,11 +657,11 @@ namespace Data.Migrations
 
                     b.HasIndex("ChampionId")
                         .HasDatabaseName("IX_main_champion_stats_is_main_champion")
-                        .HasFilter("\"IsMain\" AND \"IsActive\"");
+                        .HasFilter("\"IsMain\"");
 
-                    b.HasIndex("PlatformId", "IsMain", "IsActive");
+                    b.HasIndex("PlatformId", "IsMain");
 
-                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("PlatformId", "IsMain", "IsActive"), new[] { "Puuid" });
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("PlatformId", "IsMain"), new[] { "Puuid" });
 
                     b.HasIndex("PlatformId", "Puuid", "ChampionId")
                         .IsUnique();
@@ -1237,9 +1235,6 @@ namespace Data.Migrations
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
-
-                    b.Property<DateTime?>("LastActivityCheckAtUtc")
-                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime?>("LastMainCalcAtUtc")
                         .HasColumnType("timestamp with time zone");
