@@ -203,13 +203,17 @@ public sealed class DiscoveryProcess(
             {
                 latestByAccountId.TryGetValue(upsertResult.Account.Id, out var latest);
                 var outcome = rankSnapshotWriter.Ingest(session, upsertResult.Account, item.Rank, latest, nowUtc);
-                if (outcome == RankSnapshotOutcome.Inserted)
+                switch (outcome)
                 {
-                    summary.RankSnapshotsInserted++;
-                }
-                else
-                {
-                    summary.RankSnapshotsUnchanged++;
+                    case RankSnapshotOutcome.Inserted:
+                        summary.RankSnapshotsInserted++;
+                        break;
+                    case RankSnapshotOutcome.Updated:
+                        summary.RankSnapshotsUpdated++;
+                        break;
+                    default:
+                        summary.RankSnapshotsUnchanged++;
+                        break;
                 }
             }
 
@@ -285,13 +289,14 @@ public sealed class DiscoveryProcess(
         // operator can follow ladder-discovery throughput from /ops/logs.
         logger.LogInformation(
             OpsEvents.DiscoveryCycleCompleted,
-            "Discovery summary for {Platform}: accounts={AccountsProcessed}, newAccounts={NewAccounts}, candidatesInserted={Inserted}, candidatesUpdated={Updated}, rankSnapshotsInserted={RankInserted}, rankSnapshotsUnchanged={RankUnchanged}.",
+            "Discovery summary for {Platform}: accounts={AccountsProcessed}, newAccounts={NewAccounts}, candidatesInserted={Inserted}, candidatesUpdated={Updated}, rankSnapshotsInserted={RankInserted}, rankSnapshotsUpdated={RankUpdated}, rankSnapshotsUnchanged={RankUnchanged}.",
             platformSummary.PlatformId,
             platformSummary.AccountsProcessed,
             platformSummary.NewAccountsDiscovered,
             platformSummary.CandidatesInserted,
             platformSummary.CandidatesUpdated,
             platformSummary.RankSnapshotsInserted,
+            platformSummary.RankSnapshotsUpdated,
             platformSummary.RankSnapshotsUnchanged);
     }
 
@@ -305,6 +310,7 @@ public sealed class DiscoveryProcess(
                 summary.CandidatesInserted,
                 summary.CandidatesUpdated,
                 summary.RankSnapshotsInserted,
+                summary.RankSnapshotsUpdated,
                 summary.RankSnapshotsUnchanged,
                 // Null for platforms that completed; the per-platform error message
                 // otherwise, so a partially failed run says which platform failed and why.
@@ -320,6 +326,7 @@ public sealed class DiscoveryProcess(
         public int CandidatesInserted { get; set; }
         public int CandidatesUpdated { get; set; }
         public int RankSnapshotsInserted { get; set; }
+        public int RankSnapshotsUpdated { get; set; }
         public int RankSnapshotsUnchanged { get; set; }
         public string? FailureReason { get; init; }
     }

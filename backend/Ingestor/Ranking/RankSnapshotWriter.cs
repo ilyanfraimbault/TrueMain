@@ -9,6 +9,7 @@ public sealed record RankSnapshotInput(string Tier, string Division, int LeagueP
 public enum RankSnapshotOutcome
 {
     Inserted,
+    Updated,
     Unchanged
 }
 
@@ -24,9 +25,12 @@ public interface IRankSnapshotWriter
     /// intentional and not a no-op-path accident: <c>LastRankSyncAtUtc</c> is the
     /// freshness gate that stops <c>AccountRefreshProcess</c> from re-issuing the
     /// League-v4 by-puuid call (and dedups against <c>DiscoveryProcess</c>), so it
-    /// must move forward even when the rank is unchanged. A new
-    /// <see cref="RankSnapshot"/> row is appended only when the rank actually
-    /// changed (<see cref="RankSnapshotOutcome.Inserted"/>).
+    /// must move forward even when the rank is unchanged. At most one
+    /// <see cref="RankSnapshot"/> row is kept per account per UTC calendar day: an
+    /// unchanged rank writes nothing (<see cref="RankSnapshotOutcome.Unchanged"/>), a
+    /// changed rank on the same day as <paramref name="latest"/> overwrites that row
+    /// in place (<see cref="RankSnapshotOutcome.Updated"/>), and a changed rank on a
+    /// new day appends a fresh row (<see cref="RankSnapshotOutcome.Inserted"/>).
     /// </remarks>
     RankSnapshotOutcome Ingest(
         IDataSession session,
@@ -62,6 +66,23 @@ public sealed class RankSnapshotWriter : IRankSnapshotWriter
         if (unchanged)
         {
             return RankSnapshotOutcome.Unchanged;
+        }
+
+        // Cap storage at one snapshot per account per day: a rank change on the
+        // same UTC day as the latest row overwrites it instead of appending, so a
+        // player who climbs several times in one day still leaves a single row.
+        if (latest is not null && latest.CapturedAtUtc.Date == nowUtc.Date)
+        {
+            latest.CapturedAtUtc = nowUtc;
+            latest.Tier = input.Tier;
+            latest.Division = input.Division;
+            latest.LeaguePoints = input.LeaguePoints;
+            latest.Wins = input.Wins;
+            latest.Losses = input.Losses;
+
+            session.RankSnapshots.Update(latest);
+
+            return RankSnapshotOutcome.Updated;
         }
 
         session.RankSnapshots.Add(new RankSnapshot

@@ -8,6 +8,9 @@ public sealed class RankSnapshotRepository(TrueMainDbContext db) : IRankSnapshot
     public void Add(RankSnapshot snapshot)
         => db.RankSnapshots.Add(snapshot);
 
+    public void Update(RankSnapshot snapshot)
+        => db.RankSnapshots.Update(snapshot);
+
     public Task<RankSnapshot?> GetLatestAsync(Guid riotAccountId, CancellationToken ct)
         => db.RankSnapshots
             .AsNoTracking()

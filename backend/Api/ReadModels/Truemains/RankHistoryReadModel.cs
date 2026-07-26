@@ -12,10 +12,11 @@ public sealed class RankHistoryReadModel
 }
 
 /// <summary>
-/// One <c>RankSnapshot</c> row projected for the chart consumer. Snapshots
-/// are append-on-change (see <c>RankSnapshotWriter</c>), so consecutive
-/// entries are never duplicates of each other and the gap between two
-/// rows is the period during which the player held the earlier rank.
+/// One <c>RankSnapshot</c> row projected for the chart consumer. At most one
+/// row exists per account per UTC calendar day (see <c>RankSnapshotWriter</c>),
+/// so consecutive entries are never duplicates of each other and the gap
+/// between two rows is at least a day, spanning however long the player held
+/// the earlier rank.
 /// </summary>
 public sealed class RankHistoryEntryReadModel
 {

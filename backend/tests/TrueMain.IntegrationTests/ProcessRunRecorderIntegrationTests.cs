@@ -75,7 +75,7 @@ public sealed class ProcessRunRecorderIntegrationTests
             startedAt,
             startedAt.AddSeconds(2),
             ProcessRunStatus.Success,
-            new DiscoverySummary([new DiscoveryPlatformSummary("EUW1", 40, 3, 12, 5, 2, 38, null)]),
+            new DiscoverySummary([new DiscoveryPlatformSummary("EUW1", 40, 3, 12, 5, 2, 6, 32, null)]),
             error: null,
             CancellationToken.None);
 
@@ -97,7 +97,8 @@ public sealed class ProcessRunRecorderIntegrationTests
         platform.GetProperty("candidatesInserted").GetInt32().Should().Be(12);
         platform.GetProperty("candidatesUpdated").GetInt32().Should().Be(5);
         platform.GetProperty("rankSnapshotsInserted").GetInt32().Should().Be(2);
-        platform.GetProperty("rankSnapshotsUnchanged").GetInt32().Should().Be(38);
+        platform.GetProperty("rankSnapshotsUpdated").GetInt32().Should().Be(6);
+        platform.GetProperty("rankSnapshotsUnchanged").GetInt32().Should().Be(32);
         platform.GetProperty("error").ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
     }
 
