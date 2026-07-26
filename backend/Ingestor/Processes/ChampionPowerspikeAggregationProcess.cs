@@ -463,7 +463,13 @@ public sealed class ChampionPowerspikeAggregationProcess(
             join catalog in db.PerkSelectionCatalogs.AsNoTracking()
                 on selection.PerkSelectionCatalogId equals catalog.Id
             where matchIds.Contains(selection.MatchId)
-                && catalog.StyleDescription == "primaryStyle"
+                // Case-insensitive to match ChampionPatternSourceRowReader, which
+                // compares with OrdinalIgnoreCase in memory. A plain `==` would be
+                // case-sensitive in Postgres, and a casing change from Riot would
+                // silently resolve no keystone at all — dropping every spike while
+                // the build tabs kept rendering. No wildcards in the pattern, so
+                // there is nothing to escape.
+                && EF.Functions.ILike(catalog.StyleDescription, "primaryStyle")
                 && catalog.SelectionIndex == 0
             select new { selection.MatchId, selection.ParticipantId, catalog.PerkId })
             .ToListAsync(ct);

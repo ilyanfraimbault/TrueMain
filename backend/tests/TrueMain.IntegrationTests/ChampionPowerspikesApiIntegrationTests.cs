@@ -132,15 +132,24 @@ public sealed class ChampionPowerspikesApiIntegrationTests
         spikes!.Events.Should().BeEmpty();
     }
 
-    [Fact]
-    public async Task GetChampionPowerspikesAsync_ReturnsBadRequestWithoutBuildKey()
+    [Theory]
+    // Neither half, each half alone, and a non-positive value: the build key is
+    // only meaningful as a complete, positive pair.
+    // Literals rather than the CoreItem/Keystone constants: attribute arguments
+    // must be compile-time constants, and interpolation is not.
+    [InlineData("")]
+    [InlineData("&buildFirstItemId=3153")]
+    [InlineData("&buildKeystoneId=8112")]
+    [InlineData("&buildFirstItemId=0&buildKeystoneId=8112")]
+    [InlineData("&buildFirstItemId=3153&buildKeystoneId=-1")]
+    public async Task GetChampionPowerspikesAsync_ReturnsBadRequestForIncompleteBuildKey(string buildQuery)
     {
         await _fixture.ResetDatabaseAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
-        var response = await client.GetAsync($"/champions/{Champion}/powerspikes?position={Position}");
+        var response = await client.GetAsync($"/champions/{Champion}/powerspikes?position={Position}{buildQuery}");
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
