@@ -11,7 +11,7 @@ TrueMain is a League of Legends analytics site: champion/player stats computed f
   - **Preprod** auto-deploys from `compose.preprod.yaml` on every push to `develop` — a plain feature merge reaches preprod automatically a few minutes later, no manual step.
   - **Prod** auto-deploys from `compose.prod.yaml` only when a GitHub Release is **published** — merging to `develop`/`master` alone does not reach prod; cutting a release does (see the `release` skill).
   - Both jobs publish immutable `:<sha>`/`:<version>` image tags alongside the moving `:preprod`/`:latest` ones, so compose always resolves to a tag Docker Manager is forced to pull — a mutable-tag redeploy would otherwise silently keep the stale image running.
-  - Prod runs with `ApplyMigrationsOnStartup` disabled — an image redeploy does **not** apply pending EF migrations; those are applied out-of-band (`docs/production-migrations.md`).
+  - Prod still runs with `ApplyMigrationsOnStartup: "true"`, so a release redeploy applies pending EF migrations on startup — switching to an out-of-band migration step is an open decision, not yet done (`docs/production-migrations.md`, #208).
 - `docs/` — project docs.
 
 ## Language
