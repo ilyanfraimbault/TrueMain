@@ -603,23 +603,22 @@ async function mockScaling(id: number): Promise<ChampionScalingResponse | null> 
   }
 }
 
-async function mockPowerspikes(id: number): Promise<ChampionPowerspikesResponse | null> {
+async function mockPowerspikes(id: number, buildFirstItemId: number): Promise<ChampionPowerspikesResponse | null> {
   const s = seedsById.get(id)
   if (!s) return null
-  const rng = mulberry32(s.id * 401)
+  // Spikes are scoped to one core build (#890), so the fixture varies with the
+  // build key: each build starts on its own first item and the rest of the
+  // sequence rotates, the way two real builds diverge after the first buy.
+  const rng = mulberry32(s.id * 401 + buildFirstItemId)
   const archetype = ARCHETYPES[s.archetype]
-  // Power drifts with the archetype's scaling slope so late-game champions
-  // read as ramping up; the curve stays in the ±1σ band real data lives in.
-  const slope = SCALING_SLOPE[s.archetype]
-  const curve = Array.from({ length: 30 }, (_, i) => ({
-    minute: i + 1,
-    power: round3(slope * 8 * ((i + 1) / 30 - 0.4) + (rng() - 0.5) * 0.08),
-    games: Math.round(s.pr * POOL_GAMES * Math.max(0.25, 1 - i * 0.02)),
-  }))
   // One spike per core item: mostly positive, tapering with build order, the
   // odd negative read on late defensive buys. The real endpoint orders by
   // *signed* magnitude descending — mirror that.
-  const events: ChampionPowerspikeEvent[] = archetype.items.slice(0, 6).map((itemId, i) => ({
+  const rotation = archetype.items.indexOf(buildFirstItemId)
+  const buildItems = rotation > 0
+    ? [...archetype.items.slice(rotation), ...archetype.items.slice(0, rotation)]
+    : archetype.items
+  const events: ChampionPowerspikeEvent[] = buildItems.slice(0, 6).map((itemId, i) => ({
     type: 'item' as const,
     refId: itemId,
     avgMinute: round3(9 + i * 4.6 + rng() * 1.6),
@@ -638,7 +637,6 @@ async function mockPowerspikes(id: number): Promise<ChampionPowerspikesResponse 
     championId: s.id,
     position: s.position,
     patch: await latestShortPatch(),
-    curve,
     events,
   }
 }
@@ -1487,7 +1485,7 @@ export async function resolveDevApiMock(
       : sub === 'trend' ? mockTrend(id)
       : sub === 'patch-diff' ? mockPatchDiff(id, typeof query.from === 'string' ? query.from : undefined, typeof query.to === 'string' ? query.to : undefined)
       : sub === 'scaling' ? mockScaling(id)
-      : sub === 'powerspikes' ? mockPowerspikes(id)
+      : sub === 'powerspikes' ? mockPowerspikes(id, Number(query.buildFirstItemId) || 0)
       : sub === 'roam' ? mockRoam(id)
       : sub === 'matchups' ? mockMatchups(id)
       : sub === 'mains-comparison' ? mockMainsComparison(

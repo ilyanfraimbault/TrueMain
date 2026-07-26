@@ -20,7 +20,7 @@ namespace Data.CompiledModels
                 "Data.Entities.ChampionPowerspikeEventStat",
                 typeof(ChampionPowerspikeEventStat),
                 baseEntityType,
-                propertyCount: 11,
+                propertyCount: 13,
                 unnamedIndexCount: 1,
                 keyCount: 1);
 
@@ -41,6 +41,26 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(ChampionPowerspikeEventStat).GetField("<AggregatedAtUtc>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified));
             aggregatedAtUtc.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var buildFirstItemId = runtimeEntityType.AddProperty(
+                "BuildFirstItemId",
+                typeof(int),
+                propertyInfo: typeof(ChampionPowerspikeEventStat).GetProperty("BuildFirstItemId", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(ChampionPowerspikeEventStat).GetField("<BuildFirstItemId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: 0);
+            buildFirstItemId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            buildFirstItemId.AddAnnotation("Relational:DefaultValue", 0);
+
+            var buildKeystoneId = runtimeEntityType.AddProperty(
+                "BuildKeystoneId",
+                typeof(int),
+                propertyInfo: typeof(ChampionPowerspikeEventStat).GetProperty("BuildKeystoneId", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(ChampionPowerspikeEventStat).GetField("<BuildKeystoneId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: 0);
+            buildKeystoneId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            buildKeystoneId.AddAnnotation("Relational:DefaultValue", 0);
 
             var championId = runtimeEntityType.AddProperty(
                 "ChampionId",
@@ -126,7 +146,7 @@ namespace Data.CompiledModels
             runtimeEntityType.SetPrimaryKey(key);
 
             var index = runtimeEntityType.AddIndex(
-                new[] { championId, teamPosition, patch, eloBracket, eventType, refId },
+                new[] { championId, teamPosition, patch, eloBracket, buildFirstItemId, buildKeystoneId, eventType, refId },
                 unique: true);
 
             return runtimeEntityType;

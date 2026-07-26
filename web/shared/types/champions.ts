@@ -152,30 +152,18 @@ export interface ChampionScalingBucket {
 }
 
 /**
- * Power curve and event spikes for a champion at a position (issue #571). The
- * curve is the mean opponent-relative power per minute; the events are the
- * completed build items and level milestones (6/11/16), each carrying how much
- * the curve accelerates around it — the spike.
+ * Event spikes for a champion at a position, scoped to one core build (issue
+ * #571, scoped per build in #890): the items that build completes and the level
+ * milestones (6/11/16), each carrying how much the champion's power accelerates
+ * around it. The mean power curve is no longer returned — it is only the
+ * baseline the spikes are measured against, server-side.
  */
 export interface ChampionPowerspikesResponse {
   championId: number
   position: string
   patch: string | null
-  /** Mean power per minute across the population, ordered by minute. */
-  curve: ChampionPowerCurvePoint[]
   /** Spike events, ordered by descending magnitude. */
   events: ChampionPowerspikeEvent[]
-}
-
-export interface ChampionPowerCurvePoint {
-  minute: number
-  /**
-   * Opponent-relative power index at this minute: 0 = even with the lane
-   * opponent, positive = ahead. Unitless (σ-normalized blend of gold and
-   * damage lead).
-   */
-  power: number
-  games: number
 }
 
 export interface ChampionPowerspikeEvent {

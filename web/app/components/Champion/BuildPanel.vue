@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { isLoadingStatus } from '~/utils/async-data'
 import type { ChampionBuild } from '~~/shared/types/champions'
 import type {
   ChampionStaticData,
@@ -7,13 +8,33 @@ import type {
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
 
-defineProps<{
+const props = defineProps<{
   build: ChampionBuild
   championStatic: ChampionStaticData
   itemsMap: Record<number, StaticItemData>
   summonersMap: Record<number, StaticSummonerSpellData>
   runeTree: RuneTreeResponse | null
+  // Optional population scope — absent in the builder preview and on the
+  // player-scoped champion page, where power spikes are not shown.
+  championId?: number
+  position?: string | null
+  patch?: string | null
+  eloBracket?: string | null
 }>()
+
+const showPowerspikes = computed(() => Boolean(props.championId && props.position))
+
+// Power spikes are only meaningful within one build, so the panel fetches its
+// own slice for the build it renders. BuildTabs keeps every panel mounted, so
+// this fires once per build rather than on every tab switch.
+const { data: powerspikes, status: powerspikesStatus } = useChampionPowerspikes(
+  () => props.championId ?? 0,
+  () => props.position,
+  () => props.patch,
+  () => props.build.firstItemId,
+  () => props.build.primaryKeystoneId,
+  () => props.eloBracket,
+)
 </script>
 
 <template>
@@ -107,6 +128,14 @@ defineProps<{
       v-if="runeTree"
       :rune-pages="build.runePages"
       :rune-tree="runeTree"
+    />
+
+    <!-- Section 5: Power spikes for this build -->
+    <ChampionBuildPanelPowerspikes
+      v-if="showPowerspikes"
+      :events="powerspikes?.events ?? []"
+      :items-map="itemsMap"
+      :loading="isLoadingStatus(powerspikesStatus)"
     />
   </div>
 </template>

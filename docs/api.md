@@ -298,10 +298,16 @@ d'échantillon et pour `JUNGLE` (pas de lane propre).
 
 ## `GET /champions/{championId}/powerspikes`
 
-Courbe de puissance par minute (relative à l'adversaire) + événements (items
-complétés, paliers de niveau 6/11/16) avec leur magnitude de spike.
+Événements de power spike (items complétés, paliers de niveau 6/11/16) avec leur
+magnitude, **scopés à un seul build core**.
 
-**Query** — `position` (**requis**, `400` sinon), `patch` (optionnel)
+**Query** — `position` (**requis**, `400` sinon), `buildFirstItemId` et
+`buildKeystoneId` (**requis**, positifs, `400` sinon), `patch` (optionnel),
+`eloBracket` (optionnel)
+
+Le couple `buildFirstItemId` / `buildKeystoneId` identifie le build core de la
+même façon que la lecture des builds clé ses onglets — un build jamais joué
+renvoie une liste vide plutôt qu'un repli sur les autres builds du champion.
 
 **Réponse `200`** — `ChampionPowerspikesResponse`
 
@@ -310,11 +316,6 @@ complétés, paliers de niveau 6/11/16) avec leur magnitude de spike.
   "championId": 103,
   "position": "MIDDLE",
   "patch": "16.4",
-  "curve": [
-    { "minute": 5, "power": 0.05, "games": 1700 },
-    { "minute": 10, "power": 0.22, "games": 1650 },
-    { "minute": 15, "power": 0.41, "games": 1500 }
-  ],
   "events": [
     { "type": "item", "refId": 6653, "avgMinute": 16.3, "spikeMagnitude": 0.18, "games": 1500 },
     { "type": "level", "refId": 6, "avgMinute": 6.8, "spikeMagnitude": 0.09, "games": 1700 }
@@ -322,8 +323,10 @@ complétés, paliers de niveau 6/11/16) avec leur magnitude de spike.
 }
 ```
 
-- `curve[].power` : indice unitless (0 = à égalité avec l'adversaire, positif = devant).
 - `events[].type` : `item` (`refId` = item id) ou `level` (`refId` = 6/11/16).
+- `events[].spikeMagnitude` : accélération de l'avance sur l'adversaire, en excès
+  de la courbure ambiante de la courbe moyenne. La courbe elle-même n'est plus
+  renvoyée : elle ne sert plus que de baseline côté serveur.
 
 ---
 

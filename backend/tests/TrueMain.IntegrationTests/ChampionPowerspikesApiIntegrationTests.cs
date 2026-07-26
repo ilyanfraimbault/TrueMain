@@ -4,6 +4,7 @@ using AwesomeAssertions;
 using Core.Lol.Map;
 using Core.Lol.Ranking;
 using Core.Options;
+using Data.BuildFacts;
 using Data.Entities;
 using Ingestor.Options;
 using Ingestor.Processes;
@@ -17,8 +18,9 @@ namespace TrueMain.IntegrationTests;
 /// <summary>
 /// End-to-end powerspikes read: seeds the dense per-minute snapshots + item events,
 /// runs <see cref="ChampionPowerspikeAggregationProcess"/> to fold them into the
-/// pre-aggregated stat tables, then asserts the endpoint reconstructs the curve and
-/// event spikes from those stats (#694) — the read no longer touches the raw grid.
+/// pre-aggregated stat tables, then asserts the endpoint reconstructs the event
+/// spikes from those stats (#694) — the read no longer touches the raw grid. Spikes
+/// are scoped to one core build (#890), so every request carries a build key.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
 public sealed class ChampionPowerspikesApiIntegrationTests
@@ -33,8 +35,13 @@ public sealed class ChampionPowerspikesApiIntegrationTests
     // build — mirror production so the patch-filtered read resolves the build.
     private const string ScopePatch = "16.4";
 
-    private const int CoreItem = 3153;   // completed item in the dominant build
-    private const int NoiseItem = 1001;   // a non-build purchase that must be ignored
+    private const int CoreItem = 3153;   // a completed (final) item — the build's first
+    private const int NoiseItem = 1001;   // a component purchase that must be ignored
+
+    // The core build every seeded game belongs to.
+    private const int Keystone = 8112;
+    private const int KeystoneCatalogId = 1;
+    private static readonly string BuildQuery = $"buildFirstItemId={CoreItem}&buildKeystoneId={Keystone}";
 
     // The gold/damage lead is flat until each game's own kink minute, then rises —
     // a deliberate upward slope kink. The level-6 minute and the core item completion
@@ -63,7 +70,7 @@ public sealed class ChampionPowerspikesApiIntegrationTests
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
-        var response = await client.GetAsync($"/champions/{Champion}/powerspikes?position={Position}");
+        var response = await client.GetAsync($"/champions/{Champion}/powerspikes?position={Position}&{BuildQuery}");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var spikes = await response.Content.ReadFromJsonAsync<ChampionPowerspikesResponse>();
@@ -71,19 +78,15 @@ public sealed class ChampionPowerspikesApiIntegrationTests
         spikes!.ChampionId.Should().Be(Champion);
         spikes.Position.Should().Be(Position);
 
-        // The curve is populated (power is computable: the per-game variance gives
-        // a non-zero global spread, so normalization does not divide by zero).
-        spikes.Curve.Should().NotBeEmpty();
-        spikes.Curve.Should().OnlyContain(point => point.Games == 12);
-
-        // The core build item is detected and shows a positive spike at the kink.
+        // The completed item is detected and shows a positive spike at the kink.
         var itemSpike = spikes.Events.SingleOrDefault(e => e.Type == "item" && e.RefId == CoreItem);
-        itemSpike.Should().NotBeNull("the dominant build's completed item is the item event");
+        itemSpike.Should().NotBeNull("the build's completed item is the item event");
         itemSpike!.SpikeMagnitude.Should().BePositive("the power curve accelerates right after the item");
         itemSpike.AvgMinute.Should().BeApproximately(KinkMinute, 0.5);
         itemSpike.Games.Should().Be(12);
 
-        // The noise purchase (not in the build) must not appear.
+        // The component purchase is not a completed item, so it is never a spike —
+        // the completion test is the item metadata, not the final inventory (#890).
         spikes.Events.Should().NotContain(e => e.Type == "item" && e.RefId == NoiseItem);
 
         // Level 6 is reached at the kink and also spikes positively.
@@ -94,7 +97,7 @@ public sealed class ChampionPowerspikesApiIntegrationTests
     }
 
     [Fact]
-    public async Task GetChampionPowerspikesAsync_PatchFilterStillResolvesDominantBuildItems()
+    public async Task GetChampionPowerspikesAsync_PatchFilterStillReturnsItemSpikes()
     {
         await _fixture.ResetDatabaseAsync();
         await SeedAsync(games: 12);
@@ -102,15 +105,52 @@ public sealed class ChampionPowerspikesApiIntegrationTests
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
-        // The scope stores the normalized patch ("16.4") while matches carry the
-        // raw Riot build ("16.4.521.123"); the patch-scoped read must match both
-        // sides, or the dominant build — and every item spike — silently vanishes.
+        // Event rows carry the normalized patch ("16.4") while matches carry the raw
+        // Riot build ("16.4.521.123"); the patch-scoped read must match both sides or
+        // every spike silently vanishes.
         var spikes = await client.GetFromJsonAsync<ChampionPowerspikesResponse>(
-            $"/champions/{Champion}/powerspikes?position={Position}&patch={ScopePatch}");
+            $"/champions/{Champion}/powerspikes?position={Position}&patch={ScopePatch}&{BuildQuery}");
 
         spikes!.Patch.Should().Be(ScopePatch);
-        spikes.Curve.Should().NotBeEmpty();
         spikes.Events.Should().Contain(e => e.Type == "item" && e.RefId == CoreItem);
+    }
+
+    [Fact]
+    public async Task GetChampionPowerspikesAsync_ReturnsNoEventsForAnotherCoreBuild()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedAsync(games: 12);
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // A build key nobody played must come back empty rather than falling back to
+        // the champion's other builds — that blending is exactly what #890 removes.
+        var spikes = await client.GetFromJsonAsync<ChampionPowerspikesResponse>(
+            $"/champions/{Champion}/powerspikes?position={Position}&buildFirstItemId={CoreItem}&buildKeystoneId=9999");
+
+        spikes!.Events.Should().BeEmpty();
+    }
+
+    [Theory]
+    // Neither half, each half alone, and a non-positive value: the build key is
+    // only meaningful as a complete, positive pair.
+    // Literals rather than the CoreItem/Keystone constants: attribute arguments
+    // must be compile-time constants, and interpolation is not.
+    [InlineData("")]
+    [InlineData("&buildFirstItemId=3153")]
+    [InlineData("&buildKeystoneId=8112")]
+    [InlineData("&buildFirstItemId=0&buildKeystoneId=8112")]
+    [InlineData("&buildFirstItemId=3153&buildKeystoneId=-1")]
+    public async Task GetChampionPowerspikesAsync_ReturnsBadRequestForIncompleteBuildKey(string buildQuery)
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var response = await client.GetAsync($"/champions/{Champion}/powerspikes?position={Position}{buildQuery}");
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -123,22 +163,24 @@ public sealed class ChampionPowerspikesApiIntegrationTests
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
-        // ALL sees both cohorts on every curve point.
+        // ALL sees both cohorts on every event.
         var all = await client.GetFromJsonAsync<ChampionPowerspikesResponse>(
-            $"/champions/{Champion}/powerspikes?position={Position}");
-        all!.Curve.Should().NotBeEmpty();
-        all.Curve.Should().OnlyContain(point => point.Games == 24);
+            $"/champions/{Champion}/powerspikes?position={Position}&{BuildQuery}");
+        all!.Events.Should().NotBeEmpty();
+        // The item completion happens in every seeded game, so its game count is the
+        // whole cohort — level milestones are reached in varying numbers of games.
+        all.Events.Single(e => e.Type == "item" && e.RefId == CoreItem).Games.Should().Be(24);
 
         // A bare Gold filter narrows the champion side to the Gold-stamped games.
         var gold = await client.GetFromJsonAsync<ChampionPowerspikesResponse>(
-            $"/champions/{Champion}/powerspikes?position={Position}&eloBracket=GOLD");
-        gold!.Curve.Should().NotBeEmpty();
-        gold.Curve.Should().OnlyContain(point => point.Games == 12);
+            $"/champions/{Champion}/powerspikes?position={Position}&eloBracket=GOLD&{BuildQuery}");
+        gold!.Events.Should().NotBeEmpty();
+        gold.Events.Single(e => e.Type == "item" && e.RefId == CoreItem).Games.Should().Be(12);
 
         // GOLD_PLUS unions Gold and above; Iron is below and drops out.
         var goldPlus = await client.GetFromJsonAsync<ChampionPowerspikesResponse>(
-            $"/champions/{Champion}/powerspikes?position={Position}&eloBracket=GOLD_PLUS");
-        goldPlus!.Curve.Should().OnlyContain(point => point.Games == 12);
+            $"/champions/{Champion}/powerspikes?position={Position}&eloBracket=GOLD_PLUS&{BuildQuery}");
+        goldPlus!.Events.Single(e => e.Type == "item" && e.RefId == CoreItem).Games.Should().Be(12);
     }
 
     [Fact]
@@ -149,7 +191,7 @@ public sealed class ChampionPowerspikesApiIntegrationTests
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
-        var response = await client.GetAsync($"/champions/{Champion}/powerspikes?position=NOTALANE");
+        var response = await client.GetAsync($"/champions/{Champion}/powerspikes?position=NOTALANE&{BuildQuery}");
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
@@ -163,6 +205,7 @@ public sealed class ChampionPowerspikesApiIntegrationTests
             .WithPuuid("spike-main-puuid")
             .Build();
         db.RiotAccounts.Add(account);
+        AddKeystoneCatalog(db);
 
         for (var i = 0; i < games; i++)
         {
@@ -198,6 +241,7 @@ public sealed class ChampionPowerspikesApiIntegrationTests
             .WithPuuid("spike-bracket-puuid")
             .Build();
         db.RiotAccounts.Add(account);
+        AddKeystoneCatalog(db);
 
         for (var i = 0; i < perBracketGames; i++)
         {
@@ -222,6 +266,7 @@ public sealed class ChampionPowerspikesApiIntegrationTests
             Microsoft.Extensions.Options.Options.Create(new PowerspikeAggregationOptions()),
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
             new TestDbContextFactory(_fixture),
+            new FakeItemMetadataProvider(),
             TimeProvider.System);
 
         await process.RunCoreAsync(CancellationToken.None);
@@ -243,8 +288,9 @@ public sealed class ChampionPowerspikesApiIntegrationTests
         var kink = KinkMinute + (index % (2 * KinkSpread + 1)) - KinkSpread;
 
         var champion = Participant(matchId, 1, Champion, teamId: 100, win: true, accountId, eloBracket);
-        // The aggregation keys item spikes off the participant's completed inventory
-        // (Item0..6), timed from ItemEvents — so the core item must sit in a build slot.
+        // The aggregation detects completions from the purchase events + item
+        // metadata, but the build key still comes from the final inventory, so the
+        // completed item must also sit in a build slot.
         champion.Item0 = CoreItem;
         champion.ItemEvents =
         [
@@ -253,6 +299,15 @@ public sealed class ChampionPowerspikesApiIntegrationTests
         ];
         db.MatchParticipants.Add(champion);
         db.MatchParticipants.Add(Participant(matchId, 2, Opponent, teamId: 200, win: false));
+
+        // The keystone half of the build key.
+        db.ParticipantPerkSelections.Add(new ParticipantPerkSelection
+        {
+            Id = Guid.NewGuid(),
+            MatchId = matchId,
+            ParticipantId = 1,
+            PerkSelectionCatalogId = KeystoneCatalogId
+        });
 
         // Per-game offset so the lead varies across the cohort — the spread (sigma)
         // is then non-zero and power is normalizable even under a bracket filter.
@@ -340,4 +395,29 @@ public sealed class ChampionPowerspikesApiIntegrationTests
                 new KeyValuePair<string, string?>("ChampionsList:MinMatchupGames", "10"),
                 new KeyValuePair<string, string?>("ChampionsList:MinPlayerMatchupGames", "3"),
             ]);
+
+    private static void AddKeystoneCatalog(Data.TrueMainDbContext db)
+        => db.PerkSelectionCatalogs.Add(new PerkSelectionCatalog
+        {
+            Id = KeystoneCatalogId,
+            StyleId = 8100,
+            SelectionIndex = 0,
+            PerkId = Keystone,
+            StyleDescription = "primaryStyle"
+        });
+
+    private sealed class FakeItemMetadataProvider : IItemMetadataProvider
+    {
+        // CoreItem completes; NoiseItem is a component that never does — the spike
+        // detection must key off IsFinalItem, not off the final inventory.
+        private static readonly IReadOnlyDictionary<int, ItemMetadata> Metadata =
+            new Dictionary<int, ItemMetadata>
+            {
+                [CoreItem] = new(CoreItem, 3200, true, false, false, false, true, false),
+                [NoiseItem] = new(NoiseItem, 400, true, false, false, false, false, false)
+            };
+
+        public Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemsAsync(string gameVersion, CancellationToken ct)
+            => Task.FromResult(Metadata);
+    }
 }

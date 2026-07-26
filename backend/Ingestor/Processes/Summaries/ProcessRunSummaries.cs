@@ -144,4 +144,5 @@ public sealed record MatchDataRetentionSummary(
     int DeletedMatchupStats,
     int DeletedPowerspikeCurveStats,
     int DeletedPowerspikeEventStats,
+    int PrunedSubFloorPowerspikeEvents,
     IReadOnlyList<RetainedPatchesSummary> RetainedPatchesByPlatform) : IProcessRunSummary;

@@ -31,8 +31,11 @@ namespace TrueMain.Services.Champions;
 /// curvature the mean curve already shows at the event's minute. That baseline
 /// subtraction removes the lead curve's global concavity — leads decelerate over time,
 /// so the raw slope-change is negative for nearly every event and the "clear spike"
-/// view would be permanently empty (#775). Item events are intersected with the
-/// champion's dominant aggregated build for display. Correlational, not causal:
+/// view would be permanently empty (#775). It is the reason the curve aggregate is
+/// still read even though the curve itself is no longer rendered (#890).
+///
+/// Events are scoped to one core build, so a champion built two ways yields two
+/// independent sets of item spikes instead of one blend. Correlational, not causal:
 /// a champion completes an item earlier partly because it is already ahead; the
 /// opponent-relative + slope-change framing dampens that but does not remove it.
 /// Same queue / patch / tracked-account population as the sibling reads.
@@ -55,6 +58,8 @@ public sealed class ChampionPowerspikesQueryService(
         string position,
         string? patch,
         string? eloBracket,
+        int buildFirstItemId,
+        int buildKeystoneId,
         CancellationToken ct)
     {
         var normalizedPatch = string.IsNullOrWhiteSpace(patch)
@@ -67,7 +72,8 @@ public sealed class ChampionPowerspikesQueryService(
         var bands = EloBracket.ResolveFilter(eloBracket);
         var bracketToken = EloBracket.ResolveToken(eloBracket);
 
-        var cacheKey = $"champions:powerspikes:{championId}:{position}:{normalizedPatch ?? "all"}:{bracketToken}";
+        var cacheKey = $"champions:powerspikes:{championId}:{position}:{normalizedPatch ?? "all"}:{bracketToken}"
+            + $":{buildFirstItemId}:{buildKeystoneId}";
         if (cache.TryGetValue<ChampionPowerspikesResponse>(cacheKey, out var cached) && cached is not null)
         {
             return cached;
@@ -102,17 +108,19 @@ public sealed class ChampionPowerspikesQueryService(
             return empty;
         }
 
-        var (curve, powerByMinute) = await BuildCurveAsync(
+        // The curve is no longer rendered (#890) but is still read: its mean-power
+        // series is the baseline the event spikes are measured against.
+        var (_, powerByMinute) = await BuildCurveAsync(
             championId, position, normalizedPatch, bands, minGames, sigmaByMinute, ct);
         var events = await BuildEventsAsync(
-            championId, position, queueId, normalizedPatch, bands, minGames, powerByMinute, ct);
+            championId, position, normalizedPatch, bands, minGames,
+            buildFirstItemId, buildKeystoneId, powerByMinute, ct);
 
         var response = new ChampionPowerspikesResponse
         {
             ChampionId = championId,
             Position = position,
             Patch = normalizedPatch,
-            Curve = curve,
             Events = events
         };
 
@@ -190,22 +198,29 @@ public sealed class ChampionPowerspikesQueryService(
     }
 
     // Fold the event spikes to the requested scope (sum spike/minute + games per
-    // event), divide by games, subtract the population's baseline curvature at the
-    // event's mean minute, and keep item events only if they belong to the dominant
-    // build. Ordered by descending magnitude.
+    // event), divide by games and subtract the population's baseline curvature at
+    // the event's mean minute. Ordered by descending magnitude.
+    //
+    // Rows are scoped to one core build (#890), so the item events returned are by
+    // construction the ones that build completes — no intersection with a dominant
+    // build is needed, and two builds of the same champion no longer blend.
     private async Task<List<ChampionPowerspikeEvent>> BuildEventsAsync(
         int championId,
         string position,
-        int queueId,
         string? normalizedPatch,
         IReadOnlyList<string>? bands,
         int minGames,
+        int buildFirstItemId,
+        int buildKeystoneId,
         IReadOnlyDictionary<int, double> powerByMinute,
         CancellationToken ct)
     {
         var query = db.ChampionPowerspikeEventStats
             .AsNoTracking()
-            .Where(e => e.ChampionId == championId && e.TeamPosition == position);
+            .Where(e => e.ChampionId == championId
+                && e.TeamPosition == position
+                && e.BuildFirstItemId == buildFirstItemId
+                && e.BuildKeystoneId == buildKeystoneId);
 
         if (normalizedPatch is not null)
         {
@@ -237,14 +252,7 @@ public sealed class ChampionPowerspikesQueryService(
             return [];
         }
 
-        // Item spikes are only displayed for the champion's dominant build items.
-        var hasItemRows = rows.Any(r => r.EventType == "item");
-        var coreItems = hasItemRows
-            ? (await LoadDominantBuildItemsAsync(championId, position, queueId, normalizedPatch, ct)).ToHashSet()
-            : [];
-
         return rows
-            .Where(r => r.EventType != "item" || coreItems.Contains(r.RefId))
             .Select(r =>
             {
                 var avgMinute = r.SumMinute / r.Games;
@@ -280,52 +288,6 @@ public sealed class ChampionPowerspikesQueryService(
         }
 
         return 0;
-    }
-
-    // The completed items of the dominant build for the slice: pick the build id
-    // with the most games across the matching aggregate scopes, then read its
-    // non-empty item slots in order.
-    private async Task<IReadOnlyList<int>> LoadDominantBuildItemsAsync(
-        int championId,
-        string position,
-        int queueId,
-        string? normalizedPatch,
-        CancellationToken ct)
-    {
-        // Aggregate scopes store the normalized major.minor patch ("16.14"), not
-        // the raw Riot build the matches carry — equality, not the LIKE prefix.
-        var topBuildId = await (
-                from scope in db.ChampionAggregateScopes.AsNoTracking()
-                where scope.ChampionId == championId
-                    && scope.Position == position
-                    && scope.QueueId == queueId
-                    && (normalizedPatch == null || scope.GameVersion == normalizedPatch)
-                join pattern in db.ChampionAggregatePatterns.AsNoTracking() on scope.Id equals pattern.ScopeId
-                group pattern by pattern.BuildId into g
-                orderby g.Sum(p => p.Games) descending
-                select g.Key)
-            .FirstOrDefaultAsync(ct);
-
-        if (topBuildId == Guid.Empty)
-        {
-            return [];
-        }
-
-        var build = await db.ChampionDimBuilds
-            .AsNoTracking()
-            .FirstOrDefaultAsync(b => b.Id == topBuildId, ct);
-        if (build is null)
-        {
-            return [];
-        }
-
-        // Item slots in build order, zeros (empty slots) dropped, de-duplicated.
-        int[] slots =
-        [
-            build.BuildItem0, build.BuildItem1, build.BuildItem2, build.BuildItem3,
-            build.BuildItem4, build.BuildItem5, build.BuildItem6
-        ];
-        return slots.Where(id => id > 0).Distinct().ToList();
     }
 
     // STDDEV_SAMP: sqrt((Σx² − (Σx)²/n) / (n − 1)), clamped against fp noise.
