@@ -20,7 +20,14 @@ const string frontendCorsPolicy = "FrontendCors";
 // Add services to the container.
 
 builder.Services.AddControllers();
-builder.Services.AddProblemDetails();
+builder.Services.AddProblemDetails(options =>
+{
+    // Every ProblemDetails response — validation, not-found, or unhandled 5xx —
+    // carries the same traceId so a user-reported error can be matched to server
+    // logs without ever needing to embed raw entity ids in the message text.
+    options.CustomizeProblemDetails = context =>
+        context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 // Bound the shared response cache so a crafted fan-out of distinct request
