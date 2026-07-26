@@ -18,6 +18,16 @@ public class MainChampionStat
 
     public bool IsMain { get; set; }
 
+    /// <summary>
+    /// False when <c>MainActivityProcess</c> saw, through champion mastery
+    /// <c>lastPlayTime</c>, that the player stopped playing this champion
+    /// (#900). The row is kept — history stays readable and a returning player
+    /// is reactivated without going through discovery again — but an inactive
+    /// row is excluded from the leaderboard, from the coverage counts and from
+    /// the match-ingestion queue, so a dead main stops consuming match-v5 calls.
+    /// </summary>
+    public bool IsActive { get; set; } = true;
+
     public bool IsOtp { get; set; }
 
     /// <summary>

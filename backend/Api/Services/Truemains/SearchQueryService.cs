@@ -72,7 +72,7 @@ public sealed class SearchQueryService(
                         && platforms.Contains(a.PlatformId)
                         && EF.Functions.ILike(a.GameName, pattern, "\\")
                         && db.MainChampionStats.Any(m =>
-                            m.PlatformId == a.PlatformId && m.Puuid == a.Puuid && m.IsMain));
+                            m.PlatformId == a.PlatformId && m.Puuid == a.Puuid && m.IsMain && m.IsActive));
 
         if (tag is not null)
         {
@@ -255,6 +255,7 @@ public sealed class SearchQueryService(
                 FROM main_champion_stats m
                 WHERE m."Puuid" = ANY ({puuids})
                   AND m."IsMain" = true
+                  AND m."IsActive" = true
             )
             SELECT "Puuid", "ChampionId"
             FROM ranked

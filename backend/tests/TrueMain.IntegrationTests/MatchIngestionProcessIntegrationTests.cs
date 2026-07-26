@@ -63,6 +63,7 @@ public sealed class MatchIngestionProcessIntegrationTests
         public Task<List<Data.Repositories.AccountKey>> ClaimAsync(
             IReadOnlyCollection<string> platforms,
             int batchSize,
+            double establishedMainShare,
             TimeSpan lease,
             CancellationToken ct)
             => Task.FromResult(new List<Data.Repositories.AccountKey>

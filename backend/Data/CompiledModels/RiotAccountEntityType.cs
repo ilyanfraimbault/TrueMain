@@ -21,7 +21,7 @@ namespace Data.CompiledModels
                 "Data.Entities.RiotAccount",
                 typeof(RiotAccount),
                 baseEntityType,
-                propertyCount: 20,
+                propertyCount: 21,
                 navigationCount: 1,
                 foreignKeyCount: 1,
                 unnamedIndexCount: 5,
@@ -54,6 +54,14 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(RiotAccount).GetField("<GameName>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 maxLength: 32);
             gameName.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var lastActivityCheckAtUtc = runtimeEntityType.AddProperty(
+                "LastActivityCheckAtUtc",
+                typeof(DateTime?),
+                propertyInfo: typeof(RiotAccount).GetProperty("LastActivityCheckAtUtc", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(RiotAccount).GetField("<LastActivityCheckAtUtc>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            lastActivityCheckAtUtc.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var lastMainCalcAtUtc = runtimeEntityType.AddProperty(
                 "LastMainCalcAtUtc",

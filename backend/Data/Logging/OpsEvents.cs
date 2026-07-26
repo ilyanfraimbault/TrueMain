@@ -68,6 +68,12 @@ public static class OpsEvents
     /// </summary>
     public static readonly EventId HarvestBudgetExhausted = new(1008, nameof(HarvestBudgetExhausted));
 
+    /// <summary>
+    /// A champion-mastery activity pass completed (#900): how many mains were checked,
+    /// retired for inactivity, and brought back because their player returned.
+    /// </summary>
+    public static readonly EventId MainActivityCycleCompleted = new(1009, nameof(MainActivityCycleCompleted));
+
     // Single source for the lookup + the UI-facing list, so a new event only has
     // to be added in two places (its field above and this array).
     private static readonly EventId[] All =
@@ -80,7 +86,8 @@ public static class OpsEvents
         MatchRevertFailed,
         ProcessRunCompleted,
         ProcessRunFailed,
-        HarvestBudgetExhausted
+        HarvestBudgetExhausted,
+        MainActivityCycleCompleted
     ];
 
     private static readonly Dictionary<string, int> IdByName =

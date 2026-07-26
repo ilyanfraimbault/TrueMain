@@ -29,6 +29,10 @@ public sealed class ChampionCoverageSnapshot
 
         _mainsByChampion = mainsByChampion;
         _targetMainsPerChampion = Math.Max(1, targetMainsPerChampion);
+        SaturatedChampionIds = mainsByChampion
+            .Where(pair => pair.Value >= _targetMainsPerChampion)
+            .Select(pair => pair.Key)
+            .ToHashSet();
     }
 
     private ChampionCoverageSnapshot()
@@ -36,6 +40,7 @@ public sealed class ChampionCoverageSnapshot
         _mainsByChampion = new Dictionary<int, int>();
         _targetMainsPerChampion = 1;
         _isNeutral = true;
+        SaturatedChampionIds = new HashSet<int>();
     }
 
     /// <summary>
@@ -50,6 +55,14 @@ public sealed class ChampionCoverageSnapshot
     // not on raw counts (where an absent key and a 0 count both mean "no mains").
     internal int MainsFor(int championId)
         => _mainsByChampion.TryGetValue(championId, out var count) ? count : 0;
+
+    /// <summary>
+    /// Champions that already hold at least the target number of active mains (#900).
+    /// Their candidates only take the leftover slots of the per-platform promotion queue:
+    /// past the target, another main on the same champion is worth less than more games
+    /// from the mains already tracked. Empty on a neutral snapshot.
+    /// </summary>
+    public IReadOnlySet<int> SaturatedChampionIds { get; }
 
     /// <summary>
     /// Scarcity in [0, 1]: 1 = no mains at all, 0 = at or above the target.

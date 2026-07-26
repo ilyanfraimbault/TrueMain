@@ -37,6 +37,13 @@ public sealed class MainChampionStatConfiguration : IEntityTypeConfiguration<Mai
         entity.Property(e => e.IsMain)
             .IsRequired();
 
+        // Defaults to true so every pre-#900 row — and any row written by a
+        // producer that predates the activity check — is active until
+        // MainActivityProcess proves otherwise.
+        entity.Property(e => e.IsActive)
+            .IsRequired()
+            .HasDefaultValue(true);
+
         entity.Property(e => e.IsOtp)
             .IsRequired();
 
@@ -63,19 +70,20 @@ public sealed class MainChampionStatConfiguration : IEntityTypeConfiguration<Mai
         // uses for (PlatformId) and (PlatformId, Puuid) lookups.
 
         // Covering index for MainChampionStatRepository.GetMainAccountsAsync,
-        // which filters on (IsMain, PlatformId) and projects only Puuid.
+        // which filters on (IsMain, IsActive, PlatformId) and projects only Puuid.
         // Including Puuid lets Postgres serve the main-account roster as an
         // index-only scan instead of probing the heap per row.
-        entity.HasIndex(e => new { e.PlatformId, e.IsMain })
+        entity.HasIndex(e => new { e.PlatformId, e.IsMain, e.IsActive })
             .IncludeProperties(e => e.Puuid);
 
         // Partial index for MainChampionStatRepository.GetMainCountsByChampionAsync
-        // (WHERE IsMain GROUP BY ChampionId), the coverage signal recomputed every
-        // scoring/main-analysis cycle. The (PlatformId, IsMain) index above cannot serve
-        // a predicate on IsMain alone because PlatformId leads, so this gives an
-        // index-only scan over just the main rows.
+        // (WHERE IsMain AND IsActive GROUP BY ChampionId), the coverage signal recomputed
+        // every scoring/main-analysis cycle. The (PlatformId, ...) index above cannot serve
+        // a predicate without PlatformId because it leads, so this gives an index-only scan
+        // over just the active main rows. Inactive mains (#900) are outside the filter, which
+        // is what keeps them from counting towards Coverage:TargetMainsPerChampion.
         entity.HasIndex(e => e.ChampionId)
-            .HasFilter("\"IsMain\"")
+            .HasFilter("\"IsMain\" AND \"IsActive\"")
             .HasDatabaseName("IX_main_champion_stats_is_main_champion");
 
     }

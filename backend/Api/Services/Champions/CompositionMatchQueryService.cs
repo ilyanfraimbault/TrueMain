@@ -98,7 +98,7 @@ public sealed class CompositionMatchQueryService(
         // games by non-mains, per-Puuid, in memory.
         var mainPuuids = (await db.MainChampionStats
                 .AsNoTracking()
-                .Where(s => s.ChampionId == criteria.ChampionId && s.IsMain)
+                .Where(s => s.ChampionId == criteria.ChampionId && s.IsMain && s.IsActive)
                 .Select(s => s.Puuid)
                 .ToListAsync(ct))
             .ToHashSet(StringComparer.Ordinal);

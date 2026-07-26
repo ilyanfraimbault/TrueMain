@@ -53,6 +53,6 @@ public sealed class MatchIngestionProcessNoOpTests
             Arg.Any<CancellationToken>());
 
         await matchClaimService.DidNotReceive()
-            .ClaimAsync(Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<int>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+            .ClaimAsync(Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<int>(), Arg.Any<double>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
     }
 }

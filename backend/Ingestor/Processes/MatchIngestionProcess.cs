@@ -44,7 +44,12 @@ public sealed class MatchIngestionProcess(
         CancellationToken ct)
     {
         var lease = TimeSpan.FromMinutes(Math.Max(1, options.ClaimLeaseMinutes));
-        var claimedAccounts = await matchClaimService.ClaimAsync(platforms, options.BatchSize, lease, ct);
+        var claimedAccounts = await matchClaimService.ClaimAsync(
+            platforms,
+            options.BatchSize,
+            options.EstablishedMainShare,
+            lease,
+            ct);
         if (claimedAccounts.Count == 0)
         {
             logger.LogInformation("No queued accounts to ingest.");

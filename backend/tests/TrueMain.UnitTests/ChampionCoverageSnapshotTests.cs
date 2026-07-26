@@ -27,6 +27,27 @@ public sealed class ChampionCoverageSnapshotTests
     }
 
     [Fact]
+    public void SaturatedChampionIds_HoldsOnlyChampionsAtOrAboveTarget()
+    {
+        // #900: past the target, another main on the same champion is worth less than
+        // more games from the mains already tracked, so those champions are the ones
+        // pushed to the back of the promotion queue.
+        var snapshot = new ChampionCoverageSnapshot(
+            new Dictionary<int, int> { [1] = 19, [2] = 20, [3] = 45 },
+            targetMainsPerChampion: 20);
+
+        snapshot.SaturatedChampionIds.Should().BeEquivalentTo([2, 3]);
+    }
+
+    [Fact]
+    public void Empty_HasNoSaturatedChampion()
+    {
+        // The neutral snapshot must not deprioritise anything: at cold start every
+        // champion still needs its first mains.
+        ChampionCoverageSnapshot.Empty.SaturatedChampionIds.Should().BeEmpty();
+    }
+
+    [Fact]
     public void Deficit_IsMaximal_ForChampionMissingFromNonEmptySnapshot()
     {
         var snapshot = new ChampionCoverageSnapshot(

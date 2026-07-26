@@ -45,7 +45,7 @@ public sealed class ScoringProcess(
             return new NoWorkSummary("No new candidates to score.", 0);
         }
 
-        var platformSummaries = await PromoteTopCandidatesAsync(session, scoring, scoringResult.ScoredByPlatform, ct);
+        var platformSummaries = await PromoteTopCandidatesAsync(session, scoring, coverage, scoringResult.ScoredByPlatform, ct);
         return BuildSuccessPayload(platformSummaries);
     }
 
@@ -106,14 +106,27 @@ public sealed class ScoringProcess(
     private async Task<List<ScoringPlatformSummary>> PromoteTopCandidatesAsync(
         IDataSession session,
         ScoringOptions scoring,
+        ChampionCoverageSnapshot coverage,
         IReadOnlyDictionary<string, int> scoredByPlatform,
         CancellationToken ct)
     {
         var platformSummaries = new List<ScoringPlatformSummary>();
 
+        // Depth over breadth (#900): a champion already at the coverage target does not
+        // need another main more than an under-covered one does, so its candidates only
+        // take the top-N slots the under-covered champions leave. Deliberately a
+        // priority, not a filter — with a small scored pool a saturated champion still
+        // gets promoted rather than wasting the platform's queue.
+        var saturatedChampionIds = coverage.SaturatedChampionIds.ToList();
+
         foreach (var platformId in scoredByPlatform.Keys.Order(StringComparer.OrdinalIgnoreCase))
         {
-            var queuedCandidates = await QueueTopCandidatesByPlatformAsync(session, platformId, scoring.TopNPerPlatform, ct);
+            var queuedCandidates = await QueueTopCandidatesByPlatformAsync(
+                session,
+                platformId,
+                scoring.TopNPerPlatform,
+                saturatedChampionIds,
+                ct);
             var scoredCount = scoredByPlatform[platformId];
 
             logger.LogInformation(
@@ -132,9 +145,11 @@ public sealed class ScoringProcess(
         IDataSession session,
         string platformId,
         int topNPerPlatform,
+        IReadOnlyCollection<int> saturatedChampionIds,
         CancellationToken ct)
     {
-        var queuedCandidates = await session.MainCandidates.GetScoredByPlatformAsync(platformId, topNPerPlatform, ct);
+        var queuedCandidates = await session.MainCandidates
+            .GetScoredByPlatformAsync(platformId, topNPerPlatform, saturatedChampionIds, ct);
         foreach (var candidate in queuedCandidates)
         {
             candidate.Status = MainCandidateStatus.Queued;

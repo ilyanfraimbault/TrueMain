@@ -130,6 +130,15 @@ public static class OptionsConfigurationExtensions
             .Validate(options => options.SaveBatchSizeMatches > 0, "MatchIngestion:SaveBatchSizeMatches must be greater than 0.")
             .Validate(options => options.MaxMatchFetchConcurrency > 0, "MatchIngestion:MaxMatchFetchConcurrency must be greater than 0.")
             .Validate(options => options.ClaimLeaseMinutes > 0, "MatchIngestion:ClaimLeaseMinutes must be greater than 0.")
+            .Validate(options => options.EstablishedMainShare is >= 0 and <= 1,
+                "MatchIngestion:EstablishedMainShare must be between 0 and 1.")
+            .ValidateOnStart();
+
+        services.AddOptions<MainActivityOptions>()
+            .Bind(configuration.GetSection(MainActivityOptions.SectionName))
+            .Validate(options => options.BatchSize > 0, "MainActivity:BatchSize must be greater than 0.")
+            .Validate(options => options.InactiveAfterDays > 0, "MainActivity:InactiveAfterDays must be greater than 0.")
+            .Validate(options => options.RecheckAfterHours >= 0, "MainActivity:RecheckAfterHours must be >= 0.")
             .ValidateOnStart();
 
         services.AddOptions<MainAnalysisOptions>()
