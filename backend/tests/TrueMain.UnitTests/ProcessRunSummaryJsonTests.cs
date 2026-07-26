@@ -38,10 +38,10 @@ public sealed class ProcessRunSummaryJsonTests
         // Spelled out rather than compared, so a reviewer can read the persisted
         // shape of the two summaries that nest an array of objects.
         ProcessRunSummaryJson.Serialize(new DiscoverySummary(
-            [new DiscoveryPlatformSummary("EUW1", 40, 3, 12, 5, 2, 38, null)]))
+            [new DiscoveryPlatformSummary("EUW1", 40, 3, 12, 5, 2, 6, 32, null)]))
             .Should().Be(
                 """
-                {"platforms":[{"platform":"EUW1","accountsProcessed":40,"newAccounts":3,"candidatesInserted":12,"candidatesUpdated":5,"rankSnapshotsInserted":2,"rankSnapshotsUnchanged":38,"error":null}]}
+                {"platforms":[{"platform":"EUW1","accountsProcessed":40,"newAccounts":3,"candidatesInserted":12,"candidatesUpdated":5,"rankSnapshotsInserted":2,"rankSnapshotsUpdated":6,"rankSnapshotsUnchanged":32,"error":null}]}
                 """);
 
         ProcessRunSummaryJson.Serialize(new MatchDataRetentionSummary(
@@ -59,7 +59,7 @@ public sealed class ProcessRunSummaryJsonTests
         // The admin's per-platform row reads `error`; dropping the key for a
         // healthy platform (WhenWritingNull) would change the stored shape.
         ProcessRunSummaryJson.Serialize(new DiscoverySummary(
-            [new DiscoveryPlatformSummary("KR", 0, 0, 0, 0, 0, 0, null)]))
+            [new DiscoveryPlatformSummary("KR", 0, 0, 0, 0, 0, 0, 0, null)]))
             .Should().Contain("\"error\":null");
     }
 
@@ -127,8 +127,8 @@ public sealed class ProcessRunSummaryJsonTests
         yield return (
             new DiscoverySummary(
             [
-                new DiscoveryPlatformSummary("EUW1", 40, 3, 12, 5, 2, 38, null),
-                new DiscoveryPlatformSummary("KR", 0, 0, 0, 0, 0, 0, "simulated ladder outage")
+                new DiscoveryPlatformSummary("EUW1", 40, 3, 12, 5, 2, 6, 32, null),
+                new DiscoveryPlatformSummary("KR", 0, 0, 0, 0, 0, 0, 0, "simulated ladder outage")
             ]),
             new
             {
@@ -142,7 +142,8 @@ public sealed class ProcessRunSummaryJsonTests
                         candidatesInserted = 12,
                         candidatesUpdated = 5,
                         rankSnapshotsInserted = 2,
-                        rankSnapshotsUnchanged = 38,
+                        rankSnapshotsUpdated = 6,
+                        rankSnapshotsUnchanged = 32,
                         error = (string?)null
                     },
                     new
@@ -153,6 +154,7 @@ public sealed class ProcessRunSummaryJsonTests
                         candidatesInserted = 0,
                         candidatesUpdated = 0,
                         rankSnapshotsInserted = 0,
+                        rankSnapshotsUpdated = 0,
                         rankSnapshotsUnchanged = 0,
                         error = (string?)"simulated ladder outage"
                     }
@@ -212,7 +214,7 @@ public sealed class ProcessRunSummaryJsonTests
             });
 
         yield return (
-            new AccountRefreshSummary(50, 30, 2, 1, 10, 3, 20, 25, 4, 6, 2),
+            new AccountRefreshSummary(50, 30, 2, 1, 10, 3, 20, 8, 25, 4, 6, 2),
             new
             {
                 selected = 50,
@@ -222,6 +224,7 @@ public sealed class ProcessRunSummaryJsonTests
                 profileSkipped = 10,
                 profileFailed = 3,
                 rankInserted = 20,
+                rankUpdated = 8,
                 rankUnchanged = 25,
                 rankSkippedUnranked = 4,
                 rankSkippedFresh = 6,

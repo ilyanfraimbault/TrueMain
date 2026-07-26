@@ -234,6 +234,16 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
     {
         await using var db = _fixture.CreateDbContext();
 
+        // Push KR_AGG_2 a day past KR_AGG_1 so the two "captured exactly at game
+        // start" snapshots below land on different UTC calendar days — required
+        // since rank_snapshots now allows at most one row per account per day.
+        // The nearest-snapshot resolution below is driven purely by each match's
+        // distance to its own snapshot (which stays zero), so the day gap between
+        // the two matches doesn't affect which snapshot buckets which game.
+        var secondMatch = await db.Matches.SingleAsync(match => match.Id == "KR_AGG_2");
+        secondMatch.GameStartTimeUtc = secondMatch.GameStartTimeUtc.AddDays(1);
+        await db.SaveChangesAsync();
+
         // Capture each snapshot exactly at a game's start so the nearest-capture
         // reduction is deterministic: KR_AGG_1 → Silver, KR_AGG_2 → Master.
         var gameStarts = await db.Matches

@@ -44,6 +44,7 @@ public sealed record DiscoveryPlatformSummary(
     int CandidatesInserted,
     int CandidatesUpdated,
     int RankSnapshotsInserted,
+    int RankSnapshotsUpdated,
     int RankSnapshotsUnchanged,
     string? Error);
 
@@ -98,6 +99,7 @@ public sealed record AccountRefreshSummary(
     int ProfileSkipped,
     int ProfileFailed,
     int RankInserted,
+    int RankUpdated,
     int RankUnchanged,
     int RankSkippedUnranked,
     int RankSkippedFresh,

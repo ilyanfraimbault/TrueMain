@@ -69,7 +69,7 @@ public sealed class RankSnapshotIngestionTests
     }
 
     [Fact]
-    public async Task RunCoreAsync_TierChange_InsertsNewSnapshot()
+    public async Task RunCoreAsync_TierChangeSameDay_OverwritesTodaysSnapshot()
     {
         await _fixture.ResetDatabaseAsync();
         var account = await SeedAccountAsync("puuid-tier-change");
@@ -86,14 +86,14 @@ public sealed class RankSnapshotIngestionTests
             .OrderByDescending(s => s.CapturedAtUtc)
             .ToListAsync();
 
-        snapshots.Should().HaveCount(2);
+        snapshots.Should().ContainSingle("same-day rank changes overwrite the existing row instead of appending");
         snapshots[0].Tier.Should().Be("PLATINUM");
         snapshots[0].Division.Should().Be("IV");
         snapshots[0].LeaguePoints.Should().Be(0);
     }
 
     [Fact]
-    public async Task RunCoreAsync_DivisionChange_InsertsNewSnapshot()
+    public async Task RunCoreAsync_DivisionChangeSameDay_OverwritesTodaysSnapshot()
     {
         await _fixture.ResetDatabaseAsync();
         var account = await SeedAccountAsync("puuid-division-change");
@@ -110,13 +110,13 @@ public sealed class RankSnapshotIngestionTests
             .OrderByDescending(s => s.CapturedAtUtc)
             .ToListAsync();
 
-        snapshots.Should().HaveCount(2);
+        snapshots.Should().ContainSingle();
         snapshots[0].Tier.Should().Be("GOLD");
         snapshots[0].Division.Should().Be("I");
     }
 
     [Fact]
-    public async Task RunCoreAsync_LpDelta_InsertsNewSnapshot()
+    public async Task RunCoreAsync_LpDeltaSameDay_OverwritesTodaysSnapshot()
     {
         await _fixture.ResetDatabaseAsync();
         var account = await SeedAccountAsync("puuid-lp-delta");
@@ -133,8 +133,31 @@ public sealed class RankSnapshotIngestionTests
             .OrderByDescending(s => s.CapturedAtUtc)
             .ToListAsync();
 
-        snapshots.Should().HaveCount(2);
+        snapshots.Should().ContainSingle();
         snapshots[0].LeaguePoints.Should().Be(73);
+    }
+
+    [Fact]
+    public async Task RunCoreAsync_LpDeltaPreviousDay_InsertsNewSnapshot()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var account = await SeedAccountAsync("puuid-lp-delta-new-day");
+        await SeedSnapshotAsync(account.Id, "GOLD", "II", 50, DateTime.UtcNow.AddDays(-1));
+
+        var process = BuildProcess(
+            soloEntry: SoloEntry("GOLD", "II", 73));
+
+        await process.RunCoreAsync(CancellationToken.None);
+
+        await using var verify = _fixture.CreateDbContext();
+        var snapshots = await verify.RankSnapshots
+            .Where(s => s.RiotAccountId == account.Id)
+            .OrderByDescending(s => s.CapturedAtUtc)
+            .ToListAsync();
+
+        snapshots.Should().HaveCount(2, "a rank change on a new calendar day appends rather than overwrites");
+        snapshots[0].LeaguePoints.Should().Be(73);
+        snapshots[1].LeaguePoints.Should().Be(50);
     }
 
     [Fact]
@@ -300,8 +323,8 @@ public sealed class RankSnapshotIngestionTests
     {
         await _fixture.ResetDatabaseAsync();
         var account = await SeedAccountAsync("puuid-cascade");
-        await SeedSnapshotAsync(account.Id, "GOLD", "II", 50, DateTime.UtcNow.AddHours(-2));
-        await SeedSnapshotAsync(account.Id, "GOLD", "II", 73, DateTime.UtcNow.AddHours(-1));
+        await SeedSnapshotAsync(account.Id, "GOLD", "II", 50, DateTime.UtcNow.AddDays(-2));
+        await SeedSnapshotAsync(account.Id, "GOLD", "II", 73, DateTime.UtcNow.AddDays(-1));
 
         await using (var deleteDb = _fixture.CreateDbContext())
         {
