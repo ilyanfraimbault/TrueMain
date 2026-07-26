@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import type { NuxtError } from '#app'
+import { describeFetchError } from '~/utils/errors'
 
-defineProps<{ error: NuxtError }>()
+const props = defineProps<{ error: NuxtError }>()
+
+// Same wording as every inline fetch error in the app, and never the raw
+// NuxtError message — that can carry the proxied backend's technical detail
+// (or, for a client fetch failure, the full request URL).
+const message = computed(() => describeFetchError(props.error))
 
 function handleReturn() {
   clearError({ redirect: '/' })
@@ -18,11 +24,8 @@ function handleReturn() {
         <h1 class="text-balance text-2xl font-semibold">
           {{ error.statusMessage || 'Something went wrong' }}
         </h1>
-        <p
-          v-if="error.message"
-          class="text-sm text-muted"
-        >
-          {{ error.message }}
+        <p class="text-sm text-muted">
+          {{ message }}
         </p>
         <UButton @click="handleReturn">
           Go back home

@@ -40,6 +40,7 @@ type SearchStatus = 'idle' | 'pending' | 'success' | 'error'
 export function useTruemainSearch(term: MaybeRefOrGetter<string>) {
   const results = ref<SearchResult[]>([])
   const status = ref<SearchStatus>('idle')
+  const error = ref<unknown>(null)
 
   const normalized = computed(() => toValue(term).trim())
 
@@ -67,9 +68,10 @@ export function useTruemainSearch(term: MaybeRefOrGetter<string>) {
       // most recent request is allowed to write the results.
       if (token !== latestToken) return
       results.value = data.results
+      error.value = null
       status.value = 'success'
     }
-    catch (error) {
+    catch (caughtError) {
       // A request superseded by a newer keystroke is already filtered by the
       // token guard. The remaining abort case is scope disposal (the modal
       // closed mid-flight), which keeps the current token — `signal.aborted`
@@ -77,8 +79,9 @@ export function useTruemainSearch(term: MaybeRefOrGetter<string>) {
       // Anything else is a real failure: surface it to the user and log it so
       // prod network/parse errors aren't lost in a silent catch.
       if (token !== latestToken || signal.aborted) return
-      console.error('[truemain-search] request failed', error)
+      console.error('[truemain-search] request failed', caughtError)
       results.value = []
+      error.value = caughtError
       status.value = 'error'
     }
   }
@@ -96,6 +99,7 @@ export function useTruemainSearch(term: MaybeRefOrGetter<string>) {
 
     if (namePart.value.length < SEARCH_MIN_LENGTH) {
       results.value = []
+      error.value = null
       status.value = 'idle'
       return
     }
@@ -116,5 +120,5 @@ export function useTruemainSearch(term: MaybeRefOrGetter<string>) {
     controller?.abort()
   })
 
-  return { results, status, tooShort }
+  return { results, status, error, tooShort }
 }
