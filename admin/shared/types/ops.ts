@@ -150,6 +150,7 @@ export const PIPELINE_CHAIN: readonly string[] = [
   'Harvest',
   'Scoring',
   'MatchIngestion',
+  'MatchTeamPositionCorrection',
   'MainAnalysis',
   'MatchParticipantEloBracketEnrichment',
   'ChampionPatternAggregation',

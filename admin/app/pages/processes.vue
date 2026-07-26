@@ -239,6 +239,7 @@ const CHAIN_LABELS: Record<string, string> = {
   Scoring: 'Scoring',
   MainActivity: 'Main Activity',
   MatchIngestion: 'Match Ingest',
+  MatchTeamPositionCorrection: 'Position Fix',
   MainAnalysis: 'Main Analysis',
   MatchParticipantEloBracketEnrichment: 'Elo Enrich',
   ChampionPatternAggregation: 'Pattern Agg.',
