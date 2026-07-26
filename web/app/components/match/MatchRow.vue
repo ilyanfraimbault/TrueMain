@@ -288,11 +288,15 @@ const rowTint = computed(() =>
 
         <!-- KDA + stats: two-column block. KDA on top with the ratio under
              it; CS/m and KP stacked to the right so they share the vertical
-             rhythm of the KDA cluster. Tabular-nums everywhere so columns
-             visually align row-to-row. -->
-        <div class="flex shrink-0 items-start gap-3">
-          <div class="flex min-w-[5.5rem] flex-col items-center">
-            <div class="text-lg font-bold leading-tight tabular-nums">
+             rhythm of the KDA cluster. Tabular-nums everywhere so digits
+             never jitter, and the whole block is a fixed width (not just
+             min-width) — a 12/2/15 game and a 4/8/8 game must occupy the
+             exact same box, or everything to its right (the centred
+             loadout, the right-edge group) drifts left/right row to row and
+             the columns stop lining up down the list. -->
+        <div class="flex w-52 shrink-0 items-start gap-3">
+          <div class="flex w-28 flex-col items-center">
+            <div class="whitespace-nowrap text-lg font-bold leading-tight tabular-nums">
               {{ self.kills }}
               <span class="text-muted/70">/</span>
               <span class="text-red-400">{{ self.deaths }}</span>
@@ -452,20 +456,24 @@ const rowTint = computed(() =>
             tokens the expanded MatchDetailScoreboard uses, so the collapsed
             crown and the scoreboard crown are the same gold. A UTooltip
             spells out which accolade it is on hover/focus. Chevron rotates
-            180°.
-          -->
+            180°. The accolade sits in a fixed-size slot (rendered empty
+            rather than omitted when there's no MVP/ACE) so the chevron next
+            to it — and everything left of this group — lines up at the same
+            spot whether or not a given row has a badge. -->
           <div class="flex shrink-0 items-center gap-2">
-            <UTooltip
-              v-if="self.isMvp || self.isAce"
-              :text="self.isMvp ? 'MVP' : 'ACE'"
-            >
-              <UIcon
-                :name="self.isMvp ? 'i-lucide-crown' : 'i-lucide-award'"
-                class="size-5 drop-shadow"
-                :class="self.isMvp ? 'text-gold' : 'text-primary'"
-                :aria-label="self.isMvp ? 'MVP' : 'ACE'"
-              />
-            </UTooltip>
+            <div class="flex size-5 shrink-0 items-center justify-center">
+              <UTooltip
+                v-if="self.isMvp || self.isAce"
+                :text="self.isMvp ? 'MVP' : 'ACE'"
+              >
+                <UIcon
+                  :name="self.isMvp ? 'i-lucide-crown' : 'i-lucide-award'"
+                  class="size-5 drop-shadow"
+                  :class="self.isMvp ? 'text-gold' : 'text-primary'"
+                  :aria-label="self.isMvp ? 'MVP' : 'ACE'"
+                />
+              </UTooltip>
+            </div>
             <UIcon
               v-if="canExpand"
               name="i-lucide-chevron-down"
