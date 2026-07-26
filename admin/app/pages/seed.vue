@@ -675,13 +675,10 @@ const tableMeta = {
         </UForm>
 
         <!-- Submit-level error (network / 400 before an id was issued) -->
-        <UAlert
+        <FetchErrorAlert
           v-if="submitError"
-          color="error"
-          variant="subtle"
-          icon="i-lucide-triangle-alert"
+          :message="submitError"
           title="Could not queue this Riot ID"
-          :description="submitError"
           class="mt-6"
         />
 
@@ -964,13 +961,10 @@ const tableMeta = {
           />
         </div>
 
-        <UAlert
+        <FetchErrorAlert
           v-if="error"
-          color="error"
-          variant="subtle"
-          icon="i-lucide-triangle-alert"
+          :error="error"
           title="Failed to load seed requests"
-          :description="error.message"
           class="mb-4"
         />
 

@@ -1,13 +1,15 @@
 namespace TrueMain.ReadModels.Champions;
 
 /// <summary>
-/// Power curve and event spikes for a champion at a position. The curve is the
-/// mean opponent-relative "power" per minute (a global-normalized blend of gold
-/// and combat lead); the events are the items the champion completes and the
-/// level milestones (6/11/16), each carrying how much the power curve
-/// accelerates around it — the spike. Reconstructed from the pre-aggregated
-/// powerspike stats (#694); same queue / patch / tracked-account population as
-/// the sibling champion reads.
+/// Event spikes for a champion at a position, scoped to one core build (#890):
+/// the items that build completes and the level milestones (6/11/16), each
+/// carrying how much the champion's opponent-relative power accelerates around
+/// it — the spike. Reconstructed from the pre-aggregated powerspike stats
+/// (#694); same queue / patch / tracked-account population as the sibling
+/// champion reads.
+///
+/// The mean power curve is no longer returned: it is read server-side purely as
+/// the baseline the spikes are measured against.
 /// </summary>
 public sealed record ChampionPowerspikesResponse
 {
@@ -15,13 +17,14 @@ public sealed record ChampionPowerspikesResponse
     public string Position { get; init; } = string.Empty;
     public string? Patch { get; init; }
 
-    /// <summary>Mean power per minute across the population, ordered by minute.</summary>
-    public IReadOnlyList<ChampionPowerCurvePoint> Curve { get; init; } = [];
-
     /// <summary>Spike events, ordered by descending magnitude.</summary>
     public IReadOnlyList<ChampionPowerspikeEvent> Events { get; init; } = [];
 }
 
+/// <summary>
+/// One point of the mean power curve. Internal to the read — it is the baseline
+/// the spikes are measured against, and is not part of the response.
+/// </summary>
 public sealed record ChampionPowerCurvePoint
 {
     public int Minute { get; init; }

@@ -58,7 +58,9 @@ public sealed class MainChampionStatConfiguration : IEntityTypeConfiguration<Mai
         entity.HasIndex(e => new { e.PlatformId, e.Puuid, e.ChampionId })
             .IsUnique();
 
-        entity.HasIndex(e => new { e.PlatformId, e.Puuid });
+        // (PlatformId, Puuid) single index dropped (#236): it is a leading prefix of
+        // the (PlatformId, Puuid, ChampionId) unique above, which Postgres already
+        // uses for (PlatformId) and (PlatformId, Puuid) lookups.
 
         // Covering index for MainChampionStatRepository.GetMainAccountsAsync,
         // which filters on (IsMain, PlatformId) and projects only Puuid.

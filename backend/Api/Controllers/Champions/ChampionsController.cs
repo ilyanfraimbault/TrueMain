@@ -3,11 +3,13 @@ using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Mvc;
 using TrueMain.ReadModels.Champions;
 using TrueMain.Services.Champions;
+using TrueMain.Services.Truemains;
 
 namespace TrueMain.Controllers.Champions;
 
 [ApiController]
 [Route("champions")]
+[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
 public sealed class ChampionsController(
     IChampionSummariesQueryService summariesQueryService,
     IChampionTierListQueryService tierListQueryService,
@@ -15,11 +17,11 @@ public sealed class ChampionsController(
     IChampionTrendQueryService trendQueryService,
     IChampionPatchDiffQueryService patchDiffQueryService,
     IChampionMatchupQueryService matchupQueryService,
-    IChampionTimelineLeadsQueryService timelineLeadsQueryService,
     IChampionScalingQueryService scalingQueryService,
     IChampionItemTimingsQueryService itemTimingsQueryService,
     IChampionRoamQueryService roamQueryService,
     IChampionPowerspikesQueryService powerspikesQueryService,
+    IChampionMainsComparisonQueryService mainsComparisonQueryService,
     ICompositionRecommendationQueryService compositionRecommendationQueryService) : ControllerBase
 {
     [HttpGet]
@@ -54,20 +56,13 @@ public sealed class ChampionsController(
         [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
+        if (!TryNormalizeOptionalPosition(position, out var normalizedPosition, out var problem))
+        {
+            return problem;
+        }
+
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
         var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
-
-        // A blank/absent position means "all positions"; only a non-blank value
-        // that fails to canonicalise is a client error.
-        string? normalizedPosition = null;
-        if (!string.IsNullOrWhiteSpace(position))
-        {
-            normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
-            if (normalizedPosition is null)
-            {
-                return ValidationProblem(ChampionQueryParameterNormalizer.InvalidPositionMessage);
-            }
-        }
 
         var tierList = await tierListQueryService.GetTierListAsync(normalizedPatch, normalizedPosition, normalizedBracket, ct);
         return Ok(tierList);
@@ -75,8 +70,8 @@ public sealed class ChampionsController(
 
     [HttpGet("{championId:int}")]
     [ProducesResponseType(typeof(ChampionResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<ChampionResponse>> GetChampionAsync(
         int championId,
         [FromQuery] string? patch,
@@ -84,8 +79,12 @@ public sealed class ChampionsController(
         [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
+        if (!TryNormalizeOptionalPosition(position, out var normalizedPosition, out var problem))
+        {
+            return problem;
+        }
+
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
-        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
         var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
 
         var response = await buildsQueryService.GetAsync(
@@ -108,12 +107,17 @@ public sealed class ChampionsController(
     /// </summary>
     [HttpGet("{championId:int}/trend")]
     [ProducesResponseType(typeof(ChampionTrendReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ChampionTrendReadModel>> GetChampionTrendAsync(
         int championId,
         [FromQuery] string? position,
         CancellationToken ct = default)
     {
-        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+        if (!TryNormalizeOptionalPosition(position, out var normalizedPosition, out var problem))
+        {
+            return problem;
+        }
+
         var trend = await trendQueryService.GetTrendAsync(championId, normalizedPosition, ct);
         return Ok(trend);
     }
@@ -130,6 +134,7 @@ public sealed class ChampionsController(
     /// </summary>
     [HttpGet("{championId:int}/patch-diff")]
     [ProducesResponseType(typeof(ChampionPatchDiffReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ChampionPatchDiffReadModel>> GetChampionPatchDiffAsync(
         int championId,
         [FromQuery] string? from,
@@ -137,7 +142,11 @@ public sealed class ChampionsController(
         [FromQuery] string? position,
         CancellationToken ct = default)
     {
-        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+        if (!TryNormalizeOptionalPosition(position, out var normalizedPosition, out var problem))
+        {
+            return problem;
+        }
+
         var normalizedFrom = ChampionQueryParameterNormalizer.NormalizePatch(from);
         var normalizedTo = ChampionQueryParameterNormalizer.NormalizePatch(to);
 
@@ -160,7 +169,6 @@ public sealed class ChampionsController(
     [HttpGet("{championId:int}/matchups")]
     [ProducesResponseType(typeof(ChampionMatchupsResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<ChampionMatchupsResponse>> GetChampionMatchupsAsync(
         int championId,
         [FromQuery] string? position,
@@ -190,44 +198,6 @@ public sealed class ChampionsController(
     }
 
     /// <summary>
-    /// Average lead vs the lane opponent at each minute mark (5/10/15/20/30) for a
-    /// champion at a position: gold / CS / kills / level / xp / damage diffs,
-    /// averaged across games above the sample floor and computed live from the
-    /// per-interval timeline snapshots. <paramref name="position"/> is the required
-    /// Riot team position; an unrecognised position is a 400. Always 200 with a
-    /// (possibly empty) list — intervals below the floor (or before snapshots have
-    /// been ingested) simply yield no entries.
-    /// </summary>
-    [HttpGet("{championId:int}/timeline-leads")]
-    [ProducesResponseType(typeof(ChampionTimelineLeadsResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
-    public async Task<ActionResult<ChampionTimelineLeadsResponse>> GetChampionTimelineLeadsAsync(
-        int championId,
-        [FromQuery] string? position,
-        [FromQuery] string? patch,
-        [FromQuery] string? eloBracket,
-        CancellationToken ct = default)
-    {
-        if (!TryRequirePosition(position, out var normalizedPosition, out var problem))
-        {
-            return problem;
-        }
-
-        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
-        var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
-
-        var response = await timelineLeadsQueryService.GetAsync(
-            championId,
-            normalizedPosition,
-            normalizedPatch,
-            normalizedBracket,
-            ct);
-
-        return Ok(response);
-    }
-
-    /// <summary>
     /// How a champion's win rate scales with game length at a position: win rate
     /// bucketed by game duration plus a single scaling index (long-game win rate
     /// minus short-game win rate; positive = scales late), computed live from
@@ -238,7 +208,6 @@ public sealed class ChampionsController(
     [HttpGet("{championId:int}/scaling")]
     [ProducesResponseType(typeof(ChampionScalingResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<ChampionScalingResponse>> GetChampionScalingAsync(
         int championId,
         [FromQuery] string? position,
@@ -275,7 +244,6 @@ public sealed class ChampionsController(
     [HttpGet("{championId:int}/item-timings")]
     [ProducesResponseType(typeof(ChampionItemTimingsResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<ChampionItemTimingsResponse>> GetChampionItemTimingsAsync(
         int championId,
         [FromQuery] string? position,
@@ -311,7 +279,6 @@ public sealed class ChampionsController(
     [HttpGet("{championId:int}/roam")]
     [ProducesResponseType(typeof(ChampionRoamResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<ChampionRoamResponse>> GetChampionRoamAsync(
         int championId,
         [FromQuery] string? position,
@@ -338,27 +305,36 @@ public sealed class ChampionsController(
     }
 
     /// <summary>
-    /// Power curve and event spikes for a champion at a position: the mean
-    /// opponent-relative power per minute, with the completed build items and
-    /// level milestones (6/11/16) marked by how much the curve accelerates
-    /// around them. <paramref name="position"/> is the required Riot team
-    /// position; an unrecognised position is a 400. Always 200; the curve and
-    /// events are empty until the per-minute data has accumulated.
+    /// Event spikes for a champion at a position, scoped to one core build: the
+    /// items that build completes and the level milestones (6/11/16), each
+    /// carrying how much the champion's power curve accelerates around it.
+    /// <paramref name="position"/> is the required Riot team position; an
+    /// unrecognised position is a 400. <paramref name="buildFirstItemId"/> and
+    /// <paramref name="buildKeystoneId"/> identify the core build the same way
+    /// the builds read keys its tabs, and are both required (a 400 otherwise) —
+    /// spikes are only meaningful within one build. Always 200; the events are
+    /// empty until the per-minute data has accumulated.
     /// </summary>
     [HttpGet("{championId:int}/powerspikes")]
     [ProducesResponseType(typeof(ChampionPowerspikesResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<ChampionPowerspikesResponse>> GetChampionPowerspikesAsync(
         int championId,
         [FromQuery] string? position,
         [FromQuery] string? patch,
         [FromQuery] string? eloBracket,
+        [FromQuery] int? buildFirstItemId,
+        [FromQuery] int? buildKeystoneId,
         CancellationToken ct = default)
     {
         if (!TryRequirePosition(position, out var normalizedPosition, out var problem))
         {
             return problem;
+        }
+
+        if (buildFirstItemId is not > 0 || buildKeystoneId is not > 0)
+        {
+            return ValidationProblem("buildFirstItemId and buildKeystoneId are required and must be positive.");
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
@@ -369,6 +345,82 @@ public sealed class ChampionsController(
             normalizedPosition,
             normalizedPatch,
             normalizedBracket,
+            buildFirstItemId.Value,
+            buildKeystoneId.Value,
+            ct);
+
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Head-to-head between a Riot account and this champion's mains (issue
+    /// #528): win rate, KDA, CS/min and gold side by side over the same queue,
+    /// patch and lane scope. <paramref name="account"/> is the Riot ID as a
+    /// player types it (<c>Name#TAG</c>; the <c>Name-TAG</c> slug is accepted
+    /// too) and is required. <paramref name="main"/> narrows the right-hand
+    /// column to a single tracked account; omitted, it aggregates every tracked
+    /// main of the champion.
+    ///
+    /// Two distinct failure modes, deliberately kept apart:
+    /// <list type="bullet">
+    /// <item>A Riot ID that isn't well-formed — missing, blank, no separator,
+    /// an empty half, over-long — is a <b>400</b>. It is malformed input, not
+    /// an answer about a player.</item>
+    /// <item>A well-formed Riot ID we have no row for is a <b>200</b> carrying
+    /// <c>UNKNOWN_ACCOUNT</c> (or <c>UNKNOWN_TARGET</c> for
+    /// <paramref name="main"/>). The comparison only covers accounts already in
+    /// our database — there is no on-demand Riot fetch — so "we don't hold this
+    /// player" is a normal answer for this endpoint, not a failure.</item>
+    /// </list>
+    ///
+    /// A sample below the configured floor comes back as
+    /// <c>INSUFFICIENT_SAMPLE</c> with both columns still populated so the
+    /// caller can say which side is thin.
+    /// </summary>
+    [HttpGet("{championId:int}/mains-comparison")]
+    [ProducesResponseType(typeof(ChampionMainsComparisonResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ChampionMainsComparisonResponse>> GetChampionMainsComparisonAsync(
+        int championId,
+        [FromQuery] string? account,
+        [FromQuery] string? main,
+        [FromQuery] string? position,
+        [FromQuery] string? patch,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(account))
+        {
+            return ValidationProblem("account is required — pass the Riot ID as Name#TAG.");
+        }
+
+        // Well-formedness is a client concern; whether we hold the account is
+        // an answer. Validating here keeps the two apart, so the caller's
+        // "we don't track this account yet" state can never fire on a typo that
+        // isn't a Riot ID at all. Same parser the service resolves with, so the
+        // two can't disagree on what they accept.
+        if (!NameTagParser.TryParseRiotId(account, out _))
+        {
+            return ValidationProblem(InvalidRiotIdMessage("account"));
+        }
+
+        if (!string.IsNullOrWhiteSpace(main) && !NameTagParser.TryParseRiotId(main, out _))
+        {
+            return ValidationProblem(InvalidRiotIdMessage("main"));
+        }
+
+        if (!TryNormalizeOptionalPosition(position, out var normalizedPosition, out var problem))
+        {
+            return problem;
+        }
+
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+
+        var response = await mainsComparisonQueryService.GetAsync(
+            championId,
+            account,
+            main,
+            normalizedPosition,
+            normalizedPatch,
             ct);
 
         return Ok(response);
@@ -426,6 +478,14 @@ public sealed class ChampionsController(
     }
 
     /// <summary>
+    /// 400 message for a Riot ID query parameter that isn't well-formed. Names
+    /// the offending parameter so a caller passing both can tell which failed.
+    /// </summary>
+    private static string InvalidRiotIdMessage(string parameter)
+        => $"{parameter} must be a Riot ID of the form Name#TAG "
+           + $"(at most {NameTagParser.MaxRiotIdLength} characters).";
+
+    /// <summary>
     /// Canonicalises one team's slot list into a position→champion map; any
     /// non-positive champion id, unrecognised position, or duplicated position
     /// within the team yields a 400 <paramref name="problem"/>. Null tolerated:
@@ -470,15 +530,44 @@ public sealed class ChampionsController(
     /// <summary>
     /// Canonicalises a required <c>position</c> query parameter; a missing or
     /// unrecognised value yields a 400 <paramref name="problem"/>. Endpoints
-    /// where position is optional (champion detail, trend, patch-diff) call
-    /// <see cref="ChampionQueryParameterNormalizer.NormalizePosition"/>
-    /// directly and treat null as "no filter" instead.
+    /// where position is optional (champion detail, trend, patch-diff, tier
+    /// list) call <see cref="TryNormalizeOptionalPosition"/> instead.
     /// </summary>
     private bool TryRequirePosition(
         string? position,
         [NotNullWhen(true)] out string? normalizedPosition,
         [NotNullWhen(false)] out ActionResult? problem)
     {
+        normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+        if (normalizedPosition is null)
+        {
+            problem = ValidationProblem(ChampionQueryParameterNormalizer.InvalidPositionMessage);
+            return false;
+        }
+
+        problem = null;
+        return true;
+    }
+
+    /// <summary>
+    /// Canonicalises an optional <c>position</c> query parameter: a
+    /// missing/blank value means "all positions" (<paramref name="normalizedPosition"/>
+    /// comes back null), while a non-blank value that fails to canonicalise is
+    /// a 400 <paramref name="problem"/> rather than silently falling back to
+    /// "no filter".
+    /// </summary>
+    private bool TryNormalizeOptionalPosition(
+        string? position,
+        out string? normalizedPosition,
+        [NotNullWhen(false)] out ActionResult? problem)
+    {
+        if (string.IsNullOrWhiteSpace(position))
+        {
+            normalizedPosition = null;
+            problem = null;
+            return true;
+        }
+
         normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
         if (normalizedPosition is null)
         {

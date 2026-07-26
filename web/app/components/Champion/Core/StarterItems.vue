@@ -20,11 +20,12 @@ const items = computed<StaticItemData[]>(() => {
     <h2 class="text-sm font-medium text-muted">
       Starter
     </h2>
-    <!-- Fixed from sm: 3 items × 36 px + 2 gaps × 4 px = 116 px wide, 36 px tall.
-         Width is capped at the 3-item worst case; height is pinned so the
-         "no data" state occupies the same box without collapsing the row.
-         Mobile stays fluid (w-full). -->
-    <div class="mt-2 flex h-9 w-full shrink-0 items-center gap-1 overflow-hidden sm:w-[116px]">
+    <!-- Fixed from sm: 3 items × 36 px + 2 gaps × 4 px = 116 px
+         (--width-starter-items in main.css), 36 px tall. Width is capped at
+         the 3-item worst case; height is pinned so the "no data" state
+         occupies the same box without collapsing the row. Mobile stays
+         fluid (w-full). -->
+    <div class="mt-2 flex h-9 w-full shrink-0 items-center gap-1 overflow-hidden sm:w-starter-items">
       <GameTooltipItemIcon
         v-for="(item, index) in items"
         :key="`starter-${item.id}-${index}`"

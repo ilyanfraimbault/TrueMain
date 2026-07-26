@@ -3,6 +3,7 @@ using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Common;
 using Ingestor.Processes.Components.Discovery;
+using Ingestor.Processes.Summaries;
 using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
@@ -22,7 +23,7 @@ public sealed class HarvestProcess(
 {
     public string Name => "Harvest";
 
-    public async Task<object?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var options = harvestOptions.Value;
 
@@ -32,7 +33,7 @@ public sealed class HarvestProcess(
         if (PlatformNormalizer.Normalize(options.Platforms).Count == 0)
         {
             logger.LogWarning("No platforms configured (Harvest:Platforms).");
-            return new { reason = "No platforms configured.", candidatesInserted = 0 };
+            return new HarvestNoWorkSummary("No platforms configured.", 0);
         }
 
         await using var session = await sessionFactory.CreateAsync(ct);
@@ -41,22 +42,56 @@ public sealed class HarvestProcess(
         var result = await harvestService.HarvestAsync(session, options, nowUtc, ct);
 
         // Named ops event (#444): one per harvest run, so the operator can follow the
-        // participant-harvest arm from /ops/logs alongside ladder discovery.
+        // participant-harvest arm from /ops/logs alongside ladder discovery. Coverage
+        // (#495) rides on it: how many (puuid, champion) pairs qualified versus how many
+        // the budget could take, split between new discovery and stat refresh.
+        var coverage = result.Coverage;
         logger.LogInformation(
             OpsEvents.HarvestCycleCompleted,
-            "Harvest summary: lookbackDays={LookbackDays}, maxCandidatesPerRun={MaxCandidatesPerRun}, minObservedGames={MinObservedGames}, candidatesInserted={Inserted}, candidatesUpdated={Updated}, accountsCreated={AccountsCreated}.",
+            "Harvest summary: lookbackDays={LookbackDays}, maxCandidatesPerRun={MaxCandidatesPerRun}, newCandidateShare={NewCandidateShare}, minObservedGames={MinObservedGames}, candidatesInserted={Inserted}, candidatesUpdated={Updated}, accountsCreated={AccountsCreated}, eligibleNew={EligibleNew}, selectedNew={SelectedNew}, eligibleKnown={EligibleKnown}, selectedKnown={SelectedKnown}.",
             options.LookbackDays,
             options.MaxCandidatesPerRun,
+            options.NewCandidateShare,
             options.MinObservedGames,
             result.CandidatesInserted,
             result.CandidatesUpdated,
-            result.AccountsCreated);
+            result.AccountsCreated,
+            coverage.EligibleNew,
+            coverage.SelectedNew,
+            coverage.EligibleKnown,
+            coverage.SelectedKnown);
 
-        return new
+        // The cap is a real bound on coverage, so it is never applied silently (#495): every
+        // truncated run says so at Warning, with the per-platform split that also exposes an
+        // imbalanced run (one region eating the cross-platform budget). droppedNew > 0 is the
+        // one to act on — new discovery is being deferred, which is how the harvest starves.
+        if (coverage.IsBudgetBound)
         {
-            candidatesInserted = result.CandidatesInserted,
-            candidatesUpdated = result.CandidatesUpdated,
-            accountsCreated = result.AccountsCreated
-        };
+            logger.LogWarning(
+                OpsEvents.HarvestBudgetExhausted,
+                "Harvest budget exhausted: maxCandidatesPerRun={MaxCandidatesPerRun} did not cover the eligible pool — droppedNew={DroppedNew} of {EligibleNew}, droppedKnown={DroppedKnown} of {EligibleKnown}. Per platform: {PerPlatform}.",
+                options.MaxCandidatesPerRun,
+                coverage.DroppedNew,
+                coverage.EligibleNew,
+                coverage.DroppedKnown,
+                coverage.EligibleKnown,
+                FormatPerPlatform(coverage));
+        }
+
+        return new HarvestSummary(
+            result.CandidatesInserted,
+            result.CandidatesUpdated,
+            result.AccountsCreated,
+            coverage.EligibleNew,
+            coverage.SelectedNew,
+            coverage.EligibleKnown,
+            coverage.SelectedKnown,
+            coverage.IsBudgetBound);
     }
+
+    private static string FormatPerPlatform(HarvestCoverage coverage)
+        => string.Join(
+            ", ",
+            coverage.Platforms.Select(platform =>
+                $"{platform.PlatformId} new={platform.SelectedNew}/{platform.EligibleNew} known={platform.SelectedKnown}/{platform.EligibleKnown}"));
 }

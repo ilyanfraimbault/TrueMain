@@ -13,7 +13,11 @@
 //   - mixed array       -> an indexed list, each item recursing
 // It references itself for nested shapes (Nuxt auto-import resolves the SFC's
 // own name), so arbitrarily deep payloads stay readable.
-import { formatNumber } from '~~/shared/utils/format'
+//
+// The value-classification helpers live in `shared/utils/process-summary` so
+// they can be unit-tested without mounting the component.
+import { computed } from 'vue'
+import { formatScalar, humanizeKey, isPlainObject, isScalar } from '~~/shared/utils/process-summary'
 
 // `depth` is internal recursion bookkeeping (callers pass only `value`). Past
 // MAX_DEPTH we stop recursing and fall back to a raw JSON block, so a
@@ -22,42 +26,6 @@ const props = withDefaults(defineProps<{ value: unknown, depth?: number }>(), {
   depth: 0,
 })
 const MAX_DEPTH = 8
-
-function humanizeKey(key: string): string {
-  return key
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/[_-]+/g, ' ')
-    .replace(/^./, char => char.toUpperCase())
-    .trim()
-}
-
-// Strictly a `{}`-literal-shaped object: rejects arrays and exotic objects
-// (Date/Map/Set/RegExp/null-prototype). JSON-sourced summaries never contain
-// those, but the stricter guard keeps a changing data source from being
-// mis-detected as a tabular row or an object field list.
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    && Object.getPrototypeOf(value) === Object.prototype
-}
-
-// A "scalar" is anything we render as a single line of text rather than a
-// nested structure: primitives plus null/undefined.
-function isScalar(value: unknown): boolean {
-  return value === null || value === undefined || typeof value !== 'object'
-}
-
-function formatScalar(value: unknown): string {
-  if (value === null || value === undefined) {
-    return '—'
-  }
-  if (typeof value === 'number') {
-    return formatNumber(value)
-  }
-  if (typeof value === 'boolean') {
-    return value ? 'Yes' : 'No'
-  }
-  return String(value)
-}
 
 const kind = computed<'scalar' | 'object' | 'array'>(() => {
   if (isScalar(props.value)) {

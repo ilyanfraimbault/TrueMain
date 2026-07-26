@@ -145,6 +145,7 @@ const {
   detail,
   detailPending,
   detailError,
+  detailErrorTraceId,
   detailId,
   openDetail,
 } = useDeepLinkedDetail<MatchDataQualityDetail>({
@@ -256,13 +257,10 @@ function teamPlayersLabel(team: MatchTeam): string {
     </template>
 
     <template #body>
-      <UAlert
+      <FetchErrorAlert
         v-if="error"
-        color="error"
-        variant="subtle"
-        icon="i-lucide-triangle-alert"
+        :error="error"
         title="Failed to load data-quality report"
-        :description="error.message"
         class="mb-6"
       />
 
@@ -348,13 +346,11 @@ function teamPlayersLabel(team: MatchTeam): string {
             <USkeleton class="h-64 w-full" />
           </div>
 
-          <UAlert
+          <FetchErrorAlert
             v-else-if="detailError"
-            color="error"
-            variant="subtle"
-            icon="i-lucide-triangle-alert"
+            :message="detailError"
+            :trace-id="detailErrorTraceId"
             title="Could not load match"
-            :description="detailError"
           />
 
           <div v-else-if="detail" class="space-y-5">

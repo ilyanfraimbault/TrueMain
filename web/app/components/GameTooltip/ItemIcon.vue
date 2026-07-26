@@ -8,12 +8,15 @@ const props = withDefaults(defineProps<{
   item?: StaticItemData | null
   width?: number | string
   height?: number | string
+  /** Native lazy-loading hint forwarded to the icon (`'lazy'` below the fold). */
+  loading?: 'lazy' | 'eager'
   /** Optional pickrate (0..1) — only set by BuildTree call sites; renders next to the item name. */
   pickRate?: number
 }>(), {
   item: null,
   width: 36,
   height: 36,
+  loading: undefined,
   pickRate: undefined,
 })
 
@@ -32,6 +35,7 @@ const hasItem = computed(() => Boolean(props.item))
       :alt="item?.name"
       :width="width"
       :height="height"
+      :loading="loading"
     />
     <template
       v-if="item"

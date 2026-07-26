@@ -71,6 +71,8 @@ namespace Data.CompiledModels
                 typeof(double),
                 propertyInfo: typeof(PowerspikeSigmaStat).GetProperty("SumDamageDiff", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 fieldInfo: typeof(PowerspikeSigmaStat).GetField("<SumDamageDiff>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                precision: 18,
+                scale: 6,
                 sentinel: 0.0);
             sumDamageDiff.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
@@ -79,6 +81,8 @@ namespace Data.CompiledModels
                 typeof(double),
                 propertyInfo: typeof(PowerspikeSigmaStat).GetProperty("SumDamageDiffSq", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 fieldInfo: typeof(PowerspikeSigmaStat).GetField("<SumDamageDiffSq>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                precision: 18,
+                scale: 6,
                 sentinel: 0.0);
             sumDamageDiffSq.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
@@ -87,6 +91,8 @@ namespace Data.CompiledModels
                 typeof(double),
                 propertyInfo: typeof(PowerspikeSigmaStat).GetProperty("SumGoldDiff", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 fieldInfo: typeof(PowerspikeSigmaStat).GetField("<SumGoldDiff>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                precision: 18,
+                scale: 6,
                 sentinel: 0.0);
             sumGoldDiff.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
@@ -95,6 +101,8 @@ namespace Data.CompiledModels
                 typeof(double),
                 propertyInfo: typeof(PowerspikeSigmaStat).GetProperty("SumGoldDiffSq", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 fieldInfo: typeof(PowerspikeSigmaStat).GetField("<SumGoldDiffSq>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                precision: 18,
+                scale: 6,
                 sentinel: 0.0);
             sumGoldDiffSq.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 

@@ -13,6 +13,7 @@ public sealed class ProfileQueryService(
     // Shared with the leaderboard so both views derive a player's mains from the
     // same top-N slice (see MainChampionsPolicy / #521).
     private const int MainChampionsCap = MainChampionsPolicy.Cap;
+    private const string Surface = "truemain-profile";
 
     // Private DTOs used to carry query results out of factory-owned contexts.
     private sealed record SnapshotDto(
@@ -64,17 +65,20 @@ public sealed class ProfileQueryService(
             return null;
         }
 
-        // snapshot and mains are both keyed on the resolved account but are
-        // otherwise independent of each other, so they can run concurrently.
-        // A single DbContext is not thread-safe, so each concurrent branch
-        // gets its own short-lived context created from the factory.
+        // snapshot, mains and dedication are all keyed on the resolved account
+        // but are otherwise independent of each other, so they can run
+        // concurrently. A single DbContext is not thread-safe, so each
+        // concurrent branch gets its own short-lived context created from the
+        // factory.
         var snapshotTask = FetchSnapshotAsync(account.Id, ct);
         var mainsTask = FetchMainsAsync(account.PlatformId, account.Puuid, ct);
+        var dedicationTask = FetchDedicationAsync(account.Id, ct);
 
-        await Task.WhenAll(snapshotTask, mainsTask);
+        await Task.WhenAll(snapshotTask, mainsTask, dedicationTask);
 
         var snapshot = await snapshotTask;
         var mains = await mainsTask;
+        var dedication = await dedicationTask;
 
         // Aggregate position breakdown across the top mains. The per-champion
         // entries already sum to that champion's games, so summing the
@@ -120,11 +124,13 @@ public sealed class ProfileQueryService(
             };
 
         logger.LogInformation(
-            "[truemain-profile] nameTag={NameTag} account_id={AccountId} mains={MainCount} ranked={Ranked}",
+            "{Surface} nameTag={NameTag} account_id={AccountId} mains={MainCount} ranked={Ranked} dedication={Dedication}",
+            Surface,
             nameTag,
             account.Id,
             mains.Count,
-            ranked is null ? "none" : ranked.Tier);
+            ranked is null ? "none" : ranked.Tier,
+            dedication?.Score);
 
         return new ProfileReadModel
         {
@@ -147,6 +153,7 @@ public sealed class ProfileQueryService(
                     IsOtp = m.IsOtp,
                 })
                 .ToList(),
+            Dedication = dedication,
             Positions = positions,
         };
     }
@@ -160,6 +167,22 @@ public sealed class ProfileQueryService(
             .OrderByDescending(s => s.CapturedAtUtc)
             .Select(s => new SnapshotDto(s.Tier, s.Division, s.LeaguePoints, s.Wins, s.Losses))
             .FirstOrDefaultAsync(ct);
+    }
+
+    /// <summary>
+    /// Dedication score for the player's signature champion (their top main).
+    /// Null when no champion is classified as a main — the card is hidden then,
+    /// because a 0 would read as "measured and found wanting" rather than "not
+    /// measured yet".
+    /// </summary>
+    private async Task<DedicationReadModel?> FetchDedicationAsync(Guid accountId, CancellationToken ct)
+    {
+        await using var ctx = await dbFactory.CreateDbContextAsync(ct);
+        // No champion filter: the profile always scores the player's own top
+        // main. DateTime.UtcNow is the recency reference — the score is a
+        // read-time projection, so it ages between two requests by design.
+        var byAccount = await MainDedication.FetchAsync(ctx, [accountId], championId: null, DateTime.UtcNow, ct);
+        return byAccount.GetValueOrDefault(accountId);
     }
 
     private async Task<List<MainDto>> FetchMainsAsync(string platformId, string puuid, CancellationToken ct)

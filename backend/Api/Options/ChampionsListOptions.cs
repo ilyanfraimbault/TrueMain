@@ -44,4 +44,17 @@ public sealed class ChampionsListOptions
     /// single game up. Set to 0 to disable.
     /// </summary>
     public int MinPlayerMatchupGames { get; set; } = 3;
+
+    /// <summary>
+    /// Minimum games each side of the account-vs-mains comparison (#528) needs
+    /// before the head-to-head is flagged comparable. Both columns are
+    /// player-scoped slices of one champion, so the global
+    /// <see cref="MinSampleGames"/> floor would empty almost every comparison;
+    /// this sits just above the per-player matchup floor, where a win rate and a
+    /// CS/min average stop echoing one or two games. The endpoint still returns
+    /// both columns below the floor (with a status saying so) so the caller can
+    /// show how far the sample is from the bar. Set to 0 to disable — a side
+    /// with no games at all is never comparable regardless.
+    /// </summary>
+    public int MinComparisonGames { get; set; } = 5;
 }

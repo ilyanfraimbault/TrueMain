@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { LeaderboardRowResponse, RegionSlug } from '~~/shared/types/leaderboard'
-import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
+import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { formatPercentage, getProfileIconUrl } from '~~/shared/utils/ddragon'
 import { formatTier, isApexTier } from '~/utils/tiers'
 
@@ -12,9 +12,6 @@ const props = defineProps<{
   rows: LeaderboardRowResponse[]
   /** championId → static name/icon, for rendering each player's top picks. */
   championsById: Map<number, ChampionStaticListItem>
-  /** Static rune tree + item map, to draw each main champion's keystone + first item. */
-  runeTree: RuneTreeResponse | null
-  itemsMap: Record<number, StaticItemData>
   /** Skeleton state — true until the very first page resolves. */
   initialLoading: boolean
   /** Refetch-in-flight state — dims the current rows during a region switch. */
@@ -26,6 +23,44 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:region': [value: RegionSlug | null]
 }>()
+
+// ─── Build-icon assets (client-only enrichment) ───────────────────────────
+// Each main champion's keystone + first item needs the static rune tree and
+// item map. The rune tree is tiny, but the item map is ~373 KiB — dead weight
+// on the homepage's initial payload for a panel that sits below the fold. Gate
+// the *item-map* fetch behind visibility: the fetch key stays `null` (so the
+// `immediate: false` source never fires) until an IntersectionObserver flips
+// `buildAssetsVisible`, at which point the resolved patch drives the fetch.
+//
+// Mismatch-safe: at SSR and at the initial client hydration the map is still
+// empty (identical to today, where it resolved post-hydration), so the build
+// icons render null on both sides and only fill in later as a reactive update —
+// never a hydration reconciliation.
+const buildAssetsVisible = ref(false)
+const { data: runeTreeData } = useStaticRuneTree(() => props.patch)
+const { data: itemsData } = useStaticItems(
+  () => (buildAssetsVisible.value ? props.patch : null),
+  { immediate: false },
+)
+const runeTree = computed(() => runeTreeData.value ?? null)
+const itemsMap = computed(() => itemsData.value ?? {})
+
+const rootEl = ref<HTMLElement | null>(null)
+onMounted(() => {
+  const el = rootEl.value
+  if (!el || typeof IntersectionObserver === 'undefined') {
+    buildAssetsVisible.value = true
+    return
+  }
+  const observer = new IntersectionObserver((entries) => {
+    if (entries.some(entry => entry.isIntersecting)) {
+      buildAssetsVisible.value = true
+      observer.disconnect()
+    }
+  }, { rootMargin: '200px' })
+  observer.observe(el)
+  onBeforeUnmount(() => observer.disconnect())
+})
 
 const ROW_COUNT = 5
 
@@ -70,7 +105,7 @@ function championIcon(id: number): string | null {
 
 // Shared with the leaderboard row — resolve build ids the same way the
 // fetching composable does.
-const { perk, perkStyle, item: buildItem } = useBuildResolvers(() => props.runeTree, () => props.itemsMap)
+const { perk, perkStyle, item: buildItem } = useBuildResolvers(runeTree, itemsMap)
 
 // Roving-tabindex keyboard nav for the region radiogroup: arrows / Home / End
 // move the selection (and focus) the way an exclusive radio group should.
@@ -103,6 +138,7 @@ function onRegionKeydown(event: KeyboardEvent) {
 
 <template>
   <section
+    ref="rootEl"
     class="glass flex flex-col rounded-2xl p-3 sm:p-4"
     aria-labelledby="home-truemains-title"
   >

@@ -49,9 +49,11 @@ internal static class RiotHttpExtensions
         this HttpResponseMessage response, Uri uri, CancellationToken ct)
     {
         await using var stream = await response.Content.ReadAsStreamAsync(ct);
-        // JsonSerializerOptions.Web matches GetFromJsonAsync's defaults
-        // (camelCase, case-insensitive) so behaviour is unchanged.
-        var result = await JsonSerializer.DeserializeAsync<T>(stream, JsonSerializerOptions.Web, ct);
+        // RiotJson.Options carries the same JsonSerializerDefaults.Web settings
+        // GetFromJsonAsync uses (camelCase, case-insensitive), with the generated
+        // RiotJsonContext as the type resolver instead of reflection. Still a
+        // stream overload: the payload is never buffered whole (#253).
+        var result = await JsonSerializer.DeserializeAsync<T>(stream, RiotJson.Options, ct);
         return result ?? throw new InvalidOperationException($"Empty response from Riot API ({uri}).");
     }
 }

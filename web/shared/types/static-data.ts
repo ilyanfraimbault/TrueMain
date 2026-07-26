@@ -28,6 +28,12 @@ export interface StaticItemData {
    * checked when filtering non-shop build-order steps.
    */
   inStore?: boolean
+  /**
+   * DDragon `item.tags` — coarse category labels ("Boots", "Damage",
+   * "Trinket", "Consumable", ...). Used to pull boots out into their own slot
+   * in the match-row inventory. Absent items are treated as tag-less.
+   */
+  tags?: string[]
 }
 
 export interface StaticSummonerSpellData {

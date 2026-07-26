@@ -8,12 +8,15 @@ const props = withDefaults(defineProps<{
   spell?: StaticSummonerSpellData | null
   width?: number | string
   height?: number | string
+  /** Native lazy-loading hint forwarded to the icon (`'lazy'` below the fold). */
+  loading?: 'lazy' | 'eager'
   /** Optional fallback label rendered (and used as tooltip text) when no icon URL is available. */
   fallbackLabel?: string
 }>(), {
   spell: null,
   width: 36,
   height: 36,
+  loading: undefined,
   fallbackLabel: '',
 })
 
@@ -39,6 +42,7 @@ const fallbackStyle = computed(() => ({
       :alt="spell?.name"
       :width="width"
       :height="height"
+      :loading="loading"
     />
     <span
       v-else

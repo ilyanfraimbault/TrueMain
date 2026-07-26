@@ -14,5 +14,11 @@ public class MatchIngestionOptions
 
     public int ClaimLeaseMinutes { get; set; } = 30;
 
-    public List<string> Platforms { get; set; } = new() { "KR", "EUW1", "NA1" };
+    /// <summary>
+    /// Optional narrowing override of the shared <c>Platforms:Active</c> list (#496). Left empty
+    /// — the default — match ingestion inherits <see cref="PlatformScopeOptions.Active"/>, so a
+    /// region is added in one place instead of three. An override must be a subset of the shared
+    /// list; that is enforced at startup by <see cref="PlatformScopeValidator"/>.
+    /// </summary>
+    public List<string> Platforms { get; set; } = [];
 }

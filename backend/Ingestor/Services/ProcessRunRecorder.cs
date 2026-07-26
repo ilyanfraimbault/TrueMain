@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Data.Entities;
 using Data.Repositories;
+using Ingestor.Processes.Summaries;
 
 namespace Ingestor.Services;
 
@@ -45,17 +46,15 @@ public sealed class ProcessRunRecorder(
         DateTime startedAtUtc,
         DateTime finishedAtUtc,
         ProcessRunStatus status,
-        object? summary,
+        IProcessRunSummary? summary,
         string? error,
         CancellationToken ct)
     {
         await using var session = await sessionFactory.CreateAsync(ct);
 
-        JsonDocument? summaryDoc = null;
-        if (summary is not null)
-        {
-            summaryDoc = JsonDocument.Parse(JsonSerializer.Serialize(summary));
-        }
+        // Source-generated metadata (#268), and straight to a JsonDocument rather
+        // than serializing to a string and re-parsing it.
+        JsonDocument? summaryDoc = summary is null ? null : ProcessRunSummaryJson.ToDocument(summary);
 
         // Clamp before the int cast: an extreme span (e.g. a very stale run) could
         // exceed int.MaxValue ms (~24.8 days) and overflow into a negative duration.

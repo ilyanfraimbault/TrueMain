@@ -89,8 +89,6 @@ public sealed class MatchDataRetentionProcessIntegrationTests
         // the safety net for a destructive operation on a format surprise.
         (await db.ChampionMatchupStats.AsNoTracking().Select(s => s.Patch).ToListAsync())
             .Should().BeEquivalentTo(["16.5", "unknown"]);
-        (await db.ChampionTimelineLeadStats.AsNoTracking().Select(s => s.Patch).ToListAsync())
-            .Should().BeEquivalentTo(["16.5"]);
         (await db.ChampionPowerspikeCurveStats.AsNoTracking().Select(s => s.Patch).ToListAsync())
             .Should().BeEquivalentTo(["16.5"]);
         (await db.ChampionPowerspikeEventStats.AsNoTracking().Select(s => s.Patch).ToListAsync())
@@ -112,7 +110,6 @@ public sealed class MatchDataRetentionProcessIntegrationTests
             .Should().BeEquivalentTo(["16.4", "16.5"]);
         (await db.ChampionAggregatePatterns.AsNoTracking().CountAsync()).Should().Be(2);
         (await db.ChampionMatchupStats.AsNoTracking().CountAsync()).Should().Be(3);
-        (await db.ChampionTimelineLeadStats.AsNoTracking().CountAsync()).Should().Be(2);
         (await db.ChampionPowerspikeCurveStats.AsNoTracking().CountAsync()).Should().Be(2);
         (await db.ChampionPowerspikeEventStats.AsNoTracking().CountAsync()).Should().Be(2);
     }
@@ -199,17 +196,6 @@ public sealed class MatchDataRetentionProcessIntegrationTests
                 EloBracket = "GOLD",
                 Games = 5,
                 Wins = 3,
-                AggregatedAtUtc = aggregatedAt
-            });
-            db.ChampionTimelineLeadStats.Add(new ChampionTimelineLeadStat
-            {
-                Id = Guid.NewGuid(),
-                ChampionId = 22,
-                TeamPosition = "BOTTOM",
-                Patch = patch,
-                IntervalMinute = 10,
-                EloBracket = "GOLD",
-                Games = 5,
                 AggregatedAtUtc = aggregatedAt
             });
             db.ChampionPowerspikeCurveStats.Add(new ChampionPowerspikeCurveStat

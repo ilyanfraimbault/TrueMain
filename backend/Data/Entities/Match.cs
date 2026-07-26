@@ -2,9 +2,11 @@ namespace Data.Entities;
 
 public class Match
 {
-    public string Id { get; set; } = string.Empty;
+    // A match row is immutable identity-wise once created (only the ingest/aggregate
+    // bool flags below are ever flipped), so the id and platform are required + init.
+    public required string Id { get; init; }
 
-    public string PlatformId { get; set; } = string.Empty;
+    public required string PlatformId { get; init; }
 
     public int QueueId { get; set; }
 
@@ -41,6 +43,14 @@ public class Match
     /// dropped exactly once — this flag keeps retention from re-scanning a pruned match.
     /// </summary>
     public bool TimelineSnapshotsPruned { get; set; }
+
+    /// <summary>
+    /// Set once this match has been folded into the champion matchup/lead aggregates
+    /// (#811). Gates the incremental aggregation (each match is aggregated exactly
+    /// once) the same way <see cref="PowerspikeAggregated"/> does. Dies with the match
+    /// on retention, so an aged-out patch's aggregate rows simply freeze.
+    /// </summary>
+    public bool MatchupLeadAggregated { get; set; }
 
     public ICollection<MatchParticipant> Participants { get; set; } = new List<MatchParticipant>();
 }

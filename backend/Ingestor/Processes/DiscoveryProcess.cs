@@ -5,6 +5,7 @@ using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Common;
 using Ingestor.Processes.Components.Discovery;
+using Ingestor.Processes.Summaries;
 using Ingestor.Ranking;
 using Ingestor.Riot;
 using Microsoft.Extensions.Options;
@@ -24,7 +25,7 @@ public sealed class DiscoveryProcess(
 {
     public string Name => "Discovery";
 
-    public async Task<object?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var options = discoveryOptions.Value;
         var platforms = PlatformNormalizer.Normalize(options.Platforms);
@@ -32,7 +33,7 @@ public sealed class DiscoveryProcess(
         if (platforms.Count == 0)
         {
             logger.LogWarning("No platforms configured (Discovery:Platforms).");
-            return new { reason = "No platforms configured.", selected = 0 };
+            return new NoWorkSummary("No platforms configured.", 0);
         }
 
         // Reduced cadence (#487): now that the participant harvest is the primary candidate
@@ -46,7 +47,7 @@ public sealed class DiscoveryProcess(
                 "Discovery skipped: last run {LastRunUtc:o} is within MinRunInterval {Interval}.",
                 lastRunUtc,
                 options.MinRunInterval);
-            return new { reason = "Within MinRunInterval; discovery skipped this iteration.", skipped = true };
+            return new SkippedSummary("Within MinRunInterval; discovery skipped this iteration.", true);
         }
 
         var summaries = await DiscoverAcrossPlatformsAsync(platforms, options, ct);
@@ -112,8 +113,9 @@ public sealed class DiscoveryProcess(
             // recorded as Failed instead of masquerading as an empty success. The
             // Count > 0 guard keeps the all-entries-unparseable case from throwing
             // on 0 == 0: a platform string that fails TryParse is skipped without
-            // a summary, and Discovery:Platforms is validated non-empty at startup,
-            // so an empty list here only ever means "nothing was attempted".
+            // a summary, and the effective platform list is validated non-empty at
+            // startup (Platforms:Active, inherited by this section — #496), so an
+            // empty list here only ever means "nothing was attempted".
             throw new AggregateException(
                 $"Discovery failed for all {summaries.Count} platform(s): "
                 + $"{string.Join(", ", summaries.Select(summary => summary.PlatformId))}.",
@@ -143,7 +145,19 @@ public sealed class DiscoveryProcess(
         var discovered = result.Discovered;
 
         // Advance the cursor past this window for the next run, wrapping at the ladder
-        // end. Tracked here and persisted by the SaveChanges calls below.
+        // end. Written immediately by its own upsert statement, independently of the
+        // SaveChanges calls below.
+        //
+        // Deliberately advanced *before* the per-account work below, so the sweep keeps
+        // moving even when that work fails mid-window. The ladder is re-fetched from Riot
+        // every run (unordered, so an offset is a coarse sweep position, not a work-item
+        // pointer) and LadderDiscoveryService wraps it with `offset % ladderSize`, so a
+        // window cut short is covered again on the next sweep, and the failure is surfaced
+        // (logged, plus FailureReason in the run payload) rather than swallowed. Advancing
+        // only after the whole window succeeded would instead let a single deterministically
+        // failing account — a champion-mastery 404 throws out of the loop — pin the cursor
+        // at that offset forever and starve new-account discovery, which is the failure mode
+        // this cursor was introduced to fix (#486).
         if (options.SlidingWindowEnabled && result.LadderSize > 0)
         {
             var window = Math.Max(1, options.MaxAccountsPerPlatformPerRun);
@@ -159,9 +173,9 @@ public sealed class DiscoveryProcess(
         if (discovered.Count == 0)
         {
             logger.LogInformation("No ladder entries for platform {Platform}.", platformId);
-            // Persist the cursor advance even when this window resolved no summoners,
-            // so the next run still moves forward rather than re-scanning the same slice.
-            await session.SaveChangesAsync(ct);
+            // The cursor advance is already persisted by the upsert above, so an empty
+            // window still moves the next run forward rather than re-scanning the same
+            // slice — and nothing else is staged on this session yet.
             return summary;
         }
 
@@ -281,24 +295,21 @@ public sealed class DiscoveryProcess(
             platformSummary.RankSnapshotsUnchanged);
     }
 
-    private static object BuildSuccessPayload(IEnumerable<PlatformSummary> summaries)
+    private static DiscoverySummary BuildSuccessPayload(IEnumerable<PlatformSummary> summaries)
     {
-        return new
-        {
-            platforms = summaries.Select(summary => new
-            {
-                platform = summary.PlatformId,
-                accountsProcessed = summary.AccountsProcessed,
-                newAccounts = summary.NewAccountsDiscovered,
-                candidatesInserted = summary.CandidatesInserted,
-                candidatesUpdated = summary.CandidatesUpdated,
-                rankSnapshotsInserted = summary.RankSnapshotsInserted,
-                rankSnapshotsUnchanged = summary.RankSnapshotsUnchanged,
+        return new DiscoverySummary(summaries
+            .Select(summary => new DiscoveryPlatformSummary(
+                summary.PlatformId,
+                summary.AccountsProcessed,
+                summary.NewAccountsDiscovered,
+                summary.CandidatesInserted,
+                summary.CandidatesUpdated,
+                summary.RankSnapshotsInserted,
+                summary.RankSnapshotsUnchanged,
                 // Null for platforms that completed; the per-platform error message
                 // otherwise, so a partially failed run says which platform failed and why.
-                error = summary.FailureReason
-            })
-        };
+                summary.FailureReason))
+            .ToList());
     }
 
     private sealed class PlatformSummary(string platformId)

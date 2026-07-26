@@ -8,10 +8,13 @@ const props = withDefaults(defineProps<{
   perk?: StaticPerkData | null
   width?: number | string
   height?: number | string
+  /** Native lazy-loading hint forwarded to the icon (`'lazy'` below the fold). */
+  loading?: 'lazy' | 'eager'
 }>(), {
   perk: null,
   width: 36,
   height: 36,
+  loading: undefined,
 })
 
 const hasPerk = computed(() => Boolean(props.perk))
@@ -29,6 +32,7 @@ const hasPerk = computed(() => Boolean(props.perk))
       :alt="perk?.name"
       :width="width"
       :height="height"
+      :loading="loading"
     />
     <template
       v-if="perk"

@@ -1,3 +1,4 @@
+using Core.Lol.Map;
 using Data.Entities;
 using Data.Repositories;
 using Ingestor.Riot.Dto;
@@ -31,6 +32,7 @@ internal static class RiotMatchMapper
         };
 
         var participants = MapParticipants(matchDto, matchId, platformId, participantAccounts);
+        CorrectUnambiguousTeamPositions(participants);
         var perkSelectionRows = BuildPerkSelectionRows(matchDto, matchId);
 
         return new MappedMatch(match, participants, perkSelectionRows);
@@ -98,6 +100,33 @@ internal static class RiotMatchMapper
         }
 
         return participants;
+    }
+
+    /// <summary>
+    /// Self-heals the one unambiguous "Missing team position" shape Riot's data
+    /// occasionally carries: a full 5-player team missing exactly one canonical
+    /// lane, with exactly one member whose <c>TeamPosition</c> is blank or
+    /// unrecognised. That member can only be the missing lane, so it's stamped
+    /// here rather than left for the admin Data Quality panel to flag. Any other
+    /// shape (several gaps, a duplicated lane) is left untouched — see
+    /// <see cref="TeamPositionInferrer"/>.
+    /// </summary>
+    private static void CorrectUnambiguousTeamPositions(List<MatchParticipant> participants)
+    {
+        foreach (var team in participants.GroupBy(p => p.TeamId))
+        {
+            var members = team.ToList();
+            if (members.Count != QueueDataQualityProfile.LanePositions.Count)
+            {
+                continue;
+            }
+
+            var positions = members.Select(m => m.TeamPosition).ToList();
+            if (TeamPositionInferrer.TryInferSingleMissingPosition(positions, out var unresolvedIndex, out var inferredPosition))
+            {
+                members[unresolvedIndex].TeamPosition = inferredPosition;
+            }
+        }
     }
 
     internal static List<MappedPerkSelection> BuildPerkSelectionRows(RiotMatchDto match, string matchId)

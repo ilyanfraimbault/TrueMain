@@ -150,8 +150,13 @@ const hasNodes = computed(() => layout.value.flat.length > 1)
         class="relative mx-auto"
         :style="{ width: `${layout.width}px`, height: `${layout.height}px` }"
       >
+        <!-- Decorative: the edges only trace the spatial relationship between
+             the items already rendered (with accessible names) below. The
+             main-path sequence they highlight is separately available as an
+             ordered, accessible list via BuildPath. -->
         <svg
           class="absolute inset-0 overflow-visible"
+          aria-hidden="true"
           :width="layout.width"
           :height="layout.height"
         >

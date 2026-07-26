@@ -1,4 +1,5 @@
 using Ingestor.Processes;
+using Ingestor.Processes.Summaries;
 using Ingestor.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -11,7 +12,7 @@ internal static class IngestorProcessTestExtensions
     /// assert on the recorder keep the same semantics they had before
     /// the recorder was lifted out of every *Process.
     /// </summary>
-    public static Task<object?> RunRecordedAsync<T>(
+    public static Task<IProcessRunSummary?> RunRecordedAsync<T>(
         this T process,
         IProcessRunRecorder recorder,
         CancellationToken ct = default)

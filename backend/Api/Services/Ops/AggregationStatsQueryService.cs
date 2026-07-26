@@ -38,7 +38,6 @@ public sealed class AggregationStatsQueryService(
         {
             await BuildBuildsFamilyAsync(runsByProcess, ct),
             await BuildMatchupsFamilyAsync(runsByProcess, ct),
-            await BuildTimelineLeadsFamilyAsync(runsByProcess, ct),
             await BuildPowerspikesFamilyAsync(runsByProcess, ct),
             await BuildMainsFamilyAsync(runsByProcess, ct)
         };
@@ -123,30 +122,6 @@ public sealed class AggregationStatsQueryService(
             Key = "matchups",
             ProcessName = "ChampionMatchupLeadAggregation",
             Tables = [new AggregationTableCountReadModel { Table = "champion_matchup_stats", Rows = rows }],
-            TotalRows = rows,
-            DistinctChampions = distinctChampions,
-            DistinctPatches = distinctPatches,
-            LastAggregatedAtUtc = lastAggregatedAtUtc,
-            LastRun = runsByProcess["ChampionMatchupLeadAggregation"]
-        };
-    }
-
-    private async Task<AggregationFamilyReadModel> BuildTimelineLeadsFamilyAsync(
-        IReadOnlyDictionary<string, AggregationRunReadModel?> runsByProcess,
-        CancellationToken ct)
-    {
-        var stats = db.ChampionTimelineLeadStats.AsNoTracking();
-
-        var rows = await stats.LongCountAsync(ct);
-        var distinctChampions = await stats.Select(stat => stat.ChampionId).Distinct().CountAsync(ct);
-        var distinctPatches = await stats.Select(stat => stat.Patch).Distinct().CountAsync(ct);
-        var lastAggregatedAtUtc = await stats.MaxAsync(stat => (DateTime?)stat.AggregatedAtUtc, ct);
-
-        return new AggregationFamilyReadModel
-        {
-            Key = "timelineLeads",
-            ProcessName = "ChampionMatchupLeadAggregation",
-            Tables = [new AggregationTableCountReadModel { Table = "champion_timeline_lead_stats", Rows = rows }],
             TotalRows = rows,
             DistinctChampions = distinctChampions,
             DistinctPatches = distinctPatches,

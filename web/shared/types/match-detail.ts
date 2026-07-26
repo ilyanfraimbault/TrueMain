@@ -1,8 +1,8 @@
 // Mirrors backend/Api/ReadModels/Truemains/MatchDetailReadModel.cs.
 // Single-match detail payload for GET /truemains/{nameTag}/matches/{matchId}.
-// Per issue #523 this carries no team objectives, no performance/MVP/ACE score
-// and no ward counts — only data the DB already has. Derived per-minute rates
-// and laning diffs are computed server-side.
+// Per issue #523 this carries no team objectives and no ward counts — only data
+// the DB already has. Derived per-minute rates, laning diffs and the performance
+// score / placement / MVP / ACE accolades (#639) are computed server-side.
 
 export interface MatchDetailResponse {
   matchId: string
@@ -55,6 +55,18 @@ export interface MatchDetailParticipant {
   damagePerMin: number
   goldPerMin: number
   visionPerMin: number
+  /**
+   * TrueMain performance score, 0–100 — role-aware weighted blend of KDA, kill
+   * participation, damage share, gold share, CS/min, vision/min and the @15
+   * laning leads. Model + weights: backend/Core/Lol/Performance/PerformanceScore.cs.
+   */
+  performanceScore: number
+  /** 1-based rank of this participant's score within the match (1 = best of 10). */
+  placement: number
+  /** Top-scoring participant of the winning side. */
+  isMvp: boolean
+  /** Top-scoring participant of the losing side. */
+  isAce: boolean
   /** Laning diffs @15 vs the opposing TeamPosition. Null when either side lacks a @15 snapshot. */
   laning15: MatchDetailLaning15 | null
   /** True when this participant reached level 2 before their lane opponent; null when no opponent / missing data. */

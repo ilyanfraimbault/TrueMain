@@ -2,8 +2,10 @@ using Core.Lol.Items;
 using Core.Lol.Patches;
 using Core.Options;
 using Data;
+using Data.BuildFacts;
 using Data.Entities;
 using Ingestor.Options;
+using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Npgsql;
@@ -33,16 +35,24 @@ namespace Ingestor.Processes;
 /// lifetime average rather than a live window. Within a run σ is refreshed from the
 /// batch before the spikes that consume it are computed, so a single-batch run is
 /// exact; across runs σ only converges (a slowly-changing per-minute scale on an
-/// already-correlational feature). Item spikes are keyed by the participant's own
-/// completed items (final inventory minus boots), independent of the dominant build,
-/// so no sample is lost when that build shifts — the read intersects with the
-/// dominant build for display.
+/// already-correlational feature).
+///
+/// Event rows are scoped to the core build the game belonged to (#890): the same
+/// <c>(BuildItem0, PrimaryKeystoneId)</c> pair <c>ChampionBuildsQueryService</c>
+/// groups its build tabs by, resolved here through the very same
+/// <see cref="FinalBuildResolver"/> so the keys join. A champion built two ways
+/// therefore yields two independent sets of item spikes rather than one blend.
+/// Item events are the participant's own genuinely completed items — detected from
+/// <see cref="ItemMetadata.IsFinalItem"/> on the purchase events, not from what
+/// happens to sit in the final inventory, which would count a component that never
+/// got upgraded and miss an item completed then sold.
 /// </summary>
 public sealed class ChampionPowerspikeAggregationProcess(
     ILogger<ChampionPowerspikeAggregationProcess> logger,
     IOptions<PowerspikeAggregationOptions> options,
     IOptions<MainAnalysisOptions> analysisOptions,
     IDbContextFactory<TrueMainDbContext> dbContextFactory,
+    IItemMetadataProvider itemMetadataProvider,
     TimeProvider timeProvider) : IIngestorProcess
 {
     private static readonly string[] CanonicalPositions = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
@@ -61,7 +71,7 @@ public sealed class ChampionPowerspikeAggregationProcess(
 
     public string Name => "ChampionPowerspikeAggregation";
 
-    public async Task<object?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var queueId = (int)analysisOptions.Value.QueueId;
         var batchSize = options.Value.MatchBatchSize;
@@ -112,21 +122,21 @@ public sealed class ChampionPowerspikeAggregationProcess(
             processedMatches,
             batches);
 
-        return new { matches = processedMatches, batches };
+        return new MatchAggregationSummary(processedMatches, batches);
     }
 
-    private static async Task ProcessBatchAsync(
+    private async Task ProcessBatchAsync(
         TrueMainDbContext db,
         int queueId,
         List<string> matchIds,
         DateTime aggregatedAtUtc,
         CancellationToken ct)
     {
-        var patchByMatch = await db.Matches
+        var versionByMatch = await db.Matches
             .AsNoTracking()
             .Where(m => matchIds.Contains(m.Id))
             .Select(m => new { m.Id, m.GameVersion })
-            .ToDictionaryAsync(m => m.Id, m => PatchVersion.Normalize(m.GameVersion), ct);
+            .ToDictionaryAsync(m => m.Id, m => m.GameVersion, ct);
 
         var participants = await db.MatchParticipants
             .AsNoTracking()
@@ -142,6 +152,8 @@ public sealed class ChampionPowerspikeAggregationProcess(
                 new[] { p.Item0, p.Item1, p.Item2, p.Item3, p.Item4, p.Item5, p.Item6 },
                 p.ItemEvents))
             .ToListAsync(ct);
+
+        var keystoneByParticipant = await LoadKeystonesAsync(db, matchIds, ct);
 
         var snapshotRows = await db.MatchParticipantTimelineSnapshots
             .AsNoTracking()
@@ -212,11 +224,16 @@ public sealed class ChampionPowerspikeAggregationProcess(
         // Pass 2: per tracked champion side, the curve diffs and the event spikes.
         foreach (var (matchId, parts) in participantsByMatch)
         {
-            var patch = patchByMatch.GetValueOrDefault(matchId);
+            var gameVersion = versionByMatch.GetValueOrDefault(matchId);
+            var patch = string.IsNullOrEmpty(gameVersion) ? null : PatchVersion.Normalize(gameVersion);
             if (string.IsNullOrEmpty(patch))
             {
                 continue;
             }
+
+            // Patch-pinned item metadata: what counts as a completed item, and which
+            // item opens the build, both move between patches.
+            var itemMetadata = await itemMetadataProvider.GetItemsAsync(gameVersion!, ct);
 
             foreach (var p1 in parts)
             {
@@ -245,7 +262,29 @@ public sealed class ChampionPowerspikeAggregationProcess(
                 }
 
                 AccumulateCurve(curve, p1, patch, series);
-                AccumulateEvents(events, p1, patch, series, sigmaByMinute);
+
+                // The core build this game belonged to. Resolved exactly the way the
+                // builds read resolves its tabs, so the keys join; a game whose build
+                // or keystone can't be resolved contributes to the curve (which is
+                // build-agnostic) but not to the per-build event spikes.
+                var starterAnalysis = StarterItemAnalyzer.Analyze(p1.ItemEvents, p1.FinalItems, itemMetadata);
+                var buildItems = FinalBuildResolver.Resolve(
+                    p1.ItemEvents, p1.FinalItems, starterAnalysis.Items, itemMetadata);
+                var firstItemId = buildItems.Length > 0 ? buildItems[0] : 0;
+                var keystoneId = keystoneByParticipant.GetValueOrDefault((matchId, p1.ParticipantId));
+                if (firstItemId <= 0 || keystoneId <= 0)
+                {
+                    continue;
+                }
+
+                AccumulateEvents(
+                    events,
+                    p1,
+                    patch,
+                    new BuildScope(firstItemId, keystoneId),
+                    series,
+                    sigmaByMinute,
+                    itemMetadata);
             }
         }
 
@@ -316,8 +355,10 @@ public sealed class ChampionPowerspikeAggregationProcess(
         Dictionary<EventKey, EventAccumulator> events,
         ParticipantRow p1,
         string patch,
+        BuildScope build,
         Dictionary<int, DiffMinute> series,
-        IReadOnlyDictionary<int, (double Gold, double Damage)> sigmaByMinute)
+        IReadOnlyDictionary<int, (double Gold, double Damage)> sigmaByMinute,
+        IReadOnlyDictionary<int, ItemMetadata> itemMetadata)
     {
         double? Power(int minute)
         {
@@ -350,7 +391,9 @@ public sealed class ChampionPowerspikeAggregationProcess(
 
         void Add(string type, int refId, double spike, int minute)
         {
-            var key = new EventKey(p1.ChampionId, p1.TeamPosition, patch, p1.EloBracket, type, refId);
+            var key = new EventKey(
+                p1.ChampionId, p1.TeamPosition, patch, p1.EloBracket,
+                build.FirstItemId, build.KeystoneId, type, refId);
             if (!events.TryGetValue(key, out var acc))
             {
                 acc = new EventAccumulator();
@@ -381,27 +424,61 @@ public sealed class ChampionPowerspikeAggregationProcess(
             }
         }
 
-        // Item completions: first purchase minute of each of the participant's own
-        // completed (final-inventory, non-boots) items.
-        foreach (var itemId in p1.FinalItems.Where(id => id > 0 && !ExcludedItemIds.Contains(id)).Distinct())
-        {
-            var firstMs = p1.ItemEvents
-                .Where(e => e.ItemId == itemId
-                    && e.EventType.Equals("ITEM_PURCHASED", StringComparison.OrdinalIgnoreCase))
-                .Select(e => (int?)e.TimestampMs)
-                .DefaultIfEmpty(null)
-                .Min();
-            if (firstMs is null)
-            {
-                continue;
-            }
+        // Item completions: the first purchase of each genuinely completed item.
+        // Completion comes from the patch's item metadata (IsFinalItem), not from
+        // the final inventory — a component that never got upgraded is not a spike,
+        // and an item completed then sold still is one.
+        var completions = p1.ItemEvents
+            .Where(e => e.ItemId > 0
+                && !ExcludedItemIds.Contains(e.ItemId)
+                && e.EventType.Equals("ITEM_PURCHASED", StringComparison.OrdinalIgnoreCase)
+                && itemMetadata.TryGetValue(e.ItemId, out var meta)
+                && meta.IsFinalItem
+                && !meta.IsBootsItem)
+            .GroupBy(e => e.ItemId)
+            .Select(g => new { ItemId = g.Key, FirstMs = g.Min(e => e.TimestampMs) });
 
-            var eventMinute = (int)Math.Round(firstMs.Value / 60_000.0);
+        foreach (var completion in completions)
+        {
+            var eventMinute = (int)Math.Round(completion.FirstMs / 60_000.0);
             if (Spike(eventMinute) is { } itemSpike)
             {
-                Add("item", itemId, itemSpike, eventMinute);
+                Add("item", completion.ItemId, itemSpike, eventMinute);
             }
         }
+    }
+
+    /// <summary>
+    /// The primary keystone of each participant, i.e. the first <c>primaryStyle</c>
+    /// perk selection. Mirrors <c>ChampionPatternSourceRowReader.HydratePerkSelectionsAsync</c>
+    /// so the resolved keystone matches the one the builds read groups tabs by.
+    /// </summary>
+    private static async Task<Dictionary<(string MatchId, int ParticipantId), int>> LoadKeystonesAsync(
+        TrueMainDbContext db,
+        List<string> matchIds,
+        CancellationToken ct)
+    {
+        var perkRows = await (
+            from selection in db.ParticipantPerkSelections.AsNoTracking()
+            join catalog in db.PerkSelectionCatalogs.AsNoTracking()
+                on selection.PerkSelectionCatalogId equals catalog.Id
+            where matchIds.Contains(selection.MatchId)
+                // Case-insensitive to match ChampionPatternSourceRowReader, which
+                // compares with OrdinalIgnoreCase in memory. A plain `==` would be
+                // case-sensitive in Postgres, and a casing change from Riot would
+                // silently resolve no keystone at all — dropping every spike while
+                // the build tabs kept rendering. No wildcards in the pattern, so
+                // there is nothing to escape.
+                && EF.Functions.ILike(catalog.StyleDescription, "primaryStyle")
+                && catalog.SelectionIndex == 0
+            select new { selection.MatchId, selection.ParticipantId, catalog.PerkId })
+            .ToListAsync(ct);
+
+        // A malformed match could carry more than one index-0 primary selection;
+        // take the first rather than throwing on a duplicate key.
+        return perkRows
+            .GroupBy(row => (row.MatchId, row.ParticipantId))
+            .ToDictionary(group => group.Key, group => group.First().PerkId);
     }
 
     private static async Task<IReadOnlyDictionary<int, (double Gold, double Damage)>> MergeSigmaAsync(
@@ -564,14 +641,18 @@ public sealed class ChampionPowerspikeAggregationProcess(
         const string sql = """
             INSERT INTO champion_powerspike_event_stats
                 ("Id", "ChampionId", "TeamPosition", "Patch", "elo_bracket",
+                 "BuildFirstItemId", "BuildKeystoneId",
                  "EventType", "RefId", "SumSpike", "SumMinute", "Games", "AggregatedAtUtc")
             SELECT gen_random_uuid(), t.champ, t.pos, t.patch, t.elo,
+                   t.build_item, t.build_keystone,
                    t.type, t.ref_id, t.sum_spike, t.sum_minute, t.games, @aggAt
             FROM unnest(@champs::integer[], @positions::text[], @patches::text[], @elos::text[],
+                        @buildItems::integer[], @buildKeystones::integer[],
                         @types::text[], @refIds::integer[], @sumSpike::double precision[],
                         @sumMinute::double precision[], @games::integer[])
-                AS t(champ, pos, patch, elo, type, ref_id, sum_spike, sum_minute, games)
-            ON CONFLICT ("ChampionId", "TeamPosition", "Patch", "elo_bracket", "EventType", "RefId") DO UPDATE SET
+                AS t(champ, pos, patch, elo, build_item, build_keystone, type, ref_id, sum_spike, sum_minute, games)
+            ON CONFLICT ("ChampionId", "TeamPosition", "Patch", "elo_bracket",
+                         "BuildFirstItemId", "BuildKeystoneId", "EventType", "RefId") DO UPDATE SET
                 "SumSpike" = champion_powerspike_event_stats."SumSpike" + EXCLUDED."SumSpike",
                 "SumMinute" = champion_powerspike_event_stats."SumMinute" + EXCLUDED."SumMinute",
                 "Games" = champion_powerspike_event_stats."Games" + EXCLUDED."Games",
@@ -586,6 +667,8 @@ public sealed class ChampionPowerspikeAggregationProcess(
                 new NpgsqlParameter("positions", rows.Select(r => r.Key.TeamPosition).ToArray()),
                 new NpgsqlParameter("patches", rows.Select(r => r.Key.Patch).ToArray()),
                 new NpgsqlParameter("elos", rows.Select(r => r.Key.EloBracket).ToArray()),
+                new NpgsqlParameter("buildItems", rows.Select(r => r.Key.BuildFirstItemId).ToArray()),
+                new NpgsqlParameter("buildKeystones", rows.Select(r => r.Key.BuildKeystoneId).ToArray()),
                 new NpgsqlParameter("types", rows.Select(r => r.Key.EventType).ToArray()),
                 new NpgsqlParameter("refIds", rows.Select(r => r.Key.RefId).ToArray()),
                 new NpgsqlParameter("sumSpike", rows.Select(r => r.Value.SumSpike).ToArray()),
@@ -612,7 +695,17 @@ public sealed class ChampionPowerspikeAggregationProcess(
 
     private readonly record struct CurveKey(int ChampionId, string TeamPosition, string Patch, string EloBracket, int IntervalMinute);
 
-    private readonly record struct EventKey(int ChampionId, string TeamPosition, string Patch, string EloBracket, string EventType, int RefId);
+    private readonly record struct EventKey(
+        int ChampionId,
+        string TeamPosition,
+        string Patch,
+        string EloBracket,
+        int BuildFirstItemId,
+        int BuildKeystoneId,
+        string EventType,
+        int RefId);
+
+    private readonly record struct BuildScope(int FirstItemId, int KeystoneId);
 
     private sealed class SigmaAccumulator
     {

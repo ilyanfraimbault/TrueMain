@@ -59,8 +59,7 @@ public sealed class SeedGenerator(
         List<MatchParticipantKillPosition> KillPositions,
         List<ChampionAggregateScope> Scopes,
         List<ChampionAggregatePattern> Patterns,
-        List<ChampionMatchupStat> MatchupStats,
-        List<ChampionTimelineLeadStat> LeadStats);
+        List<ChampionMatchupStat> MatchupStats);
 
     public GenerationResult Generate(ChampionSeed self, IReadOnlyList<ChampionSeed> laneOpponentPool, DateTime nowUtc)
     {
@@ -75,7 +74,6 @@ public sealed class SeedGenerator(
         var patterns = new List<ChampionAggregatePattern>();
 
         var matchupTotals = new Dictionary<int, (int Games, int Wins)>();
-        var leadTotals = new Dictionary<(string Patch, int Minute), (int Games, long Gold, long Cs, long Kills, long Level, long Xp, long Damage)>();
 
         // One set of dimension rows per champion, reused across every patch's
         // scope — a champion's archetype build doesn't reinvent itself patch to
@@ -94,12 +92,12 @@ public sealed class SeedGenerator(
             patterns.AddRange(patternRows);
 
             // Pass B: real per-match rows for the live-computed reads, plus the
-            // matchup / lead accumulators derived from the very same games.
+            // matchup accumulator derived from the very same games.
             for (var i = 0; i < gamesPerPatch; i++)
             {
                 var opponent = laneOpponentPool[rng.NextInt(0, laneOpponentPool.Count)];
                 GenerateMatch(self, opponent, archetype, patch, rng, nowUtc, matches, participants, snapshots, killPositions,
-                    matchupTotals, leadTotals);
+                    matchupTotals);
             }
         }
 
@@ -115,24 +113,7 @@ public sealed class SeedGenerator(
             AggregatedAtUtc = nowUtc,
         }).ToList();
 
-        var leadStats = leadTotals.Select(kv => new ChampionTimelineLeadStat
-        {
-            Id = Guid.NewGuid(),
-            ChampionId = self.Id,
-            TeamPosition = self.Position,
-            Patch = kv.Key.Patch,
-            IntervalMinute = kv.Key.Minute,
-            Games = kv.Value.Games,
-            TotalGoldDiff = kv.Value.Gold,
-            TotalCsDiff = kv.Value.Cs,
-            TotalKillsDiff = kv.Value.Kills,
-            TotalLevelDiff = kv.Value.Level,
-            TotalXpDiff = kv.Value.Xp,
-            TotalDamageDiff = kv.Value.Damage,
-            AggregatedAtUtc = nowUtc,
-        }).ToList();
-
-        return new GenerationResult(matches, participants, snapshots, killPositions, scopes, patterns, matchupStats, leadStats);
+        return new GenerationResult(matches, participants, snapshots, killPositions, scopes, patterns, matchupStats);
     }
 
     private (List<ChampionAggregateScope> Scopes, List<ChampionAggregatePattern> Patterns) BuildAggregateForPatch(
@@ -242,8 +223,7 @@ public sealed class SeedGenerator(
         List<MatchParticipant> participants,
         List<MatchParticipantTimelineSnapshot> snapshots,
         List<MatchParticipantKillPosition> killPositions,
-        Dictionary<int, (int Games, int Wins)> matchupTotals,
-        Dictionary<(string Patch, int Minute), (int Games, long Gold, long Cs, long Kills, long Level, long Xp, long Damage)> leadTotals)
+        Dictionary<int, (int Games, int Wins)> matchupTotals)
     {
         var matchId = $"DEVSEED_{_matchCounter++:D8}";
 
@@ -429,17 +409,6 @@ public sealed class SeedGenerator(
                 WardsPlaced = minute / 3,
                 WardsKilled = minute / 6,
             });
-
-            var leadKey = (patch, minute);
-            leadTotals.TryGetValue(leadKey, out var leadAcc);
-            leadTotals[leadKey] = (
-                leadAcc.Games + 1,
-                leadAcc.Gold + goldDiff,
-                leadAcc.Cs + (long)Math.Round(csDiff),
-                leadAcc.Kills + (long)Math.Round(killsDiff),
-                leadAcc.Level + (long)Math.Round(levelDiff),
-                leadAcc.Xp + xpDiff,
-                leadAcc.Damage + damageDiff);
         }
 
         // Kill positions before the 15-minute cutoff: a mix of in-lane and

@@ -14,6 +14,8 @@
 
 import type {
   ChampionBuild,
+  ChampionComparisonSide,
+  ChampionMainsComparison,
   ChampionMatchups,
   ChampionPatchDiffResponse,
   ChampionPatchDiffSide,
@@ -23,7 +25,6 @@ import type {
   ChampionRoamResponse,
   ChampionScalingResponse,
   ChampionSummaryResponse,
-  ChampionTimelineLeadsResponse,
   ChampionTrendResponse,
   BuildRunePage,
 } from '~~/shared/types/champions'
@@ -33,8 +34,14 @@ import type {
   RegionSlug,
 } from '~~/shared/types/leaderboard'
 import type { CompositionBuildResponse } from '~~/shared/types/composition'
+import type { TruemainDedication } from '~~/shared/types/dedication'
+import type {
+  BuildChoice,
+  BuildDivergence,
+  PlayerBuildDivergenceResponse,
+} from '~~/shared/types/divergence'
 import type { MatchSummariesResponse, MatchSummaryResponse } from '~~/shared/types/matches'
-import type { ProfileResponse } from '~~/shared/types/profile'
+import type { ProfileIdentity, ProfileResponse } from '~~/shared/types/profile'
 import type { RankHistoryResponse } from '~~/shared/types/rank-history'
 import type { SearchResponse } from '~~/shared/types/search'
 
@@ -568,32 +575,6 @@ async function mockTrend(id: number): Promise<ChampionTrendResponse | null> {
   }
 }
 
-async function mockTimelineLeads(id: number): Promise<ChampionTimelineLeadsResponse | null> {
-  const s = seedsById.get(id)
-  if (!s) return null
-  const rng = mulberry32(s.id * 211)
-  // Above-50% champions trend ahead, below-50% behind; leads widen with time.
-  const bias = (s.wr - 0.5) * 20
-  return {
-    championId: s.id,
-    position: s.position,
-    patch: await latestShortPatch(),
-    intervals: [5, 10, 15, 20, 30].map((minute, i) => {
-      const drift = (i + 1) * (bias + (rng() - 0.4) * 4)
-      return {
-        intervalMinute: minute,
-        games: Math.round(s.pr * POOL_GAMES * (1 - i * 0.13)),
-        goldDiff: Math.round(drift * 55),
-        csDiff: round3(drift * 0.55),
-        killsDiff: round3(drift * 0.045),
-        levelDiff: round3(drift * 0.02),
-        xpDiff: Math.round(drift * 38),
-        damageDiff: Math.round(drift * 140),
-      }
-    }),
-  }
-}
-
 // How win rate slopes with game length per archetype: marksmen/mages scale
 // up, assassins/junglers peak early, the rest stay flat-ish.
 const SCALING_SLOPE: Record<keyof typeof ARCHETYPES, number> = {
@@ -622,23 +603,22 @@ async function mockScaling(id: number): Promise<ChampionScalingResponse | null> 
   }
 }
 
-async function mockPowerspikes(id: number): Promise<ChampionPowerspikesResponse | null> {
+async function mockPowerspikes(id: number, buildFirstItemId: number): Promise<ChampionPowerspikesResponse | null> {
   const s = seedsById.get(id)
   if (!s) return null
-  const rng = mulberry32(s.id * 401)
+  // Spikes are scoped to one core build (#890), so the fixture varies with the
+  // build key: each build starts on its own first item and the rest of the
+  // sequence rotates, the way two real builds diverge after the first buy.
+  const rng = mulberry32(s.id * 401 + buildFirstItemId)
   const archetype = ARCHETYPES[s.archetype]
-  // Power drifts with the archetype's scaling slope so late-game champions
-  // read as ramping up; the curve stays in the ±1σ band real data lives in.
-  const slope = SCALING_SLOPE[s.archetype]
-  const curve = Array.from({ length: 30 }, (_, i) => ({
-    minute: i + 1,
-    power: round3(slope * 8 * ((i + 1) / 30 - 0.4) + (rng() - 0.5) * 0.08),
-    games: Math.round(s.pr * POOL_GAMES * Math.max(0.25, 1 - i * 0.02)),
-  }))
   // One spike per core item: mostly positive, tapering with build order, the
   // odd negative read on late defensive buys. The real endpoint orders by
   // *signed* magnitude descending — mirror that.
-  const events: ChampionPowerspikeEvent[] = archetype.items.slice(0, 6).map((itemId, i) => ({
+  const rotation = archetype.items.indexOf(buildFirstItemId)
+  const buildItems = rotation > 0
+    ? [...archetype.items.slice(rotation), ...archetype.items.slice(0, rotation)]
+    : archetype.items
+  const events: ChampionPowerspikeEvent[] = buildItems.slice(0, 6).map((itemId, i) => ({
     type: 'item' as const,
     refId: itemId,
     avgMinute: round3(9 + i * 4.6 + rng() * 1.6),
@@ -657,7 +637,6 @@ async function mockPowerspikes(id: number): Promise<ChampionPowerspikesResponse 
     championId: s.id,
     position: s.position,
     patch: await latestShortPatch(),
-    curve,
     events,
   }
 }
@@ -720,6 +699,110 @@ async function mockMatchups(id: number): Promise<ChampionMatchups | null> {
   }
 }
 
+// Dev-only pools used to push the mocked player's opening choices off the
+// mains': variants 0 and 1 of `makeBuild` differ on their first item and skill
+// order but happen to share a starter and boots, which would leave the card
+// with a single diverging row and most of its copy unexercised.
+const MOCK_ALT_STARTERS = [1055, 1054, 1056, 1082]
+const MOCK_ALT_BOOTS = [3006, 3047, 3020, 3111, 3158]
+
+function mockDifferentFrom(pool: number[], taken: number | undefined): number {
+  return pool.find(candidate => candidate !== taken) ?? pool[0]!
+}
+
+/**
+ * "You vs mains" for the player-scoped champion page. Built from the two build
+ * variants `makeBuild` already produces — variant 1 stands in for the player's
+ * habits, variant 0 for the mains' — with the starter and boots nudged apart so
+ * the fixture shows both diverging and matching rows. Nothing here reaches
+ * production (dev mock only).
+ */
+async function mockPlayerDivergence(id: number): Promise<PlayerBuildDivergenceResponse | null> {
+  const s = seedsById.get(id)
+  if (!s) return null
+
+  const mainsGames = Math.max(120, Math.round(s.pr * POOL_GAMES))
+  const playerGames = 24
+  const playerBuild = makeBuild(s, 1, playerGames)
+  const mainsBuild = makeBuild(s, 0, mainsGames)
+
+  const mainsStarter = mainsBuild.core.starterItems?.itemIds ?? []
+  const mainsBoots = mainsBuild.core.boots?.itemIds ?? []
+  const playerStarter = [mockDifferentFrom(MOCK_ALT_STARTERS, mainsStarter[0]), 2003]
+  const playerBoots = [mockDifferentFrom(MOCK_ALT_BOOTS, mainsBoots[0])]
+
+  const choice = (
+    itemIds: number[],
+    skills: string[],
+    games: number,
+    pickRate: number,
+    winRate: number,
+  ): BuildChoice => ({ itemIds, skills, games, pickRate: round3(pickRate), winRate: round3(winRate) })
+
+  const row = (
+    dimension: BuildDivergence['dimension'],
+    playerChoice: BuildChoice,
+    mainsChoice: BuildChoice,
+  ): BuildDivergence => {
+    const diverges = playerChoice.itemIds.join() !== mainsChoice.itemIds.join()
+      || playerChoice.skills.join() !== mainsChoice.skills.join()
+    const rateOnPlayerChoice = diverges ? 0.09 : mainsChoice.pickRate
+    const gamesOnPlayerChoice = Math.round(mainsGames * rateOnPlayerChoice)
+    return {
+      dimension,
+      diverges,
+      player: playerChoice,
+      mains: mainsChoice,
+      mainsGamesOnPlayerChoice: gamesOnPlayerChoice,
+      mainsRateOnPlayerChoice: round3(rateOnPlayerChoice),
+      // Mirror the backend contract exactly: no games on the player's choice
+      // means there is no win rate to report. A mock that invented one here
+      // would let the card ship copy the real API can never produce.
+      mainsWinRateOnPlayerChoice: gamesOnPlayerChoice === 0 ? null : round3(s.wr - 0.03),
+    }
+  }
+
+  const dimensions: BuildDivergence[] = [
+    row(
+      'starterItems',
+      choice(playerStarter, [], 17, 0.71, s.wr - 0.02),
+      choice(mainsStarter, [], Math.round(mainsGames * 0.68), 0.68, s.wr),
+    ),
+    row(
+      'boots',
+      choice(playerBoots, [], 14, 0.58, s.wr - 0.01),
+      choice(mainsBoots, [], Math.round(mainsGames * 0.61), 0.61, s.wr),
+    ),
+    row(
+      'itemPath',
+      choice((playerBuild.core.itemPath?.itemIds ?? []).slice(0, 3), [], 11, 0.46, s.wr - 0.04),
+      choice((mainsBuild.core.itemPath?.itemIds ?? []).slice(0, 3), [], Math.round(mainsGames * 0.52), 0.52, s.wr),
+    ),
+    row(
+      'skillOrder',
+      choice([], playerBuild.core.skillOrder?.sequence ?? [], 20, 0.83, s.wr),
+      choice([], mainsBuild.core.skillOrder?.sequence ?? [], Math.round(mainsGames * 0.88), 0.88, s.wr),
+    ),
+  ]
+
+  return {
+    championId: s.id,
+    patch: await latestShortPatch(),
+    position: s.position,
+    playerGames,
+    mainsGames,
+    mainsPlayers: Math.max(1, Math.round(mainsGames / 9)),
+    minPlayerGames: 5,
+    minMainsGames: 20,
+    minSampleMet: true,
+    referenceSampleMet: true,
+    // Same ordering rule as the backend: what differs first, then by how
+    // strongly the mains agree on their own pick.
+    dimensions: dimensions.sort((a, b) =>
+      Number(b.diverges) - Number(a.diverges) || b.mains.pickRate - a.mains.pickRate),
+  }
+}
+
 // ─── Truemains leaderboard / search / profiles ──────────────────────────────
 
 const NAME_PREFIXES = ['Kass', 'Vex', 'Luna', 'Drak', 'Zephyr', 'Nox', 'Aurel', 'Milo', 'Rift', 'Umbra', 'Iron', 'Swift', 'Crimson', 'Echo', 'Frost', 'Blaze', 'Storm', 'Nyx', 'Silver', 'Wisp']
@@ -735,6 +818,55 @@ interface MockPlayer {
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const PLAYER_COUNT = 120
+
+// Mirrors backend/Core/Truemains/DedicationScore.cs. Duplicated here (like the
+// pagination clamping and the OTP threshold above) because the mock has to
+// produce a payload the real backend could have produced — see
+// docs/dedication-score.md for the formula and the constants.
+const DEDICATION_COMMITMENT_WEIGHT = 0.45
+const DEDICATION_SPAN_WEIGHT = 0.20
+const DEDICATION_VOLUME_WEIGHT = 0.20
+const DEDICATION_RECENCY_WEIGHT = 0.15
+const DEDICATION_COMMITMENT_FLOOR = 0.12
+const DEDICATION_SPAN_TARGET_PATCHES = 6
+const DEDICATION_VOLUME_TARGET_GAMES = 200
+const DEDICATION_RECENCY_HALF_LIFE_DAYS = 21
+
+function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, value))
+}
+
+function mockDedication(
+  championId: number,
+  playRate: number,
+  careerGames: number,
+  patchSpan: number,
+  daysSinceLastGame: number,
+): TruemainDedication {
+  const commitment = clamp01((playRate - DEDICATION_COMMITMENT_FLOOR) / (1 - DEDICATION_COMMITMENT_FLOOR))
+  const span = clamp01(patchSpan / DEDICATION_SPAN_TARGET_PATCHES)
+  const volume = clamp01(Math.log(1 + careerGames) / Math.log(1 + DEDICATION_VOLUME_TARGET_GAMES))
+  const recency = clamp01(0.5 ** (Math.max(0, daysSinceLastGame) / DEDICATION_RECENCY_HALF_LIFE_DAYS))
+  const score = 100 * clamp01(
+    DEDICATION_COMMITMENT_WEIGHT * commitment
+    + DEDICATION_SPAN_WEIGHT * span
+    + DEDICATION_VOLUME_WEIGHT * volume
+    + DEDICATION_RECENCY_WEIGHT * recency,
+  )
+
+  return {
+    score: Math.round(score * 10) / 10,
+    championId,
+    commitment: round3(commitment),
+    span: round3(span),
+    volume: round3(volume),
+    recency: round3(recency),
+    playRate: round3(playRate),
+    careerGames,
+    patchSpan,
+    daysSinceLastGame,
+  }
+}
 
 function buildPlayers(): MockPlayer[] {
   const players: MockPlayer[] = []
@@ -762,6 +894,37 @@ function buildPlayers(): MockPlayer[] {
     const winRate = 0.5 + (0.62 - 0.5) * Math.exp(-i / 45) + (rng() - 0.5) * 0.04
     const wins = Math.round(games * winRate)
 
+    const topChampions = mains.map((m, idx) => {
+      // A single-main player is a one-trick: that champion clears the 85%
+      // OTP bar, so isOtp rides through and the row shows the OTP badge.
+      // Multi-main players spread their play rate and never trip the flag.
+      const soloMain = mains.length === 1
+      const playRate = soloMain
+        ? 0.86 + rng() * 0.1
+        : [0.44, 0.21, 0.12][idx]! + rng() * 0.08
+      return {
+        championId: m.id,
+        games: Math.round(games * playRate),
+        playRate: round3(playRate),
+        isOtp: soloMain,
+        primaryKeystoneId: m.keystone,
+        secondaryStyleId: m.secondaryStyle,
+        firstItemId: ARCHETYPES[m.archetype].items[0]!,
+      }
+    })
+
+    // Dedication on the signature champion (the top main), with a deterministic
+    // history: more patches and fresher games the higher up the ladder a player
+    // sits, so the mocked leaderboard reorders visibly under ?sort=dedication.
+    const signature = topChampions[0]!
+    const dedication = mockDedication(
+      signature.championId,
+      signature.playRate,
+      signature.games,
+      1 + Math.floor(rng() * 9),
+      Math.floor(rng() * 40),
+    )
+
     players.push({
       position: mains[0]!.position,
       nameTag: `${gameName}-${tagLine}`,
@@ -783,24 +946,8 @@ function buildPlayers(): MockPlayer[] {
           winRate: round3(winRate),
           kda: round3(1.9 + rng() * 3.4),
         },
-        topChampions: mains.map((m, idx) => {
-          // A single-main player is a one-trick: that champion clears the 85%
-          // OTP bar, so isOtp rides through and the row shows the OTP badge.
-          // Multi-main players spread their play rate and never trip the flag.
-          const soloMain = mains.length === 1
-          const playRate = soloMain
-            ? 0.86 + rng() * 0.1
-            : [0.44, 0.21, 0.12][idx]! + rng() * 0.08
-          return {
-            championId: m.id,
-            games: Math.round(games * playRate),
-            playRate: round3(playRate),
-            isOtp: soloMain,
-            primaryKeystoneId: m.keystone,
-            secondaryStyleId: m.secondaryStyle,
-            firstItemId: ARCHETYPES[m.archetype].items[0]!,
-          }
-        }),
+        topChampions,
+        dedication,
         // Primary is the top main's lane; secondary is the first differing lane
         // among the other mains (null when every main shares one lane), matching
         // the backend's primary/secondary derivation from position share.
@@ -853,6 +1000,15 @@ function mockLeaderboard(query: Record<string, unknown>): LeaderboardResponse {
     rows = championId
       ? rows.filter(p => p.row.topChampions.some(c => c.championId === championId && c.isOtp))
       : rows.filter(p => p.row.topChampions.some(c => c.isOtp))
+  }
+
+  // `?sort=dedication` re-ranks on the dedication score, as the backend does
+  // (score desc, then a stable tiebreak). Anything else keeps the seeded ladder
+  // order, which already stands in for the ranked-standing sort.
+  if (query.sort === 'dedication') {
+    rows = [...rows].sort((a, b) =>
+      (b.row.dedication?.score ?? -1) - (a.row.dedication?.score ?? -1)
+      || a.nameTag.localeCompare(b.nameTag))
   }
 
   const start = (page - 1) * pageSize
@@ -909,6 +1065,9 @@ function mockProfile(player: MockPlayer): ProfileResponse {
       primaryPosition: seedsById.get(c.championId)?.position ?? '',
       isOtp: c.isOtp,
     })),
+    // Same payload the leaderboard row carries, so the profile card and the
+    // leaderboard column agree — exactly as they do against the real backend.
+    dedication: row.dedication,
     positions: [
       { position: player.position, games: Math.round(stats.games * 0.78), rate: 0.78 },
       { position: player.position === 'MIDDLE' ? 'TOP' : 'MIDDLE', games: Math.round(stats.games * 0.15), rate: 0.15 },
@@ -974,6 +1133,9 @@ function mockMatches(player: MockPlayer, query: Record<string, unknown>): MatchS
       return {
         championId: slot === 0 ? main.championId : pool[(index * 7 + slot * 13) % pool.length]!.id,
         teamId: slot < 5 ? selfTeam : selfTeam === 100 ? 200 : 100,
+        // Slots 0-4 / 5-9 are each a full team in role order, so slot % 5
+        // yields a valid one-of-each position assignment per side.
+        position: (['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'] as const)[slot % 5]!,
         gameName: slot === 0 ? player.row.identity.gameName : other.row.identity.gameName,
         tagLine: slot === 0 ? player.row.identity.tagLine : other.row.identity.tagLine,
       }
@@ -1001,6 +1163,7 @@ function mockMatches(player: MockPlayer, query: Record<string, unknown>): MatchS
         items: [...archetype.items.slice(0, 5), archetype.boots[0]!],
         trinketItemId: 3364,
         teamId: selfTeam,
+        position: (['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'] as const)[index % 5]!,
         win,
         lpDelta: win ? 14 + Math.floor(rng() * 12) : -(12 + Math.floor(rng() * 12)),
         isMvp: win && rng() > 0.72,
@@ -1033,6 +1196,126 @@ export function devApiMockEnabled(): boolean {
  * an unknown segment (clean 404) rather than letting it bubble up as a generic
  * Nitro 500.
  */
+/**
+ * Whether a Riot ID is well-formed, mirroring `NameTagParser.TryParseRiotId`:
+ * the typed `Name#TAG` form or the `Name-TAG` slug, both halves non-empty, at
+ * most 64 characters. Deliberately *not* the app's stricter `parseRiotId`
+ * (which requires the `#`) — the API accepts the slug form, and a mock that
+ * rejected it would invent a divergence rather than remove one.
+ */
+function wellFormedRiotId(riotId: string): boolean {
+  const trimmed = riotId.trim()
+  if (!trimmed || riotId.length > 64) return false
+
+  const hash = trimmed.indexOf('#')
+  if (hash < 0) {
+    // Slug fallback: split on the last '-', so game names may contain hyphens.
+    const dash = trimmed.lastIndexOf('-')
+    return dash > 0 && dash < trimmed.length - 1
+  }
+
+  const gameName = trimmed.slice(0, hash).trim()
+  const tagLine = trimmed.slice(hash + 1).trim()
+  return Boolean(gameName) && Boolean(tagLine) && !tagLine.includes('#')
+}
+
+/**
+ * Account-vs-mains head-to-head (#528). Mirrors the backend's database-only
+ * contract, including the parts that only differ in edge cases — a mock that
+ * contradicts the contract is worse than none, because it makes a wrong
+ * frontend look right locally:
+ *
+ * - A Riot ID that is not well-formed is a **400** (the controller validates
+ *   before the service ever runs); a well-formed one we hold no player for is
+ *   a **200** carrying `UNKNOWN_ACCOUNT`.
+ * - `UNKNOWN_TARGET` keeps the `player` column populated — only the yardstick
+ *   is missing. Every other field is derived rather than asserted, so the
+ *   invariants the read model documents (`winRate = wins / games`,
+ *   `sampleMet = games >= minGames`, `status` following from both sides)
+ *   cannot drift out of the mock the way a hardcoded `status: 'OK'` did.
+ */
+async function mockMainsComparison(
+  id: number,
+  account: string | undefined,
+  main: string | undefined,
+  position: string | undefined,
+  patch: string | undefined,
+): Promise<ChampionMainsComparison | null> {
+  const s = seedsById.get(id)
+  if (!s) return null
+
+  if (!account || !wellFormedRiotId(account)) {
+    throw createError({ statusCode: 400, statusMessage: 'account must be a Riot ID of the form Name#TAG (dev mock)' })
+  }
+  if (main && !wellFormedRiotId(main)) {
+    throw createError({ statusCode: 400, statusMessage: 'main must be a Riot ID of the form Name#TAG (dev mock)' })
+  }
+
+  // Mirrors ChampionsList:MinComparisonGames, whose default is 5.
+  const minGames = 5
+  const base = {
+    championId: id,
+    // The endpoint echoes the *normalised* patch it resolved (major.minor), or
+    // null when the caller pinned none.
+    patch: patch ? patch.split('.').slice(0, 2).join('.') : null,
+    position: position ?? null,
+    minGames,
+  }
+
+  // The mock players are keyed on the `Name-TAG` slug; the endpoint takes the
+  // typed `Name#TAG` form, so normalise before the lookup.
+  const player = findPlayer(account.replace('#', '-'))
+  if (!player) return { ...base, status: 'UNKNOWN_ACCOUNT', player: null, mains: null }
+
+  const side = (seed: number, identity: ProfileIdentity | null, players: number): ChampionComparisonSide => {
+    const rng = mulberry32(seed)
+    const games = 6 + Math.floor(rng() * 60) + (players > 1 ? 200 : 0)
+    const deaths = round3(3 + rng() * 3)
+    const kills = round3(4 + rng() * 5)
+    const assists = round3(4 + rng() * 5)
+    const goldPerMin = Math.round(360 + rng() * 120)
+    // Derive wins first, then the rate from it, so the rendered win rate always
+    // agrees with the rendered W/games — the backend divides the same way.
+    const wins = Math.round(games * (0.45 + rng() * 0.15))
+    return {
+      identity,
+      players,
+      games,
+      wins,
+      winRate: round3(wins / games),
+      kills,
+      deaths,
+      assists,
+      kda: round3((kills + assists) / deaths),
+      csPerMin: round3(5.5 + rng() * 3),
+      goldPerMin,
+      // Mock games are a flat 30 minutes, so per-game gold follows the rate.
+      goldPerGame: Math.round(goldPerMin * 30),
+      sampleMet: games >= minGames,
+    }
+  }
+
+  const playerSide = side(s.id * 907 + 11, player.row.identity, 1)
+
+  // A named target we don't hold: the player column stays populated, matching
+  // ChampionMainsComparisonQueryService — only the yardstick is missing.
+  const target = main ? findPlayer(main.replace('#', '-')) : undefined
+  if (main && !target) {
+    return { ...base, status: 'UNKNOWN_TARGET', player: playerSide, mains: null }
+  }
+
+  const mainsSide = target
+    ? side(s.id * 911 + 13, target.row.identity, 1)
+    : side(s.id * 919 + 17, null, 12)
+
+  return {
+    ...base,
+    status: playerSide.sampleMet && mainsSide.sampleMet ? 'OK' : 'INSUFFICIENT_SAMPLE',
+    player: playerSide,
+    mains: mainsSide,
+  }
+}
+
 function safeDecodeURIComponent(value: string): string | undefined {
   try {
     return decodeURIComponent(value)
@@ -1201,11 +1484,17 @@ export async function resolveDevApiMock(
       sub === undefined ? mockChampionDetail(id, position, eloBracket)
       : sub === 'trend' ? mockTrend(id)
       : sub === 'patch-diff' ? mockPatchDiff(id, typeof query.from === 'string' ? query.from : undefined, typeof query.to === 'string' ? query.to : undefined)
-      : sub === 'timeline-leads' ? mockTimelineLeads(id)
       : sub === 'scaling' ? mockScaling(id)
-      : sub === 'powerspikes' ? mockPowerspikes(id)
+      : sub === 'powerspikes' ? mockPowerspikes(id, Number(query.buildFirstItemId) || 0)
       : sub === 'roam' ? mockRoam(id)
       : sub === 'matchups' ? mockMatchups(id)
+      : sub === 'mains-comparison' ? mockMainsComparison(
+          id,
+          typeof query.account === 'string' ? query.account : undefined,
+          typeof query.main === 'string' ? query.main : undefined,
+          position,
+          typeof query.patch === 'string' && query.patch ? query.patch : undefined,
+        )
       : Promise.resolve(undefined))
     if (payload === undefined) return undefined
     if (payload === null) {
@@ -1229,10 +1518,14 @@ export async function resolveDevApiMock(
 
   // Player-scoped champion aggregate: reuse the global build payload so the
   // page renders; the numbers just read as the player's sample.
-  const playerChampionMatch = path.match(/^\/truemains\/[^/]+\/champions\/(\d+)(?:\/matchups)?$/)
+  const playerChampionMatch = path.match(/^\/truemains\/[^/]+\/champions\/(\d+)(?:\/(matchups|divergence))?$/)
   if (playerChampionMatch) {
     const id = Number(playerChampionMatch[1])
-    const payload = path.endsWith('/matchups') ? await mockMatchups(id) : await mockChampionDetail(id, undefined, undefined)
+    const sub = playerChampionMatch[2]
+    let payload: unknown = null
+    if (sub === 'matchups') payload = await mockMatchups(id)
+    else if (sub === 'divergence') payload = await mockPlayerDivergence(id)
+    else payload = await mockChampionDetail(id, undefined, undefined)
     if (payload === null) throw createError({ statusCode: 404, statusMessage: 'No data (dev mock)' })
     return payload
   }

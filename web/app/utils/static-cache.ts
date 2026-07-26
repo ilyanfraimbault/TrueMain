@@ -34,14 +34,19 @@ function readTimestamp(key: string, host: PayloadHost): number | undefined {
  * treat them as fresh so the client doesn't immediately refetch what the
  * server just sent.
  *
- * The `isServer` switch is defence-in-depth for #149: every consumer pairs
- * this helper with `server: false`, so the fetch handler is already skipped
- * during SSR. But if a callsite ever forgot the option (or if Nuxt's
- * `useLazyAsyncData` ever started passing through a SSR-side payload entry),
- * returning a cached value on the server would make the SSR render data-aware
- * while the client still hydrates from the empty initial state — exactly the
- * `<ul>`/`<UProgress>` hydration mismatch reported on filtered `/champions`
- * routes. Forcing `undefined` server-side keeps the SSR output deterministic.
+ * The `isServer` switch is defence-in-depth for #149. Some consumers are
+ * client-only (`server: false`), so the fetch handler is already skipped during
+ * SSR; if such a callsite ever forgot the option (or Nuxt's `useLazyAsyncData`
+ * started passing through a SSR-side payload entry), returning a cached value on
+ * the server would make the SSR render data-aware while the client still
+ * hydrates from the empty initial state — exactly the `<ul>`/`<UProgress>`
+ * hydration mismatch reported on filtered `/champions` routes. For the
+ * SSR-enabled static lookups (`server: true`, issue #818) the guard is what
+ * keeps them correct too: it forces the handler to run on the server and
+ * populate the payload, rather than short-circuiting on a possibly-empty cache
+ * entry, so the SSR output and the client's payload-driven hydration always
+ * match. Either way, forcing `undefined` server-side keeps the SSR output
+ * deterministic.
  */
 export function getStaticCachedData<T>(
   key: string,

@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using Core.Lol.Map;
 using Core.Options;
+using Data.BuildFacts;
 using Data.Entities;
 using Ingestor.Options;
 using Ingestor.Processes;
@@ -28,6 +29,10 @@ public sealed class ChampionPowerspikeAggregationProcessIntegrationTests
 
     private const int CoreItemId = 3157; // Zhonya's Hourglass — legendary, non-boots
     private const int ItemPurchaseMinute = 14;
+
+    // The core build every seeded game belongs to: first completed item + keystone.
+    private const int KeystoneId = 8112;
+    private const int KeystoneCatalogId = 1;
 
     private readonly PostgresFixture _fixture;
 
@@ -167,6 +172,7 @@ public sealed class ChampionPowerspikeAggregationProcessIntegrationTests
             Microsoft.Extensions.Options.Options.Create(options ?? new PowerspikeAggregationOptions()),
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
             new TestDbContextFactory(_fixture),
+            new FakeItemMetadataProvider(),
             TimeProvider.System);
 
     private async Task SeedGamesAsync()
@@ -180,6 +186,16 @@ public sealed class ChampionPowerspikeAggregationProcessIntegrationTests
             .Build();
         db.RiotAccounts.Add(account);
 
+        // The keystone the build key is resolved from: index 0 of the primary tree.
+        db.PerkSelectionCatalogs.Add(new PerkSelectionCatalog
+        {
+            Id = KeystoneCatalogId,
+            StyleId = 8100,
+            SelectionIndex = 0,
+            PerkId = KeystoneId,
+            StyleDescription = "primaryStyle"
+        });
+
         for (var i = 0; i < Games; i++)
         {
             var matchId = $"ps-{Version}-{i}";
@@ -192,6 +208,13 @@ public sealed class ChampionPowerspikeAggregationProcessIntegrationTests
 
             db.MatchParticipants.Add(Participant(matchId, participantId: 1, Champion, teamId: 100,
                 riotAccountId: account.Id, coreItem: true, purchaseMs: ItemPurchaseMinute * 60_000));
+            db.ParticipantPerkSelections.Add(new ParticipantPerkSelection
+            {
+                Id = Guid.NewGuid(),
+                MatchId = matchId,
+                ParticipantId = 1,
+                PerkSelectionCatalogId = KeystoneCatalogId
+            });
             db.MatchParticipants.Add(Participant(matchId, participantId: 2, Opponent, teamId: 200,
                 riotAccountId: null, coreItem: false, purchaseMs: null));
 
@@ -264,4 +287,18 @@ public sealed class ChampionPowerspikeAggregationProcessIntegrationTests
             WardsPlaced = 0,
             WardsKilled = 0
         };
+
+    private sealed class FakeItemMetadataProvider : IItemMetadataProvider
+    {
+        // CoreItemId is the only completed (final, non-boots) item the seeds buy,
+        // so it is both the build's first item and its single item spike.
+        private static readonly IReadOnlyDictionary<int, ItemMetadata> Metadata =
+            new Dictionary<int, ItemMetadata>
+            {
+                [CoreItemId] = new(CoreItemId, 3000, true, false, false, false, true, false)
+            };
+
+        public Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemsAsync(string gameVersion, CancellationToken ct)
+            => Task.FromResult(Metadata);
+    }
 }

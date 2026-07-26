@@ -7,7 +7,11 @@ TrueMain is a League of Legends analytics site: champion/player stats computed f
 - `backend/` — .NET solution (`TrueMain.sln`): `Api` (REST), `Ingestor` (Riot data pipeline), `Data` (EF Core → PostgreSQL, plus Mongo for metrics), `Core`, `tests/`.
 - `web/` — public Nuxt + Nuxt UI frontend.
 - `admin/` — standalone Nuxt admin portal (separate app, not a `/admin` route).
-- `compose*.yaml` — Docker stacks. **Prod deploys from the versioned `compose.prod.yaml`, but deploys are manual** (`git pull` + `docker compose -f compose.prod.yaml up -d` on the VPS) — merging infra changes does not reach prod by itself; deployment must be called out explicitly.
+- `compose*.yaml` — Docker stacks, both deployed by CD (`.github/workflows/deploy-preprod.yml`, `deploy-prod.yml`) via the Hostinger Docker Manager API:
+  - **Preprod** auto-deploys from `compose.preprod.yaml` on every push to `develop` — a plain feature merge reaches preprod automatically a few minutes later, no manual step.
+  - **Prod** auto-deploys from `compose.prod.yaml` only when a GitHub Release is **published** — merging to `develop`/`master` alone does not reach prod; cutting a release does (see the `release` skill).
+  - Both jobs publish immutable `:<sha>`/`:<version>` image tags alongside the moving `:preprod`/`:latest` ones, so compose always resolves to a tag Docker Manager is forced to pull — a mutable-tag redeploy would otherwise silently keep the stale image running.
+  - Prod still runs with `ApplyMigrationsOnStartup: "true"`, so a release redeploy applies pending EF migrations on startup — switching to an out-of-band migration step is an open decision, not yet done (`docs/production-migrations.md`, #208).
 - `docs/` — project docs.
 
 ## Language

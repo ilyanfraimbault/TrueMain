@@ -23,11 +23,6 @@ const FAMILY_META: Record<string, { title: string, icon: string, hint: string }>
     icon: 'i-lucide-swords',
     hint: 'Champion vs champion win rates per lane, patch and rank.',
   },
-  timelineLeads: {
-    title: 'Timeline leads',
-    icon: 'i-lucide-trending-up',
-    hint: 'Gold/CS/XP leads per minute interval, patch and rank.',
-  },
   powerspikes: {
     title: 'Powerspikes',
     icon: 'i-lucide-zap',
@@ -111,13 +106,10 @@ function summaryEntries(run: AggregationRun | null): { label: string, value: str
     </template>
 
     <template #body>
-      <UAlert
+      <FetchErrorAlert
         v-if="error"
-        color="error"
-        variant="subtle"
-        icon="i-lucide-triangle-alert"
+        :error="error"
         title="Failed to load aggregation stats"
-        :description="error.message"
         class="mb-6"
       />
 

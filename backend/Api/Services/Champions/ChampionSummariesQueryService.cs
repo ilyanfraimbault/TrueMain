@@ -29,6 +29,7 @@ public sealed class ChampionSummariesQueryService(
     // patch-less request — including the ones that hit the summaries cache.
     private static readonly TimeSpan ActivePatchCacheTtl = TimeSpan.FromMinutes(5);
     private const string ActivePatchCacheKey = "champions:summaries:active-patch";
+    private const string Surface = "champions-summaries";
 
     // Every cache entry must carry a Size because the shared MemoryCache runs
     // with a SizeLimit (see Program.cs). Without a Size the Set is silently
@@ -54,15 +55,15 @@ public sealed class ChampionSummariesQueryService(
         var activePatch = await ResolveActivePatchAsync(patch, ct);
         resolveSw.Stop();
         logger.LogInformation(
-            "[champions-summaries] resolve_patch requested={RequestedPatch} active={ActivePatch} elapsed={ElapsedMs}ms",
-            patch ?? "<null>", activePatch ?? "<null>", resolveSw.ElapsedMilliseconds);
+            "{Surface} resolve_patch requested={RequestedPatch} active={ActivePatch} elapsed={ElapsedMs}ms",
+            Surface, patch ?? "<null>", activePatch ?? "<null>", resolveSw.ElapsedMilliseconds);
 
         if (string.IsNullOrEmpty(activePatch))
         {
             totalSw.Stop();
             logger.LogInformation(
-                "[champions-summaries] total elapsed={ElapsedMs}ms result=empty",
-                totalSw.ElapsedMilliseconds);
+                "{Surface} total elapsed={ElapsedMs}ms result=empty",
+                Surface, totalSw.ElapsedMilliseconds);
             return [];
         }
 
@@ -81,8 +82,8 @@ public sealed class ChampionSummariesQueryService(
         {
             totalSw.Stop();
             logger.LogInformation(
-                "[champions-summaries] total elapsed={ElapsedMs}ms result=cache_hit count={Count}",
-                totalSw.ElapsedMilliseconds, cached.Count);
+                "{Surface} total elapsed={ElapsedMs}ms result=cache_hit count={Count}",
+                Surface, totalSw.ElapsedMilliseconds, cached.Count);
             return cached;
         }
 
@@ -92,8 +93,8 @@ public sealed class ChampionSummariesQueryService(
         cache.Set(cacheKey, summaries, CacheEntry(SummariesCacheTtl));
         totalSw.Stop();
         logger.LogInformation(
-            "[champions-summaries] compute elapsed={ComputeMs}ms total={TotalMs}ms result=miss count={Count}",
-            computeSw.ElapsedMilliseconds, totalSw.ElapsedMilliseconds, summaries.Count);
+            "{Surface} compute elapsed={ComputeMs}ms total={TotalMs}ms result=miss count={Count}",
+            Surface, computeSw.ElapsedMilliseconds, totalSw.ElapsedMilliseconds, summaries.Count);
         return summaries;
     }
 
@@ -118,8 +119,8 @@ public sealed class ChampionSummariesQueryService(
             .ToListAsync(ct);
         sw.Stop();
         logger.LogInformation(
-            "[champions-summaries] sql=distinct_patches rows={Rows} elapsed={ElapsedMs}ms",
-            distinctPatches.Count, sw.ElapsedMilliseconds);
+            "{Surface} sql=distinct_patches rows={Rows} elapsed={ElapsedMs}ms",
+            Surface, distinctPatches.Count, sw.ElapsedMilliseconds);
 
         var resolved = ChampionAggregateScopeResolver.ResolvePatchVersion(distinctPatches, requestedPatch: null);
         if (!string.IsNullOrEmpty(resolved))
@@ -168,8 +169,8 @@ public sealed class ChampionSummariesQueryService(
             .ToListAsync(ct);
         groupsSw.Stop();
         logger.LogInformation(
-            "[champions-summaries] sql=scope_groups groups={Groups} elapsed={ElapsedMs}ms",
-            groups.Count, groupsSw.ElapsedMilliseconds);
+            "{Surface} sql=scope_groups groups={Groups} elapsed={ElapsedMs}ms",
+            Surface, groups.Count, groupsSw.ElapsedMilliseconds);
 
         if (groups.Count == 0)
         {
@@ -180,8 +181,8 @@ public sealed class ChampionSummariesQueryService(
         var topBuilds = await LoadTopBuildsAsync(activePatch, bracketBands, ct);
         topBuildsSw.Stop();
         logger.LogInformation(
-            "[champions-summaries] load_top_builds buckets={Buckets} elapsed={ElapsedMs}ms",
-            topBuilds.Count, topBuildsSw.ElapsedMilliseconds);
+            "{Surface} load_top_builds buckets={Buckets} elapsed={ElapsedMs}ms",
+            Surface, topBuilds.Count, topBuildsSw.ElapsedMilliseconds);
 
         // Denominators are derived from the already-aggregated groups: lane
         // totals for PickRate and champion totals for LanePlayRate. Each group
@@ -319,8 +320,8 @@ public sealed class ChampionSummariesQueryService(
             .ToListAsync(ct);
         groupedSw.Stop();
         logger.LogInformation(
-            "[champions-summaries] sql=patterns_join_grouped buckets={Buckets} elapsed={ElapsedMs}ms",
-            grouped.Count, groupedSw.ElapsedMilliseconds);
+            "{Surface} sql=patterns_join_grouped buckets={Buckets} elapsed={ElapsedMs}ms",
+            Surface, grouped.Count, groupedSw.ElapsedMilliseconds);
 
         if (grouped.Count == 0)
         {
@@ -336,8 +337,8 @@ public sealed class ChampionSummariesQueryService(
             .ToDictionaryAsync(dim => dim.Id, ct);
         dimBuildsSw.Stop();
         logger.LogInformation(
-            "[champions-summaries] sql=dim_builds rows={Rows} elapsed={ElapsedMs}ms",
-            dimBuilds.Count, dimBuildsSw.ElapsedMilliseconds);
+            "{Surface} sql=dim_builds rows={Rows} elapsed={ElapsedMs}ms",
+            Surface, dimBuilds.Count, dimBuildsSw.ElapsedMilliseconds);
 
         var dimRunesSw = Stopwatch.StartNew();
         var dimRunes = await db.ChampionDimRunePages.AsNoTracking()
@@ -345,8 +346,8 @@ public sealed class ChampionSummariesQueryService(
             .ToDictionaryAsync(dim => dim.Id, ct);
         dimRunesSw.Stop();
         logger.LogInformation(
-            "[champions-summaries] sql=dim_rune_pages rows={Rows} elapsed={ElapsedMs}ms",
-            dimRunes.Count, dimRunesSw.ElapsedMilliseconds);
+            "{Surface} sql=dim_rune_pages rows={Rows} elapsed={ElapsedMs}ms",
+            Surface, dimRunes.Count, dimRunesSw.ElapsedMilliseconds);
 
         var result = new Dictionary<(int ChampionId, string Position), TopBuildReadModel>();
 

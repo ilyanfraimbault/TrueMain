@@ -64,7 +64,7 @@ const selectedShards = computed(() => [
           :style="{ width: `${keystoneSize}px`, height: `${keystoneSize}px` }"
           :class="[
             'rounded-full transition',
-            id === page.primaryKeystoneId ? '' : 'opacity-40 grayscale',
+            id === page.primaryKeystoneId ? '' : 'deselected',
           ]"
         />
       </div>
@@ -84,7 +84,7 @@ const selectedShards = computed(() => [
           :style="{ width: `${perkSize}px`, height: `${perkSize}px` }"
           :class="[
             'rounded-full transition',
-            selectedPrimary.has(id) ? '' : 'opacity-40 grayscale',
+            selectedPrimary.has(id) ? '' : 'deselected',
           ]"
         />
       </div>
@@ -111,7 +111,7 @@ const selectedShards = computed(() => [
             :style="{ width: `${secondarySize}px`, height: `${secondarySize}px` }"
             :class="[
               'rounded-full transition',
-              selectedSecondary.has(id) ? '' : 'opacity-40 grayscale',
+              selectedSecondary.has(id) ? '' : 'deselected',
             ]"
           />
         </div>
@@ -133,7 +133,7 @@ const selectedShards = computed(() => [
             :style="{ width: `${shardSize}px`, height: `${shardSize}px` }"
             :class="[
               'rounded-full transition',
-              selectedShards[rowIndex] === id ? '' : 'opacity-40 grayscale',
+              selectedShards[rowIndex] === id ? '' : 'deselected',
             ]"
           />
         </div>

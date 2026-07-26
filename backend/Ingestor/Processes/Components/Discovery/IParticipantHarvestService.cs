@@ -22,4 +22,46 @@ public interface IParticipantHarvestService
 /// ever needed for monitoring.
 /// </param>
 /// <param name="AccountsCreated">Minimal RiotAccount rows created for unknown puuids.</param>
-public sealed record HarvestResult(int CandidatesInserted, int CandidatesUpdated, int AccountsCreated);
+/// <param name="Coverage">How much of the eligible pool the run's budget actually covered.</param>
+public sealed record HarvestResult(
+    int CandidatesInserted,
+    int CandidatesUpdated,
+    int AccountsCreated,
+    HarvestCoverage Coverage);
+
+/// <summary>
+/// What a harvest run selected out of what qualified (#495). The harvest budget
+/// (<c>Harvest:MaxCandidatesPerRun</c>) is smaller than the eligible pool as soon as the
+/// orphan population grows, so every run drops rows; this makes the drop explicit and
+/// reportable instead of an invisible <c>LIMIT</c>. Counted separately for pairs with no
+/// candidate yet (new discovery — the arm that starves) and pairs whose candidate only
+/// needs its observed stats refreshed. <c>Platforms</c> repeats the same split per
+/// platform, which also exposes an imbalanced run (one region eating a cross-platform
+/// budget).
+/// </summary>
+public sealed record HarvestCoverage(
+    int EligibleNew,
+    int SelectedNew,
+    int EligibleKnown,
+    int SelectedKnown,
+    IReadOnlyList<HarvestPlatformCoverage> Platforms)
+{
+    public static HarvestCoverage Empty { get; } = new(0, 0, 0, 0, []);
+
+    /// <summary>Eligible new pairs left for a later run — the starvation signal.</summary>
+    public int DroppedNew => EligibleNew - SelectedNew;
+
+    /// <summary>Existing candidates whose observed stats stayed stale this run.</summary>
+    public int DroppedKnown => EligibleKnown - SelectedKnown;
+
+    /// <summary>True when the budget, not the data, decided where the run stopped.</summary>
+    public bool IsBudgetBound => DroppedNew > 0 || DroppedKnown > 0;
+}
+
+/// <inheritdoc cref="HarvestCoverage"/>
+public sealed record HarvestPlatformCoverage(
+    string PlatformId,
+    int EligibleNew,
+    int SelectedNew,
+    int EligibleKnown,
+    int SelectedKnown);

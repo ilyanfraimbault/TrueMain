@@ -13,6 +13,14 @@ const props = defineProps<{
   itemsMap: Record<number, StaticItemData>
   summonersMap: Record<number, StaticSummonerSpellData>
   runeTree: RuneTreeResponse | null
+  // Scope forwarded to the per-build power spikes panel, which fetches its own
+  // slice keyed on (champion, position, patch, elo) + the build it renders.
+  // Optional: the builder preview and the player-scoped champion page reuse
+  // these tabs without a population slice to attach spikes to.
+  championId?: number
+  position?: string | null
+  patch?: string | null
+  eloBracket?: string | null
 }>()
 
 const items = computed(() =>
@@ -80,7 +88,13 @@ const items = computed(() =>
           </div>
         </div>
       </template>
-      <template #default="{ item }">
+      <template #default="{ item, index }">
+        <!-- The leading item/rune icons already carry their own accessible
+             names (see GameTooltip*Icon `alt`), but without this prefix the
+             tab's full accessible name reads as just those names + a bare
+             percentage — ambiguous with several builds open. sr-only text
+             disambiguates without changing the visible design. -->
+        <span class="sr-only">Build {{ index + 1 }}, </span>
         <span class="text-xs tabular-nums text-muted">
           {{ (item.build.pickRate * 100).toFixed(0) }}%
         </span>
@@ -96,6 +110,10 @@ const items = computed(() =>
           :items-map="itemsMap"
           :summoners-map="summonersMap"
           :rune-tree="runeTree"
+          :champion-id="championId"
+          :position="position"
+          :patch="patch"
+          :elo-bracket="eloBracket"
         />
       </template>
     </UTabs>

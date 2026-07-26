@@ -8,12 +8,15 @@ const props = withDefaults(defineProps<{
   spell?: StaticChampionSpellData | null
   width?: number | string
   height?: number | string
+  /** Native lazy-loading hint forwarded to the icon (`'lazy'` below the fold). */
+  loading?: 'lazy' | 'eager'
   /** Fallback label shown when no icon URL is available (e.g. the slot key 'Q'). */
   fallbackLabel?: string
 }>(), {
   spell: null,
   width: 36,
   height: 36,
+  loading: undefined,
   fallbackLabel: '',
 })
 
@@ -39,6 +42,7 @@ const fallbackStyle = computed(() => ({
       :alt="spell?.name"
       :width="width"
       :height="height"
+      :loading="loading"
     />
     <span
       v-else

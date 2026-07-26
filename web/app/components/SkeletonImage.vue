@@ -7,10 +7,31 @@ const props = defineProps<{
   title?: string
   width?: number | string
   height?: number | string
+  /**
+   * Native browser lazy-loading hint forwarded to the underlying <img>. Set to
+   * `'lazy'` for off-screen icons (e.g. match-history rows below the fold) so
+   * the browser defers their fetch until they scroll near the viewport; leave
+   * unset for above-the-fold icons that should load immediately.
+   */
+  loading?: 'lazy' | 'eager'
 }>()
 
 const loaded = ref(false)
 const failed = ref(false)
+
+// Reserve the box before the image loads so the skeleton (and the later image)
+// occupy their final size from first paint — no layout shift / forced reflow as
+// each of the ~95 icons on a champion page resolves. Callers usually also pass
+// a Tailwind `size-*` class; this inline reservation is the robust fallback for
+// the few that size via width/height alone. Emitted only when both dimensions
+// are known so class-only call sites (e.g. `size-full`) keep governing layout.
+const reservedStyle = computed(() => {
+  const { width, height } = props
+  if (width == null || height == null) return undefined
+  const toDimension = (value: number | string) =>
+    typeof value === 'number' ? `${value}px` : value
+  return { width: toDimension(width), height: toDimension(height) }
+})
 
 // Reset the placeholder when the source changes — without this, switching
 // builds/tabs keeps the previous "loaded" state and the new image flashes
@@ -41,6 +62,7 @@ const FETCH_SIZE = 64
   <span
     v-bind="$attrs"
     class="inline-block overflow-hidden"
+    :style="reservedStyle"
   >
     <span class="relative block size-full">
       <USkeleton
@@ -54,6 +76,7 @@ const FETCH_SIZE = 64
         :title="title"
         :width="FETCH_SIZE"
         :height="FETCH_SIZE"
+        :loading="loading"
         densities="1x"
         class="size-full transition-opacity duration-150"
         :class="loaded && !failed ? 'opacity-100' : 'opacity-0'"

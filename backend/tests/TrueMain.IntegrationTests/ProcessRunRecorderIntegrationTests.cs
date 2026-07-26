@@ -1,4 +1,5 @@
 using Data.Entities;
+using Ingestor.Processes.Summaries;
 using Ingestor.Services;
 using AwesomeAssertions;
 using Microsoft.EntityFrameworkCore;
@@ -57,6 +58,47 @@ public sealed class ProcessRunRecorderIntegrationTests
             finalised.IterationId.Should().Be(iterationId);
             finalised.Status.Should().Be(ProcessRunStatus.Success);
         }
+    }
+
+    [Fact]
+    public async Task RecordAsync_PersistsTheSummaryWithItsCamelCaseKeys()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        var recorder = new ProcessRunRecorder(_fixture.CreateSessionFactory(), new IterationContext());
+        var startedAt = DateTime.UtcNow;
+        var runId = await recorder.RecordStartAsync("Discovery", startedAt, CancellationToken.None);
+
+        await recorder.RecordAsync(
+            runId,
+            "Discovery",
+            startedAt,
+            startedAt.AddSeconds(2),
+            ProcessRunStatus.Success,
+            new DiscoverySummary([new DiscoveryPlatformSummary("EUW1", 40, 3, 12, 5, 2, 38, null)]),
+            error: null,
+            CancellationToken.None);
+
+        // The jsonb column is what the admin portal renders, so assert on the
+        // stored keys rather than on the in-memory record (#268): the summaries
+        // were anonymous types with camelCase members and that shape is persisted.
+        await using var db = _fixture.CreateDbContext();
+        var run = await db.ProcessRuns.AsNoTracking().SingleAsync(r => r.Id == runId);
+        run.Summary.Should().NotBeNull();
+
+        var platform = run.Summary!.RootElement
+            .GetProperty("platforms")
+            .EnumerateArray()
+            .Single();
+
+        platform.GetProperty("platform").GetString().Should().Be("EUW1");
+        platform.GetProperty("accountsProcessed").GetInt32().Should().Be(40);
+        platform.GetProperty("newAccounts").GetInt32().Should().Be(3);
+        platform.GetProperty("candidatesInserted").GetInt32().Should().Be(12);
+        platform.GetProperty("candidatesUpdated").GetInt32().Should().Be(5);
+        platform.GetProperty("rankSnapshotsInserted").GetInt32().Should().Be(2);
+        platform.GetProperty("rankSnapshotsUnchanged").GetInt32().Should().Be(38);
+        platform.GetProperty("error").ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
     }
 
     [Fact]

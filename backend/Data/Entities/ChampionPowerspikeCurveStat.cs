@@ -6,8 +6,8 @@ namespace Data.Entities;
 /// (champion, position, patch, elo, interval-minute) slice over the tracked-account
 /// population on the configured queue (#694).
 ///
-/// Unlike <see cref="ChampionTimelineLeadStat"/> this carries EVERY minute mark
-/// (1..30), not just the five canonical ones — the power curve is drawn per minute.
+/// This carries EVERY minute mark (1..30), not just the five canonical ones the
+/// retention keeps — the power curve is drawn per minute.
 /// The curve mean at minute m is linear once the global per-minute spread is fixed
 /// (<see cref="PowerspikeSigmaStat"/>): mean power =
 /// 0.5·(TotalGoldDiff/Games)/σ_gold(m) + 0.5·(TotalDamageDiff/Games)/σ_dmg(m). So

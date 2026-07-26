@@ -3,6 +3,7 @@ using Data.Entities;
 using Ingestor;
 using Ingestor.Options;
 using Ingestor.Processes;
+using Ingestor.Processes.Summaries;
 using Ingestor.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -18,31 +19,18 @@ namespace TrueMain.UnitTests;
 /// </summary>
 public sealed class WorkerProcessIsolationTests
 {
-    private static readonly string[] FullSequence =
-    [
-        "Discovery",
-        "ManualSeed",
-        "Harvest",
-        "Scoring",
-        "MatchIngestion",
-        "MainAnalysis",
-        "MatchParticipantEloBracketEnrichment",
-        "ChampionPatternAggregation",
-        "ChampionMatchupLeadAggregation",
-        "ChampionPowerspikeAggregation",
-        "AccountRefresh",
-        "MatchDataRetention"
-    ];
+    // The keys the worker resolves each step of a Full pass under.
+    private static readonly IReadOnlyList<JobMode> FullSequence = JobModeSequence.For(JobMode.Full);
 
     [Fact]
     public async Task ExecuteAsync_RunsRemainingProcesses_WhenFirstProcessThrows()
     {
-        var executed = new List<string>();
+        var executed = new List<JobMode>();
         var services = new ServiceCollection();
-        services.AddSingleton<IIngestorProcess>(new ThrowingProcess("Discovery"));
-        foreach (var name in FullSequence.Skip(1))
+        services.AddKeyedSingleton<IIngestorProcess>(FullSequence[0], new ThrowingProcess("Discovery"));
+        foreach (var step in FullSequence.Skip(1))
         {
-            services.AddSingleton<IIngestorProcess>(new RecordingProcess(name, executed));
+            services.AddKeyedSingleton<IIngestorProcess>(step, new RecordingProcess(step, executed));
         }
 
         var lifetime = Substitute.For<IHostApplicationLifetime>();
@@ -59,7 +47,7 @@ public sealed class WorkerProcessIsolationTests
     [Fact]
     public async Task ExecuteAsync_RecordsFailedRunForThrower_AndRunsTheRest()
     {
-        var executed = new List<string>();
+        var executed = new List<JobMode>();
         var recorder = Substitute.For<IProcessRunRecorder>();
         // The run id from RecordStartAsync must be threaded through to RecordAsync.
         // Pin a specific id and assert it below (rather than Arg.Any<Guid>) so an
@@ -72,15 +60,16 @@ public sealed class WorkerProcessIsolationTests
 
         // Wrap the thrower exactly like production does (RecordedProcess persists
         // the Failed run before rethrowing into the worker loop).
-        services.AddSingleton<IIngestorProcess>(
+        services.AddKeyedSingleton<IIngestorProcess>(
+            FullSequence[0],
             new RecordedProcess<ThrowingProcess>(
                 new ThrowingProcess("Discovery"),
                 recorder,
                 TimeProvider.System,
                 NullLogger<RecordedProcess<ThrowingProcess>>.Instance));
-        foreach (var name in FullSequence.Skip(1))
+        foreach (var step in FullSequence.Skip(1))
         {
-            services.AddSingleton<IIngestorProcess>(new RecordingProcess(name, executed));
+            services.AddKeyedSingleton<IIngestorProcess>(step, new RecordingProcess(step, executed));
         }
 
         var lifetime = Substitute.For<IHostApplicationLifetime>();
@@ -116,13 +105,15 @@ public sealed class WorkerProcessIsolationTests
         var iterationContext = new IterationContext();
         var observed = new List<Guid?>();
         var services = new ServiceCollection();
-        services.AddSingleton<IIngestorProcess>(
+        services.AddKeyedSingleton<IIngestorProcess>(
+            FullSequence[0],
             new IterationObservingProcess("Discovery", iterationContext, observed));
-        services.AddSingleton<IIngestorProcess>(new ThrowingProcess("ManualSeed"));
-        foreach (var name in FullSequence.Skip(2))
+        services.AddKeyedSingleton<IIngestorProcess>(FullSequence[1], new ThrowingProcess("ManualSeed"));
+        foreach (var step in FullSequence.Skip(2))
         {
-            services.AddSingleton<IIngestorProcess>(
-                new IterationObservingProcess(name, iterationContext, observed));
+            services.AddKeyedSingleton<IIngestorProcess>(
+                step,
+                new IterationObservingProcess(step.ToString(), iterationContext, observed));
         }
 
         var lifetime = Substitute.For<IHostApplicationLifetime>();
@@ -131,8 +122,8 @@ public sealed class WorkerProcessIsolationTests
         await worker.StartAsync(CancellationToken.None);
         await worker.ExecuteTask!;
 
-        // Seven non-thrower processes each observed an iteration id.
-        observed.Should().HaveCount(FullSequence.Length - 1);
+        // Every non-thrower process observed an iteration id.
+        observed.Should().HaveCount(FullSequence.Count - 1);
         observed.Should().AllSatisfy(id => id.Should().NotBeNull());
         observed.Distinct().Should().ContainSingle("every process shares the pass's id");
         observed[0].Should().NotBe(Guid.Empty);
@@ -145,12 +136,12 @@ public sealed class WorkerProcessIsolationTests
     public async Task ExecuteAsync_PropagatesCancellation_WhenAProcessObservesShutdown()
     {
         using var cts = new CancellationTokenSource();
-        var executed = new List<string>();
+        var executed = new List<JobMode>();
         var services = new ServiceCollection();
-        services.AddSingleton<IIngestorProcess>(new CancellingProcess("Discovery", cts));
-        foreach (var name in FullSequence.Skip(1))
+        services.AddKeyedSingleton<IIngestorProcess>(FullSequence[0], new CancellingProcess("Discovery", cts));
+        foreach (var step in FullSequence.Skip(1))
         {
-            services.AddSingleton<IIngestorProcess>(new RecordingProcess(name, executed));
+            services.AddKeyedSingleton<IIngestorProcess>(step, new RecordingProcess(step, executed));
         }
 
         var lifetime = Substitute.For<IHostApplicationLifetime>();
@@ -183,17 +174,22 @@ public sealed class WorkerProcessIsolationTests
         });
 
         return new Worker(
-            NullLogger<Worker>.Instance, scopeFactory, jobOptions, iterationContext, lifetime);
+            NullLogger<Worker>.Instance,
+            scopeFactory,
+            jobOptions,
+            iterationContext,
+            lifetime,
+            TestIngestorMetrics.Create());
     }
 
-    private sealed class RecordingProcess(string name, List<string> executed) : IIngestorProcess
+    private sealed class RecordingProcess(JobMode mode, List<JobMode> executed) : IIngestorProcess
     {
-        public string Name => name;
+        public string Name => mode.ToString();
 
-        public async Task<object?> RunCoreAsync(CancellationToken ct)
+        public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
         {
             await Task.Yield();
-            executed.Add(name);
+            executed.Add(mode);
             return null;
         }
     }
@@ -207,7 +203,7 @@ public sealed class WorkerProcessIsolationTests
     {
         public string Name => name;
 
-        public async Task<object?> RunCoreAsync(CancellationToken ct)
+        public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
         {
             await Task.Yield();
             observed.Add(iterationContext.CurrentIterationId);
@@ -219,7 +215,7 @@ public sealed class WorkerProcessIsolationTests
     {
         public string Name => name;
 
-        public async Task<object?> RunCoreAsync(CancellationToken ct)
+        public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
         {
             await Task.Yield();
             throw new InvalidOperationException("simulated process failure");
@@ -230,7 +226,7 @@ public sealed class WorkerProcessIsolationTests
     {
         public string Name => name;
 
-        public async Task<object?> RunCoreAsync(CancellationToken ct)
+        public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
         {
             await Task.Yield();
             await cts.CancelAsync();

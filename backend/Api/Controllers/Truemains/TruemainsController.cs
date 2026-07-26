@@ -9,12 +9,14 @@ namespace TrueMain.Controllers.Truemains;
 
 [ApiController]
 [Route("truemains")]
+[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
 public sealed class TruemainsController(
     IMatchSummariesQueryService matchSummariesQueryService,
     IMatchDetailQueryService matchDetailQueryService,
     IProfileQueryService profileQueryService,
     IPlayerChampionBuildsQueryService playerChampionBuildsQueryService,
     IPlayerChampionMatchupQueryService playerChampionMatchupQueryService,
+    IPlayerBuildDivergenceQueryService playerBuildDivergenceQueryService,
     IRankHistoryQueryService rankHistoryQueryService,
     ITruemainsLeaderboardQueryService leaderboardQueryService,
     ISearchQueryService searchQueryService) : ControllerBase
@@ -36,7 +38,6 @@ public sealed class TruemainsController(
     /// <param name="ct">Request cancellation token.</param>
     [HttpGet("search")]
     [ProducesResponseType(typeof(SearchResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<SearchResponse>> SearchAsync(
         [FromQuery] string? q,
         [FromQuery] int? limit,
@@ -51,23 +52,26 @@ public sealed class TruemainsController(
 
     [HttpGet("")]
     [ProducesResponseType(typeof(LeaderboardResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<LeaderboardResponse>> ListLeaderboardAsync(
-        [FromQuery] int? page,
-        [FromQuery] int? pageSize,
-        [FromQuery] string? region,
-        [FromQuery] string? position,
-        [FromQuery] int? championId,
-        [FromQuery] bool? otpOnly,
+        [FromQuery] LeaderboardQuery query,
         CancellationToken ct = default)
     {
+        // An unknown ?sort= falls back to the default ranking rather than a 400:
+        // it is a presentation preference, and a stale bookmark should still
+        // render the leaderboard.
+        var sort = string.Equals(query.Sort, "dedication", StringComparison.OrdinalIgnoreCase)
+            ? LeaderboardSort.Dedication
+            : LeaderboardSort.Rank;
+
         var response = await leaderboardQueryService.GetAsync(
-            page ?? 1,
-            pageSize ?? 0,
-            region,
-            position,
-            championId,
-            otpOnly ?? false,
+            query.Page ?? 1,
+            query.PageSize ?? 0,
+            query.Region,
+            query.Position,
+            query.ChampionId,
+            query.OtpOnly ?? false,
+            sort,
             ct);
 
         // Let shared caches (CDN / reverse proxy) serve the leaderboard for the
@@ -85,7 +89,6 @@ public sealed class TruemainsController(
     [HttpGet("{nameTag}/profile")]
     [ProducesResponseType(typeof(ProfileReadModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<ProfileReadModel>> GetProfileAsync(
         string nameTag,
         CancellationToken ct = default)
@@ -103,8 +106,8 @@ public sealed class TruemainsController(
     /// </summary>
     [HttpGet("{nameTag}/champions/{championId:int}")]
     [ProducesResponseType(typeof(ChampionResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<ChampionResponse>> GetPlayerChampionAsync(
         string nameTag,
         int championId,
@@ -112,10 +115,68 @@ public sealed class TruemainsController(
         [FromQuery] string? position,
         CancellationToken ct = default)
     {
+        // A blank/absent position means "all positions"; only a non-blank
+        // value that fails to canonicalise is a client error (mirrors
+        // ChampionsController.TryNormalizeOptionalPosition).
+        string? normalizedPosition = null;
+        if (!string.IsNullOrWhiteSpace(position))
+        {
+            normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+            if (normalizedPosition is null)
+            {
+                return ValidationProblem(ChampionQueryParameterNormalizer.InvalidPositionMessage);
+            }
+        }
+
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
-        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
 
         var response = await playerChampionBuildsQueryService.GetAsync(
+            nameTag,
+            championId,
+            normalizedPatch,
+            normalizedPosition,
+            ct);
+
+        return response is null ? NotFound() : Ok(response);
+    }
+
+    /// <summary>
+    /// "You vs mains": how this player's dominant starter, boots, build path and
+    /// skill order compare to what the champion's other mains do at the same
+    /// patch and position. 400 for an unrecognised position; 404 when the name
+    /// tag is malformed, the account is unknown, or we hold no aggregate at all
+    /// for them on the champion. A known player whose sample is too thin — or a
+    /// champion + lane with too few other mains to compare against — is a 200
+    /// carrying the counts and no dimensions, so the page renders an honest
+    /// "not enough games yet" instead of a failure.
+    /// </summary>
+    [HttpGet("{nameTag}/champions/{championId:int}/divergence")]
+    [ProducesResponseType(typeof(PlayerBuildDivergenceResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<PlayerBuildDivergenceResponse>> GetPlayerChampionDivergenceAsync(
+        string nameTag,
+        int championId,
+        [FromQuery] string? patch,
+        [FromQuery] string? position,
+        CancellationToken ct = default)
+    {
+        // A blank/absent position means "the player's dominant lane"; only a
+        // non-blank value that fails to canonicalise is a client error — same
+        // rule as the player-scoped build endpoint above.
+        string? normalizedPosition = null;
+        if (!string.IsNullOrWhiteSpace(position))
+        {
+            normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+            if (normalizedPosition is null)
+            {
+                return ValidationProblem(ChampionQueryParameterNormalizer.InvalidPositionMessage);
+            }
+        }
+
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+
+        var response = await playerBuildDivergenceQueryService.GetAsync(
             nameTag,
             championId,
             normalizedPatch,
@@ -139,7 +200,6 @@ public sealed class TruemainsController(
     [ProducesResponseType(typeof(ChampionMatchupsResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<ChampionMatchupsResponse>> GetPlayerChampionMatchupsAsync(
         string nameTag,
         int championId,
@@ -170,7 +230,6 @@ public sealed class TruemainsController(
     [HttpGet("{nameTag}/rank-history")]
     [ProducesResponseType(typeof(RankHistoryReadModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<RankHistoryReadModel>> GetRankHistoryAsync(
         string nameTag,
         [FromQuery] int? days,
@@ -183,7 +242,6 @@ public sealed class TruemainsController(
     [HttpGet("{nameTag}/matches")]
     [ProducesResponseType(typeof(MatchSummariesResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<MatchSummariesResponse>> GetMatchesAsync(
         string nameTag,
         [FromQuery] int? page,
@@ -214,7 +272,6 @@ public sealed class TruemainsController(
     [HttpGet("{nameTag}/matches/{matchId}")]
     [ProducesResponseType(typeof(MatchDetailReadModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<MatchDetailReadModel>> GetMatchDetailAsync(
         string nameTag,
         string matchId,
@@ -223,4 +280,35 @@ public sealed class TruemainsController(
         var response = await matchDetailQueryService.GetAsync(nameTag, matchId, ct);
         return response is null ? NotFound() : Ok(response);
     }
+}
+
+/// <summary>
+/// Query parameters for <c>GET /truemains</c>. <see cref="Page"/> and
+/// <see cref="PageSize"/> carry <see cref="RangeAttribute"/>s so
+/// <c>[ApiController]</c> rejects an out-of-range value with a 400
+/// ProblemDetails at binding time, instead of the service silently clamping
+/// it.
+/// </summary>
+public sealed record LeaderboardQuery
+{
+    [Range(1, int.MaxValue)]
+    public int? Page { get; init; }
+
+    [Range(1, 50)]
+    public int? PageSize { get; init; }
+
+    public string? Region { get; init; }
+
+    public string? Position { get; init; }
+
+    public int? ChampionId { get; init; }
+
+    public bool? OtpOnly { get; init; }
+
+    /// <summary>
+    /// Ranking column: <c>dedication</c> ranks by TrueMain's dedication score,
+    /// anything else (including omitted) keeps the default ranked-standing
+    /// order.
+    /// </summary>
+    public string? Sort { get; init; }
 }

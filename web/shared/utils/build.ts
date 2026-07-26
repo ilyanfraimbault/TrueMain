@@ -11,6 +11,29 @@ export function resolveEventItemId(ev: MatchDetailItemEvent): number {
 }
 
 /**
+ * Map-objective pickups that occupy a real inventory/trinket slot in Riot's
+ * data but are not part of a player's build — the Eye of the Herald replaces
+ * the trinket slot while a player carries the Rift Herald summon. They must
+ * never show up in a final-build item display. Ornn masterwork upgrades are
+ * deliberately NOT here: those are real completed items despite being
+ * non-purchasable, so a generic `purchasable === false` filter would wrongly
+ * hide them.
+ */
+const NON_BUILD_ITEM_IDS = new Set<number>([
+  3513, // Eye of the Herald (Rift Herald summon)
+])
+
+/** True for map-objective pickups that shouldn't appear in a final build. */
+export function isNonBuildItem(itemId: number): boolean {
+  return NON_BUILD_ITEM_IDS.has(itemId)
+}
+
+/** True when the item is a pair of boots (DDragon `tags` contains "Boots"). */
+export function isBootsItem(item: StaticItemData | null | undefined): boolean {
+  return item?.tags?.includes('Boots') ?? false
+}
+
+/**
  * DDragon flags an item the player can't buy in the shop as
  * `gold.purchasable = false` and/or `inStore = false`. Those items only ever
  * enter a build via an auto-granted transform — a support/role quest upgrade

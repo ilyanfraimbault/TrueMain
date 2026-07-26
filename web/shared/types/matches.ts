@@ -29,6 +29,8 @@ export interface MatchSummarySelf {
   items: number[]
   trinketItemId: number
   teamId: number
+  /** Riot team position (TOP/JUNGLE/MIDDLE/BOTTOM/UTILITY). Null when Riot did not assign one. */
+  position: string | null
   win: boolean
   /** Null when the rank snapshots around the game window are missing or span a tier/division transition. */
   lpDelta: number | null
@@ -39,6 +41,8 @@ export interface MatchSummarySelf {
 export interface MatchSummaryParticipant {
   championId: number
   teamId: number
+  /** Riot team position (TOP/JUNGLE/MIDDLE/BOTTOM/UTILITY). Null when Riot did not assign one. */
+  position: string | null
   gameName: string | null
   tagLine: string | null
 }

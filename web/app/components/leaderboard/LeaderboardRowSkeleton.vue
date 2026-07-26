@@ -24,6 +24,11 @@
       <USkeleton class="size-7 rounded" />
       <USkeleton class="size-7 rounded" />
     </div>
+    <!-- Dedication slot — reserved at every width, like the real row. -->
+    <div class="flex w-16 shrink-0 flex-col items-end gap-1">
+      <USkeleton class="h-4 w-8" />
+      <USkeleton class="h-3 w-14" />
+    </div>
     <div class="ml-auto hidden shrink-0 items-center gap-5 @xl:flex">
       <div class="flex w-12 flex-col items-end gap-1">
         <USkeleton class="h-4 w-10" />
@@ -38,5 +43,7 @@
         <USkeleton class="h-3 w-8" />
       </div>
     </div>
+    <!-- Follow toggle slot — reserved on every breakpoint, like the real row. -->
+    <USkeleton class="size-7 shrink-0 rounded-md" />
   </div>
 </template>

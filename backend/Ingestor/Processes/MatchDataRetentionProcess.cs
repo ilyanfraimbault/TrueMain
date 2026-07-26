@@ -2,6 +2,7 @@ using Core.Lol.Patches;
 using Core.Options;
 using Data;
 using Ingestor.Options;
+using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -16,13 +17,13 @@ public sealed class MatchDataRetentionProcess(
 {
     public string Name => "MatchDataRetention";
 
-    // The marks kept forever: the timeline-leads / matchup-lead aggregations only
-    // read these, and match-detail reads minute 15. The dense per-minute grid in
-    // between exists solely to feed the one-shot powerspike aggregation and is pruned
-    // once a match is folded. Mirrors ChampionMatchupLeadAggregationProcess.
+    // The marks kept forever: match-detail reads minute 15 for the laning-phase diff.
+    // The dense per-minute grid in between exists solely to feed the one-shot
+    // powerspike aggregation and is pruned once a match is folded. The other reader
+    // of these marks, the timeline-leads aggregate, was dropped in #889.
     private static readonly int[] CanonicalSnapshotMinutes = [5, 10, 15, 20, 30];
 
-    public async Task<object?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         // Prune stale never-promoted candidates first (#487) — independent of match
         // retention, so it runs even when there is nothing to delete below.
@@ -67,6 +68,9 @@ public sealed class MatchDataRetentionProcess(
         // was built to reclaim. Independent of the deletions above.
         var snapshotPrune = await PruneAggregatedTimelineSnapshotsAsync(retentionPlan.QueueId, ct);
 
+        // Reclaim the long tail of rare core builds in the powerspike event aggregate.
+        var prunedPowerspikeEvents = await PruneSubFloorPowerspikeEventsAsync(retentionPlan, ct);
+
         return BuildRetentionPayload(
             retentionPlan,
             deletedMatches,
@@ -74,7 +78,53 @@ public sealed class MatchDataRetentionProcess(
             nonRankedDeletion.DeletedMatches,
             prunedCandidates,
             aggregateDeletion,
-            snapshotPrune);
+            snapshotPrune,
+            prunedPowerspikeEvents);
+    }
+
+    /// <summary>
+    /// Deletes <c>champion_powerspike_event_stats</c> rows that sit below the read's
+    /// games floor, restricted to patches that no longer receive games (#890).
+    ///
+    /// The restriction is the point: those rows are additive and accumulate over a
+    /// patch's life, so pruning a live patch would delete a build that is slowly on
+    /// its way to the floor and reset it to zero every cycle — it could never get
+    /// there. Once a patch drops out of the retained window nothing folds into it
+    /// again, its sub-floor rows are frozen below a threshold the read already
+    /// filters on, and they are pure dead weight.
+    /// </summary>
+    private async Task<int> PruneSubFloorPowerspikeEventsAsync(RetentionPlan retentionPlan, CancellationToken ct)
+    {
+        var minGames = retentionOptions.Value.PowerspikeEventMinGames;
+        if (minGames <= 0)
+        {
+            return 0;
+        }
+
+        var livePatches = retentionPlan.RetainedPatchesByPlatform
+            .SelectMany(entry => entry.Value)
+            .ToHashSet(StringComparer.Ordinal);
+        if (livePatches.Count == 0)
+        {
+            return 0;
+        }
+
+        await using var db = await dbContextFactory.CreateDbContextAsync(ct);
+        var deleted = await db.ChampionPowerspikeEventStats
+            .Where(stat => stat.Games < minGames && !livePatches.Contains(stat.Patch))
+            .ExecuteDeleteAsync(ct);
+
+        if (deleted > 0)
+        {
+            logger.LogInformation(
+                "Powerspike event retention removed {Deleted} sub-floor row(s) (<{MinGames} games) "
+                + "on patches outside {LivePatches}.",
+                deleted,
+                minGames,
+                string.Join("|", livePatches.Order()));
+        }
+
+        return deleted;
     }
 
     /// <summary>
@@ -163,8 +213,6 @@ public sealed class MatchDataRetentionProcess(
             .AsNoTracking().Select(scope => scope.GameVersion).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.ChampionMatchupStats
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
-        observedPatches.UnionWith(await db.ChampionTimelineLeadStats
-            .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.ChampionPowerspikeCurveStats
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.ChampionPowerspikeEventStats
@@ -218,8 +266,6 @@ public sealed class MatchDataRetentionProcess(
                     .Where(scope => scope.GameVersion == stalePatch).ExecuteDeleteAsync(ct),
                 result.DeletedMatchupStats + await db.ChampionMatchupStats
                     .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct),
-                result.DeletedTimelineLeadStats + await db.ChampionTimelineLeadStats
-                    .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct),
                 result.DeletedPowerspikeCurveStats + await db.ChampionPowerspikeCurveStats
                     .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct),
                 result.DeletedPowerspikeEventStats + await db.ChampionPowerspikeEventStats
@@ -230,12 +276,11 @@ public sealed class MatchDataRetentionProcess(
         if (result.TotalDeleted > 0)
         {
             logger.LogInformation(
-                "Aggregate retention removed {DeletedScopes} scopes, {DeletedMatchups} matchup, "
-                + "{DeletedLeads} timeline-lead and {DeletedPowerspikes} powerspike rows for stale patches "
+                "Aggregate retention removed {DeletedScopes} scopes, {DeletedMatchups} matchup "
+                + "and {DeletedPowerspikes} powerspike rows for stale patches "
                 + "{StalePatches} (keeping {RetainedPatches}).",
                 result.DeletedScopes,
                 result.DeletedMatchupStats,
-                result.DeletedTimelineLeadStats,
                 result.DeletedPowerspikeCurveStats + result.DeletedPowerspikeEventStats,
                 string.Join("|", stalePatches),
                 string.Join("|", retainedVersions.OrderDescending().Select(version => version.ToString())));
@@ -406,39 +451,34 @@ public sealed class MatchDataRetentionProcess(
         return new DeletionResult(deletedMatches, deletedParticipants);
     }
 
-    private static object BuildRetentionPayload(
+    private static MatchDataRetentionSummary BuildRetentionPayload(
         RetentionPlan retentionPlan,
         int deletedMatches,
         int deletedParticipants,
         int deletedNonRankedMatches,
         int prunedCandidates,
         AggregateDeletionResult aggregateDeletion,
-        SnapshotPruneResult snapshotPrune)
+        SnapshotPruneResult snapshotPrune,
+        int prunedPowerspikeEvents)
     {
-        return new
-        {
-            retainedPatchCount = retentionPlan.RetainedPatchCount,
-            queueId = retentionPlan.QueueId,
+        return new MatchDataRetentionSummary(
+            retentionPlan.RetainedPatchCount,
+            retentionPlan.QueueId,
             deletedMatches,
             deletedParticipants,
             deletedNonRankedMatches,
             prunedCandidates,
-            prunedSnapshotMatches = snapshotPrune.PrunedMatches,
-            deletedIntermediateSnapshots = snapshotPrune.DeletedSnapshots,
-            deletedAggregateScopes = aggregateDeletion.DeletedScopes,
-            deletedMatchupStats = aggregateDeletion.DeletedMatchupStats,
-            deletedTimelineLeadStats = aggregateDeletion.DeletedTimelineLeadStats,
-            deletedPowerspikeCurveStats = aggregateDeletion.DeletedPowerspikeCurveStats,
-            deletedPowerspikeEventStats = aggregateDeletion.DeletedPowerspikeEventStats,
-            retainedPatchesByPlatform = retentionPlan.RetainedPatchesByPlatform
+            snapshotPrune.PrunedMatches,
+            snapshotPrune.DeletedSnapshots,
+            aggregateDeletion.DeletedScopes,
+            aggregateDeletion.DeletedMatchupStats,
+            aggregateDeletion.DeletedPowerspikeCurveStats,
+            aggregateDeletion.DeletedPowerspikeEventStats,
+            prunedPowerspikeEvents,
+            retentionPlan.RetainedPatchesByPlatform
                 .OrderBy(entry => entry.Key)
-                .Select(entry => new
-                {
-                    platformId = entry.Key,
-                    patches = entry.Value.Order().ToArray()
-                })
-                .ToArray()
-        };
+                .Select(entry => new RetainedPatchesSummary(entry.Key, entry.Value.Order().ToList()))
+                .ToList());
     }
 
     private sealed record ObservedMatch(string PlatformId, string GameVersion);
@@ -456,16 +496,14 @@ public sealed class MatchDataRetentionProcess(
     private sealed record AggregateDeletionResult(
         int DeletedScopes,
         int DeletedMatchupStats,
-        int DeletedTimelineLeadStats,
         int DeletedPowerspikeCurveStats,
         int DeletedPowerspikeEventStats)
     {
-        public static AggregateDeletionResult Empty { get; } = new(0, 0, 0, 0, 0);
+        public static AggregateDeletionResult Empty { get; } = new(0, 0, 0, 0);
 
         public int TotalDeleted
             => DeletedScopes
                 + DeletedMatchupStats
-                + DeletedTimelineLeadStats
                 + DeletedPowerspikeCurveStats
                 + DeletedPowerspikeEventStats;
     }

@@ -1,7 +1,13 @@
 <script setup lang="ts">
-// Mirrors ChampionBuildTabs + the "Core view" section of ChampionBuildPanel
-// (card chrome, tab row, core-view grid) so the placeholder keeps the same
-// proportions as the real content and swaps in without a layout shift.
+// Mirrors ChampionBuildTabs and the FULL height of ChampionBuildPanel — the
+// core-view grid plus the three sections below it (variations, build tree, rune
+// list). Reserving the real card height matters because the build data is
+// client-only (useChampion/useChampionStatic are `server: false` by design), so
+// this skeleton is what holds the space during SSR + the client fetch. If it
+// only mirrored the core view (~400px) the ~1300px real card would grow when it
+// swapped in and shove the full-width "Recent games" section below it down,
+// wrecking CLS (#834). The lower blocks are sized to the measured real section
+// heights so the swap is near-shiftless.
 </script>
 
 <template>
@@ -36,7 +42,7 @@
           </div>
           <div class="flex flex-col gap-2">
             <USkeleton class="h-3 w-16" />
-            <div class="flex h-9 w-full items-center gap-1 sm:w-[116px]">
+            <div class="flex h-9 w-full items-center gap-1 sm:w-starter-items">
               <USkeleton
                 v-for="i in 3"
                 :key="i"
@@ -69,7 +75,7 @@
             </div>
           </div>
           <div class="flex justify-center">
-            <div class="flex h-9 items-center gap-1 sm:w-[336px]">
+            <div class="flex h-9 items-center gap-1 sm:w-build-path">
               <USkeleton
                 v-for="i in 6"
                 :key="i"
@@ -124,6 +130,16 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- The three sections below the core view (ChampionBuildPanelVariations,
+         ChampionBuildPanelBuildTree, ChampionBuildPanelRuneList). Heights are
+         sized to the measured real sections so the skeleton reserves the whole
+         card and the swap-in doesn't shift the content below it (#834). -->
+    <div class="flex flex-col gap-5 px-3 pb-3 sm:px-4 sm:pb-4">
+      <USkeleton class="h-[120px] w-full rounded-2xl" />
+      <USkeleton class="h-[264px] w-full rounded-2xl" />
+      <USkeleton class="h-[436px] w-full rounded-2xl" />
     </div>
   </UCard>
 </template>

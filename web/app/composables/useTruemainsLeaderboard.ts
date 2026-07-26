@@ -1,4 +1,4 @@
-import type { LeaderboardResponse, LeaderboardRowResponse, RegionSlug } from '~~/shared/types/leaderboard'
+import type { LeaderboardResponse, LeaderboardRowResponse, LeaderboardSort, RegionSlug } from '~~/shared/types/leaderboard'
 
 interface UseTruemainsLeaderboardOptions {
   /** Page size to request per fetch. Omitted = use the backend default (25). */
@@ -8,6 +8,8 @@ interface UseTruemainsLeaderboardOptions {
   championId?: MaybeRefOrGetter<number | null | undefined>
   /** When true, restrict the leaderboard to one-trick ponies (OTP flag on a main champion). */
   otpOnly?: MaybeRefOrGetter<boolean | null | undefined>
+  /** Ranking column. Omitted / `rank` keeps the default ranked-standing order. */
+  sort?: MaybeRefOrGetter<LeaderboardSort | null | undefined>
 }
 
 /**
@@ -51,6 +53,10 @@ export function useTruemainsLeaderboard(
     return typeof value === 'number' && value > 0 ? value : null
   })
   const otpOnlyRef = computed(() => toValue(options.otpOnly) === true)
+  // Only `dedication` is ever sent: the default ranking has a clean URL and
+  // shares the unfiltered cache key on both sides.
+  const sortRef = computed<LeaderboardSort>(() =>
+    toValue(options.sort) === 'dedication' ? 'dedication' : 'rank')
 
   function buildQuery() {
     const query: Record<string, string | number | boolean> = {
@@ -61,6 +67,7 @@ export function useTruemainsLeaderboard(
     if (positionRef.value) query.position = positionRef.value
     if (championIdRef.value) query.championId = championIdRef.value
     if (otpOnlyRef.value) query.otpOnly = true
+    if (sortRef.value === 'dedication') query.sort = 'dedication'
     return query
   }
 
@@ -79,12 +86,12 @@ export function useTruemainsLeaderboard(
       // pageSize is part of the key: the homepage teaser (pageSize 5) and the
       // /truemains page (pageSize 25) both request page 1, and a shared key
       // would hydrate the full leaderboard from the teaser's 5 cached rows.
-      return `truemains-leaderboard-${pageRef.value}-${fallbackPageSize}-${region}-${position}-${championId}-${otpOnly}`
+      return `truemains-leaderboard-${pageRef.value}-${fallbackPageSize}-${region}-${position}-${championId}-${otpOnly}-${sortRef.value}`
     },
     () => $fetch<LeaderboardResponse>('/api/truemains', { query: buildQuery() }),
     {
       server: true,
-      watch: [pageRef, regionRef, positionRef, championIdRef, otpOnlyRef],
+      watch: [pageRef, regionRef, positionRef, championIdRef, otpOnlyRef, sortRef],
       // Deterministic placeholder so `rows` is always an array (never
       // `undefined`) on both the server and the client's first render.
       default: (): LeaderboardResponse => ({

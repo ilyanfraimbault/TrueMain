@@ -117,21 +117,39 @@ pulling.
 ## Data-diet knobs
 
 The ingestion volume is tuned with environment variables on the `ingestor`
-service in `compose.preprod.yaml` (they override `appsettings.json`; see
-`backend/Ingestor/Options/*` for the full catalogue):
+service in `compose.preprod.yaml` and `compose.prod.yaml` (they override
+`appsettings.json`; see `backend/Ingestor/Options/*` for the full catalogue).
+Prod's match-search knobs are explicit `compose.prod.yaml` overrides (#811),
+not `appsettings.json` defaults — they were raised once the champion
+matchup/lead aggregation stopped dominating the loop's cycle time:
 
-| Knob | Preprod | Prod default | Effect |
-| ---- | ------- | ------------ | ------ |
-| `MatchDataRetention__RetainedPatchCount` | 1 | 2 | keep only the current patch's match data |
-| `Discovery__MaxAccountsPerPlatformPerRun` | 100 | 500 | smaller ladder crawl window |
-| `Discovery__NewAccountsTarget` | 15 | 50 | fewer new accounts per run |
-| `Scoring__TopNPerPlatform` | 50 | 200 | fewer candidates queued per platform |
-| `Harvest__MaxCandidatesPerRun` | 500 | 5000 | cap harvest candidate generation |
-| `MatchIngestion__BatchSize` | 25 | 50 | fewer accounts fetched per cycle |
-| `MatchIngestion__MatchesPerAccount` | 10 | 20 | fewer matches per account |
-| `MainAnalysis__MatchesToConsider` | 30 | 50 | smaller analysis window |
-| `MainAnalysis__MinMatchesToEvaluate` | 10 | 20 | flag mains sooner on the small sample |
+| Knob | Preprod | Prod | Effect |
+| ---- | ------- | ---- | ------ |
+| `MatchDataRetention__RetainedPatchCount` | 1 | 2 (appsettings default) | keep only the current patch's match data |
+| `Discovery__MaxAccountsPerPlatformPerRun` | 100 | 750 | ladder crawl window |
+| `Discovery__NewAccountsTarget` | 15 | 75 | new accounts per run |
+| `Scoring__TopNPerPlatform` | 50 | 300 | candidates queued per platform |
+| `Harvest__MaxCandidatesPerRun` | 500 | 7500 | harvest candidate generation cap |
+| `MatchIngestion__BatchSize` | 25 | 75 | accounts fetched per cycle |
+| `MatchIngestion__MatchesPerAccount` | 10 | 20 (appsettings default) | matches per account |
+| `MainAnalysis__MatchesToConsider` | 30 | 50 (appsettings default) | analysis window |
+| `MainAnalysis__MinMatchesToEvaluate` | 10 | 20 (appsettings default) | flag mains sooner on the small sample |
 
 Adjust them directly in the compose file on the host if preprod needs more (or
 less) data — no image rebuild required, `docker compose up -d` recreates the
 ingestor with the new values.
+
+## Platform scope
+
+The regions the pipeline runs on live in **one** list, `Platforms:Active`
+(`Platforms__Active__0`, `Platforms__Active__1`, … as environment variables).
+Discovery, match ingestion and the harvest inherit it, so a region is added in
+a single place instead of three.
+
+A section can still narrow the scope with its own `Discovery__Platforms__0`,
+`MatchIngestion__Platforms__0` or `Harvest__Platforms__0`, but the override is
+validated at startup: it must be a subset of `Platforms:Active`, and
+`Harvest:Platforms` must additionally be a subset of
+`MatchIngestion:Platforms` (the harvest only sees matches we ingest). A
+divergent configuration fails the ingestor boot with an explicit message
+instead of silently skipping the region for one stage (#496).

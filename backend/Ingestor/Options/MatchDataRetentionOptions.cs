@@ -33,7 +33,7 @@ public class MatchDataRetentionOptions
     /// powerspike aggregates (#694). Enabled by default: the dense per-minute grid
     /// only feeds that one-shot aggregation, so keeping it afterwards is pure waste
     /// (the grid otherwise grows to tens of GB). The canonical marks survive, so the
-    /// timeline-leads / matchup-lead / match-detail reads are unaffected.
+    /// match-detail reads are unaffected.
     /// </summary>
     public bool PruneAggregatedTimelineSnapshots { get; set; } = true;
 
@@ -44,4 +44,13 @@ public class MatchDataRetentionOptions
     /// without growing a single transaction's lock footprint or WAL.
     /// </summary>
     public int TimelineSnapshotPruneBatchSize { get; set; } = 500;
+
+    /// <summary>
+    /// Games floor below which a <c>champion_powerspike_event_stats</c> row is
+    /// deleted. Scoping those rows per core build (#890) gave them a long tail of
+    /// rare (first item, keystone) combinations that the read would never surface —
+    /// it applies the same floor — so they are reclaimed instead of accumulating.
+    /// Mirrors <c>ChampionsListOptions.MinSampleGames</c>. 0 disables the prune.
+    /// </summary>
+    public int PowerspikeEventMinGames { get; set; } = 20;
 }

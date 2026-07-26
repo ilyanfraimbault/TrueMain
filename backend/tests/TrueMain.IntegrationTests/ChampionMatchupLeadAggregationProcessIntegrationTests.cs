@@ -2,6 +2,7 @@ using AwesomeAssertions;
 using Core.Lol.Map;
 using Core.Options;
 using Data.Entities;
+using Ingestor.Options;
 using Ingestor.Processes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -35,7 +36,7 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests
     }
 
     [Fact]
-    public async Task RunAsync_AggregatesMatchupsAndTimelineLeadsFromRawRows()
+    public async Task RunAsync_AggregatesMatchupsFromRawRows()
     {
         await _fixture.ResetDatabaseAsync();
         await SeedGamesAsync(games: 12, version: "16.4.521.123", wins: 7);
@@ -51,25 +52,6 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests
         matchup.Patch.Should().Be("16.4", "the raw GameVersion folds to major.minor");
         matchup.Games.Should().Be(12);
         matchup.Wins.Should().Be(7);
-
-        // One row per canonical interval, each summing all 12 games' diffs.
-        var leads = await db.ChampionTimelineLeadStats.AsNoTracking()
-            .OrderBy(s => s.IntervalMinute)
-            .ToListAsync();
-        leads.Select(l => l.IntervalMinute).Should().Equal(Intervals);
-        foreach (var lead in leads)
-        {
-            lead.ChampionId.Should().Be(Champion);
-            lead.TeamPosition.Should().Be(Position);
-            lead.Patch.Should().Be("16.4");
-            lead.Games.Should().Be(12);
-            lead.TotalGoldDiff.Should().Be(12L * GoldLead);
-            lead.TotalCsDiff.Should().Be(12L * CsLead);
-            lead.TotalKillsDiff.Should().Be(12L * KillsLead);
-            lead.TotalLevelDiff.Should().Be(12L * LevelLead);
-            lead.TotalXpDiff.Should().Be(12L * XpLead);
-            lead.TotalDamageDiff.Should().Be(12L * DamageLead);
-        }
     }
 
     [Fact]
@@ -102,18 +84,10 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests
         yone.OpponentChampionId.Should().Be(Opponent);
         yone.Games.Should().Be(12);
         yone.Wins.Should().Be(7);
-
-        var leadChampions = await db.ChampionTimelineLeadStats.AsNoTracking()
-            .GroupBy(s => s.ChampionId)
-            .Select(g => new { ChampionId = g.Key, Rows = g.Count() })
-            .OrderBy(x => x.ChampionId)
-            .ToListAsync();
-        leadChampions.Select(x => x.ChampionId).Should().Equal(103, Champion);
-        leadChampions.Should().OnlyContain(x => x.Rows == Intervals.Length);
     }
 
     [Fact]
-    public async Task RunAsync_ReplacesByScopeWithoutDuplicatesOnRerun()
+    public async Task RunAsync_DoesNotDoubleCountOnRerunWithNoNewMatches()
     {
         await _fixture.ResetDatabaseAsync();
         await SeedGamesAsync(games: 12, version: "16.4.521.123", wins: 7);
@@ -123,11 +97,32 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests
         await process.RunCoreAsync(CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
-        (await db.ChampionMatchupStats.CountAsync()).Should().Be(1, "re-running deletes the live scope then reinserts");
-        (await db.ChampionTimelineLeadStats.CountAsync()).Should().Be(Intervals.Length);
+        (await db.ChampionMatchupStats.CountAsync()).Should().Be(1, "the second run finds nothing pending (flag-gated) so no new rows are written");
 
         var matchup = await db.ChampionMatchupStats.AsNoTracking().SingleAsync();
-        matchup.Games.Should().Be(12, "counts must not double on a second run");
+        matchup.Games.Should().Be(12, "counts must not double on a second run with nothing pending");
+
+        (await db.Matches.CountAsync(m => !m.MatchupLeadAggregated)).Should().Be(0, "every seeded match was folded in on the first run");
+    }
+
+    [Fact]
+    public async Task RunAsync_AccumulatesAcrossBatchesAsNewMatchesArrive()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedGamesAsync(games: 12, version: "16.4.521.123", wins: 7);
+
+        var process = CreateProcess();
+        await process.RunCoreAsync(CancellationToken.None);
+
+        // More games for the same champion/opponent/patch arrive before the next cycle.
+        await SeedGamesAsync(games: 5, version: "16.4.521.123", wins: 2, matchPrefix: "m2");
+        await process.RunCoreAsync(CancellationToken.None);
+
+        await using var db = _fixture.CreateDbContext();
+
+        var matchup = await db.ChampionMatchupStats.AsNoTracking().SingleAsync();
+        matchup.Games.Should().Be(17, "the second batch's games must add to the first, not replace them");
+        matchup.Wins.Should().Be(9);
     }
 
     [Fact]
@@ -166,6 +161,7 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests
         => new(
             NullLogger<ChampionMatchupLeadAggregationProcess>.Instance,
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
+            Microsoft.Extensions.Options.Options.Create(new MatchupLeadAggregationOptions()),
             new TestDbContextFactory(_fixture),
             TimeProvider.System);
 
@@ -212,7 +208,7 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests
         for (var i = 0; i < games; i++)
         {
             var matchId = $"{matchPrefix}-{version}-{i}";
-            var match = new MatchBuilder().WithId(matchId).WithQueueId(QueueId).WithGameVersion(version).Build();
+            var match = new MatchBuilder().WithId(matchId).WithQueueId(QueueId).WithGameVersion(version).WithTimelineIngested().Build();
             db.Matches.Add(match);
 
             db.MatchParticipants.Add(Participant(matchId, 1, champion, teamId: 100, win: i < wins, riotAccountId: account.Id));

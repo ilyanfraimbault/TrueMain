@@ -221,27 +221,6 @@ games, avec games / wins / winrate, calculé en live.
 
 `patch` est `null` quand aucun patch n'a été épinglé.
 
-## `GET /champions/{championId}/timeline-leads`
-
-Avance moyenne vs l'adversaire de lane à chaque palier (5/10/15/20/30 min) :
-diffs gold / CS / kills / niveau / xp / dégâts.
-
-**Query** — `position` (**requis**, `400` sinon), `patch` (optionnel)
-
-**Réponse `200`** — `ChampionTimelineLeadsResponse`
-
-```json
-{
-  "championId": 103,
-  "position": "MIDDLE",
-  "patch": "16.4",
-  "intervals": [
-    { "intervalMinute": 10, "games": 1200, "goldDiff": 145.3, "csDiff": 4.1, "killsDiff": 0.3, "levelDiff": 0.2, "xpDiff": 210.5, "damageDiff": 540.0 },
-    { "intervalMinute": 15, "games": 1100, "goldDiff": 310.7, "csDiff": 6.8, "killsDiff": 0.6, "levelDiff": 0.4, "xpDiff": 380.2, "damageDiff": 1320.0 }
-  ]
-}
-```
-
 ## `GET /champions/{championId}/scaling`
 
 Winrate en fonction de la durée de game, plus un indice de scaling (winrate des
@@ -319,10 +298,16 @@ d'échantillon et pour `JUNGLE` (pas de lane propre).
 
 ## `GET /champions/{championId}/powerspikes`
 
-Courbe de puissance par minute (relative à l'adversaire) + événements (items
-complétés, paliers de niveau 6/11/16) avec leur magnitude de spike.
+Événements de power spike (items complétés, paliers de niveau 6/11/16) avec leur
+magnitude, **scopés à un seul build core**.
 
-**Query** — `position` (**requis**, `400` sinon), `patch` (optionnel)
+**Query** — `position` (**requis**, `400` sinon), `buildFirstItemId` et
+`buildKeystoneId` (**requis**, positifs, `400` sinon), `patch` (optionnel),
+`eloBracket` (optionnel)
+
+Le couple `buildFirstItemId` / `buildKeystoneId` identifie le build core de la
+même façon que la lecture des builds clé ses onglets — un build jamais joué
+renvoie une liste vide plutôt qu'un repli sur les autres builds du champion.
 
 **Réponse `200`** — `ChampionPowerspikesResponse`
 
@@ -331,11 +316,6 @@ complétés, paliers de niveau 6/11/16) avec leur magnitude de spike.
   "championId": 103,
   "position": "MIDDLE",
   "patch": "16.4",
-  "curve": [
-    { "minute": 5, "power": 0.05, "games": 1700 },
-    { "minute": 10, "power": 0.22, "games": 1650 },
-    { "minute": 15, "power": 0.41, "games": 1500 }
-  ],
   "events": [
     { "type": "item", "refId": 6653, "avgMinute": 16.3, "spikeMagnitude": 0.18, "games": 1500 },
     { "type": "level", "refId": 6, "avgMinute": 6.8, "spikeMagnitude": 0.09, "games": 1700 }
@@ -343,8 +323,10 @@ complétés, paliers de niveau 6/11/16) avec leur magnitude de spike.
 }
 ```
 
-- `curve[].power` : indice unitless (0 = à égalité avec l'adversaire, positif = devant).
 - `events[].type` : `item` (`refId` = item id) ou `level` (`refId` = 6/11/16).
+- `events[].spikeMagnitude` : accélération de l'avance sur l'adversaire, en excès
+  de la courbure ambiante de la courbe moyenne. La courbe elle-même n'est plus
+  renvoyée : elle ne sert plus que de baseline côté serveur.
 
 ---
 
@@ -393,6 +375,8 @@ Leaderboard paginé des truemains. Pose un en-tête
 | `region`     | string | non    | toutes | `europe`/`americas`/`korea`. |
 | `position`   | string | non    | toutes | Filtre position. |
 | `championId` | int    | non    | tous   | Filtre champion principal. |
+| `otpOnly`    | bool   | non    | false  | Restreint aux one-tricks. |
+| `sort`       | string | non    | `rank` | `dedication` classe par score de dédication ; toute autre valeur retombe sur le classement par rang. |
 
 **Réponse `200`** — `LeaderboardResponse`
 
@@ -407,7 +391,12 @@ Leaderboard paginé des truemains. Pose un en-tête
       "stats": { "games": 412, "wins": 240, "losses": 172, "winRate": 0.583, "kda": 3.4 },
       "topChampions": [
         { "championId": 103, "games": 120, "playRate": 0.29, "primaryKeystoneId": 8214, "secondaryStyleId": 8100, "firstItemId": 6653 }
-      ]
+      ],
+      "dedication": {
+        "score": 78.4, "championId": 103,
+        "commitment": 0.193, "span": 1, "volume": 0.912, "recency": 0.968,
+        "playRate": 0.29, "careerGames": 120, "patchSpan": 7, "daysSinceLastGame": 1
+      }
     }
   ],
   "page": 1,
@@ -418,6 +407,15 @@ Leaderboard paginé des truemains. Pose un en-tête
 
 - `ranked.score` : clé de tri SQL exposée. `ranked` peut être `null` (trié en dernier).
 - `stats.wins`/`losses`/`winRate`/`kda` peuvent être `null` si aucune game attribuée.
+- `dedication` : score de dédication (0..100) du champion signature de la ligne,
+  avec ses quatre composantes et leurs entrées brutes. `null` si l'analyse des
+  mains n'a pas encore tourné. `championId` est le **seul** filtre qui déplace le
+  score sur un autre champion ; `position`, `otpOnly` et le plancher
+  `MinRankedGames` ne font que restreindre la population — un toplaner qui main
+  aussi un champion mid garde donc son score toplane sous `?position=MIDDLE`.
+  Corollaire : pour un même compte, le score et son `championId` sont identiques
+  quel que soit le `sort`, et identiques à ceux du profil.
+  Formule et calibrage : [`docs/dedication-score.md`](dedication-score.md).
 
 ## `GET /truemains/{nameTag}/profile`
 
@@ -432,12 +430,21 @@ Profil d'un joueur. `nameTag` est le Riot ID (`Name#TAG`, URL-encodé).
   "mains": [
     { "championId": 103, "games": 120, "playRate": 0.29, "primaryPosition": "MIDDLE", "isOtp": false }
   ],
+  "dedication": {
+    "score": 78.4, "championId": 103,
+    "commitment": 0.193, "span": 1, "volume": 0.912, "recency": 0.968,
+    "playRate": 0.29, "careerGames": 120, "patchSpan": 7, "daysSinceLastGame": 1
+  },
   "positions": [
     { "position": "MIDDLE", "games": 300, "rate": 0.72 },
     { "position": "TOP", "games": 116, "rate": 0.28 }
   ]
 }
 ```
+
+`dedication` porte sur le champion signature du joueur (son main le plus joué) ;
+`null` si aucun champion n'est encore classé comme main. Voir
+[`docs/dedication-score.md`](dedication-score.md).
 
 ## `GET /truemains/{nameTag}/champions/{championId}`
 
@@ -572,6 +579,10 @@ compte inconnu, ou match non joué par ce compte.
       "damagePerMin": 930.1,
       "goldPerMin": 465.0,
       "visionPerMin": 1.05,
+      "performanceScore": 86,
+      "placement": 1,
+      "isMvp": true,
+      "isAce": false,
       "laning15": { "csDiff": 12, "goldDiff": 480, "xpDiff": 210 },
       "firstToLevelTwo": true,
       "runes": [
@@ -601,6 +612,49 @@ compte inconnu, ou match non joué par ce compte.
 - `itemEvents.eventType` : `ITEM_PURCHASED` / `ITEM_SOLD` / `ITEM_DESTROYED` /
   `ITEM_UNDO` (`beforeId`/`afterId` renseignés sur un undo).
   `skillEvents.skillSlot` : 1=Q, 2=W, 3=E, 4=R.
+
+### Score de performance (`performanceScore` / `placement` / `isMvp` / `isAce`)
+
+Métrique **dérivée** (aucun stockage dédié), calculée à la lecture par
+`Core.Lol.Performance.PerformanceScore` — fonction pure et déterministe : mêmes
+entrées, même score. Sept composantes sont normalisées sur `0..1` puis moyennées
+avec des poids qui dépendent du rôle (`teamPosition`), le résultat étant remis à
+l'échelle `0..100` :
+
+| Composante | Normalisation |
+| --- | --- |
+| Combat | `(kills + assists) / max(1, deaths)`, linéaire jusqu'à 6.0 KDA = plein |
+| Kill participation | `(kills + assists) / teamKills`, borné à 1 |
+| Part de dégâts | part des dégâts aux champions de l'équipe, bande 5 % → 35 % |
+| Part d'or | part de l'or de l'équipe, bande 10 % → 30 % |
+| Farm | CS/min vs une référence par rôle (2.0 support … 9.5 bot) |
+| Vision | vision score/min vs une référence par rôle (0.8 bot … 2.4 support) |
+| Lane | avances @15 mixées or 50 % / cs 25 % / xp 25 %, centrées (lane égale = 0.5), saturées à ±1500 or, ±30 cs, ±1500 xp |
+
+Poids par rôle (somme = 100 ; `teamPosition` vide ou inconnu → profil neutre) :
+
+| Rôle | Combat | KP | Dégâts | Or | Farm | Vision | Lane |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| TOP | 22 | 16 | 18 | 8 | 16 | 6 | 14 |
+| JUNGLE | 20 | 20 | 16 | 8 | 16 | 8 | 12 |
+| MIDDLE | 22 | 16 | 20 | 8 | 16 | 6 | 12 |
+| BOTTOM | 22 | 14 | 22 | 8 | 18 | 4 | 12 |
+| UTILITY | 22 | 22 | 8 | 4 | 6 | 26 | 12 |
+| neutre | 22 | 18 | 18 | 8 | 14 | 8 | 12 |
+
+Une composante dont l'entrée manque (pas de snapshot @15, `teamKills` à 0, partie
+de durée nulle…) est **retirée** et son poids redistribué sur les autres — jamais
+comptée comme un zéro, ce qui pénaliserait un joueur pour un trou dans nos données.
+
+`placement` = rang 1..10 du score dans le match (1 = meilleur). Les égalités se
+départagent sur takedowns, puis morts, puis `participantId`, donc le classement est
+toujours strict et stable entre deux requêtes identiques. `isMvp` = meilleur score
+du camp gagnant, `isAce` = meilleur score du camp perdant.
+
+Hors modèle, faute de données stockées : participation aux objectifs (dragon /
+baron / tourelles), dégâts subis, soins/boucliers, wards posées. Pas de bonus de
+victoire non plus : le score note l'individu, et les vainqueurs remontent déjà
+naturellement via le KDA, le farm et les avances de lane.
 
 ---
 

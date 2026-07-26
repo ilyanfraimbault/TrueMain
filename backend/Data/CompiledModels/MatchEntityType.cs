@@ -20,10 +20,10 @@ namespace Data.CompiledModels
                 "Data.Entities.Match",
                 typeof(Match),
                 baseEntityType,
-                propertyCount: 13,
+                propertyCount: 14,
                 navigationCount: 1,
                 unnamedIndexCount: 4,
-                namedIndexCount: 1,
+                namedIndexCount: 2,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -93,6 +93,16 @@ namespace Data.CompiledModels
                 sentinel: 0);
             mapId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
+            var matchupLeadAggregated = runtimeEntityType.AddProperty(
+                "MatchupLeadAggregated",
+                typeof(bool),
+                propertyInfo: typeof(Match).GetProperty("MatchupLeadAggregated", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Match).GetField("<MatchupLeadAggregated>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: false);
+            matchupLeadAggregated.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            matchupLeadAggregated.AddAnnotation("Relational:DefaultValue", false);
+
             var platformId = runtimeEntityType.AddProperty(
                 "PlatformId",
                 typeof(string),
@@ -158,6 +168,11 @@ namespace Data.CompiledModels
             var index2 = runtimeEntityType.AddIndex(
                 new[] { platformId, queueId, gameStartTimeUtc });
             index2.AddAnnotation("Relational:Name", "IX_matches_platform_queue_game_start");
+
+            var iX_matches_matchup_lead_pending = runtimeEntityType.AddIndex(
+                new[] { queueId },
+                name: "IX_matches_matchup_lead_pending");
+            iX_matches_matchup_lead_pending.AddAnnotation("Relational:Filter", "\"MatchupLeadAggregated\" = false");
 
             var iX_matches_snapshot_prune_pending = runtimeEntityType.AddIndex(
                 new[] { queueId },

@@ -4,7 +4,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Npgsql;
 
 namespace Data;
 
@@ -59,9 +58,7 @@ public static class DatabaseMigrator
             // Mirror the hosts' data source wiring (dynamic JSON) so the migration
             // context maps the same types as the runtime one. We own both the
             // data source and the context here, so `await using` disposes them.
-            var dataSourceBuilder = new NpgsqlDataSourceBuilder(migrationsConnectionString);
-            dataSourceBuilder.EnableDynamicJson();
-            await using var dataSource = dataSourceBuilder.Build();
+            await using var dataSource = DataServiceCollectionExtensions.BuildDataSource(migrationsConnectionString);
 
             var contextOptions = new DbContextOptionsBuilder<TrueMainDbContext>()
                 .UseNpgsql(dataSource)
@@ -71,19 +68,12 @@ public static class DatabaseMigrator
             return;
         }
 
-        // A scoped context, when registered, is owned and disposed by the scope.
-        var scopedContext = scope.ServiceProvider.GetService<TrueMainDbContext>();
-        if (scopedContext is not null)
-        {
-            await MigrateAsync(scopedContext, logger, cancellationToken);
-            return;
-        }
-
-        // Some hosts (notably the Ingestor) only register a DbContextFactory; a
-        // factory-created context is ours to dispose.
-        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<TrueMainDbContext>>();
-        await using var factoryContext = await factory.CreateDbContextAsync(cancellationToken);
-        await MigrateAsync(factoryContext, logger, cancellationToken);
+        // Both hosts register the context through AddDbContextFactory (see
+        // DataServiceCollectionExtensions.AddTrueMainData), which also registers a
+        // scoped TrueMainDbContext. Resolve that scoped context; the scope owns and
+        // disposes it.
+        var scopedContext = scope.ServiceProvider.GetRequiredService<TrueMainDbContext>();
+        await MigrateAsync(scopedContext, logger, cancellationToken);
     }
 
     private static async Task MigrateAsync(

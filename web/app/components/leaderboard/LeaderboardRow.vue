@@ -16,6 +16,8 @@ const props = defineProps<{
   runeTree: RuneTreeResponse | null
   itemsMap: Record<number, StaticItemData>
   patch: string | null
+  /** True when the leaderboard is ranked by dedication — accents the column that drives the order. */
+  highlightDedication?: boolean
 }>()
 
 const profileHref = computed(() => {
@@ -79,6 +81,33 @@ function positionLabel(position: string): string {
   return POSITION_BY_VALUE.get(position)?.label ?? position
 }
 
+// Dedication score for the row's signature champion. Every figure here comes
+// straight from the API payload — the breakdown is never recomputed client-side,
+// so the tooltip can't drift from the number the backend ranked on.
+const dedicationLabel = computed(() =>
+  props.row.dedication === null ? null : formatDedicationScore(props.row.dedication.score))
+
+// Tier word + colour replace the old static "dedication" caption, so the
+// score reads (rose-gold→iron, best→worst) without needing the hover below.
+const dedicationTierLabel = computed(() =>
+  props.row.dedication === null ? null : dedicationTier(props.row.dedication.score))
+
+const dedicationColorClass = computed(() =>
+  props.row.dedication === null ? 'text-muted' : dedicationTierColor(props.row.dedication.score))
+
+const dedicationChampionName = computed(() => {
+  const dedication = props.row.dedication
+  return dedication ? championName(dedication.championId) : null
+})
+
+const dedicationBreakdown = computed(() => {
+  const dedication = props.row.dedication
+  return dedication ? dedicationComponents(dedication) : []
+})
+
+const dedicationScoreLabel = computed(() =>
+  props.row.dedication === null ? null : props.row.dedication.score.toFixed(1))
+
 // Primary + secondary lane icons. Each entry carries its icon URL and a
 // tooltip. The list is empty when the backend has no position data (no main
 // analysis yet), so the slot collapses without shifting the row.
@@ -113,8 +142,8 @@ const positionIcons = computed(() => {
        every row. The row is its own @container so the columns respond to
        the width it's actually given — full-width on /truemains, compact in
        the champion-page sidebar — instead of the viewport. -->
-  <div
-    class="glass-hover group @container relative flex items-center gap-3 rounded-md border border-default/60 bg-elevated/40 px-3 py-2"
+  <ListRowSurface
+    class="group @container relative gap-2"
   >
     <!-- Stretched profile link: a sibling overlay (not a wrapper) so the
          champion icons can be their own links without nesting <a> in <a>.
@@ -123,10 +152,10 @@ const positionIcons = computed(() => {
     <NuxtLink
       :to="profileHref"
       :aria-label="profileAriaLabel"
-      class="absolute inset-0 z-[1] rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      class="absolute inset-0 z-[1] rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
     />
     <!-- Rank -->
-    <span class="w-10 shrink-0 text-center text-sm font-semibold tabular-nums text-muted">
+    <span class="w-8 shrink-0 text-center text-sm font-semibold tabular-nums text-muted">
       #{{ row.rank }}
     </span>
 
@@ -163,22 +192,24 @@ const positionIcons = computed(() => {
       <LeaderboardRegionFlag :region="row.region" :width="18" class="mt-0.5" />
     </div>
 
-    <!-- Primary / secondary lane. Small, muted role icons secondary to the
-         name. Fixed-width slot (room for two 16px icons + gap) reserved on
-         every row so the layout never shifts whether a player has a secondary
-         lane, or no position data at all. Hidden on narrow rows to keep them
-         readable. -->
-    <div class="hidden w-12 shrink-0 items-center gap-1 @xl:flex">
+    <!-- Primary / secondary lane. Same 22px icon as the champion list's
+         position column; the primary lane matches its full opacity, and only
+         the secondary lane (a concept the champion list has no equivalent of)
+         stays dimmed to read as lower priority. Fixed-width slot (room for two
+         22px icons + gap) reserved on every row so the layout never shifts
+         whether a player has a secondary lane, or no position data at all.
+         Hidden on narrow rows to keep them readable. -->
+    <div class="hidden w-16 shrink-0 items-center gap-1 @xl:flex">
       <NuxtImg
         v-for="role in positionIcons"
         :key="role.position"
         :src="role.iconUrl"
         :alt="role.title"
         :title="role.title"
-        class="size-4 shrink-0"
-        :class="role.primary ? 'opacity-70' : 'opacity-40'"
-        width="16"
-        height="16"
+        class="size-[22px] shrink-0"
+        :class="role.primary ? undefined : 'opacity-40'"
+        width="22"
+        height="22"
       />
     </div>
 
@@ -226,19 +257,58 @@ const positionIcons = computed(() => {
       </template>
     </div>
 
-    <!-- LP + rank emblem. LP is shown (matches the homepage teaser); the
-         division replaces it for the few non-apex rows. -->
+    <!-- Dedication. Always reserved (empty slot when the account has no
+         main-champion analysis yet) so the LP and stat columns never shift.
+         Kept visible at every row width, unlike the games/KDA/WR cluster: it is
+         the leaderboard's signature column, and the sort key when the board is
+         ranked by it. Coloured by tier (rose-gold→iron, same scale as
+         `TierBadge`'s S..D) so the score reads without a hover; the tooltip
+         underneath still carries the full component breakdown. `relative z-10`
+         lifts the trigger above the stretched profile-link overlay — like the
+         champion column below — so it actually receives the hover/focus that
+         opens it. -->
+    <UTooltip
+      v-if="row.dedication"
+      :delay-duration="150"
+      :ui="{ content: 'p-0 h-auto max-w-none bg-transparent ring-0 shadow-none text-default' }"
+    >
+      <div class="relative z-10 flex w-16 shrink-0 flex-col items-end">
+        <span
+          class="text-sm font-semibold tabular-nums"
+          :class="[dedicationColorClass, { 'underline decoration-dotted underline-offset-2': highlightDedication }]"
+        >{{ dedicationLabel }}</span>
+        <span
+          class="text-[10px] font-medium"
+          :class="dedicationColorClass"
+        >{{ dedicationTierLabel }}</span>
+      </div>
+
+      <template #content>
+        <GameTooltipSurface>
+          <p class="mb-2 text-xs font-semibold text-default">
+            Dedication {{ dedicationScoreLabel }}/100 · {{ dedicationChampionName }}
+          </p>
+          <DedicationBreakdown :components="dedicationBreakdown" />
+        </GameTooltipSurface>
+      </template>
+    </UTooltip>
+    <div v-else class="w-16 shrink-0" />
+
+    <!-- Rank emblem. The tier crest carries the visual weight; the LP figure
+         is dropped (too wide for the row) and only the division survives for
+         the few non-apex rows, since the crest alone can't show it. Full LP
+         is still available on hover via the title. -->
     <div
       v-if="ranked"
-      class="flex w-24 shrink-0 items-center justify-end gap-1.5"
+      class="flex w-12 shrink-0 items-center justify-end gap-1"
       :title="`${ranked.tier}${showDivision ? ' ' + ranked.division : ''} · ${ranked.leaguePoints.toLocaleString('en-US')} LP`"
     >
       <RankIcon :tier="ranked.tier" :size="26" />
-      <span class="text-sm font-semibold tabular-nums">
-        {{ showDivision ? ranked.division : `${ranked.leaguePoints.toLocaleString('en-US')} LP` }}
+      <span v-if="showDivision" class="text-sm font-semibold tabular-nums">
+        {{ ranked.division }}
       </span>
     </div>
-    <div v-else class="w-24 shrink-0" />
+    <div v-else class="w-12 shrink-0" />
 
     <!-- Flex spacer pushes the stat block to the far right while the columns
          above stay fixed. -->
@@ -259,5 +329,14 @@ const positionIcons = computed(() => {
         <span class="text-[10px] text-muted">WR</span>
       </div>
     </div>
-  </div>
+
+    <!-- Follow toggle, pinned to the row's trailing edge on every breakpoint
+         (the stat block above collapses on narrow rows, the star does not). -->
+    <FavoriteToggle
+      :game-name="row.identity.gameName"
+      :tag-line="row.identity.tagLine"
+      :region="row.region"
+      :profile-icon-id="row.identity.profileIconId"
+    />
+  </ListRowSurface>
 </template>

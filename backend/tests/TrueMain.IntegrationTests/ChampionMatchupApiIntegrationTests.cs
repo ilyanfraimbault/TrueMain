@@ -5,6 +5,7 @@ using Core.Lol.Map;
 using Core.Lol.Ranking;
 using Core.Options;
 using Data.Entities;
+using Ingestor.Options;
 using Ingestor.Processes;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -354,13 +355,13 @@ public sealed class ChampionMatchupApiIntegrationTests
         }
 
         // Decoy 1: Zed on the SAME team as Yone (opposite-team rule excludes it).
-        var sameTeam = new MatchBuilder().WithId("m-sameteam").WithQueueId(QueueId).Build();
+        var sameTeam = new MatchBuilder().WithId("m-sameteam").WithQueueId(QueueId).WithTimelineIngested().Build();
         db.Matches.Add(sameTeam);
         db.MatchParticipants.Add(Participant(sameTeam.Id, 1, Champion, teamId: 100, Position, win: true, riotAccountId: account.Id));
         db.MatchParticipants.Add(Participant(sameTeam.Id, 2, Opponent, teamId: 100, Position, win: true));
 
         // Decoy 2: Zed present but in a different lane (same-position rule excludes it).
-        var otherLane = new MatchBuilder().WithId("m-otherlane").WithQueueId(QueueId).Build();
+        var otherLane = new MatchBuilder().WithId("m-otherlane").WithQueueId(QueueId).WithTimelineIngested().Build();
         db.Matches.Add(otherLane);
         db.MatchParticipants.Add(Participant(otherLane.Id, 1, Champion, teamId: 100, Position, win: true, riotAccountId: account.Id));
         db.MatchParticipants.Add(Participant(otherLane.Id, 2, Opponent, teamId: 200, "TOP", win: true));
@@ -553,6 +554,7 @@ public sealed class ChampionMatchupApiIntegrationTests
             .WithId(matchId)
             .WithQueueId(queueId)
             .WithGameVersion(gameVersion)
+            .WithTimelineIngested()
             .Build();
         db.Matches.Add(match);
 
@@ -644,6 +646,7 @@ public sealed class ChampionMatchupApiIntegrationTests
         var process = new ChampionMatchupLeadAggregationProcess(
             NullLogger<ChampionMatchupLeadAggregationProcess>.Instance,
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
+            Microsoft.Extensions.Options.Options.Create(new MatchupLeadAggregationOptions()),
             new TestDbContextFactory(_fixture),
             TimeProvider.System);
         await process.RunCoreAsync(CancellationToken.None);

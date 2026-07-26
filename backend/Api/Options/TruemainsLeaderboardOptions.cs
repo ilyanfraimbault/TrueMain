@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace TrueMain.Options;
 
 /// <summary>
@@ -26,5 +28,6 @@ public sealed class TruemainsLeaderboardOptions
     /// <c>TotalMatches &gt;= MainAnalysis.MinMatchesToEvaluate</c>, any value at
     /// or below that threshold is a no-op. Set to 0 to disable.
     /// </summary>
+    [Range(0, int.MaxValue)]
     public int MinRankedGames { get; set; } = 20;
 }

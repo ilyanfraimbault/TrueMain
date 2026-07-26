@@ -5,9 +5,7 @@ using Data.BuildFacts;
 using Data.Logging.Crash;
 using Data.Logging.Mongo;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using Npgsql;
 using Scalar.AspNetCore;
 using TrueMain.Authentication;
 using TrueMain.Options;
@@ -22,7 +20,14 @@ const string frontendCorsPolicy = "FrontendCors";
 // Add services to the container.
 
 builder.Services.AddControllers();
-builder.Services.AddProblemDetails();
+builder.Services.AddProblemDetails(options =>
+{
+    // Every ProblemDetails response — validation, not-found, or unhandled 5xx —
+    // carries the same traceId so a user-reported error can be matched to server
+    // logs without ever needing to embed raw entity ids in the message text.
+    options.CustomizeProblemDetails = context =>
+        context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 // Bound the shared response cache so a crafted fan-out of distinct request
@@ -98,6 +103,7 @@ builder.Services.AddOptions<OpsOptions>()
     .ValidateOnStart();
 builder.Services.AddOptions<TruemainsLeaderboardOptions>()
     .Bind(builder.Configuration.GetSection(TruemainsLeaderboardOptions.SectionName))
+    .ValidateDataAnnotations()
     // MinRankedGames is compared against main_champion_stats.TotalMatches,
     // which saturates at MainAnalysis.MatchesToConsider — so the real upper
     // bound is that option, not a constant. Cross-validate the two instead of
@@ -145,7 +151,9 @@ builder.Services.AddOptions<CompositionSearchOptions>()
         "CompositionSearch:SituationalItemCount must be >= 0.")
     .ValidateOnStart();
 builder.Services.AddOptions<DatabaseOptions>()
-    .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName));
+    .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 
 builder.Services
     .AddAuthentication(ApiKeyAuthenticationDefaults.Scheme)
@@ -184,18 +192,19 @@ builder.Services.AddScoped<ICompositionRecommendationQueryService, CompositionRe
 // aggregation, so the composition recommender reads a game's items
 // identically. Patch-cached inside the provider.
 builder.Services.AddHttpClient<IItemMetadataProvider, CommunityDragonItemMetadataProvider>();
-builder.Services.AddScoped<IChampionTimelineLeadsQueryService, ChampionTimelineLeadsQueryService>();
 builder.Services.AddScoped<IChampionScalingQueryService, ChampionScalingQueryService>();
 builder.Services.AddScoped<IChampionItemTimingsQueryService, ChampionItemTimingsQueryService>();
 builder.Services.AddScoped<IChampionRoamQueryService, ChampionRoamQueryService>();
 builder.Services.AddScoped<IChampionPowerspikesQueryService, ChampionPowerspikesQueryService>();
 builder.Services.AddScoped<IChampionTrendQueryService, ChampionTrendQueryService>();
 builder.Services.AddScoped<IChampionPatchDiffQueryService, ChampionPatchDiffQueryService>();
+builder.Services.AddScoped<IChampionMainsComparisonQueryService, ChampionMainsComparisonQueryService>();
 builder.Services.AddScoped<IMatchSummariesQueryService, MatchSummariesQueryService>();
 builder.Services.AddScoped<IMatchDetailQueryService, MatchDetailQueryService>();
 builder.Services.AddScoped<IProfileQueryService, ProfileQueryService>();
 builder.Services.AddScoped<IPlayerChampionBuildsQueryService, PlayerChampionBuildsQueryService>();
 builder.Services.AddScoped<IPlayerChampionMatchupQueryService, PlayerChampionMatchupQueryService>();
+builder.Services.AddScoped<IPlayerBuildDivergenceQueryService, PlayerBuildDivergenceQueryService>();
 builder.Services.AddScoped<IRankHistoryQueryService, RankHistoryQueryService>();
 builder.Services.AddScoped<ITruemainsLeaderboardQueryService, TruemainsLeaderboardQueryService>();
 builder.Services.AddScoped<ISearchQueryService, SearchQueryService>();
@@ -214,33 +223,12 @@ builder.Services.AddScoped<ISeedRequestService, SeedRequestService>();
 builder.Services.AddScoped<ISeedRequestQueryService, SeedRequestQueryService>();
 builder.Services.AddScoped<ICandidateQueryService, CandidateQueryService>();
 builder.Services.AddScoped<IAggregationStatsQueryService, AggregationStatsQueryService>();
-builder.Services.AddDbContext<TrueMainDbContext>(options =>
-{
-    var connectionString = builder.Configuration.GetConnectionString("TrueMain");
-
-    if (string.IsNullOrWhiteSpace(connectionString))
-    {
-        throw new InvalidOperationException(
-            "Missing connection string. Add ConnectionStrings:TrueMain to user secrets.");
-    }
-
-    var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
-    dataSourceBuilder.EnableDynamicJson();
-    var dataSource = dataSourceBuilder.Build();
-
-    options.UseNpgsql(dataSource);
-});
-// IDbContextFactory lets services that fire concurrent queries (e.g.
-// ProfileQueryService) create short-lived, independently owned contexts per
-// parallel branch. No options lambda on purpose: AddDbContext above already
-// registered DbContextOptions<TrueMainDbContext> (via TryAdd), so the factory
-// reuses that exact registration — same NpgsqlDataSource, connection pool and
-// EF model. Passing an options lambda here would be dead code (its own TryAdd
-// is a no-op once AddDbContext has run) and would risk silently building a
-// second data source if the two registrations were ever reordered. The Scoped
-// lifetime matches AddDbContext's options lifetime and leaves the scoped
-// TrueMainDbContext registration untouched.
-builder.Services.AddDbContextFactory<TrueMainDbContext>(lifetime: ServiceLifetime.Scoped);
+// AddTrueMainData registers the IDbContextFactory<TrueMainDbContext> — which
+// services that fire concurrent queries (e.g. ProfileQueryService) use to create
+// short-lived, independently owned contexts per parallel branch — and, in the
+// same call, the scoped TrueMainDbContext for the common request-scoped
+// injection. Both share the one NpgsqlDataSource built inside the extension.
+builder.Services.AddTrueMainData(builder.Configuration);
 
 // Persist Warning+ logs to MongoDB (see Data/Logging/Mongo) so the /ops/logs
 // admin endpoint can serve them, and expose the lossless operator-action audit
@@ -271,21 +259,21 @@ if (app.Environment.IsDevelopment()
         frontendCorsPolicy);
 }
 
-// Wrap unhandled exceptions in RFC 7807 ProblemDetails so clients
-// always see a structured payload instead of HTML stack traces, and
-// emit StatusCodePages for 4xx/5xx responses without a body so things
-// like a bare 404 still arrive as ProblemDetails JSON.
-app.UseExceptionHandler();
-app.UseStatusCodePages();
-
-// The OpenAPI JSON document (default /openapi/v1.json) and the Scalar UI
-// at /scalar/v1 are served only in Development so no API surface metadata
-// is exposed in production.
+// Development gets the rich debug page (source snippets, full stack trace);
+// everywhere else keeps the RFC 7807 ProblemDetails handler so clients always
+// see a structured payload instead of HTML stack traces. StatusCodePages
+// covers 4xx/5xx responses without a body so things like a bare 404 still
+// arrive as ProblemDetails JSON.
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
-    app.MapScalarApiReference();
+    app.UseDeveloperExceptionPage();
 }
+else
+{
+    app.UseExceptionHandler();
+}
+
+app.UseStatusCodePages();
 
 // HSTS instructs browsers to only reach the API over HTTPS. Skip it in
 // Development (localhost is typically HTTP and a cached HSTS policy would
@@ -297,6 +285,16 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// The OpenAPI JSON document (default /openapi/v1.json) and the Scalar UI
+// at /scalar/v1 are served only in Development so no API surface metadata
+// is exposed in production.
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+    app.MapScalarApiReference();
+}
+
 app.UseCors(frontendCorsPolicy);
 
 app.UseAuthentication();

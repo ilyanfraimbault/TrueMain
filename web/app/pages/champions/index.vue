@@ -3,6 +3,7 @@ import type { ChampionSummaryResponse } from '~~/shared/types/champions'
 import { POSITION_BY_VALUE, isChampionPosition, type ChampionPosition } from '~/utils/positions'
 import { normalizeEloBracket } from '~/utils/elo-brackets'
 import { isLoadingStatus } from '~/utils/async-data'
+import { describeFetchError } from '~/utils/errors'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 
 // Mirrors the backend default; the page size is fixed in the UI (no
@@ -11,9 +12,13 @@ import { formatPercentage } from '~~/shared/utils/ddragon'
 const PAGE_SIZE = 50
 
 useSeoMeta({
-  title: 'Champions',
-  description: 'Browse champions by lane with the most-played build, winrate and pickrate.',
+  title: 'Champion Builds',
+  description: 'Browse every champion build by lane — most-played runes, items and skill order, winrate and pickrate for the current patch.',
 })
+
+useSchemaOrg([
+  defineWebPage({ name: 'Champion Builds' }),
+])
 
 const router = useRouter()
 
@@ -96,6 +101,7 @@ const {
 } = useStaticRuneTree(selectedPatch)
 
 const error = computed(() => summariesError.value ?? staticError.value ?? itemsError.value ?? runeTreeError.value)
+useErrorToast(error, { title: 'Failed to load champions' })
 // Treat the pre-fetch `'idle'` state from `useLazy*` the same as `'pending'`
 // (see isLoadingStatus), otherwise the SSR shell briefly renders the empty
 // `<ul>` (and the "No champions match…" copy below) before the client kicks
@@ -265,7 +271,7 @@ const { perk, perkStyle, item: staticItem } = useBuildResolvers(runeTree, itemsM
         color="error"
         variant="soft"
         title="Failed to load champions"
-        :description="error.message"
+        :description="describeFetchError(error)"
       />
 
       <!-- Cold load: placeholder rows in the real row layout so there's no
@@ -284,11 +290,11 @@ const { perk, perkStyle, item: staticItem } = useBuildResolvers(runeTree, itemsM
             v-for="row in pagedRows"
             :key="`${row.championId}-${row.position}`"
           >
-            <div
+            <ListRowSurface
               role="button"
               tabindex="0"
               :aria-label="`View ${row.name} builds`"
-              class="glass-hover flex cursor-pointer items-center gap-4 rounded-lg border border-default/60 bg-elevated/60 px-3 py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-default"
+              class="cursor-pointer gap-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-default"
               @click="onRowActivate(row)"
               @keydown.enter.prevent="onRowActivate(row)"
               @keydown.space.prevent="onRowActivate(row)"
@@ -387,7 +393,7 @@ const { perk, perkStyle, item: staticItem } = useBuildResolvers(runeTree, itemsM
                   <span class="mt-0.5 text-xs text-muted">PR</span>
                 </div>
               </div>
-            </div>
+            </ListRowSurface>
           </li>
         </ul>
 
