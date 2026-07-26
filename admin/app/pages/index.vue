@@ -204,13 +204,10 @@ const topChampionsLoading = computed(
     </template>
 
     <template #body>
-      <UAlert
+      <FetchErrorAlert
         v-if="error"
-        color="error"
-        variant="subtle"
-        icon="i-lucide-triangle-alert"
+        :error="error"
         title="Failed to load overview stats"
-        :description="error.message"
         class="mb-6"
       />
 
@@ -243,13 +240,10 @@ const topChampionsLoading = computed(
           </div>
         </template>
 
-        <UAlert
+        <FetchErrorAlert
           v-if="matchesError"
-          color="error"
-          variant="subtle"
-          icon="i-lucide-triangle-alert"
+          :error="matchesError"
           title="Failed to load matches over time"
-          :description="matchesError.message"
         />
         <USkeleton v-else-if="matchesPending" class="h-[260px] w-full" />
         <div
@@ -377,13 +371,10 @@ const topChampionsLoading = computed(
             </div>
           </template>
 
-          <UAlert
+          <FetchErrorAlert
             v-if="championsError"
-            color="error"
-            variant="subtle"
-            icon="i-lucide-triangle-alert"
+            :error="championsError"
             title="Failed to load champion stats"
-            :description="championsError.message"
           />
           <USkeleton v-else-if="topChampionsLoading" class="h-[240px] w-full" />
           <div

@@ -318,13 +318,10 @@ function openDetail(entry: LogEntry) {
     <template #body>
       <CrashesPanel v-if="view === 'crashes'" />
       <template v-else>
-        <UAlert
+        <FetchErrorAlert
           v-if="error"
-          color="error"
-          variant="subtle"
-          icon="i-lucide-triangle-alert"
+          :error="error"
           title="Failed to load logs"
-          :description="error.message"
           class="mb-6"
         />
 

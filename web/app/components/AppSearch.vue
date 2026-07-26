@@ -5,6 +5,7 @@ import { getPositionIconUrl, getProfileIconUrl } from '~~/shared/utils/ddragon'
 import type { SearchResult } from '~~/shared/types/search'
 import { POSITION_BY_VALUE } from '~/utils/positions'
 import { formatTier } from '~/utils/tiers'
+import { describeFetchError } from '~/utils/errors'
 // Explicit (over Nuxt auto-import) so the template's {{ SEARCH_MIN_LENGTH }} has
 // a visible source.
 import { SEARCH_MIN_LENGTH } from '~/composables/useTruemainSearch'
@@ -81,7 +82,7 @@ const activeChampion = computed(() => {
 })
 
 // Truemains — debounced server search, reusing the existing composable.
-const { results, status, tooShort } = useTruemainSearch(term)
+const { results, status, error: truemainSearchError, tooShort } = useTruemainSearch(term)
 
 const { data: versions } = useDDragonVersions()
 const latestPatch = computed(() => versions.value?.[0] ?? null)
@@ -203,8 +204,10 @@ function toTruemainItem(result: SearchResult, stale = false): SearchItem {
 // and the aria-live announcement so the two can't drift apart.
 const TM_TOO_SHORT = `Type at least ${SEARCH_MIN_LENGTH} characters to search truemains.`
 const TM_SEARCHING = 'Searching truemains…'
-const TM_FAILED = 'Search failed — try again.'
 const TM_NO_MATCH = 'No truemain matches that name.'
+// Same wording as every other fetch failure in the app (describeFetchError),
+// rather than a one-off "Search failed" string.
+const truemainSearchFailedMessage = computed(() => describeFetchError(truemainSearchError.value))
 
 // One classification of the truemain-search state, derived once and consumed by
 // both the palette group and the aria-live announcement — so a new state
@@ -240,7 +243,7 @@ function truemainItemsFor(state: Exclude<TruemainState, { kind: 'idle' }>): Sear
   switch (state.kind) {
     case 'tooShort': return [{ label: TM_TOO_SHORT, icon: 'i-lucide-info', disabled: true }]
     case 'searching': return [{ label: TM_SEARCHING, icon: 'i-lucide-loader-circle', disabled: true }]
-    case 'error': return [{ label: TM_FAILED, icon: 'i-lucide-alert-triangle', disabled: true }]
+    case 'error': return [{ label: truemainSearchFailedMessage.value, icon: 'i-lucide-alert-triangle', disabled: true }]
     case 'empty': return [{ label: TM_NO_MATCH, icon: 'i-lucide-search-x', disabled: true }]
     case 'refetching': return state.results.map(result => toTruemainItem(result, true))
     case 'results': return state.results.map(result => toTruemainItem(result))
@@ -312,7 +315,7 @@ const truemainAnnouncement = computed(() => {
     case 'tooShort': return TM_TOO_SHORT
     case 'searching':
     case 'refetching': return TM_SEARCHING
-    case 'error': return TM_FAILED
+    case 'error': return truemainSearchFailedMessage.value
     case 'empty': return TM_NO_MATCH
     case 'results': return `${state.results.length} truemain${state.results.length > 1 ? 's' : ''} found.`
   }

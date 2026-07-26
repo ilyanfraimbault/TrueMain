@@ -2,6 +2,7 @@
 import type { LeaderboardSort, RegionSlug } from '~~/shared/types/leaderboard'
 import type { ChampionPosition } from '~/utils/positions'
 import { REGION_SLUGS } from '~~/shared/types/leaderboard'
+import { describeFetchError } from '~/utils/errors'
 
 useSeoMeta({
   title: 'OTP Leaderboard',
@@ -91,6 +92,8 @@ const {
   sort,
 })
 
+useErrorToast(leaderboardError, { title: 'Failed to load the leaderboard' })
+
 // ─── Static lookups ───────────────────────────────────────────────────────
 // The champion list backs the row's top-3 icon lookup and the header's
 // unified search — one shared `champion-static-list` cache (warmed by the
@@ -150,7 +153,7 @@ const championsById = useChampionsById(champions)
       color="error"
       icon="i-lucide-alert-triangle"
       title="Couldn't load the leaderboard"
-      description="The API request failed. Try refreshing — if it keeps failing, the backend may be down."
+      :description="describeFetchError(leaderboardError)"
     />
 
     <div v-if="leaderboardInitialLoading" class="space-y-1">
