@@ -305,12 +305,15 @@ public sealed class ChampionsController(
     }
 
     /// <summary>
-    /// Power curve and event spikes for a champion at a position: the mean
-    /// opponent-relative power per minute, with the completed build items and
-    /// level milestones (6/11/16) marked by how much the curve accelerates
-    /// around them. <paramref name="position"/> is the required Riot team
-    /// position; an unrecognised position is a 400. Always 200; the curve and
-    /// events are empty until the per-minute data has accumulated.
+    /// Event spikes for a champion at a position, scoped to one core build: the
+    /// items that build completes and the level milestones (6/11/16), each
+    /// carrying how much the champion's power curve accelerates around it.
+    /// <paramref name="position"/> is the required Riot team position; an
+    /// unrecognised position is a 400. <paramref name="buildFirstItemId"/> and
+    /// <paramref name="buildKeystoneId"/> identify the core build the same way
+    /// the builds read keys its tabs, and are both required (a 400 otherwise) —
+    /// spikes are only meaningful within one build. Always 200; the events are
+    /// empty until the per-minute data has accumulated.
     /// </summary>
     [HttpGet("{championId:int}/powerspikes")]
     [ProducesResponseType(typeof(ChampionPowerspikesResponse), StatusCodes.Status200OK)]
@@ -320,11 +323,18 @@ public sealed class ChampionsController(
         [FromQuery] string? position,
         [FromQuery] string? patch,
         [FromQuery] string? eloBracket,
+        [FromQuery] int? buildFirstItemId,
+        [FromQuery] int? buildKeystoneId,
         CancellationToken ct = default)
     {
         if (!TryRequirePosition(position, out var normalizedPosition, out var problem))
         {
             return problem;
+        }
+
+        if (buildFirstItemId is not > 0 || buildKeystoneId is not > 0)
+        {
+            return ValidationProblem("buildFirstItemId and buildKeystoneId are required and must be positive.");
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
@@ -335,6 +345,8 @@ public sealed class ChampionsController(
             normalizedPosition,
             normalizedPatch,
             normalizedBracket,
+            buildFirstItemId.Value,
+            buildKeystoneId.Value,
             ct);
 
         return Ok(response);

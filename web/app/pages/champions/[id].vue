@@ -5,8 +5,6 @@ import { describeFetchError } from '~/utils/errors'
 import { isLoadingStatus } from '~/utils/async-data'
 import type {
   ChampionPatchDiffResponse,
-  ChampionPowerCurvePoint,
-  ChampionPowerspikeEvent,
   ChampionScalingBucket,
   ChampionTrendPoint,
 } from '~~/shared/types/champions'
@@ -176,17 +174,6 @@ const { data: championScaling, status: scalingStatus } = useChampionScaling(
   eloBracketParam,
 )
 
-// Power curve event spikes — completed build items ranked by how much the
-// champion's lead accelerates after them (issue #571). Same lane/patch scoping
-// and gating; rendered against the page's static item map.
-const { data: championPowerspikes, status: powerspikesStatus } = useChampionPowerspikes(
-  championId,
-  trendPosition,
-  selectedPatch,
-  trendReady,
-  eloBracketParam,
-)
-
 // Roam metric — out-of-lane early kill participations (issue #536). Same lane/patch
 // scoping and gating as the other timeline-derived stats.
 const { data: championRoam, status: roamStatus } = useChampionRoam(
@@ -313,20 +300,6 @@ const scalingSnapshot = useLazyHydrationSnapshot(
     buckets: championScaling.value?.buckets ?? [],
     scalingIndex: championScaling.value?.scalingIndex ?? null,
     loading: isLoadingStatus(scalingStatus.value),
-  }),
-)
-const powerspikesSnapshot = useLazyHydrationSnapshot(
-  {
-    curve: [] as ChampionPowerCurvePoint[],
-    events: [] as ChampionPowerspikeEvent[],
-    itemsMap: {} as Record<number, StaticItemData>,
-    loading: true,
-  },
-  () => ({
-    curve: championPowerspikes.value?.curve ?? [],
-    events: championPowerspikes.value?.events ?? [],
-    itemsMap: itemsMap.value ?? {},
-    loading: isLoadingStatus(powerspikesStatus.value),
   }),
 )
 const roamSnapshot = useLazyHydrationSnapshot(
@@ -498,6 +471,10 @@ const matchupsSnapshot = useLazyHydrationSnapshot(
             :items-map="itemsMap ?? {}"
             :summoners-map="summonersMap ?? {}"
             :rune-tree="runeTree ?? null"
+            :champion-id="championId"
+            :position="trendPosition"
+            :patch="selectedPatch || null"
+            :elo-bracket="eloBracketParam"
           />
           <ChampionBuildTabsSkeleton v-else />
 
@@ -534,12 +511,6 @@ const matchupsSnapshot = useLazyHydrationSnapshot(
             hydrate-on-visible
             v-bind="scalingSnapshot.value"
             @vue:mounted="scalingSnapshot.reveal"
-          />
-
-          <LazyChampionPowerspikesChart
-            hydrate-on-visible
-            v-bind="powerspikesSnapshot.value"
-            @vue:mounted="powerspikesSnapshot.reveal"
           />
 
           <LazyChampionRoam

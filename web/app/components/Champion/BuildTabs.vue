@@ -13,6 +13,14 @@ const props = defineProps<{
   itemsMap: Record<number, StaticItemData>
   summonersMap: Record<number, StaticSummonerSpellData>
   runeTree: RuneTreeResponse | null
+  // Scope forwarded to the per-build power spikes panel, which fetches its own
+  // slice keyed on (champion, position, patch, elo) + the build it renders.
+  // Optional: the builder preview and the player-scoped champion page reuse
+  // these tabs without a population slice to attach spikes to.
+  championId?: number
+  position?: string | null
+  patch?: string | null
+  eloBracket?: string | null
 }>()
 
 const items = computed(() =>
@@ -102,6 +110,10 @@ const items = computed(() =>
           :items-map="itemsMap"
           :summoners-map="summonersMap"
           :rune-tree="runeTree"
+          :champion-id="championId"
+          :position="position"
+          :patch="patch"
+          :elo-bracket="eloBracket"
         />
       </template>
     </UTabs>

@@ -45,11 +45,11 @@ public sealed class ProcessRunSummaryJsonTests
                 """);
 
         ProcessRunSummaryJson.Serialize(new MatchDataRetentionSummary(
-            3, 420, 10, 100, 4, 7, 5, 900, 1, 2, 4, 5,
+            3, 420, 10, 100, 4, 7, 5, 900, 1, 2, 4, 5, 6,
             [new RetainedPatchesSummary("KR", ["16.3", "16.4"])]))
             .Should().Be(
                 """
-                {"retainedPatchCount":3,"queueId":420,"deletedMatches":10,"deletedParticipants":100,"deletedNonRankedMatches":4,"prunedCandidates":7,"prunedSnapshotMatches":5,"deletedIntermediateSnapshots":900,"deletedAggregateScopes":1,"deletedMatchupStats":2,"deletedPowerspikeCurveStats":4,"deletedPowerspikeEventStats":5,"retainedPatchesByPlatform":[{"platformId":"KR","patches":["16.3","16.4"]}]}
+                {"retainedPatchCount":3,"queueId":420,"deletedMatches":10,"deletedParticipants":100,"deletedNonRankedMatches":4,"prunedCandidates":7,"prunedSnapshotMatches":5,"deletedIntermediateSnapshots":900,"deletedAggregateScopes":1,"deletedMatchupStats":2,"deletedPowerspikeCurveStats":4,"deletedPowerspikeEventStats":5,"prunedSubFloorPowerspikeEvents":6,"retainedPatchesByPlatform":[{"platformId":"KR","patches":["16.3","16.4"]}]}
                 """);
     }
 
@@ -250,7 +250,7 @@ public sealed class ProcessRunSummaryJsonTests
             new { matches = 4000, batches = 4 });
 
         yield return (
-            new MatchDataRetentionSummary(3, 420, 10, 100, 4, 7, 5, 900, 1, 2, 4, 5,
+            new MatchDataRetentionSummary(3, 420, 10, 100, 4, 7, 5, 900, 1, 2, 4, 5, 6,
             [new RetainedPatchesSummary("KR", ["16.3", "16.4"])]),
             new
             {
@@ -266,6 +266,7 @@ public sealed class ProcessRunSummaryJsonTests
                 deletedMatchupStats = 2,
                 deletedPowerspikeCurveStats = 4,
                 deletedPowerspikeEventStats = 5,
+                prunedSubFloorPowerspikeEvents = 6,
                 retainedPatchesByPlatform = new[]
                 {
                     new { platformId = "KR", patches = new[] { "16.3", "16.4" } }

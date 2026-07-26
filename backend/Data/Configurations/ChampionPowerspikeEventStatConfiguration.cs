@@ -17,6 +17,8 @@ public sealed class ChampionPowerspikeEventStatConfiguration : IEntityTypeConfig
         entity.Property(e => e.TeamPosition).IsRequired().HasMaxLength(16);
         entity.Property(e => e.Patch).IsRequired().HasMaxLength(16);
         entity.Property(e => e.EloBracket).IsRequired().HasMaxLength(20).HasColumnName("elo_bracket").HasDefaultValue(string.Empty);
+        entity.Property(e => e.BuildFirstItemId).IsRequired().HasDefaultValue(0);
+        entity.Property(e => e.BuildKeystoneId).IsRequired().HasDefaultValue(0);
         entity.Property(e => e.EventType).IsRequired().HasMaxLength(8);
         entity.Property(e => e.RefId).IsRequired();
         entity.Property(e => e.SumSpike).IsRequired();
@@ -25,8 +27,19 @@ public sealed class ChampionPowerspikeEventStatConfiguration : IEntityTypeConfig
         entity.Property(e => e.AggregatedAtUtc).IsRequired();
 
         // Natural key on the aggregate grain and the ON CONFLICT target for the
-        // incremental additive upsert.
-        entity.HasIndex(e => new { e.ChampionId, e.TeamPosition, e.Patch, e.EloBracket, e.EventType, e.RefId })
-            .IsUnique();
+        // incremental additive upsert. The core-build pair sits before the event
+        // columns so the index also serves the read, which always filters on a
+        // single (champion, position, patch, elo, build) slice.
+        entity.HasIndex(e => new
+        {
+            e.ChampionId,
+            e.TeamPosition,
+            e.Patch,
+            e.EloBracket,
+            e.BuildFirstItemId,
+            e.BuildKeystoneId,
+            e.EventType,
+            e.RefId
+        }).IsUnique();
     }
 }

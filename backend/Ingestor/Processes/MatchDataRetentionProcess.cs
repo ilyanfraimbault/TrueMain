@@ -68,6 +68,9 @@ public sealed class MatchDataRetentionProcess(
         // was built to reclaim. Independent of the deletions above.
         var snapshotPrune = await PruneAggregatedTimelineSnapshotsAsync(retentionPlan.QueueId, ct);
 
+        // Reclaim the long tail of rare core builds in the powerspike event aggregate.
+        var prunedPowerspikeEvents = await PruneSubFloorPowerspikeEventsAsync(retentionPlan, ct);
+
         return BuildRetentionPayload(
             retentionPlan,
             deletedMatches,
@@ -75,7 +78,53 @@ public sealed class MatchDataRetentionProcess(
             nonRankedDeletion.DeletedMatches,
             prunedCandidates,
             aggregateDeletion,
-            snapshotPrune);
+            snapshotPrune,
+            prunedPowerspikeEvents);
+    }
+
+    /// <summary>
+    /// Deletes <c>champion_powerspike_event_stats</c> rows that sit below the read's
+    /// games floor, restricted to patches that no longer receive games (#890).
+    ///
+    /// The restriction is the point: those rows are additive and accumulate over a
+    /// patch's life, so pruning a live patch would delete a build that is slowly on
+    /// its way to the floor and reset it to zero every cycle — it could never get
+    /// there. Once a patch drops out of the retained window nothing folds into it
+    /// again, its sub-floor rows are frozen below a threshold the read already
+    /// filters on, and they are pure dead weight.
+    /// </summary>
+    private async Task<int> PruneSubFloorPowerspikeEventsAsync(RetentionPlan retentionPlan, CancellationToken ct)
+    {
+        var minGames = retentionOptions.Value.PowerspikeEventMinGames;
+        if (minGames <= 0)
+        {
+            return 0;
+        }
+
+        var livePatches = retentionPlan.RetainedPatchesByPlatform
+            .SelectMany(entry => entry.Value)
+            .ToHashSet(StringComparer.Ordinal);
+        if (livePatches.Count == 0)
+        {
+            return 0;
+        }
+
+        await using var db = await dbContextFactory.CreateDbContextAsync(ct);
+        var deleted = await db.ChampionPowerspikeEventStats
+            .Where(stat => stat.Games < minGames && !livePatches.Contains(stat.Patch))
+            .ExecuteDeleteAsync(ct);
+
+        if (deleted > 0)
+        {
+            logger.LogInformation(
+                "Powerspike event retention removed {Deleted} sub-floor row(s) (<{MinGames} games) "
+                + "on patches outside {LivePatches}.",
+                deleted,
+                minGames,
+                string.Join("|", livePatches.Order()));
+        }
+
+        return deleted;
     }
 
     /// <summary>
@@ -409,7 +458,8 @@ public sealed class MatchDataRetentionProcess(
         int deletedNonRankedMatches,
         int prunedCandidates,
         AggregateDeletionResult aggregateDeletion,
-        SnapshotPruneResult snapshotPrune)
+        SnapshotPruneResult snapshotPrune,
+        int prunedPowerspikeEvents)
     {
         return new MatchDataRetentionSummary(
             retentionPlan.RetainedPatchCount,
@@ -424,6 +474,7 @@ public sealed class MatchDataRetentionProcess(
             aggregateDeletion.DeletedMatchupStats,
             aggregateDeletion.DeletedPowerspikeCurveStats,
             aggregateDeletion.DeletedPowerspikeEventStats,
+            prunedPowerspikeEvents,
             retentionPlan.RetainedPatchesByPlatform
                 .OrderBy(entry => entry.Key)
                 .Select(entry => new RetainedPatchesSummary(entry.Key, entry.Value.Order().ToList()))
