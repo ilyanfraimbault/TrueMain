@@ -54,7 +54,7 @@ public sealed class ScoringHarvestBranchTests
             .Returns(
                 Task.FromResult(new List<MainCandidate> { candidate }),
                 Task.FromResult(new List<MainCandidate>()));
-        mainCandidates.GetScoredByPlatformAsync("KR", Arg.Any<int>(), Arg.Any<CancellationToken>())
+        mainCandidates.GetScoredByPlatformAsync("KR", Arg.Any<int>(), Arg.Any<IReadOnlyCollection<int>>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new List<MainCandidate> { candidate }));
 
         session.MainCandidates.Returns(mainCandidates);

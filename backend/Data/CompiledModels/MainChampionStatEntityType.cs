@@ -21,7 +21,7 @@ namespace Data.CompiledModels
                 "Data.Entities.MainChampionStat",
                 typeof(MainChampionStat),
                 baseEntityType,
-                propertyCount: 13,
+                propertyCount: 14,
                 unnamedIndexCount: 3,
                 keyCount: 1);
 
@@ -58,6 +58,16 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(MainChampionStat).GetField("<ChampionMatches>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: 0);
             championMatches.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var isActive = runtimeEntityType.AddProperty(
+                "IsActive",
+                typeof(bool),
+                propertyInfo: typeof(MainChampionStat).GetProperty("IsActive", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MainChampionStat).GetField("<IsActive>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: true);
+            isActive.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            isActive.AddAnnotation("Relational:DefaultValue", true);
 
             var isExtendedSample = runtimeEntityType.AddProperty(
                 "IsExtendedSample",
@@ -141,11 +151,11 @@ namespace Data.CompiledModels
 
             var index = runtimeEntityType.AddIndex(
                 new[] { championId });
-            index.AddAnnotation("Relational:Filter", "\"IsMain\"");
+            index.AddAnnotation("Relational:Filter", "\"IsMain\" AND \"IsActive\"");
             index.AddAnnotation("Relational:Name", "IX_main_champion_stats_is_main_champion");
 
             var index0 = runtimeEntityType.AddIndex(
-                new[] { platformId, isMain });
+                new[] { platformId, isMain, isActive });
 
             var index1 = runtimeEntityType.AddIndex(
                 new[] { platformId, puuid, championId },

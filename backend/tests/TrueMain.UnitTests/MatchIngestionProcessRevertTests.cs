@@ -25,6 +25,7 @@ public sealed class MatchIngestionProcessRevertTests
         matchClaimService.ClaimAsync(
                 Arg.Any<IReadOnlyCollection<string>>(),
                 Arg.Any<int>(),
+                Arg.Any<double>(),
                 Arg.Any<TimeSpan>(),
                 Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new List<AccountKey>
@@ -85,6 +86,7 @@ public sealed class MatchIngestionProcessRevertTests
         matchClaimService.ClaimAsync(
                 Arg.Any<IReadOnlyCollection<string>>(),
                 Arg.Any<int>(),
+                Arg.Any<double>(),
                 Arg.Any<TimeSpan>(),
                 Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new List<AccountKey> { new("KR", "puuid-1") }));

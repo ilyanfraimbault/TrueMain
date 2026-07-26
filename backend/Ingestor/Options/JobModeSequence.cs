@@ -28,6 +28,10 @@ public static class JobModeSequence
         // candidates compete in the same per-platform top-N as ladder/manual ones.
         JobMode.HarvestOnly,
         JobMode.ScoringOnly,
+        // Retires mains that stopped playing (#900) BEFORE the claim, so the batch
+        // that follows spends its match-v5 budget on players who still play instead
+        // of re-reading accounts that will come back empty.
+        JobMode.MainActivityOnly,
         JobMode.MatchIngestionOnly,
         // Backfills any pre-existing "Missing team position" gap left by upstream
         // Riot data before the champion aggregations read TeamPosition.

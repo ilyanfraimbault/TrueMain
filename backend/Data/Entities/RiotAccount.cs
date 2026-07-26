@@ -41,6 +41,14 @@ public class RiotAccount
 
     public DateTime? LastMatchIngestAtUtc { get; set; }
 
+    /// <summary>
+    /// Last time <c>MainActivityProcess</c> asked champion mastery whether this
+    /// account still plays its mains (#900). Throttles that one call per account
+    /// per <c>MainActivity:RecheckAfterHours</c> and orders the selection
+    /// (never-checked first, then oldest).
+    /// </summary>
+    public DateTime? LastActivityCheckAtUtc { get; set; }
+
     public MatchIngestStatus MatchIngestStatus { get; set; } = MatchIngestStatus.Idle;
 
     public DateTime? MatchIngestClaimedAtUtc { get; set; }

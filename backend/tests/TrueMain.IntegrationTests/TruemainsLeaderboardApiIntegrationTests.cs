@@ -83,6 +83,48 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
     }
 
     [Fact]
+    public async Task List_excludes_mains_retired_for_inactivity()
+    {
+        // #900: the leaderboard used to show mains who had stopped playing entirely
+        // — the "0 games" rows at the top of the board. Once MainActivityProcess flips
+        // their stat to inactive they must disappear, without the row being deleted.
+        await _fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var active = Account("active-main", "ActiveMain", "EUW1");
+            var retired = Account("retired-main", "RetiredMain", "EUW1");
+
+            db.RiotAccounts.AddRange(active, retired);
+            db.RankSnapshots.AddRange(
+                Snapshot(active, "MASTER", "I", 100, now),
+                // Higher LP on purpose: without the filter this one would top the board.
+                Snapshot(retired, "CHALLENGER", "I", 900, now));
+
+            var retiredStat = MainStat("retired-main", "EUW1", 1, "MIDDLE", isMain: true);
+            retiredStat.IsActive = false;
+
+            db.MainChampionStats.AddRange(
+                MainStat("active-main", "EUW1", 1, "MIDDLE", isMain: true),
+                retiredStat);
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        var leaderboard = await (await client.GetAsync("/truemains"))
+            .Content.ReadFromJsonAsync<LeaderboardResponse>();
+
+        leaderboard.Should().NotBeNull();
+        leaderboard!.Total.Should().Be(1);
+        leaderboard.Rows.Should().ContainSingle()
+            .Which.Identity.GameName.Should().Be("ActiveMain");
+    }
+
+    [Fact]
     public async Task List_serves_games_kda_from_aggregate_scopes_and_winrate_from_rank_snapshot()
     {
         // Regression for #719: the Games / KDA cell used to COUNT over live

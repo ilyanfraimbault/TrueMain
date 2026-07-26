@@ -43,7 +43,7 @@ internal static class MainPositions
         // requested slice (~25 players × few mains each).
         var rows = await ctx.MainChampionStats
             .AsNoTracking()
-            .Where(m => puuids.Contains(m.Puuid) && m.IsMain)
+            .Where(m => puuids.Contains(m.Puuid) && m.IsMain && m.IsActive)
             .Select(m => new { m.Puuid, m.PlayRate, m.ChampionMatches, m.PositionBreakdown })
             .ToListAsync(ct);
 

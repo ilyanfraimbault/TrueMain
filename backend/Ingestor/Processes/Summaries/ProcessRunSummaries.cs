@@ -110,6 +110,14 @@ public sealed record MainAnalysisSummary(
     int StatsRemoved,
     int DemotedAccounts) : IProcessRunSummary;
 
+/// <summary>Champion-mastery activity check outcome (#900).</summary>
+public sealed record MainActivitySummary(
+    int AccountsChecked,
+    int MainsDeactivated,
+    int MainsReactivated,
+    int AccountsFailed,
+    int AccountsSkipped) : IProcessRunSummary;
+
 /// <summary>Champion pattern aggregation outcome.</summary>
 public sealed record ChampionPatternAggregationSummary(
     int SourceRows,

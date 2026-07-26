@@ -27,6 +27,7 @@ public sealed class WorkerFailureMetricsTests
         ("ManualSeed", JobMode.ManualSeedOnly),
         ("Harvest", JobMode.HarvestOnly),
         ("Scoring", JobMode.ScoringOnly),
+        ("MainActivity", JobMode.MainActivityOnly),
         ("MatchIngestion", JobMode.MatchIngestionOnly),
         ("MatchTeamPositionCorrection", JobMode.TeamPositionCorrectionOnly),
         ("MainAnalysis", JobMode.MainAnalysisOnly),

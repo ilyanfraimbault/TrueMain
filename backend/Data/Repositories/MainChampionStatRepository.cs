@@ -9,7 +9,7 @@ public sealed class MainChampionStatRepository(TrueMainDbContext db) : IMainCham
     {
         return db.MainChampionStats
             .AsNoTracking()
-            .Where(s => s.IsMain && platforms.Contains(s.PlatformId))
+            .Where(s => s.IsMain && s.IsActive && platforms.Contains(s.PlatformId))
             .GroupBy(s => new { s.PlatformId, s.Puuid })
             .Select(g => new AccountKey(g.Key.PlatformId, g.Key.Puuid))
             .ToListAsync(ct);
@@ -19,7 +19,7 @@ public sealed class MainChampionStatRepository(TrueMainDbContext db) : IMainCham
     {
         var rows = await db.MainChampionStats
             .AsNoTracking()
-            .Where(s => s.IsMain)
+            .Where(s => s.IsMain && s.IsActive)
             .GroupBy(s => s.ChampionId)
             .Select(g => new { ChampionId = g.Key, Count = g.Count() })
             .ToListAsync(ct);

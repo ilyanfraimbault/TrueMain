@@ -20,7 +20,18 @@ public interface IMainCandidateRepository
         IReadOnlyCollection<string> puuids,
         CancellationToken ct);
 
-    Task<List<MainCandidate>> GetScoredByPlatformAsync(string platformId, int take, CancellationToken ct);
+    /// <summary>
+    /// The platform's best-scored candidates awaiting promotion, highest score first.
+    /// <c>deprioritizedChampionIds</c> — the champions already at or above the coverage
+    /// target (#900) — sort to the back of the queue whatever their score, so they only
+    /// take the slots the under-covered champions leave free. A priority, not a filter:
+    /// they are still promoted when the rest of the pool does not fill <c>take</c>.
+    /// </summary>
+    Task<List<MainCandidate>> GetScoredByPlatformAsync(
+        string platformId,
+        int take,
+        IReadOnlyCollection<int> deprioritizedChampionIds,
+        CancellationToken ct);
 
     /// <summary>
     /// Deletes never-promoted candidates that have gone stale (#487): rows still in a

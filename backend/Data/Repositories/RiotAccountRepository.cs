@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -91,7 +92,7 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
 
         var truemainKeys = db.MainChampionStats
             .AsNoTracking()
-            .Where(s => s.IsMain)
+            .Where(s => s.IsMain && s.IsActive)
             .Select(s => new { s.PlatformId, s.Puuid });
 
         // Rank-score ordering (#194) is scoped to the P1 truemain bucket only.
@@ -242,7 +243,8 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
                       || db.MainChampionStats.Any(stat =>
                           stat.PlatformId == account.PlatformId
                           && stat.Puuid == account.Puuid
-                          && stat.IsMain))
+                          && stat.IsMain
+                          && stat.IsActive))
             select account;
 
         if (cutoff > DateTime.MinValue)
@@ -258,9 +260,37 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
             .ToListAsync(ct);
     }
 
+    public Task<List<AccountKey>> GetAccountsForActivityCheckAsync(DateTime cutoff, int batchSize, CancellationToken ct)
+    {
+        // Deliberately NOT filtered on IsActive: an already-deactivated main is
+        // excluded from match ingestion and from main analysis, so this mastery
+        // check is its only way back (#900). Dropping it here would make
+        // deactivation permanent.
+        var accounts = db.RiotAccounts
+            .AsNoTracking()
+            .Where(account => account.Status == RiotAccountStatus.Active
+                              && db.MainChampionStats.Any(stat =>
+                                  stat.PlatformId == account.PlatformId
+                                  && stat.Puuid == account.Puuid
+                                  && stat.IsMain));
+
+        if (cutoff > DateTime.MinValue)
+        {
+            accounts = accounts.Where(a => a.LastActivityCheckAtUtc == null || a.LastActivityCheckAtUtc < cutoff);
+        }
+
+        return accounts
+            .OrderBy(a => a.LastActivityCheckAtUtc == null ? 0 : 1)
+            .ThenBy(a => a.LastActivityCheckAtUtc)
+            .Take(Math.Max(1, batchSize))
+            .Select(a => new AccountKey(a.PlatformId, a.Puuid))
+            .ToListAsync(ct);
+    }
+
     public async Task<List<AccountKey>> ClaimAccountsForMatchIngestAtomicallyAsync(
         IReadOnlyCollection<string> platforms,
         int batchSize,
+        double establishedMainShare,
         DateTime nowUtc,
         TimeSpan lease,
         CancellationToken ct)
@@ -280,38 +310,58 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
         var safeLease = lease > TimeSpan.Zero ? lease : TimeSpan.FromMinutes(30);
         var leaseCutoff = nowUtc - safeLease;
 
-        var queuedAccounts = db.MainCandidates
-            .AsNoTracking()
-            .Where(candidate =>
-                candidate.Status == MainCandidateStatus.Queued &&
-                normalizedPlatforms.Contains(candidate.PlatformId))
-            .Select(candidate => new { candidate.PlatformId, candidate.Puuid });
+        // Over-fetch per class, as the single pre-#900 query did: a claim can lose the
+        // race for a row, so the loop below needs a reserve to still fill the batch.
+        var fetchCap = Math.Max(safeBatchSize * 4, safeBatchSize);
 
-        var mainAccounts = db.MainChampionStats
-            .AsNoTracking()
-            .Where(stat =>
-                stat.IsMain &&
-                normalizedPlatforms.Contains(stat.PlatformId))
-            .Select(stat => new { stat.PlatformId, stat.Puuid });
+        // Both classes are expressed as an EXISTS over the account row rather than as a
+        // join on a projected key set: one row per account without a Distinct, and the
+        // ordering columns stay on riot_accounts where the claim index lives.
+        //
+        // Inactive mains (#900) are deliberately out of the first one: an account whose
+        // mastery last-play went stale returns nothing but still costs a full match-v5
+        // page every cycle, which is exactly the budget we want to move to players who
+        // actually play.
+        var establishedMains = await SelectClaimableAsync(
+            account => db.MainChampionStats.Any(stat =>
+                stat.IsMain
+                && stat.IsActive
+                && stat.PlatformId == account.PlatformId
+                && stat.Puuid == account.Puuid),
+            normalizedPlatforms,
+            leaseCutoff,
+            fetchCap,
+            ct);
 
-        var candidateAccounts = queuedAccounts.Union(mainAccounts);
+        var queuedCandidates = await SelectClaimableAsync(
+            account => db.MainCandidates.Any(candidate =>
+                candidate.Status == MainCandidateStatus.Queued
+                && candidate.PlatformId == account.PlatformId
+                && candidate.Puuid == account.Puuid),
+            normalizedPlatforms,
+            leaseCutoff,
+            fetchCap,
+            ct);
 
-        var claimableCandidates = await (
-                from candidate in candidateAccounts
-                join account in db.RiotAccounts.AsNoTracking()
-                    on new { candidate.PlatformId, candidate.Puuid }
-                    equals new { account.PlatformId, account.Puuid }
-                where account.Status == RiotAccountStatus.Active
-                      && (account.MatchIngestStatus == MatchIngestStatus.Idle
-                          || (account.MatchIngestStatus == MatchIngestStatus.Processing
-                              && account.MatchIngestClaimedAtUtc != null
-                              && account.MatchIngestClaimedAtUtc < leaseCutoff))
-                orderby account.LastMatchIngestAtUtc == null ? 0 : 1,
-                    account.LastMatchIngestAtUtc
-                select new AccountKey(candidate.PlatformId, candidate.Puuid)
-            )
-            .Take(Math.Max(safeBatchSize * 4, safeBatchSize))
-            .ToListAsync(ct);
+        // Depth over breadth (#900): most of the batch goes to re-ingesting the mains
+        // we already track, the rest to new candidates. A floor, not a partition — the
+        // spill-over passes below give the whole batch to whichever class can fill it,
+        // same semantics as Harvest:NewCandidateShare (#495), so a class is never
+        // starved by a quota it cannot use.
+        var establishedQuota = (int)Math.Ceiling(safeBatchSize * Math.Clamp(establishedMainShare, 0, 1));
+        var ordered = new List<AccountKey>(fetchCap);
+        var seen = new HashSet<AccountKey>();
+
+        AppendUpTo(establishedMains, establishedQuota);
+        AppendUpTo(queuedCandidates, safeBatchSize - ordered.Count);
+        AppendUpTo(establishedMains, safeBatchSize - ordered.Count);
+
+        // Reserve for lost claim races, established mains first — it only comes
+        // into play once the quota-respecting prefix above fails to fill the batch.
+        AppendUpTo(establishedMains, fetchCap - ordered.Count);
+        AppendUpTo(queuedCandidates, fetchCap - ordered.Count);
+
+        var claimableCandidates = ordered;
 
         var claimed = new List<AccountKey>();
         foreach (var candidate in claimableCandidates)
@@ -341,7 +391,54 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
         }
 
         return claimed;
+
+        void AppendUpTo(IReadOnlyList<AccountKey> source, int count)
+        {
+            foreach (var key in source)
+            {
+                if (count <= 0)
+                {
+                    return;
+                }
+
+                // An account can be both an established main and a queued candidate;
+                // it must be claimed once and count against one quota only.
+                if (!seen.Add(key))
+                {
+                    continue;
+                }
+
+                ordered.Add(key);
+                count--;
+            }
+        }
     }
+
+    /// <summary>
+    /// The accounts matching <paramref name="membership"/> that are currently claimable for
+    /// match ingestion (active account, Idle or an expired Processing lease), oldest-ingested
+    /// first.
+    /// </summary>
+    private Task<List<AccountKey>> SelectClaimableAsync(
+        Expression<Func<RiotAccount, bool>> membership,
+        IReadOnlyCollection<string> normalizedPlatforms,
+        DateTime leaseCutoff,
+        int take,
+        CancellationToken ct)
+        => db.RiotAccounts
+            .AsNoTracking()
+            .Where(account => account.Status == RiotAccountStatus.Active
+                              && normalizedPlatforms.Contains(account.PlatformId)
+                              && (account.MatchIngestStatus == MatchIngestStatus.Idle
+                                  || (account.MatchIngestStatus == MatchIngestStatus.Processing
+                                      && account.MatchIngestClaimedAtUtc != null
+                                      && account.MatchIngestClaimedAtUtc < leaseCutoff)))
+            .Where(membership)
+            .OrderBy(account => account.LastMatchIngestAtUtc == null ? 0 : 1)
+            .ThenBy(account => account.LastMatchIngestAtUtc)
+            .Take(take)
+            .Select(account => new AccountKey(account.PlatformId, account.Puuid))
+            .ToListAsync(ct);
 
     public Task<int> SetMatchIngestStatusAsync(string platformId, string puuid, MatchIngestStatus status, CancellationToken ct)
     {

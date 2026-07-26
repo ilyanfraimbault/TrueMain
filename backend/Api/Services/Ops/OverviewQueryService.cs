@@ -42,7 +42,8 @@ public sealed class OverviewQueryService(TrueMainDbContext db) : IOverviewQueryS
 
         var totalMains = await db.MainChampionStats
             .AsNoTracking()
-            .CountAsync(stat => stat.IsMain, ct);
+            // Active mains only (#900): the pool the public surfaces actually serve.
+            .CountAsync(stat => stat.IsMain && stat.IsActive, ct);
         var totalOtps = await db.MainChampionStats
             .AsNoTracking()
             .CountAsync(stat => stat.IsOtp, ct);
@@ -54,7 +55,7 @@ public sealed class OverviewQueryService(TrueMainDbContext db) : IOverviewQueryS
             .CountAsync(ct);
         var distinctChampionsWithMains = await db.MainChampionStats
             .AsNoTracking()
-            .Where(stat => stat.IsMain)
+            .Where(stat => stat.IsMain && stat.IsActive)
             .Select(stat => stat.ChampionId)
             .Distinct()
             .CountAsync(ct);

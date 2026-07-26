@@ -98,6 +98,7 @@ internal static class MainDedication
                   ON m."PlatformId" = a."PlatformId" AND m."Puuid" = a."Puuid"
                 WHERE a."Id" = ANY ({accountIds})
                   AND m."IsMain" = true
+                  AND m."IsActive" = true
                   AND ({championId}::int IS NULL OR m."ChampionId" = {championId})
                 ORDER BY a."Id", m."PlayRate" DESC, m."ChampionMatches" DESC
             )
@@ -253,6 +254,7 @@ internal static class MainDedication
                 WHERE a."PlatformId" = ANY ({platforms})
                   AND a."Score" IS NOT NULL
                   AND m."IsMain" = true
+                  AND m."IsActive" = true
                   AND m."TotalMatches" >= {minGames}
                   AND ({otpOnly}::bool = false OR m."IsOtp" = true)
                   AND ({championId}::int IS NULL OR m."ChampionId" = {championId})

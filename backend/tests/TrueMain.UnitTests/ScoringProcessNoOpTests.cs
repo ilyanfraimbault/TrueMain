@@ -85,7 +85,7 @@ public sealed class ScoringProcessNoOpTests
             .Returns(
                 Task.FromResult(new List<MainCandidate> { candidate }),
                 Task.FromResult(new List<MainCandidate>()));
-        mainCandidates.GetScoredByPlatformAsync("KR", Arg.Any<int>(), Arg.Any<CancellationToken>())
+        mainCandidates.GetScoredByPlatformAsync("KR", Arg.Any<int>(), Arg.Any<IReadOnlyCollection<int>>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new List<MainCandidate> { candidate }));
 
         session.MainCandidates.Returns(mainCandidates);
@@ -103,7 +103,7 @@ public sealed class ScoringProcessNoOpTests
 
         await sessionFactory.Received(1).CreateAsync(Arg.Any<CancellationToken>());
         await coverageProvider.Received(1).GetSnapshotAsync(session, Arg.Any<CancellationToken>());
-        await mainCandidates.Received(1).GetScoredByPlatformAsync("KR", Arg.Any<int>(), Arg.Any<CancellationToken>());
+        await mainCandidates.Received(1).GetScoredByPlatformAsync("KR", Arg.Any<int>(), Arg.Any<IReadOnlyCollection<int>>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -120,6 +120,60 @@ public sealed class ScoringProcessNoOpTests
         // scarcityWeight 0.25, deficit 1, weight-sum 1.25 => a ~20-point bonus
         // (100 * 0.25 / 1.25). Assert the magnitude, not just the direction.
         scarceScore.Should().BeGreaterThan(neutralScore + 15);
+    }
+
+    [Fact]
+    public async Task RunAsync_PassesSaturatedChampions_ToThePromotionQueue()
+    {
+        // #900: champions already at the coverage target must reach the promotion query as
+        // deprioritised, so their candidates only take the slots under-covered champions
+        // leave free — the depth-over-breadth lever on the intake side.
+        var sessionFactory = Substitute.For<IDataSessionFactory>();
+        var session = Substitute.For<IDataSession>();
+        var mainCandidates = Substitute.For<IMainCandidateRepository>();
+        var candidate = new MainCandidate
+        {
+            PlatformId = "KR",
+            Puuid = "puuid-saturated-1",
+            ChampionId = 22,
+            ChampionRankInMasteryTop = 1,
+            ChampionPoints = 500_000,
+            LastPlayTimeUtc = DateTime.UtcNow.AddDays(-1),
+            DiscoveredAtUtc = DateTime.UtcNow.AddHours(-1),
+            Status = MainCandidateStatus.New
+        };
+
+        mainCandidates.GetNewBatchAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(new List<MainCandidate> { candidate }),
+                Task.FromResult(new List<MainCandidate>()));
+        mainCandidates.GetScoredByPlatformAsync("KR", Arg.Any<int>(), Arg.Any<IReadOnlyCollection<int>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new List<MainCandidate> { candidate }));
+
+        session.MainCandidates.Returns(mainCandidates);
+        sessionFactory.CreateAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(session));
+
+        var coverageProvider = Substitute.For<IChampionCoverageProvider>();
+        coverageProvider.GetSnapshotAsync(Arg.Any<IDataSession>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ChampionCoverageSnapshot(
+                new Dictionary<int, int> { [22] = 40, [51] = 2 },
+                targetMainsPerChampion: 20)));
+
+        var process = new ScoringProcess(
+            NullLogger<ScoringProcess>.Instance,
+            sessionFactory,
+            coverageProvider,
+            TimeProvider.System,
+            Microsoft.Extensions.Options.Options.Create(new ScoringOptions()));
+
+        await process.RunCoreAsync(CancellationToken.None);
+
+        await mainCandidates.Received(1).GetScoredByPlatformAsync(
+            "KR",
+            Arg.Any<int>(),
+            Arg.Is<IReadOnlyCollection<int>>(ids => ids.Contains(22) && !ids.Contains(51)),
+            Arg.Any<CancellationToken>());
     }
 
     private static async Task<double> ScoreSingleCandidateAsync(ChampionCoverageSnapshot coverage)
@@ -143,7 +197,7 @@ public sealed class ScoringProcessNoOpTests
             .Returns(
                 Task.FromResult(new List<MainCandidate> { candidate }),
                 Task.FromResult(new List<MainCandidate>()));
-        mainCandidates.GetScoredByPlatformAsync("KR", Arg.Any<int>(), Arg.Any<CancellationToken>())
+        mainCandidates.GetScoredByPlatformAsync("KR", Arg.Any<int>(), Arg.Any<IReadOnlyCollection<int>>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new List<MainCandidate> { candidate }));
 
         session.MainCandidates.Returns(mainCandidates);

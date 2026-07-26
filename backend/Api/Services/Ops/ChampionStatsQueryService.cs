@@ -44,7 +44,10 @@ public sealed class ChampionStatsQueryService(TrueMainDbContext db) : IChampionS
             mains AS (
                 SELECT
                     s."ChampionId" AS "ChampionId",
-                    COUNT(*) FILTER (WHERE s."IsMain") AS "Mains",
+                    -- Active mains only (#900): this column is the operator's view of the same
+                    -- pool the coverage signal scores on, so a retired main must not make a
+                    -- champion look covered when scarcity still treats it as under-covered.
+                    COUNT(*) FILTER (WHERE s."IsMain" AND s."IsActive") AS "Mains",
                     COUNT(*) FILTER (WHERE s."IsOtp") AS "Otps",
                     COUNT(*) FILTER (WHERE s."IsExtendedSample") AS "ExtendedSamples"
                 FROM main_champion_stats s
