@@ -45,12 +45,32 @@ const championItems = computed(() =>
     .map(c => ({
       label: c.name,
       value: c.championId,
-      avatar: { src: c.iconUrl, alt: c.name },
+      iconUrl: c.iconUrl,
     })),
 )
 
 const selectedChampion = computed(() =>
   championItems.value.find(c => c.value === props.championId))
+
+// Icon box matching USelectMenu's own avatar sizing per control size (3xs =
+// size-4, 2xs = size-5, xs = size-6), so swapping UAvatar for SkeletonImage
+// doesn't change the layout.
+const iconSizeClass = computed(() => {
+  switch (props.size) {
+    case 'xs':
+    case 'sm': return 'size-4'
+    case 'xl': return 'size-6'
+    default: return 'size-5'
+  }
+})
+
+// Still passed to USelectMenu even though the `#leading` slot draws the icon
+// itself: the trigger's start padding comes from the theme's `leading` variant,
+// which is keyed off this prop (`!!slots.leading` is read once, non-reactively,
+// so a slot alone leaves the label sliding under the icon). The slot replaces
+// what this renders, so only its presence matters here.
+const triggerAvatar = computed(() =>
+  selectedChampion.value ? { src: selectedChampion.value.iconUrl } : undefined)
 
 const showClear = computed(() => props.clearable && !props.disabled && props.championId !== null)
 
@@ -72,14 +92,35 @@ function clear(event: Event) {
       :model-value="selectedChampion"
       :items="championItems"
       :placeholder="placeholder ?? 'Any champion'"
-      :avatar="selectedChampion?.avatar"
+      :avatar="triggerAvatar"
       :size="size"
       :disabled="disabled"
       searchable
       searchable-placeholder="Search champion…"
       class="w-full"
       @update:model-value="onChange"
-    />
+    >
+      <!-- SkeletonImage instead of the built-in UAvatar on both the trigger and
+           the list rows: the menu re-uses the same row DOM as the search
+           narrows, so a plain <img> keeps painting the previous champion until
+           the new icon decodes (typing "kai" quickly leaves Aatrox's icon on
+           Kai'Sa's row). SkeletonImage blanks to a skeleton on every src
+           change, so a row never shows the wrong champion. -->
+      <template v-if="selectedChampion" #leading>
+        <SkeletonImage
+          :src="selectedChampion.iconUrl"
+          :alt="''"
+          :class="[iconSizeClass, 'shrink-0 rounded-full']"
+        />
+      </template>
+      <template #item-leading="{ item }">
+        <SkeletonImage
+          :src="item.iconUrl"
+          :alt="''"
+          :class="[iconSizeClass, 'shrink-0 rounded-full']"
+        />
+      </template>
+    </USelectMenu>
     <button
       v-if="showClear"
       type="button"

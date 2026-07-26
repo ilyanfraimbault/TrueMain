@@ -93,8 +93,13 @@ const championsById = useChampionsById(champions)
 
 // Carries the full result through to the row's label/trailing slots (region
 // under the name, lanes + mains + rank on the right) on top of the standard
-// label/suffix/avatar fields.
-type SearchItem = CommandPaletteItem & { truemain?: SearchResult }
+// label/suffix/avatar fields. `iconUrl` feeds the leading slots, which render a
+// SkeletonImage instead of the built-in UAvatar: the palette reuses the same
+// row DOM as the query narrows, so a plain <img> keeps painting the previous
+// champion/player until the new icon decodes (type "kai" fast and Aatrox's icon
+// stays next to Kai'Sa's name). SkeletonImage blanks to a skeleton on every src
+// change, so a row never shows someone else's picture.
+type SearchItem = CommandPaletteItem & { truemain?: SearchResult, iconUrl?: string | null }
 
 // Primary / secondary lane icons for a result row — same visual contract as
 // the leaderboard row (primary brighter than secondary, label tooltips from
@@ -167,7 +172,8 @@ const championItems = computed<SearchItem[]>(() =>
     .sort((a, b) => a.name.localeCompare(b.name, 'en'))
     .map(champion => ({
       label: champion.name,
-      avatar: { src: champion.iconUrl, alt: champion.name },
+      slot: 'champion',
+      iconUrl: champion.iconUrl,
       onSelect: () => onSelectChampion(champion.championId),
     })),
 )
@@ -179,7 +185,7 @@ function toTruemainItem(result: SearchResult, stale = false): SearchItem {
   const item: SearchItem = {
     label: result.identity.gameName,
     suffix: result.identity.tagLine ? `#${result.identity.tagLine}` : undefined,
-    avatar: { src: getProfileIconUrl(result.identity.profileIconId, latestPatch.value) ?? undefined, alt: result.identity.gameName },
+    iconUrl: getProfileIconUrl(result.identity.profileIconId, latestPatch.value),
     slot: 'truemain',
     truemain: result,
   }
@@ -353,7 +359,7 @@ defineShortcuts(computed(() => ({
           class="size-5 shrink-0 text-dimmed transition-colors group-hover:text-primary"
         />
         <span v-if="activeChampion" class="flex min-w-0 flex-1 items-center gap-2">
-          <UAvatar :src="activeChampion.iconUrl" :alt="''" size="2xs" />
+          <SkeletonImage :src="activeChampion.iconUrl" :alt="''" class="size-5 shrink-0 rounded-full" />
           <span class="truncate font-medium text-highlighted">{{ activeChampion.name }}</span>
         </span>
         <span v-else class="flex-1 truncate text-dimmed">
@@ -417,6 +423,26 @@ defineShortcuts(computed(() => ({
           class="h-96"
           :close="{ onClick: () => { open = false } }"
         >
+          <!-- Champion + player row icons. Both replace the default UAvatar
+               with SkeletonImage so a row that gets re-used for another entry
+               (every keystroke re-filters the list) shows a skeleton until the
+               new icon has loaded, never the previous champion's/player's
+               picture. `size-5` matches the palette's own 2xs avatar box. -->
+          <template #champion-leading="{ item }">
+            <SkeletonImage
+              :src="item.iconUrl"
+              :alt="''"
+              class="size-5 shrink-0 rounded-full"
+            />
+          </template>
+          <template #truemain-leading="{ item }">
+            <SkeletonImage
+              :src="item.iconUrl"
+              :alt="''"
+              class="size-5 shrink-0 rounded-full"
+            />
+          </template>
+
           <!-- Result row: name#tag with the region flag underneath on the
                left; lanes, truemained champions and the rank emblem (icon
                only — the tier name stays in the tooltip, never spelled out)
