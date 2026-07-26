@@ -6,6 +6,7 @@ using Data;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -14,9 +15,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Data.Migrations
 {
     [DbContext(typeof(TrueMainDbContext))]
-    partial class TrueMainDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260726164414_AddMainChampionStatIsActive")]
+    partial class AddMainChampionStatIsActive
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1317,7 +1320,8 @@ namespace Data.Migrations
                     b.HasIndex("Score")
                         .HasDatabaseName("IX_riot_accounts_score");
 
-                    b.HasIndex("GameName", "TagLine", "PlatformId");
+                    b.HasIndex("GameName", "TagLine", "PlatformId")
+                        .IsUnique();
 
                     b.HasIndex("MatchIngestStatus", "MatchIngestClaimedAtUtc", "LastMatchIngestAtUtc")
                         .HasDatabaseName("IX_riot_accounts_ingest_claim_lease")

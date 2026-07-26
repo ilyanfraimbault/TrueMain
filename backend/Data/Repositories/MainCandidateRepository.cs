@@ -44,10 +44,17 @@ public sealed class MainCandidateRepository(TrueMainDbContext db) : IMainCandida
             .Where(c => c.PlatformId == platformId && c.Puuid == puuid && championIds.Contains(c.ChampionId))
             .ToListAsync(ct);
 
-    public Task<List<MainCandidate>> GetScoredByPlatformAsync(string platformId, int take, CancellationToken ct)
+    public Task<List<MainCandidate>> GetScoredByPlatformAsync(
+        string platformId,
+        int take,
+        IReadOnlyCollection<int> deprioritizedChampionIds,
+        CancellationToken ct)
         => db.MainCandidates
             .Where(c => c.PlatformId == platformId && c.Status == MainCandidateStatus.Scored)
-            .OrderByDescending(c => c.Score)
+            // Champions that already reached the coverage target sort last whatever their
+            // score (#900), so they only take the slots an under-covered champion left free.
+            .OrderBy(c => deprioritizedChampionIds.Contains(c.ChampionId) ? 1 : 0)
+            .ThenByDescending(c => c.Score)
             .ThenBy(c => c.ScoredAtUtc == null ? 0 : 1)
             .ThenBy(c => c.ScoredAtUtc)
             .ThenBy(c => c.Id)

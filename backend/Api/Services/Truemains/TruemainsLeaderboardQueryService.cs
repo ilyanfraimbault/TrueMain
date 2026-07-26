@@ -555,6 +555,7 @@ public sealed class TruemainsLeaderboardQueryService(
                   WHERE m."PlatformId" = a."PlatformId"
                     AND m."Puuid" = a."Puuid"
                     AND m."IsMain" = true
+                    AND m."IsActive" = true
                     AND m."TotalMatches" >= {minGames}
                     AND ({otpOnly}::bool = false OR m."IsOtp" = true)
                     AND ({championFilter}::int IS NULL OR m."ChampionId" = {championFilter})
@@ -607,6 +608,7 @@ public sealed class TruemainsLeaderboardQueryService(
                   WHERE m."PlatformId" = a."PlatformId"
                     AND m."Puuid" = a."Puuid"
                     AND m."IsMain" = true
+                    AND m."IsActive" = true
                     AND m."TotalMatches" >= {minGames}
                     AND ({otpOnly}::bool = false OR m."IsOtp" = true)
                     AND ({championFilter}::int IS NULL OR m."ChampionId" = {championFilter})
@@ -735,6 +737,7 @@ public sealed class TruemainsLeaderboardQueryService(
                 FROM main_champion_stats m
                 WHERE m."Puuid" = ANY ({puuids})
                   AND m."IsMain" = true
+                  AND m."IsActive" = true
             )
             SELECT "Puuid", "ChampionId", "Games", "PlayRate", "IsOtp"
             FROM ranked

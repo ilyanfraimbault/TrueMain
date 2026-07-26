@@ -11,6 +11,7 @@ public sealed class MatchClaimService(
     public async Task<List<AccountKey>> ClaimAsync(
         IReadOnlyCollection<string> platforms,
         int batchSize,
+        double establishedMainShare,
         TimeSpan lease,
         CancellationToken ct)
     {
@@ -20,11 +21,11 @@ public sealed class MatchClaimService(
         var accounts = await session.RiotAccounts.ClaimAccountsForMatchIngestAtomicallyAsync(
             platforms,
             batchSize,
+            establishedMainShare,
             timeProvider.GetUtcNow().UtcDateTime,
             lease,
             ct);
 
-        var claimed = new List<AccountKey>(accounts.Count);
         foreach (var account in accounts)
         {
             var updated = await session.MainCandidates
@@ -42,13 +43,19 @@ public sealed class MatchClaimService(
                     updated,
                     account.PlatformId,
                     account.Puuid);
-
-                claimed.Add(account);
             }
         }
 
         await session.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
-        return claimed;
+
+        // Every claimed account is returned, including the established mains that have
+        // no Queued candidate left to move to Processing (their candidates are already
+        // Validated). Filtering on that transition — the pre-#900 behaviour — silently
+        // dropped exactly the accounts the established-main arm of the claim exists to
+        // refresh: the row was already flagged Processing, so it was neither ingested
+        // nor reverted, and sat out its whole lease. ValidateAsync / RevertAsync both
+        // no-op on zero candidates and still reset the account, so returning them is safe.
+        return accounts;
     }
 }

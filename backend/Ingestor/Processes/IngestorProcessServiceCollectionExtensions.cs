@@ -26,6 +26,7 @@ public static class IngestorProcessServiceCollectionExtensions
         services.AddRecordedProcess<ManualSeedProcess>(JobMode.ManualSeedOnly);
         services.AddRecordedProcess<HarvestProcess>(JobMode.HarvestOnly);
         services.AddRecordedProcess<ScoringProcess>(JobMode.ScoringOnly);
+        services.AddRecordedProcess<MainActivityProcess>(JobMode.MainActivityOnly);
         services.AddRecordedProcess<MatchIngestionProcess>(JobMode.MatchIngestionOnly);
         services.AddRecordedProcess<MatchTeamPositionCorrectionProcess>(JobMode.TeamPositionCorrectionOnly);
         services.AddRecordedProcess<MainAnalysisProcess>(JobMode.MainAnalysisOnly);

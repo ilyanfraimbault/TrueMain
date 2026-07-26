@@ -31,6 +31,7 @@ public sealed class MatchClaimServiceTests
             .ClaimAccountsForMatchIngestAtomicallyAsync(
                 Arg.Any<IReadOnlyCollection<string>>(),
                 Arg.Any<int>(),
+                Arg.Any<double>(),
                 Arg.Any<DateTime>(),
                 Arg.Any<TimeSpan>(),
                 Arg.Any<CancellationToken>())
@@ -49,13 +50,14 @@ public sealed class MatchClaimServiceTests
 
         var service = new MatchClaimService(sessionFactory, timeProvider, NullLogger<MatchClaimService>.Instance);
 
-        var result = await service.ClaimAsync(new[] { "KR" }, 10, lease, CancellationToken.None);
+        var result = await service.ClaimAsync(new[] { "KR" }, 10, 0.7, lease, CancellationToken.None);
 
         result.Should().ContainSingle().Which.Should().Be(new AccountKey("KR", "puuid-1"));
 
         await riotAccounts.Received(1).ClaimAccountsForMatchIngestAtomicallyAsync(
             Arg.Any<IReadOnlyCollection<string>>(),
             10,
+            0.7,
             nowUtc,
             lease,
             Arg.Any<CancellationToken>());

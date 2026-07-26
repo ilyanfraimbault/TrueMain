@@ -237,6 +237,7 @@ const CHAIN_LABELS: Record<string, string> = {
   ManualSeed: 'Manual Seed',
   Harvest: 'Harvest',
   Scoring: 'Scoring',
+  MainActivity: 'Main Activity',
   MatchIngestion: 'Match Ingest',
   MainAnalysis: 'Main Analysis',
   MatchParticipantEloBracketEnrichment: 'Elo Enrich',

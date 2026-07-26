@@ -18,9 +18,23 @@ public interface IRiotAccountRepository
     Task<List<RiotAccount>> GetAccountsForRefreshAsync(int batchSize, CancellationToken ct);
     Task<List<AccountKey>> GetAccountsForMainAnalysisAsync(DateTime cutoff, int batchSize, CancellationToken ct);
 
+    /// <summary>
+    /// Accounts holding at least one <c>IsMain</c> stat whose champion-mastery activity
+    /// check is due (never checked first, then oldest). Includes accounts already marked
+    /// inactive — that check is the only path back to active (#900).
+    /// </summary>
+    Task<List<AccountKey>> GetAccountsForActivityCheckAsync(DateTime cutoff, int batchSize, CancellationToken ct);
+
+    /// <summary>
+    /// Atomically claims the next accounts to ingest matches for.
+    /// <c>establishedMainShare</c> is the share of the batch reserved for accounts that are
+    /// already active established mains, the remainder going to <c>Queued</c> candidates
+    /// (#900) — a floor, not a partition: whatever one class cannot fill spills to the other.
+    /// </summary>
     Task<List<AccountKey>> ClaimAccountsForMatchIngestAtomicallyAsync(
         IReadOnlyCollection<string> platforms,
         int batchSize,
+        double establishedMainShare,
         DateTime nowUtc,
         TimeSpan lease,
         CancellationToken ct);

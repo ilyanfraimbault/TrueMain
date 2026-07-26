@@ -141,7 +141,8 @@ public sealed class ChampionMainsComparisonQueryService(
                              m.PlatformId == a.PlatformId
                              && m.Puuid == a.Puuid
                              && m.ChampionId == championId
-                             && m.IsMain)),
+                             && m.IsMain
+                             && m.IsActive)),
                 ct)
             : await AggregateAsync(
                 championId,
