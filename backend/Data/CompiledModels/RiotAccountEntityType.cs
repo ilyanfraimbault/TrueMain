@@ -219,8 +219,7 @@ namespace Data.CompiledModels
             index1.AddAnnotation("Relational:Name", "IX_riot_accounts_score");
 
             var index2 = runtimeEntityType.AddIndex(
-                new[] { gameName, tagLine, platformId },
-                unique: true);
+                new[] { gameName, tagLine, platformId });
 
             var index3 = runtimeEntityType.AddIndex(
                 new[] { matchIngestStatus, matchIngestClaimedAtUtc, lastMatchIngestAtUtc });
