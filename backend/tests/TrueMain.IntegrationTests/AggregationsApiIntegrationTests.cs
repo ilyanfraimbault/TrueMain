@@ -39,7 +39,7 @@ public sealed class AggregationsApiIntegrationTests
         var families = root.GetProperty("families").EnumerateArray().ToList();
         families.Select(family => family.GetProperty("key").GetString())
             .Should().BeEquivalentTo(
-                ["builds", "matchups", "timelineLeads", "powerspikes", "mains"],
+                ["builds", "matchups", "powerspikes", "mains"],
                 options => options.WithStrictOrdering());
 
         // Builds: two scopes on two hotfix versions of the same patch → one
@@ -122,18 +122,6 @@ public sealed class AggregationsApiIntegrationTests
             BuildMatchup(championId: 22, opponent: 64, patch: "16.4", now),
             BuildMatchup(championId: 22, opponent: 99, patch: "16.5", now),
             BuildMatchup(championId: 64, opponent: 22, patch: "16.4", now));
-
-        db.ChampionTimelineLeadStats.Add(new ChampionTimelineLeadStat
-        {
-            ChampionId = 22,
-            TeamPosition = "MIDDLE",
-            Patch = "16.4",
-            IntervalMinute = 10,
-            EloBracket = "GOLD",
-            Games = 5,
-            TotalGoldDiff = 1500,
-            AggregatedAtUtc = now
-        });
 
         db.ChampionPowerspikeCurveStats.Add(new ChampionPowerspikeCurveStat
         {

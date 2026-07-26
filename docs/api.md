@@ -221,27 +221,6 @@ games, avec games / wins / winrate, calculé en live.
 
 `patch` est `null` quand aucun patch n'a été épinglé.
 
-## `GET /champions/{championId}/timeline-leads`
-
-Avance moyenne vs l'adversaire de lane à chaque palier (5/10/15/20/30 min) :
-diffs gold / CS / kills / niveau / xp / dégâts.
-
-**Query** — `position` (**requis**, `400` sinon), `patch` (optionnel)
-
-**Réponse `200`** — `ChampionTimelineLeadsResponse`
-
-```json
-{
-  "championId": 103,
-  "position": "MIDDLE",
-  "patch": "16.4",
-  "intervals": [
-    { "intervalMinute": 10, "games": 1200, "goldDiff": 145.3, "csDiff": 4.1, "killsDiff": 0.3, "levelDiff": 0.2, "xpDiff": 210.5, "damageDiff": 540.0 },
-    { "intervalMinute": 15, "games": 1100, "goldDiff": 310.7, "csDiff": 6.8, "killsDiff": 0.6, "levelDiff": 0.4, "xpDiff": 380.2, "damageDiff": 1320.0 }
-  ]
-}
-```
-
 ## `GET /champions/{championId}/scaling`
 
 Winrate en fonction de la durée de game, plus un indice de scaling (winrate des

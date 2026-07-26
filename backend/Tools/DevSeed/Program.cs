@@ -118,7 +118,6 @@ foreach (var self in ChampionArchetypes.Seeds)
     db.ChampionAggregateScopes.AddRange(result.Scopes);
     db.ChampionAggregatePatterns.AddRange(result.Patterns);
     db.ChampionMatchupStats.AddRange(result.MatchupStats);
-    db.ChampionTimelineLeadStats.AddRange(result.LeadStats);
 
     await db.SaveChangesAsync();
     db.ChangeTracker.Clear();
@@ -173,7 +172,6 @@ static async Task CleanupAsync(TrueMainDbContext db)
     // No owner column exists on these two tables (see their doc comments) — the
     // --force-wipe / non-synthetic-data guard above is what keeps this safe.
     await db.ChampionMatchupStats.ExecuteDeleteAsync();
-    await db.ChampionTimelineLeadStats.ExecuteDeleteAsync();
 }
 
 static async Task<RiotAccount> GetOrCreateDevSeedAccountAsync(TrueMainDbContext db)

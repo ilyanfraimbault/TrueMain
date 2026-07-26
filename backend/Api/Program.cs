@@ -185,7 +185,6 @@ builder.Services.AddScoped<ICompositionRecommendationQueryService, CompositionRe
 // aggregation, so the composition recommender reads a game's items
 // identically. Patch-cached inside the provider.
 builder.Services.AddHttpClient<IItemMetadataProvider, CommunityDragonItemMetadataProvider>();
-builder.Services.AddScoped<IChampionTimelineLeadsQueryService, ChampionTimelineLeadsQueryService>();
 builder.Services.AddScoped<IChampionScalingQueryService, ChampionScalingQueryService>();
 builder.Services.AddScoped<IChampionItemTimingsQueryService, ChampionItemTimingsQueryService>();
 builder.Services.AddScoped<IChampionRoamQueryService, ChampionRoamQueryService>();

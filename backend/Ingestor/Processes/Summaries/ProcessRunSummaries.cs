@@ -142,7 +142,6 @@ public sealed record MatchDataRetentionSummary(
     int DeletedIntermediateSnapshots,
     int DeletedAggregateScopes,
     int DeletedMatchupStats,
-    int DeletedTimelineLeadStats,
     int DeletedPowerspikeCurveStats,
     int DeletedPowerspikeEventStats,
     IReadOnlyList<RetainedPatchesSummary> RetainedPatchesByPlatform) : IProcessRunSummary;

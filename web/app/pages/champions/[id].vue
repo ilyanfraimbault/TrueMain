@@ -8,7 +8,6 @@ import type {
   ChampionPowerCurvePoint,
   ChampionPowerspikeEvent,
   ChampionScalingBucket,
-  ChampionTimelineLeadsInterval,
   ChampionTrendPoint,
 } from '~~/shared/types/champions'
 import type { ChampionStaticData, ChampionStaticListItem, StaticItemData } from '~~/shared/types/static-data'
@@ -131,7 +130,7 @@ const selectedEloBracket = computed<string>(() =>
   normalizeEloBracket(champion.value?.eloBracket || filters.value.eloBracket),
 )
 
-// The elo filter forwarded to every live panel (matchups / leads / scaling /
+// The elo filter forwarded to every live panel (matchups / scaling /
 // item-timings / roam). Sourced from the URL filter and undefined for ALL, so
 // the query param + cache key stay clean — the same contract patch/position use.
 const eloBracketParam = computed(() => filters.value.eloBracket)
@@ -166,21 +165,9 @@ const bracketNoticeText = computed(() => {
   return `${label} covers just ${bracketCoveragePercent.value}% of all-rank games — a narrow slice, so read it with caution.`
 })
 
-// Average per-interval lead vs the lane opponent (issue #525). Follows the
-// resolved lane like the trend chart, but is patch-scoped: the active patch
-// filter narrows the slice. Gated on the champion fetch so it fires once with
-// the resolved lane. Empty until matches are (re-)ingested with snapshots.
-const { data: championLeads, status: leadsStatus } = useChampionTimelineLeads(
-  championId,
-  trendPosition,
-  selectedPatch,
-  trendReady,
-  eloBracketParam,
-)
-
-// Win rate by game duration (issue #537). Same lane/patch scoping and gating as
-// the leads chart; computed from match outcomes, so it has data even before any
-// timeline snapshots are ingested.
+// Win rate by game duration (issue #537). Follows the resolved lane like the
+// trend chart, but is patch-scoped: the active patch filter narrows the slice.
+// Gated on the champion fetch so it fires once with the resolved lane.
 const { data: championScaling, status: scalingStatus } = useChampionScaling(
   championId,
   trendPosition,
@@ -319,10 +306,6 @@ const patchDiffSnapshot = useLazyHydrationSnapshot(
     patchOptions: patchDiffOptions.value,
     loading: patchDiffLoading.value,
   }),
-)
-const leadsSnapshot = useLazyHydrationSnapshot(
-  { intervals: [] as ChampionTimelineLeadsInterval[], loading: true },
-  () => ({ intervals: championLeads.value?.intervals ?? [], loading: isLoadingStatus(leadsStatus.value) }),
 )
 const scalingSnapshot = useLazyHydrationSnapshot(
   { buckets: [] as ChampionScalingBucket[], scalingIndex: null as number | null, loading: true },
@@ -547,19 +530,11 @@ const matchupsSnapshot = useLazyHydrationSnapshot(
             @update:to-patch="value => { patchDiffTo = value }"
           />
 
-          <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <LazyChampionTimelineLeadsChart
-              hydrate-on-visible
-              v-bind="leadsSnapshot.value"
-              @vue:mounted="leadsSnapshot.reveal"
-            />
-
-            <LazyChampionScalingChart
-              hydrate-on-visible
-              v-bind="scalingSnapshot.value"
-              @vue:mounted="scalingSnapshot.reveal"
-            />
-          </div>
+          <LazyChampionScalingChart
+            hydrate-on-visible
+            v-bind="scalingSnapshot.value"
+            @vue:mounted="scalingSnapshot.reveal"
+          />
 
           <LazyChampionPowerspikesChart
             hydrate-on-visible

@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("64bcbfa3-40ec-4d41-8b53-134f5b546e9a"), entityTypeCount: 27)
+            : base(skipDetectChanges: false, modelId: new Guid("bc193ccc-aa25-4c4f-b0df-48f85c10f1b4"), entityTypeCount: 26)
         {
         }
 
@@ -28,7 +28,6 @@ namespace Data.CompiledModels
             var championMatchupStat = ChampionMatchupStatEntityType.Create(this);
             var championPowerspikeCurveStat = ChampionPowerspikeCurveStatEntityType.Create(this);
             var championPowerspikeEventStat = ChampionPowerspikeEventStatEntityType.Create(this);
-            var championTimelineLeadStat = ChampionTimelineLeadStatEntityType.Create(this);
             var discoveryCursor = DiscoveryCursorEntityType.Create(this);
             var jungleFirstClear = JungleFirstClearEntityType.Create(this);
             var mainCandidate = MainCandidateEntityType.Create(this);
@@ -73,7 +72,6 @@ namespace Data.CompiledModels
             ChampionMatchupStatEntityType.CreateAnnotations(championMatchupStat);
             ChampionPowerspikeCurveStatEntityType.CreateAnnotations(championPowerspikeCurveStat);
             ChampionPowerspikeEventStatEntityType.CreateAnnotations(championPowerspikeEventStat);
-            ChampionTimelineLeadStatEntityType.CreateAnnotations(championTimelineLeadStat);
             DiscoveryCursorEntityType.CreateAnnotations(discoveryCursor);
             JungleFirstClearEntityType.CreateAnnotations(jungleFirstClear);
             MainCandidateEntityType.CreateAnnotations(mainCandidate);
