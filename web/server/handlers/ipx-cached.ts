@@ -1,6 +1,8 @@
 import { Buffer } from 'node:buffer'
 import { useBase } from 'h3'
 import { createIPX, createIPXH3Handler, ipxFSStorage, ipxHttpStorage } from 'ipx'
+import { IPX_CACHE_SECONDS } from '~~/shared/utils/ipx'
+import { createBoundedByteCache } from '../utils/bounded-byte-cache'
 
 /**
  * Drop-in replacement for the `/_ipx/**` handler @nuxt/image ships, adding the
@@ -24,24 +26,34 @@ import { createIPX, createIPXH3Handler, ipxFSStorage, ipxHttpStorage } from 'ipx
  * URL's bytes are immutable — a new patch means new URLs.
  */
 
-// Icons are a few KB each, but profile icons are per-player and unbounded, so
-// the cache is capped rather than left to grow. ~1500 entries is the whole
-// static catalogue (items, champions, perks, spells) plus room for the profile
-// icons in circulation, for a few MB of heap — this box has been OOM-killed
-// before, so the ceiling is deliberate. Eviction is LRU: Map preserves
-// insertion order, and a hit re-inserts.
-const MAX_ENTRIES = 1500
-
-const WEEK_SECONDS = 60 * 60 * 24 * 7
+// `/_ipx/**` is a public, unauthenticated route: anyone can request any
+// modifiers against any path under the allow-listed domains, and
+// CommunityDragon serves more than icons on that domain — splash art and
+// centered/uncentered assets run several MB each. IPX clamps resize
+// dimensions to the source's own size (no upscaling), so a request can't
+// force a small icon to balloon, but it can't stop someone from repeatedly
+// requesting distinct multi-MB assets. So the cache (see
+// server/utils/bounded-byte-cache.ts) is bounded by total bytes, not entry
+// count — capping by count alone would assume every cacheable response is
+// icon-sized, which the route itself doesn't guarantee. This box has been
+// OOM-killed before (see the postgres /dev/shm and pattern-agg incidents), so
+// the ceiling is deliberate.
+const cache = createBoundedByteCache<CachedImage>({
+  maxBytes: 64 * 1024 * 1024,
+  // A single response above this is unusual (icons are a few KB; even a large
+  // champion splash art profile shot is well under this) and not worth
+  // holding onto — it's still served, just not retained, so one big request
+  // can't crowd out the icons that make up the rest of the catalogue.
+  maxEntryBytes: 2 * 1024 * 1024,
+})
 
 interface CachedImage {
   body: Buffer
+  byteLength: number
   contentType?: string
   etag?: string
   lastModified?: string
 }
-
-const cache = new Map<string, CachedImage>()
 
 const ipx = createIPX({
   // Local `public/` sources (the bundled position icons). Paths resolve from
@@ -52,7 +64,7 @@ const ipx = createIPX({
     domains: ['ddragon.leagueoflegends.com', 'raw.communitydragon.org'],
     // Ignore upstream Cache-Control (CommunityDragon's `latest` redirects use
     // a short TTL) and advertise our own long max-age instead.
-    maxAge: WEEK_SECONDS,
+    maxAge: IPX_CACHE_SECONDS,
     ignoreCacheControl: true,
   }),
 })
@@ -75,9 +87,6 @@ export default defineEventHandler(async (event) => {
 
   const cached = cache.get(key)
   if (cached) {
-    // Re-insert so the most recently served entries are the last to be evicted.
-    cache.delete(key)
-    cache.set(key, cached)
     restoreHeaders(event, cached)
     if (cached.etag && getRequestHeader(event, 'if-none-match') === cached.etag) {
       setResponseStatus(event, 304)
@@ -91,12 +100,9 @@ export default defineEventHandler(async (event) => {
   // Only 200s with a real image body are worth keeping; IPX answers errors
   // with a JSON object and conditional requests with an empty 304.
   if (Buffer.isBuffer(body) && getResponseStatus(event) === 200) {
-    if (cache.size >= MAX_ENTRIES) {
-      const oldest = cache.keys().next()
-      if (!oldest.done) cache.delete(oldest.value)
-    }
     cache.set(key, {
       body,
+      byteLength: body.byteLength,
       contentType: getResponseHeader(event, 'content-type') as string | undefined,
       etag: getResponseHeader(event, 'etag') as string | undefined,
       lastModified: getResponseHeader(event, 'last-modified') as string | undefined,

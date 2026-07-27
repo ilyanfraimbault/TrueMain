@@ -1,15 +1,7 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import { fileURLToPath } from 'node:url'
 import { addServerHandler, defineNuxtModule } from '@nuxt/kit'
-
-// Most upstream image sources we hit (DDragon item/champion/spell icons,
-// CommunityDragon perks) are content-addressed per (patch, asset), so once
-// IPX has processed a URL the resulting bytes never change. Position icons
-// used to resolve through CommunityDragon's `/latest/` path but are now
-// bundled under /public/positions to avoid hitting a third party on cold
-// loads. Cache the remaining upstream assets aggressively in the browser to
-// avoid re-issuing dozens of requests on each client-side navigation.
-const IPX_IMAGE_CACHE_SECONDS = 60 * 60 * 24 * 7 // 7 days
+import { IPX_CACHE_SECONDS } from './shared/utils/ipx'
 
 // Claims `/_ipx/**` before @nuxt/image sets up its own handler. The module
 // checks `nuxt.options.serverHandlers` for the route and steps aside when it
@@ -104,7 +96,7 @@ export default defineNuxtConfig({
     // is the *browser* cache; the server-side one is in the handler.
     '/_ipx/**': {
       headers: {
-        'cache-control': `public, max-age=${IPX_IMAGE_CACHE_SECONDS}, immutable`,
+        'cache-control': `public, max-age=${IPX_CACHE_SECONDS}, immutable`,
       },
     },
   },
