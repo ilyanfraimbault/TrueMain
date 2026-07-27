@@ -7,7 +7,7 @@ const props = defineProps<{
   /** Which side of the comparison this column is. */
   label: string
   choice: BuildChoice
-  /** Wording for the share line: "of your games" / "of mains games". */
+  /** Wording for the share line: "of Faker's games" / "of mains games". */
   shareSuffix: string
   itemsMap: Record<number, StaticItemData>
   championStatic: ChampionStaticData | null

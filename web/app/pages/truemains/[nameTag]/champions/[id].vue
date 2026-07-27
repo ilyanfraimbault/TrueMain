@@ -40,6 +40,10 @@ const playerLabel = computed(() => {
   if (!identity) return nameTag.value
   return identity.tagLine ? `${identity.gameName}#${identity.tagLine}` : identity.gameName
 })
+// Same identity, without the tag line: used inline in copy ("Faker vs mains"),
+// where the full Riot ID would be noise. Falls back to the raw slug while the
+// profile fetch is in flight, like `playerLabel`.
+const playerName = computed(() => profile.value?.identity?.gameName ?? nameTag.value)
 const profilePath = computed(() => `/truemains/${encodeURIComponent(nameTag.value)}`)
 
 // Shared static-data plumbing (see useChampionDetailStatics). This page
@@ -168,17 +172,21 @@ const matchupsSnapshot = useLazyHydrationSnapshot(
   () => ({ champions: staticList.value ?? [] }),
 )
 
-// Same treatment for the "you vs mains" card (#529): `itemsMap` and
-// `staticData` are client-only too, so the icons it renders have to stay at
-// their SSR-empty value until it mounts. `patch`/`position` are NOT in the
-// bundle — they only feed the card's fetch key, never its markup, so keeping
-// them live can't desynchronise hydration.
+// Same treatment for the "<player> vs mains" card (#529): `itemsMap`,
+// `staticData` and the profile-sourced `playerName` are all client-only, so
+// what the card renders has to stay at its SSR value until it mounts —
+// `playerName` included, now that the card prints it in its own title and
+// copy. `patch`/`position` are NOT in the bundle — they only feed the card's
+// fetch key, never its markup, so keeping them live can't desynchronise
+// hydration.
 const divergenceSnapshot = useLazyHydrationSnapshot(
   {
+    playerName: nameTag.value,
     itemsMap: {} as Record<number, StaticItemData>,
     championStatic: null as ChampionStaticData | null,
   },
   () => ({
+    playerName: playerName.value,
     itemsMap: itemsMap.value ?? {},
     championStatic: staticData.value ?? null,
   }),
@@ -307,7 +315,7 @@ const divergenceSnapshot = useLazyHydrationSnapshot(
             />
             <ChampionBuildTabsSkeleton v-else />
 
-            <!-- "You vs mains" (#529): the same aggregates the tabs above are
+            <!-- "<player> vs mains" (#529): the same aggregates the tabs above are
                  built from, read a second time across every *other* main on
                  this champion + patch + position, so the build the player
                  actually runs can be put next to the one the mains run. Lazy +

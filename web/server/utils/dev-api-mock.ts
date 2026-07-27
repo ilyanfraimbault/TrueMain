@@ -711,7 +711,7 @@ function mockDifferentFrom(pool: number[], taken: number | undefined): number {
 }
 
 /**
- * "You vs mains" for the player-scoped champion page. Built from the two build
+ * "<player> vs mains" for the player-scoped champion page. Built from the two build
  * variants `makeBuild` already produces — variant 1 stands in for the player's
  * habits, variant 0 for the mains' — with the starter and boots nudged apart so
  * the fixture shows both diverging and matching rows. Nothing here reaches
