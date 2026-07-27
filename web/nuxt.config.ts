@@ -1,4 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import { fileURLToPath } from 'node:url'
+import { addServerHandler, defineNuxtModule } from '@nuxt/kit'
 
 // Most upstream image sources we hit (DDragon item/champion/spell icons,
 // CommunityDragon perks) are content-addressed per (patch, asset), so once
@@ -9,8 +11,27 @@
 // avoid re-issuing dozens of requests on each client-side navigation.
 const IPX_IMAGE_CACHE_SECONDS = 60 * 60 * 24 * 7 // 7 days
 
+// Claims `/_ipx/**` before @nuxt/image sets up its own handler. The module
+// checks `nuxt.options.serverHandlers` for the route and steps aside when it
+// finds one (`hasUserProvidedIPX`), which is exactly what we want: everything
+// else about the module stays in place, but the route is served by
+// server/handlers/ipx-cached.ts, which adds the response cache IPX lacks.
+// Registered as a module (not `nitro.handlers`) because that is the only form
+// that also applies to `nuxt dev`.
+const cachedIpxHandler = defineNuxtModule({
+  meta: { name: 'truemain-cached-ipx' },
+  setup() {
+    addServerHandler({
+      route: '/_ipx/**',
+      handler: fileURLToPath(new URL('./server/handlers/ipx-cached.ts', import.meta.url)),
+    })
+  },
+})
+
 export default defineNuxtConfig({
-  modules: ['@nuxt/ui', '@nuxt/image', '@nuxt/fonts', 'nuxt-charts', '@nuxtjs/seo'],
+  // `cachedIpxHandler` must come before `@nuxt/image` so the route is already
+  // registered when the module decides whether to install its own.
+  modules: [cachedIpxHandler, '@nuxt/ui', '@nuxt/image', '@nuxt/fonts', 'nuxt-charts', '@nuxtjs/seo'],
   // Canonical site identity for SEO (canonical links, sitemap, robots, OG/
   // schema.org defaults). `url` is the production default; override per
   // environment with `NUXT_PUBLIC_SITE_URL` (nuxt-site-config reads it
@@ -73,25 +94,14 @@ export default defineNuxtConfig({
     fallback: 'dark',
   },
   image: {
+    // Allow-list for the ipx provider's URL generation. The storage options
+    // themselves live in server/handlers/ipx-cached.ts, which owns `/_ipx/**`.
     domains: ['ddragon.leagueoflegends.com', 'raw.communitydragon.org'],
-    // Tell IPX's HTTP storage to ignore upstream Cache-Control (CommunityDragon
-    // `latest` redirects use a short TTL) and serve our own long max-age. The
-    // outgoing Cache-Control on /_ipx/** is still pinned via routeRules below
-    // so it includes `immutable`, which IPX's built-in header does not.
-    providers: {
-      ipx: {
-        options: {
-          http: {
-            maxAge: IPX_IMAGE_CACHE_SECONDS,
-            ignoreCacheControl: true,
-          },
-        },
-      },
-    },
   },
   routeRules: {
     // IPX responses are deterministic per (source URL, modifiers) — safe to
-    // mark immutable and cache for a week in shared/private caches.
+    // mark immutable and cache for a week in shared/private caches. Note this
+    // is the *browser* cache; the server-side one is in the handler.
     '/_ipx/**': {
       headers: {
         'cache-control': `public, max-age=${IPX_IMAGE_CACHE_SECONDS}, immutable`,
