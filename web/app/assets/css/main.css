@@ -219,7 +219,18 @@ html {
  * `opacity-40 grayscale` would.
  */
 @utility deselected {
-  @apply opacity-40 grayscale;
+  @apply scale-90 opacity-30 grayscale;
+}
+
+/*
+ * Counterpart of `deselected`: a faint primary ring on the option that *was*
+ * picked. The artwork alone is not a reliable signal — a selected grey rune
+ * reads exactly like its unpicked neighbours — so the ring carries the state
+ * independently of the icon. Deliberately low-contrast: it should register as
+ * a highlight, not as a border.
+ */
+@utility selected-perk {
+  @apply ring-1 ring-primary/40;
 }
 
 @utility glass-hover {
