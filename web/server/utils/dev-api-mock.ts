@@ -1364,11 +1364,15 @@ async function mockCompositionBuild(id: number, body?: unknown): Promise<Composi
 
   // Fewer games as the draft gets more constrained, so the thin-data state is
   // reachable in mock mode (the real API returns the true selected count).
-  const games = Math.max(6, Math.round(100 - slotCount * 11))
+  // A second deterministic sliver of opponents (id % 17 === 0, e.g. Teemo)
+  // comes back as a barely-recorded matchup, so the builder's thin-sample
+  // fallback (#921) is reachable without filling all eight draft slots.
+  const thinMatchup = matchupRequested && matchupFound && laneOpponent!.championId! % 17 === 0
+  const games = thinMatchup ? 3 : Math.max(6, Math.round(100 - slotCount * 11))
   const wins = Math.round(games * Math.min(0.6, s.wr + rng() * 0.02))
   const set = (itemIds: number[], shareOf: number) => ({
     itemIds,
-    games: Math.max(4, Math.round(games * shareOf)),
+    games: Math.max(1, Math.min(games, Math.round(games * shareOf))),
     pickRate: round3(shareOf),
     winRate: round3(Math.min(0.62, Math.max(0.42, s.wr + (rng() - 0.5) * 0.08))),
   })
