@@ -131,4 +131,15 @@ dotnet_diagnostic.CA1822.severity = none        # static OK dans les tests
 generated_code = true
 dotnet_diagnostic.IDE0005.severity = none       # using inutile
 dotnet_diagnostic.IDE0161.severity = none       # namespace block (le générateur EF ne sait pas faire file-scoped)
+dotnet_diagnostic.CS1591.severity = none        # doc XML : code généré, rien à documenter
+dotnet_analyzer_diagnostic.category-Style.severity = none
+
+# Modèle compilé EF : régénéré par `dotnet ef dbcontext optimize`, jamais édité à la
+# main. Mêmes exemptions que les migrations — ces règles ne peuvent pas être
+# satisfaites par un générateur.
+[backend/Data/CompiledModels/**.cs]
+generated_code = true
+dotnet_diagnostic.IDE0005.severity = none
+dotnet_diagnostic.IDE0161.severity = none
+dotnet_diagnostic.CS1591.severity = none
 dotnet_analyzer_diagnostic.category-Style.severity = none

@@ -9,6 +9,20 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!--
+      CS1591 (missing XML doc on a public member) is suppressed for production code
+      by deliberate decision, not by accident — see #297. Measured on 2026-07-28:
+      Core 332, Data 1596, Api 1248, Ingestor 894 occurrences. Enforcing it would
+      mean thousands of doc comments, overwhelmingly on record properties and entity
+      columns where the generated text would restate the member name and add nothing.
+      The types that carry real design rationale (DedicationScore, MainDedication,
+      the aggregation components) are already documented by hand, which is where the
+      value is.
+
+      Test projects no longer depend on this suppression at all: they set
+      GenerateDocumentationFile=false (#291), so CS1591 cannot fire there. Generated
+      code (EF migrations, compiled models) is scoped in .editorconfig.
+    -->
     <NoWarn>$(NoWarn);IDE0058;CS1591</NoWarn>
     <NuGetAudit>true</NuGetAudit>
     <NuGetAuditMode>all</NuGetAuditMode>
