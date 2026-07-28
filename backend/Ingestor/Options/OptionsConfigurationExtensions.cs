@@ -148,7 +148,11 @@ public static class OptionsConfigurationExtensions
             .Validate(options => options.MatchesToConsider > 0, "MainAnalysis:MatchesToConsider must be greater than 0.")
             .Validate(options => Enum.IsDefined(options.QueueId), "MainAnalysis:QueueId must be a defined LolQueueId.")
             .Validate(options => options.PlayRateThreshold is >= 0 and <= 1, "MainAnalysis:PlayRateThreshold must be in [0, 1].")
-            .Validate(options => options.PlayRateFloor is >= 0 and <= 1, "MainAnalysis:PlayRateFloor must be in [0, 1].")
+            // Exclusive at 1: DedicationScore.Commitment divides by (1 - floor), so a
+            // floor of exactly 1 would divide by zero (#930 review — this bound used to
+            // be the loose <= 1, disagreeing with the Api's stricter < 1 on the same
+            // option; the Api's was the correct one).
+            .Validate(options => options.PlayRateFloor is >= 0 and < 1, "MainAnalysis:PlayRateFloor must be in [0, 1).")
             .Validate(options => options.CriticalPlayRateThreshold is >= 0 and <= 1,
                 "MainAnalysis:CriticalPlayRateThreshold must be in [0, 1].")
             // Cross-property constraints come after the individual range checks so a single

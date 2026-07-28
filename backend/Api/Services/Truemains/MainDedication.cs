@@ -168,6 +168,21 @@ internal static class MainDedication
     /// so this cannot affect a score, only which far-tail rows exist at all.
     /// </para>
     /// </remarks>
+    /// <param name="ctx">Context to run on. Callers hydrating concurrently must pass their own short-lived context (a single DbContext is not thread-safe).</param>
+    /// <param name="platforms">Platforms the candidate scan is restricted to.</param>
+    /// <param name="championId">When set, restrict eligibility to accounts whose top main is this champion.</param>
+    /// <param name="position">When set, restrict eligibility to accounts whose top main is played in this position.</param>
+    /// <param name="minGames">Minimum ranked games an account's top main must have to be eligible.</param>
+    /// <param name="otpOnly">When true, restrict eligibility to one-trick accounts.</param>
+    /// <param name="minPositionShare">Minimum share of an account's games a position must represent, when <paramref name="position"/> is set.</param>
+    /// <param name="nowUtc">Clock reference for the recency decay, forwarded into <see cref="FetchAsync"/>.</param>
+    /// <param name="commitmentFloor">
+    /// Live <c>MainAnalysis:PlayRateFloor</c>, forwarded unchanged into the
+    /// <see cref="FetchAsync"/> scoring phase — see that overload for what it
+    /// means (#869).
+    /// </param>
+    /// <param name="limit">Maximum eligible accounts to score; see the truncation trade-off above.</param>
+    /// <param name="ct">Request cancellation token.</param>
     public static async Task<DedicationCandidates> FetchCandidatesAsync(
         TrueMainDbContext ctx,
         string[] platforms,
