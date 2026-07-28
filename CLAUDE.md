@@ -14,6 +14,16 @@ TrueMain is a League of Legends analytics site: champion/player stats computed f
   - Prod still runs with `ApplyMigrationsOnStartup: "true"`, so a release redeploy applies pending EF migrations on startup — switching to an out-of-band migration step is an open decision, not yet done (`docs/production-migrations.md`, #208).
 - `docs/` — project docs.
 
+## Project knowledge base — read before proposing work
+
+- `.claude/docs/features.md` — **what already ships**, page by page (web, admin, backend pipeline). Read it
+  before proposing a feature or hunting through the code for whether something exists.
+- `.claude/docs/decisions.md` — **why things are the way they are**: settled product/architecture decisions
+  with the incident or measurement behind each one, so past calls aren't re-litigated.
+
+Any PR that ships a user-facing feature, removes one, or reverses a decision **updates these two files in the
+same PR**. Stale entries are worse than missing ones.
+
 ## Language
 
 - Talk to the user in French.
@@ -46,7 +56,7 @@ Every issue goes on GitHub Project #2 ("TrueMain"). Status: Todo / In Progress /
 - Frontends: `nuxt typecheck` can pass on stale `.nuxt` types while CI's `nuxt build` fails — verify type-level changes with a fresh build.
 - `web/package-lock.json`: regenerate with `npx npm@11.13.0` (CI's npm version; older npm omits sharp optional deps).
 - Startup migrations must stay fast — a heavy `CREATE INDEX CONCURRENTLY` in a startup migration blows the command timeout and crash-loops the API.
-- API reads live in `Data` as purpose-built query objects returning read-models; `Api` stays persistence-ignorant. No generic `IRepository<T>` for reads.
+- API reads live in `Data` as purpose-built query objects returning read-models; `Api` stays persistence-ignorant. No generic `IRepository<T>` for reads. ⚠️ The codebase currently diverges from the *location* half of this rule — see `.claude/docs/decisions.md` ("Known discrepancy"); #865 tracks the decision, don't silently rewrite either side.
 
 ## Skills
 
