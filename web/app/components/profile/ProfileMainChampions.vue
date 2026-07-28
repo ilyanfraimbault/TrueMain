@@ -30,6 +30,11 @@ function formatPlayRate(rate: number): string {
 function championLink(championId: number) {
   return `/truemains/${encodeURIComponent(props.nameTag)}/champions/${championId}`
 }
+
+// Plain <img> + a URL built here instead of <NuxtImg> — same `_ipx/…` URL,
+// minus the responsive srcset machinery a fixed 12px icon never needed. See
+// SkeletonImage.vue for the profiling rationale.
+const ipx = useImage()
 </script>
 
 <template>
@@ -71,14 +76,14 @@ function championLink(championId: number) {
                 </span>
               </div>
               <div class="flex items-center gap-1 text-[11px] text-muted tabular-nums">
-                <NuxtImg
+                <img
                   v-if="main.primaryPosition"
-                  :src="getPositionIconUrl(main.primaryPosition)"
+                  :src="ipx(getPositionIconUrl(main.primaryPosition), { width: 12, height: 12 })"
                   :alt="main.primaryPosition"
                   class="size-3"
                   width="12"
                   height="12"
-                />
+                >
                 <span>{{ main.games }} games</span>
               </div>
             </div>

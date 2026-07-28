@@ -108,6 +108,11 @@ const dedicationBreakdown = computed(() => {
 const dedicationScoreLabel = computed(() =>
   props.row.dedication === null ? null : props.row.dedication.score.toFixed(1))
 
+// Plain <img> + a URL built here instead of <NuxtImg> — same `_ipx/…` URL,
+// minus the responsive srcset machinery a fixed 22px icon never needed. See
+// SkeletonImage.vue for the profiling rationale.
+const ipx = useImage()
+
 // Primary + secondary lane icons. Each entry carries its icon URL and a
 // tooltip. The list is empty when the backend has no position data (no main
 // analysis yet), so the slot collapses without shifting the row.
@@ -200,17 +205,17 @@ const positionIcons = computed(() => {
          whether a player has a secondary lane, or no position data at all.
          Hidden on narrow rows to keep them readable. -->
     <div class="hidden w-16 shrink-0 items-center gap-1 @xl:flex">
-      <NuxtImg
+      <img
         v-for="role in positionIcons"
         :key="role.position"
-        :src="role.iconUrl"
+        :src="ipx(role.iconUrl, { width: 22, height: 22 })"
         :alt="role.title"
         :title="role.title"
         class="size-[22px] shrink-0"
         :class="role.primary ? undefined : 'opacity-40'"
         width="22"
         height="22"
-      />
+      >
     </div>
 
     <!-- Left spacer: with the right spacer below, the two centre the champion
