@@ -39,7 +39,7 @@ public sealed class AggregationsApiIntegrationTests
         var families = root.GetProperty("families").EnumerateArray().ToList();
         families.Select(family => family.GetProperty("key").GetString())
             .Should().BeEquivalentTo(
-                ["builds", "matchups", "powerspikes", "mains"],
+                ["builds", "matchups", "synergies", "powerspikes", "mains"],
                 options => options.WithStrictOrdering());
 
         // Builds: two scopes on two hotfix versions of the same patch → one
