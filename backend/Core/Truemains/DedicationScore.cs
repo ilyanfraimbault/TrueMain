@@ -189,8 +189,9 @@ public static class DedicationScore
         }
 
         // A floor outside [0, 1) would invert the rescale or divide by zero.
-        // Options validation already keeps the configured floor sane, so this
-        // only guards a caller passing a raw value.
+        // Both hosts range-check MainAnalysis:PlayRateFloor at startup, so this
+        // is defence in depth for a caller passing a raw value rather than the
+        // configured one.
         if (double.IsNaN(commitmentFloor) || commitmentFloor < 0d || commitmentFloor >= 1d)
         {
             commitmentFloor = CommitmentFloor;

@@ -96,6 +96,13 @@ builder.Services.AddOptions<AspNetCorsOptions>()
 builder.Services.AddOptions<MainAnalysisOptions>()
     .Bind(builder.Configuration.GetSection("MainAnalysis"))
     .Validate(options => Enum.IsDefined(options.QueueId), "MainAnalysis:QueueId must be a defined LolQueueId.")
+    // The API feeds PlayRateFloor into the dedication score as the point
+    // commitment reads 0 (#869), so it must be range-checked here too and not
+    // only in the ingestor: a floor at or above 1 would invert the rescale.
+    // Same predicates as the ingestor's, since both hosts bind the same section.
+    .Validate(options => options.PlayRateFloor is >= 0 and < 1, "MainAnalysis:PlayRateFloor must be in [0, 1).")
+    .Validate(options => options.PlayRateFloor <= options.PlayRateThreshold,
+        "MainAnalysis:PlayRateFloor must be <= PlayRateThreshold.")
     .ValidateOnStart();
 builder.Services.AddOptions<OpsOptions>()
     .Bind(builder.Configuration.GetSection("Ops"))
