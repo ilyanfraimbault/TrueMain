@@ -22,6 +22,9 @@ public sealed record MatchPerformancePlacement
 {
     public int ParticipantId { get; init; }
 
+    /// <summary>The 0–100 score this placement was derived from, carried through so a caller that only keeps the ranking still has the number behind it.</summary>
+    public int Score { get; init; }
+
     /// <summary>1-based rank of this participant's score within the match (1 = best of all 10).</summary>
     public int Placement { get; init; }
 
@@ -75,6 +78,7 @@ public static class MatchPerformanceRanker
             placements[entry.ParticipantId] = new MatchPerformancePlacement
             {
                 ParticipantId = entry.ParticipantId,
+                Score = entry.Score,
                 Placement = i + 1,
                 IsMvp = entry.ParticipantId == mvpParticipantId,
                 IsAce = entry.ParticipantId == aceParticipantId,
