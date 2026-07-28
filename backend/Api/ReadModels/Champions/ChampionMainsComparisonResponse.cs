@@ -142,8 +142,9 @@ public sealed record ChampionComparisonSideReadModel
     public double Assists { get; init; }
 
     /// <summary>
-    /// <c>(kills + assists) / deaths</c>, falling back to <c>kills + assists</c>
-    /// on a deathless sample — the same convention the truemains leaderboard uses.
+    /// <c>(kills + assists) / deaths</c>, falling back to <c>(kills + assists) / games</c>
+    /// on a deathless sample so it stays on the same per-game scale as the metrics beside
+    /// it — the same convention the truemains leaderboard uses.
     /// </summary>
     public double Kda { get; init; }
 

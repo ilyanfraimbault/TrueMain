@@ -355,11 +355,7 @@ public sealed class ChampionMainsComparisonQueryService(
             Kills = Per(totals.Kills, games),
             Deaths = Per(totals.Deaths, games),
             Assists = Per(totals.Assists, games),
-            // Deathless samples fall back to raw kills + assists, the same
-            // convention the truemains leaderboard's KDA cell uses.
-            Kda = totals.Deaths > 0
-                ? (double)(totals.Kills + totals.Assists) / totals.Deaths
-                : totals.Kills + totals.Assists,
+            Kda = RateMath.Kda(totals.Kills, totals.Deaths, totals.Assists, games),
             CsPerMin = Per(totals.Cs, minutes),
             GoldPerMin = Per(totals.Gold, minutes),
             GoldPerGame = Per(totals.Gold, games),

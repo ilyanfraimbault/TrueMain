@@ -70,12 +70,17 @@ internal static class MainDedication
     /// <param name="accountIds">Accounts to score.</param>
     /// <param name="championId">When set, score this champion instead of each account's top main.</param>
     /// <param name="nowUtc">Clock reference for the recency decay.</param>
+    /// <param name="commitmentFloor">
+    /// Live <c>MainAnalysis:PlayRateFloor</c> — the play rate below which no
+    /// champion is a main, and therefore the point commitment reads 0 (#869).
+    /// </param>
     /// <param name="ct">Request cancellation token.</param>
     public static async Task<Dictionary<Guid, DedicationReadModel>> FetchAsync(
         TrueMainDbContext ctx,
         Guid[] accountIds,
         int? championId,
         DateTime nowUtc,
+        double commitmentFloor,
         CancellationToken ct)
     {
         if (accountIds.Length == 0)
@@ -123,7 +128,7 @@ internal static class MainDedication
             """;
 
         var rows = await ctx.Database.SqlQuery<DedicationRow>(sql).ToListAsync(ct);
-        return rows.ToDictionary(row => row.AccountId, row => Project(row, nowUtc));
+        return rows.ToDictionary(row => row.AccountId, row => Project(row, nowUtc, commitmentFloor));
     }
 
     /// <summary>
@@ -172,6 +177,7 @@ internal static class MainDedication
         bool otpOnly,
         double minPositionShare,
         DateTime nowUtc,
+        double commitmentFloor,
         int limit,
         CancellationToken ct)
     {
@@ -206,7 +212,7 @@ internal static class MainDedication
             return DedicationCandidates.Empty;
         }
 
-        var byAccount = await FetchAsync(ctx, accountIds, championId, nowUtc, ct);
+        var byAccount = await FetchAsync(ctx, accountIds, championId, nowUtc, commitmentFloor, ct);
 
         var ranked = byAccount
             .Select(entry => new DedicationCandidate(entry.Key, entry.Value))
@@ -276,7 +282,7 @@ internal static class MainDedication
         return [.. ids];
     }
 
-    private static DedicationReadModel Project(DedicationRow row, DateTime nowUtc)
+    private static DedicationReadModel Project(DedicationRow row, DateTime nowUtc, double commitmentFloor)
     {
         // No aggregated game yet (scopes not built for this account/champion):
         // treat recency as "infinitely old" rather than "played today", and
@@ -290,7 +296,8 @@ internal static class MainDedication
             PlayRate: row.PlayRate,
             CareerGames: row.CareerGames,
             PatchSpan: row.PatchSpan,
-            DaysSinceLastGame: daysSinceLastGame ?? double.PositiveInfinity));
+            DaysSinceLastGame: daysSinceLastGame ?? double.PositiveInfinity),
+            commitmentFloor);
 
         return new DedicationReadModel
         {

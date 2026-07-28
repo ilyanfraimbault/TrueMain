@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Core.Lol.Map;
+using Core.Options;
 using Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -13,6 +14,7 @@ public sealed class TruemainsLeaderboardQueryService(
     TrueMainDbContext db,
     IDbContextFactory<TrueMainDbContext> dbFactory,
     IOptions<TruemainsLeaderboardOptions> options,
+    IOptions<MainAnalysisOptions> mainAnalysisOptions,
     IMemoryCache cache,
     ILogger<TruemainsLeaderboardQueryService> logger) : ITruemainsLeaderboardQueryService
 {
@@ -357,7 +359,7 @@ public sealed class TruemainsLeaderboardQueryService(
         await using var ctx = await dbFactory.CreateDbContextAsync(ct);
         var (candidates, truncated) = await MainDedication.FetchCandidatesAsync(
             ctx, platforms, championFilter, position, minGames, otpOnly, MinPositionShare,
-            DateTime.UtcNow, MaxDedicationCandidates, ct);
+            DateTime.UtcNow, mainAnalysisOptions.Value.PlayRateFloor, MaxDedicationCandidates, ct);
 
         if (truncated)
         {
@@ -424,7 +426,13 @@ public sealed class TruemainsLeaderboardQueryService(
         // Own short-lived context: this runs concurrently with the other page
         // hydration fetches, and a single DbContext is not thread-safe.
         await using var ctx = await dbFactory.CreateDbContextAsync(ct);
-        return await MainDedication.FetchAsync(ctx, accountIds, championFilter, DateTime.UtcNow, ct);
+        return await MainDedication.FetchAsync(
+            ctx,
+            accountIds,
+            championFilter,
+            DateTime.UtcNow,
+            mainAnalysisOptions.Value.PlayRateFloor,
+            ct);
     }
 
     /// <summary>
@@ -979,9 +987,7 @@ public sealed class TruemainsLeaderboardQueryService(
                 Games: row.Games,
                 Wins: row.Wins,
                 Losses: row.Games - row.Wins,
-                Kda: row.Deaths > 0
-                    ? (double)(row.Kills + row.Assists) / row.Deaths
-                    : row.Kills + row.Assists);
+                Kda: RateMath.Kda(row.Kills, row.Deaths, row.Assists, row.Games));
         }
 
         return result;
