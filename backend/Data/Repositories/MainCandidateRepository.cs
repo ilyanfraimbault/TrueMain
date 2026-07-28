@@ -29,6 +29,64 @@ public sealed class MainCandidateRepository(TrueMainDbContext db) : IMainCandida
             .ExecuteUpdateAsync(s => s.SetProperty(c => c.Status, to), ct);
     }
 
+    public async Task<IReadOnlyCollection<AccountKey>> SetStatusForAccountsAsync(
+        IReadOnlyCollection<AccountKey> accounts,
+        MainCandidateStatus from,
+        MainCandidateStatus to,
+        CancellationToken ct)
+    {
+        var affectedAccounts = new List<AccountKey>();
+        if (accounts.Count == 0)
+        {
+            return affectedAccounts;
+        }
+
+        // Grouped by platform, mirroring RiotAccountRepository.GetByKeysAsync: the
+        // round-trip count depends on the number of distinct platforms in the
+        // batch (a handful in practice — KR/EUW1/NA1), not on the number of
+        // accounts (#858).
+        foreach (var grouping in accounts
+                     .Distinct()
+                     .GroupBy(a => a.PlatformId, StringComparer.OrdinalIgnoreCase))
+        {
+            var platformId = grouping.Key;
+            var puuids = grouping.Select(a => a.Puuid).Distinct(StringComparer.Ordinal).ToList();
+
+            // Read which of the requested accounts actually have a `from` row
+            // before mutating, so the caller learns exactly which accounts were
+            // affected — an ExecuteUpdate row count would over-count an account
+            // that carries several candidate rows (one per champion).
+            //
+            // The SELECT and the ExecuteUpdate below are two round-trips, not one
+            // atomic operation: a row could in theory change status between them,
+            // which would make affectedPuuids report an account as "affected"
+            // without the UPDATE having actually touched it. This is only safe
+            // because the ingestor is a single instance running a strictly
+            // sequential pipeline (see Worker.cs), so nothing else can write to
+            // these rows between the two queries. If the ingestor is ever scaled
+            // to multiple instances, this TOCTOU gap becomes a real bug and this
+            // method would need a single atomic UPDATE ... RETURNING instead.
+            var affectedPuuids = await db.MainCandidates
+                .Where(c => c.PlatformId == platformId && puuids.Contains(c.Puuid) && c.Status == from)
+                .Select(c => c.Puuid)
+                .Distinct()
+                .ToListAsync(ct);
+
+            if (affectedPuuids.Count == 0)
+            {
+                continue;
+            }
+
+            await db.MainCandidates
+                .Where(c => c.PlatformId == platformId && affectedPuuids.Contains(c.Puuid) && c.Status == from)
+                .ExecuteUpdateAsync(s => s.SetProperty(c => c.Status, to), ct);
+
+            affectedAccounts.AddRange(affectedPuuids.Select(puuid => new AccountKey(platformId, puuid)));
+        }
+
+        return affectedAccounts;
+    }
+
     public Task<List<MainCandidate>> GetByStatusAsync(MainCandidateStatus status, CancellationToken ct)
         => db.MainCandidates.AsNoTracking().Where(c => c.Status == status).ToListAsync(ct);
 

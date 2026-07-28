@@ -32,15 +32,12 @@ public static class RiotResilienceExtensions
 
             options.Retry.MaxRetryAttempts = riotOptions.MaxRetryAttempts;
             options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(riotOptions.AttemptTimeoutSeconds);
-            options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(riotOptions.TotalRequestTimeoutSeconds);
 
             // Invariant: the total request timeout must always be large enough to cover
             // every attempt at the per-attempt timeout, whatever values are configured.
-            var minimumTotalTimeout = options.AttemptTimeout.Timeout * (riotOptions.MaxRetryAttempts + 1);
-            if (options.TotalRequestTimeout.Timeout < minimumTotalTimeout)
-            {
-                options.TotalRequestTimeout.Timeout = minimumTotalTimeout;
-            }
+            // Derived from the shared calculation so it can never drift from the value
+            // ConfigureRiotClient sizes HttpClient.Timeout around (#855).
+            options.TotalRequestTimeout.Timeout = riotOptions.EffectiveTotalRequestTimeout();
 
             // The standard handler validates that the circuit breaker's sampling duration
             // is at least double the attempt timeout; keep it valid when the configured

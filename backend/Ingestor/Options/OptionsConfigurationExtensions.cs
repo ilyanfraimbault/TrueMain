@@ -39,7 +39,7 @@ public static class OptionsConfigurationExtensions
         services.AddOptions<RiotOptions>()
             .Bind(configuration.GetSection(RiotOptions.SectionName))
             .Validate(options => !string.IsNullOrWhiteSpace(options.ApiKey), "Riot:ApiKey is required.")
-            .Validate(options => options.MaxRetryAttempts > 0, "Riot:MaxRetryAttempts must be greater than 0.")
+            .Validate(options => options.MaxRetryAttempts is > 0 and <= 10, "Riot:MaxRetryAttempts must be between 1 and 10.")
             .Validate(options => options.AttemptTimeoutSeconds is > 0 and <= 600, "Riot:AttemptTimeoutSeconds must be between 1 and 600.")
             .Validate(options => options.TotalRequestTimeoutSeconds is > 0 and <= 3600, "Riot:TotalRequestTimeoutSeconds must be between 1 and 3600.")
             .Validate(
@@ -73,6 +73,7 @@ public static class OptionsConfigurationExtensions
             .Bind(configuration.GetSection(DiscoveryOptions.SectionName))
             .PostConfigure(options => options.Platforms = platformScope.Resolve(options.Platforms))
             .Validate(options => HasNonEmptyItems(options.TierScope), "Discovery:TierScope must contain at least one value.")
+            .Validate(options => HasOnlyKnownTiers(options.TierScope), KnownTierScopeMessage)
             .Validate(options => options.TopChampionsPerAccount > 0, "Discovery:TopChampionsPerAccount must be greater than 0.")
             .Validate(options => options.MaxAccountsPerPlatformPerRun > 0, "Discovery:MaxAccountsPerPlatformPerRun must be greater than 0.")
             .Validate(options => options.SaveBatchSize > 0, "Discovery:SaveBatchSize must be greater than 0.")
@@ -208,5 +209,21 @@ public static class OptionsConfigurationExtensions
     private static bool HasNonEmptyItems(IEnumerable<string> values)
     {
         return values.Any(value => !string.IsNullOrWhiteSpace(value));
+    }
+
+    // GM and GRANDMASTER are accepted as synonyms — LadderDiscoveryService.FetchLadderEntriesAsync
+    // checks for both. Anything else silently matched nothing at runtime (no warning), which is
+    // exactly the kind of divergence #860 also guards against for unknown platform ids.
+    private static readonly string[] KnownTiers = ["CHALLENGER", "GM", "GRANDMASTER", "MASTER"];
+
+    private const string KnownTierScopeMessage =
+        "Discovery:TierScope must contain only Master, GM (or Grandmaster) and/or Challenger — "
+        + "the only tiers league-v4 exposes a dedicated ladder endpoint for.";
+
+    private static bool HasOnlyKnownTiers(IEnumerable<string> values)
+    {
+        return values
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .All(value => KnownTiers.Contains(value.Trim(), StringComparer.OrdinalIgnoreCase));
     }
 }
