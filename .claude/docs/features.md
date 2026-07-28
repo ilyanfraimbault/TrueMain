@@ -1,0 +1,171 @@
+# TrueMain — shipped feature inventory
+
+What already exists, so a session doesn't propose it as new or re-derive it from the code.
+Companion file: [decisions.md](decisions.md) (the *why*). Keep both updated — see the convention at the bottom.
+
+Last verified against `develop` on 2026-07-28.
+
+---
+
+## web/ — public site (Nuxt 4 + Nuxt UI v4)
+
+No `layouts/` dir; the shell is `web/app/app.vue` (`AppBackdrop`, `AppHeader`, `NuxtPage`, `AppFooter`).
+All data goes through the catch-all proxy `web/server/api/[...path].ts` → `NUXT_API_BASE_URL`.
+
+### `/` — `web/app/pages/index.vue`
+Hero + search field, three live stat chips (champions ranked, main games analysed, truemains tracked), a tier-list teaser (`home/TierlistPanel.vue`, top 8, intersection-gated), a truemains teaser with region switch (`home/TruemainsPanel.vue`), CTAs.
+
+### `/champions` — `web/app/pages/champions/index.vue`
+Champion/lane directory, one row per (champion, position). Filters: role, champion, elo, patch. Each row shows keystone + secondary tree, consensus build path (6 items max), tier badge, WR/PR.
+Pagination and search are **client-side** (the endpoint returns the whole ~500-row directory, `PAGE_SIZE = 50`). Body wrapped in `<ClientOnly>` with skeletons; all fetches `server: false` deliberately (hydration-mismatch fix, #149).
+
+### `/champions/tierlist` — `web/app/pages/champions/tierlist.vue`
+Server-computed tier list. One `SectionCard` per tier group (S→D), each a grid of champion chips linking to the champion page. Filters: role, elo, patch.
+
+### `/champions/:id` — `web/app/pages/champions/[id].vue`
+The richest page — two columns at `xl`.
+
+- **Build tabs** (`Champion/BuildTabs.vue`) — one pill per build, each panel (`Champion/BuildPanel.vue`) containing:
+  core section (spells, starter items, skill order, boots, build path, runes), **variations**, **build tree**, **rune variations**, and **power spikes** (`BuildPanel/Powerspikes.vue` — hand-drawn bars, Items/Levels toggle; only when both `championId` and `position` are set).
+- **Below the fold**, all lazy + `hydrate-on-visible` with frozen props (`useLazyHydrationSnapshot`, the #834/#837 scroll-jank fix):
+  - `Champion/TrendChart.vue` — **winrate & pickrate by patch**, two area charts over the last 5 patches (cross-patch by design; the patch filter is not forwarded).
+  - `Champion/PatchDiff.vue` — **patch diff**, two patch selectors + signed winrate swing, comparing core build / runes / skill order. Hidden when fewer than 2 patches exist.
+  - `Champion/ScalingChart.vue` — winrate by game-length bucket + signed scaling index with verdict badge.
+  - `Champion/Roam.vue` — out-of-lane K+A at 5/10/15 min with verdict. Hidden for `JUNGLE`.
+- **Sidebar**: top-10 truemains on the champion; **matchups** (best 5 / worst 5 + specific-opponent picker); **mains comparison** (`Champion/MainsComparison.vue` — enter a Riot ID, compare WR/KDA/CS·min/gold·min against all mains or one chosen main).
+- States: `noDataForRank`, `notEnoughData`, low-sample alerts, and a watcher that reconciles the URL when the API drops a dead filter.
+
+### `/builder` — `web/app/pages/builder.vue`
+A **live composition builder**, not a build editor. Inputs: your champion + role (deep-linked), plus two 5-slot draft columns (your team / enemy team, not persisted in the URL). No submit — every edit refires after a 400 ms debounce through `useCompositionBuild()` → `POST /api/champions/{id}/composition-build`, keeping the previous result dimmed on screen and dropping out-of-order responses.
+Output (`builder/RecommendationPanel.vue`): confidence strip (games used, draft match %, win rate), low-confidence warnings, then the same core panels as the champion page + build tree. **No power spikes, no variations, no rune list.** Fallback build when the matchup was never recorded.
+> `situationalItems` exists in `web/shared/types/composition.ts` but is never rendered — stale.
+> Reworked into a matchup-centric tool by **#921**.
+
+### `/truemains` — `web/app/pages/truemains/index.vue`
+OTP leaderboard, server-paginated (25/page). Filters: region, role, OTP-only toggle, and **sort by LP or dedication**. Rows show rank, name#tag + region flag, lanes, top-3 champions, main's keystone + first item, dedication score with a breakdown tooltip, rank icon + LP, and a favorite toggle.
+
+### `/truemains/:nameTag` — `web/app/pages/truemains/[nameTag]/index.vue`
+Left rail: profile header, **ranked card**, dedication card, main champions, position breakdown.
+- **`ProfileRankedCard.vue` — the LP / rank-history curve** (`useTruemainRankHistory.ts` → `/api/truemains/{tag}/rank-history?days=90`). Headline rank + W-L-WR, **"Last 30d"/"Last 7d" LP delta badges**, an area chart with **one series per tier** so the line colour-shifts at each promotion/demotion, and a hand-positioned tier-crest gutter. This is where **#927's activity heatmap** goes, underneath.
+
+Right rail: match history (role + champion filters, 20/page, URL-backed). `MatchRow.vue` is an accordion; expanding mounts `match/MatchDetailPanel.vue` with three tabs — General (scoreboards), Details (per-player panel), Runes.
+
+### `/truemains/:nameTag/champions/:id`
+Player-scoped mirror of the champion page. Adds **`Champion/MainsDivergence.vue`** — "{player} vs mains" across starter / boots / core items / skill order, each with a differs/matches badge and a coaching line built from real rates. Matchups here are scoped to the player's games. **No** trend / scaling / roam / patch-diff / power-spikes / truemains panel.
+
+### `/truemains/favorites`
+localStorage-backed follow list (`web/app/utils/favorites.ts`, key `truemain:favorites:v1`, hard cap 30, oldest-first eviction). Per-player cards with their latest 3 matches. `noindex`, excluded from the sitemap. No account sync (no RSO).
+
+### `/privacy`, `/terms`
+Static legal prose — required for the Riot production-key application.
+
+### `/dev/*`
+Component playgrounds (`charts`, `match-row`, `profile`). **Stripped from production** by a `pages:extend` hook in `nuxt.config.ts`.
+
+### Cross-cutting (web)
+- **Search / command palette** — `AppSearch.vue`: one modal + lazy `UCommandPalette` (keeps Fuse out of the site-wide bundle, #832). Groups: champions (local Fuse), truemains (debounced server search), browse shortcuts. ⌘K bound only on the header instance. Two variants (`field`, `button`); `champion-mode="filter"` makes selection filter instead of navigate.
+- **Design system** — primary `rosegold`, neutral `mauve` (`app.config.ts`). Every `UCard` is `glass rounded-2xl` + `soft`. Utilities `glass`, `glass-hover`, `deselected`, `selected-perk` and the tier ladder live in `web/app/assets/css/main.css`. Text-hierarchy conventions: `web/docs/DESIGN_SYSTEM.md`.
+- **Backdrop** — `AppBackdrop.vue`: fixed WebGL rose-gold "eclipse", cursor-reactive, degrades to a CSS wash, respects reduced-motion.
+- **Game tooltips** — `GameTooltip/*` + the Riot-markup parsers in `web/shared/utils/tooltip-parser/`.
+- **Charts** — `nuxt-charts` (Unovis) wrapped by `components/charts/{Area,Line,Bar}Chart.vue`. Only `AreaChart` is used in production; power spikes and roam draw bars by hand on purpose.
+- **SEO** — `@nuxtjs/seo`, title template `%s · TrueMain` (never repeat the brand in a page title), schema.org on the main pages, sitemap enumerating champions and leaderboard players. **OG image rendering is disabled** (`ogImage: { enabled: false }`) — that's what **#926** turns on.
+- **Caching** — 1 h client TTL mirroring the server `defineCachedFunction` (`utils/static-cache.ts`), static prefetch plugin, and a custom cached IPX handler for `/_ipx/**`.
+- **Analytics** — self-hosted Umami, only injected when both public env vars are set.
+- **Dev mock** — `NUXT_DEV_MOCK_API=1` → `web/server/utils/dev-api-mock.ts`, deterministic PRNG, real Riot ids, covers most endpoints; a dedicated fixture takes precedence for `Sheiden-1234`.
+- **No i18n** — all copy is hardcoded English; numbers use an explicit `en-US` locale to avoid hydration mismatches.
+- **Not present**: no gold/XP timeline chart in match detail, no auth/accounts, no OG artwork.
+
+---
+
+## admin/ — operator portal (standalone Nuxt app, `ssr: false`)
+
+Separate app with its own deployment and domain — **not** a `/admin` route of `web`.
+
+**Auth & backend access.** Single-operator username/password → sealed httpOnly session (`nuxt-auth-utils`); no user store, no roles. `admin/server/api/auth/login.post.ts` does a constant-time compare with a per-IP throttle (5 attempts/60 s). Every route is gated by `admin/app/middleware/auth.global.ts`.
+**All backend traffic goes through one proxy**: `admin/server/api/ops/[...path].ts` requires the session, then forwards to `${opsApiBaseUrl}/ops{path}` injecting the secret `X-Ops-Key` **server-side** — the ops key never reaches the browser. A boot plugin refuses to start outside dev with default credentials or short secrets.
+
+| Route | What it shows |
+|---|---|
+| `/` | Overview: stat cards (tracked accounts, matches, participants, mains/OTPs, candidates by status), matches-over-time area chart with week/month/year/patch granularity, top-10 champions bar chart |
+| `/champions` | Per-champion games/mains/OTPs, filters region/patch/position/queue, sortable table + 2 bar charts. Surfaces the caveat that mains/OTPs honour **region only** |
+| `/database` | **Table sizes only** — row estimate, total/table/index bytes, name filter, sortable table, top-12 bar chart. No history, no forecast, no Mongo collections → that's what **#925** adds |
+| `/data-quality` | **Read-only diagnostics, 5 hardcoded checks** (`missingTimeline`, `wrongParticipantCount`, `missingTeamPosition`, `zeroDuration`, `duplicateChampion`), one card per issue type with its own pagination, plus a match-ID slide-over showing both teams by position with missing/duplicate slots tinted. No repair actions → **#924** extends the detector set |
+| `/candidates` | `main_candidates` pipeline (New→Scored→Queued→Processing→Validated/Rejected) with search/filters + detail slide-over; and the manual seed-request intake list |
+| `/processes` | Per-process rollup (last status/run/success, recent failures) + paginated runs table with the run `summary` JSON rendered by `ProcessSummaryView`; plus the pipeline-chain iteration view |
+| `/aggregation` | Per aggregation family: exact row counts, distinct champions/patches, freshness, last run + summary, and the ingestion backlogs that should read zero when caught up |
+| `/logs` | Two tabs (deep-linkable `?view=crashes`). **Logs**: severity/category/event-type/process/window/text filters, detail slide-over with exception stack, multi-select copy as JSON. **Crashes**: full report per row — plain-language explanation, exception chain, environment + memory/GC snapshot, recent log tail |
+| `/riot-api` | Riot usage over 1h/24h/7d from the Mongo rollups: totals, per-endpoint table, status-code histogram, call-volume chart, latest rate-limit snapshot |
+| `/analytics` | Iframe onto the self-hosted Umami. 54 lines, no backend call |
+| `/seed` | "Add mains": single-add form with a Pending→Resolving→Ingested/Failed stepper (polls ~2 s), bulk-add textarea (`name#tag[,REGION]`) with dedupe + malformed-line flagging + progress bar, shared history table |
+
+Tests: `admin/tests/` covers only `process-summary`. No page-level or proxy tests.
+
+---
+
+## backend/ — .NET 10 solution
+
+### Api
+Three controllers, all delegating to injected `I*QueryService` — no EF types cross the controller boundary; read models are `sealed record`s under `Api/ReadModels/`.
+
+- **`ChampionsController`** (public): list, tierlist, detail, trend, patch-diff, matchups, scaling, item-timings, roam, powerspikes, mains-comparison, and `POST composition-build`.
+- **`TruemainsController`** (public): search, leaderboard, profile, player-scoped champion + divergence + matchups, rank-history, matches, match detail.
+- **`OpsController`** (`X-Ops-Key` auth): 18 endpoints backing the admin portal.
+
+Cross-cutting: memory cache (`SizeLimit = 1024`, no Redis), global per-IP rate limit 100 req/min, `/healthz` + `/readyz`, RFC 7807 problem details with `traceId`, HSTS outside dev, CORS that fails boot when unset outside dev, OpenAPI/Scalar **Development-only**.
+
+> Note: reads live in `Api/Services/**` as query services, many injecting `TrueMainDbContext` directly — this differs from the rule stated in CLAUDE.md. See [decisions.md](decisions.md#known-discrepancy) and issue #865.
+
+### Ingestor
+`Worker.cs` is a `BackgroundService`: reconcile orphaned `Running` rows to `Abandoned` at boot, then loop {heartbeat file → `RunOnceAsync(mode)` → stop if `Job:RunOnce` (default true) else wait `Job:IntervalMinutes`}. A failed iteration is logged and counted, never fatal. The mode concept is **`JobMode`** — `Full` expands to the ordered pipeline below, any other value runs that single process. Each process is DI-keyed by its `JobMode` and wrapped in `RecordedProcess` (writes `Running`, heartbeats, then `Success`/`Failed` + serialized summary).
+
+Pipeline order (`Full`):
+
+| # | Process | What it does |
+|---|---|---|
+| 1 | Discovery | Walks Master/GM/Challenger ladders per platform → accounts, mastery-derived candidates, rank snapshots |
+| 2 | ManualSeed | Drains pending seed requests (admin "Add mains"), promotes straight to `Queued` |
+| 3 | Harvest | Generates candidates from orphan `match_participants` — zero Riot calls |
+| 4 | Scoring | Weighted blend (recency, rank, mastery, champion scarcity) → top-N promoted to `Queued` |
+| 5 | MainActivity | Retires/reactivates mains via champion-mastery `lastPlayTime` (1 call/account); flags rows, never deletes |
+| 6 | MatchIngestion | Lease-claims accounts, fetches match-v5 + timeline, writes matches/participants/snapshots/kill positions/jungle clears/perks |
+| 7 | MatchTeamPositionCorrection | Backfills `team_position` for the unambiguous single-gap case |
+| 8 | MainAnalysis | Computes `main_champion_stats` (play rate, mains/OTP) with adaptive thresholds + demotion policy |
+| 9 | EloBracketEnrichment | Stamps `elo_bracket` from the nearest rank snapshot |
+| 10 | ChampionPatternAggregation | Rebuilds aggregate scopes/patterns + `champion_dim_*`, **chunked one champion at a time** (memory bound) |
+| 11 | ChampionMatchupLeadAggregation | Incrementally folds each match once into `champion_matchup_stats` |
+| 12 | ChampionPowerspikeAggregation | Folds each match once into the powerspike stat tables while dense snapshots still exist |
+| 13 | AccountRefresh | Refreshes identity + soloQ rank; recovers or invalidates dead PUUIDs |
+| 14 | MatchDataRetention | Prunes stale candidates, non-tracked-queue matches, out-of-window matches, intermediate timeline snapshots, sub-floor powerspike rows |
+
+**Riot client layer** — typed clients (match / platform / account) each wrapped in a resilience handler (rate limiter, total timeout, retry honouring `Retry-After`, circuit breaker, per-attempt timeout) with the metrics handler **inside** it, so every physical attempt including retried 429s is recorded to Mongo.
+
+### Data
+`TrueMainDbContext`, 26 `DbSet`s. Tables by domain:
+- **Identity**: `riot_accounts`, `personas` (half-built, unused), `main_candidates`, `seed_requests`, `discovery_cursors`
+- **Raw matches**: `matches`, `match_participants`, `match_participant_timeline_snapshots`, `match_participant_kill_positions`, `jungle_first_clears`, `participant_perk_selections`, `perk_selection_catalog` (item/skill events are jsonb, not tables)
+- **Aggregates**: `champion_aggregate_scopes` (account × champion × patch × platform × queue × position × elo bracket) + `champion_aggregate_patterns` (one row per observed build+runes+skills+spells+starters combo), with content-deduplicated `champion_dim_{builds,rune_pages,skill_orders,spell_pairs,starter_items}`
+- **Derived**: `main_champion_stats`, `champion_matchup_stats`, `champion_powerspike_{curve,event}_stats`, `powerspike_sigma_stats`
+- **Snapshots / ops**: `rank_snapshots`, `process_runs`
+
+**Mongo** (`truemain_logs`, TTL retention): `logs` (90 d, lossy bounded channel), `audit_events` (lossless, synchronous), `riot_api_call_rollups` (14 d), `crashes` (365 d, file-first then Mongo, with unclean-shutdown detection for OOM kills).
+
+**Compiled model** in `Data/CompiledModels/` is committed and auto-discovered (no `UseModel()` call) — regenerate with `dotnet ef dbcontext optimize` after any schema change.
+**BuildFacts** (`Data/BuildFacts/`) is the build-derivation shared by Ingestor and API: item metadata provider, boots/final-build/starter resolvers, skill-order builder.
+
+### Core
+Dependency-free domain layer: `DedicationScore` (0–100 with exposed components), `MainAnalysisOptions` (the main-analysis contract shared by Ingestor and API), Riot identifiers/routing, map & queue types (`LolQueueId`, `LolPosition`, `QueueDataQualityProfile`, `TeamPositionInferrer`), ranking (`EloBracket`, `RankScore`), and **`MatchPerformanceRanker` / `PerformanceScore` / `PerformanceScoreInput`**.
+
+> ⚠️ **A per-match performance score already exists and ships.** `MatchPerformanceRanker` is consumed by
+> `Api/Services/Truemains/MatchDetailQueryService.cs` and exposed through `MatchDetailReadModel`; it is what
+> produces the **MVP/ACE accolade** on collapsed match rows. Unit-tested in
+> `tests/TrueMain.UnitTests/{MatchPerformanceRankerTests,PerformanceScoreTests}.cs`.
+> #918 must therefore **extend and surface** this scorer (timeline inputs, badges, peer-relative radar),
+> not build a new one.
+
+### Known dead / stale spots
+- `GET /ops/pipeline-health` is implemented and tested but **no admin page calls it**.
+- The `"ops"` rate-limit policy referenced in a `Program.cs` comment **does not exist** — ops shares the global limit.
+- `SeedOptions` is bound but never injected (dead config; `ManualSeedProcess` uses `ManualSeedOptions`).
+- `ChampionAggregateBuild/RunePage/SkillOrder/SpellPair/StarterItems` in `Data/Entities/` are transport DTOs, **not tables**.
+- `personas` has no writer and no reader.
+- `champion_timeline_lead_stats` was dropped in #889 but is still named in a `MatchDataRetentionOptions` doc comment.

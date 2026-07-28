@@ -32,3 +32,4 @@ ROADMAP.md
 .claude/*
 !.claude/skills/
 !.claude/scripts/
+!.claude/docs/
