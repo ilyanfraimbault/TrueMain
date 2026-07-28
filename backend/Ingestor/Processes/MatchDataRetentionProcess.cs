@@ -217,6 +217,10 @@ public sealed class MatchDataRetentionProcess(
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.ChampionPowerspikeEventStats
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
+        observedPatches.UnionWith(await db.ChampionSynergyStats
+            .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
+        observedPatches.UnionWith(await db.ChampionSynergyBaselineStats
+            .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
 
         // Rank the observed patch strings by parsed version and keep the N most
         // recent. Unparseable strings are never deleted — better to leave an odd
@@ -269,19 +273,28 @@ public sealed class MatchDataRetentionProcess(
                 result.DeletedPowerspikeCurveStats + await db.ChampionPowerspikeCurveStats
                     .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct),
                 result.DeletedPowerspikeEventStats + await db.ChampionPowerspikeEventStats
-                    .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct));
+                    .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct),
+                // The synergy pair rows and the baselines they are divided by go in
+                // the same transaction as each other: a patch left with baselines but
+                // no pairs (or the reverse) would still be read, and would answer with
+                // an expected win rate computed against a cohort that no longer exists.
+                result.DeletedSynergyStats + await db.ChampionSynergyStats
+                    .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct)
+                    + await db.ChampionSynergyBaselineStats
+                        .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct));
             await transaction.CommitAsync(ct);
         }
 
         if (result.TotalDeleted > 0)
         {
             logger.LogInformation(
-                "Aggregate retention removed {DeletedScopes} scopes, {DeletedMatchups} matchup "
-                + "and {DeletedPowerspikes} powerspike rows for stale patches "
+                "Aggregate retention removed {DeletedScopes} scopes, {DeletedMatchups} matchup, "
+                + "{DeletedPowerspikes} powerspike and {DeletedSynergies} synergy rows for stale patches "
                 + "{StalePatches} (keeping {RetainedPatches}).",
                 result.DeletedScopes,
                 result.DeletedMatchupStats,
                 result.DeletedPowerspikeCurveStats + result.DeletedPowerspikeEventStats,
+                result.DeletedSynergyStats,
                 string.Join("|", stalePatches),
                 string.Join("|", retainedVersions.OrderDescending().Select(version => version.ToString())));
         }
@@ -474,6 +487,7 @@ public sealed class MatchDataRetentionProcess(
             aggregateDeletion.DeletedMatchupStats,
             aggregateDeletion.DeletedPowerspikeCurveStats,
             aggregateDeletion.DeletedPowerspikeEventStats,
+            aggregateDeletion.DeletedSynergyStats,
             prunedPowerspikeEvents,
             retentionPlan.RetainedPatchesByPlatform
                 .OrderBy(entry => entry.Key)
@@ -497,15 +511,17 @@ public sealed class MatchDataRetentionProcess(
         int DeletedScopes,
         int DeletedMatchupStats,
         int DeletedPowerspikeCurveStats,
-        int DeletedPowerspikeEventStats)
+        int DeletedPowerspikeEventStats,
+        int DeletedSynergyStats)
     {
-        public static AggregateDeletionResult Empty { get; } = new(0, 0, 0, 0);
+        public static AggregateDeletionResult Empty { get; } = new(0, 0, 0, 0, 0);
 
         public int TotalDeleted
             => DeletedScopes
                 + DeletedMatchupStats
                 + DeletedPowerspikeCurveStats
-                + DeletedPowerspikeEventStats;
+                + DeletedPowerspikeEventStats
+                + DeletedSynergyStats;
     }
 
     private sealed record RetentionPlan(

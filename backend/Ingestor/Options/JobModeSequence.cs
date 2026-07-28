@@ -45,6 +45,12 @@ public static class JobModeSequence
         JobMode.EloBracketEnrichmentOnly,
         JobMode.PatternAggregationOnly,
         JobMode.MatchupLeadAggregationOnly,
+        // Same incremental one-fold-per-match shape as the matchup step, over the
+        // same participant rows but pairing teammates instead of lane opponents
+        // (#922). Independent of it — it has its own pending flag — so the order
+        // between the two is arbitrary; kept adjacent because they read the same
+        // slice of match_participants and benefit from a warm cache.
+        JobMode.SynergyAggregationOnly,
         // Folds each newly-ingested match into the powerspike aggregates (#694)
         // while its dense per-minute snapshots still exist, so MatchDataRetention
         // can then prune them to the canonical marks.
