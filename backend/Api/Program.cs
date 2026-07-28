@@ -99,7 +99,10 @@ builder.Services.AddOptions<MainAnalysisOptions>()
     // The API feeds PlayRateFloor into the dedication score as the point
     // commitment reads 0 (#869), so it must be range-checked here too and not
     // only in the ingestor: a floor at or above 1 would invert the rescale.
-    // Same predicates as the ingestor's, since both hosts bind the same section.
+    // Same predicates as the ingestor's (#930 review — the two used to disagree
+    // at the upper bound; both hosts now reject exactly 1, since both bind the
+    // same MainAnalysis section and DedicationScore.Commitment divides by
+    // (1 - floor)).
     .Validate(options => options.PlayRateFloor is >= 0 and < 1, "MainAnalysis:PlayRateFloor must be in [0, 1).")
     .Validate(options => options.PlayRateFloor <= options.PlayRateThreshold,
         "MainAnalysis:PlayRateFloor must be <= PlayRateThreshold.")
