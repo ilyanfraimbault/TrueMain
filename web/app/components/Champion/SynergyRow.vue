@@ -75,7 +75,7 @@ const synergyLabel = computed(() => {
          ranking value is a difference, and a difference means nothing without
          the two numbers and the count it came from. -->
     <span class="shrink-0 text-xs tabular-nums text-muted">
-      {{ games.toLocaleString() }} games
+      {{ games.toLocaleString('en-US') }} games
     </span>
     <span class="w-12 shrink-0 text-right text-xs tabular-nums text-muted">
       {{ formatPercentage(winRate, 0) }}

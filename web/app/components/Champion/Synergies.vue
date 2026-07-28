@@ -160,7 +160,7 @@ watch(() => [props.championId, props.position], () => {
 
         <p class="px-2 text-xs text-muted">
           Synergy is win rate minus what {{ championName }}'s and the partner's own win rates predicted, in points.
-          Measured over {{ (data?.championGames ?? 0).toLocaleString() }} games on {{ championName }}.
+          Measured over {{ (data?.championGames ?? 0).toLocaleString('en-US') }} games on {{ championName }}.
           Pick a partner to see the best third pick.
         </p>
       </template>
@@ -183,7 +183,7 @@ watch(() => [props.championId, props.position], () => {
              duo cannot support a third dimension. Show the real count. -->
         <p v-else-if="completions.length === 0" class="py-4 text-center text-sm text-muted">
           {{ championName }} and {{ selectedPartnerName }} share
-          {{ (trioData?.pairGames ?? 0).toLocaleString() }} games — not enough to suggest a third pick
+          {{ (trioData?.pairGames ?? 0).toLocaleString('en-US') }} games — not enough to suggest a third pick
           (minimum {{ trioData?.minGames ?? 0 }} games together with the same teammate).
         </p>
 
@@ -201,7 +201,7 @@ watch(() => [props.championId, props.position], () => {
             />
           </div>
           <p class="px-2 text-xs text-muted">
-            Out of {{ (trioData?.pairGames ?? 0).toLocaleString() }} games where
+            Out of {{ (trioData?.pairGames ?? 0).toLocaleString('en-US') }} games where
             {{ championName }} and {{ selectedPartnerName }} played together.
           </p>
         </template>
