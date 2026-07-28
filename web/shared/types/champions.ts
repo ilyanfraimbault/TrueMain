@@ -220,6 +220,76 @@ export interface ChampionMatchups {
 }
 
 /**
+ * One duo partner row. `synergy` is the value the list is ranked by — how far
+ * `winRate` lands above (positive) or below what the two champions' own win
+ * rates already predicted. A high `winRate` with a `synergy` near zero means
+ * "this champion wins a lot", not "this pairing works".
+ */
+export interface ChampionSynergyEntry {
+  partnerChampionId: number
+  partnerPosition: string
+  games: number
+  wins: number
+  winRate: number
+  /** Sample behind `partnerBaselineWinRate`; always ≥ `games`. */
+  partnerBaselineGames: number
+  /** The partner's win rate as somebody's teammate, across all their pairings. */
+  partnerBaselineWinRate: number
+  expectedWinRate: number
+  /** `winRate - expectedWinRate`, on the same 0–1 scale as a win rate. */
+  synergy: number
+}
+
+/** `GET /api/champions/{id}/synergies` — the duo half of the synergies panel. */
+export interface ChampionSynergies {
+  championId: number
+  position: string
+  patch: string | null
+  /** The partner lane the request narrowed to, or null for every lane. */
+  partnerPosition: string | null
+  /** Minimum shared games a pairing needed to appear — echoed to explain an empty list. */
+  minGames: number
+  /** Sample behind `championWinRate`. Zero means the champion has no games in scope. */
+  championGames: number
+  championWinRate: number
+  /** The tracked cohort's overall win rate — the reference point partners are judged against. */
+  cohortWinRate: number
+  partners: ChampionSynergyEntry[]
+}
+
+/** One third-pick row for a chosen duo. */
+export interface ChampionTrioSynergyEntry {
+  championId: number
+  position: string
+  games: number
+  wins: number
+  winRate: number
+  baselineGames: number
+  baselineWinRate: number
+  expectedWinRate: number
+  synergy: number
+}
+
+/**
+ * `GET /api/champions/{id}/synergies/trios` — computed live from the games the
+ * chosen duo actually shared, so `pairGames` is the ceiling every completion's
+ * sample is drawn from and an empty `completions` list is the normal answer for
+ * a rarely-played duo.
+ */
+export interface ChampionTrioSynergies {
+  championId: number
+  position: string
+  partnerChampionId: number
+  partnerPosition: string
+  patch: string | null
+  minGames: number
+  pairGames: number
+  pairWins: number
+  pairWinRate: number
+  completions: ChampionTrioSynergyEntry[]
+}
+
+/**
  * Why an account-vs-mains comparison did — or did not — produce two comparable
  * columns. Mirrors `ChampionComparisonStatus` in
  * backend/Api/ReadModels/Champions/ChampionMainsComparisonResponse.cs.

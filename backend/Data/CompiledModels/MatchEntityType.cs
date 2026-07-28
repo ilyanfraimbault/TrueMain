@@ -20,10 +20,10 @@ namespace Data.CompiledModels
                 "Data.Entities.Match",
                 typeof(Match),
                 baseEntityType,
-                propertyCount: 14,
+                propertyCount: 15,
                 navigationCount: 1,
                 unnamedIndexCount: 4,
-                namedIndexCount: 2,
+                namedIndexCount: 3,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -129,6 +129,16 @@ namespace Data.CompiledModels
                 sentinel: 0);
             queueId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
+            var synergyAggregated = runtimeEntityType.AddProperty(
+                "SynergyAggregated",
+                typeof(bool),
+                propertyInfo: typeof(Match).GetProperty("SynergyAggregated", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Match).GetField("<SynergyAggregated>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: false);
+            synergyAggregated.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            synergyAggregated.AddAnnotation("Relational:DefaultValue", false);
+
             var timelineIngested = runtimeEntityType.AddProperty(
                 "TimelineIngested",
                 typeof(bool),
@@ -178,6 +188,11 @@ namespace Data.CompiledModels
                 new[] { queueId },
                 name: "IX_matches_snapshot_prune_pending");
             iX_matches_snapshot_prune_pending.AddAnnotation("Relational:Filter", "\"PowerspikeAggregated\" = true AND \"TimelineSnapshotsPruned\" = false");
+
+            var iX_matches_synergy_pending = runtimeEntityType.AddIndex(
+                new[] { queueId },
+                name: "IX_matches_synergy_pending");
+            iX_matches_synergy_pending.AddAnnotation("Relational:Filter", "\"SynergyAggregated\" = false");
 
             return runtimeEntityType;
         }

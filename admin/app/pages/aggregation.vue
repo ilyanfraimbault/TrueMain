@@ -114,7 +114,9 @@ function summaryEntries(run: AggregationRun | null): { label: string, value: str
       />
 
       <!-- Summary tiles -->
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <!-- Five stat cards since #922 added the synergy backlog: three up at lg so
+           none of the two-line titles wrap, all five in one row from xl. -->
+      <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
         <UCard>
           <p class="text-xs text-muted uppercase">
             Aggregate rows
@@ -153,6 +155,20 @@ function summaryEntries(run: AggregationRun | null): { label: string, value: str
         </UCard>
         <UCard>
           <p class="text-xs text-muted uppercase">
+            Pending synergy matches
+          </p>
+          <p
+            class="mt-1 text-2xl font-semibold tabular-nums"
+            :class="(backlog?.pendingSynergyMatches ?? 0) > 0 ? 'text-warning' : 'text-highlighted'"
+          >
+            {{ formatNumber(backlog?.pendingSynergyMatches) }}
+          </p>
+          <p class="text-xs text-muted">
+            queue-scoped matches awaiting the fold
+          </p>
+        </UCard>
+        <UCard>
+          <p class="text-xs text-muted uppercase">
             Pending elo enrichment
           </p>
           <p
@@ -169,7 +185,7 @@ function summaryEntries(run: AggregationRun | null): { label: string, value: str
 
       <!-- Family cards -->
       <div v-if="pending && !families.length" class="grid gap-6 lg:grid-cols-2">
-        <USkeleton v-for="index in 4" :key="index" class="h-64 w-full" />
+        <USkeleton v-for="index in 5" :key="index" class="h-64 w-full" />
       </div>
 
       <div v-else class="grid gap-6 lg:grid-cols-2">

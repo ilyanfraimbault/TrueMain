@@ -20,5 +20,6 @@ public enum JobMode
     EloBracketEnrichmentOnly = 11,
     PowerspikeAggregationOnly = 12,
     TeamPositionCorrectionOnly = 13,
-    MainActivityOnly = 14
+    MainActivityOnly = 14,
+    SynergyAggregationOnly = 15
 }

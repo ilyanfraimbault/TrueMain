@@ -16,6 +16,7 @@ public sealed class AggregationStatsQueryService(
     [
         "ChampionPatternAggregation",
         "ChampionMatchupLeadAggregation",
+        "ChampionSynergyAggregation",
         "ChampionPowerspikeAggregation",
         "MainAnalysis",
         "MatchParticipantEloBracketEnrichment"
@@ -38,6 +39,7 @@ public sealed class AggregationStatsQueryService(
         {
             await BuildBuildsFamilyAsync(runsByProcess, ct),
             await BuildMatchupsFamilyAsync(runsByProcess, ct),
+            await BuildSynergiesFamilyAsync(runsByProcess, ct),
             await BuildPowerspikesFamilyAsync(runsByProcess, ct),
             await BuildMainsFamilyAsync(runsByProcess, ct)
         };
@@ -50,6 +52,9 @@ public sealed class AggregationStatsQueryService(
             .LongCountAsync(
                 match => match.QueueId == queueId && match.TimelineIngested && !match.PowerspikeAggregated,
                 ct);
+        var pendingSynergyMatches = await db.Matches
+            .AsNoTracking()
+            .LongCountAsync(match => match.QueueId == queueId && !match.SynergyAggregated, ct);
         var pendingEloBracketParticipants = await db.MatchParticipants
             .AsNoTracking()
             .LongCountAsync(
@@ -63,6 +68,7 @@ public sealed class AggregationStatsQueryService(
             Backlog = new AggregationBacklogReadModel
             {
                 PendingPowerspikeMatches = pendingPowerspikeMatches,
+                PendingSynergyMatches = pendingSynergyMatches,
                 PendingEloBracketParticipants = pendingEloBracketParticipants,
                 TimelineIngestedMatches = timelineIngestedMatches
             }
@@ -127,6 +133,35 @@ public sealed class AggregationStatsQueryService(
             DistinctPatches = distinctPatches,
             LastAggregatedAtUtc = lastAggregatedAtUtc,
             LastRun = runsByProcess["ChampionMatchupLeadAggregation"]
+        };
+    }
+
+    private async Task<AggregationFamilyReadModel> BuildSynergiesFamilyAsync(
+        IReadOnlyDictionary<string, AggregationRunReadModel?> runsByProcess,
+        CancellationToken ct)
+    {
+        var stats = db.ChampionSynergyStats.AsNoTracking();
+
+        var rows = await stats.LongCountAsync(ct);
+        var baselineRows = await db.ChampionSynergyBaselineStats.AsNoTracking().LongCountAsync(ct);
+        var distinctChampions = await stats.Select(stat => stat.ChampionId).Distinct().CountAsync(ct);
+        var distinctPatches = await stats.Select(stat => stat.Patch).Distinct().CountAsync(ct);
+        var lastAggregatedAtUtc = await stats.MaxAsync(stat => (DateTime?)stat.AggregatedAtUtc, ct);
+
+        return new AggregationFamilyReadModel
+        {
+            Key = "synergies",
+            ProcessName = "ChampionSynergyAggregation",
+            Tables =
+            [
+                new AggregationTableCountReadModel { Table = "champion_synergy_stats", Rows = rows },
+                new AggregationTableCountReadModel { Table = "champion_synergy_baseline_stats", Rows = baselineRows }
+            ],
+            TotalRows = rows + baselineRows,
+            DistinctChampions = distinctChampions,
+            DistinctPatches = distinctPatches,
+            LastAggregatedAtUtc = lastAggregatedAtUtc,
+            LastRun = runsByProcess["ChampionSynergyAggregation"]
         };
     }
 

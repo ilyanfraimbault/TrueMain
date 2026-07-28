@@ -25,7 +25,11 @@ import type {
   ChampionRoamResponse,
   ChampionScalingResponse,
   ChampionSummaryResponse,
+  ChampionSynergies,
+  ChampionSynergyEntry,
   ChampionTrendResponse,
+  ChampionTrioSynergies,
+  ChampionTrioSynergyEntry,
   BuildRunePage,
 } from '~~/shared/types/champions'
 import type {
@@ -696,6 +700,132 @@ async function mockMatchups(id: number): Promise<ChampionMatchups | null> {
       const winRate = round3(Math.min(0.6, Math.max(0.4, 0.5 + (s.wr - o.wr) * 1.6 + (rng() - 0.5) * 0.07)))
       return { opponentChampionId: o.id, games, wins: Math.round(games * winRate), winRate }
     }),
+  }
+}
+
+// Synergy mocks (#922). The panel's whole point is that the ranking value is
+// observed *minus* expected, so the mock builds the numbers in that direction:
+// draw a synergy, derive the expected rate from the marginals the same way the
+// backend does, and add them. Ranking the mocked list by raw win rate would
+// therefore give a visibly different order — which is what makes the mock
+// useful for eyeballing the panel.
+const SYNERGY_COHORT_WIN_RATE = 0.52
+
+function logit(rate: number): number {
+  const clamped = Math.min(0.999, Math.max(0.001, rate))
+  return Math.log(clamped / (1 - clamped))
+}
+
+function sigmoid(logOdds: number): number {
+  return 1 / (1 + Math.exp(-logOdds))
+}
+
+function expectedWinRate(selfWinRate: number, allyWinRates: number[]): number {
+  const cohortLogOdds = logit(SYNERGY_COHORT_WIN_RATE)
+  return sigmoid(allyWinRates.reduce(
+    (acc, ally) => acc + logit(ally) - cohortLogOdds,
+    logit(selfWinRate),
+  ))
+}
+
+async function mockSynergies(
+  id: number,
+  partnerPosition?: string,
+): Promise<ChampionSynergies | null> {
+  const s = seedsById.get(id)
+  if (!s) return null
+
+  const rng = mulberry32(s.id * 977)
+  const championGames = Math.round(600 + rng() * 2400)
+  const minGames = 20
+
+  const partners: ChampionSynergyEntry[] = CHAMPION_SEEDS
+    .filter(p => p.position !== s.position && (!partnerPosition || p.position === partnerPosition))
+    .map((p) => {
+      const games = Math.round(15 + rng() * 180)
+      const baselineGames = games + Math.round(200 + rng() * 900)
+      const baselineWinRate = round3(SYNERGY_COHORT_WIN_RATE + (p.wr - 0.5) * 0.8)
+      const expected = expectedWinRate(s.wr, [baselineWinRate])
+      const synergy = round3((rng() - 0.45) * 0.11)
+      const winRate = round3(Math.min(0.85, Math.max(0.15, expected + synergy)))
+      return {
+        partnerChampionId: p.id,
+        partnerPosition: p.position,
+        games,
+        wins: Math.round(games * winRate),
+        winRate,
+        partnerBaselineGames: baselineGames,
+        partnerBaselineWinRate: baselineWinRate,
+        expectedWinRate: round3(expected),
+        synergy: round3(winRate - expected),
+      }
+    })
+    .filter(p => p.games >= minGames)
+    .sort((a, b) => b.synergy - a.synergy)
+
+  return {
+    championId: s.id,
+    position: s.position,
+    patch: await latestShortPatch(),
+    partnerPosition: partnerPosition ?? null,
+    minGames,
+    championGames,
+    championWinRate: round3(s.wr),
+    cohortWinRate: SYNERGY_COHORT_WIN_RATE,
+    partners,
+  }
+}
+
+async function mockTrioSynergies(
+  id: number,
+  partner: number,
+  partnerPosition: string,
+): Promise<ChampionTrioSynergies | null> {
+  const s = seedsById.get(id)
+  const p = seedsById.get(partner)
+  if (!s || !p) return null
+
+  const rng = mulberry32(s.id * 31 + partner)
+  const minGames = 12
+  const pairGames = Math.round(20 + rng() * 160)
+  const pairWinRate = round3(0.5 + (rng() - 0.5) * 0.12)
+  const partnerBaselineWinRate = round3(SYNERGY_COHORT_WIN_RATE + (p.wr - 0.5) * 0.8)
+
+  // Every completion is drawn from the duo's games, so its sample can never
+  // exceed pairGames — the ceiling the panel's copy talks about.
+  const completions: ChampionTrioSynergyEntry[] = CHAMPION_SEEDS
+    .filter(t => t.position !== s.position && t.position !== partnerPosition)
+    .map((t) => {
+      const games = Math.round(pairGames * (0.2 + rng() * 0.6))
+      const baselineWinRate = round3(SYNERGY_COHORT_WIN_RATE + (t.wr - 0.5) * 0.8)
+      const expected = expectedWinRate(s.wr, [partnerBaselineWinRate, baselineWinRate])
+      const winRate = round3(Math.min(0.9, Math.max(0.1, expected + (rng() - 0.45) * 0.14)))
+      return {
+        championId: t.id,
+        position: t.position,
+        games,
+        wins: Math.round(games * winRate),
+        winRate,
+        baselineGames: games + Math.round(300 + rng() * 900),
+        baselineWinRate,
+        expectedWinRate: round3(expected),
+        synergy: round3(winRate - expected),
+      }
+    })
+    .filter(t => t.games >= minGames)
+    .sort((a, b) => b.synergy - a.synergy)
+
+  return {
+    championId: s.id,
+    position: s.position,
+    partnerChampionId: p.id,
+    partnerPosition,
+    patch: await latestShortPatch(),
+    minGames,
+    pairGames,
+    pairWins: Math.round(pairGames * pairWinRate),
+    pairWinRate,
+    completions,
   }
 }
 
@@ -1478,6 +1608,17 @@ export async function resolveDevApiMock(
   const compositionMatch = path.match(/^\/champions\/(\d+)\/composition-build$/)
   if (compositionMatch) return mockCompositionBuild(Number(compositionMatch[1]), body)
 
+  // Two segments deep, so it has to be matched before the single-segment
+  // champion route below (whose regex would otherwise not match at all).
+  const trioMatch = path.match(/^\/champions\/(\d+)\/synergies\/trios$/)
+  if (trioMatch) {
+    return mockTrioSynergies(
+      Number(trioMatch[1]),
+      Number(query.partner) || 0,
+      typeof query.partnerPosition === 'string' ? query.partnerPosition : '',
+    )
+  }
+
   const championMatch = path.match(/^\/champions\/(\d+)(?:\/([a-z-]+))?$/)
   if (championMatch) {
     const id = Number(championMatch[1])
@@ -1492,6 +1633,10 @@ export async function resolveDevApiMock(
       : sub === 'powerspikes' ? mockPowerspikes(id, Number(query.buildFirstItemId) || 0)
       : sub === 'roam' ? mockRoam(id)
       : sub === 'matchups' ? mockMatchups(id)
+      : sub === 'synergies' ? mockSynergies(
+          id,
+          typeof query.partnerPosition === 'string' && query.partnerPosition ? query.partnerPosition : undefined,
+        )
       : sub === 'mains-comparison' ? mockMainsComparison(
           id,
           typeof query.account === 'string' ? query.account : undefined,

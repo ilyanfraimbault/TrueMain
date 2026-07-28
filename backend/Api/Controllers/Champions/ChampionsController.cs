@@ -17,6 +17,7 @@ public sealed class ChampionsController(
     IChampionTrendQueryService trendQueryService,
     IChampionPatchDiffQueryService patchDiffQueryService,
     IChampionMatchupQueryService matchupQueryService,
+    IChampionSynergyQueryService synergyQueryService,
     IChampionScalingQueryService scalingQueryService,
     IChampionItemTimingsQueryService itemTimingsQueryService,
     IChampionRoamQueryService roamQueryService,
@@ -191,6 +192,107 @@ public sealed class ChampionsController(
             normalizedPatch,
             riotAccountId: null,
             opponentChampionId: opponent,
+            normalizedBracket,
+            ct);
+
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Best duo partners for a champion at a position: for every teammate it has
+    /// been paired with often enough, the shared game count, the pair's win rate
+    /// and — the value the list is ranked by — the synergy, i.e. how far that win
+    /// rate lands above or below what the two champions' individual win rates
+    /// already predicted. <paramref name="position"/> is the required Riot team
+    /// position and <paramref name="partnerPosition"/> an optional narrowing to a
+    /// single partner lane; an unrecognised value for either is a 400. Always 200
+    /// with a (possibly empty) list — a champion whose own sample is too thin for
+    /// an expected win rate returns no entries rather than invented ones, and the
+    /// echoed <c>minGames</c> / <c>championGames</c> say why.
+    /// </summary>
+    [HttpGet("{championId:int}/synergies")]
+    [ProducesResponseType(typeof(ChampionSynergiesResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ChampionSynergiesResponse>> GetChampionSynergiesAsync(
+        int championId,
+        [FromQuery] string? position,
+        [FromQuery] string? partnerPosition,
+        [FromQuery] string? patch,
+        [FromQuery] string? eloBracket,
+        CancellationToken ct = default)
+    {
+        if (!TryRequirePosition(position, out var normalizedPosition, out var problem))
+        {
+            return problem;
+        }
+
+        if (!TryNormalizeOptionalPosition(partnerPosition, out var normalizedPartnerPosition, out var partnerProblem))
+        {
+            return partnerProblem;
+        }
+
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+        var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
+
+        var response = await synergyQueryService.GetSynergiesAsync(
+            championId,
+            normalizedPosition,
+            normalizedPatch,
+            normalizedPartnerPosition,
+            normalizedBracket,
+            ct);
+
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Third picks for an already-chosen duo: restricted to the games this champion
+    /// and <paramref name="partner"/> actually played together, the teammates whose
+    /// trio over- or under-performed what all three individual win rates predicted.
+    /// <paramref name="position"/>, <paramref name="partner"/> and
+    /// <paramref name="partnerPosition"/> are all required; an unrecognised position
+    /// is a 400. Always 200 — an empty completion list is the normal answer for a
+    /// duo too rarely played to split a third way, and the response carries the
+    /// duo's own game count so the caller can say exactly that.
+    /// </summary>
+    [HttpGet("{championId:int}/synergies/trios")]
+    [ProducesResponseType(typeof(ChampionTrioSynergiesResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ChampionTrioSynergiesResponse>> GetChampionTrioSynergiesAsync(
+        int championId,
+        [FromQuery] string? position,
+        [FromQuery][Range(1, int.MaxValue)] int partner,
+        [FromQuery] string? partnerPosition,
+        [FromQuery] string? patch,
+        [FromQuery] string? eloBracket,
+        CancellationToken ct = default)
+    {
+        if (!TryRequirePosition(position, out var normalizedPosition, out var problem))
+        {
+            return problem;
+        }
+
+        if (!TryRequirePosition(partnerPosition, out var normalizedPartnerPosition, out var partnerProblem))
+        {
+            return partnerProblem;
+        }
+
+        // One team cannot field two players in a lane, so this would silently return
+        // an empty list forever. Rejecting it names the mistake instead.
+        if (string.Equals(normalizedPosition, normalizedPartnerPosition, StringComparison.Ordinal))
+        {
+            return ValidationProblem("partnerPosition must differ from position — teammates play different lanes.");
+        }
+
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+        var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
+
+        var response = await synergyQueryService.GetTrioSynergiesAsync(
+            championId,
+            normalizedPosition,
+            partner,
+            normalizedPartnerPosition,
+            normalizedPatch,
             normalizedBracket,
             ct);
 

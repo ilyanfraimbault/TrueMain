@@ -45,11 +45,11 @@ public sealed class ProcessRunSummaryJsonTests
                 """);
 
         ProcessRunSummaryJson.Serialize(new MatchDataRetentionSummary(
-            3, 420, 10, 100, 4, 7, 5, 900, 1, 2, 4, 5, 6,
+            3, 420, 10, 100, 4, 7, 5, 900, 1, 2, 4, 5, 8, 6,
             [new RetainedPatchesSummary("KR", ["16.3", "16.4"])]))
             .Should().Be(
                 """
-                {"retainedPatchCount":3,"queueId":420,"deletedMatches":10,"deletedParticipants":100,"deletedNonRankedMatches":4,"prunedCandidates":7,"prunedSnapshotMatches":5,"deletedIntermediateSnapshots":900,"deletedAggregateScopes":1,"deletedMatchupStats":2,"deletedPowerspikeCurveStats":4,"deletedPowerspikeEventStats":5,"prunedSubFloorPowerspikeEvents":6,"retainedPatchesByPlatform":[{"platformId":"KR","patches":["16.3","16.4"]}]}
+                {"retainedPatchCount":3,"queueId":420,"deletedMatches":10,"deletedParticipants":100,"deletedNonRankedMatches":4,"prunedCandidates":7,"prunedSnapshotMatches":5,"deletedIntermediateSnapshots":900,"deletedAggregateScopes":1,"deletedMatchupStats":2,"deletedPowerspikeCurveStats":4,"deletedPowerspikeEventStats":5,"deletedSynergyStats":8,"prunedSubFloorPowerspikeEvents":6,"retainedPatchesByPlatform":[{"platformId":"KR","patches":["16.3","16.4"]}]}
                 """);
     }
 
@@ -252,8 +252,14 @@ public sealed class ProcessRunSummaryJsonTests
             new MatchAggregationSummary(4000, 4),
             new { matches = 4000, batches = 4 });
 
+        // ChampionSynergyAggregationProcess (#922) — same match/batch pair plus the
+        // two upsert counts, since it writes two tables per fold.
         yield return (
-            new MatchDataRetentionSummary(3, 420, 10, 100, 4, 7, 5, 900, 1, 2, 4, 5, 6,
+            new SynergyAggregationSummary(4000, 4, 15000, 900),
+            new { matches = 4000, batches = 4, pairRows = 15000, baselineRows = 900 });
+
+        yield return (
+            new MatchDataRetentionSummary(3, 420, 10, 100, 4, 7, 5, 900, 1, 2, 4, 5, 8, 6,
             [new RetainedPatchesSummary("KR", ["16.3", "16.4"])]),
             new
             {
@@ -269,6 +275,7 @@ public sealed class ProcessRunSummaryJsonTests
                 deletedMatchupStats = 2,
                 deletedPowerspikeCurveStats = 4,
                 deletedPowerspikeEventStats = 5,
+                deletedSynergyStats = 8,
                 prunedSubFloorPowerspikeEvents = 6,
                 retainedPatchesByPlatform = new[]
                 {
