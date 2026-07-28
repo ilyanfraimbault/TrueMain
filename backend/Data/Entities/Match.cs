@@ -52,5 +52,17 @@ public class Match
     /// </summary>
     public bool MatchupLeadAggregated { get; set; }
 
+    /// <summary>
+    /// Set once this match has been folded into the champion synergy aggregates
+    /// (#922), the same one-fold-per-match gate as <see cref="MatchupLeadAggregated"/>.
+    /// Unlike that flag, its migration deliberately does NOT backfill existing rows
+    /// to <see langword="true"/>: the synergy tables are introduced empty, so every
+    /// retained match still has to be folded exactly once. (The rule of thumb — a new
+    /// incremental flag must be backfilled to true — protects an aggregate a full
+    /// recompute had already populated; there is none here.) Dies with the match on
+    /// retention, so an aged-out patch's synergy rows simply freeze.
+    /// </summary>
+    public bool SynergyAggregated { get; set; }
+
     public ICollection<MatchParticipant> Participants { get; set; } = new List<MatchParticipant>();
 }

@@ -26,6 +26,13 @@ public class TrueMainDbContext : DbContext
     // timeline curve. Populated by ChampionMatchupLeadAggregationProcess.
     public DbSet<ChampionMatchupStat> ChampionMatchupStats => Set<ChampionMatchupStat>();
 
+    // Pre-aggregated same-team co-occurrence for the champion synergies panel
+    // (#922) plus the marginal win rates its expected-win-rate model is measured
+    // against. Both are populated by ChampionSynergyAggregationProcess in one
+    // fold, so they always describe the same cohort of matches.
+    public DbSet<ChampionSynergyStat> ChampionSynergyStats => Set<ChampionSynergyStat>();
+    public DbSet<ChampionSynergyBaselineStat> ChampionSynergyBaselineStats => Set<ChampionSynergyBaselineStat>();
+
     // Pre-aggregated champion powerspikes (#694): the per-minute power curve, the
     // per-event slope-change spikes, and the global per-minute lead spread. Populated
     // incrementally by ChampionPowerspikeAggregationProcess so the dense per-minute
