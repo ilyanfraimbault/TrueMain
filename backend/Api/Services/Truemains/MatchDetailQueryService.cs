@@ -420,10 +420,15 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
         => minutes <= 0 ? 0d : value / minutes;
 
     /// <summary>
-    /// Maps each participant id to its lane opponent — the single participant on
-    /// the other team sharing the same non-empty <c>TeamPosition</c>. Positions
-    /// with anything other than exactly one player per side (e.g. an empty /
-    /// unparsed TeamPosition, or a remake) get no opponent.
+    /// Maps each participant id to its lane opponent — the participant on the
+    /// other team sharing the same non-empty <c>TeamPosition</c>, and only when
+    /// there is exactly one. Positions with anything else (an empty / unparsed
+    /// TeamPosition, a remake, or anomalous data putting two enemies on one
+    /// position) get no opponent.
+    ///
+    /// <para>The "exactly one" rule is enforced here, not assumed, and matches
+    /// <see cref="PerformanceInputs.FindLaneOpponent"/> — so the first-to-level-2
+    /// flag and the score's lead curve always talk about the same duel.</para>
     /// </summary>
     private static Dictionary<int, MatchParticipant?> BuildOpponentMap(
         List<MatchParticipant> participants)
@@ -431,10 +436,31 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
         var map = new Dictionary<int, MatchParticipant?>(participants.Count);
         foreach (var p in participants)
         {
-            map[p.ParticipantId] = string.IsNullOrEmpty(p.TeamPosition)
-                ? null
-                : participants.FirstOrDefault(o =>
-                    o.TeamId != p.TeamId && o.TeamPosition == p.TeamPosition);
+            if (string.IsNullOrEmpty(p.TeamPosition))
+            {
+                map[p.ParticipantId] = null;
+                continue;
+            }
+
+            MatchParticipant? found = null;
+            var ambiguous = false;
+            foreach (var o in participants)
+            {
+                if (o.TeamId == p.TeamId || o.TeamPosition != p.TeamPosition)
+                {
+                    continue;
+                }
+
+                if (found is not null)
+                {
+                    ambiguous = true;
+                    break;
+                }
+
+                found = o;
+            }
+
+            map[p.ParticipantId] = ambiguous ? null : found;
         }
 
         return map;

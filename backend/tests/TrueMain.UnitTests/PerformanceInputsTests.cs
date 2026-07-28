@@ -63,6 +63,84 @@ public sealed class PerformanceInputsTests
     }
 
     [Fact]
+    public void FindLaneOpponent_pairs_the_single_enemy_on_the_same_position()
+    {
+        var roster = Roster(("MIDDLE", 100), ("TOP", 100), ("MIDDLE", 200), ("TOP", 200));
+
+        PerformanceInputs.FindLaneOpponent(roster, roster[0]).Should().Be(3);
+        PerformanceInputs.FindLaneOpponent(roster, roster[2]).Should().Be(1);
+    }
+
+    [Fact]
+    public void FindLaneOpponent_refuses_an_ambiguous_pairing()
+    {
+        // Anomalous data: two enemies on one position. Taking the first would
+        // make the score depend on Postgres' row order, so there is no opponent
+        // and the lead components drop instead.
+        var roster = Roster(("MIDDLE", 100), ("MIDDLE", 200), ("MIDDLE", 200));
+
+        PerformanceInputs.FindLaneOpponent(roster, roster[0]).Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(null)]
+    public void FindLaneOpponent_has_nothing_to_pair_an_unassigned_position_with(string? position)
+    {
+        var roster = Roster((position, 100), (position, 200));
+
+        PerformanceInputs.FindLaneOpponent(roster, roster[0]).Should().BeNull();
+    }
+
+    [Fact]
+    public void BuildMatchInputs_drops_the_lead_components_on_an_ambiguous_pairing()
+    {
+        // Same rosters, same snapshots — but the second has a duplicate enemy
+        // MIDDLE, so the player has no opponent and grades as if there were no
+        // timeline at all.
+        var marks = Marks(
+            new TimelineMark(1, 15, Cs: 130, Gold: 6_500, Xp: 8_000),
+            new TimelineMark(2, 15, Cs: 115, Gold: 5_750, Xp: 7_250),
+            new TimelineMark(3, 15, Cs: 100, Gold: 5_000, Xp: 6_500));
+
+        var unambiguous = Roster(("MIDDLE", 100), ("MIDDLE", 200));
+        var ambiguous = Roster(("MIDDLE", 100), ("MIDDLE", 200), ("MIDDLE", 200));
+
+        LeadsOf(unambiguous, marks).Should().NotBeEmpty();
+        LeadsOf(ambiguous, marks).Should().BeEmpty();
+    }
+
+    private static IReadOnlyList<LaneLead> LeadsOf(
+        IReadOnlyList<ScoredParticipant> roster,
+        Dictionary<(int ParticipantId, int Minute), TimelineMark> marks)
+        => PerformanceInputs
+            .BuildMatchInputs(roster, durationSeconds: 1_800, marks, Array.Empty<KillSpot>())
+            .First(b => b.Participant.ParticipantId == 1)
+            .Input
+            .LaneLeads;
+
+    /// <summary>
+    /// Builds a roster from (position, teamId) pairs; participant ids are 1-based
+    /// in declaration order and every stat line is identical, so only the pairing
+    /// varies between cases.
+    /// </summary>
+    private static IReadOnlyList<ScoredParticipant> Roster(params (string? Position, int TeamId)[] slots)
+        => slots
+            .Select((slot, index) => new ScoredParticipant(
+                ParticipantId: index + 1,
+                TeamId: slot.TeamId,
+                TeamPosition: slot.Position,
+                Win: slot.TeamId == BlueTeamId,
+                Kills: 5,
+                Deaths: 4,
+                Assists: 6,
+                Cs: 180,
+                DamageToChampions: 18_000,
+                GoldEarned: 12_000,
+                VisionScore: 20))
+            .ToList();
+
+    [Fact]
     public void CountOutOfLaneTakedowns_is_unknown_when_the_match_has_no_coverage()
     {
         PerformanceInputs.CountOutOfLaneTakedowns(

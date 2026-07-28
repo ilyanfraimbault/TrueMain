@@ -101,23 +101,6 @@ public static class PerformanceInputs
         var built = new List<(ScoredParticipant, PerformanceScoreInput)>(participants.Count);
         foreach (var p in participants)
         {
-            // Lane opponent: the single participant on the other side sharing the
-            // same non-empty team position. A position with anything other than
-            // exactly one player per side simply gets none, which drops the lead
-            // components rather than comparing against an arbitrary row.
-            int? opponentId = null;
-            if (!string.IsNullOrEmpty(p.TeamPosition))
-            {
-                foreach (var o in participants)
-                {
-                    if (o.TeamId != p.TeamId && o.TeamPosition == p.TeamPosition)
-                    {
-                        opponentId = o.ParticipantId;
-                        break;
-                    }
-                }
-            }
-
             built.Add((p, new PerformanceScoreInput
             {
                 TeamPosition = p.TeamPosition ?? string.Empty,
@@ -132,13 +115,59 @@ public static class PerformanceInputs
                 Cs = p.Cs,
                 VisionScore = p.VisionScore,
                 GameDurationMinutes = durationMinutes,
-                LaneLeads = BuildLaneLeads(p.ParticipantId, opponentId, marks),
+                LaneLeads = BuildLaneLeads(p.ParticipantId, FindLaneOpponent(participants, p), marks),
                 OutOfLaneTakedowns = CountOutOfLaneTakedowns(
                     p.ParticipantId, p.TeamPosition, p.TeamId, hasKillPositions, killSpots),
             }));
         }
 
         return built;
+    }
+
+    /// <summary>
+    /// The lane opponent of <paramref name="self"/>: the participant on the
+    /// other side sharing the same non-empty team position, <b>only when there
+    /// is exactly one</b>. Null otherwise — an empty or unparsed position, a
+    /// remake, or anomalous data with two enemies on one position.
+    ///
+    /// <para>The "exactly one" part is enforced rather than assumed: taking the
+    /// first match would silently compare the player against an arbitrary row
+    /// whose identity depends on Postgres' row order, which is exactly the kind
+    /// of non-determinism the scorer must not have. No opponent means the lead
+    /// components drop, which the model already handles.</para>
+    /// </summary>
+    /// <param name="participants">Every participant of the match.</param>
+    /// <param name="self">The participant whose opponent is being resolved.</param>
+    public static int? FindLaneOpponent(
+        IReadOnlyList<ScoredParticipant> participants,
+        ScoredParticipant self)
+    {
+        ArgumentNullException.ThrowIfNull(participants);
+
+        if (string.IsNullOrEmpty(self.TeamPosition))
+        {
+            return null;
+        }
+
+        int? found = null;
+        foreach (var other in participants)
+        {
+            if (other.TeamId == self.TeamId || other.TeamPosition != self.TeamPosition)
+            {
+                continue;
+            }
+
+            if (found is not null)
+            {
+                // A second candidate: the pairing is ambiguous, so there is no
+                // lane opponent rather than a coin-flip one.
+                return null;
+            }
+
+            found = other.ParticipantId;
+        }
+
+        return found;
     }
 
     /// <summary>
