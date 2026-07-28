@@ -118,32 +118,47 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
         // participant per mark when present. They feed both the `laning15`
         // payload field and the lead components of the performance score, which
         // grade the whole 5→30 curve rather than the single @15 point.
+        // Projected to scalars and shaped into TimelineMark in memory: the
+        // struct never has to survive an EF projection.
         var snapshots = await db.MatchParticipantTimelineSnapshots
             .AsNoTracking()
             .Where(s => s.MatchId == matchId)
-            .Select(s => new TimelineMark(
+            .Select(s => new
+            {
                 s.ParticipantId,
                 s.IntervalMinute,
-                s.MinionsKilled + s.JungleMinionsKilled,
+                Cs = s.MinionsKilled + s.JungleMinionsKilled,
                 s.TotalGold,
-                s.Xp))
+                s.Xp,
+            })
             .ToListAsync(ct);
 
         // (participant, minute) is unique at the schema level; GroupBy keeps the
         // dictionary build tolerant of an anomalous duplicate rather than 500-ing.
         var marksByKey = snapshots
-            .GroupBy(s => (s.ParticipantId, Minute: s.Minute))
-            .ToDictionary(g => g.Key, g => g.First());
+            .GroupBy(s => (s.ParticipantId, Minute: s.IntervalMinute))
+            .ToDictionary(
+                g => g.Key,
+                g =>
+                {
+                    var row = g.First();
+                    return new TimelineMark(
+                        row.ParticipantId, row.IntervalMinute, row.Cs, row.TotalGold, row.Xp);
+                });
 
         // Early kill participations with a map position. Bounded by the ingestor
         // to the early game, so the whole set is the roam window. An empty set
         // means the match has no coverage at all, which drops the roam component
         // instead of scoring every player a 0.
-        var killSpots = await db.MatchParticipantKillPositions
+        var killRows = await db.MatchParticipantKillPositions
             .AsNoTracking()
             .Where(k => k.MatchId == matchId)
-            .Select(k => new KillSpot(k.ParticipantId, k.X, k.Y))
+            .Select(k => new { k.ParticipantId, k.X, k.Y })
             .ToListAsync(ct);
+
+        var killSpots = killRows
+            .Select(k => new KillSpot(k.ParticipantId, k.X, k.Y))
+            .ToList();
 
         // Nearest rank snapshot per tracked account, by absolute distance from
         // the game's start time. One LINQ pass: for each participant's account

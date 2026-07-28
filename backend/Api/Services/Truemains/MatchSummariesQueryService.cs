@@ -248,12 +248,11 @@ public sealed class MatchSummariesQueryService(
             .Select(s => new
             {
                 s.MatchId,
-                Mark = new TimelineMark(
-                    s.ParticipantId,
-                    s.IntervalMinute,
-                    s.MinionsKilled + s.JungleMinionsKilled,
-                    s.TotalGold,
-                    s.Xp),
+                s.ParticipantId,
+                s.IntervalMinute,
+                Cs = s.MinionsKilled + s.JungleMinionsKilled,
+                s.TotalGold,
+                s.Xp,
             })
             .ToListAsync(ct);
 
@@ -262,20 +261,29 @@ public sealed class MatchSummariesQueryService(
             .ToDictionary(
                 g => g.Key,
                 g => (IReadOnlyDictionary<(int ParticipantId, int Minute), TimelineMark>)g
-                    .GroupBy(r => (r.Mark.ParticipantId, Minute: r.Mark.Minute))
-                    .ToDictionary(inner => inner.Key, inner => inner.First().Mark));
+                    .GroupBy(r => (r.ParticipantId, Minute: r.IntervalMinute))
+                    .ToDictionary(
+                        inner => inner.Key,
+                        inner =>
+                        {
+                            var row = inner.First();
+                            return new TimelineMark(
+                                row.ParticipantId, row.IntervalMinute, row.Cs, row.TotalGold, row.Xp);
+                        }));
 
-        var killSpots = await db.MatchParticipantKillPositions
+        var killRows = await db.MatchParticipantKillPositions
             .AsNoTracking()
             .Where(k => matchIds.Contains(k.MatchId))
-            .Select(k => new { k.MatchId, Spot = new KillSpot(k.ParticipantId, k.X, k.Y) })
+            .Select(k => new { k.MatchId, k.ParticipantId, k.X, k.Y })
             .ToListAsync(ct);
 
-        var killSpotsByMatch = killSpots
+        var killSpotsByMatch = killRows
             .GroupBy(r => r.MatchId)
             .ToDictionary(
                 g => g.Key,
-                g => (IReadOnlyList<KillSpot>)g.Select(r => r.Spot).ToList());
+                g => (IReadOnlyList<KillSpot>)g
+                    .Select(r => new KillSpot(r.ParticipantId, r.X, r.Y))
+                    .ToList());
 
         var participantsByMatch = participants
             .GroupBy(p => p.MatchId)

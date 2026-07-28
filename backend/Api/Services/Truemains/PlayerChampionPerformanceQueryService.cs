@@ -110,9 +110,31 @@ public sealed class PlayerChampionPerformanceQueryService(
             .GroupBy(m => m.MatchId)
             .ToDictionary(g => g.Key, g => g.First().GameDurationSeconds);
 
-        var participants = await db.MatchParticipants
+        // Every projection below stays scalar and is shaped into its struct in
+        // memory, so nothing depends on EF translating a record-struct
+        // constructor inside a projection.
+        var participantRows = await db.MatchParticipants
             .AsNoTracking()
             .Where(p => matchIds.Contains(p.MatchId))
+            .Select(p => new
+            {
+                p.MatchId,
+                p.Puuid,
+                p.ParticipantId,
+                p.TeamId,
+                p.TeamPosition,
+                p.Win,
+                p.Kills,
+                p.Deaths,
+                p.Assists,
+                Cs = p.TotalMinionsKilled + p.NeutralMinionsKilled,
+                p.TotalDamageDealtToChampions,
+                p.GoldEarned,
+                p.VisionScore,
+            })
+            .ToListAsync(ct);
+
+        var participants = participantRows
             .Select(p => new
             {
                 p.MatchId,
@@ -125,12 +147,12 @@ public sealed class PlayerChampionPerformanceQueryService(
                     p.Kills,
                     p.Deaths,
                     p.Assists,
-                    p.TotalMinionsKilled + p.NeutralMinionsKilled,
+                    p.Cs,
                     p.TotalDamageDealtToChampions,
                     p.GoldEarned,
                     p.VisionScore),
             })
-            .ToListAsync(ct);
+            .ToList();
 
         var marks = await db.MatchParticipantTimelineSnapshots
             .AsNoTracking()
@@ -138,12 +160,11 @@ public sealed class PlayerChampionPerformanceQueryService(
             .Select(s => new
             {
                 s.MatchId,
-                Mark = new TimelineMark(
-                    s.ParticipantId,
-                    s.IntervalMinute,
-                    s.MinionsKilled + s.JungleMinionsKilled,
-                    s.TotalGold,
-                    s.Xp),
+                s.ParticipantId,
+                s.IntervalMinute,
+                Cs = s.MinionsKilled + s.JungleMinionsKilled,
+                s.TotalGold,
+                s.Xp,
             })
             .ToListAsync(ct);
 
@@ -152,18 +173,29 @@ public sealed class PlayerChampionPerformanceQueryService(
             .ToDictionary(
                 g => g.Key,
                 g => (IReadOnlyDictionary<(int ParticipantId, int Minute), TimelineMark>)g
-                    .GroupBy(r => (r.Mark.ParticipantId, Minute: r.Mark.Minute))
-                    .ToDictionary(inner => inner.Key, inner => inner.First().Mark));
+                    .GroupBy(r => (r.ParticipantId, Minute: r.IntervalMinute))
+                    .ToDictionary(
+                        inner => inner.Key,
+                        inner =>
+                        {
+                            var row = inner.First();
+                            return new TimelineMark(
+                                row.ParticipantId, row.IntervalMinute, row.Cs, row.TotalGold, row.Xp);
+                        }));
 
-        var killSpots = await db.MatchParticipantKillPositions
+        var killRows = await db.MatchParticipantKillPositions
             .AsNoTracking()
             .Where(k => matchIds.Contains(k.MatchId))
-            .Select(k => new { k.MatchId, Spot = new KillSpot(k.ParticipantId, k.X, k.Y) })
+            .Select(k => new { k.MatchId, k.ParticipantId, k.X, k.Y })
             .ToListAsync(ct);
 
-        var killSpotsByMatch = killSpots
+        var killSpotsByMatch = killRows
             .GroupBy(r => r.MatchId)
-            .ToDictionary(g => g.Key, g => (IReadOnlyList<KillSpot>)g.Select(r => r.Spot).ToList());
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlyList<KillSpot>)g
+                    .Select(r => new KillSpot(r.ParticipantId, r.X, r.Y))
+                    .ToList());
 
         var accumulator = new ScoreAccumulator();
 
