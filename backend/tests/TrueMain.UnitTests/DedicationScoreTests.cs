@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Core.Options;
 using Core.Truemains;
 
 namespace TrueMain.UnitTests;
@@ -221,5 +222,51 @@ public sealed class DedicationScoreTests
             PlayRate: 0.5713d, CareerGames: 137, PatchSpan: 3, DaysSinceLastGame: 4.4d));
 
         result.Score.Should().Be(Math.Round(result.Score, 1));
+    }
+
+    [Fact]
+    public void CommitmentFloor_matches_the_main_analysis_play_rate_floor_default()
+    {
+        // #869: the commitment floor mirrors the play rate below which no
+        // champion is classified as a main. Retuning the option's default
+        // without the constant would silently hand the dedication scale a dead
+        // band at the bottom again.
+        new MainAnalysisOptions().PlayRateFloor.Should().Be(DedicationScore.CommitmentFloor);
+    }
+
+    [Fact]
+    public void Commitment_rescales_from_the_supplied_floor()
+    {
+        DedicationScore.Commitment(0.2d, commitmentFloor: 0.2d).Should().Be(0d);
+        DedicationScore.Commitment(0.15d, commitmentFloor: 0.2d).Should().Be(0d);
+        // (0.6 - 0.2) / (1 - 0.2) = 0.5, up to the usual binary-fraction wobble.
+        DedicationScore.Commitment(0.6d, commitmentFloor: 0.2d).Should().BeApproximately(0.5d, 1e-12);
+    }
+
+    [Fact]
+    public void Compute_threads_the_supplied_floor_into_commitment()
+    {
+        // The point of #869: a retuned MainAnalysis:PlayRateFloor must actually
+        // move the score, otherwise the two drift apart with nothing failing.
+        var inputs = new DedicationInputs(
+            PlayRate: 0.3d, CareerGames: 0, PatchSpan: 0, DaysSinceLastGame: double.PositiveInfinity);
+
+        var atDefaultFloor = DedicationScore.Compute(inputs);
+        var atRaisedFloor = DedicationScore.Compute(inputs, commitmentFloor: 0.25d);
+
+        atRaisedFloor.Commitment.Should().BeLessThan(atDefaultFloor.Commitment);
+        atRaisedFloor.Score.Should().BeLessThan(atDefaultFloor.Score);
+    }
+
+    [Theory]
+    [InlineData(double.NaN)]
+    [InlineData(-0.1d)]
+    [InlineData(1d)]
+    [InlineData(1.5d)]
+    public void Commitment_falls_back_to_the_default_floor_when_given_a_nonsense_one(double floor)
+    {
+        // A floor outside [0, 1) would invert the rescale or divide by zero.
+        DedicationScore.Commitment(0.5d, floor)
+            .Should().Be(DedicationScore.Commitment(0.5d));
     }
 }

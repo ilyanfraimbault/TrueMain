@@ -1,4 +1,5 @@
 using Core.Lol.Map;
+using Core.Truemains;
 
 namespace Core.Options;
 
@@ -23,8 +24,13 @@ public class MainAnalysisOptions
     /// &lt;= <see cref="PlayRateThreshold"/>. Setting it equal to <see cref="PlayRateThreshold"/>
     /// disables the relaxation entirely: the interpolation becomes a no-op and no champion is
     /// ever classified as an extended sample.
+    /// <para>
+    /// This is also the floor the dedication score rescales commitment from, so the bottom of that
+    /// scale stays reachable. The default is shared with <see cref="DedicationScore.CommitmentFloor"/>
+    /// and the configured value is threaded into scoring, so retuning this option moves both (#869).
+    /// </para>
     /// </summary>
-    public double PlayRateFloor { get; set; } = 0.12;
+    public double PlayRateFloor { get; set; } = DedicationScore.CommitmentFloor;
 
     public double OtpPlayRateThreshold { get; set; } = 0.85;
     public double CriticalPlayRateThreshold { get; set; } = 0.1;
