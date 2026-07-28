@@ -265,7 +265,7 @@ find backend/Api/Services -name "*QueryService*.cs" | wc -l
 grep -l "TrueMainDbContext" $(find backend/Api/Services -name "*QueryService*.cs") | wc -l
 ```
 
-**#865 tracks the choice** between "the doc is aspirational, label the 36 as known debt" and "the doc is
+**#865 tracks the choice** between "the doc is aspirational, label the divergent services as known debt" and "the doc is
 stale, restate the rule as practised". Do not quietly rewrite either side — that would erase a possibly
 intended migration.
 
