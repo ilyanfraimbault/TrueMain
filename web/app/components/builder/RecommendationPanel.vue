@@ -14,6 +14,9 @@ const props = defineProps<{
   recommendation: CompositionBuildResponse
   championName: string | null
   championIconUrl: string | null
+  /** Lane opponent, when the matchup is pinned — headlines the card (#921). */
+  opponentName?: string | null
+  opponentIconUrl?: string | null
 }>()
 
 /**
@@ -39,6 +42,17 @@ const { data: championStatic } = useChampionStatic(
 
 const winRate = computed(() =>
   build.value.gamesConsidered > 0 ? build.value.wins / build.value.gamesConsidered : null)
+
+// The matchup is the headline when it is pinned: the card answers "what do I
+// build into this opponent", not "what does this champion build".
+const headline = computed(() => {
+  if (!props.championName) {
+    return 'Recommended build'
+  }
+  return props.opponentName
+    ? `Recommended build for ${props.championName} vs ${props.opponentName}`
+    : `Recommended build for ${props.championName}`
+})
 
 const draftRequested = computed(() => confidence.value.maxPossibleScore > 0)
 const lowSample = computed(() => confidence.value.sampleSize < LOW_SAMPLE_FLOOR)
@@ -95,8 +109,16 @@ const stats = computed(() => [
           class="size-7 rounded-lg ring-1 ring-primary/40"
         />
         <h2 class="text-sm font-medium text-default">
-          {{ championName ? `Recommended build for ${championName}` : 'Recommended build' }}
+          {{ headline }}
         </h2>
+        <SkeletonImage
+          v-if="opponentIconUrl"
+          :src="opponentIconUrl"
+          :alt="opponentName ?? ''"
+          :width="28"
+          :height="28"
+          class="size-7 rounded-lg ring-1 ring-accented"
+        />
         <!-- Thin-data qualifier: only the icon shows next to the title; the
              message lives in its tooltip so it never crowds the header. -->
         <UTooltip
@@ -180,6 +202,13 @@ const stats = computed(() => [
           </p>
         </div>
       </div>
+
+      <!-- Situational picks — the matchup-specific half of the itemisation,
+           returned by the API since #563 but only rendered from #921 on. -->
+      <BuilderSituationalItems
+        :items="build.situationalItems"
+        :items-map="itemsMap"
+      />
 
       <!-- Build tree — same component as the champion page, recomputed from the
            sampled games only. -->
