@@ -56,6 +56,16 @@ public sealed class MainCandidateRepository(TrueMainDbContext db) : IMainCandida
             // before mutating, so the caller learns exactly which accounts were
             // affected — an ExecuteUpdate row count would over-count an account
             // that carries several candidate rows (one per champion).
+            //
+            // The SELECT and the ExecuteUpdate below are two round-trips, not one
+            // atomic operation: a row could in theory change status between them,
+            // which would make affectedPuuids report an account as "affected"
+            // without the UPDATE having actually touched it. This is only safe
+            // because the ingestor is a single instance running a strictly
+            // sequential pipeline (see Worker.cs), so nothing else can write to
+            // these rows between the two queries. If the ingestor is ever scaled
+            // to multiple instances, this TOCTOU gap becomes a real bug and this
+            // method would need a single atomic UPDATE ... RETURNING instead.
             var affectedPuuids = await db.MainCandidates
                 .Where(c => c.PlatformId == platformId && puuids.Contains(c.Puuid) && c.Status == from)
                 .Select(c => c.Puuid)
