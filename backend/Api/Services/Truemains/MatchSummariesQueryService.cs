@@ -313,7 +313,7 @@ public sealed class MatchSummariesQueryService(
             // row and the detail panel therefore always tell the same story.
             var matchMarks = marksByMatch.TryGetValue(match.Id, out var mm)
                 ? mm
-                : EmptyMarks;
+                : PerformanceInputs.NoMarks;
             var matchKillSpots = killSpotsByMatch.TryGetValue(match.Id, out var ks)
                 ? ks
                 : Array.Empty<KillSpot>();
@@ -402,10 +402,8 @@ public sealed class MatchSummariesQueryService(
     }
 
     /// <summary>
-    /// Grades every participant of one match, wiring the same inputs the
-    /// single-match detail page uses: side totals for the share components, the
-    /// lane opponent's timeline marks for the lead components, and the match's
-    /// early kill positions for the roam component.
+    /// Grades every participant of one match through the shared input builder,
+    /// so this feed and the detail page score the same game identically.
     /// </summary>
     /// <param name="partList">All participants of the match.</param>
     /// <param name="durationSeconds">Game length in seconds; 0 disables the per-minute components.</param>
@@ -417,62 +415,33 @@ public sealed class MatchSummariesQueryService(
         IReadOnlyDictionary<(int ParticipantId, int Minute), TimelineMark> marks,
         IReadOnlyList<KillSpot> killSpots)
     {
-        var teamKills = partList
-            .GroupBy(p => p.TeamId)
-            .ToDictionary(g => g.Key, g => g.Sum(p => p.Kills));
-        var teamDamage = partList
-            .GroupBy(p => p.TeamId)
-            .ToDictionary(g => g.Key, g => g.Sum(p => p.DamageToChampions));
-        var teamGold = partList
-            .GroupBy(p => p.TeamId)
-            .ToDictionary(g => g.Key, g => g.Sum(p => p.GoldEarned));
+        var scored = partList
+            .Select(p => new ScoredParticipant(
+                p.ParticipantId,
+                p.TeamId,
+                p.TeamPosition,
+                p.Win,
+                p.Kills,
+                p.Deaths,
+                p.Assists,
+                p.Cs,
+                p.DamageToChampions,
+                p.GoldEarned,
+                p.VisionScore))
+            .ToList();
 
-        var durationMinutes = durationSeconds > 0 ? durationSeconds / 60d : 0d;
-        var hasKillPositions = killSpots.Count > 0;
-
-        foreach (var p in partList)
-        {
-            // Lane opponent: the single participant on the other side sharing the
-            // same non-empty team position. Same rule as the detail page.
-            var opponent = string.IsNullOrEmpty(p.TeamPosition)
-                ? null
-                : partList.FirstOrDefault(o => o.TeamId != p.TeamId && o.TeamPosition == p.TeamPosition);
-
-            var input = new PerformanceScoreInput
+        return PerformanceInputs
+            .BuildMatchInputs(scored, durationSeconds, marks, killSpots)
+            .Select(built => new MatchPerformanceEntry
             {
-                TeamPosition = p.TeamPosition ?? string.Empty,
-                Kills = p.Kills,
-                Deaths = p.Deaths,
-                Assists = p.Assists,
-                TeamKills = teamKills.TryGetValue(p.TeamId, out var tk) ? tk : 0,
-                DamageToChampions = p.DamageToChampions,
-                TeamDamageToChampions = teamDamage.TryGetValue(p.TeamId, out var td) ? td : 0,
-                GoldEarned = p.GoldEarned,
-                TeamGoldEarned = teamGold.TryGetValue(p.TeamId, out var tg) ? tg : 0,
-                Cs = p.Cs,
-                VisionScore = p.VisionScore,
-                GameDurationMinutes = durationMinutes,
-                LaneLeads = PerformanceInputs.BuildLaneLeads(
-                    p.ParticipantId, opponent?.ParticipantId, marks),
-                OutOfLaneTakedowns = PerformanceInputs.CountOutOfLaneTakedowns(
-                    p.ParticipantId, p.TeamPosition, p.TeamId, hasKillPositions, killSpots),
-            };
-
-            yield return new MatchPerformanceEntry
-            {
-                ParticipantId = p.ParticipantId,
-                Win = p.Win,
-                Score = PerformanceScore.Compute(input),
-                Kills = p.Kills,
-                Deaths = p.Deaths,
-                Assists = p.Assists,
-            };
-        }
+                ParticipantId = built.Participant.ParticipantId,
+                Win = built.Participant.Win,
+                Score = PerformanceScore.Compute(built.Input),
+                Kills = built.Participant.Kills,
+                Deaths = built.Participant.Deaths,
+                Assists = built.Participant.Assists,
+            });
     }
-
-    /// <summary>Shared empty mark set for a match with no timeline coverage.</summary>
-    private static readonly IReadOnlyDictionary<(int ParticipantId, int Minute), TimelineMark> EmptyMarks
-        = new Dictionary<(int, int), TimelineMark>();
 
     private sealed record MatchRow(
         string Id,

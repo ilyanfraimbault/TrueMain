@@ -466,6 +466,46 @@ Matchups de lane **scopés au joueur** : même contrat que
 **Réponse `200`** — `ChampionMatchupsResponse` · **`404`** si compte inconnu.
 Un joueur connu sans adversaire au-dessus du plancher → `200` avec liste vide.
 
+## `GET /truemains/{nameTag}/champions/{championId}/performance`
+
+Score de performance **scopé au joueur** : moyenne du score par match sur ses
+parties récentes sur ce champion, avec le détail par composante. Voir
+[`docs/performance-score.md`](performance-score.md).
+
+**Query** — `patch` (optionnel), `position` (optionnel, `400` si invalide)
+
+**Réponse `200`** — `PlayerChampionPerformanceResponse` · **`404`** si `nameTag`
+malformé ou compte inconnu. Un joueur connu sous le plancher d'échantillon → `200`
+avec `games` et toutes les moyennes à `null`.
+
+```json
+{
+  "championId": 103,
+  "position": "MIDDLE",
+  "patch": "15.12",
+  "games": 14,
+  "minGames": 5,
+  "window": 20,
+  "averageScore": 71.4,
+  "bestScore": 88,
+  "worstScore": 41,
+  "topOfTeamRate": 0.36,
+  "components": [
+    { "kind": "Combat", "weight": 20, "value": 0.74, "games": 14 },
+    { "kind": "Laning", "weight": 10, "value": 0.58, "games": 12 },
+    { "kind": "MidGame", "weight": 6, "value": 0.61, "games": 9 },
+    { "kind": "Roam", "weight": 6, "value": 0.44, "games": 11 }
+  ]
+}
+```
+
+- `window` : nombre de parties les plus récentes prises en compte (métrique de
+  forme, pas de carrière).
+- `games` d'une composante ≤ `games` global : une partie sans couverture timeline
+  est **exclue** de la moyenne de la composante au lieu d'y compter zéro.
+- `weight` est le poids nominal du rôle (moyenné si le joueur a changé de lane sur
+  l'échantillon) ; `0` = le rôle ne note pas cette composante.
+
 ## `GET /truemains/{nameTag}/rank-history`
 
 Historique de rang (snapshots append-on-change).
@@ -516,7 +556,9 @@ Historique de matchs paginé.
         "items": [6653, 3020, 3157, 3089, 3135, 0],
         "trinketItemId": 3340,
         "teamId": 100, "win": true,
-        "lpDelta": null, "isMvp": true, "isAce": false
+        "lpDelta": null,
+        "performanceScore": 78, "placement": 2,
+        "isMvp": true, "isAce": false
       },
       "participants": [
         { "championId": 103, "teamId": 100, "gameName": "Faker", "tagLine": "KR1" },
@@ -534,6 +576,9 @@ Historique de matchs paginé.
 - `participants` : les 10 joueurs (team 100 puis 200). `gameName`/`tagLine` `null`
   si le participant n'est pas un compte suivi.
 - `lpDelta` est toujours `null` dans cette itération.
+- `performanceScore` / `placement` / `isMvp` / `isAce` sortent du **même** scoreur
+  que le détail du match (voir [`docs/performance-score.md`](performance-score.md)),
+  donc la ligne repliée et le panneau déplié ne peuvent pas se contredire.
 
 ## `GET /truemains/{nameTag}/matches/{matchId}`
 

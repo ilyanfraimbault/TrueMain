@@ -10,14 +10,17 @@ namespace TrueMain.Services.Truemains;
 /// Read path for the single-match detail page
 /// (<c>GET /truemains/{nameTag}/matches/{matchId}</c>). Loads the match header,
 /// all 10 participants with their build order / skill order / rune page, the
-/// @15 timeline snapshots and a temporally-nearest rank snapshot per tracked
-/// account — then computes the derived per-minute rates, laning diffs and the
-/// performance score / placement / MVP / ACE accolades server-side so the
-/// frontend renders them directly.
+/// timeline snapshots at every canonical mark, the match's early kill positions
+/// and a temporally-nearest rank snapshot per tracked account — then computes
+/// the derived per-minute rates, laning diffs and the performance score /
+/// placement / MVP / ACE accolades server-side so the frontend renders them
+/// directly.
 ///
 /// Scope per issues #523 and #639: no team objectives and no ward counts — only
 /// data the DB already has. The performance score is a derived metric
-/// (<see cref="PerformanceScore"/>), so it needs no schema of its own.
+/// (<see cref="PerformanceScore"/>), so it needs no schema of its own; its
+/// inputs are assembled by <see cref="PerformanceInputs"/>, shared with the
+/// match-history feed so a collapsed row and this payload cannot disagree.
 /// </summary>
 public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetailQueryService
 {
@@ -142,8 +145,6 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
             .Select(k => new KillSpot(k.ParticipantId, k.X, k.Y))
             .ToListAsync(ct);
 
-        var matchHasKillPositions = killSpots.Count > 0;
-
         // Nearest rank snapshot per tracked account, by absolute distance from
         // the game's start time. One LINQ pass: for each participant's account
         // pick the snapshot whose CapturedAtUtc is closest to GameStartTimeUtc.
@@ -204,51 +205,52 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
                 .Select(a => new { a.Id, a.GameName, a.TagLine })
                 .ToDictionaryAsync(a => a.Id, a => (a.GameName, a.TagLine), ct);
 
-        // Team totals per side — kills for KP%, damage and gold for the share
-        // components of the performance score.
+        // Team kills per side, for the displayed KP%. The share components of the
+        // score fold their own totals inside the shared input builder.
         var teamKills = participants
             .GroupBy(p => p.TeamId)
             .ToDictionary(g => g.Key, g => g.Sum(p => p.Kills));
-        var teamDamage = participants
-            .GroupBy(p => p.TeamId)
-            .ToDictionary(g => g.Key, g => g.Sum(p => p.TotalDamageDealtToChampions));
-        var teamGold = participants
-            .GroupBy(p => p.TeamId)
-            .ToDictionary(g => g.Key, g => g.Sum(p => p.GoldEarned));
 
         var durationMinutes = match.GameDurationSeconds > 0
             ? match.GameDurationSeconds / 60d
             : 0d;
 
         // Lane opponent = the participant on the other team sharing the same
-        // non-empty TeamPosition. Built once; used for @15 diffs and first-to-2.
+        // non-empty TeamPosition. Built once; used here for first-to-2 (the
+        // shared input builder resolves the same pairing for the lead curve).
         var opponentByParticipant = BuildOpponentMap(participants);
 
-        // Per-mark leads over the lane opponent, resolved once: the performance
-        // score consumes the whole curve and the payload exposes the @15 point
-        // of it as `laning15`.
-        var laneLeadsByParticipant = participants.ToDictionary(
-            p => p.ParticipantId,
-            p =>
-            {
-                opponentByParticipant.TryGetValue(p.ParticipantId, out var opponent);
-                return PerformanceInputs.BuildLaneLeads(
-                    p.ParticipantId, opponent?.ParticipantId, marksByKey);
-            });
+        // Scoring inputs for all 10 participants, through the one builder every
+        // scoring surface shares. The payload's `laning15` is the @15 point of
+        // the lead curve the score itself consumes, so the two cannot diverge.
+        var scoringInputs = PerformanceInputs.BuildMatchInputs(
+            participants
+                .Select(p => new ScoredParticipant(
+                    p.ParticipantId,
+                    p.TeamId,
+                    p.TeamPosition,
+                    p.Win,
+                    p.Kills,
+                    p.Deaths,
+                    p.Assists,
+                    p.TotalMinionsKilled + p.NeutralMinionsKilled,
+                    p.TotalDamageDealtToChampions,
+                    p.GoldEarned,
+                    p.VisionScore))
+                .ToList(),
+            match.GameDurationSeconds,
+            marksByKey,
+            killSpots);
 
-        var laning15ByParticipant = participants.ToDictionary(
-            p => p.ParticipantId,
-            p => Laning15Of(laneLeadsByParticipant[p.ParticipantId]));
+        var laning15ByParticipant = scoringInputs.ToDictionary(
+            built => built.Participant.ParticipantId,
+            built => Laning15Of(built.Input.LaneLeads));
 
         // Performance score for all 10 participants, then the match-wide
         // placement (1..10) and the MVP / ACE accolades derived from it.
-        var scoreByParticipant = participants.ToDictionary(
-            p => p.ParticipantId,
-            p => PerformanceScore.Compute(BuildScoreInput(
-                p, teamKills, teamDamage, teamGold, durationMinutes,
-                laneLeadsByParticipant[p.ParticipantId],
-                PerformanceInputs.CountOutOfLaneTakedowns(
-                    p.ParticipantId, p.TeamPosition, p.TeamId, matchHasKillPositions, killSpots))));
+        var scoreByParticipant = scoringInputs.ToDictionary(
+            built => built.Participant.ParticipantId,
+            built => PerformanceScore.Compute(built.Input));
 
         var placementByParticipant = MatchPerformanceRanker.Rank(participants
             .Select(p => new MatchPerformanceEntry
@@ -401,46 +403,6 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
 
     private static double PerMin(int value, double minutes)
         => minutes <= 0 ? 0d : value / minutes;
-
-    /// <summary>
-    /// Packs one participant's end-of-game totals, their side's totals and their
-    /// timeline-derived signals into the pure scoring function's input. A missing
-    /// team total, an empty <paramref name="laneLeads"/> or a null
-    /// <paramref name="outOfLaneTakedowns"/> simply drops the matching component —
-    /// see <see cref="PerformanceScore"/>.
-    /// </summary>
-    /// <param name="p">The participant being graded.</param>
-    /// <param name="teamKills">Kill totals per team id.</param>
-    /// <param name="teamDamage">Damage-to-champions totals per team id.</param>
-    /// <param name="teamGold">Earned-gold totals per team id.</param>
-    /// <param name="durationMinutes">Game length in minutes.</param>
-    /// <param name="laneLeads">Per-mark leads over the lane opponent.</param>
-    /// <param name="outOfLaneTakedowns">Early out-of-lane kill participations, null when unknown.</param>
-    private static PerformanceScoreInput BuildScoreInput(
-        MatchParticipant p,
-        Dictionary<int, int> teamKills,
-        Dictionary<int, int> teamDamage,
-        Dictionary<int, int> teamGold,
-        double durationMinutes,
-        IReadOnlyList<LaneLead> laneLeads,
-        int? outOfLaneTakedowns)
-        => new()
-        {
-            TeamPosition = p.TeamPosition,
-            Kills = p.Kills,
-            Deaths = p.Deaths,
-            Assists = p.Assists,
-            TeamKills = teamKills.TryGetValue(p.TeamId, out var tk) ? tk : 0,
-            DamageToChampions = p.TotalDamageDealtToChampions,
-            TeamDamageToChampions = teamDamage.TryGetValue(p.TeamId, out var td) ? td : 0,
-            GoldEarned = p.GoldEarned,
-            TeamGoldEarned = teamGold.TryGetValue(p.TeamId, out var tg) ? tg : 0,
-            Cs = p.TotalMinionsKilled + p.NeutralMinionsKilled,
-            VisionScore = p.VisionScore,
-            GameDurationMinutes = durationMinutes,
-            LaneLeads = laneLeads,
-            OutOfLaneTakedowns = outOfLaneTakedowns,
-        };
 
     /// <summary>
     /// Maps each participant id to its lane opponent — the single participant on
