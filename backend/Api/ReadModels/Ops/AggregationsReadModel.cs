@@ -76,16 +76,25 @@ public sealed record AggregationRunReadModel
 }
 
 /// <summary>
-/// Work waiting on the aggregation side of the pipeline. Both counters read
+/// Work waiting on the aggregation side of the pipeline. Every counter reads
 /// zero when aggregations are caught up with ingestion.
 /// </summary>
 public sealed record AggregationBacklogReadModel
 {
     /// <summary>
     /// Queue-scoped matches with an ingested timeline not yet folded into the
-    /// powerspike aggregates (the only per-match-flagged aggregation).
+    /// powerspike aggregates.
     /// </summary>
     public long PendingPowerspikeMatches { get; init; }
+
+    /// <summary>
+    /// Queue-scoped matches not yet folded into the synergy aggregates (#922).
+    /// Unlike the powerspike counter this one has no timeline prerequisite, and it
+    /// starts at the full retained match count: the fold flag ships false for every
+    /// pre-existing row on purpose, so this reads as a large backlog on the first
+    /// deploy and drains over the following runs.
+    /// </summary>
+    public long PendingSynergyMatches { get; init; }
 
     /// <summary>
     /// Tracked participants still missing their elo bracket stamp — rows the

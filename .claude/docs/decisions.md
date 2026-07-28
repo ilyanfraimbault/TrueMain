@@ -60,6 +60,36 @@ the `MatchupLeadAggregation` options section were deliberately **not renamed** �
 A blended cross-build answer is wrong (Botrk vs Kraken rushes behave differently). Winrate delta was
 considered and rejected as confounded — completing a third item correlates with already winning — #890, #775.
 
+**Champion synergy is observed *minus expected* win rate, never the raw pair win rate.**
+Ranking pairings by raw win rate just re-prints the tier list — two strong champions win together because
+they are strong. Expected is combined in log-odds space (`Core.Lol.Synergy.SynergyMath`) rather than by adding
+percentages, which is unbounded (two 70% champions would "expect" 90%) — #922.
+
+**The expected value needs two different baselines plus a cohort intercept — one baseline would bias every number.**
+The queried side is a tracked truemain on their signature champion (win rate well above 50%); the partner side is
+whoever happened to share the game (near the population mean). `champion_synergy_baseline_stats` therefore stores
+`SELF` and `ALLY` rows separately, and each ally term is expressed relative to the cohort rate. Without that
+intercept every extra teammate would shift the expectation up by a constant and *every* synergy would read
+negative. Both baselines are folded by the same process, from the same matches, as the pair rows — deriving them
+from another aggregate would compare cohorts that do not match — #922.
+
+**Trios are computed on demand from a chosen pair; the triple space is never pre-aggregated.**
+The pair grain is bounded by (champion × lane × partner × lane); adding a third champion and lane multiplies that
+into a space that is almost entirely empty, and the few populated cells carry single-digit samples. The live query
+narrows to the games the duo actually shared *before* touching the third dimension, so it stays bounded by the
+pair's game count rather than the champion's — which matters under `max_parallel_workers_per_gather=0`. Accepted
+consequence: the trio slice sees only the retention window while the duo slice reads an aggregate that also holds
+frozen patches, so their game counts differ — `pairGames` is returned explicitly rather than reused from the duo
+response — #922.
+
+**Synergy carries three separate sample floors, and a thin sample yields no entry rather than a hedged one.**
+`MinSynergyGames` (20) is deliberately above the matchup floor: synergy is a *difference* between two rates, so its
+sampling error is the sum of theirs. `MinSynergyTrioGames` (12) is necessarily below it, since a trio's sample is a
+subset of its duo's. `MinSynergyBaselineGames` (50) is the one the other two cannot provide — a pairing can clear
+its own floor while a baseline is still a coin flip, and a noisy baseline produces a *confidently wrong* number,
+not a noisy one. Below any of them the API returns no entry and the real game count, and the UI says which case it
+hit — #922.
+
 **The matchup opponent-search stays a live query while the matchups panel reads the aggregate.**
 The `opponent=` path filters to a single adversary (already fast) and uses a floor of 1 game, which an
 aggregate built at floor 10 cannot serve — #606.
@@ -86,8 +116,11 @@ disposable — #772, #694.
 **Aggregation is incremental per match, flagged on `matches`, never a full recompute.**
 Full-recompute self-joins reached ~21.6 min per cycle on prod, making it 5.7× slower than preprod and
 ingesting fewer games per day. The flag also dies with the match, so old-patch stats freeze naturally.
-⚠️ A migration adding such a flag **must backfill existing rows to `true`** or the first incremental run
-double-counts — #811.
+⚠️ A migration adding such a flag **must backfill existing rows to `true`** *when the aggregate it gates was
+already populated by a full recompute* — otherwise the first incremental run double-counts — #811.
+The mirror case: `matches.SynergyAggregated` (#922) ships `false` everywhere on purpose, because its tables are
+created empty by the same migration and the whole retained history still has to be folded once. Read the flag's
+question as "has this match already been counted *into this table*", not as a blanket rule.
 
 **Matchups are a pre-aggregated read table — explicitly revising the earlier live-self-join design.**
 #90 chose a self-join "for simplicity, not volume". Prod measurement showed the aggregate is bounded by

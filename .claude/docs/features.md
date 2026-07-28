@@ -32,14 +32,15 @@ The richest page — two columns at `xl`.
   - `Champion/PatchDiff.vue` — **patch diff**, two patch selectors + signed winrate swing, comparing core build / runes / skill order. Hidden when fewer than 2 patches exist.
   - `Champion/ScalingChart.vue` — winrate by game-length bucket + signed scaling index with verdict badge.
   - `Champion/Roam.vue` — out-of-lane K+A at 5/10/15 min with verdict. Hidden for `JUNGLE`.
+  - `Champion/Synergies.vue` — **duo & trio synergies** (#922). Best teammates ranked by *observed − expected* win rate (never raw pair WR), with a `RolePicker` narrowing the partner lane (the champion's own lane is excluded). Picking a partner expands the best third picks for that duo underneath. Every row carries its sample; the three insufficient-sample cases (no champion baseline / no partner past the shared-games floor / duo too thin to split) each get their own sentence with the real count — no fallback numbers.
 - **Sidebar**: top-10 truemains on the champion; **matchups** (best 5 / worst 5 + specific-opponent picker); **mains comparison** (`Champion/MainsComparison.vue` — enter a Riot ID, compare WR/KDA/CS·min/gold·min against all mains or one chosen main).
 - States: `noDataForRank`, `notEnoughData`, low-sample alerts, and a watcher that reconciles the URL when the API drops a dead filter.
 
 ### `/builder` — `web/app/pages/builder.vue`
-A **live composition builder**, not a build editor. Inputs: your champion + role (deep-linked), plus two 5-slot draft columns (your team / enemy team, not persisted in the URL). No submit — every edit refires after a 400 ms debounce through `useCompositionBuild()` → `POST /api/champions/{id}/composition-build`, keeping the previous result dimmed on screen and dropping out-of-order responses.
-Output (`builder/RecommendationPanel.vue`): confidence strip (games used, draft match %, win rate), low-confidence warnings, then the same core panels as the champion page + build tree. **No power spikes, no variations, no rune list.** Fallback build when the matchup was never recorded.
-> `situationalItems` exists in `web/shared/types/composition.ts` but is never rendered — stale.
-> Reworked into a matchup-centric tool by **#921**.
+A **live matchup builder** (reworked by #921), not a build editor. Centre stage (`builder/MatchupStage.vue`): your champion, your role and the **lane opponent** as large portrait-sized pickers — the matchup is the primary input because the API treats the pinned lane opponent as a hard filter on the sampled games. Below it, secondary and quieter (`builder/TeamContext.vue`): the eight remaining draft slots (4 allies / 4 enemies, the played lane omitted since the stage owns both sides of it), which only re-weight the similarity search.
+All three matchup inputs are **deep-linked** (`?champion=&position=&opponent=`) so a matchup is shareable; the eight context slots stay ephemeral. No submit — every edit refires after a 400 ms debounce through `useCompositionBuild()` → `POST /api/champions/{id}/composition-build`, keeping the previous result dimmed on screen and dropping out-of-order responses.
+Output (`builder/RecommendationPanel.vue`): confidence strip (games used, draft match %, win rate), low-confidence warnings, the same core panels as the champion page, **situational picks** (`builder/SituationalItems.vue` — items bought outside the core path, with real pick/win rates) and the build tree. **No power spikes, no variations, no rune list.**
+Graceful degradation, both falling back to `builder/FallbackBuild.vue` (the champion page's top build) behind an explicit notice: the matchup was **never recorded** (`matchupFound === false`), or it was recorded on **fewer than 8 games** — the thin build stays one click away ("Show it anyway" / "Back to the standard build").
 
 ### `/truemains` — `web/app/pages/truemains/index.vue`
 OTP leaderboard, server-paginated (25/page). Filters: region, role, OTP-only toggle, and **sort by LP or dedication**. Rows show rank, name#tag + region flag, lanes, top-3 champions, main's keystone + first item, dedication score with a breakdown tooltip, rank icon + LP, and a favorite toggle.
@@ -71,7 +72,7 @@ Component playgrounds (`charts`, `match-row`, `profile`). **Stripped from produc
 - **SEO** — `@nuxtjs/seo`, title template `%s · TrueMain` (never repeat the brand in a page title), schema.org on the main pages, sitemap enumerating champions and leaderboard players. **OG image rendering is disabled** (`ogImage: { enabled: false }`) — that's what **#926** turns on.
 - **Caching** — 1 h client TTL mirroring the server `defineCachedFunction` (`utils/static-cache.ts`), static prefetch plugin, and a custom cached IPX handler for `/_ipx/**`.
 - **Analytics** — self-hosted Umami, only injected when both public env vars are set.
-- **Dev mock** — `NUXT_DEV_MOCK_API=1` → `web/server/utils/dev-api-mock.ts`, deterministic PRNG, real Riot ids, covers most endpoints; a dedicated fixture takes precedence for `Sheiden-1234`.
+- **Dev mock** — `NUXT_DEV_MOCK_API=1` → `web/server/utils/dev-api-mock.ts`, deterministic PRNG, real Riot ids, covers most endpoints; a dedicated fixture takes precedence for `Sheiden-1234`. The builder's degraded states are reachable through the lane opponent's id: `% 23 === 0` (Tryndamere) returns a never-recorded matchup, `% 17 === 0` (Teemo) a 3-game one.
 - **No i18n** — all copy is hardcoded English; numbers use an explicit `en-US` locale to avoid hydration mismatches.
 - **Not present**: no gold/XP timeline chart in match detail, no auth/accounts, no OG artwork.
 
@@ -107,7 +108,7 @@ Tests: `admin/tests/` covers only `process-summary`. No page-level or proxy test
 ### Api
 Three controllers, all delegating to injected `I*QueryService` — no EF types cross the controller boundary; read models are `sealed record`s under `Api/ReadModels/`.
 
-- **`ChampionsController`** (public): list, tierlist, detail, trend, patch-diff, matchups, scaling, item-timings, roam, powerspikes, mains-comparison, and `POST composition-build`.
+- **`ChampionsController`** (public): list, tierlist, detail, trend, patch-diff, matchups, synergies, synergies/trios, scaling, item-timings, roam, powerspikes, mains-comparison, and `POST composition-build`.
 - **`TruemainsController`** (public): search, leaderboard, profile, player-scoped champion + divergence + matchups + **performance**, rank-history, matches, match detail.
 - **`OpsController`** (`X-Ops-Key` auth): 18 endpoints backing the admin portal.
 
@@ -133,6 +134,7 @@ Pipeline order (`Full`):
 | 9 | EloBracketEnrichment | Stamps `elo_bracket` from the nearest rank snapshot |
 | 10 | ChampionPatternAggregation | Rebuilds aggregate scopes/patterns + `champion_dim_*`, **chunked one champion at a time** (memory bound) |
 | 11 | ChampionMatchupLeadAggregation | Incrementally folds each match once into `champion_matchup_stats` |
+| 11b | ChampionSynergyAggregation | Folds each match once into `champion_synergy_stats` + `champion_synergy_baseline_stats` (same-team pairs and their SELF/ALLY marginals) |
 | 12 | ChampionPowerspikeAggregation | Folds each match once into the powerspike stat tables while dense snapshots still exist |
 | 13 | AccountRefresh | Refreshes identity + soloQ rank; recovers or invalidates dead PUUIDs |
 | 14 | MatchDataRetention | Prunes stale candidates, non-tracked-queue matches, out-of-window matches, intermediate timeline snapshots, sub-floor powerspike rows |
@@ -144,7 +146,7 @@ Pipeline order (`Full`):
 - **Identity**: `riot_accounts`, `personas` (half-built, unused), `main_candidates`, `seed_requests`, `discovery_cursors`
 - **Raw matches**: `matches`, `match_participants`, `match_participant_timeline_snapshots`, `match_participant_kill_positions`, `jungle_first_clears`, `participant_perk_selections`, `perk_selection_catalog` (item/skill events are jsonb, not tables)
 - **Aggregates**: `champion_aggregate_scopes` (account × champion × patch × platform × queue × position × elo bracket) + `champion_aggregate_patterns` (one row per observed build+runes+skills+spells+starters combo), with content-deduplicated `champion_dim_{builds,rune_pages,skill_orders,spell_pairs,starter_items}`
-- **Derived**: `main_champion_stats`, `champion_matchup_stats`, `champion_powerspike_{curve,event}_stats`, `powerspike_sigma_stats`
+- **Derived**: `main_champion_stats`, `champion_matchup_stats`, `champion_synergy_stats` + `champion_synergy_baseline_stats`, `champion_powerspike_{curve,event}_stats`, `powerspike_sigma_stats`
 - **Snapshots / ops**: `rank_snapshots`, `process_runs`
 
 **Mongo** (`truemain_logs`, TTL retention): `logs` (90 d, lossy bounded channel), `audit_events` (lossless, synchronous), `riot_api_call_rollups` (14 d), `crashes` (365 d, file-first then Mongo, with unclean-shutdown detection for OOM kills).

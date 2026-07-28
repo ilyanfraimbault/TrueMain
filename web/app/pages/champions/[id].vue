@@ -320,6 +320,10 @@ const matchupsSnapshot = useLazyHydrationSnapshot(
   { champions: [] as ChampionStaticListItem[] },
   () => ({ champions: staticList.value ?? [] }),
 )
+const synergiesSnapshot = useLazyHydrationSnapshot(
+  { champions: [] as ChampionStaticListItem[] },
+  () => ({ champions: staticList.value ?? [] }),
+)
 </script>
 
 <template>
@@ -518,6 +522,21 @@ const matchupsSnapshot = useLazyHydrationSnapshot(
             hydrate-on-visible
             v-bind="roamSnapshot.value"
             @vue:mounted="roamSnapshot.reveal"
+          />
+
+          <!--
+            Duo/trio synergies (#922). In the main column rather than the
+            sidebar: the rows carry four columns plus a lane filter, and picking
+            a partner expands a second list underneath.
+          -->
+          <LazyChampionSynergies
+            hydrate-on-visible
+            :champion-id="championId"
+            :position="selectedPosition"
+            :patch="selectedPatch || null"
+            :elo-bracket="eloBracketParam"
+            v-bind="synergiesSnapshot.value"
+            @vue:mounted="synergiesSnapshot.reveal"
           />
         </div>
 

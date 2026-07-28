@@ -65,6 +65,10 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
             .IsRequired()
             .HasDefaultValue(false);
 
+        entity.Property(e => e.SynergyAggregated)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         entity.HasIndex(e => e.PlatformId);
 
         entity.HasIndex(e => new { e.PlatformId, e.QueueId, e.GameStartTimeUtc })
@@ -92,6 +96,12 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
         // matchup/lead batch selection stays cheap, mirroring IX_matches_powerspike_pending.
         entity.HasIndex(e => e.QueueId, "IX_matches_matchup_lead_pending")
             .HasFilter("\"MatchupLeadAggregated\" = false");
+
+        // Same shape for the synergy fold (#922). It starts out covering every
+        // retained match (the flag ships false everywhere, on purpose) and shrinks
+        // to the recent pending tail once the initial backfill has drained.
+        entity.HasIndex(e => e.QueueId, "IX_matches_synergy_pending")
+            .HasFilter("\"SynergyAggregated\" = false");
 
         entity.HasMany(e => e.Participants)
             .WithOne(e => e.Match)

@@ -137,6 +137,18 @@ public sealed record TeamPositionCorrectionSummary(int CorrectedParticipants, in
 /// <summary>Batched match aggregation outcome (matchup/lead and powerspike).</summary>
 public sealed record MatchAggregationSummary(int Matches, int Batches) : IProcessRunSummary;
 
+/// <summary>
+/// Champion synergy aggregation outcome (#922). Carries the two upsert counts on
+/// top of the shared match/batch pair so the admin's aggregation page can tell a
+/// run that folded matches but wrote nothing (every match off-position or
+/// untracked) from one that had no matches to fold at all.
+/// </summary>
+public sealed record SynergyAggregationSummary(
+    int Matches,
+    int Batches,
+    int PairRows,
+    int BaselineRows) : IProcessRunSummary;
+
 /// <summary>The patches retention kept for one platform.</summary>
 public sealed record RetainedPatchesSummary(string PlatformId, IReadOnlyList<string> Patches);
 
@@ -154,5 +166,8 @@ public sealed record MatchDataRetentionSummary(
     int DeletedMatchupStats,
     int DeletedPowerspikeCurveStats,
     int DeletedPowerspikeEventStats,
+    // Pair rows and the baselines they are read against, summed (#922) — they are
+    // deleted together in one transaction, so one counter describes both.
+    int DeletedSynergyStats,
     int PrunedSubFloorPowerspikeEvents,
     IReadOnlyList<RetainedPatchesSummary> RetainedPatchesByPlatform) : IProcessRunSummary;

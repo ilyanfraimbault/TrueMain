@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import type { CompositionSlotInput } from '~~/shared/types/composition'
-import { POSITION_OPTIONS, isChampionPosition, type ChampionPosition } from '~/utils/positions'
+import { POSITION_OPTIONS, POSITION_BY_VALUE, isChampionPosition, type ChampionPosition } from '~/utils/positions'
 import { describeFetchError } from '~/utils/errors'
 
 useSeoMeta({
-  title: 'Composition Builder',
+  title: 'Matchup Builder',
   description:
-    'Pick your champion and role, sketch both team comps, and watch the build from the most similar real games update live.',
+    'Pick your champion and the enemy laner — the recommended build rebuilds live from real '
+    + 'games of that exact matchup, refined by the rest of the draft.',
 })
 
 const route = useRoute()
@@ -14,14 +15,22 @@ const router = useRouter()
 
 // ─── Draft state ─────────────────────────────────────────────────────────────
 
-const initialChampion = Number(route.query.champion)
-const playedChampionId = ref<number | null>(
-  Number.isInteger(initialChampion) && initialChampion > 0 ? initialChampion : null,
-)
+function queryChampionId(value: unknown): number | null {
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+}
+
+const playedChampionId = ref<number | null>(queryChampionId(route.query.champion))
 const initialPosition = typeof route.query.position === 'string' ? route.query.position : ''
 const playedPosition = ref<ChampionPosition | null>(
   isChampionPosition(initialPosition) ? initialPosition : null,
 )
+/**
+ * The lane opponent lives outside the enemy slot map: it is the matchup, the
+ * one pick that hard-filters the sampled games, and it is owned by the centre
+ * stage. It is folded back into the enemy slots only when the request is built.
+ */
+const opponentChampionId = ref<number | null>(queryChampionId(route.query.opponent))
 
 function emptySlots(): Record<ChampionPosition, number | null> {
   return { TOP: null, JUNGLE: null, MIDDLE: null, BOTTOM: null, UTILITY: null }
@@ -30,21 +39,24 @@ function emptySlots(): Record<ChampionPosition, number | null> {
 const allySlots = ref(emptySlots())
 const enemySlots = ref(emptySlots())
 
-// The player's own slot is the picked champion — an ally there would be
-// rejected by the API, so the row disappears and any leftover pick is cleared.
+// The played lane is owned by the matchup stage on both sides — a leftover
+// pick there would be a second control for the same slot (and an ally on the
+// player's own position is rejected by the API).
 watch(playedPosition, (position) => {
   if (position) {
     allySlots.value[position] = null
+    enemySlots.value[position] = null
   }
 })
 
-// Deep-link the player pick (champion, position) — the nine team slots stay
-// ephemeral, a full draft in the URL would be noise.
-watch([playedChampionId, playedPosition], ([champion, position]) => {
+// Deep-link the matchup (champion, role, opponent) so a matchup is shareable.
+// The eight remaining slots stay ephemeral — a full draft in the URL is noise.
+watch([playedChampionId, playedPosition, opponentChampionId], ([champion, position, opponent]) => {
   void router.replace({
     query: {
       ...(champion ? { champion: String(champion) } : {}),
       ...(position ? { position } : {}),
+      ...(opponent ? { opponent: String(opponent) } : {}),
     },
   })
 })
@@ -58,13 +70,13 @@ const championsById = useChampionsById(champions)
 const playedChampion = computed(() =>
   playedChampionId.value === null ? null : championsById.value.get(playedChampionId.value) ?? null)
 
-const laneOpponentName = computed(() => {
-  if (playedPosition.value === null) {
-    return null
-  }
-  const id = enemySlots.value[playedPosition.value]
-  return id === null ? null : championsById.value.get(id)?.name ?? null
-})
+const opponentChampion = computed(() =>
+  opponentChampionId.value === null ? null : championsById.value.get(opponentChampionId.value) ?? null)
+
+const laneLabel = computed(() =>
+  playedPosition.value === null
+    ? null
+    : POSITION_BY_VALUE.get(playedPosition.value)?.label.toLowerCase() ?? null)
 
 // ─── Live recommendation ─────────────────────────────────────────────────────
 
@@ -72,10 +84,14 @@ const { data: recommendation, isLoading, error, submit, clear } = useComposition
 
 const isDraftReady = computed(() => playedChampionId.value !== null && playedPosition.value !== null)
 
-function toSlots(slots: Record<ChampionPosition, number | null>): CompositionSlotInput[] {
-  return POSITION_OPTIONS
+function toSlots(
+  slots: Record<ChampionPosition, number | null>,
+  extra?: { position: ChampionPosition, championId: number } | null,
+): CompositionSlotInput[] {
+  const picks = POSITION_OPTIONS
     .filter(option => slots[option.value] !== null)
-    .map(option => ({ position: option.value, championId: slots[option.value] as number }))
+    .map(option => ({ position: option.value as string, championId: slots[option.value] as number }))
+  return extra ? [...picks, extra] : picks
 }
 
 /**
@@ -90,7 +106,7 @@ let refetchTimer: ReturnType<typeof setTimeout> | undefined
 // submit button. The previous recommendation stays on screen while the next
 // one loads (the composable also drops out-of-order responses).
 watch(
-  [playedChampionId, playedPosition, allySlots, enemySlots],
+  [playedChampionId, playedPosition, opponentChampionId, allySlots, enemySlots],
   () => {
     clearTimeout(refetchTimer)
     if (playedChampionId.value === null || playedPosition.value === null) {
@@ -99,11 +115,15 @@ watch(
     }
     const championId = playedChampionId.value
     const position = playedPosition.value
+    const opponent = opponentChampionId.value
     refetchTimer = setTimeout(() => {
       void submit(championId, {
         position,
         allies: toSlots(allySlots.value),
-        enemies: toSlots(enemySlots.value),
+        enemies: toSlots(
+          enemySlots.value,
+          opponent === null ? null : { position, championId: opponent },
+        ),
       })
     }, REFETCH_DEBOUNCE_MS)
   },
@@ -112,30 +132,92 @@ watch(
 
 onBeforeUnmount(() => clearTimeout(refetchTimer))
 
-function resetDraft() {
+function resetContext() {
   allySlots.value = emptySlots()
   enemySlots.value = emptySlots()
 }
 
-const hasDraftPicks = computed(() =>
+const hasContextPicks = computed(() =>
   POSITION_OPTIONS.some(option =>
     allySlots.value[option.value] !== null || enemySlots.value[option.value] !== null))
 
-// Both columns keep the canonical role order so every ally row sits directly
-// across from the enemy in the same lane (top vs top, jungle vs jungle, …).
+// ─── Graceful degradation ────────────────────────────────────────────────────
 
+/**
+ * Below this many games of the requested matchup, every dimension of the
+ * aggregate is one or two games away from flipping. Rather than dressing that
+ * up as a matchup read, the page shows the champion's standard build with an
+ * explicit notice (the thin build stays one click away).
+ */
+const MATCHUP_SAMPLE_FLOOR = 8
+
+/** Matchup pinned but never recorded — the API found zero games. */
 const matchupMissing = computed(() =>
   recommendation.value !== null
   && recommendation.value.matchupRequested
   && !recommendation.value.matchupFound)
+
+const matchupSampleSize = computed(() => recommendation.value?.build.gamesConsidered ?? 0)
+
+/** Matchup pinned and found, but on too few games to be read as a matchup build. */
+const matchupTooThin = computed(() =>
+  recommendation.value !== null
+  && recommendation.value.matchupRequested
+  && recommendation.value.matchupFound
+  && matchupSampleSize.value > 0
+  && matchupSampleSize.value < MATCHUP_SAMPLE_FLOOR)
+
+/** Opt-in escape hatch from the thin-sample fallback, reset on every matchup change. */
+const showThinMatchupBuild = ref(false)
+watch([playedChampionId, playedPosition, opponentChampionId], () => {
+  showThinMatchupBuild.value = false
+})
+
+const showFallbackBuild = computed(() =>
+  matchupMissing.value || (matchupTooThin.value && !showThinMatchupBuild.value))
+
+function revealThinMatchupBuild() {
+  showThinMatchupBuild.value = true
+}
+
+function hideThinMatchupBuild() {
+  showThinMatchupBuild.value = false
+}
+
+function setAlly(position: ChampionPosition, championId: number | null) {
+  allySlots.value[position] = championId
+}
+
+function setEnemy(position: ChampionPosition, championId: number | null) {
+  enemySlots.value[position] = championId
+}
+
+const fallbackNotice = computed(() => {
+  const champion = playedChampion.value?.name ?? 'this champion'
+  const opponent = opponentChampion.value?.name ?? 'that champion'
+  const lane = laneLabel.value ? ` at ${laneLabel.value}` : ''
+  if (matchupMissing.value) {
+    return {
+      title: `No recorded ${champion} vs ${opponent} game`,
+      description: `Nothing in our data for this matchup${lane} — showing `
+        + `${champion}'s standard build instead.`,
+    }
+  }
+  const games = matchupSampleSize.value
+  return {
+    title: `Only ${games} recorded ${champion} vs ${opponent} game${games === 1 ? '' : 's'}`,
+    description: `Too thin to derive a matchup build${lane} — showing `
+      + `${champion}'s standard build instead.`,
+  }
+})
 </script>
 
 <template>
   <main class="mx-auto max-w-6xl space-y-6 p-4 md:p-6">
     <PageHeader
       eyebrow="Draft tools"
-      title="Composition builder"
-      description="Pick your champion and role — the build below updates live as you fill in the draft."
+      title="Matchup builder"
+      description="Pick your champion and the enemy laner — the build below rebuilds live from real games of that matchup."
     />
 
     <UAlert
@@ -146,132 +228,29 @@ const matchupMissing = computed(() =>
       :description="describeFetchError(staticError)"
     />
 
-    <!-- One card: the player pick and both team drafts, all draft configuration
-         in a single surface. -->
-    <section
-      class="glass space-y-5 rounded-xl p-4 sm:p-6"
-      aria-label="Draft"
-    >
-      <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <p class="text-xs font-medium uppercase tracking-wider text-muted">
-          You are playing
-        </p>
-        <ChampionPicker
-          :champions="champions"
-          :champion-id="playedChampionId"
-          placeholder="Choose your champion"
-          size="lg"
-          trigger-class="w-full max-w-64 sm:w-64"
-          @update:champion-id="playedChampionId = $event"
-        />
-        <RolePicker
-          :position="playedPosition"
-          hide-all
-          @update:position="playedPosition = $event"
-        />
-        <UButton
-          v-if="isDraftReady && hasDraftPicks"
-          class="ms-auto"
-          variant="ghost"
-          color="neutral"
-          size="xs"
-          icon="i-lucide-eraser"
-          @click="resetDraft"
-        >
-          Clear draft
-        </UButton>
-      </div>
+    <BuilderMatchupStage
+      :champions="champions"
+      :played-champion="playedChampion"
+      :played-champion-id="playedChampionId"
+      :played-position="playedPosition"
+      :opponent-champion="opponentChampion"
+      :opponent-champion-id="opponentChampionId"
+      @update:played-champion-id="playedChampionId = $event"
+      @update:played-position="playedPosition = $event"
+      @update:opponent-champion-id="opponentChampionId = $event"
+    />
 
-      <div
-        v-if="isDraftReady"
-        class="grid gap-x-6 gap-y-4 sm:grid-cols-2"
-      >
-        <div class="space-y-2">
-          <h3 class="text-xs font-medium uppercase tracking-wider text-muted">
-            Your team
-          </h3>
-          <ul class="space-y-1.5">
-            <li
-              v-for="option in POSITION_OPTIONS"
-              :key="option.value"
-              class="flex items-center gap-3 rounded-lg px-2.5 py-1.5"
-              :class="option.value === playedPosition
-                ? 'bg-primary/5 ring-1 ring-inset ring-primary/25'
-                : 'glass-hover'"
-            >
-              <SkeletonImage
-                :src="option.iconUrl"
-                :alt="option.label"
-                :width="18"
-                :height="18"
-                class="size-[18px] shrink-0 opacity-80"
-              />
-              <!-- The player's own lane is locked: it mirrors the pick above and
-                   can only change from the "You are playing" control. -->
-              <ChampionPicker
-                v-if="option.value === playedPosition"
-                :champions="champions"
-                :champion-id="playedChampionId"
-                size="sm"
-                trigger-class="w-full"
-                class="flex-1"
-                disabled
-              />
-              <ChampionPicker
-                v-else
-                :champions="champions"
-                :champion-id="allySlots[option.value]"
-                placeholder="Any champion"
-                size="sm"
-                trigger-class="w-full"
-                class="flex-1"
-                @update:champion-id="allySlots[option.value] = $event"
-              />
-            </li>
-          </ul>
-        </div>
-
-        <div class="space-y-2">
-          <h3 class="text-xs font-medium uppercase tracking-wider text-muted">
-            Enemy team
-          </h3>
-          <ul class="space-y-1.5">
-            <li
-              v-for="option in POSITION_OPTIONS"
-              :key="option.value"
-              class="flex items-center gap-3 rounded-lg px-2.5 py-1.5"
-              :class="option.value === playedPosition
-                ? 'bg-primary/5 ring-1 ring-inset ring-primary/25'
-                : 'glass-hover'"
-            >
-              <SkeletonImage
-                :src="option.iconUrl"
-                :alt="option.label"
-                :width="18"
-                :height="18"
-                class="size-[18px] shrink-0 opacity-80"
-              />
-              <ChampionPicker
-                :champions="champions"
-                :champion-id="enemySlots[option.value]"
-                :placeholder="option.value === playedPosition ? 'Your lane opponent' : 'Any champion'"
-                size="sm"
-                trigger-class="w-full"
-                class="flex-1"
-                @update:champion-id="enemySlots[option.value] = $event"
-              />
-            </li>
-          </ul>
-        </div>
-      </div>
-
-      <p
-        v-else
-        class="text-sm text-muted"
-      >
-        Choose your champion and role to sketch both teams — the build updates live below.
-      </p>
-    </section>
+    <BuilderTeamContext
+      v-if="isDraftReady && playedPosition"
+      :champions="champions"
+      :played-position="playedPosition"
+      :ally-slots="allySlots"
+      :enemy-slots="enemySlots"
+      :has-picks="hasContextPicks"
+      @update:ally="setAlly"
+      @update:enemy="setEnemy"
+      @clear="resetContext"
+    />
 
     <UAlert
       v-if="error"
@@ -282,16 +261,31 @@ const matchupMissing = computed(() =>
     />
 
     <template v-if="recommendation && isDraftReady">
-      <!-- Matchup requested but never recorded: say so and fall back to the
-           champion's baseline build instead of fabricating a draft-specific one. -->
-      <template v-if="matchupMissing">
+      <!-- Matchup pinned but unusable (never recorded, or a handful of games):
+           say so and fall back to the champion's baseline build instead of
+           fabricating a matchup-specific one. -->
+      <template v-if="showFallbackBuild">
         <UAlert
           color="warning"
           variant="soft"
           icon="i-lucide-search-x"
-          title="No game with this matchup"
-          :description="`We have no recorded ${playedChampion?.name ?? 'games'} game against ${laneOpponentName ?? 'that champion'} ${playedPosition ? 'at ' + playedPosition.toLowerCase() : ''} — showing the champion's standard build instead.`"
-        />
+          :title="fallbackNotice.title"
+          :description="fallbackNotice.description"
+        >
+          <template
+            v-if="matchupTooThin"
+            #actions
+          >
+            <UButton
+              color="neutral"
+              variant="outline"
+              size="xs"
+              @click="revealThinMatchupBuild"
+            >
+              Show it anyway
+            </UButton>
+          </template>
+        </UAlert>
         <BuilderFallbackBuild
           v-if="playedChampionId !== null && playedPosition !== null"
           :champion-id="playedChampionId"
@@ -314,17 +308,42 @@ const matchupMissing = computed(() =>
         </div>
       </SectionCard>
 
-      <div
-        v-else
-        class="transition-opacity duration-200"
-        :class="isLoading ? 'opacity-60' : ''"
-      >
-        <BuilderRecommendationPanel
-          :recommendation="recommendation"
-          :champion-name="playedChampion?.name ?? null"
-          :champion-icon-url="playedChampion?.iconUrl ?? null"
-        />
-      </div>
+      <template v-else>
+        <!-- Thin matchup build shown on demand: keep the caveat on screen and
+             offer the way back to the standard build. -->
+        <UAlert
+          v-if="matchupTooThin"
+          color="warning"
+          variant="soft"
+          icon="i-lucide-triangle-alert"
+          :title="`Built from ${matchupSampleSize} game${matchupSampleSize === 1 ? '' : 's'} of this matchup`"
+          description="Single games swing every dimension at this sample size."
+        >
+          <template #actions>
+            <UButton
+              color="neutral"
+              variant="outline"
+              size="xs"
+              @click="hideThinMatchupBuild"
+            >
+              Back to the standard build
+            </UButton>
+          </template>
+        </UAlert>
+
+        <div
+          class="transition-opacity duration-200"
+          :class="isLoading ? 'opacity-60' : ''"
+        >
+          <BuilderRecommendationPanel
+            :recommendation="recommendation"
+            :champion-name="playedChampion?.name ?? null"
+            :champion-icon-url="playedChampion?.iconUrl ?? null"
+            :opponent-name="opponentChampion?.name ?? null"
+            :opponent-icon-url="opponentChampion?.iconUrl ?? null"
+          />
+        </div>
+      </template>
     </template>
 
     <!-- First fetch after the pick: a lightweight skeleton instead of a blank page. -->
