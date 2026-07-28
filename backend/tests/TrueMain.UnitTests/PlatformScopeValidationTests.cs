@@ -189,6 +189,10 @@ public class PlatformScopeValidationTests
     private static IConfiguration BuildConfiguration(Dictionary<string, string?> settings)
     {
         settings[ApiKeyOverride] = "test-key";
+        // Unrelated to what these tests exercise (Platforms:Active), but Discovery:TierScope
+        // (#860) now fails startup validation when unconfigured — same reason ApiKeyOverride
+        // is stubbed above. TryAdd so a test that sets its own TierScope keeps them.
+        settings.TryAdd("Discovery:TierScope:0", "Master");
         return new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
     }
 

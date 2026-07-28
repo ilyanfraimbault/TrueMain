@@ -12,7 +12,21 @@ public class DiscoveryOptions
     /// </summary>
     public List<string> Platforms { get; set; } = [];
 
-    public List<string> TierScope { get; set; } = new() { "Master", "GM", "Challenger" };
+    /// <summary>
+    /// Apex ladders to crawl: any of <c>Master</c>, <c>GM</c> (or <c>Grandmaster</c>) and
+    /// <c>Challenger</c> — the only tiers league-v4 exposes a dedicated ladder endpoint
+    /// for.
+    /// <para>
+    /// Deliberately empty by default, with the shipped value living in
+    /// <c>appsettings.json</c> (#860): <see cref="Microsoft.Extensions.Configuration.ConfigurationBinder"/>
+    /// <em>appends</em> bound entries to a list that already has items, so a hard-coded
+    /// default here would have survived — and been silently unioned into — any narrower
+    /// scope an operator configures, the same bug <see cref="PlatformScopeOptions.Active"/>
+    /// had before #496/#854. An empty list fails startup validation with an explicit
+    /// message instead.
+    /// </para>
+    /// </summary>
+    public List<string> TierScope { get; set; } = [];
 
     public int TopChampionsPerAccount { get; set; } = 10;
 
