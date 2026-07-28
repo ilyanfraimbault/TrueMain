@@ -36,10 +36,10 @@ The richest page — two columns at `xl`.
 - States: `noDataForRank`, `notEnoughData`, low-sample alerts, and a watcher that reconciles the URL when the API drops a dead filter.
 
 ### `/builder` — `web/app/pages/builder.vue`
-A **live composition builder**, not a build editor. Inputs: your champion + role (deep-linked), plus two 5-slot draft columns (your team / enemy team, not persisted in the URL). No submit — every edit refires after a 400 ms debounce through `useCompositionBuild()` → `POST /api/champions/{id}/composition-build`, keeping the previous result dimmed on screen and dropping out-of-order responses.
-Output (`builder/RecommendationPanel.vue`): confidence strip (games used, draft match %, win rate), low-confidence warnings, then the same core panels as the champion page + build tree. **No power spikes, no variations, no rune list.** Fallback build when the matchup was never recorded.
-> `situationalItems` exists in `web/shared/types/composition.ts` but is never rendered — stale.
-> Reworked into a matchup-centric tool by **#921**.
+A **live matchup builder** (reworked by #921), not a build editor. Centre stage (`builder/MatchupStage.vue`): your champion, your role and the **lane opponent** as large portrait-sized pickers — the matchup is the primary input because the API treats the pinned lane opponent as a hard filter on the sampled games. Below it, secondary and quieter (`builder/TeamContext.vue`): the eight remaining draft slots (4 allies / 4 enemies, the played lane omitted since the stage owns both sides of it), which only re-weight the similarity search.
+All three matchup inputs are **deep-linked** (`?champion=&position=&opponent=`) so a matchup is shareable; the eight context slots stay ephemeral. No submit — every edit refires after a 400 ms debounce through `useCompositionBuild()` → `POST /api/champions/{id}/composition-build`, keeping the previous result dimmed on screen and dropping out-of-order responses.
+Output (`builder/RecommendationPanel.vue`): confidence strip (games used, draft match %, win rate), low-confidence warnings, the same core panels as the champion page, **situational picks** (`builder/SituationalItems.vue` — items bought outside the core path, with real pick/win rates) and the build tree. **No power spikes, no variations, no rune list.**
+Graceful degradation, both falling back to `builder/FallbackBuild.vue` (the champion page's top build) behind an explicit notice: the matchup was **never recorded** (`matchupFound === false`), or it was recorded on **fewer than 8 games** — the thin build stays one click away ("Show it anyway" / "Back to the standard build").
 
 ### `/truemains` — `web/app/pages/truemains/index.vue`
 OTP leaderboard, server-paginated (25/page). Filters: region, role, OTP-only toggle, and **sort by LP or dedication**. Rows show rank, name#tag + region flag, lanes, top-3 champions, main's keystone + first item, dedication score with a breakdown tooltip, rank icon + LP, and a favorite toggle.
@@ -71,7 +71,7 @@ Component playgrounds (`charts`, `match-row`, `profile`). **Stripped from produc
 - **SEO** — `@nuxtjs/seo`, title template `%s · TrueMain` (never repeat the brand in a page title), schema.org on the main pages, sitemap enumerating champions and leaderboard players. **OG image rendering is disabled** (`ogImage: { enabled: false }`) — that's what **#926** turns on.
 - **Caching** — 1 h client TTL mirroring the server `defineCachedFunction` (`utils/static-cache.ts`), static prefetch plugin, and a custom cached IPX handler for `/_ipx/**`.
 - **Analytics** — self-hosted Umami, only injected when both public env vars are set.
-- **Dev mock** — `NUXT_DEV_MOCK_API=1` → `web/server/utils/dev-api-mock.ts`, deterministic PRNG, real Riot ids, covers most endpoints; a dedicated fixture takes precedence for `Sheiden-1234`.
+- **Dev mock** — `NUXT_DEV_MOCK_API=1` → `web/server/utils/dev-api-mock.ts`, deterministic PRNG, real Riot ids, covers most endpoints; a dedicated fixture takes precedence for `Sheiden-1234`. The builder's degraded states are reachable through the lane opponent's id: `% 23 === 0` (Tryndamere) returns a never-recorded matchup, `% 17 === 0` (Teemo) a 3-game one.
 - **No i18n** — all copy is hardcoded English; numbers use an explicit `en-US` locale to avoid hydration mismatches.
 - **Not present**: no gold/XP timeline chart in match detail, no auth/accounts, no OG artwork.
 
