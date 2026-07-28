@@ -39,7 +39,7 @@ public static class OptionsConfigurationExtensions
         services.AddOptions<RiotOptions>()
             .Bind(configuration.GetSection(RiotOptions.SectionName))
             .Validate(options => !string.IsNullOrWhiteSpace(options.ApiKey), "Riot:ApiKey is required.")
-            .Validate(options => options.MaxRetryAttempts > 0, "Riot:MaxRetryAttempts must be greater than 0.")
+            .Validate(options => options.MaxRetryAttempts is > 0 and <= 10, "Riot:MaxRetryAttempts must be between 1 and 10.")
             .Validate(options => options.AttemptTimeoutSeconds is > 0 and <= 600, "Riot:AttemptTimeoutSeconds must be between 1 and 600.")
             .Validate(options => options.TotalRequestTimeoutSeconds is > 0 and <= 3600, "Riot:TotalRequestTimeoutSeconds must be between 1 and 3600.")
             .Validate(

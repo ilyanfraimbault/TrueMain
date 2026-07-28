@@ -128,6 +128,16 @@ static void ConfigureRiotClient(IServiceProvider serviceProvider, HttpClient cli
 {
     var options = serviceProvider.GetRequiredService<IOptions<RiotOptions>>().Value;
     client.DefaultRequestHeaders.Add("X-Riot-Token", options.ApiKey);
+
+    // HttpClient.Timeout wraps the whole resilience pipeline, and its 100s default
+    // would silently cut a longer pipeline short — surfacing an opaque
+    // TaskCanceledException instead of the handler's own timeout. This was
+    // previously left unset here (unlike ConfigureCommunityDragonClient below),
+    // so a Riot rate-limit backoff that pushed the effective total past 100s
+    // was truncated without a trace (#855). Sizing it from the same
+    // EffectiveTotalRequestTimeout the resilience handler uses keeps the two
+    // from ever drifting apart.
+    client.Timeout = options.EffectiveTotalRequestTimeout() + TimeSpan.FromSeconds(5);
 }
 
 static void ConfigureCommunityDragonClient(IServiceProvider serviceProvider, HttpClient client)
