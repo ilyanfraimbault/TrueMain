@@ -238,23 +238,22 @@ public sealed class MainAnalysisProcess(
         IReadOnlyCollection<AccountKey> accountsToDemote,
         CancellationToken ct)
     {
-        var demoted = 0;
-        foreach (var account in accountsToDemote)
-        {
-            var updated = await session.MainCandidates
-                .SetStatusForAccountAsync(account.PlatformId, account.Puuid, MainCandidateStatus.Validated, MainCandidateStatus.Scored, ct);
+        // Set-based (#858): one round-trip per distinct platform in the batch
+        // instead of one per account, which is what mattered once #264 narrowed
+        // the transaction to wrap only the writes — N sequential round-trips here
+        // kept that window open exactly as long as the old, wider transaction did.
+        var demotedAccounts = await session.MainCandidates.SetStatusForAccountsAsync(
+            accountsToDemote, MainCandidateStatus.Validated, MainCandidateStatus.Scored, ct);
 
-            if (updated > 0)
-            {
-                demoted++;
-                logger.LogInformation(
-                    "Demoted candidates for {Platform}/{Puuid} to Scored due to critical play rate.",
-                    account.PlatformId,
-                    account.Puuid);
-            }
+        foreach (var account in demotedAccounts)
+        {
+            logger.LogInformation(
+                "Demoted candidates for {Platform}/{Puuid} to Scored due to critical play rate.",
+                account.PlatformId,
+                account.Puuid);
         }
 
-        return demoted;
+        return demotedAccounts.Count;
     }
 
     private static int RemoveMissingChampionStats(

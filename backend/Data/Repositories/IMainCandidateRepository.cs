@@ -7,6 +7,20 @@ public interface IMainCandidateRepository
     Task<List<AccountKey>> GetQueuedAccountsAsync(List<string> platforms, CancellationToken ct);
     Task<int> SetStatusForAccountAsync(string platformId, string puuid, MainCandidateStatus from, MainCandidateStatus to, CancellationToken ct);
     Task<int> SetStatusForAccountAsync(string platformId, string puuid, IReadOnlyCollection<MainCandidateStatus> from, MainCandidateStatus to, CancellationToken ct);
+
+    /// <summary>
+    /// Set-based transition for many accounts at once (#858): one query per
+    /// distinct platform in <paramref name="accounts"/> rather than one per
+    /// account, so the round-trip count no longer grows with batch size.
+    /// Returns exactly the accounts that had at least one <paramref name="from"/>
+    /// row transitioned — not a row count, since one account can carry several
+    /// candidate rows (one per champion) and must still only count once.
+    /// </summary>
+    Task<IReadOnlyCollection<AccountKey>> SetStatusForAccountsAsync(
+        IReadOnlyCollection<AccountKey> accounts,
+        MainCandidateStatus from,
+        MainCandidateStatus to,
+        CancellationToken ct);
     Task<List<MainCandidate>> GetByStatusAsync(MainCandidateStatus status, CancellationToken ct);
     Task<List<MainCandidate>> GetNewBatchAsync(int batchSize, CancellationToken ct);
     Task<List<MainCandidate>> GetByPlatformPuuidAndChampionsAsync(string platformId, string puuid, List<int> championIds, CancellationToken ct);
