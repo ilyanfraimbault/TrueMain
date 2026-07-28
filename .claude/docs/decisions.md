@@ -251,11 +251,19 @@ possible. Approval is the single external unlock for all of it — #780.
 ## Known discrepancy
 
 **Where API reads live.** `CLAUDE.md` and `README.md` state that reads live in `Data` as purpose-built query
-objects, with `Api` staying persistence-ignorant. In practice there are **74** `*QueryService*.cs` files under
-`backend/Api/Services`, **36** of which inject `TrueMainDbContext` directly; `backend/Data` holds only 6 query
-files, all Mongo-side. The *second half* of the rule does hold everywhere — reads are purpose-built query
-objects returning read models, and there is no generic `IRepository<T>` for reads. Only the **location**
-differs.
+objects, with `Api` staying persistence-ignorant. In practice most Postgres reads live in `backend/Api/Services`
+as query services injecting `TrueMainDbContext` directly, and `backend/Data` holds only Mongo-side query files
+(`MongoLogQuery`, `CrashQuery`, `RiotApiUsageQuery` and their interfaces). The *second half* of the rule does
+hold everywhere — reads are purpose-built query objects returning read models, and there is no generic
+`IRepository<T>` for reads. Only the **location** differs.
+
+Measured on 2026-07-28: 74 `*QueryService*.cs` files under `backend/Api/Services`, 32 of them injecting
+`TrueMainDbContext`. These counts drift with every PR — re-measure rather than trusting them:
+
+```bash
+find backend/Api/Services -name "*QueryService*.cs" | wc -l
+grep -l "TrueMainDbContext" $(find backend/Api/Services -name "*QueryService*.cs") | wc -l
+```
 
 **#865 tracks the choice** between "the doc is aspirational, label the 36 as known debt" and "the doc is
 stale, restate the rule as practised". Do not quietly rewrite either side — that would erase a possibly
