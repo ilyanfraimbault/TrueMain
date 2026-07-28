@@ -90,8 +90,6 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
             return null;
         }
 
-        var participantIds = participants.Select(p => p.ParticipantId).ToList();
-
         // Full 6-rune pages for every participant: ParticipantPerkSelection
         // joined to its catalog row. Final ordering (keystone-first,
         // primary-tree-then-secondary-tree) is applied per participant below.
