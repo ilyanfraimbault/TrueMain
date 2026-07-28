@@ -195,18 +195,18 @@ function setEnemy(position: ChampionPosition, championId: number | null) {
 const fallbackNotice = computed(() => {
   const champion = playedChampion.value?.name ?? 'this champion'
   const opponent = opponentChampion.value?.name ?? 'that champion'
-  const lane = laneLabel.value ? ` ${laneLabel.value}` : ''
+  const lane = laneLabel.value ? ` at ${laneLabel.value}` : ''
   if (matchupMissing.value) {
     return {
-      title: 'No recorded game of this matchup',
-      description: `We hold no ${champion} vs ${opponent}${lane} game — showing `
+      title: `No recorded ${champion} vs ${opponent} game`,
+      description: `Nothing in our data for this matchup${lane} — showing `
         + `${champion}'s standard build instead.`,
     }
   }
   const games = matchupSampleSize.value
   return {
-    title: `Only ${games} recorded game${games === 1 ? '' : 's'} of this matchup`,
-    description: `Too thin to read as a ${champion} vs ${opponent}${lane} build — showing `
+    title: `Only ${games} recorded ${champion} vs ${opponent} game${games === 1 ? '' : 's'}`,
+    description: `Too thin to derive a matchup build${lane} — showing `
       + `${champion}'s standard build instead.`,
   }
 })
