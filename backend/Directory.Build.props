@@ -2,6 +2,10 @@
   <PropertyGroup>
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <AnalysisLevel>latest</AnalysisLevel>
+    <!-- Pinned rather than left to the SDK default: an SDK bump would otherwise
+         change language semantics silently. Raise this deliberately, in its own
+         commit, so the switch is reviewable. Matches net10.0's own default today. -->
+    <LangVersion>14.0</LangVersion>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>

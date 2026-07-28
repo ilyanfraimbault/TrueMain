@@ -24,7 +24,7 @@ public sealed class Worker(
 
         do
         {
-            TouchHeartbeat();
+            await TouchHeartbeatAsync(stoppingToken);
             await RunOnceAsync(mode, stoppingToken);
 
             if (options.RunOnce)
@@ -75,7 +75,7 @@ public sealed class Worker(
         }
     }
 
-    private void TouchHeartbeat()
+    private async Task TouchHeartbeatAsync(CancellationToken stoppingToken)
     {
         var path = Environment.GetEnvironmentVariable(HeartbeatEnvironmentVariable);
         if (string.IsNullOrWhiteSpace(path))
@@ -85,9 +85,12 @@ public sealed class Worker(
 
         try
         {
-            File.WriteAllText(path, DateTimeOffset.UtcNow.ToString("O"));
+            await File.WriteAllTextAsync(path, DateTimeOffset.UtcNow.ToString("O"), stoppingToken);
         }
-        catch (Exception ex)
+        // A cancelled write is shutdown, not a heartbeat failure: let it propagate
+        // so it is handled where every other OperationCanceledException is, instead
+        // of being logged as a warning on the way out.
+        catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
         {
             // The heartbeat is a liveness signal for the Docker healthcheck;
             // a write failure must not crash the worker. Log and move on so
