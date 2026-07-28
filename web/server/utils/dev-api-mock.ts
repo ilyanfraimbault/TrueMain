@@ -45,6 +45,11 @@ import type {
   PlayerBuildDivergenceResponse,
 } from '~~/shared/types/divergence'
 import type { MatchSummariesResponse, MatchSummaryResponse } from '~~/shared/types/matches'
+import type {
+  PerformanceComponentKind,
+  PlayerChampionPerformanceResponse,
+} from '~~/shared/types/performance'
+import { PERFORMANCE_COMPONENT_KINDS } from '~~/shared/types/performance'
 import type { ProfileIdentity, ProfileResponse } from '~~/shared/types/profile'
 import type { RankHistoryResponse } from '~~/shared/types/rank-history'
 import type { SearchResponse } from '~~/shared/types/search'
@@ -847,6 +852,84 @@ function mockDifferentFrom(pool: number[], taken: number | undefined): number {
  * the fixture shows both diverging and matching rows. Nothing here reaches
  * production (dev mock only).
  */
+/**
+ * Player-scoped performance score (#918). Mirrors the real payload's shape and
+ * its two honest states: a champion the fixture treats as thinly played comes
+ * back with the counts and every average null, everything else with a full
+ * breakdown. The weights below are the backend's own role profiles
+ * (docs/performance-score.md) so the panel orders its rows exactly as it will
+ * against the real API; the *values* are deterministic noise, not a
+ * re-implementation of the scorer.
+ */
+function mockPlayerPerformance(
+  id: number,
+  position: string | null,
+  patch: string | null,
+): PlayerChampionPerformanceResponse {
+  const s = seedsById.get(id)
+  const lane = (position ?? s?.position ?? 'MIDDLE').toUpperCase()
+  const rng = mulberry32(id * 977 + lane.length * 31)
+
+  const minGames = 5
+  const window = 20
+  // A deterministic sliver of champions reads as under-sampled so the empty
+  // state is reachable without hunting for a real thin account.
+  const games = id % 11 === 0 ? id % minGames : 6 + Math.floor(rng() * (window - 6))
+
+  const base: PlayerChampionPerformanceResponse = {
+    championId: id,
+    position: position ?? null,
+    patch: patch ?? null,
+    games,
+    minGames,
+    window,
+    averageScore: null,
+    bestScore: null,
+    worstScore: null,
+    topOfTeamRate: null,
+    components: [],
+  }
+
+  if (games < minGames) return base
+
+  // Backend role profiles, in PERFORMANCE_COMPONENT_KINDS order.
+  const WEIGHTS: Record<string, number[]> = {
+    TOP: [20, 14, 16, 7, 14, 5, 12, 7, 5],
+    JUNGLE: [18, 18, 14, 7, 14, 7, 12, 10, 0],
+    MIDDLE: [20, 14, 18, 7, 14, 5, 10, 6, 6],
+    BOTTOM: [20, 12, 20, 7, 16, 4, 10, 8, 3],
+    UTILITY: [18, 20, 7, 4, 5, 24, 8, 6, 8],
+  }
+  const weights = WEIGHTS[lane] ?? WEIGHTS.MIDDLE!
+
+  const components = PERFORMANCE_COMPONENT_KINDS.map((kind: PerformanceComponentKind, i) => {
+    const weight = weights[i]!
+    // MidGame is the component most often absent (short games), so it gets the
+    // smaller sample — the "n/N games" note has to be reachable in mock mode.
+    const componentGames = kind === 'MidGame'
+      ? Math.max(1, Math.round(games * 0.6))
+      : kind === 'Laning' || kind === 'Roam'
+        ? Math.max(1, Math.round(games * 0.85))
+        : games
+    return {
+      kind,
+      weight,
+      value: weight === 0 ? null : round3(0.35 + rng() * 0.5),
+      games: weight === 0 ? 0 : componentGames,
+    }
+  })
+
+  const averageScore = Math.round((45 + rng() * 35) * 10) / 10
+  return {
+    ...base,
+    averageScore,
+    bestScore: Math.min(100, Math.round(averageScore + 8 + rng() * 12)),
+    worstScore: Math.max(0, Math.round(averageScore - 12 - rng() * 15)),
+    topOfTeamRate: round3(0.1 + rng() * 0.35),
+    components,
+  }
+}
+
 async function mockPlayerDivergence(id: number): Promise<PlayerBuildDivergenceResponse | null> {
   const s = seedsById.get(id)
   if (!s) return null
@@ -1251,6 +1334,15 @@ function mockMatches(player: MockPlayer, query: Record<string, unknown>): MatchS
     const assists = Math.floor(rng() * 14)
     const duration = 1350 + Math.floor(rng() * 1100)
 
+    // Performance score, placement and the MVP/ACE accolade, kept mutually
+    // consistent: the accolade is "placement 1 on your own side", so it can
+    // only fire on a top-3 overall game. The real API derives all three from
+    // one ranking (docs/performance-score.md); a mock with three independent
+    // dice would show a crown on a 34 and make the panel look broken.
+    const perf = 28 + Math.floor(rng() * 62)
+    const placement = 1 + Math.floor((100 - perf) / 100 * 10)
+    const topOfTeam = placement <= 3
+
     // 10 participants: self + 9 others drawn from the champion pool, split 5v5.
     const selfTeam = rng() < 0.5 ? 100 : 200
     const selfIndex = player.row.rank - 1
@@ -1296,8 +1388,13 @@ function mockMatches(player: MockPlayer, query: Record<string, unknown>): MatchS
         position: (['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'] as const)[index % 5]!,
         win,
         lpDelta: win ? 14 + Math.floor(rng() * 12) : -(12 + Math.floor(rng() * 12)),
-        isMvp: win && rng() > 0.72,
-        isAce: !win && rng() > 0.85,
+        // Correlated with the accolade below rather than independent, so the
+        // mock never renders a crown next to a mediocre score — the real API
+        // derives both from the same ranking.
+        performanceScore: perf,
+        placement,
+        isMvp: win && topOfTeam,
+        isAce: !win && topOfTeam,
       },
       participants,
     }
@@ -1667,13 +1764,20 @@ export async function resolveDevApiMock(
 
   // Player-scoped champion aggregate: reuse the global build payload so the
   // page renders; the numbers just read as the player's sample.
-  const playerChampionMatch = path.match(/^\/truemains\/[^/]+\/champions\/(\d+)(?:\/(matchups|divergence))?$/)
+  const playerChampionMatch = path.match(/^\/truemains\/[^/]+\/champions\/(\d+)(?:\/(matchups|divergence|performance))?$/)
   if (playerChampionMatch) {
     const id = Number(playerChampionMatch[1])
     const sub = playerChampionMatch[2]
     let payload: unknown = null
     if (sub === 'matchups') payload = await mockMatchups(id)
     else if (sub === 'divergence') payload = await mockPlayerDivergence(id)
+    else if (sub === 'performance') {
+      payload = mockPlayerPerformance(
+        id,
+        typeof query.position === 'string' && query.position ? query.position : null,
+        typeof query.patch === 'string' && query.patch ? query.patch : null,
+      )
+    }
     else payload = await mockChampionDetail(id, undefined, undefined)
     if (payload === null) throw createError({ statusCode: 404, statusMessage: 'No data (dev mock)' })
     return payload

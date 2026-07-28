@@ -1,7 +1,6 @@
 // Mirrors backend/Api/ReadModels/Truemains/MatchSummaryReadModel.cs.
-// Damage, vision score, performance score and team objective counts are
-// intentionally absent; they require ingestion changes (see #159) and will
-// be added once those land.
+// Team objective counts are intentionally absent; they require ingestion
+// changes (see #159) and will be added once those land.
 
 export interface MatchSummaryResponse {
   matchId: string
@@ -34,6 +33,13 @@ export interface MatchSummarySelf {
   win: boolean
   /** Null when the rank snapshots around the game window are missing or span a tier/division transition. */
   lpDelta: number | null
+  /**
+   * TrueMain's per-match performance score, 0–100 — the same scorer, on the same
+   * inputs, as the expanded detail panel. See docs/performance-score.md.
+   */
+  performanceScore: number
+  /** 1-based rank of that score among the match's 10 participants. */
+  placement: number
   isMvp: boolean
   isAce: boolean
 }

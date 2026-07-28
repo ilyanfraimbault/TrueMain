@@ -191,6 +191,20 @@ const divergenceSnapshot = useLazyHydrationSnapshot(
     championStatic: staticData.value ?? null,
   }),
 )
+
+// And for the performance card (#918), whose only client-only inputs are the
+// two display names it prints. `patch`/`position` stay live — they feed the
+// fetch key, never the SSR markup, so they can't desynchronise hydration.
+const performanceSnapshot = useLazyHydrationSnapshot(
+  {
+    playerName: nameTag.value,
+    championName: null as string | null,
+  },
+  () => ({
+    playerName: playerName.value,
+    championName: displayName.value ?? null,
+  }),
+)
 </script>
 
 <template>
@@ -351,6 +365,23 @@ const divergenceSnapshot = useLazyHydrationSnapshot(
           </aside>
         </div>
       </template>
+
+      <!-- Performance score (#918): the aggregate of the per-match score over
+           this player's recent games on the champion. Sits outside the build
+           region on purpose — it reads the raw matches, not the build
+           aggregate, so it still has something to say in the degraded state,
+           exactly like the games list right below it. Lazy +
+           hydrate-on-visible with the client-only display names frozen until
+           it mounts (#834/#837). -->
+      <LazyChampionPlayerPerformance
+        hydrate-on-visible
+        :name-tag="nameTag"
+        :champion-id="championId"
+        :patch="selectedPatch"
+        :position="selectedPosition"
+        v-bind="performanceSnapshot.value"
+        @vue:mounted="performanceSnapshot.reveal"
+      />
 
       <!-- This player's recent games on this champion — rendered even when the
            build breakdown above is absent (the degraded state), so clicking a

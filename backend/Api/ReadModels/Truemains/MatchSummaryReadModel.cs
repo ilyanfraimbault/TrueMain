@@ -3,9 +3,8 @@ namespace TrueMain.ReadModels.Truemains;
 /// <summary>
 /// One match row in the truemain match history feed
 /// (<c>GET /truemains/{nameTag}/matches</c>) — the data needed to render the
-/// collapsed accordion header. Damage, vision score, performance score and
-/// team objective counts are intentionally absent; they require ingestion
-/// changes (see #159) and will be added once those land.
+/// collapsed accordion header. Team objective counts are intentionally absent:
+/// they require ingestion changes (see #159) and will be added once those land.
 /// </summary>
 public sealed record MatchSummaryReadModel
 {
@@ -95,10 +94,25 @@ public sealed record MatchSummarySelfReadModel
     /// </summary>
     public int? LpDelta { get; init; }
 
-    /// <summary>True when this participant is the best on the winning side (KDA proxy).</summary>
+    /// <summary>
+    /// TrueMain performance score for this game, 0–100 — the role-aware blend of
+    /// end-of-game stats, the timeline lead curve and early roams described in
+    /// <c>Core.Lol.Performance.PerformanceScore</c>. Computed with the same
+    /// scorer and the same inputs as the match detail payload, so the collapsed
+    /// row and the expanded panel always agree.
+    /// </summary>
+    public int PerformanceScore { get; init; }
+
+    /// <summary>
+    /// 1-based rank of this player's <see cref="PerformanceScore"/> among the
+    /// match's participants (1 = best of all 10).
+    /// </summary>
+    public int Placement { get; init; }
+
+    /// <summary>True when this participant is the top-scoring player on the winning side.</summary>
     public bool IsMvp { get; init; }
 
-    /// <summary>True when this participant is the best on the losing side (KDA proxy).</summary>
+    /// <summary>True when this participant is the top-scoring player on the losing side.</summary>
     public bool IsAce { get; init; }
 }
 

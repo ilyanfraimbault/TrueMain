@@ -1,9 +1,18 @@
+using Core.Lol.Performance;
 using Data;
 using Microsoft.EntityFrameworkCore;
 using TrueMain.ReadModels.Truemains;
 
 namespace TrueMain.Services.Truemains;
 
+/// <summary>
+/// Read path for the truemain match-history feed
+/// (<c>GET /truemains/{nameTag}/matches</c>). Beyond the collapsed-row payload
+/// it grades every participant of every match on the page with
+/// <see cref="PerformanceScore"/> — the same scorer, on the same inputs, as the
+/// single-match detail page — so the row's score, placement and MVP/ACE badge
+/// can never disagree with what expanding it shows.
+/// </summary>
 public sealed class MatchSummariesQueryService(
     TrueMainDbContext db,
     ILogger<MatchSummariesQueryService> logger) : IMatchSummariesQueryService
@@ -156,6 +165,9 @@ public sealed class MatchSummariesQueryService(
                 p.Deaths,
                 p.Assists,
                 p.TotalMinionsKilled + p.NeutralMinionsKilled,
+                p.TotalDamageDealtToChampions,
+                p.GoldEarned,
+                p.VisionScore,
                 p.Item0,
                 p.Item1,
                 p.Item2,
@@ -225,6 +237,54 @@ public sealed class MatchSummariesQueryService(
             .GroupBy(r => (r.MatchId, r.ParticipantId, r.StyleId))
             .ToDictionary(g => g.Key, g => g.OrderBy(r => r.PerkId).First().PerkId);
 
+        // Timeline marks and early kill positions for the whole page, one round
+        // trip each. They are the timeline half of the performance score's
+        // inputs; both tables are indexed on (MatchId, ParticipantId), and the
+        // volume is bounded by the page size (at most ~10 participants × 5 marks
+        // per match, and a few dozen kill rows).
+        var marks = await db.MatchParticipantTimelineSnapshots
+            .AsNoTracking()
+            .Where(s => matchIds.Contains(s.MatchId))
+            .Select(s => new
+            {
+                s.MatchId,
+                s.ParticipantId,
+                s.IntervalMinute,
+                Cs = s.MinionsKilled + s.JungleMinionsKilled,
+                s.TotalGold,
+                s.Xp,
+            })
+            .ToListAsync(ct);
+
+        var marksByMatch = marks
+            .GroupBy(r => r.MatchId)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlyDictionary<(int ParticipantId, int Minute), TimelineMark>)g
+                    .GroupBy(r => (r.ParticipantId, Minute: r.IntervalMinute))
+                    .ToDictionary(
+                        inner => inner.Key,
+                        inner =>
+                        {
+                            var row = inner.First();
+                            return new TimelineMark(
+                                row.ParticipantId, row.IntervalMinute, row.Cs, row.TotalGold, row.Xp);
+                        }));
+
+        var killRows = await db.MatchParticipantKillPositions
+            .AsNoTracking()
+            .Where(k => matchIds.Contains(k.MatchId))
+            .Select(k => new { k.MatchId, k.ParticipantId, k.X, k.Y })
+            .ToListAsync(ct);
+
+        var killSpotsByMatch = killRows
+            .GroupBy(r => r.MatchId)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlyList<KillSpot>)g
+                    .Select(r => new KillSpot(r.ParticipantId, r.X, r.Y))
+                    .ToList());
+
         var participantsByMatch = participants
             .GroupBy(p => p.MatchId)
             .ToDictionary(g => g.Key, g => g.ToList());
@@ -256,24 +316,20 @@ public sealed class MatchSummariesQueryService(
                 ? 0d
                 : (double)(self.Kills + self.Assists) / teamKills;
 
-            // KDA proxy for MVP/ACE — better-than-nothing until the dedicated
-            // score metric lands. Tiebreak on raw (kills + assists) so a
-            // perfect-no-deaths bot game doesn't tie ten ways.
-            var bestPerSide = partList
-                .GroupBy(p => p.Win)
-                .ToDictionary(
-                    g => g.Key,
-                    g => g
-                        .OrderByDescending(p => KdaScore(p.Kills, p.Deaths, p.Assists))
-                        .ThenByDescending(p => p.Kills + p.Assists)
-                        .First());
+            // Grade all ten participants with the real scorer, then rank the
+            // match. MVP / ACE and the placement are read off that ranking — the
+            // row and the detail panel therefore always tell the same story.
+            var matchMarks = marksByMatch.TryGetValue(match.Id, out var mm)
+                ? mm
+                : PerformanceInputs.NoMarks;
+            var matchKillSpots = killSpotsByMatch.TryGetValue(match.Id, out var ks)
+                ? ks
+                : Array.Empty<KillSpot>();
 
-            var isMvp = self.Win
-                && bestPerSide.TryGetValue(true, out var bestWin)
-                && bestWin.ParticipantId == self.ParticipantId;
-            var isAce = !self.Win
-                && bestPerSide.TryGetValue(false, out var bestLose)
-                && bestLose.ParticipantId == self.ParticipantId;
+            var placements = MatchPerformanceRanker.Rank(ScoreMatch(
+                partList, match.GameDurationSeconds, matchMarks, matchKillSpots));
+
+            var selfPlacement = placements[self.ParticipantId];
 
             keystoneByKey.TryGetValue((self.MatchId, self.ParticipantId, self.PrimaryStyleId), out var keystoneId);
 
@@ -335,8 +391,10 @@ public sealed class MatchSummariesQueryService(
                     Position = string.IsNullOrEmpty(self.TeamPosition) ? null : self.TeamPosition,
                     Win = self.Win,
                     LpDelta = null,
-                    IsMvp = isMvp,
-                    IsAce = isAce,
+                    PerformanceScore = selfPlacement.Score,
+                    Placement = selfPlacement.Placement,
+                    IsMvp = selfPlacement.IsMvp,
+                    IsAce = selfPlacement.IsAce,
                 },
                 Participants = participantList,
             });
@@ -351,8 +409,47 @@ public sealed class MatchSummariesQueryService(
         };
     }
 
-    private static double KdaScore(int kills, int deaths, int assists)
-        => (kills + assists) / Math.Max(1d, deaths);
+    /// <summary>
+    /// Grades every participant of one match through the shared input builder,
+    /// so this feed and the detail page score the same game identically.
+    /// </summary>
+    /// <param name="partList">All participants of the match.</param>
+    /// <param name="durationSeconds">Game length in seconds; 0 disables the per-minute components.</param>
+    /// <param name="marks">Timeline marks of the match, keyed by (participant, minute).</param>
+    /// <param name="killSpots">Early kill participations of the match; empty means no coverage.</param>
+    private static IEnumerable<MatchPerformanceEntry> ScoreMatch(
+        List<ParticipantRow> partList,
+        int durationSeconds,
+        IReadOnlyDictionary<(int ParticipantId, int Minute), TimelineMark> marks,
+        IReadOnlyList<KillSpot> killSpots)
+    {
+        var scored = partList
+            .Select(p => new ScoredParticipant(
+                p.ParticipantId,
+                p.TeamId,
+                p.TeamPosition,
+                p.Win,
+                p.Kills,
+                p.Deaths,
+                p.Assists,
+                p.Cs,
+                p.DamageToChampions,
+                p.GoldEarned,
+                p.VisionScore))
+            .ToList();
+
+        return PerformanceInputs
+            .BuildMatchInputs(scored, durationSeconds, marks, killSpots)
+            .Select(built => new MatchPerformanceEntry
+            {
+                ParticipantId = built.Participant.ParticipantId,
+                Win = built.Participant.Win,
+                Score = PerformanceScore.Compute(built.Input),
+                Kills = built.Participant.Kills,
+                Deaths = built.Participant.Deaths,
+                Assists = built.Participant.Assists,
+            });
+    }
 
     private sealed record MatchRow(
         string Id,
@@ -375,6 +472,9 @@ public sealed class MatchSummariesQueryService(
         int Deaths,
         int Assists,
         int Cs,
+        int DamageToChampions,
+        int GoldEarned,
+        int VisionScore,
         int Item0,
         int Item1,
         int Item2,

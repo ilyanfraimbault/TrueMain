@@ -10,14 +10,17 @@ namespace TrueMain.Services.Truemains;
 /// Read path for the single-match detail page
 /// (<c>GET /truemains/{nameTag}/matches/{matchId}</c>). Loads the match header,
 /// all 10 participants with their build order / skill order / rune page, the
-/// @15 timeline snapshots and a temporally-nearest rank snapshot per tracked
-/// account — then computes the derived per-minute rates, laning diffs and the
-/// performance score / placement / MVP / ACE accolades server-side so the
-/// frontend renders them directly.
+/// timeline snapshots at every canonical mark, the match's early kill positions
+/// and a temporally-nearest rank snapshot per tracked account — then computes
+/// the derived per-minute rates, laning diffs and the performance score /
+/// placement / MVP / ACE accolades server-side so the frontend renders them
+/// directly.
 ///
 /// Scope per issues #523 and #639: no team objectives and no ward counts — only
 /// data the DB already has. The performance score is a derived metric
-/// (<see cref="PerformanceScore"/>), so it needs no schema of its own.
+/// (<see cref="PerformanceScore"/>), so it needs no schema of its own; its
+/// inputs are assembled by <see cref="PerformanceInputs"/>, shared with the
+/// match-history feed so a collapsed row and this payload cannot disagree.
 /// </summary>
 public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetailQueryService
 {
@@ -87,8 +90,6 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
             return null;
         }
 
-        var participantIds = participants.Select(p => p.ParticipantId).ToList();
-
         // Full 6-rune pages for every participant: ParticipantPerkSelection
         // joined to its catalog row. Final ordering (keystone-first,
         // primary-tree-then-secondary-tree) is applied per participant below.
@@ -111,21 +112,51 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
             .GroupBy(r => r.ParticipantId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
-        // @15 timeline snapshots — one per participant when present. Used for
-        // the laning-phase cs/gold/xp diffs against the lane opponent.
+        // Timeline snapshots at every canonical mark (5/10/15/20/30) — one per
+        // participant per mark when present. They feed both the `laning15`
+        // payload field and the lead components of the performance score, which
+        // grade the whole 5→30 curve rather than the single @15 point.
+        // Projected to scalars and shaped into TimelineMark in memory: the
+        // struct never has to survive an EF projection.
         var snapshots = await db.MatchParticipantTimelineSnapshots
             .AsNoTracking()
-            .Where(s => s.MatchId == matchId && s.IntervalMinute == LaningIntervalMinute)
-            .Select(s => new Snapshot15(
+            .Where(s => s.MatchId == matchId)
+            .Select(s => new
+            {
                 s.ParticipantId,
-                s.MinionsKilled + s.JungleMinionsKilled,
+                s.IntervalMinute,
+                Cs = s.MinionsKilled + s.JungleMinionsKilled,
                 s.TotalGold,
-                s.Xp))
+                s.Xp,
+            })
             .ToListAsync(ct);
 
-        var snapshotByParticipant = snapshots
-            .GroupBy(s => s.ParticipantId)
-            .ToDictionary(g => g.Key, g => g.First());
+        // (participant, minute) is unique at the schema level; GroupBy keeps the
+        // dictionary build tolerant of an anomalous duplicate rather than 500-ing.
+        var marksByKey = snapshots
+            .GroupBy(s => (s.ParticipantId, Minute: s.IntervalMinute))
+            .ToDictionary(
+                g => g.Key,
+                g =>
+                {
+                    var row = g.First();
+                    return new TimelineMark(
+                        row.ParticipantId, row.IntervalMinute, row.Cs, row.TotalGold, row.Xp);
+                });
+
+        // Early kill participations with a map position. Bounded by the ingestor
+        // to the early game, so the whole set is the roam window. An empty set
+        // means the match has no coverage at all, which drops the roam component
+        // instead of scoring every player a 0.
+        var killRows = await db.MatchParticipantKillPositions
+            .AsNoTracking()
+            .Where(k => k.MatchId == matchId)
+            .Select(k => new { k.ParticipantId, k.X, k.Y })
+            .ToListAsync(ct);
+
+        var killSpots = killRows
+            .Select(k => new KillSpot(k.ParticipantId, k.X, k.Y))
+            .ToList();
 
         // Nearest rank snapshot per tracked account, by absolute distance from
         // the game's start time. One LINQ pass: for each participant's account
@@ -187,43 +218,52 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
                 .Select(a => new { a.Id, a.GameName, a.TagLine })
                 .ToDictionaryAsync(a => a.Id, a => (a.GameName, a.TagLine), ct);
 
-        // Team totals per side — kills for KP%, damage and gold for the share
-        // components of the performance score.
+        // Team kills per side, for the displayed KP%. The share components of the
+        // score fold their own totals inside the shared input builder.
         var teamKills = participants
             .GroupBy(p => p.TeamId)
             .ToDictionary(g => g.Key, g => g.Sum(p => p.Kills));
-        var teamDamage = participants
-            .GroupBy(p => p.TeamId)
-            .ToDictionary(g => g.Key, g => g.Sum(p => p.TotalDamageDealtToChampions));
-        var teamGold = participants
-            .GroupBy(p => p.TeamId)
-            .ToDictionary(g => g.Key, g => g.Sum(p => p.GoldEarned));
 
         var durationMinutes = match.GameDurationSeconds > 0
             ? match.GameDurationSeconds / 60d
             : 0d;
 
         // Lane opponent = the participant on the other team sharing the same
-        // non-empty TeamPosition. Built once; used for @15 diffs and first-to-2.
+        // non-empty TeamPosition. Built once; used here for first-to-2 (the
+        // shared input builder resolves the same pairing for the lead curve).
         var opponentByParticipant = BuildOpponentMap(participants);
 
-        // @15 diffs, resolved once: the performance score consumes them as an
-        // input and the payload exposes them as `laning15`.
-        var laning15ByParticipant = participants.ToDictionary(
-            p => p.ParticipantId,
-            p =>
-            {
-                opponentByParticipant.TryGetValue(p.ParticipantId, out var opponent);
-                return ComputeLaning15(p.ParticipantId, opponent, snapshotByParticipant);
-            });
+        // Scoring inputs for all 10 participants, through the one builder every
+        // scoring surface shares. The payload's `laning15` is the @15 point of
+        // the lead curve the score itself consumes, so the two cannot diverge.
+        var scoringInputs = PerformanceInputs.BuildMatchInputs(
+            participants
+                .Select(p => new ScoredParticipant(
+                    p.ParticipantId,
+                    p.TeamId,
+                    p.TeamPosition,
+                    p.Win,
+                    p.Kills,
+                    p.Deaths,
+                    p.Assists,
+                    p.TotalMinionsKilled + p.NeutralMinionsKilled,
+                    p.TotalDamageDealtToChampions,
+                    p.GoldEarned,
+                    p.VisionScore))
+                .ToList(),
+            match.GameDurationSeconds,
+            marksByKey,
+            killSpots);
+
+        var laning15ByParticipant = scoringInputs.ToDictionary(
+            built => built.Participant.ParticipantId,
+            built => Laning15Of(built.Input.LaneLeads));
 
         // Performance score for all 10 participants, then the match-wide
         // placement (1..10) and the MVP / ACE accolades derived from it.
-        var scoreByParticipant = participants.ToDictionary(
-            p => p.ParticipantId,
-            p => PerformanceScore.Compute(BuildScoreInput(
-                p, teamKills, teamDamage, teamGold, durationMinutes,
-                laning15ByParticipant[p.ParticipantId])));
+        var scoreByParticipant = scoringInputs.ToDictionary(
+            built => built.Participant.ParticipantId,
+            built => PerformanceScore.Compute(built.Input));
 
         var placementByParticipant = MatchPerformanceRanker.Rank(participants
             .Select(p => new MatchPerformanceEntry
@@ -378,42 +418,15 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
         => minutes <= 0 ? 0d : value / minutes;
 
     /// <summary>
-    /// Packs one participant's end-of-game totals, their side's totals and their
-    /// @15 laning diffs into the pure scoring function's input. A missing team
-    /// total or a missing <paramref name="laning15"/> simply drops the matching
-    /// component — see <see cref="PerformanceScore"/>.
-    /// </summary>
-    private static PerformanceScoreInput BuildScoreInput(
-        MatchParticipant p,
-        Dictionary<int, int> teamKills,
-        Dictionary<int, int> teamDamage,
-        Dictionary<int, int> teamGold,
-        double durationMinutes,
-        MatchDetailLaning15ReadModel? laning15)
-        => new()
-        {
-            TeamPosition = p.TeamPosition,
-            Kills = p.Kills,
-            Deaths = p.Deaths,
-            Assists = p.Assists,
-            TeamKills = teamKills.TryGetValue(p.TeamId, out var tk) ? tk : 0,
-            DamageToChampions = p.TotalDamageDealtToChampions,
-            TeamDamageToChampions = teamDamage.TryGetValue(p.TeamId, out var td) ? td : 0,
-            GoldEarned = p.GoldEarned,
-            TeamGoldEarned = teamGold.TryGetValue(p.TeamId, out var tg) ? tg : 0,
-            Cs = p.TotalMinionsKilled + p.NeutralMinionsKilled,
-            VisionScore = p.VisionScore,
-            GameDurationMinutes = durationMinutes,
-            CsDiff15 = laning15?.CsDiff,
-            GoldDiff15 = laning15?.GoldDiff,
-            XpDiff15 = laning15?.XpDiff,
-        };
-
-    /// <summary>
-    /// Maps each participant id to its lane opponent — the single participant on
-    /// the other team sharing the same non-empty <c>TeamPosition</c>. Positions
-    /// with anything other than exactly one player per side (e.g. an empty /
-    /// unparsed TeamPosition, or a remake) get no opponent.
+    /// Maps each participant id to its lane opponent — the participant on the
+    /// other team sharing the same non-empty <c>TeamPosition</c>, and only when
+    /// there is exactly one. Positions with anything else (an empty / unparsed
+    /// TeamPosition, a remake, or anomalous data putting two enemies on one
+    /// position) get no opponent.
+    ///
+    /// <para>The "exactly one" rule is enforced here, not assumed, and matches
+    /// <see cref="PerformanceInputs.FindLaneOpponent"/> — so the first-to-level-2
+    /// flag and the score's lead curve always talk about the same duel.</para>
     /// </summary>
     private static Dictionary<int, MatchParticipant?> BuildOpponentMap(
         List<MatchParticipant> participants)
@@ -421,37 +434,57 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
         var map = new Dictionary<int, MatchParticipant?>(participants.Count);
         foreach (var p in participants)
         {
-            map[p.ParticipantId] = string.IsNullOrEmpty(p.TeamPosition)
-                ? null
-                : participants.FirstOrDefault(o =>
-                    o.TeamId != p.TeamId && o.TeamPosition == p.TeamPosition);
+            if (string.IsNullOrEmpty(p.TeamPosition))
+            {
+                map[p.ParticipantId] = null;
+                continue;
+            }
+
+            MatchParticipant? found = null;
+            var ambiguous = false;
+            foreach (var o in participants)
+            {
+                if (o.TeamId == p.TeamId || o.TeamPosition != p.TeamPosition)
+                {
+                    continue;
+                }
+
+                if (found is not null)
+                {
+                    ambiguous = true;
+                    break;
+                }
+
+                found = o;
+            }
+
+            map[p.ParticipantId] = ambiguous ? null : found;
         }
 
         return map;
     }
 
-    private static MatchDetailLaning15ReadModel? ComputeLaning15(
-        int participantId,
-        MatchParticipant? opponent,
-        Dictionary<int, Snapshot15> snapshotByParticipant)
+    /// <summary>
+    /// Projects the @15 point out of the full lead curve for the payload's
+    /// <c>laning15</c> field. Null when that mark is not covered on both sides,
+    /// even if earlier or later marks are.
+    /// </summary>
+    private static MatchDetailLaning15ReadModel? Laning15Of(IReadOnlyList<LaneLead> leads)
     {
-        if (opponent is null)
+        foreach (var lead in leads)
         {
-            return null;
+            if (lead.Minute == LaningIntervalMinute)
+            {
+                return new MatchDetailLaning15ReadModel
+                {
+                    CsDiff = lead.CsDiff,
+                    GoldDiff = lead.GoldDiff,
+                    XpDiff = lead.XpDiff,
+                };
+            }
         }
 
-        if (!snapshotByParticipant.TryGetValue(participantId, out var self)
-            || !snapshotByParticipant.TryGetValue(opponent.ParticipantId, out var foe))
-        {
-            return null;
-        }
-
-        return new MatchDetailLaning15ReadModel
-        {
-            CsDiff = self.Cs - foe.Cs,
-            GoldDiff = self.Gold - foe.Gold,
-            XpDiff = self.Xp - foe.Xp,
-        };
+        return null;
     }
 
     /// <summary>
@@ -488,9 +521,6 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
             .ToList();
         return ordered.Count >= 2 ? ordered[1].TimestampMs : null;
     }
-
-    /// <summary>@15 timeline projection: combined cs, gold and xp for a participant.</summary>
-    private sealed record Snapshot15(int ParticipantId, int Cs, int Gold, int Xp);
 
     /// <summary>One rune selection row: owning style, slot index and perk id.</summary>
     private sealed record PerkRow(int ParticipantId, int StyleId, int SelectionIndex, int PerkId);

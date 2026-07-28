@@ -188,6 +188,35 @@ const csPerMin = computed(() => {
 
 const kpPercent = computed(() => formatPercentage(self.value.killParticipation, 0))
 
+// Performance score (#918): the number the MVP/ACE crown two columns right is
+// derived from, printed so the badge stops being the only way to read it — and
+// so a good game that just missed the crown still shows as one. Same value the
+// expanded detail panel shows for this player.
+const perfScore = computed(() => self.value.performanceScore)
+
+const perfTooltip = computed(() =>
+  `Performance score ${perfScore.value}/100 — ${ordinal(self.value.placement)} of 10 in this game`)
+
+function ordinal(n: number): string {
+  const rest = n % 100
+  if (rest >= 11 && rest <= 13) return `${n}th`
+  switch (n % 10) {
+    case 1: return `${n}st`
+    case 2: return `${n}nd`
+    case 3: return `${n}rd`
+    default: return `${n}th`
+  }
+}
+
+// Graded on the same three-tone ramp as the KDA ratio above, and on the same
+// thresholds the model's own bands imply: 50 is "average on every available
+// component", so a standout has to clear it comfortably.
+const perfColor = computed(() => {
+  if (perfScore.value >= 75) return 'text-amber-300'
+  if (perfScore.value >= 60) return 'text-sky-300'
+  return 'text-muted'
+})
+
 const resultLabel = computed(() => (self.value.win ? 'Victory' : 'Defeat'))
 
 const lpDeltaText = computed(() => {
@@ -308,6 +337,11 @@ const rowTint = computed(() =>
             </div>
           </div>
           <div class="flex flex-col gap-0.5 text-[11px] text-muted tabular-nums">
+            <UTooltip :text="perfTooltip">
+              <span class="font-semibold" :class="perfColor">
+                {{ perfScore }} PERF
+              </span>
+            </UTooltip>
             <span>{{ csPerMin }} CS/m</span>
             <span>{{ kpPercent }} KP</span>
           </div>

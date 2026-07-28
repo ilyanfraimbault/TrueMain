@@ -49,10 +49,10 @@ OTP leaderboard, server-paginated (25/page). Filters: region, role, OTP-only tog
 Left rail: profile header, **ranked card**, dedication card, main champions, position breakdown.
 - **`ProfileRankedCard.vue` — the LP / rank-history curve** (`useTruemainRankHistory.ts` → `/api/truemains/{tag}/rank-history?days=90`). Headline rank + W-L-WR, **"Last 30d"/"Last 7d" LP delta badges**, an area chart with **one series per tier** so the line colour-shifts at each promotion/demotion, and a hand-positioned tier-crest gutter. This is where **#927's activity heatmap** goes, underneath.
 
-Right rail: match history (role + champion filters, 20/page, URL-backed). `MatchRow.vue` is an accordion; expanding mounts `match/MatchDetailPanel.vue` with three tabs — General (scoreboards), Details (per-player panel), Runes.
+Right rail: match history (role + champion filters, 20/page, URL-backed). `MatchRow.vue` is an accordion; expanding mounts `match/MatchDetailPanel.vue` with three tabs — General (scoreboards), Details (per-player panel), Runes. The collapsed row prints the **performance score** (`{n} PERF`, tooltip carries the 1..10 placement) next to CS/m and KP, and its MVP/ACE crown now comes off the real scorer rather than a KDA proxy (#918).
 
 ### `/truemains/:nameTag/champions/:id`
-Player-scoped mirror of the champion page. Adds **`Champion/MainsDivergence.vue`** — "{player} vs mains" across starter / boots / core items / skill order, each with a differs/matches badge and a coaching line built from real rates. Matchups here are scoped to the player's games. **No** trend / scaling / roam / patch-diff / power-spikes / truemains panel.
+Player-scoped mirror of the champion page. Adds **`Champion/MainsDivergence.vue`** — "{player} vs mains" across starter / boots / core items / skill order, each with a differs/matches badge and a coaching line built from real rates — and **`Champion/PlayerPerformance.vue`** (#918): the average performance score over the player's last 20 ranked games on the champion, with best / worst / top-of-team rate and a per-component bar breakdown (each component labelled with the games it was actually available in). Suppressed below 5 graded games, with the real count in the copy. Sits outside the build region so it still renders in the no-build degraded state, lazy + `hydrate-on-visible` with frozen display names. Matchups here are scoped to the player's games. **No** trend / scaling / roam / patch-diff / power-spikes / truemains panel.
 
 ### `/truemains/favorites`
 localStorage-backed follow list (`web/app/utils/favorites.ts`, key `truemain:favorites:v1`, hard cap 30, oldest-first eviction). Per-player cards with their latest 3 matches. `noindex`, excluded from the sitemap. No account sync (no RSO).
@@ -109,7 +109,7 @@ Tests: `admin/tests/` covers only `process-summary`. No page-level or proxy test
 Three controllers, all delegating to injected `I*QueryService` — no EF types cross the controller boundary; read models are `sealed record`s under `Api/ReadModels/`.
 
 - **`ChampionsController`** (public): list, tierlist, detail, trend, patch-diff, matchups, synergies, synergies/trios, scaling, item-timings, roam, powerspikes, mains-comparison, and `POST composition-build`.
-- **`TruemainsController`** (public): search, leaderboard, profile, player-scoped champion + divergence + matchups, rank-history, matches, match detail.
+- **`TruemainsController`** (public): search, leaderboard, profile, player-scoped champion + divergence + matchups + **performance**, rank-history, matches, match detail.
 - **`OpsController`** (`X-Ops-Key` auth): 18 endpoints backing the admin portal.
 
 Cross-cutting: memory cache (`SizeLimit = 1024`, no Redis), global per-IP rate limit 100 req/min, `/healthz` + `/readyz`, RFC 7807 problem details with `traceId`, HSTS outside dev, CORS that fails boot when unset outside dev, OpenAPI/Scalar **Development-only**.
@@ -158,11 +158,21 @@ Pipeline order (`Full`):
 Dependency-free domain layer: `DedicationScore` (0–100 with exposed components), `MainAnalysisOptions` (the main-analysis contract shared by Ingestor and API), Riot identifiers/routing, map & queue types (`LolQueueId`, `LolPosition`, `QueueDataQualityProfile`, `TeamPositionInferrer`), ranking (`EloBracket`, `RankScore`), and **`MatchPerformanceRanker` / `PerformanceScore` / `PerformanceScoreInput`**.
 
 > ⚠️ **A per-match performance score already exists and ships.** `MatchPerformanceRanker` is consumed by
-> `Api/Services/Truemains/MatchDetailQueryService.cs` and exposed through `MatchDetailReadModel`; it is what
-> produces the **MVP/ACE accolade** on collapsed match rows. Unit-tested in
-> `tests/TrueMain.UnitTests/{MatchPerformanceRankerTests,PerformanceScoreTests}.cs`.
-> #918 must therefore **extend and surface** this scorer (timeline inputs, badges, peer-relative radar),
-> not build a new one.
+> `Api/Services/Truemains/{MatchDetailQueryService,MatchSummariesQueryService,PlayerChampionPerformanceQueryService}.cs`;
+> it is what produces the **MVP/ACE accolade** on collapsed match rows. Unit-tested in
+> `tests/TrueMain.UnitTests/{MatchPerformanceRankerTests,PerformanceScoreTests,PerformanceInputsTests}.cs`.
+> #918 must therefore **extend and surface** this scorer, not build a new one.
+>
+> **Shipped in the first #918 PR** — the model is documented in [`docs/performance-score.md`](../../docs/performance-score.md):
+> nine role-weighted components (combat, KP, damage share, gold share, farming, vision, **laning** ≤15 min,
+> **mid game** >15 min, **roam**), fed by the whole canonical-mark lead curve (5/10/15/20/30) instead of a
+> single @15 diff, plus out-of-lane takedowns from `match_participant_kill_positions`. `PerformanceScore.Explain`
+> returns the per-component breakdown. Input assembly is centralised in `Api/Services/Truemains/PerformanceInputs.cs`
+> so the match feed, the detail page and the player-champion panel cannot grade the same game differently.
+>
+> **Still open on the epic**: the peer-relative radar — it needs a role + rank baseline aggregation
+> (percentile per component within a bracket) that does not exist yet, and rule-based badges on top of the
+> same inputs.
 
 ### Known dead / stale spots
 - `GET /ops/pipeline-health` is implemented and tested but **no admin page calls it**.

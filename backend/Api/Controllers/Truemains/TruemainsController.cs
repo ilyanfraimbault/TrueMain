@@ -16,6 +16,7 @@ public sealed class TruemainsController(
     IProfileQueryService profileQueryService,
     IPlayerChampionBuildsQueryService playerChampionBuildsQueryService,
     IPlayerChampionMatchupQueryService playerChampionMatchupQueryService,
+    IPlayerChampionPerformanceQueryService playerChampionPerformanceQueryService,
     IPlayerBuildDivergenceQueryService playerBuildDivergenceQueryService,
     IRankHistoryQueryService rankHistoryQueryService,
     ITruemainsLeaderboardQueryService leaderboardQueryService,
@@ -222,6 +223,55 @@ public sealed class TruemainsController(
             normalizedPosition,
             normalizedPatch,
             opponent,
+            ct);
+
+        return response is null ? NotFound() : Ok(response);
+    }
+
+    /// <summary>
+    /// Player-scoped performance: TrueMain's per-match performance score
+    /// aggregated over this player's most recent ranked games on the champion,
+    /// with the per-component breakdown behind it. 400 for an unrecognised
+    /// position; 404 when the name tag is malformed or the account is unknown.
+    /// A known player with too thin a sample is a 200 carrying the counts and no
+    /// averages, so the page renders an honest "not enough games yet".
+    /// </summary>
+    /// <param name="nameTag">The player's Riot id in <c>Name-TAG</c> route form.</param>
+    /// <param name="championId">The champion to scope the sample to.</param>
+    /// <param name="patch">Major.minor patch filter; omitted means every patch.</param>
+    /// <param name="position">Lane filter; omitted means every lane.</param>
+    /// <param name="ct">Request cancellation token.</param>
+    [HttpGet("{nameTag}/champions/{championId:int}/performance")]
+    [ProducesResponseType(typeof(PlayerChampionPerformanceResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<PlayerChampionPerformanceResponse>> GetPlayerChampionPerformanceAsync(
+        string nameTag,
+        int championId,
+        [FromQuery] string? patch,
+        [FromQuery] string? position,
+        CancellationToken ct = default)
+    {
+        // A blank/absent position means "all lanes"; only a non-blank value that
+        // fails to canonicalise is a client error — same rule as the sibling
+        // player-scoped endpoints above.
+        string? normalizedPosition = null;
+        if (!string.IsNullOrWhiteSpace(position))
+        {
+            normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+            if (normalizedPosition is null)
+            {
+                return ValidationProblem(ChampionQueryParameterNormalizer.InvalidPositionMessage);
+            }
+        }
+
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+
+        var response = await playerChampionPerformanceQueryService.GetAsync(
+            nameTag,
+            championId,
+            normalizedPatch,
+            normalizedPosition,
             ct);
 
         return response is null ? NotFound() : Ok(response);
