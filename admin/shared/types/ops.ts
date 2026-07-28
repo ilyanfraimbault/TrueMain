@@ -750,10 +750,16 @@ export interface AggregationRun {
   lastSuccessSummary: Record<string, unknown> | null
 }
 
-/** Aggregation-side backlogs — both read zero when the pipeline is caught up. */
+/** Aggregation-side backlogs — all read zero when the pipeline is caught up. */
 export interface AggregationBacklog {
   /** Queue-scoped timeline-ingested matches not yet folded into powerspikes. */
   pendingPowerspikeMatches: number
+  /**
+   * Queue-scoped matches not yet folded into the synergy aggregates. Starts at the
+   * full retained match count on the first deploy (the fold flag ships false for
+   * every existing row on purpose) and drains over the following runs.
+   */
+  pendingSynergyMatches: number
   /** Tracked participants still missing their elo bracket stamp. */
   pendingEloBracketParticipants: number
   /** Queue-scoped matches with an ingested timeline (backlog denominator). */
