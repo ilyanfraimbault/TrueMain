@@ -137,6 +137,7 @@ Pipeline order (`Full`):
 | 7 | MatchTeamPositionCorrection | Backfills `team_position` for the unambiguous single-gap case |
 | 8 | MainAnalysis | Computes `main_champion_stats` (play rate, mains/OTP) with adaptive thresholds + demotion policy |
 | 9 | EloBracketEnrichment | Stamps `elo_bracket` from the nearest rank snapshot |
+| 9b | RunePageDeduplication | Collapses permutation-duplicate `champion_dim_rune_pages` rows and normalises every remaining row's secondary perk order (#911). Runs **before** the aggregation so a pass never aggregates into a dimension it is about to rewrite; drains once, then a no-op |
 | 10 | ChampionPatternAggregation | Rebuilds aggregate scopes/patterns + `champion_dim_*`, **chunked one champion at a time** (memory bound) |
 | 11 | ChampionMatchupLeadAggregation | Incrementally folds each match once into `champion_matchup_stats` |
 | 11b | ChampionSynergyAggregation | Folds each match once into `champion_synergy_stats` + `champion_synergy_baseline_stats` (same-team pairs and their SELF/ALLY marginals) |
@@ -152,7 +153,7 @@ Pipeline order (`Full`):
 `TrueMainDbContext`, 26 `DbSet`s. Tables by domain:
 - **Identity**: `riot_accounts`, `personas` (half-built, unused), `main_candidates`, `seed_requests`, `discovery_cursors`
 - **Raw matches**: `matches`, `match_participants`, `match_participant_timeline_snapshots`, `match_participant_kill_positions`, `jungle_first_clears`, `participant_perk_selections`, `perk_selection_catalog` (item/skill events are jsonb, not tables)
-- **Aggregates**: `champion_aggregate_scopes` (account × champion × patch × platform × queue × position × elo bracket) + `champion_aggregate_patterns` (one row per observed build+runes+skills+spells+starters combo), with content-deduplicated `champion_dim_{builds,rune_pages,skill_orders,spell_pairs,starter_items}`
+- **Aggregates**: `champion_aggregate_scopes` (account × champion × patch × platform × queue × position × elo bracket) + `champion_aggregate_patterns` (one row per observed build+runes+skills+spells+starters combo), with content-deduplicated `champion_dim_{builds,rune_pages,skill_orders,spell_pairs,starter_items}`. Rune pages store their two **secondary** perks in canonical (ascending id) order — the player's click order made the same page two rows and split its sample (#911)
 - **Derived**: `main_champion_stats`, `champion_matchup_stats`, `champion_synergy_stats` + `champion_synergy_baseline_stats`, `champion_powerspike_{curve,event}_stats`, `powerspike_sigma_stats`
 - **Snapshots / ops**: `rank_snapshots`, `process_runs`
 

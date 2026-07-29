@@ -293,9 +293,26 @@ public sealed class ChampionPatternSourceRowReader(
                 .Where(perk => string.Equals(perk.StyleDescription, "primaryStyle", StringComparison.OrdinalIgnoreCase))
                 .OrderBy(perk => perk.SelectionIndex)
                 .ToList();
+            // Ordered by perk id, NOT by SelectionIndex like the primary tree above
+            // (#911). In the primary tree the selection index coincides with the tree
+            // row, so it is already canonical. In the secondary tree the player picks
+            // two runes from three free rows in whatever order they like, so the index
+            // is the player's click order — which meant the same rune page was stored
+            // as two rows, (8451, 8444) and (8444, 8451). The 11-column unique index
+            // does not catch a permutation, so the page's games and wins were split
+            // across both rows, roughly halving its displayed pick rate and distorting
+            // the top-N selection. On production that was 20 370 duplicate pairs, 48%
+            // of the dimension table.
+            //
+            // Perk id rather than tree row: the row is not stored anywhere backend-side
+            // (it would mean pulling the rune tree from DDragon into the ingestor), and
+            // Riot assigns ids within a tree in row order anyway, so ordering by id
+            // reproduces the tree order in practice. Any total order would fix the
+            // duplication; this one is also the cheapest to reproduce in the SQL
+            // backfill that merges the existing pairs.
             var secondary = perks
                 .Where(perk => string.Equals(perk.StyleDescription, "subStyle", StringComparison.OrdinalIgnoreCase))
-                .OrderBy(perk => perk.SelectionIndex)
+                .OrderBy(perk => perk.PerkId)
                 .ToList();
 
             row.PrimaryKeystoneId = primary.ElementAtOrDefault(0)?.PerkId ?? 0;
