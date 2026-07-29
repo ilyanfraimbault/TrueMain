@@ -9,10 +9,11 @@ const props = withDefaults(defineProps<{
   loading: false,
 })
 
-// Two area charts side by side: win rate and pick rate, each on its own clear
-// scale. A combined dual-axis made the small pick-rate line look taller than
-// the win-rate one, so they read better split. The per-patch win-rate
-// movement (issue #112) is read straight off the left chart.
+// Area charts side by side — win rate, pick rate, and ban rate once it has
+// history (#920) — each on its own clear scale. A combined dual-axis made the
+// small pick-rate line look taller than the win-rate one, so they read better
+// split. The per-patch win-rate movement (issue #112) is read straight off the
+// left chart.
 interface ChartRow extends Record<string, unknown> {
   patch: string
   winRate: number
@@ -56,7 +57,7 @@ const hasTrend = computed(() => rows.value.length > 1)
 // there is a real history to draw.
 const hasBanTrend = computed(() => banRows.value.length > 1)
 
-// Both series in the app primary (rosegold-400). The charts sit side by side
+// Every series in the app primary (rosegold-400). The charts sit side by side
 // and never share a plot, so they don't need different hues to be told apart.
 const PRIMARY = defaultSeriesColor(0)
 const winRateCategories = { winRate: { name: 'Win rate', color: PRIMARY } }
