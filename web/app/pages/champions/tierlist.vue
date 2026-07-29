@@ -108,6 +108,18 @@ const tierGroups = computed(() =>
 
 const hasRows = computed(() => tierGroups.value.some(group => group.entries.length > 0))
 
+// The visible stat line renders a missing ban rate as an em dash, which a screen
+// reader would announce as "dash BR". Drop the segment entirely instead — an
+// absent stat is better left unsaid than read out as punctuation.
+function entryAriaLabel(entry: { name: string, winRate: number, pickRate: number, banRate: number | null }) {
+  const stats = [
+    `${formatPercentage(entry.winRate, 0)} WR`,
+    `${formatPercentage(entry.pickRate, 0)} PR`,
+    ...(entry.banRate === null ? [] : [`${formatPercentage(entry.banRate, 0)} BR`]),
+  ]
+  return `View ${entry.name} (${stats.join(', ')})`
+}
+
 // Each row links to the champion page, pinned to the current patch + the row's
 // own position — same destination shape as the /champions directory rows.
 function championDestination(entry: { championId: number, position: string }) {
@@ -183,7 +195,7 @@ function championDestination(entry: { championId: number, position: string }) {
               >
                 <NuxtLink
                   :to="championDestination(entry)"
-                  :aria-label="`View ${entry.name} (${formatPercentage(entry.winRate, 0)} WR, ${formatPercentage(entry.pickRate, 0)} PR, ${formatPercentageOrDash(entry.banRate, 0)} BR)`"
+                  :aria-label="entryAriaLabel(entry)"
                   class="glass-hover flex items-center gap-2 rounded-md border border-default/60 bg-elevated/40 px-2 py-1.5"
                 >
                   <SkeletonImage
