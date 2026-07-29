@@ -12,14 +12,16 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("2249a3f6-510f-4fe3-9046-4e3fa5564977"), entityTypeCount: 28)
+            : base(skipDetectChanges: false, modelId: new Guid("8cfe55d4-fb21-40be-b247-c6ec4c62a295"), entityTypeCount: 31)
         {
         }
 
         partial void Initialize()
         {
+            var banScopeTotal = BanScopeTotalEntityType.Create(this);
             var championAggregatePattern = ChampionAggregatePatternEntityType.Create(this);
             var championAggregateScope = ChampionAggregateScopeEntityType.Create(this);
+            var championBanStat = ChampionBanStatEntityType.Create(this);
             var championDimBuild = ChampionDimBuildEntityType.Create(this);
             var championDimRunePage = ChampionDimRunePageEntityType.Create(this);
             var championDimSkillOrder = ChampionDimSkillOrderEntityType.Create(this);
@@ -35,6 +37,7 @@ namespace Data.CompiledModels
             var mainCandidate = MainCandidateEntityType.Create(this);
             var mainChampionStat = MainChampionStatEntityType.Create(this);
             var match = MatchEntityType.Create(this);
+            var matchBan = MatchBanEntityType.Create(this);
             var matchParticipant = MatchParticipantEntityType.Create(this);
             var matchParticipantKillPosition = MatchParticipantKillPositionEntityType.Create(this);
             var matchParticipantTimelineSnapshot = MatchParticipantTimelineSnapshotEntityType.Create(this);
@@ -55,6 +58,7 @@ namespace Data.CompiledModels
             ChampionAggregatePatternEntityType.CreateForeignKey6(championAggregatePattern, championDimStarterItems);
             ChampionAggregateScopeEntityType.CreateForeignKey1(championAggregateScope, riotAccount);
             JungleFirstClearEntityType.CreateForeignKey1(jungleFirstClear, match);
+            MatchBanEntityType.CreateForeignKey1(matchBan, match);
             MatchParticipantEntityType.CreateForeignKey1(matchParticipant, match);
             MatchParticipantEntityType.CreateForeignKey2(matchParticipant, riotAccount);
             MatchParticipantKillPositionEntityType.CreateForeignKey1(matchParticipantKillPosition, match);
@@ -64,8 +68,10 @@ namespace Data.CompiledModels
             RankSnapshotEntityType.CreateForeignKey1(rankSnapshot, riotAccount);
             RiotAccountEntityType.CreateForeignKey1(riotAccount, persona);
 
+            BanScopeTotalEntityType.CreateAnnotations(banScopeTotal);
             ChampionAggregatePatternEntityType.CreateAnnotations(championAggregatePattern);
             ChampionAggregateScopeEntityType.CreateAnnotations(championAggregateScope);
+            ChampionBanStatEntityType.CreateAnnotations(championBanStat);
             ChampionDimBuildEntityType.CreateAnnotations(championDimBuild);
             ChampionDimRunePageEntityType.CreateAnnotations(championDimRunePage);
             ChampionDimSkillOrderEntityType.CreateAnnotations(championDimSkillOrder);
@@ -81,6 +87,7 @@ namespace Data.CompiledModels
             MainCandidateEntityType.CreateAnnotations(mainCandidate);
             MainChampionStatEntityType.CreateAnnotations(mainChampionStat);
             MatchEntityType.CreateAnnotations(match);
+            MatchBanEntityType.CreateAnnotations(matchBan);
             MatchParticipantEntityType.CreateAnnotations(matchParticipant);
             MatchParticipantKillPositionEntityType.CreateAnnotations(matchParticipantKillPosition);
             MatchParticipantTimelineSnapshotEntityType.CreateAnnotations(matchParticipantTimelineSnapshot);

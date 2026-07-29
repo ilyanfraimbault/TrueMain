@@ -69,4 +69,14 @@ public sealed record ChampionTierEntryReadModel
     /// same main-population pickrate as <see cref="ChampionSummaryReadModel.PickRate"/>.
     /// </summary>
     public double PickRate { get; init; }
+
+    /// <summary>
+    /// Share of observed matches that banned this champion, or <see langword="null"/>
+    /// when the patch predates ban ingestion — see
+    /// <see cref="ChampionSummaryReadModel.BanRate"/>, which this is copied from.
+    /// Deliberately not part of the tier score: the tier blend stays winRate +
+    /// pickRate (#920), so introducing bans does not silently re-rank every champion,
+    /// and tiers stay comparable across the patches that have no ban data.
+    /// </summary>
+    public double? BanRate { get; init; }
 }

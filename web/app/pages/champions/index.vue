@@ -4,7 +4,7 @@ import { POSITION_BY_VALUE, isChampionPosition, type ChampionPosition } from '~/
 import { normalizeEloBracket } from '~/utils/elo-brackets'
 import { isLoadingStatus } from '~/utils/async-data'
 import { describeFetchError } from '~/utils/errors'
-import { formatPercentage } from '~~/shared/utils/ddragon'
+import { formatPercentage, formatPercentageOrDash } from '~~/shared/utils/ddragon'
 
 // Mirrors the backend default; the page size is fixed in the UI (no
 // per-page selector) so the only stateful pagination value carried in the
@@ -391,6 +391,12 @@ const { perk, perkStyle, item: staticItem } = useBuildResolvers(runeTree, itemsM
                 <div class="flex min-w-[3rem] flex-col items-center">
                   <span class="text-lg font-bold leading-none">{{ formatPercentage(row.pickRate, 0) }}</span>
                   <span class="mt-0.5 text-xs text-muted">PR</span>
+                </div>
+                <!-- Ban rate: a dash on patches predating ban ingestion (#920),
+                     since "not observed" is not the same answer as "0%". -->
+                <div class="flex min-w-[3rem] flex-col items-center">
+                  <span class="text-lg font-bold leading-none">{{ formatPercentageOrDash(row.banRate, 0) }}</span>
+                  <span class="mt-0.5 text-xs text-muted">BR</span>
                 </div>
               </div>
             </ListRowSurface>

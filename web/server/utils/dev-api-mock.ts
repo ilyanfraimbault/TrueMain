@@ -324,6 +324,9 @@ async function mockChampionSummaries(): Promise<ChampionSummaryResponse[]> {
       pickRate: round3(s.pr),
       lanePlayRate: round3(0.7 + rng() * 0.29),
       trueMainCount: Math.max(3, Math.round(games / 55)),
+      // The active patch always has ban data (#920). Loosely correlated with
+      // pick rate so the column is plausible rather than uniform noise.
+      banRate: round3(Math.min(0.85, s.pr * 2.5 + rng() * 0.05)),
       tier: tierByRow.get(s) ?? 'B',
       position: s.position,
       patchVersion: patch,
@@ -575,10 +578,18 @@ async function mockTrend(id: number): Promise<ChampionTrendResponse | null> {
   return {
     championId: s.id,
     position: s.position,
-    points: trendPatches(latest, 6).map(patch => ({
+    // trendPatches returns oldest → newest. Ban history cannot be backfilled
+    // (#920), so the mock stages the real shape the frontend has to survive: the
+    // older half of the series carries a null banRate and only the recent patches
+    // have data. That is what makes the trend chart's ban panel testable both
+    // ways without a backend.
+    points: trendPatches(latest, 6).map((patch, index, all) => ({
       patch,
       winRate: round3(s.wr + (rng() - 0.5) * 0.03),
       pickRate: round3(Math.max(0.004, s.pr + (rng() - 0.5) * 0.02)),
+      banRate: index < all.length - 3
+        ? null
+        : round3(Math.min(0.85, s.pr * 2.5 + (rng() - 0.5) * 0.04)),
       games: Math.round(s.pr * POOL_GAMES * (0.8 + rng() * 0.4)),
     })),
   }

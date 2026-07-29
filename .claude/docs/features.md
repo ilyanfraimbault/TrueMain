@@ -16,11 +16,12 @@ All data goes through the catch-all proxy `web/server/api/[...path].ts` → `NUX
 Hero + search field, three live stat chips (champions ranked, main games analysed, truemains tracked), a tier-list teaser (`home/TierlistPanel.vue`, top 8, intersection-gated), a truemains teaser with region switch (`home/TruemainsPanel.vue`), CTAs.
 
 ### `/champions` — `web/app/pages/champions/index.vue`
-Champion/lane directory, one row per (champion, position). Filters: role, champion, elo, patch. Each row shows keystone + secondary tree, consensus build path (6 items max), tier badge, WR/PR.
+Champion/lane directory, one row per (champion, position). Filters: role, champion, elo, patch. Each row shows keystone + secondary tree, consensus build path (6 items max), tier badge, WR/PR/**BR**.
+**BR (ban rate, #920)** is lane-independent — the same value on every row of a champion — and shows an em dash, never `0%`, on patches predating ban ingestion. It does **not** feed the tier score.
 Pagination and search are **client-side** (the endpoint returns the whole ~500-row directory, `PAGE_SIZE = 50`). Body wrapped in `<ClientOnly>` with skeletons; all fetches `server: false` deliberately (hydration-mismatch fix, #149).
 
 ### `/champions/tierlist` — `web/app/pages/champions/tierlist.vue`
-Server-computed tier list. One `SectionCard` per tier group (S→D), each a grid of champion chips linking to the champion page. Filters: role, elo, patch.
+Server-computed tier list. One `SectionCard` per tier group (S→D), each a grid of champion chips linking to the champion page. Filters: role, elo, patch. Each chip's stat line reads `WR · PR · BR` (same ban-rate caveats as the directory).
 
 ### `/champions/:id` — `web/app/pages/champions/[id].vue`
 The richest page — two columns at `xl`.
@@ -28,7 +29,7 @@ The richest page — two columns at `xl`.
 - **Build tabs** (`Champion/BuildTabs.vue`) — one pill per build, each panel (`Champion/BuildPanel.vue`) containing:
   core section (spells, starter items, skill order, boots, build path, runes), **variations**, **build tree**, **rune variations**, and **power spikes** (`BuildPanel/Powerspikes.vue` — hand-drawn bars, Items/Levels toggle; only when both `championId` and `position` are set).
 - **Below the fold**, all lazy + `hydrate-on-visible` with frozen props (`useLazyHydrationSnapshot`, the #834/#837 scroll-jank fix):
-  - `Champion/TrendChart.vue` — **winrate & pickrate by patch**, two area charts over the last 5 patches (cross-patch by design; the patch filter is not forwarded).
+  - `Champion/TrendChart.vue` — **winrate & pickrate by patch**, two area charts over the last 5 patches (cross-patch by design; the patch filter is not forwarded). A third **ban rate** chart appears only once at least two patches carry ban data (#920); its series is filtered to those patches rather than drawn with gaps.
   - `Champion/PatchDiff.vue` — **patch diff**, two patch selectors + signed winrate swing, comparing core build / runes / skill order. Hidden when fewer than 2 patches exist.
   - `Champion/ScalingChart.vue` — winrate by game-length bucket + signed scaling index with verdict badge.
   - `Champion/Roam.vue` — out-of-lane K+A at 5/10/15 min with verdict. Hidden for `JUNGLE`.
@@ -135,6 +136,7 @@ Pipeline order (`Full`):
 | 10 | ChampionPatternAggregation | Rebuilds aggregate scopes/patterns + `champion_dim_*`, **chunked one champion at a time** (memory bound) |
 | 11 | ChampionMatchupLeadAggregation | Incrementally folds each match once into `champion_matchup_stats` |
 | 11b | ChampionSynergyAggregation | Folds each match once into `champion_synergy_stats` + `champion_synergy_baseline_stats` (same-team pairs and their SELF/ALLY marginals) |
+| 11c | ChampionBanAggregation | Folds each match once into `champion_ban_stats` + `ban_scope_totals` (ban counts and the match totals they divide by). Must run **after** elo enrichment — the fold is one-shot and decides there which bands a match counts in |
 | 12 | ChampionPowerspikeAggregation | Folds each match once into the powerspike stat tables while dense snapshots still exist |
 | 13 | AccountRefresh | Refreshes identity + soloQ rank; recovers or invalidates dead PUUIDs |
 | 14 | MatchDataRetention | Prunes stale candidates, non-tracked-queue matches, out-of-window matches, intermediate timeline snapshots, sub-floor powerspike rows |

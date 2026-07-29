@@ -45,11 +45,11 @@ public sealed class ProcessRunSummaryJsonTests
                 """);
 
         ProcessRunSummaryJson.Serialize(new MatchDataRetentionSummary(
-            3, 420, 10, 100, 4, 7, 5, 900, 1, 2, 4, 5, 8, 6,
+            3, 420, 10, 100, 4, 7, 5, 900, 1, 2, 4, 5, 8, 9, 6,
             [new RetainedPatchesSummary("KR", ["16.3", "16.4"])]))
             .Should().Be(
                 """
-                {"retainedPatchCount":3,"queueId":420,"deletedMatches":10,"deletedParticipants":100,"deletedNonRankedMatches":4,"prunedCandidates":7,"prunedSnapshotMatches":5,"deletedIntermediateSnapshots":900,"deletedAggregateScopes":1,"deletedMatchupStats":2,"deletedPowerspikeCurveStats":4,"deletedPowerspikeEventStats":5,"deletedSynergyStats":8,"prunedSubFloorPowerspikeEvents":6,"retainedPatchesByPlatform":[{"platformId":"KR","patches":["16.3","16.4"]}]}
+                {"retainedPatchCount":3,"queueId":420,"deletedMatches":10,"deletedParticipants":100,"deletedNonRankedMatches":4,"prunedCandidates":7,"prunedSnapshotMatches":5,"deletedIntermediateSnapshots":900,"deletedAggregateScopes":1,"deletedMatchupStats":2,"deletedPowerspikeCurveStats":4,"deletedPowerspikeEventStats":5,"deletedSynergyStats":8,"deletedBanStats":9,"prunedSubFloorPowerspikeEvents":6,"retainedPatchesByPlatform":[{"platformId":"KR","patches":["16.3","16.4"]}]}
                 """);
     }
 
@@ -258,8 +258,14 @@ public sealed class ProcessRunSummaryJsonTests
             new SynergyAggregationSummary(4000, 4, 15000, 900),
             new { matches = 4000, batches = 4, pairRows = 15000, baselineRows = 900 });
 
+        // ChampionBanAggregationProcess (#920) — the synergy shape again, with the
+        // champion counts and the (patch, elo band) denominators it wrote.
         yield return (
-            new MatchDataRetentionSummary(3, 420, 10, 100, 4, 7, 5, 900, 1, 2, 4, 5, 8, 6,
+            new BanAggregationSummary(4000, 4, 12000, 13),
+            new { matches = 4000, batches = 4, banRows = 12000, scopeRows = 13 });
+
+        yield return (
+            new MatchDataRetentionSummary(3, 420, 10, 100, 4, 7, 5, 900, 1, 2, 4, 5, 8, 9, 6,
             [new RetainedPatchesSummary("KR", ["16.3", "16.4"])]),
             new
             {
@@ -276,6 +282,7 @@ public sealed class ProcessRunSummaryJsonTests
                 deletedPowerspikeCurveStats = 4,
                 deletedPowerspikeEventStats = 5,
                 deletedSynergyStats = 8,
+                deletedBanStats = 9,
                 prunedSubFloorPowerspikeEvents = 6,
                 retainedPatchesByPlatform = new[]
                 {

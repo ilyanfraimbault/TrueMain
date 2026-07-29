@@ -20,10 +20,10 @@ namespace Data.CompiledModels
                 "Data.Entities.Match",
                 typeof(Match),
                 baseEntityType,
-                propertyCount: 15,
+                propertyCount: 16,
                 navigationCount: 1,
                 unnamedIndexCount: 4,
-                namedIndexCount: 3,
+                namedIndexCount: 4,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -34,6 +34,16 @@ namespace Data.CompiledModels
                 afterSaveBehavior: PropertySaveBehavior.Throw,
                 maxLength: 32);
             id.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var bansAggregated = runtimeEntityType.AddProperty(
+                "BansAggregated",
+                typeof(bool),
+                propertyInfo: typeof(Match).GetProperty("BansAggregated", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Match).GetField("<BansAggregated>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: false);
+            bansAggregated.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            bansAggregated.AddAnnotation("Relational:DefaultValue", false);
 
             var createdAtUtc = runtimeEntityType.AddProperty(
                 "CreatedAtUtc",
@@ -178,6 +188,11 @@ namespace Data.CompiledModels
             var index2 = runtimeEntityType.AddIndex(
                 new[] { platformId, queueId, gameStartTimeUtc });
             index2.AddAnnotation("Relational:Name", "IX_matches_platform_queue_game_start");
+
+            var iX_matches_bans_pending = runtimeEntityType.AddIndex(
+                new[] { queueId },
+                name: "IX_matches_bans_pending");
+            iX_matches_bans_pending.AddAnnotation("Relational:Filter", "\"BansAggregated\" = false");
 
             var iX_matches_matchup_lead_pending = runtimeEntityType.AddIndex(
                 new[] { queueId },

@@ -149,6 +149,18 @@ public sealed record SynergyAggregationSummary(
     int PairRows,
     int BaselineRows) : IProcessRunSummary;
 
+/// <summary>
+/// Champion ban aggregation outcome (#920). <see cref="ScopeRows"/> counts the
+/// (patch, elo band) denominators touched and <see cref="BanRows"/> the champion
+/// counts, so a run whose matches all folded into the ALL band alone — every
+/// participant still awaiting elo enrichment — is visible as a scope count of one.
+/// </summary>
+public sealed record BanAggregationSummary(
+    int Matches,
+    int Batches,
+    int BanRows,
+    int ScopeRows) : IProcessRunSummary;
+
 /// <summary>The patches retention kept for one platform.</summary>
 public sealed record RetainedPatchesSummary(string PlatformId, IReadOnlyList<string> Patches);
 
@@ -169,5 +181,8 @@ public sealed record MatchDataRetentionSummary(
     // Pair rows and the baselines they are read against, summed (#922) — they are
     // deleted together in one transaction, so one counter describes both.
     int DeletedSynergyStats,
+    // Ban counts and the match totals they are divided by, summed (#920) — deleted
+    // together in one transaction, so one counter describes both.
+    int DeletedBanStats,
     int PrunedSubFloorPowerspikeEvents,
     IReadOnlyList<RetainedPatchesSummary> RetainedPatchesByPlatform) : IProcessRunSummary;

@@ -15,6 +15,7 @@ public class TrueMainDbContext : DbContext
     public DbSet<MatchParticipantTimelineSnapshot> MatchParticipantTimelineSnapshots => Set<MatchParticipantTimelineSnapshot>();
     public DbSet<MatchParticipantKillPosition> MatchParticipantKillPositions => Set<MatchParticipantKillPosition>();
     public DbSet<JungleFirstClear> JungleFirstClears => Set<JungleFirstClear>();
+    public DbSet<MatchBan> MatchBans => Set<MatchBan>();
     public DbSet<ParticipantPerkSelection> ParticipantPerkSelections => Set<ParticipantPerkSelection>();
     public DbSet<PerkSelectionCatalog> PerkSelectionCatalogs => Set<PerkSelectionCatalog>();
     public DbSet<MainCandidate> MainCandidates => Set<MainCandidate>();
@@ -32,6 +33,12 @@ public class TrueMainDbContext : DbContext
     // fold, so they always describe the same cohort of matches.
     public DbSet<ChampionSynergyStat> ChampionSynergyStats => Set<ChampionSynergyStat>();
     public DbSet<ChampionSynergyBaselineStat> ChampionSynergyBaselineStats => Set<ChampionSynergyBaselineStat>();
+
+    // Champion ban counts and the match totals they are divided by (#920), both
+    // populated by ChampionBanAggregationProcess in one fold so a ban rate is
+    // always numerator and denominator over the same cohort of matches.
+    public DbSet<ChampionBanStat> ChampionBanStats => Set<ChampionBanStat>();
+    public DbSet<BanScopeTotal> BanScopeTotals => Set<BanScopeTotal>();
 
     // Pre-aggregated champion powerspikes (#694): the per-minute power curve, the
     // per-event slope-change spikes, and the global per-minute lead spread. Populated

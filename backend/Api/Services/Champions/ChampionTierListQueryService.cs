@@ -109,6 +109,7 @@ public sealed class ChampionTierListQueryService(
                     Games = summary.Games,
                     WinRate = summary.WinRate,
                     PickRate = summary.PickRate,
+                    BanRate = summary.BanRate,
                 });
         }
     }

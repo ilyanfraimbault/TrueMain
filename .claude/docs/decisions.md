@@ -121,6 +121,25 @@ already populated by a full recompute* — otherwise the first incremental run d
 The mirror case: `matches.SynergyAggregated` (#922) ships `false` everywhere on purpose, because its tables are
 created empty by the same migration and the whole retained history still has to be folded once. Read the flag's
 question as "has this match already been counted *into this table*", not as a blanket rule.
+Third case, `matches.BansAggregated` (#920): backfilled to `true` like #811 but for a different reason — the
+source rows don't exist. Riot payloads aren't kept, so a match ingested before #920 has no `match_bans` rows at
+all; folding it would add to the ban *denominator* while contributing no bans and deflate every rate.
+
+**Ban rate is its own aggregate pair with a stored denominator, and `ALL` is a stored band — not a summed one.**
+Bans come from every ingested match; `champion_aggregate_scopes` is per tracked account, so a ban count folded
+in there would be a different population under the same roof. Hence `champion_ban_stats` (numerator) +
+`ban_scope_totals` (denominator), folded together so a rate is always one cohort. The denominator is *stored*
+because matches are retired after ~2 patches while aggregates are kept forever — once the matches are gone,
+nothing else records how many there were. A match has no single elo band (`elo_bracket` is resolved per tracked
+player), so it is counted once per band it touched **and** once in a stored `ALL` row: the bands overlap, so
+summing them is not the match count. That is the one place `EloBracket.All` is persisted rather than being the
+read-time union it is everywhere else — #920.
+
+**No pick+ban "presence" figure, despite it being standard elsewhere.**
+Pick rate's denominator is tracked mains' games at a lane; ban rate's is every observed match. The two are not
+addable, and a presence number computed from them would be arithmetic without meaning. Offering a meta-wide
+pick rate purely to make them addable was rejected: it would put two different pick rates on the same page —
+#920.
 
 **Matchups are a pre-aggregated read table — explicitly revising the earlier live-self-join design.**
 #90 chose a self-join "for simplicity, not volume". Prod measurement showed the aggregate is bounded by

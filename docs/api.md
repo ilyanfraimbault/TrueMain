@@ -78,6 +78,7 @@ Annuaire des champions : une ligne par couple `(champion, position)` pour un pat
     "pickRate": 0.072,
     "lanePlayRate": 0.86,
     "trueMainCount": 47,
+    "banRate": 0.184,
     "tier": "A",
     "position": "MIDDLE",
     "patchVersion": "16.4",
@@ -94,6 +95,12 @@ Annuaire des champions : une ligne par couple `(champion, position)` pour un pat
 
 - `pickRate` : part des games truemains sur cette position prises par ce champion.
 - `lanePlayRate` : répartition des lanes du champion (0.86 = 86 % de ses games ici).
+- `banRate` : part des matchs observés où le champion a été banni (#920). Indépendant
+  de la lane : identique sur toutes les lignes d'un champion. **`null` = non observé**,
+  pas « jamais banni » — les bans ne sont collectés que depuis le déploiement de #920 et
+  ne sont pas rattrapables, donc les patchs antérieurs valent `null`. Dénominateur
+  différent de `pickRate` (tous les matchs observés vs games des mains suivis) : les deux
+  **ne s'additionnent pas**, il n'y a donc pas de « presence ». N'entre pas dans `tier`.
 - `tier` : `S`/`A`/`B`/`C`/`D`, percentile relatif au patch courant.
 - `topBuild` : build dominant (résumé) ; `null` si aucun pattern observé.
 
@@ -173,7 +180,7 @@ Page champion : onglets de build dominants pour un `(patch, position)`.
 
 ## `GET /champions/{championId}/trend`
 
-Évolution winrate/pickrate sur les ~5 derniers patchs, pour une position.
+Évolution winrate/pickrate/banrate sur les ~5 derniers patchs, pour une position.
 Volontairement **cross-patch** (ignore tout filtre de patch).
 
 **Query** — `position` (string, optionnel ; défaut = lane dominante du champion)
@@ -185,12 +192,16 @@ Volontairement **cross-patch** (ignore tout filtre de patch).
   "championId": 103,
   "position": "MIDDLE",
   "points": [
-    { "patch": "16.1", "winRate": 0.51, "pickRate": 0.061, "games": 1500 },
-    { "patch": "16.2", "winRate": 0.52, "pickRate": 0.066, "games": 1620 },
-    { "patch": "16.4", "winRate": 0.533, "pickRate": 0.072, "games": 1840 }
+    { "patch": "16.1", "winRate": 0.51, "pickRate": 0.061, "banRate": null, "games": 1500 },
+    { "patch": "16.2", "winRate": 0.52, "pickRate": 0.066, "banRate": null, "games": 1620 },
+    { "patch": "16.4", "winRate": 0.533, "pickRate": 0.072, "banRate": 0.184, "games": 1840 }
   ]
 }
 ```
+
+- `banRate` : `null` sur tout patch antérieur à la collecte des bans (#920), donc une
+  série partiellement nulle est le cas normal au début. Toutes tranches d'elo confondues
+  (l'endpoint n'a pas de filtre de rang).
 
 ## `GET /champions/{championId}/matchups`
 

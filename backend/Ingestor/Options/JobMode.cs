@@ -21,5 +21,6 @@ public enum JobMode
     PowerspikeAggregationOnly = 12,
     TeamPositionCorrectionOnly = 13,
     MainActivityOnly = 14,
-    SynergyAggregationOnly = 15
+    SynergyAggregationOnly = 15,
+    BanAggregationOnly = 16
 }

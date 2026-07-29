@@ -69,6 +69,10 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
             .IsRequired()
             .HasDefaultValue(false);
 
+        entity.Property(e => e.BansAggregated)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         entity.HasIndex(e => e.PlatformId);
 
         entity.HasIndex(e => new { e.PlatformId, e.QueueId, e.GameStartTimeUtc })
@@ -102,6 +106,13 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
         // to the recent pending tail once the initial backfill has drained.
         entity.HasIndex(e => e.QueueId, "IX_matches_synergy_pending")
             .HasFilter("\"SynergyAggregated\" = false");
+
+        // Same shape for the ban fold (#920). Unlike the synergy one this index
+        // starts out empty — the flag is backfilled to true everywhere, since
+        // pre-#920 matches carry no bans — and only ever holds the freshly-ingested
+        // tail awaiting its fold.
+        entity.HasIndex(e => e.QueueId, "IX_matches_bans_pending")
+            .HasFilter("\"BansAggregated\" = false");
 
         entity.HasMany(e => e.Participants)
             .WithOne(e => e.Match)
