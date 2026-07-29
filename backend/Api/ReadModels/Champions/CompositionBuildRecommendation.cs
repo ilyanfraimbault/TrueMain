@@ -28,12 +28,6 @@ public sealed record CompositionBuildRecommendation
     /// </summary>
     public BuildItemPathReadModel? CorePath { get; init; }
 
-    /// <summary>
-    /// Completed items outside <see cref="CorePath"/>, one single-element set
-    /// per item, strongest support first.
-    /// </summary>
-    public IReadOnlyList<BuildItemSetReadModel> SituationalItems { get; init; } = [];
-
     public BuildSummonerSpellsReadModel? SummonerSpells { get; init; }
 
     public BuildSkillOrderReadModel? SkillOrder { get; init; }

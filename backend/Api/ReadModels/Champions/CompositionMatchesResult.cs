@@ -40,14 +40,14 @@ public sealed class CompositionMatchesResult
     public required double MeanSimilarity { get; init; }
 
     /// <summary>
-    /// True when the request pinned the lane opponent (an enemy at the
+    /// True when the request pinned the role opponent (an enemy at the
     /// player's own position). The matchup is then a hard requirement, not a
     /// ranking signal: only games with that exact matchup are selectable.
     /// </summary>
     public required bool MatchupRequested { get; init; }
 
     /// <summary>
-    /// False only when the lane opponent was requested and no scanned game
+    /// False only when the role opponent was requested and no scanned game
     /// contains that matchup — <see cref="Matches"/> is then empty and the
     /// caller should fall back to the champion's baseline build.
     /// </summary>

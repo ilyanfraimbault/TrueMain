@@ -13,13 +13,13 @@ public readonly record struct CompositionSlot(bool IsEnemy, string TeamPosition,
 /// Similarity weights, snapshotted from <see cref="Options.CompositionSearchOptions"/>
 /// so the scorer stays a pure function of its inputs.
 /// </summary>
-public readonly record struct CompositionScoreWeights(int LaneOpponent, int Enemy, int Ally);
+public readonly record struct CompositionScoreWeights(int RoleOpponent, int Enemy, int Ally);
 
 /// <summary>
 /// Pure slot-based similarity scoring between a requested (possibly partial)
 /// draft and one candidate game. Score = sum of the weights of the requested
-/// slots the candidate game reproduces: the lane opponent counts
-/// <see cref="CompositionScoreWeights.LaneOpponent"/>, any other enemy slot
+/// slots the candidate game reproduces: the role opponent counts
+/// <see cref="CompositionScoreWeights.RoleOpponent"/>, any other enemy slot
 /// <see cref="CompositionScoreWeights.Enemy"/>, any ally slot
 /// <see cref="CompositionScoreWeights.Ally"/>. Unrequested slots contribute
 /// nothing, so partial input just lowers the reachable maximum.
@@ -45,7 +45,7 @@ public static class CompositionSimilarityScorer
                     && enemy == slot.ChampionId)
                 {
                     score += slot.TeamPosition == criteria.Position
-                        ? weights.LaneOpponent
+                        ? weights.RoleOpponent
                         : weights.Enemy;
                 }
             }
@@ -73,7 +73,7 @@ public static class CompositionSimilarityScorer
         var max = 0;
         foreach (var position in criteria.Enemies.Keys)
         {
-            max += position == criteria.Position ? weights.LaneOpponent : weights.Enemy;
+            max += position == criteria.Position ? weights.RoleOpponent : weights.Enemy;
         }
 
         foreach (var position in criteria.Allies.Keys)

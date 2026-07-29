@@ -20,13 +20,13 @@ public sealed record CompositionBuildResponse
     public required string EloBracket { get; init; }
 
     /// <summary>
-    /// True when the draft pinned the lane opponent — the matchup is then a
+    /// True when the draft pinned the role opponent — the matchup is then a
     /// hard requirement on the sampled games, not a ranking signal.
     /// </summary>
     public required bool MatchupRequested { get; init; }
 
     /// <summary>
-    /// False only when the lane opponent was requested and no recorded game
+    /// False only when the role opponent was requested and no recorded game
     /// has that matchup — the build is then empty and the client should fall
     /// back to the champion's baseline build.
     /// </summary>

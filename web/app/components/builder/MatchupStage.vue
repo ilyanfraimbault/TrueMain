@@ -4,11 +4,11 @@ import type { ChampionPosition } from '~/utils/positions'
 import { POSITION_BY_VALUE } from '~/utils/positions'
 
 /**
- * Centre stage of the builder (#921): the matchup — your champion and role
- * against the lane opponent — as the primary control of the page. Everything
- * else on the builder (the eight remaining draft slots) is a refinement of
- * what is picked here, so this block is deliberately the largest surface and
- * sits above the fold.
+ * Centre stage of the matchup page (#921): the matchup — your champion and
+ * role against the role opponent — as the primary control of the page.
+ * Everything else on the page (the eight remaining draft slots) is a
+ * refinement of what is picked here, so this block is deliberately the largest
+ * surface and sits above the fold.
  *
  * Purely presentational: the page owns the draft state, this component only
  * emits picks.
@@ -74,7 +74,7 @@ const PORTRAIT_PX = 72
         />
       </div>
 
-      <!-- Lane label doubles as the separator: it names what the two sides are
+      <!-- Role label doubles as the separator: it names what the two sides are
            fighting over once a role is picked. -->
       <div class="flex flex-row items-center justify-center gap-3 sm:flex-col">
         <span
@@ -92,7 +92,7 @@ const PORTRAIT_PX = 72
 
       <div class="flex flex-col items-center gap-3 rounded-xl p-4 ring-1 ring-inset ring-accented">
         <p class="text-xs font-medium uppercase tracking-wider text-muted">
-          Lane opponent
+          Role opponent
         </p>
         <SkeletonImage
           v-if="opponentChampion"
@@ -114,7 +114,7 @@ const PORTRAIT_PX = 72
         <ChampionPicker
           :champions="champions"
           :champion-id="opponentChampionId"
-          placeholder="Choose the enemy laner"
+          placeholder="Choose your opponent"
           size="lg"
           trigger-class="w-full max-w-64"
           @update:champion-id="$emit('update:opponentChampionId', $event)"

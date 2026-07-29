@@ -18,8 +18,7 @@ public static class CompositionBuildAggregator
 
     public static CompositionBuildRecommendation Aggregate(
         IReadOnlyList<CompositionParticipantFacts> facts,
-        double winWeight,
-        int situationalItemCount)
+        double winWeight)
     {
         var totalGames = facts.Count;
         if (totalGames == 0)
@@ -64,8 +63,6 @@ public static class CompositionBuildAggregator
                     PickRate = RateMath.Rate(corePath.Games, totalGames),
                     WinRate = RateMath.Rate(corePath.Wins, corePath.Games),
                 },
-            SituationalItems = AggregateSituationalItems(
-                facts, corePathItems, winWeight, situationalItemCount, totalGames),
             SummonerSpells = PickTop(
                     facts.Where(f => f.Spell1Id > 0 || f.Spell2Id > 0),
                     f => (f.Spell1Id, f.Spell2Id),
@@ -129,42 +126,6 @@ public static class CompositionBuildAggregator
         return ChampionBuildPathAnalyzer
             .BuildItemTree(sequences, sequences.Count)
             .Select(node => ChampionBuildPathAnalyzer.ToReadModel(node, sequences.Count))
-            .ToList();
-    }
-
-    /// <summary>
-    /// Completed items outside the core path, ranked by win-weighted votes. A
-    /// game votes at most once per item, so a duplicated legendary cannot
-    /// inflate its own support.
-    /// </summary>
-    private static List<BuildItemSetReadModel> AggregateSituationalItems(
-        IReadOnlyList<CompositionParticipantFacts> facts,
-        IReadOnlyList<int> corePathItems,
-        double winWeight,
-        int situationalItemCount,
-        int totalGames)
-    {
-        var core = corePathItems.ToHashSet();
-        var votes = facts
-            .SelectMany(f => f.BuildItems
-                .Where(item => !core.Contains(item))
-                .Distinct()
-                .Select(item => (Item: item, f.Win, f.SimilarityWeight)))
-            .GroupBy(x => x.Item)
-            .Select(g => new
-            {
-                Item = g.Key,
-                Games = g.Count(),
-                Wins = g.Count(x => x.Win),
-                Weight = g.Sum(x => x.SimilarityWeight * (x.Win ? winWeight : 1d)),
-            })
-            .OrderByDescending(x => x.Weight)
-            .ThenByDescending(x => x.Games)
-            .ThenBy(x => x.Item)
-            .Take(situationalItemCount);
-
-        return votes
-            .Select(x => ToItemSet([x.Item], x.Games, x.Wins, totalGames))
             .ToList();
     }
 

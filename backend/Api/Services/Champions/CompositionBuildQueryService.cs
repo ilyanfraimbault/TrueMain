@@ -146,8 +146,7 @@ public sealed class CompositionBuildQueryService(
             });
         }
 
-        return CompositionBuildAggregator.Aggregate(
-            facts, options.WinWeight, options.SituationalItemCount);
+        return CompositionBuildAggregator.Aggregate(facts, options.WinWeight);
     }
 
     /// <summary>

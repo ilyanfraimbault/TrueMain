@@ -18,7 +18,7 @@ namespace TrueMain.IntegrationTests;
 public sealed class CompositionMatchQueryServiceIntegrationTests
 {
     private const int Champion = 157; // Yone
-    private const int LaneOpponent = 238; // Zed
+    private const int RoleOpponent = 238; // Zed
     private const int OtherOpponent = 91; // Talon
     private const int EnemyTop = 266; // Aatrox
     private const int AllyJungle = 64; // Lee Sin
@@ -38,14 +38,14 @@ public sealed class CompositionMatchQueryServiceIntegrationTests
 
         // Three games, from most to least similar to the requested draft
         // (vs Zed MIDDLE + Aatrox TOP, with Lee Sin JUNGLE):
-        //   full-hit   — lane opponent + enemy top + ally jungle = 10+4+2 = 16
-        //   lane-only  — lane opponent only                       = 10
+        //   full-hit   — role opponent + enemy top + ally jungle = 10+4+2 = 16
+        //   lane-only  — role opponent only                       = 10
         //   unrelated  — Talon mid: no matchup, hard-filtered out
-        // The unrelated game is the most recent: with the lane opponent
+        // The unrelated game is the most recent: with the role opponent
         // pinned, the matchup requirement must drop it entirely instead of
         // merely out-scoring it.
-        await SeedGameAsync("COMP_FULLHIT", daysAgo: 3, win: true, enemyMid: LaneOpponent, enemyTop: EnemyTop, allyJungle: AllyJungle);
-        await SeedGameAsync("COMP_LANEONLY", daysAgo: 2, win: false, enemyMid: LaneOpponent);
+        await SeedGameAsync("COMP_FULLHIT", daysAgo: 3, win: true, enemyMid: RoleOpponent, enemyTop: EnemyTop, allyJungle: AllyJungle);
+        await SeedGameAsync("COMP_LANEONLY", daysAgo: 2, win: false, enemyMid: RoleOpponent);
         await SeedGameAsync("COMP_UNRELATED", daysAgo: 1, win: true, enemyMid: OtherOpponent);
 
         await using var db = _fixture.CreateDbContext();
@@ -54,7 +54,7 @@ public sealed class CompositionMatchQueryServiceIntegrationTests
             {
                 ChampionId = Champion,
                 Position = Position,
-                Enemies = new Dictionary<string, int> { ["MIDDLE"] = LaneOpponent, ["TOP"] = EnemyTop },
+                Enemies = new Dictionary<string, int> { ["MIDDLE"] = RoleOpponent, ["TOP"] = EnemyTop },
                 Allies = new Dictionary<string, int> { ["JUNGLE"] = AllyJungle },
             },
             CancellationToken.None);
@@ -75,12 +75,12 @@ public sealed class CompositionMatchQueryServiceIntegrationTests
     {
         await _fixture.ResetDatabaseAsync();
 
-        // A less-similar game piloted by a main of the champion (lane opponent
+        // A less-similar game piloted by a main of the champion (role opponent
         // only = 10) versus a more-similar game by a non-main (full hit = 16).
         // The main's game must still lead: mains form the first tier, similarity
         // only orders within a tier — a more-similar non-main never displaces it.
-        await SeedGameAsync("COMP_MAIN_LANEONLY", daysAgo: 2, win: true, enemyMid: LaneOpponent);
-        await SeedGameAsync("COMP_NONMAIN_FULL", daysAgo: 1, win: false, enemyMid: LaneOpponent, enemyTop: EnemyTop, allyJungle: AllyJungle);
+        await SeedGameAsync("COMP_MAIN_LANEONLY", daysAgo: 2, win: true, enemyMid: RoleOpponent);
+        await SeedGameAsync("COMP_NONMAIN_FULL", daysAgo: 1, win: false, enemyMid: RoleOpponent, enemyTop: EnemyTop, allyJungle: AllyJungle);
         await SeedMainAsync("puuid-COMP_MAIN_LANEONLY-1");
 
         await using var db = _fixture.CreateDbContext();
@@ -89,7 +89,7 @@ public sealed class CompositionMatchQueryServiceIntegrationTests
             {
                 ChampionId = Champion,
                 Position = Position,
-                Enemies = new Dictionary<string, int> { ["MIDDLE"] = LaneOpponent, ["TOP"] = EnemyTop },
+                Enemies = new Dictionary<string, int> { ["MIDDLE"] = RoleOpponent, ["TOP"] = EnemyTop },
                 Allies = new Dictionary<string, int> { ["JUNGLE"] = AllyJungle },
             },
             CancellationToken.None);
@@ -112,7 +112,7 @@ public sealed class CompositionMatchQueryServiceIntegrationTests
             {
                 ChampionId = Champion,
                 Position = Position,
-                Enemies = new Dictionary<string, int> { ["MIDDLE"] = LaneOpponent },
+                Enemies = new Dictionary<string, int> { ["MIDDLE"] = RoleOpponent },
             },
             CancellationToken.None);
 
@@ -131,7 +131,7 @@ public sealed class CompositionMatchQueryServiceIntegrationTests
 
         // Every seeded participant is untracked (RiotAccountId = null) — the
         // tracked-only partial index population would be empty here.
-        await SeedGameAsync("COMP_HARVESTED", daysAgo: 1, win: true, enemyMid: LaneOpponent);
+        await SeedGameAsync("COMP_HARVESTED", daysAgo: 1, win: true, enemyMid: RoleOpponent);
 
         await using var db = _fixture.CreateDbContext();
         var result = await CreateService(db).FindTopMatchesAsync(
@@ -139,7 +139,7 @@ public sealed class CompositionMatchQueryServiceIntegrationTests
             {
                 ChampionId = Champion,
                 Position = Position,
-                Enemies = new Dictionary<string, int> { ["MIDDLE"] = LaneOpponent },
+                Enemies = new Dictionary<string, int> { ["MIDDLE"] = RoleOpponent },
             },
             CancellationToken.None);
 
@@ -152,7 +152,7 @@ public sealed class CompositionMatchQueryServiceIntegrationTests
     {
         await _fixture.ResetDatabaseAsync();
 
-        await SeedGameAsync("COMP_OLDER", daysAgo: 5, win: true, enemyMid: LaneOpponent);
+        await SeedGameAsync("COMP_OLDER", daysAgo: 5, win: true, enemyMid: RoleOpponent);
         await SeedGameAsync("COMP_NEWER", daysAgo: 1, win: false, enemyMid: OtherOpponent);
 
         await using var db = _fixture.CreateDbContext();
@@ -175,11 +175,11 @@ public sealed class CompositionMatchQueryServiceIntegrationTests
 
         // Noise the hard filters must drop: same champion in another lane, and
         // a wrong-queue game.
-        await SeedGameAsync("COMP_WRONGLANE", daysAgo: 1, win: true, enemyMid: LaneOpponent, candidatePosition: "TOP");
-        await SeedGameAsync("COMP_WRONGQUEUE", daysAgo: 1, win: true, enemyMid: LaneOpponent, queueId: 450);
+        await SeedGameAsync("COMP_WRONGLANE", daysAgo: 1, win: true, enemyMid: RoleOpponent, candidatePosition: "TOP");
+        await SeedGameAsync("COMP_WRONGQUEUE", daysAgo: 1, win: true, enemyMid: RoleOpponent, queueId: 450);
         for (var i = 0; i < 3; i++)
         {
-            await SeedGameAsync($"COMP_KEPT_{i}", daysAgo: 2 + i, win: true, enemyMid: LaneOpponent);
+            await SeedGameAsync($"COMP_KEPT_{i}", daysAgo: 2 + i, win: true, enemyMid: RoleOpponent);
         }
 
         await using var db = _fixture.CreateDbContext();
@@ -188,7 +188,7 @@ public sealed class CompositionMatchQueryServiceIntegrationTests
             {
                 ChampionId = Champion,
                 Position = Position,
-                Enemies = new Dictionary<string, int> { ["MIDDLE"] = LaneOpponent },
+                Enemies = new Dictionary<string, int> { ["MIDDLE"] = RoleOpponent },
             },
             CancellationToken.None);
 

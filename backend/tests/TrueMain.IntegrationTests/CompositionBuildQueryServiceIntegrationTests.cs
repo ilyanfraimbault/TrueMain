@@ -12,7 +12,7 @@ namespace TrueMain.IntegrationTests;
 /// <summary>
 /// Service-level coverage of the composition build aggregation (#563): the
 /// top-K refs are folded into one coherent recommendation (runes, starter,
-/// boots, core path, situational items, spells, skill order), and sparse
+/// boots, core path, spells, skill order), and sparse
 /// games — no timeline, no rune selections, no item metadata — abstain per
 /// dimension instead of failing the whole recommendation.
 /// </summary>
@@ -63,10 +63,6 @@ public sealed class CompositionBuildQueryServiceIntegrationTests
         result.StarterItems.Should().NotBeNull();
         result.StarterItems!.ItemIds.Should().Contain(1055);
 
-        result.SituationalItems.Should().NotBeEmpty();
-        result.SituationalItems.SelectMany(s => s.ItemIds).Should().Contain(3072)
-            .And.NotContain(3031, "core-path items are not situational");
-
         result.SummonerSpells.Should().NotBeNull();
         result.SummonerSpells!.Spell1Id.Should().Be(4);
         result.SummonerSpells.Spell2Id.Should().Be(12);
@@ -108,7 +104,6 @@ public sealed class CompositionBuildQueryServiceIntegrationTests
         result.CorePath.Should().BeNull();
         result.Boots.Should().BeNull();
         result.StarterItems.Should().BeNull();
-        result.SituationalItems.Should().BeEmpty();
         result.RunePage.Should().BeNull();
         result.SkillOrder.Should().BeNull();
         result.SummonerSpells.Should().NotBeNull("spells live on the participant row itself");
@@ -152,7 +147,6 @@ public sealed class CompositionBuildQueryServiceIntegrationTests
             Champion, Position, [], maxPossibleScore: 0, CancellationToken.None);
 
         result.GamesConsidered.Should().Be(0);
-        result.SituationalItems.Should().BeEmpty();
     }
 
     private CompositionBuildQueryService CreateService()

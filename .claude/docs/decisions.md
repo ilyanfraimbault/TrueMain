@@ -94,6 +94,20 @@ hit — #922.
 The `opponent=` path filters to a single adversary (already fast) and uses a floor of 1 game, which an
 aggregate built at floor 10 cannot serve — #606.
 
+**The draft tool is the "Matchup" page (`/matchup`), and its opponent is the *role* opponent.**
+"Lane opponent" is meaningless for a jungler, and the page is not a build editor — it answers "what do I build
+into this opponent". The wording is now `role opponent` everywhere in that feature, down to
+`CompositionSearchOptions.RoleOpponentWeight`. `/builder` stays alive as a query-preserving redirect (the three
+matchup inputs are deep-linked, so shared links exist) and is excluded from the sitemap. The *laning-phase*
+vocabulary elsewhere — performance score, power spikes, champion matchups — genuinely means the lane and was
+left alone — #939.
+
+**The recommendation shows no situational-items row.**
+#921 rendered the API's `situationalItems` (off-core items with pick/win rates) under the build panel. It
+restated what the build tree above it already shows, minus the ordering, so #939 removed the whole chain —
+component, read-model field, backend aggregation and the `SituationalItemCount` option. Reviving it means
+reviving the aggregator, not just the component — #939.
+
 ---
 
 ## Data & storage

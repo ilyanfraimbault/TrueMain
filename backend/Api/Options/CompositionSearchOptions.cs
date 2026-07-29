@@ -9,14 +9,14 @@ public sealed class CompositionSearchOptions
     public const string SectionName = "CompositionSearch";
 
     /// <summary>
-    /// Weight granted when the candidate game has the requested lane opponent —
+    /// Weight granted when the candidate game has the requested role opponent —
     /// the enemy at the player's own position. The single strongest signal: the
     /// direct matchup dominates itemization more than any other slot.
     /// </summary>
-    public int LaneOpponentWeight { get; set; } = 10;
+    public int RoleOpponentWeight { get; set; } = 10;
 
     /// <summary>
-    /// Weight per matching enemy slot other than the lane opponent.
+    /// Weight per matching enemy slot other than the role opponent.
     /// </summary>
     public int EnemyWeight { get; set; } = 4;
 
@@ -52,9 +52,4 @@ public sealed class CompositionSearchOptions
     /// <c>1 + boost</c> while a slotless request leaves every game at 1.
     /// </summary>
     public double SimilarityWeightBoost { get; set; } = 3d;
-
-    /// <summary>
-    /// Number of situational (non-core) items surfaced by the aggregation.
-    /// </summary>
-    public int SituationalItemCount { get; set; } = 5;
 }

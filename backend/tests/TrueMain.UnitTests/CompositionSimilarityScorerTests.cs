@@ -5,7 +5,7 @@ namespace TrueMain.UnitTests;
 
 public sealed class CompositionSimilarityScorerTests
 {
-    private static readonly CompositionScoreWeights Weights = new(LaneOpponent: 10, Enemy: 4, Ally: 2);
+    private static readonly CompositionScoreWeights Weights = new(RoleOpponent: 10, Enemy: 4, Ally: 2);
 
     private static CompositionSearchCriteria Criteria(
         IReadOnlyDictionary<string, int>? allies = null,
@@ -19,7 +19,7 @@ public sealed class CompositionSimilarityScorerTests
         };
 
     [Fact]
-    public void Score_LaneOpponentMatch_CountsLaneOpponentWeight()
+    public void Score_RoleOpponentMatch_CountsRoleOpponentWeight()
     {
         var criteria = Criteria(enemies: new Dictionary<string, int> { ["MIDDLE"] = 238 });
 
@@ -73,7 +73,7 @@ public sealed class CompositionSimilarityScorerTests
     [Fact]
     public void Score_RequestedChampionOnWrongSide_CountsNothing()
     {
-        // Zed requested as the lane opponent, but the candidate game has him
+        // Zed requested as the role opponent, but the candidate game has him
         // as the MIDDLE ally-side row — sides are not interchangeable.
         var criteria = Criteria(enemies: new Dictionary<string, int> { ["MIDDLE"] = 238 });
 
@@ -135,7 +135,7 @@ public sealed class CompositionSimilarityScorerTests
 
         var score = CompositionSimilarityScorer.Score(criteria, Weights, slots);
 
-        // 10 (lane opponent) + 4×4 (other enemies) + 2×4 (allies).
+        // 10 (role opponent) + 4×4 (other enemies) + 2×4 (allies).
         score.Should().Be(34);
         score.Should().Be(CompositionSimilarityScorer.MaxScore(criteria, Weights));
     }
@@ -170,7 +170,7 @@ public sealed class CompositionSimilarityScorerTests
             allies: new Dictionary<string, int> { ["TOP"] = 86, ["MIDDLE"] = 157 },
             enemies: new Dictionary<string, int> { ["MIDDLE"] = 238, ["BOTTOM"] = 51 });
 
-        // Enemy MIDDLE is the lane opponent (10), enemy BOTTOM 4, ally TOP 2;
+        // Enemy MIDDLE is the role opponent (10), enemy BOTTOM 4, ally TOP 2;
         // the ally entry at the player's own position is ignored.
         CompositionSimilarityScorer.MaxScore(criteria, Weights).Should().Be(16);
     }
