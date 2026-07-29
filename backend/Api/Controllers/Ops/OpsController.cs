@@ -16,6 +16,7 @@ public sealed class OpsController(
     IChampionStatsQueryService championStatsQueryService,
     IMatchesOverTimeQueryService matchesOverTimeQueryService,
     ITableStatsQueryService tableStatsQueryService,
+    IDbStorageHistoryQueryService dbStorageHistoryQueryService,
     IProcessRunsQueryService processRunsQueryService,
     IProcessIterationsQueryService processIterationsQueryService,
     ILogsQueryService logsQueryService,
@@ -117,6 +118,23 @@ public sealed class OpsController(
     {
         var rows = await tableStatsQueryService.GetAsync(ct);
         return Ok(rows);
+    }
+
+    /// <summary>
+    /// Storage growth over the last <paramref name="windowDays"/> days plus the
+    /// disk-exhaustion forecast (#925), read entirely from the daily snapshots — this
+    /// endpoint never scans <c>pg_catalog</c> itself, unlike <c>db/tables</c> above.
+    /// Returns an empty model (not 404) before the snapshot step has ever run.
+    /// </summary>
+    [HttpGet("db/history")]
+    [ProducesResponseType(typeof(DbStorageHistoryReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<DbStorageHistoryReadModel>> GetDbStorageHistoryAsync(
+        [FromQuery] int? windowDays,
+        CancellationToken ct)
+    {
+        var readModel = await dbStorageHistoryQueryService.GetAsync(windowDays, ct);
+        return Ok(readModel);
     }
 
     /// <summary>

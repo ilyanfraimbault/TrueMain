@@ -69,6 +69,11 @@ public static class MongoLoggingServiceCollectionExtensions
         services.TryAddSingleton<IRiotApiUsageQuery, RiotApiUsageQuery>();
         services.AddHostedService<RiotApiMetricsSink>();
 
+        // Daily Postgres storage snapshots (#925). No sink and no channel: the
+        // Ingestor's snapshot step calls the store directly once per pipeline run, and
+        // the Api only reads it for the admin growth charts.
+        services.TryAddSingleton<IDbStorageSnapshotStore, DbStorageSnapshotStore>();
+
         return services;
     }
 }

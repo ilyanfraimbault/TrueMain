@@ -47,6 +47,14 @@ public sealed class MongoLoggingOptions
     public string RiotApiCallsCollection { get; set; } = "riot_api_call_rollups";
 
     /// <summary>
+    /// Collection holding the daily per-table Postgres storage snapshots (#925),
+    /// written by the Ingestor's storage-snapshot step and read by the admin database
+    /// panel's growth charts and disk forecast. Same database as the logs, for the same
+    /// one-connection reason as the rollups above.
+    /// </summary>
+    public string DbTableSizeSnapshotsCollection { get; set; } = "db_table_size_snapshots";
+
+    /// <summary>
     /// Master switch. When false (or when <see cref="ConnectionString"/> is
     /// blank) the provider is still registered but drops every record, so
     /// persisted logging can be turned off without code changes.
@@ -97,6 +105,17 @@ public sealed class MongoLoggingOptions
     /// <see cref="TimeSpan.Zero"/> or negative to disable the TTL index.
     /// </summary>
     public TimeSpan RiotApiCallsRetention { get; set; } = TimeSpan.FromDays(14);
+
+    /// <summary>
+    /// Retention window for the <c>db_table_size_snapshots</c> collection (#925),
+    /// enforced by a native Mongo TTL index on <c>snapshotDateUtc</c>. Defaults to 365
+    /// days: unlike the other metrics collections this one is read to *extrapolate*,
+    /// and a linear fit over a fortnight would swing wildly with one backfill or one
+    /// retention pass. A year of daily rows is ~60 tables × 365 documents — negligible,
+    /// and it lets the forecast see a full season of growth. Set to
+    /// <see cref="TimeSpan.Zero"/> or negative to disable the TTL index.
+    /// </summary>
+    public TimeSpan DbTableSizeSnapshotsRetention { get; set; } = TimeSpan.FromDays(365);
 
     /// <summary>
     /// Collection holding lossless crash reports (one per process crash), written

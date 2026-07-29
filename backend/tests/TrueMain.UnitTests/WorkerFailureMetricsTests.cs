@@ -38,7 +38,8 @@ public sealed class WorkerFailureMetricsTests
         ("ChampionBanAggregation", JobMode.BanAggregationOnly),
         ("ChampionPowerspikeAggregation", JobMode.PowerspikeAggregationOnly),
         ("AccountRefresh", JobMode.AccountRefreshOnly),
-        ("MatchDataRetention", JobMode.MatchDataRetentionOnly)
+        ("MatchDataRetention", JobMode.MatchDataRetentionOnly),
+        ("StorageSnapshot", JobMode.StorageSnapshotOnly)
     ];
 
     private static readonly string[] ThrowingProcessNames = ["Discovery", "MatchIngestion"];

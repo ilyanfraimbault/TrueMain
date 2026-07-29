@@ -84,6 +84,10 @@ services:
       ConnectionStrings__TrueMainMigrations: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Application Name=truemain-migrator
       MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
       Ops__ApiKey: "${OPS_API_KEY:?set OPS_API_KEY before deploying}"
+      # Volume size the storage forecast projects against (#925). Unset means no
+      # forecast at all — the admin panel says so rather than fitting a line to a
+      # guessed capacity. Set STORAGE_DISK_CAPACITY_BYTES to the real disk size.
+      StorageHistory__DiskCapacityBytes: "${STORAGE_DISK_CAPACITY_BYTES:-0}"
       Cors__Origins__0: "http://localhost:3001"
       MongoLogging__CrashFilePath: /home/app/crashes
       MongoLogging__LogsRetention: "30.00:00:00"

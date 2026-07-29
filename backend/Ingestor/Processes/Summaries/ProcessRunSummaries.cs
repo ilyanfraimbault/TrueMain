@@ -161,6 +161,17 @@ public sealed record BanAggregationSummary(
     int BanRows,
     int ScopeRows) : IProcessRunSummary;
 
+/// <summary>
+/// Daily storage snapshot outcome (#925). <see cref="Written"/> is 0 rather than
+/// <see cref="Tables"/> when Mongo is unconfigured, which is how an environment with
+/// no metrics store shows up on the admin process page — a completed run that
+/// persisted nothing, not a failure.
+/// </summary>
+public sealed record StorageSnapshotSummary(
+    int Tables,
+    int Written,
+    long DatabaseBytes) : IProcessRunSummary;
+
 /// <summary>The patches retention kept for one platform.</summary>
 public sealed record RetainedPatchesSummary(string PlatformId, IReadOnlyList<string> Patches);
 

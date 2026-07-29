@@ -146,6 +146,23 @@ pick rate purely to make them addable was rejected: it would put two different p
 dimensions rather than games: ~22.2k rows, a few MB, versus a self-join over ~35 GB running single-threaded.
 Reads became ~13-row indexed selects — #606.
 
+**Daily storage snapshots go to Mongo and are keyed on the day, not the run.**
+Storage history is append-only, time-ordered, ops-only telemetry with no relational joins — the exact
+criteria that put logs and metrics in Mongo below — and a native TTL index prunes it for free instead of
+needing its own retention arm in `MatchDataRetentionProcess`. Keying the document on `(day, table)` rather
+than on the capture instant is what makes the writer safe to run every pipeline pass: prod runs the ingestor
+`RunOnce` + `restart: unless-stopped`, so it re-runs back-to-back many times a day, and a day-keyed upsert
+turns that into "refresh today's reading" instead of "append another point". No scheduler, no "have I run
+today" guard, and a container restart can neither lose nor duplicate a day — #925.
+
+**The disk forecast is absent rather than approximate when the data can't support it.**
+It declines to project on fewer than 3 days of history, on flat or shrinking storage, on a crossing more than
+a century out, and when no disk capacity is configured; the panel prints which of those applies. A forecast is
+the one number on the admin that is invented rather than measured, and an operator who cannot tell a fitted
+date from a placeholder will either ignore all of them or act on a fabricated one. Related: the projected
+figure is measured `pg_database_size`, not the sum of `pg_total_relation_size` over public tables — the sum
+excludes catalogs and would under-report what actually fills the volume that #680 filled — #925.
+
 **Logs and metrics live in MongoDB, not Postgres, with two different guarantees.**
 Mongo has native TTL retention and suits append-heavy time-ordered payloads. `logs` is lossy (bounded channel,
 batched, drop-on-overflow — fine for diagnostics); `audit_events` is lossless and synchronous. Existing
