@@ -199,6 +199,10 @@ public sealed class RunePageDeduplicationProcess(
             return BatchResult.Empty;
         }
 
+        // Counted on the `keep` side, not on the DELETE below: they are guaranteed equal
+        // here — the six-column unique index means one keep row and at most one loser
+        // row per combo — and taking it from the UPDATE keeps the number meaningful even
+        // if a future change makes the delete broader.
         var foldedPatterns = await db.Database.ExecuteSqlRawAsync(
             """
             UPDATE champion_aggregate_patterns AS keep
@@ -266,6 +270,13 @@ public sealed class RunePageDeduplicationProcess(
     /// collision, so swapping the pair cannot hit the unique index. It touches only the
     /// rows actually out of order, so a steady-state run writes nothing.
     /// </summary>
+    /// <remarks>
+    /// Deliberately unbatched, unlike the merge loop: what made batching matter there was
+    /// the pattern-row fan-out (~25 rows rewritten per group), which this pass does not
+    /// have — it swaps two integers per dimension row and touches nothing else. At the
+    /// current ~84k rows that is one short statement. Worth batching the same way if the
+    /// dimension ever grows by an order of magnitude.
+    /// </remarks>
     private static Task<int> NormalizeRemainingAsync(TrueMainDbContext db, CancellationToken ct)
         => db.Database.ExecuteSqlRawAsync(
             """
