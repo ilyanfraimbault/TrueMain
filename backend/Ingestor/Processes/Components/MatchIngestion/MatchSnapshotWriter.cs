@@ -121,6 +121,7 @@ public sealed class MatchSnapshotWriter(
 
         session.Matches.Add(mapped.Match);
         session.MatchParticipants.AddRange(mapped.Participants);
+        session.MatchBans.AddRange(mapped.Bans);
 
         var perkSelections = mapped.PerkSelections.Select(selection => new ParticipantPerkSelection
         {

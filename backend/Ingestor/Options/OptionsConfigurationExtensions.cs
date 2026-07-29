@@ -201,6 +201,12 @@ public static class OptionsConfigurationExtensions
             .Validate(options => options.MaxMatchesPerRun >= 0, "SynergyAggregation:MaxMatchesPerRun must be >= 0.")
             .ValidateOnStart();
 
+        services.AddOptions<BanAggregationOptions>()
+            .Bind(configuration.GetSection(BanAggregationOptions.SectionName))
+            .Validate(options => options.MatchBatchSize > 0, "BanAggregation:MatchBatchSize must be greater than 0.")
+            .Validate(options => options.MaxMatchesPerRun >= 0, "BanAggregation:MaxMatchesPerRun must be >= 0.")
+            .ValidateOnStart();
+
         services.AddOptions<JobOptions>()
             .Bind(configuration.GetSection(JobOptions.SectionName))
             .Validate(options => JobModeParser.TryParse(options.Mode, out _),

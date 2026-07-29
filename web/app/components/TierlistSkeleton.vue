@@ -31,7 +31,8 @@ const GROUPS = [6, 9, 7, 5, 3]
             <USkeleton class="size-8 rounded" />
             <div class="flex flex-col gap-1">
               <USkeleton class="h-4 w-20" />
-              <USkeleton class="h-3 w-24" />
+              <!-- Matches the "52% WR · 12% PR · 8% BR" stat line width (#920). -->
+              <USkeleton class="h-3 w-32" />
             </div>
           </div>
         </li>

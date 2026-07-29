@@ -46,5 +46,15 @@ public sealed record ChampionTrendPoint
     /// </summary>
     public double PickRate { get; init; }
 
+    /// <summary>
+    /// Share of the patch's observed matches that banned this champion, across all
+    /// elo bands (the trend endpoint carries no rank filter). <see langword="null"/>
+    /// on any patch older than ban ingestion (#920) — see
+    /// <see cref="ChampionSummaryReadModel.BanRate"/>. Early on, most of the series
+    /// is null, so consumers must handle a partly-null series rather than assume the
+    /// column is present on every point.
+    /// </summary>
+    public double? BanRate { get; init; }
+
     public int Games { get; init; }
 }

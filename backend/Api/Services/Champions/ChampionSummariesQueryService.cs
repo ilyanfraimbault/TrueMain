@@ -184,6 +184,11 @@ public sealed class ChampionSummariesQueryService(
             "{Surface} load_top_builds buckets={Buckets} elapsed={ElapsedMs}ms",
             Surface, topBuilds.Count, topBuildsSw.ElapsedMilliseconds);
 
+        // Null for every patch older than #920: the scope simply has no rows, and
+        // BanRate stays null so the UI shows a gap instead of a fabricated 0%.
+        var banScopes = await ChampionBanRateQueries.LoadAsync(db, [activePatch], bracketBands, ct);
+        var banScope = banScopes.GetValueOrDefault(activePatch);
+
         // Denominators are derived from the already-aggregated groups: lane
         // totals for PickRate and champion totals for LanePlayRate. Each group
         // already carries its per-(champion,lane) games sum, so re-summing the
@@ -217,6 +222,7 @@ public sealed class ChampionSummariesQueryService(
                     PickRate = RateMath.Rate(group.Games, laneTotal),
                     LanePlayRate = RateMath.Rate(group.Games, championTotal),
                     TrueMainCount = group.TrueMainCount,
+                    BanRate = banScope?.RateFor(group.ChampionId),
                     Position = group.Position,
                     PatchVersion = activePatch,
                     LastUpdatedAtUtc = group.LastUpdatedAtUtc,

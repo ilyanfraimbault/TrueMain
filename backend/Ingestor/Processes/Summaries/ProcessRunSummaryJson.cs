@@ -27,6 +27,7 @@ namespace Ingestor.Processes.Summaries;
 [JsonSerializable(typeof(TeamPositionCorrectionSummary))]
 [JsonSerializable(typeof(MatchAggregationSummary))]
 [JsonSerializable(typeof(SynergyAggregationSummary))]
+[JsonSerializable(typeof(BanAggregationSummary))]
 [JsonSerializable(typeof(MatchDataRetentionSummary))]
 public sealed partial class ProcessRunSummaryJsonContext : JsonSerializerContext;
 

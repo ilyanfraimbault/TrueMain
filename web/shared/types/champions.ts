@@ -8,6 +8,13 @@ export interface ChampionSummaryResponse {
   pickRate: number
   lanePlayRate: number
   trueMainCount: number
+  /**
+   * Share of observed matches that banned this champion, or null on a patch older
+   * than ban ingestion (#920). Null means "not observed", not "never banned" —
+   * render the gap, never a 0%. Not addable to `pickRate`: the two have different
+   * denominators (every observed match vs tracked mains' games at this lane).
+   */
+  banRate: number | null
   /** OPGG-style performance tier: 'S' | 'A' | 'B' | 'C' | 'D' (patch-relative). */
   tier: string
   position: string
@@ -51,6 +58,8 @@ export interface ChampionTierEntry {
   winRate: number
   /** Share of TrueMain games on this position taken by this champion. */
   pickRate: number
+  /** Share of observed matches that banned this champion; null before #920's data. */
+  banRate: number | null
 }
 
 export interface ChampionResponse {
@@ -90,6 +99,12 @@ export interface ChampionTrendPoint {
   patch: string
   winRate: number
   pickRate: number
+  /**
+   * Share of the patch's observed matches that banned this champion, all elo bands
+   * (the trend endpoint takes no rank filter). Null on any patch older than ban
+   * ingestion (#920) — early on, most of the series is null.
+   */
+  banRate: number | null
   games: number
 }
 

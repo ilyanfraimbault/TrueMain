@@ -36,6 +36,26 @@ public sealed record ChampionSummaryReadModel
     public int TrueMainCount { get; init; }
 
     /// <summary>
+    /// Share of the observed matches on this patch that banned the champion (#920).
+    /// Lane-independent — a ban happens before roles exist — so every row of a
+    /// champion carries the same value.
+    ///
+    /// <para>
+    /// <see langword="null"/> means "not observed", not "never banned": bans are
+    /// read from <c>champion_ban_stats</c>, which only has rows for matches ingested
+    /// since the feature shipped, and Riot payloads are not retained so older patches
+    /// could not be backfilled. Clients must render the gap rather than a 0%.
+    /// </para>
+    ///
+    /// <para>
+    /// Its denominator is every observed match, unlike <see cref="PickRate"/>, whose
+    /// denominator is tracked mains' games at this lane. The two are therefore not
+    /// addable — which is why no pick+ban "presence" figure is offered.
+    /// </para>
+    /// </summary>
+    public double? BanRate { get; init; }
+
+    /// <summary>
     /// OPGG-style performance tier (<c>S</c> / <c>A</c> / <c>B</c> / <c>C</c> /
     /// <c>D</c>) for this <c>(champion, position)</c> on the active patch.
     /// Computed by <see cref="Services.Champions.ChampionTierCalculator"/> from

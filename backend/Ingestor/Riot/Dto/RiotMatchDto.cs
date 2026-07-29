@@ -42,6 +42,38 @@ public class RiotMatchInfoDto
 
     [JsonPropertyName("participants")]
     public List<RiotParticipantDto> Participants { get; set; } = new();
+
+    [JsonPropertyName("teams")]
+    public List<RiotTeamDto> Teams { get; set; } = new();
+}
+
+/// <summary>
+/// The per-team block of a match-v5 payload. Only the champion-select bans are
+/// bound (#920) — objectives and the team-level win flag are already derivable
+/// from <see cref="RiotParticipantDto"/>, so binding them would duplicate state
+/// the participant rows already carry.
+/// </summary>
+public class RiotTeamDto
+{
+    [JsonPropertyName("teamId")]
+    public int TeamId { get; set; }
+
+    [JsonPropertyName("bans")]
+    public List<RiotBanDto> Bans { get; set; } = new();
+}
+
+public class RiotBanDto
+{
+    /// <summary>
+    /// The banned champion, or <c>-1</c> when that ban slot went unused (a player
+    /// let the timer run out). Riot emits the slot either way, so the sentinel has
+    /// to be filtered out before the ban is stored.
+    /// </summary>
+    [JsonPropertyName("championId")]
+    public int ChampionId { get; set; }
+
+    [JsonPropertyName("pickTurn")]
+    public int PickTurn { get; set; }
 }
 
 public class RiotParticipantDto

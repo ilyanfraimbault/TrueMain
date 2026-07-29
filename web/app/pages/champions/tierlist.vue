@@ -4,7 +4,7 @@ import { POSITION_BY_VALUE, isChampionPosition, type ChampionPosition } from '~/
 import { ELO_BRACKET_ALL, normalizeEloBracket } from '~/utils/elo-brackets'
 import { isLoadingStatus } from '~/utils/async-data'
 import { describeFetchError } from '~/utils/errors'
-import { formatPercentage } from '~~/shared/utils/ddragon'
+import { formatPercentage, formatPercentageOrDash } from '~~/shared/utils/ddragon'
 
 useSeoMeta({
   title: 'Champion Tier List',
@@ -183,7 +183,7 @@ function championDestination(entry: { championId: number, position: string }) {
               >
                 <NuxtLink
                   :to="championDestination(entry)"
-                  :aria-label="`View ${entry.name} (${formatPercentage(entry.winRate, 0)} WR, ${formatPercentage(entry.pickRate, 0)} PR)`"
+                  :aria-label="`View ${entry.name} (${formatPercentage(entry.winRate, 0)} WR, ${formatPercentage(entry.pickRate, 0)} PR, ${formatPercentageOrDash(entry.banRate, 0)} BR)`"
                   class="glass-hover flex items-center gap-2 rounded-md border border-default/60 bg-elevated/40 px-2 py-1.5"
                 >
                   <SkeletonImage
@@ -205,8 +205,10 @@ function championDestination(entry: { championId: number, position: string }) {
                         class="size-[14px] shrink-0"
                       />
                     </div>
+                    <!-- BR shows an em dash on patches predating ban ingestion
+                         (#920) rather than a misleading 0%. -->
                     <span class="text-xs text-muted tabular-nums">
-                      {{ formatPercentage(entry.winRate, 0) }} WR · {{ formatPercentage(entry.pickRate, 0) }} PR
+                      {{ formatPercentage(entry.winRate, 0) }} WR · {{ formatPercentage(entry.pickRate, 0) }} PR · {{ formatPercentageOrDash(entry.banRate, 0) }} BR
                     </span>
                   </div>
                 </NuxtLink>

@@ -221,6 +221,10 @@ public sealed class MatchDataRetentionProcess(
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.ChampionSynergyBaselineStats
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
+        observedPatches.UnionWith(await db.ChampionBanStats
+            .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
+        observedPatches.UnionWith(await db.BanScopeTotals
+            .AsNoTracking().Select(total => total.Patch).Distinct().ToListAsync(ct));
 
         // Rank the observed patch strings by parsed version and keep the N most
         // recent. Unparseable strings are never deleted — better to leave an odd
@@ -281,7 +285,14 @@ public sealed class MatchDataRetentionProcess(
                 result.DeletedSynergyStats + await db.ChampionSynergyStats
                     .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct)
                     + await db.ChampionSynergyBaselineStats
-                        .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct));
+                        .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct),
+                // Same reasoning as the synergy pair: the ban counts and the match
+                // totals they are divided by must leave together, or the survivor
+                // would be read as a rate over a denominator that is gone.
+                result.DeletedBanStats + await db.ChampionBanStats
+                    .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct)
+                    + await db.BanScopeTotals
+                        .Where(total => total.Patch == stalePatch).ExecuteDeleteAsync(ct));
             await transaction.CommitAsync(ct);
         }
 
@@ -289,12 +300,13 @@ public sealed class MatchDataRetentionProcess(
         {
             logger.LogInformation(
                 "Aggregate retention removed {DeletedScopes} scopes, {DeletedMatchups} matchup, "
-                + "{DeletedPowerspikes} powerspike and {DeletedSynergies} synergy rows for stale patches "
-                + "{StalePatches} (keeping {RetainedPatches}).",
+                + "{DeletedPowerspikes} powerspike, {DeletedSynergies} synergy and {DeletedBans} ban "
+                + "rows for stale patches {StalePatches} (keeping {RetainedPatches}).",
                 result.DeletedScopes,
                 result.DeletedMatchupStats,
                 result.DeletedPowerspikeCurveStats + result.DeletedPowerspikeEventStats,
                 result.DeletedSynergyStats,
+                result.DeletedBanStats,
                 string.Join("|", stalePatches),
                 string.Join("|", retainedVersions.OrderDescending().Select(version => version.ToString())));
         }
@@ -427,7 +439,7 @@ public sealed class MatchDataRetentionProcess(
         var deletedParticipants = 0;
 
         // Delete in bounded batches, one transaction each: the cascading removal of
-        // timeline snapshots / kill positions / jungle clears / perk selections makes
+        // timeline snapshots / kill positions / jungle clears / perk selections / bans makes
         // a single unbounded delete a lock and WAL hazard, especially right after a
         // disk-full incident. Each committed batch frees space and lets an interrupted
         // drain resume next run.
@@ -488,6 +500,7 @@ public sealed class MatchDataRetentionProcess(
             aggregateDeletion.DeletedPowerspikeCurveStats,
             aggregateDeletion.DeletedPowerspikeEventStats,
             aggregateDeletion.DeletedSynergyStats,
+            aggregateDeletion.DeletedBanStats,
             prunedPowerspikeEvents,
             retentionPlan.RetainedPatchesByPlatform
                 .OrderBy(entry => entry.Key)
@@ -512,16 +525,18 @@ public sealed class MatchDataRetentionProcess(
         int DeletedMatchupStats,
         int DeletedPowerspikeCurveStats,
         int DeletedPowerspikeEventStats,
-        int DeletedSynergyStats)
+        int DeletedSynergyStats,
+        int DeletedBanStats)
     {
-        public static AggregateDeletionResult Empty { get; } = new(0, 0, 0, 0, 0);
+        public static AggregateDeletionResult Empty { get; } = new(0, 0, 0, 0, 0, 0);
 
         public int TotalDeleted
             => DeletedScopes
                 + DeletedMatchupStats
                 + DeletedPowerspikeCurveStats
                 + DeletedPowerspikeEventStats
-                + DeletedSynergyStats;
+                + DeletedSynergyStats
+                + DeletedBanStats;
     }
 
     private sealed record RetentionPlan(

@@ -64,5 +64,19 @@ public class Match
     /// </summary>
     public bool SynergyAggregated { get; set; }
 
+    /// <summary>
+    /// Set once this match has been folded into the champion ban aggregates (#920),
+    /// the same one-fold-per-match gate as <see cref="SynergyAggregated"/>. Its
+    /// migration backfills every existing row to <see langword="true"/> — and here
+    /// that is not the double-counting guard it was for
+    /// <see cref="MatchupLeadAggregated"/>, but a correctness one: bans could not be
+    /// backfilled (Riot payloads are not kept), so a match ingested before #920 has
+    /// no <see cref="MatchBan"/> rows at all. Folding it would add one to the ban
+    /// denominator while contributing no bans, deflating every champion's rate for
+    /// as long as those matches are retained. Dies with the match on retention, so
+    /// an aged-out patch's ban rows simply freeze.
+    /// </summary>
+    public bool BansAggregated { get; set; }
+
     public ICollection<MatchParticipant> Participants { get; set; } = new List<MatchParticipant>();
 }

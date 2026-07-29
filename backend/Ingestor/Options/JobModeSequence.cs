@@ -51,6 +51,11 @@ public static class JobModeSequence
         // between the two is arbitrary; kept adjacent because they read the same
         // slice of match_participants and benefit from a warm cache.
         JobMode.SynergyAggregationOnly,
+        // Folds each match's champion-select bans into champion_ban_stats (#920).
+        // Must run after EloBracketEnrichment, whose stamping decides which elo
+        // bands a match is counted in — a match folded before its participants are
+        // stamped lands in the ALL band only, and the fold is one-shot.
+        JobMode.BanAggregationOnly,
         // Folds each newly-ingested match into the powerspike aggregates (#694)
         // while its dense per-minute snapshots still exist, so MatchDataRetention
         // can then prune them to the canonical marks.
