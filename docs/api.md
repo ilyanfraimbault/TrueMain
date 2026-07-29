@@ -868,8 +868,8 @@ process de snapshot n'a pas tourné)
 - `forecast` : **`null`** s'il y a moins de 3 jours d'historique, si le stockage est
   stable ou décroissant, ou si `StorageHistory:DiskCapacityBytes` n'est pas configuré.
   Aucune valeur de remplacement n'est inventée.
-- `projectedAtUtc` : `null` = échéance à plus d'un siècle (« non prévisible à ce
-  rythme ») ; une date passée = seuil déjà franchi.
+- `projectedAtUtc` : `null` = échéance à plus d'un siècle **dans un sens ou dans
+  l'autre** (aucune date exploitable à ce rythme) ; une date passée = seuil déjà franchi.
 
 ## `GET /ops/process-runs`
 

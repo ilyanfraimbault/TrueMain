@@ -101,9 +101,9 @@ public sealed record DbStorageThresholdCrossing
     public long ThresholdBytes { get; init; }
 
     /// <summary>
-    /// Projected crossing date. Null when it is more than a century out — "not
-    /// foreseeable at this rate" rather than a spurious far-future date. A date in the
-    /// past means the level is already breached.
+    /// Projected crossing date. Null when it lands more than a century away in either
+    /// direction — no meaningful date at this rate, rather than a spurious one. A date
+    /// in the past means the level is already breached.
     /// </summary>
     public DateTime? ProjectedAtUtc { get; init; }
 }

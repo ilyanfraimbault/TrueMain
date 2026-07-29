@@ -143,7 +143,7 @@ const forecastAbsenceReason = computed(() => {
 
 function crossingLabel(projectedAtUtc: string | null): string {
   if (projectedAtUtc === null) {
-    return 'Not foreseeable at this rate'
+    return 'No date at this rate'
   }
   const date = new Date(projectedAtUtc)
   const label = date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })

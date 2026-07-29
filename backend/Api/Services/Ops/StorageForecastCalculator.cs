@@ -72,9 +72,10 @@ internal static class StorageForecastCalculator
         var crossings = thresholdsBytes
             .Select(threshold => new StorageThresholdCrossing(
                 threshold,
-                // Clamped to a century out: a near-flat slope can push the crossing
-                // millions of years away, which overflows DateTime and reads as noise
-                // anyway. Beyond the clamp the honest answer is "not foreseeable".
+                // Clamped to a century in EITHER direction: a near-flat slope pushes
+                // the crossing astronomically far out, and — for a threshold already
+                // below the fitted line — astronomically far back. Both overflow
+                // DateTime, and both are noise rather than information.
                 ProjectCrossing(origin, slope, intercept, threshold)))
             .ToList();
 
@@ -83,10 +84,24 @@ internal static class StorageForecastCalculator
             crossings);
     }
 
+    /// <summary>
+    /// Days from <paramref name="origin"/> until the fitted line reaches
+    /// <paramref name="threshold"/>, as a date.
+    /// </summary>
+    /// <remarks>
+    /// The magnitude clamp is symmetric on purpose. Clamping only the positive side
+    /// left the mirror case live: a threshold well below the fitted intercept — i.e.
+    /// a fill level already breached, the very situation this panel exists to surface
+    /// — combined with a small-but-positive slope yields a hugely negative
+    /// <c>days</c>, and <see cref="DateTime.AddDays"/> then threw
+    /// <see cref="ArgumentOutOfRangeException"/>. Nothing upstream caught it, so it
+    /// took down the whole <c>GET /ops/db/history</c> response, charts included, not
+    /// just the forecast card.
+    /// </remarks>
     private static DateTime? ProjectCrossing(DateTime origin, double slope, double intercept, long threshold)
     {
         var days = (threshold - intercept) / slope;
-        return days > 36_500 || double.IsNaN(days) || double.IsInfinity(days)
+        return double.IsNaN(days) || double.IsInfinity(days) || Math.Abs(days) > 36_500
             ? null
             : origin.AddDays(days);
     }
@@ -102,8 +117,8 @@ internal sealed record StorageForecast(
 
 /// <summary>
 /// When the fitted line reaches <paramref name="ThresholdBytes"/>.
-/// <paramref name="ProjectedAtUtc"/> is null when the crossing is further out than a
-/// century — "not foreseeable at this rate" rather than a spurious far-future date.
-/// A date in the past means the threshold has already been passed.
+/// <paramref name="ProjectedAtUtc"/> is null when the crossing lands more than a
+/// century away in either direction — no meaningful date at this rate, rather than a
+/// spurious one. A date in the past means the threshold has already been passed.
 /// </summary>
 internal sealed record StorageThresholdCrossing(long ThresholdBytes, DateTime? ProjectedAtUtc);

@@ -133,7 +133,7 @@ export interface DbStorageForecast {
 export interface DbStorageThresholdCrossing {
   percent: number
   thresholdBytes: number
-  /** Null = further out than a century. A past date = already breached. */
+  /** Null = no meaningful date at this rate (over a century either way). A past date = already breached. */
   projectedAtUtc: string | null
 }
 
@@ -208,15 +208,19 @@ export const PIPELINE_CHAIN: readonly string[] = [
   'ManualSeed',
   'Harvest',
   'Scoring',
+  'MainActivity',
   'MatchIngestion',
   'MatchTeamPositionCorrection',
   'MainAnalysis',
   'MatchParticipantEloBracketEnrichment',
   'ChampionPatternAggregation',
   'ChampionMatchupLeadAggregation',
+  'ChampionSynergyAggregation',
+  'ChampionBanAggregation',
   'ChampionPowerspikeAggregation',
   'AccountRefresh',
   'MatchDataRetention',
+  'StorageSnapshot',
 ]
 
 /**

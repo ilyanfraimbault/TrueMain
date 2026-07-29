@@ -108,6 +108,25 @@ public sealed class StorageForecastCalculatorTests
     }
 
     [Fact]
+    public void Project_ReportsNoCrossing_WhenTheThresholdWasPassedFurtherBackThanACentury()
+    {
+        // The mirror of the century-out case, and the one that used to throw: a
+        // threshold far below the fitted intercept combined with a barely-positive
+        // slope puts the crossing hundreds of thousands of years in the past, which
+        // underflows DateTime and took the whole /ops/db/history endpoint down with
+        // it — not just the forecast card. Exactly the "already near capacity, growth
+        // has plateaued" shape this panel exists to surface (#680).
+        var points = Enumerable.Range(0, 30)
+            .Select(day => new StorageForecastPoint(Day0.AddDays(day), 500_000_000_000 + day))
+            .ToList();
+
+        var act = () => StorageForecastCalculator.Project(points, [1_000]);
+
+        act.Should().NotThrow();
+        act()!.Crossings[0].ProjectedAtUtc.Should().BeNull();
+    }
+
+    [Fact]
     public void Project_IsRobustToNoiseAroundTheTrend()
     {
         // Real snapshots jitter (vacuum, TOAST churn). The fit must track the trend
