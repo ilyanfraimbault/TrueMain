@@ -23,5 +23,6 @@ public enum JobMode
     MainActivityOnly = 14,
     SynergyAggregationOnly = 15,
     BanAggregationOnly = 16,
-    StorageSnapshotOnly = 17
+    StorageSnapshotOnly = 17,
+    RunePageDeduplicationOnly = 18
 }
