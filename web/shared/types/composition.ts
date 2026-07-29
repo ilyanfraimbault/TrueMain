@@ -46,7 +46,6 @@ export interface CompositionBuildRecommendation {
   starterItems: BuildItemSet | null
   boots: BuildItemSet | null
   corePath: BuildItemPath | null
-  situationalItems: BuildItemSet[]
   summonerSpells: BuildSummonerSpells | null
   skillOrder: BuildSkillOrder | null
   /** First item of `corePath` (the build-tree root), 0 when unresolved. */
@@ -60,10 +59,10 @@ export interface CompositionBuildResponse {
   position: string
   patch: string | null
   eloBracket: string
-  /** True when the draft pinned the lane opponent (hard requirement). */
+  /** True when the draft pinned the role opponent (hard requirement). */
   matchupRequested: boolean
   /**
-   * False only when the lane opponent was requested and no recorded game has
+   * False only when the role opponent was requested and no recorded game has
    * that matchup — the client then falls back to the champion's baseline build.
    */
   matchupFound: boolean

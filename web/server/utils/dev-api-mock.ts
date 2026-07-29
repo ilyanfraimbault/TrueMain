@@ -1584,7 +1584,7 @@ async function mockCompositionBuild(id: number, body?: unknown): Promise<Composi
   const rng = mulberry32(s.id * 131 + 7)
   const archetype = ARCHETYPES[s.archetype]
 
-  // Mirror the backend's matchup requirement from the request body: the lane
+  // Mirror the backend's matchup requirement from the request body: the role
   // opponent is the enemy slot at the player's own position. A deterministic
   // sliver of opponents (id % 23 === 0, e.g. Kayn 141… pick around to find
   // one) reads as "never recorded" so the fallback path can be eyeballed.
@@ -1594,18 +1594,18 @@ async function mockCompositionBuild(id: number, body?: unknown): Promise<Composi
     enemies?: Array<{ championId?: number, position?: string }>
   }
   const position = typeof draft.position === 'string' ? draft.position.toUpperCase() : s.position
-  const laneOpponent = (draft.enemies ?? []).find(slot =>
+  const roleOpponent = (draft.enemies ?? []).find(slot =>
     typeof slot.position === 'string' && slot.position.toUpperCase() === position)
-  const matchupRequested = laneOpponent?.championId !== undefined
-  const matchupFound = !matchupRequested || (laneOpponent!.championId! % 23 !== 0)
+  const matchupRequested = roleOpponent?.championId !== undefined
+  const matchupFound = !matchupRequested || (roleOpponent!.championId! % 23 !== 0)
   const slotCount = (draft.allies?.length ?? 0) + (draft.enemies?.length ?? 0)
 
   // Fewer games as the draft gets more constrained, so the thin-data state is
   // reachable in mock mode (the real API returns the true selected count).
   // A second deterministic sliver of opponents (id % 17 === 0, e.g. Teemo)
-  // comes back as a barely-recorded matchup, so the builder's thin-sample
+  // comes back as a barely-recorded matchup, so the matchup page's thin-sample
   // fallback (#921) is reachable without filling all eight draft slots.
-  const thinMatchup = matchupRequested && matchupFound && laneOpponent!.championId! % 17 === 0
+  const thinMatchup = matchupRequested && matchupFound && roleOpponent!.championId! % 17 === 0
   const games = thinMatchup ? 3 : Math.max(6, Math.round(100 - slotCount * 11))
   const wins = Math.round(games * Math.min(0.6, s.wr + rng() * 0.02))
   const set = (itemIds: number[], shareOf: number) => ({
@@ -1637,7 +1637,6 @@ async function mockCompositionBuild(id: number, body?: unknown): Promise<Composi
         starterItems: null,
         boots: null,
         corePath: null,
-        situationalItems: [],
         summonerSpells: null,
         skillOrder: null,
         firstItemId: 0,
@@ -1686,7 +1685,6 @@ async function mockCompositionBuild(id: number, body?: unknown): Promise<Composi
       starterItems: set(archetype.starterItems, 0.6 + rng() * 0.1),
       boots: set([archetype.boots[0]!], 0.55 + rng() * 0.1),
       corePath: set(archetype.items.slice(0, 3), 0.38 + rng() * 0.1),
-      situationalItems: archetype.items.slice(3, 8).map(item => set([item], 0.1 + rng() * 0.22)),
       summonerSpells: {
         spell1Id: archetype.spells[0],
         spell2Id: archetype.spells[1],

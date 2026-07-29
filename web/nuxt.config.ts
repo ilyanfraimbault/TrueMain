@@ -46,7 +46,9 @@ export default defineNuxtConfig({
     sources: ['/__sitemap__/urls'],
     // `/truemains/favorites` renders a per-visitor localStorage list — there is
     // nothing stable for a crawler to index (the page also sets `noindex`).
-    exclude: ['/dev/**', '/truemains/favorites'],
+    // `/builder` is the legacy redirect to `/matchup` (#939) — kept for old
+    // links, not something to advertise.
+    exclude: ['/dev/**', '/truemains/favorites', '/builder'],
   },
   // On-demand social-share artwork (#926). This was `enabled: false` from the
   // SEO foundation (#551) for one reason only — "no dedicated share artwork

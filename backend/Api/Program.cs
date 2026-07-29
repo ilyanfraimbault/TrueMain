@@ -158,16 +158,13 @@ builder.Services.AddOptions<StorageHistoryOptions>()
 builder.Services.AddOptions<CompositionSearchOptions>()
     .Bind(builder.Configuration.GetSection(CompositionSearchOptions.SectionName))
     .Validate(
-        options => options.LaneOpponentWeight >= 0 && options.EnemyWeight >= 0 && options.AllyWeight >= 0,
+        options => options.RoleOpponentWeight >= 0 && options.EnemyWeight >= 0 && options.AllyWeight >= 0,
         "CompositionSearch weights must be >= 0.")
     .Validate(options => options.TopK > 0, "CompositionSearch:TopK must be > 0.")
     .Validate(
         options => options.CandidatePoolCap >= options.TopK,
         "CompositionSearch:CandidatePoolCap must be >= TopK.")
     .Validate(options => options.WinWeight >= 1d, "CompositionSearch:WinWeight must be >= 1.")
-    .Validate(
-        options => options.SituationalItemCount >= 0,
-        "CompositionSearch:SituationalItemCount must be >= 0.")
     .ValidateOnStart();
 builder.Services.AddOptions<DatabaseOptions>()
     .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName))

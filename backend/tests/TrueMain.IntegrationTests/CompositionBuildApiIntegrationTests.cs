@@ -23,7 +23,7 @@ namespace TrueMain.IntegrationTests;
 public sealed class CompositionBuildApiIntegrationTests
 {
     private const int Champion = 157; // Yone
-    private const int LaneOpponent = 238; // Zed
+    private const int RoleOpponent = 238; // Zed
     private const int OtherOpponent = 91; // Talon
     private const string Position = "MIDDLE";
 
@@ -39,12 +39,12 @@ public sealed class CompositionBuildApiIntegrationTests
     {
         await _fixture.ResetDatabaseAsync();
 
-        // Two wins vs the requested lane opponent on the same build, one loss
-        // vs another mid on a different build. The lane opponent is a hard
+        // Two wins vs the requested role opponent on the same build, one loss
+        // vs another mid on a different build. The role opponent is a hard
         // requirement: only the two matchup games enter the sample, and the
         // win build carries the recommendation.
-        await SeedGameAsync("COMPE_WIN1", win: true, enemyMid: LaneOpponent, buildOrder: [3031, 3153]);
-        await SeedGameAsync("COMPE_WIN2", win: true, enemyMid: LaneOpponent, buildOrder: [3031, 3153]);
+        await SeedGameAsync("COMPE_WIN1", win: true, enemyMid: RoleOpponent, buildOrder: [3031, 3153]);
+        await SeedGameAsync("COMPE_WIN2", win: true, enemyMid: RoleOpponent, buildOrder: [3031, 3153]);
         await SeedGameAsync("COMPE_LOSS", win: false, enemyMid: OtherOpponent, buildOrder: [3072, 3026]);
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -55,7 +55,7 @@ public sealed class CompositionBuildApiIntegrationTests
             new
             {
                 position = "middle", // canonicalised to MIDDLE
-                enemies = new[] { new { championId = LaneOpponent, position = "MIDDLE" } },
+                enemies = new[] { new { championId = RoleOpponent, position = "MIDDLE" } },
             });
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 

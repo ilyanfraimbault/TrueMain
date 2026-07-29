@@ -3,13 +3,13 @@ import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { POSITION_OPTIONS, type ChampionPosition } from '~/utils/positions'
 
 /**
- * Secondary half of the builder (#921): the eight draft slots that are *not*
- * the matchup. Deliberately smaller and quieter than `MatchupStage` — these
- * only re-weight the similarity search, while the lane opponent above is a
- * hard filter on the sampled games.
+ * Secondary half of the matchup page (#921): the eight draft slots that are
+ * *not* the matchup. Deliberately smaller and quieter than `MatchupStage` —
+ * these only re-weight the similarity search, while the role opponent above is
+ * a hard filter on the sampled games.
  *
- * The played lane is omitted from both columns: the player's champion and the
- * lane opponent are owned by the matchup stage, so showing them here again
+ * The played role is omitted from both columns: the player's champion and the
+ * role opponent are owned by the matchup stage, so showing them here again
  * would offer two controls for the same slot.
  */
 defineProps<{
@@ -28,7 +28,7 @@ defineEmits<{
 }>()
 
 // Both columns keep the canonical role order so every ally row sits directly
-// across from the enemy in the same lane (top vs top, jungle vs jungle, …).
+// across from the enemy in the same role (top vs top, jungle vs jungle, …).
 </script>
 
 <template>
@@ -40,9 +40,6 @@ defineEmits<{
       <h2 class="text-sm font-medium text-default">
         Rest of the draft
       </h2>
-      <p class="text-xs text-muted">
-        Optional — refines which games the recommendation is weighted towards.
-      </p>
       <UButton
         v-if="hasPicks"
         class="ms-auto"

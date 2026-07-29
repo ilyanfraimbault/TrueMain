@@ -5,16 +5,16 @@ import { formatPercentage } from '~~/shared/utils/ddragon'
 /**
  * Full composition recommendation (#563): confidence strip + the same core
  * panels the champion page renders (spells, starter, skill order, boots, core
- * path, runes), the pruned build tree, plus the situational-items row specific
- * to this feature. Self-contained: mounts only when a recommendation exists,
- * so the static asset fetches (items, rune tree, summoners, champion spells)
- * fire lazily with the right patch instead of on page load.
+ * path, runes) and the pruned build tree. Self-contained: mounts only when a
+ * recommendation exists, so the static asset fetches (items, rune tree,
+ * summoners, champion spells) fire lazily with the right patch instead of on
+ * page load.
  */
 const props = defineProps<{
   recommendation: CompositionBuildResponse
   championName: string | null
   championIconUrl: string | null
-  /** Lane opponent, when the matchup is pinned — headlines the card (#921). */
+  /** Role opponent, when the matchup is pinned — headlines the card (#921). */
   opponentName?: string | null
   opponentIconUrl?: string | null
 }>()
@@ -202,13 +202,6 @@ const stats = computed(() => [
           </p>
         </div>
       </div>
-
-      <!-- Situational picks — the matchup-specific half of the itemisation,
-           returned by the API since #563 but only rendered from #921 on. -->
-      <BuilderSituationalItems
-        :items="build.situationalItems"
-        :items-map="itemsMap"
-      />
 
       <!-- Build tree — same component as the champion page, recomputed from the
            sampled games only. -->
