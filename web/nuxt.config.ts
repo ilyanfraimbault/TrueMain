@@ -48,11 +48,37 @@ export default defineNuxtConfig({
     // nothing stable for a crawler to index (the page also sets `noindex`).
     exclude: ['/dev/**', '/truemains/favorites'],
   },
-  // No dedicated social-share artwork yet — skip the on-demand OG image
-  // renderer (it would pull a Satori/resvg toolchain into the build for no
-  // benefit). seo-utils still derives og:title/og:description/twitter:card
-  // from each page's useSeoMeta() title + description.
-  ogImage: { enabled: false },
+  // On-demand social-share artwork (#926). This was `enabled: false` from the
+  // SEO foundation (#551) for one reason only — "no dedicated share artwork
+  // yet, so the Satori/resvg toolchain would be build weight for no benefit".
+  // #926 supplies the artwork (app/components/OgImage/*.satori.vue), so the
+  // trade flips; the *cost* half of that note still stands and is why the
+  // setup below stays deliberately narrow:
+  //   - only the two pages that have a card call `defineOgImageComponent()`;
+  //     every other page keeps the plain og:title/og:description seo-utils
+  //     already derives, and never touches the renderer;
+  //   - the `.satori.vue` suffix pins the renderer to Satori + resvg (added as
+  //     explicit deps). No `.browser.vue` component exists, so playwright and
+  //     a headless Chromium are never pulled into the image;
+  //   - rendering happens in the web container, which shares a small VPS with
+  //     Postgres/Mongo/the ingestor, so every render is cached and the
+  //     crawler-only traffic pattern keeps it cold in practice.
+  // Fonts come from @nuxt/fonts (Inter) — the module re-downloads them in a
+  // Satori-compatible static format at build time, so no runtime font fetch.
+  ogImage: {
+    // 1 h, mirroring the app-wide cache TTL (utils/static-cache.ts and the
+    // server `defineCachedEventHandler`s). Long enough that a burst of
+    // unfurls costs one render, short enough that a player's LP or a
+    // champion's win rate on the card is never more than an hour behind the
+    // page it was shared from.
+    cacheMaxAgeSeconds: 60 * 60,
+    defaults: {
+      // Discord/X render 2:1 previews; 1200×630 is the size both crop to
+      // without letterboxing.
+      width: 1200,
+      height: 630,
+    },
+  },
   // Self-host a single family — Inter — used across the whole app (see the
   // `--font-*` vars in main.css). Declared explicitly so the download doesn't
   // rely on CSS scanning of the theme vars.
