@@ -66,6 +66,19 @@ useSeoMeta({
   },
 })
 
+// Dynamic share card (#926). The profile itself is fetched client-only by
+// design (`useTruemainFetch` — no SSR cross-pollination between viewers), so
+// the only thing available when this og:image URL is minted is the route slug.
+// The card resolves the profile itself through `/api/og/truemain/{nameTag}` at
+// render time; it is a public rendering of a public profile, so nothing
+// viewer-specific leaks into a shared image.
+defineOgImageComponent('Truemain', { nameTag })
+
+// `playerLabel` falls back to the raw slug while the profile is in flight, so
+// the share text is always something a human can read.
+const shareTitle = computed(() => `${playerLabel.value} on TrueMain`)
+const SHARE_DESCRIPTION = 'Rank, main champions and dedication score — tracked as a true main.'
+
 // ─── Matches fetch ─────────────────────────────────────────────────────────
 const {
   matches,
@@ -120,8 +133,18 @@ const hasActiveFilters = computed(() => Boolean(filterPosition.value || filterCh
     more data per row.
   -->
   <main class="mx-auto w-full max-w-7xl p-4 md:p-6">
-    <!-- Truemains > {player}, linking back to the OTP leaderboard. -->
-    <UBreadcrumb :items="breadcrumbItems" class="mb-6" />
+    <!-- Truemains > {player}, linking back to the OTP leaderboard. The share
+         controls (#926) sit on the same row so they stay above the fold on
+         mobile, where the left rail pushes everything else down. Rendered in
+         every state, including "not found": the URL is shareable regardless of
+         whether the profile resolved, and the card degrades on its own. -->
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <UBreadcrumb :items="breadcrumbItems" />
+      <ShareButtons
+        :title="shareTitle"
+        :description="SHARE_DESCRIPTION"
+      />
+    </div>
 
     <template v-if="profileNotFound">
       <ProfileNotFound :name-tag="nameTag" />

@@ -36,6 +36,7 @@ The richest page — two columns at `xl`.
   - `Champion/Synergies.vue` — **duo & trio synergies** (#922). Best teammates ranked by *observed − expected* win rate (never raw pair WR), with a `RolePicker` narrowing the partner lane (the champion's own lane is excluded). Picking a partner expands the best third picks for that duo underneath. Every row carries its sample; the three insufficient-sample cases (no champion baseline / no partner past the shared-games floor / duo too thin to split) each get their own sentence with the real count — no fallback numbers.
 - **Sidebar**: top-10 truemains on the champion; **matchups** (best 5 / worst 5 + specific-opponent picker); **mains comparison** (`Champion/MainsComparison.vue` — enter a Riot ID, compare WR/KDA/CS·min/gold·min against all mains or one chosen main).
 - States: `noDataForRank`, `notEnoughData`, low-sample alerts, and a watcher that reconciles the URL when the API drops a dead filter.
+- **Share** (#926): `ShareButtons.vue` in the header of the populated state (copy link / native share / X), plus a dynamic OG card (`OgImage/Champion.satori.vue` — portrait, tier letter, WR/PR/BR tiles, sample and patch). See the *Share cards* entry under Cross-cutting.
 
 ### `/builder` — `web/app/pages/builder.vue`
 A **live matchup builder** (reworked by #921), not a build editor. Centre stage (`builder/MatchupStage.vue`): your champion, your role and the **lane opponent** as large portrait-sized pickers — the matchup is the primary input because the API treats the pinned lane opponent as a hard filter on the sampled games. Below it, secondary and quieter (`builder/TeamContext.vue`): the eight remaining draft slots (4 allies / 4 enemies, the played lane omitted since the stage owns both sides of it), which only re-weight the similarity search.
@@ -47,6 +48,7 @@ Graceful degradation, both falling back to `builder/FallbackBuild.vue` (the cham
 OTP leaderboard, server-paginated (25/page). Filters: region, role, OTP-only toggle, and **sort by LP or dedication**. Rows show rank, name#tag + region flag, lanes, top-3 champions, main's keystone + first item, dedication score with a breakdown tooltip, rank icon + LP, and a favorite toggle.
 
 ### `/truemains/:nameTag` — `web/app/pages/truemains/[nameTag]/index.vue`
+`ShareButtons.vue` sits on the breadcrumb row in every state, next to a dynamic OG card (`OgImage/Truemain.satori.vue` — Riot ID, rank + LP, W-L, main champion, dedication / games / ranked WR tiles), #926.
 Left rail: profile header, **ranked card**, dedication card, main champions, position breakdown.
 - **`ProfileRankedCard.vue` — the LP / rank-history curve** (`useTruemainRankHistory.ts` → `/api/truemains/{tag}/rank-history?days=90`). Headline rank + W-L-WR, **"Last 30d"/"Last 7d" LP delta badges**, an area chart with **one series per tier** so the line colour-shifts at each promotion/demotion, and a hand-positioned tier-crest gutter. This is where **#927's activity heatmap** goes, underneath.
 
@@ -70,12 +72,14 @@ Component playgrounds (`charts`, `match-row`, `profile`). **Stripped from produc
 - **Backdrop** — `AppBackdrop.vue`: fixed WebGL rose-gold "eclipse", cursor-reactive, degrades to a CSS wash, respects reduced-motion.
 - **Game tooltips** — `GameTooltip/*` + the Riot-markup parsers in `web/shared/utils/tooltip-parser/`.
 - **Charts** — `nuxt-charts` (Unovis) wrapped by `components/charts/{Area,Line,Bar}Chart.vue`. Only `AreaChart` is used in production; power spikes and roam draw bars by hand on purpose.
-- **SEO** — `@nuxtjs/seo`, title template `%s · TrueMain` (never repeat the brand in a page title), schema.org on the main pages, sitemap enumerating champions and leaderboard players. **OG image rendering is disabled** (`ogImage: { enabled: false }`) — that's what **#926** turns on.
+- **SEO** — `@nuxtjs/seo`, title template `%s · TrueMain` (never repeat the brand in a page title), schema.org on the main pages, sitemap enumerating champions and leaderboard players.
+- **Share cards** (#926) — `nuxt-og-image` is **enabled**, Satori + `@resvg/resvg-js`, 1200×630, 1 h cache. Exactly two templates, `app/components/OgImage/{Champion,Truemain}.satori.vue`, styled with inline objects off `OgImage/theme.ts` (Satori reads neither CSS vars nor Tailwind). Only those two pages call `defineOgImageComponent()`; everything else keeps plain og:title/og:description. The templates receive **identifiers only** and resolve their own numbers through `server/api/og/{champion/[championId],truemain/[nameTag]}.get.ts` (1 h `defineCachedFunction`), because both pages fetch client-only. Missing data degrades in place — see decisions.md.
+- **Share buttons** — `ShareButtons.vue`: copy link (with an `execCommand` fallback for insecure contexts), native Web Share (mount-gated, mobile only), and an X intent anchor. The link is rebuilt from the live route, so it carries the filters currently applied.
 - **Caching** — 1 h client TTL mirroring the server `defineCachedFunction` (`utils/static-cache.ts`), static prefetch plugin, and a custom cached IPX handler for `/_ipx/**`.
 - **Analytics** — self-hosted Umami, only injected when both public env vars are set.
 - **Dev mock** — `NUXT_DEV_MOCK_API=1` → `web/server/utils/dev-api-mock.ts`, deterministic PRNG, real Riot ids, covers most endpoints; a dedicated fixture takes precedence for `Sheiden-1234`. The builder's degraded states are reachable through the lane opponent's id: `% 23 === 0` (Tryndamere) returns a never-recorded matchup, `% 17 === 0` (Teemo) a 3-game one.
 - **No i18n** — all copy is hardcoded English; numbers use an explicit `en-US` locale to avoid hydration mismatches.
-- **Not present**: no gold/XP timeline chart in match detail, no auth/accounts, no OG artwork.
+- **Not present**: no gold/XP timeline chart in match detail, no auth/accounts. Share cards exist only for `/champions/:id` and `/truemains/:nameTag` — the tier list, the builder and the leaderboard have none.
 
 ---
 

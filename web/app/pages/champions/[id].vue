@@ -100,6 +100,34 @@ useSeoMeta({
     : `Champion builds, runes and skill order from true main players.`,
 })
 
+// Copy shown in the native share sheet and as the X post text. Built from the
+// same SSR-safe display name the title uses, so it never reads "Champion 103".
+const shareTitle = computed(() =>
+  seoDisplayName.value
+    ? `${seoDisplayName.value}${seoPositionLabel.value ? ` ${seoPositionLabel.value}` : ''} build on TrueMain`
+    : 'Champion build on TrueMain',
+)
+const shareDescription = computed(() =>
+  seoDisplayName.value
+    ? `Runes, items and skill order for ${seoDisplayName.value}, from real one-tricks.`
+    : 'Runes, items and skill orders from true main players.',
+)
+
+// Dynamic share card (#926). Only *identifiers* are handed over — the champion
+// id plus whatever slice the shared URL pinned. Everything this page renders is
+// fetched `server: false` (the #149 hydration fix), so at SSR — the moment this
+// og:image URL is minted — there is not a single number available to pass. The
+// card therefore resolves its own slice through `/api/og/champion/{id}` when a
+// crawler renders it, which also keeps the extra query off the human page-view
+// path. The props are refs, so the meta tag follows client-side filter changes
+// too and a link copied after switching rank shares that rank's card.
+defineOgImageComponent('Champion', {
+  championId,
+  position: computed(() => filters.value.position ?? undefined),
+  eloBracket: computed(() => filters.value.eloBracket ?? undefined),
+  patch: computed(() => filters.value.patch ?? undefined),
+})
+
 useSchemaOrg([
   defineWebPage({
     name: () => seoDisplayName.value ? `${seoDisplayName.value} Build` : undefined,
@@ -449,6 +477,13 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
           @update:patch="value => setFilter({ patch: value })"
           @update:position="value => setFilter({ position: value })"
           @update:elo-bracket="value => setFilter({ eloBracket: value })"
+        />
+        <!-- Share affordance (#926). Only on the populated state: the two
+             degraded headers above have nothing worth putting in someone's
+             Discord, and the card they'd unfurl to is the branded fallback. -->
+        <ShareButtons
+          :title="shareTitle"
+          :description="shareDescription"
         />
       </header>
 

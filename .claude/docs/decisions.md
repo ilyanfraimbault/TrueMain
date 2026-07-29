@@ -90,6 +90,28 @@ its own floor while a baseline is still a coin flip, and a noisy baseline produc
 not a noisy one. Below any of them the API returns no entry and the real game count, and the UI says which case it
 hit — #922.
 
+**Share cards degrade in three steps and never print a number the API did not return.**
+An OG image is read as a screenshot of the page, so a filler `0%` is indistinguishable from a
+measurement — the "no fabricated numbers" rule that governs the pages binds harder here, because the
+reader has no page to check it against. Champion card: full stats when a `GET /champions` row exists →
+portrait + name and *no numbers at all* when it doesn't → plain branded card when even DDragon is
+unreachable. A null `banRate` (a patch before #920's ingestion) drops that one tile rather than zeroing
+it, matching the em dash the directory prints. Truemain card: a missing ranked snapshot reads
+"Unranked" (a real answer, unlike 0 LP), absent `wins`/`losses` drop the record line *and* the win-rate
+tile, no classified main drops the champion block, and an unknown player falls all the way back to the
+branded card — the page renders "not found" for the same input, so a profile-shaped preview would be a
+lie. The dedication score is only printed when its `championId` matches the main shown beside it — #926.
+
+**Share cards resolve their own data server-side instead of receiving it from the page.**
+`nuxt-og-image` encodes the template props into the (signed) image URL, which is minted during SSR — but
+both pages fetch `server: false` (the #149 hydration fix on champions, the deliberate no-cross-viewer-SSR
+rule on profiles), so at that moment the page holds no numbers to hand over. The URL therefore carries
+*identifiers only* and the templates resolve the real slice through `server/api/og/**` when a crawler
+renders the image. The alternative — adding an SSR-enabled fetch to the pages purely to feed the card —
+would put a backend round-trip on every human page view to serve the unfurl path. Accepted consequence:
+the card's numbers are resolved at share time, so they can differ from a page the visitor left open —
+both are real, an hour apart at most (the cache TTL) — #926.
+
 **The matchup opponent-search stays a live query while the matchups panel reads the aggregate.**
 The `opponent=` path filters to a single adversary (already fast) and uses a floor of 1 game, which an
 aggregate built at floor 10 cannot serve — #606.
@@ -275,6 +297,27 @@ rule above is load-bearing — #208, #246.
 **Preprod tracks `develop`, has its own Riot API key, and is deliberately tiny — a new key forces an empty database.**
 PUUIDs are encrypted per API app, so key and database are an inseparable pair: old data is unusable with a new
 key. Preprod runs every pipeline stage at reduced volume with 1-patch retention — `docs/preprod.md`, #705.
+
+**OG image rendering is on, pinned to Satori + resvg, and deliberately reaches exactly two pages.**
+It shipped disabled in #551 for one stated reason — "no dedicated share artwork yet, so the toolchain
+would be build weight for no benefit". #926 supplies the artwork, which flips the benefit half but not
+the cost half, so the setup stays narrow: the `.satori.vue` suffix pins the renderer (no `.browser.vue`
+component exists, so playwright and a headless Chromium never enter the image), only `/champions/:id`
+and `/truemains/:nameTag` call `defineOgImageComponent()`, and every render is cached for 1 h. That
+matters because the renderer runs inside the web container on a VPS that has already been taken down by
+one process's memory (#600) — the crawler-only traffic pattern is what keeps it cold. The **takumi**
+renderer was rejected as still beta; a hand-rolled SVG→PNG route through the already-present `sharp` was
+rejected because `node:*-alpine` ships no system fonts, so text would not render — Satori takes font
+buffers directly, which is exactly the problem it solves — #926.
+
+**OG image URLs are signed with a secret regenerated at every build, and that is left as the default.**
+Without a secret, the encoded URL params are attacker-controllable, including the module's `html`
+option — an arbitrary-HTML renderer on our own origin. Pinning a stable `NUXT_OG_IMAGE_SECRET` would
+have to happen at *build* time (the module reads it in `setup()`), i.e. a Docker build arg plus a CI
+secret. Accepted consequence instead: URLs minted by a previous build return 403 after a redeploy, which
+only bites a re-unfurl of an old message — Discord and X have long since cached the bytes, and any fresh
+unfurl re-reads the page and gets the current URL. Revisit if broken previews on old links are ever
+reported — #926.
 
 **Caddy terminates TLS and is the only public entry point in prod.**
 Admin login was impossible over cleartext HTTP because the session cookie is sealed `Secure` in production
