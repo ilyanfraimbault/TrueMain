@@ -16,9 +16,11 @@ import { selectSignatureMain } from '~~/shared/utils/og-card'
  */
 
 // The `[nameTag]` route param is the `{gameName}-{tagLine}` slug the app links
-// with, passed opaque to the backend (which resolves it). Riot IDs cap at 64
-// characters; anything longer cannot be a real profile, so it is rejected
-// before it can become a cache key or an upstream call.
+// with, passed opaque to the backend (which resolves it). A Riot ID is at most
+// 16 + 1 + 5 characters, so this is deliberate headroom for percent-encoding
+// rather than the Riot limit itself. The point is only to bound the input
+// before it can become a cache key or an upstream call, this route being
+// publicly reachable.
 const MAX_NAME_TAG_LENGTH = 80
 
 const EMPTY_CARD: TruemainOgCard = {
