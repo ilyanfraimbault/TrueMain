@@ -31,10 +31,14 @@ interface UseTruemainFetchOptions<TResponse> {
  * SSR cross-pollination between viewers), so there is no payload cache to
  * integrate with.
  *
- * The fetch refires when the name tag (or any extra watch source) changes,
- * and once immediately on mount. An empty name tag short-circuits into the
- * cleared state so a parent page can bind to a still-empty ref without
+ * The fetch runs once when the component mounts and refires when the name tag
+ * (or any extra watch source) changes. An empty name tag short-circuits into
+ * the cleared state so a parent page can bind to a still-empty ref without
  * triggering a 404 round trip on the first tick.
+ *
+ * Must be called from a component `setup()`: the initial run hangs off
+ * `onMounted`, which is what makes "client-only" true rather than merely
+ * intended (see the comment on that call).
  */
 export function useTruemainFetch<TResponse>(
   nameTag: MaybeRefOrGetter<string>,
@@ -78,7 +82,31 @@ export function useTruemainFetch<TResponse>(
     }
   }
 
-  watch([nameTagRef, ...(options.watch ?? [])], () => { void execute() }, { immediate: true })
+  // The initial run is deliberately hung off `onMounted` rather than an
+  // `immediate: true` watcher, and that distinction is the whole of #862.
+  //
+  // An immediate watcher also fires during SSR, so the request the doc block
+  // above calls "client-only by design" was in fact issued on the server. It
+  // then usually *won*: the page's render is meanwhile awaiting its two
+  // SSR-enabled static lookups (`useStaticRuneTree` / `useStaticSummonerSpells`
+  // — external DDragon/CDragon round trips, and summoner-spells resolves the
+  // latest patch uncached on every request), which is far slower than a local
+  // `/api/truemains/{nameTag}/*` hit. So the profile landed in the shared
+  // server-rendered markup, while the client's first — hydration — render
+  // always starts from `isInitialLoading = true`, i.e. the skeleton branch.
+  // Vue therefore reconciled skeletons against fully-rendered content: dozens
+  // of node/children mismatches, then `insertBefore: node is not a child of
+  // this node`, then a crash on a null `component` inside the patch loop. The
+  // renderer is dead at that point, so the page sits in its skeletons for good
+  // — the reported hang. Client-side navigation was never affected because it
+  // hydrates nothing.
+  //
+  // `onMounted` never runs during SSR, so the server render is deterministic
+  // (always the loading state), hydration is exact, and the per-viewer payload
+  // stays out of shared HTML — which is what the no-cross-viewer-SSR rule on
+  // profiles asked for in the first place.
+  onMounted(() => { void execute() })
+  watch([nameTagRef, ...(options.watch ?? [])], () => { void execute() })
 
   return {
     isLoading,
