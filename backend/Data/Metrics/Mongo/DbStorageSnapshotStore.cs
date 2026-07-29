@@ -12,6 +12,14 @@ internal sealed class DbStorageSnapshotStore(MongoLogContext context) : IDbStora
 {
     private static readonly BulkWriteOptions UnorderedBulk = new() { IsOrdered = false };
 
+    // The other Mongo collections create their indexes once, from their sink's
+    // startup. This store has no sink to hang that off — it is called directly by an
+    // ingestor step — so it ensures them on first write instead. The flag is only set
+    // after a success, so a transient Mongo failure retries next run rather than
+    // leaving the collection unindexed forever; two concurrent first-writers both
+    // ensuring is harmless, CreateMany is idempotent.
+    private int _indexesEnsured;
+
     public async Task<int> UpsertDayAsync(
         DateTime snapshotDateUtc,
         long databaseBytes,
@@ -28,7 +36,11 @@ internal sealed class DbStorageSnapshotStore(MongoLogContext context) : IDbStora
             return 0;
         }
 
-        await context.EnsureDbTableSizeSnapshotIndexesAsync(ct);
+        if (Volatile.Read(ref _indexesEnsured) == 0)
+        {
+            await context.EnsureDbTableSizeSnapshotIndexesAsync(ct);
+            Volatile.Write(ref _indexesEnsured, 1);
+        }
 
         var day = DateTime.SpecifyKind(snapshotDateUtc.Date, DateTimeKind.Utc);
         var capturedAtUtc = snapshotDateUtc;

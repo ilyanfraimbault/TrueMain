@@ -22,10 +22,20 @@ public sealed class DbStorageHistoryQueryService(
     IOptions<StorageHistoryOptions> options,
     TimeProvider timeProvider) : IDbStorageHistoryQueryService
 {
+    // Hard ceiling on the requested window, mirroring RankHistoryQueryService. Two
+    // reasons: the retention TTL means there is nothing older than a year to read
+    // anyway, and — the sharp edge — an unbounded `windowDays` (?windowDays=999999999)
+    // overflows DateTime.AddDays and 500s the whole endpoint rather than the caller's
+    // own request being merely silly.
+    private const int MaxWindowDays = 730;
+
     public async Task<DbStorageHistoryReadModel> GetAsync(int? windowDays, CancellationToken ct)
     {
         var settings = options.Value;
-        var days = windowDays is > 0 ? windowDays.Value : settings.DefaultWindowDays;
+        var days = Math.Clamp(
+            windowDays is > 0 ? windowDays.Value : settings.DefaultWindowDays,
+            1,
+            MaxWindowDays);
         var since = timeProvider.GetUtcNow().UtcDateTime.Date.AddDays(-days);
 
         var points = await store.GetHistoryAsync(since, ct);
