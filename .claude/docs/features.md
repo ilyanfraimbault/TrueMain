@@ -90,7 +90,7 @@ Separate app with its own deployment and domain — **not** a `/admin` route of 
 |---|---|
 | `/` | Overview: stat cards (tracked accounts, matches, participants, mains/OTPs, candidates by status), matches-over-time area chart with week/month/year/patch granularity, top-10 champions bar chart |
 | `/champions` | Per-champion games/mains/OTPs, filters region/patch/position/queue, sortable table + 2 bar charts. Surfaces the caveat that mains/OTPs honour **region only** |
-| `/database` | **Table sizes only** — row estimate, total/table/index bytes, name filter, sortable table, top-12 bar chart. No history, no forecast, no Mongo collections → that's what **#925** adds |
+| `/database` | Current table sizes (row estimate, total/table/index bytes, name filter, sortable table, top-12 bar chart) **plus growth history and a disk forecast** (#925): database size over time with a 30 d/90 d/1 y window, estimated rows added per day, a per-table growth list (bytes/day, rows/day, % over the window), and projected crossing dates for configurable fill levels. History comes from daily Mongo snapshots, so widening the window costs the database nothing. The forecast is **absent rather than guessed** — under 3 days of history, flat/shrinking storage, or no configured `StorageHistory:DiskCapacityBytes` each render an explanation instead of a date. Mongo collection sizes are still not shown |
 | `/data-quality` | **Read-only diagnostics, 5 hardcoded checks** (`missingTimeline`, `wrongParticipantCount`, `missingTeamPosition`, `zeroDuration`, `duplicateChampion`), one card per issue type with its own pagination, plus a match-ID slide-over showing both teams by position with missing/duplicate slots tinted. No repair actions → **#924** extends the detector set |
 | `/candidates` | `main_candidates` pipeline (New→Scored→Queued→Processing→Validated/Rejected) with search/filters + detail slide-over; and the manual seed-request intake list |
 | `/processes` | Per-process rollup (last status/run/success, recent failures) + paginated runs table with the run `summary` JSON rendered by `ProcessSummaryView`; plus the pipeline-chain iteration view |
@@ -137,6 +137,7 @@ Pipeline order (`Full`):
 | 11 | ChampionMatchupLeadAggregation | Incrementally folds each match once into `champion_matchup_stats` |
 | 11b | ChampionSynergyAggregation | Folds each match once into `champion_synergy_stats` + `champion_synergy_baseline_stats` (same-team pairs and their SELF/ALLY marginals) |
 | 11c | ChampionBanAggregation | Folds each match once into `champion_ban_stats` + `ban_scope_totals` (ban counts and the match totals they divide by). Must run **after** elo enrichment — the fold is one-shot and decides there which bands a match counts in |
+| last | StorageSnapshot | Records the day's `pg_catalog` sizes + measured `pg_database_size` into `db_table_size_snapshots` (#925). Runs **after** retention, so the figure is the steady-state size rather than the pre-deletion peak |
 | 12 | ChampionPowerspikeAggregation | Folds each match once into the powerspike stat tables while dense snapshots still exist |
 | 13 | AccountRefresh | Refreshes identity + soloQ rank; recovers or invalidates dead PUUIDs |
 | 14 | MatchDataRetention | Prunes stale candidates, non-tracked-queue matches, out-of-window matches, intermediate timeline snapshots, sub-floor powerspike rows |
@@ -151,7 +152,7 @@ Pipeline order (`Full`):
 - **Derived**: `main_champion_stats`, `champion_matchup_stats`, `champion_synergy_stats` + `champion_synergy_baseline_stats`, `champion_powerspike_{curve,event}_stats`, `powerspike_sigma_stats`
 - **Snapshots / ops**: `rank_snapshots`, `process_runs`
 
-**Mongo** (`truemain_logs`, TTL retention): `logs` (90 d, lossy bounded channel), `audit_events` (lossless, synchronous), `riot_api_call_rollups` (14 d), `crashes` (365 d, file-first then Mongo, with unclean-shutdown detection for OOM kills).
+**Mongo** (`truemain_logs`, TTL retention): `logs` (90 d, lossy bounded channel), `audit_events` (lossless, synchronous), `riot_api_call_rollups` (14 d), `crashes` (365 d, file-first then Mongo, with unclean-shutdown detection for OOM kills), `db_table_size_snapshots` (365 d, one document per table per day, day-keyed upsert so the pipeline's many daily runs refresh rather than append).
 
 **Compiled model** in `Data/CompiledModels/` is committed and auto-discovered (no `UseModel()` call) — regenerate with `dotnet ef dbcontext optimize` after any schema change.
 **BuildFacts** (`Data/BuildFacts/`) is the build-derivation shared by Ingestor and API: item metadata provider, boots/final-build/starter resolvers, skill-order builder.

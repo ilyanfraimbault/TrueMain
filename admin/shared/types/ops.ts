@@ -79,6 +79,65 @@ export interface DbTableRow {
 }
 
 /**
+ * `GET /api/ops/db/history` — storage growth over a window plus the disk
+ * forecast (#925). Read from the daily snapshot collection, never from a live
+ * `pg_catalog` scan, so the page stays cheap however far back it looks.
+ *
+ * Everything is empty until the ingestor's storage-snapshot step has run at
+ * least once, and `forecast` stays null until there are three days to fit.
+ */
+export interface DbStorageHistory {
+  daily: DbStorageDailyPoint[]
+  /** The largest tables only — smaller ones still count in `daily` totals. */
+  tables: DbStorageTableSeries[]
+  /** Null when no honest projection is possible; see `DbStorageForecast`. */
+  forecast: DbStorageForecast | null
+}
+
+export interface DbStorageDailyPoint {
+  dateUtc: string
+  /** Measured `pg_database_size` — what actually occupies the volume. */
+  databaseBytes: number
+  /** Sum of per-table sizes; smaller than `databaseBytes` (no catalogs). */
+  totalBytes: number
+  rowEstimate: number
+}
+
+export interface DbStorageTableSeries {
+  tableName: string
+  points: DbStorageTablePoint[]
+  currentBytes: number
+  bytesPerDay: number
+  rowsPerDay: number
+  /** Growth over the window as a fraction (0.25 = +25%); null if it started empty. */
+  growthRate: number | null
+}
+
+export interface DbStorageTablePoint {
+  dateUtc: string
+  totalBytes: number
+  rowEstimate: number
+}
+
+/**
+ * Null on the parent when fewer than 3 days of history exist, when storage is
+ * flat or shrinking, or when no disk capacity is configured — the panel explains
+ * which rather than showing a made-up date.
+ */
+export interface DbStorageForecast {
+  bytesPerDay: number
+  diskCapacityBytes: number
+  crossings: DbStorageThresholdCrossing[]
+}
+
+export interface DbStorageThresholdCrossing {
+  percent: number
+  thresholdBytes: number
+  /** Null = no meaningful date at this rate (over a century either way). A past date = already breached. */
+  projectedAtUtc: string | null
+}
+
+/**
  * `Abandoned` is a run that started but never recorded an outcome: its owning
  * ingestor died mid-flight. The backend assigns it either at startup (orphaned
  * `Running` rows are reconciled) or on read (a `Running` row whose heartbeat has
@@ -149,15 +208,19 @@ export const PIPELINE_CHAIN: readonly string[] = [
   'ManualSeed',
   'Harvest',
   'Scoring',
+  'MainActivity',
   'MatchIngestion',
   'MatchTeamPositionCorrection',
   'MainAnalysis',
   'MatchParticipantEloBracketEnrichment',
   'ChampionPatternAggregation',
   'ChampionMatchupLeadAggregation',
+  'ChampionSynergyAggregation',
+  'ChampionBanAggregation',
   'ChampionPowerspikeAggregation',
   'AccountRefresh',
   'MatchDataRetention',
+  'StorageSnapshot',
 ]
 
 /**

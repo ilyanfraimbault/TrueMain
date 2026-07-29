@@ -61,7 +61,12 @@ public static class JobModeSequence
         // can then prune them to the canonical marks.
         JobMode.PowerspikeAggregationOnly,
         JobMode.AccountRefreshOnly,
-        JobMode.MatchDataRetentionOnly
+        JobMode.MatchDataRetentionOnly,
+        // Records the day's storage footprint (#925). Deliberately last: it must
+        // measure the steady-state size AFTER retention's deletions, not the peak
+        // before them, or the forecast would predict an exhaustion retention is
+        // already preventing.
+        JobMode.StorageSnapshotOnly
     ]);
 
     /// <summary>

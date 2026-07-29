@@ -38,6 +38,7 @@ public static class IngestorProcessServiceCollectionExtensions
         services.AddRecordedProcess<ChampionPowerspikeAggregationProcess>(JobMode.PowerspikeAggregationOnly);
         services.AddRecordedProcess<AccountRefreshProcess>(JobMode.AccountRefreshOnly);
         services.AddRecordedProcess<MatchDataRetentionProcess>(JobMode.MatchDataRetentionOnly);
+        services.AddRecordedProcess<StorageSnapshotProcess>(JobMode.StorageSnapshotOnly);
         return services;
     }
 }

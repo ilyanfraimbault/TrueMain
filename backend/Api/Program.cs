@@ -146,6 +146,15 @@ builder.Services.AddOptions<ChampionsListOptions>()
     .Validate(options => options.MinMatchupGames >= 0, "ChampionsList:MinMatchupGames must be >= 0.")
     .Validate(options => options.MinPlayerMatchupGames >= 0, "ChampionsList:MinPlayerMatchupGames must be >= 0.")
     .ValidateOnStart();
+builder.Services.AddOptions<StorageHistoryOptions>()
+    .Bind(builder.Configuration.GetSection(StorageHistoryOptions.SectionName))
+    .Validate(options => options.DiskCapacityBytes >= 0, "StorageHistory:DiskCapacityBytes must be >= 0.")
+    .Validate(options => options.DefaultWindowDays > 0, "StorageHistory:DefaultWindowDays must be greater than 0.")
+    .Validate(options => options.TopTables > 0, "StorageHistory:TopTables must be greater than 0.")
+    .Validate(
+        options => options.ThresholdPercents.All(percent => percent is > 0 and <= 100),
+        "StorageHistory:ThresholdPercents must each be in (0, 100].")
+    .ValidateOnStart();
 builder.Services.AddOptions<CompositionSearchOptions>()
     .Bind(builder.Configuration.GetSection(CompositionSearchOptions.SectionName))
     .Validate(
@@ -225,6 +234,7 @@ builder.Services.AddScoped<IOverviewQueryService, OverviewQueryService>();
 builder.Services.AddScoped<IChampionStatsQueryService, ChampionStatsQueryService>();
 builder.Services.AddScoped<IMatchesOverTimeQueryService, MatchesOverTimeQueryService>();
 builder.Services.AddScoped<ITableStatsQueryService, TableStatsQueryService>();
+builder.Services.AddScoped<IDbStorageHistoryQueryService, DbStorageHistoryQueryService>();
 builder.Services.AddScoped<IProcessRunsQueryService, ProcessRunsQueryService>();
 builder.Services.AddScoped<IProcessIterationsQueryService, ProcessIterationsQueryService>();
 builder.Services.AddScoped<ILogsQueryService, LogsQueryService>();

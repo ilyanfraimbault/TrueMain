@@ -815,6 +815,62 @@ Empreinte de stockage des tables Postgres.
 ]
 ```
 
+## `GET /ops/db/history`
+
+Croissance du stockage + prévision de saturation disque (#925). Lit uniquement les
+snapshots quotidiens (collection Mongo `db_table_size_snapshots`) — aucun scan
+`pg_catalog` à la volée, contrairement à `db/tables`.
+
+**Query**
+
+| Param        | Type | Requis | Défaut                        | Description |
+|--------------|------|--------|-------------------------------|-------------|
+| `windowDays` | int  | non    | `StorageHistory:DefaultWindowDays` (90) | Fenêtre d'historique en jours. |
+
+**Réponse `200`** — `DbStorageHistoryReadModel` (toujours `200`, tout vide tant que le
+process de snapshot n'a pas tourné)
+
+```json
+{
+  "daily": [
+    { "dateUtc": "2026-07-27T00:00:00Z", "databaseBytes": 41231686144, "totalBytes": 39000000000, "rowEstimate": 21000000 }
+  ],
+  "tables": [
+    {
+      "tableName": "match_participants",
+      "points": [{ "dateUtc": "2026-07-27T00:00:00Z", "totalBytes": 8589934592, "rowEstimate": 15000000 }],
+      "currentBytes": 8589934592,
+      "bytesPerDay": 130000000,
+      "rowsPerDay": 240000,
+      "growthRate": 0.12
+    }
+  ],
+  "forecast": {
+    "bytesPerDay": 310000000,
+    "diskCapacityBytes": 107374182400,
+    "crossings": [
+      { "percent": 80, "thresholdBytes": 85899345920, "projectedAtUtc": "2026-11-14T00:00:00Z" },
+      { "percent": 100, "thresholdBytes": 107374182400, "projectedAtUtc": null }
+    ]
+  }
+}
+```
+
+- `databaseBytes` : `pg_database_size` **mesuré** — c'est ce qui remplit le volume
+  (catalogues compris), et c'est ce que la prévision extrapole. `totalBytes` n'est que
+  la somme des tables du schéma `public`, donc toujours plus petit.
+- `rowEstimate` : somme des estimations du planner, indicateur de tendance et non un
+  compte exact.
+- `tables` : uniquement les plus grosses (`StorageHistory:TopTables`, 10 par défaut) ;
+  les autres restent comptées dans `daily`.
+- `growthRate` : `null` si la table était vide en début de fenêtre (croissance non
+  définie plutôt qu'infinie).
+- `forecast` : **`null`** s'il y a moins de 3 jours d'historique, si le stockage est
+  stable ou décroissant, ou si `StorageHistory:DiskCapacityBytes` n'est pas configuré.
+  Aucune valeur de remplacement n'est inventée.
+- `projectedAtUtc` : `null` = échéance à plus d'un siècle **dans un sens ou dans
+  l'autre** (aucune date exploitable à ce rythme) ; une date passée = seuil déjà franchi.
+
 ## `GET /ops/process-runs`
 
 Une page de runs de process (récents d'abord) + rollup par process.

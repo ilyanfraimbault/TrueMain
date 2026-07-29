@@ -8,6 +8,7 @@ import type {
   ChampionStatsRow,
   CrashesFilters,
   CrashesResponse,
+  DbStorageHistory,
   DbTableRow,
   IncompleteMatchesFilters,
   IncompleteMatchesResponse,
@@ -115,6 +116,15 @@ export function useMatchesOverTime(
 /** `GET /api/ops/db/tables` — table sizes/row estimates, sorted by total bytes. */
 export function useDbTables() {
   return useOps<DbTableRow[]>('/db/tables')
+}
+
+/**
+ * `GET /api/ops/db/history` — daily storage snapshots, per-table growth and the
+ * disk forecast (#925). `windowDays` is reactive so the panel's window selector
+ * refetches, matching the riot-usage panel's shape.
+ */
+export function useDbStorageHistory(windowDays: MaybeRefOrGetter<number>) {
+  return useOps<DbStorageHistory>('/db/history', () => ({ windowDays: toValue(windowDays) }))
 }
 
 /**

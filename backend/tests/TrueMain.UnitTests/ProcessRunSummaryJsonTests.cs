@@ -264,6 +264,11 @@ public sealed class ProcessRunSummaryJsonTests
             new BanAggregationSummary(4000, 4, 12000, 13),
             new { matches = 4000, batches = 4, banRows = 12000, scopeRows = 13 });
 
+        // StorageSnapshotProcess (#925).
+        yield return (
+            new StorageSnapshotSummary(58, 58, 41_231_686_144),
+            new { tables = 58, written = 58, databaseBytes = 41_231_686_144L });
+
         yield return (
             new MatchDataRetentionSummary(3, 420, 10, 100, 4, 7, 5, 900, 1, 2, 4, 5, 8, 9, 6,
             [new RetainedPatchesSummary("KR", ["16.3", "16.4"])]),
