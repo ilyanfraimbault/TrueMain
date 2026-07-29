@@ -56,10 +56,17 @@ public sealed class RunePageDeduplicationProcess(
 {
     /// <summary>
     /// Duplicate groups merged per transaction. Each group rewrites the pattern rows of
-    /// one rune page, so a few hundred groups keeps a transaction's lock footprint and
-    /// WAL bounded while still draining 20 370 groups in a handful of passes.
+    /// one rune page — a mean of ~25 on production — so 2 000 groups is roughly 50 000
+    /// row updates per transaction: enough to keep the lock footprint and WAL bounded,
+    /// while draining production's 20 370 groups in about eleven passes.
     /// </summary>
-    private const int GroupBatchSize = 250;
+    /// <remarks>
+    /// The batch size is a scan multiplier, not just a transaction size: every iteration
+    /// re-evaluates the canonical-key window over the whole dimension to find the next
+    /// groups, so halving the batch doubles the number of full scans. 250 would have
+    /// meant ~82 of them for one backfill.
+    /// </remarks>
+    private const int GroupBatchSize = 2_000;
 
     /// <summary>
     /// The canonical-key partition, spelled once. <c>LEAST</c>/<c>GREATEST</c> on the
@@ -133,7 +140,10 @@ public sealed class RunePageDeduplicationProcess(
     /// violate the patterns' six-column unique index;</item>
     /// <item>delete the pattern rows just folded in;</item>
     /// <item>repoint the pattern rows that had no counterpart — a plain update, now
-    /// that the colliding ones are gone;</item>
+    /// that the colliding ones are gone. Safe because the existing 11-column unique
+    /// index on the raw columns bounds a canonical group at two rows: the only way two
+    /// rows can share a canonical key is the secondary permutation, so there is never a
+    /// third loser whose repoint would collide with a second one;</item>
     /// <item>delete the losers. The FK is <c>RESTRICT</c>, so this can only succeed
     /// once nothing references them — exactly the check we want. If anything still
     /// did, it throws and the batch rolls back, because a silently orphaned pattern
@@ -147,16 +157,24 @@ public sealed class RunePageDeduplicationProcess(
         // The survivor is the lowest Id in the group, purely for determinism: the rows
         // are identical apart from the perk order, which the final normalisation pass
         // rewrites anyway.
+        //
+        // FIRST_VALUE over an ordered window rather than MIN(): Postgres has btree
+        // ordering operators for uuid but no min/max *aggregate* for it, so MIN("Id")
+        // fails with `function min(uuid) does not exist`. Two window definitions are
+        // needed because adding ORDER BY to the counting window would turn COUNT(*)
+        // into a running count over the default frame instead of the partition total.
         await db.Database.ExecuteSqlRawAsync(
             $"""
             CREATE TEMPORARY TABLE rune_page_merge ON COMMIT DROP AS
             WITH grouped AS (
                 SELECT
                     "Id",
-                    MIN("Id") OVER w AS survivor_id,
-                    COUNT(*) OVER w AS group_size
+                    FIRST_VALUE("Id") OVER ordered AS survivor_id,
+                    COUNT(*) OVER unordered AS group_size
                 FROM champion_dim_rune_pages
-                WINDOW w AS (PARTITION BY {CanonicalKeyColumns})
+                WINDOW
+                    unordered AS (PARTITION BY {CanonicalKeyColumns}),
+                    ordered AS (PARTITION BY {CanonicalKeyColumns} ORDER BY "Id")
             ),
             selected AS (
                 SELECT DISTINCT survivor_id
