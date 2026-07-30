@@ -318,7 +318,9 @@ public sealed class StarterItemAnalyzerTests
         var starterItems = StarterItemAnalyzer.BuildStarterItems(
             [
                 new ItemEvent { TimestampMs = 2_000, ItemId = 2003, EventType = "ITEM_PURCHASED" },
-                new ItemEvent { TimestampMs = 800_000, ItemId = 3877, BeforeId = 3877, AfterId = 3866, EventType = "ITEM_UNDO" }
+                // ItemId is 0 on a real ITEM_UNDO — only BeforeId/AfterId are populated
+                // (see MatchParticipantEventJsonShapeTests) — matched here for fidelity.
+                new ItemEvent { TimestampMs = 800_000, BeforeId = 3877, AfterId = 3866, EventType = "ITEM_UNDO" }
             ],
             Metadata);
 
@@ -333,7 +335,7 @@ public sealed class StarterItemAnalyzerTests
         var starterItems = StarterItemAnalyzer.BuildStarterItems(
             [
                 new ItemEvent { TimestampMs = 2_000, ItemId = 1001, EventType = "ITEM_PURCHASED" },
-                new ItemEvent { TimestampMs = 2_500, ItemId = 1001, BeforeId = 1001, EventType = "ITEM_UNDO" },
+                new ItemEvent { TimestampMs = 2_500, BeforeId = 1001, EventType = "ITEM_UNDO" },
                 new ItemEvent { TimestampMs = 410_000, ItemId = 3865, EventType = "ITEM_DESTROYED" },
                 new ItemEvent { TimestampMs = 800_000, ItemId = 3877, EventType = "ITEM_PURCHASED" }
             ],
