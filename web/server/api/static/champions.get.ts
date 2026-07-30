@@ -1,17 +1,9 @@
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { normalizeDataDragonPatch } from '~~/shared/utils/ddragon'
+import { resolveLatestDDragonPatch } from '~~/server/utils/ddragon-patch'
 
 interface ChampionListResponse {
   data: Record<string, { id: string, key: string, name: string, image: { full: string } }>
-}
-
-async function resolveLatestPatch(): Promise<string> {
-  const versions = await $fetch<string[]>('https://ddragon.leagueoflegends.com/api/versions.json')
-  const latest = versions[0]
-  if (!latest) {
-    throw createError({ statusCode: 502, statusMessage: 'DDragon returned no versions' })
-  }
-  return latest
 }
 
 // Cached on the resolved patch — not on the raw query param. Without this,
@@ -44,6 +36,6 @@ export default defineEventHandler(async (event): Promise<ChampionStaticListItem[
   // need "16.5.1". Normalize here so a caller can pass the patch straight from
   // a champion summary. Fall back to the latest DDragon version when none is
   // supplied so a new Riot patch invalidates the cache key naturally.
-  const resolved = normalizeDataDragonPatch(patch) ?? await resolveLatestPatch()
+  const resolved = normalizeDataDragonPatch(patch) ?? await resolveLatestDDragonPatch()
   return loadChampionsForPatch(resolved)
 })

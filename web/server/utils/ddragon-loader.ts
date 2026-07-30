@@ -8,6 +8,7 @@ import {
   getChampionSpellImageUrl,
   normalizeDataDragonPatch,
 } from '~~/shared/utils/ddragon'
+import { resolveLatestDDragonPatch } from '~~/server/utils/ddragon-patch'
 
 const COMMUNITY_DRAGON_BASE = 'https://raw.communitydragon.org'
 const COMMUNITY_DRAGON_PATH_SUFFIX = 'plugins/rcp-be-lol-game-data/global/default'
@@ -130,15 +131,13 @@ export function buildPerkStyleMap(styles: CdragonPerkStyleRow[], patch?: string 
   )
 }
 
-async function resolveLatestPatch(): Promise<string | null> {
-  const versions = await $fetch<string[]>('https://ddragon.leagueoflegends.com/api/versions.json').catch(() => [])
-  return versions[0] ?? null
-}
-
 const SPELL_SLOTS = ['Q', 'W', 'E', 'R'] as const
 
 export async function loadStaticData(championId: number, patch: string | null): Promise<ChampionStaticData> {
-  const normalized = normalizeDataDragonPatch(patch) ?? await resolveLatestPatch()
+  // The shared resolver throws a 502 when DDragon is unreachable; this loader
+  // degrades instead, like it does for every other fetch below, so a champion
+  // page renders without static data rather than failing outright.
+  const normalized = normalizeDataDragonPatch(patch) ?? await resolveLatestDDragonPatch().catch(() => null)
   if (!normalized) return EMPTY_STATIC_DATA
 
   const champs = await $fetch<ChampionListResponse>(

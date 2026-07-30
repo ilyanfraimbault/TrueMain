@@ -1,5 +1,6 @@
 import type { StaticItemData } from '~~/shared/types/static-data'
 import { normalizeDataDragonPatch } from '~~/shared/utils/ddragon'
+import { resolveLatestDDragonPatch } from '~~/server/utils/ddragon-patch'
 
 interface ItemListResponse {
   data: Record<string, {
@@ -11,15 +12,6 @@ interface ItemListResponse {
     description?: string
     tags?: string[]
   }>
-}
-
-async function resolveLatestPatch(): Promise<string> {
-  const versions = await $fetch<string[]>('https://ddragon.leagueoflegends.com/api/versions.json')
-  const latest = versions[0]
-  if (!latest) {
-    throw createError({ statusCode: 502, statusMessage: 'DDragon returned no versions' })
-  }
-  return latest
 }
 
 // Cached on the resolved patch — see champions.get.ts for the rationale.
@@ -55,6 +47,6 @@ const loadItemsForPatch = defineCachedFunction(
 
 export default defineEventHandler(async (event): Promise<Record<number, StaticItemData>> => {
   const { patch } = getQuery(event) as { patch?: string }
-  const resolved = normalizeDataDragonPatch(patch) ?? await resolveLatestPatch()
+  const resolved = normalizeDataDragonPatch(patch) ?? await resolveLatestDDragonPatch()
   return loadItemsForPatch(resolved)
 })
