@@ -33,6 +33,10 @@ public sealed class TruemainsLeaderboardQueryService(
     // ChampionSummariesQueryService uses for the same reason.
     private static readonly TimeSpan ResponseCacheTtl = TimeSpan.FromSeconds(30);
 
+    // Static because the service is scoped: the whole point is to coalesce across
+    // concurrent *requests*, which each get their own instance.
+    private static readonly RequestCoalescer<Ranking> RankingCoalescer = new();
+
     // Ranked solo queue. Matches the queue used by MainStatsCalculator
     // for main_champion_stats, so the "games" / KDA / winrate cell stays
     // consistent with the player's top-champions cell on the same row.
@@ -352,6 +356,37 @@ public sealed class TruemainsLeaderboardQueryService(
             // mutated, so handing the same object to concurrent requests is safe
             // — keep it that way if this grows.
             return cachedRanking;
+        }
+
+        // Miss. Everyone who missed together shares one scoring pass instead of each
+        // running their own over the eligible population (#870) — the reason this path
+        // needs it more than the others is that the dedication sort replaced an indexed
+        // count with a scored scan of up to MaxDedicationCandidates accounts.
+        return await RankingCoalescer.GetOrJoinAsync(
+            rankingCacheKey,
+            () => ComputeAndCacheRankingAsync(
+                rankingCacheKey, platforms, championFilter, position, minGames, otpOnly),
+            ct);
+    }
+
+    private async Task<Ranking> ComputeAndCacheRankingAsync(
+        string rankingCacheKey,
+        string[] platforms,
+        int? championFilter,
+        string? position,
+        int minGames,
+        bool otpOnly)
+    {
+        // Detached from any single caller's token: the pass is shared, so one request
+        // walking away must not cancel it for the others (see RequestCoalescer). It is
+        // bounded by the candidate cap and its own TTL.
+        var ct = CancellationToken.None;
+
+        // Re-check under the coalescer: while this caller was queueing behind another
+        // pass for the same key, that pass may have finished and cached its result.
+        if (cache.TryGetValue<Ranking>(rankingCacheKey, out var justCached) && justCached is not null)
+        {
+            return justCached;
         }
 
         // Own short-lived context: consistent with the other fetches, and this

@@ -310,6 +310,14 @@ compiled model all rely on the current naming.
 
 ## Performance & incidents
 
+**An expensive read path behind a TTL cache needs a single-flight, not a lock** (#870,
+`Api/Services/RequestCoalescer.cs`). The cache protects steady state; the stampede happens on the first
+request and at every TTL expiry, when concurrent callers all miss at once and each start the same scan — up to
+50 000 scored accounts for one dedication ranking. Concurrent callers now share the in-flight `Task`. A per-key
+lock was rejected: it serialises callers *and* still runs the work N times whenever the result is too large to
+cache, turning a burst into a queue of full scans. The shared pass is detached from any one request's token —
+a caller who walks away must not cancel the pass the others are waiting on — so only bounded work belongs in it.
+
 **Postgres runs with `max_parallel_workers_per_gather=0` in every compose file — do not re-enable.**
 2026-06-25 prod crash-loop: `53100: could not resize shared memory segment` — per-worker DSM segments
 exhausting the container's 256 MB `/dev/shm` in bursts. EF read it as transient and retried, which under
