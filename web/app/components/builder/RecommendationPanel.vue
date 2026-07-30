@@ -168,7 +168,7 @@ const stats = computed(() => [
                 square
                 :padded="false"
                 aria-label="See the games this build was computed from"
-                @click="gamesDrawerOpen = true"
+                @click="() => { gamesDrawerOpen = true }"
               />
             </UTooltip>
           </dt>
