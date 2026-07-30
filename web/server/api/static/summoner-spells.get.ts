@@ -1,5 +1,6 @@
 import type { StaticSummonerSpellData } from '~~/shared/types/static-data'
 import { getSummonerSpellImageUrl, normalizeDataDragonPatch } from '~~/shared/utils/ddragon'
+import { resolveLatestDDragonPatch } from '~~/server/utils/ddragon-patch'
 
 interface SummonerListResponse {
   data: Record<string, {
@@ -10,15 +11,6 @@ interface SummonerListResponse {
     cooldown?: number[]
     summonerLevel?: number
   }>
-}
-
-async function resolveLatestPatch(): Promise<string> {
-  const versions = await $fetch<string[]>('https://ddragon.leagueoflegends.com/api/versions.json')
-  const latest = versions[0]
-  if (!latest) {
-    throw createError({ statusCode: 502, statusMessage: 'DDragon returned no versions' })
-  }
-  return latest
 }
 
 // Cached on the resolved patch — see champions.get.ts for the rationale.
@@ -51,6 +43,6 @@ const loadSummonersForPatch = defineCachedFunction(
 
 export default defineEventHandler(async (event): Promise<Record<number, StaticSummonerSpellData>> => {
   const { patch } = getQuery(event) as { patch?: string }
-  const resolved = normalizeDataDragonPatch(patch) ?? await resolveLatestPatch()
+  const resolved = normalizeDataDragonPatch(patch) ?? await resolveLatestDDragonPatch()
   return loadSummonersForPatch(resolved)
 })
