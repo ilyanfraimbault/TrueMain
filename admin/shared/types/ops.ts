@@ -835,3 +835,77 @@ export interface AggregationsResponse {
   families: AggregationFamily[]
   backlog: AggregationBacklog
 }
+
+/**
+ * A detector verdict. `unknown` means the measurement could not be taken — it is
+ * never used for "measured and fine", so a card is only green when something was
+ * actually checked.
+ */
+export type DetectorStatus = 'green' | 'amber' | 'red' | 'unknown'
+
+/** One drill-down row: an audited table, platform, process, check or patch. */
+export interface DataQualityDetectorRow {
+  label: string
+  status: DetectorStatus
+  /** The row's number, or null when it could not be measured. */
+  value: number | null
+  /** The number as it should be printed, with its unit; null when unmeasured. */
+  valueLabel: string | null
+  note: string | null
+}
+
+/** One configured green/amber/red boundary, echoed so the panel can state it. */
+export interface DataQualityThreshold {
+  label: string
+  /** Null when the level is disabled (configured to 0 or less). */
+  amber: number | null
+  red: number | null
+  unit: 'count' | 'percent' | 'hours' | 'ratio'
+}
+
+/** One detector's card (#924). */
+export interface DataQualityDetector {
+  key: string
+  title: string
+  status: DetectorStatus
+  /** Headline number, or null when unknown. */
+  count: number | null
+  countLabel: string
+  headline: string
+  /** Set if and only if `status` is `unknown`. */
+  unknownReason: string | null
+  /** Which tables the detector reads and why that is affordable on a page view. */
+  sourceNote: string
+  rows: DataQualityDetectorRow[]
+  thresholds: DataQualityThreshold[]
+  /** True when a heavier on-demand endpoint can expand this detector. */
+  hasDrillDownEndpoint: boolean
+}
+
+/** `GET /api/ops/data-quality/detectors` — the automated anomaly detectors. */
+export interface DataQualityDetectorsResponse {
+  detectors: DataQualityDetector[]
+  /** Every age on the panel is relative to this, not to the browser's clock. */
+  evaluatedAtUtc: string
+}
+
+/** One champion's aggregate freshness on a patch. */
+export interface ChampionFreshnessRow {
+  championId: number
+  patch: string
+  lastAggregatedAtUtc: string
+  ageHours: number
+  /** Scope rows behind the reading, so a one-account champion reads as thin. */
+  scopeRows: number
+  status: DetectorStatus
+}
+
+/** `GET /api/ops/data-quality/aggregate-freshness` — on-demand breakdown. */
+export interface AggregateFreshnessResponse {
+  patches: string[]
+  champions: ChampionFreshnessRow[]
+  championCount: number
+  staleChampionCount: number
+  staleAfterHours: number
+  evaluatedAtUtc: string
+}

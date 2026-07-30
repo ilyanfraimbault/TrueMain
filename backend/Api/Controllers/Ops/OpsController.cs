@@ -22,6 +22,7 @@ public sealed class OpsController(
     ILogsQueryService logsQueryService,
     IRiotApiUsageQueryService riotApiUsageQueryService,
     IDataQualityQueryService dataQualityQueryService,
+    IDataQualityDetectorsQueryService dataQualityDetectorsQueryService,
     ISeedRequestService seedRequestService,
     ISeedRequestQueryService seedRequestQueryService,
     ICandidateQueryService candidateQueryService,
@@ -271,6 +272,38 @@ public sealed class OpsController(
         CancellationToken ct)
     {
         var readModel = await riotApiUsageQueryService.GetAsync(window, endpoint, ct);
+        return Ok(readModel);
+    }
+
+    /// <summary>
+    /// The automated anomaly detectors (#924): one card per detector with its
+    /// green/amber/red verdict, headline number, drill-down rows and the configured
+    /// thresholds it judged against. A detector that cannot measure reports
+    /// <c>unknown</c> — never green — rather than failing the panel.
+    /// </summary>
+    [HttpGet("data-quality/detectors")]
+    [ProducesResponseType(typeof(DataQualityDetectorsReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<DataQualityDetectorsReadModel>> GetDataQualityDetectorsAsync(
+        CancellationToken ct)
+    {
+        var readModel = await dataQualityDetectorsQueryService.GetDetectorsAsync(ct);
+        return Ok(readModel);
+    }
+
+    /// <summary>
+    /// Per-champion aggregate freshness on the newest patches, stalest first. Split off
+    /// the detector payload because it is the one measurement needing a grouped scan of
+    /// <c>champion_aggregate_scopes</c> — affordable on an explicit click, not on every
+    /// page view.
+    /// </summary>
+    [HttpGet("data-quality/aggregate-freshness")]
+    [ProducesResponseType(typeof(AggregateFreshnessReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<AggregateFreshnessReadModel>> GetAggregateFreshnessAsync(
+        CancellationToken ct)
+    {
+        var readModel = await dataQualityDetectorsQueryService.GetAggregateFreshnessAsync(ct);
         return Ok(readModel);
     }
 

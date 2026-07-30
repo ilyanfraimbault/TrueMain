@@ -6,6 +6,7 @@
 // deep-link via `?match=ID`) opens a slide-over with the two teams laid out by
 // position and the missing slots highlighted. Read-only diagnostics — no repair.
 import type {
+  AggregateFreshnessResponse,
   DataQualityIssueType,
   IssueMeta,
   MatchDataQualityDetail,
@@ -132,6 +133,64 @@ function resetFilters() {
 
 const { data, pending, error, refresh } = useIncompleteMatches(overviewFilters)
 
+// --- Automated detectors (#924) ---------------------------------------------
+// Independent of the filters above: the detectors audit the whole corpus, not a
+// queue-and-age slice of flagged matches.
+const {
+  data: detectorsData,
+  pending: detectorsPending,
+  error: detectorsError,
+  refresh: refreshDetectors,
+} = useDataQualityDetectors()
+
+const detectors = computed(() => detectorsData.value?.detectors ?? [])
+const worstDetectorStatus = computed(() => {
+  const statuses = detectors.value.map(detector => detector.status)
+  if (statuses.includes('red')) return 'red'
+  if (statuses.includes('amber')) return 'amber'
+  // Unknown outranks green here for the same reason it does on the backend: a
+  // summary badge must not claim clean when part of it was never measured.
+  return statuses.includes('unknown') ? 'unknown' : 'green'
+})
+
+// The per-champion freshness breakdown is the one heavy query, so it loads on an
+// explicit click rather than with the panel.
+const freshnessOpen = ref(false)
+const freshness = ref<AggregateFreshnessResponse | null>(null)
+const freshnessPending = ref(false)
+const freshnessError = ref<string | null>(null)
+
+async function openFreshness() {
+  freshnessOpen.value = true
+  if (freshness.value || freshnessPending.value) {
+    return
+  }
+  freshnessPending.value = true
+  freshnessError.value = null
+  try {
+    freshness.value = await getAggregateFreshness()
+  }
+  catch {
+    freshnessError.value = 'Failed to load the per-champion freshness breakdown.'
+  }
+  finally {
+    freshnessPending.value = false
+  }
+}
+
+function refreshAll() {
+  refresh()
+  refreshDetectors()
+  // Drop the cached breakdown so a reopen re-measures instead of showing ages
+  // computed against an older evaluation — but if the slide-over is open right
+  // now, re-measure immediately: clearing alone would leave it rendering an
+  // empty panel until the operator closed and reopened it.
+  freshness.value = null
+  if (freshnessOpen.value) {
+    void openFreshness()
+  }
+}
+
 const groups = computed(() => data.value?.groups ?? [])
 const total = computed(() => data.value?.total ?? 0)
 const staleHours = computed(() => data.value?.staleTimelineThresholdHours ?? 6)
@@ -212,9 +271,9 @@ function teamPlayersLabel(team: MatchTeam): string {
             icon="i-lucide-refresh-cw"
             color="neutral"
             variant="ghost"
-            :loading="pending"
+            :loading="pending || detectorsPending"
             aria-label="Refresh"
-            @click="refresh()"
+            @click="refreshAll()"
           />
         </template>
       </UDashboardNavbar>
@@ -263,6 +322,54 @@ function teamPlayersLabel(team: MatchTeam): string {
         title="Failed to load data-quality report"
         class="mb-6"
       />
+
+      <!-- Automated detectors (#924): the checks that would have caught the last
+           incidents on their own, rather than by someone browsing the site. -->
+      <section class="mb-8">
+        <div class="flex flex-wrap items-center gap-2 mb-3">
+          <h2 class="text-sm font-medium text-highlighted">
+            Automated detectors
+          </h2>
+          <UBadge
+            v-if="!detectorsPending && detectors.length > 0"
+            :color="worstDetectorStatus === 'red'
+              ? 'error'
+              : worstDetectorStatus === 'amber'
+                ? 'warning'
+                : worstDetectorStatus === 'unknown' ? 'neutral' : 'success'"
+            variant="subtle"
+            :label="worstDetectorStatus === 'green'
+              ? 'All checks pass'
+              : worstDetectorStatus === 'unknown'
+                ? 'Partly unmeasured'
+                : 'Needs attention'"
+          />
+          <span v-if="detectorsData" class="text-xs text-dimmed">
+            Evaluated {{ formatDateTime(detectorsData.evaluatedAtUtc) }}
+          </span>
+        </div>
+
+        <FetchErrorAlert
+          v-if="detectorsError"
+          :error="detectorsError"
+          title="Failed to load the automated detectors"
+          class="mb-4"
+        />
+
+        <div v-else-if="detectorsPending && detectors.length === 0" class="grid gap-4 lg:grid-cols-2">
+          <USkeleton v-for="n in 4" :key="n" class="h-48 w-full" />
+        </div>
+
+        <div v-else class="grid gap-4 lg:grid-cols-2">
+          <DataQualityDetectorCard
+            v-for="detector in detectors"
+            :key="detector.key"
+            :detector="detector"
+            drill-down-label="Per-champion breakdown"
+            @drill-down="openFreshness"
+          />
+        </div>
+      </section>
 
       <!-- Match-ID lookup / deep-link -->
       <div class="flex flex-wrap items-center gap-3 mb-6">
@@ -532,6 +639,82 @@ function teamPlayersLabel(team: MatchTeam): string {
             <p v-else class="text-sm text-muted">
               No participant rows recorded for this match.
             </p>
+          </div>
+        </template>
+      </USlideover>
+
+      <!-- Per-champion aggregate freshness: the heavy breakdown, loaded on click. -->
+      <USlideover
+        v-model:open="freshnessOpen"
+        title="Aggregate freshness by champion"
+        :ui="{ content: 'sm:max-w-xl' }"
+      >
+        <template #body>
+          <div v-if="freshnessPending" class="space-y-3">
+            <USkeleton v-for="n in 6" :key="n" class="h-10 w-full" />
+          </div>
+
+          <UAlert
+            v-else-if="freshnessError"
+            color="error"
+            variant="subtle"
+            icon="i-lucide-triangle-alert"
+            title="Failed to load"
+            :description="freshnessError ?? undefined"
+          />
+
+          <div v-else-if="freshness" class="space-y-4">
+            <div class="flex flex-wrap items-center gap-2">
+              <UBadge
+                :color="freshness.staleChampionCount === 0 ? 'success' : 'warning'"
+                variant="subtle"
+                :label="`${freshness.staleChampionCount} of ${freshness.championCount} stale`"
+              />
+              <span class="text-xs text-dimmed">
+                Stale after {{ freshness.staleAfterHours }} h · patches
+                {{ freshness.patches.join(', ') || '—' }}
+              </span>
+            </div>
+
+            <p v-if="freshness.champions.length === 0" class="text-sm text-muted">
+              No aggregate rows on the covered patches yet.
+            </p>
+
+            <ul v-else class="divide-default divide-y">
+              <li
+                v-for="row in freshness.champions"
+                :key="`${row.championId}-${row.patch}`"
+                class="flex items-center justify-between gap-3 py-2"
+              >
+                <div class="flex items-center gap-2 min-w-0">
+                  <img
+                    v-if="iconFor(row.championId)"
+                    :src="iconFor(row.championId)!"
+                    :alt="nameFor(row.championId)"
+                    class="size-6 rounded"
+                    loading="lazy"
+                  >
+                  <div class="min-w-0">
+                    <p class="text-xs text-highlighted truncate">
+                      {{ nameFor(row.championId) }}
+                    </p>
+                    <p class="text-xs text-dimmed">
+                      {{ row.patch }} · {{ row.scopeRows }} scope row(s)
+                    </p>
+                  </div>
+                </div>
+                <span
+                  class="text-xs whitespace-nowrap tabular-nums"
+                  :class="row.status === 'red'
+                    ? 'text-error'
+                    : row.status === 'amber' ? 'text-warning' : 'text-success'"
+                >
+                  {{ row.ageHours < 48
+                    ? `${row.ageHours.toFixed(1)} h ago`
+                    : `${(row.ageHours / 24).toFixed(1)} d ago` }}
+                </span>
+              </li>
+            </ul>
           </div>
         </template>
       </USlideover>
