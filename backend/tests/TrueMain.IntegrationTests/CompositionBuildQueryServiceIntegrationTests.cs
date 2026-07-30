@@ -165,6 +165,8 @@ public sealed class CompositionBuildQueryServiceIntegrationTests
             Score = 10,
             Win = win,
             GameStartTimeUtc = DateTime.UtcNow.AddDays(-1),
+            Puuid = $"puuid-{matchId}",
+            IsTruemain = false,
         };
 
     /// <summary>

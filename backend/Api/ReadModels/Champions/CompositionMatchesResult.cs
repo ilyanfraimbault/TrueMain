@@ -62,7 +62,10 @@ public sealed class CompositionMatchesResult
 
 /// <summary>
 /// One selected game: the keys the aggregation step (#559) needs to load the
-/// participant's build, plus its similarity weight and outcome.
+/// participant's build, plus its similarity weight, outcome, and who piloted
+/// it — the provenance drawer (#940) lists the selection back to the user, so
+/// the pilot and the main flag have to survive the selection, not be
+/// re-derived from it.
 /// </summary>
 public sealed class CompositionMatchRef
 {
@@ -75,4 +78,13 @@ public sealed class CompositionMatchRef
     public required bool Win { get; init; }
 
     public required DateTime GameStartTimeUtc { get; init; }
+
+    /// <summary>Puuid of the player who piloted the champion in that game.</summary>
+    public required string Puuid { get; init; }
+
+    /// <summary>
+    /// True when <see cref="Puuid"/> is an active main of the champion — the
+    /// first selection tier (see <c>CompositionMatchQueryService</c>).
+    /// </summary>
+    public required bool IsTruemain { get; init; }
 }

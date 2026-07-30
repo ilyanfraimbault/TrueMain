@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { CompositionSlotInput } from '~~/shared/types/composition'
+import type { CompositionBuildRequest, CompositionSlotInput } from '~~/shared/types/composition'
 import { POSITION_OPTIONS, POSITION_BY_VALUE, isChampionPosition, type ChampionPosition } from '~/utils/positions'
 import { describeFetchError } from '~/utils/errors'
 
@@ -99,6 +99,22 @@ function toSlots(
  * swallow a burst of picks, short enough that the page still feels live.
  */
 const REFETCH_DEBOUNCE_MS = 400
+
+/**
+ * The exact body the recommendation was (or is about to be) fetched with —
+ * reused verbatim by the provenance drawer (#940), which re-lists that same
+ * selection instead of re-deriving the draft.
+ */
+const currentDraftRequest = computed<CompositionBuildRequest | null>(() => {
+  if (playedChampionId.value === null || playedPosition.value === null) return null
+  const position = playedPosition.value
+  const opponent = opponentChampionId.value
+  return {
+    position,
+    allies: toSlots(allySlots.value),
+    enemies: toSlots(enemySlots.value, opponent === null ? null : { position, championId: opponent }),
+  }
+})
 
 let refetchTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -341,6 +357,8 @@ const fallbackNotice = computed(() => {
             :champion-icon-url="playedChampion?.iconUrl ?? null"
             :opponent-name="opponentChampion?.name ?? null"
             :opponent-icon-url="opponentChampion?.iconUrl ?? null"
+            :draft-request="currentDraftRequest"
+            :champions="champions"
           />
         </div>
       </template>

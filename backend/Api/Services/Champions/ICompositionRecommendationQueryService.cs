@@ -11,4 +11,15 @@ public interface ICompositionRecommendationQueryService
     Task<CompositionBuildResponse> GetAsync(
         CompositionSearchCriteria criteria,
         CancellationToken ct);
+
+    /// <summary>
+    /// One page of the games that same selection picked, in selection order —
+    /// the provenance listing behind the recommendation (#940). Re-uses the
+    /// cached selection when the recommendation was just computed.
+    /// </summary>
+    Task<CompositionBuildGamesResponse> GetGamesAsync(
+        CompositionSearchCriteria criteria,
+        int page,
+        int pageSize,
+        CancellationToken ct);
 }

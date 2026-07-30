@@ -1,4 +1,3 @@
-using Core.Lol.Performance;
 using Data;
 using Microsoft.EntityFrameworkCore;
 using TrueMain.ReadModels.Truemains;
@@ -7,14 +6,15 @@ namespace TrueMain.Services.Truemains;
 
 /// <summary>
 /// Read path for the truemain match-history feed
-/// (<c>GET /truemains/{nameTag}/matches</c>). Beyond the collapsed-row payload
-/// it grades every participant of every match on the page with
-/// <see cref="PerformanceScore"/> — the same scorer, on the same inputs, as the
-/// single-match detail page — so the row's score, placement and MVP/ACE badge
-/// can never disagree with what expanding it shows.
+/// (<c>GET /truemains/{nameTag}/matches</c>): resolves the account, pages the
+/// player's matches, and hands the page's (match, participant) keys to the
+/// shared <see cref="MatchSummaryHydrator"/> — which grades every participant
+/// with the same scorer as the single-match detail page, so a row's score,
+/// placement and MVP/ACE badge can never disagree with what expanding it shows.
 /// </summary>
 public sealed class MatchSummariesQueryService(
     TrueMainDbContext db,
+    MatchSummaryHydrator hydrator,
     ILogger<MatchSummariesQueryService> logger) : IMatchSummariesQueryService
 {
     private const int DefaultPageSize = 20;
@@ -118,19 +118,24 @@ public sealed class MatchSummariesQueryService(
             };
         }
 
-        var matchRows = await matchesQuery
+        // The page slice carries the self participant id straight out of the
+        // ordering query, so hydration needs no second lookup to know whose
+        // slice of each match the row renders.
+        var pageKeys = await matchesQuery
             .OrderByDescending(m => m.GameStartTimeUtc)
             .Skip((clampedPage - 1) * clampedPageSize)
             .Take(clampedPageSize)
-            .Select(m => new MatchRow(
-                m.Id,
-                m.QueueId,
-                m.GameMode,
-                m.GameStartTimeUtc,
-                m.GameDurationSeconds))
+            .Select(m => new
+            {
+                MatchId = m.Id,
+                ParticipantId = m.Participants
+                    .Where(p => p.Puuid == account.Puuid)
+                    .Select(p => (int?)p.ParticipantId)
+                    .FirstOrDefault(),
+            })
             .ToListAsync(ct);
 
-        if (matchRows.Count == 0)
+        if (pageKeys.Count == 0)
         {
             // Requested page is past the last one. Return an empty page with
             // the real total so the frontend's pagination control still
@@ -144,261 +149,27 @@ public sealed class MatchSummariesQueryService(
             };
         }
 
-        var matchIds = matchRows.Select(m => m.Id).ToList();
-
-        // All participants across the page — needed for self stats, versus
-        // thumbnails, team kills (KP%) and MVP/ACE derivation. One round trip.
-        var participants = await db.MatchParticipants
-            .AsNoTracking()
-            .Where(p => matchIds.Contains(p.MatchId))
-            .Select(p => new ParticipantRow(
-                p.MatchId,
-                p.ParticipantId,
-                p.Puuid,
-                p.RiotAccountId,
-                p.ChampionId,
-                p.ChampLevel,
-                p.TeamId,
-                p.TeamPosition,
-                p.Win,
-                p.Kills,
-                p.Deaths,
-                p.Assists,
-                p.TotalMinionsKilled + p.NeutralMinionsKilled,
-                p.TotalDamageDealtToChampions,
-                p.GoldEarned,
-                p.VisionScore,
-                p.Item0,
-                p.Item1,
-                p.Item2,
-                p.Item3,
-                p.Item4,
-                p.Item5,
-                p.TrinketItemId,
-                p.PrimaryStyleId,
-                p.SubStyleId,
-                p.Summoner1Id,
-                p.Summoner2Id))
-            .ToListAsync(ct);
-
-        // Riot account name+tag for the participants we can attribute. Only
-        // the subset with a non-null RiotAccountId — others stay anonymous.
-        var participantAccountIds = participants
-            .Where(p => p.RiotAccountId.HasValue)
-            .Select(p => p.RiotAccountId!.Value)
-            .Distinct()
-            .ToList();
-
-        var accountsById = participantAccountIds.Count == 0
-            ? new Dictionary<Guid, (string GameName, string? TagLine)>()
-            : await db.RiotAccounts
-                .AsNoTracking()
-                .Where(a => participantAccountIds.Contains(a.Id))
-                .Select(a => new { a.Id, a.GameName, a.TagLine })
-                .ToDictionaryAsync(a => a.Id, a => (a.GameName, a.TagLine), ct);
-
-        // Keystone for the SELF participant only: slot 0 of the primary tree.
-        // We join through MatchParticipants filtered to account.Puuid so the
-        // DB returns at most one row per match instead of one per participant,
-        // eliminating the ~10× fan-out from pulling every participant's perks.
-        // Restricting to cat.StyleId == mp.PrimaryStyleId keeps just the primary
-        // tree's keystone — the slot-0 row of the sub tree is skipped since
-        // downstream only looks up (…, self.PrimaryStyleId).
-        var keystoneRows = await (
-            from mp in db.MatchParticipants.AsNoTracking()
-            join pps in db.ParticipantPerkSelections.AsNoTracking()
-                on new { mp.MatchId, mp.ParticipantId } equals new { pps.MatchId, pps.ParticipantId }
-            join cat in db.PerkSelectionCatalogs.AsNoTracking()
-                on pps.PerkSelectionCatalogId equals cat.Id
-            where matchIds.Contains(mp.MatchId)
-                  && mp.Puuid == account.Puuid
-                  && cat.SelectionIndex == 0
-                  && cat.StyleId == mp.PrimaryStyleId
-            select new
-            {
-                mp.MatchId,
-                mp.ParticipantId,
-                cat.StyleId,
-                cat.PerkId,
-            }).ToListAsync(ct);
-
-        // GroupBy keeps the dictionary build duplicate-tolerant. The self-only
-        // join already returns ~1 row per match, but
-        // (MatchId, ParticipantId, StyleId) is not unique at the schema level:
-        // PerkSelectionCatalog only enforces uniqueness on
-        // (StyleId, SelectionIndex, PerkId, StyleDescription), so two slot-0 rows
-        // for the same style with distinct PerkId are permitted. A direct
-        // ToDictionary would throw ArgumentException (HTTP 500) on such anomalous
-        // data. The query has no ORDER BY, so the duplicates come back in
-        // Postgres' arbitrary row order; ordering each group by PerkId before
-        // First() makes the tiebreak deterministic instead of letting the shown
-        // keystone vary between identical requests.
-        var keystoneByKey = keystoneRows
-            .GroupBy(r => (r.MatchId, r.ParticipantId, r.StyleId))
-            .ToDictionary(g => g.Key, g => g.OrderBy(r => r.PerkId).First().PerkId);
-
-        // Timeline marks and early kill positions for the whole page, one round
-        // trip each. They are the timeline half of the performance score's
-        // inputs; both tables are indexed on (MatchId, ParticipantId), and the
-        // volume is bounded by the page size (at most ~10 participants × 5 marks
-        // per match, and a few dozen kill rows).
-        var marks = await db.MatchParticipantTimelineSnapshots
-            .AsNoTracking()
-            .Where(s => matchIds.Contains(s.MatchId))
-            .Select(s => new
-            {
-                s.MatchId,
-                s.ParticipantId,
-                s.IntervalMinute,
-                Cs = s.MinionsKilled + s.JungleMinionsKilled,
-                s.TotalGold,
-                s.Xp,
-            })
-            .ToListAsync(ct);
-
-        var marksByMatch = marks
-            .GroupBy(r => r.MatchId)
-            .ToDictionary(
-                g => g.Key,
-                g => (IReadOnlyDictionary<(int ParticipantId, int Minute), TimelineMark>)g
-                    .GroupBy(r => (r.ParticipantId, Minute: r.IntervalMinute))
-                    .ToDictionary(
-                        inner => inner.Key,
-                        inner =>
-                        {
-                            var row = inner.First();
-                            return new TimelineMark(
-                                row.ParticipantId, row.IntervalMinute, row.Cs, row.TotalGold, row.Xp);
-                        }));
-
-        var killRows = await db.MatchParticipantKillPositions
-            .AsNoTracking()
-            .Where(k => matchIds.Contains(k.MatchId))
-            .Select(k => new { k.MatchId, k.ParticipantId, k.X, k.Y })
-            .ToListAsync(ct);
-
-        var killSpotsByMatch = killRows
-            .GroupBy(r => r.MatchId)
-            .ToDictionary(
-                g => g.Key,
-                g => (IReadOnlyList<KillSpot>)g
-                    .Select(r => new KillSpot(r.ParticipantId, r.X, r.Y))
-                    .ToList());
-
-        var participantsByMatch = participants
-            .GroupBy(p => p.MatchId)
-            .ToDictionary(g => g.Key, g => g.ToList());
-
-        var matches = new List<MatchSummaryReadModel>(matchRows.Count);
-        foreach (var match in matchRows)
+        var keys = new List<MatchSummaryKey>(pageKeys.Count);
+        foreach (var row in pageKeys)
         {
-            if (!participantsByMatch.TryGetValue(match.Id, out var partList))
-            {
-                logger.LogWarning(
-                    "{Surface} match has no participant rows match_id={MatchId}",
-                    Surface, match.Id);
-                continue;
-            }
-
-            var self = partList.FirstOrDefault(p => p.Puuid == account.Puuid);
-            if (self is null)
+            if (row.ParticipantId is null)
             {
                 logger.LogWarning(
                     "{Surface} match missing self participant match_id={MatchId} puuid={Puuid}",
-                    Surface, match.Id, account.Puuid);
+                    Surface, row.MatchId, account.Puuid);
                 continue;
             }
 
-            var teamKills = partList
-                .Where(p => p.TeamId == self.TeamId)
-                .Sum(p => p.Kills);
-            var killParticipation = teamKills == 0
-                ? 0d
-                : (double)(self.Kills + self.Assists) / teamKills;
-
-            // Grade all ten participants with the real scorer, then rank the
-            // match. MVP / ACE and the placement are read off that ranking — the
-            // row and the detail panel therefore always tell the same story.
-            var matchMarks = marksByMatch.TryGetValue(match.Id, out var mm)
-                ? mm
-                : PerformanceInputs.NoMarks;
-            var matchKillSpots = killSpotsByMatch.TryGetValue(match.Id, out var ks)
-                ? ks
-                : Array.Empty<KillSpot>();
-
-            var placements = MatchPerformanceRanker.Rank(ScoreMatch(
-                partList, match.GameDurationSeconds, matchMarks, matchKillSpots));
-
-            var selfPlacement = placements[self.ParticipantId];
-
-            keystoneByKey.TryGetValue((self.MatchId, self.ParticipantId, self.PrimaryStyleId), out var keystoneId);
-
-            var participantList = partList
-                .OrderBy(p => p.TeamId)
-                .ThenBy(p => p.ParticipantId)
-                .Select(p =>
-                {
-                    string? gameName = null;
-                    string? tagLine = null;
-                    if (p.RiotAccountId.HasValue
-                        && accountsById.TryGetValue(p.RiotAccountId.Value, out var acc))
-                    {
-                        gameName = acc.GameName;
-                        tagLine = acc.TagLine;
-                    }
-                    return new MatchSummaryParticipantReadModel
-                    {
-                        ChampionId = p.ChampionId,
-                        TeamId = p.TeamId,
-                        // Riot leaves TeamPosition empty on modes without
-                        // assigned roles; normalize to null so the JSON stays
-                        // a clean tri-state for the frontend.
-                        Position = string.IsNullOrEmpty(p.TeamPosition) ? null : p.TeamPosition,
-                        GameName = gameName,
-                        TagLine = tagLine,
-                    };
-                })
-                .ToList();
-
-            matches.Add(new MatchSummaryReadModel
-            {
-                MatchId = match.Id,
-                QueueId = match.QueueId,
-                GameMode = match.GameMode,
-                GameStartTimeUtc = match.GameStartTimeUtc,
-                GameDurationSeconds = match.GameDurationSeconds,
-                Self = new MatchSummarySelfReadModel
-                {
-                    ChampionId = self.ChampionId,
-                    ChampionLevel = self.ChampLevel,
-                    Summoner1Id = self.Summoner1Id,
-                    Summoner2Id = self.Summoner2Id,
-                    PrimaryStyleId = self.PrimaryStyleId,
-                    SubStyleId = self.SubStyleId,
-                    KeystoneId = keystoneId,
-                    Kills = self.Kills,
-                    Deaths = self.Deaths,
-                    Assists = self.Assists,
-                    Cs = self.Cs,
-                    KillParticipation = killParticipation,
-                    Items = new[]
-                    {
-                        self.Item0, self.Item1, self.Item2,
-                        self.Item3, self.Item4, self.Item5,
-                    },
-                    TrinketItemId = self.TrinketItemId,
-                    TeamId = self.TeamId,
-                    Position = string.IsNullOrEmpty(self.TeamPosition) ? null : self.TeamPosition,
-                    Win = self.Win,
-                    LpDelta = null,
-                    PerformanceScore = selfPlacement.Score,
-                    Placement = selfPlacement.Placement,
-                    IsMvp = selfPlacement.IsMvp,
-                    IsAce = selfPlacement.IsAce,
-                },
-                Participants = participantList,
-            });
+            keys.Add(new MatchSummaryKey(row.MatchId, row.ParticipantId.Value));
         }
+
+        var hydrated = await hydrator.HydrateAsync(keys, ct);
+
+        var matches = keys
+            .Select(key => hydrated.TryGetValue(key, out var summary) ? summary : null)
+            .Where(summary => summary is not null)
+            .Select(summary => summary!)
+            .ToList();
 
         return new MatchSummariesResponse
         {
@@ -408,82 +179,4 @@ public sealed class MatchSummariesQueryService(
             Total = total,
         };
     }
-
-    /// <summary>
-    /// Grades every participant of one match through the shared input builder,
-    /// so this feed and the detail page score the same game identically.
-    /// </summary>
-    /// <param name="partList">All participants of the match.</param>
-    /// <param name="durationSeconds">Game length in seconds; 0 disables the per-minute components.</param>
-    /// <param name="marks">Timeline marks of the match, keyed by (participant, minute).</param>
-    /// <param name="killSpots">Early kill participations of the match; empty means no coverage.</param>
-    private static IEnumerable<MatchPerformanceEntry> ScoreMatch(
-        List<ParticipantRow> partList,
-        int durationSeconds,
-        IReadOnlyDictionary<(int ParticipantId, int Minute), TimelineMark> marks,
-        IReadOnlyList<KillSpot> killSpots)
-    {
-        var scored = partList
-            .Select(p => new ScoredParticipant(
-                p.ParticipantId,
-                p.TeamId,
-                p.TeamPosition,
-                p.Win,
-                p.Kills,
-                p.Deaths,
-                p.Assists,
-                p.Cs,
-                p.DamageToChampions,
-                p.GoldEarned,
-                p.VisionScore))
-            .ToList();
-
-        return PerformanceInputs
-            .BuildMatchInputs(scored, durationSeconds, marks, killSpots)
-            .Select(built => new MatchPerformanceEntry
-            {
-                ParticipantId = built.Participant.ParticipantId,
-                Win = built.Participant.Win,
-                Score = PerformanceScore.Compute(built.Input),
-                Kills = built.Participant.Kills,
-                Deaths = built.Participant.Deaths,
-                Assists = built.Participant.Assists,
-            });
-    }
-
-    private sealed record MatchRow(
-        string Id,
-        int QueueId,
-        string GameMode,
-        DateTime GameStartTimeUtc,
-        int GameDurationSeconds);
-
-    private sealed record ParticipantRow(
-        string MatchId,
-        int ParticipantId,
-        string Puuid,
-        Guid? RiotAccountId,
-        int ChampionId,
-        int ChampLevel,
-        int TeamId,
-        string? TeamPosition,
-        bool Win,
-        int Kills,
-        int Deaths,
-        int Assists,
-        int Cs,
-        int DamageToChampions,
-        int GoldEarned,
-        int VisionScore,
-        int Item0,
-        int Item1,
-        int Item2,
-        int Item3,
-        int Item4,
-        int Item5,
-        int TrinketItemId,
-        int PrimaryStyleId,
-        int SubStyleId,
-        int Summoner1Id,
-        int Summoner2Id);
 }

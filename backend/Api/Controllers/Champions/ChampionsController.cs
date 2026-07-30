@@ -567,29 +567,81 @@ public sealed class ChampionsController(
         [FromBody] CompositionBuildRequest request,
         CancellationToken ct = default)
     {
+        if (!TryBuildCompositionCriteria(championId, request, out var criteria, out var problem))
+        {
+            return problem;
+        }
+
+        return Ok(await compositionRecommendationQueryService.GetAsync(criteria, ct));
+    }
+
+    /// <summary>
+    /// The games the recommendation for that same draft was computed from, one
+    /// page at a time, in the selection's own order (mains first, then
+    /// similarity, recency breaking ties). Same body as the recommendation
+    /// itself — the draft is the identity of the selection — so the two always
+    /// answer about the same sample; a separate route because the matchup page
+    /// refetches the build on every draft edit and must not pay for hydrating
+    /// match rows nobody opened (#940).
+    /// </summary>
+    [HttpPost("{championId:int}/composition-build/games")]
+    [ProducesResponseType(typeof(CompositionBuildGamesResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<CompositionBuildGamesResponse>> PostCompositionBuildGamesAsync(
+        int championId,
+        [FromBody] CompositionBuildRequest request,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 0,
+        CancellationToken ct = default)
+    {
+        if (!TryBuildCompositionCriteria(championId, request, out var criteria, out var problem))
+        {
+            return problem;
+        }
+
+        return Ok(await compositionRecommendationQueryService.GetGamesAsync(criteria, page, pageSize, ct));
+    }
+
+    /// <summary>
+    /// Validates and normalises a composition draft body into search criteria.
+    /// Shared by the recommendation and its provenance listing so the two can
+    /// never disagree on what a draft means — or on which drafts are rejected.
+    /// </summary>
+    private bool TryBuildCompositionCriteria(
+        int championId,
+        CompositionBuildRequest request,
+        out CompositionSearchCriteria criteria,
+        [NotNullWhen(false)] out ActionResult? problem)
+    {
+        criteria = null!;
+
         if (championId <= 0)
         {
-            return ValidationProblem("championId must be a positive champion id.");
+            problem = ValidationProblem("championId must be a positive champion id.");
+            return false;
         }
 
         if (!TryRequirePosition(request.Position, out var normalizedPosition, out var positionProblem))
         {
-            return positionProblem;
+            problem = positionProblem;
+            return false;
         }
 
         if (!TryNormalizeSlots(request.Allies, "allies", out var allies, out var slotProblem)
             || !TryNormalizeSlots(request.Enemies, "enemies", out var enemies, out slotProblem))
         {
-            return slotProblem;
+            problem = slotProblem;
+            return false;
         }
 
         if (allies.ContainsKey(normalizedPosition))
         {
-            return ValidationProblem(
+            problem = ValidationProblem(
                 "allies must not contain the player's own position — that slot is the champion of the route.");
+            return false;
         }
 
-        var criteria = new CompositionSearchCriteria
+        criteria = new CompositionSearchCriteria
         {
             ChampionId = championId,
             Position = normalizedPosition,
@@ -598,8 +650,8 @@ public sealed class ChampionsController(
             Patch = ChampionQueryParameterNormalizer.NormalizePatch(request.Patch),
             EloBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(request.EloBracket),
         };
-
-        return Ok(await compositionRecommendationQueryService.GetAsync(criteria, ct));
+        problem = null;
+        return true;
     }
 
     /// <summary>

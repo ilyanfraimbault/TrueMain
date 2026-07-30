@@ -42,7 +42,7 @@ import type {
   LeaderboardRowResponse,
   RegionSlug,
 } from '~~/shared/types/leaderboard'
-import type { CompositionBuildResponse } from '~~/shared/types/composition'
+import type { CompositionBuildGamesResponse, CompositionBuildResponse, CompositionGame } from '~~/shared/types/composition'
 import type { TruemainDedication } from '~~/shared/types/dedication'
 import type {
   BuildChoice,
@@ -1860,12 +1860,136 @@ async function mockCompositionBuild(id: number, body?: unknown): Promise<Composi
   }
 }
 
+/**
+ * Games the composition recommendation was computed from (#940), paged. Mirrors
+ * `mockCompositionBuild`'s matchup/games-count logic exactly (same seed, same
+ * draft-derived `games`) so a drawer opened right after a recommendation loads
+ * always lists a sample consistent with the confidence strip that opened it.
+ * Games at even indices are attributed to mains (roughly matching the
+ * `truemainGameCount` share the recommendation reports) and lead the page, per
+ * the real selection's mains-first order.
+ */
+async function mockCompositionBuildGames(id: number, body: unknown, query: Record<string, unknown>): Promise<CompositionBuildGamesResponse> {
+  const s = seedsById.get(id) ?? seed(id, 'MIDDLE', 'fighter', 8010, 8000, 8400, 0.508, 0.04)
+  const patch = await latestShortPatch()
+  const rng = mulberry32(s.id * 131 + 7)
+  const archetype = ARCHETYPES[s.archetype]
+
+  const draft = (body ?? {}) as {
+    position?: string
+    allies?: Array<{ championId?: number, position?: string }>
+    enemies?: Array<{ championId?: number, position?: string }>
+  }
+  const position = typeof draft.position === 'string' ? draft.position.toUpperCase() : s.position
+  const roleOpponent = (draft.enemies ?? []).find(slot =>
+    typeof slot.position === 'string' && slot.position.toUpperCase() === position)
+  const matchupRequested = roleOpponent?.championId !== undefined
+  const matchupFound = !matchupRequested || (roleOpponent!.championId! % 23 !== 0)
+  const slotCount = (draft.allies?.length ?? 0) + (draft.enemies?.length ?? 0)
+  const thinMatchup = matchupRequested && matchupFound && roleOpponent!.championId! % 17 === 0
+  const total = matchupFound ? (thinMatchup ? 3 : Math.max(6, Math.round(100 - slotCount * 11))) : 0
+  const maxPossibleScore = 10 + slotCount * 3
+
+  const { page, pageSize } = pageParams(query, 10, 25)
+  const start = (page - 1) * pageSize
+  const count = Math.max(0, Math.min(pageSize, total - start))
+  const now = Date.now()
+
+  const games: CompositionGame[] = Array.from({ length: count }, (_, i): CompositionGame => {
+    const index = start + i
+    const gameRng = mulberry32(s.id * 733 + index * 197)
+    const isTruemain = index % 2 === 0
+    const win = gameRng() < Math.min(0.6, s.wr + gameRng() * 0.02)
+    const duration = 1350 + Math.floor(gameRng() * 1100)
+    const perf = 28 + Math.floor(gameRng() * 62)
+    const placement = 1 + Math.floor((100 - perf) / 100 * 10)
+    const topOfTeam = placement <= 3
+    const selfTeam = gameRng() < 0.5 ? 100 : 200
+    const pilotIndex = (s.id * 7 + index * 11) % PLAYER_COUNT
+    const pilot = players()[pilotIndex]!
+    const pool = CHAMPION_SEEDS
+
+    const participants = Array.from({ length: 10 }, (_, slot) => {
+      let otherIndex = (pilotIndex + slot * 17 + index) % PLAYER_COUNT
+      if (otherIndex === pilotIndex) otherIndex = (otherIndex + 1) % PLAYER_COUNT
+      const other = players()[otherIndex]!
+      return {
+        championId: slot === 0 ? s.id : pool[(index * 7 + slot * 13) % pool.length]!.id,
+        teamId: slot < 5 ? selfTeam : selfTeam === 100 ? 200 : 100,
+        position: (['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'] as const)[slot % 5]!,
+        gameName: slot === 0 ? pilot.row.identity.gameName : other.row.identity.gameName,
+        tagLine: slot === 0 ? pilot.row.identity.tagLine : other.row.identity.tagLine,
+      }
+    })
+
+    const match: MatchSummaryResponse = {
+      matchId: `EUW1_COMPG_${s.id}_${index}`,
+      queueId: 420,
+      gameMode: 'CLASSIC',
+      gameStartTimeUtc: new Date(now - (index * 13 + 5) * 60 * 60 * 1000).toISOString(),
+      gameDurationSeconds: duration,
+      self: {
+        championId: s.id,
+        championLevel: 12 + Math.floor(gameRng() * 7),
+        summoner1Id: archetype.spells[0],
+        summoner2Id: archetype.spells[1],
+        primaryStyleId: s.primaryStyle,
+        subStyleId: s.secondaryStyle,
+        keystoneId: s.keystone,
+        kills: Math.floor(gameRng() * 12),
+        deaths: Math.floor(gameRng() * 8),
+        assists: Math.floor(gameRng() * 14),
+        cs: Math.round(duration / 60 * (5.5 + gameRng() * 3.5)),
+        killParticipation: round3(Math.min(0.9, 0.3 + gameRng() * 0.5)),
+        items: [...archetype.items.slice(0, 5), archetype.boots[0]!],
+        trinketItemId: 3364,
+        teamId: selfTeam,
+        position,
+        win,
+        lpDelta: win ? 14 + Math.floor(gameRng() * 12) : -(12 + Math.floor(gameRng() * 12)),
+        performanceScore: perf,
+        placement,
+        isMvp: win && topOfTeam,
+        isAce: !win && topOfTeam,
+      },
+      participants,
+    }
+
+    return {
+      // Similarity descends within the page, mains-first ties broken the same
+      // way the real selection breaks them: index order.
+      score: Math.max(0, maxPossibleScore - index),
+      isTruemain,
+      pilot: {
+        gameName: pilot.row.identity.gameName,
+        tagLine: pilot.row.identity.tagLine,
+        profileIconId: pilot.row.identity.profileIconId,
+      },
+      match,
+    }
+  })
+
+  return {
+    championId: s.id,
+    position,
+    patch,
+    page,
+    pageSize,
+    total,
+    maxPossibleScore,
+    games,
+  }
+}
+
 export async function resolveDevApiMock(
   path: string,
   query: Record<string, unknown>,
   body?: unknown,
 ): Promise<unknown | undefined> {
   if (path === '/champions') return mockChampionSummaries()
+
+  const compositionGamesMatch = path.match(/^\/champions\/(\d+)\/composition-build\/games$/)
+  if (compositionGamesMatch) return mockCompositionBuildGames(Number(compositionGamesMatch[1]), body, query)
 
   const compositionMatch = path.match(/^\/champions\/(\d+)\/composition-build$/)
   if (compositionMatch) return mockCompositionBuild(Number(compositionMatch[1]), body)

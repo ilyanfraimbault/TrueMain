@@ -120,11 +120,12 @@ public sealed class CompositionMatchQueryService(
                         r.OtherTeamId != first.TeamId, r.OtherPosition, r.OtherChampionId))
                     .ToList();
                 var score = CompositionSimilarityScorer.Score(criteria, weights, slots);
+                var isTruemain = mainPuuids.Contains(first.Puuid);
                 return new
                 {
                     HasMatchup = !matchupRequested || slots.Any(s =>
                         s.IsEnemy && s.TeamPosition == criteria.Position && s.ChampionId == roleOpponentId),
-                    IsTruemain = mainPuuids.Contains(first.Puuid),
+                    IsTruemain = isTruemain,
                     Match = new CompositionMatchRef
                     {
                         MatchId = g.Key.MatchId,
@@ -132,6 +133,8 @@ public sealed class CompositionMatchQueryService(
                         Score = score,
                         Win = first.Win,
                         GameStartTimeUtc = first.GameStartTimeUtc,
+                        Puuid = first.Puuid,
+                        IsTruemain = isTruemain,
                     },
                 };
             })
