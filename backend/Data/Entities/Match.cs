@@ -78,5 +78,17 @@ public class Match
     /// </summary>
     public bool BansAggregated { get; set; }
 
+    /// <summary>
+    /// Set once this match has been folded into the lane-outcome counters on
+    /// <see cref="ChampionMatchupStat"/> (#919). A flag of its own rather than reusing
+    /// <see cref="MatchupLeadAggregated"/>, which was backfilled to true in #811 and so
+    /// would have excluded every existing match. Shipping this one false lets the fold
+    /// drain the retained window immediately: unlike the bans of #920, the source data
+    /// (the 15-minute timeline snapshots) still exists for every retained match, since
+    /// snapshot pruning keeps the canonical marks. Dies with the match on retention, so
+    /// an aged-out patch's lane counters freeze like everything else.
+    /// </summary>
+    public bool LaneOutcomeAggregated { get; set; }
+
     public ICollection<MatchParticipant> Participants { get; set; } = new List<MatchParticipant>();
 }

@@ -220,12 +220,25 @@ export interface ChampionMatchupEntry {
   games: number
   wins: number
   winRate: number
+  /**
+   * Share of *decided* lanes won against this opponent — ahead by more than the
+   * configured gold threshold at 15 minutes (#919). Denominator is
+   * `decidedLaneGames`, never `games`: a match with no timeline, one that ended
+   * before 15 min, or a lane inside the threshold band is not a decided lane.
+   *
+   * `null` = nothing can be said (no decided lane in scope, or the live
+   * single-opponent search path which has no lane data). Never render it as 0%.
+   */
+  laneWinRate: number | null
+  /** Lanes actually decided; the sample `laneWinRate` rests on. Smaller than `games`. */
+  decidedLaneGames: number
 }
 
 /**
- * All of a champion's lane matchups at a position, computed live from match
- * participants. The client slices a best/worst leaderboard out of it and
- * filters it for the opponent search.
+ * All of a champion's lane matchups at a position. Served from the
+ * `champion_matchup_stats` aggregate for the panel, computed live from match
+ * participants only for the single-opponent search (floor of 1 game). The client
+ * slices a best/worst leaderboard out of it and filters it for the search.
  */
 export interface ChampionMatchups {
   championId: number

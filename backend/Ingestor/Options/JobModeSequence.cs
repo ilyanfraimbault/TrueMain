@@ -50,6 +50,11 @@ public static class JobModeSequence
         JobMode.RunePageDeduplicationOnly,
         JobMode.PatternAggregationOnly,
         JobMode.MatchupLeadAggregationOnly,
+        // Judges each match's lane outcome from the 15-minute snapshots and folds it
+        // into the lane counters on the same champion_matchup_stats rows (#919).
+        // Immediately after the matchup fold, over the same matches, so the row its
+        // upsert targets already exists and both sides describe one cohort.
+        JobMode.LaneOutcomeAggregationOnly,
         // Same incremental one-fold-per-match shape as the matchup step, over the
         // same participant rows but pairing teammates instead of lane opponents
         // (#922). Independent of it — it has its own pending flag — so the order
