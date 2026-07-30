@@ -43,6 +43,11 @@ public static class JobModeSequence
         // BEFORE the champion aggregations, so they (and the live panel reads) can
         // filter by rank. Uses prior-cycle snapshots.
         JobMode.EloBracketEnrichmentOnly,
+        // Collapses the permutation-duplicate rune pages the old click-order
+        // storage created (#911) BEFORE the aggregation reads the dimension, so a
+        // pass never aggregates into a table it is about to rewrite. Drains once
+        // and is a no-op thereafter.
+        JobMode.RunePageDeduplicationOnly,
         JobMode.PatternAggregationOnly,
         JobMode.MatchupLeadAggregationOnly,
         // Same incremental one-fold-per-match shape as the matchup step, over the

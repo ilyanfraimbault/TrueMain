@@ -172,6 +172,22 @@ public sealed record StorageSnapshotSummary(
     int Written,
     long DatabaseBytes) : IProcessRunSummary;
 
+/// <summary>
+/// Rune-page deduplication outcome (#911). The counters separate the two ways a
+/// pattern row can move: <see cref="RepointedPatterns"/> simply changed page,
+/// <see cref="FoldedPatterns"/> had its games/wins added into an existing row and was
+/// deleted — the second number is the split this bug was causing, being undone.
+/// <see cref="NormalizedPages"/> counts rows that were never duplicated but still held
+/// the player's perk order.
+/// </summary>
+public sealed record RunePageDeduplicationSummary(
+    int Groups,
+    int DeletedPages,
+    int RepointedPatterns,
+    int FoldedPatterns,
+    int NormalizedPages,
+    int Batches) : IProcessRunSummary;
+
 /// <summary>The patches retention kept for one platform.</summary>
 public sealed record RetainedPatchesSummary(string PlatformId, IReadOnlyList<string> Patches);
 
