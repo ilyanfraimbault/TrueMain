@@ -112,6 +112,22 @@ would put a backend round-trip on every human page view to serve the unfurl path
 the card's numbers are resolved at share time, so they can differ from a page the visitor left open —
 both are real, an hour apart at most (the cache TTL) — #926.
 
+**"Client-only fetch" has to be enforced on the *side*, not merely intended — an immediate watcher is not client-only.**
+`useTruemainFetch` (profile / rank-history / matches) is hand-rolled refs precisely because these payloads are
+per-viewer and must never enter shared SSR HTML, but its initial run hung off `watch(..., { immediate: true })`,
+which fires during SSR too. It then *won* the race: the page render is meanwhile awaiting its two SSR-enabled
+static lookups (rune tree + summoner spells, external DDragon/CDragon calls), so a local
+`/api/truemains/{tag}/*` hit resolved first and the profile landed in the server-rendered markup — while the
+client's first, hydration render always starts in the loading state. Vue reconciled skeletons against
+rendered content, hit `insertBefore: node is not a child of this node`, then crashed on a null component in
+the patch loop, and `/truemains/{nameTag}` sat in its skeletons **permanently** on any full page load
+(client-side navigation was fine — it hydrates nothing). The initial run is now `onMounted`, which cannot run
+on the server. Consequences worth knowing: the SSR markup for a profile is *always* the skeleton branch, and
+the SSR `<title>` is the raw `Name-TAG` slug rather than `Name#TAG` — both are the price of the
+no-cross-viewer-SSR rule, not oversights, and "fixing" either by SSR-ing the profile reintroduces the hang.
+Disabling SSR on the route or timing out the fetch were both rejected: neither addresses the mismatch, and
+the route is a primary, indexable one — #862.
+
 **The matchup opponent-search stays a live query while the matchups panel reads the aggregate.**
 The `opponent=` path filters to a single adversary (already fast) and uses a floor of 1 game, which an
 aggregate built at floor 10 cannot serve — #606.
