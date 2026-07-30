@@ -205,6 +205,20 @@ thousands of pattern rows and prod migrates on startup. It also normalises pages
 left in click order, the new canonical lookup would miss them and mint a second row, re-creating the bug —
 #911.
 
+**Lane win rate stores three counters and divides by the *decided* lanes, not by games played.**
+A gold *threshold* at 15 min (`LaneOutcomeAggregation:GoldLeadThreshold`, 300) is what defines a won lane, and
+a threshold necessarily creates a third outcome: lanes inside the band were neither won nor lost. Folding those
+into losses would print "lane lost" where nothing was decided, so wins and losses are stored separately and the
+rate divides by their sum. `LaneGames` is separate from the matchup's `Games` for a different reason: a match
+with no ingested timeline, or one that ended before 15 minutes, is a game but not a judgeable lane — dividing
+by `Games` would understate every lane win rate by the share of those. The threshold is configurable because it
+is a product judgement, but changing it re-defines every stored counter and frozen patches can never be
+recomputed (#466), so old rows keep the threshold in force when they were folded.
+⚠️ #919's own premise was stale: it assumed the per-matchup 15-min leads were already aggregated from #606/#595,
+but #889 dropped that aggregate with the "Lead vs role opponent" chart. What survives is the raw timeline
+snapshot at the canonical marks, which is why the fold flag could ship `false` and pick up the whole retained
+window instead of starting at deploy like #920's bans — #919.
+
 **Matchups are a pre-aggregated read table — explicitly revising the earlier live-self-join design.**
 #90 chose a self-join "for simplicity, not volume". Prod measurement showed the aggregate is bounded by
 dimensions rather than games: ~22.2k rows, a few MB, versus a self-join over ~35 GB running single-threaded.

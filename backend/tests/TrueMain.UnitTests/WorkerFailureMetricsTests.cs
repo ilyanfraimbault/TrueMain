@@ -35,6 +35,7 @@ public sealed class WorkerFailureMetricsTests
         ("RunePageDeduplication", JobMode.RunePageDeduplicationOnly),
         ("ChampionPatternAggregation", JobMode.PatternAggregationOnly),
         ("ChampionMatchupLeadAggregation", JobMode.MatchupLeadAggregationOnly),
+        ("ChampionLaneOutcomeAggregation", JobMode.LaneOutcomeAggregationOnly),
         ("ChampionSynergyAggregation", JobMode.SynergyAggregationOnly),
         ("ChampionBanAggregation", JobMode.BanAggregationOnly),
         ("ChampionPowerspikeAggregation", JobMode.PowerspikeAggregationOnly),

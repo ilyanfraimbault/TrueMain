@@ -36,5 +36,31 @@ public class ChampionMatchupStat
 
     public int Wins { get; set; }
 
+    /// <summary>
+    /// Matches in this matchup where BOTH lane participants have a 15-minute timeline
+    /// snapshot, i.e. where a lane outcome could be judged at all (#919). Deliberately
+    /// separate from <see cref="Games"/>: a match with no ingested timeline, or one that
+    /// ended before the 15-minute mark, counts as a game but not as a judgeable lane.
+    /// Dividing lane wins by <see cref="Games"/> would silently understate every lane
+    /// win rate by the share of games without a snapshot.
+    /// </summary>
+    public int LaneGames { get; set; }
+
+    /// <summary>
+    /// Of <see cref="LaneGames"/>, those where the champion was ahead of its lane
+    /// opponent by more than the configured gold threshold at 15 minutes.
+    /// </summary>
+    public int LaneWins { get; set; }
+
+    /// <summary>
+    /// Of <see cref="LaneGames"/>, those where the champion was *behind* by more than
+    /// the same threshold. Stored rather than derived because a threshold creates a
+    /// third outcome: lanes inside the band are neither won nor lost, and
+    /// <c>LaneGames - LaneWins</c> would count those as losses. The even count is
+    /// <c>LaneGames - LaneWins - LaneLosses</c>, and the lane win rate divides by
+    /// <c>LaneWins + LaneLosses</c> — the decided lanes only.
+    /// </summary>
+    public int LaneLosses { get; set; }
+
     public DateTime AggregatedAtUtc { get; set; }
 }
