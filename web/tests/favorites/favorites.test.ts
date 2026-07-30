@@ -9,6 +9,7 @@ import {
   favoriteNameTag,
   normalizeFavorites,
   parseStoredFavorites,
+  resolveFavoriteIdentity,
 } from '~~/app/utils/favorites'
 
 // The composable's behaviour lives in `createFavoritesStore` (the Nuxt wrapper
@@ -44,6 +45,34 @@ describe('favoriteNameTag', () => {
 describe('favoriteKey', () => {
   it('matches Riot IDs case-insensitively, like the backend lookup', () => {
     expect(favoriteKey(' SHEIDEN-1234 ')).toBe(favoriteKey('sheiden-1234'))
+  })
+})
+
+describe('resolveFavoriteIdentity', () => {
+  it('resolves and trims a usable Riot identity', () => {
+    expect(resolveFavoriteIdentity({ gameName: ' Sheiden ', tagLine: ' 1234 ' })).toEqual({
+      gameName: 'Sheiden',
+      tagLine: '1234',
+      nameTag: 'Sheiden-1234',
+    })
+  })
+
+  it('accepts an untagged game name', () => {
+    expect(resolveFavoriteIdentity({ gameName: 'Sheiden', tagLine: null })).toEqual({
+      gameName: 'Sheiden',
+      tagLine: null,
+      nameTag: 'Sheiden',
+    })
+  })
+
+  it('rejects an empty game name, exactly like the read path (#872)', () => {
+    // The trap: with a tag line, an empty game name still produces a non-empty
+    // `-1234` slug, so a nameTag-only guard would let it through — and
+    // `normalizeFavorite` would then drop the stored row on the next read.
+    expect(favoriteNameTag('', '1234')).toBe('-1234')
+    expect(resolveFavoriteIdentity({ gameName: '', tagLine: '1234' })).toBeNull()
+    expect(resolveFavoriteIdentity({ gameName: '   ', tagLine: '1234' })).toBeNull()
+    expect(resolveFavoriteIdentity({ gameName: '', tagLine: null })).toBeNull()
   })
 })
 
@@ -168,6 +197,43 @@ describe('favorites store', () => {
     store.add({ gameName: 'Sheiden', tagLine: '1234' })
     store.add({ gameName: 'SHEIDEN', tagLine: '1234' })
     expect(store.favorites.value).toHaveLength(1)
+  })
+
+  it('refuses an entry the read path would discard (#872)', () => {
+    const { store } = makeStore()
+    // Write and read now share one notion of a valid entry: an empty game name
+    // is refused here rather than stored as a `-1234` slug that
+    // `normalizeFavorite` throws away on the next load.
+    store.add({ gameName: '', tagLine: '1234' })
+    store.add({ gameName: '   ', tagLine: '1234', region: 'europe' })
+
+    expect(store.favorites.value).toEqual([])
+    expect(stored()).toBeNull()
+    expect(store.isFavorite('-1234')).toBe(false)
+  })
+
+  it('reports a refused toggle as not-followed instead of claiming the follow', () => {
+    const { store } = makeStore()
+    expect(store.toggle({ gameName: '', tagLine: '1234' })).toBe(false)
+    expect(store.favorites.value).toEqual([])
+  })
+
+  it('leaves pre-existing entries alone when a later write happens', () => {
+    // The tightened guard is a write-path check, not a new validity rule: a
+    // list already in storage keeps flowing through `normalizeFavorites`
+    // untouched, so nobody loses the players they follow.
+    const { store } = makeStore(() => 2_000)
+    window.localStorage.setItem(
+      FAVORITES_STORAGE_KEY,
+      JSON.stringify([{ gameName: 'Older', tagLine: '1', addedAt: 5 }]),
+    )
+    store.loadFromStorage()
+
+    store.add({ gameName: '', tagLine: '1234' })
+    expect(store.favorites.value.map(e => e.nameTag)).toEqual(['Older-1'])
+
+    store.add({ gameName: 'Newer', tagLine: '2' })
+    expect(store.favorites.value.map(e => e.nameTag)).toEqual(['Newer-2', 'Older-1'])
   })
 
   it('keeps the most recently added entry first', () => {

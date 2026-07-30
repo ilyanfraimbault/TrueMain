@@ -20,6 +20,13 @@ interface UseTruemainFetchOptions<TResponse> {
   onClear: () => void
   /** Extra reactive inputs (beyond the name tag) that retrigger the fetch. */
   watch?: WatchSource[]
+  /**
+   * Gate on the request. While false nothing is issued and the bundle stays in
+   * its initial-loading state — a consumer keeps rendering skeletons instead of
+   * an "empty" answer nobody asked the API for. Flipping it to true runs the
+   * fetch that mount would otherwise have run. Defaults to true.
+   */
+  enabled?: MaybeRefOrGetter<boolean>
 }
 
 /**
@@ -34,7 +41,8 @@ interface UseTruemainFetchOptions<TResponse> {
  * The fetch runs once when the component mounts and refires when the name tag
  * (or any extra watch source) changes. An empty name tag short-circuits into
  * the cleared state so a parent page can bind to a still-empty ref without
- * triggering a 404 round trip on the first tick.
+ * triggering a 404 round trip on the first tick. `enabled` holds the request
+ * back entirely — that is how the favorites page bounds its fan-out (#872).
  *
  * Must be called from a component `setup()`: the initial run hangs off
  * `onMounted`, which is what makes "client-only" true rather than merely
@@ -45,6 +53,7 @@ export function useTruemainFetch<TResponse>(
   options: UseTruemainFetchOptions<TResponse>,
 ) {
   const nameTagRef = computed(() => toValue(nameTag))
+  const enabledRef = computed(() => toValue(options.enabled ?? true))
 
   const isLoading = ref(false)
   const isInitialLoading = ref(true)
@@ -52,6 +61,10 @@ export function useTruemainFetch<TResponse>(
   const error = ref<unknown>(null)
 
   async function execute() {
+    // Gated: leave every ref untouched, so the consumer still reads
+    // "initial loading" rather than a cleared — i.e. empty-looking — bundle.
+    if (!enabledRef.value) return
+
     if (!nameTagRef.value) {
       options.onClear()
       notFound.value = false
@@ -106,7 +119,9 @@ export function useTruemainFetch<TResponse>(
   // stays out of shared HTML — which is what the no-cross-viewer-SSR rule on
   // profiles asked for in the first place.
   onMounted(() => { void execute() })
-  watch([nameTagRef, ...(options.watch ?? [])], () => { void execute() })
+  // `enabledRef` is watched too, so a gate opening after mount runs the fetch
+  // mount skipped.
+  watch([nameTagRef, enabledRef, ...(options.watch ?? [])], () => { void execute() })
 
   return {
     isLoading,
