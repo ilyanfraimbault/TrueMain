@@ -1,5 +1,10 @@
 import type { ProfileResponse } from '~~/shared/types/profile'
 
+interface UseTruemainProfileOptions {
+  /** Hold the request back while false — see {@link useTruemainFetch}. */
+  enabled?: MaybeRefOrGetter<boolean>
+}
+
 /**
  * Single-shot fetch of a truemain profile for the given <c>nameTag</c>.
  * Mirrors the contract of <c>useTruemainMatches</c> — 404 from the API is
@@ -9,10 +14,14 @@ import type { ProfileResponse } from '~~/shared/types/profile'
  * Client-only by design (private-ish, no SSR cross-pollination between
  * viewers) — see {@link useTruemainFetch} for the shared lifecycle.
  */
-export function useTruemainProfile(nameTag: MaybeRefOrGetter<string>) {
+export function useTruemainProfile(
+  nameTag: MaybeRefOrGetter<string>,
+  options: UseTruemainProfileOptions = {},
+) {
   const data = ref<ProfileResponse | null>(null)
 
   const { isLoading, isInitialLoading, notFound, error, execute } = useTruemainFetch<ProfileResponse>(nameTag, {
+    enabled: options.enabled,
     request: tag => $fetch<ProfileResponse | null>(
       `/api/truemains/${encodeURIComponent(tag)}/profile`,
       { ignoreResponseError: true },
