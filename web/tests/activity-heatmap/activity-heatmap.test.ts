@@ -7,7 +7,6 @@ import {
   activityBucketLabel,
   activityBucketResult,
   activityCellFill,
-  activityCoverageNote,
   activityMaxGames,
 } from '~/utils/activity-heatmap'
 import type { ActivityBucket, ActivitySeries } from '~~/shared/types/activity'
@@ -144,17 +143,17 @@ describe('activityBucketResult', () => {
     expect(activityBucketResult(bucket({ games: 0, wins: 0, winRate: null }))).toBe('No games')
   })
 
-  it('names a single game by its result instead of a 100% win rate', () => {
-    expect(activityBucketResult(bucket({ games: 1, wins: 1, winRate: 1 }))).toBe('Victory')
-    expect(activityBucketResult(bucket({ games: 1, wins: 0, winRate: 0 }))).toBe('Defeat')
+  it('keeps the wins-over-games shape for a single game too', () => {
+    expect(activityBucketResult(bucket({ games: 1, wins: 1, winRate: 1 }))).toBe('1/1 · 100%')
+    expect(activityBucketResult(bucket({ games: 1, wins: 0, winRate: 0 }))).toBe('0/1 · 0%')
   })
 
-  it('prints the record and the rate for an aggregated period', () => {
+  it('prints wins over games and the rate for an aggregated period', () => {
     expect(activityBucketResult(bucket({ games: 4, wins: 3, winRate: 0.75 })))
-      .toBe('3W – 1L (75%)')
+      .toBe('3/4 · 75%')
     // A genuine 0% is printed as such — the fact the empty case must not borrow.
     expect(activityBucketResult(bucket({ games: 3, wins: 0, winRate: 0 })))
-      .toBe('0W – 3L (0%)')
+      .toBe('0/3 · 0%')
   })
 })
 
@@ -178,67 +177,5 @@ describe('activityBucketLabel', () => {
   it('labels a game cell down to the hour, since a day can hold several', () => {
     expect(activityBucketLabel(bucket({ startUtc: '2026-07-29T18:05:00Z' }), 'game'))
       .toContain('Jul 29')
-  })
-})
-
-describe('activityCoverageNote', () => {
-  it('says what the match-sourced modes cover and why they stop there', () => {
-    const note = activityCoverageNote(series(), null)
-    expect(note).toContain('All champions')
-    expect(note).toContain('Jul 3')
-    expect(note).toContain('Jul 29')
-    // The retention bound has to be stated, not implied by a short grid.
-    expect(note).toMatch(/prune/i)
-  })
-
-  it('points an emptied retention window at the patch mode instead of showing nothing', () => {
-    const note = activityCoverageNote(
-      series({ buckets: [], games: 0, wins: 0, winRate: null, coverageFromUtc: null, coverageToUtc: null }),
-      null,
-    )
-    expect(note).toMatch(/retained window/i)
-    expect(note).toContain('Patch')
-  })
-
-  it('names the champion the patch mode is scoped to, and that it is not pruned', () => {
-    const note = activityCoverageNote(
-      series({
-        mode: 'patch',
-        source: 'aggregates',
-        scope: 'champion',
-        championId: 157,
-        retentionBounded: false,
-        coverageFromUtc: null,
-        coverageToUtc: null,
-        buckets: [
-          bucket({ key: '15.13', startUtc: null }),
-          bucket({ key: '15.14', startUtc: null }),
-        ],
-      }),
-      'Yasuo',
-    )
-    expect(note).toContain('Yasuo')
-    expect(note).toContain('2 patches')
-    expect(note).toMatch(/never pruned/i)
-  })
-
-  it('explains an absent signature champion instead of showing an empty grid', () => {
-    const note = activityCoverageNote(
-      series({
-        mode: 'patch',
-        source: 'aggregates',
-        scope: 'champion',
-        championId: null,
-        retentionBounded: false,
-        coverageFromUtc: null,
-        coverageToUtc: null,
-        buckets: [],
-        games: 0,
-        wins: 0,
-        winRate: null,
-      }),
-      null,
-    )
-    expect(note).toMatch(/no champion is classified as a main/i)
   })
 })

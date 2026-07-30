@@ -133,8 +133,13 @@ the route is a primary, indexable one — #862.
 `champion_aggregate_scopes` is frozen forever (#466) but its grain is (account, champion, patch). So the
 game / day / week modes physically cannot show last season and the patch mode physically cannot show a day —
 the modes are not four views of one dataset. Every series therefore ships its own `source`, `scope`,
-`retentionBounded` and coverage range, the patch series is champion-scoped to the signature champion, and the
-UI prints a coverage line built from those fields. Three options were rejected: scoping *every* mode to one
+`retentionBounded` and coverage range, and the patch series is champion-scoped to the signature champion.
+Originally the UI printed a standing coverage line built from those fields; #959 replaced it with a per-cell
+hover tooltip and dropped the line, on the reasoning that the grid itself (an empty period clamped to where
+the data stops, see the next entry) already carries the retention story visually, and a permanent paragraph
+under a hover surface was reading as clutter rather than as a needed disclosure. The payload fields are
+unchanged and still drive the day/week window clamp below — only the standing prose describing `source`/
+`scope` was cut. Three options were rejected for the underlying multi-table split: scoping *every* mode to one
 champion (throws away the "how much did you play" answer the grid is for), splitting the aggregate by day
 (it has no day), and quietly labelling all four "activity" (that is the silent disagreement the metadata
 exists to prevent). Two consequences kept on purpose: the patch total is a *different population* from the

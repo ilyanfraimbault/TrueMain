@@ -182,7 +182,6 @@ const hasActiveFilters = computed(() => Boolean(filterPosition.value || filterCh
         <ProfileActivityHeatmap
           v-if="!profileLoading && profile"
           :data="activity"
-          :champions="champions"
           :loading="activityLoading"
         />
 
