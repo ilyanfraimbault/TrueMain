@@ -178,6 +178,22 @@ Page champion : onglets de build dominants pour un `(patch, position)`.
 - `buildTree` = arbre d'items enraciné sur `firstItemId` (racine implicite).
 - `totalGames`/`totalWins` = dénominateurs pour le winrate champion-wide.
 
+### Filtre matchup (`opponentChampionId`)
+
+| Param | Type | Requis | Description |
+|-------|------|--------|-------------|
+| `opponentChampionId` | int | non | Adversaire de voie. Re-calcule **toutes** les sections build (variations, core, build tree, runes, skill order) sur les seules parties où les deux champions se sont affrontés. |
+
+Exige `position` : le self-join apparie les deux camps dessus, donc un matchup sans voie est un **400**.
+Renvoie **404** quand la fenêtre retenue ne contient aucune partie de ce matchup — distinct d'une réponse vide.
+
+La réponse a exactement la même forme que sans le filtre. Deux différences de fond :
+
+- Les données viennent d'un repli **live** de `match_participants` (les agrégats de patterns n'ont pas de
+  dimension adversaire), borné aux 2 patchs retenus par la rétention et plafonné à 2 000 parties.
+- L'échantillon est petit par nature — mesuré en prod, la paire médiane champion × adversaire × position tient
+  **4 parties** sur un patch. Chaque variation porte donc son `games`, et le front l'affiche.
+
 ## `GET /champions/{championId}/trend`
 
 Évolution winrate/pickrate/banrate sur les ~5 derniers patchs, pour une position.

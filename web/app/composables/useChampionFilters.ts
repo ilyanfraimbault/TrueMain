@@ -16,15 +16,22 @@ export function useChampionFilters() {
     const normalizedBracket = normalizeEloBracket(rawBracket)
     const eloBracket = normalizedBracket === ELO_BRACKET_ALL ? undefined : normalizedBracket
 
+    // `vs` holds the lane opponent (#923). Parsed to a positive int so a junk
+    // value is dropped rather than forwarded to the API as garbage.
+    const rawOpponent = Number.parseInt(firstParamValue(route.query.vs) ?? '', 10)
+    const opponentChampionId = Number.isFinite(rawOpponent) && rawOpponent > 0 ? rawOpponent : undefined
+
     return {
       patch: firstParamValue(route.query.patch) || undefined,
       position: firstParamValue(route.query.position) || undefined,
       eloBracket,
+      opponentChampionId,
     }
   })
 
   const hasFilters = computed(() =>
-    Boolean(filters.value.patch || filters.value.position || filters.value.eloBracket),
+    Boolean(filters.value.patch || filters.value.position || filters.value.eloBracket
+      || filters.value.opponentChampionId),
   )
 
   // `undefined` = leave the field alone, `null` = clear it, string/number =
@@ -38,6 +45,7 @@ export function useChampionFilters() {
     position?: ChampionPosition | null
     championId?: number | null
     eloBracket?: string | null
+    opponentChampionId?: number | null
   }, options: { resetPage?: boolean } = {}) {
     const nextQuery: Record<string, string> = {}
     for (const [key, value] of Object.entries(route.query)) {
@@ -61,6 +69,11 @@ export function useChampionFilters() {
       // `ALL` is the default, so clear the param rather than pin it.
       if (updates.eloBracket && updates.eloBracket !== ELO_BRACKET_ALL) nextQuery.elo = updates.eloBracket
       else delete nextQuery.elo
+    }
+
+    if (updates.opponentChampionId !== undefined) {
+      if (updates.opponentChampionId) nextQuery.vs = String(updates.opponentChampionId)
+      else delete nextQuery.vs
     }
 
     await router.replace({ query: nextQuery })

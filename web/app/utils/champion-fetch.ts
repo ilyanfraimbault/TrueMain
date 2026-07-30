@@ -12,6 +12,12 @@ export interface ChampionSliceFilters {
   patch?: string
   position?: string
   eloBracket?: string
+  /**
+   * Lane opponent to scope every section to (#923). The API answers it from a
+   * live fold of the games where the two champions actually met, so it needs a
+   * `position` alongside — "vs Darius" is only meaningful in a lane.
+   */
+  opponentChampionId?: number
 }
 
 export interface GlobalChampionOutcome {
@@ -70,8 +76,14 @@ export async function resolveGlobalChampion(
     // Only patch / position are auto-resolvable, so only they get dropped;
     // `preservedFilters` carries the explicit rank filter (and any future
     // explicit filter) into the retry.
-    const { patch, position, ...preservedFilters } = filters
-    const hadResolvableFilters = Boolean(patch || position)
+    // With an opponent pinned, the position is part of the matchup's identity
+    // ("vs Darius TOP"), not an auto-resolvable default — and the API rejects a
+    // matchup without one, so dropping it would turn a 404 into a 400.
+    const { patch, position, ...rest } = filters
+    const preservedFilters: ChampionSliceFilters = filters.opponentChampionId
+      ? { ...rest, position }
+      : rest
+    const hadResolvableFilters = Boolean(patch || (position && !filters.opponentChampionId))
     if (hadResolvableFilters) {
       // A 404 on a patch/position slice usually just means that slice is empty —
       // retry at the default patch/position (rank kept) before giving up.

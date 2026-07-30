@@ -161,6 +161,23 @@ const selectedEloBracket = computed<string>(() =>
 // the query param + cache key stay clean — the same contract patch/position use.
 const eloBracketParam = computed(() => filters.value.eloBracket)
 
+// Matchup filter (#923): opponents are every champion but this one — there is no
+// matchup against yourself. The picker is hidden until the static list resolves,
+// since it searches by name.
+const opponentOptions = computed<ChampionStaticListItem[] | undefined>(() =>
+  staticList.value?.filter(entry => entry.championId !== championId.value))
+
+// A matchup is scoped to a lane on the backend (the self-join matches both sides
+// on the position), so picking an opponent without one would 400. Pin the
+// position being displayed at the same time.
+async function onOpponentChange(value: number | null) {
+  const position = selectedPosition.value ?? champion.value?.position ?? null
+  await setFilter({
+    opponentChampionId: value,
+    ...(value && position ? { position: position as ChampionPosition } : {}),
+  })
+}
+
 // A rank filter with no data: the fetch 404'd on a specific rank (the champion
 // may well have builds in other ranks). Distinct from the champion-level "no
 // data at all" state below — here we keep the rank select so the user can pick
@@ -438,9 +455,12 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
           :selected-position="selectedPosition"
           :selected-elo-bracket="selectedEloBracket"
           :patch-options="patchOptions"
+          :opponent-options="opponentOptions"
+          :selected-opponent-id="filters.opponentChampionId ?? null"
           @update:patch="value => setFilter({ patch: value })"
           @update:position="value => setFilter({ position: value })"
           @update:elo-bracket="value => setFilter({ eloBracket: value })"
+          @update:opponent-champion-id="onOpponentChange"
         />
       </header>
 
@@ -474,9 +494,12 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
           :selected-position="selectedPosition"
           :selected-elo-bracket="selectedEloBracket"
           :patch-options="patchOptions"
+          :opponent-options="opponentOptions"
+          :selected-opponent-id="filters.opponentChampionId ?? null"
           @update:patch="value => setFilter({ patch: value })"
           @update:position="value => setFilter({ position: value })"
           @update:elo-bracket="value => setFilter({ eloBracket: value })"
+          @update:opponent-champion-id="onOpponentChange"
         />
         <!-- Share affordance (#926). Only on the populated state: the two
              degraded headers above have nothing worth putting in someone's
