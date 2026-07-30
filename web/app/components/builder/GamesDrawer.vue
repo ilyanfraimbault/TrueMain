@@ -126,7 +126,13 @@ function pilotLabel(pilot: { gameName: string, tagLine: string | null } | null):
               >
                 Main
               </UBadge>
-              <span class="ml-auto shrink-0 tabular-nums">
+              <!-- maxPossibleScore is 0 when the draft carried no composition
+                   slot — every game then scores 0 too, and "0/0 match" reads
+                   as broken rather than as "nothing to compare against". -->
+              <span
+                v-if="data.maxPossibleScore > 0"
+                class="ml-auto shrink-0 tabular-nums"
+              >
                 {{ game.score }}/{{ data.maxPossibleScore }} match
               </span>
             </div>

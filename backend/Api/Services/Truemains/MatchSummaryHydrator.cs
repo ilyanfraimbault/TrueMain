@@ -106,15 +106,22 @@ public sealed class MatchSummaryHydrator(
                 .ToDictionaryAsync(a => a.Id, a => (a.GameName, a.TagLine), ct);
 
         // Keystone for the SELF participants only: slot 0 of the primary tree.
-        // Narrowing on the requested participant ids keeps the DB from
-        // returning the ~10× fan-out of every participant's perks. The pair
-        // filter is approximate (participant ids are matched across all the
-        // requested matches, not per match), which can only over-fetch a
-        // handful of rows — the dictionary below is keyed on the exact
-        // (match, participant, style) triple, so a spare row is never read.
-        // Restricting to cat.StyleId == mp.PrimaryStyleId keeps just the
-        // primary tree's keystone — the slot-0 row of the sub tree is skipped
-        // since downstream only looks up (…, self.PrimaryStyleId).
+        // The (matchId, participantId) filter is a rectangle, not the exact
+        // set of pairs: any match in matchIds crossed with any id in
+        // selfParticipantIds passes, so a caller whose keys span many distinct
+        // participant ids (the composition drawer's ten different pilots, one
+        // per match) can pull rows for participants nobody asked about — up to
+        // the full ~10× fan-out per match the single-account match-feed caller
+        // never had. Still correct: the dictionary below is keyed on the exact
+        // (match, participant, style) triple, so an over-fetched row is simply
+        // never looked up. A caller whose keys are dense across many distinct
+        // participant ids that cares about the extra round-trip cost should
+        // narrow this to the true pair set (e.g. a per-match dictionary
+        // resolved client-side, unioned via multiple round trips) rather than
+        // rely on the rectangle staying small. Restricting to
+        // cat.StyleId == mp.PrimaryStyleId keeps just the primary tree's
+        // keystone — the slot-0 row of the sub tree is skipped since
+        // downstream only looks up (…, self.PrimaryStyleId).
         var keystoneRows = await (
             from mp in db.MatchParticipants.AsNoTracking()
             join pps in db.ParticipantPerkSelections.AsNoTracking()
