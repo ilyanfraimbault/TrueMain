@@ -356,7 +356,7 @@ const mockMatches = computed<MatchSummaryResponse[]>(() => [
 
     <ProfileHeader :identity="mockProfile.identity" :patch="latestPatch" />
     <ProfileRankedCard :ranked="mockProfile.ranked" :history="mockRankHistory" />
-    <ProfileActivityHeatmap :data="mockActivity" :champions="champions" />
+    <ProfileActivityHeatmap :data="mockActivity" />
     <ProfileDedicationCard
       v-if="mockProfile.dedication"
       :dedication="mockProfile.dedication"
