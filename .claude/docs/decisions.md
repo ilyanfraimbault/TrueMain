@@ -315,6 +315,19 @@ compiled model all rely on the current naming.
 
 ## Performance & incidents
 
+**A starter-item scan must only trust events that prove ownership, not every event mentioning an item**
+(`Data/BuildFacts/StarterItemAnalyzer.cs`, found via #923's matchup filter). The support-quest fallback
+scans a participant's full event stream for a completed quest item (Celestial Opposition, Dream Maker,
+Solstice Sleigh, Bloodsong) to surface it in the starter slot — necessary because World Atlas is
+auto-gifted with no `ITEM_PURCHASED` event. But junglers' timelines carry six to eight `ITEM_DESTROYED`
+events *naming* those same completions (an artifact of Riot's event stream, not anything the jungler
+owned), and the scan originally treated any reference as proof. Result: a jungler's starter basket read
+"Scorchclaw Pup + Bloodsong + Health Potion" — 400 g injected past the 500 g budget. Fixed by only
+counting `ITEM_PURCHASED` / `ITEM_UNDO` as ownership for a *completion*; a destroyed root or intermediate
+still counts (that is exactly what a support's gifted World Atlas looks like transforming). The general
+rule: an event-stream heuristic that infers state from "this item was mentioned" rather than "this item
+was proven owned" will eventually be poisoned by a class of player the heuristic wasn't built for.
+
 **A matchup-scoped build page is folded live, not aggregated** (#923). `champion_matchup_stats` carries the
 opponent dimension but only games/wins; the pattern aggregates carry the build data but are grained on
 (account, champion, patch, platform, queue, position, elo) with no opponent — so a matchup build has no

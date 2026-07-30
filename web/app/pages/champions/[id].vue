@@ -18,8 +18,17 @@ const { filters, setFilter } = useChampionFilters()
 const {
   data: champion,
   error: championError,
+  status: championStatus,
   notEnoughData,
 } = useChampion(championId, filters)
+
+// A filter change keeps the previous payload on screen while the new one loads
+// (useLazyAsyncData holds `data`), so without this the build sections silently
+// showed the *old* slice — the matchup filter made that obvious, since the
+// numbers stayed put after picking an opponent. Render the same skeleton as a
+// cold load while the champion fetch is in flight. Only the data area: the
+// header keeps its values so the page doesn't jump under the cursor.
+const championLoading = computed(() => isLoadingStatus(championStatus.value))
 
 // Real load failures (429/500/network) surface as a toast as well as the
 // inline alert below — both read the same line via describeFetchError. A 404
@@ -527,7 +536,7 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
       <div class="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
         <div class="min-w-0 space-y-6">
           <ChampionBuildTabs
-            v-if="champion && staticData"
+            v-if="champion && staticData && !championLoading"
             :builds="champion.builds"
             :champion-static="staticData"
             :items-map="itemsMap ?? {}"

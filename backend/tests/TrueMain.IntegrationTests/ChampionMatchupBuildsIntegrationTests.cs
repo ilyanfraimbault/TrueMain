@@ -97,7 +97,12 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
             Champion, Opponent, patch: null, Position, eloBracket: null, CancellationToken.None);
 
         scoped!.TotalGames.Should().Be(1);
-        unscoped!.TotalGames.Should().Be(2, "no patch means every patch still retained");
+
+        // No patch asked for resolves the newest one this matchup was played on and scopes
+        // to it, rather than pooling every retained patch: the page's selector shows a
+        // single patch, so a response silently spanning two would label its number wrong.
+        unscoped!.TotalGames.Should().Be(1);
+        unscoped.Patch.Should().Be("16.4", "the response always names the patch it covers");
     }
 
     [Fact]

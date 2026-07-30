@@ -217,6 +217,8 @@ public static class StarterItemAnalyzer
 
         foreach (var itemEvent in orderedEvents)
         {
+            var provesOwnership = ProvesOwnership(itemEvent);
+
             foreach (var candidate in EnumerateRelevantItemIds(itemEvent))
             {
                 if (!itemMetadataById.TryGetValue(candidate, out var metadata))
@@ -226,11 +228,20 @@ public static class StarterItemAnalyzer
 
                 if (metadata.IsSupportQuestCompletion)
                 {
+                    // Only a held completion counts. A destroyed one is somebody else's —
+                    // see ProvesOwnership.
+                    if (!provesOwnership)
+                    {
+                        continue;
+                    }
+
                     observedCompletion ??= candidate;
                     referencesFamily = true;
                 }
                 else if (metadata.IsSupportQuestStarter || metadata.IsSupportQuestIntermediate)
                 {
+                    // A destroyed root or intermediate is the gifted World Atlas
+                    // transforming, which is the whole reason this fallback exists.
                     referencesFamily = true;
                 }
             }
@@ -292,6 +303,9 @@ public static class StarterItemAnalyzer
         }
     }
 
+    /// <summary>
+    /// Item ids referenced by an event, for the quest-family scan.
+    /// </summary>
     private static IEnumerable<int> EnumerateRelevantItemIds(ItemEvent itemEvent)
     {
         if (itemEvent.ItemId > 0)
@@ -307,6 +321,30 @@ public static class StarterItemAnalyzer
             yield return itemEvent.AfterId.Value;
         }
     }
+
+    /// <summary>
+    /// Whether an event proves the participant <em>held</em> the item it names, as opposed
+    /// to merely referencing it.
+    ///
+    /// <para>
+    /// The distinction only matters for the completions (Celestial Opposition, Dream Maker,
+    /// Solstice Sleigh, Bloodsong), and it matters a lot: a completion is worth 400 g and is
+    /// injected into the starter basket past its 500 g budget. Nobody destroys their own
+    /// completed support item — but on production, junglers' event streams carry six to eight
+    /// <c>ITEM_DESTROYED</c> events naming one, and that was enough to make the scan below
+    /// conclude the quest was finished. The result was a jungler's starter reading
+    /// "Scorchclaw Pup + Bloodsong + Health Potion" — 900 g of items they never bought.
+    /// </para>
+    ///
+    /// <para>
+    /// A destroyed <em>root or intermediate</em> is the opposite case and stays trusted: that
+    /// is exactly what a support's own World Atlas looks like when it transforms, and it is
+    /// the only trace of an item the game gifts without an <c>ITEM_PURCHASED</c> event.
+    /// </para>
+    /// </summary>
+    private static bool ProvesOwnership(ItemEvent itemEvent) =>
+        itemEvent.EventType.Equals("ITEM_PURCHASED", StringComparison.OrdinalIgnoreCase)
+        || itemEvent.EventType.Equals("ITEM_UNDO", StringComparison.OrdinalIgnoreCase);
 
     private static int ResolveSupportQuestRoot(IReadOnlyDictionary<int, ItemMetadata> itemMetadataById)
     {
