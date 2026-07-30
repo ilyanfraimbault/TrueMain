@@ -120,6 +120,30 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
     }
 
     [Fact]
+    public async Task GetAsync_ResolvesTheNewestPatchWithinTheRequestedElo_NotAcrossAllElos()
+    {
+        // Flagged in review. IRON's own newest game is on 16.3; GOLD's is on 16.4, the
+        // matchup's overall newest. Resolving "no patch" against every elo would pick
+        // 16.4 for an IRON request, find no IRON rows there, and wrongly report "no data"
+        // for an elo that genuinely has games — just on a different patch than GOLD's.
+        await _fixture.ResetDatabaseAsync();
+
+        await SeedGameAsync(
+            "MU_IRON_OLD", win: true, opponentChampionId: Opponent, buildOrder: [3031],
+            eloBracket: "IRON", gameVersion: "16.3.500.1");
+        await SeedGameAsync(
+            "MU_GOLD_NEW", win: true, opponentChampionId: Opponent, buildOrder: [3031],
+            eloBracket: "GOLD", gameVersion: KnownVersion);
+
+        var iron = await CreateService().GetAsync(
+            Champion, Opponent, patch: null, Position, "IRON", CancellationToken.None);
+
+        iron.Should().NotBeNull("IRON has a real game — just not on the patch GOLD's resolves to");
+        iron!.TotalGames.Should().Be(1);
+        iron.Patch.Should().Be("16.3", "the patch IRON's own newest game was played on, not GOLD's");
+    }
+
+    [Fact]
     public async Task GetAsync_ReturnsNull_WhenTheMatchupHasNoGame()
     {
         await _fixture.ResetDatabaseAsync();

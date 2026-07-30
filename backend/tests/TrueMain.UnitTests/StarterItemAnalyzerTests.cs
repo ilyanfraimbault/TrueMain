@@ -304,4 +304,41 @@ public sealed class StarterItemAnalyzerTests
         starterItems.Should().Contain(3877);
         starterItems.Should().NotContain(3865);
     }
+
+    [Fact]
+    public void BuildStarterItems_ignores_a_completion_named_only_as_an_undos_before_side()
+    {
+        // Flagged in review: EnumerateRelevantItemIds used to prove ownership of every
+        // candidate an ITEM_UNDO touched — ItemId, BeforeId and AfterId alike. BeforeId is
+        // what the player is giving back, not what they end up holding; trusting it would
+        // reopen the exact bug this PR fixes for ITEM_DESTROYED, just through undo instead.
+        // This isolates that: the completion appears solely as an undo's before-side (the
+        // reverse transformation, intermediate -> completion undone back to intermediate),
+        // never behind a real ITEM_PURCHASED of its own — so it must not surface.
+        var starterItems = StarterItemAnalyzer.BuildStarterItems(
+            [
+                new ItemEvent { TimestampMs = 2_000, ItemId = 2003, EventType = "ITEM_PURCHASED" },
+                new ItemEvent { TimestampMs = 800_000, ItemId = 3877, BeforeId = 3877, AfterId = 3866, EventType = "ITEM_UNDO" }
+            ],
+            Metadata);
+
+        starterItems.Should().NotContain(3877);
+    }
+
+    [Fact]
+    public void BuildStarterItems_still_surfaces_a_completion_kept_after_an_unrelated_undo()
+    {
+        // The other side of the same rule: an undo elsewhere in the sequence must not
+        // blind the scan to a completion the player legitimately bought and kept.
+        var starterItems = StarterItemAnalyzer.BuildStarterItems(
+            [
+                new ItemEvent { TimestampMs = 2_000, ItemId = 1001, EventType = "ITEM_PURCHASED" },
+                new ItemEvent { TimestampMs = 2_500, ItemId = 1001, BeforeId = 1001, EventType = "ITEM_UNDO" },
+                new ItemEvent { TimestampMs = 410_000, ItemId = 3865, EventType = "ITEM_DESTROYED" },
+                new ItemEvent { TimestampMs = 800_000, ItemId = 3877, EventType = "ITEM_PURCHASED" }
+            ],
+            Metadata);
+
+        starterItems.Should().Contain(3877);
+    }
 }

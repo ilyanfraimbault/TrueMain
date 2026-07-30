@@ -67,8 +67,13 @@ public sealed class ChampionMatchupBuildsQueryService(
         // on preprod: 955 games unscoped against 105 for the patch shown); and builds do
         // not survive a patch, so pooling them across one is not a bigger sample, it is a
         // different question.
+        // Resolved on the same elo filter the main query below applies. Without this, an
+        // elo whose games all sit on an older patch than the matchup's overall newest would
+        // resolve a patch it has no rows on and come back "no data" for an elo that genuinely
+        // has some — the exact kind of number/filter mismatch this whole method exists to
+        // avoid, just moved one level down to the elo dimension.
         var normalizedPatch = requestedPatch ?? await ResolveNewestPatchAsync(
-            championId, opponentChampionId, position, queueId, ct);
+            championId, opponentChampionId, position, queueId, bracketFilter, ct);
 
         var participants = db.MatchParticipants
             .AsNoTracking()
@@ -159,11 +164,19 @@ public sealed class ChampionMatchupBuildsQueryService(
         int opponentChampionId,
         string position,
         int queueId,
+        IReadOnlyList<string>? bracketFilter,
         CancellationToken ct)
     {
-        var newestVersion = await db.MatchParticipants
+        var participants = db.MatchParticipants
             .AsNoTracking()
-            .Where(p => p.ChampionId == championId && p.TeamPosition == position)
+            .Where(p => p.ChampionId == championId && p.TeamPosition == position);
+
+        if (bracketFilter is not null)
+        {
+            participants = participants.Where(p => bracketFilter.Contains(p.EloBracket));
+        }
+
+        var newestVersion = await participants
             .Join(
                 db.MatchParticipants.AsNoTracking().Where(o =>
                     o.ChampionId == opponentChampionId && o.TeamPosition == position),

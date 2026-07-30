@@ -217,9 +217,7 @@ public static class StarterItemAnalyzer
 
         foreach (var itemEvent in orderedEvents)
         {
-            var provesOwnership = ProvesOwnership(itemEvent);
-
-            foreach (var candidate in EnumerateRelevantItemIds(itemEvent))
+            foreach (var (candidate, provesOwnership) in EnumerateRelevantItemIds(itemEvent))
             {
                 if (!itemMetadataById.TryGetValue(candidate, out var metadata))
                 {
@@ -228,8 +226,8 @@ public static class StarterItemAnalyzer
 
                 if (metadata.IsSupportQuestCompletion)
                 {
-                    // Only a held completion counts. A destroyed one is somebody else's —
-                    // see ProvesOwnership.
+                    // Only a held completion counts. A destroyed one is somebody else's, and
+                    // an undo's before-side was never held — see EnumerateRelevantItemIds.
                     if (!provesOwnership)
                     {
                         continue;
@@ -304,27 +302,8 @@ public static class StarterItemAnalyzer
     }
 
     /// <summary>
-    /// Item ids referenced by an event, for the quest-family scan.
-    /// </summary>
-    private static IEnumerable<int> EnumerateRelevantItemIds(ItemEvent itemEvent)
-    {
-        if (itemEvent.ItemId > 0)
-        {
-            yield return itemEvent.ItemId;
-        }
-        if (itemEvent.BeforeId is > 0)
-        {
-            yield return itemEvent.BeforeId.Value;
-        }
-        if (itemEvent.AfterId is > 0)
-        {
-            yield return itemEvent.AfterId.Value;
-        }
-    }
-
-    /// <summary>
-    /// Whether an event proves the participant <em>held</em> the item it names, as opposed
-    /// to merely referencing it.
+    /// Item ids referenced by an event, for the quest-family scan, each paired with whether
+    /// <em>that specific candidate</em> proves the participant held it.
     ///
     /// <para>
     /// The distinction only matters for the completions (Celestial Opposition, Dream Maker,
@@ -337,14 +316,36 @@ public static class StarterItemAnalyzer
     /// </para>
     ///
     /// <para>
-    /// A destroyed <em>root or intermediate</em> is the opposite case and stays trusted: that
-    /// is exactly what a support's own World Atlas looks like when it transforms, and it is
-    /// the only trace of an item the game gifts without an <c>ITEM_PURCHASED</c> event.
+    /// <c>ITEM_PURCHASED</c> proves ownership of <see cref="ItemEvent.ItemId"/>.
+    /// <c>ITEM_UNDO</c> proves ownership of <see cref="ItemEvent.AfterId"/> only — that is
+    /// what the player is left holding — never of <see cref="ItemEvent.BeforeId"/>, which is
+    /// what they are giving back. Treating <c>BeforeId</c> as owned would reopen this exact
+    /// bug through undo: a support who buys the wrong completion and immediately undoes it
+    /// never held it, the same way a jungler never held one they merely saw destroyed.
+    /// A destroyed root or intermediate stays trusted for the family-reference fallback (not
+    /// gated on ownership): that is exactly what a support's own World Atlas looks like when
+    /// it transforms, and it is the only trace of an item the game gifts without an
+    /// <c>ITEM_PURCHASED</c> event.
     /// </para>
     /// </summary>
-    private static bool ProvesOwnership(ItemEvent itemEvent) =>
-        itemEvent.EventType.Equals("ITEM_PURCHASED", StringComparison.OrdinalIgnoreCase)
-        || itemEvent.EventType.Equals("ITEM_UNDO", StringComparison.OrdinalIgnoreCase);
+    private static IEnumerable<(int ItemId, bool ProvesOwnership)> EnumerateRelevantItemIds(ItemEvent itemEvent)
+    {
+        var isPurchase = itemEvent.EventType.Equals("ITEM_PURCHASED", StringComparison.OrdinalIgnoreCase);
+        var isUndo = itemEvent.EventType.Equals("ITEM_UNDO", StringComparison.OrdinalIgnoreCase);
+
+        if (itemEvent.ItemId > 0)
+        {
+            yield return (itemEvent.ItemId, isPurchase);
+        }
+        if (itemEvent.BeforeId is > 0)
+        {
+            yield return (itemEvent.BeforeId.Value, false);
+        }
+        if (itemEvent.AfterId is > 0)
+        {
+            yield return (itemEvent.AfterId.Value, isUndo);
+        }
+    }
 
     private static int ResolveSupportQuestRoot(IReadOnlyDictionary<int, ItemMetadata> itemMetadataById)
     {
