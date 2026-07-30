@@ -463,26 +463,35 @@ possible. Approval is the single external unlock for all of it — #780.
 
 ---
 
-## Known discrepancy
+## Where API reads live
 
-**Where API reads live.** `CLAUDE.md` and `README.md` state that reads live in `Data` as purpose-built query
-objects, with `Api` staying persistence-ignorant. In practice most Postgres reads live in `backend/Api/Services`
-as query services injecting `TrueMainDbContext` directly, and `backend/Data` holds only Mongo-side query files
-(`MongoLogQuery`, `CrashQuery`, `RiotApiUsageQuery` and their interfaces). The *second half* of the rule does
-hold everywhere — reads are purpose-built query objects returning read models, and there is no generic
-`IRepository<T>` for reads. Only the **location** differs.
+**Decided 2026-07-30 (#865): the documentation was stale, and now matches the code.** API reads are
+purpose-built **query services** returning read-models, living in `Api/Services/<area>` beside the endpoints
+they serve, injecting `TrueMainDbContext` and projecting with `AsNoTracking`.
 
-Measured on 2026-07-28: 74 `*QueryService*.cs` files under `backend/Api/Services`, 32 of them injecting
-`TrueMainDbContext`. These counts drift with every PR — re-measure rather than trusting them:
+The rule had said reads live in `Data` with `Api` staying persistence-ignorant. Measured on 2026-07-30, 83
+`*QueryService*.cs` files sat under `backend/Api/Services`, 36 of them injecting the context, while
+`backend/Data` held only Mongo-side query objects (`MongoLogQuery`, `CrashQuery`, `RiotApiUsageQuery`). The
+contradiction was re-litigated on six separate PRs, each time resolved by following the code and leaving the
+doc alone — which is the right short-term reflex and the wrong durable answer.
+
+What was kept, because it held everywhere and is the half that matters: **no generic `IRepository<T>` for
+reads.** Every read path is shaped by the question it answers, returning a read-model rather than entities.
+The rejected alternative was migrating 36 services (plus tests and DI) into `Data` for an architectural
+benefit no user would ever see.
+
+`Data` still owns: the schema (entities, configurations, migrations, the compiled model), the Mongo-side query
+objects, and **SQL that must not diverge between two consumers** — e.g.
+`Data/DataQuality/ChampionDimensionCanonicalKeys.cs`, read by both the ingestor's rune-page repair and the
+admin duplicate detector (#924). That last one is the durable reason `Data` holds any query text at all: a
+detector that groups differently from the repair it audits reports a clean bill of health for a live bug.
+
+Counts drift with every PR — re-measure rather than trusting the numbers above:
 
 ```bash
 find backend/Api/Services -name "*QueryService*.cs" | wc -l
 grep -l "TrueMainDbContext" $(find backend/Api/Services -name "*QueryService*.cs") | wc -l
 ```
-
-**#865 tracks the choice** between "the doc is aspirational, label the divergent services as known debt" and "the doc is
-stale, restate the rule as practised". Do not quietly rewrite either side — that would erase a possibly
-intended migration.
 
 ---
 

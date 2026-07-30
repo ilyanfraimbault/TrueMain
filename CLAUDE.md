@@ -56,7 +56,7 @@ Every issue goes on GitHub Project #2 ("TrueMain"). Status: Todo / In Progress /
 - Frontends: `nuxt typecheck` can pass on stale `.nuxt` types while CI's `nuxt build` fails — verify type-level changes with a fresh build.
 - `web/package-lock.json`: regenerate with `npx npm@11.13.0` (CI's npm version; older npm omits sharp optional deps).
 - Startup migrations must stay fast — a heavy `CREATE INDEX CONCURRENTLY` in a startup migration blows the command timeout and crash-loops the API.
-- API reads live in `Data` as purpose-built query objects returning read-models; `Api` stays persistence-ignorant. No generic `IRepository<T>` for reads. ⚠️ The codebase currently diverges from the *location* half of this rule — see `.claude/docs/decisions.md` ("Known discrepancy"); #865 tracks the decision, don't silently rewrite either side.
+- API reads are **purpose-built query services** returning read-models, living in `Api/Services/<area>` next to the endpoints they serve, injecting `TrueMainDbContext` and projecting with `AsNoTracking`. **No generic `IRepository<T>` for reads** — every read path is shaped by the question it answers. `Data` owns the schema (entities, configurations, migrations, the compiled model), the Mongo-side query objects, and SQL that must not diverge between two consumers (e.g. `Data/DataQuality/ChampionDimensionCanonicalKeys.cs`, shared by the ingestor's repair and the admin detector).
 
 ## Skills
 

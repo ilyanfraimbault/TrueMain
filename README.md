@@ -30,7 +30,7 @@ A .NET worker that runs a set of scheduled, independently recorded processes:
 
 ### Api
 
-An ASP.NET Core service exposing the read side: champion aggregates, true-main leaderboards, player profiles, and authenticated `/ops` endpoints for the admin portal. Reads are purpose-built query objects in the `Data` project returning read models — the API layer stays persistence-ignorant.
+An ASP.NET Core service exposing the read side: champion aggregates, true-main leaderboards, player profiles, and authenticated `/ops` endpoints for the admin portal. Reads are purpose-built query services returning read models, each shaped by the question it answers — no generic repository.
 
 ### Data & Core
 
