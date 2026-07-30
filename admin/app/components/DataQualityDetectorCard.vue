@@ -47,6 +47,11 @@ function formatThreshold(value: number | null, unit: string): string {
   if (value === null) {
     return '—'
   }
+  // A ratio is a share of a baseline (0.4 = "below 40% of the median patch"), so
+  // print it as one — a bare "0.4" next to counts and hours reads as a count.
+  if (unit === 'ratio') {
+    return `${(value * 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}%`
+  }
   const printed = value.toLocaleString('en-US', { maximumFractionDigits: 2 })
   return unit === 'percent'
     ? `${printed}%`

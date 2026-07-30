@@ -182,8 +182,13 @@ function refreshAll() {
   refresh()
   refreshDetectors()
   // Drop the cached breakdown so a reopen re-measures instead of showing ages
-  // computed against an older evaluation.
+  // computed against an older evaluation — but if the slide-over is open right
+  // now, re-measure immediately: clearing alone would leave it rendering an
+  // empty panel until the operator closed and reopened it.
   freshness.value = null
+  if (freshnessOpen.value) {
+    void openFreshness()
+  }
 }
 
 const groups = computed(() => data.value?.groups ?? [])
