@@ -25,7 +25,7 @@ const visiblePages = computed(() => filterByPickRate(props.runePages))
       >
         <RateBadge
           :games="page.games"
-            :pick-rate="page.pickRate"
+          :pick-rate="page.pickRate"
           :win-rate="page.winRate"
         />
         <ChampionCoreRunes
