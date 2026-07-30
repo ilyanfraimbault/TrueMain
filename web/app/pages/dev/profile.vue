@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { TruemainActivityResponse } from '~~/shared/types/activity'
+import type { ActivityBucket, TruemainActivityResponse } from '~~/shared/types/activity'
 import type {
   MatchSummaryResponse,
 } from '~~/shared/types/matches'
@@ -171,7 +171,12 @@ const mockActivity = computed<TruemainActivityResponse>(() => {
     }
   })
 
-  const matchSeries = (mode: 'game' | 'day' | 'week', buckets: typeof dayBuckets) => {
+  // Typed against the shared ActivityBucket contract rather than `typeof dayBuckets`:
+  // the latter infers a *structural* type off one literal, so the per-game buckets
+  // (which carry a real championId and a non-null winRate) stopped being assignable
+  // to the per-day ones (championId: null). The shared interface is what the endpoint
+  // actually promises, and it is what the component consumes.
+  const matchSeries = (mode: 'game' | 'day' | 'week', buckets: ActivityBucket[]) => {
     const total = buckets.reduce((sum, bucket) => sum + bucket.games, 0)
     const wins = buckets.reduce((sum, bucket) => sum + bucket.wins, 0)
     return {
