@@ -361,6 +361,7 @@ public sealed class DataQualityDetectorsQueryService(
         var half = sampleSize / 2;
 
         var samples = await LoadOrphanSampleAsync(queueId, sampleSize, half, ct);
+        var trackedPlatforms = await LoadTrackedPlatformsAsync(ct);
 
         var rows = new List<DataQualityDetectorRowReadModel>();
         long orphanRows = 0;
@@ -403,6 +404,13 @@ public sealed class DataQualityDetectorsQueryService(
                 Note = FormatOrphanTrend(reading, sample)
             });
         }
+
+        // A platform we track but have never sampled produces no row at all from the
+        // lateral. Silence is the failure this panel exists to catch, so say it out loud.
+        rows.AddRange(MissingPlatformRows(
+            trackedPlatforms,
+            samples.Select(sample => sample.PlatformId),
+            "Tracked accounts on this platform, but no ranked match to sample."));
 
         // Harvest is what turns orphan participants into candidates, so its silence is the
         // other half of a rising orphan share — same card, own row.
@@ -495,7 +503,15 @@ public sealed class DataQualityDetectorsQueryService(
             });
         }
 
-        if (newestByPlatform.Count == 0)
+        // A tracked platform with no match at all never appears in the GROUP BY, so it
+        // would silently drop off the card — the exact shape of "ingestion never started
+        // here" that this detector is for.
+        rows.AddRange(MissingPlatformRows(
+            await LoadTrackedPlatformsAsync(ct),
+            newestByPlatform.Select(platform => platform.PlatformId),
+            "Tracked accounts on this platform, but no ranked match ingested."));
+
+        if (rows.Count == 0)
         {
             // "Every platform is fresh" is vacuously true with no platforms, and reads as
             // a pass on a database that has ingested nothing at all.
@@ -503,7 +519,7 @@ public sealed class DataQualityDetectorsQueryService(
             {
                 Label = "platforms",
                 Status = DetectorStatus.Unknown.ToWireName(),
-                Note = "No ranked match on any platform, so ingestion lag cannot be measured."
+                Note = "No tracked platform and no ranked match, so ingestion lag cannot be measured."
             });
         }
 
@@ -748,6 +764,41 @@ public sealed class DataQualityDetectorsQueryService(
             """;
 
         return await db.Database.SqlQueryRaw<long>(sql).SingleAsync(ct);
+    }
+
+    /// <summary>
+    /// Platforms we track accounts on. Read from <c>riot_accounts</c> (a few thousand
+    /// rows) rather than from a DISTINCT over <c>matches</c>, which would be the scan
+    /// these detectors exist to avoid.
+    /// </summary>
+    private async Task<IReadOnlyList<string>> LoadTrackedPlatformsAsync(CancellationToken ct)
+        => await db.RiotAccounts
+            .AsNoTracking()
+            .Select(account => account.PlatformId)
+            .Distinct()
+            .ToListAsync(ct);
+
+    /// <summary>
+    /// An <c>unknown</c> row for every tracked platform absent from a measurement. A
+    /// platform that simply drops out of a GROUP BY reads as "nothing to report", which
+    /// is indistinguishable from "healthy" on a card — and it is the opposite.
+    /// </summary>
+    private static IEnumerable<DataQualityDetectorRowReadModel> MissingPlatformRows(
+        IEnumerable<string> trackedPlatforms,
+        IEnumerable<string> measuredPlatforms,
+        string note)
+    {
+        var measured = measuredPlatforms.ToHashSet(StringComparer.Ordinal);
+
+        return trackedPlatforms
+            .Where(platform => !measured.Contains(platform))
+            .OrderBy(platform => platform, StringComparer.Ordinal)
+            .Select(platform => new DataQualityDetectorRowReadModel
+            {
+                Label = platform,
+                Status = DetectorStatus.Unknown.ToWireName(),
+                Note = note
+            });
     }
 
     private async Task<IReadOnlyList<OrphanSampleRow>> LoadOrphanSampleAsync(

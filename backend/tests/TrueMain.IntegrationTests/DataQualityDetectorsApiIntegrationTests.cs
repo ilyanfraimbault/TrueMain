@@ -102,6 +102,15 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
 
         // Harvest never ran in this seed, so its row must read unknown — not green.
         byPlatform["Harvest (last success)"].Status.Should().Be("unknown");
+
+        // NA1 has a tracked account and no match at all. It drops out of both the lateral
+        // and the GROUP BY, so without an explicit row it would vanish from the card —
+        // and "ingestion never started on this platform" would read as nothing to report.
+        byPlatform.Should().ContainKey("NA1");
+        byPlatform["NA1"].Status.Should().Be("unknown");
+
+        var lag = payload.Detectors.Single(detector => detector.Key == "ingestionLag");
+        lag.Rows.Should().Contain(row => row.Label == "NA1" && row.Status == "unknown");
     }
 
     [Fact]
@@ -236,6 +245,8 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
         var euwAccount = BuildAccount("EUW1");
         db.RiotAccounts.Add(euwAccount);
         db.RiotAccounts.Add(BuildAccount("KR"));
+        // Tracked, but never ingested: must surface as unknown rather than disappear.
+        db.RiotAccounts.Add(BuildAccount("NA1"));
 
         for (var index = 0; index < 4; index++)
         {
