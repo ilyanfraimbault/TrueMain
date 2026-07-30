@@ -151,10 +151,11 @@ public sealed class CompositionBuildQueryServiceIntegrationTests
 
     private CompositionBuildQueryService CreateService()
         => new(
-            _fixture.CreateDbContext(),
-            new FakeItemMetadataProvider(),
-            Microsoft.Extensions.Options.Options.Create(new CompositionSearchOptions()),
-            NullLogger<CompositionBuildQueryService>.Instance);
+            new ParticipantBuildFactsLoader(
+                _fixture.CreateDbContext(),
+                new FakeItemMetadataProvider(),
+                NullLogger<ParticipantBuildFactsLoader>.Instance),
+            Microsoft.Extensions.Options.Options.Create(new CompositionSearchOptions()));
 
     private static CompositionMatchRef Ref(string matchId, bool win)
         => new()
