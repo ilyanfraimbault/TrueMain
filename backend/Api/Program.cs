@@ -155,6 +155,27 @@ builder.Services.AddOptions<StorageHistoryOptions>()
         options => options.ThresholdPercents.All(percent => percent is > 0 and <= 100),
         "StorageHistory:ThresholdPercents must each be in (0, 100].")
     .ValidateOnStart();
+builder.Services.AddOptions<DataQualityDetectorOptions>()
+    .Bind(builder.Configuration.GetSection(DataQualityDetectorOptions.SectionName))
+    // Only the sizes are validated. The thresholds themselves are deliberately
+    // unconstrained: 0 disables a level, and an operator silencing a card by pushing one
+    // very high is using the knob as intended, not misconfiguring it.
+    .Validate(
+        options => options.OrphanSampleMatchesPerPlatform >= 2,
+        "DataQualityDetectors:OrphanSampleMatchesPerPlatform must be >= 2 (it is split into two windows).")
+    .Validate(
+        options => options.FreshnessChampionLimit > 0,
+        "DataQualityDetectors:FreshnessChampionLimit must be greater than 0.")
+    .Validate(
+        options => options.FreshnessPatchCount > 0,
+        "DataQualityDetectors:FreshnessPatchCount must be greater than 0.")
+    .Validate(
+        options => options.PatchVolumeAnomalyRatio is > 0 and < 1,
+        "DataQualityDetectors:PatchVolumeAnomalyRatio must be in (0, 1).")
+    .Validate(
+        options => options.PatchVolumeMinPatches > 0,
+        "DataQualityDetectors:PatchVolumeMinPatches must be greater than 0.")
+    .ValidateOnStart();
 builder.Services.AddOptions<CompositionSearchOptions>()
     .Bind(builder.Configuration.GetSection(CompositionSearchOptions.SectionName))
     .Validate(
@@ -239,6 +260,7 @@ builder.Services.AddScoped<ILogsQueryService, LogsQueryService>();
 builder.Services.AddScoped<ICrashesQueryService, CrashesQueryService>();
 builder.Services.AddScoped<IRiotApiUsageQueryService, RiotApiUsageQueryService>();
 builder.Services.AddScoped<IDataQualityQueryService, DataQualityQueryService>();
+builder.Services.AddScoped<IDataQualityDetectorsQueryService, DataQualityDetectorsQueryService>();
 builder.Services.AddScoped<ISeedRequestService, SeedRequestService>();
 builder.Services.AddScoped<ISeedRequestQueryService, SeedRequestQueryService>();
 builder.Services.AddScoped<ICandidateQueryService, CandidateQueryService>();

@@ -1174,6 +1174,78 @@ Métriques d'usage de la Riot API sur une fenêtre relative.
 `statusCodes[].statusCode == 0` = faute transport (pas de réponse).
 `rateLimit` est `null` si aucun en-tête observé dans la fenêtre.
 
+## `GET /ops/data-quality/detectors`
+
+Détecteurs d'anomalies automatiques (#924) : une carte par détecteur, avec son verdict, son
+chiffre-titre, les lignes du détail et les seuils configurés (`DataQualityDetectors:*`) contre
+lesquels il a jugé.
+
+Pas de paramètre : les seuils sont de la configuration serveur, pas des query params.
+
+`status` vaut `green`, `amber`, `red` ou `unknown`. **`unknown` ne signifie jamais « mesuré et
+correct »** : c'est « je n'ai pas pu mesurer », et il l'emporte sur `green` dans l'agrégation
+(sans masquer un `red`). Un signal volontairement indisponible (ordre canonique non exprimable
+en SQL, tendance sans fenêtre précédente, patch de bord non comparable) apparaît en ligne mais
+ne vote pas.
+
+**Réponse `200`** — `DataQualityDetectorsReadModel`
+
+```json
+{
+  "detectors": [
+    {
+      "key": "duplicateDimensionRows",
+      "title": "Duplicate dimension rows",
+      "status": "red",
+      "count": 2,
+      "countLabel": "canonical-key groups holding more than one row",
+      "headline": "2 canonical-key group(s) hold more than one row — those games are split across rows, the #911 failure.",
+      "unknownReason": null,
+      "sourceNote": "Groups each champion_dim_* table on the same canonical key the ingestor's repair merges on…",
+      "rows": [
+        {
+          "label": "champion_dim_rune_pages",
+          "status": "red",
+          "value": 1,
+          "valueLabel": "1 duplicate group(s)",
+          "note": "The two secondary perks are a set, not a sequence (#911). 1 row(s) stored outside canonical order."
+        }
+      ],
+      "thresholds": [
+        { "label": "duplicate groups", "amber": 1, "red": 1, "unit": "count" }
+      ],
+      "hasDrillDownEndpoint": false
+    }
+  ],
+  "evaluatedAtUtc": "2026-07-30T18:00:00Z"
+}
+```
+
+## `GET /ops/data-quality/aggregate-freshness`
+
+Fraîcheur des agrégats par champion sur les patchs les plus récents, le plus périmé d'abord.
+Endpoint séparé et **à la demande** : c'est la seule mesure qui exige un scan groupé de
+`champion_aggregate_scopes`, donc elle ne s'exécute pas au chargement du panneau.
+
+**Réponse `200`** — `AggregateFreshnessReadModel`
+
+```json
+{
+  "patches": ["16.15", "16.14"],
+  "champions": [
+    {
+      "championId": 266, "patch": "16.15",
+      "lastAggregatedAtUtc": "2026-07-27T09:00:00Z",
+      "ageHours": 75.2, "scopeRows": 12, "status": "red"
+    }
+  ],
+  "championCount": 168,
+  "staleChampionCount": 3,
+  "staleAfterHours": 6,
+  "evaluatedAtUtc": "2026-07-30T18:00:00Z"
+}
+```
+
 ## `GET /ops/data-quality/incomplete-matches`
 
 Matchs signalés par les checks de qualité, groupés par type d'anomalie.
