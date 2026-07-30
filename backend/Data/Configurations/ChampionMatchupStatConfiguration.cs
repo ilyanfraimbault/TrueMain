@@ -20,6 +20,9 @@ public sealed class ChampionMatchupStatConfiguration : IEntityTypeConfiguration<
         entity.Property(e => e.EloBracket).IsRequired().HasMaxLength(20).HasColumnName("elo_bracket").HasDefaultValue(string.Empty);
         entity.Property(e => e.Games).IsRequired();
         entity.Property(e => e.Wins).IsRequired();
+        entity.Property(e => e.LaneGames).IsRequired().HasDefaultValue(0);
+        entity.Property(e => e.LaneWins).IsRequired().HasDefaultValue(0);
+        entity.Property(e => e.LaneLosses).IsRequired().HasDefaultValue(0);
         entity.Property(e => e.AggregatedAtUtc).IsRequired();
 
         // Natural key on the aggregate grain (now split per elo band). Its leading

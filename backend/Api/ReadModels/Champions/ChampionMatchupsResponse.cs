@@ -4,8 +4,12 @@ namespace TrueMain.ReadModels.Champions;
 /// Lane-matchups read model returned by the champion matchup endpoints. Lists
 /// how a champion performed at a position against every lane opponent (same
 /// <c>TeamPosition</c>, opposite <c>TeamId</c>) it met over the scoped games.
-/// Computed live from <c>match_participants</c> — there is no aggregation table
-/// behind it.
+///
+/// Served from the pre-aggregated <c>champion_matchup_stats</c> (#606) for the
+/// panel, and computed live from <c>match_participants</c> only for the
+/// single-opponent search, whose floor of 1 game an aggregate built at floor 10
+/// cannot answer. (The previous version of this comment claimed there was no
+/// aggregation table at all, which stopped being true with #606.)
 ///
 /// Only opponents with at least the configured minimum games
 /// (<see cref="TrueMain.Options.ChampionsListOptions.MinMatchupGames"/>) appear;
@@ -51,4 +55,31 @@ public sealed record ChampionMatchupEntry
     /// at least the minimum-games floor here, so this never divides by zero.
     /// </summary>
     public double WinRate { get; init; }
+
+    /// <summary>
+    /// Share of *decided* lanes the champion won against this opponent — ahead by
+    /// more than the configured gold threshold at 15 minutes (#919).
+    ///
+    /// <para>
+    /// The denominator is <see cref="DecidedLaneGames"/>, not <see cref="Games"/>: a
+    /// match with no ingested timeline, or one that ended before 15 minutes, cannot
+    /// be judged, and a lane inside the threshold band was neither won nor lost.
+    /// Dividing by games played would understate every figure here.
+    /// </para>
+    ///
+    /// <para>
+    /// <see langword="null"/> when nothing can be said: no decided lane in the scope,
+    /// or the single-opponent search path, which is a live query over participants
+    /// with no lane data behind it. Never a substitute zero.
+    /// </para>
+    /// </summary>
+    public double? LaneWinRate { get; init; }
+
+    /// <summary>
+    /// Lanes actually decided — won or lost past the threshold — and so the sample
+    /// <see cref="LaneWinRate"/> rests on. Always smaller than <see cref="Games"/>,
+    /// often much smaller early on, which is why it is returned rather than left for
+    /// the client to guess.
+    /// </summary>
+    public int DecidedLaneGames { get; init; }
 }

@@ -95,11 +95,16 @@ public sealed class ChampionMatchupQueryService(
                 Opponent = g.Key,
                 Games = g.Sum(x => x.Games),
                 Wins = g.Sum(x => x.Wins),
+                // Summed over the same folded scope as games/wins, so the lane figure
+                // describes the same slice as the row's win rate (#919).
+                LaneWins = g.Sum(x => x.LaneWins),
+                LaneLosses = g.Sum(x => x.LaneLosses),
             })
             .Where(x => x.Games >= minGames)
             .ToListAsync(ct);
 
-        return ToOrderedEntries(rows.Select(x => (x.Opponent, x.Games, x.Wins)));
+        return ToOrderedEntries(rows.Select(x =>
+            (x.Opponent, x.Games, x.Wins, LaneOutcome: (LaneOutcome?)new LaneOutcome(x.LaneWins, x.LaneLosses))));
     }
 
     private async Task<List<ChampionMatchupEntry>> ComputeLiveAsync(
@@ -174,7 +179,11 @@ public sealed class ChampionMatchupQueryService(
             .Where(x => x.Games >= minGames)
             .ToListAsync(ct);
 
-        return ToOrderedEntries(rows.Select(x => (x.Opponent, x.Games, x.Wins)));
+        // No lane outcome on this path: it exists to answer a single opponent at a
+        // floor of 1 game, and joining the 15-minute snapshots live would reintroduce
+        // the per-request timeline scan #606 moved into an aggregate. LaneWinRate is
+        // therefore null here — unknown, not zero.
+        return ToOrderedEntries(rows.Select(x => (x.Opponent, x.Games, x.Wins, LaneOutcome: (LaneOutcome?)null)));
     }
 
     /// <summary>
@@ -183,7 +192,7 @@ public sealed class ChampionMatchupQueryService(
     /// games is never zero — mapped to entries ordered best-winrate first.
     /// </summary>
     private static List<ChampionMatchupEntry> ToOrderedEntries(
-        IEnumerable<(int Opponent, int Games, int Wins)> rows)
+        IEnumerable<(int Opponent, int Games, int Wins, LaneOutcome? LaneOutcome)> rows)
         => rows
             .Select(x => new ChampionMatchupEntry
             {
@@ -191,7 +200,20 @@ public sealed class ChampionMatchupQueryService(
                 Games = x.Games,
                 Wins = x.Wins,
                 WinRate = RateMath.Rate(x.Wins, x.Games),
+                // Decided lanes only. Zero decided lanes yields null rather than 0%:
+                // "no lane was ever settled here" and "the lane is always lost" are
+                // different facts and must not render alike.
+                DecidedLaneGames = x.LaneOutcome?.Decided ?? 0,
+                LaneWinRate = x.LaneOutcome is { Decided: > 0 } outcome
+                    ? RateMath.Rate(outcome.Wins, outcome.Decided)
+                    : null,
             })
             .OrderByDescending(m => m.WinRate)
             .ToList();
+
+    /// <summary>Lane wins and losses past the threshold; evens are in neither.</summary>
+    private readonly record struct LaneOutcome(int Wins, int Losses)
+    {
+        public int Decided => Wins + Losses;
+    }
 }

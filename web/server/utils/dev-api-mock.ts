@@ -719,7 +719,23 @@ async function mockMatchups(id: number): Promise<ChampionMatchups | null> {
     matchups: opponents.map((o) => {
       const games = Math.round(40 + rng() * 360)
       const winRate = round3(Math.min(0.6, Math.max(0.4, 0.5 + (s.wr - o.wr) * 1.6 + (rng() - 0.5) * 0.07)))
-      return { opponentChampionId: o.id, games, wins: Math.round(games * winRate), winRate }
+      // Lane outcome (#919). Only *decided* lanes count, so the sample is always a
+      // fraction of `games`; every third opponent is left undecided so the panel's
+      // dash path is reachable without a backend. Lane WR tracks game WR loosely —
+      // winning lane usually helps — but deliberately not exactly, since the whole
+      // point of the column is that the two can disagree.
+      const decidedLaneGames = o.id % 3 === 0 ? 0 : Math.round(games * (0.4 + rng() * 0.3))
+      const laneWinRate = decidedLaneGames === 0
+        ? null
+        : round3(Math.min(0.75, Math.max(0.25, winRate + (rng() - 0.5) * 0.18)))
+      return {
+        opponentChampionId: o.id,
+        games,
+        wins: Math.round(games * winRate),
+        winRate,
+        laneWinRate,
+        decidedLaneGames,
+      }
     }),
   }
 }

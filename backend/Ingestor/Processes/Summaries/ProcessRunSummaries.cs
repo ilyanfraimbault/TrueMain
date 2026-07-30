@@ -188,6 +188,20 @@ public sealed record RunePageDeduplicationSummary(
     int NormalizedPages,
     int Batches) : IProcessRunSummary;
 
+/// <summary>
+/// Lane-outcome aggregation outcome (#919). <see cref="JudgedLanes"/> is the count of
+/// lanes that could actually be called — both participants had a 15-minute snapshot —
+/// so comparing it with <see cref="Matches"/> shows how much of the pool has no
+/// timeline. <see cref="GoldLeadThreshold"/> is recorded because it defines what the
+/// stored counters mean, and old rows keep the threshold in force when they were folded.
+/// </summary>
+public sealed record LaneOutcomeAggregationSummary(
+    int Matches,
+    int Batches,
+    int JudgedLanes,
+    int Rows,
+    int GoldLeadThreshold) : IProcessRunSummary;
+
 /// <summary>The patches retention kept for one platform.</summary>
 public sealed record RetainedPatchesSummary(string PlatformId, IReadOnlyList<string> Patches);
 
