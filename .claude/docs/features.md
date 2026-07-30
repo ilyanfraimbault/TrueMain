@@ -120,7 +120,7 @@ Three controllers, all delegating to injected `I*QueryService` — no EF types c
 
 Cross-cutting: memory cache (`SizeLimit = 1024`, no Redis), global per-IP rate limit 100 req/min, `/healthz` + `/readyz`, RFC 7807 problem details with `traceId`, HSTS outside dev, CORS that fails boot when unset outside dev, OpenAPI/Scalar **Development-only**.
 
-> Note: reads live in `Api/Services/**` as query services, many injecting `TrueMainDbContext` directly — this differs from the rule stated in CLAUDE.md. See [decisions.md](decisions.md#known-discrepancy) and issue #865.
+> Reads live in `Api/Services/<area>` as purpose-built query services injecting `TrueMainDbContext` and projecting read-models with `AsNoTracking` — no generic repository. That is the rule as decided in #865, not a divergence from it; see [decisions.md](decisions.md#where-api-reads-live).
 
 ### Ingestor
 `Worker.cs` is a `BackgroundService`: reconcile orphaned `Running` rows to `Abandoned` at boot, then loop {heartbeat file → `RunOnceAsync(mode)` → stop if `Job:RunOnce` (default true) else wait `Job:IntervalMinutes`}. A failed iteration is logged and counted, never fatal. The mode concept is **`JobMode`** — `Full` expands to the ordered pipeline below, any other value runs that single process. Each process is DI-keyed by its `JobMode` and wrapped in `RecordedProcess` (writes `Running`, heartbeats, then `Success`/`Failed` + serialized summary).
