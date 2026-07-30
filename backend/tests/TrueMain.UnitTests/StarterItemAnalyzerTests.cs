@@ -249,4 +249,96 @@ public sealed class StarterItemAnalyzerTests
         starterItems.Should().Contain(3865);
         starterItems.Should().NotContain(3867);
     }
+
+    [Fact]
+    public void BuildStarterItems_ignores_a_support_completion_the_player_only_saw_destroyed()
+    {
+        // The production bug behind #923's report. A jungler's timeline carries six to
+        // eight ITEM_DESTROYED events naming a support completion they never owned —
+        // measured on preprod across Viego jungle games. Treating those as proof the
+        // quest was finished injected Bloodsong (400 g) into the basket, past the 500 g
+        // budget, and the page showed "Scorchclaw Pup + Bloodsong + Health Potion".
+        var starterItems = StarterItemAnalyzer.BuildStarterItems(
+            [
+                new ItemEvent { TimestampMs = 1_000, ItemId = 1101, EventType = "ITEM_PURCHASED" },
+                new ItemEvent { TimestampMs = 1_500, ItemId = 2003, EventType = "ITEM_PURCHASED" },
+                new ItemEvent { TimestampMs = 620_000, ItemId = 3877, EventType = "ITEM_DESTROYED" },
+                new ItemEvent { TimestampMs = 640_000, ItemId = 3877, EventType = "ITEM_DESTROYED" }
+            ],
+            finalItems: [3153, 3047, 0, 0, 0, 0, 0],
+            Metadata);
+
+        starterItems.Should().Equal(1101, 2003);
+    }
+
+    [Fact]
+    public void Analyze_keeps_a_jungle_basket_within_budget_despite_destroyed_completions()
+    {
+        var analysis = StarterItemAnalyzer.Analyze(
+            [
+                new ItemEvent { TimestampMs = 1_000, ItemId = 1101, EventType = "ITEM_PURCHASED" },
+                new ItemEvent { TimestampMs = 1_500, ItemId = 2003, EventType = "ITEM_PURCHASED" },
+                new ItemEvent { TimestampMs = 620_000, ItemId = 3877, EventType = "ITEM_DESTROYED" }
+            ],
+            finalItems: [3153, 0, 0, 0, 0, 0, 0],
+            Metadata);
+
+        // 450 + 50: the budget is the readable invariant a reader checks the basket
+        // against, and it was silently blown before this.
+        analysis.TotalCost.Should().Be(500);
+    }
+
+    [Fact]
+    public void BuildStarterItems_still_surfaces_a_completion_the_player_bought()
+    {
+        // The other side of the same rule: a real support buys the completion, so the
+        // ownership signal is there and the starter must still show it.
+        var starterItems = StarterItemAnalyzer.BuildStarterItems(
+            [
+                new ItemEvent { TimestampMs = 2_000, ItemId = 2003, EventType = "ITEM_PURCHASED" },
+                new ItemEvent { TimestampMs = 410_000, ItemId = 3865, EventType = "ITEM_DESTROYED" },
+                new ItemEvent { TimestampMs = 800_000, ItemId = 3877, EventType = "ITEM_PURCHASED" }
+            ],
+            Metadata);
+
+        starterItems.Should().Contain(3877);
+        starterItems.Should().NotContain(3865);
+    }
+
+    [Fact]
+    public void BuildStarterItems_ignores_a_completion_named_only_as_an_undos_before_side()
+    {
+        // Flagged in review: EnumerateRelevantItemIds used to prove ownership of every
+        // candidate an ITEM_UNDO touched — ItemId, BeforeId and AfterId alike. BeforeId is
+        // what the player is giving back, not what they end up holding; trusting it would
+        // reopen the exact bug this PR fixes for ITEM_DESTROYED, just through undo instead.
+        // This isolates that: the completion appears solely as an undo's before-side (the
+        // reverse transformation, intermediate -> completion undone back to intermediate),
+        // never behind a real ITEM_PURCHASED of its own — so it must not surface.
+        var starterItems = StarterItemAnalyzer.BuildStarterItems(
+            [
+                new ItemEvent { TimestampMs = 2_000, ItemId = 2003, EventType = "ITEM_PURCHASED" },
+                new ItemEvent { TimestampMs = 800_000, ItemId = 3877, BeforeId = 3877, AfterId = 3866, EventType = "ITEM_UNDO" }
+            ],
+            Metadata);
+
+        starterItems.Should().NotContain(3877);
+    }
+
+    [Fact]
+    public void BuildStarterItems_still_surfaces_a_completion_kept_after_an_unrelated_undo()
+    {
+        // The other side of the same rule: an undo elsewhere in the sequence must not
+        // blind the scan to a completion the player legitimately bought and kept.
+        var starterItems = StarterItemAnalyzer.BuildStarterItems(
+            [
+                new ItemEvent { TimestampMs = 2_000, ItemId = 1001, EventType = "ITEM_PURCHASED" },
+                new ItemEvent { TimestampMs = 2_500, ItemId = 1001, BeforeId = 1001, EventType = "ITEM_UNDO" },
+                new ItemEvent { TimestampMs = 410_000, ItemId = 3865, EventType = "ITEM_DESTROYED" },
+                new ItemEvent { TimestampMs = 800_000, ItemId = 3877, EventType = "ITEM_PURCHASED" }
+            ],
+            Metadata);
+
+        starterItems.Should().Contain(3877);
+    }
 }

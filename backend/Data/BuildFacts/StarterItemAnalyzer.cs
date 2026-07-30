@@ -217,7 +217,7 @@ public static class StarterItemAnalyzer
 
         foreach (var itemEvent in orderedEvents)
         {
-            foreach (var candidate in EnumerateRelevantItemIds(itemEvent))
+            foreach (var (candidate, provesOwnership) in EnumerateRelevantItemIds(itemEvent))
             {
                 if (!itemMetadataById.TryGetValue(candidate, out var metadata))
                 {
@@ -226,11 +226,20 @@ public static class StarterItemAnalyzer
 
                 if (metadata.IsSupportQuestCompletion)
                 {
+                    // Only a held completion counts. A destroyed one is somebody else's, and
+                    // an undo's before-side was never held — see EnumerateRelevantItemIds.
+                    if (!provesOwnership)
+                    {
+                        continue;
+                    }
+
                     observedCompletion ??= candidate;
                     referencesFamily = true;
                 }
                 else if (metadata.IsSupportQuestStarter || metadata.IsSupportQuestIntermediate)
                 {
+                    // A destroyed root or intermediate is the gifted World Atlas
+                    // transforming, which is the whole reason this fallback exists.
                     referencesFamily = true;
                 }
             }
@@ -292,19 +301,49 @@ public static class StarterItemAnalyzer
         }
     }
 
-    private static IEnumerable<int> EnumerateRelevantItemIds(ItemEvent itemEvent)
+    /// <summary>
+    /// Item ids referenced by an event, for the quest-family scan, each paired with whether
+    /// <em>that specific candidate</em> proves the participant held it.
+    ///
+    /// <para>
+    /// The distinction only matters for the completions (Celestial Opposition, Dream Maker,
+    /// Solstice Sleigh, Bloodsong), and it matters a lot: a completion is worth 400 g and is
+    /// injected into the starter basket past its 500 g budget. Nobody destroys their own
+    /// completed support item — but on production, junglers' event streams carry six to eight
+    /// <c>ITEM_DESTROYED</c> events naming one, and that was enough to make the scan below
+    /// conclude the quest was finished. The result was a jungler's starter reading
+    /// "Scorchclaw Pup + Bloodsong + Health Potion" — 900 g of items they never bought.
+    /// </para>
+    ///
+    /// <para>
+    /// <c>ITEM_PURCHASED</c> proves ownership of <see cref="ItemEvent.ItemId"/>.
+    /// <c>ITEM_UNDO</c> proves ownership of <see cref="ItemEvent.AfterId"/> only — that is
+    /// what the player is left holding — never of <see cref="ItemEvent.BeforeId"/>, which is
+    /// what they are giving back. Treating <c>BeforeId</c> as owned would reopen this exact
+    /// bug through undo: a support who buys the wrong completion and immediately undoes it
+    /// never held it, the same way a jungler never held one they merely saw destroyed.
+    /// A destroyed root or intermediate stays trusted for the family-reference fallback (not
+    /// gated on ownership): that is exactly what a support's own World Atlas looks like when
+    /// it transforms, and it is the only trace of an item the game gifts without an
+    /// <c>ITEM_PURCHASED</c> event.
+    /// </para>
+    /// </summary>
+    private static IEnumerable<(int ItemId, bool ProvesOwnership)> EnumerateRelevantItemIds(ItemEvent itemEvent)
     {
+        var isPurchase = itemEvent.EventType.Equals("ITEM_PURCHASED", StringComparison.OrdinalIgnoreCase);
+        var isUndo = itemEvent.EventType.Equals("ITEM_UNDO", StringComparison.OrdinalIgnoreCase);
+
         if (itemEvent.ItemId > 0)
         {
-            yield return itemEvent.ItemId;
+            yield return (itemEvent.ItemId, isPurchase);
         }
         if (itemEvent.BeforeId is > 0)
         {
-            yield return itemEvent.BeforeId.Value;
+            yield return (itemEvent.BeforeId.Value, false);
         }
         if (itemEvent.AfterId is > 0)
         {
-            yield return itemEvent.AfterId.Value;
+            yield return (itemEvent.AfterId.Value, isUndo);
         }
     }
 

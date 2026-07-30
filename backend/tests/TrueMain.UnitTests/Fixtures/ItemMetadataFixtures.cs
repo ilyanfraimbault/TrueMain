@@ -22,6 +22,12 @@ internal static class ItemMetadataFixtures
         {
             IsStarterClassItem = true
         },
+        // 1101 = Scorchclaw Pup, the jungle companion. Same 450 g bracket as a Doran's,
+        // so a jungler's basket is already at the 500 g budget with one potion.
+        [1101] = new(1101, 450, true, false, false, false, true, false)
+        {
+            IsStarterClassItem = true
+        },
         [1056] = new(1056, 400, true, false, false, false, true, false)
         {
             IsStarterClassItem = true

@@ -97,7 +97,12 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
             Champion, Opponent, patch: null, Position, eloBracket: null, CancellationToken.None);
 
         scoped!.TotalGames.Should().Be(1);
-        unscoped!.TotalGames.Should().Be(2, "no patch means every patch still retained");
+
+        // No patch asked for resolves the newest one this matchup was played on and scopes
+        // to it, rather than pooling every retained patch: the page's selector shows a
+        // single patch, so a response silently spanning two would label its number wrong.
+        unscoped!.TotalGames.Should().Be(1);
+        unscoped.Patch.Should().Be("16.4", "the response always names the patch it covers");
     }
 
     [Fact]
@@ -112,6 +117,30 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
             Champion, Opponent, patch: null, Position, "GOLD", CancellationToken.None);
 
         result!.TotalGames.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task GetAsync_ResolvesTheNewestPatchWithinTheRequestedElo_NotAcrossAllElos()
+    {
+        // Flagged in review. IRON's own newest game is on 16.3; GOLD's is on 16.4, the
+        // matchup's overall newest. Resolving "no patch" against every elo would pick
+        // 16.4 for an IRON request, find no IRON rows there, and wrongly report "no data"
+        // for an elo that genuinely has games — just on a different patch than GOLD's.
+        await _fixture.ResetDatabaseAsync();
+
+        await SeedGameAsync(
+            "MU_IRON_OLD", win: true, opponentChampionId: Opponent, buildOrder: [3031],
+            eloBracket: "IRON", gameVersion: "16.3.500.1");
+        await SeedGameAsync(
+            "MU_GOLD_NEW", win: true, opponentChampionId: Opponent, buildOrder: [3031],
+            eloBracket: "GOLD", gameVersion: KnownVersion);
+
+        var iron = await CreateService().GetAsync(
+            Champion, Opponent, patch: null, Position, "IRON", CancellationToken.None);
+
+        iron.Should().NotBeNull("IRON has a real game — just not on the patch GOLD's resolves to");
+        iron!.TotalGames.Should().Be(1);
+        iron.Patch.Should().Be("16.3", "the patch IRON's own newest game was played on, not GOLD's");
     }
 
     [Fact]

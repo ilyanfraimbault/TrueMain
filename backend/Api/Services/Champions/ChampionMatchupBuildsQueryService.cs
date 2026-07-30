@@ -56,9 +56,24 @@ public sealed class ChampionMatchupBuildsQueryService(
         }
 
         var queueId = (int)mainAnalysisOptions.Value.QueueId;
-        var normalizedPatch = string.IsNullOrWhiteSpace(patch) ? null : PatchVersion.Normalize(patch);
+        var requestedPatch = string.IsNullOrWhiteSpace(patch) ? null : PatchVersion.Normalize(patch);
         var bracketFilter = EloBracket.ResolveFilter(eloBracket);
         var resolvedBracket = EloBracket.Normalize(eloBracket) ?? EloBracket.All;
+
+        // With no patch asked for, resolve the newest one this matchup was played on and
+        // scope to it — rather than spanning every patch retention still holds. Two
+        // reasons: the page's patch selector shows a single patch, so a response silently
+        // mixing two would put a number under a label that does not describe it (measured
+        // on preprod: 955 games unscoped against 105 for the patch shown); and builds do
+        // not survive a patch, so pooling them across one is not a bigger sample, it is a
+        // different question.
+        // Resolved on the same elo filter the main query below applies. Without this, an
+        // elo whose games all sit on an older patch than the matchup's overall newest would
+        // resolve a patch it has no rows on and come back "no data" for an elo that genuinely
+        // has some — the exact kind of number/filter mismatch this whole method exists to
+        // avoid, just moved one level down to the elo dimension.
+        var normalizedPatch = requestedPatch ?? await ResolveNewestPatchAsync(
+            championId, opponentChampionId, position, queueId, bracketFilter, ct);
 
         var participants = db.MatchParticipants
             .AsNoTracking()
@@ -125,6 +140,8 @@ public sealed class ChampionMatchupBuildsQueryService(
         return new ChampionResponse
         {
             ChampionId = championId,
+            // Always the patch actually covered: the page reconciles its selector against
+            // this, and an empty string would read as "no patch" and clear the filter.
             Patch = normalizedPatch ?? string.Empty,
             Position = position,
             EloBracket = resolvedBracket,
@@ -136,5 +153,46 @@ public sealed class ChampionMatchupBuildsQueryService(
             TotalWins = wins,
             Builds = builds,
         };
+    }
+
+    /// <summary>
+    /// The newest patch this matchup was played on, or null when it was never played.
+    /// One index-ordered read of the pair's newest game.
+    /// </summary>
+    private async Task<string?> ResolveNewestPatchAsync(
+        int championId,
+        int opponentChampionId,
+        string position,
+        int queueId,
+        IReadOnlyList<string>? bracketFilter,
+        CancellationToken ct)
+    {
+        var participants = db.MatchParticipants
+            .AsNoTracking()
+            .Where(p => p.ChampionId == championId && p.TeamPosition == position);
+
+        if (bracketFilter is not null)
+        {
+            participants = participants.Where(p => bracketFilter.Contains(p.EloBracket));
+        }
+
+        var newestVersion = await participants
+            .Join(
+                db.MatchParticipants.AsNoTracking().Where(o =>
+                    o.ChampionId == opponentChampionId && o.TeamPosition == position),
+                p => p.MatchId,
+                o => o.MatchId,
+                (p, o) => new { Participant = p, Opponent = o })
+            .Where(pair => pair.Opponent.TeamId != pair.Participant.TeamId)
+            .Join(
+                db.Matches.AsNoTracking().Where(m => m.QueueId == queueId),
+                pair => pair.Participant.MatchId,
+                m => m.Id,
+                (pair, m) => new { m.GameStartTimeUtc, m.GameVersion })
+            .OrderByDescending(row => row.GameStartTimeUtc)
+            .Select(row => row.GameVersion)
+            .FirstOrDefaultAsync(ct);
+
+        return string.IsNullOrEmpty(newestVersion) ? null : PatchVersion.Normalize(newestVersion);
     }
 }
