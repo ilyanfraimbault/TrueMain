@@ -42,6 +42,14 @@ const {
   isInitialLoading: rankHistoryLoading,
 } = useTruemainRankHistory(nameTag)
 
+// Activity grid under the LP curve (#927). One request covers all four
+// granularities — the mode switch inside the card is local, so no refetch and no
+// chance of two modes describing different snapshots.
+const {
+  data: activity,
+  isInitialLoading: activityLoading,
+} = useTruemainActivity(nameTag)
+
 // Human label for the breadcrumb / SEO title — `gameName#tagLine`, falling
 // back to the raw nameTag slug while the profile fetch is in flight.
 const playerLabel = computed(() => {
@@ -165,6 +173,17 @@ const hasActiveFilters = computed(() => Boolean(filterPosition.value || filterCh
           :ranked="profile.ranked"
           :history="rankHistory?.entries ?? []"
           :history-loading="rankHistoryLoading"
+        />
+
+        <!-- Sits directly under the ranked card: the LP curve says how the climb
+             went, the grid says how much was played to get there. Rendered as
+             soon as the profile resolves — its own loading state is internal, so
+             the mode switch is usable while the payload lands. -->
+        <ProfileActivityHeatmap
+          v-if="!profileLoading && profile"
+          :data="activity"
+          :champions="champions"
+          :loading="activityLoading"
         />
 
         <ProfileDedicationCardSkeleton v-if="profileLoading || !profile" />

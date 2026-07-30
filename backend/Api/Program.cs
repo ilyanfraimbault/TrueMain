@@ -224,6 +224,7 @@ builder.Services.AddScoped<IPlayerChampionMatchupQueryService, PlayerChampionMat
 builder.Services.AddScoped<IPlayerChampionPerformanceQueryService, PlayerChampionPerformanceQueryService>();
 builder.Services.AddScoped<IPlayerBuildDivergenceQueryService, PlayerBuildDivergenceQueryService>();
 builder.Services.AddScoped<IRankHistoryQueryService, RankHistoryQueryService>();
+builder.Services.AddScoped<ITruemainActivityQueryService, TruemainActivityQueryService>();
 builder.Services.AddScoped<ITruemainsLeaderboardQueryService, TruemainsLeaderboardQueryService>();
 builder.Services.AddScoped<ISearchQueryService, SearchQueryService>();
 builder.Services.AddScoped<IPipelineHealthQueryService, PipelineHealthQueryService>();

@@ -128,6 +128,38 @@ no-cross-viewer-SSR rule, not oversights, and "fixing" either by SSR-ing the pro
 Disabling SSR on the route or timing out the fetch were both rejected: neither addresses the mismatch, and
 the route is a primary, indexable one — #862.
 
+**The activity grid's four modes read two different tables, and the response says so rather than reconciling them.**
+`match_participants` carries a game's date but is hard-deleted past `RetainedPatchCount` (~2 patches);
+`champion_aggregate_scopes` is frozen forever (#466) but its grain is (account, champion, patch). So the
+game / day / week modes physically cannot show last season and the patch mode physically cannot show a day —
+the modes are not four views of one dataset. Every series therefore ships its own `source`, `scope`,
+`retentionBounded` and coverage range, the patch series is champion-scoped to the signature champion, and the
+UI prints a coverage line built from those fields. Three options were rejected: scoping *every* mode to one
+champion (throws away the "how much did you play" answer the grid is for), splitting the aggregate by day
+(it has no day), and quietly labelling all four "activity" (that is the silent disagreement the metadata
+exists to prevent). Two consequences kept on purpose: the patch total is a *different population* from the
+day total over the same patch, and all four granularities ship in **one** request — three of them are
+foldings of the same rows, so one snapshot is both cheaper and the only way two modes cannot describe two
+different afternoons — #927.
+
+**An erased period is not an idle one: the calendar grids stop where the data stops.**
+The day / week series clamp their window to the oldest game still on disk and emit **no cell** before it,
+rather than drawing 30 empty squares over a month retention deleted. Inside the covered range an empty cell
+*is* emitted, with `games: 0` and a **null** win rate — a 0% period is a measurement and an idle one is not,
+so the fill helper returns no colour at all for the second and the tooltip reads "No games". A player whose
+whole retained window has been pruned gets three empty series and a populated patch series, with copy pointing
+at it. Days and weeks are UTC (Monday 00:00 for weeks), matching the pipeline's existing UTC-day rule (#907):
+a viewer-local grid would need a timezone parameter on a public read or client-side re-bucketing of raw games.
+Accepted: a late-night game can land on the next day's cell far from UTC — #927.
+
+**Patch mode is wired to the dedication card's own numbers, not to a parallel query.**
+It resolves the signature champion through `MainDedication` — the single place that decides what one is — and
+groups the exact scope rows that helper's career lateral sums (account + champion + ranked queue, no platform /
+position / bracket narrowing). That makes `patch.games == dedication.careerGames` and
+`patch.buckets.length == dedication.patchSpan` invariants a reader can check by eye, since the two panels sit
+centimetres apart. A narrower filter (per platform, per lane) would have been defensible on its own and would
+have made the grid disagree with the card above it — #927.
+
 **The matchup opponent-search stays a live query while the matchups panel reads the aggregate.**
 The `opponent=` path filters to a single adversary (already fast) and uses a floor of 1 game, which an
 aggregate built at floor 10 cannot serve — #606.
