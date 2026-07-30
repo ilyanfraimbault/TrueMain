@@ -74,8 +74,13 @@ const cells = computed<Cell[]>(() => {
  * push the panel past the card.
  */
 const hovered = ref<Cell | null>(null)
-const tooltipAnchor = ref<{ x: number, y: number } | null>(null)
+const tooltipAnchor = ref<{ x: number, y: number, above: boolean } | null>(null)
 const tooltipEl = useTemplateRef<HTMLElement>('tooltipEl')
+// The positioned ancestor the tooltip's `left`/`top` are relative to. Read
+// explicitly rather than via the cell's `parentElement` (the `<ul>`) — that
+// happens to share the wrapper's width today, but only because nothing else
+// sits beside the grid; an explicit ref doesn't rely on that staying true.
+const gridWrapper = useTemplateRef<HTMLElement>('gridWrapper')
 
 // Bumped on every hover, so the clamp below can tell whether the pointer has
 // moved on since it started. Comparing `hovered.value` to the cell would not
@@ -84,21 +89,25 @@ let hoverToken = 0
 
 async function showTooltip(cell: Cell, event: MouseEvent) {
   const target = event.currentTarget as HTMLElement
-  const grid = target.parentElement
-  if (!grid) return
+  const wrapper = gridWrapper.value
+  if (!wrapper) return
 
   const token = ++hoverToken
   const centre = target.offsetLeft + target.offsetWidth / 2
   hovered.value = cell
-  tooltipAnchor.value = { x: centre, y: target.offsetTop }
+  tooltipAnchor.value = { x: centre, y: target.offsetTop, above: target.offsetTop > 0 }
 
   await nextTick()
   // The pointer may have left (or moved on) while the panel was rendering.
   if (hoverToken !== token) return
   const half = (tooltipEl.value?.offsetWidth ?? 0) / 2
+  // Cells in the first row have no room above them for the panel to sit in —
+  // the card has no `overflow-hidden` to catch it, so it would spill over the
+  // mode buttons above the grid. Flip it below the cell there instead.
   tooltipAnchor.value = {
-    x: Math.min(Math.max(centre, half), Math.max(grid.clientWidth - half, half)),
+    x: Math.min(Math.max(centre, half), Math.max(wrapper.clientWidth - half, half)),
     y: target.offsetTop,
+    above: target.offsetTop > 0,
   }
 }
 
@@ -166,7 +175,7 @@ const isEmpty = computed(() => cells.value.length === 0)
         <!-- Fixed 11 px squares packed left, GitHub-contribution style: the cell
              size is the same in every mode and at every width, so the grid just
              wraps onto more rows instead of inflating into big tiles. -->
-        <div v-else class="relative" @mouseleave="hideTooltip">
+        <div v-else ref="gridWrapper" class="relative" @mouseleave="hideTooltip">
           <ul class="grid grid-cols-[repeat(auto-fill,11px)] gap-[3px]">
             <li
               v-for="cell in cells"
@@ -181,12 +190,19 @@ const isEmpty = computed(() => cells.value.length === 0)
             />
           </ul>
 
+          <!-- The first row has no row above it to sit over, and the card has no
+               `overflow-hidden` to catch an overflow — it would spill onto the
+               mode buttons above the grid. Flip below the cell there instead. -->
           <div
             v-if="hovered && tooltipAnchor"
             ref="tooltipEl"
             role="tooltip"
-            class="glass pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md px-2 py-1 text-xs leading-tight tabular-nums shadow-lg"
-            :style="{ left: `${tooltipAnchor.x}px`, top: `${tooltipAnchor.y - 6}px` }"
+            class="glass pointer-events-none absolute z-10 -translate-x-1/2 whitespace-nowrap rounded-md px-2 py-1 text-xs leading-tight tabular-nums shadow-lg"
+            :class="tooltipAnchor.above ? '-translate-y-full' : 'translate-y-0'"
+            :style="{
+              left: `${tooltipAnchor.x}px`,
+              top: tooltipAnchor.above ? `${tooltipAnchor.y - 6}px` : `${tooltipAnchor.y + 17}px`,
+            }"
           >
             <span class="font-medium text-default">{{ hovered.result }}</span>
             <span class="text-muted"> · {{ hovered.label }}</span>
