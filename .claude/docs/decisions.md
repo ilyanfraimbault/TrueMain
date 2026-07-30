@@ -310,6 +310,17 @@ compiled model all rely on the current naming.
 
 ## Performance & incidents
 
+**A matchup-scoped build page is folded live, not aggregated** (#923). `champion_matchup_stats` carries the
+opponent dimension but only games/wins; the pattern aggregates carry the build data but are grained on
+(account, champion, patch, platform, queue, position, elo) with no opponent — so a matchup build has no
+aggregate to read, and adding an opponent dimension would multiply the scope rows by the roster. Measured on
+production before deciding (patch 16.13, per champion x opponent x position, all elos): 49 411 pairs, median
+**4 games**, p75 18, p90 79, p99 355, max 1 562, with only 24% of pairs reaching 20 games. Two consequences:
+the live fold is cheap (a few hundred rows, capped at 2 000 for the tail), and **the binding constraint is the
+sample, not the latency** — which is the opposite of what the issue assumed. Decided 2026-07-30: show the
+matchup whatever its volume, with the game count on every variation, rather than hiding thin sections or
+silently widening the window. The reader is told how thin the answer is instead of being given a fabricated one.
+
 **An expensive read path behind a TTL cache needs a single-flight, not a lock** (#870,
 `Api/Services/RequestCoalescer.cs`). The cache protects steady state; the stampede happens on the first
 request and at every TTL expiry, when concurrent callers all miss at once and each start the same scan — up to

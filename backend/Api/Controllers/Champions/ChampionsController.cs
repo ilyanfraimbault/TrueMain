@@ -14,6 +14,7 @@ public sealed class ChampionsController(
     IChampionSummariesQueryService summariesQueryService,
     IChampionTierListQueryService tierListQueryService,
     IChampionBuildsQueryService buildsQueryService,
+    IChampionMatchupBuildsQueryService matchupBuildsQueryService,
     IChampionTrendQueryService trendQueryService,
     IChampionPatchDiffQueryService patchDiffQueryService,
     IChampionMatchupQueryService matchupQueryService,
@@ -78,6 +79,7 @@ public sealed class ChampionsController(
         [FromQuery] string? patch,
         [FromQuery] string? position,
         [FromQuery] string? eloBracket,
+        [FromQuery] int? opponentChampionId,
         CancellationToken ct = default)
     {
         if (!TryNormalizeOptionalPosition(position, out var normalizedPosition, out var problem))
@@ -87,6 +89,27 @@ public sealed class ChampionsController(
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
         var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
+
+        // A matchup needs a position: "vs Darius" is only meaningful in a lane, and the
+        // self-join matches both sides on it. Without one there is nothing to scope, so
+        // the request is rejected rather than silently answered with global data.
+        if (opponentChampionId is > 0)
+        {
+            if (string.IsNullOrEmpty(normalizedPosition))
+            {
+                return ValidationProblem("A matchup requires a position: pass ?position= alongside ?opponentChampionId=.");
+            }
+
+            var matchup = await matchupBuildsQueryService.GetAsync(
+                championId,
+                opponentChampionId.Value,
+                normalizedPatch,
+                normalizedPosition,
+                normalizedBracket,
+                ct);
+
+            return matchup is null ? NotFound() : Ok(matchup);
+        }
 
         var response = await buildsQueryService.GetAsync(
             championId,

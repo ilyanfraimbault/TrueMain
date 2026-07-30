@@ -224,7 +224,11 @@ builder.Services.AddScoped<IChampionBuildsQueryService, ChampionBuildsQueryServi
 builder.Services.AddScoped<IChampionMatchupQueryService, ChampionMatchupQueryService>();
 builder.Services.AddScoped<IChampionSynergyQueryService, ChampionSynergyQueryService>();
 builder.Services.AddScoped<ICompositionMatchQueryService, CompositionMatchQueryService>();
+// Shared by the composition recommendation (#921) and the matchup-scoped champion page
+// (#923) so a game means the same build to both.
+builder.Services.AddScoped<ParticipantBuildFactsLoader>();
 builder.Services.AddScoped<ICompositionBuildQueryService, CompositionBuildQueryService>();
+builder.Services.AddScoped<IChampionMatchupBuildsQueryService, ChampionMatchupBuildsQueryService>();
 builder.Services.AddScoped<ICompositionRecommendationQueryService, CompositionRecommendationQueryService>();
 // Same CommunityDragon item-metadata source as the ingestor's pattern
 // aggregation, so the composition recommender reads a game's items
