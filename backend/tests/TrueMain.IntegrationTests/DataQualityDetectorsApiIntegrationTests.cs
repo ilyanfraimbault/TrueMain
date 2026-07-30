@@ -75,6 +75,49 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
     }
 
     [Fact]
+    public async Task GetDetectors_WordsTheDuplicateHeadlineFromTheVerdict_NotFromTheDuplicateCount()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedNonCanonicalOnlyAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateAuthedClient(factory);
+
+        var payload = await client.GetFromJsonAsync<DetectorsContract>("/ops/data-quality/detectors");
+
+        var duplicates = payload!.Detectors.Single(detector => detector.Key == "duplicateDimensionRows");
+
+        // The leading indicator alone: rows stored the player's way round, no split yet.
+        // The card must react — this is how #911 comes back — and its sentence must not
+        // answer the amber badge with "every row is unique".
+        duplicates.Count.Should().Be(0);
+        duplicates.Status.Should().Be("amber");
+        duplicates.Headline.Should().Contain("outside canonical order");
+        duplicates.Headline.Should().NotContain("unique under its canonical key");
+    }
+
+    [Fact]
+    public async Task GetDetectors_WordsTheSanityHeadlineFromTheVerdict_WhenOnlyZeroSampleRowsExist()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedZeroSampleScopeAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateAuthedClient(factory);
+
+        var payload = await client.GetFromJsonAsync<DetectorsContract>("/ops/data-quality/detectors");
+
+        var sanity = payload!.Detectors.Single(detector => detector.Key == "rowSanity");
+
+        // Nothing is arithmetically impossible here, so the count is 0 — but a zero-sample
+        // row still raises the card, and the sentence has to talk about what raised it.
+        sanity.Count.Should().Be(0);
+        sanity.Status.Should().Be("amber");
+        sanity.Headline.Should().Contain("carry no games");
+        sanity.Headline.Should().NotContain("No aggregate row contradicts");
+    }
+
+    [Fact]
     public async Task GetDetectors_MeasuresTheOrphanShareFromTheNewestMatchesPerPlatform()
     {
         await _fixture.ResetDatabaseAsync();
@@ -231,6 +274,36 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
             StarterItemsKey = "1055|2003",
             StarterItems = [1055, 2003]
         });
+
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// One rune page and one spell pair stored in the player's order, each without a
+    /// canonical twin: the leading indicator without any duplicate yet.
+    /// </summary>
+    private async Task SeedNonCanonicalOnlyAsync()
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        db.ChampionDimRunePages.Add(BuildRunePage(secondary1: 8451, secondary2: 8444));
+        db.ChampionDimSpellPairs.Add(new ChampionDimSpellPair { Id = Guid.NewGuid(), Spell1Id = 14, Spell2Id = 4 });
+
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>A scope row that was written with no games behind it.</summary>
+    private async Task SeedZeroSampleScopeAsync()
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        var account = BuildAccount("EUW1");
+        db.RiotAccounts.Add(account);
+
+        var scope = BuildScope(account.Id, championId: 103, DateTime.UtcNow);
+        scope.Games = 0;
+        scope.Wins = 0;
+        db.ChampionAggregateScopes.Add(scope);
 
         await db.SaveChangesAsync();
     }

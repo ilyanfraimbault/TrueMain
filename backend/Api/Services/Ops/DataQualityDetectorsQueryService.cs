@@ -192,6 +192,7 @@ public sealed class DataQualityDetectorsQueryService(
     {
         var rows = new List<DataQualityDetectorRowReadModel>();
         long duplicateGroups = 0;
+        long nonCanonicalRows = 0;
 
         foreach (var audit in ChampionDimensionCanonicalKeys.AuditedTables)
         {
@@ -201,6 +202,7 @@ public sealed class DataQualityDetectorsQueryService(
                 : await CountNonCanonicalAsync(audit, ct);
 
             duplicateGroups += duplicates;
+            nonCanonicalRows += nonCanonical ?? 0;
 
             var duplicateStatus = DataQualityDetectorEvaluator.Classify(
                 duplicates,
@@ -244,18 +246,29 @@ public sealed class DataQualityDetectorsQueryService(
             " ",
             ChampionDimensionCanonicalKeys.ExemptTables.Select(table => $"{table.TableName}: {table.Reason}"));
 
+        var duplicateCardStatus = DataQualityDetectorEvaluator.Worst(rows.Select(ParseStatus));
+
         return new DataQualityDetectorReadModel
         {
             Key = "duplicateDimensionRows",
             Title = "Duplicate dimension rows",
-            Status = DataQualityDetectorEvaluator.Worst(rows.Select(ParseStatus)).ToWireName(),
+            Status = duplicateCardStatus.ToWireName(),
             Count = duplicateGroups,
             CountLabel = "canonical-key groups holding more than one row",
-            Headline = duplicateGroups == 0
-                ? "Every audited dimension row is unique under its canonical key."
-                : string.Create(
+            // Worded from the verdict. A table holding rows outside canonical order but
+            // no duplicate yet turns this card amber, and a headline computed from the
+            // duplicate count alone would pair that badge with "every row is unique".
+            Headline = duplicateCardStatus switch
+            {
+                DetectorStatus.Green => "Every audited dimension row is unique under its canonical key.",
+                DetectorStatus.Unknown => "Part of the dimension audit could not be measured.",
+                _ when duplicateGroups > 0 => string.Create(
                     CultureInfo.InvariantCulture,
                     $"{duplicateGroups} canonical-key group(s) hold more than one row — those games are split across rows, the #911 failure."),
+                _ => string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"{nonCanonicalRows} row(s) are stored outside canonical order — nothing is split yet, but the reader's canonical lookup will miss them and mint a second row (#911)."),
+            },
             SourceNote = "Groups each champion_dim_* table on the same canonical key the ingestor's "
                 + "repair merges on, so the audit can never disagree with the fix. Not audited — " + exempt,
             Rows = rows,
@@ -659,18 +672,34 @@ public sealed class DataQualityDetectorsQueryService(
             .Select(ParseStatus)
             .Where(status => status is not DetectorStatus.Unknown));
 
+        var thinPatches = patchRows.Count(row => ParseStatus(row) is DetectorStatus.Amber or DetectorStatus.Red);
+        var sanityCardStatus = DataQualityDetectorEvaluator.Worst(sanityStatuses);
+
         return new DataQualityDetectorReadModel
         {
             Key = "rowSanity",
             Title = "Row-level sanity",
-            Status = DataQualityDetectorEvaluator.Worst(sanityStatuses).ToWireName(),
+            Status = sanityCardStatus.ToWireName(),
             Count = inconsistent,
             CountLabel = "arithmetically impossible aggregate rows",
-            Headline = inconsistent == 0
-                ? "No aggregate row contradicts its own totals."
-                : string.Create(
+            // Same rule as every other card: worded from the verdict. Zero-sample rows
+            // and thin patches raise this card on their own, and a headline computed from
+            // the impossible-row count alone would answer them with "nothing contradicts
+            // its own totals" — true, and beside the point the badge is making.
+            Headline = sanityCardStatus switch
+            {
+                DetectorStatus.Green => "No aggregate row contradicts its own totals.",
+                DetectorStatus.Unknown => "Part of the row-level audit could not be measured.",
+                _ when inconsistent > 0 => string.Create(
                     CultureInfo.InvariantCulture,
                     $"{inconsistent} aggregate row(s) contradict their own totals — a fold is writing numbers it cannot have measured."),
+                _ when thinPatches > 0 => string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"{thinPatches} patch(es) hold far fewer matches than the median comparable patch — ingestion was down, or is still behind."),
+                _ => string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"{zeroSampleScopes} aggregate row(s) carry no games — harmless to a reader, but rows that should never have been written."),
+            },
             SourceNote = "Predicate counts over the aggregate tables, plus per-patch match volumes against the median "
                 + "of the comparable patches. The newest and oldest patch are never judged: one is still filling, the "
                 + "other is being retention-trimmed.",
