@@ -87,6 +87,72 @@ public sealed class CompositionBuildApiIntegrationTests
     }
 
     [Fact]
+    public async Task PostCompositionBuildGames_ListsTheSelectionWithScoresAndPilots()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        await SeedGameAsync("COMPG_MAIN", win: true, enemyMid: RoleOpponent, buildOrder: [3031, 3153]);
+        await SeedGameAsync("COMPG_OTHER", win: false, enemyMid: RoleOpponent, buildOrder: [3072, 3026]);
+        // The non-matchup game is hard-filtered out of the selection, so the
+        // listing must not show it either — the drawer's whole point is that
+        // it lists the games the build was actually computed from.
+        await SeedGameAsync("COMPG_OFF", win: true, enemyMid: OtherOpponent, buildOrder: [3072, 3026]);
+
+        // One of the two pilots is an active main of the champion: mains lead
+        // the selection order, and the row says so.
+        await SeedPilotAsync("COMPG_MAIN", gameName: "Sheiden", tagLine: "1234", isMain: true);
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var response = await client.PostAsJsonAsync(
+            $"/champions/{Champion}/composition-build/games?page=1&pageSize=10",
+            new
+            {
+                position = Position,
+                enemies = new[] { new { championId = RoleOpponent, position = "MIDDLE" } },
+            });
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var result = await response.Content.ReadFromJsonAsync<CompositionBuildGamesResponse>();
+        result.Should().NotBeNull();
+        result!.Total.Should().Be(2, "the non-matchup game never entered the selection");
+        result.Page.Should().Be(1);
+        result.MaxPossibleScore.Should().Be(10, "one role-opponent slot was requested");
+        result.Games.Should().HaveCount(2);
+
+        var first = result.Games[0];
+        first.Match.MatchId.Should().Be("COMPG_MAIN", "mains lead the selection order");
+        first.IsTruemain.Should().BeTrue();
+        first.Score.Should().Be(10, "the game reproduces the only requested slot");
+        first.Pilot.Should().NotBeNull();
+        first.Pilot!.GameName.Should().Be("Sheiden");
+        first.Pilot.TagLine.Should().Be("1234");
+        first.Match.Self.ChampionId.Should().Be(Champion, "the row renders the pilot's own slice");
+        first.Match.Self.Win.Should().BeTrue();
+        first.Match.Participants.Should().HaveCount(10);
+
+        var second = result.Games[1];
+        second.Match.MatchId.Should().Be("COMPG_OTHER");
+        second.IsTruemain.Should().BeFalse();
+        second.Pilot.Should().BeNull("that game's puuid has no Riot account row");
+    }
+
+    [Fact]
+    public async Task PostCompositionBuildGames_InvalidDraft_Returns400()
+    {
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // Same validation as the recommendation itself — the two share it.
+        var response = await client.PostAsJsonAsync(
+            $"/champions/{Champion}/composition-build/games",
+            new { position = "NOT_A_LANE" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task PostCompositionBuild_EmptyPoolAndDraft_ReturnsHonestlyEmptyRecommendation()
     {
         await _fixture.ResetDatabaseAsync();
@@ -264,6 +330,44 @@ public sealed class CompositionBuildApiIntegrationTests
 
         await db.SaveChangesAsync();
         await SeedRunePageAsync(db, matchId);
+    }
+
+    /// <summary>
+    /// Gives the searched participant of <paramref name="matchId"/> a Riot
+    /// identity, optionally as an active main of the champion. The pilot is
+    /// resolved by puuid, so no <c>RiotAccountId</c> back-reference is needed
+    /// on the participant row — same as the harvested rows in production.
+    /// </summary>
+    private async Task SeedPilotAsync(string matchId, string gameName, string tagLine, bool isMain)
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        var puuid = $"puuid-{matchId}-1";
+        db.RiotAccounts.Add(new RiotAccountBuilder()
+            .WithPuuid(puuid)
+            .WithGameName(gameName)
+            .WithTagLine(tagLine)
+            .Build());
+
+        if (isMain)
+        {
+            db.MainChampionStats.Add(new MainChampionStat
+            {
+                Id = Guid.NewGuid(),
+                PlatformId = "KR",
+                Puuid = puuid,
+                ChampionId = Champion,
+                TotalMatches = 100,
+                ChampionMatches = 60,
+                PlayRate = 0.6,
+                IsMain = true,
+                IsActive = true,
+                PrimaryPosition = Position,
+                CalculatedAtUtc = DateTime.UtcNow,
+            });
+        }
+
+        await db.SaveChangesAsync();
     }
 
     private static async Task SeedRunePageAsync(Data.TrueMainDbContext db, string matchId)

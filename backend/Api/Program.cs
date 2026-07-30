@@ -229,6 +229,7 @@ builder.Services.AddScoped<ICompositionMatchQueryService, CompositionMatchQueryS
 builder.Services.AddScoped<ParticipantBuildFactsLoader>();
 builder.Services.AddScoped<ICompositionBuildQueryService, CompositionBuildQueryService>();
 builder.Services.AddScoped<IChampionMatchupBuildsQueryService, ChampionMatchupBuildsQueryService>();
+builder.Services.AddScoped<ICompositionGamesQueryService, CompositionGamesQueryService>();
 builder.Services.AddScoped<ICompositionRecommendationQueryService, CompositionRecommendationQueryService>();
 // Same CommunityDragon item-metadata source as the ingestor's pattern
 // aggregation, so the composition recommender reads a game's items
@@ -241,6 +242,9 @@ builder.Services.AddScoped<IChampionPowerspikesQueryService, ChampionPowerspikes
 builder.Services.AddScoped<IChampionTrendQueryService, ChampionTrendQueryService>();
 builder.Services.AddScoped<IChampionPatchDiffQueryService, ChampionPatchDiffQueryService>();
 builder.Services.AddScoped<IChampionMainsComparisonQueryService, ChampionMainsComparisonQueryService>();
+// Shared by the truemain match feed and the composition provenance drawer (#940),
+// so a game renders as the same row on both.
+builder.Services.AddScoped<MatchSummaryHydrator>();
 builder.Services.AddScoped<IMatchSummariesQueryService, MatchSummariesQueryService>();
 builder.Services.AddScoped<IMatchDetailQueryService, MatchDetailQueryService>();
 builder.Services.AddScoped<IProfileQueryService, ProfileQueryService>();

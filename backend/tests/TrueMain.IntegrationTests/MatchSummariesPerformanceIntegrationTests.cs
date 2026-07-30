@@ -129,7 +129,9 @@ public sealed class MatchSummariesPerformanceIntegrationTests
     private async Task<MatchSummarySelfReadModel> SelfRowAsync(Data.TrueMainDbContext db)
     {
         var response = await new MatchSummariesQueryService(
-                db, NullLogger<MatchSummariesQueryService>.Instance)
+                db,
+                new MatchSummaryHydrator(db, NullLogger<MatchSummaryHydrator>.Instance),
+                NullLogger<MatchSummariesQueryService>.Instance)
             .GetAsync(NameTag, page: 1, pageSize: 20, position: null, championId: null, CancellationToken.None);
 
         response.Should().NotBeNull();

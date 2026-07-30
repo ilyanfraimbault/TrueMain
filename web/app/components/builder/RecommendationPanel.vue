@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { CompositionBuildResponse } from '~~/shared/types/composition'
+import type { CompositionBuildRequest, CompositionBuildResponse } from '~~/shared/types/composition'
+import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 
 /**
@@ -17,6 +18,13 @@ const props = defineProps<{
   /** Role opponent, when the matchup is pinned — headlines the card (#921). */
   opponentName?: string | null
   opponentIconUrl?: string | null
+  /**
+   * Same body the recommendation was fetched with — reused verbatim by the
+   * provenance drawer (#940) so it lists exactly this recommendation's
+   * selection rather than re-deriving the draft from scratch.
+   */
+  draftRequest: CompositionBuildRequest | null
+  champions: ChampionStaticListItem[]
 }>()
 
 /**
@@ -70,6 +78,8 @@ const lowDataMessage = computed(() => {
   }
   return null
 })
+
+const gamesDrawerOpen = ref(false)
 
 const stats = computed(() => [
   {
@@ -141,8 +151,26 @@ const stats = computed(() => [
           :key="stat.label"
           :title="stat.hint"
         >
-          <dt class="text-sm text-muted">
+          <dt class="flex items-center gap-1 text-sm text-muted">
             {{ stat.label }}
+            <!-- Opens the provenance drawer: only meaningful once there's a
+                 sample to list, and only for the stat it annotates. -->
+            <UTooltip
+              v-if="stat.label === 'Games used' && build.gamesConsidered > 0"
+              text="See the games this build was computed from"
+              :delay-duration="150"
+            >
+              <UButton
+                icon="i-lucide-list"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                square
+                :padded="false"
+                aria-label="See the games this build was computed from"
+                @click="gamesDrawerOpen = true"
+              />
+            </UTooltip>
           </dt>
           <dd class="text-lg font-semibold leading-tight">
             {{ stat.value }}
@@ -213,5 +241,17 @@ const stats = computed(() => [
         :items-map="itemsMap"
       />
     </div>
+
+    <BuilderGamesDrawer
+      :open="gamesDrawerOpen"
+      :champion-id="recommendation.championId"
+      :draft-request="draftRequest"
+      :champion-name="championName"
+      :champions="champions"
+      :items="itemsMap"
+      :summoner-spells="summonersMap ?? {}"
+      :rune-tree="runeTree"
+      @update:open="gamesDrawerOpen = $event"
+    />
   </SectionCard>
 </template>
