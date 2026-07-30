@@ -13,6 +13,11 @@
 // DDragon/CDragon-backed `/api/static/*` endpoints resolve genuine icons.
 
 import type {
+  ActivityBucket,
+  ActivitySeries,
+  TruemainActivityResponse,
+} from '~~/shared/types/activity'
+import type {
   ChampionBuild,
   ChampionComparisonSide,
   ChampionMainsComparison,
@@ -1340,6 +1345,141 @@ function mockRankHistory(player: MockPlayer): RankHistoryResponse {
   return { entries }
 }
 
+/**
+ * Activity grid (#927). Reproduces the retention asymmetry on purpose: the three
+ * match-sourced series only cover the last ~26 days (what `match_participants`
+ * still holds in prod), while the patch series carries the player's whole tracked
+ * career on their signature champion and sums to the dedication card's
+ * `careerGames`. A mock with four equally deep series would hide the one property
+ * the card's copy is about.
+ */
+function mockActivity(player: MockPlayer): TruemainActivityResponse {
+  const rng = mulberry32(player.row.rank * 4409)
+  const now = Date.now()
+  const retainedDays = 26
+  const winRate = player.row.stats.winRate ?? 0.5
+
+  interface Game { startUtc: number, win: boolean, championId: number }
+  const games: Game[] = []
+  const pool = player.row.topChampions.map(champion => champion.championId)
+  for (let day = retainedDays - 1; day >= 0; day--) {
+    // A rest day every so often, so the day grid carries genuinely empty cells
+    // next to the played ones.
+    const perDay = rng() < 0.22 ? 0 : 1 + Math.floor(rng() * 4)
+    for (let i = 0; i < perDay; i++) {
+      games.push({
+        startUtc: now - day * DAY_MS + i * 40 * 60 * 1000,
+        win: rng() < winRate,
+        championId: pool[Math.floor(rng() * pool.length)] ?? pool[0] ?? 157,
+      })
+    }
+  }
+
+  const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10)
+  const floorDay = (ms: number) => Date.parse(`${isoDay(ms)}T00:00:00.000Z`)
+  const floorWeek = (ms: number) => {
+    const day = floorDay(ms)
+    // ISO weeks start on Monday; getUTCDay() counts from Sunday.
+    return day - ((new Date(day).getUTCDay() + 6) % 7) * DAY_MS
+  }
+
+  function calendar(floor: (ms: number) => number, stepDays: number): ActivityBucket[] {
+    if (games.length === 0) return []
+    const totals = new Map<number, { games: number, wins: number }>()
+    for (const game of games) {
+      const slot = floor(game.startUtc)
+      const current = totals.get(slot) ?? { games: 0, wins: 0 }
+      totals.set(slot, { games: current.games + 1, wins: current.wins + (game.win ? 1 : 0) })
+    }
+
+    const buckets: ActivityBucket[] = []
+    const last = floor(now)
+    for (let slot = floor(games[0]!.startUtc); slot <= last; slot += stepDays * DAY_MS) {
+      const hit = totals.get(slot)
+      buckets.push({
+        key: isoDay(slot),
+        startUtc: new Date(slot).toISOString(),
+        games: hit?.games ?? 0,
+        wins: hit?.wins ?? 0,
+        // Null, never 0, on an untouched slot — the whole point of the grid.
+        winRate: hit ? hit.wins / hit.games : null,
+        championId: null,
+      })
+    }
+    return buckets
+  }
+
+  function matchSeries(mode: 'game' | 'day' | 'week', buckets: ActivityBucket[]): ActivitySeries {
+    const total = buckets.reduce((sum, bucket) => sum + bucket.games, 0)
+    const wins = buckets.reduce((sum, bucket) => sum + bucket.wins, 0)
+    return {
+      mode,
+      source: 'matches',
+      scope: 'allChampions',
+      championId: null,
+      retentionBounded: true,
+      coverageFromUtc: buckets[0]?.startUtc ?? null,
+      coverageToUtc: buckets[buckets.length - 1]?.startUtc ?? null,
+      buckets,
+      games: total,
+      wins,
+      winRate: total === 0 ? null : wins / total,
+    }
+  }
+
+  const gameBuckets: ActivityBucket[] = games.slice(-60).map(game => ({
+    key: `MOCK_${game.startUtc}`,
+    startUtc: new Date(game.startUtc).toISOString(),
+    games: 1,
+    wins: game.win ? 1 : 0,
+    winRate: game.win ? 1 : 0,
+    championId: game.championId,
+  }))
+
+  // The patch series must total the dedication card's careerGames on the same
+  // champion, which is the invariant the real endpoint guarantees by reading the
+  // very rows that card sums.
+  const dedication = player.row.dedication
+  const patchSpan = Math.max(1, dedication?.patchSpan ?? 1)
+  const careerGames = Math.max(patchSpan, dedication?.careerGames ?? patchSpan)
+  const patchBuckets: ActivityBucket[] = Array.from({ length: patchSpan }, (_, index) => {
+    // Distribute the career evenly and hand the remainder to the newest patch so
+    // the sum is exact rather than approximately right.
+    const share = Math.floor(careerGames / patchSpan)
+    const count = index === patchSpan - 1 ? careerGames - share * (patchSpan - 1) : share
+    const wins = Math.round(count * Math.min(0.85, Math.max(0.15, winRate + (rng() - 0.5) * 0.2)))
+    return {
+      key: `15.${index + 1}`,
+      startUtc: null,
+      games: count,
+      wins,
+      winRate: count === 0 ? null : wins / count,
+      championId: null,
+    }
+  })
+  const patchTotal = patchBuckets.reduce((sum, bucket) => sum + bucket.games, 0)
+  const patchWins = patchBuckets.reduce((sum, bucket) => sum + bucket.wins, 0)
+
+  return {
+    game: matchSeries('game', gameBuckets),
+    day: matchSeries('day', calendar(floorDay, 1)),
+    week: matchSeries('week', calendar(floorWeek, 7)),
+    patch: {
+      mode: 'patch',
+      source: 'aggregates',
+      scope: 'champion',
+      championId: dedication?.championId ?? null,
+      retentionBounded: false,
+      coverageFromUtc: null,
+      coverageToUtc: null,
+      buckets: patchBuckets,
+      games: patchTotal,
+      wins: patchWins,
+      winRate: patchTotal === 0 ? null : patchWins / patchTotal,
+    },
+  }
+}
+
 function mockMatches(player: MockPlayer, query: Record<string, unknown>): MatchSummariesResponse {
   const { page, pageSize } = pageParams(query, 20, 50)
   const total = 46
@@ -1777,13 +1917,14 @@ export async function resolveDevApiMock(
   if (path === '/truemains') return mockLeaderboard(query)
   if (path === '/truemains/search') return mockSearch(typeof query.q === 'string' ? query.q : '')
 
-  const playerMatch = path.match(/^\/truemains\/([^/]+)\/(profile|rank-history|matches)$/)
+  const playerMatch = path.match(/^\/truemains\/([^/]+)\/(profile|rank-history|activity|matches)$/)
   if (playerMatch) {
     const name = safeDecodeURIComponent(playerMatch[1]!)
     const player = name === undefined ? undefined : findPlayer(name)
     if (!player) throw createError({ statusCode: 404, statusMessage: 'Unknown truemain (dev mock)' })
     if (playerMatch[2] === 'profile') return mockProfile(player)
     if (playerMatch[2] === 'rank-history') return mockRankHistory(player)
+    if (playerMatch[2] === 'activity') return mockActivity(player)
     return mockMatches(player, query)
   }
 

@@ -534,6 +534,81 @@ Historique de rang (snapshots append-on-change).
 }
 ```
 
+## `GET /truemains/{nameTag}/activity`
+
+Grille d'activité affichée sous la courbe de LP du profil (#927) : les parties du
+joueur repliées **par partie**, **par jour UTC** et **par semaine ISO**, plus
+l'historique **par patch** de son champion signature.
+
+**Query** — aucune. Les quatre granularités arrivent dans la même réponse : trois
+d'entre elles sont des replis des *mêmes* lignes `match_participants`, donc les
+calculer d'un seul instantané est à la fois moins cher que quatre allers-retours et
+la seule façon de garantir que basculer le sélecteur ne montre pas deux réponses
+différentes pour le même après-midi.
+
+**Réponse `200`** — `TruemainActivityReadModel` · **`404`** si le nameTag est
+malformé ou le compte inconnu.
+
+```json
+{
+  "day": {
+    "mode": "day",
+    "source": "matches",
+    "scope": "allChampions",
+    "championId": null,
+    "retentionBounded": true,
+    "coverageFromUtc": "2026-07-03T00:00:00Z",
+    "coverageToUtc": "2026-07-29T00:00:00Z",
+    "buckets": [
+      { "key": "2026-07-27", "startUtc": "2026-07-27T00:00:00Z", "games": 3, "wins": 2, "winRate": 0.667, "championId": null },
+      { "key": "2026-07-28", "startUtc": "2026-07-28T00:00:00Z", "games": 0, "wins": 0, "winRate": null, "championId": null }
+    ],
+    "games": 42, "wins": 25, "winRate": 0.595
+  },
+  "game": { "mode": "game", "…": "une cellule par partie, championId renseigné" },
+  "week": { "mode": "week", "…": "une cellule par lundi 00:00 UTC" },
+  "patch": {
+    "mode": "patch",
+    "source": "aggregates",
+    "scope": "champion",
+    "championId": 157,
+    "retentionBounded": false,
+    "coverageFromUtc": null,
+    "coverageToUtc": null,
+    "buckets": [
+      { "key": "15.13", "startUtc": null, "games": 26, "wins": 15, "winRate": 0.577, "championId": null }
+    ],
+    "games": 180, "wins": 98, "winRate": 0.544
+  }
+}
+```
+
+**Les quatre séries ne décrivent pas la même population, et la réponse le dit.**
+C'est l'asymétrie de rétention : `match_participants` est purgé au-delà de
+`MatchDataRetention:RetainedPatchCount` patches (~2) mais porte la date d'une
+partie, alors que `champion_aggregate_scopes` est gelé pour toujours (#466) mais
+n'a qu'un grain (compte, champion, patch).
+
+- `source` / `scope` / `retentionBounded` : `game`/`day`/`week` lisent les lignes de
+  match vivantes, tous champions confondus, et s'arrêtent à la fenêtre de
+  rétention. `patch` lit l'agrégat gelé, **uniquement sur le champion signature**
+  (celui de la carte dédication — même sélection, mêmes lignes sommées).
+- `coverageFromUtc` / `coverageToUtc` : la période dont la série peut réellement
+  parler. Les séries calendaires **n'émettent pas** de cellule avant la plus vieille
+  partie encore stockée : une période effacée n'est pas une période sans jeu, donc
+  la dessiner vide serait un « tu n'as pas joué » fabriqué. `null` sur la série
+  `patch`, dont l'étendue est une liste de patches, pas un intervalle de dates.
+- `winRate` est `null` — jamais `0` — quand `games` vaut 0. C'est la distinction
+  filaire entre « joué et tout perdu » et « pas joué » ; les deux ne doivent pas se
+  rendre pareil.
+- Les jours et les semaines sont **UTC** (lundi 00:00 UTC pour les semaines), comme
+  le reste du pipeline (#907) : une partie de fin de soirée peut donc tomber sur la
+  cellule du lendemain pour un joueur loin d'UTC.
+- Invariants vérifiables à l'œil sur la page : `patch.games ==
+  dedication.careerGames` et `patch.buckets.length == dedication.patchSpan`.
+- `championId` de cellule n'est renseigné que sur la série `game` (une cellule =
+  une partie).
+
 ## `GET /truemains/{nameTag}/matches`
 
 Historique de matchs paginé.

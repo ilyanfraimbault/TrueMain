@@ -19,6 +19,7 @@ public sealed class TruemainsController(
     IPlayerChampionPerformanceQueryService playerChampionPerformanceQueryService,
     IPlayerBuildDivergenceQueryService playerBuildDivergenceQueryService,
     IRankHistoryQueryService rankHistoryQueryService,
+    ITruemainActivityQueryService activityQueryService,
     ITruemainsLeaderboardQueryService leaderboardQueryService,
     ISearchQueryService searchQueryService) : ControllerBase
 {
@@ -286,6 +287,34 @@ public sealed class TruemainsController(
         CancellationToken ct = default)
     {
         var response = await rankHistoryQueryService.GetAsync(nameTag, days ?? 0, ct);
+        return response is null ? NotFound() : Ok(response);
+    }
+
+    /// <summary>
+    /// Activity grid under the profile's LP curve (#927): the player's ranked
+    /// games folded per game, per UTC day and per ISO week, plus the per-patch
+    /// history of their signature champion. 404 only when the name tag is
+    /// malformed or the account is unknown.
+    /// </summary>
+    /// <remarks>
+    /// The four series ship in one response because three of them are foldings of
+    /// the same participant rows, and because they are <em>not</em> interchangeable:
+    /// each carries its own <c>source</c>, <c>scope</c>, <c>retentionBounded</c> flag
+    /// and coverage range. The match-sourced ones stop at the retention window
+    /// (~2 patches); the patch one reads the frozen per-champion aggregate and so
+    /// covers the whole tracked career, for one champion. There is no mode
+    /// parameter: switching granularity is a client-side toggle over a payload that
+    /// was resolved from a single snapshot, which is what keeps two modes from
+    /// disagreeing about the same afternoon.
+    /// </remarks>
+    [HttpGet("{nameTag}/activity")]
+    [ProducesResponseType(typeof(TruemainActivityReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TruemainActivityReadModel>> GetActivityAsync(
+        string nameTag,
+        CancellationToken ct = default)
+    {
+        var response = await activityQueryService.GetAsync(nameTag, ct);
         return response is null ? NotFound() : Ok(response);
     }
 
