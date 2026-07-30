@@ -1,4 +1,5 @@
 using Data;
+using Data.DataQuality;
 using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
 
@@ -69,17 +70,12 @@ public sealed class RunePageDeduplicationProcess(
     private const int GroupBatchSize = 2_000;
 
     /// <summary>
-    /// The canonical-key partition, spelled once. <c>LEAST</c>/<c>GREATEST</c> on the
-    /// secondary pair is what collapses the two permutations onto one key without
-    /// needing the pair sorted on disk yet.
+    /// The canonical-key partition, spelled once — and shared with the admin
+    /// duplicate-dimension detector (#924), which counts the groups this loop merges.
+    /// A private copy would eventually drift from the detector's, and a detector that
+    /// groups differently from the repair reports a clean bill of health for a live bug.
     /// </summary>
-    private const string CanonicalKeyColumns = """
-        "PrimaryStyleId", "PrimaryKeystoneId", "PrimaryPerk1Id",
-        "PrimaryPerk2Id", "PrimaryPerk3Id", "SecondaryStyleId",
-        LEAST("SecondaryPerk1Id", "SecondaryPerk2Id"),
-        GREATEST("SecondaryPerk1Id", "SecondaryPerk2Id"),
-        "StatOffense", "StatFlex", "StatDefense"
-        """;
+    private const string CanonicalKeyColumns = ChampionDimensionCanonicalKeys.RunePageCanonicalKey;
 
     public string Name => "RunePageDeduplication";
 
@@ -279,11 +275,11 @@ public sealed class RunePageDeduplicationProcess(
     /// </remarks>
     private static Task<int> NormalizeRemainingAsync(TrueMainDbContext db, CancellationToken ct)
         => db.Database.ExecuteSqlRawAsync(
-            """
+            $"""
             UPDATE champion_dim_rune_pages
             SET "SecondaryPerk1Id" = "SecondaryPerk2Id",
                 "SecondaryPerk2Id" = "SecondaryPerk1Id"
-            WHERE "SecondaryPerk1Id" > "SecondaryPerk2Id"
+            WHERE {ChampionDimensionCanonicalKeys.RunePageNonCanonical}
             """,
             ct);
 
