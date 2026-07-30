@@ -79,11 +79,23 @@ public sealed class RunePageDeduplicationProcessIntegrationTests
 
         await using var db = _fixture.CreateDbContext();
 
+        // Deliberately NOT asserting *which* of the two ids survived. The seeded ids
+        // are random Guids, so the lowest is either one; asserting `canonical` here
+        // made this test a coin flip. Recomputing the expected winner in C# is not the
+        // fix either — Guid.CompareTo orders by field, Postgres orders uuid bytewise,
+        // so the two disagree. Which row wins is an implementation detail; what the
+        // process actually promises is that exactly one survives, stored canonically,
+        // with the pattern following it and its sample untouched.
+        var page = await db.ChampionDimRunePages.AsNoTracking().SingleAsync();
+        new[] { canonical, permuted }.Should().Contain(page.Id);
+        page.SecondaryPerk1Id.Should().Be(PerkLow, "the survivor is stored in canonical order");
+        page.SecondaryPerk2Id.Should().Be(PerkHigh);
+
         var patterns = await db.ChampionAggregatePatterns.AsNoTracking().ToListAsync();
         patterns.Should().ContainSingle();
         patterns[0].Games.Should().Be(14, "a repoint must not change the sample");
         patterns[0].Wins.Should().Be(7);
-        patterns[0].RunePageId.Should().Be(canonical, "the lowest id in the group survives");
+        patterns[0].RunePageId.Should().Be(page.Id, "the pattern follows the surviving page");
     }
 
     [Fact]
