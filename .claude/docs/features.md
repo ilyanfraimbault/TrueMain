@@ -17,7 +17,7 @@ Hero + search field, three live stat chips (champions ranked, main games analyse
 
 ### `/champions` — `web/app/pages/champions/index.vue`
 Champion/lane directory, one row per (champion, position). Filters: role, champion, elo, patch. Each row shows keystone + secondary tree, consensus build path (6 items max), tier badge, WR/PR/**BR**.
-**BR (ban rate, #920)** is lane-independent — the same value on every row of a champion — and shows an em dash, never `0%`, on patches predating ban ingestion. It does **not** feed the tier score.
+**BR (ban rate, #920)** is lane-independent — the same value on every row of a champion — and shows an em dash, never `0%`, on patches predating ban ingestion. Tiers are pickRate + banRate + winRate, weighted toward presence (pick 45% / ban 30% / a sample-shrunk win rate 25%) and ranked by percentile within each lane — see `ChampionTierCalculator` (#971).
 Pagination and search are **client-side** (the endpoint returns the whole ~500-row directory, `PAGE_SIZE = 50`). Body wrapped in `<ClientOnly>` with skeletons; all fetches `server: false` deliberately (hydration-mismatch fix, #149).
 
 ### `/champions/tierlist` — `web/app/pages/champions/tierlist.vue`

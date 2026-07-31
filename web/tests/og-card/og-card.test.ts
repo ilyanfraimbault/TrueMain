@@ -26,6 +26,7 @@ function summary(overrides: Partial<ChampionSummaryResponse>): ChampionSummaryRe
     trueMainCount: 20,
     banRate: 0.12,
     tier: 'A',
+    tierScore: 0.6,
     position: 'MIDDLE',
     patchVersion: '15.13',
     lastUpdatedAtUtc: '2026-07-01T00:00:00Z',

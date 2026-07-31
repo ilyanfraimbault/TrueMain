@@ -99,6 +99,49 @@ public sealed class ChampionTierListApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetTierList_TierMatchesTheDirectoryForEveryRow()
+    {
+        // #971: both endpoints now tier one lane at a time with the same
+        // ChampionTierOptions, so a row's Tier should be identical whether
+        // read from GET /champions or GET /champions/tierlist — the internal
+        // score the two compute is documented as matching too
+        // (ChampionSummaryReadModel.TierScore), but ChampionTierEntryReadModel
+        // doesn't serialize that score, so only Tier is checkable through the
+        // public contract here.
+        await _fixture.ResetDatabaseAsync();
+        await SeedManyChampionsAsync();
+
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var directoryResponse = await client.GetAsync("/champions");
+        directoryResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var directory = await directoryResponse.Content.ReadFromJsonAsync<IReadOnlyList<ChampionSummaryReadModel>>();
+        directory.Should().NotBeNull();
+
+        var tierListResponse = await client.GetAsync("/champions/tierlist");
+        tierListResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var tierList = await tierListResponse.Content.ReadFromJsonAsync<ChampionTierListReadModel>();
+        tierList.Should().NotBeNull();
+
+        // The tier letter lives on the group, not the entry — flatten each
+        // group's tier onto its entries to get a per-row lookup.
+        var tierByEntry = tierList!.Tiers
+            .SelectMany(group => group.Entries.Select(entry => (Key: (entry.ChampionId, entry.Position), group.Tier)))
+            .ToDictionary(pair => pair.Key, pair => pair.Tier);
+        tierByEntry.Should().HaveCount(60, "the same 60 seeded rows are tiered by both endpoints");
+
+        foreach (var row in directory!)
+        {
+            tierByEntry[(row.ChampionId, row.Position)].Should().Be(row.Tier,
+                $"champion {row.ChampionId}/{row.Position} must tier the same on both endpoints");
+        }
+    }
+
+    [Fact]
     public async Task GetTierList_RejectsAnUnknownPosition()
     {
         await _fixture.ResetDatabaseAsync();

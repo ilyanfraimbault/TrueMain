@@ -59,11 +59,25 @@ public sealed record ChampionSummaryReadModel
     /// OPGG-style performance tier (<c>S</c> / <c>A</c> / <c>B</c> / <c>C</c> /
     /// <c>D</c>) for this <c>(champion, position)</c> on the active patch.
     /// Computed by <see cref="Services.Champions.ChampionTierCalculator"/> from
-    /// a winRate + pickRate blend, then bucketed by patch-wide percentile — so
-    /// it is always relative to the current patch's field, not an absolute
-    /// winrate cutoff. Defaults to <see cref="string.Empty"/> until assigned.
+    /// a pick-rate + ban-rate + win-rate blend (#971 — presence-first, weighted
+    /// toward pick and ban rate over a sample-shrunk win rate), then bucketed by
+    /// percentile <b>within this row's own position</b> — not against the whole
+    /// patch mixing every lane — so a thin lane can't out-rank a much larger,
+    /// genuinely competitive one just for having few peers to beat. Defaults to
+    /// <see cref="string.Empty"/> until assigned.
     /// </summary>
     public string Tier { get; init; } = string.Empty;
+
+    /// <summary>
+    /// The blended score (#971) that placed this row in <see cref="Tier"/>,
+    /// scoped to this row's own position (see <see cref="Tier"/>). Matches the
+    /// score <c>GET /champions/tierlist</c> computes for the same
+    /// <c>(champion, position)</c> row given the same <c>(patch, eloBracket)</c>
+    /// — both endpoints tier one lane at a time. Useful for ordering this
+    /// endpoint's own rows (e.g. the homepage teaser) by tier strength without
+    /// re-deriving an ad-hoc sort.
+    /// </summary>
+    public double TierScore { get; init; }
 
     public string Position { get; init; } = string.Empty;
 

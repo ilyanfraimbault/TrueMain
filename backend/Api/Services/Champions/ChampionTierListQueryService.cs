@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Options;
+using TrueMain.Options;
 using TrueMain.ReadModels.Champions;
 
 namespace TrueMain.Services.Champions;
@@ -13,7 +15,8 @@ namespace TrueMain.Services.Champions;
 /// patch-wide tier.
 /// </summary>
 public sealed class ChampionTierListQueryService(
-    IChampionSummariesQueryService summariesQueryService) : IChampionTierListQueryService
+    IChampionSummariesQueryService summariesQueryService,
+    IOptions<ChampionTierOptions> tierOptions) : IChampionTierListQueryService
 {
     public async Task<ChampionTierListReadModel> GetTierListAsync(
         string? patch,
@@ -45,7 +48,7 @@ public sealed class ChampionTierListQueryService(
         // a champion ranks among its role peers, not against the whole patch.
         var scored = rows
             .GroupBy(summary => summary.Position)
-            .SelectMany(TierPosition)
+            .SelectMany(group => TierPosition(group, tierOptions.Value))
             .ToList();
 
         var tiers = scored
@@ -75,7 +78,8 @@ public sealed class ChampionTierListQueryService(
 
     // Tier one position's rows in isolation, carrying the blended score so the
     // caller can order entries within a tier the same way they were bucketed.
-    private static IEnumerable<ScoredEntry> TierPosition(IEnumerable<ChampionSummaryReadModel> positionRows)
+    private static IEnumerable<ScoredEntry> TierPosition(
+        IEnumerable<ChampionSummaryReadModel> positionRows, ChampionTierOptions options)
     {
         var ordered = positionRows.ToList();
         if (ordered.Count == 0)
@@ -84,18 +88,17 @@ public sealed class ChampionTierListQueryService(
         }
 
         var inputs = ordered
-            .Select(summary => new ChampionTierCalculator.TierInput(summary.WinRate, summary.PickRate))
+            .Select(summary => new ChampionTierCalculator.TierInput(
+                summary.Position, summary.Games, summary.Wins, summary.PickRate, summary.BanRate))
             .ToList();
-        var assigned = ChampionTierCalculator.Assign(inputs);
-
-        var maxPickRate = inputs.Max(input => input.PickRate);
+        var results = ChampionTierCalculator.Evaluate(inputs, options);
 
         for (var i = 0; i < ordered.Count; i++)
         {
             var summary = ordered[i];
             yield return new ScoredEntry(
-                assigned[i],
-                ChampionTierCalculator.ScoreOf(inputs[i], maxPickRate),
+                results[i].Tier,
+                results[i].Score,
                 new ChampionTierEntryReadModel
                 {
                     ChampionId = summary.ChampionId,
