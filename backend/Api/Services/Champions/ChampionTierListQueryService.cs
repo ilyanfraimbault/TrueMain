@@ -32,16 +32,21 @@ public sealed class ChampionTierListQueryService(
         string? eloBracket,
         CancellationToken ct)
     {
-        var summaries = await summariesQueryService.GetAllSummariesAsync(patch, eloBracket, ct);
+        var result = await summariesQueryService.GetAllSummariesAsync(patch, eloBracket, ct);
+        var summaries = result.Summaries;
         if (summaries.Count == 0)
         {
-            return new ChampionTierListReadModel { PatchVersion = patch ?? string.Empty, Position = position };
+            // result.PatchVersion is the resolved patch whenever ResolveActivePatchAsync
+            // found one, even with zero ranked rows (#972) — a better answer than the
+            // raw requested string, which is null whenever the caller asked for "the
+            // active patch" rather than a specific one.
+            return new ChampionTierListReadModel { PatchVersion = result.PatchVersion, Position = position };
         }
 
-        // Every summary row is pinned to the same resolved patch, so reading it
-        // off the first row gives the patch the tiers were actually computed for
-        // (which may differ from the requested string when patch was null).
-        var resolvedPatch = summaries[0].PatchVersion;
+        // Every summary row is pinned to the same resolved patch — result.PatchVersion
+        // gives the patch the tiers were actually computed for (which may differ from
+        // the requested string when patch was null).
+        var resolvedPatch = result.PatchVersion;
 
         var rows = position is null
             ? summaries

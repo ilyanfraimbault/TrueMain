@@ -13,6 +13,7 @@ namespace TrueMain.Controllers.Champions;
 public sealed class ChampionsController(
     IChampionSummariesQueryService summariesQueryService,
     IChampionTierListQueryService tierListQueryService,
+    IChampionOverviewQueryService overviewQueryService,
     IChampionBuildsQueryService buildsQueryService,
     IChampionMatchupBuildsQueryService matchupBuildsQueryService,
     IChampionTrendQueryService trendQueryService,
@@ -26,6 +27,9 @@ public sealed class ChampionsController(
     IChampionMainsComparisonQueryService mainsComparisonQueryService,
     ICompositionRecommendationQueryService compositionRecommendationQueryService) : ControllerBase
 {
+    private const int DefaultOverviewLimit = 8;
+    private const int MaxOverviewLimit = 20;
+
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<ChampionSummaryReadModel>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<ChampionSummaryReadModel>>> ListChampionsAsync(
@@ -35,8 +39,8 @@ public sealed class ChampionsController(
     {
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
         var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
-        var summaries = await summariesQueryService.GetAllSummariesAsync(normalizedPatch, normalizedBracket, ct);
-        return Ok(summaries);
+        var result = await summariesQueryService.GetAllSummariesAsync(normalizedPatch, normalizedBracket, ct);
+        return Ok(result.Summaries);
     }
 
     /// <summary>
@@ -68,6 +72,28 @@ public sealed class ChampionsController(
 
         var tierList = await tierListQueryService.GetTierListAsync(normalizedPatch, normalizedPosition, normalizedBracket, ct);
         return Ok(tierList);
+    }
+
+    /// <summary>
+    /// Homepage-sized snapshot (#972): the active patch's true "games analyzed"
+    /// total (every aggregated game, not just the rows the ranked directory
+    /// keeps) plus a short, pre-sorted slice of its strongest rows. Always the
+    /// active patch, unfiltered — the homepage has no patch or elo picker of
+    /// its own. <paramref name="limit"/> is clamped to <c>[1, 20]</c>, default
+    /// 8. Reads the same cached entry as an unqualified <c>GET /champions</c>,
+    /// so the two never disagree and the homepage never pays for a second
+    /// aggregate computation. The static route segment never collides with the
+    /// <c>{championId:int}</c> route below — "overview" is not an int.
+    /// </summary>
+    [HttpGet("overview")]
+    [ProducesResponseType(typeof(ChampionOverviewReadModel), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ChampionOverviewReadModel>> GetOverviewAsync(
+        [FromQuery] int? limit,
+        CancellationToken ct = default)
+    {
+        var clampedLimit = Math.Clamp(limit ?? DefaultOverviewLimit, 1, MaxOverviewLimit);
+        var overview = await overviewQueryService.GetOverviewAsync(clampedLimit, ct);
+        return Ok(overview);
     }
 
     [HttpGet("{championId:int}")]

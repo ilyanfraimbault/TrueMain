@@ -62,6 +62,36 @@ export interface ChampionTierEntry {
   banRate: number | null
 }
 
+/**
+ * Homepage-sized snapshot of the champion directory (`GET /champions/overview`,
+ * #972): the true "games analyzed this patch" total (every aggregated game, not
+ * just the rows the ranked directory keeps) plus a short, pre-sorted slice of the
+ * strongest rows — so the homepage never fetches and sorts the full ~500-row
+ * directory just to render a stat chip and an 8-row teaser. Always the active
+ * patch, unfiltered — the homepage has no patch or elo picker of its own.
+ */
+export interface ChampionOverviewResponse {
+  patchVersion: string
+  /** True sum of games aggregated across every (champion, position) slice on the active patch. */
+  gamesAnalyzed: number
+  /** Distinct champions with at least one ranked row on the active patch. */
+  championsRanked: number
+  /** Strongest rows, tier-then-games ordered (S first, busiest within a tier first), truncated to the requested limit. */
+  topRows: ChampionOverviewRow[]
+}
+
+export interface ChampionOverviewRow {
+  championId: number
+  position: string
+  /** OPGG-style performance tier: 'S' | 'A' | 'B' | 'C' | 'D' (patch-relative). */
+  tier: string
+  games: number
+  winRate: number
+  pickRate: number
+  /** Share of observed matches that banned this champion; null before #920's data. */
+  banRate: number | null
+}
+
 export interface ChampionResponse {
   championId: number
   patch: string
