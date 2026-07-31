@@ -58,8 +58,13 @@ public sealed class ChampionTierCalculatorTests
 
         results[0].Score.Should().BeLessThan(results[1].Score,
             "a 12-game 66.7% WR fluke must not outscore a 600-game 53% WR staple");
+        // The micro sample's shrunk win rate (~0.545, pulled toward the field's
+        // ~0.530 prior) is actually still the field's *highest* — shrinkage
+        // tempers the fluke, it doesn't erase it. What lands it in D despite
+        // that is its pick rate and ban rate (0.01 vs the staples' 0.09/0.10),
+        // the field's lowest on both — and those two terms outweigh win rate.
         results[0].Tier.Should().Be(ChampionTierCalculator.TierD,
-            "the micro sample has the field's lowest pick rate, ban rate, and (post-shrinkage) win rate");
+            "the micro sample's rock-bottom pick and ban rate outweigh its (still highest) shrunk win rate");
     }
 
     [Fact]

@@ -144,11 +144,11 @@ internal static class ChampionTierCalculator
         }
 
         // Field-wide prior for win-rate shrinkage: the aggregate win rate
-        // across every row being tiered together in this call (not per-lane —
-        // see the "not expected to match bit for bit" note on Evaluate's own
-        // doc above). A degenerate all-zero-games field (shouldn't happen —
-        // every row here already cleared the directory's MinSampleGames floor)
-        // falls back to 0.5 so shrinkage still produces a defined value.
+        // across every row being tiered together in this call — a single lane,
+        // by caller convention (see Evaluate's own doc above). A degenerate
+        // all-zero-games field (shouldn't happen — every row here already
+        // cleared the directory's MinSampleGames floor) falls back to 0.5 so
+        // shrinkage still produces a defined value.
         var totalGames = 0L;
         var totalWins = 0L;
         for (var i = 0; i < count; i++)
