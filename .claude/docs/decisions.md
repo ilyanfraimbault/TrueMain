@@ -183,6 +183,15 @@ restated what the build tree above it already shows, minus the ordering, so #939
 component, read-model field, backend aggregation and the `SituationalItemCount` option. Reviving it means
 reviving the aggregator, not just the component — #939.
 
+**The static champion list drops Data Dragon entries with an id at or above 10 000 — alternate-mode kits, not champions.**
+Patch 16.15 ("League classique") added 60 legacy kits to `champion.json`: alias `Jade_<BaseAlias>`, key
+`60000 + <base key>`, and the *same display name* as the original — `Jade_Ahri` (60103) sits next to Ahri
+(103). The ingestor only aggregates queue 420, so those ids never carry a single stat: unfiltered they
+doubled every search hit and picker row with a dead end and put 60 empty pages in the sitemap. The floor is
+`isLiveChampionId` in each app's `shared/utils/ddragon.ts`, applied in the one endpoint both apps read
+(`server/api/static/champions.get.ts`). 10 000 rather than 60 000: the highest real Riot key is 950, so the
+cut keeps an order of magnitude of headroom while catching a future mode built the same way — #966.
+
 ---
 
 ## Data & storage
