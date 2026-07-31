@@ -242,9 +242,19 @@ const rowTint = computed(() =>
 
 <template>
   <article
-    class="group relative overflow-hidden rounded-md bg-elevated/70 backdrop-blur-lg backdrop-saturate-150"
+    class="group @container relative overflow-hidden rounded-md bg-elevated/70 backdrop-blur-lg backdrop-saturate-150"
     :aria-label="`${resultLabel} as ${championName}, ${self.kills}/${self.deaths}/${self.assists}`"
   >
+    <!-- The row is its own @container: every column below sizes off the width
+         the row is actually given, not the viewport. It has to — the same
+         component renders full-width on the profile page and inside a ~33rem
+         drawer (builder/GamesDrawer), and viewport breakpoints had the drawer
+         copy laying itself out as if it had the whole page, spilling into the
+         `overflow-hidden` clip above. Three tiers: base is the compact
+         drawer/mobile layout, @2xl restores the full-size icons and columns,
+         @3xl adds the team compositions (ten icons need room the row only has
+         past that width). -->
+
     <!-- Row header: tinted clickable summary. The win/loss signal is carried
          by the row tint plus the coloured result label alone — no edge strip,
          it read as heavy against the glass surface. -->
@@ -259,7 +269,7 @@ const rowTint = computed(() =>
         :role="canExpand ? 'button' : undefined"
         :tabindex="canExpand ? 0 : undefined"
         :aria-expanded="canExpand ? expanded : undefined"
-        class="flex flex-1 items-center gap-3 px-3 py-2.5"
+        class="flex flex-1 flex-wrap items-center gap-2 px-2 py-2 @md:flex-nowrap @2xl:gap-3 @2xl:px-3 @2xl:py-2.5"
         :class="canExpand ? 'cursor-pointer' : ''"
         @click="toggle"
         @keydown.enter.prevent="toggle"
@@ -271,7 +281,7 @@ const rowTint = computed(() =>
              the row without helping scan performance. LP delta stays behind a
              guard for when the backend starts deriving it (always null today,
              so it renders nothing in prod). -->
-        <div class="flex w-[3.5rem] shrink-0 flex-col text-xs leading-tight">
+        <div class="flex w-12 shrink-0 flex-col text-[11px] leading-tight @2xl:w-[3.5rem] @2xl:text-xs">
           <div class="font-semibold" :class="self.win ? 'text-sky-400' : 'text-red-400'">
             {{ resultLabel }}
           </div>
@@ -292,24 +302,26 @@ const rowTint = computed(() =>
              used to sit next to it; they now live just left of the item block
              (see below) so the whole loadout — spells, runes, items — reads as
              one continuous strip, matching the scoreboard layout. -->
-        <div class="relative ml-1 shrink-0">
+        <div class="relative shrink-0 @2xl:ml-1">
           <SkeletonImage
             :src="championIconUrl"
             :alt="championName"
             :title="championName"
             loading="lazy"
-            class="size-12 rounded"
+            class="size-10 rounded @2xl:size-12"
           />
           <span
             class="absolute -bottom-1 -right-1 inline-flex items-center justify-center rounded-full bg-default ring-1 ring-default"
-            :class="selfPosition ? 'size-5' : 'size-4 text-[10px] font-bold leading-none'"
+            :class="selfPosition
+              ? 'size-4 @2xl:size-5'
+              : 'size-3.5 text-[9px] font-bold leading-none @2xl:size-4 @2xl:text-[10px]'"
             :title="selfPosition ? (POSITION_BY_VALUE.get(selfPosition)?.label ?? selfPosition) : undefined"
           >
             <img
               v-if="selfPosition"
               :src="getPositionIconUrl(selfPosition)"
               :alt="POSITION_BY_VALUE.get(selfPosition)?.label ?? selfPosition"
-              class="size-3.5"
+              class="size-3 @2xl:size-3.5"
             >
             <template v-else>{{ self.championLevel }}</template>
           </span>
@@ -323,9 +335,9 @@ const rowTint = computed(() =>
              exact same box, or everything to its right (the centred
              loadout, the right-edge group) drifts left/right row to row and
              the columns stop lining up down the list. -->
-        <div class="flex w-52 shrink-0 items-start gap-3">
+        <div class="flex w-28 shrink-0 items-start gap-2 @lg:w-48 @2xl:w-52 @2xl:gap-3">
           <div class="flex w-28 flex-col items-center">
-            <div class="whitespace-nowrap text-lg font-bold leading-tight tabular-nums">
+            <div class="whitespace-nowrap text-base font-bold leading-tight tabular-nums @2xl:text-lg">
               {{ self.kills }}
               <span class="text-muted/70">/</span>
               <span class="text-red-400">{{ self.deaths }}</span>
@@ -336,7 +348,11 @@ const rowTint = computed(() =>
               {{ kdaRatio }}
             </div>
           </div>
-          <div class="flex flex-col gap-0.5 text-[11px] text-muted tabular-nums">
+          <!-- Secondary stats only once the row clears @lg. Between @md and
+               @lg the row is already back on one line and the 4rem these
+               three lines cost is exactly what it doesn't have; the KDA
+               cluster and the build are the scan targets at that width. -->
+          <div class="hidden flex-col gap-0.5 text-[11px] text-muted tabular-nums @lg:flex">
             <UTooltip :text="perfTooltip">
               <span class="font-semibold" :class="perfColor">
                 {{ perfScore }} PERF
@@ -356,7 +372,12 @@ const rowTint = computed(() =>
              block and dumping all the row's free space in one lump before
              the right-edge group. Summoners and runes each stack 2-high to
              match the two rows of the item grid. -->
-        <div class="flex flex-1 items-center justify-center">
+        <!-- Below @md the loadout wraps onto its own line (`order-last` keeps
+             it under the row rather than between the KDA and the accolade).
+             A phone can't hold meta + portrait + KDA + a 9rem build strip on
+             one line, and the alternative — dropping half the build — throws
+             away the thing the row exists to show. -->
+        <div class="order-last flex w-full grow items-center justify-center @md:order-none @md:w-auto @md:flex-1">
           <div class="flex shrink-0 items-center gap-1">
             <div class="flex flex-col gap-0.5">
               <GameTooltipSummonerSpellIcon
@@ -364,14 +385,14 @@ const rowTint = computed(() =>
                 :width="22"
                 :height="22"
                 loading="lazy"
-                class="size-[22px] rounded"
+                class="size-[18px] rounded @2xl:size-[22px]"
               />
               <GameTooltipSummonerSpellIcon
                 :spell="summoner2"
                 :width="22"
                 :height="22"
                 loading="lazy"
-                class="size-[22px] rounded"
+                class="size-[18px] rounded @2xl:size-[22px]"
               />
             </div>
             <div class="flex flex-col items-center gap-0.5">
@@ -380,14 +401,14 @@ const rowTint = computed(() =>
                 :width="22"
                 :height="22"
                 loading="lazy"
-                class="size-[22px] rounded-full bg-black/40"
+                class="size-[18px] rounded-full bg-black/40 @2xl:size-[22px]"
               />
               <GameTooltipPerkStyleIcon
                 :style="subStyle"
                 :width="18"
                 :height="18"
                 loading="lazy"
-                class="size-[18px]"
+                class="size-[15px] @2xl:size-[18px]"
               />
             </div>
 
@@ -397,15 +418,15 @@ const rowTint = computed(() =>
                  with the trinket the way trackers show them. Empty slots stay as
                  transparent placeholders so the grid keeps its shape. The Eye of
                  the Herald is filtered out upstream (it's not a build item). -->
-            <div class="flex items-center gap-1.5 rounded-lg bg-black/25 p-1.5 ring-1 ring-white/5">
-              <div class="grid grid-cols-3 gap-1">
+            <div class="flex items-center gap-1 rounded-lg bg-black/25 p-1 ring-1 ring-white/5 @2xl:gap-1.5 @2xl:p-1.5">
+              <div class="grid grid-cols-3 gap-0.5 @2xl:gap-1">
                 <template
                   v-for="(slot, idx) in inventoryItems"
                   :key="`item-${idx}`"
                 >
                   <div
                     v-if="slot.kind === 'empty'"
-                    class="size-6 shrink-0 rounded bg-white/5"
+                    class="size-5 shrink-0 rounded bg-white/5 @2xl:size-6"
                     aria-hidden="true"
                   />
                   <GameTooltipItemIcon
@@ -413,32 +434,32 @@ const rowTint = computed(() =>
                     :item="slot.kind === 'item' ? slot.item : null"
                     :width="24"
                     :height="24"
-                    class="size-6 rounded"
+                    class="size-5 rounded @2xl:size-6"
                   />
                 </template>
               </div>
-              <div class="flex flex-col gap-1">
+              <div class="flex flex-col gap-0.5 @2xl:gap-1">
                 <GameTooltipItemIcon
                   :item="trinket"
                   :width="24"
                   :height="24"
                   loading="lazy"
-                  class="size-6 rounded-full"
+                  class="size-5 rounded-full @2xl:size-6"
                 />
                 <div
                   v-if="bootsItem"
-                  class="size-6"
+                  class="size-5 @2xl:size-6"
                 >
                   <GameTooltipItemIcon
                     :item="bootsItem"
                     :width="24"
                     :height="24"
-                    class="size-6 rounded"
+                    class="size-5 rounded @2xl:size-6"
                   />
                 </div>
                 <div
                   v-else
-                  class="size-6"
+                  class="size-5 @2xl:size-6"
                   aria-hidden="true"
                 />
               </div>
@@ -447,17 +468,19 @@ const rowTint = computed(() =>
         </div>
 
         <!-- Right-edge group: team compositions + MVP/ACE accolade + expand
-             chevron, pinned together as one unit. No margin needed here —
-             the loadout's flex-1 track above already claims all of the row's
-             free space, so this group naturally lands flush against the row's
-             right edge right after it. -->
-        <div class="flex shrink-0 items-center gap-3">
+             chevron, pinned together as one unit. From @md up no margin is
+             needed — the loadout's flex-1 track above already claims all of
+             the row's free space, so this group lands flush against the right
+             edge right after it. Below @md the loadout has wrapped away onto
+             its own line, taking that slack with it, so the group needs
+             `ml-auto` to stay on the edge instead of hugging the KDA. -->
+        <div class="ml-auto flex shrink-0 items-center gap-2 @md:ml-0 @2xl:gap-3">
           <!-- Team compositions: two horizontal rows of 5, allies over
                enemies, each sorted TOP → SUPPORT so a column pairs
                laner-vs-laner (ally above enemy = same role). Icons match the
-               item slots. Hidden below xl to keep core stats first on
-               narrow layouts. -->
-          <div class="hidden shrink-0 flex-col gap-0.5 xl:flex">
+               item slots. Ten icons need ~8rem the row only has once it's
+               past @3xl, so below that they drop and core stats come first. -->
+          <div class="hidden shrink-0 flex-col gap-0.5 @3xl:flex">
             <div class="flex gap-0.5">
               <SkeletonImage
                 v-for="(p, idx) in allies"
@@ -494,7 +517,7 @@ const rowTint = computed(() =>
             rather than omitted when there's no MVP/ACE) so the chevron next
             to it — and everything left of this group — lines up at the same
             spot whether or not a given row has a badge. -->
-          <div class="flex shrink-0 items-center gap-2">
+          <div class="flex shrink-0 items-center gap-1 @2xl:gap-2">
             <div class="flex size-5 shrink-0 items-center justify-center">
               <UTooltip
                 v-if="self.isMvp || self.isAce"

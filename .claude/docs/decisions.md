@@ -503,6 +503,13 @@ possible. Approval is the single external unlock for all of it — #780.
   in `Data/DataQuality/ChampionDimensionCanonicalKeys.cs`, and is read by both the ingestor's
   `RunePageDeduplicationProcess` and the admin duplicate detector. Two copies would eventually disagree, and a
   detector that groups differently from the repair reports a clean bill of health for a live bug (#911).
+- **A row rendered on more than one surface sizes off its own width, not the viewport** (#967).
+  `MatchRow` and `LeaderboardRow` are `@container`s. The same row sits full-width on a page, in a ~33rem
+  drawer and in a sidebar, so a viewport `xl:` breakpoint told the narrow copy it owned the page and its
+  fixed columns spilled into its own `overflow-hidden` clip — invisible on the surface it was tuned for,
+  broken everywhere else. Content degrades by tier as the row narrows (compositions, then secondary stats,
+  then the loadout wrapping onto a second line) rather than being cut off. `pages/dev/match-row.vue` renders
+  the row at each tier width so the compact layouts are reviewable without reproducing the host surface.
 - **Detector thresholds are configuration, not constants** (`DataQualityDetectors:*`). The honest line differs
   between preprod and production, and an operator silencing a crying-wolf card must not need a redeploy. A
   level of `0` disables it, which is how a warning-only signal is expressed.
