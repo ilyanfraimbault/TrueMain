@@ -19,9 +19,10 @@ export interface ChampionSummaryResponse {
   tier: string
   /**
    * The pickRate + banRate + winRate blended score (#971) that placed this row in
-   * `tier`, scoped to the whole patch-wide field it was tiered against. Not
-   * comparable to `ChampionTierEntry`'s per-lane score from `/champions/tierlist` —
-   * that endpoint re-tiers within each position independently.
+   * `tier`, scoped to this row's own position — both `/champions` and
+   * `/champions/tierlist` tier one lane at a time, so this matches the score
+   * `ChampionTierEntry` carries for the same (champion, position) row given the
+   * same (patch, eloBracket).
    */
   tierScore: number
   position: string
