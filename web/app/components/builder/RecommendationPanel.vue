@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import type { CompositionBuildRequest, CompositionBuildResponse } from '~~/shared/types/composition'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
+import type { ChampionPosition } from '~/utils/positions'
+import type { LaneVerdict } from '~/utils/lane-verdict'
 import { formatPercentage } from '~~/shared/utils/ddragon'
+import { formatGoldDiff, goldDiffTone, laneVerdict } from '~/utils/lane-verdict'
 
 /**
  * Full composition recommendation (#563): confidence strip + the same core
@@ -18,6 +21,8 @@ const props = defineProps<{
   /** Role opponent, when the matchup is pinned — headlines the card (#921). */
   opponentName?: string | null
   opponentIconUrl?: string | null
+  /** Same opponent by id: what the lane verdict in the confidence strip reads (#976). */
+  opponentChampionId?: number | null
   /**
    * Same body the recommendation was fetched with — reused verbatim by the
    * provenance drawer (#940) so it lists exactly this recommendation's
@@ -81,7 +86,89 @@ const lowDataMessage = computed(() => {
 
 const gamesDrawerOpen = ref(false)
 
-const stats = computed(() => [
+// ─── Lane verdict (#976) ─────────────────────────────────────────────────────
+// Lives in the confidence strip, beside the win rate it qualifies: "we win 54% of
+// these games" and "we end 15 minutes 300 gold up" are the same sentence read at
+// two points in the game, and separating them made the reader compare two cards.
+//
+// Its own fetch off the matchup aggregate — global slice, every patch, keyed on the
+// matchup alone — so editing a draft slot never refires it, and it says nothing
+// about the composition sample the rest of the strip counts.
+const isJungle = computed(() => props.recommendation.position === 'JUNGLE')
+const laneNoun = computed<'lane' | 'matchup'>(() => (isJungle.value ? 'matchup' : 'lane'))
+
+const { data: matchupData } = useChampionMatchups(
+  () => props.recommendation.championId,
+  () => props.recommendation.position as ChampionPosition,
+  { opponentChampionId: () => props.opponentChampionId ?? null },
+)
+
+const matchup = computed(() => {
+  const opponent = props.opponentChampionId
+  if (opponent == null) return null
+  return matchupData.value?.matchups.find(m => m.opponentChampionId === opponent) ?? null
+})
+
+const goldDiff = computed(() => matchup.value?.averageGoldDiffAt15 ?? null)
+const goldLanes = computed(() => matchup.value?.goldDiffLaneGames ?? 0)
+const verdict = computed(() => laneVerdict(goldDiff.value, goldLanes.value, laneNoun.value))
+
+/**
+ * The gap's cell caption. Never blank, and never the same sentence for the two
+ * reasons a verdict can be missing: nothing measured at all, versus measured on a
+ * sample too thin to band (the number still shows — it is the label that would be
+ * the overclaim).
+ */
+const goldCaption = computed(() => {
+  if (goldDiff.value === null) return 'not measured yet'
+  const games = `${goldLanes.value.toLocaleString('en-US')} game${goldLanes.value === 1 ? '' : 's'}`
+  return verdict.value === null ? `${games} — too few to call` : `avg over ${games}`
+})
+
+/** One cell of the confidence strip. `badge` carries the verdict, `tone` colours the value. */
+interface StatCell {
+  label: string
+  value: string
+  caption: string
+  hint: string
+  tone: string
+  badge: LaneVerdict | null
+}
+
+/** Lane figures only exist once a role opponent is pinned; without one, three stats. */
+const laneStats = computed<StatCell[]>(() => {
+  if (matchup.value === null) return []
+  return [
+    {
+      label: isJungle.value ? 'Ahead at 15' : 'Lane win rate',
+      value: matchup.value.laneWinRate == null
+        ? '—'
+        : formatPercentage(matchup.value.laneWinRate, 0),
+      tone: matchup.value.laneWinRate == null
+        ? 'text-dimmed'
+        : matchup.value.laneWinRate >= 0.5 ? 'text-emerald-400' : 'text-red-400',
+      caption: matchup.value.laneWinRate == null
+        ? 'nothing decided yet'
+        : `of ${matchup.value.decidedLaneGames.toLocaleString('en-US')} decided`,
+      hint: `Share of games of this matchup that reached 15 minutes clearly ahead, out of `
+        + 'those that ended clearly ahead or behind. Measured across every recorded game '
+        + 'of the matchup — not the sample this build was computed from.',
+      badge: null,
+    },
+    {
+      label: 'Gold @15',
+      value: goldDiff.value === null ? '—' : formatGoldDiff(goldDiff.value),
+      tone: goldDiff.value === null ? 'text-dimmed' : goldDiffTone(goldDiff.value),
+      caption: goldCaption.value,
+      hint: 'Average gold held over the opponent at 15 minutes across every measured game '
+        + `of this matchup. The ${laneNoun.value} verdict bands this number: even inside `
+        + '±150, decided past ±300.',
+      badge: verdict.value,
+    },
+  ]
+})
+
+const stats = computed<StatCell[]>(() => [
   {
     label: 'Games used',
     value: String(build.value.gamesConsidered),
@@ -90,19 +177,26 @@ const stats = computed(() => [
     hint: 'The build below is computed from these games only — games piloted by a '
       + 'main of the champion first, then the most similar to your draft, out of all '
       + 'recent games scanned for this champion and role.',
+    tone: '',
+    badge: null,
   },
   {
     label: 'Draft match',
     value: draftRequested.value ? formatPercentage(confidence.value.meanSimilarity) : '—',
     caption: 'avg similarity',
     hint: 'Average similarity between those games and your draft.',
+    tone: '',
+    badge: null,
   },
   {
     label: 'Win rate',
     value: winRate.value === null ? '—' : formatPercentage(winRate.value),
     caption: 'across those games',
     hint: 'Win rate across the games the build is computed from.',
+    tone: '',
+    badge: null,
   },
+  ...laneStats.value,
 ])
 </script>
 
@@ -144,8 +238,15 @@ const stats = computed(() => [
       </div>
     </template>
     <div class="space-y-6">
-      <!-- Confidence strip — always first: the numbers qualify everything below. -->
-      <dl class="grid grid-cols-3 gap-4">
+      <!-- Confidence strip — always first: the numbers qualify everything below.
+           Three cells without a pinned opponent, five with (the lane pair sits
+           beside the win rate it reads against, not in a card of its own). -->
+      <dl
+        class="grid gap-4"
+        :class="stats.length > 3
+          ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
+          : 'grid-cols-3'"
+      >
         <div
           v-for="stat in stats"
           :key="stat.label"
@@ -175,8 +276,23 @@ const stats = computed(() => [
               />
             </UTooltip>
           </dt>
-          <dd class="text-lg font-semibold leading-tight">
+          <dd
+            class="text-lg font-semibold leading-tight tabular-nums"
+            :class="stat.tone"
+          >
             {{ stat.value }}
+          </dd>
+          <!-- The verdict rides under its own number, so the label is never read
+               as a qualifier of the win rate two cells over. -->
+          <dd v-if="stat.badge">
+            <UBadge
+              :color="stat.badge.color"
+              :variant="stat.badge.variant"
+              size="sm"
+              class="font-semibold"
+            >
+              {{ stat.badge.label }}
+            </UBadge>
           </dd>
           <dd class="text-xs text-dimmed">
             {{ stat.caption }}
