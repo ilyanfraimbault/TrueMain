@@ -235,6 +235,41 @@ const staticBundleReady = computed(() =>
       </template>
     </section>
 
+    <!-- Narrow containers: MatchRow is an @container, so the only honest way
+         to review its compact tiers is to render it in boxes the width of the
+         surfaces that use them — the games drawer (#963) gives it ~33rem, a
+         sidebar ~28rem, a phone ~21rem. One box per tier: full stats, KDA
+         only, and the wrapped two-line layout. All three used to overflow
+         into the row's `overflow-hidden` clip, because the breakpoints keyed
+         off the viewport rather than the row (#967). -->
+    <section class="flex flex-col gap-2">
+      <h2 class="text-lg font-semibold">
+        Narrow containers
+      </h2>
+      <template v-if="staticBundleReady">
+        <div
+          v-for="width in ['33rem', '28rem', '21rem']"
+          :key="width"
+          class="flex flex-col gap-2 rounded-lg border border-dashed border-accented p-2"
+          :style="{ width }"
+        >
+          <p class="text-xs text-muted">
+            {{ width }}
+          </p>
+          <MatchRow
+            v-for="match in mockMatches.slice(0, 2)"
+            :key="`${width}-${match.matchId}`"
+            :match="match"
+            :champions="champions"
+            :items="items"
+            :summoner-spells="summonerSpells"
+            :rune-tree="runeTree"
+          />
+          <MatchRowSkeleton />
+        </div>
+      </template>
+    </section>
+
     <section class="flex flex-col gap-2">
       <h2 class="text-lg font-semibold">
         Live data

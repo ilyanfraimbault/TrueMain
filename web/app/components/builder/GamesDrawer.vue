@@ -81,7 +81,7 @@ function pilotLabel(pilot: { gameName: string, tagLine: string | null } | null):
     @update:open="emit('update:open', $event)"
   >
     <template #body>
-      <div class="flex flex-col gap-3">
+      <div class="flex flex-col gap-2">
         <UAlert
           v-if="error"
           color="error"
@@ -105,10 +105,11 @@ function pilotLabel(pilot: { gameName: string, tagLine: string | null } | null):
           <div
             v-for="game in data.games"
             :key="game.match.matchId"
-            class="flex flex-col gap-1.5"
+            class="flex flex-col gap-1"
           >
             <!-- Pilot + score strip: sits above the row so the row itself stays
-                 the unmodified match-history component. -->
+                 the unmodified match-history component (which sizes itself off
+                 the drawer's width — it's an @container). -->
             <div class="flex items-center gap-2 px-0.5 text-xs text-muted">
               <SkeletonImage
                 :src="game.pilot ? getProfileIconUrl(game.pilot.profileIconId, data.patch) : null"
