@@ -90,7 +90,7 @@ const PORTRAIT_PX = 72
         </span>
       </div>
 
-      <div class="flex flex-col items-center gap-3 rounded-xl p-4 ring-1 ring-inset ring-accented">
+      <div class="flex flex-col items-center justify-center gap-3 rounded-xl p-4 ring-1 ring-inset ring-accented">
         <p class="text-xs font-medium uppercase tracking-wider text-muted">
           Role opponent
         </p>
@@ -114,16 +114,11 @@ const PORTRAIT_PX = 72
         <ChampionPicker
           :champions="champions"
           :champion-id="opponentChampionId"
-          placeholder="Choose your opponent"
+          placeholder="Choose your opponent (optional)"
           size="lg"
           trigger-class="w-full max-w-64"
           @update:champion-id="$emit('update:opponentChampionId', $event)"
         />
-        <p class="text-center text-xs text-dimmed">
-          {{ opponentChampion
-            ? 'Only games of this matchup are used.'
-            : 'Optional — pin it to make the build matchup-specific.' }}
-        </p>
       </div>
     </div>
   </section>
