@@ -1,5 +1,5 @@
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
-import { normalizeDataDragonPatch } from '~~/shared/utils/ddragon'
+import { isLiveChampionId, normalizeDataDragonPatch } from '~~/shared/utils/ddragon'
 import { resolveLatestDDragonPatch } from '~~/server/utils/ddragon-patch'
 
 interface ChampionListResponse {
@@ -21,7 +21,7 @@ const loadChampionsForPatch = defineCachedFunction(
         name: champ.name,
         iconUrl: `https://ddragon.leagueoflegends.com/cdn/${patch}/img/champion/${champ.image.full}`,
       }))
-      .filter(item => Number.isFinite(item.championId))
+      .filter(item => isLiveChampionId(item.championId))
   },
   {
     maxAge: 60 * 60,
