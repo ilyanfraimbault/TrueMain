@@ -13,7 +13,7 @@ No `layouts/` dir; the shell is `web/app/app.vue` (`AppBackdrop`, `AppHeader`, `
 All data goes through the catch-all proxy `web/server/api/[...path].ts` → `NUXT_API_BASE_URL`.
 
 ### `/` — `web/app/pages/index.vue`
-Hero + search field, three live stat chips (champions ranked, main games analysed, truemains tracked), a tier-list teaser (`home/TierlistPanel.vue`, top 8, intersection-gated), a truemains teaser with region switch (`home/TruemainsPanel.vue`), CTAs.
+Hero + search field, three live stat chips (champions ranked, main games analysed, truemains tracked), a tier-list teaser (`home/TierlistPanel.vue`, top 8, rendered eagerly with `home/TierlistPanelSkeleton.vue` while loading), a truemains teaser with region switch (`home/TruemainsPanel.vue`), CTAs. Stat chips and teaser both read `GET /champions/overview` (`useChampionOverview()`, #972) — a homepage-sized snapshot (true games-analyzed total across every aggregated row, not just the ranked ones; pre-sorted top rows) instead of the full `/champions` directory.
 
 ### `/champions` — `web/app/pages/champions/index.vue`
 Champion/lane directory, one row per (champion, position). Filters: role, champion, elo, patch. Each row shows keystone + secondary tree, consensus build path (6 items max), tier badge, WR/PR/**BR**.
@@ -117,7 +117,7 @@ Tests: `admin/tests/` covers only `process-summary`. No page-level or proxy test
 ### Api
 Three controllers, all delegating to injected `I*QueryService` — no EF types cross the controller boundary; read models are `sealed record`s under `Api/ReadModels/`.
 
-- **`ChampionsController`** (public): list, tierlist, detail, trend, patch-diff, matchups, synergies, synergies/trios, scaling, item-timings, roam, powerspikes, mains-comparison, `POST composition-build`, and `POST composition-build/games` (#940 — the recommendation's provenance drawer, paged).
+- **`ChampionsController`** (public): list, tierlist, `overview` (#972 — homepage snapshot: true games-analyzed total + top rows), detail, trend, patch-diff, matchups, synergies, synergies/trios, scaling, item-timings, roam, powerspikes, mains-comparison, `POST composition-build`, and `POST composition-build/games` (#940 — the recommendation's provenance drawer, paged).
 - **`TruemainsController`** (public): search, leaderboard, profile, player-scoped champion + divergence + matchups + **performance**, rank-history, **activity** (#927 — the four-granularity grid in one payload, no mode param), matches, match detail.
 - **`OpsController`** (`X-Ops-Key` auth): 18 endpoints backing the admin portal.
 

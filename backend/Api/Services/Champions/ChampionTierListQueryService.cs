@@ -15,33 +15,27 @@ namespace TrueMain.Services.Champions;
 public sealed class ChampionTierListQueryService(
     IChampionSummariesQueryService summariesQueryService) : IChampionTierListQueryService
 {
-    // S > A > B > C > D — used to order the emitted tier groups regardless of
-    // which letters a sparse field actually produced.
-    private static readonly string[] TierOrder =
-    [
-        ChampionTierCalculator.TierS,
-        ChampionTierCalculator.TierA,
-        ChampionTierCalculator.TierB,
-        ChampionTierCalculator.TierC,
-        ChampionTierCalculator.TierD,
-    ];
-
     public async Task<ChampionTierListReadModel> GetTierListAsync(
         string? patch,
         string? position,
         string? eloBracket,
         CancellationToken ct)
     {
-        var summaries = await summariesQueryService.GetAllSummariesAsync(patch, eloBracket, ct);
+        var result = await summariesQueryService.GetAllSummariesAsync(patch, eloBracket, ct);
+        var summaries = result.Summaries;
         if (summaries.Count == 0)
         {
-            return new ChampionTierListReadModel { PatchVersion = patch ?? string.Empty, Position = position };
+            // result.PatchVersion is the resolved patch whenever ResolveActivePatchAsync
+            // found one, even with zero ranked rows (#972) — a better answer than the
+            // raw requested string, which is null whenever the caller asked for "the
+            // active patch" rather than a specific one.
+            return new ChampionTierListReadModel { PatchVersion = result.PatchVersion, Position = position };
         }
 
-        // Every summary row is pinned to the same resolved patch, so reading it
-        // off the first row gives the patch the tiers were actually computed for
-        // (which may differ from the requested string when patch was null).
-        var resolvedPatch = summaries[0].PatchVersion;
+        // Every summary row is pinned to the same resolved patch — result.PatchVersion
+        // gives the patch the tiers were actually computed for (which may differ from
+        // the requested string when patch was null).
+        var resolvedPatch = result.PatchVersion;
 
         var rows = position is null
             ? summaries
@@ -56,7 +50,7 @@ public sealed class ChampionTierListQueryService(
 
         var tiers = scored
             .GroupBy(entry => entry.Tier)
-            .OrderBy(group => Array.IndexOf(TierOrder, group.Key))
+            .OrderBy(group => Array.IndexOf(ChampionTierCalculator.TierOrder, group.Key))
             .Select(group => new ChampionTierGroupReadModel
             {
                 Tier = group.Key,

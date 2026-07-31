@@ -14,7 +14,7 @@ public sealed class ChampionTierListQueryServiceTests
     {
         var summaries = Substitute.For<IChampionSummariesQueryService>();
         summaries.GetAllSummariesAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
-            .Returns(new List<ChampionSummaryReadModel>());
+            .Returns(new ChampionSummariesResult { PatchVersion = "16.5" });
         var service = new ChampionTierListQueryService(summaries);
 
         var result = await service.GetTierListAsync("16.5", position: null, eloBracket: null, CancellationToken.None);
@@ -102,7 +102,8 @@ public sealed class ChampionTierListQueryServiceTests
     private static ChampionTierListQueryService ServiceReturning(IReadOnlyList<ChampionSummaryReadModel> rows)
     {
         var summaries = Substitute.For<IChampionSummariesQueryService>();
-        summaries.GetAllSummariesAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(rows);
+        summaries.GetAllSummariesAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(new ChampionSummariesResult { PatchVersion = "16.5", TotalGames = rows.Sum(row => row.Games), Summaries = rows });
         return new ChampionTierListQueryService(summaries);
     }
 

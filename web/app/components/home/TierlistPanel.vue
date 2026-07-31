@@ -1,42 +1,32 @@
 <script setup lang="ts">
-import type { ChampionSummaryResponse } from '~~/shared/types/champions'
+import type { ChampionOverviewRow } from '~~/shared/types/champions'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 import { POSITION_BY_VALUE } from '~/utils/positions'
 
 // Homepage teaser of the champion tier list: the strongest rows of the
 // active patch, linking through to the full /champions directory. Purely
-// presentational — the page owns both fetches and passes them down.
+// presentational — the page owns the fetch and passes the already-sorted,
+// already-limited rows down (`GET /champions/overview`, #972); this
+// component only enriches them with name/icon and renders them. Loading is
+// the page's own concern too — see `HomeTierlistPanelSkeleton`, rendered by
+// the page instead of by this component, so there is exactly one place that
+// decides "is this ready yet".
 const props = defineProps<{
-  summaries: ChampionSummaryResponse[]
+  topRows: ChampionOverviewRow[]
   championsById: Map<number, ChampionStaticListItem>
-  pending: boolean
 }>()
 
-const ROW_COUNT = 8
-
-// Best tier first, then games as the tiebreaker. Winrate would be the
-// obvious second key, but it floats micro-sample rows (a 90% WR off-lane
-// pick with a handful of games) to the very top — the opposite of the
-// "honest sample sizes" promise. Most-played S-tiers read as the meta.
-const TIER_ORDER: Record<string, number> = { S: 0, A: 1, B: 2, C: 3, D: 4 }
-
 const rows = computed(() =>
-  [...props.summaries]
-    .sort((a, b) =>
-      (TIER_ORDER[a.tier] ?? 9) - (TIER_ORDER[b.tier] ?? 9)
-      || b.games - a.games,
-    )
-    .slice(0, ROW_COUNT)
-    .map((summary) => {
-      const champ = props.championsById.get(summary.championId)
-      return {
-        ...summary,
-        name: champ?.name ?? `Champion ${summary.championId}`,
-        iconUrl: champ?.iconUrl ?? '',
-        positionOption: POSITION_BY_VALUE.get(summary.position),
-      }
-    }),
+  props.topRows.map((row) => {
+    const champ = props.championsById.get(row.championId)
+    return {
+      ...row,
+      name: champ?.name ?? `Champion ${row.championId}`,
+      iconUrl: champ?.iconUrl ?? '',
+      positionOption: POSITION_BY_VALUE.get(row.position),
+    }
+  }),
 )
 </script>
 
@@ -62,24 +52,8 @@ const rows = computed(() =>
       />
     </header>
 
-    <div
-      v-if="pending"
-      class="space-y-1"
-      aria-hidden="true"
-    >
-      <div
-        v-for="i in ROW_COUNT"
-        :key="i"
-        class="-mx-2 flex items-center gap-3 rounded-lg px-2 py-2"
-      >
-        <USkeleton class="size-9 rounded-lg" />
-        <USkeleton class="h-4 w-32" />
-        <USkeleton class="ml-auto h-4 w-24" />
-      </div>
-    </div>
-
     <ul
-      v-else-if="rows.length > 0"
+      v-if="rows.length > 0"
       class="space-y-1"
     >
       <li
