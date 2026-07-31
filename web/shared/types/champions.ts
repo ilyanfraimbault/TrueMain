@@ -226,12 +226,25 @@ export interface ChampionMatchupEntry {
    * `decidedLaneGames`, never `games`: a match with no timeline, one that ended
    * before 15 min, or a lane inside the threshold band is not a decided lane.
    *
-   * `null` = nothing can be said (no decided lane in scope, or the live
-   * single-opponent search path which has no lane data). Never render it as 0%.
+   * `null` = nothing can be said (no decided lane in scope, or a player-scoped
+   * slice, which has no lane data behind it). Never render it as 0%.
    */
   laneWinRate: number | null
   /** Lanes actually decided; the sample `laneWinRate` rests on. Smaller than `games`. */
   decidedLaneGames: number
+  /**
+   * Mean gold gap over the lane opponent at 15 minutes, signed from this champion's
+   * side (#976) — the magnitude `laneWinRate` cannot carry. `null` when the gap was
+   * never measured over this scope; rendering that as 0 would turn missing data into
+   * the most decisive-looking verdict there is ("dead even").
+   */
+  averageGoldDiffAt15: number | null
+  /**
+   * Lanes `averageGoldDiffAt15` covers. Smaller than `decidedLaneGames` on matchups
+   * folded before #976 — it is the sample a verdict may be banded from, and the reason
+   * a thin one shows the count instead of a label.
+   */
+  goldDiffLaneGames: number
 }
 
 /**

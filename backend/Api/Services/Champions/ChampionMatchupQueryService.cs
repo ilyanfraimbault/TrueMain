@@ -17,6 +17,14 @@ namespace TrueMain.Services.Champions;
 /// <c>match_participants</c> to pair the champion with its lane opponent (same
 /// <c>TeamPosition</c>, opposite <c>TeamId</c>, same match), because they need
 /// per-account filtering / a sub-floor the aggregate does not carry.
+///
+/// <para>
+/// The two sources meet on the global opponent search (#976): its games and wins stay
+/// live so a one-game head-to-head still shows, while its lane counters — win rate and
+/// average gold gap at 15 minutes, neither computable without the timeline — are read
+/// from the aggregate row for that opponent. The player-scoped search keeps them null
+/// rather than lending it the population's lane.
+/// </para>
 /// </summary>
 public sealed class ChampionMatchupQueryService(
     TrueMainDbContext db,
@@ -99,12 +107,72 @@ public sealed class ChampionMatchupQueryService(
                 // describes the same slice as the row's win rate (#919).
                 LaneWins = g.Sum(x => x.LaneWins),
                 LaneLosses = g.Sum(x => x.LaneLosses),
+                // The gap behind those outcomes (#976), carrying its own denominator:
+                // rows folded before it shipped contribute outcomes and no gap, and
+                // summing both keeps the average over exactly what was measured.
+                GoldDiffSum = g.Sum(x => x.LaneGoldDiffSum),
+                GoldDiffGames = g.Sum(x => x.LaneGoldDiffGames),
             })
             .Where(x => x.Games >= minGames)
             .ToListAsync(ct);
 
-        return ToOrderedEntries(rows.Select(x =>
-            (x.Opponent, x.Games, x.Wins, LaneOutcome: (LaneOutcome?)new LaneOutcome(x.LaneWins, x.LaneLosses))));
+        return ToOrderedEntries(rows.Select(x => (
+            x.Opponent,
+            x.Games,
+            x.Wins,
+            LaneOutcome: (LaneOutcome?)new LaneOutcome(
+                x.LaneWins, x.LaneLosses, x.GoldDiffSum, x.GoldDiffGames))));
+    }
+
+    /// <summary>
+    /// Lane counters for one opponent, read straight from the aggregate over the same
+    /// patch / elo scope the caller asked for — the half the live opponent search cannot
+    /// compute for itself (#976).
+    ///
+    /// <para>
+    /// Global slice only. The aggregate is folded over the whole tracked population, so
+    /// pinning it onto a player-scoped row would tell one player their lane went the way
+    /// everybody else's did. The caller keeps lane data null there instead.
+    /// </para>
+    /// </summary>
+    private async Task<LaneOutcome?> ReadOpponentLaneOutcomeAsync(
+        int championId,
+        string position,
+        int opponentChampionId,
+        string? normalizedPatch,
+        IReadOnlyCollection<string>? bands,
+        CancellationToken ct)
+    {
+        var query = db.ChampionMatchupStats
+            .AsNoTracking()
+            .Where(s => s.ChampionId == championId
+                && s.TeamPosition == position
+                && s.OpponentChampionId == opponentChampionId);
+        if (normalizedPatch is not null)
+        {
+            query = query.Where(s => s.Patch == normalizedPatch);
+        }
+        if (bands is not null)
+        {
+            query = query.Where(s => bands.Contains(s.EloBracket));
+        }
+
+        // No floor and no grouping key: the head-to-head is already one opponent, and
+        // the rows only need folding across the patch / band slices in scope.
+        var totals = await query
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                LaneWins = g.Sum(x => x.LaneWins),
+                LaneLosses = g.Sum(x => x.LaneLosses),
+                GoldDiffSum = g.Sum(x => x.LaneGoldDiffSum),
+                GoldDiffGames = g.Sum(x => x.LaneGoldDiffGames),
+            })
+            .FirstOrDefaultAsync(ct);
+
+        return totals is null
+            ? null
+            : new LaneOutcome(totals.LaneWins, totals.LaneLosses, totals.GoldDiffSum, totals.GoldDiffGames);
     }
 
     private async Task<List<ChampionMatchupEntry>> ComputeLiveAsync(
@@ -179,11 +247,19 @@ public sealed class ChampionMatchupQueryService(
             .Where(x => x.Games >= minGames)
             .ToListAsync(ct);
 
-        // No lane outcome on this path: it exists to answer a single opponent at a
-        // floor of 1 game, and joining the 15-minute snapshots live would reintroduce
-        // the per-request timeline scan #606 moved into an aggregate. LaneWinRate is
-        // therefore null here — unknown, not zero.
-        return ToOrderedEntries(rows.Select(x => (x.Opponent, x.Games, x.Wins, LaneOutcome: (LaneOutcome?)null)));
+        // The lane half never comes from this query: joining the 15-minute snapshots
+        // live would reintroduce the per-request timeline scan #606 moved into an
+        // aggregate. A deliberate *global* opponent lookup reads the pre-folded row
+        // for that one opponent instead (#976) — one indexed seek, no scan.
+        //
+        // A player-scoped slice keeps it null. The aggregate covers every tracked
+        // account, so lending it to one player's row would report the population's
+        // lane as theirs; unknown is the honest answer until the fold is player-aware.
+        var laneOutcome = opponentChampionId is { } opponent && riotAccountId is null
+            ? await ReadOpponentLaneOutcomeAsync(championId, position, opponent, normalizedPatch, bands, ct)
+            : null;
+
+        return ToOrderedEntries(rows.Select(x => (x.Opponent, x.Games, x.Wins, LaneOutcome: laneOutcome)));
     }
 
     /// <summary>
@@ -207,12 +283,23 @@ public sealed class ChampionMatchupQueryService(
                 LaneWinRate = x.LaneOutcome is { Decided: > 0 } outcome
                     ? RateMath.Rate(outcome.Wins, outcome.Decided)
                     : null,
+                // Averaged over the lanes the gap was measured on — never over decided
+                // lanes or games, both of which are larger and would drag the average
+                // toward zero by the share of lanes nobody ever measured (#976).
+                GoldDiffLaneGames = x.LaneOutcome?.GoldDiffGames ?? 0,
+                AverageGoldDiffAt15 = x.LaneOutcome is { GoldDiffGames: > 0 } gap
+                    ? (double)gap.GoldDiffSum / gap.GoldDiffGames
+                    : null,
             })
             .OrderByDescending(m => m.WinRate)
             .ToList();
 
-    /// <summary>Lane wins and losses past the threshold; evens are in neither.</summary>
-    private readonly record struct LaneOutcome(int Wins, int Losses)
+    /// <summary>
+    /// Lane wins and losses past the threshold (evens are in neither), plus the summed
+    /// gold gap at 15 minutes over its own sample — smaller than <see cref="Decided"/>
+    /// on rows folded before #976, and the reason the two carry separate denominators.
+    /// </summary>
+    private readonly record struct LaneOutcome(int Wins, int Losses, long GoldDiffSum, int GoldDiffGames)
     {
         public int Decided => Wins + Losses;
     }
