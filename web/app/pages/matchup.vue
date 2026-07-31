@@ -256,6 +256,18 @@ const fallbackNotice = computed(() => {
       @update:opponent-champion-id="opponentChampionId = $event"
     />
 
+    <!-- How the matchup itself goes, before anything about the build (#976).
+         Owns its own fetch off the matchup aggregate, so it neither waits on the
+         recommendation nor disappears when the build degrades to the fallback. -->
+    <BuilderLaneVerdict
+      v-if="playedChampionId !== null && playedPosition && opponentChampionId !== null"
+      :champion-id="playedChampionId"
+      :position="playedPosition"
+      :opponent-champion-id="opponentChampionId"
+      :champion-name="playedChampion?.name ?? null"
+      :opponent-name="opponentChampion?.name ?? null"
+    />
+
     <BuilderTeamContext
       v-if="isDraftReady && playedPosition"
       :champions="champions"

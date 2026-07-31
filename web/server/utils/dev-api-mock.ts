@@ -22,6 +22,7 @@ import type {
   ChampionComparisonSide,
   ChampionMainsComparison,
   ChampionMatchups,
+  ChampionOverviewResponse,
   ChampionPatchDiffResponse,
   ChampionPatchDiffSide,
   ChampionPowerspikeEvent,
@@ -385,6 +386,48 @@ async function mockChampionSummaries(): Promise<ChampionSummaryResponse[]> {
       },
     }
   })
+}
+
+// Homepage overview (#972): a small, pre-sorted slice of the summaries above
+// plus the true games-analyzed total, mirroring GET /champions/overview.
+// mockChampionSummaries() already represents every ranked row (no
+// below-floor/position-less rows exist in this fixture), so summing its games
+// is the same "true total" the real endpoint computes from the unfiltered
+// aggregate groups.
+const OVERVIEW_DEFAULT_LIMIT = 8
+const OVERVIEW_MAX_LIMIT = 20
+
+async function mockChampionOverview(query: Record<string, unknown>): Promise<ChampionOverviewResponse> {
+  const summaries = await mockChampionSummaries()
+  const patch = summaries[0]?.patchVersion ?? await latestShortPatch()
+
+  const requestedLimit = Number.parseInt(String(query.limit ?? ''), 10)
+  const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
+    ? Math.min(requestedLimit, OVERVIEW_MAX_LIMIT)
+    : OVERVIEW_DEFAULT_LIMIT
+
+  const tierRank: Record<string, number> = { S: 0, A: 1, B: 2, C: 3, D: 4 }
+  const topRows = [...summaries]
+    .sort((a, b) =>
+      (tierRank[a.tier] ?? 5) - (tierRank[b.tier] ?? 5)
+      || b.games - a.games)
+    .slice(0, limit)
+    .map(s => ({
+      championId: s.championId,
+      position: s.position,
+      tier: s.tier,
+      games: s.games,
+      winRate: s.winRate,
+      pickRate: s.pickRate,
+      banRate: s.banRate,
+    }))
+
+  return {
+    patchVersion: patch,
+    gamesAnalyzed: summaries.reduce((acc, s) => acc + s.games, 0),
+    championsRanked: new Set(summaries.map(s => s.championId)).size,
+    topRows,
+  }
 }
 
 // ─── Champion detail (builds) ────────────────────────────────────────────────
@@ -786,6 +829,20 @@ async function mockMatchups(id: number): Promise<ChampionMatchups | null> {
       const laneWinRate = decidedLaneGames === 0
         ? null
         : round3(Math.min(0.75, Math.max(0.25, winRate + (rng() - 0.5) * 0.18)))
+      // Gold gap at 15 (#976), on its own sample and not a slice of the decided
+      // lanes: it counts every *judged* lane, evens included, so it is larger than
+      // `decidedLaneGames` and survives an opponent whose lanes never decided.
+      // Every fifth opponent has no measured gap and every seventh only a handful,
+      // so the verdict strip's two shortfall states are both reachable without a
+      // backend; the gap itself spans all five bands, which is what the strip is for.
+      const goldDiffLaneGames = o.id % 5 === 0
+        ? 0
+        : o.id % 7 === 0
+          ? Math.round(2 + rng() * 6)
+          : Math.round(games * (0.5 + rng() * 0.3))
+      const averageGoldDiffAt15 = goldDiffLaneGames === 0
+        ? null
+        : Math.round((s.wr - o.wr) * 9000 + (rng() - 0.5) * 320)
       return {
         opponentChampionId: o.id,
         games,
@@ -793,6 +850,8 @@ async function mockMatchups(id: number): Promise<ChampionMatchups | null> {
         winRate,
         laneWinRate,
         decidedLaneGames,
+        averageGoldDiffAt15,
+        goldDiffLaneGames,
       }
     }),
   }
@@ -2045,6 +2104,7 @@ export async function resolveDevApiMock(
   body?: unknown,
 ): Promise<unknown | undefined> {
   if (path === '/champions') return mockChampionSummaries()
+  if (path === '/champions/overview') return mockChampionOverview(query)
 
   const compositionGamesMatch = path.match(/^\/champions\/(\d+)\/composition-build\/games$/)
   if (compositionGamesMatch) return mockCompositionBuildGames(Number(compositionGamesMatch[1]), body, query)

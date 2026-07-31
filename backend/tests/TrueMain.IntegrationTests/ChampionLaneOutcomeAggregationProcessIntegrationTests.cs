@@ -16,7 +16,8 @@ namespace TrueMain.IntegrationTests;
 /// Covers the lane-outcome fold (#919) against real Postgres: the upsert that adds
 /// lane counters onto an existing <c>champion_matchup_stats</c> row, and the three
 /// outcomes a gold *threshold* produces — won, lost, and the band in between that must
-/// end up in neither.
+/// end up in neither. Also the signed gap those outcomes came from (#976), which is
+/// summed over every judged lane rather than the decided ones.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
 public sealed class ChampionLaneOutcomeAggregationProcessIntegrationTests
@@ -47,6 +48,8 @@ public sealed class ChampionLaneOutcomeAggregationProcessIntegrationTests
         stat.LaneGames.Should().Be(4);
         stat.LaneWins.Should().Be(4, "1000 gold clears the 300 threshold");
         stat.LaneLosses.Should().Be(0);
+        stat.LaneGoldDiffSum.Should().Be(4000, "the gap itself is summed, not just its verdict (#976)");
+        stat.LaneGoldDiffGames.Should().Be(4);
     }
 
     [Fact]
@@ -61,6 +64,8 @@ public sealed class ChampionLaneOutcomeAggregationProcessIntegrationTests
         stat.LaneGames.Should().Be(3);
         stat.LaneWins.Should().Be(0);
         stat.LaneLosses.Should().Be(3);
+        stat.LaneGoldDiffSum.Should().Be(-3000, "the sum is signed — a lost lane pulls it negative");
+        stat.LaneGoldDiffGames.Should().Be(3);
     }
 
     [Theory]
@@ -84,6 +89,12 @@ public sealed class ChampionLaneOutcomeAggregationProcessIntegrationTests
         stat.LaneLosses.Should().Be(0);
         (stat.LaneGames - stat.LaneWins - stat.LaneLosses)
             .Should().Be(5, "evens are recoverable as games minus wins minus losses");
+
+        // The gap is measured on every *judged* lane, evens included — it is what the
+        // counters cannot express. Averaging it over decided lanes only would drop the
+        // very games that make a matchup even (#976).
+        stat.LaneGoldDiffGames.Should().Be(5, "an even lane still has a measured gap");
+        stat.LaneGoldDiffSum.Should().Be(5L * lead);
     }
 
     [Fact]
@@ -151,6 +162,8 @@ public sealed class ChampionLaneOutcomeAggregationProcessIntegrationTests
         var stat = await SingleStatAsync();
         stat.LaneGames.Should().Be(4, "the second run has nothing pending");
         stat.LaneWins.Should().Be(4);
+        stat.LaneGoldDiffSum.Should().Be(4000, "an additive sum is exactly what a re-run would double");
+        stat.LaneGoldDiffGames.Should().Be(4);
     }
 
     private async Task<ChampionMatchupStat> SingleStatAsync()

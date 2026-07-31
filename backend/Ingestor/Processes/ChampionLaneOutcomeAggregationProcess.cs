@@ -41,6 +41,14 @@ namespace Ingestor.Processes;
 /// the 15-minute mark, is a game but not a judgeable lane; dividing by <c>Games</c>
 /// would understate every lane win rate by the share of those.
 /// </para>
+///
+/// <para>
+/// <b>And the magnitude beside them (#976).</b> The counters say whether a lane was
+/// won, never by how much: +180 and +1800 gold are the same row to them. The same
+/// pass sums the raw gap into <c>LaneGoldDiffSum</c> over its own
+/// <c>LaneGoldDiffGames</c>, which is what lets the read side band a matchup as even
+/// / good / dominant — and lets those band edges move without re-folding anything.
+/// </para>
 /// </summary>
 public sealed class ChampionLaneOutcomeAggregationProcess(
     ILogger<ChampionLaneOutcomeAggregationProcess> logger,
@@ -206,6 +214,15 @@ public sealed class ChampionLaneOutcomeAggregationProcess(
                 judgedLanes++;
 
                 var lead = selfGold - opponentGold;
+
+                // The magnitude behind the outcome (#976). The threshold below answers
+                // "was the lane won"; this answers "by how much", which the counters
+                // cannot: ±180 and ±1800 are the same row to them. Kept on its own
+                // counter so rows folded before #976 — which have lane outcomes and no
+                // sum — read as "unknown gap" instead of "even lane".
+                accumulator.LaneGoldDiffSum += lead;
+                accumulator.LaneGoldDiffGames++;
+
                 if (lead > goldLeadThreshold)
                 {
                     accumulator.LaneWins++;
@@ -251,16 +268,22 @@ public sealed class ChampionLaneOutcomeAggregationProcess(
         const string sql = """
             INSERT INTO champion_matchup_stats
                 ("Id", "ChampionId", "TeamPosition", "OpponentChampionId", "Patch", "elo_bracket",
-                 "Games", "Wins", "LaneGames", "LaneWins", "LaneLosses", "AggregatedAtUtc")
+                 "Games", "Wins", "LaneGames", "LaneWins", "LaneLosses",
+                 "LaneGoldDiffSum", "LaneGoldDiffGames", "AggregatedAtUtc")
             SELECT gen_random_uuid(), t.champ, t.pos, t.opp, t.patch, t.elo,
-                   0, 0, t.lane_games, t.lane_wins, t.lane_losses, @aggAt
+                   0, 0, t.lane_games, t.lane_wins, t.lane_losses,
+                   t.gold_diff_sum, t.gold_diff_games, @aggAt
             FROM unnest(@champs::integer[], @positions::text[], @opponents::integer[], @patches::text[],
-                        @elos::text[], @laneGames::integer[], @laneWins::integer[], @laneLosses::integer[])
-                AS t(champ, pos, opp, patch, elo, lane_games, lane_wins, lane_losses)
+                        @elos::text[], @laneGames::integer[], @laneWins::integer[], @laneLosses::integer[],
+                        @goldDiffSums::bigint[], @goldDiffGames::integer[])
+                AS t(champ, pos, opp, patch, elo, lane_games, lane_wins, lane_losses,
+                     gold_diff_sum, gold_diff_games)
             ON CONFLICT ("ChampionId", "TeamPosition", "OpponentChampionId", "Patch", "elo_bracket") DO UPDATE SET
                 "LaneGames" = champion_matchup_stats."LaneGames" + EXCLUDED."LaneGames",
                 "LaneWins" = champion_matchup_stats."LaneWins" + EXCLUDED."LaneWins",
                 "LaneLosses" = champion_matchup_stats."LaneLosses" + EXCLUDED."LaneLosses",
+                "LaneGoldDiffSum" = champion_matchup_stats."LaneGoldDiffSum" + EXCLUDED."LaneGoldDiffSum",
+                "LaneGoldDiffGames" = champion_matchup_stats."LaneGoldDiffGames" + EXCLUDED."LaneGoldDiffGames",
                 "AggregatedAtUtc" = EXCLUDED."AggregatedAtUtc"
             """;
 
@@ -275,7 +298,9 @@ public sealed class ChampionLaneOutcomeAggregationProcess(
                 new NpgsqlParameter("elos", rows.Select(r => r.Key.EloBracket).ToArray()),
                 new NpgsqlParameter("laneGames", rows.Select(r => r.Value.LaneGames).ToArray()),
                 new NpgsqlParameter("laneWins", rows.Select(r => r.Value.LaneWins).ToArray()),
-                new NpgsqlParameter("laneLosses", rows.Select(r => r.Value.LaneLosses).ToArray())
+                new NpgsqlParameter("laneLosses", rows.Select(r => r.Value.LaneLosses).ToArray()),
+                new NpgsqlParameter("goldDiffSums", rows.Select(r => r.Value.LaneGoldDiffSum).ToArray()),
+                new NpgsqlParameter("goldDiffGames", rows.Select(r => r.Value.LaneGoldDiffGames).ToArray())
             ],
             ct);
     }
@@ -303,5 +328,7 @@ public sealed class ChampionLaneOutcomeAggregationProcess(
         public int LaneGames;
         public int LaneWins;
         public int LaneLosses;
+        public long LaneGoldDiffSum;
+        public int LaneGoldDiffGames;
     }
 }

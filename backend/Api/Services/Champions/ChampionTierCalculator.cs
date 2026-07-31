@@ -93,6 +93,15 @@ internal static class ChampionTierCalculator
     public const string TierD = "D";
 
     /// <summary>
+    /// S &gt; A &gt; B &gt; C &gt; D — the display order every caller that groups or
+    /// sorts by tier letter should use, so a sparse field's emitted groups
+    /// (or a teaser's rows) are always strongest-first regardless of which
+    /// letters actually occur. Shared here so <c>ChampionTierListQueryService</c>
+    /// and <c>ChampionOverviewQueryService</c> can't drift from each other.
+    /// </summary>
+    public static readonly string[] TierOrder = [TierS, TierA, TierB, TierC, TierD];
+
+    /// <summary>
     /// One row's inputs for tiering. <see cref="Position"/> scopes the
     /// pick/ban/win percentile ranks — every metric is normalized only
     /// against other rows sharing the same position. Games/Wins (rather than

@@ -41,7 +41,7 @@ public sealed class ChampionSummariesQueryService(
         Size = 1,
     };
 
-    public async Task<IReadOnlyList<ChampionSummaryReadModel>> GetAllSummariesAsync(
+    public async Task<ChampionSummariesResult> GetAllSummariesAsync(
         string? patch, string? eloBracket, CancellationToken ct)
     {
         var totalSw = Stopwatch.StartNew();
@@ -65,13 +65,13 @@ public sealed class ChampionSummariesQueryService(
             logger.LogInformation(
                 "{Surface} total elapsed={ElapsedMs}ms result=empty",
                 Surface, totalSw.ElapsedMilliseconds);
-            return [];
+            return new ChampionSummariesResult();
         }
 
         return await GetOrComputeSummariesAsync(activePatch, bracketKey, bracketBands, totalSw, ct);
     }
 
-    private async Task<IReadOnlyList<ChampionSummaryReadModel>> GetOrComputeSummariesAsync(
+    private async Task<ChampionSummariesResult> GetOrComputeSummariesAsync(
         string activePatch,
         string bracketKey,
         IReadOnlyList<string>? bracketBands,
@@ -79,24 +79,24 @@ public sealed class ChampionSummariesQueryService(
         CancellationToken ct)
     {
         var cacheKey = $"champions:summaries:{activePatch}:{bracketKey}";
-        if (cache.TryGetValue<IReadOnlyList<ChampionSummaryReadModel>>(cacheKey, out var cached) && cached is not null)
+        if (cache.TryGetValue<ChampionSummariesResult>(cacheKey, out var cached) && cached is not null)
         {
             totalSw.Stop();
             logger.LogInformation(
                 "{Surface} total elapsed={ElapsedMs}ms result=cache_hit count={Count}",
-                Surface, totalSw.ElapsedMilliseconds, cached.Count);
+                Surface, totalSw.ElapsedMilliseconds, cached.Summaries.Count);
             return cached;
         }
 
         var computeSw = Stopwatch.StartNew();
-        var summaries = await ComputeAllSummariesAsync(activePatch, bracketBands, ct);
+        var result = await ComputeAllSummariesAsync(activePatch, bracketBands, ct);
         computeSw.Stop();
-        cache.Set(cacheKey, summaries, CacheEntry(SummariesCacheTtl));
+        cache.Set(cacheKey, result, CacheEntry(SummariesCacheTtl));
         totalSw.Stop();
         logger.LogInformation(
-            "{Surface} compute elapsed={ComputeMs}ms total={TotalMs}ms result=miss count={Count}",
-            Surface, computeSw.ElapsedMilliseconds, totalSw.ElapsedMilliseconds, summaries.Count);
-        return summaries;
+            "{Surface} compute elapsed={ComputeMs}ms total={TotalMs}ms result=miss count={Count} totalGames={TotalGames}",
+            Surface, computeSw.ElapsedMilliseconds, totalSw.ElapsedMilliseconds, result.Summaries.Count, result.TotalGames);
+        return result;
     }
 
     private async Task<string?> ResolveActivePatchAsync(string? requestedPatch, CancellationToken ct)
@@ -131,24 +131,25 @@ public sealed class ChampionSummariesQueryService(
         return resolved;
     }
 
-    private async Task<IReadOnlyList<ChampionSummaryReadModel>> ComputeAllSummariesAsync(
+    private async Task<ChampionSummariesResult> ComputeAllSummariesAsync(
         string activePatch, IReadOnlyList<string>? bracketBands, CancellationToken ct)
     {
         // Aggregate per (champion, position) in SQL: a single GROUP BY with
         // SUM(games)/SUM(wins), MAX(aggregated_at) and COUNT(DISTINCT
         // riot_account_id) for the main population. Only the aggregated rows
         // (one per champion/lane, a few hundred at most) cross the wire,
-        // instead of one row per (account, champion, lane) slice. The blank
-        // Position filter runs server-side too: empty string is the
-        // "no position" sentinel (Position is non-nullable, defaults to "").
-        // Trim() != "" preserves the previous IsNullOrWhiteSpace semantics
-        // and translates to Postgres btrim(...) <> '' under Npgsql.
+        // instead of one row per (account, champion, lane) slice.
+        //
+        // No Position filter here (#972): the ranked directory still needs one
+        // (a blank Position — the "no position" sentinel, since Position is
+        // non-nullable — carries no lane to score), but the homepage's "games
+        // analyzed" total needs to sum every group the patch actually has, so
+        // that filter moves to memory below, after the total is taken.
         var groupsSw = Stopwatch.StartNew();
         var groupsQuery = db.ChampionAggregateScopes
             .AsNoTracking()
             .Where(scope => scope.QueueId == (int)options.Value.QueueId)
-            .Where(scope => scope.GameVersion == activePatch)
-            .Where(scope => scope.Position.Trim() != string.Empty);
+            .Where(scope => scope.GameVersion == activePatch);
 
         // Cumulative elo filter: a null / empty band set is ALL (no clause, the
         // full union incl. Unranked); a non-empty set restricts to the bands at
@@ -158,7 +159,7 @@ public sealed class ChampionSummariesQueryService(
             groupsQuery = groupsQuery.Where(scope => bracketBands.Contains(scope.EloBracket));
         }
 
-        var groups = await groupsQuery
+        var allGroups = await groupsQuery
             .GroupBy(scope => new { scope.ChampionId, scope.Position })
             .Select(group => new ChampionSummaryGroup(
                 group.Key.ChampionId,
@@ -171,11 +172,21 @@ public sealed class ChampionSummariesQueryService(
         groupsSw.Stop();
         logger.LogInformation(
             "{Surface} sql=scope_groups groups={Groups} elapsed={ElapsedMs}ms",
-            Surface, groups.Count, groupsSw.ElapsedMilliseconds);
+            Surface, allGroups.Count, groupsSw.ElapsedMilliseconds);
+
+        // Every champion_aggregate_scopes row that matched the filters above
+        // folds into exactly one group here (position-less groups included),
+        // so this sum is the true total — see ChampionSummariesResult.TotalGames.
+        var totalGames = allGroups.Sum(group => (long)group.Games);
+
+        // Trim() != "" preserves the previous IsNullOrWhiteSpace semantics: a
+        // blank Position has no lane to score and is excluded from the ranked
+        // rows (but was already counted in totalGames above).
+        var groups = allGroups.Where(group => group.Position.Trim() != string.Empty).ToList();
 
         if (groups.Count == 0)
         {
-            return [];
+            return new ChampionSummariesResult { PatchVersion = activePatch, TotalGames = totalGames };
         }
 
         var topBuildsSw = Stopwatch.StartNew();
@@ -243,7 +254,15 @@ public sealed class ChampionSummariesQueryService(
         // Tier is a patch-relative ranking, so it can only be assigned once the
         // whole patch's rows exist. Compute it in a single pass over the ordered
         // list and stamp each row in place — the list order itself is unchanged.
-        return AssignTiers(summaries, tierOptions.Value);
+        var tiered = AssignTiers(summaries, tierOptions.Value);
+
+        return new ChampionSummariesResult
+        {
+            PatchVersion = activePatch,
+            TotalGames = totalGames,
+            ChampionsRanked = tiered.Select(summary => summary.ChampionId).Distinct().Count(),
+            Summaries = tiered,
+        };
     }
 
     private static IReadOnlyList<ChampionSummaryReadModel> AssignTiers(

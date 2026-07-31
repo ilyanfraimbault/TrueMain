@@ -70,6 +70,36 @@ export interface ChampionTierEntry {
   banRate: number | null
 }
 
+/**
+ * Homepage-sized snapshot of the champion directory (`GET /champions/overview`,
+ * #972): the true "games analyzed this patch" total (every aggregated game, not
+ * just the rows the ranked directory keeps) plus a short, pre-sorted slice of the
+ * strongest rows — so the homepage never fetches and sorts the full ~500-row
+ * directory just to render a stat chip and an 8-row teaser. Always the active
+ * patch, unfiltered — the homepage has no patch or elo picker of its own.
+ */
+export interface ChampionOverviewResponse {
+  patchVersion: string
+  /** True sum of games aggregated across every (champion, position) slice on the active patch. */
+  gamesAnalyzed: number
+  /** Distinct champions with at least one ranked row on the active patch. */
+  championsRanked: number
+  /** Strongest rows, tier-then-games ordered (S first, busiest within a tier first), truncated to the requested limit. */
+  topRows: ChampionOverviewRow[]
+}
+
+export interface ChampionOverviewRow {
+  championId: number
+  position: string
+  /** OPGG-style performance tier: 'S' | 'A' | 'B' | 'C' | 'D' (patch-relative). */
+  tier: string
+  games: number
+  winRate: number
+  pickRate: number
+  /** Share of observed matches that banned this champion; null before #920's data. */
+  banRate: number | null
+}
+
 export interface ChampionResponse {
   championId: number
   patch: string
@@ -234,12 +264,25 @@ export interface ChampionMatchupEntry {
    * `decidedLaneGames`, never `games`: a match with no timeline, one that ended
    * before 15 min, or a lane inside the threshold band is not a decided lane.
    *
-   * `null` = nothing can be said (no decided lane in scope, or the live
-   * single-opponent search path which has no lane data). Never render it as 0%.
+   * `null` = nothing can be said (no decided lane in scope, or a player-scoped
+   * slice, which has no lane data behind it). Never render it as 0%.
    */
   laneWinRate: number | null
   /** Lanes actually decided; the sample `laneWinRate` rests on. Smaller than `games`. */
   decidedLaneGames: number
+  /**
+   * Mean gold gap over the lane opponent at 15 minutes, signed from this champion's
+   * side (#976) — the magnitude `laneWinRate` cannot carry. `null` when the gap was
+   * never measured over this scope; rendering that as 0 would turn missing data into
+   * the most decisive-looking verdict there is ("dead even").
+   */
+  averageGoldDiffAt15: number | null
+  /**
+   * Lanes `averageGoldDiffAt15` covers. Smaller than `decidedLaneGames` on matchups
+   * folded before #976 — it is the sample a verdict may be banded from, and the reason
+   * a thin one shows the count instead of a label.
+   */
+  goldDiffLaneGames: number
 }
 
 /**
