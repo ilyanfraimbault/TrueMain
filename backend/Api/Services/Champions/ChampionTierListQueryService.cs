@@ -15,17 +15,6 @@ namespace TrueMain.Services.Champions;
 public sealed class ChampionTierListQueryService(
     IChampionSummariesQueryService summariesQueryService) : IChampionTierListQueryService
 {
-    // S > A > B > C > D — used to order the emitted tier groups regardless of
-    // which letters a sparse field actually produced.
-    private static readonly string[] TierOrder =
-    [
-        ChampionTierCalculator.TierS,
-        ChampionTierCalculator.TierA,
-        ChampionTierCalculator.TierB,
-        ChampionTierCalculator.TierC,
-        ChampionTierCalculator.TierD,
-    ];
-
     public async Task<ChampionTierListReadModel> GetTierListAsync(
         string? patch,
         string? position,
@@ -61,7 +50,7 @@ public sealed class ChampionTierListQueryService(
 
         var tiers = scored
             .GroupBy(entry => entry.Tier)
-            .OrderBy(group => Array.IndexOf(TierOrder, group.Key))
+            .OrderBy(group => Array.IndexOf(ChampionTierCalculator.TierOrder, group.Key))
             .Select(group => new ChampionTierGroupReadModel
             {
                 Tier = group.Key,

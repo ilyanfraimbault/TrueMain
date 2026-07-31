@@ -63,6 +63,15 @@ internal static class ChampionTierCalculator
     public const string TierD = "D";
 
     /// <summary>
+    /// S &gt; A &gt; B &gt; C &gt; D — the display order every caller that groups or
+    /// sorts by tier letter should use, so a sparse field's emitted groups
+    /// (or a teaser's rows) are always strongest-first regardless of which
+    /// letters actually occur. Shared here so <c>ChampionTierListQueryService</c>
+    /// and <c>ChampionOverviewQueryService</c> can't drift from each other.
+    /// </summary>
+    public static readonly string[] TierOrder = [TierS, TierA, TierB, TierC, TierD];
+
+    /// <summary>
     /// One row's inputs for tiering. WinRate and PickRate use the same units
     /// as <see cref="ReadModels.Champions.ChampionSummaryReadModel"/> —
     /// fractions in <c>[0, 1]</c>.

@@ -12,25 +12,16 @@ namespace TrueMain.Services.Champions;
 public sealed class ChampionOverviewQueryService(
     IChampionSummariesQueryService summariesQueryService) : IChampionOverviewQueryService
 {
-    // Best tier first, then games as the tiebreaker. Winrate would be the
-    // obvious second key, but it floats micro-sample rows (a 90% WR off-lane
-    // pick with a handful of games) to the very top — the opposite of the
-    // "honest sample sizes" promise the homepage teaser makes. Most-played
-    // S-tiers read as the meta. Mirrors the ordering the homepage teaser used
-    // to do client-side (home/TierlistPanel.vue) before this endpoint existed.
-    private static readonly string[] TierOrder =
-    [
-        ChampionTierCalculator.TierS,
-        ChampionTierCalculator.TierA,
-        ChampionTierCalculator.TierB,
-        ChampionTierCalculator.TierC,
-        ChampionTierCalculator.TierD,
-    ];
-
     public async Task<ChampionOverviewReadModel> GetOverviewAsync(int limit, CancellationToken ct)
     {
         var result = await summariesQueryService.GetAllSummariesAsync(patch: null, eloBracket: null, ct);
 
+        // Best tier first, then games as the tiebreaker. Winrate would be the
+        // obvious second key, but it floats micro-sample rows (a 90% WR off-lane
+        // pick with a handful of games) to the very top — the opposite of the
+        // "honest sample sizes" promise the homepage teaser makes. Most-played
+        // S-tiers read as the meta. Mirrors the ordering the homepage teaser used
+        // to do client-side (home/TierlistPanel.vue) before this endpoint existed.
         var topRows = result.Summaries
             .OrderBy(summary => TierRank(summary.Tier))
             .ThenByDescending(summary => summary.Games)
@@ -60,7 +51,7 @@ public sealed class ChampionOverviewQueryService(
     // ChampionTierCalculator) sort last rather than throwing.
     private static int TierRank(string tier)
     {
-        var index = Array.IndexOf(TierOrder, tier);
-        return index < 0 ? TierOrder.Length : index;
+        var index = Array.IndexOf(ChampionTierCalculator.TierOrder, tier);
+        return index < 0 ? ChampionTierCalculator.TierOrder.Length : index;
     }
 }
