@@ -160,13 +160,16 @@ const stats = computed(() => [
               text="See the games this build was computed from"
               :delay-duration="150"
             >
+              <!-- A filled square button, not the borderless ghost icon it
+                   used to be: at `ghost` + `:padded="false"` it read as part
+                   of the label rather than as a control, and nothing said the
+                   games behind the number could be opened. -->
               <UButton
-                icon="i-lucide-list"
+                icon="i-lucide-eye"
                 color="neutral"
-                variant="ghost"
+                variant="subtle"
                 size="xs"
                 square
-                :padded="false"
                 aria-label="See the games this build was computed from"
                 @click="() => { gamesDrawerOpen = true }"
               />
