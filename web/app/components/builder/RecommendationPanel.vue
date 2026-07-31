@@ -97,9 +97,12 @@ const gamesDrawerOpen = ref(false)
 const isJungle = computed(() => props.recommendation.position === 'JUNGLE')
 const laneNoun = computed<'lane' | 'matchup'>(() => (isJungle.value ? 'matchup' : 'lane'))
 
+// No opponent pinned means nothing to show here — and the composable treats a
+// null position as "don't fetch", so this also skips the network round-trip
+// entirely rather than fetching the full matchup leaderboard just to discard it.
 const { data: matchupData } = useChampionMatchups(
   () => props.recommendation.championId,
-  () => props.recommendation.position as ChampionPosition,
+  () => (props.opponentChampionId == null ? null : props.recommendation.position as ChampionPosition),
   { opponentChampionId: () => props.opponentChampionId ?? null },
 )
 
