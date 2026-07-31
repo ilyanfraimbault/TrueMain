@@ -157,6 +157,32 @@ public sealed class ChampionTierCalculatorTests
     }
 
     [Fact]
+    public void A_ban_only_configuration_falls_back_to_an_even_pick_win_split_without_ban_data()
+    {
+        // Degenerate but valid configuration (weights still sum to 1):
+        // BanRateWeight=1, the other two 0. With no ban data at all, dropping
+        // the ban term the usual way (fold its share into pick/win,
+        // proportionally to their own weights) would divide by zero — this is
+        // the one case ResolveWeights falls back to an even 50/50 split
+        // instead of collapsing every row's score to 0 or NaN.
+        var options = new ChampionTierOptions
+        {
+            PickRateWeight = 0,
+            BanRateWeight = 1,
+            WinRateWeight = 0,
+            WinRateShrinkageGames = 100,
+        };
+        var top = new ChampionTierCalculator.TierInput(Lane, Games: 600, Wins: 450, PickRate: 0.20, BanRate: null);
+        var bottom = new ChampionTierCalculator.TierInput(Lane, Games: 600, Wins: 200, PickRate: 0.01, BanRate: null);
+
+        var results = ChampionTierCalculator.Evaluate([top, bottom], options);
+
+        results[0].Score.Should().BeApproximately(1.0, 1e-9,
+            "the fallback 50/50 pick/win split still lets the best row reach the full score, instead of NaN or 0 from a 0/0 weight renormalization");
+        results[1].Score.Should().BeApproximately(0.0, 1e-9);
+    }
+
+    [Fact]
     public void Pick_rate_is_ranked_within_its_own_lane_not_patch_wide()
     {
         // MIDDLE has more playable champions than UTILITY, so a support's raw

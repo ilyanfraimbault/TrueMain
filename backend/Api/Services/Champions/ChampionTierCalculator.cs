@@ -54,11 +54,10 @@ namespace TrueMain.Services.Champions;
 ///
 /// <para>
 /// <b>Buckets.</b> Rows are ranked by score (desc) and sliced by percentile
-/// across the same set the score was computed over, so the tiers are always
-/// relative to that set (a whole patch, or a single lane — see
-/// <see cref="ChampionTierListQueryService"/>) rather than tied to absolute
-/// cutoffs that drift between metas. The split is a deliberate pyramid — few
-/// S, a fat B middle:
+/// across the same set the score was computed over — a single lane's rows,
+/// by caller convention (see the note on <see cref="Evaluate"/>) — rather
+/// than tied to absolute cutoffs that drift between metas. The split is a
+/// deliberate pyramid — few S, a fat B middle:
 /// </para>
 /// <list type="bullet">
 ///   <item><description>S — top 10%</description></item>
@@ -120,18 +119,19 @@ internal static class ChampionTierCalculator
     /// distinct rank exists) lands at the top of the ladder — <see cref="TierS"/>.
     ///
     /// <para>
-    /// The shrinkage prior (see <see cref="ShrinkWinRate"/>) is the aggregate
-    /// win rate across the whole <paramref name="inputs"/> set passed in —
-    /// unlike the pick/ban/win percentile ranks, it is <b>not</b> computed
-    /// per-lane. <see cref="Services.Champions.ChampionSummariesQueryService"/>
-    /// calls this once per patch (every position at once, so the prior is a
-    /// cross-lane average), while <see cref="ChampionTierListQueryService"/>
-    /// calls it once per position (so the prior is lane-specific there). The
-    /// gap is usually small — a role's average win rate sits close to 50% —
-    /// but it means a <c>TierScore</c> computed by the two call sites for the
-    /// same <c>(champion, position)</c> row is not expected to match bit for
-    /// bit, on top of the scope difference already documented on
-    /// <see cref="ReadModels.Champions.ChampionSummaryReadModel.TierScore"/>.
+    /// <paramref name="inputs"/> should be a single lane's rows — every
+    /// percentile rank (see <see cref="PercentileRanksByPosition"/>) and the
+    /// shrinkage prior (see <see cref="ShrinkWinRate"/>) are both computed
+    /// across the whole set passed in, and the S/A/B/C/D bucket cutoff is a
+    /// plain <c>rank / count</c> over that same set. Mixing multiple lanes
+    /// into one call would let a thin lane trivially top its own tiny peer
+    /// group on every metric and out-rank a much larger, genuinely competitive
+    /// lane — both <see cref="Services.Champions.ChampionSummariesQueryService"/>
+    /// and <see cref="ChampionTierListQueryService"/> call this once per
+    /// position for exactly this reason, so a row's <c>TierScore</c> is
+    /// expected to match between <c>GET /champions</c> and
+    /// <c>GET /champions/tierlist</c> for the same <c>(patch, eloBracket,
+    /// position)</c> — see <see cref="ReadModels.Champions.ChampionSummaryReadModel.TierScore"/>.
     /// </para>
     /// </summary>
     public static IReadOnlyList<TierResult> Evaluate(

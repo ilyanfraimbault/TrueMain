@@ -194,6 +194,93 @@ public sealed class ChampionSummariesApiIntegrationTests
             "a 3-game line is below the floor, so it is dropped from the list and the ranking");
     }
 
+    [Fact]
+    public async Task ListChampionsAsync_TierIsUnaffectedByAnotherLanesPopulationSize()
+    {
+        // #971 review finding: tiering percentile-ranks pick/ban/win *within*
+        // each lane, but if the S/A/B/C/D bucket cutoff were still computed
+        // across every lane mixed together, a thin lane (few rows clearing
+        // the sample floor) could trivially top its own tiny peer group on
+        // every metric and compete for S-tier against a much larger, genuinely
+        // contested lane it has nothing to do with. Prove the fix by seeding
+        // the exact same 20-row MIDDLE field twice — once beside a single thin
+        // UTILITY row, once beside a full 20-row UTILITY field — and asserting
+        // MIDDLE's own tiers don't move at all between the two runs.
+        var middleTiersWithThinUtility = await GetMiddleTiersAsync(utilityRowCount: 1);
+        var middleTiersWithFullUtility = await GetMiddleTiersAsync(utilityRowCount: 20);
+
+        middleTiersWithFullUtility.Should().Equal(middleTiersWithThinUtility,
+            "a MIDDLE row's tier must depend only on the other MIDDLE rows, never on how many rows UTILITY happens to have");
+    }
+
+    private async Task<Dictionary<int, string>> GetMiddleTiersAsync(int utilityRowCount)
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        var now = DateTime.UtcNow;
+        var accountId = Guid.Parse("88888888-8888-8888-8888-888888888888");
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            db.RiotAccounts.Add(new RiotAccount
+            {
+                Id = accountId,
+                PlatformId = "KR",
+                Puuid = "summaries-puuid-lane-balance",
+                GameName = "summaries-lane-balance",
+                SummonerId = "summaries-lane-balance-summoner",
+                ProfileIconId = 1,
+                SummonerLevel = 100,
+                LastProfileSyncAtUtc = now,
+                CreatedAtUtc = now.AddDays(-10),
+                UpdatedAtUtc = now.AddDays(-1),
+            });
+            await db.SaveChangesAsync();
+
+            var seeder = new ChampionAggregateSeeder();
+            // 20 MIDDLE rows spanning a full winrate range — identical between
+            // both calls, so any tier difference can only come from UTILITY.
+            for (var i = 0; i < 20; i++)
+            {
+                seeder.AddPatternWithRune(
+                    accountId, 500 + i, "16.5", "KR", 420, "MIDDLE",
+                    summoner1Id: 4, summoner2Id: 12, skillOrderKey: "Q-W-E",
+                    buildItems: [3153, 3006, 3031], bootsItemId: 3006,
+                    primaryStyleId: 8000, primaryKeystoneId: 8008, secondaryStyleId: 8400,
+                    games: 300, wins: (int)Math.Round(300 * (0.40 + (i * 0.01))), aggregatedAtUtc: now);
+            }
+            // UTILITY rows, mediocre in absolute terms (50% WR, low pick) so a
+            // buggy global bucketing would still let the best of a *thin* group
+            // fluke into S/A by having almost no peers to lose to.
+            for (var i = 0; i < utilityRowCount; i++)
+            {
+                seeder.AddPatternWithRune(
+                    accountId, 600 + i, "16.5", "KR", 420, "UTILITY",
+                    summoner1Id: 4, summoner2Id: 12, skillOrderKey: "Q-W-E",
+                    buildItems: [3153, 3006, 3031], bootsItemId: 3006,
+                    primaryStyleId: 8000, primaryKeystoneId: 8008, secondaryStyleId: 8400,
+                    games: 30, wins: 15 + (i % 3), aggregatedAtUtc: now);
+            }
+            await seeder.SaveAsync(db);
+        }
+
+        await using var factory = new ApiWebApplicationFactory(_fixture, minSampleGames: 20);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var response = await client.GetAsync("/champions");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var summaries = await response.Content.ReadFromJsonAsync<IReadOnlyList<ChampionSummaryReadModel>>();
+        summaries.Should().NotBeNull();
+
+        return summaries!
+            .Where(summary => summary.Position == "MIDDLE")
+            .ToDictionary(summary => summary.ChampionId, summary => summary.Tier);
+    }
+
     // The two aggregation tests above seed a few low-game slices on purpose, so
     // they disable the sample floor (0) to assert over every seeded row. The
     // dedicated floor test drives it at a real threshold instead.
