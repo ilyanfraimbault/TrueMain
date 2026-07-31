@@ -109,6 +109,21 @@ internal static class ChampionTierCalculator
     /// Returns the tier + score for each input, in the same order as
     /// <paramref name="inputs"/>. A single-row set (or any row when only one
     /// distinct rank exists) lands at the top of the ladder — <see cref="TierS"/>.
+    ///
+    /// <para>
+    /// The shrinkage prior (see <see cref="ShrinkWinRate"/>) is the aggregate
+    /// win rate across the whole <paramref name="inputs"/> set passed in —
+    /// unlike the pick/ban/win percentile ranks, it is <b>not</b> computed
+    /// per-lane. <see cref="Services.Champions.ChampionSummariesQueryService"/>
+    /// calls this once per patch (every position at once, so the prior is a
+    /// cross-lane average), while <see cref="ChampionTierListQueryService"/>
+    /// calls it once per position (so the prior is lane-specific there). The
+    /// gap is usually small — a role's average win rate sits close to 50% —
+    /// but it means a <c>TierScore</c> computed by the two call sites for the
+    /// same <c>(champion, position)</c> row is not expected to match bit for
+    /// bit, on top of the scope difference already documented on
+    /// <see cref="ReadModels.Champions.ChampionSummaryReadModel.TierScore"/>.
+    /// </para>
     /// </summary>
     public static IReadOnlyList<TierResult> Evaluate(
         IReadOnlyList<TierInput> inputs, ChampionTierOptions options)
@@ -120,10 +135,11 @@ internal static class ChampionTierCalculator
         }
 
         // Field-wide prior for win-rate shrinkage: the aggregate win rate
-        // across every row being tiered together. A degenerate all-zero-games
-        // field (shouldn't happen — every row here already cleared the
-        // directory's MinSampleGames floor) falls back to 0.5 so shrinkage
-        // still produces a defined value.
+        // across every row being tiered together in this call (not per-lane —
+        // see the "not expected to match bit for bit" note on Evaluate's own
+        // doc above). A degenerate all-zero-games field (shouldn't happen —
+        // every row here already cleared the directory's MinSampleGames floor)
+        // falls back to 0.5 so shrinkage still produces a defined value.
         var totalGames = 0L;
         var totalWins = 0L;
         for (var i = 0; i < count; i++)
