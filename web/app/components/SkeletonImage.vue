@@ -85,10 +85,14 @@ onMounted(() => {
     <span class="relative block size-full">
       <!-- Plain span mirroring USkeleton's default look (animate-pulse +
            rounded-md + bg-elevated) — one fewer component instance per icon,
-           which matters at hundreds of icons per page. -->
+           which matters at hundreds of icons per page. The pulse is dropped
+           once the image has actually failed: a 404 is a final state, and
+           animating it made dead icons (e.g. a profile icon Data Dragon
+           doesn't ship) read as loading forever. -->
       <span
         v-if="!src || !loaded || failed"
-        class="absolute inset-0 size-full animate-pulse rounded-md bg-elevated"
+        class="absolute inset-0 size-full rounded-md bg-elevated"
+        :class="failed ? '' : 'animate-pulse'"
       />
       <img
         v-if="src"

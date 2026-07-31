@@ -251,9 +251,11 @@ const rowTint = computed(() =>
          drawer (builder/GamesDrawer), and viewport breakpoints had the drawer
          copy laying itself out as if it had the whole page, spilling into the
          `overflow-hidden` clip above. Three tiers: base is the compact
-         drawer/mobile layout, @2xl restores the full-size icons and columns,
-         @3xl adds the team compositions (ten icons need room the row only has
-         past that width). -->
+         drawer/mobile layout, @xl adds the team compositions, @2xl restores
+         the full-size icons and columns, @3xl adds the secondary stats
+         (CS/m, KP, PERF) — those come last on purpose: the compositions are
+         what a provenance row is read for, so when only one of the two fits,
+         the compositions win. -->
 
     <!-- Row header: tinted clickable summary. The win/loss signal is carried
          by the row tint plus the coloured result label alone — no edge strip,
@@ -335,7 +337,7 @@ const rowTint = computed(() =>
              exact same box, or everything to its right (the centred
              loadout, the right-edge group) drifts left/right row to row and
              the columns stop lining up down the list. -->
-        <div class="flex w-28 shrink-0 items-start gap-2 @lg:w-48 @2xl:w-52 @2xl:gap-3">
+        <div class="flex w-28 shrink-0 items-start gap-2 @3xl:w-52 @3xl:gap-3">
           <div class="flex w-28 flex-col items-center">
             <div class="whitespace-nowrap text-base font-bold leading-tight tabular-nums @2xl:text-lg">
               {{ self.kills }}
@@ -348,11 +350,11 @@ const rowTint = computed(() =>
               {{ kdaRatio }}
             </div>
           </div>
-          <!-- Secondary stats only once the row clears @lg. Between @md and
-               @lg the row is already back on one line and the 4rem these
-               three lines cost is exactly what it doesn't have; the KDA
-               cluster and the build are the scan targets at that width. -->
-          <div class="hidden flex-col gap-0.5 text-[11px] text-muted tabular-nums @lg:flex">
+          <!-- Secondary stats only once the row clears @3xl — the last thing
+               to come back, because the 4rem they cost is exactly what the
+               team compositions (added at @xl) need. Below that the KDA
+               cluster, the build and the compositions are the scan targets. -->
+          <div class="hidden flex-col gap-0.5 text-[11px] text-muted tabular-nums @3xl:flex">
             <UTooltip :text="perfTooltip">
               <span class="font-semibold" :class="perfColor">
                 {{ perfScore }} PERF
@@ -365,19 +367,20 @@ const rowTint = computed(() =>
 
         <!-- Loadout strip: summoner spells + runes + item block, tightly
              grouped (small internal gaps) so spells → runes → items read
-             left-to-right as one continuous build. Wrapped in a flex-1
-             centering track (rather than sitting shrink-0 right off the KDA
-             block) so the build floats centred in whatever slack the row has
-             — the only variable-width zone — instead of hugging the KDA
-             block and dumping all the row's free space in one lump before
-             the right-edge group. Summoners and runes each stack 2-high to
-             match the two rows of the item grid. -->
+             left-to-right as one continuous build. Left-aligned inside a
+             flex-1 track: the build hugs the KDA cluster and every bit of
+             the row's slack collects on the right, where the team
+             compositions live. Centring it instead (as it used to) split
+             that slack into two half-empty gutters and left no single run
+             of space wide enough for the ten composition icons. Summoners
+             and runes each stack 2-high to match the two rows of the item
+             grid. -->
         <!-- Below @md the loadout wraps onto its own line (`order-last` keeps
              it under the row rather than between the KDA and the accolade).
              A phone can't hold meta + portrait + KDA + a 9rem build strip on
              one line, and the alternative — dropping half the build — throws
              away the thing the row exists to show. -->
-        <div class="order-last flex w-full grow items-center justify-center @md:order-none @md:w-auto @md:flex-1">
+        <div class="order-last flex w-full grow items-center justify-center @md:order-none @md:w-auto @md:flex-1 @md:justify-start">
           <div class="flex shrink-0 items-center gap-1">
             <div class="flex flex-col gap-0.5">
               <GameTooltipSummonerSpellIcon
@@ -477,10 +480,20 @@ const rowTint = computed(() =>
         <div class="ml-auto flex shrink-0 items-center gap-2 @md:ml-0 @2xl:gap-3">
           <!-- Team compositions: two horizontal rows of 5, allies over
                enemies, each sorted TOP → SUPPORT so a column pairs
-               laner-vs-laner (ally above enemy = same role). Icons match the
-               item slots. Ten icons need ~8rem the row only has once it's
-               past @3xl, so below that they drop and core stats come first. -->
-          <div class="hidden shrink-0 flex-col gap-0.5 @3xl:flex">
+               laner-vs-laner (ally above enemy = same role). Ten icons need
+               ~7rem, which the row has from @xl once the secondary stats are
+               held back to @3xl — narrower than that (a phone, a half-width
+               card) they still drop.
+
+               Sized with explicit width/height props, not a responsive
+               `size-*` class: SkeletonImage reserves its box from those props
+               via an inline style, which is what actually pins the item
+               icons below to 24px at every width (their own `size-5
+               @2xl:size-6` classes never take effect — inline style always
+               wins). Without matching props here these rendered at 20px
+               until the row cleared the real @2xl breakpoint, visibly
+               smaller than the items sitting right next to them. -->
+          <div class="hidden shrink-0 flex-col gap-0.5 @xl:flex">
             <div class="flex gap-0.5">
               <SkeletonImage
                 v-for="(p, idx) in allies"
@@ -488,6 +501,8 @@ const rowTint = computed(() =>
                 :src="championById.get(p.championId)?.iconUrl ?? null"
                 :alt="participantTooltip(p)"
                 :title="participantTooltip(p)"
+                :width="24"
+                :height="24"
                 loading="lazy"
                 class="size-6 rounded"
               />
@@ -499,6 +514,8 @@ const rowTint = computed(() =>
                 :src="championById.get(p.championId)?.iconUrl ?? null"
                 :alt="participantTooltip(p)"
                 :title="participantTooltip(p)"
+                :width="24"
+                :height="24"
                 loading="lazy"
                 class="size-6 rounded"
               />
