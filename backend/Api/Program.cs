@@ -146,6 +146,16 @@ builder.Services.AddOptions<ChampionsListOptions>()
     .Validate(options => options.MinMatchupGames >= 0, "ChampionsList:MinMatchupGames must be >= 0.")
     .Validate(options => options.MinPlayerMatchupGames >= 0, "ChampionsList:MinPlayerMatchupGames must be >= 0.")
     .ValidateOnStart();
+builder.Services.AddOptions<ChampionTierOptions>()
+    .Bind(builder.Configuration.GetSection(ChampionTierOptions.SectionName))
+    .Validate(options => options.PickRateWeight >= 0, "ChampionTier:PickRateWeight must be >= 0.")
+    .Validate(options => options.BanRateWeight >= 0, "ChampionTier:BanRateWeight must be >= 0.")
+    .Validate(options => options.WinRateWeight >= 0, "ChampionTier:WinRateWeight must be >= 0.")
+    .Validate(
+        options => options.PickRateWeight + options.BanRateWeight + options.WinRateWeight > 0,
+        "ChampionTier: at least one of PickRateWeight/BanRateWeight/WinRateWeight must be > 0.")
+    .Validate(options => options.WinRateShrinkageGames >= 0, "ChampionTier:WinRateShrinkageGames must be >= 0.")
+    .ValidateOnStart();
 builder.Services.AddOptions<StorageHistoryOptions>()
     .Bind(builder.Configuration.GetSection(StorageHistoryOptions.SectionName))
     .Validate(options => options.DiskCapacityBytes >= 0, "StorageHistory:DiskCapacityBytes must be >= 0.")

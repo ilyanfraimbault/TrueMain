@@ -14,6 +14,7 @@ public sealed class ChampionSummariesQueryService(
     TrueMainDbContext db,
     IOptions<MainAnalysisOptions> options,
     IOptions<ChampionsListOptions> championsOptions,
+    IOptions<ChampionTierOptions> tierOptions,
     IMemoryCache cache,
     ILogger<ChampionSummariesQueryService> logger) : IChampionSummariesQueryService
 {
@@ -242,19 +243,21 @@ public sealed class ChampionSummariesQueryService(
         // Tier is a patch-relative ranking, so it can only be assigned once the
         // whole patch's rows exist. Compute it in a single pass over the ordered
         // list and stamp each row in place — the list order itself is unchanged.
-        return AssignTiers(summaries);
+        return AssignTiers(summaries, tierOptions.Value);
     }
 
-    private static IReadOnlyList<ChampionSummaryReadModel> AssignTiers(List<ChampionSummaryReadModel> summaries)
+    private static IReadOnlyList<ChampionSummaryReadModel> AssignTiers(
+        List<ChampionSummaryReadModel> summaries, ChampionTierOptions options)
     {
         var inputs = summaries
-            .Select(summary => new ChampionTierCalculator.TierInput(summary.WinRate, summary.PickRate))
+            .Select(summary => new ChampionTierCalculator.TierInput(
+                summary.Position, summary.Games, summary.Wins, summary.PickRate, summary.BanRate))
             .ToList();
-        var tiers = ChampionTierCalculator.Assign(inputs);
+        var results = ChampionTierCalculator.Evaluate(inputs, options);
 
         for (var i = 0; i < summaries.Count; i++)
         {
-            summaries[i] = summaries[i] with { Tier = tiers[i] };
+            summaries[i] = summaries[i] with { Tier = results[i].Tier, TierScore = results[i].Score };
         }
 
         // Wrap before returning: this list is cached in the singleton IMemoryCache,

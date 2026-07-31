@@ -310,12 +310,53 @@ export function tierFor(rankIndex: number, total: number): string {
   return 'D'
 }
 
+// Presence-first blend (#971): pick rate and ban rate outweigh win rate.
+// Mirrors ChampionTierCalculator's weights closely enough for a plausible
+// preview fixture — it doesn't need bit-for-bit parity with the backend's
+// percentile-rank + bayesian-shrinkage implementation.
+const MOCK_PICK_WEIGHT = 0.45
+const MOCK_BAN_WEIGHT = 0.30
+const MOCK_WIN_WEIGHT = 0.25
+
 async function mockChampionSummaries(): Promise<ChampionSummaryResponse[]> {
   const patch = await latestShortPatch()
-  // Tier is patch-relative: rank rows by win rate and bucket by percentile,
-  // mirroring ChampionTierCalculator on the backend.
-  const byWr = [...CHAMPION_SEEDS].sort((a, b) => b.wr - a.wr)
-  const tierByRow = new Map(byWr.map((s, i) => [s, tierFor(i, byWr.length)]))
+
+  const rowsByPosition = new Map<string, ChampionSeed[]>()
+  for (const s of CHAMPION_SEEDS) {
+    const bucket = rowsByPosition.get(s.position) ?? []
+    bucket.push(s)
+    rowsByPosition.set(s.position, bucket)
+  }
+
+  // Percentile-rank each metric within its own lane (not patch-wide), the
+  // same normalization the backend uses to avoid a lane-size bias (UTILITY
+  // has far fewer champions than MIDDLE, so raw pick rates aren't comparable
+  // across lanes).
+  const banRateById = new Map(CHAMPION_SEEDS.map(s => [s.id, Math.min(0.85, s.pr * 2.5)]))
+  const scoreById = new Map<number, number>()
+  const tierById = new Map<number, string>()
+  for (const rows of rowsByPosition.values()) {
+    const percentileRank = (value: (s: ChampionSeed) => number) => {
+      const sorted = [...rows].sort((a, b) => value(a) - value(b))
+      const denom = Math.max(1, sorted.length - 1)
+      return new Map(sorted.map((s, i) => [s.id, i / denom]))
+    }
+    const pickPct = percentileRank(s => s.pr)
+    const banPct = percentileRank(s => banRateById.get(s.id) ?? 0)
+    const winPct = percentileRank(s => s.wr)
+
+    const scored = rows.map(s => ({
+      seed: s,
+      score: (pickPct.get(s.id) ?? 0) * MOCK_PICK_WEIGHT
+        + (banPct.get(s.id) ?? 0) * MOCK_BAN_WEIGHT
+        + (winPct.get(s.id) ?? 0) * MOCK_WIN_WEIGHT,
+    })).sort((a, b) => b.score - a.score)
+
+    scored.forEach(({ seed, score }, i) => {
+      scoreById.set(seed.id, score)
+      tierById.set(seed.id, tierFor(i, scored.length))
+    })
+  }
 
   return CHAMPION_SEEDS.map((s) => {
     const rng = mulberry32(s.id * 31 + s.position.length)
@@ -329,10 +370,10 @@ async function mockChampionSummaries(): Promise<ChampionSummaryResponse[]> {
       pickRate: round3(s.pr),
       lanePlayRate: round3(0.7 + rng() * 0.29),
       trueMainCount: Math.max(3, Math.round(games / 55)),
-      // The active patch always has ban data (#920). Loosely correlated with
-      // pick rate so the column is plausible rather than uniform noise.
-      banRate: round3(Math.min(0.85, s.pr * 2.5 + rng() * 0.05)),
-      tier: tierByRow.get(s) ?? 'B',
+      // The active patch always has ban data (#920).
+      banRate: round3(banRateById.get(s.id) ?? 0),
+      tier: tierById.get(s.id) ?? 'B',
+      tierScore: round3(scoreById.get(s.id) ?? 0),
       position: s.position,
       patchVersion: patch,
       lastUpdatedAtUtc: new Date().toISOString(),

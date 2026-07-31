@@ -17,6 +17,13 @@ export interface ChampionSummaryResponse {
   banRate: number | null
   /** OPGG-style performance tier: 'S' | 'A' | 'B' | 'C' | 'D' (patch-relative). */
   tier: string
+  /**
+   * The pickRate + banRate + winRate blended score (#971) that placed this row in
+   * `tier`, scoped to the whole patch-wide field it was tiered against. Not
+   * comparable to `ChampionTierEntry`'s per-lane score from `/champions/tierlist` —
+   * that endpoint re-tiers within each position independently.
+   */
+  tierScore: number
   position: string
   patchVersion: string
   lastUpdatedAtUtc: string
@@ -32,9 +39,10 @@ export interface ChampionSummaryTopBuild {
 
 /**
  * Champion meta / tier-list for a single patch (`GET /champions/tierlist`).
- * Champions are bucketed into S/A/B/C/D tiers by a winRate + pickRate blend,
- * tiered independently per position. All metrics come from the same aggregates
- * the directory reads — none are synthesised.
+ * Champions are bucketed into S/A/B/C/D tiers by a pickRate + banRate +
+ * winRate blend (#971 — presence-first: pick and ban rate outweigh a
+ * sample-shrunk win rate), tiered independently per position. All metrics
+ * come from the same aggregates the directory reads — none are synthesised.
  */
 export interface ChampionTierListResponse {
   patchVersion: string

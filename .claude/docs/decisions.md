@@ -107,6 +107,22 @@ its own floor while a baseline is still a coin flip, and a noisy baseline produc
 not a noisy one. Below any of them the API returns no entry and the real game count, and the UI says which case it
 hit — #922.
 
+**Tier score is presence-first (pick rate + ban rate, weighted above a sample-shrunk win rate) — this reverses #920's "bans don't feed the tier score".**
+The old blend (85% raw win rate / 15% patch-max-normalized pick rate) let a handful of games at a flattering win
+rate fluke into S-tier ahead of a heavily-played, average-winrate staple — the min-sample floor
+(`ChampionsList:MinSampleGames`) only kept out the worst 1-2 game flukes, not the noisy band just above it. Two
+changes together fix it (#971): win rate is bayesian-shrunk toward the field's prior in proportion to sample size
+(`wrAdj = (wins + K·prior) / (games + K)`, `K` = `ChampionTier:WinRateShrinkageGames`) *before* scoring — the
+actual fix for micro-sample flukes, since weighting alone can't offset a raw 70%-vs-53% gap; and the blend itself
+is re-weighted to pick rate (45%) + ban rate (30%) + shrunk win rate (25%), because pick/ban share are
+population-scale signals a single game barely moves, while a raw win rate is exactly the number a handful of
+games swings hardest. All three metrics are percentile-ranked *within the same lane* (not min-max against a
+single patch-wide maximum, and not patch-wide at all) before weighting — this also fixes a lane-size bias:
+UTILITY has far fewer playable champions than MIDDLE, so a support's raw pick rate is mechanically higher for the
+same "share of the meta", and the two weren't comparable un-normalized. On a patch with no ban data at all
+(pre-#920), the ban term is dropped and its weight folds back into pick rate and win rate proportionally — never
+a fabricated 0%, and tiers stay comparable across ban-data and no-ban-data patches — `ChampionTierCalculator`.
+
 **Share cards degrade in three steps and never print a number the API did not return.**
 An OG image is read as a screenshot of the page, so a filler `0%` is indistinguishable from a
 measurement — the "no fabricated numbers" rule that governs the pages binds harder here, because the
