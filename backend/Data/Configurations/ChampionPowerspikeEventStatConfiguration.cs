@@ -19,6 +19,7 @@ public sealed class ChampionPowerspikeEventStatConfiguration : IEntityTypeConfig
         entity.Property(e => e.EloBracket).IsRequired().HasMaxLength(20).HasColumnName("elo_bracket").HasDefaultValue(string.Empty);
         entity.Property(e => e.BuildFirstItemId).IsRequired().HasDefaultValue(0);
         entity.Property(e => e.BuildKeystoneId).IsRequired().HasDefaultValue(0);
+        entity.Property(e => e.OpponentChampionId).IsRequired().HasDefaultValue(0);
         entity.Property(e => e.EventType).IsRequired().HasMaxLength(8);
         entity.Property(e => e.RefId).IsRequired();
         entity.Property(e => e.SumSpike).IsRequired();
@@ -29,7 +30,10 @@ public sealed class ChampionPowerspikeEventStatConfiguration : IEntityTypeConfig
         // Natural key on the aggregate grain and the ON CONFLICT target for the
         // incremental additive upsert. The core-build pair sits before the event
         // columns so the index also serves the read, which always filters on a
-        // single (champion, position, patch, elo, build) slice.
+        // single (champion, position, patch, elo, build) slice; the opponent sits
+        // right after it for the same reason — the matchup read adds exactly that
+        // one equality on top of the same prefix, and the unscoped read keeps
+        // using the prefix that stops before it.
         entity.HasIndex(e => new
         {
             e.ChampionId,
@@ -38,6 +42,7 @@ public sealed class ChampionPowerspikeEventStatConfiguration : IEntityTypeConfig
             e.EloBracket,
             e.BuildFirstItemId,
             e.BuildKeystoneId,
+            e.OpponentChampionId,
             e.EventType,
             e.RefId
         }).IsUnique();

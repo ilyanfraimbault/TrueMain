@@ -330,11 +330,18 @@ magnitude, **scopés à un seul build core**.
 
 **Query** — `position` (**requis**, `400` sinon), `buildFirstItemId` et
 `buildKeystoneId` (**requis**, positifs, `400` sinon), `patch` (optionnel),
-`eloBracket` (optionnel)
+`eloBracket` (optionnel), `opponentChampionId` (optionnel)
 
 Le couple `buildFirstItemId` / `buildKeystoneId` identifie le build core de la
 même façon que la lecture des builds clé ses onglets — un build jamais joué
 renvoie une liste vide plutôt qu'un repli sur les autres builds du champion.
+
+`opponentChampionId` restreint les spikes aux parties jouées contre cet
+adversaire de lane, le même filtre que `GET /champions/{id}` (#957). Le plancher
+de parties ne s'applique alors pas : un matchup tient 4 parties en médiane sur un
+patch, donc chaque événement porte son propre `games` plutôt que d'être masqué.
+Seules les parties agrégées depuis #957 portent un adversaire — un matchup non
+encore couvert renvoie une liste vide, ce qui reste un `200`.
 
 **Réponse `200`** — `ChampionPowerspikesResponse`
 

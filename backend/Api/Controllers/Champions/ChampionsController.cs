@@ -439,6 +439,11 @@ public sealed class ChampionsController(
     /// the builds read keys its tabs, and are both required (a 400 otherwise) —
     /// spikes are only meaningful within one build. Always 200; the events are
     /// empty until the per-minute data has accumulated.
+    /// <paramref name="opponentChampionId"/> narrows the spikes to the games
+    /// played against that lane opponent (#957), the same filter the build
+    /// sections take as <c>?opponentChampionId=</c> on <c>GET /champions/{id}</c>.
+    /// A matchup that has not been folded yet simply has no events — it is not an
+    /// error, so this stays a 200 like every other thin slice here.
     /// </summary>
     [HttpGet("{championId:int}/powerspikes")]
     [ProducesResponseType(typeof(ChampionPowerspikesResponse), StatusCodes.Status200OK)]
@@ -450,6 +455,7 @@ public sealed class ChampionsController(
         [FromQuery] string? eloBracket,
         [FromQuery] int? buildFirstItemId,
         [FromQuery] int? buildKeystoneId,
+        [FromQuery] int? opponentChampionId,
         CancellationToken ct = default)
     {
         if (!TryRequirePosition(position, out var normalizedPosition, out var problem))
@@ -472,6 +478,7 @@ public sealed class ChampionsController(
             normalizedBracket,
             buildFirstItemId.Value,
             buildKeystoneId.Value,
+            opponentChampionId,
             ct);
 
         return Ok(response);

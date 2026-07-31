@@ -20,7 +20,7 @@ namespace Data.CompiledModels
                 "Data.Entities.ChampionPowerspikeEventStat",
                 typeof(ChampionPowerspikeEventStat),
                 baseEntityType,
-                propertyCount: 13,
+                propertyCount: 14,
                 unnamedIndexCount: 1,
                 keyCount: 1);
 
@@ -97,6 +97,16 @@ namespace Data.CompiledModels
                 sentinel: 0);
             games.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
+            var opponentChampionId = runtimeEntityType.AddProperty(
+                "OpponentChampionId",
+                typeof(int),
+                propertyInfo: typeof(ChampionPowerspikeEventStat).GetProperty("OpponentChampionId", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(ChampionPowerspikeEventStat).GetField("<OpponentChampionId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: 0);
+            opponentChampionId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            opponentChampionId.AddAnnotation("Relational:DefaultValue", 0);
+
             var patch = runtimeEntityType.AddProperty(
                 "Patch",
                 typeof(string),
@@ -146,7 +156,7 @@ namespace Data.CompiledModels
             runtimeEntityType.SetPrimaryKey(key);
 
             var index = runtimeEntityType.AddIndex(
-                new[] { championId, teamPosition, patch, eloBracket, buildFirstItemId, buildKeystoneId, eventType, refId },
+                new[] { championId, teamPosition, patch, eloBracket, buildFirstItemId, buildKeystoneId, opponentChampionId, eventType, refId },
                 unique: true);
 
             return runtimeEntityType;

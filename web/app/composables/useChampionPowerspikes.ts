@@ -9,6 +9,11 @@ import type { ChampionPowerspikesResponse } from '~~/shared/types/champions'
  * build, so the request carries the build key on top of the shared
  * (champion, position, patch, elo) scope, and the API rejects a call without it.
  * The key includes the build pair so every build tab caches separately.
+ *
+ * `opponentChampionId` re-slices the spikes against the lane opponent picked in
+ * the filter bar (#957), the same scope the build sections already carry. It is
+ * part of the key too, so clearing the opponent falls back to the cached global
+ * slice instead of refetching it.
  */
 export function useChampionPowerspikes(
   championId: MaybeRefOrGetter<number>,
@@ -17,6 +22,7 @@ export function useChampionPowerspikes(
   buildFirstItemId: MaybeRefOrGetter<number | null | undefined>,
   buildKeystoneId: MaybeRefOrGetter<number | null | undefined>,
   eloBracket: MaybeRefOrGetter<string | null | undefined> = undefined,
+  opponentChampionId: MaybeRefOrGetter<number | null | undefined> = undefined,
 ) {
   const championIdRef = computed(() => toValue(championId))
   const positionRef = computed(() => toValue(position) || undefined)
@@ -24,6 +30,7 @@ export function useChampionPowerspikes(
   const firstItemRef = computed(() => toValue(buildFirstItemId) || 0)
   const keystoneRef = computed(() => toValue(buildKeystoneId) || 0)
   const eloBracketRef = computed(() => toValue(eloBracket) || undefined)
+  const opponentRef = computed(() => toValue(opponentChampionId) || 0)
 
   const empty = (): ChampionPowerspikesResponse => ({
     championId: championIdRef.value,
@@ -34,7 +41,7 @@ export function useChampionPowerspikes(
 
   return useLazyAsyncData<ChampionPowerspikesResponse>(
     () => `champion-powerspikes|${championIdRef.value}|${positionRef.value ?? ''}|${patchRef.value ?? ''}`
-      + `|${eloBracketRef.value ?? ''}|${firstItemRef.value}|${keystoneRef.value}`,
+      + `|${eloBracketRef.value ?? ''}|${firstItemRef.value}|${keystoneRef.value}|${opponentRef.value}`,
     () => {
       // The build key is required server-side, so hold rather than fire a 400
       // while the build (or the lane) is still resolving.
@@ -49,6 +56,7 @@ export function useChampionPowerspikes(
       }
       if (patchRef.value) query.patch = patchRef.value
       if (eloBracketRef.value) query.eloBracket = eloBracketRef.value
+      if (opponentRef.value > 0) query.opponentChampionId = opponentRef.value
 
       return $fetch<ChampionPowerspikesResponse>(
         `/api/champions/${championIdRef.value}/powerspikes`,
@@ -56,7 +64,7 @@ export function useChampionPowerspikes(
       )
     },
     {
-      watch: [championIdRef, positionRef, patchRef, firstItemRef, keystoneRef, eloBracketRef],
+      watch: [championIdRef, positionRef, patchRef, firstItemRef, keystoneRef, eloBracketRef, opponentRef],
       server: false,
     },
   )

@@ -112,6 +112,10 @@ public sealed class ChampionPowerspikeAggregationProcessIntegrationTests
             row.TeamPosition.Should().Be(Position);
             row.Patch.Should().Be("16.4");
             row.EloBracket.Should().Be(EloBracket);
+            // The lane opponent the spike was measured against (#957) — the same
+            // participant the power series is a diff of, recorded rather than
+            // discarded so the matchup filter has something to select on.
+            row.OpponentChampionId.Should().Be(Opponent);
             row.Games.Should().Be(Games);
             // The lead is flat across minutes, so power is flat and the slope-change
             // spike is exactly zero — a clean check that the spike is computed (not

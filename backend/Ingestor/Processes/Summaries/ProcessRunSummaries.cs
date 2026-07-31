@@ -226,4 +226,9 @@ public sealed record MatchDataRetentionSummary(
     // together in one transaction, so one counter describes both.
     int DeletedBanStats,
     int PrunedSubFloorPowerspikeEvents,
+    // Per-opponent powerspike shards (#957) rolled back into one opponent-less row
+    // once their patch froze, and how many rows that produced. Runs before the
+    // sub-floor prune above, which must see the rolled-up games rather than shards.
+    int CollapsedPowerspikeOpponentShards,
+    int CollapsedPowerspikeOpponentGroups,
     IReadOnlyList<RetainedPatchesSummary> RetainedPatchesByPlatform) : IProcessRunSummary;

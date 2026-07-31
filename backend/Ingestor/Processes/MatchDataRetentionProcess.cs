@@ -5,6 +5,7 @@ using Ingestor.Options;
 using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Npgsql;
 
 namespace Ingestor.Processes;
 
@@ -68,7 +69,10 @@ public sealed class MatchDataRetentionProcess(
         // was built to reclaim. Independent of the deletions above.
         var snapshotPrune = await PruneAggregatedTimelineSnapshotsAsync(retentionPlan.QueueId, ct);
 
-        // Reclaim the long tail of rare core builds in the powerspike event aggregate.
+        // Roll the per-opponent powerspike split back up once a patch stops receiving
+        // games, then reclaim the long tail of rare core builds. Order matters: the
+        // floor below must see the rolled-up games, not the per-opponent shards.
+        var collapsedPowerspikeOpponents = await CollapseOutOfWindowPowerspikeOpponentsAsync(retentionPlan, ct);
         var prunedPowerspikeEvents = await PruneSubFloorPowerspikeEventsAsync(retentionPlan, ct);
 
         return BuildRetentionPayload(
@@ -79,7 +83,108 @@ public sealed class MatchDataRetentionProcess(
             prunedCandidates,
             aggregateDeletion,
             snapshotPrune,
-            prunedPowerspikeEvents);
+            prunedPowerspikeEvents,
+            collapsedPowerspikeOpponents);
+    }
+
+    /// <summary>
+    /// Rolls the per-opponent powerspike event rows (#957) of a patch back into a
+    /// single <c>OpponentChampionId = 0</c> row once that patch drops out of the
+    /// retained window.
+    ///
+    /// <para>
+    /// Two things would otherwise break. The split multiplies the row count by the
+    /// number of distinct lane opponents met, and nothing would ever reclaim it —
+    /// the opponent dimension is only ever queried for the patch the champion page
+    /// is showing, so keeping it on frozen patches is pure weight. And
+    /// <see cref="PruneSubFloorPowerspikeEventsAsync"/> filters on a row's own
+    /// <c>Games</c>: a build with 500 games split across 40 opponents becomes 40
+    /// rows of ~12, every one of them under the floor, so the next retention cycle
+    /// would delete the patch's spikes outright — including from the unscoped read,
+    /// which today keeps them. Collapsing first restores exactly the pre-#957 row,
+    /// so that floor sees the same number it used to and behaves unchanged.
+    /// </para>
+    ///
+    /// <para>
+    /// Unbatched, unlike the snapshot prune: this touches one expiring patch's
+    /// shards rather than a whole backfilled history, and it has nothing to do on
+    /// the first runs after #957 ships (no row carries an opponent yet).
+    /// </para>
+    /// </summary>
+    private async Task<PowerspikeCollapseResult> CollapseOutOfWindowPowerspikeOpponentsAsync(
+        RetentionPlan retentionPlan,
+        CancellationToken ct)
+    {
+        var livePatches = retentionPlan.RetainedPatchesByPlatform
+            .SelectMany(entry => entry.Value)
+            .ToArray();
+        if (livePatches.Length == 0)
+        {
+            // No live patch resolved means the plan could not decide what is frozen;
+            // collapsing everything on that basis would destroy the split for patches
+            // still in use. Do nothing rather than guess.
+            return PowerspikeCollapseResult.Empty;
+        }
+
+        await using var db = await dbContextFactory.CreateDbContextAsync(ct);
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+
+        // Fold every shard of a frozen patch into its opponent-less row, creating it
+        // when the patch predates #957 entirely. Additive, so re-running is safe as
+        // long as the shards are deleted in the same transaction (below).
+        const string collapseSql = """
+            INSERT INTO champion_powerspike_event_stats
+                ("Id", "ChampionId", "TeamPosition", "Patch", "elo_bracket",
+                 "BuildFirstItemId", "BuildKeystoneId", "OpponentChampionId",
+                 "EventType", "RefId", "SumSpike", "SumMinute", "Games", "AggregatedAtUtc")
+            SELECT gen_random_uuid(), s."ChampionId", s."TeamPosition", s."Patch", s."elo_bracket",
+                   s."BuildFirstItemId", s."BuildKeystoneId", 0,
+                   s."EventType", s."RefId", SUM(s."SumSpike"), SUM(s."SumMinute"), SUM(s."Games"),
+                   MAX(s."AggregatedAtUtc")
+            FROM champion_powerspike_event_stats s
+            WHERE s."OpponentChampionId" <> 0 AND NOT (s."Patch" = ANY(@livePatches))
+            GROUP BY s."ChampionId", s."TeamPosition", s."Patch", s."elo_bracket",
+                     s."BuildFirstItemId", s."BuildKeystoneId", s."EventType", s."RefId"
+            ON CONFLICT ("ChampionId", "TeamPosition", "Patch", "elo_bracket",
+                         "BuildFirstItemId", "BuildKeystoneId", "OpponentChampionId",
+                         "EventType", "RefId") DO UPDATE SET
+                "SumSpike" = champion_powerspike_event_stats."SumSpike" + EXCLUDED."SumSpike",
+                "SumMinute" = champion_powerspike_event_stats."SumMinute" + EXCLUDED."SumMinute",
+                "Games" = champion_powerspike_event_stats."Games" + EXCLUDED."Games",
+                -- GREATEST rather than EXCLUDED: the surviving opponent-less row can be
+                -- the older of the two (it predates #957 entirely), and this column is
+                -- read as "when was this last folded into".
+                "AggregatedAtUtc" = GREATEST(
+                    champion_powerspike_event_stats."AggregatedAtUtc", EXCLUDED."AggregatedAtUtc")
+            """;
+
+        var collapsedGroups = await db.Database.ExecuteSqlRawAsync(
+            collapseSql, [new NpgsqlParameter("livePatches", livePatches)], ct);
+
+        var deletedShards = 0;
+        if (collapsedGroups > 0)
+        {
+            // Same predicate as the SELECT above and the same transaction snapshot, so
+            // every shard that contributed is removed and none that did not. The
+            // freshly written rows carry opponent 0 and are excluded by construction.
+            deletedShards = await db.ChampionPowerspikeEventStats
+                .Where(stat => stat.OpponentChampionId != 0 && !livePatches.Contains(stat.Patch))
+                .ExecuteDeleteAsync(ct);
+        }
+
+        await transaction.CommitAsync(ct);
+
+        if (deletedShards > 0)
+        {
+            logger.LogInformation(
+                "Powerspike opponent retention collapsed {DeletedShards} per-opponent row(s) into "
+                + "{CollapsedGroups} opponent-less row(s) on patches outside {LivePatches}.",
+                deletedShards,
+                collapsedGroups,
+                string.Join("|", livePatches.Order()));
+        }
+
+        return new PowerspikeCollapseResult(collapsedGroups, deletedShards);
     }
 
     /// <summary>
@@ -484,7 +589,8 @@ public sealed class MatchDataRetentionProcess(
         int prunedCandidates,
         AggregateDeletionResult aggregateDeletion,
         SnapshotPruneResult snapshotPrune,
-        int prunedPowerspikeEvents)
+        int prunedPowerspikeEvents,
+        PowerspikeCollapseResult powerspikeCollapse)
     {
         return new MatchDataRetentionSummary(
             retentionPlan.RetainedPatchCount,
@@ -502,6 +608,8 @@ public sealed class MatchDataRetentionProcess(
             aggregateDeletion.DeletedSynergyStats,
             aggregateDeletion.DeletedBanStats,
             prunedPowerspikeEvents,
+            powerspikeCollapse.DeletedShards,
+            powerspikeCollapse.CollapsedGroups,
             retentionPlan.RetainedPatchesByPlatform
                 .OrderBy(entry => entry.Key)
                 .Select(entry => new RetainedPatchesSummary(entry.Key, entry.Value.Order().ToList()))
@@ -513,6 +621,11 @@ public sealed class MatchDataRetentionProcess(
     private sealed record SnapshotPruneResult(int PrunedMatches, int DeletedSnapshots)
     {
         public static SnapshotPruneResult Empty { get; } = new(0, 0);
+    }
+
+    private sealed record PowerspikeCollapseResult(int CollapsedGroups, int DeletedShards)
+    {
+        public static PowerspikeCollapseResult Empty { get; } = new(0, 0);
     }
 
     private sealed record DeletionResult(int DeletedMatches, int DeletedParticipants)

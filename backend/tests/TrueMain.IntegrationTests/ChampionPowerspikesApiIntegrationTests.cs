@@ -28,6 +28,7 @@ public sealed class ChampionPowerspikesApiIntegrationTests
     private const int QueueId = 420;
     private const int Champion = 157; // Yone
     private const int Opponent = 238; // Zed
+    private const int SecondOpponent = 103; // Ahri — the other side of the matchup split (#957)
     private const string Position = "MIDDLE";
     private const string GameVersion = "16.4.521.123";
 
@@ -184,6 +185,55 @@ public sealed class ChampionPowerspikesApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetChampionPowerspikesAsync_NarrowsToTheRequestedLaneOpponent()
+    {
+        await _fixture.ResetDatabaseAsync();
+        // 6 games against Zed and 6 against the second opponent, identical curves.
+        await SeedTwoOpponentsAsync(perOpponentGames: 6);
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // Unscoped, the read sums across opponents — the split is a refinement of the
+        // grain, so it must not move the number the page showed before #957.
+        var all = await client.GetFromJsonAsync<ChampionPowerspikesResponse>(
+            $"/champions/{Champion}/powerspikes?position={Position}&{BuildQuery}");
+        all!.Events.Single(e => e.Type == "item" && e.RefId == CoreItem).Games.Should().Be(12);
+
+        // Scoped, only that opponent's games. 6 sits under MinMatchupGames (10): the
+        // floor is deliberately not applied to a matchup slice, so this also pins the
+        // bypass — without it the section would be empty for nearly every matchup.
+        var versusZed = await client.GetFromJsonAsync<ChampionPowerspikesResponse>(
+            $"/champions/{Champion}/powerspikes?position={Position}&{BuildQuery}&opponentChampionId={Opponent}");
+        versusZed!.Events.Single(e => e.Type == "item" && e.RefId == CoreItem).Games.Should().Be(6);
+
+        var versusOther = await client.GetFromJsonAsync<ChampionPowerspikesResponse>(
+            $"/champions/{Champion}/powerspikes?position={Position}&{BuildQuery}&opponentChampionId={SecondOpponent}");
+        versusOther!.Events.Single(e => e.Type == "item" && e.RefId == CoreItem).Games.Should().Be(6);
+    }
+
+    [Fact]
+    public async Task GetChampionPowerspikesAsync_ReturnsNoEventsForAnUnplayedMatchup()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedAsync(games: 12);
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // A matchup with no folded game is empty, not a fallback onto the champion's
+        // global spikes — the same rule the build key follows (#890). It is the state
+        // every matchup is in until enough matches have been folded since #957, so it
+        // has to be a clean empty rather than a silently wrong answer.
+        var response = await client.GetAsync(
+            $"/champions/{Champion}/powerspikes?position={Position}&{BuildQuery}&opponentChampionId=99999");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var spikes = await response.Content.ReadFromJsonAsync<ChampionPowerspikesResponse>();
+        spikes!.Events.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task GetChampionPowerspikesAsync_ReturnsBadRequestForInvalidPosition()
     {
         await _fixture.ResetDatabaseAsync();
@@ -257,6 +307,38 @@ public sealed class ChampionPowerspikesApiIntegrationTests
         await RunAggregationAsync();
     }
 
+    /// <summary>
+    /// Seeds the same champion, position and core build against two different lane
+    /// opponents, <paramref name="perOpponentGames"/> games each, so the matchup
+    /// filter (#957) has something to separate and the unscoped read has something
+    /// to sum back together.
+    /// </summary>
+    private async Task SeedTwoOpponentsAsync(int perOpponentGames)
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        var account = new RiotAccountBuilder()
+            .WithGameName("SpikeMatchup")
+            .WithTagLine("KR1")
+            .WithPuuid("spike-matchup-puuid")
+            .Build();
+        db.RiotAccounts.Add(account);
+        AddKeystoneCatalog(db);
+
+        for (var i = 0; i < perOpponentGames; i++)
+        {
+            AddSpikeGame(db, $"m-spike-zed-{i}", i, perOpponentGames, account.Id, eloBracket: "", Opponent);
+        }
+        for (var i = 0; i < perOpponentGames; i++)
+        {
+            AddSpikeGame(db, $"m-spike-ahri-{i}", i, perOpponentGames, account.Id, eloBracket: "", SecondOpponent);
+        }
+
+        await db.SaveChangesAsync();
+
+        await RunAggregationAsync();
+    }
+
     // Fold the seeded dense snapshots into the powerspike stat tables the read now
     // consumes, exactly as the ingestor's incremental aggregation does in production.
     private async Task RunAggregationAsync()
@@ -273,7 +355,8 @@ public sealed class ChampionPowerspikesApiIntegrationTests
     }
 
     private static void AddSpikeGame(
-        Data.TrueMainDbContext db, string matchId, int index, int cohortGames, Guid accountId, string eloBracket)
+        Data.TrueMainDbContext db, string matchId, int index, int cohortGames, Guid accountId, string eloBracket,
+        int opponentChampionId = Opponent)
     {
         db.Matches.Add(new MatchBuilder()
             .WithId(matchId)
@@ -298,7 +381,7 @@ public sealed class ChampionPowerspikesApiIntegrationTests
             new ItemEvent { EventType = "ITEM_PURCHASED", ItemId = CoreItem, TimestampMs = kink * 60_000 }
         ];
         db.MatchParticipants.Add(champion);
-        db.MatchParticipants.Add(Participant(matchId, 2, Opponent, teamId: 200, win: false));
+        db.MatchParticipants.Add(Participant(matchId, 2, opponentChampionId, teamId: 200, win: false));
 
         // The keystone half of the build key.
         db.ParticipantPerkSelections.Add(new ParticipantPerkSelection
