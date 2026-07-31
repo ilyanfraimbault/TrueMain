@@ -84,30 +84,11 @@ public sealed class ChampionMatchupBuildsQueryService(
             participants = participants.Where(p => bracketFilter.Contains(p.EloBracket));
         }
 
-        // The self-join is the whole point: a participant belongs to this slice only if
-        // the same match holds the opponent champion, on the other team, in the same
-        // position. Same shape as the matchup winrate (#90), reused here to pick games
-        // rather than to count them — so the filter and the numbers beside it can never
-        // disagree about what "facing X" means.
-        var keys = await participants
-            .Join(
-                db.MatchParticipants.AsNoTracking().Where(o =>
-                    o.ChampionId == opponentChampionId && o.TeamPosition == position),
-                p => p.MatchId,
-                o => o.MatchId,
-                (p, o) => new { Participant = p, Opponent = o })
-            .Where(pair => pair.Opponent.TeamId != pair.Participant.TeamId)
-            .Join(
-                db.Matches.AsNoTracking().Where(m => m.QueueId == queueId
-                    && (normalizedPatch == null || m.GameVersion.StartsWith(normalizedPatch + "."))),
-                pair => pair.Participant.MatchId,
-                m => m.Id,
-                (pair, m) => new
-                {
-                    pair.Participant.MatchId,
-                    pair.Participant.ParticipantId,
-                    m.GameStartTimeUtc,
-                })
+        // Same self-join ResolveNewestPatchAsync runs below, patch filter aside — pulled
+        // into JoinMatchupMatches so the two queries can't drift on what "facing X" means
+        // (flagged in review: they used to be copy-pasted, one edit away from disagreeing).
+        var keys = await JoinMatchupMatches(participants, opponentChampionId, position, queueId, normalizedPatch)
+            .Select(row => new { row.MatchId, row.ParticipantId, row.GameStartTimeUtc })
             // Newest first: when the cap does bite, the games it keeps are the ones whose
             // builds are still current.
             .OrderByDescending(row => row.GameStartTimeUtc)
@@ -176,7 +157,33 @@ public sealed class ChampionMatchupBuildsQueryService(
             participants = participants.Where(p => bracketFilter.Contains(p.EloBracket));
         }
 
-        var newestVersion = await participants
+        var newestVersion = await JoinMatchupMatches(participants, opponentChampionId, position, queueId, patch: null)
+            .OrderByDescending(row => row.GameStartTimeUtc)
+            .Select(row => row.GameVersion)
+            .FirstOrDefaultAsync(ct);
+
+        return string.IsNullOrEmpty(newestVersion) ? null : PatchVersion.Normalize(newestVersion);
+    }
+
+    /// <summary>
+    /// The self-join deciding which participants "faced" <paramref name="opponentChampionId"/>:
+    /// same match, opponent champion at <paramref name="position"/>, on the other team, in
+    /// <paramref name="queueId"/> and — when given — starting with <paramref name="patch"/>.
+    ///
+    /// <para>
+    /// Shared by <see cref="GetAsync"/> and <see cref="ResolveNewestPatchAsync"/> so the two
+    /// queries cannot silently disagree on what "facing X" means; before this they were two
+    /// copies of the same join, one edit away from drifting. Same shape as the matchup
+    /// winrate (#90), reused here to pick games rather than to count them.
+    /// </para>
+    /// </summary>
+    private IQueryable<MatchupMatchRow> JoinMatchupMatches(
+        IQueryable<Data.Entities.MatchParticipant> participants,
+        int opponentChampionId,
+        string position,
+        int queueId,
+        string? patch) =>
+        participants
             .Join(
                 db.MatchParticipants.AsNoTracking().Where(o =>
                     o.ChampionId == opponentChampionId && o.TeamPosition == position),
@@ -185,14 +192,27 @@ public sealed class ChampionMatchupBuildsQueryService(
                 (p, o) => new { Participant = p, Opponent = o })
             .Where(pair => pair.Opponent.TeamId != pair.Participant.TeamId)
             .Join(
-                db.Matches.AsNoTracking().Where(m => m.QueueId == queueId),
+                db.Matches.AsNoTracking().Where(m => m.QueueId == queueId
+                    && (patch == null || m.GameVersion.StartsWith(patch + "."))),
                 pair => pair.Participant.MatchId,
                 m => m.Id,
-                (pair, m) => new { m.GameStartTimeUtc, m.GameVersion })
-            .OrderByDescending(row => row.GameStartTimeUtc)
-            .Select(row => row.GameVersion)
-            .FirstOrDefaultAsync(ct);
+                (pair, m) => new MatchupMatchRow
+                {
+                    MatchId = pair.Participant.MatchId,
+                    ParticipantId = pair.Participant.ParticipantId,
+                    GameStartTimeUtc = m.GameStartTimeUtc,
+                    GameVersion = m.GameVersion,
+                });
 
-        return string.IsNullOrEmpty(newestVersion) ? null : PatchVersion.Normalize(newestVersion);
+    // Object-initializer syntax, not a positional record: Npgsql's EF provider fails to
+    // translate a later OrderBy/Select over a positional constructor call re-embedded from
+    // the Join's resultSelector ("could not be translated"). Property-init form translates
+    // cleanly and keeps the same immutable-record ergonomics everywhere else.
+    private sealed record MatchupMatchRow
+    {
+        public required string MatchId { get; init; }
+        public required int ParticipantId { get; init; }
+        public required DateTime GameStartTimeUtc { get; init; }
+        public required string GameVersion { get; init; }
     }
 }
