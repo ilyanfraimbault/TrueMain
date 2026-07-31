@@ -23,6 +23,8 @@ public sealed class ChampionMatchupStatConfiguration : IEntityTypeConfiguration<
         entity.Property(e => e.LaneGames).IsRequired().HasDefaultValue(0);
         entity.Property(e => e.LaneWins).IsRequired().HasDefaultValue(0);
         entity.Property(e => e.LaneLosses).IsRequired().HasDefaultValue(0);
+        entity.Property(e => e.LaneGoldDiffSum).IsRequired().HasDefaultValue(0L);
+        entity.Property(e => e.LaneGoldDiffGames).IsRequired().HasDefaultValue(0);
         entity.Property(e => e.AggregatedAtUtc).IsRequired();
 
         // Natural key on the aggregate grain (now split per elo band). Its leading

@@ -2,6 +2,7 @@
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import type { ChampionMatchupEntry } from '~~/shared/types/champions'
 import { formatPercentage } from '~~/shared/utils/ddragon'
+import { formatGoldDiff } from '~/utils/lane-verdict'
 
 const props = defineProps<{
   entry: ChampionMatchupEntry
@@ -30,11 +31,22 @@ const laneWinRateClass = computed(() => {
   if (props.entry.laneWinRate === null) return 'text-dimmed'
   return props.entry.laneWinRate >= 0.5 ? 'text-emerald-400' : 'text-red-400'
 })
-const laneTooltip = computed(() =>
-  props.entry.laneWinRate === null
-    ? 'No lane decided past the gold threshold at 15 min in this slice'
-    : `Lane win rate over ${props.entry.decidedLaneGames.toLocaleString()} decided lane(s)`,
-)
+// The gold gap rides in the same tooltip (#976): it is the magnitude the rate
+// cannot carry — 60% of lanes won by 120 gold and by 1200 are the same rate —
+// but it rests on its own, smaller sample, so it is spelled out rather than
+// squeezed into a second column that would read as a qualifier of the first.
+const laneTooltip = computed(() => {
+  const { laneWinRate, decidedLaneGames, averageGoldDiffAt15, goldDiffLaneGames } = props.entry
+  const gap = averageGoldDiffAt15 === null
+    ? null
+    : `avg ${formatGoldDiff(averageGoldDiffAt15)} gold at 15 min over `
+      + `${goldDiffLaneGames.toLocaleString()} lane(s)`
+  if (laneWinRate === null) {
+    return gap ?? 'No lane decided past the gold threshold at 15 min in this slice'
+  }
+  const rate = `Lane win rate over ${decidedLaneGames.toLocaleString()} decided lane(s)`
+  return gap ? `${rate} · ${gap}` : rate
+})
 </script>
 
 <template>

@@ -615,7 +615,10 @@ public sealed class DataQualityDetectorsQueryService(
             .LongCountAsync(
                 stat => stat.Wins > stat.Games
                     || stat.LaneGames > stat.Games
-                    || stat.LaneWins + stat.LaneLosses > stat.LaneGames,
+                    || stat.LaneWins + stat.LaneLosses > stat.LaneGames
+                    // The gold gap is summed over a subset of the judged lanes — behind
+                    // on rows folded before #976, never ahead of them.
+                    || stat.LaneGoldDiffGames > stat.LaneGames,
                 ct);
 
         // A champion cannot be banned more often than there were matches to ban it in.

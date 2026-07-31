@@ -20,7 +20,7 @@ namespace Data.CompiledModels
                 "Data.Entities.ChampionMatchupStat",
                 typeof(ChampionMatchupStat),
                 baseEntityType,
-                propertyCount: 12,
+                propertyCount: 14,
                 unnamedIndexCount: 1,
                 keyCount: 1);
 
@@ -78,6 +78,26 @@ namespace Data.CompiledModels
                 sentinel: 0);
             laneGames.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
             laneGames.AddAnnotation("Relational:DefaultValue", 0);
+
+            var laneGoldDiffGames = runtimeEntityType.AddProperty(
+                "LaneGoldDiffGames",
+                typeof(int),
+                propertyInfo: typeof(ChampionMatchupStat).GetProperty("LaneGoldDiffGames", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(ChampionMatchupStat).GetField("<LaneGoldDiffGames>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: 0);
+            laneGoldDiffGames.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            laneGoldDiffGames.AddAnnotation("Relational:DefaultValue", 0);
+
+            var laneGoldDiffSum = runtimeEntityType.AddProperty(
+                "LaneGoldDiffSum",
+                typeof(long),
+                propertyInfo: typeof(ChampionMatchupStat).GetProperty("LaneGoldDiffSum", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(ChampionMatchupStat).GetField("<LaneGoldDiffSum>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: 0L);
+            laneGoldDiffSum.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            laneGoldDiffSum.AddAnnotation("Relational:DefaultValue", 0L);
 
             var laneLosses = runtimeEntityType.AddProperty(
                 "LaneLosses",

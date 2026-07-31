@@ -745,6 +745,20 @@ async function mockMatchups(id: number): Promise<ChampionMatchups | null> {
       const laneWinRate = decidedLaneGames === 0
         ? null
         : round3(Math.min(0.75, Math.max(0.25, winRate + (rng() - 0.5) * 0.18)))
+      // Gold gap at 15 (#976), on its own sample and not a slice of the decided
+      // lanes: it counts every *judged* lane, evens included, so it is larger than
+      // `decidedLaneGames` and survives an opponent whose lanes never decided.
+      // Every fifth opponent has no measured gap and every seventh only a handful,
+      // so the verdict strip's two shortfall states are both reachable without a
+      // backend; the gap itself spans all five bands, which is what the strip is for.
+      const goldDiffLaneGames = o.id % 5 === 0
+        ? 0
+        : o.id % 7 === 0
+          ? Math.round(2 + rng() * 6)
+          : Math.round(games * (0.5 + rng() * 0.3))
+      const averageGoldDiffAt15 = goldDiffLaneGames === 0
+        ? null
+        : Math.round((s.wr - o.wr) * 9000 + (rng() - 0.5) * 320)
       return {
         opponentChampionId: o.id,
         games,
@@ -752,6 +766,8 @@ async function mockMatchups(id: number): Promise<ChampionMatchups | null> {
         winRate,
         laneWinRate,
         decidedLaneGames,
+        averageGoldDiffAt15,
+        goldDiffLaneGames,
       }
     }),
   }

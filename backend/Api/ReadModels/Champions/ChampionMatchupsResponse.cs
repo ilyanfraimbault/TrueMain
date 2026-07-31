@@ -69,8 +69,10 @@ public sealed record ChampionMatchupEntry
     ///
     /// <para>
     /// <see langword="null"/> when nothing can be said: no decided lane in the scope,
-    /// or the single-opponent search path, which is a live query over participants
-    /// with no lane data behind it. Never a substitute zero.
+    /// or a <em>player-scoped</em> slice, whose lane cannot be read off a
+    /// population-wide aggregate. The global single-opponent search does carry it —
+    /// its head-to-head is live, but its lane counters are read from the aggregate
+    /// for that one opponent (#976). Never a substitute zero.
     /// </para>
     /// </summary>
     public double? LaneWinRate { get; init; }
@@ -82,4 +84,28 @@ public sealed record ChampionMatchupEntry
     /// the client to guess.
     /// </summary>
     public int DecidedLaneGames { get; init; }
+
+    /// <summary>
+    /// Mean gold gap over the lane opponent at 15 minutes, in gold, signed from the
+    /// champion's point of view (#976). This is the *magnitude*
+    /// <see cref="LaneWinRate"/> cannot carry: a lane won 60% of the time by 120 gold
+    /// and one won 60% of the time by 1200 are the same rate and a different matchup.
+    ///
+    /// <para>
+    /// Averaged over <see cref="GoldDiffLaneGames"/> — the lanes the gap was actually
+    /// summed over, which for rows folded before #976 is fewer than
+    /// <see cref="DecidedLaneGames"/> and often zero. <see langword="null"/> then,
+    /// never 0: "we have not measured this gap" and "the lane is dead even" are the
+    /// opposite of interchangeable here, since 0 is the most decisive-looking value
+    /// the number can take.
+    /// </para>
+    /// </summary>
+    public double? AverageGoldDiffAt15 { get; init; }
+
+    /// <summary>
+    /// Lanes <see cref="AverageGoldDiffAt15"/> is averaged over. Returned so the client
+    /// can withhold a verdict on a sample too small to band, rather than turning three
+    /// lanes into a confident label.
+    /// </summary>
+    public int GoldDiffLaneGames { get; init; }
 }
