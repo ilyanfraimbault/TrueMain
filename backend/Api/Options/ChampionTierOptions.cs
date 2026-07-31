@@ -4,6 +4,15 @@ namespace TrueMain.Options;
 /// Blend weights for <see cref="Services.Champions.ChampionTierCalculator"/>'s
 /// S/A/B/C/D scoring. Product knobs the user wants to tweak without a
 /// redeploy, so they bind from <c>ChampionTier:*</c> in configuration.
+///
+/// <para>
+/// <see cref="PickRateWeight"/> + <see cref="BanRateWeight"/> +
+/// <see cref="WinRateWeight"/> must sum to <c>1</c> (enforced at startup in
+/// <c>Program.cs</c>): each metric is percentile-ranked into <c>[0, 1]</c>
+/// before weighting, so a score of <c>1.0</c> (or a renormalized ban-free
+/// score — see <see cref="BanRateWeight"/>) is only guaranteed to stay within
+/// <c>[0, 1]</c> when the weights themselves sum to <c>1</c>.
+/// </para>
 /// </summary>
 public sealed class ChampionTierOptions
 {

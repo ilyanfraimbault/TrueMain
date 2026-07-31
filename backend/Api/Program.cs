@@ -151,9 +151,13 @@ builder.Services.AddOptions<ChampionTierOptions>()
     .Validate(options => options.PickRateWeight >= 0, "ChampionTier:PickRateWeight must be >= 0.")
     .Validate(options => options.BanRateWeight >= 0, "ChampionTier:BanRateWeight must be >= 0.")
     .Validate(options => options.WinRateWeight >= 0, "ChampionTier:WinRateWeight must be >= 0.")
+    // Must sum to 1 (not just "> 0"): TierScore is documented as a [0,1]
+    // blend of percentile-ranked metrics (each already in [0,1]), and the
+    // no-ban-data renormalization path (ChampionTierCalculator.ResolveWeights)
+    // only preserves that bound if the configured weights start at 1.
     .Validate(
-        options => options.PickRateWeight + options.BanRateWeight + options.WinRateWeight > 0,
-        "ChampionTier: at least one of PickRateWeight/BanRateWeight/WinRateWeight must be > 0.")
+        options => Math.Abs(options.PickRateWeight + options.BanRateWeight + options.WinRateWeight - 1.0) < 1e-9,
+        "ChampionTier: PickRateWeight + BanRateWeight + WinRateWeight must sum to 1.")
     .Validate(options => options.WinRateShrinkageGames >= 0, "ChampionTier:WinRateShrinkageGames must be >= 0.")
     .ValidateOnStart();
 builder.Services.AddOptions<StorageHistoryOptions>()
