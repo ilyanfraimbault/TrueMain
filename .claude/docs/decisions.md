@@ -60,6 +60,23 @@ the `MatchupLeadAggregation` options section were deliberately **not renamed** �
 A blended cross-build answer is wrong (Botrk vs Kraken rushes behave differently). Winrate delta was
 considered and rejected as confounded — completing a third item correlates with already winning — #890, #775.
 
+**Matchup-scoped power spikes are a dimension on the aggregate, not a live recompute — because a live
+recompute is impossible.**
+The other matchup-filtered sections fold `match_participants` live (#923), so #957 was written assuming the
+same. It cannot work: a spike is the second difference of the power curve on a ±3-minute window around an
+arbitrary event minute, and retention prunes the dense per-minute grid to {5, 10, 15, 20, 30} the moment the
+match is folded (#772). The window has nothing left to sit on. What made it cheap instead is that the spike is
+*already* opponent-relative — the fold resolves the lane opponent to build the diff series and was simply
+discarding their id. Recording it splits the grain exactly: every game belongs to one opponent, so the
+unscoped read recovers its old numbers by summing across them, which is what it already did.
+Two consequences, both deliberate. **Coverage is forward-only**: pre-#957 rows sit at `OpponentChampionId = 0`
+and no filter can match them, so a matchup's spikes start empty and fill in patch by patch — the section says
+so rather than blaming the matchup. And **retention rolls the split back up** when a patch leaves the live
+window: without that, a 500-game build shredded into 40 opponent rows of ~12 would fall entirely under the
+`PowerspikeEventMinGames` floor and the next cycle would delete the patch's spikes from the *unscoped* read
+too. The baseline curve stays champion-wide on purpose — it corrects the global concavity of lead curves, and
+recomputing it on a 4-game matchup would swap that correction for noise and subtract the signal from itself — #957.
+
 **Champion synergy is observed *minus expected* win rate, never the raw pair win rate.**
 Ranking pairings by raw win rate just re-prints the tier list — two strong champions win together because
 they are strong. Expected is combined in log-odds space (`Core.Lol.Synergy.SynergyMath`) rather than by adding

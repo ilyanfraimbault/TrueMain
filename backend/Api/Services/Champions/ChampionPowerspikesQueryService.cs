@@ -34,8 +34,15 @@ namespace TrueMain.Services.Champions;
 /// view would be permanently empty (#775). It is the reason the curve aggregate is
 /// still read even though the curve itself is no longer rendered (#890).
 ///
-/// Events are scoped to one core build, so a champion built two ways yields two
-/// independent sets of item spikes instead of one blend. Correlational, not causal:
+/// Events are scoped to one core build and, since #957, to one lane opponent, so the
+/// champion page's matchup filter re-slices this section like every other. Only the
+/// events move: the mean curve the baseline is subtracted from stays champion-wide on
+/// purpose. It is a normaliser for the global concavity of lead curves, and recomputing
+/// it on a 4-game matchup would replace that steady correction with noise — worse, it
+/// would subtract the matchup's own signal from itself.
+///
+/// A champion built two ways yields two independent sets of item spikes instead of
+/// one blend. Correlational, not causal:
 /// a champion completes an item earlier partly because it is already ahead; the
 /// opponent-relative + slope-change framing dampens that but does not remove it.
 /// Same queue / patch / tracked-account population as the sibling reads.
@@ -60,6 +67,7 @@ public sealed class ChampionPowerspikesQueryService(
         string? eloBracket,
         int buildFirstItemId,
         int buildKeystoneId,
+        int? opponentChampionId,
         CancellationToken ct)
     {
         var normalizedPatch = string.IsNullOrWhiteSpace(patch)
@@ -72,8 +80,10 @@ public sealed class ChampionPowerspikesQueryService(
         var bands = EloBracket.ResolveFilter(eloBracket);
         var bracketToken = EloBracket.ResolveToken(eloBracket);
 
+        var opponent = opponentChampionId is > 0 ? opponentChampionId.Value : (int?)null;
+
         var cacheKey = $"champions:powerspikes:{championId}:{position}:{normalizedPatch ?? "all"}:{bracketToken}"
-            + $":{buildFirstItemId}:{buildKeystoneId}";
+            + $":{buildFirstItemId}:{buildKeystoneId}:{opponent?.ToString() ?? "any"}";
         if (cache.TryGetValue<ChampionPowerspikesResponse>(cacheKey, out var cached) && cached is not null)
         {
             return cached;
@@ -114,7 +124,7 @@ public sealed class ChampionPowerspikesQueryService(
             championId, position, normalizedPatch, bands, minGames, sigmaByMinute, ct);
         var events = await BuildEventsAsync(
             championId, position, normalizedPatch, bands, minGames,
-            buildFirstItemId, buildKeystoneId, powerByMinute, ct);
+            buildFirstItemId, buildKeystoneId, opponent, powerByMinute, ct);
 
         var response = new ChampionPowerspikesResponse
         {
@@ -204,6 +214,10 @@ public sealed class ChampionPowerspikesQueryService(
     // Rows are scoped to one core build (#890), so the item events returned are by
     // construction the ones that build completes — no intersection with a dominant
     // build is needed, and two builds of the same champion no longer blend.
+    //
+    // With an opponent (#957) the same rows are narrowed to the games played against
+    // them. Rows carry exactly one opponent each, so the unscoped call keeps summing
+    // across all of them and its numbers are unchanged by the extra dimension.
     private async Task<List<ChampionPowerspikeEvent>> BuildEventsAsync(
         int championId,
         string position,
@@ -212,6 +226,7 @@ public sealed class ChampionPowerspikesQueryService(
         int minGames,
         int buildFirstItemId,
         int buildKeystoneId,
+        int? opponentChampionId,
         IReadOnlyDictionary<int, double> powerByMinute,
         CancellationToken ct)
     {
@@ -232,6 +247,15 @@ public sealed class ChampionPowerspikesQueryService(
             query = query.Where(e => bands.Contains(e.EloBracket));
         }
 
+        if (opponentChampionId is { } opponent)
+        {
+            // Rows folded before #957 sit at 0 ("opponent not recorded"), as do rows
+            // retention has rolled back up once their patch froze. Both are blends of
+            // every opponent, so a matchup filter must not match them — it would
+            // silently answer with the global slice.
+            query = query.Where(e => e.OpponentChampionId == opponent);
+        }
+
         var grouped = await query
             .GroupBy(e => new { e.EventType, e.RefId })
             .Select(g => new
@@ -244,9 +268,16 @@ public sealed class ChampionPowerspikesQueryService(
             })
             .ToListAsync(ct);
 
+        // No games floor on a matchup slice, matching the rest of the matchup-filtered
+        // page (decided 2026-07-30, #923): the median champion-vs-opponent pair holds
+        // 4 games on a patch, so applying the global floor would empty the section for
+        // nearly every matchup. The honest answer to a thin sample is the sample size,
+        // which every event already carries.
+        var floor = opponentChampionId is null ? minGames : 1;
+
         // Tiny result set (a handful of events per slice), so the games floor is
         // applied in memory rather than as a translated HAVING clause.
-        var rows = grouped.Where(g => g.Games >= minGames).ToList();
+        var rows = grouped.Where(g => g.Games >= floor).ToList();
         if (rows.Count == 0)
         {
             return [];

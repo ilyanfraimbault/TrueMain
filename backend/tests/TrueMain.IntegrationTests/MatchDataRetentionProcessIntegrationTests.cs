@@ -165,6 +165,70 @@ public sealed class MatchDataRetentionProcessIntegrationTests
             .SingleAsync()).Should().BeFalse();
     }
 
+    [Fact]
+    public async Task RunAsync_ShouldCollapsePerOpponentPowerspikeRowsOnFrozenPatchesOnly()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedRetentionDataAsync();
+
+        // With one patch retained per platform the live set is {16.4 (KR), 16.5 (NA1)},
+        // so 16.3 is the frozen patch the collapse must act on.
+        await using (var seedDb = _fixture.CreateDbContext())
+        {
+            foreach (var patch in new[] { "16.3", "16.4" })
+            {
+                foreach (var opponent in new[] { 51, 61 })
+                {
+                    seedDb.ChampionPowerspikeEventStats.Add(PowerspikeEvent(patch, opponent, games: 12));
+                }
+            }
+
+            await seedDb.SaveChangesAsync();
+        }
+
+        await BuildRecordedProcess(retainedPatchCount: 1).RunCoreAsync(CancellationToken.None);
+
+        await using var db = _fixture.CreateDbContext();
+        var rows = await db.ChampionPowerspikeEventStats.AsNoTracking()
+            .OrderBy(stat => stat.Patch).ThenBy(stat => stat.OpponentChampionId)
+            .Select(stat => new { stat.Patch, stat.OpponentChampionId, stat.Games })
+            .ToListAsync();
+
+        // The frozen patch keeps one opponent-less row carrying both shards' games.
+        // 12 + 12 = 24 is the point: each shard alone sits under the 20-game floor the
+        // sub-floor prune applies right after, so without the collapse the patch would
+        // lose its spikes entirely — including for the unscoped read, which kept them
+        // before the opponent dimension existed.
+        rows.Where(row => row.Patch == "16.3").Should().BeEquivalentTo(
+            new[] { new { Patch = "16.3", OpponentChampionId = 0, Games = 24 } });
+
+        // The live patch is untouched: its split is still being queried by the page.
+        rows.Where(row => row.Patch == "16.4").Should().BeEquivalentTo(
+        [
+            new { Patch = "16.4", OpponentChampionId = 51, Games = 12 },
+            new { Patch = "16.4", OpponentChampionId = 61, Games = 12 }
+        ]);
+    }
+
+    private static ChampionPowerspikeEventStat PowerspikeEvent(string patch, int opponentChampionId, int games)
+        => new()
+        {
+            Id = Guid.NewGuid(),
+            ChampionId = 22,
+            TeamPosition = "BOTTOM",
+            Patch = patch,
+            EloBracket = "GOLD",
+            BuildFirstItemId = 6672,
+            BuildKeystoneId = 8008,
+            OpponentChampionId = opponentChampionId,
+            EventType = "level",
+            RefId = 6,
+            SumSpike = games * 0.01,
+            SumMinute = games * 6d,
+            Games = games,
+            AggregatedAtUtc = new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc)
+        };
+
     private async Task SeedAggregateDataAsync()
     {
         await using var db = _fixture.CreateDbContext();

@@ -546,6 +546,7 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
             :position="trendPosition"
             :patch="selectedPatch || null"
             :elo-bracket="eloBracketParam"
+            :opponent-champion-id="filters.opponentChampionId ?? null"
           />
           <ChampionBuildTabsSkeleton v-else />
 
