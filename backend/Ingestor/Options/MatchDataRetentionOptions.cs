@@ -17,6 +17,15 @@ public class MatchDataRetentionOptions
     public int NonRankedDeleteBatchSize { get; set; } = 500;
 
     /// <summary>
+    /// Number of expired-patch matches deleted per transaction when a patch drops
+    /// out of the retained window. A whole patch expiring is hundreds of thousands
+    /// of matches; deleting them in one transaction let the cascading removal of
+    /// timeline snapshots / kill positions blow the command timeout on every run,
+    /// and the rollback meant retention never made progress (#988).
+    /// </summary>
+    public int ExpiredPatchDeleteBatchSize { get; set; } = 500;
+
+    /// <summary>
     /// Number of most-recent patches whose champion aggregates (scopes+patterns,
     /// matchup stats, timeline leads, powerspike stats) are retained. <c>0</c>
     /// (the default) disables aggregate retention entirely: old-patch aggregates

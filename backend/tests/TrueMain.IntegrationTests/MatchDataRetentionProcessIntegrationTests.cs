@@ -316,7 +316,10 @@ public sealed class MatchDataRetentionProcessIntegrationTests
             Microsoft.Extensions.Options.Options.Create(new MatchDataRetentionOptions
             {
                 RetainedPatchCount = retainedPatchCount,
+                // Batch sizes of 1 force every multi-match deletion through the
+                // multi-batch path (one transaction per match).
                 NonRankedDeleteBatchSize = 1,
+                ExpiredPatchDeleteBatchSize = 1,
                 AggregateRetainedPatchCount = aggregateRetainedPatchCount
             }),
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions

@@ -520,19 +520,37 @@ public sealed class MatchDataRetentionProcess(
         return deletableMatchIds;
     }
 
+    // Delete in bounded batches, one transaction each, mirroring the non-ranked
+    // drain: a whole patch dropping out of the window is a patch's worth of matches,
+    // and the cascading removal of timeline snapshots / kill positions / jungle
+    // clears / perk selections / bans made the previous single-transaction delete
+    // blow the command timeout on every run — and its rollback meant retention never
+    // reclaimed anything (#988). Each committed batch keeps its progress and lets an
+    // interrupted purge resume next run.
     private async Task<DeletionResult> DeleteExpiredMatchDataAsync(
         IReadOnlyCollection<string> deletableMatchIds,
         CancellationToken ct)
     {
-        await using var db = await dbContextFactory.CreateDbContextAsync(ct);
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        var deletedParticipants = await db.MatchParticipants
-            .Where(participant => deletableMatchIds.Contains(participant.MatchId))
-            .ExecuteDeleteAsync(ct);
-        var deletedMatches = await db.Matches
-            .Where(match => deletableMatchIds.Contains(match.Id))
-            .ExecuteDeleteAsync(ct);
-        await transaction.CommitAsync(ct);
+        var batchSize = Math.Max(1, retentionOptions.Value.ExpiredPatchDeleteBatchSize);
+        var deletedMatches = 0;
+        var deletedParticipants = 0;
+
+        foreach (var batchIds in deletableMatchIds.Chunk(batchSize))
+        {
+            ct.ThrowIfCancellationRequested();
+
+            await using var db = await dbContextFactory.CreateDbContextAsync(ct);
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            // MatchParticipant -> Match is Restrict, so participants must be deleted
+            // before the match; the remaining child tables cascade on the match delete.
+            deletedParticipants += await db.MatchParticipants
+                .Where(participant => batchIds.Contains(participant.MatchId))
+                .ExecuteDeleteAsync(ct);
+            deletedMatches += await db.Matches
+                .Where(match => batchIds.Contains(match.Id))
+                .ExecuteDeleteAsync(ct);
+            await transaction.CommitAsync(ct);
+        }
 
         return new DeletionResult(deletedMatches, deletedParticipants);
     }
