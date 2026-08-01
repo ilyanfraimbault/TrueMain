@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Core.Lol.Map;
+using Core.Options;
 using Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -13,6 +14,7 @@ public sealed class TruemainsLeaderboardQueryService(
     TrueMainDbContext db,
     IDbContextFactory<TrueMainDbContext> dbFactory,
     IOptions<TruemainsLeaderboardOptions> options,
+    IOptions<MainAnalysisOptions> mainAnalysisOptions,
     IMemoryCache cache,
     ILogger<TruemainsLeaderboardQueryService> logger) : ITruemainsLeaderboardQueryService
 {
@@ -30,6 +32,10 @@ public sealed class TruemainsLeaderboardQueryService(
     // staleness for a massive drop in DB load. Mirrors the TTL
     // ChampionSummariesQueryService uses for the same reason.
     private static readonly TimeSpan ResponseCacheTtl = TimeSpan.FromSeconds(30);
+
+    // Static because the service is scoped: the whole point is to coalesce across
+    // concurrent *requests*, which each get their own instance.
+    private static readonly RequestCoalescer<Ranking> RankingCoalescer = new();
 
     // Ranked solo queue. Matches the queue used by MainStatsCalculator
     // for main_champion_stats, so the "games" / KDA / winrate cell stays
@@ -352,12 +358,43 @@ public sealed class TruemainsLeaderboardQueryService(
             return cachedRanking;
         }
 
+        // Miss. Everyone who missed together shares one scoring pass instead of each
+        // running their own over the eligible population (#870) — the reason this path
+        // needs it more than the others is that the dedication sort replaced an indexed
+        // count with a scored scan of up to MaxDedicationCandidates accounts.
+        return await RankingCoalescer.GetOrJoinAsync(
+            rankingCacheKey,
+            () => ComputeAndCacheRankingAsync(
+                rankingCacheKey, platforms, championFilter, position, minGames, otpOnly),
+            ct);
+    }
+
+    private async Task<Ranking> ComputeAndCacheRankingAsync(
+        string rankingCacheKey,
+        string[] platforms,
+        int? championFilter,
+        string? position,
+        int minGames,
+        bool otpOnly)
+    {
+        // Detached from any single caller's token: the pass is shared, so one request
+        // walking away must not cancel it for the others (see RequestCoalescer). It is
+        // bounded by the candidate cap and its own TTL.
+        var ct = CancellationToken.None;
+
+        // Re-check under the coalescer: while this caller was queueing behind another
+        // pass for the same key, that pass may have finished and cached its result.
+        if (cache.TryGetValue<Ranking>(rankingCacheKey, out var justCached) && justCached is not null)
+        {
+            return justCached;
+        }
+
         // Own short-lived context: consistent with the other fetches, and this
         // one can be a long-running scan.
         await using var ctx = await dbFactory.CreateDbContextAsync(ct);
         var (candidates, truncated) = await MainDedication.FetchCandidatesAsync(
             ctx, platforms, championFilter, position, minGames, otpOnly, MinPositionShare,
-            DateTime.UtcNow, MaxDedicationCandidates, ct);
+            DateTime.UtcNow, mainAnalysisOptions.Value.PlayRateFloor, MaxDedicationCandidates, ct);
 
         if (truncated)
         {
@@ -424,7 +461,13 @@ public sealed class TruemainsLeaderboardQueryService(
         // Own short-lived context: this runs concurrently with the other page
         // hydration fetches, and a single DbContext is not thread-safe.
         await using var ctx = await dbFactory.CreateDbContextAsync(ct);
-        return await MainDedication.FetchAsync(ctx, accountIds, championFilter, DateTime.UtcNow, ct);
+        return await MainDedication.FetchAsync(
+            ctx,
+            accountIds,
+            championFilter,
+            DateTime.UtcNow,
+            mainAnalysisOptions.Value.PlayRateFloor,
+            ct);
     }
 
     /// <summary>
@@ -979,9 +1022,7 @@ public sealed class TruemainsLeaderboardQueryService(
                 Games: row.Games,
                 Wins: row.Wins,
                 Losses: row.Games - row.Wins,
-                Kda: row.Deaths > 0
-                    ? (double)(row.Kills + row.Assists) / row.Deaths
-                    : row.Kills + row.Assists);
+                Kda: RateMath.Kda(row.Kills, row.Deaths, row.Assists, row.Games));
         }
 
         return result;

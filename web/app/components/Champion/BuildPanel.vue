@@ -20,6 +20,9 @@ const props = defineProps<{
   position?: string | null
   patch?: string | null
   eloBracket?: string | null
+  // Lane opponent selected in the filter bar (#957): the build this panel renders
+  // is already the matchup's, so its spikes must come from the same games.
+  opponentChampionId?: number | null
 }>()
 
 const showPowerspikes = computed(() => Boolean(props.championId && props.position))
@@ -34,6 +37,7 @@ const { data: powerspikes, status: powerspikesStatus } = useChampionPowerspikes(
   () => props.build.firstItemId,
   () => props.build.primaryKeystoneId,
   () => props.eloBracket,
+  () => props.opponentChampionId,
 )
 </script>
 
@@ -134,6 +138,7 @@ const { data: powerspikes, status: powerspikesStatus } = useChampionPowerspikes(
     <ChampionBuildPanelPowerspikes
       v-if="showPowerspikes"
       :events="powerspikes?.events ?? []"
+      :matchup-scoped="Boolean(opponentChampionId)"
       :items-map="itemsMap"
       :loading="isLoadingStatus(powerspikesStatus)"
     />

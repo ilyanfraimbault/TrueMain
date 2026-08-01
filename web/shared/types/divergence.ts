@@ -8,7 +8,7 @@ export const DIVERGENCE_DIMENSIONS = ['starterItems', 'boots', 'itemPath', 'skil
 export type DivergenceDimension = typeof DIVERGENCE_DIMENSIONS[number]
 
 /**
- * "You vs mains" payload
+ * "<player> vs mains" payload
  * (`GET /api/truemains/{nameTag}/champions/{championId}/divergence`): how one
  * player's habits on a champion compare to what the champion's other mains do
  * at the same patch and position.

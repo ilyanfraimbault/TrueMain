@@ -3,8 +3,9 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using AwesomeAssertions;
 using Data.Entities;
+using Data.Ops.Mongo;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.EntityFrameworkCore;
+using MongoDB.Driver;
 
 namespace TrueMain.IntegrationTests;
 
@@ -13,18 +14,21 @@ public sealed class SeedRequestApiIntegrationTests
 {
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
     private readonly PostgresFixture _fixture;
+    private readonly MongoFixture _mongo;
 
-    public SeedRequestApiIntegrationTests(PostgresFixture fixture)
+    public SeedRequestApiIntegrationTests(PostgresFixture fixture, MongoFixture mongo)
     {
         _fixture = fixture;
+        _mongo = mongo;
     }
 
     [Fact]
     public async Task PostSeed_ShouldRecordPendingRequestAndReturn202()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateClient(factory);
 
         var response = await client.PostAsJsonAsync(
@@ -38,8 +42,7 @@ public sealed class SeedRequestApiIntegrationTests
         accepted!.Id.Should().NotBe(Guid.Empty);
         accepted.Status.Should().Be("Pending");
 
-        await using var db = _fixture.CreateDbContext();
-        var row = await db.SeedRequests.SingleAsync();
+        var row = await Requests().Find(FilterDefinition<SeedRequestDocument>.Empty).SingleAsync();
         row.Id.Should().Be(accepted.Id);
         row.GameName.Should().Be("Phantasm");
         row.TagLine.Should().Be("EUW1");
@@ -53,8 +56,9 @@ public sealed class SeedRequestApiIntegrationTests
     public async Task PostSeed_ShouldBeIdempotent_ForAnUnprocessedDuplicate()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateClient(factory);
 
         var first = await client.PostAsJsonAsync(
@@ -72,16 +76,16 @@ public sealed class SeedRequestApiIntegrationTests
         second.StatusCode.Should().Be(HttpStatusCode.Accepted);
         secondBody!.Id.Should().Be(firstBody!.Id, "an unprocessed duplicate returns the existing request");
 
-        await using var db = _fixture.CreateDbContext();
-        (await db.SeedRequests.CountAsync()).Should().Be(1);
+        (await Requests().CountDocumentsAsync(FilterDefinition<SeedRequestDocument>.Empty)).Should().Be(1);
     }
 
     [Fact]
     public async Task PostSeed_ShouldReturn400_ForUnknownPlatform()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateClient(factory);
 
         var response = await client.PostAsJsonAsync(
@@ -90,16 +94,16 @@ public sealed class SeedRequestApiIntegrationTests
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
-        await using var db = _fixture.CreateDbContext();
-        (await db.SeedRequests.CountAsync()).Should().Be(0);
+        (await Requests().CountDocumentsAsync(FilterDefinition<SeedRequestDocument>.Empty)).Should().Be(0);
     }
 
     [Fact]
     public async Task PostSeed_ShouldReturn400_ForMissingGameName()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateClient(factory);
 
         var response = await client.PostAsJsonAsync(
@@ -113,26 +117,23 @@ public sealed class SeedRequestApiIntegrationTests
     public async Task GetSeedById_ShouldReturnStableShape()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
         var id = Guid.NewGuid();
-        await using (var db = _fixture.CreateDbContext())
+        await Requests().InsertOneAsync(new SeedRequestDocument
         {
-            db.SeedRequests.Add(new SeedRequest
-            {
-                Id = id,
-                GameName = "Phantasm",
-                TagLine = "EUW1",
-                PlatformId = "EUW1",
-                Status = SeedRequestStatus.Ingested,
-                RequestedAtUtc = DateTime.UtcNow.AddMinutes(-5),
-                ProcessedAtUtc = DateTime.UtcNow,
-                ResolvedPuuid = "puuid-1",
-                ResolvedRiotAccountId = Guid.NewGuid()
-            });
-            await db.SaveChangesAsync();
-        }
+            Id = id,
+            GameName = "Phantasm",
+            TagLine = "EUW1",
+            PlatformId = "EUW1",
+            Status = SeedRequestStatus.Ingested,
+            RequestedAtUtc = DateTime.UtcNow.AddMinutes(-5),
+            ProcessedAtUtc = DateTime.UtcNow,
+            ResolvedPuuid = "puuid-1",
+            ResolvedRiotAccountId = Guid.NewGuid()
+        });
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateClient(factory);
 
         var response = await client.GetAsync($"/ops/accounts/seed/{id}");
@@ -155,8 +156,9 @@ public sealed class SeedRequestApiIntegrationTests
     public async Task GetSeedById_ShouldReturn404_WhenUnknown()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateClient(factory);
 
         var response = await client.GetAsync($"/ops/accounts/seed/{Guid.NewGuid()}");
@@ -167,18 +169,17 @@ public sealed class SeedRequestApiIntegrationTests
     public async Task GetSeedList_ShouldReturnNewestFirstAndFilterByStatus()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
         var now = DateTime.UtcNow;
-        await using (var db = _fixture.CreateDbContext())
-        {
-            db.SeedRequests.AddRange(
-                Build("Older", SeedRequestStatus.Pending, now.AddMinutes(-30)),
-                Build("Newer", SeedRequestStatus.Pending, now.AddMinutes(-10)),
-                Build("Done", SeedRequestStatus.Ingested, now.AddMinutes(-20)));
-            await db.SaveChangesAsync();
-        }
+        await Requests().InsertManyAsync(
+        [
+            Build("Older", SeedRequestStatus.Pending, now.AddMinutes(-30)),
+            Build("Newer", SeedRequestStatus.Pending, now.AddMinutes(-10)),
+            Build("Done", SeedRequestStatus.Ingested, now.AddMinutes(-20))
+        ]);
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateClient(factory);
 
         var all = await client.GetFromJsonAsync<List<SeedRequestContract>>("/ops/accounts/seed");
@@ -196,8 +197,9 @@ public sealed class SeedRequestApiIntegrationTests
     public async Task SeedEndpoints_ShouldRequireOpsApiKey()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("https://localhost")
@@ -209,7 +211,10 @@ public sealed class SeedRequestApiIntegrationTests
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
-    private static SeedRequest Build(string gameName, SeedRequestStatus status, DateTime requestedAtUtc)
+    private IMongoCollection<SeedRequestDocument> Requests()
+        => _mongo.GetCollection<SeedRequestDocument>(MongoFixture.SeedRequestsCollection);
+
+    private static SeedRequestDocument Build(string gameName, SeedRequestStatus status, DateTime requestedAtUtc)
         => new()
         {
             Id = Guid.NewGuid(),
@@ -230,13 +235,17 @@ public sealed class SeedRequestApiIntegrationTests
         return client;
     }
 
-    // Disable the database logging sink in the test host so incidental host
-    // warnings never write log_entries rows (kept consistent with the other
-    // ops API tests).
-    private sealed class ApiWebApplicationFactory(PostgresFixture fixture)
+    // Point the host at the test Mongo container (the seed-request queue lives
+    // there) and mute the diagnostic sink so incidental host warnings never
+    // write extra documents.
+    private sealed class ApiWebApplicationFactory(PostgresFixture fixture, MongoFixture mongo)
         : TrueMainWebApplicationFactory<Program>(
             fixture,
-            [new KeyValuePair<string, string?>("LoggingSink:Enabled", "false")]);
+            [
+                new KeyValuePair<string, string?>("MongoLogging:ConnectionString", mongo.ConnectionString),
+                new KeyValuePair<string, string?>("MongoLogging:Database", MongoFixture.DatabaseName),
+                new KeyValuePair<string, string?>("MongoLogging:MinimumLevel", "None")
+            ]);
 
     private sealed class SeedAcceptedContract
     {

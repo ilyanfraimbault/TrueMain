@@ -1,6 +1,7 @@
 using Core.Lol.Identifiers;
 using Data.Entities;
 using Data.Logging;
+using Data.Ops.Mongo;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Common;
@@ -20,6 +21,7 @@ public sealed class DiscoveryProcess(
     IAccountUpsertService accountUpsertService,
     ICandidateUpsertService candidateUpsertService,
     IRankSnapshotWriter rankSnapshotWriter,
+    IProcessRunStore processRunStore,
     TimeProvider timeProvider,
     IOptions<DiscoveryOptions> discoveryOptions) : IIngestorProcess
 {
@@ -60,8 +62,7 @@ public sealed class DiscoveryProcess(
     /// </summary>
     private async Task<DateTime?> ShouldSkipForCadenceAsync(TimeSpan minRunInterval, CancellationToken ct)
     {
-        await using var session = await sessionFactory.CreateAsync(ct);
-        var lastRunUtc = await session.ProcessRuns.GetLastCompletedRunStartAsync(Name, ct);
+        var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(Name, ct);
         return lastRunUtc is not null && timeProvider.GetUtcNow().UtcDateTime - lastRunUtc.Value < minRunInterval
             ? lastRunUtc
             : null;
@@ -203,13 +204,17 @@ public sealed class DiscoveryProcess(
             {
                 latestByAccountId.TryGetValue(upsertResult.Account.Id, out var latest);
                 var outcome = rankSnapshotWriter.Ingest(session, upsertResult.Account, item.Rank, latest, nowUtc);
-                if (outcome == RankSnapshotOutcome.Inserted)
+                switch (outcome)
                 {
-                    summary.RankSnapshotsInserted++;
-                }
-                else
-                {
-                    summary.RankSnapshotsUnchanged++;
+                    case RankSnapshotOutcome.Inserted:
+                        summary.RankSnapshotsInserted++;
+                        break;
+                    case RankSnapshotOutcome.Updated:
+                        summary.RankSnapshotsUpdated++;
+                        break;
+                    default:
+                        summary.RankSnapshotsUnchanged++;
+                        break;
                 }
             }
 
@@ -285,13 +290,14 @@ public sealed class DiscoveryProcess(
         // operator can follow ladder-discovery throughput from /ops/logs.
         logger.LogInformation(
             OpsEvents.DiscoveryCycleCompleted,
-            "Discovery summary for {Platform}: accounts={AccountsProcessed}, newAccounts={NewAccounts}, candidatesInserted={Inserted}, candidatesUpdated={Updated}, rankSnapshotsInserted={RankInserted}, rankSnapshotsUnchanged={RankUnchanged}.",
+            "Discovery summary for {Platform}: accounts={AccountsProcessed}, newAccounts={NewAccounts}, candidatesInserted={Inserted}, candidatesUpdated={Updated}, rankSnapshotsInserted={RankInserted}, rankSnapshotsUpdated={RankUpdated}, rankSnapshotsUnchanged={RankUnchanged}.",
             platformSummary.PlatformId,
             platformSummary.AccountsProcessed,
             platformSummary.NewAccountsDiscovered,
             platformSummary.CandidatesInserted,
             platformSummary.CandidatesUpdated,
             platformSummary.RankSnapshotsInserted,
+            platformSummary.RankSnapshotsUpdated,
             platformSummary.RankSnapshotsUnchanged);
     }
 
@@ -305,6 +311,7 @@ public sealed class DiscoveryProcess(
                 summary.CandidatesInserted,
                 summary.CandidatesUpdated,
                 summary.RankSnapshotsInserted,
+                summary.RankSnapshotsUpdated,
                 summary.RankSnapshotsUnchanged,
                 // Null for platforms that completed; the per-platform error message
                 // otherwise, so a partially failed run says which platform failed and why.
@@ -320,6 +327,7 @@ public sealed class DiscoveryProcess(
         public int CandidatesInserted { get; set; }
         public int CandidatesUpdated { get; set; }
         public int RankSnapshotsInserted { get; set; }
+        public int RankSnapshotsUpdated { get; set; }
         public int RankSnapshotsUnchanged { get; set; }
         public string? FailureReason { get; init; }
     }

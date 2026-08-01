@@ -10,6 +10,8 @@ interface UseTruemainMatchesOptions {
   position?: MaybeRefOrGetter<string | null | undefined>
   /** Champion id to filter on. Pass null/undefined or 0 to clear. */
   championId?: MaybeRefOrGetter<number | null | undefined>
+  /** Hold the request back while false — see {@link useTruemainFetch}. */
+  enabled?: MaybeRefOrGetter<boolean>
 }
 
 /**
@@ -46,6 +48,7 @@ export function useTruemainMatches(
   const pageSize = ref(options.pageSize ?? 20)
 
   const { isLoading, isInitialLoading, notFound, error, execute } = useTruemainFetch<MatchSummariesResponse>(nameTag, {
+    enabled: options.enabled,
     watch: [pageRef, positionRef, championIdRef],
     request: (tag) => {
       const query: Record<string, string | number> = {

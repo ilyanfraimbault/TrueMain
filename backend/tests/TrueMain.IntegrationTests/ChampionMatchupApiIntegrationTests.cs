@@ -8,6 +8,7 @@ using Data.Entities;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using TrueMain.ReadModels.Champions;
 using TrueMain.TestKit.EntityBuilders;
@@ -161,6 +162,95 @@ public sealed class ChampionMatchupApiIntegrationTests
         talon.OpponentChampionId.Should().Be(OtherOpponent);
         talon.Games.Should().Be(1);
         talon.Wins.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task GetChampionMatchupsAsync_AveragesTheGoldGapOverTheLanesItWasMeasuredOn()
+    {
+        await _fixture.ResetDatabaseAsync();
+        // Two patch slices of the same matchup, each with its own gap sample. The
+        // measured lanes (20 + 5) are deliberately fewer than the judged ones
+        // (30 + 8): the average must divide by the former.
+        await SeedGoldGapRowsAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var matchups = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
+            $"/champions/{Champion}/matchups?position={Position}");
+
+        var zed = matchups!.Matchups.Should().ContainSingle(m => m.OpponentChampionId == Opponent).Subject;
+        zed.GoldDiffLaneGames.Should().Be(25, "both patch slices' samples fold together");
+        zed.AverageGoldDiffAt15.Should().BeApproximately(200d, 1e-9,
+            "(6000 - 1000) gold over 25 measured lanes — not over the 38 judged ones");
+    }
+
+    [Fact]
+    public async Task GetChampionMatchupsAsync_ReportsNoGoldGapWhenNoneWasEverMeasured()
+    {
+        await _fixture.ResetDatabaseAsync();
+        // The shape every row folded before #976 has: lane outcomes, no gap. Dividing
+        // the empty sum by the judged lanes would print +0 gold — "dead even", the most
+        // decisive-looking value the number takes — out of data that does not exist.
+        await SeedGoldGapRowsAsync(measured: false);
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var matchups = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
+            $"/champions/{Champion}/matchups?position={Position}");
+
+        var zed = matchups!.Matchups.Should().ContainSingle(m => m.OpponentChampionId == Opponent).Subject;
+        zed.AverageGoldDiffAt15.Should().BeNull("no lane of this matchup has a measured gap");
+        zed.GoldDiffLaneGames.Should().Be(0);
+        zed.LaneWinRate.Should().NotBeNull("the outcome counters are unaffected — only the gap is missing");
+    }
+
+    [Fact]
+    public async Task GetChampionMatchupsAsync_WithOpponent_CarriesLaneDataFromTheAggregate()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedOpponentScopeSampleAsync();
+        // The lane counters the fold would have written for that head-to-head.
+        await StampLaneCountersAsync(OtherOpponent, laneWins: 9, laneLosses: 3, goldDiffSum: 3300, goldDiffGames: 12);
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // The head-to-head itself stays live — that is what lets a one-game matchup
+        // show at all — while its lane half is read from the aggregate (#976).
+        var matchups = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
+            $"/champions/{Champion}/matchups?position={Position}&opponent={OtherOpponent}");
+
+        var talon = matchups!.Matchups.Should().ContainSingle().Subject;
+        talon.Games.Should().Be(3, "games and wins still come from the live self-join");
+        talon.LaneWinRate.Should().BeApproximately(9d / 12d, 1e-9);
+        talon.DecidedLaneGames.Should().Be(12);
+        talon.AverageGoldDiffAt15.Should().BeApproximately(275d, 1e-9);
+        talon.GoldDiffLaneGames.Should().Be(12);
+    }
+
+    [Fact]
+    public async Task GetPlayerChampionMatchupsAsync_WithOpponent_KeepsLaneDataUnknown()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var nameTag = await SeedOpponentScopeSampleAsync();
+        await StampLaneCountersAsync(OtherOpponent, laneWins: 9, laneLosses: 3, goldDiffSum: 3300, goldDiffGames: 12);
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // The same aggregate row is right there, and must stay out of a player's row:
+        // it is folded over every tracked account, so lending it here would tell this
+        // player their lane went the way the population's did.
+        var matchups = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
+            $"/truemains/{nameTag}/champions/{Champion}/matchups?position={Position}&opponent={OtherOpponent}");
+
+        var talon = matchups!.Matchups.Should().ContainSingle().Subject;
+        talon.Games.Should().Be(1, "the player scope still narrows to their own game");
+        talon.LaneWinRate.Should().BeNull("a population-wide lane is not this player's lane");
+        talon.AverageGoldDiffAt15.Should().BeNull();
+        talon.GoldDiffLaneGames.Should().Be(0);
     }
 
     [Fact]
@@ -532,6 +622,83 @@ public sealed class ChampionMatchupApiIntegrationTests
                 Wins = 6,
                 AggregatedAtUtc = now
             });
+
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Seeds two aggregate rows of the same matchup on different patches, carrying
+    /// lane outcomes and — when <paramref name="measured"/> — the gold gap behind them
+    /// (#976). Written straight to the table so only the read-side fold is exercised.
+    ///
+    /// <para>
+    /// The gap's sample is deliberately smaller than <c>LaneGames</c> on both rows: it
+    /// is what a partially-drained fold leaves behind, and the average must never quietly
+    /// borrow the larger denominator.
+    /// </para>
+    /// </summary>
+    private async Task SeedGoldGapRowsAsync(bool measured = true)
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        var now = DateTime.UtcNow;
+        db.ChampionMatchupStats.AddRange(
+            new ChampionMatchupStat
+            {
+                ChampionId = Champion,
+                TeamPosition = Position,
+                OpponentChampionId = Opponent,
+                Patch = "16.4",
+                EloBracket = EloBracket.Gold,
+                Games = 30,
+                Wins = 18,
+                LaneGames = 30,
+                LaneWins = 14,
+                LaneLosses = 6,
+                LaneGoldDiffSum = measured ? 6000 : 0,
+                LaneGoldDiffGames = measured ? 20 : 0,
+                AggregatedAtUtc = now
+            },
+            new ChampionMatchupStat
+            {
+                ChampionId = Champion,
+                TeamPosition = Position,
+                OpponentChampionId = Opponent,
+                Patch = "16.5",
+                EloBracket = EloBracket.Gold,
+                Games = 8,
+                Wins = 3,
+                LaneGames = 8,
+                LaneWins = 2,
+                LaneLosses = 4,
+                LaneGoldDiffSum = measured ? -1000 : 0,
+                LaneGoldDiffGames = measured ? 5 : 0,
+                AggregatedAtUtc = now
+            });
+
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Stamps lane counters onto the aggregate row the matchup fold already wrote for
+    /// an opponent, so the read side has the lane half of a head-to-head whose games
+    /// are computed live.
+    /// </summary>
+    private async Task StampLaneCountersAsync(
+        int opponentChampionId, int laneWins, int laneLosses, long goldDiffSum, int goldDiffGames)
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        var row = await db.ChampionMatchupStats.SingleAsync(s =>
+            s.ChampionId == Champion
+            && s.TeamPosition == Position
+            && s.OpponentChampionId == opponentChampionId);
+
+        row.LaneGames = laneWins + laneLosses;
+        row.LaneWins = laneWins;
+        row.LaneLosses = laneLosses;
+        row.LaneGoldDiffSum = goldDiffSum;
+        row.LaneGoldDiffGames = goldDiffGames;
 
         await db.SaveChangesAsync();
     }

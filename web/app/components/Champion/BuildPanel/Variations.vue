@@ -57,6 +57,7 @@ function spellByKey(key: string) {
             />
           </div>
           <RateBadge
+            :games="option.games"
             :pick-rate="option.pickRate"
             :win-rate="option.winRate"
           />
@@ -100,6 +101,7 @@ function spellByKey(key: string) {
             </template>
           </div>
           <RateBadge
+            :games="option.games"
             :pick-rate="option.pickRate"
             :win-rate="option.winRate"
           />
@@ -131,6 +133,7 @@ function spellByKey(key: string) {
             />
           </div>
           <RateBadge
+            :games="option.games"
             :pick-rate="option.pickRate"
             :win-rate="option.winRate"
           />
@@ -162,6 +165,7 @@ function spellByKey(key: string) {
             />
           </div>
           <RateBadge
+            :games="option.games"
             :pick-rate="option.pickRate"
             :win-rate="option.winRate"
           />

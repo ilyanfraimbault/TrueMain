@@ -3,10 +3,11 @@ namespace TrueMain.ReadModels.Champions;
 /// <summary>
 /// The champion meta / tier-list view (<c>GET /champions/tierlist</c>) for a
 /// single patch, optionally narrowed to one position. Champions are grouped
-/// into S / A / B / C / D tiers by a winRate + pickRate blend, with the
-/// tiering computed <b>per position</b> — an S-tier mid laner is S among mid
-/// laners, not against the whole patch — so the page reads as a meta ranking
-/// for the role the user is filtering on.
+/// into S / A / B / C / D tiers by a pickRate + banRate + winRate blend
+/// (#971 — presence-first: pick and ban rate outweigh a sample-shrunk win
+/// rate), with the tiering computed <b>per position</b> — an S-tier mid
+/// laner is S among mid laners, not against the whole patch — so the page
+/// reads as a meta ranking for the role the user is filtering on.
 ///
 /// <para>
 /// Every metric is derived from the same <c>champion_aggregate_scopes</c> rows
@@ -43,8 +44,9 @@ public sealed record ChampionTierGroupReadModel
     public string Tier { get; init; } = string.Empty;
 
     /// <summary>
-    /// Rows in this tier, ordered strongest-first by the same winRate + pickRate
-    /// score that placed them in the bucket.
+    /// Rows in this tier, ordered strongest-first by the same blended score
+    /// that placed them in the bucket (see
+    /// <see cref="Services.Champions.ChampionTierCalculator"/>).
     /// </summary>
     public IReadOnlyList<ChampionTierEntryReadModel> Entries { get; init; } = [];
 }
@@ -69,4 +71,16 @@ public sealed record ChampionTierEntryReadModel
     /// same main-population pickrate as <see cref="ChampionSummaryReadModel.PickRate"/>.
     /// </summary>
     public double PickRate { get; init; }
+
+    /// <summary>
+    /// Share of observed matches that banned this champion, or <see langword="null"/>
+    /// when the patch predates ban ingestion — see
+    /// <see cref="ChampionSummaryReadModel.BanRate"/>, which this is copied from.
+    /// Feeds the tier score (#971, second-highest weight after pick rate) whenever
+    /// this field's patch has ban data at all; on a patch with none, the ban term
+    /// is dropped from the blend and its weight folds into pick rate and win rate
+    /// so tiers stay comparable across ban-data and no-ban-data patches — see
+    /// <see cref="Services.Champions.ChampionTierCalculator"/>.
+    /// </summary>
+    public double? BanRate { get; init; }
 }

@@ -1,7 +1,7 @@
 using Core.Lol.Patches;
 using Core.Options;
 using Data;
-using Data.Entities;
+using Data.Ops.Mongo;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrueMain.ReadModels.Ops;
@@ -10,12 +10,14 @@ namespace TrueMain.Services.Ops;
 
 public sealed class AggregationStatsQueryService(
     TrueMainDbContext db,
+    IProcessRunStore processRunStore,
     IOptions<MainAnalysisOptions> mainAnalysisOptions) : IAggregationStatsQueryService
 {
     private static readonly string[] ProcessNames =
     [
         "ChampionPatternAggregation",
         "ChampionMatchupLeadAggregation",
+        "ChampionSynergyAggregation",
         "ChampionPowerspikeAggregation",
         "MainAnalysis",
         "MatchParticipantEloBracketEnrichment"
@@ -38,6 +40,7 @@ public sealed class AggregationStatsQueryService(
         {
             await BuildBuildsFamilyAsync(runsByProcess, ct),
             await BuildMatchupsFamilyAsync(runsByProcess, ct),
+            await BuildSynergiesFamilyAsync(runsByProcess, ct),
             await BuildPowerspikesFamilyAsync(runsByProcess, ct),
             await BuildMainsFamilyAsync(runsByProcess, ct)
         };
@@ -50,6 +53,9 @@ public sealed class AggregationStatsQueryService(
             .LongCountAsync(
                 match => match.QueueId == queueId && match.TimelineIngested && !match.PowerspikeAggregated,
                 ct);
+        var pendingSynergyMatches = await db.Matches
+            .AsNoTracking()
+            .LongCountAsync(match => match.QueueId == queueId && !match.SynergyAggregated, ct);
         var pendingEloBracketParticipants = await db.MatchParticipants
             .AsNoTracking()
             .LongCountAsync(
@@ -63,6 +69,7 @@ public sealed class AggregationStatsQueryService(
             Backlog = new AggregationBacklogReadModel
             {
                 PendingPowerspikeMatches = pendingPowerspikeMatches,
+                PendingSynergyMatches = pendingSynergyMatches,
                 PendingEloBracketParticipants = pendingEloBracketParticipants,
                 TimelineIngestedMatches = timelineIngestedMatches
             }
@@ -130,6 +137,35 @@ public sealed class AggregationStatsQueryService(
         };
     }
 
+    private async Task<AggregationFamilyReadModel> BuildSynergiesFamilyAsync(
+        IReadOnlyDictionary<string, AggregationRunReadModel?> runsByProcess,
+        CancellationToken ct)
+    {
+        var stats = db.ChampionSynergyStats.AsNoTracking();
+
+        var rows = await stats.LongCountAsync(ct);
+        var baselineRows = await db.ChampionSynergyBaselineStats.AsNoTracking().LongCountAsync(ct);
+        var distinctChampions = await stats.Select(stat => stat.ChampionId).Distinct().CountAsync(ct);
+        var distinctPatches = await stats.Select(stat => stat.Patch).Distinct().CountAsync(ct);
+        var lastAggregatedAtUtc = await stats.MaxAsync(stat => (DateTime?)stat.AggregatedAtUtc, ct);
+
+        return new AggregationFamilyReadModel
+        {
+            Key = "synergies",
+            ProcessName = "ChampionSynergyAggregation",
+            Tables =
+            [
+                new AggregationTableCountReadModel { Table = "champion_synergy_stats", Rows = rows },
+                new AggregationTableCountReadModel { Table = "champion_synergy_baseline_stats", Rows = baselineRows }
+            ],
+            TotalRows = rows + baselineRows,
+            DistinctChampions = distinctChampions,
+            DistinctPatches = distinctPatches,
+            LastAggregatedAtUtc = lastAggregatedAtUtc,
+            LastRun = runsByProcess["ChampionSynergyAggregation"]
+        };
+    }
+
     private async Task<AggregationFamilyReadModel> BuildPowerspikesFamilyAsync(
         IReadOnlyDictionary<string, AggregationRunReadModel?> runsByProcess,
         CancellationToken ct)
@@ -185,38 +221,16 @@ public sealed class AggregationStatsQueryService(
         };
     }
 
-    private async Task<List<ProcessRun>> LoadLatestRunsAsync(bool onlySuccesses, CancellationToken ct)
-    {
-        // Postgres DISTINCT ON gives the newest row per process in one pass
-        // (same rationale as PipelineHealthQueryService). Two variants: the
-        // latest run regardless of outcome, and the latest success — they
-        // diverge exactly when the most recent run failed or was abandoned.
-        var successStatus = (int)ProcessRunStatus.Success;
+    private async Task<IReadOnlyList<ProcessRunDocument>> LoadLatestRunsAsync(bool onlySuccesses, CancellationToken ct)
+        // The newest run per process in one grouped pass (same rationale as
+        // PipelineHealthQueryService). Two variants: the latest run regardless of
+        // outcome, and the latest success — they diverge exactly when the most
+        // recent run failed or was abandoned.
+        => await processRunStore.GetLatestPerProcessAsync(ProcessNames, onlySuccesses, ct);
 
-        return onlySuccesses
-            ? await db.ProcessRuns
-                .FromSqlInterpolated(
-                    $"""
-                     SELECT DISTINCT ON ("ProcessName") *
-                     FROM process_runs
-                     WHERE "ProcessName" = ANY({ProcessNames}) AND "Status" = {successStatus}
-                     ORDER BY "ProcessName", "FinishedAtUtc" DESC
-                     """)
-                .AsNoTracking()
-                .ToListAsync(ct)
-            : await db.ProcessRuns
-                .FromSqlInterpolated(
-                    $"""
-                     SELECT DISTINCT ON ("ProcessName") *
-                     FROM process_runs
-                     WHERE "ProcessName" = ANY({ProcessNames})
-                     ORDER BY "ProcessName", "FinishedAtUtc" DESC
-                     """)
-                .AsNoTracking()
-                .ToListAsync(ct);
-    }
-
-    private static AggregationRunReadModel? BuildRunReadModel(ProcessRun? latest, ProcessRun? latestSuccess)
+    private static AggregationRunReadModel? BuildRunReadModel(
+        ProcessRunDocument? latest,
+        ProcessRunDocument? latestSuccess)
     {
         if (latest is null)
         {
@@ -230,7 +244,7 @@ public sealed class AggregationStatsQueryService(
             LastFinishedAtUtc = latest.FinishedAtUtc,
             LastSuccessAtUtc = latestSuccess?.FinishedAtUtc,
             DurationMs = latest.DurationMs,
-            LastSuccessSummary = latestSuccess?.Summary?.RootElement.Clone()
+            LastSuccessSummary = ProcessRunSummaryParsing.Parse(latestSuccess?.SummaryJson)
         };
     }
 }

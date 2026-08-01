@@ -70,12 +70,17 @@ internal static class MainDedication
     /// <param name="accountIds">Accounts to score.</param>
     /// <param name="championId">When set, score this champion instead of each account's top main.</param>
     /// <param name="nowUtc">Clock reference for the recency decay.</param>
+    /// <param name="commitmentFloor">
+    /// Live <c>MainAnalysis:PlayRateFloor</c> — the play rate below which no
+    /// champion is a main, and therefore the point commitment reads 0 (#869).
+    /// </param>
     /// <param name="ct">Request cancellation token.</param>
     public static async Task<Dictionary<Guid, DedicationReadModel>> FetchAsync(
         TrueMainDbContext ctx,
         Guid[] accountIds,
         int? championId,
         DateTime nowUtc,
+        double commitmentFloor,
         CancellationToken ct)
     {
         if (accountIds.Length == 0)
@@ -123,7 +128,7 @@ internal static class MainDedication
             """;
 
         var rows = await ctx.Database.SqlQuery<DedicationRow>(sql).ToListAsync(ct);
-        return rows.ToDictionary(row => row.AccountId, row => Project(row, nowUtc));
+        return rows.ToDictionary(row => row.AccountId, row => Project(row, nowUtc, commitmentFloor));
     }
 
     /// <summary>
@@ -163,6 +168,21 @@ internal static class MainDedication
     /// so this cannot affect a score, only which far-tail rows exist at all.
     /// </para>
     /// </remarks>
+    /// <param name="ctx">Context to run on. Callers hydrating concurrently must pass their own short-lived context (a single DbContext is not thread-safe).</param>
+    /// <param name="platforms">Platforms the candidate scan is restricted to.</param>
+    /// <param name="championId">When set, restrict eligibility to accounts whose top main is this champion.</param>
+    /// <param name="position">When set, restrict eligibility to accounts whose top main is played in this position.</param>
+    /// <param name="minGames">Minimum ranked games an account's top main must have to be eligible.</param>
+    /// <param name="otpOnly">When true, restrict eligibility to one-trick accounts.</param>
+    /// <param name="minPositionShare">Minimum share of an account's games a position must represent, when <paramref name="position"/> is set.</param>
+    /// <param name="nowUtc">Clock reference for the recency decay, forwarded into <see cref="FetchAsync"/>.</param>
+    /// <param name="commitmentFloor">
+    /// Live <c>MainAnalysis:PlayRateFloor</c>, forwarded unchanged into the
+    /// <see cref="FetchAsync"/> scoring phase — see that overload for what it
+    /// means (#869).
+    /// </param>
+    /// <param name="limit">Maximum eligible accounts to score; see the truncation trade-off above.</param>
+    /// <param name="ct">Request cancellation token.</param>
     public static async Task<DedicationCandidates> FetchCandidatesAsync(
         TrueMainDbContext ctx,
         string[] platforms,
@@ -172,6 +192,7 @@ internal static class MainDedication
         bool otpOnly,
         double minPositionShare,
         DateTime nowUtc,
+        double commitmentFloor,
         int limit,
         CancellationToken ct)
     {
@@ -206,7 +227,7 @@ internal static class MainDedication
             return DedicationCandidates.Empty;
         }
 
-        var byAccount = await FetchAsync(ctx, accountIds, championId, nowUtc, ct);
+        var byAccount = await FetchAsync(ctx, accountIds, championId, nowUtc, commitmentFloor, ct);
 
         var ranked = byAccount
             .Select(entry => new DedicationCandidate(entry.Key, entry.Value))
@@ -276,7 +297,7 @@ internal static class MainDedication
         return [.. ids];
     }
 
-    private static DedicationReadModel Project(DedicationRow row, DateTime nowUtc)
+    private static DedicationReadModel Project(DedicationRow row, DateTime nowUtc, double commitmentFloor)
     {
         // No aggregated game yet (scopes not built for this account/champion):
         // treat recency as "infinitely old" rather than "played today", and
@@ -290,7 +311,8 @@ internal static class MainDedication
             PlayRate: row.PlayRate,
             CareerGames: row.CareerGames,
             PatchSpan: row.PatchSpan,
-            DaysSinceLastGame: daysSinceLastGame ?? double.PositiveInfinity));
+            DaysSinceLastGame: daysSinceLastGame ?? double.PositiveInfinity),
+            commitmentFloor);
 
         return new DedicationReadModel
         {

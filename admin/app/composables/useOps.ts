@@ -1,6 +1,8 @@
 import type { MaybeRefOrGetter } from 'vue'
 import type {
+  AggregateFreshnessResponse,
   AggregationsResponse,
+  DataQualityDetectorsResponse,
   CandidateDetail,
   CandidatesFilters,
   CandidatesResponse,
@@ -8,6 +10,7 @@ import type {
   ChampionStatsRow,
   CrashesFilters,
   CrashesResponse,
+  DbStorageHistory,
   DbTableRow,
   IncompleteMatchesFilters,
   IncompleteMatchesResponse,
@@ -100,7 +103,7 @@ export function useChampionStats(
 
 /**
  * `GET /api/ops/stats/matches-over-time` — match counts bucketed by game date at
- * the given granularity (week/month/year/patch), returned chronologically. Pass a
+ * the given granularity (day/week/month/year/patch), returned chronologically. Pass a
  * reactive ref/getter so the chart re-fetches when the granularity changes.
  */
 export function useMatchesOverTime(
@@ -115,6 +118,15 @@ export function useMatchesOverTime(
 /** `GET /api/ops/db/tables` — table sizes/row estimates, sorted by total bytes. */
 export function useDbTables() {
   return useOps<DbTableRow[]>('/db/tables')
+}
+
+/**
+ * `GET /api/ops/db/history` — daily storage snapshots, per-table growth and the
+ * disk forecast (#925). `windowDays` is reactive so the panel's window selector
+ * refetches, matching the riot-usage panel's shape.
+ */
+export function useDbStorageHistory(windowDays: MaybeRefOrGetter<number>) {
+  return useOps<DbStorageHistory>('/db/history', () => ({ windowDays: toValue(windowDays) }))
 }
 
 /**
@@ -212,6 +224,25 @@ export function useIncompleteMatches(
     '/data-quality/incomplete-matches',
     filters ? () => ({ ...toValue(filters) }) : undefined,
   )
+}
+
+/**
+ * `GET /api/ops/data-quality/detectors` — the automated anomaly detectors (#924):
+ * one card per detector with its verdict, headline number, drill-down rows and
+ * the thresholds it judged against. Takes no filters; every threshold is
+ * server-side configuration, not a query parameter.
+ */
+export function useDataQualityDetectors() {
+  return useOps<DataQualityDetectorsResponse>('/data-quality/detectors')
+}
+
+/**
+ * `GET /api/ops/data-quality/aggregate-freshness` — the per-champion freshness
+ * breakdown. A one-shot `$fetch` on purpose: it is the one measurement needing a
+ * grouped scan, so it runs on an explicit click rather than on page load.
+ */
+export function getAggregateFreshness() {
+  return $fetch<AggregateFreshnessResponse>('/api/ops/data-quality/aggregate-freshness')
 }
 
 /**

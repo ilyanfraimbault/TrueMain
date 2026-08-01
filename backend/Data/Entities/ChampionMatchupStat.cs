@@ -36,5 +36,57 @@ public class ChampionMatchupStat
 
     public int Wins { get; set; }
 
+    /// <summary>
+    /// Matches in this matchup where BOTH lane participants have a 15-minute timeline
+    /// snapshot, i.e. where a lane outcome could be judged at all (#919). Deliberately
+    /// separate from <see cref="Games"/>: a match with no ingested timeline, or one that
+    /// ended before the 15-minute mark, counts as a game but not as a judgeable lane.
+    /// Dividing lane wins by <see cref="Games"/> would silently understate every lane
+    /// win rate by the share of games without a snapshot.
+    /// </summary>
+    public int LaneGames { get; set; }
+
+    /// <summary>
+    /// Of <see cref="LaneGames"/>, those where the champion was ahead of its lane
+    /// opponent by more than the configured gold threshold at 15 minutes.
+    /// </summary>
+    public int LaneWins { get; set; }
+
+    /// <summary>
+    /// Of <see cref="LaneGames"/>, those where the champion was *behind* by more than
+    /// the same threshold. Stored rather than derived because a threshold creates a
+    /// third outcome: lanes inside the band are neither won nor lost, and
+    /// <c>LaneGames - LaneWins</c> would count those as losses. The even count is
+    /// <c>LaneGames - LaneWins - LaneLosses</c>, and the lane win rate divides by
+    /// <c>LaneWins + LaneLosses</c> — the decided lanes only.
+    /// </summary>
+    public int LaneLosses { get; set; }
+
+    /// <summary>
+    /// Sum of the champion's gold gap over its lane opponent at 15 minutes, over the
+    /// lanes counted in <see cref="LaneGoldDiffGames"/> (#976). Signed, and summed
+    /// rather than bucketed so the read side owns the band edges: moving the
+    /// "even / good / dominant" cutoffs is then a product decision with no re-fold,
+    /// unlike <c>LaneOutcomeAggregation:GoldLeadThreshold</c>, which re-defines the
+    /// stored win/loss counters.
+    /// </summary>
+    public long LaneGoldDiffSum { get; set; }
+
+    /// <summary>
+    /// Lanes <see cref="LaneGoldDiffSum"/> covers — the average gap is
+    /// <c>LaneGoldDiffSum / LaneGoldDiffGames</c>, and is unknown when this is 0.
+    ///
+    /// <para>
+    /// Deliberately a second denominator rather than a reuse of <see cref="LaneGames"/>,
+    /// which counts exactly the same lanes going forward. Rows folded before #976 have
+    /// <see cref="LaneGames"/> &gt; 0 and no sum: dividing by <see cref="LaneGames"/>
+    /// would report those as a +0 gold gap — the most confident-looking verdict there
+    /// is — out of data that was never collected. The fold is additive and frozen
+    /// patches can never be recomputed (#466), so those rows stay honestly incomplete
+    /// and the two counters converge only as the backlog drains.
+    /// </para>
+    /// </summary>
+    public int LaneGoldDiffGames { get; set; }
+
     public DateTime AggregatedAtUtc { get; set; }
 }

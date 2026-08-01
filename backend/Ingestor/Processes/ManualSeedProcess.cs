@@ -3,6 +3,7 @@ using Core.Lol.Identifiers;
 using Data.Entities;
 using Data.Logging;
 using Data.Logging.Mongo;
+using Data.Ops.Mongo;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Components.Discovery;
@@ -13,21 +14,23 @@ using Microsoft.Extensions.Options;
 namespace Ingestor.Processes;
 
 /// <summary>
-/// Drains the "seed by Riot ID" intake (#409): claims <c>Pending</c>
-/// <see cref="SeedRequest"/> rows the API recorded, resolves each Riot ID to a
+/// Drains the "seed by Riot ID" intake (#409): claims Pending
+/// <see cref="SeedRequestDocument"/>s the API recorded, resolves each Riot ID to a
 /// PUUID via account-v1, upserts the <see cref="RiotAccount"/> and its
 /// mastery-derived <see cref="MainCandidate"/>s (reusing the Discovery
 /// components), then promotes those candidates straight to
 /// <see cref="MainCandidateStatus.Queued"/> — skipping the competitive top-N
 /// <c>ScoringProcess</c> so an explicitly-seeded account is always ingested. The
 /// shared backbone for the admin "add a main" panel (#410) and bulk OTP import
-/// (#411).
+/// (#411). The queue lives in Mongo with the rest of the admin-portal data; the
+/// account/candidate writes stay in SQL.
 /// </summary>
 public sealed class ManualSeedProcess(
     ILogger<ManualSeedProcess> logger,
     IRiotAccountClient riotAccountClient,
     IRiotPlatformClient riotPlatformClient,
     IDataSessionFactory sessionFactory,
+    ISeedRequestStore seedRequestStore,
     IAccountUpsertService accountUpsertService,
     ICandidateUpsertService candidateUpsertService,
     IAuditLog auditLog,
@@ -49,15 +52,15 @@ public sealed class ManualSeedProcess(
         var options = manualSeedOptions.Value;
         var batchSize = Math.Max(1, options.BatchSize);
 
-        List<Guid> pendingIds = await LoadPendingIdsAsync(batchSize, ct);
-        if (pendingIds.Count == 0)
+        var pending = await seedRequestStore.GetPendingAsync(batchSize, ct);
+        if (pending.Count == 0)
         {
             logger.LogInformation("No pending seed requests.");
             return new ManualSeedNoWorkSummary("No pending seed requests.", 0);
         }
 
         var summary = new SeedSummary();
-        foreach (var id in pendingIds)
+        foreach (var id in pending.Select(request => request.Id))
         {
             ct.ThrowIfCancellationRequested();
             await ProcessRequestAsync(id, options, summary, ct);
@@ -79,35 +82,23 @@ public sealed class ManualSeedProcess(
             summary.CandidatesQueued);
     }
 
-    private async Task<List<Guid>> LoadPendingIdsAsync(int batchSize, CancellationToken ct)
-    {
-        await using var session = await sessionFactory.CreateAsync(ct);
-        var pending = await session.SeedRequests.GetPendingAsync(batchSize, ct);
-        return pending.Select(request => request.Id).ToList();
-    }
-
     private async Task ProcessRequestAsync(Guid id, ManualSeedOptions options, SeedSummary summary, CancellationToken ct)
     {
-        // A fresh session per request: a Riot/DB failure on one request must not
-        // poison the change tracker for the rest of the batch, and each request's
-        // claim + resolution + terminal state is its own unit of work.
-        await using var session = await sessionFactory.CreateAsync(ct);
-
-        // Atomic claim: flip Pending -> Resolving in a single UPDATE so two
+        // Atomic claim: flip Pending -> Resolving in a single guarded update so two
         // concurrent runs can't both pick the same request (no read-then-write
-        // TOCTOU window). A zero rowcount means another run already claimed it
-        // (or the status changed / row vanished) between our batch scan and now.
-        var claimed = await session.SeedRequests.ClaimAsync(id, ct);
-        if (claimed == 0)
+        // TOCTOU window). False means another run already claimed it (or the
+        // status changed / the document vanished) between our batch scan and now.
+        var claimed = await seedRequestStore.ClaimAsync(id, ct);
+        if (!claimed)
         {
             return;
         }
 
         summary.Claimed++;
 
-        // Re-read the now-Resolving row tracked so the resolution path can
-        // transition it to its terminal state and SaveChanges.
-        var request = await session.SeedRequests.GetByIdAsync(id, ct);
+        // Re-read the now-Resolving document so the resolution path works from its
+        // submitted identity.
+        var request = await seedRequestStore.GetByIdAsync(id, ct);
         if (request is null)
         {
             return;
@@ -115,35 +106,33 @@ public sealed class ManualSeedProcess(
 
         try
         {
-            await ResolveAndIngestAsync(session, request, options, summary, ct);
+            await ResolveAndIngestAsync(request, options, summary, ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             // Interrupted (host shutdown / cancellation) after we claimed the
             // request as Resolving. Reset it to Pending so a later run can
-            // re-claim it: GetPendingAsync only loads Pending rows and
-            // SeedRequestService treats a lingering Resolving row as the
+            // re-claim it: GetPendingAsync only loads Pending documents and
+            // SeedRequestService treats a lingering Resolving one as the
             // idempotent result, so leaving it Resolving would strand it forever.
             // Use CancellationToken.None — ct is already cancelled.
-            await ResetToPendingAsync(request.Id, CancellationToken.None);
+            await seedRequestStore.ResetResolvingToPendingAsync(request.Id, CancellationToken.None);
             throw;
         }
         catch (Exception ex)
         {
             // Any Riot/DB failure terminates this request as Failed with a
-            // (truncated) error, leaving the rest of the batch unaffected. Use a
-            // detached save path so a corrupt tracked graph can't block recording
-            // the failure. Named ops event (#444) so the terminal failure is
-            // filterable on /ops/logs.
+            // (truncated) error, leaving the rest of the batch unaffected. Named
+            // ops event (#444) so the terminal failure is filterable on /ops/logs.
             logger.LogWarning(OpsEvents.SeedRequestFailed, ex, "Seed request {SeedRequestId} failed.", request.Id);
             summary.Failed++;
-            await MarkFailedAsync(request.Id, ex.Message, ct);
+            await seedRequestStore.MarkFailedAsync(
+                request.Id, Truncate(ex.Message, MaxErrorLength), DateTime.UtcNow, ct);
         }
     }
 
     private async Task ResolveAndIngestAsync(
-        IDataSession session,
-        SeedRequest request,
+        SeedRequestDocument request,
         ManualSeedOptions options,
         SeedSummary summary,
         CancellationToken ct)
@@ -154,10 +143,7 @@ public sealed class ManualSeedProcess(
         var account = await riotAccountClient.GetByRiotIdAsync(request.GameName, request.TagLine, regional, ct);
         if (account is null || string.IsNullOrWhiteSpace(account.Puuid))
         {
-            request.Status = SeedRequestStatus.Failed;
-            request.Error = "Riot ID not found";
-            request.ProcessedAtUtc = DateTime.UtcNow;
-            await session.SaveChangesAsync(ct);
+            await seedRequestStore.MarkFailedAsync(request.Id, "Riot ID not found", DateTime.UtcNow, ct);
             summary.NotFound++;
 
             // Named ops event (#444): an unresolvable Riot ID is the other
@@ -172,6 +158,11 @@ public sealed class ManualSeedProcess(
         }
 
         var nowUtc = DateTime.UtcNow;
+
+        // A session per request: the account/candidate writes stay in SQL, and a
+        // DB failure on one request must not poison the change tracker for the
+        // rest of the batch.
+        await using var session = await sessionFactory.CreateAsync(ct);
 
         // summoner-v4 gives the profile fields AccountUpsertService writes
         // (summonerId, icon, level); account-v1 above gives the authoritative
@@ -219,12 +210,8 @@ public sealed class ManualSeedProcess(
             ct);
         summary.CandidatesQueued += queued;
 
-        request.Status = SeedRequestStatus.Ingested;
-        request.Error = null;
-        request.ResolvedPuuid = account.Puuid;
-        request.ResolvedRiotAccountId = upsert.Account.Id;
-        request.ProcessedAtUtc = DateTime.UtcNow;
-        await session.SaveChangesAsync(ct);
+        await seedRequestStore.MarkIngestedAsync(
+            request.Id, account.Puuid, upsert.Account.Id, DateTime.UtcNow, ct);
         summary.Ingested++;
 
         // Named ops event (#444): the seed request reached its successful terminal
@@ -246,19 +233,19 @@ public sealed class ManualSeedProcess(
         // channel.
         //
         // Best-effort by design, and ISOLATED from the processing-failure path: the
-        // request is already committed as Ingested above. If this audit insert threw
+        // request is already marked Ingested above. If this audit insert threw
         // and escaped, ProcessRequestAsync's catch would call MarkFailedAsync and
         // flip a SUCCESSFUL account to Failed (also double-counting it). So we catch
         // here and only log a Warning — under a Mongo outage the seed still succeeds
-        // and only the audit event is missed. "Lossless" means the audit channel is
-        // synchronous and unbatched vs the lossy batched diagnostic channel — it is
-        // not a guarantee against a Mongo outage.
+        // and only the audit event is missed. "Lossless" here means the audit channel
+        // is synchronous and unbatched vs the lossy batched diagnostic channel — it
+        // is not a guarantee against a Mongo outage.
         try
         {
             await auditLog.RecordAsync(
                 action: "seed_account_ingested",
                 actor: "ingestor",
-                targetType: nameof(SeedRequest),
+                targetType: "SeedRequest",
                 targetId: request.Id.ToString(),
                 metadata: new Dictionary<string, string>
                 {
@@ -277,32 +264,6 @@ public sealed class ManualSeedProcess(
                 "Audit write failed for ingested seed request {SeedRequestId}; the account was ingested, audit event missed.",
                 request.Id);
         }
-    }
-
-    private async Task MarkFailedAsync(Guid id, string message, CancellationToken ct)
-    {
-        // Record the failure on its own session so a poisoned change tracker from
-        // the failed attempt can't prevent the status write. Fall back to a no-op
-        // if the row vanished.
-        await using var session = await sessionFactory.CreateAsync(ct);
-        var request = await session.SeedRequests.GetByIdAsync(id, ct);
-        if (request is null)
-        {
-            return;
-        }
-
-        request.Status = SeedRequestStatus.Failed;
-        request.Error = Truncate(message, MaxErrorLength);
-        request.ProcessedAtUtc = DateTime.UtcNow;
-        await session.SaveChangesAsync(ct);
-    }
-
-    private async Task ResetToPendingAsync(Guid id, CancellationToken ct)
-    {
-        // Own session: the interrupted attempt's session/change tracker may be in
-        // an unusable state, and we must not depend on the (cancelled) ct.
-        await using var session = await sessionFactory.CreateAsync(ct);
-        await session.SeedRequests.ResetResolvingToPendingAsync(id, ct);
     }
 
     private static string? Truncate(string? value, int maxLength)

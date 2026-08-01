@@ -53,14 +53,14 @@ export interface ChampionStatsFilters {
 }
 
 /** X-axis granularity for `GET /api/ops/stats/matches-over-time`. */
-export type MatchTimeGranularity = 'week' | 'month' | 'year' | 'patch'
+export type MatchTimeGranularity = 'day' | 'week' | 'month' | 'year' | 'patch'
 
 /**
  * One bucket of `GET /api/ops/stats/matches-over-time` (returned in chronological
  * order). Matches are counted by GAME date (`Match.GameStartTimeUtc`).
  *
  * `bucket` shape depends on the requested granularity:
- *   - week/month/year: ISO-8601 UTC timestamp of the period start
+ *   - day/week/month/year: ISO-8601 UTC timestamp of the period start
  *     (e.g. `2026-06-01T00:00:00Z`) — format the label client-side per granularity.
  *   - patch: the normalized `MAJOR.MINOR` version string (e.g. `16.4`) — use as-is.
  */
@@ -76,6 +76,65 @@ export interface DbTableRow {
   totalBytes: number
   tableBytes: number
   indexBytes: number
+}
+
+/**
+ * `GET /api/ops/db/history` — storage growth over a window plus the disk
+ * forecast (#925). Read from the daily snapshot collection, never from a live
+ * `pg_catalog` scan, so the page stays cheap however far back it looks.
+ *
+ * Everything is empty until the ingestor's storage-snapshot step has run at
+ * least once, and `forecast` stays null until there are three days to fit.
+ */
+export interface DbStorageHistory {
+  daily: DbStorageDailyPoint[]
+  /** The largest tables only — smaller ones still count in `daily` totals. */
+  tables: DbStorageTableSeries[]
+  /** Null when no honest projection is possible; see `DbStorageForecast`. */
+  forecast: DbStorageForecast | null
+}
+
+export interface DbStorageDailyPoint {
+  dateUtc: string
+  /** Measured `pg_database_size` — what actually occupies the volume. */
+  databaseBytes: number
+  /** Sum of per-table sizes; smaller than `databaseBytes` (no catalogs). */
+  totalBytes: number
+  rowEstimate: number
+}
+
+export interface DbStorageTableSeries {
+  tableName: string
+  points: DbStorageTablePoint[]
+  currentBytes: number
+  bytesPerDay: number
+  rowsPerDay: number
+  /** Growth over the window as a fraction (0.25 = +25%); null if it started empty. */
+  growthRate: number | null
+}
+
+export interface DbStorageTablePoint {
+  dateUtc: string
+  totalBytes: number
+  rowEstimate: number
+}
+
+/**
+ * Null on the parent when fewer than 3 days of history exist, when storage is
+ * flat or shrinking, or when no disk capacity is configured — the panel explains
+ * which rather than showing a made-up date.
+ */
+export interface DbStorageForecast {
+  bytesPerDay: number
+  diskCapacityBytes: number
+  crossings: DbStorageThresholdCrossing[]
+}
+
+export interface DbStorageThresholdCrossing {
+  percent: number
+  thresholdBytes: number
+  /** Null = no meaningful date at this rate (over a century either way). A past date = already breached. */
+  projectedAtUtc: string | null
 }
 
 /**
@@ -149,15 +208,19 @@ export const PIPELINE_CHAIN: readonly string[] = [
   'ManualSeed',
   'Harvest',
   'Scoring',
+  'MainActivity',
   'MatchIngestion',
   'MatchTeamPositionCorrection',
   'MainAnalysis',
   'MatchParticipantEloBracketEnrichment',
   'ChampionPatternAggregation',
   'ChampionMatchupLeadAggregation',
+  'ChampionSynergyAggregation',
+  'ChampionBanAggregation',
   'ChampionPowerspikeAggregation',
   'AccountRefresh',
   'MatchDataRetention',
+  'StorageSnapshot',
 ]
 
 /**
@@ -750,10 +813,16 @@ export interface AggregationRun {
   lastSuccessSummary: Record<string, unknown> | null
 }
 
-/** Aggregation-side backlogs — both read zero when the pipeline is caught up. */
+/** Aggregation-side backlogs — all read zero when the pipeline is caught up. */
 export interface AggregationBacklog {
   /** Queue-scoped timeline-ingested matches not yet folded into powerspikes. */
   pendingPowerspikeMatches: number
+  /**
+   * Queue-scoped matches not yet folded into the synergy aggregates. Starts at the
+   * full retained match count on the first deploy (the fold flag ships false for
+   * every existing row on purpose) and drains over the following runs.
+   */
+  pendingSynergyMatches: number
   /** Tracked participants still missing their elo bracket stamp. */
   pendingEloBracketParticipants: number
   /** Queue-scoped matches with an ingested timeline (backlog denominator). */
@@ -765,4 +834,78 @@ export interface AggregationsResponse {
   queueId: number
   families: AggregationFamily[]
   backlog: AggregationBacklog
+}
+
+/**
+ * A detector verdict. `unknown` means the measurement could not be taken — it is
+ * never used for "measured and fine", so a card is only green when something was
+ * actually checked.
+ */
+export type DetectorStatus = 'green' | 'amber' | 'red' | 'unknown'
+
+/** One drill-down row: an audited table, platform, process, check or patch. */
+export interface DataQualityDetectorRow {
+  label: string
+  status: DetectorStatus
+  /** The row's number, or null when it could not be measured. */
+  value: number | null
+  /** The number as it should be printed, with its unit; null when unmeasured. */
+  valueLabel: string | null
+  note: string | null
+}
+
+/** One configured green/amber/red boundary, echoed so the panel can state it. */
+export interface DataQualityThreshold {
+  label: string
+  /** Null when the level is disabled (configured to 0 or less). */
+  amber: number | null
+  red: number | null
+  unit: 'count' | 'percent' | 'hours' | 'ratio'
+}
+
+/** One detector's card (#924). */
+export interface DataQualityDetector {
+  key: string
+  title: string
+  status: DetectorStatus
+  /** Headline number, or null when unknown. */
+  count: number | null
+  countLabel: string
+  headline: string
+  /** Set if and only if `status` is `unknown`. */
+  unknownReason: string | null
+  /** Which tables the detector reads and why that is affordable on a page view. */
+  sourceNote: string
+  rows: DataQualityDetectorRow[]
+  thresholds: DataQualityThreshold[]
+  /** True when a heavier on-demand endpoint can expand this detector. */
+  hasDrillDownEndpoint: boolean
+}
+
+/** `GET /api/ops/data-quality/detectors` — the automated anomaly detectors. */
+export interface DataQualityDetectorsResponse {
+  detectors: DataQualityDetector[]
+  /** Every age on the panel is relative to this, not to the browser's clock. */
+  evaluatedAtUtc: string
+}
+
+/** One champion's aggregate freshness on a patch. */
+export interface ChampionFreshnessRow {
+  championId: number
+  patch: string
+  lastAggregatedAtUtc: string
+  ageHours: number
+  /** Scope rows behind the reading, so a one-account champion reads as thin. */
+  scopeRows: number
+  status: DetectorStatus
+}
+
+/** `GET /api/ops/data-quality/aggregate-freshness` — on-demand breakdown. */
+export interface AggregateFreshnessResponse {
+  patches: string[]
+  champions: ChampionFreshnessRow[]
+  championCount: number
+  staleChampionCount: number
+  staleAfterHours: number
+  evaluatedAtUtc: string
 }

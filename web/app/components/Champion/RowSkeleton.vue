@@ -31,13 +31,9 @@
       <USkeleton class="h-5 w-8 rounded" />
     </div>
 
-    <!-- Rates: WR + PR -->
+    <!-- Rates: WR + PR + BR -->
     <div class="flex shrink-0 items-center gap-5">
-      <div class="flex min-w-[3rem] flex-col items-center gap-1">
-        <USkeleton class="h-5 w-8" />
-        <USkeleton class="h-3 w-6" />
-      </div>
-      <div class="flex min-w-[3rem] flex-col items-center gap-1">
+      <div v-for="i in 3" :key="`rate-${i}`" class="flex min-w-[3rem] flex-col items-center gap-1">
         <USkeleton class="h-5 w-8" />
         <USkeleton class="h-3 w-6" />
       </div>

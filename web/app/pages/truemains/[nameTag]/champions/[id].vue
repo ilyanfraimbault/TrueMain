@@ -40,6 +40,10 @@ const playerLabel = computed(() => {
   if (!identity) return nameTag.value
   return identity.tagLine ? `${identity.gameName}#${identity.tagLine}` : identity.gameName
 })
+// Same identity, without the tag line: used inline in copy ("Faker vs mains"),
+// where the full Riot ID would be noise. Falls back to the raw slug while the
+// profile fetch is in flight, like `playerLabel`.
+const playerName = computed(() => profile.value?.identity?.gameName ?? nameTag.value)
 const profilePath = computed(() => `/truemains/${encodeURIComponent(nameTag.value)}`)
 
 // Shared static-data plumbing (see useChampionDetailStatics). This page
@@ -168,19 +172,37 @@ const matchupsSnapshot = useLazyHydrationSnapshot(
   () => ({ champions: staticList.value ?? [] }),
 )
 
-// Same treatment for the "you vs mains" card (#529): `itemsMap` and
-// `staticData` are client-only too, so the icons it renders have to stay at
-// their SSR-empty value until it mounts. `patch`/`position` are NOT in the
-// bundle — they only feed the card's fetch key, never its markup, so keeping
-// them live can't desynchronise hydration.
+// Same treatment for the "<player> vs mains" card (#529): `itemsMap`,
+// `staticData` and the profile-sourced `playerName` are all client-only, so
+// what the card renders has to stay at its SSR value until it mounts —
+// `playerName` included, now that the card prints it in its own title and
+// copy. `patch`/`position` are NOT in the bundle — they only feed the card's
+// fetch key, never its markup, so keeping them live can't desynchronise
+// hydration.
 const divergenceSnapshot = useLazyHydrationSnapshot(
   {
+    playerName: nameTag.value,
     itemsMap: {} as Record<number, StaticItemData>,
     championStatic: null as ChampionStaticData | null,
   },
   () => ({
+    playerName: playerName.value,
     itemsMap: itemsMap.value ?? {},
     championStatic: staticData.value ?? null,
+  }),
+)
+
+// And for the performance card (#918), whose only client-only inputs are the
+// two display names it prints. `patch`/`position` stay live — they feed the
+// fetch key, never the SSR markup, so they can't desynchronise hydration.
+const performanceSnapshot = useLazyHydrationSnapshot(
+  {
+    playerName: nameTag.value,
+    championName: null as string | null,
+  },
+  () => ({
+    playerName: playerName.value,
+    championName: displayName.value ?? null,
   }),
 )
 </script>
@@ -307,7 +329,7 @@ const divergenceSnapshot = useLazyHydrationSnapshot(
             />
             <ChampionBuildTabsSkeleton v-else />
 
-            <!-- "You vs mains" (#529): the same aggregates the tabs above are
+            <!-- "<player> vs mains" (#529): the same aggregates the tabs above are
                  built from, read a second time across every *other* main on
                  this champion + patch + position, so the build the player
                  actually runs can be put next to the one the mains run. Lazy +
@@ -325,6 +347,20 @@ const divergenceSnapshot = useLazyHydrationSnapshot(
           </div>
 
           <aside class="min-w-0 space-y-6">
+            <!-- Performance score (#918): the aggregate of the per-match score
+                 over this player's recent games on the champion. Lives in the
+                 sidebar next to matchups. Lazy + hydrate-on-visible with the
+                 client-only display names frozen until it mounts (#834/#837). -->
+            <LazyChampionPlayerPerformance
+              hydrate-on-visible
+              :name-tag="nameTag"
+              :champion-id="championId"
+              :patch="selectedPatch"
+              :position="selectedPosition"
+              v-bind="performanceSnapshot.value"
+              @vue:mounted="performanceSnapshot.reveal"
+            />
+
             <!-- Below-the-fold sidebar: lazy-load so its JS lands in its own
                  chunk and only hydrates once scrolled into view (#820).
                  `:champions` comes from `matchupsSnapshot` (frozen at its

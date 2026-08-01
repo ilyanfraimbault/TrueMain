@@ -44,6 +44,7 @@ public sealed record DiscoveryPlatformSummary(
     int CandidatesInserted,
     int CandidatesUpdated,
     int RankSnapshotsInserted,
+    int RankSnapshotsUpdated,
     int RankSnapshotsUnchanged,
     string? Error);
 
@@ -98,6 +99,7 @@ public sealed record AccountRefreshSummary(
     int ProfileSkipped,
     int ProfileFailed,
     int RankInserted,
+    int RankUpdated,
     int RankUnchanged,
     int RankSkippedUnranked,
     int RankSkippedFresh,
@@ -135,6 +137,71 @@ public sealed record TeamPositionCorrectionSummary(int CorrectedParticipants, in
 /// <summary>Batched match aggregation outcome (matchup/lead and powerspike).</summary>
 public sealed record MatchAggregationSummary(int Matches, int Batches) : IProcessRunSummary;
 
+/// <summary>
+/// Champion synergy aggregation outcome (#922). Carries the two upsert counts on
+/// top of the shared match/batch pair so the admin's aggregation page can tell a
+/// run that folded matches but wrote nothing (every match off-position or
+/// untracked) from one that had no matches to fold at all.
+/// </summary>
+public sealed record SynergyAggregationSummary(
+    int Matches,
+    int Batches,
+    int PairRows,
+    int BaselineRows) : IProcessRunSummary;
+
+/// <summary>
+/// Champion ban aggregation outcome (#920). <see cref="ScopeRows"/> counts the
+/// (patch, elo band) denominators touched and <see cref="BanRows"/> the champion
+/// counts, so a run whose matches all folded into the ALL band alone — every
+/// participant still awaiting elo enrichment — is visible as a scope count of one.
+/// </summary>
+public sealed record BanAggregationSummary(
+    int Matches,
+    int Batches,
+    int BanRows,
+    int ScopeRows) : IProcessRunSummary;
+
+/// <summary>
+/// Daily storage snapshot outcome (#925). <see cref="Written"/> is 0 rather than
+/// <see cref="Tables"/> when Mongo is unconfigured, which is how an environment with
+/// no metrics store shows up on the admin process page — a completed run that
+/// persisted nothing, not a failure.
+/// </summary>
+public sealed record StorageSnapshotSummary(
+    int Tables,
+    int Written,
+    long DatabaseBytes) : IProcessRunSummary;
+
+/// <summary>
+/// Rune-page deduplication outcome (#911). The counters separate the two ways a
+/// pattern row can move: <see cref="RepointedPatterns"/> simply changed page,
+/// <see cref="FoldedPatterns"/> had its games/wins added into an existing row and was
+/// deleted — the second number is the split this bug was causing, being undone.
+/// <see cref="NormalizedPages"/> counts rows that were never duplicated but still held
+/// the player's perk order.
+/// </summary>
+public sealed record RunePageDeduplicationSummary(
+    int Groups,
+    int DeletedPages,
+    int RepointedPatterns,
+    int FoldedPatterns,
+    int NormalizedPages,
+    int Batches) : IProcessRunSummary;
+
+/// <summary>
+/// Lane-outcome aggregation outcome (#919). <see cref="JudgedLanes"/> is the count of
+/// lanes that could actually be called — both participants had a 15-minute snapshot —
+/// so comparing it with <see cref="Matches"/> shows how much of the pool has no
+/// timeline. <see cref="GoldLeadThreshold"/> is recorded because it defines what the
+/// stored counters mean, and old rows keep the threshold in force when they were folded.
+/// </summary>
+public sealed record LaneOutcomeAggregationSummary(
+    int Matches,
+    int Batches,
+    int JudgedLanes,
+    int Rows,
+    int GoldLeadThreshold) : IProcessRunSummary;
+
 /// <summary>The patches retention kept for one platform.</summary>
 public sealed record RetainedPatchesSummary(string PlatformId, IReadOnlyList<string> Patches);
 
@@ -152,5 +219,16 @@ public sealed record MatchDataRetentionSummary(
     int DeletedMatchupStats,
     int DeletedPowerspikeCurveStats,
     int DeletedPowerspikeEventStats,
+    // Pair rows and the baselines they are read against, summed (#922) — they are
+    // deleted together in one transaction, so one counter describes both.
+    int DeletedSynergyStats,
+    // Ban counts and the match totals they are divided by, summed (#920) — deleted
+    // together in one transaction, so one counter describes both.
+    int DeletedBanStats,
     int PrunedSubFloorPowerspikeEvents,
+    // Per-opponent powerspike shards (#957) rolled back into one opponent-less row
+    // once their patch froze, and how many rows that produced. Runs before the
+    // sub-floor prune above, which must see the rolled-up games rather than shards.
+    int CollapsedPowerspikeOpponentShards,
+    int CollapsedPowerspikeOpponentGroups,
     IReadOnlyList<RetainedPatchesSummary> RetainedPatchesByPlatform) : IProcessRunSummary;

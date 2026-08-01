@@ -24,7 +24,7 @@ public sealed class Worker(
 
         do
         {
-            TouchHeartbeat();
+            await TouchHeartbeatAsync(stoppingToken);
             await RunOnceAsync(mode, stoppingToken);
 
             if (options.RunOnce)
@@ -75,7 +75,7 @@ public sealed class Worker(
         }
     }
 
-    private void TouchHeartbeat()
+    private async Task TouchHeartbeatAsync(CancellationToken stoppingToken)
     {
         var path = Environment.GetEnvironmentVariable(HeartbeatEnvironmentVariable);
         if (string.IsNullOrWhiteSpace(path))
@@ -85,7 +85,17 @@ public sealed class Worker(
 
         try
         {
-            File.WriteAllText(path, DateTimeOffset.UtcNow.ToString("O"));
+            await File.WriteAllTextAsync(path, DateTimeOffset.UtcNow.ToString("O"), stoppingToken);
+        }
+        // A cancelled write is shutdown, not a heartbeat failure: let it propagate
+        // so it is handled where every other OperationCanceledException in this
+        // worker is, instead of being logged as a warning on the way out. Matched
+        // on the exception type, not merely on the token's state — otherwise a real
+        // I/O failure racing a shutdown would escape the catch below and take the
+        // host down, which is exactly what that block exists to prevent.
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {

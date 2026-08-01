@@ -15,7 +15,11 @@ const props = defineProps<{
 
 const baseSize = computed(() => props.size ?? 32)
 const keystoneSize = computed(() => props.keystoneSize ?? baseSize.value)
-const perkSize = computed(() => Math.max(20, baseSize.value - 4))
+// The keystone leads the block by being the only row at full size; the rows
+// below step down instead of the keystone stepping up, which keeps the whole
+// panel compact. Secondary and shard rows stop shrinking at their legibility
+// floor — they are already the smallest readable icons on the page.
+const perkSize = computed(() => Math.max(20, baseSize.value - 8))
 const secondarySize = computed(() => Math.max(16, baseSize.value - 12))
 const shardSize = computed(() => Math.max(12, baseSize.value - 16))
 
@@ -64,7 +68,7 @@ const selectedShards = computed(() => [
           :style="{ width: `${keystoneSize}px`, height: `${keystoneSize}px` }"
           :class="[
             'rounded-full transition',
-            id === page.primaryKeystoneId ? '' : 'deselected',
+            id === page.primaryKeystoneId ? 'selected-perk' : 'deselected',
           ]"
         />
       </div>
@@ -84,7 +88,7 @@ const selectedShards = computed(() => [
           :style="{ width: `${perkSize}px`, height: `${perkSize}px` }"
           :class="[
             'rounded-full transition',
-            selectedPrimary.has(id) ? '' : 'deselected',
+            selectedPrimary.has(id) ? 'selected-perk' : 'deselected',
           ]"
         />
       </div>
@@ -111,7 +115,7 @@ const selectedShards = computed(() => [
             :style="{ width: `${secondarySize}px`, height: `${secondarySize}px` }"
             :class="[
               'rounded-full transition',
-              selectedSecondary.has(id) ? '' : 'deselected',
+              selectedSecondary.has(id) ? 'selected-perk' : 'deselected',
             ]"
           />
         </div>
@@ -133,7 +137,7 @@ const selectedShards = computed(() => [
             :style="{ width: `${shardSize}px`, height: `${shardSize}px` }"
             :class="[
               'rounded-full transition',
-              selectedShards[rowIndex] === id ? '' : 'deselected',
+              selectedShards[rowIndex] === id ? 'selected-perk' : 'deselected',
             ]"
           />
         </div>

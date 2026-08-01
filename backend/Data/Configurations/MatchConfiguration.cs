@@ -65,6 +65,18 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
             .IsRequired()
             .HasDefaultValue(false);
 
+        entity.Property(e => e.SynergyAggregated)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        entity.Property(e => e.BansAggregated)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        entity.Property(e => e.LaneOutcomeAggregated)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         entity.HasIndex(e => e.PlatformId);
 
         entity.HasIndex(e => new { e.PlatformId, e.QueueId, e.GameStartTimeUtc })
@@ -92,6 +104,26 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
         // matchup/lead batch selection stays cheap, mirroring IX_matches_powerspike_pending.
         entity.HasIndex(e => e.QueueId, "IX_matches_matchup_lead_pending")
             .HasFilter("\"MatchupLeadAggregated\" = false");
+
+        // Same shape for the synergy fold (#922). It starts out covering every
+        // retained match (the flag ships false everywhere, on purpose) and shrinks
+        // to the recent pending tail once the initial backfill has drained.
+        entity.HasIndex(e => e.QueueId, "IX_matches_synergy_pending")
+            .HasFilter("\"SynergyAggregated\" = false");
+
+        // Same shape for the ban fold (#920). Unlike the synergy one this index
+        // starts out empty — the flag is backfilled to true everywhere, since
+        // pre-#920 matches carry no bans — and only ever holds the freshly-ingested
+        // tail awaiting its fold.
+        entity.HasIndex(e => e.QueueId, "IX_matches_bans_pending")
+            .HasFilter("\"BansAggregated\" = false");
+
+        // Same shape for the lane-outcome fold (#919). Ships covering every retained
+        // match — the flag is false everywhere on purpose, so the fold can pick up the
+        // history whose 15-minute snapshots are still present — and shrinks to the
+        // pending tail as that backlog drains.
+        entity.HasIndex(e => e.QueueId, "IX_matches_lane_outcome_pending")
+            .HasFilter("\"LaneOutcomeAggregated\" = false");
 
         entity.HasMany(e => e.Participants)
             .WithOne(e => e.Match)

@@ -1,4 +1,5 @@
 using Data.Metrics.Mongo;
+using Data.Ops.Mongo;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -68,6 +69,18 @@ public static class MongoLoggingServiceCollectionExtensions
         services.TryAddSingleton<IRiotApiCallRecorder, RiotApiCallRecorder>();
         services.TryAddSingleton<IRiotApiUsageQuery, RiotApiUsageQuery>();
         services.AddHostedService<RiotApiMetricsSink>();
+
+        // Daily Postgres storage snapshots (#925). No sink and no channel: the
+        // Ingestor's snapshot step calls the store directly once per pipeline run, and
+        // the Api only reads it for the admin growth charts.
+        services.TryAddSingleton<IDbStorageSnapshotStore, DbStorageSnapshotStore>();
+
+        // Admin-portal data moved off Postgres: recorded process runs (written by
+        // the Ingestor's ProcessRunRecorder, read by the admin process panels) and
+        // the seed-request queue (written by the API, claimed by ManualSeedProcess).
+        // Direct-call stores like the snapshots — no sink, no channel.
+        services.TryAddSingleton<IProcessRunStore, ProcessRunStore>();
+        services.TryAddSingleton<ISeedRequestStore, SeedRequestStore>();
 
         return services;
     }

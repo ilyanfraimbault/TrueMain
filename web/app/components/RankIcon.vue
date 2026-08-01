@@ -10,6 +10,12 @@ const props = defineProps<{
 
 const dim = computed(() => props.size ?? 28)
 
+// Plain <img> with a URL built once instead of <NuxtImg> — same `_ipx/…`
+// proxy URL (same-origin + server-side caching preserved), minus the
+// responsive srcset machinery a fixed-size emblem never needed. See
+// SkeletonImage.vue for the profiling rationale.
+const ipx = useImage()
+
 // Community Dragon's `ranked-mini-crests/` has the clean wing-and-gem
 // shape we want — same visual family as the dpm.lol / op.gg leaderboards.
 // We use the SVG variants (one file per tier, Emerald included) so the
@@ -22,16 +28,16 @@ const iconUrl = computed(() => {
 </script>
 
 <template>
-  <NuxtImg
+  <img
     v-if="iconUrl"
-    :src="iconUrl"
+    :src="ipx(iconUrl, { width: dim, height: dim })"
     :alt="`${tier} rank`"
     :title="tier ?? undefined"
     :width="dim"
     :height="dim"
     class="shrink-0"
     :style="{ width: `${dim}px`, height: `${dim}px` }"
-  />
+  >
   <div
     v-else
     class="shrink-0 rounded bg-elevated/40"

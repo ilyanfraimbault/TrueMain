@@ -24,6 +24,7 @@ const visiblePages = computed(() => filterByPickRate(props.runePages))
         class="flex flex-col items-center gap-2"
       >
         <RateBadge
+          :games="page.games"
           :pick-rate="page.pickRate"
           :win-rate="page.winRate"
         />

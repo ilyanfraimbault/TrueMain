@@ -31,11 +31,16 @@ public static class IngestorProcessServiceCollectionExtensions
         services.AddRecordedProcess<MatchTeamPositionCorrectionProcess>(JobMode.TeamPositionCorrectionOnly);
         services.AddRecordedProcess<MainAnalysisProcess>(JobMode.MainAnalysisOnly);
         services.AddRecordedProcess<MatchParticipantEloBracketEnrichmentProcess>(JobMode.EloBracketEnrichmentOnly);
+        services.AddRecordedProcess<RunePageDeduplicationProcess>(JobMode.RunePageDeduplicationOnly);
         services.AddRecordedProcess<ChampionPatternAggregationProcess>(JobMode.PatternAggregationOnly);
         services.AddRecordedProcess<ChampionMatchupLeadAggregationProcess>(JobMode.MatchupLeadAggregationOnly);
+        services.AddRecordedProcess<ChampionLaneOutcomeAggregationProcess>(JobMode.LaneOutcomeAggregationOnly);
+        services.AddRecordedProcess<ChampionSynergyAggregationProcess>(JobMode.SynergyAggregationOnly);
+        services.AddRecordedProcess<ChampionBanAggregationProcess>(JobMode.BanAggregationOnly);
         services.AddRecordedProcess<ChampionPowerspikeAggregationProcess>(JobMode.PowerspikeAggregationOnly);
         services.AddRecordedProcess<AccountRefreshProcess>(JobMode.AccountRefreshOnly);
         services.AddRecordedProcess<MatchDataRetentionProcess>(JobMode.MatchDataRetentionOnly);
+        services.AddRecordedProcess<StorageSnapshotProcess>(JobMode.StorageSnapshotOnly);
         return services;
     }
 }

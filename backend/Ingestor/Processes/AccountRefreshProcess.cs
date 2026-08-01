@@ -36,7 +36,7 @@ public sealed class AccountRefreshProcess(
 
         var summary = await RefreshAccountsAsync(accounts, ct);
         logger.LogInformation(
-            "Account refresh summary: selected={Selected}, profileUpdated={ProfileUpdated}, profileRecovered={ProfileRecovered}, profileInvalidated={ProfileInvalidated}, profileSkipped={ProfileSkipped}, profileFailed={ProfileFailed}, rankInserted={RankInserted}, rankUnchanged={RankUnchanged}, rankSkippedUnranked={RankSkippedUnranked}, rankSkippedFresh={RankSkippedFresh}, rankFailed={RankFailed}.",
+            "Account refresh summary: selected={Selected}, profileUpdated={ProfileUpdated}, profileRecovered={ProfileRecovered}, profileInvalidated={ProfileInvalidated}, profileSkipped={ProfileSkipped}, profileFailed={ProfileFailed}, rankInserted={RankInserted}, rankUpdated={RankUpdated}, rankUnchanged={RankUnchanged}, rankSkippedUnranked={RankSkippedUnranked}, rankSkippedFresh={RankSkippedFresh}, rankFailed={RankFailed}.",
             summary.Selected,
             summary.ProfileUpdated,
             summary.ProfileRecovered,
@@ -44,6 +44,7 @@ public sealed class AccountRefreshProcess(
             summary.ProfileSkipped,
             summary.ProfileFailed,
             summary.RankInserted,
+            summary.RankUpdated,
             summary.RankUnchanged,
             summary.RankSkippedUnranked,
             summary.RankSkippedFresh,
@@ -202,13 +203,17 @@ public sealed class AccountRefreshProcess(
                 last,
                 nowUtc);
 
-            if (outcome == RankSnapshotOutcome.Inserted)
+            switch (outcome)
             {
-                summary.RankInserted++;
-            }
-            else
-            {
-                summary.RankUnchanged++;
+                case RankSnapshotOutcome.Inserted:
+                    summary.RankInserted++;
+                    break;
+                case RankSnapshotOutcome.Updated:
+                    summary.RankUpdated++;
+                    break;
+                default:
+                    summary.RankUnchanged++;
+                    break;
             }
         }
         catch (Exception ex)
@@ -299,6 +304,7 @@ public sealed class AccountRefreshProcess(
             summary.ProfileSkipped,
             summary.ProfileFailed,
             summary.RankInserted,
+            summary.RankUpdated,
             summary.RankUnchanged,
             summary.RankSkippedUnranked,
             summary.RankSkippedFresh,
@@ -326,6 +332,7 @@ public sealed class AccountRefreshProcess(
         public int ProfileSkipped { get; set; }
         public int ProfileFailed { get; set; }
         public int RankInserted { get; set; }
+        public int RankUpdated { get; set; }
         public int RankUnchanged { get; set; }
         public int RankSkippedUnranked { get; set; }
         public int RankSkippedFresh { get; set; }

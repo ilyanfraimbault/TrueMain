@@ -42,13 +42,31 @@ watch(() => props.src, () => {
 })
 
 // Canonical IPX fetch size. DDragon ships item icons at 64×64; CDragon perk
-// icons are larger but downscale cleanly. Funneling every <NuxtImg> request
-// through this one size makes the same asset share a single browser cache
-// entry no matter the CSS display size of its instances (build path 36 px,
-// runes 32 px, tabs 28 px, shards 16 px — all hit the same `_ipx/s_64x64/…`
-// URL). Display size still comes from the caller's wrapper class (`size-9`,
+// icons are larger but downscale cleanly. Funneling every request through
+// this one size makes the same asset share a single browser cache entry no
+// matter the CSS display size of its instances (build path 36 px, runes
+// 32 px, tabs 28 px, shards 16 px — all hit the same `_ipx/s_64x64/…` URL).
+// Display size still comes from the caller's wrapper class (`size-9`,
 // `size-7`, etc.) via the `size-full` rule on the inner img.
 const FETCH_SIZE = 64
+
+// Plain <img> + a URL built once, instead of <NuxtImg>. This component backs
+// every icon on the site (hundreds per page), and profiling showed the long
+// main-thread tasks on data arrival were dominated by NuxtImg's responsive
+// machinery — a component instance per icon computing and writing
+// srcset/sizes attributes that a fixed 64×64 fetch (`densities="1x"`) never
+// needed. useImage() yields the identical `_ipx/s_64x64/…` URL, so browser
+// and server IPX caches are unaffected.
+const ipx = useImage()
+const optimizedSrc = computed(() =>
+  props.src ? ipx(props.src, { width: FETCH_SIZE, height: FETCH_SIZE }) : undefined)
+
+// A cached image can finish loading before hydration attaches the @load
+// listener; without this check the skeleton would cover it forever.
+const imgEl = ref<HTMLImageElement | null>(null)
+onMounted(() => {
+  if (imgEl.value?.complete && imgEl.value.naturalWidth > 0) loaded.value = true
+})
 </script>
 
 <template>
@@ -65,24 +83,31 @@ const FETCH_SIZE = 64
     :style="reservedStyle"
   >
     <span class="relative block size-full">
-      <USkeleton
+      <!-- Plain span mirroring USkeleton's default look (animate-pulse +
+           rounded-md + bg-elevated) — one fewer component instance per icon,
+           which matters at hundreds of icons per page. The pulse is dropped
+           once the image has actually failed: a 404 is a final state, and
+           animating it made dead icons (e.g. a profile icon Data Dragon
+           doesn't ship) read as loading forever. -->
+      <span
         v-if="!src || !loaded || failed"
-        class="absolute inset-0 size-full"
+        class="absolute inset-0 size-full rounded-md bg-elevated"
+        :class="failed ? '' : 'animate-pulse'"
       />
-      <NuxtImg
+      <img
         v-if="src"
-        :src="src"
+        ref="imgEl"
+        :src="optimizedSrc"
         :alt="alt"
         :title="title"
         :width="FETCH_SIZE"
         :height="FETCH_SIZE"
         :loading="loading"
-        densities="1x"
         class="size-full transition-opacity duration-150"
         :class="loaded && !failed ? 'opacity-100' : 'opacity-0'"
         @load="loaded = true"
         @error="failed = true"
-      />
+      >
     </span>
   </span>
 </template>

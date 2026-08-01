@@ -4,8 +4,12 @@ namespace TrueMain.ReadModels.Champions;
 /// Lane-matchups read model returned by the champion matchup endpoints. Lists
 /// how a champion performed at a position against every lane opponent (same
 /// <c>TeamPosition</c>, opposite <c>TeamId</c>) it met over the scoped games.
-/// Computed live from <c>match_participants</c> — there is no aggregation table
-/// behind it.
+///
+/// Served from the pre-aggregated <c>champion_matchup_stats</c> (#606) for the
+/// panel, and computed live from <c>match_participants</c> only for the
+/// single-opponent search, whose floor of 1 game an aggregate built at floor 10
+/// cannot answer. (The previous version of this comment claimed there was no
+/// aggregation table at all, which stopped being true with #606.)
 ///
 /// Only opponents with at least the configured minimum games
 /// (<see cref="TrueMain.Options.ChampionsListOptions.MinMatchupGames"/>) appear;
@@ -51,4 +55,57 @@ public sealed record ChampionMatchupEntry
     /// at least the minimum-games floor here, so this never divides by zero.
     /// </summary>
     public double WinRate { get; init; }
+
+    /// <summary>
+    /// Share of *decided* lanes the champion won against this opponent — ahead by
+    /// more than the configured gold threshold at 15 minutes (#919).
+    ///
+    /// <para>
+    /// The denominator is <see cref="DecidedLaneGames"/>, not <see cref="Games"/>: a
+    /// match with no ingested timeline, or one that ended before 15 minutes, cannot
+    /// be judged, and a lane inside the threshold band was neither won nor lost.
+    /// Dividing by games played would understate every figure here.
+    /// </para>
+    ///
+    /// <para>
+    /// <see langword="null"/> when nothing can be said: no decided lane in the scope,
+    /// or a <em>player-scoped</em> slice, whose lane cannot be read off a
+    /// population-wide aggregate. The global single-opponent search does carry it —
+    /// its head-to-head is live, but its lane counters are read from the aggregate
+    /// for that one opponent (#976). Never a substitute zero.
+    /// </para>
+    /// </summary>
+    public double? LaneWinRate { get; init; }
+
+    /// <summary>
+    /// Lanes actually decided — won or lost past the threshold — and so the sample
+    /// <see cref="LaneWinRate"/> rests on. Always smaller than <see cref="Games"/>,
+    /// often much smaller early on, which is why it is returned rather than left for
+    /// the client to guess.
+    /// </summary>
+    public int DecidedLaneGames { get; init; }
+
+    /// <summary>
+    /// Mean gold gap over the lane opponent at 15 minutes, in gold, signed from the
+    /// champion's point of view (#976). This is the *magnitude*
+    /// <see cref="LaneWinRate"/> cannot carry: a lane won 60% of the time by 120 gold
+    /// and one won 60% of the time by 1200 are the same rate and a different matchup.
+    ///
+    /// <para>
+    /// Averaged over <see cref="GoldDiffLaneGames"/> — the lanes the gap was actually
+    /// summed over, which for rows folded before #976 is fewer than
+    /// <see cref="DecidedLaneGames"/> and often zero. <see langword="null"/> then,
+    /// never 0: "we have not measured this gap" and "the lane is dead even" are the
+    /// opposite of interchangeable here, since 0 is the most decisive-looking value
+    /// the number can take.
+    /// </para>
+    /// </summary>
+    public double? AverageGoldDiffAt15 { get; init; }
+
+    /// <summary>
+    /// Lanes <see cref="AverageGoldDiffAt15"/> is averaged over. Returned so the client
+    /// can withhold a verdict on a sample too small to band, rather than turning three
+    /// lanes into a confident label.
+    /// </summary>
+    public int GoldDiffLaneGames { get; init; }
 }

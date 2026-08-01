@@ -87,8 +87,14 @@ public sealed class ChampionTrendQueryService(
             };
         }
 
-        var laneTotals = await LoadLaneTotalsAsync(
-            queueId, resolvedPosition, lanePatches.Select(row => row.Patch).ToList(), ct);
+        var patchesInSeries = lanePatches.Select(row => row.Patch).ToList();
+        var laneTotals = await LoadLaneTotalsAsync(queueId, resolvedPosition, patchesInSeries, ct);
+
+        // The endpoint carries no elo filter, so this reads the stored ALL band
+        // (#920). Patches older than ban ingestion are simply absent from the
+        // lookup and their points keep a null BanRate — a real gap in the series,
+        // which the chart renders as "no ban history yet" rather than as a 0%.
+        var banScopes = await ChampionBanRateQueries.LoadAsync(db, patchesInSeries, bracketBands: null, ct);
 
         var points = lanePatches
             .OrderBy(row => patchSortKeys.Resolve(row.Patch))
@@ -101,6 +107,7 @@ public sealed class ChampionTrendQueryService(
                     Games = row.Games,
                     WinRate = RateMath.Rate(row.Wins, row.Games),
                     PickRate = RateMath.Rate(row.Games, laneTotal),
+                    BanRate = banScopes.GetValueOrDefault(row.Patch)?.RateFor(championId),
                 };
             })
             .ToList();

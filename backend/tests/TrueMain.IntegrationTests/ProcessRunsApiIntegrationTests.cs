@@ -2,8 +2,10 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Data.Entities;
+using Data.Ops.Mongo;
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using MongoDB.Driver;
 
 namespace TrueMain.IntegrationTests;
 
@@ -12,19 +14,22 @@ public sealed class ProcessRunsApiIntegrationTests
 {
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
     private readonly PostgresFixture _fixture;
+    private readonly MongoFixture _mongo;
 
-    public ProcessRunsApiIntegrationTests(PostgresFixture fixture)
+    public ProcessRunsApiIntegrationTests(PostgresFixture fixture, MongoFixture mongo)
     {
         _fixture = fixture;
+        _mongo = mongo;
     }
 
     [Fact]
     public async Task GetProcessRunsAsync_ShouldReturnRunsNewestFirstWithRollup()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
         await SeedProcessRunsAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateClient(factory);
 
         var response = await client.GetAsync("/ops/process-runs");
@@ -101,9 +106,10 @@ public sealed class ProcessRunsApiIntegrationTests
     public async Task GetProcessRunsAsync_WithSince_ShouldNarrowFailureWindowConsistently()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
         await SeedProcessRunsAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateClient(factory);
 
         // An explicit 7-day `since` narrows BOTH the runs list and the rollup's
@@ -143,21 +149,20 @@ public sealed class ProcessRunsApiIntegrationTests
     public async Task GetProcessRunsAsync_ShouldSurfaceRunningRunAsLatestStatus()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
         // A process with an earlier success and a now-in-flight Running row. The
         // Running row has the newest StartedAtUtc, so it is the latest run and the
         // rollup must report it as the current status (the "what's running now"
         // signal). A Running row does not count as a failure or a success.
         var now = DateTime.UtcNow;
-        await using (var db = _fixture.CreateDbContext())
-        {
-            db.ProcessRuns.AddRange(
-                BuildRun("MatchIngestion", ProcessRunStatus.Success, now.AddMinutes(-30), error: null, summary: null),
-                BuildRunning("MatchIngestion", now.AddMinutes(-1)));
-            await db.SaveChangesAsync();
-        }
+        await Runs().InsertManyAsync(
+        [
+            BuildRun("MatchIngestion", ProcessRunStatus.Success, now.AddMinutes(-30), error: null, summary: null),
+            BuildRunning("MatchIngestion", now.AddMinutes(-1))
+        ]);
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateClient(factory);
 
         var response = await client.GetAsync("/ops/process-runs");
@@ -188,22 +193,21 @@ public sealed class ProcessRunsApiIntegrationTests
     public async Task GetProcessRunsAsync_WithoutSince_ShouldReturnOldRunsCappedByLimitNewestFirst()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
         // Seed ONLY runs older than a week. The old behaviour (a default now-7d
         // lower bound on the runs list) would return an empty list here — the bug.
         // With the fix the runs list is unbounded by default, and so is the
         // rollup's failure window.
         var now = DateTime.UtcNow;
-        await using (var db = _fixture.CreateDbContext())
-        {
-            db.ProcessRuns.AddRange(
-                BuildRun("LegacyJob", ProcessRunStatus.Success, now.AddDays(-8), error: null, summary: null),
-                BuildRun("LegacyJob", ProcessRunStatus.Failed, now.AddDays(-9), error: "old failure", summary: null),
-                BuildRun("LegacyJob", ProcessRunStatus.Success, now.AddDays(-30), error: null, summary: null));
-            await db.SaveChangesAsync();
-        }
+        await Runs().InsertManyAsync(
+        [
+            BuildRun("LegacyJob", ProcessRunStatus.Success, now.AddDays(-8), error: null, summary: null),
+            BuildRun("LegacyJob", ProcessRunStatus.Failed, now.AddDays(-9), error: "old failure", summary: null),
+            BuildRun("LegacyJob", ProcessRunStatus.Success, now.AddDays(-30), error: null, summary: null)
+        ]);
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateClient(factory);
 
         // No `since`, limit=2: the two NEWEST runs come back even though all rows
@@ -240,22 +244,21 @@ public sealed class ProcessRunsApiIntegrationTests
     public async Task GetProcessRunsAsync_WithPaging_ShouldReturnRequestedSliceWithTotals()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
         // Five PagedJob runs, one hour apart, newest-first order:
         // -1h Failed, -2h Success, -3h Failed, -4h Success, -5h Success.
         var now = DateTime.UtcNow;
-        await using (var db = _fixture.CreateDbContext())
-        {
-            db.ProcessRuns.AddRange(
-                BuildRun("PagedJob", ProcessRunStatus.Failed, now.AddHours(-1), error: "newest failure", summary: null),
-                BuildRun("PagedJob", ProcessRunStatus.Success, now.AddHours(-2), error: null, summary: null),
-                BuildRun("PagedJob", ProcessRunStatus.Failed, now.AddHours(-3), error: "older failure", summary: null),
-                BuildRun("PagedJob", ProcessRunStatus.Success, now.AddHours(-4), error: null, summary: null),
-                BuildRun("PagedJob", ProcessRunStatus.Success, now.AddHours(-5), error: null, summary: null));
-            await db.SaveChangesAsync();
-        }
+        await Runs().InsertManyAsync(
+        [
+            BuildRun("PagedJob", ProcessRunStatus.Failed, now.AddHours(-1), error: "newest failure", summary: null),
+            BuildRun("PagedJob", ProcessRunStatus.Success, now.AddHours(-2), error: null, summary: null),
+            BuildRun("PagedJob", ProcessRunStatus.Failed, now.AddHours(-3), error: "older failure", summary: null),
+            BuildRun("PagedJob", ProcessRunStatus.Success, now.AddHours(-4), error: null, summary: null),
+            BuildRun("PagedJob", ProcessRunStatus.Success, now.AddHours(-5), error: null, summary: null)
+        ]);
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateClient(factory);
 
         // Page 1: the two newest runs.
@@ -311,9 +314,10 @@ public sealed class ProcessRunsApiIntegrationTests
     public async Task GetProcessRunsAsync_ShouldSurfaceSummaryJsonAndApplyFilters()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
         await SeedProcessRunsAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateClient(factory);
 
         // Filter to MatchIngestion failures only. Two failures exist (a recent one
@@ -349,8 +353,9 @@ public sealed class ProcessRunsApiIntegrationTests
     public async Task GetProcessRunsAsync_ShouldRequireOpsApiKey()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("https://localhost")
@@ -383,9 +388,9 @@ public sealed class ProcessRunsApiIntegrationTests
     private async Task SeedProcessRunsAsync()
     {
         var now = DateTime.UtcNow;
-        await using var db = _fixture.CreateDbContext();
 
-        db.ProcessRuns.AddRange(
+        await Runs().InsertManyAsync(
+        [
             // MatchIngestion: an in-window success then a later in-window failure
             // carrying a JSON summary. The failure is the latest run.
             BuildRun("MatchIngestion", ProcessRunStatus.Success, now.AddHours(-5), error: null, summary: null),
@@ -406,12 +411,14 @@ public sealed class ProcessRunsApiIntegrationTests
             // still anchors the rollup's last-run/last-success for Discovery.
             BuildRun("Discovery", ProcessRunStatus.Success, now.AddDays(-10), error: null, summary: null),
             // Scoring: an in-window success.
-            BuildRun("Scoring", ProcessRunStatus.Success, now.AddHours(-3), error: null, summary: null));
-
-        await db.SaveChangesAsync();
+            BuildRun("Scoring", ProcessRunStatus.Success, now.AddHours(-3), error: null, summary: null)
+        ]);
     }
 
-    private static ProcessRun BuildRun(
+    private IMongoCollection<ProcessRunDocument> Runs()
+        => _mongo.GetCollection<ProcessRunDocument>(MongoFixture.ProcessRunsCollection);
+
+    private static ProcessRunDocument BuildRun(
         string processName,
         ProcessRunStatus status,
         DateTime startedAtUtc,
@@ -419,6 +426,7 @@ public sealed class ProcessRunsApiIntegrationTests
         string? summary)
         => new()
         {
+            Id = Guid.NewGuid(),
             ProcessName = processName,
             StartedAtUtc = startedAtUtc,
             FinishedAtUtc = startedAtUtc.AddMinutes(2),
@@ -426,7 +434,7 @@ public sealed class ProcessRunsApiIntegrationTests
             Status = status,
             Error = error,
             Host = "test-host",
-            Summary = summary is null ? null : JsonDocument.Parse(summary)
+            SummaryJson = summary
         };
 
     // An in-flight run: Running status, no finish yet (FinishedAtUtc mirrors the
@@ -434,9 +442,10 @@ public sealed class ProcessRunsApiIntegrationTests
     // fresh (mirrors the start, as RecordStartAsync does in production) so the
     // read query reports it as Running rather than mapping a stale beat to
     // Abandoned.
-    private static ProcessRun BuildRunning(string processName, DateTime startedAtUtc)
+    private static ProcessRunDocument BuildRunning(string processName, DateTime startedAtUtc)
         => new()
         {
+            Id = Guid.NewGuid(),
             ProcessName = processName,
             StartedAtUtc = startedAtUtc,
             FinishedAtUtc = startedAtUtc,
@@ -445,11 +454,20 @@ public sealed class ProcessRunsApiIntegrationTests
             Error = null,
             Host = "test-host",
             LastHeartbeatAtUtc = startedAtUtc,
-            Summary = null
+            SummaryJson = null
         };
 
-    private sealed class ApiWebApplicationFactory(PostgresFixture fixture)
-        : TrueMainWebApplicationFactory<Program>(fixture);
+    // Point the host at the test Mongo container (process runs are read from the
+    // Mongo store) and mute the diagnostic sink so incidental host warnings never
+    // write extra documents.
+    private sealed class ApiWebApplicationFactory(PostgresFixture fixture, MongoFixture mongo)
+        : TrueMainWebApplicationFactory<Program>(
+            fixture,
+            [
+                new KeyValuePair<string, string?>("MongoLogging:ConnectionString", mongo.ConnectionString),
+                new KeyValuePair<string, string?>("MongoLogging:Database", MongoFixture.DatabaseName),
+                new KeyValuePair<string, string?>("MongoLogging:MinimumLevel", "None")
+            ]);
 
     private sealed class ProcessRunsTestContract
     {

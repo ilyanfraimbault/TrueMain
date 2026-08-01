@@ -122,6 +122,11 @@ dotnet_naming_style.begins_with_i.capitalization = pascal_case
 dotnet_diagnostic.IDE0060.severity = none       # paramètres inutilisés OK dans les tests
 dotnet_diagnostic.CA1707.severity = none        # underscores dans les noms de tests OK
 dotnet_diagnostic.CA1822.severity = none        # static OK dans les tests
+# IDE0005 (usings inutiles) exige GenerateDocumentationFile=true pour tourner en build
+# (https://github.com/dotnet/roslyn/issues/41640), or les projets de tests désactivent
+# volontairement cette propriété (#291) pour ne pas dépendre du NoWarn CS1591 global.
+# Sans ça, Roslyn échoue le build avec l'erreur EnableGenerateDocumentationFile.
+dotnet_diagnostic.IDE0005.severity = none
 
 # Migrations EF : code auto-généré, on n'applique pas les règles de style.
 # Les migrations sont générées par `dotnet ef migrations add ...` et ne sont pas
@@ -131,4 +136,15 @@ dotnet_diagnostic.CA1822.severity = none        # static OK dans les tests
 generated_code = true
 dotnet_diagnostic.IDE0005.severity = none       # using inutile
 dotnet_diagnostic.IDE0161.severity = none       # namespace block (le générateur EF ne sait pas faire file-scoped)
+dotnet_diagnostic.CS1591.severity = none        # doc XML : code généré, rien à documenter
+dotnet_analyzer_diagnostic.category-Style.severity = none
+
+# Modèle compilé EF : régénéré par `dotnet ef dbcontext optimize`, jamais édité à la
+# main. Mêmes exemptions que les migrations — ces règles ne peuvent pas être
+# satisfaites par un générateur.
+[backend/Data/CompiledModels/**.cs]
+generated_code = true
+dotnet_diagnostic.IDE0005.severity = none
+dotnet_diagnostic.IDE0161.severity = none
+dotnet_diagnostic.CS1591.severity = none
 dotnet_analyzer_diagnostic.category-Style.severity = none

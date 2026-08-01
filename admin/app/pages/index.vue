@@ -13,6 +13,7 @@ const { data: stats, pending, error, refresh } = useOverviewStats()
 // Histogram of match counts by GAME date at a selectable granularity. The select
 // drives a reactive refetch; the x-axis label format follows the granularity.
 const granularityItems: { label: string, value: MatchTimeGranularity }[] = [
+  { label: 'Day', value: 'day' },
   { label: 'Week', value: 'week' },
   { label: 'Month', value: 'month' },
   { label: 'Year', value: 'year' },

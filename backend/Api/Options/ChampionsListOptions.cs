@@ -57,4 +57,36 @@ public sealed class ChampionsListOptions
     /// with no games at all is never comparable regardless.
     /// </summary>
     public int MinComparisonGames { get; set; } = 5;
+
+    /// <summary>
+    /// Minimum games a (champion, partner) pairing needs before the synergies panel
+    /// shows it. Set higher than <see cref="MinMatchupGames"/> on purpose: synergy is
+    /// a <em>difference</em> between two rates, so its sampling error is the sum of
+    /// theirs, and the honest floor for "this pairing is worth three points" is well
+    /// above the floor for "this champion wins 54%". Ten games would let a 7-3 pair
+    /// print +15% synergy and top the list. Set to 0 to disable.
+    /// </summary>
+    public int MinSynergyGames { get; set; } = 20;
+
+    /// <summary>
+    /// Minimum games a trio (champion + chosen partner + third pick) needs before it
+    /// is offered as a completion. Necessarily lower than
+    /// <see cref="MinSynergyGames"/>: a trio's sample is a subset of its duo's, so
+    /// reusing the pair floor would leave almost every duo with no third pick at all.
+    /// It is the reason the endpoint returns the duo's own game count — a caller can
+    /// then say "this duo has only 24 games, too few to split three ways" rather than
+    /// implying no third pick works. Set to 0 to disable.
+    /// </summary>
+    public int MinSynergyTrioGames { get; set; } = 12;
+
+    /// <summary>
+    /// Minimum games a champion's marginal win rate must rest on before it may be
+    /// used as an input to an expected win rate. This is the guard the other two
+    /// floors cannot provide: a pairing can clear its own games floor while one side's
+    /// baseline is still a coin flip, and since synergy is measured *against* that
+    /// baseline, a noisy one produces a confidently wrong number rather than a noisy
+    /// one. Entries whose partner baseline is below this are dropped, and a champion
+    /// whose own baseline is below it yields an empty list. Set to 0 to disable.
+    /// </summary>
+    public int MinSynergyBaselineGames { get; set; } = 50;
 }

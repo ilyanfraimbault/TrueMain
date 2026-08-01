@@ -23,10 +23,10 @@ const items = computed<NavigationMenuItem[]>(() => [
     active: isActive('/champions/tierlist'),
   },
   {
-    label: 'Builder',
+    label: 'Matchup',
     icon: 'i-lucide-wand-sparkles',
-    to: '/builder',
-    active: isActive('/builder'),
+    to: '/matchup',
+    active: isActive('/matchup'),
   },
   {
     label: 'Truemains',

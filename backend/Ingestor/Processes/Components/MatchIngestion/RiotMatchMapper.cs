@@ -34,8 +34,43 @@ internal static class RiotMatchMapper
         var participants = MapParticipants(matchDto, matchId, platformId, participantAccounts);
         CorrectUnambiguousTeamPositions(participants);
         var perkSelectionRows = BuildPerkSelectionRows(matchDto, matchId);
+        var bans = MapBans(matchDto, matchId);
 
-        return new MappedMatch(match, participants, perkSelectionRows);
+        return new MappedMatch(match, participants, perkSelectionRows, bans);
+    }
+
+    /// <summary>
+    /// Flattens <c>teams[].bans[]</c> into <see cref="MatchBan"/> rows (#920).
+    /// Two shapes are dropped rather than stored: an unused ban slot, which Riot
+    /// reports as <c>championId = -1</c>, and a duplicated <c>(teamId, pickTurn)</c>,
+    /// which cannot exist in a well-formed draft but would violate the table's
+    /// natural-key primary key and fail the whole batch's save if one ever arrived.
+    /// </summary>
+    internal static List<MatchBan> MapBans(RiotMatchDto match, string matchId)
+    {
+        var bans = new List<MatchBan>();
+        var seen = new HashSet<(int TeamId, int PickTurn)>();
+
+        foreach (var team in match.Info.Teams)
+        {
+            foreach (var ban in team.Bans)
+            {
+                if (ban.ChampionId <= 0 || !seen.Add((team.TeamId, ban.PickTurn)))
+                {
+                    continue;
+                }
+
+                bans.Add(new MatchBan
+                {
+                    MatchId = matchId,
+                    TeamId = team.TeamId,
+                    PickTurn = ban.PickTurn,
+                    ChampionId = ban.ChampionId
+                });
+            }
+        }
+
+        return bans;
     }
 
     private static List<MatchParticipant> MapParticipants(
@@ -166,6 +201,7 @@ internal static class RiotMatchMapper
 internal sealed record MappedMatch(
     Match Match,
     IReadOnlyList<MatchParticipant> Participants,
-    IReadOnlyList<MappedPerkSelection> PerkSelections);
+    IReadOnlyList<MappedPerkSelection> PerkSelections,
+    IReadOnlyList<MatchBan> Bans);
 
 internal sealed record MappedPerkSelection(string MatchId, int ParticipantId, PerkCatalogKey Key);

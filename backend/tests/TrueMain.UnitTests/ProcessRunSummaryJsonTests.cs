@@ -38,18 +38,18 @@ public sealed class ProcessRunSummaryJsonTests
         // Spelled out rather than compared, so a reviewer can read the persisted
         // shape of the two summaries that nest an array of objects.
         ProcessRunSummaryJson.Serialize(new DiscoverySummary(
-            [new DiscoveryPlatformSummary("EUW1", 40, 3, 12, 5, 2, 38, null)]))
+            [new DiscoveryPlatformSummary("EUW1", 40, 3, 12, 5, 2, 6, 32, null)]))
             .Should().Be(
                 """
-                {"platforms":[{"platform":"EUW1","accountsProcessed":40,"newAccounts":3,"candidatesInserted":12,"candidatesUpdated":5,"rankSnapshotsInserted":2,"rankSnapshotsUnchanged":38,"error":null}]}
+                {"platforms":[{"platform":"EUW1","accountsProcessed":40,"newAccounts":3,"candidatesInserted":12,"candidatesUpdated":5,"rankSnapshotsInserted":2,"rankSnapshotsUpdated":6,"rankSnapshotsUnchanged":32,"error":null}]}
                 """);
 
         ProcessRunSummaryJson.Serialize(new MatchDataRetentionSummary(
-            3, 420, 10, 100, 4, 7, 5, 900, 1, 2, 4, 5, 6,
+            3, 420, 10, 100, 4, 7, 5, 900, 1, 2, 4, 5, 8, 9, 6, 11, 3,
             [new RetainedPatchesSummary("KR", ["16.3", "16.4"])]))
             .Should().Be(
                 """
-                {"retainedPatchCount":3,"queueId":420,"deletedMatches":10,"deletedParticipants":100,"deletedNonRankedMatches":4,"prunedCandidates":7,"prunedSnapshotMatches":5,"deletedIntermediateSnapshots":900,"deletedAggregateScopes":1,"deletedMatchupStats":2,"deletedPowerspikeCurveStats":4,"deletedPowerspikeEventStats":5,"prunedSubFloorPowerspikeEvents":6,"retainedPatchesByPlatform":[{"platformId":"KR","patches":["16.3","16.4"]}]}
+                {"retainedPatchCount":3,"queueId":420,"deletedMatches":10,"deletedParticipants":100,"deletedNonRankedMatches":4,"prunedCandidates":7,"prunedSnapshotMatches":5,"deletedIntermediateSnapshots":900,"deletedAggregateScopes":1,"deletedMatchupStats":2,"deletedPowerspikeCurveStats":4,"deletedPowerspikeEventStats":5,"deletedSynergyStats":8,"deletedBanStats":9,"prunedSubFloorPowerspikeEvents":6,"collapsedPowerspikeOpponentShards":11,"collapsedPowerspikeOpponentGroups":3,"retainedPatchesByPlatform":[{"platformId":"KR","patches":["16.3","16.4"]}]}
                 """);
     }
 
@@ -59,7 +59,7 @@ public sealed class ProcessRunSummaryJsonTests
         // The admin's per-platform row reads `error`; dropping the key for a
         // healthy platform (WhenWritingNull) would change the stored shape.
         ProcessRunSummaryJson.Serialize(new DiscoverySummary(
-            [new DiscoveryPlatformSummary("KR", 0, 0, 0, 0, 0, 0, null)]))
+            [new DiscoveryPlatformSummary("KR", 0, 0, 0, 0, 0, 0, 0, null)]))
             .Should().Contain("\"error\":null");
     }
 
@@ -127,8 +127,8 @@ public sealed class ProcessRunSummaryJsonTests
         yield return (
             new DiscoverySummary(
             [
-                new DiscoveryPlatformSummary("EUW1", 40, 3, 12, 5, 2, 38, null),
-                new DiscoveryPlatformSummary("KR", 0, 0, 0, 0, 0, 0, "simulated ladder outage")
+                new DiscoveryPlatformSummary("EUW1", 40, 3, 12, 5, 2, 6, 32, null),
+                new DiscoveryPlatformSummary("KR", 0, 0, 0, 0, 0, 0, 0, "simulated ladder outage")
             ]),
             new
             {
@@ -142,7 +142,8 @@ public sealed class ProcessRunSummaryJsonTests
                         candidatesInserted = 12,
                         candidatesUpdated = 5,
                         rankSnapshotsInserted = 2,
-                        rankSnapshotsUnchanged = 38,
+                        rankSnapshotsUpdated = 6,
+                        rankSnapshotsUnchanged = 32,
                         error = (string?)null
                     },
                     new
@@ -153,6 +154,7 @@ public sealed class ProcessRunSummaryJsonTests
                         candidatesInserted = 0,
                         candidatesUpdated = 0,
                         rankSnapshotsInserted = 0,
+                        rankSnapshotsUpdated = 0,
                         rankSnapshotsUnchanged = 0,
                         error = (string?)"simulated ladder outage"
                     }
@@ -212,7 +214,7 @@ public sealed class ProcessRunSummaryJsonTests
             });
 
         yield return (
-            new AccountRefreshSummary(50, 30, 2, 1, 10, 3, 20, 25, 4, 6, 2),
+            new AccountRefreshSummary(50, 30, 2, 1, 10, 3, 20, 8, 25, 4, 6, 2),
             new
             {
                 selected = 50,
@@ -222,6 +224,7 @@ public sealed class ProcessRunSummaryJsonTests
                 profileSkipped = 10,
                 profileFailed = 3,
                 rankInserted = 20,
+                rankUpdated = 8,
                 rankUnchanged = 25,
                 rankSkippedUnranked = 4,
                 rankSkippedFresh = 6,
@@ -249,8 +252,43 @@ public sealed class ProcessRunSummaryJsonTests
             new MatchAggregationSummary(4000, 4),
             new { matches = 4000, batches = 4 });
 
+        // ChampionSynergyAggregationProcess (#922) — same match/batch pair plus the
+        // two upsert counts, since it writes two tables per fold.
         yield return (
-            new MatchDataRetentionSummary(3, 420, 10, 100, 4, 7, 5, 900, 1, 2, 4, 5, 6,
+            new SynergyAggregationSummary(4000, 4, 15000, 900),
+            new { matches = 4000, batches = 4, pairRows = 15000, baselineRows = 900 });
+
+        // ChampionLaneOutcomeAggregationProcess (#919).
+        yield return (
+            new LaneOutcomeAggregationSummary(4000, 4, 3600, 900, 300),
+            new { matches = 4000, batches = 4, judgedLanes = 3600, rows = 900, goldLeadThreshold = 300 });
+
+        // RunePageDeduplicationProcess (#911).
+        yield return (
+            new RunePageDeduplicationSummary(20370, 20370, 480000, 28916, 1204, 82),
+            new
+            {
+                groups = 20370,
+                deletedPages = 20370,
+                repointedPatterns = 480000,
+                foldedPatterns = 28916,
+                normalizedPages = 1204,
+                batches = 82,
+            });
+
+        // ChampionBanAggregationProcess (#920) — the synergy shape again, with the
+        // champion counts and the (patch, elo band) denominators it wrote.
+        yield return (
+            new BanAggregationSummary(4000, 4, 12000, 13),
+            new { matches = 4000, batches = 4, banRows = 12000, scopeRows = 13 });
+
+        // StorageSnapshotProcess (#925).
+        yield return (
+            new StorageSnapshotSummary(58, 58, 41_231_686_144),
+            new { tables = 58, written = 58, databaseBytes = 41_231_686_144L });
+
+        yield return (
+            new MatchDataRetentionSummary(3, 420, 10, 100, 4, 7, 5, 900, 1, 2, 4, 5, 8, 9, 6, 11, 3,
             [new RetainedPatchesSummary("KR", ["16.3", "16.4"])]),
             new
             {
@@ -266,7 +304,11 @@ public sealed class ProcessRunSummaryJsonTests
                 deletedMatchupStats = 2,
                 deletedPowerspikeCurveStats = 4,
                 deletedPowerspikeEventStats = 5,
+                deletedSynergyStats = 8,
+                deletedBanStats = 9,
                 prunedSubFloorPowerspikeEvents = 6,
+                collapsedPowerspikeOpponentShards = 11,
+                collapsedPowerspikeOpponentGroups = 3,
                 retainedPatchesByPlatform = new[]
                 {
                     new { platformId = "KR", patches = new[] { "16.3", "16.4" } }

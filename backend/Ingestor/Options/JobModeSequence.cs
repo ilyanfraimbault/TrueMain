@@ -43,14 +43,40 @@ public static class JobModeSequence
         // BEFORE the champion aggregations, so they (and the live panel reads) can
         // filter by rank. Uses prior-cycle snapshots.
         JobMode.EloBracketEnrichmentOnly,
+        // Collapses the permutation-duplicate rune pages the old click-order
+        // storage created (#911) BEFORE the aggregation reads the dimension, so a
+        // pass never aggregates into a table it is about to rewrite. Drains once
+        // and is a no-op thereafter.
+        JobMode.RunePageDeduplicationOnly,
         JobMode.PatternAggregationOnly,
         JobMode.MatchupLeadAggregationOnly,
+        // Judges each match's lane outcome from the 15-minute snapshots and folds it
+        // into the lane counters on the same champion_matchup_stats rows (#919).
+        // Immediately after the matchup fold, over the same matches, so the row its
+        // upsert targets already exists and both sides describe one cohort.
+        JobMode.LaneOutcomeAggregationOnly,
+        // Same incremental one-fold-per-match shape as the matchup step, over the
+        // same participant rows but pairing teammates instead of lane opponents
+        // (#922). Independent of it — it has its own pending flag — so the order
+        // between the two is arbitrary; kept adjacent because they read the same
+        // slice of match_participants and benefit from a warm cache.
+        JobMode.SynergyAggregationOnly,
+        // Folds each match's champion-select bans into champion_ban_stats (#920).
+        // Must run after EloBracketEnrichment, whose stamping decides which elo
+        // bands a match is counted in — a match folded before its participants are
+        // stamped lands in the ALL band only, and the fold is one-shot.
+        JobMode.BanAggregationOnly,
         // Folds each newly-ingested match into the powerspike aggregates (#694)
         // while its dense per-minute snapshots still exist, so MatchDataRetention
         // can then prune them to the canonical marks.
         JobMode.PowerspikeAggregationOnly,
         JobMode.AccountRefreshOnly,
-        JobMode.MatchDataRetentionOnly
+        JobMode.MatchDataRetentionOnly,
+        // Records the day's storage footprint (#925). Deliberately last: it must
+        // measure the steady-state size AFTER retention's deletions, not the peak
+        // before them, or the forecast would predict an exhaustion retention is
+        // already preventing.
+        JobMode.StorageSnapshotOnly
     ]);
 
     /// <summary>

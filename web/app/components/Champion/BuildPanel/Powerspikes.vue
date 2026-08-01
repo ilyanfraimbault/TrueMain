@@ -7,8 +7,15 @@ const props = withDefaults(defineProps<{
   events: ChampionPowerspikeEvent[]
   itemsMap: Record<number, StaticItemData>
   loading?: boolean
+  // True when the filter bar has an opponent selected (#957) — the payload then
+  // describes only the games of that matchup. It changes nothing about how the
+  // bars are drawn, only what the copy is allowed to claim: "this champion" and
+  // "this matchup" are two different populations, and the empty state has a
+  // second cause here that it must not blame on the champion.
+  matchupScoped?: boolean
 }>(), {
   loading: false,
+  matchupScoped: false,
 })
 
 // Two views over the same payload, switched client-side — no refetch, the
@@ -96,18 +103,33 @@ const barHeightPercent = (spike: number): number =>
 const formatGameTime = (minutes: number): string => formatDuration(Math.round(minutes * 60))
 const formatGames = (count: number): string => count.toLocaleString('en-US')
 
-const emptyMessage = computed(() =>
-  selectedView.value === 'item'
-    ? 'No item in this build shows a clear power spike yet.'
-    : 'No level milestone shows a clear power spike yet.',
-)
+// Spikes are folded per lane opponent only for matches ingested since #957, so a
+// matchup can legitimately have no row at all while the champion at large has
+// plenty. That is a different statement from "nothing spikes here", and saying the
+// second when the first is true would read as a verdict on the matchup instead of
+// an admission that we have not measured it. Distinguished on the raw payload, not
+// on the filtered bars: a matchup with only negative spikes has been measured.
+const hasMeasuredEvents = computed(() => props.events.length > 0)
+
+const emptyMessage = computed(() => {
+  if (props.matchupScoped && !hasMeasuredEvents.value) {
+    return 'No game of this matchup has been measured for power spikes yet.'
+  }
+
+  const scope = props.matchupScoped ? 'this matchup' : 'this build'
+  return selectedView.value === 'item'
+    ? `No item shows a clear power spike in ${scope} yet.`
+    : `No level milestone shows a clear power spike in ${scope} yet.`
+})
 </script>
 
 <template>
   <SectionCard
     :level="3"
     title="Power spikes"
-    subtitle="How much this build's completed items and level milestones accelerate the champion's lead over its role opponent."
+    :subtitle="matchupScoped
+      ? `How much this build's completed items and level milestones accelerate the champion's lead, in the games it played this matchup.`
+      : `How much this build's completed items and level milestones accelerate the champion's lead over its role opponent.`"
   >
     <template #actions>
       <div class="flex gap-1">

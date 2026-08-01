@@ -1,6 +1,8 @@
+using Core.Options;
 using Data;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using TrueMain.ReadModels.Truemains;
 
 namespace TrueMain.Services.Truemains;
@@ -8,6 +10,7 @@ namespace TrueMain.Services.Truemains;
 public sealed class ProfileQueryService(
     TrueMainDbContext db,
     IDbContextFactory<TrueMainDbContext> dbFactory,
+    IOptions<MainAnalysisOptions> mainAnalysisOptions,
     ILogger<ProfileQueryService> logger) : IProfileQueryService
 {
     // Shared with the leaderboard so both views derive a player's mains from the
@@ -181,7 +184,13 @@ public sealed class ProfileQueryService(
         // No champion filter: the profile always scores the player's own top
         // main. DateTime.UtcNow is the recency reference — the score is a
         // read-time projection, so it ages between two requests by design.
-        var byAccount = await MainDedication.FetchAsync(ctx, [accountId], championId: null, DateTime.UtcNow, ct);
+        var byAccount = await MainDedication.FetchAsync(
+            ctx,
+            [accountId],
+            championId: null,
+            DateTime.UtcNow,
+            mainAnalysisOptions.Value.PlayRateFloor,
+            ct);
         return byAccount.GetValueOrDefault(accountId);
     }
 

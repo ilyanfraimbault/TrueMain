@@ -20,5 +20,10 @@ public enum JobMode
     EloBracketEnrichmentOnly = 11,
     PowerspikeAggregationOnly = 12,
     TeamPositionCorrectionOnly = 13,
-    MainActivityOnly = 14
+    MainActivityOnly = 14,
+    SynergyAggregationOnly = 15,
+    BanAggregationOnly = 16,
+    StorageSnapshotOnly = 17,
+    RunePageDeduplicationOnly = 18,
+    LaneOutcomeAggregationOnly = 19
 }

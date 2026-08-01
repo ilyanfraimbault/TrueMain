@@ -1,5 +1,7 @@
 using AwesomeAssertions;
+using Microsoft.Extensions.Options;
 using NSubstitute;
+using TrueMain.Options;
 using TrueMain.ReadModels.Champions;
 using TrueMain.Services.Champions;
 
@@ -14,8 +16,8 @@ public sealed class ChampionTierListQueryServiceTests
     {
         var summaries = Substitute.For<IChampionSummariesQueryService>();
         summaries.GetAllSummariesAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
-            .Returns(new List<ChampionSummaryReadModel>());
-        var service = new ChampionTierListQueryService(summaries);
+            .Returns(new ChampionSummariesResult { PatchVersion = "16.5" });
+        var service = new ChampionTierListQueryService(summaries, DefaultOptions());
 
         var result = await service.GetTierListAsync("16.5", position: null, eloBracket: null, CancellationToken.None);
 
@@ -26,10 +28,12 @@ public sealed class ChampionTierListQueryServiceTests
     [Fact]
     public async Task GetTierListAsync_groups_every_row_and_orders_tiers_strongest_first()
     {
-        // 50 rows on a single position, winRate climbing — a full pyramid.
+        // 50 rows on a single position, win rate climbing, pick/ban rate held
+        // constant — win rate is the sole discriminator, so this is still a
+        // full pyramid (see ChampionTierCalculatorTests for the exact formula).
         var rows = Enumerable.Range(0, 50)
             .Select(i => Summary(championId: 100 + i, position: "MIDDLE",
-                winRate: 0.40 + (i * 0.004), pickRate: 0.05))
+                games: 300, wins: (int)Math.Round(300 * (0.40 + (i * 0.004))), pickRate: 0.05, banRate: 0.10))
             .ToList();
         var service = ServiceReturning(rows);
 
@@ -59,11 +63,11 @@ public sealed class ChampionTierListQueryServiceTests
         // dragged down by the MIDDLE field — proof the buckets are role-local.
         var rows = new List<ChampionSummaryReadModel>
         {
-            Summary(championId: 1, position: "TOP", winRate: 0.55, pickRate: 0.20),
+            Summary(championId: 1, position: "TOP", games: 400, wins: 220, pickRate: 0.20, banRate: 0.15),
         };
         rows.AddRange(Enumerable.Range(0, 20)
             .Select(i => Summary(championId: 100 + i, position: "MIDDLE",
-                winRate: 0.40 + (i * 0.005), pickRate: 0.05)));
+                games: 300, wins: (int)Math.Round(300 * (0.40 + (i * 0.005))), pickRate: 0.05, banRate: 0.10)));
         var service = ServiceReturning(rows);
 
         var result = await service.GetTierListAsync(patch: null, position: null, eloBracket: null, CancellationToken.None);
@@ -86,8 +90,8 @@ public sealed class ChampionTierListQueryServiceTests
     {
         var rows = new List<ChampionSummaryReadModel>
         {
-            Summary(championId: 1, position: "TOP", winRate: 0.52, pickRate: 0.10),
-            Summary(championId: 2, position: "MIDDLE", winRate: 0.51, pickRate: 0.10),
+            Summary(championId: 1, position: "TOP", games: 300, wins: 156, pickRate: 0.10, banRate: 0.10),
+            Summary(championId: 2, position: "MIDDLE", games: 300, wins: 153, pickRate: 0.10, banRate: 0.10),
         };
         var service = ServiceReturning(rows);
 
@@ -99,22 +103,44 @@ public sealed class ChampionTierListQueryServiceTests
             .And.ContainSingle(entry => entry.ChampionId == 1);
     }
 
+    [Fact]
+    public async Task GetTierListAsync_handles_a_ban_data_free_patch()
+    {
+        // Every row null BanRate (pre-#920 patch) must still produce a valid
+        // pyramid — the ban weight is folded back into pick + win.
+        var rows = Enumerable.Range(0, 20)
+            .Select(i => Summary(championId: 100 + i, position: "MIDDLE",
+                games: 300, wins: (int)Math.Round(300 * (0.40 + (i * 0.01))), pickRate: 0.02 + (i * 0.005), banRate: null))
+            .ToList();
+        var service = ServiceReturning(rows);
+
+        var result = await service.GetTierListAsync(patch: null, position: null, eloBracket: null, CancellationToken.None);
+
+        result.Tiers.SelectMany(group => group.Entries).Should().HaveCount(20);
+        result.Tiers.SelectMany(group => group.Entries).Should().OnlyContain(entry => entry.BanRate == null);
+    }
+
     private static ChampionTierListQueryService ServiceReturning(IReadOnlyList<ChampionSummaryReadModel> rows)
     {
         var summaries = Substitute.For<IChampionSummariesQueryService>();
-        summaries.GetAllSummariesAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(rows);
-        return new ChampionTierListQueryService(summaries);
+        summaries.GetAllSummariesAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(new ChampionSummariesResult { PatchVersion = "16.5", TotalGames = rows.Sum(row => row.Games), Summaries = rows });
+        return new ChampionTierListQueryService(summaries, DefaultOptions());
     }
 
+    private static IOptions<ChampionTierOptions> DefaultOptions() =>
+        Microsoft.Extensions.Options.Options.Create(new ChampionTierOptions());
+
     private static ChampionSummaryReadModel Summary(
-        int championId, string position, double winRate, double pickRate) => new()
+        int championId, string position, int games, int wins, double pickRate, double? banRate) => new()
         {
             ChampionId = championId,
             Position = position,
-            Games = 100,
-            Wins = (int)(winRate * 100),
-            WinRate = winRate,
+            Games = games,
+            Wins = wins,
+            WinRate = (double)wins / games,
             PickRate = pickRate,
+            BanRate = banRate,
             PatchVersion = "16.5",
         };
 }

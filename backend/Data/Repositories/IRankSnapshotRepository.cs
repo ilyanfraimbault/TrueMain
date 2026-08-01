@@ -6,6 +6,8 @@ public interface IRankSnapshotRepository
 {
     void Add(RankSnapshot snapshot);
 
+    void Update(RankSnapshot snapshot);
+
     Task<RankSnapshot?> GetLatestAsync(Guid riotAccountId, CancellationToken ct);
 
     Task<Dictionary<Guid, RankSnapshot>> GetLatestForAccountsAsync(

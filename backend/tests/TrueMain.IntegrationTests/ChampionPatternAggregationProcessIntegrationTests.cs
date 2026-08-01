@@ -234,6 +234,16 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
     {
         await using var db = _fixture.CreateDbContext();
 
+        // Push KR_AGG_2 a day past KR_AGG_1 so the two "captured exactly at game
+        // start" snapshots below land on different UTC calendar days — required
+        // since rank_snapshots now allows at most one row per account per day.
+        // The nearest-snapshot resolution below is driven purely by each match's
+        // distance to its own snapshot (which stays zero), so the day gap between
+        // the two matches doesn't affect which snapshot buckets which game.
+        var secondMatch = await db.Matches.SingleAsync(match => match.Id == "KR_AGG_2");
+        secondMatch.GameStartTimeUtc = secondMatch.GameStartTimeUtc.AddDays(1);
+        await db.SaveChangesAsync();
+
         // Capture each snapshot exactly at a game's start so the nearest-capture
         // reduction is deterministic: KR_AGG_1 → Silver, KR_AGG_2 → Master.
         var gameStarts = await db.Matches
@@ -257,6 +267,96 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
                 Division = "I",
                 LeaguePoints = 200
             });
+
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Guards the root-cause half of #911: the reader must store a rune page's two
+    /// secondary perks in a canonical order, whatever order the player clicked them in.
+    /// </summary>
+    /// <remarks>
+    /// This is the regression test the merge process cannot provide — those tests seed
+    /// <c>champion_dim_rune_pages</c> rows directly and so assume the reader already
+    /// emits canonical output. Reverting the reader to <c>OrderBy(SelectionIndex)</c>
+    /// would leave every one of them green while silently reproducing the bug: two rows
+    /// for one page, its games and wins split across them, which went unnoticed in
+    /// production until 48% of the dimension was duplicated precisely because the two
+    /// rows render identically.
+    /// </remarks>
+    [Fact]
+    public async Task RunAsync_StoresSecondaryPerksInCanonicalOrder_WhateverTheSelectionOrder()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedChampionPatternDataAsync();
+
+        // The pair from the issue — Second Wind (8444) and Overgrowth (8451) — picked in
+        // opposite orders in the two seeded matches. Same page, twice, described two
+        // ways: exactly the input that used to produce two dimension rows.
+        await SeedSecondaryPerkSelectionsAsync("KR_AGG_1", firstPerkId: 8451, secondPerkId: 8444);
+        await SeedSecondaryPerkSelectionsAsync("KR_AGG_2", firstPerkId: 8444, secondPerkId: 8451);
+
+        await CreateProcess().RunCoreAsync(CancellationToken.None);
+
+        await using var db = _fixture.CreateDbContext();
+        var pages = await db.ChampionDimRunePages.AsNoTracking().ToListAsync();
+
+        pages.Should().ContainSingle(
+            "both matches describe the same rune page, so the deduplicated dimension holds one row");
+        pages[0].SecondaryPerk1Id.Should().Be(8444, "the lower perk id comes first");
+        pages[0].SecondaryPerk2Id.Should().Be(8451);
+    }
+
+    /// <summary>
+    /// Seeds the two <c>subStyle</c> perk selections of a match's participant in the
+    /// given <em>selection</em> order, i.e. what the player clicked — which is what the
+    /// reader must not preserve.
+    /// </summary>
+    private async Task SeedSecondaryPerkSelectionsAsync(string matchId, int firstPerkId, int secondPerkId)
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        // The primary tree is seeded too, in its natural order: it is unaffected by
+        // #911 (there the selection index *is* the tree row) and including it keeps the
+        // row a realistic full page rather than a secondary-only fragment.
+        (string Style, int StyleId, int Index, int PerkId)[] selections =
+        [
+            ("primaryStyle", 8000, 0, 8008),
+            ("primaryStyle", 8000, 1, 8009),
+            ("primaryStyle", 8000, 2, 9105),
+            ("primaryStyle", 8000, 3, 8299),
+            ("subStyle", 8100, 0, firstPerkId),
+            ("subStyle", 8100, 1, secondPerkId),
+        ];
+
+        foreach (var (style, styleId, index, perkId) in selections)
+        {
+            var catalog = await db.PerkSelectionCatalogs.FirstOrDefaultAsync(entry =>
+                entry.StyleId == styleId
+                && entry.SelectionIndex == index
+                && entry.PerkId == perkId
+                && entry.StyleDescription == style);
+
+            if (catalog is null)
+            {
+                catalog = new PerkSelectionCatalog
+                {
+                    StyleId = styleId,
+                    SelectionIndex = index,
+                    PerkId = perkId,
+                    StyleDescription = style,
+                };
+                db.PerkSelectionCatalogs.Add(catalog);
+            }
+
+            db.ParticipantPerkSelections.Add(new ParticipantPerkSelection
+            {
+                Id = Guid.NewGuid(),
+                MatchId = matchId,
+                ParticipantId = 1,
+                Catalog = catalog,
+            });
+        }
 
         await db.SaveChangesAsync();
     }

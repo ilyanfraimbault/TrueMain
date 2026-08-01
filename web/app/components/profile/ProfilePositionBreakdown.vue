@@ -36,6 +36,11 @@ const sorted = computed<RoleRow[]>(() =>
     }))
     .sort((a, b) => b.games - a.games),
 )
+
+// Plain <img> + a URL built here instead of <NuxtImg> — same `_ipx/…` URL,
+// minus the responsive srcset machinery a fixed 20px icon never needed. See
+// SkeletonImage.vue for the profiling rationale.
+const ipx = useImage()
 </script>
 
 <template>
@@ -51,13 +56,13 @@ const sorted = computed<RoleRow[]>(() =>
         :key="role.position"
         class="grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 px-3 py-2"
       >
-        <NuxtImg
-          :src="getPositionIconUrl(role.position)"
+        <img
+          :src="ipx(getPositionIconUrl(role.position), { width: 20, height: 20 })"
           :alt="role.label"
           class="size-5"
           width="20"
           height="20"
-        />
+        >
         <span class="text-sm font-medium">
           {{ role.label }}
         </span>

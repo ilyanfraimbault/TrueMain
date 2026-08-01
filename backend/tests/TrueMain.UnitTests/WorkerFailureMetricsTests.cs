@@ -32,11 +32,16 @@ public sealed class WorkerFailureMetricsTests
         ("MatchTeamPositionCorrection", JobMode.TeamPositionCorrectionOnly),
         ("MainAnalysis", JobMode.MainAnalysisOnly),
         ("MatchParticipantEloBracketEnrichment", JobMode.EloBracketEnrichmentOnly),
+        ("RunePageDeduplication", JobMode.RunePageDeduplicationOnly),
         ("ChampionPatternAggregation", JobMode.PatternAggregationOnly),
         ("ChampionMatchupLeadAggregation", JobMode.MatchupLeadAggregationOnly),
+        ("ChampionLaneOutcomeAggregation", JobMode.LaneOutcomeAggregationOnly),
+        ("ChampionSynergyAggregation", JobMode.SynergyAggregationOnly),
+        ("ChampionBanAggregation", JobMode.BanAggregationOnly),
         ("ChampionPowerspikeAggregation", JobMode.PowerspikeAggregationOnly),
         ("AccountRefresh", JobMode.AccountRefreshOnly),
-        ("MatchDataRetention", JobMode.MatchDataRetentionOnly)
+        ("MatchDataRetention", JobMode.MatchDataRetentionOnly),
+        ("StorageSnapshot", JobMode.StorageSnapshotOnly)
     ];
 
     private static readonly string[] ThrowingProcessNames = ["Discovery", "MatchIngestion"];

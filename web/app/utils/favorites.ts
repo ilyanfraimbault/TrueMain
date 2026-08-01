@@ -111,6 +111,27 @@ export function normalizeFavorite(value: unknown): FavoriteTruemain | null {
 }
 
 /**
+ * Write-path counterpart of {@link normalizeFavorite}: resolve what a call site
+ * hands over into the identity that would be stored, or `null` when the input is
+ * not storable.
+ *
+ * The non-empty `gameName` requirement is the read path's, on purpose (#872).
+ * Guarding on `nameTag` alone is *weaker* than it looks: an empty game name with
+ * a populated tag line still yields a truncated `-1234`, which is non-empty and
+ * would be written — then silently discarded by `normalizeFavorite` on the next
+ * read. Two guards that disagree defeat the point of funnelling both paths
+ * through one notion of a valid entry, so there is exactly one here too.
+ */
+export function resolveFavoriteIdentity(
+  input: FavoriteTruemainInput,
+): { gameName: string, tagLine: string | null, nameTag: string } | null {
+  const gameName = asString(input.gameName)
+  if (!gameName) return null
+  const tagLine = asString(input.tagLine)
+  return { gameName, tagLine, nameTag: favoriteNameTag(gameName, tagLine) }
+}
+
+/**
  * Newest first, de-duplicated by identity key, capped at {@link FAVORITES_LIMIT}.
  * The single choke point every read and write goes through, so the invariants
  * hold no matter which side (this tab, another tab, an old build) wrote the list.
@@ -173,7 +194,10 @@ export interface FavoritesStore {
   /** True once the list is full — further additions evict the oldest entry. */
   atLimit: ComputedRef<boolean>
   isFavorite: (nameTag: string) => boolean
-  /** Append a favorite. Past the cap this evicts the oldest — it does not refuse. */
+  /**
+   * Append a favorite. Past the cap this evicts the oldest — it does not refuse.
+   * It *does* refuse an input {@link resolveFavoriteIdentity} rejects.
+   */
   add: (input: FavoriteTruemainInput) => void
   remove: (nameTag: string) => void
   /** Flip the entry and return its new state (`true` = now followed). */
@@ -251,14 +275,15 @@ export function createFavoritesStore(
    * `atLimit` exists so the UI can decline the click before it gets here (see
    * `FavoriteToggle`), which is a courtesy — a user's own click should never
    * silently drop someone they followed earlier — not a store-level guarantee.
+   *
+   * What it *does* refuse is an unusable identity, on the read path's terms —
+   * see {@link resolveFavoriteIdentity}.
    */
   function add(input: FavoriteTruemainInput) {
-    const nameTag = favoriteNameTag(input.gameName, input.tagLine)
-    if (!nameTag || isFavorite(nameTag)) return
+    const identity = resolveFavoriteIdentity(input)
+    if (!identity || isFavorite(identity.nameTag)) return
     const entry: FavoriteTruemain = {
-      nameTag,
-      gameName: input.gameName.trim(),
-      tagLine: input.tagLine?.trim() || null,
+      ...identity,
       region: input.region ?? null,
       profileIconId: input.profileIconId ?? null,
       addedAt: now(),
@@ -274,9 +299,12 @@ export function createFavoritesStore(
   }
 
   function toggle(input: FavoriteTruemainInput): boolean {
-    const nameTag = favoriteNameTag(input.gameName, input.tagLine)
-    if (isFavorite(nameTag)) {
-      remove(nameTag)
+    // Resolved through the same helper as `add`, so an input that `add` refuses
+    // reports "not followed" instead of claiming a follow that never landed.
+    const identity = resolveFavoriteIdentity(input)
+    if (!identity) return false
+    if (isFavorite(identity.nameTag)) {
+      remove(identity.nameTag)
       return false
     }
     add(input)

@@ -122,11 +122,17 @@ public static class DedicationScore
     public const double RecencyWeight = 0.15;
 
     /// <summary>
-    /// Play rate at which commitment reads 0. Mirrors the lowest adaptive main
-    /// threshold used by main analysis (<c>MainAnalysis:PlayRateFloor</c>, 0.12):
-    /// below it a champion is not classified as a main at all, so no truemain
-    /// can sit under it and the range under the floor is dead scale.
+    /// Default play rate at which commitment reads 0, and the value
+    /// <c>MainAnalysis:PlayRateFloor</c> itself defaults to: below it a champion
+    /// is not classified as a main at all, so no truemain can sit under it and
+    /// the range under the floor is dead scale.
     /// </summary>
+    /// <remarks>
+    /// This is only the default. Callers that can see configuration pass the
+    /// live <c>MainAnalysis:PlayRateFloor</c> into <see cref="Compute"/>, so
+    /// retuning the classification floor moves the dedication scale with it
+    /// (#869) — the two used to be independent constants coupled by a comment.
+    /// </remarks>
     public const double CommitmentFloor = 0.12;
 
     /// <summary>Patch count at which the span component saturates. Six patches is roughly a Riot season quarter — long enough that "they kept playing it through balance changes" is established.</summary>
@@ -143,9 +149,15 @@ public static class DedicationScore
     /// clock and no I/O — the caller resolves "now" when it derives
     /// <see cref="DedicationInputs.DaysSinceLastGame"/>.
     /// </summary>
-    public static DedicationBreakdown Compute(DedicationInputs inputs)
+    /// <param name="inputs">The player's measured history on the champion.</param>
+    /// <param name="commitmentFloor">
+    /// Play rate at which commitment reads 0 — the live
+    /// <c>MainAnalysis:PlayRateFloor</c>. Defaults to <see cref="CommitmentFloor"/>,
+    /// which is that option's own default.
+    /// </param>
+    public static DedicationBreakdown Compute(DedicationInputs inputs, double commitmentFloor = CommitmentFloor)
     {
-        var commitment = Commitment(inputs.PlayRate);
+        var commitment = Commitment(inputs.PlayRate, commitmentFloor);
         var span = Span(inputs.PatchSpan);
         var volume = Volume(inputs.CareerGames);
         var recency = Recency(inputs.DaysSinceLastGame);
@@ -168,15 +180,24 @@ public static class DedicationScore
             Recency: recency);
     }
 
-    /// <summary>Share of the player's games on the champion, rescaled so <see cref="CommitmentFloor"/> reads 0 and a pure one-trick reads 1.</summary>
-    public static double Commitment(double playRate)
+    /// <summary>Share of the player's games on the champion, rescaled so <paramref name="commitmentFloor"/> reads 0 and a pure one-trick reads 1.</summary>
+    public static double Commitment(double playRate, double commitmentFloor = CommitmentFloor)
     {
         if (double.IsNaN(playRate))
         {
             return 0d;
         }
 
-        return Clamp01((playRate - CommitmentFloor) / (1d - CommitmentFloor));
+        // A floor outside [0, 1) would invert the rescale or divide by zero.
+        // Both hosts range-check MainAnalysis:PlayRateFloor at startup, so this
+        // is defence in depth for a caller passing a raw value rather than the
+        // configured one.
+        if (double.IsNaN(commitmentFloor) || commitmentFloor < 0d || commitmentFloor >= 1d)
+        {
+            commitmentFloor = CommitmentFloor;
+        }
+
+        return Clamp01((playRate - commitmentFloor) / (1d - commitmentFloor));
     }
 
     /// <summary>Distinct tracked patches on the champion, saturating at <see cref="SpanTargetPatches"/>.</summary>

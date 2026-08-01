@@ -16,11 +16,13 @@ public sealed class OpsController(
     IChampionStatsQueryService championStatsQueryService,
     IMatchesOverTimeQueryService matchesOverTimeQueryService,
     ITableStatsQueryService tableStatsQueryService,
+    IDbStorageHistoryQueryService dbStorageHistoryQueryService,
     IProcessRunsQueryService processRunsQueryService,
     IProcessIterationsQueryService processIterationsQueryService,
     ILogsQueryService logsQueryService,
     IRiotApiUsageQueryService riotApiUsageQueryService,
     IDataQualityQueryService dataQualityQueryService,
+    IDataQualityDetectorsQueryService dataQualityDetectorsQueryService,
     ISeedRequestService seedRequestService,
     ISeedRequestQueryService seedRequestQueryService,
     ICandidateQueryService candidateQueryService,
@@ -62,12 +64,12 @@ public sealed class OpsController(
     /// <summary>
     /// Matches-over-time histogram, bucketed by <em>game date</em>
     /// (<c>Match.GameStartTimeUtc</c>) at the requested <paramref name="granularity"/>
-    /// and returned chronologically. For week/month/year each bucket key is the
+    /// and returned chronologically. For day/week/month/year each bucket key is the
     /// ISO-8601 UTC timestamp of the truncated period start; for patch it is the
     /// normalised "MAJOR.MINOR" version (ordered by the earliest game per patch, so
     /// it sorts chronologically rather than lexically). <paramref name="region"/> is
     /// an optional <c>PlatformId</c> filter. 400 if granularity is missing or not one
-    /// of week|month|year|patch.
+    /// of day|week|month|year|patch.
     /// </summary>
     [HttpGet("stats/matches-over-time")]
     [ProducesResponseType(typeof(IReadOnlyList<MatchTimeBucket>), StatusCodes.Status200OK)]
@@ -79,14 +81,14 @@ public sealed class OpsController(
         CancellationToken ct)
     {
         // granularity is required and closed: parse case-insensitively against the
-        // four allowed values and 400 (ProblemDetails) on anything else, so the unit
+        // allowed values and 400 (ProblemDetails) on anything else, so the unit
         // that the query service inlines into date_trunc can only ever be one we own.
         if (!Enum.TryParse<MatchTimeGranularity>(granularity, ignoreCase: true, out var parsed)
             || !Enum.IsDefined(parsed))
         {
             ModelState.AddModelError(
                 nameof(granularity),
-                "granularity is required and must be one of: week, month, year, patch.");
+                "granularity is required and must be one of: day, week, month, year, patch.");
             return ValidationProblem(ModelState);
         }
 
@@ -117,6 +119,23 @@ public sealed class OpsController(
     {
         var rows = await tableStatsQueryService.GetAsync(ct);
         return Ok(rows);
+    }
+
+    /// <summary>
+    /// Storage growth over the last <paramref name="windowDays"/> days plus the
+    /// disk-exhaustion forecast (#925), read entirely from the daily snapshots — this
+    /// endpoint never scans <c>pg_catalog</c> itself, unlike <c>db/tables</c> above.
+    /// Returns an empty model (not 404) before the snapshot step has ever run.
+    /// </summary>
+    [HttpGet("db/history")]
+    [ProducesResponseType(typeof(DbStorageHistoryReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<DbStorageHistoryReadModel>> GetDbStorageHistoryAsync(
+        [FromQuery] int? windowDays,
+        CancellationToken ct)
+    {
+        var readModel = await dbStorageHistoryQueryService.GetAsync(windowDays, ct);
+        return Ok(readModel);
     }
 
     /// <summary>
@@ -253,6 +272,38 @@ public sealed class OpsController(
         CancellationToken ct)
     {
         var readModel = await riotApiUsageQueryService.GetAsync(window, endpoint, ct);
+        return Ok(readModel);
+    }
+
+    /// <summary>
+    /// The automated anomaly detectors (#924): one card per detector with its
+    /// green/amber/red verdict, headline number, drill-down rows and the configured
+    /// thresholds it judged against. A detector that cannot measure reports
+    /// <c>unknown</c> — never green — rather than failing the panel.
+    /// </summary>
+    [HttpGet("data-quality/detectors")]
+    [ProducesResponseType(typeof(DataQualityDetectorsReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<DataQualityDetectorsReadModel>> GetDataQualityDetectorsAsync(
+        CancellationToken ct)
+    {
+        var readModel = await dataQualityDetectorsQueryService.GetDetectorsAsync(ct);
+        return Ok(readModel);
+    }
+
+    /// <summary>
+    /// Per-champion aggregate freshness on the newest patches, stalest first. Split off
+    /// the detector payload because it is the one measurement needing a grouped scan of
+    /// <c>champion_aggregate_scopes</c> — affordable on an explicit click, not on every
+    /// page view.
+    /// </summary>
+    [HttpGet("data-quality/aggregate-freshness")]
+    [ProducesResponseType(typeof(AggregateFreshnessReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<AggregateFreshnessReadModel>> GetAggregateFreshnessAsync(
+        CancellationToken ct)
+    {
+        var readModel = await dataQualityDetectorsQueryService.GetAggregateFreshnessAsync(ct);
         return Ok(readModel);
     }
 

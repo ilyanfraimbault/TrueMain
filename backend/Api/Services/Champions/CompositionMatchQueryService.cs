@@ -34,7 +34,7 @@ public sealed class CompositionMatchQueryService(
     {
         var options = searchOptions.Value;
         var weights = new CompositionScoreWeights(
-            options.LaneOpponentWeight, options.EnemyWeight, options.AllyWeight);
+            options.RoleOpponentWeight, options.EnemyWeight, options.AllyWeight);
 
         // Same queue cast as the sibling champion reads, and the same LIKE
         // prefix bridge from normalised patch input to the full GameVersion
@@ -105,10 +105,10 @@ public sealed class CompositionMatchQueryService(
 
         var maxScore = CompositionSimilarityScorer.MaxScore(criteria, weights);
 
-        // The lane opponent, when pinned, is a hard requirement (#563 rev):
+        // The role opponent, when pinned, is a hard requirement (#563 rev):
         // a build only transfers between games of the same matchup, so a
         // candidate without it is filtered out instead of merely out-scored.
-        var matchupRequested = criteria.Enemies.TryGetValue(criteria.Position, out var laneOpponentId);
+        var matchupRequested = criteria.Enemies.TryGetValue(criteria.Position, out var roleOpponentId);
 
         var scored = rows
             .GroupBy(r => (r.MatchId, r.ParticipantId))
@@ -120,11 +120,12 @@ public sealed class CompositionMatchQueryService(
                         r.OtherTeamId != first.TeamId, r.OtherPosition, r.OtherChampionId))
                     .ToList();
                 var score = CompositionSimilarityScorer.Score(criteria, weights, slots);
+                var isTruemain = mainPuuids.Contains(first.Puuid);
                 return new
                 {
                     HasMatchup = !matchupRequested || slots.Any(s =>
-                        s.IsEnemy && s.TeamPosition == criteria.Position && s.ChampionId == laneOpponentId),
-                    IsTruemain = mainPuuids.Contains(first.Puuid),
+                        s.IsEnemy && s.TeamPosition == criteria.Position && s.ChampionId == roleOpponentId),
+                    IsTruemain = isTruemain,
                     Match = new CompositionMatchRef
                     {
                         MatchId = g.Key.MatchId,
@@ -132,6 +133,8 @@ public sealed class CompositionMatchQueryService(
                         Score = score,
                         Win = first.Win,
                         GameStartTimeUtc = first.GameStartTimeUtc,
+                        Puuid = first.Puuid,
+                        IsTruemain = isTruemain,
                     },
                 };
             })

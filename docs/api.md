@@ -78,6 +78,7 @@ Annuaire des champions : une ligne par couple `(champion, position)` pour un pat
     "pickRate": 0.072,
     "lanePlayRate": 0.86,
     "trueMainCount": 47,
+    "banRate": 0.184,
     "tier": "A",
     "position": "MIDDLE",
     "patchVersion": "16.4",
@@ -94,6 +95,12 @@ Annuaire des champions : une ligne par couple `(champion, position)` pour un pat
 
 - `pickRate` : part des games truemains sur cette position prises par ce champion.
 - `lanePlayRate` : répartition des lanes du champion (0.86 = 86 % de ses games ici).
+- `banRate` : part des matchs observés où le champion a été banni (#920). Indépendant
+  de la lane : identique sur toutes les lignes d'un champion. **`null` = non observé**,
+  pas « jamais banni » — les bans ne sont collectés que depuis le déploiement de #920 et
+  ne sont pas rattrapables, donc les patchs antérieurs valent `null`. Dénominateur
+  différent de `pickRate` (tous les matchs observés vs games des mains suivis) : les deux
+  **ne s'additionnent pas**, il n'y a donc pas de « presence ». N'entre pas dans `tier`.
 - `tier` : `S`/`A`/`B`/`C`/`D`, percentile relatif au patch courant.
 - `topBuild` : build dominant (résumé) ; `null` si aucun pattern observé.
 
@@ -171,9 +178,25 @@ Page champion : onglets de build dominants pour un `(patch, position)`.
 - `buildTree` = arbre d'items enraciné sur `firstItemId` (racine implicite).
 - `totalGames`/`totalWins` = dénominateurs pour le winrate champion-wide.
 
+### Filtre matchup (`opponentChampionId`)
+
+| Param | Type | Requis | Description |
+|-------|------|--------|-------------|
+| `opponentChampionId` | int | non | Adversaire de voie. Re-calcule **toutes** les sections build (variations, core, build tree, runes, skill order) sur les seules parties où les deux champions se sont affrontés. |
+
+Exige `position` : le self-join apparie les deux camps dessus, donc un matchup sans voie est un **400**.
+Renvoie **404** quand la fenêtre retenue ne contient aucune partie de ce matchup — distinct d'une réponse vide.
+
+La réponse a exactement la même forme que sans le filtre. Deux différences de fond :
+
+- Les données viennent d'un repli **live** de `match_participants` (les agrégats de patterns n'ont pas de
+  dimension adversaire), borné aux 2 patchs retenus par la rétention et plafonné à 2 000 parties.
+- L'échantillon est petit par nature — mesuré en prod, la paire médiane champion × adversaire × position tient
+  **4 parties** sur un patch. Chaque variation porte donc son `games`, et le front l'affiche.
+
 ## `GET /champions/{championId}/trend`
 
-Évolution winrate/pickrate sur les ~5 derniers patchs, pour une position.
+Évolution winrate/pickrate/banrate sur les ~5 derniers patchs, pour une position.
 Volontairement **cross-patch** (ignore tout filtre de patch).
 
 **Query** — `position` (string, optionnel ; défaut = lane dominante du champion)
@@ -185,12 +208,16 @@ Volontairement **cross-patch** (ignore tout filtre de patch).
   "championId": 103,
   "position": "MIDDLE",
   "points": [
-    { "patch": "16.1", "winRate": 0.51, "pickRate": 0.061, "games": 1500 },
-    { "patch": "16.2", "winRate": 0.52, "pickRate": 0.066, "games": 1620 },
-    { "patch": "16.4", "winRate": 0.533, "pickRate": 0.072, "games": 1840 }
+    { "patch": "16.1", "winRate": 0.51, "pickRate": 0.061, "banRate": null, "games": 1500 },
+    { "patch": "16.2", "winRate": 0.52, "pickRate": 0.066, "banRate": null, "games": 1620 },
+    { "patch": "16.4", "winRate": 0.533, "pickRate": 0.072, "banRate": 0.184, "games": 1840 }
   ]
 }
 ```
+
+- `banRate` : `null` sur tout patch antérieur à la collecte des bans (#920), donc une
+  série partiellement nulle est le cas normal au début. Toutes tranches d'elo confondues
+  (l'endpoint n'a pas de filtre de rang).
 
 ## `GET /champions/{championId}/matchups`
 
@@ -303,11 +330,18 @@ magnitude, **scopés à un seul build core**.
 
 **Query** — `position` (**requis**, `400` sinon), `buildFirstItemId` et
 `buildKeystoneId` (**requis**, positifs, `400` sinon), `patch` (optionnel),
-`eloBracket` (optionnel)
+`eloBracket` (optionnel), `opponentChampionId` (optionnel)
 
 Le couple `buildFirstItemId` / `buildKeystoneId` identifie le build core de la
 même façon que la lecture des builds clé ses onglets — un build jamais joué
 renvoie une liste vide plutôt qu'un repli sur les autres builds du champion.
+
+`opponentChampionId` restreint les spikes aux parties jouées contre cet
+adversaire de lane, le même filtre que `GET /champions/{id}` (#957). Le plancher
+de parties ne s'applique alors pas : un matchup tient 4 parties en médiane sur un
+patch, donc chaque événement porte son propre `games` plutôt que d'être masqué.
+Seules les parties agrégées depuis #957 portent un adversaire — un matchup non
+encore couvert renvoie une liste vide, ce qui reste un `200`.
 
 **Réponse `200`** — `ChampionPowerspikesResponse`
 
@@ -466,6 +500,46 @@ Matchups de lane **scopés au joueur** : même contrat que
 **Réponse `200`** — `ChampionMatchupsResponse` · **`404`** si compte inconnu.
 Un joueur connu sans adversaire au-dessus du plancher → `200` avec liste vide.
 
+## `GET /truemains/{nameTag}/champions/{championId}/performance`
+
+Score de performance **scopé au joueur** : moyenne du score par match sur ses
+parties récentes sur ce champion, avec le détail par composante. Voir
+[`docs/performance-score.md`](performance-score.md).
+
+**Query** — `patch` (optionnel), `position` (optionnel, `400` si invalide)
+
+**Réponse `200`** — `PlayerChampionPerformanceResponse` · **`404`** si `nameTag`
+malformé ou compte inconnu. Un joueur connu sous le plancher d'échantillon → `200`
+avec `games` et toutes les moyennes à `null`.
+
+```json
+{
+  "championId": 103,
+  "position": "MIDDLE",
+  "patch": "15.12",
+  "games": 14,
+  "minGames": 5,
+  "window": 20,
+  "averageScore": 71.4,
+  "bestScore": 88,
+  "worstScore": 41,
+  "topOfTeamRate": 0.36,
+  "components": [
+    { "kind": "Combat", "weight": 20, "value": 0.74, "games": 14 },
+    { "kind": "Laning", "weight": 10, "value": 0.58, "games": 12 },
+    { "kind": "MidGame", "weight": 6, "value": 0.61, "games": 9 },
+    { "kind": "Roam", "weight": 6, "value": 0.44, "games": 11 }
+  ]
+}
+```
+
+- `window` : nombre de parties les plus récentes prises en compte (métrique de
+  forme, pas de carrière).
+- `games` d'une composante ≤ `games` global : une partie sans couverture timeline
+  est **exclue** de la moyenne de la composante au lieu d'y compter zéro.
+- `weight` est le poids nominal du rôle (moyenné si le joueur a changé de lane sur
+  l'échantillon) ; `0` = le rôle ne note pas cette composante.
+
 ## `GET /truemains/{nameTag}/rank-history`
 
 Historique de rang (snapshots append-on-change).
@@ -482,6 +556,81 @@ Historique de rang (snapshots append-on-change).
   ]
 }
 ```
+
+## `GET /truemains/{nameTag}/activity`
+
+Grille d'activité affichée sous la courbe de LP du profil (#927) : les parties du
+joueur repliées **par partie**, **par jour UTC** et **par semaine ISO**, plus
+l'historique **par patch** de son champion signature.
+
+**Query** — aucune. Les quatre granularités arrivent dans la même réponse : trois
+d'entre elles sont des replis des *mêmes* lignes `match_participants`, donc les
+calculer d'un seul instantané est à la fois moins cher que quatre allers-retours et
+la seule façon de garantir que basculer le sélecteur ne montre pas deux réponses
+différentes pour le même après-midi.
+
+**Réponse `200`** — `TruemainActivityReadModel` · **`404`** si le nameTag est
+malformé ou le compte inconnu.
+
+```json
+{
+  "day": {
+    "mode": "day",
+    "source": "matches",
+    "scope": "allChampions",
+    "championId": null,
+    "retentionBounded": true,
+    "coverageFromUtc": "2026-07-03T00:00:00Z",
+    "coverageToUtc": "2026-07-29T00:00:00Z",
+    "buckets": [
+      { "key": "2026-07-27", "startUtc": "2026-07-27T00:00:00Z", "games": 3, "wins": 2, "winRate": 0.667, "championId": null },
+      { "key": "2026-07-28", "startUtc": "2026-07-28T00:00:00Z", "games": 0, "wins": 0, "winRate": null, "championId": null }
+    ],
+    "games": 42, "wins": 25, "winRate": 0.595
+  },
+  "game": { "mode": "game", "…": "une cellule par partie, championId renseigné" },
+  "week": { "mode": "week", "…": "une cellule par lundi 00:00 UTC" },
+  "patch": {
+    "mode": "patch",
+    "source": "aggregates",
+    "scope": "champion",
+    "championId": 157,
+    "retentionBounded": false,
+    "coverageFromUtc": null,
+    "coverageToUtc": null,
+    "buckets": [
+      { "key": "15.13", "startUtc": null, "games": 26, "wins": 15, "winRate": 0.577, "championId": null }
+    ],
+    "games": 180, "wins": 98, "winRate": 0.544
+  }
+}
+```
+
+**Les quatre séries ne décrivent pas la même population, et la réponse le dit.**
+C'est l'asymétrie de rétention : `match_participants` est purgé au-delà de
+`MatchDataRetention:RetainedPatchCount` patches (~2) mais porte la date d'une
+partie, alors que `champion_aggregate_scopes` est gelé pour toujours (#466) mais
+n'a qu'un grain (compte, champion, patch).
+
+- `source` / `scope` / `retentionBounded` : `game`/`day`/`week` lisent les lignes de
+  match vivantes, tous champions confondus, et s'arrêtent à la fenêtre de
+  rétention. `patch` lit l'agrégat gelé, **uniquement sur le champion signature**
+  (celui de la carte dédication — même sélection, mêmes lignes sommées).
+- `coverageFromUtc` / `coverageToUtc` : la période dont la série peut réellement
+  parler. Les séries calendaires **n'émettent pas** de cellule avant la plus vieille
+  partie encore stockée : une période effacée n'est pas une période sans jeu, donc
+  la dessiner vide serait un « tu n'as pas joué » fabriqué. `null` sur la série
+  `patch`, dont l'étendue est une liste de patches, pas un intervalle de dates.
+- `winRate` est `null` — jamais `0` — quand `games` vaut 0. C'est la distinction
+  filaire entre « joué et tout perdu » et « pas joué » ; les deux ne doivent pas se
+  rendre pareil.
+- Les jours et les semaines sont **UTC** (lundi 00:00 UTC pour les semaines), comme
+  le reste du pipeline (#907) : une partie de fin de soirée peut donc tomber sur la
+  cellule du lendemain pour un joueur loin d'UTC.
+- Invariants vérifiables à l'œil sur la page : `patch.games ==
+  dedication.careerGames` et `patch.buckets.length == dedication.patchSpan`.
+- `championId` de cellule n'est renseigné que sur la série `game` (une cellule =
+  une partie).
 
 ## `GET /truemains/{nameTag}/matches`
 
@@ -516,7 +665,9 @@ Historique de matchs paginé.
         "items": [6653, 3020, 3157, 3089, 3135, 0],
         "trinketItemId": 3340,
         "teamId": 100, "win": true,
-        "lpDelta": null, "isMvp": true, "isAce": false
+        "lpDelta": null,
+        "performanceScore": 78, "placement": 2,
+        "isMvp": true, "isAce": false
       },
       "participants": [
         { "championId": 103, "teamId": 100, "gameName": "Faker", "tagLine": "KR1" },
@@ -534,6 +685,9 @@ Historique de matchs paginé.
 - `participants` : les 10 joueurs (team 100 puis 200). `gameName`/`tagLine` `null`
   si le participant n'est pas un compte suivi.
 - `lpDelta` est toujours `null` dans cette itération.
+- `performanceScore` / `placement` / `isMvp` / `isAce` sortent du **même** scoreur
+  que le détail du match (voir [`docs/performance-score.md`](performance-score.md)),
+  donc la ligne repliée et le panneau déplié ne peuvent pas se contredire.
 
 ## `GET /truemains/{nameTag}/matches/{matchId}`
 
@@ -758,6 +912,62 @@ Empreinte de stockage des tables Postgres.
   { "tableName": "match_participants", "rowEstimate": 15000000, "totalBytes": 8589934592, "tableBytes": 5368709120, "indexBytes": 3221225472 }
 ]
 ```
+
+## `GET /ops/db/history`
+
+Croissance du stockage + prévision de saturation disque (#925). Lit uniquement les
+snapshots quotidiens (collection Mongo `db_table_size_snapshots`) — aucun scan
+`pg_catalog` à la volée, contrairement à `db/tables`.
+
+**Query**
+
+| Param        | Type | Requis | Défaut                        | Description |
+|--------------|------|--------|-------------------------------|-------------|
+| `windowDays` | int  | non    | `StorageHistory:DefaultWindowDays` (90) | Fenêtre d'historique en jours. |
+
+**Réponse `200`** — `DbStorageHistoryReadModel` (toujours `200`, tout vide tant que le
+process de snapshot n'a pas tourné)
+
+```json
+{
+  "daily": [
+    { "dateUtc": "2026-07-27T00:00:00Z", "databaseBytes": 41231686144, "totalBytes": 39000000000, "rowEstimate": 21000000 }
+  ],
+  "tables": [
+    {
+      "tableName": "match_participants",
+      "points": [{ "dateUtc": "2026-07-27T00:00:00Z", "totalBytes": 8589934592, "rowEstimate": 15000000 }],
+      "currentBytes": 8589934592,
+      "bytesPerDay": 130000000,
+      "rowsPerDay": 240000,
+      "growthRate": 0.12
+    }
+  ],
+  "forecast": {
+    "bytesPerDay": 310000000,
+    "diskCapacityBytes": 107374182400,
+    "crossings": [
+      { "percent": 80, "thresholdBytes": 85899345920, "projectedAtUtc": "2026-11-14T00:00:00Z" },
+      { "percent": 100, "thresholdBytes": 107374182400, "projectedAtUtc": null }
+    ]
+  }
+}
+```
+
+- `databaseBytes` : `pg_database_size` **mesuré** — c'est ce qui remplit le volume
+  (catalogues compris), et c'est ce que la prévision extrapole. `totalBytes` n'est que
+  la somme des tables du schéma `public`, donc toujours plus petit.
+- `rowEstimate` : somme des estimations du planner, indicateur de tendance et non un
+  compte exact.
+- `tables` : uniquement les plus grosses (`StorageHistory:TopTables`, 10 par défaut) ;
+  les autres restent comptées dans `daily`.
+- `growthRate` : `null` si la table était vide en début de fenêtre (croissance non
+  définie plutôt qu'infinie).
+- `forecast` : **`null`** s'il y a moins de 3 jours d'historique, si le stockage est
+  stable ou décroissant, ou si `StorageHistory:DiskCapacityBytes` n'est pas configuré.
+  Aucune valeur de remplacement n'est inventée.
+- `projectedAtUtc` : `null` = échéance à plus d'un siècle **dans un sens ou dans
+  l'autre** (aucune date exploitable à ce rythme) ; une date passée = seuil déjà franchi.
 
 ## `GET /ops/process-runs`
 
@@ -986,6 +1196,78 @@ Métriques d'usage de la Riot API sur une fenêtre relative.
 
 `statusCodes[].statusCode == 0` = faute transport (pas de réponse).
 `rateLimit` est `null` si aucun en-tête observé dans la fenêtre.
+
+## `GET /ops/data-quality/detectors`
+
+Détecteurs d'anomalies automatiques (#924) : une carte par détecteur, avec son verdict, son
+chiffre-titre, les lignes du détail et les seuils configurés (`DataQualityDetectors:*`) contre
+lesquels il a jugé.
+
+Pas de paramètre : les seuils sont de la configuration serveur, pas des query params.
+
+`status` vaut `green`, `amber`, `red` ou `unknown`. **`unknown` ne signifie jamais « mesuré et
+correct »** : c'est « je n'ai pas pu mesurer », et il l'emporte sur `green` dans l'agrégation
+(sans masquer un `red`). Un signal volontairement indisponible (ordre canonique non exprimable
+en SQL, tendance sans fenêtre précédente, patch de bord non comparable) apparaît en ligne mais
+ne vote pas.
+
+**Réponse `200`** — `DataQualityDetectorsReadModel`
+
+```json
+{
+  "detectors": [
+    {
+      "key": "duplicateDimensionRows",
+      "title": "Duplicate dimension rows",
+      "status": "red",
+      "count": 2,
+      "countLabel": "canonical-key groups holding more than one row",
+      "headline": "2 canonical-key group(s) hold more than one row — those games are split across rows, the #911 failure.",
+      "unknownReason": null,
+      "sourceNote": "Groups each champion_dim_* table on the same canonical key the ingestor's repair merges on…",
+      "rows": [
+        {
+          "label": "champion_dim_rune_pages",
+          "status": "red",
+          "value": 1,
+          "valueLabel": "1 duplicate group(s)",
+          "note": "The two secondary perks are a set, not a sequence (#911). 1 row(s) stored outside canonical order."
+        }
+      ],
+      "thresholds": [
+        { "label": "duplicate groups", "amber": 1, "red": 1, "unit": "count" }
+      ],
+      "hasDrillDownEndpoint": false
+    }
+  ],
+  "evaluatedAtUtc": "2026-07-30T18:00:00Z"
+}
+```
+
+## `GET /ops/data-quality/aggregate-freshness`
+
+Fraîcheur des agrégats par champion sur les patchs les plus récents, le plus périmé d'abord.
+Endpoint séparé et **à la demande** : c'est la seule mesure qui exige un scan groupé de
+`champion_aggregate_scopes`, donc elle ne s'exécute pas au chargement du panneau.
+
+**Réponse `200`** — `AggregateFreshnessReadModel`
+
+```json
+{
+  "patches": ["16.15", "16.14"],
+  "champions": [
+    {
+      "championId": 266, "patch": "16.15",
+      "lastAggregatedAtUtc": "2026-07-27T09:00:00Z",
+      "ageHours": 75.2, "scopeRows": 12, "status": "red"
+    }
+  ],
+  "championCount": 168,
+  "staleChampionCount": 3,
+  "staleAfterHours": 6,
+  "evaluatedAtUtc": "2026-07-30T18:00:00Z"
+}
+```
 
 ## `GET /ops/data-quality/incomplete-matches`
 

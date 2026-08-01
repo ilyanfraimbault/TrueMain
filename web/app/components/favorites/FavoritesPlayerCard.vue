@@ -29,17 +29,32 @@ const props = withDefaults(defineProps<{
 
 const nameTag = computed(() => props.favorite.nameTag)
 
+// ─── Fan-out bound (#872) ──────────────────────────────────────────────────
+// Both fetches below are per-card, so a full list of 30 favorites used to fire
+// ~60 requests in one tick — the only navigation in the app that multiplies
+// like that. They are gated on the card approaching the viewport instead: the
+// stored identity already draws the header, and the ranked line plus the match
+// rows stay on their skeletons until the card's own fetches resolve, so a
+// not-yet-fetched card reads as loading and never as a zeroed one.
+//
+// `hydrate-on-visible` cannot do this job here: the list is rendered after the
+// `localStorage` read in `onMounted`, so these cards are never hydrated from
+// server markup and Vue never consults a lazy-hydration strategy — see
+// `useVisibleOnce`.
+const cardEl = ref<HTMLElement | null>(null)
+const visible = useVisibleOnce(cardEl)
+
 const {
   data: profile,
   isInitialLoading: profileLoading,
   notFound: profileNotFound,
-} = useTruemainProfile(nameTag)
+} = useTruemainProfile(nameTag, { enabled: visible })
 
 const {
   matches,
   isInitialLoading: matchesLoading,
   notFound: matchesNotFound,
-} = useTruemainMatches(nameTag, 1, { pageSize: props.matchCount })
+} = useTruemainMatches(nameTag, 1, { pageSize: props.matchCount, enabled: visible })
 
 const profileHref = computed(() => `/truemains/${encodeURIComponent(nameTag.value)}`)
 
@@ -81,7 +96,7 @@ const staticBundleReady = computed(() =>
 </script>
 
 <template>
-  <section class="glass overflow-hidden rounded-lg">
+  <section ref="cardEl" class="glass overflow-hidden rounded-lg">
     <!-- Player header -->
     <div class="flex items-center gap-3 border-b border-default/60 px-3 py-2.5">
       <NuxtLink

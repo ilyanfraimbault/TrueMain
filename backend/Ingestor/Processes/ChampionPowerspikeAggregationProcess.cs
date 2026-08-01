@@ -46,6 +46,13 @@ namespace Ingestor.Processes;
 /// <see cref="ItemMetadata.IsFinalItem"/> on the purchase events, not from what
 /// happens to sit in the final inventory, which would count a component that never
 /// got upgraded and miss an item completed then sold.
+///
+/// Event rows also carry the lane opponent the spike was measured against (#957).
+/// The fold already resolves that opponent — the power series <em>is</em> the diff
+/// against them — so this records a fact it used to discard rather than computing a
+/// new one, and it is the only way the champion page's matchup filter can reach the
+/// spikes: the ±<see cref="SpikeWindowMinutes"/> window needs the dense grid, which
+/// retention prunes the moment this process flags the match.
 /// </summary>
 public sealed class ChampionPowerspikeAggregationProcess(
     ILogger<ChampionPowerspikeAggregationProcess> logger,
@@ -280,6 +287,13 @@ public sealed class ChampionPowerspikeAggregationProcess(
                 AccumulateEvents(
                     events,
                     p1,
+                    // The spike is already defined against this opponent — the series
+                    // above is p1 minus them — so keying the aggregate on it records a
+                    // fact the fold had in hand and used to throw away (#957). It is
+                    // what lets the champion page's matchup filter reach the spikes
+                    // without a second pipeline: no live recompute could, since the
+                    // ±3-minute window needs the dense grid retention prunes.
+                    opponent.ChampionId,
                     patch,
                     new BuildScope(firstItemId, keystoneId),
                     series,
@@ -354,6 +368,7 @@ public sealed class ChampionPowerspikeAggregationProcess(
     private static void AccumulateEvents(
         Dictionary<EventKey, EventAccumulator> events,
         ParticipantRow p1,
+        int opponentChampionId,
         string patch,
         BuildScope build,
         Dictionary<int, DiffMinute> series,
@@ -393,7 +408,7 @@ public sealed class ChampionPowerspikeAggregationProcess(
         {
             var key = new EventKey(
                 p1.ChampionId, p1.TeamPosition, patch, p1.EloBracket,
-                build.FirstItemId, build.KeystoneId, type, refId);
+                build.FirstItemId, build.KeystoneId, opponentChampionId, type, refId);
             if (!events.TryGetValue(key, out var acc))
             {
                 acc = new EventAccumulator();
@@ -641,18 +656,20 @@ public sealed class ChampionPowerspikeAggregationProcess(
         const string sql = """
             INSERT INTO champion_powerspike_event_stats
                 ("Id", "ChampionId", "TeamPosition", "Patch", "elo_bracket",
-                 "BuildFirstItemId", "BuildKeystoneId",
+                 "BuildFirstItemId", "BuildKeystoneId", "OpponentChampionId",
                  "EventType", "RefId", "SumSpike", "SumMinute", "Games", "AggregatedAtUtc")
             SELECT gen_random_uuid(), t.champ, t.pos, t.patch, t.elo,
-                   t.build_item, t.build_keystone,
+                   t.build_item, t.build_keystone, t.opponent,
                    t.type, t.ref_id, t.sum_spike, t.sum_minute, t.games, @aggAt
             FROM unnest(@champs::integer[], @positions::text[], @patches::text[], @elos::text[],
-                        @buildItems::integer[], @buildKeystones::integer[],
+                        @buildItems::integer[], @buildKeystones::integer[], @opponents::integer[],
                         @types::text[], @refIds::integer[], @sumSpike::double precision[],
                         @sumMinute::double precision[], @games::integer[])
-                AS t(champ, pos, patch, elo, build_item, build_keystone, type, ref_id, sum_spike, sum_minute, games)
+                AS t(champ, pos, patch, elo, build_item, build_keystone, opponent,
+                     type, ref_id, sum_spike, sum_minute, games)
             ON CONFLICT ("ChampionId", "TeamPosition", "Patch", "elo_bracket",
-                         "BuildFirstItemId", "BuildKeystoneId", "EventType", "RefId") DO UPDATE SET
+                         "BuildFirstItemId", "BuildKeystoneId", "OpponentChampionId",
+                         "EventType", "RefId") DO UPDATE SET
                 "SumSpike" = champion_powerspike_event_stats."SumSpike" + EXCLUDED."SumSpike",
                 "SumMinute" = champion_powerspike_event_stats."SumMinute" + EXCLUDED."SumMinute",
                 "Games" = champion_powerspike_event_stats."Games" + EXCLUDED."Games",
@@ -669,6 +686,7 @@ public sealed class ChampionPowerspikeAggregationProcess(
                 new NpgsqlParameter("elos", rows.Select(r => r.Key.EloBracket).ToArray()),
                 new NpgsqlParameter("buildItems", rows.Select(r => r.Key.BuildFirstItemId).ToArray()),
                 new NpgsqlParameter("buildKeystones", rows.Select(r => r.Key.BuildKeystoneId).ToArray()),
+                new NpgsqlParameter("opponents", rows.Select(r => r.Key.OpponentChampionId).ToArray()),
                 new NpgsqlParameter("types", rows.Select(r => r.Key.EventType).ToArray()),
                 new NpgsqlParameter("refIds", rows.Select(r => r.Key.RefId).ToArray()),
                 new NpgsqlParameter("sumSpike", rows.Select(r => r.Value.SumSpike).ToArray()),
@@ -702,6 +720,7 @@ public sealed class ChampionPowerspikeAggregationProcess(
         string EloBracket,
         int BuildFirstItemId,
         int BuildKeystoneId,
+        int OpponentChampionId,
         string EventType,
         int RefId);
 

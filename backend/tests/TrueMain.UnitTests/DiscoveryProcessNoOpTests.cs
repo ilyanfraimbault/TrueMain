@@ -35,6 +35,7 @@ public sealed class DiscoveryProcessNoOpTests
             accountUpsertService,
             candidateUpsertService,
             rankSnapshotWriter,
+            Substitute.For<Data.Ops.Mongo.IProcessRunStore>(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {

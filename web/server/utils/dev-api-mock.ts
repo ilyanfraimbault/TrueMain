@@ -13,10 +13,16 @@
 // DDragon/CDragon-backed `/api/static/*` endpoints resolve genuine icons.
 
 import type {
+  ActivityBucket,
+  ActivitySeries,
+  TruemainActivityResponse,
+} from '~~/shared/types/activity'
+import type {
   ChampionBuild,
   ChampionComparisonSide,
   ChampionMainsComparison,
   ChampionMatchups,
+  ChampionOverviewResponse,
   ChampionPatchDiffResponse,
   ChampionPatchDiffSide,
   ChampionPowerspikeEvent,
@@ -25,7 +31,11 @@ import type {
   ChampionRoamResponse,
   ChampionScalingResponse,
   ChampionSummaryResponse,
+  ChampionSynergies,
+  ChampionSynergyEntry,
   ChampionTrendResponse,
+  ChampionTrioSynergies,
+  ChampionTrioSynergyEntry,
   BuildRunePage,
 } from '~~/shared/types/champions'
 import type {
@@ -33,7 +43,7 @@ import type {
   LeaderboardRowResponse,
   RegionSlug,
 } from '~~/shared/types/leaderboard'
-import type { CompositionBuildResponse } from '~~/shared/types/composition'
+import type { CompositionBuildGamesResponse, CompositionBuildResponse, CompositionGame } from '~~/shared/types/composition'
 import type { TruemainDedication } from '~~/shared/types/dedication'
 import type {
   BuildChoice,
@@ -41,6 +51,11 @@ import type {
   PlayerBuildDivergenceResponse,
 } from '~~/shared/types/divergence'
 import type { MatchSummariesResponse, MatchSummaryResponse } from '~~/shared/types/matches'
+import type {
+  PerformanceComponentKind,
+  PlayerChampionPerformanceResponse,
+} from '~~/shared/types/performance'
+import { PERFORMANCE_COMPONENT_KINDS } from '~~/shared/types/performance'
 import type { ProfileIdentity, ProfileResponse } from '~~/shared/types/profile'
 import type { RankHistoryResponse } from '~~/shared/types/rank-history'
 import type { SearchResponse } from '~~/shared/types/search'
@@ -296,12 +311,53 @@ export function tierFor(rankIndex: number, total: number): string {
   return 'D'
 }
 
+// Presence-first blend (#971): pick rate and ban rate outweigh win rate.
+// Mirrors ChampionTierCalculator's weights closely enough for a plausible
+// preview fixture — it doesn't need bit-for-bit parity with the backend's
+// percentile-rank + bayesian-shrinkage implementation.
+const MOCK_PICK_WEIGHT = 0.45
+const MOCK_BAN_WEIGHT = 0.30
+const MOCK_WIN_WEIGHT = 0.25
+
 async function mockChampionSummaries(): Promise<ChampionSummaryResponse[]> {
   const patch = await latestShortPatch()
-  // Tier is patch-relative: rank rows by win rate and bucket by percentile,
-  // mirroring ChampionTierCalculator on the backend.
-  const byWr = [...CHAMPION_SEEDS].sort((a, b) => b.wr - a.wr)
-  const tierByRow = new Map(byWr.map((s, i) => [s, tierFor(i, byWr.length)]))
+
+  const rowsByPosition = new Map<string, ChampionSeed[]>()
+  for (const s of CHAMPION_SEEDS) {
+    const bucket = rowsByPosition.get(s.position) ?? []
+    bucket.push(s)
+    rowsByPosition.set(s.position, bucket)
+  }
+
+  // Percentile-rank each metric within its own lane (not patch-wide), the
+  // same normalization the backend uses to avoid a lane-size bias (UTILITY
+  // has far fewer champions than MIDDLE, so raw pick rates aren't comparable
+  // across lanes).
+  const banRateById = new Map(CHAMPION_SEEDS.map(s => [s.id, Math.min(0.85, s.pr * 2.5)]))
+  const scoreById = new Map<number, number>()
+  const tierById = new Map<number, string>()
+  for (const rows of rowsByPosition.values()) {
+    const percentileRank = (value: (s: ChampionSeed) => number) => {
+      const sorted = [...rows].sort((a, b) => value(a) - value(b))
+      const denom = Math.max(1, sorted.length - 1)
+      return new Map(sorted.map((s, i) => [s.id, i / denom]))
+    }
+    const pickPct = percentileRank(s => s.pr)
+    const banPct = percentileRank(s => banRateById.get(s.id) ?? 0)
+    const winPct = percentileRank(s => s.wr)
+
+    const scored = rows.map(s => ({
+      seed: s,
+      score: (pickPct.get(s.id) ?? 0) * MOCK_PICK_WEIGHT
+        + (banPct.get(s.id) ?? 0) * MOCK_BAN_WEIGHT
+        + (winPct.get(s.id) ?? 0) * MOCK_WIN_WEIGHT,
+    })).sort((a, b) => b.score - a.score)
+
+    scored.forEach(({ seed, score }, i) => {
+      scoreById.set(seed.id, score)
+      tierById.set(seed.id, tierFor(i, scored.length))
+    })
+  }
 
   return CHAMPION_SEEDS.map((s) => {
     const rng = mulberry32(s.id * 31 + s.position.length)
@@ -315,7 +371,10 @@ async function mockChampionSummaries(): Promise<ChampionSummaryResponse[]> {
       pickRate: round3(s.pr),
       lanePlayRate: round3(0.7 + rng() * 0.29),
       trueMainCount: Math.max(3, Math.round(games / 55)),
-      tier: tierByRow.get(s) ?? 'B',
+      // The active patch always has ban data (#920).
+      banRate: round3(banRateById.get(s.id) ?? 0),
+      tier: tierById.get(s.id) ?? 'B',
+      tierScore: round3(scoreById.get(s.id) ?? 0),
       position: s.position,
       patchVersion: patch,
       lastUpdatedAtUtc: new Date().toISOString(),
@@ -327,6 +386,48 @@ async function mockChampionSummaries(): Promise<ChampionSummaryResponse[]> {
       },
     }
   })
+}
+
+// Homepage overview (#972): a small, pre-sorted slice of the summaries above
+// plus the true games-analyzed total, mirroring GET /champions/overview.
+// mockChampionSummaries() already represents every ranked row (no
+// below-floor/position-less rows exist in this fixture), so summing its games
+// is the same "true total" the real endpoint computes from the unfiltered
+// aggregate groups.
+const OVERVIEW_DEFAULT_LIMIT = 8
+const OVERVIEW_MAX_LIMIT = 20
+
+async function mockChampionOverview(query: Record<string, unknown>): Promise<ChampionOverviewResponse> {
+  const summaries = await mockChampionSummaries()
+  const patch = summaries[0]?.patchVersion ?? await latestShortPatch()
+
+  const requestedLimit = Number.parseInt(String(query.limit ?? ''), 10)
+  const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
+    ? Math.min(requestedLimit, OVERVIEW_MAX_LIMIT)
+    : OVERVIEW_DEFAULT_LIMIT
+
+  const tierRank: Record<string, number> = { S: 0, A: 1, B: 2, C: 3, D: 4 }
+  const topRows = [...summaries]
+    .sort((a, b) =>
+      (tierRank[a.tier] ?? 5) - (tierRank[b.tier] ?? 5)
+      || b.games - a.games)
+    .slice(0, limit)
+    .map(s => ({
+      championId: s.championId,
+      position: s.position,
+      tier: s.tier,
+      games: s.games,
+      winRate: s.winRate,
+      pickRate: s.pickRate,
+      banRate: s.banRate,
+    }))
+
+  return {
+    patchVersion: patch,
+    gamesAnalyzed: summaries.reduce((acc, s) => acc + s.games, 0),
+    championsRanked: new Set(summaries.map(s => s.championId)).size,
+    topRows,
+  }
 }
 
 // ─── Champion detail (builds) ────────────────────────────────────────────────
@@ -566,10 +667,18 @@ async function mockTrend(id: number): Promise<ChampionTrendResponse | null> {
   return {
     championId: s.id,
     position: s.position,
-    points: trendPatches(latest, 6).map(patch => ({
+    // trendPatches returns oldest → newest. Ban history cannot be backfilled
+    // (#920), so the mock stages the real shape the frontend has to survive: the
+    // older half of the series carries a null banRate and only the recent patches
+    // have data. That is what makes the trend chart's ban panel testable both
+    // ways without a backend.
+    points: trendPatches(latest, 6).map((patch, index, all) => ({
       patch,
       winRate: round3(s.wr + (rng() - 0.5) * 0.03),
       pickRate: round3(Math.max(0.004, s.pr + (rng() - 0.5) * 0.02)),
+      banRate: index < all.length - 3
+        ? null
+        : round3(Math.min(0.85, s.pr * 2.5 + (rng() - 0.5) * 0.04)),
       games: Math.round(s.pr * POOL_GAMES * (0.8 + rng() * 0.4)),
     })),
   }
@@ -603,13 +712,30 @@ async function mockScaling(id: number): Promise<ChampionScalingResponse | null> 
   }
 }
 
-async function mockPowerspikes(id: number, buildFirstItemId: number): Promise<ChampionPowerspikesResponse | null> {
+async function mockPowerspikes(
+  id: number,
+  buildFirstItemId: number,
+  opponentChampionId = 0,
+): Promise<ChampionPowerspikesResponse | null> {
   const s = seedsById.get(id)
   if (!s) return null
-  // Spikes are scoped to one core build (#890), so the fixture varies with the
-  // build key: each build starts on its own first item and the rest of the
-  // sequence rotates, the way two real builds diverge after the first buy.
-  const rng = mulberry32(s.id * 401 + buildFirstItemId)
+  // A matchup slice only has spikes for matches folded since #957 shipped, so an
+  // opponent whose id is a multiple of 5 stages the empty one — the state the
+  // section is actually in for most pairs on day one, and the one the copy has to
+  // survive. It is reachable on purpose, like the matchup page's degraded states.
+  if (opponentChampionId > 0 && opponentChampionId % 5 === 0) {
+    return { championId: s.id, position: s.position, patch: await latestShortPatch(), events: [] }
+  }
+  // Spikes are scoped to one core build (#890) and to one lane opponent (#957),
+  // so the fixture varies with both: each build starts on its own first item and
+  // the rest of the sequence rotates, the way two real builds diverge after the
+  // first buy, and the opponent reshuffles the magnitudes on top.
+  const rng = mulberry32(s.id * 401 + buildFirstItemId + opponentChampionId * 7)
+  // Measured on production, the median champion-vs-opponent pair holds 4 games on
+  // a patch (#923). The matchup slice therefore reports counts an order of
+  // magnitude below the global one, which is exactly what the section must render
+  // honestly rather than hide.
+  const gameScale = opponentChampionId > 0 ? 0.02 : 1
   const archetype = ARCHETYPES[s.archetype]
   // One spike per core item: mostly positive, tapering with build order, the
   // odd negative read on late defensive buys. The real endpoint orders by
@@ -623,14 +749,14 @@ async function mockPowerspikes(id: number, buildFirstItemId: number): Promise<Ch
     refId: itemId,
     avgMinute: round3(9 + i * 4.6 + rng() * 1.6),
     spikeMagnitude: round3((0.09 - i * 0.022) * (rng() > 0.12 ? 1 : -0.6) + (rng() - 0.5) * 0.01),
-    games: Math.round(s.pr * POOL_GAMES * Math.max(0.08, 0.7 - i * 0.11)),
+    games: Math.max(1, Math.round(s.pr * POOL_GAMES * Math.max(0.08, 0.7 - i * 0.11) * gameScale)),
   }))
   events.push(...[6, 11, 16].map(level => ({
     type: 'level' as const,
     refId: level,
     avgMinute: round3(level === 6 ? 7.5 + rng() : level === 11 ? 16 + rng() * 2 : 26 + rng() * 3),
     spikeMagnitude: round3(0.05 - level * 0.002 + (rng() - 0.5) * 0.01),
-    games: Math.round(s.pr * POOL_GAMES * (level === 16 ? 0.4 : 0.9)),
+    games: Math.max(1, Math.round(s.pr * POOL_GAMES * (level === 16 ? 0.4 : 0.9) * gameScale)),
   })))
   events.sort((a, b) => b.spikeMagnitude - a.spikeMagnitude)
   return {
@@ -694,8 +820,166 @@ async function mockMatchups(id: number): Promise<ChampionMatchups | null> {
     matchups: opponents.map((o) => {
       const games = Math.round(40 + rng() * 360)
       const winRate = round3(Math.min(0.6, Math.max(0.4, 0.5 + (s.wr - o.wr) * 1.6 + (rng() - 0.5) * 0.07)))
-      return { opponentChampionId: o.id, games, wins: Math.round(games * winRate), winRate }
+      // Lane outcome (#919). Only *decided* lanes count, so the sample is always a
+      // fraction of `games`; every third opponent is left undecided so the panel's
+      // dash path is reachable without a backend. Lane WR tracks game WR loosely —
+      // winning lane usually helps — but deliberately not exactly, since the whole
+      // point of the column is that the two can disagree.
+      const decidedLaneGames = o.id % 3 === 0 ? 0 : Math.round(games * (0.4 + rng() * 0.3))
+      const laneWinRate = decidedLaneGames === 0
+        ? null
+        : round3(Math.min(0.75, Math.max(0.25, winRate + (rng() - 0.5) * 0.18)))
+      // Gold gap at 15 (#976), on its own sample and not a slice of the decided
+      // lanes: it counts every *judged* lane, evens included, so it is larger than
+      // `decidedLaneGames` and survives an opponent whose lanes never decided.
+      // Every fifth opponent has no measured gap and every seventh only a handful,
+      // so the verdict strip's two shortfall states are both reachable without a
+      // backend; the gap itself spans all five bands, which is what the strip is for.
+      const goldDiffLaneGames = o.id % 5 === 0
+        ? 0
+        : o.id % 7 === 0
+          ? Math.round(2 + rng() * 6)
+          : Math.round(games * (0.5 + rng() * 0.3))
+      const averageGoldDiffAt15 = goldDiffLaneGames === 0
+        ? null
+        : Math.round((s.wr - o.wr) * 9000 + (rng() - 0.5) * 320)
+      return {
+        opponentChampionId: o.id,
+        games,
+        wins: Math.round(games * winRate),
+        winRate,
+        laneWinRate,
+        decidedLaneGames,
+        averageGoldDiffAt15,
+        goldDiffLaneGames,
+      }
     }),
+  }
+}
+
+// Synergy mocks (#922). The panel's whole point is that the ranking value is
+// observed *minus* expected, so the mock builds the numbers in that direction:
+// draw a synergy, derive the expected rate from the marginals the same way the
+// backend does, and add them. Ranking the mocked list by raw win rate would
+// therefore give a visibly different order — which is what makes the mock
+// useful for eyeballing the panel.
+const SYNERGY_COHORT_WIN_RATE = 0.52
+
+function logit(rate: number): number {
+  const clamped = Math.min(0.999, Math.max(0.001, rate))
+  return Math.log(clamped / (1 - clamped))
+}
+
+function sigmoid(logOdds: number): number {
+  return 1 / (1 + Math.exp(-logOdds))
+}
+
+function expectedWinRate(selfWinRate: number, allyWinRates: number[]): number {
+  const cohortLogOdds = logit(SYNERGY_COHORT_WIN_RATE)
+  return sigmoid(allyWinRates.reduce(
+    (acc, ally) => acc + logit(ally) - cohortLogOdds,
+    logit(selfWinRate),
+  ))
+}
+
+async function mockSynergies(
+  id: number,
+  partnerPosition?: string,
+): Promise<ChampionSynergies | null> {
+  const s = seedsById.get(id)
+  if (!s) return null
+
+  const rng = mulberry32(s.id * 977)
+  const championGames = Math.round(600 + rng() * 2400)
+  const minGames = 20
+
+  const partners: ChampionSynergyEntry[] = CHAMPION_SEEDS
+    .filter(p => p.position !== s.position && (!partnerPosition || p.position === partnerPosition))
+    .map((p) => {
+      const games = Math.round(15 + rng() * 180)
+      const baselineGames = games + Math.round(200 + rng() * 900)
+      const baselineWinRate = round3(SYNERGY_COHORT_WIN_RATE + (p.wr - 0.5) * 0.8)
+      const expected = expectedWinRate(s.wr, [baselineWinRate])
+      const synergy = round3((rng() - 0.45) * 0.11)
+      const winRate = round3(Math.min(0.85, Math.max(0.15, expected + synergy)))
+      return {
+        partnerChampionId: p.id,
+        partnerPosition: p.position,
+        games,
+        wins: Math.round(games * winRate),
+        winRate,
+        partnerBaselineGames: baselineGames,
+        partnerBaselineWinRate: baselineWinRate,
+        expectedWinRate: round3(expected),
+        synergy: round3(winRate - expected),
+      }
+    })
+    .filter(p => p.games >= minGames)
+    .sort((a, b) => b.synergy - a.synergy)
+
+  return {
+    championId: s.id,
+    position: s.position,
+    patch: await latestShortPatch(),
+    partnerPosition: partnerPosition ?? null,
+    minGames,
+    championGames,
+    championWinRate: round3(s.wr),
+    cohortWinRate: SYNERGY_COHORT_WIN_RATE,
+    partners,
+  }
+}
+
+async function mockTrioSynergies(
+  id: number,
+  partner: number,
+  partnerPosition: string,
+): Promise<ChampionTrioSynergies | null> {
+  const s = seedsById.get(id)
+  const p = seedsById.get(partner)
+  if (!s || !p) return null
+
+  const rng = mulberry32(s.id * 31 + partner)
+  const minGames = 12
+  const pairGames = Math.round(20 + rng() * 160)
+  const pairWinRate = round3(0.5 + (rng() - 0.5) * 0.12)
+  const partnerBaselineWinRate = round3(SYNERGY_COHORT_WIN_RATE + (p.wr - 0.5) * 0.8)
+
+  // Every completion is drawn from the duo's games, so its sample can never
+  // exceed pairGames — the ceiling the panel's copy talks about.
+  const completions: ChampionTrioSynergyEntry[] = CHAMPION_SEEDS
+    .filter(t => t.position !== s.position && t.position !== partnerPosition)
+    .map((t) => {
+      const games = Math.round(pairGames * (0.2 + rng() * 0.6))
+      const baselineWinRate = round3(SYNERGY_COHORT_WIN_RATE + (t.wr - 0.5) * 0.8)
+      const expected = expectedWinRate(s.wr, [partnerBaselineWinRate, baselineWinRate])
+      const winRate = round3(Math.min(0.9, Math.max(0.1, expected + (rng() - 0.45) * 0.14)))
+      return {
+        championId: t.id,
+        position: t.position,
+        games,
+        wins: Math.round(games * winRate),
+        winRate,
+        baselineGames: games + Math.round(300 + rng() * 900),
+        baselineWinRate,
+        expectedWinRate: round3(expected),
+        synergy: round3(winRate - expected),
+      }
+    })
+    .filter(t => t.games >= minGames)
+    .sort((a, b) => b.synergy - a.synergy)
+
+  return {
+    championId: s.id,
+    position: s.position,
+    partnerChampionId: p.id,
+    partnerPosition,
+    patch: await latestShortPatch(),
+    minGames,
+    pairGames,
+    pairWins: Math.round(pairGames * pairWinRate),
+    pairWinRate,
+    completions,
   }
 }
 
@@ -711,12 +995,90 @@ function mockDifferentFrom(pool: number[], taken: number | undefined): number {
 }
 
 /**
- * "You vs mains" for the player-scoped champion page. Built from the two build
+ * "<player> vs mains" for the player-scoped champion page. Built from the two build
  * variants `makeBuild` already produces — variant 1 stands in for the player's
  * habits, variant 0 for the mains' — with the starter and boots nudged apart so
  * the fixture shows both diverging and matching rows. Nothing here reaches
  * production (dev mock only).
  */
+/**
+ * Player-scoped performance score (#918). Mirrors the real payload's shape and
+ * its two honest states: a champion the fixture treats as thinly played comes
+ * back with the counts and every average null, everything else with a full
+ * breakdown. The weights below are the backend's own role profiles
+ * (docs/performance-score.md) so the panel orders its rows exactly as it will
+ * against the real API; the *values* are deterministic noise, not a
+ * re-implementation of the scorer.
+ */
+function mockPlayerPerformance(
+  id: number,
+  position: string | null,
+  patch: string | null,
+): PlayerChampionPerformanceResponse {
+  const s = seedsById.get(id)
+  const lane = (position ?? s?.position ?? 'MIDDLE').toUpperCase()
+  const rng = mulberry32(id * 977 + lane.length * 31)
+
+  const minGames = 5
+  const window = 20
+  // A deterministic sliver of champions reads as under-sampled so the empty
+  // state is reachable without hunting for a real thin account.
+  const games = id % 11 === 0 ? id % minGames : 6 + Math.floor(rng() * (window - 6))
+
+  const base: PlayerChampionPerformanceResponse = {
+    championId: id,
+    position: position ?? null,
+    patch: patch ?? null,
+    games,
+    minGames,
+    window,
+    averageScore: null,
+    bestScore: null,
+    worstScore: null,
+    topOfTeamRate: null,
+    components: [],
+  }
+
+  if (games < minGames) return base
+
+  // Backend role profiles, in PERFORMANCE_COMPONENT_KINDS order.
+  const WEIGHTS: Record<string, number[]> = {
+    TOP: [20, 14, 16, 7, 14, 5, 12, 7, 5],
+    JUNGLE: [18, 18, 14, 7, 14, 7, 12, 10, 0],
+    MIDDLE: [20, 14, 18, 7, 14, 5, 10, 6, 6],
+    BOTTOM: [20, 12, 20, 7, 16, 4, 10, 8, 3],
+    UTILITY: [18, 20, 7, 4, 5, 24, 8, 6, 8],
+  }
+  const weights = WEIGHTS[lane] ?? WEIGHTS.MIDDLE!
+
+  const components = PERFORMANCE_COMPONENT_KINDS.map((kind: PerformanceComponentKind, i) => {
+    const weight = weights[i]!
+    // MidGame is the component most often absent (short games), so it gets the
+    // smaller sample — the "n/N games" note has to be reachable in mock mode.
+    const componentGames = kind === 'MidGame'
+      ? Math.max(1, Math.round(games * 0.6))
+      : kind === 'Laning' || kind === 'Roam'
+        ? Math.max(1, Math.round(games * 0.85))
+        : games
+    return {
+      kind,
+      weight,
+      value: weight === 0 ? null : round3(0.35 + rng() * 0.5),
+      games: weight === 0 ? 0 : componentGames,
+    }
+  })
+
+  const averageScore = Math.round((45 + rng() * 35) * 10) / 10
+  return {
+    ...base,
+    averageScore,
+    bestScore: Math.min(100, Math.round(averageScore + 8 + rng() * 12)),
+    worstScore: Math.max(0, Math.round(averageScore - 12 - rng() * 15)),
+    topOfTeamRate: round3(0.1 + rng() * 0.35),
+    components,
+  }
+}
+
 async function mockPlayerDivergence(id: number): Promise<PlayerBuildDivergenceResponse | null> {
   const s = seedsById.get(id)
   if (!s) return null
@@ -1100,6 +1462,141 @@ function mockRankHistory(player: MockPlayer): RankHistoryResponse {
   return { entries }
 }
 
+/**
+ * Activity grid (#927). Reproduces the retention asymmetry on purpose: the three
+ * match-sourced series only cover the last ~26 days (what `match_participants`
+ * still holds in prod), while the patch series carries the player's whole tracked
+ * career on their signature champion and sums to the dedication card's
+ * `careerGames`. A mock with four equally deep series would hide the one property
+ * the card's copy is about.
+ */
+function mockActivity(player: MockPlayer): TruemainActivityResponse {
+  const rng = mulberry32(player.row.rank * 4409)
+  const now = Date.now()
+  const retainedDays = 26
+  const winRate = player.row.stats.winRate ?? 0.5
+
+  interface Game { startUtc: number, win: boolean, championId: number }
+  const games: Game[] = []
+  const pool = player.row.topChampions.map(champion => champion.championId)
+  for (let day = retainedDays - 1; day >= 0; day--) {
+    // A rest day every so often, so the day grid carries genuinely empty cells
+    // next to the played ones.
+    const perDay = rng() < 0.22 ? 0 : 1 + Math.floor(rng() * 4)
+    for (let i = 0; i < perDay; i++) {
+      games.push({
+        startUtc: now - day * DAY_MS + i * 40 * 60 * 1000,
+        win: rng() < winRate,
+        championId: pool[Math.floor(rng() * pool.length)] ?? pool[0] ?? 157,
+      })
+    }
+  }
+
+  const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10)
+  const floorDay = (ms: number) => Date.parse(`${isoDay(ms)}T00:00:00.000Z`)
+  const floorWeek = (ms: number) => {
+    const day = floorDay(ms)
+    // ISO weeks start on Monday; getUTCDay() counts from Sunday.
+    return day - ((new Date(day).getUTCDay() + 6) % 7) * DAY_MS
+  }
+
+  function calendar(floor: (ms: number) => number, stepDays: number): ActivityBucket[] {
+    if (games.length === 0) return []
+    const totals = new Map<number, { games: number, wins: number }>()
+    for (const game of games) {
+      const slot = floor(game.startUtc)
+      const current = totals.get(slot) ?? { games: 0, wins: 0 }
+      totals.set(slot, { games: current.games + 1, wins: current.wins + (game.win ? 1 : 0) })
+    }
+
+    const buckets: ActivityBucket[] = []
+    const last = floor(now)
+    for (let slot = floor(games[0]!.startUtc); slot <= last; slot += stepDays * DAY_MS) {
+      const hit = totals.get(slot)
+      buckets.push({
+        key: isoDay(slot),
+        startUtc: new Date(slot).toISOString(),
+        games: hit?.games ?? 0,
+        wins: hit?.wins ?? 0,
+        // Null, never 0, on an untouched slot — the whole point of the grid.
+        winRate: hit ? hit.wins / hit.games : null,
+        championId: null,
+      })
+    }
+    return buckets
+  }
+
+  function matchSeries(mode: 'game' | 'day' | 'week', buckets: ActivityBucket[]): ActivitySeries {
+    const total = buckets.reduce((sum, bucket) => sum + bucket.games, 0)
+    const wins = buckets.reduce((sum, bucket) => sum + bucket.wins, 0)
+    return {
+      mode,
+      source: 'matches',
+      scope: 'allChampions',
+      championId: null,
+      retentionBounded: true,
+      coverageFromUtc: buckets[0]?.startUtc ?? null,
+      coverageToUtc: buckets[buckets.length - 1]?.startUtc ?? null,
+      buckets,
+      games: total,
+      wins,
+      winRate: total === 0 ? null : wins / total,
+    }
+  }
+
+  const gameBuckets: ActivityBucket[] = games.slice(-60).map(game => ({
+    key: `MOCK_${game.startUtc}`,
+    startUtc: new Date(game.startUtc).toISOString(),
+    games: 1,
+    wins: game.win ? 1 : 0,
+    winRate: game.win ? 1 : 0,
+    championId: game.championId,
+  }))
+
+  // The patch series must total the dedication card's careerGames on the same
+  // champion, which is the invariant the real endpoint guarantees by reading the
+  // very rows that card sums.
+  const dedication = player.row.dedication
+  const patchSpan = Math.max(1, dedication?.patchSpan ?? 1)
+  const careerGames = Math.max(patchSpan, dedication?.careerGames ?? patchSpan)
+  const patchBuckets: ActivityBucket[] = Array.from({ length: patchSpan }, (_, index) => {
+    // Distribute the career evenly and hand the remainder to the newest patch so
+    // the sum is exact rather than approximately right.
+    const share = Math.floor(careerGames / patchSpan)
+    const count = index === patchSpan - 1 ? careerGames - share * (patchSpan - 1) : share
+    const wins = Math.round(count * Math.min(0.85, Math.max(0.15, winRate + (rng() - 0.5) * 0.2)))
+    return {
+      key: `15.${index + 1}`,
+      startUtc: null,
+      games: count,
+      wins,
+      winRate: count === 0 ? null : wins / count,
+      championId: null,
+    }
+  })
+  const patchTotal = patchBuckets.reduce((sum, bucket) => sum + bucket.games, 0)
+  const patchWins = patchBuckets.reduce((sum, bucket) => sum + bucket.wins, 0)
+
+  return {
+    game: matchSeries('game', gameBuckets),
+    day: matchSeries('day', calendar(floorDay, 1)),
+    week: matchSeries('week', calendar(floorWeek, 7)),
+    patch: {
+      mode: 'patch',
+      source: 'aggregates',
+      scope: 'champion',
+      championId: dedication?.championId ?? null,
+      retentionBounded: false,
+      coverageFromUtc: null,
+      coverageToUtc: null,
+      buckets: patchBuckets,
+      games: patchTotal,
+      wins: patchWins,
+      winRate: patchTotal === 0 ? null : patchWins / patchTotal,
+    },
+  }
+}
+
 function mockMatches(player: MockPlayer, query: Record<string, unknown>): MatchSummariesResponse {
   const { page, pageSize } = pageParams(query, 20, 50)
   const total = 46
@@ -1120,6 +1617,15 @@ function mockMatches(player: MockPlayer, query: Record<string, unknown>): MatchS
     const deaths = Math.floor(rng() * 8)
     const assists = Math.floor(rng() * 14)
     const duration = 1350 + Math.floor(rng() * 1100)
+
+    // Performance score, placement and the MVP/ACE accolade, kept mutually
+    // consistent: the accolade is "placement 1 on your own side", so it can
+    // only fire on a top-3 overall game. The real API derives all three from
+    // one ranking (docs/performance-score.md); a mock with three independent
+    // dice would show a crown on a 34 and make the panel look broken.
+    const perf = 28 + Math.floor(rng() * 62)
+    const placement = 1 + Math.floor((100 - perf) / 100 * 10)
+    const topOfTeam = placement <= 3
 
     // 10 participants: self + 9 others drawn from the champion pool, split 5v5.
     const selfTeam = rng() < 0.5 ? 100 : 200
@@ -1166,8 +1672,13 @@ function mockMatches(player: MockPlayer, query: Record<string, unknown>): MatchS
         position: (['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'] as const)[index % 5]!,
         win,
         lpDelta: win ? 14 + Math.floor(rng() * 12) : -(12 + Math.floor(rng() * 12)),
-        isMvp: win && rng() > 0.72,
-        isAce: !win && rng() > 0.85,
+        // Correlated with the accolade below rather than independent, so the
+        // mock never renders a crown next to a mediocre score — the real API
+        // derives both from the same ranking.
+        performanceScore: perf,
+        placement,
+        isMvp: win && topOfTeam,
+        isAce: !win && topOfTeam,
       },
       participants,
     }
@@ -1346,7 +1857,7 @@ async function mockCompositionBuild(id: number, body?: unknown): Promise<Composi
   const rng = mulberry32(s.id * 131 + 7)
   const archetype = ARCHETYPES[s.archetype]
 
-  // Mirror the backend's matchup requirement from the request body: the lane
+  // Mirror the backend's matchup requirement from the request body: the role
   // opponent is the enemy slot at the player's own position. A deterministic
   // sliver of opponents (id % 23 === 0, e.g. Kayn 141… pick around to find
   // one) reads as "never recorded" so the fallback path can be eyeballed.
@@ -1356,19 +1867,23 @@ async function mockCompositionBuild(id: number, body?: unknown): Promise<Composi
     enemies?: Array<{ championId?: number, position?: string }>
   }
   const position = typeof draft.position === 'string' ? draft.position.toUpperCase() : s.position
-  const laneOpponent = (draft.enemies ?? []).find(slot =>
+  const roleOpponent = (draft.enemies ?? []).find(slot =>
     typeof slot.position === 'string' && slot.position.toUpperCase() === position)
-  const matchupRequested = laneOpponent?.championId !== undefined
-  const matchupFound = !matchupRequested || (laneOpponent!.championId! % 23 !== 0)
+  const matchupRequested = roleOpponent?.championId !== undefined
+  const matchupFound = !matchupRequested || (roleOpponent!.championId! % 23 !== 0)
   const slotCount = (draft.allies?.length ?? 0) + (draft.enemies?.length ?? 0)
 
   // Fewer games as the draft gets more constrained, so the thin-data state is
   // reachable in mock mode (the real API returns the true selected count).
-  const games = Math.max(6, Math.round(100 - slotCount * 11))
+  // A second deterministic sliver of opponents (id % 17 === 0, e.g. Teemo)
+  // comes back as a barely-recorded matchup, so the matchup page's thin-sample
+  // fallback (#921) is reachable without filling all eight draft slots.
+  const thinMatchup = matchupRequested && matchupFound && roleOpponent!.championId! % 17 === 0
+  const games = thinMatchup ? 3 : Math.max(6, Math.round(100 - slotCount * 11))
   const wins = Math.round(games * Math.min(0.6, s.wr + rng() * 0.02))
   const set = (itemIds: number[], shareOf: number) => ({
     itemIds,
-    games: Math.max(4, Math.round(games * shareOf)),
+    games: Math.max(1, Math.min(games, Math.round(games * shareOf))),
     pickRate: round3(shareOf),
     winRate: round3(Math.min(0.62, Math.max(0.42, s.wr + (rng() - 0.5) * 0.08))),
   })
@@ -1395,7 +1910,6 @@ async function mockCompositionBuild(id: number, body?: unknown): Promise<Composi
         starterItems: null,
         boots: null,
         corePath: null,
-        situationalItems: [],
         summonerSpells: null,
         skillOrder: null,
         firstItemId: 0,
@@ -1444,7 +1958,6 @@ async function mockCompositionBuild(id: number, body?: unknown): Promise<Composi
       starterItems: set(archetype.starterItems, 0.6 + rng() * 0.1),
       boots: set([archetype.boots[0]!], 0.55 + rng() * 0.1),
       corePath: set(archetype.items.slice(0, 3), 0.38 + rng() * 0.1),
-      situationalItems: archetype.items.slice(3, 8).map(item => set([item], 0.1 + rng() * 0.22)),
       summonerSpells: {
         spell1Id: archetype.spells[0],
         spell2Id: archetype.spells[1],
@@ -1464,15 +1977,151 @@ async function mockCompositionBuild(id: number, body?: unknown): Promise<Composi
   }
 }
 
+/**
+ * Games the composition recommendation was computed from (#940), paged. Mirrors
+ * `mockCompositionBuild`'s matchup/games-count logic exactly (same seed, same
+ * draft-derived `games`) so a drawer opened right after a recommendation loads
+ * always lists a sample consistent with the confidence strip that opened it.
+ * Games at even indices are attributed to mains (roughly matching the
+ * `truemainGameCount` share the recommendation reports) and lead the page, per
+ * the real selection's mains-first order.
+ */
+async function mockCompositionBuildGames(id: number, body: unknown, query: Record<string, unknown>): Promise<CompositionBuildGamesResponse> {
+  const s = seedsById.get(id) ?? seed(id, 'MIDDLE', 'fighter', 8010, 8000, 8400, 0.508, 0.04)
+  const patch = await latestShortPatch()
+  const rng = mulberry32(s.id * 131 + 7)
+  const archetype = ARCHETYPES[s.archetype]
+
+  const draft = (body ?? {}) as {
+    position?: string
+    allies?: Array<{ championId?: number, position?: string }>
+    enemies?: Array<{ championId?: number, position?: string }>
+  }
+  const position = typeof draft.position === 'string' ? draft.position.toUpperCase() : s.position
+  const roleOpponent = (draft.enemies ?? []).find(slot =>
+    typeof slot.position === 'string' && slot.position.toUpperCase() === position)
+  const matchupRequested = roleOpponent?.championId !== undefined
+  const matchupFound = !matchupRequested || (roleOpponent!.championId! % 23 !== 0)
+  const slotCount = (draft.allies?.length ?? 0) + (draft.enemies?.length ?? 0)
+  const thinMatchup = matchupRequested && matchupFound && roleOpponent!.championId! % 17 === 0
+  const total = matchupFound ? (thinMatchup ? 3 : Math.max(6, Math.round(100 - slotCount * 11))) : 0
+  const maxPossibleScore = 10 + slotCount * 3
+
+  const { page, pageSize } = pageParams(query, 10, 25)
+  const start = (page - 1) * pageSize
+  const count = Math.max(0, Math.min(pageSize, total - start))
+  const now = Date.now()
+
+  const games: CompositionGame[] = Array.from({ length: count }, (_, i): CompositionGame => {
+    const index = start + i
+    const gameRng = mulberry32(s.id * 733 + index * 197)
+    const isTruemain = index % 2 === 0
+    const win = gameRng() < Math.min(0.6, s.wr + gameRng() * 0.02)
+    const duration = 1350 + Math.floor(gameRng() * 1100)
+    const perf = 28 + Math.floor(gameRng() * 62)
+    const placement = 1 + Math.floor((100 - perf) / 100 * 10)
+    const topOfTeam = placement <= 3
+    const selfTeam = gameRng() < 0.5 ? 100 : 200
+    const pilotIndex = (s.id * 7 + index * 11) % PLAYER_COUNT
+    const pilot = players()[pilotIndex]!
+    const pool = CHAMPION_SEEDS
+
+    const participants = Array.from({ length: 10 }, (_, slot) => {
+      let otherIndex = (pilotIndex + slot * 17 + index) % PLAYER_COUNT
+      if (otherIndex === pilotIndex) otherIndex = (otherIndex + 1) % PLAYER_COUNT
+      const other = players()[otherIndex]!
+      return {
+        championId: slot === 0 ? s.id : pool[(index * 7 + slot * 13) % pool.length]!.id,
+        teamId: slot < 5 ? selfTeam : selfTeam === 100 ? 200 : 100,
+        position: (['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'] as const)[slot % 5]!,
+        gameName: slot === 0 ? pilot.row.identity.gameName : other.row.identity.gameName,
+        tagLine: slot === 0 ? pilot.row.identity.tagLine : other.row.identity.tagLine,
+      }
+    })
+
+    const match: MatchSummaryResponse = {
+      matchId: `EUW1_COMPG_${s.id}_${index}`,
+      queueId: 420,
+      gameMode: 'CLASSIC',
+      gameStartTimeUtc: new Date(now - (index * 13 + 5) * 60 * 60 * 1000).toISOString(),
+      gameDurationSeconds: duration,
+      self: {
+        championId: s.id,
+        championLevel: 12 + Math.floor(gameRng() * 7),
+        summoner1Id: archetype.spells[0],
+        summoner2Id: archetype.spells[1],
+        primaryStyleId: s.primaryStyle,
+        subStyleId: s.secondaryStyle,
+        keystoneId: s.keystone,
+        kills: Math.floor(gameRng() * 12),
+        deaths: Math.floor(gameRng() * 8),
+        assists: Math.floor(gameRng() * 14),
+        cs: Math.round(duration / 60 * (5.5 + gameRng() * 3.5)),
+        killParticipation: round3(Math.min(0.9, 0.3 + gameRng() * 0.5)),
+        items: [...archetype.items.slice(0, 5), archetype.boots[0]!],
+        trinketItemId: 3364,
+        teamId: selfTeam,
+        position,
+        win,
+        lpDelta: win ? 14 + Math.floor(gameRng() * 12) : -(12 + Math.floor(gameRng() * 12)),
+        performanceScore: perf,
+        placement,
+        isMvp: win && topOfTeam,
+        isAce: !win && topOfTeam,
+      },
+      participants,
+    }
+
+    return {
+      // Similarity descends within the page, mains-first ties broken the same
+      // way the real selection breaks them: index order.
+      score: Math.max(0, maxPossibleScore - index),
+      isTruemain,
+      pilot: {
+        gameName: pilot.row.identity.gameName,
+        tagLine: pilot.row.identity.tagLine,
+        profileIconId: pilot.row.identity.profileIconId,
+      },
+      match,
+    }
+  })
+
+  return {
+    championId: s.id,
+    position,
+    patch,
+    page,
+    pageSize,
+    total,
+    maxPossibleScore,
+    games,
+  }
+}
+
 export async function resolveDevApiMock(
   path: string,
   query: Record<string, unknown>,
   body?: unknown,
 ): Promise<unknown | undefined> {
   if (path === '/champions') return mockChampionSummaries()
+  if (path === '/champions/overview') return mockChampionOverview(query)
+
+  const compositionGamesMatch = path.match(/^\/champions\/(\d+)\/composition-build\/games$/)
+  if (compositionGamesMatch) return mockCompositionBuildGames(Number(compositionGamesMatch[1]), body, query)
 
   const compositionMatch = path.match(/^\/champions\/(\d+)\/composition-build$/)
   if (compositionMatch) return mockCompositionBuild(Number(compositionMatch[1]), body)
+
+  // Two segments deep, so it has to be matched before the single-segment
+  // champion route below (whose regex would otherwise not match at all).
+  const trioMatch = path.match(/^\/champions\/(\d+)\/synergies\/trios$/)
+  if (trioMatch) {
+    return mockTrioSynergies(
+      Number(trioMatch[1]),
+      Number(query.partner) || 0,
+      typeof query.partnerPosition === 'string' ? query.partnerPosition : '',
+    )
+  }
 
   const championMatch = path.match(/^\/champions\/(\d+)(?:\/([a-z-]+))?$/)
   if (championMatch) {
@@ -1485,9 +2134,17 @@ export async function resolveDevApiMock(
       : sub === 'trend' ? mockTrend(id)
       : sub === 'patch-diff' ? mockPatchDiff(id, typeof query.from === 'string' ? query.from : undefined, typeof query.to === 'string' ? query.to : undefined)
       : sub === 'scaling' ? mockScaling(id)
-      : sub === 'powerspikes' ? mockPowerspikes(id, Number(query.buildFirstItemId) || 0)
+      : sub === 'powerspikes' ? mockPowerspikes(
+          id,
+          Number(query.buildFirstItemId) || 0,
+          Number(query.opponentChampionId) || 0,
+        )
       : sub === 'roam' ? mockRoam(id)
       : sub === 'matchups' ? mockMatchups(id)
+      : sub === 'synergies' ? mockSynergies(
+          id,
+          typeof query.partnerPosition === 'string' && query.partnerPosition ? query.partnerPosition : undefined,
+        )
       : sub === 'mains-comparison' ? mockMainsComparison(
           id,
           typeof query.account === 'string' ? query.account : undefined,
@@ -1506,25 +2163,33 @@ export async function resolveDevApiMock(
   if (path === '/truemains') return mockLeaderboard(query)
   if (path === '/truemains/search') return mockSearch(typeof query.q === 'string' ? query.q : '')
 
-  const playerMatch = path.match(/^\/truemains\/([^/]+)\/(profile|rank-history|matches)$/)
+  const playerMatch = path.match(/^\/truemains\/([^/]+)\/(profile|rank-history|activity|matches)$/)
   if (playerMatch) {
     const name = safeDecodeURIComponent(playerMatch[1]!)
     const player = name === undefined ? undefined : findPlayer(name)
     if (!player) throw createError({ statusCode: 404, statusMessage: 'Unknown truemain (dev mock)' })
     if (playerMatch[2] === 'profile') return mockProfile(player)
     if (playerMatch[2] === 'rank-history') return mockRankHistory(player)
+    if (playerMatch[2] === 'activity') return mockActivity(player)
     return mockMatches(player, query)
   }
 
   // Player-scoped champion aggregate: reuse the global build payload so the
   // page renders; the numbers just read as the player's sample.
-  const playerChampionMatch = path.match(/^\/truemains\/[^/]+\/champions\/(\d+)(?:\/(matchups|divergence))?$/)
+  const playerChampionMatch = path.match(/^\/truemains\/[^/]+\/champions\/(\d+)(?:\/(matchups|divergence|performance))?$/)
   if (playerChampionMatch) {
     const id = Number(playerChampionMatch[1])
     const sub = playerChampionMatch[2]
     let payload: unknown = null
     if (sub === 'matchups') payload = await mockMatchups(id)
     else if (sub === 'divergence') payload = await mockPlayerDivergence(id)
+    else if (sub === 'performance') {
+      payload = mockPlayerPerformance(
+        id,
+        typeof query.position === 'string' && query.position ? query.position : null,
+        typeof query.patch === 'string' && query.patch ? query.patch : null,
+      )
+    }
     else payload = await mockChampionDetail(id, undefined, undefined)
     if (payload === null) throw createError({ statusCode: 404, statusMessage: 'No data (dev mock)' })
     return payload

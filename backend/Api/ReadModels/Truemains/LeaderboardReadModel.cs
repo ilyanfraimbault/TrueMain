@@ -81,7 +81,11 @@ public sealed record LeaderboardStatsReadModel
     /// <summary><c>wins / (wins + losses)</c> over the overall ranked split (from the latest rank snapshot) when both are known, otherwise null — the frontend hides the cell instead of rendering 0% / NaN.</summary>
     public double? WinRate { get; init; }
 
-    /// <summary><c>(kills + assists) / max(1, deaths)</c> across attributed participant rows, null when none.</summary>
+    /// <summary>
+    /// <c>(kills + assists) / deaths</c> across attributed participant rows, falling back to
+    /// <c>(kills + assists) / games</c> on a deathless sample so the value stays on the same
+    /// per-game scale as the metrics beside it. Null when there are no attributed rows.
+    /// </summary>
     public double? Kda { get; init; }
 }
 

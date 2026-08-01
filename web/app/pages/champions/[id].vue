@@ -18,8 +18,17 @@ const { filters, setFilter } = useChampionFilters()
 const {
   data: champion,
   error: championError,
+  status: championStatus,
   notEnoughData,
 } = useChampion(championId, filters)
+
+// A filter change keeps the previous payload on screen while the new one loads
+// (useLazyAsyncData holds `data`), so without this the build sections silently
+// showed the *old* slice — the matchup filter made that obvious, since the
+// numbers stayed put after picking an opponent. Render the same skeleton as a
+// cold load while the champion fetch is in flight. Only the data area: the
+// header keeps its values so the page doesn't jump under the cursor.
+const championLoading = computed(() => isLoadingStatus(championStatus.value))
 
 // Real load failures (429/500/network) surface as a toast as well as the
 // inline alert below — both read the same line via describeFetchError. A 404
@@ -100,6 +109,34 @@ useSeoMeta({
     : `Champion builds, runes and skill order from true main players.`,
 })
 
+// Copy shown in the native share sheet and as the X post text. Built from the
+// same SSR-safe display name the title uses, so it never reads "Champion 103".
+const shareTitle = computed(() =>
+  seoDisplayName.value
+    ? `${seoDisplayName.value}${seoPositionLabel.value ? ` ${seoPositionLabel.value}` : ''} build on TrueMain`
+    : 'Champion build on TrueMain',
+)
+const shareDescription = computed(() =>
+  seoDisplayName.value
+    ? `Runes, items and skill order for ${seoDisplayName.value}, from real one-tricks.`
+    : 'Runes, items and skill orders from true main players.',
+)
+
+// Dynamic share card (#926). Only *identifiers* are handed over — the champion
+// id plus whatever slice the shared URL pinned. Everything this page renders is
+// fetched `server: false` (the #149 hydration fix), so at SSR — the moment this
+// og:image URL is minted — there is not a single number available to pass. The
+// card therefore resolves its own slice through `/api/og/champion/{id}` when a
+// crawler renders it, which also keeps the extra query off the human page-view
+// path. The props are refs, so the meta tag follows client-side filter changes
+// too and a link copied after switching rank shares that rank's card.
+defineOgImageComponent('Champion', {
+  championId,
+  position: computed(() => filters.value.position ?? undefined),
+  eloBracket: computed(() => filters.value.eloBracket ?? undefined),
+  patch: computed(() => filters.value.patch ?? undefined),
+})
+
 useSchemaOrg([
   defineWebPage({
     name: () => seoDisplayName.value ? `${seoDisplayName.value} Build` : undefined,
@@ -132,6 +169,23 @@ const selectedEloBracket = computed<string>(() =>
 // item-timings / roam). Sourced from the URL filter and undefined for ALL, so
 // the query param + cache key stay clean — the same contract patch/position use.
 const eloBracketParam = computed(() => filters.value.eloBracket)
+
+// Matchup filter (#923): opponents are every champion but this one — there is no
+// matchup against yourself. The picker is hidden until the static list resolves,
+// since it searches by name.
+const opponentOptions = computed<ChampionStaticListItem[] | undefined>(() =>
+  staticList.value?.filter(entry => entry.championId !== championId.value))
+
+// A matchup is scoped to a lane on the backend (the self-join matches both sides
+// on the position), so picking an opponent without one would 400. Pin the
+// position being displayed at the same time.
+async function onOpponentChange(value: number | null) {
+  const position = selectedPosition.value ?? champion.value?.position ?? null
+  await setFilter({
+    opponentChampionId: value,
+    ...(value && position ? { position: position as ChampionPosition } : {}),
+  })
+}
 
 // A rank filter with no data: the fetch 404'd on a specific rank (the champion
 // may well have builds in other ranks). Distinct from the champion-level "no
@@ -320,6 +374,10 @@ const matchupsSnapshot = useLazyHydrationSnapshot(
   { champions: [] as ChampionStaticListItem[] },
   () => ({ champions: staticList.value ?? [] }),
 )
+const synergiesSnapshot = useLazyHydrationSnapshot(
+  { champions: [] as ChampionStaticListItem[] },
+  () => ({ champions: staticList.value ?? [] }),
+)
 </script>
 
 <template>
@@ -406,9 +464,12 @@ const matchupsSnapshot = useLazyHydrationSnapshot(
           :selected-position="selectedPosition"
           :selected-elo-bracket="selectedEloBracket"
           :patch-options="patchOptions"
+          :opponent-options="opponentOptions"
+          :selected-opponent-id="filters.opponentChampionId ?? null"
           @update:patch="value => setFilter({ patch: value })"
           @update:position="value => setFilter({ position: value })"
           @update:elo-bracket="value => setFilter({ eloBracket: value })"
+          @update:opponent-champion-id="onOpponentChange"
         />
       </header>
 
@@ -442,9 +503,19 @@ const matchupsSnapshot = useLazyHydrationSnapshot(
           :selected-position="selectedPosition"
           :selected-elo-bracket="selectedEloBracket"
           :patch-options="patchOptions"
+          :opponent-options="opponentOptions"
+          :selected-opponent-id="filters.opponentChampionId ?? null"
           @update:patch="value => setFilter({ patch: value })"
           @update:position="value => setFilter({ position: value })"
           @update:elo-bracket="value => setFilter({ eloBracket: value })"
+          @update:opponent-champion-id="onOpponentChange"
+        />
+        <!-- Share affordance (#926). Only on the populated state: the two
+             degraded headers above have nothing worth putting in someone's
+             Discord, and the card they'd unfurl to is the branded fallback. -->
+        <ShareButtons
+          :title="shareTitle"
+          :description="shareDescription"
         />
       </header>
 
@@ -465,7 +536,7 @@ const matchupsSnapshot = useLazyHydrationSnapshot(
       <div class="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
         <div class="min-w-0 space-y-6">
           <ChampionBuildTabs
-            v-if="champion && staticData"
+            v-if="champion && staticData && !championLoading"
             :builds="champion.builds"
             :champion-static="staticData"
             :items-map="itemsMap ?? {}"
@@ -475,6 +546,7 @@ const matchupsSnapshot = useLazyHydrationSnapshot(
             :position="trendPosition"
             :patch="selectedPatch || null"
             :elo-bracket="eloBracketParam"
+            :opponent-champion-id="filters.opponentChampionId ?? null"
           />
           <ChampionBuildTabsSkeleton v-else />
 
@@ -518,6 +590,21 @@ const matchupsSnapshot = useLazyHydrationSnapshot(
             hydrate-on-visible
             v-bind="roamSnapshot.value"
             @vue:mounted="roamSnapshot.reveal"
+          />
+
+          <!--
+            Duo/trio synergies (#922). In the main column rather than the
+            sidebar: the rows carry four columns plus a lane filter, and picking
+            a partner expands a second list underneath.
+          -->
+          <LazyChampionSynergies
+            hydrate-on-visible
+            :champion-id="championId"
+            :position="selectedPosition"
+            :patch="selectedPatch || null"
+            :elo-bracket="eloBracketParam"
+            v-bind="synergiesSnapshot.value"
+            @vue:mounted="synergiesSnapshot.reveal"
           />
         </div>
 

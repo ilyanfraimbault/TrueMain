@@ -36,14 +36,48 @@ public sealed record ChampionSummaryReadModel
     public int TrueMainCount { get; init; }
 
     /// <summary>
+    /// Share of the observed matches on this patch that banned the champion (#920).
+    /// Lane-independent — a ban happens before roles exist — so every row of a
+    /// champion carries the same value.
+    ///
+    /// <para>
+    /// <see langword="null"/> means "not observed", not "never banned": bans are
+    /// read from <c>champion_ban_stats</c>, which only has rows for matches ingested
+    /// since the feature shipped, and Riot payloads are not retained so older patches
+    /// could not be backfilled. Clients must render the gap rather than a 0%.
+    /// </para>
+    ///
+    /// <para>
+    /// Its denominator is every observed match, unlike <see cref="PickRate"/>, whose
+    /// denominator is tracked mains' games at this lane. The two are therefore not
+    /// addable — which is why no pick+ban "presence" figure is offered.
+    /// </para>
+    /// </summary>
+    public double? BanRate { get; init; }
+
+    /// <summary>
     /// OPGG-style performance tier (<c>S</c> / <c>A</c> / <c>B</c> / <c>C</c> /
     /// <c>D</c>) for this <c>(champion, position)</c> on the active patch.
     /// Computed by <see cref="Services.Champions.ChampionTierCalculator"/> from
-    /// a winRate + pickRate blend, then bucketed by patch-wide percentile — so
-    /// it is always relative to the current patch's field, not an absolute
-    /// winrate cutoff. Defaults to <see cref="string.Empty"/> until assigned.
+    /// a pick-rate + ban-rate + win-rate blend (#971 — presence-first, weighted
+    /// toward pick and ban rate over a sample-shrunk win rate), then bucketed by
+    /// percentile <b>within this row's own position</b> — not against the whole
+    /// patch mixing every lane — so a thin lane can't out-rank a much larger,
+    /// genuinely competitive one just for having few peers to beat. Defaults to
+    /// <see cref="string.Empty"/> until assigned.
     /// </summary>
     public string Tier { get; init; } = string.Empty;
+
+    /// <summary>
+    /// The blended score (#971) that placed this row in <see cref="Tier"/>,
+    /// scoped to this row's own position (see <see cref="Tier"/>). Matches the
+    /// score <c>GET /champions/tierlist</c> computes for the same
+    /// <c>(champion, position)</c> row given the same <c>(patch, eloBracket)</c>
+    /// — both endpoints tier one lane at a time. Useful for ordering this
+    /// endpoint's own rows (e.g. the homepage teaser) by tier strength without
+    /// re-deriving an ad-hoc sort.
+    /// </summary>
+    public double TierScore { get; init; }
 
     public string Position { get; init; } = string.Empty;
 

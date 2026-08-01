@@ -1,16 +1,29 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import { fileURLToPath } from 'node:url'
+import { addServerHandler, defineNuxtModule } from '@nuxt/kit'
+import { IPX_CACHE_SECONDS } from './shared/utils/ipx'
 
-// Most upstream image sources we hit (DDragon item/champion/spell icons,
-// CommunityDragon perks) are content-addressed per (patch, asset), so once
-// IPX has processed a URL the resulting bytes never change. Position icons
-// used to resolve through CommunityDragon's `/latest/` path but are now
-// bundled under /public/positions to avoid hitting a third party on cold
-// loads. Cache the remaining upstream assets aggressively in the browser to
-// avoid re-issuing dozens of requests on each client-side navigation.
-const IPX_IMAGE_CACHE_SECONDS = 60 * 60 * 24 * 7 // 7 days
+// Claims `/_ipx/**` before @nuxt/image sets up its own handler. The module
+// checks `nuxt.options.serverHandlers` for the route and steps aside when it
+// finds one (`hasUserProvidedIPX`), which is exactly what we want: everything
+// else about the module stays in place, but the route is served by
+// server/handlers/ipx-cached.ts, which adds the response cache IPX lacks.
+// Registered as a module (not `nitro.handlers`) because that is the only form
+// that also applies to `nuxt dev`.
+const cachedIpxHandler = defineNuxtModule({
+  meta: { name: 'truemain-cached-ipx' },
+  setup() {
+    addServerHandler({
+      route: '/_ipx/**',
+      handler: fileURLToPath(new URL('./server/handlers/ipx-cached.ts', import.meta.url)),
+    })
+  },
+})
 
 export default defineNuxtConfig({
-  modules: ['@nuxt/ui', '@nuxt/image', '@nuxt/fonts', 'nuxt-charts', '@nuxtjs/seo'],
+  // `cachedIpxHandler` must come before `@nuxt/image` so the route is already
+  // registered when the module decides whether to install its own.
+  modules: [cachedIpxHandler, '@nuxt/ui', '@nuxt/image', '@nuxt/fonts', 'nuxt-charts', '@nuxtjs/seo'],
   // Canonical site identity for SEO (canonical links, sitemap, robots, OG/
   // schema.org defaults). `url` is the production default; override per
   // environment with `NUXT_PUBLIC_SITE_URL` (nuxt-site-config reads it
@@ -33,13 +46,41 @@ export default defineNuxtConfig({
     sources: ['/__sitemap__/urls'],
     // `/truemains/favorites` renders a per-visitor localStorage list — there is
     // nothing stable for a crawler to index (the page also sets `noindex`).
-    exclude: ['/dev/**', '/truemains/favorites'],
+    // `/builder` is the legacy redirect to `/matchup` (#939) — kept for old
+    // links, not something to advertise.
+    exclude: ['/dev/**', '/truemains/favorites', '/builder'],
   },
-  // No dedicated social-share artwork yet — skip the on-demand OG image
-  // renderer (it would pull a Satori/resvg toolchain into the build for no
-  // benefit). seo-utils still derives og:title/og:description/twitter:card
-  // from each page's useSeoMeta() title + description.
-  ogImage: { enabled: false },
+  // On-demand social-share artwork (#926). This was `enabled: false` from the
+  // SEO foundation (#551) for one reason only — "no dedicated share artwork
+  // yet, so the Satori/resvg toolchain would be build weight for no benefit".
+  // #926 supplies the artwork (app/components/OgImage/*.satori.vue), so the
+  // trade flips; the *cost* half of that note still stands and is why the
+  // setup below stays deliberately narrow:
+  //   - only the two pages that have a card call `defineOgImageComponent()`;
+  //     every other page keeps the plain og:title/og:description seo-utils
+  //     already derives, and never touches the renderer;
+  //   - the `.satori.vue` suffix pins the renderer to Satori + resvg (added as
+  //     explicit deps). No `.browser.vue` component exists, so playwright and
+  //     a headless Chromium are never pulled into the image;
+  //   - rendering happens in the web container, which shares a small VPS with
+  //     Postgres/Mongo/the ingestor, so every render is cached and the
+  //     crawler-only traffic pattern keeps it cold in practice.
+  // Fonts come from @nuxt/fonts (Inter) — the module re-downloads them in a
+  // Satori-compatible static format at build time, so no runtime font fetch.
+  ogImage: {
+    // 1 h, mirroring the app-wide cache TTL (utils/static-cache.ts and the
+    // server `defineCachedEventHandler`s). Long enough that a burst of
+    // unfurls costs one render, short enough that a player's LP or a
+    // champion's win rate on the card is never more than an hour behind the
+    // page it was shared from.
+    cacheMaxAgeSeconds: 60 * 60,
+    defaults: {
+      // Discord/X render 2:1 previews; 1200×630 is the size both crop to
+      // without letterboxing.
+      width: 1200,
+      height: 630,
+    },
+  },
   // Self-host a single family — Inter — used across the whole app (see the
   // `--font-*` vars in main.css). Declared explicitly so the download doesn't
   // rely on CSS scanning of the theme vars.
@@ -73,28 +114,17 @@ export default defineNuxtConfig({
     fallback: 'dark',
   },
   image: {
+    // Allow-list for the ipx provider's URL generation. The storage options
+    // themselves live in server/handlers/ipx-cached.ts, which owns `/_ipx/**`.
     domains: ['ddragon.leagueoflegends.com', 'raw.communitydragon.org'],
-    // Tell IPX's HTTP storage to ignore upstream Cache-Control (CommunityDragon
-    // `latest` redirects use a short TTL) and serve our own long max-age. The
-    // outgoing Cache-Control on /_ipx/** is still pinned via routeRules below
-    // so it includes `immutable`, which IPX's built-in header does not.
-    providers: {
-      ipx: {
-        options: {
-          http: {
-            maxAge: IPX_IMAGE_CACHE_SECONDS,
-            ignoreCacheControl: true,
-          },
-        },
-      },
-    },
   },
   routeRules: {
     // IPX responses are deterministic per (source URL, modifiers) — safe to
-    // mark immutable and cache for a week in shared/private caches.
+    // mark immutable and cache for a week in shared/private caches. Note this
+    // is the *browser* cache; the server-side one is in the handler.
     '/_ipx/**': {
       headers: {
-        'cache-control': `public, max-age=${IPX_IMAGE_CACHE_SECONDS}, immutable`,
+        'cache-control': `public, max-age=${IPX_CACHE_SECONDS}, immutable`,
       },
     },
   },

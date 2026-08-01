@@ -54,13 +54,19 @@ export function useChampion(
   // The 404 fallback keeps the rank (it only drops patch/position), so it
   // stashes the rank's default-patch/position slice under the rank-scoped key
   // buildKey('', '', bracket) — see below.
-  const buildKey = (patch: string, position: string, eloBracket = '') =>
-    ['champion', nameTagRef.value ?? 'global', championIdRef.value, patch, position, eloBracket].join('-')
+  // The opponent is part of the key: a matchup slice and the global slice are
+  // different answers to the same (patch, position, rank), and caching them
+  // together would serve one under the other's filter.
+  const buildKey = (patch: string, position: string, eloBracket = '', opponent = '') =>
+    ['champion', nameTagRef.value ?? 'global', championIdRef.value, patch, position, eloBracket, opponent]
+      .join('-')
 
   const result = useLazyAsyncData<ChampionResponse | null>(
     () => {
       const f = filters.value
-      return buildKey(f.patch ?? '', f.position ?? '', f.eloBracket ?? '')
+      return buildKey(
+        f.patch ?? '', f.position ?? '', f.eloBracket ?? '',
+        f.opponentChampionId ? String(f.opponentChampionId) : '')
     },
     async () => {
       const id = championIdRef.value
@@ -74,7 +80,11 @@ export function useChampion(
       // its default patch/position — stash it under the rank-scoped key. When
       // the page's reconciler then clears the dead patch/position, the data key
       // flips to this same key so getCachedData reuses the stash (no refetch).
-      const unfilteredKey = buildKey('', '', f.eloBracket ?? '')
+      // The fallback keeps the rank, and — when a matchup is pinned — the
+      // opponent and its position too, so its stash key must carry them.
+      const unfilteredKey = f.opponentChampionId
+        ? buildKey('', f.position ?? '', f.eloBracket ?? '', String(f.opponentChampionId))
+        : buildKey('', '', f.eloBracket ?? '')
 
       if (nameTag) {
         try {
@@ -118,7 +128,11 @@ export function useChampion(
       // that same rank-scoped key. Filtered keys and the player-scoped (nameTag)
       // variant always fetch, so their behaviour is unchanged.
       getCachedData: (key, _app, ctx) => {
-        if (nameTagRef.value || key !== buildKey('', '', filters.value.eloBracket ?? '')) return undefined
+        const f = filters.value
+        const stashKey = f.opponentChampionId
+          ? buildKey('', f.position ?? '', f.eloBracket ?? '', String(f.opponentChampionId))
+          : buildKey('', '', f.eloBracket ?? '')
+        if (nameTagRef.value || key !== stashKey) return undefined
         // Mirror Nuxt's default getter: never short-circuit an explicit
         // refresh, only the watch/key-change reload the reconciler triggers.
         if (ctx?.cause === 'refresh:manual' || ctx?.cause === 'refresh:hook') return undefined

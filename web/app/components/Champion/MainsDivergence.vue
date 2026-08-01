@@ -7,6 +7,12 @@ import { isLoadingStatus } from '~/utils/async-data'
 
 const props = defineProps<{
   nameTag: string
+  /**
+   * The Riot account this page is about, as shown to the reader. The card is
+   * never "you" — a visitor is almost always looking at someone else's profile,
+   * so both sides of the comparison are named: this account vs the other mains.
+   */
+  playerName: string
   championId: number
   patch?: string | null
   position?: ChampionPosition | null
@@ -51,6 +57,11 @@ function copyFor(dimension: DivergenceDimension) {
   return DIMENSION_COPY[dimension]
 }
 
+/** "Faker" → "Faker's", "Thomas" → "Thomas'". */
+const playerPossessive = computed(() =>
+  props.playerName.endsWith('s') ? `${props.playerName}'` : `${props.playerName}'s`,
+)
+
 /**
  * The coaching line under a row. Built entirely from the payload's own rates —
  * nothing here is estimated or rounded into a claim the API didn't make.
@@ -58,7 +69,7 @@ function copyFor(dimension: DivergenceDimension) {
  * The subject is always the mains (people, plural), never a percentage: a share
  * of *games* cannot "build" or "max" anything, which is what made the earlier
  * phrasing parse wrong halfway through. Shares stay in prepositional phrases,
- * and "theirs" / "yours" point at the two labelled columns directly above.
+ * and "theirs" / the player's name point at the two labelled columns above.
  */
 function hintFor(row: BuildDivergence): string {
   const { verb } = copyFor(row.dimension)
@@ -69,11 +80,12 @@ function hintFor(row: BuildDivergence): string {
   }
 
   // "only 0.0%" would be a rounding artefact standing in for "nobody" — say so.
-  const yours = row.mainsGamesOnPlayerChoice === 0
+  const playerSide = row.mainsGamesOnPlayerChoice === 0
     ? 'none of them'
     : `only ${formatPercentage(row.mainsRateOnPlayerChoice)}`
 
-  return `Mains ${verb} theirs in ${mainsShare} of their games — yours appears in ${yours}.`
+  return `Mains ${verb} theirs in ${mainsShare} of their games — `
+    + `${playerPossessive.value} appears in ${playerSide}.`
 }
 
 const rows = computed(() => data.value?.dimensions ?? [])
@@ -81,11 +93,11 @@ const divergingCount = computed(() => rows.value.filter(row => row.diverges).len
 
 const subtitle = computed(() => {
   const payload = data.value
-  if (!payload) return 'How your habits compare to the champion\'s mains.'
+  if (!payload) return `How ${playerPossessive.value} habits compare to the champion's mains.`
 
   const mains = payload.mainsPlayers
   const games = payload.mainsGames
-  return `Your ${payload.playerGames} ${payload.playerGames === 1 ? 'game' : 'games'} on `
+  return `${playerPossessive.value} ${payload.playerGames} ${payload.playerGames === 1 ? 'game' : 'games'} on `
     + `${payload.patch} ${payload.position.toLowerCase()} vs ${games} `
     + `${games === 1 ? 'game' : 'games'} from ${mains} other ${mains === 1 ? 'main' : 'mains'}.`
 })
@@ -101,7 +113,7 @@ const emptyReason = computed(() => {
   if (!payload.minSampleMet) {
     const missing = payload.minPlayerGames - payload.playerGames
     return `Only ${payload.playerGames} ${payload.playerGames === 1 ? 'game' : 'games'} on record here. `
-      + `${missing} more and we'll show how your build lines up with the mains — under that, `
+      + `${missing} more and we'll show how ${playerPossessive.value} build lines up with the mains — under that, `
       + 'the "difference" would just be noise.'
   }
 
@@ -117,7 +129,7 @@ const emptyReason = computed(() => {
 <template>
   <SectionCard
     :level="2"
-    title="You vs mains"
+    :title="`${playerName} vs mains`"
     :subtitle="subtitle"
   >
     <template
@@ -189,9 +201,9 @@ const emptyReason = computed(() => {
 
           <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <ChampionDivergenceChoice
-              label="You"
+              :label="playerName"
               :choice="row.player"
-              share-suffix="of your games"
+              :share-suffix="`of ${playerPossessive} games`"
               :items-map="itemsMap"
               :champion-static="championStatic"
               :ordered="copyFor(row.dimension).ordered"

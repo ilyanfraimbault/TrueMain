@@ -12,14 +12,16 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("b214171f-b492-435d-a897-ae198bba5ecc"), entityTypeCount: 26)
+            : base(skipDetectChanges: false, modelId: new Guid("1418a074-e71a-4bf7-baf3-56815e98576b"), entityTypeCount: 31)
         {
         }
 
         partial void Initialize()
         {
+            var banScopeTotal = BanScopeTotalEntityType.Create(this);
             var championAggregatePattern = ChampionAggregatePatternEntityType.Create(this);
             var championAggregateScope = ChampionAggregateScopeEntityType.Create(this);
+            var championBanStat = ChampionBanStatEntityType.Create(this);
             var championDimBuild = ChampionDimBuildEntityType.Create(this);
             var championDimRunePage = ChampionDimRunePageEntityType.Create(this);
             var championDimSkillOrder = ChampionDimSkillOrderEntityType.Create(this);
@@ -28,11 +30,14 @@ namespace Data.CompiledModels
             var championMatchupStat = ChampionMatchupStatEntityType.Create(this);
             var championPowerspikeCurveStat = ChampionPowerspikeCurveStatEntityType.Create(this);
             var championPowerspikeEventStat = ChampionPowerspikeEventStatEntityType.Create(this);
+            var championSynergyBaselineStat = ChampionSynergyBaselineStatEntityType.Create(this);
+            var championSynergyStat = ChampionSynergyStatEntityType.Create(this);
             var discoveryCursor = DiscoveryCursorEntityType.Create(this);
             var jungleFirstClear = JungleFirstClearEntityType.Create(this);
             var mainCandidate = MainCandidateEntityType.Create(this);
             var mainChampionStat = MainChampionStatEntityType.Create(this);
             var match = MatchEntityType.Create(this);
+            var matchBan = MatchBanEntityType.Create(this);
             var matchParticipant = MatchParticipantEntityType.Create(this);
             var matchParticipantKillPosition = MatchParticipantKillPositionEntityType.Create(this);
             var matchParticipantTimelineSnapshot = MatchParticipantTimelineSnapshotEntityType.Create(this);
@@ -53,6 +58,7 @@ namespace Data.CompiledModels
             ChampionAggregatePatternEntityType.CreateForeignKey6(championAggregatePattern, championDimStarterItems);
             ChampionAggregateScopeEntityType.CreateForeignKey1(championAggregateScope, riotAccount);
             JungleFirstClearEntityType.CreateForeignKey1(jungleFirstClear, match);
+            MatchBanEntityType.CreateForeignKey1(matchBan, match);
             MatchParticipantEntityType.CreateForeignKey1(matchParticipant, match);
             MatchParticipantEntityType.CreateForeignKey2(matchParticipant, riotAccount);
             MatchParticipantKillPositionEntityType.CreateForeignKey1(matchParticipantKillPosition, match);
@@ -62,8 +68,10 @@ namespace Data.CompiledModels
             RankSnapshotEntityType.CreateForeignKey1(rankSnapshot, riotAccount);
             RiotAccountEntityType.CreateForeignKey1(riotAccount, persona);
 
+            BanScopeTotalEntityType.CreateAnnotations(banScopeTotal);
             ChampionAggregatePatternEntityType.CreateAnnotations(championAggregatePattern);
             ChampionAggregateScopeEntityType.CreateAnnotations(championAggregateScope);
+            ChampionBanStatEntityType.CreateAnnotations(championBanStat);
             ChampionDimBuildEntityType.CreateAnnotations(championDimBuild);
             ChampionDimRunePageEntityType.CreateAnnotations(championDimRunePage);
             ChampionDimSkillOrderEntityType.CreateAnnotations(championDimSkillOrder);
@@ -72,11 +80,14 @@ namespace Data.CompiledModels
             ChampionMatchupStatEntityType.CreateAnnotations(championMatchupStat);
             ChampionPowerspikeCurveStatEntityType.CreateAnnotations(championPowerspikeCurveStat);
             ChampionPowerspikeEventStatEntityType.CreateAnnotations(championPowerspikeEventStat);
+            ChampionSynergyBaselineStatEntityType.CreateAnnotations(championSynergyBaselineStat);
+            ChampionSynergyStatEntityType.CreateAnnotations(championSynergyStat);
             DiscoveryCursorEntityType.CreateAnnotations(discoveryCursor);
             JungleFirstClearEntityType.CreateAnnotations(jungleFirstClear);
             MainCandidateEntityType.CreateAnnotations(mainCandidate);
             MainChampionStatEntityType.CreateAnnotations(mainChampionStat);
             MatchEntityType.CreateAnnotations(match);
+            MatchBanEntityType.CreateAnnotations(matchBan);
             MatchParticipantEntityType.CreateAnnotations(matchParticipant);
             MatchParticipantKillPositionEntityType.CreateAnnotations(matchParticipantKillPosition);
             MatchParticipantTimelineSnapshotEntityType.CreateAnnotations(matchParticipantTimelineSnapshot);

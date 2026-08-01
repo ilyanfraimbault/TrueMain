@@ -12,6 +12,13 @@ public interface IChampionPowerspikesQueryService
     /// identify the core build the same way the builds read keys its tabs.
     /// Same queue / patch / tracked-account population as the sibling champion
     /// reads. Returns an empty event list when the slice has no data yet.
+    ///
+    /// <para>
+    /// <paramref name="opponentChampionId"/> narrows the spikes to the games played
+    /// against that lane opponent (#957), mirroring the champion page's matchup
+    /// filter. Omitted (or non-positive), the read sums across every opponent and
+    /// returns exactly what it returned before the dimension existed.
+    /// </para>
     /// </summary>
     Task<ChampionPowerspikesResponse> GetAsync(
         int championId,
@@ -20,5 +27,6 @@ public interface IChampionPowerspikesQueryService
         string? eloBracket,
         int buildFirstItemId,
         int buildKeystoneId,
+        int? opponentChampionId,
         CancellationToken ct);
 }

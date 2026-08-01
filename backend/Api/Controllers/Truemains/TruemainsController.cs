@@ -16,8 +16,10 @@ public sealed class TruemainsController(
     IProfileQueryService profileQueryService,
     IPlayerChampionBuildsQueryService playerChampionBuildsQueryService,
     IPlayerChampionMatchupQueryService playerChampionMatchupQueryService,
+    IPlayerChampionPerformanceQueryService playerChampionPerformanceQueryService,
     IPlayerBuildDivergenceQueryService playerBuildDivergenceQueryService,
     IRankHistoryQueryService rankHistoryQueryService,
+    ITruemainActivityQueryService activityQueryService,
     ITruemainsLeaderboardQueryService leaderboardQueryService,
     ISearchQueryService searchQueryService) : ControllerBase
 {
@@ -227,6 +229,55 @@ public sealed class TruemainsController(
         return response is null ? NotFound() : Ok(response);
     }
 
+    /// <summary>
+    /// Player-scoped performance: TrueMain's per-match performance score
+    /// aggregated over this player's most recent ranked games on the champion,
+    /// with the per-component breakdown behind it. 400 for an unrecognised
+    /// position; 404 when the name tag is malformed or the account is unknown.
+    /// A known player with too thin a sample is a 200 carrying the counts and no
+    /// averages, so the page renders an honest "not enough games yet".
+    /// </summary>
+    /// <param name="nameTag">The player's Riot id in <c>Name-TAG</c> route form.</param>
+    /// <param name="championId">The champion to scope the sample to.</param>
+    /// <param name="patch">Major.minor patch filter; omitted means every patch.</param>
+    /// <param name="position">Lane filter; omitted means every lane.</param>
+    /// <param name="ct">Request cancellation token.</param>
+    [HttpGet("{nameTag}/champions/{championId:int}/performance")]
+    [ProducesResponseType(typeof(PlayerChampionPerformanceResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<PlayerChampionPerformanceResponse>> GetPlayerChampionPerformanceAsync(
+        string nameTag,
+        int championId,
+        [FromQuery] string? patch,
+        [FromQuery] string? position,
+        CancellationToken ct = default)
+    {
+        // A blank/absent position means "all lanes"; only a non-blank value that
+        // fails to canonicalise is a client error — same rule as the sibling
+        // player-scoped endpoints above.
+        string? normalizedPosition = null;
+        if (!string.IsNullOrWhiteSpace(position))
+        {
+            normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
+            if (normalizedPosition is null)
+            {
+                return ValidationProblem(ChampionQueryParameterNormalizer.InvalidPositionMessage);
+            }
+        }
+
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+
+        var response = await playerChampionPerformanceQueryService.GetAsync(
+            nameTag,
+            championId,
+            normalizedPatch,
+            normalizedPosition,
+            ct);
+
+        return response is null ? NotFound() : Ok(response);
+    }
+
     [HttpGet("{nameTag}/rank-history")]
     [ProducesResponseType(typeof(RankHistoryReadModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
@@ -236,6 +287,34 @@ public sealed class TruemainsController(
         CancellationToken ct = default)
     {
         var response = await rankHistoryQueryService.GetAsync(nameTag, days ?? 0, ct);
+        return response is null ? NotFound() : Ok(response);
+    }
+
+    /// <summary>
+    /// Activity grid under the profile's LP curve (#927): the player's ranked
+    /// games folded per game, per UTC day and per ISO week, plus the per-patch
+    /// history of their signature champion. 404 only when the name tag is
+    /// malformed or the account is unknown.
+    /// </summary>
+    /// <remarks>
+    /// The four series ship in one response because three of them are foldings of
+    /// the same participant rows, and because they are <em>not</em> interchangeable:
+    /// each carries its own <c>source</c>, <c>scope</c>, <c>retentionBounded</c> flag
+    /// and coverage range. The match-sourced ones stop at the retention window
+    /// (~2 patches); the patch one reads the frozen per-champion aggregate and so
+    /// covers the whole tracked career, for one champion. There is no mode
+    /// parameter: switching granularity is a client-side toggle over a payload that
+    /// was resolved from a single snapshot, which is what keeps two modes from
+    /// disagreeing about the same afternoon.
+    /// </remarks>
+    [HttpGet("{nameTag}/activity")]
+    [ProducesResponseType(typeof(TruemainActivityReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TruemainActivityReadModel>> GetActivityAsync(
+        string nameTag,
+        CancellationToken ct = default)
+    {
+        var response = await activityQueryService.GetAsync(nameTag, ct);
         return response is null ? NotFound() : Ok(response);
     }
 

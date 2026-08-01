@@ -8,8 +8,23 @@ export interface ChampionSummaryResponse {
   pickRate: number
   lanePlayRate: number
   trueMainCount: number
+  /**
+   * Share of observed matches that banned this champion, or null on a patch older
+   * than ban ingestion (#920). Null means "not observed", not "never banned" —
+   * render the gap, never a 0%. Not addable to `pickRate`: the two have different
+   * denominators (every observed match vs tracked mains' games at this lane).
+   */
+  banRate: number | null
   /** OPGG-style performance tier: 'S' | 'A' | 'B' | 'C' | 'D' (patch-relative). */
   tier: string
+  /**
+   * The pickRate + banRate + winRate blended score (#971) that placed this row in
+   * `tier`, scoped to this row's own position — both `/champions` and
+   * `/champions/tierlist` tier one lane at a time, so this matches the score
+   * `ChampionTierEntry` carries for the same (champion, position) row given the
+   * same (patch, eloBracket).
+   */
+  tierScore: number
   position: string
   patchVersion: string
   lastUpdatedAtUtc: string
@@ -25,9 +40,10 @@ export interface ChampionSummaryTopBuild {
 
 /**
  * Champion meta / tier-list for a single patch (`GET /champions/tierlist`).
- * Champions are bucketed into S/A/B/C/D tiers by a winRate + pickRate blend,
- * tiered independently per position. All metrics come from the same aggregates
- * the directory reads — none are synthesised.
+ * Champions are bucketed into S/A/B/C/D tiers by a pickRate + banRate +
+ * winRate blend (#971 — presence-first: pick and ban rate outweigh a
+ * sample-shrunk win rate), tiered independently per position. All metrics
+ * come from the same aggregates the directory reads — none are synthesised.
  */
 export interface ChampionTierListResponse {
   patchVersion: string
@@ -51,6 +67,38 @@ export interface ChampionTierEntry {
   winRate: number
   /** Share of TrueMain games on this position taken by this champion. */
   pickRate: number
+  /** Share of observed matches that banned this champion; null before #920's data. */
+  banRate: number | null
+}
+
+/**
+ * Homepage-sized snapshot of the champion directory (`GET /champions/overview`,
+ * #972): the true "games analyzed this patch" total (every aggregated game, not
+ * just the rows the ranked directory keeps) plus a short, pre-sorted slice of the
+ * strongest rows — so the homepage never fetches and sorts the full ~500-row
+ * directory just to render a stat chip and an 8-row teaser. Always the active
+ * patch, unfiltered — the homepage has no patch or elo picker of its own.
+ */
+export interface ChampionOverviewResponse {
+  patchVersion: string
+  /** True sum of games aggregated across every (champion, position) slice on the active patch. */
+  gamesAnalyzed: number
+  /** Distinct champions with at least one ranked row on the active patch. */
+  championsRanked: number
+  /** Strongest rows, tier-then-games ordered (S first, busiest within a tier first), truncated to the requested limit. */
+  topRows: ChampionOverviewRow[]
+}
+
+export interface ChampionOverviewRow {
+  championId: number
+  position: string
+  /** OPGG-style performance tier: 'S' | 'A' | 'B' | 'C' | 'D' (patch-relative). */
+  tier: string
+  games: number
+  winRate: number
+  pickRate: number
+  /** Share of observed matches that banned this champion; null before #920's data. */
+  banRate: number | null
 }
 
 export interface ChampionResponse {
@@ -90,6 +138,12 @@ export interface ChampionTrendPoint {
   patch: string
   winRate: number
   pickRate: number
+  /**
+   * Share of the patch's observed matches that banned this champion, all elo bands
+   * (the trend endpoint takes no rank filter). Null on any patch older than ban
+   * ingestion (#920) — early on, most of the series is null.
+   */
+  banRate: number | null
   games: number
 }
 
@@ -205,18 +259,114 @@ export interface ChampionMatchupEntry {
   games: number
   wins: number
   winRate: number
+  /**
+   * Share of *decided* lanes won against this opponent — ahead by more than the
+   * configured gold threshold at 15 minutes (#919). Denominator is
+   * `decidedLaneGames`, never `games`: a match with no timeline, one that ended
+   * before 15 min, or a lane inside the threshold band is not a decided lane.
+   *
+   * `null` = nothing can be said (no decided lane in scope, or a player-scoped
+   * slice, which has no lane data behind it). Never render it as 0%.
+   */
+  laneWinRate: number | null
+  /** Lanes actually decided; the sample `laneWinRate` rests on. Smaller than `games`. */
+  decidedLaneGames: number
+  /**
+   * Mean gold gap over the lane opponent at 15 minutes, signed from this champion's
+   * side (#976) — the magnitude `laneWinRate` cannot carry. `null` when the gap was
+   * never measured over this scope; rendering that as 0 would turn missing data into
+   * the most decisive-looking verdict there is ("dead even").
+   */
+  averageGoldDiffAt15: number | null
+  /**
+   * Lanes `averageGoldDiffAt15` covers. Smaller than `decidedLaneGames` on matchups
+   * folded before #976 — it is the sample a verdict may be banded from, and the reason
+   * a thin one shows the count instead of a label.
+   */
+  goldDiffLaneGames: number
 }
 
 /**
- * All of a champion's lane matchups at a position, computed live from match
- * participants. The client slices a best/worst leaderboard out of it and
- * filters it for the opponent search.
+ * All of a champion's lane matchups at a position. Served from the
+ * `champion_matchup_stats` aggregate for the panel, computed live from match
+ * participants only for the single-opponent search (floor of 1 game). The client
+ * slices a best/worst leaderboard out of it and filters it for the search.
  */
 export interface ChampionMatchups {
   championId: number
   position: string
   patch: string | null
   matchups: ChampionMatchupEntry[]
+}
+
+/**
+ * One duo partner row. `synergy` is the value the list is ranked by — how far
+ * `winRate` lands above (positive) or below what the two champions' own win
+ * rates already predicted. A high `winRate` with a `synergy` near zero means
+ * "this champion wins a lot", not "this pairing works".
+ */
+export interface ChampionSynergyEntry {
+  partnerChampionId: number
+  partnerPosition: string
+  games: number
+  wins: number
+  winRate: number
+  /** Sample behind `partnerBaselineWinRate`; always ≥ `games`. */
+  partnerBaselineGames: number
+  /** The partner's win rate as somebody's teammate, across all their pairings. */
+  partnerBaselineWinRate: number
+  expectedWinRate: number
+  /** `winRate - expectedWinRate`, on the same 0–1 scale as a win rate. */
+  synergy: number
+}
+
+/** `GET /api/champions/{id}/synergies` — the duo half of the synergies panel. */
+export interface ChampionSynergies {
+  championId: number
+  position: string
+  patch: string | null
+  /** The partner lane the request narrowed to, or null for every lane. */
+  partnerPosition: string | null
+  /** Minimum shared games a pairing needed to appear — echoed to explain an empty list. */
+  minGames: number
+  /** Sample behind `championWinRate`. Zero means the champion has no games in scope. */
+  championGames: number
+  championWinRate: number
+  /** The tracked cohort's overall win rate — the reference point partners are judged against. */
+  cohortWinRate: number
+  partners: ChampionSynergyEntry[]
+}
+
+/** One third-pick row for a chosen duo. */
+export interface ChampionTrioSynergyEntry {
+  championId: number
+  position: string
+  games: number
+  wins: number
+  winRate: number
+  baselineGames: number
+  baselineWinRate: number
+  expectedWinRate: number
+  synergy: number
+}
+
+/**
+ * `GET /api/champions/{id}/synergies/trios` — computed live from the games the
+ * chosen duo actually shared, so `pairGames` is the ceiling every completion's
+ * sample is drawn from and an empty `completions` list is the normal answer for
+ * a rarely-played duo.
+ */
+export interface ChampionTrioSynergies {
+  championId: number
+  position: string
+  partnerChampionId: number
+  partnerPosition: string
+  patch: string | null
+  minGames: number
+  pairGames: number
+  pairWins: number
+  pairWinRate: number
+  completions: ChampionTrioSynergyEntry[]
 }
 
 /**

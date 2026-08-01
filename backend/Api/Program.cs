@@ -96,6 +96,16 @@ builder.Services.AddOptions<AspNetCorsOptions>()
 builder.Services.AddOptions<MainAnalysisOptions>()
     .Bind(builder.Configuration.GetSection("MainAnalysis"))
     .Validate(options => Enum.IsDefined(options.QueueId), "MainAnalysis:QueueId must be a defined LolQueueId.")
+    // The API feeds PlayRateFloor into the dedication score as the point
+    // commitment reads 0 (#869), so it must be range-checked here too and not
+    // only in the ingestor: a floor at or above 1 would invert the rescale.
+    // Same predicates as the ingestor's (#930 review — the two used to disagree
+    // at the upper bound; both hosts now reject exactly 1, since both bind the
+    // same MainAnalysis section and DedicationScore.Commitment divides by
+    // (1 - floor)).
+    .Validate(options => options.PlayRateFloor is >= 0 and < 1, "MainAnalysis:PlayRateFloor must be in [0, 1).")
+    .Validate(options => options.PlayRateFloor <= options.PlayRateThreshold,
+        "MainAnalysis:PlayRateFloor must be <= PlayRateThreshold.")
     .ValidateOnStart();
 builder.Services.AddOptions<OpsOptions>()
     .Bind(builder.Configuration.GetSection("Ops"))
@@ -136,19 +146,60 @@ builder.Services.AddOptions<ChampionsListOptions>()
     .Validate(options => options.MinMatchupGames >= 0, "ChampionsList:MinMatchupGames must be >= 0.")
     .Validate(options => options.MinPlayerMatchupGames >= 0, "ChampionsList:MinPlayerMatchupGames must be >= 0.")
     .ValidateOnStart();
+builder.Services.AddOptions<ChampionTierOptions>()
+    .Bind(builder.Configuration.GetSection(ChampionTierOptions.SectionName))
+    .Validate(options => options.PickRateWeight >= 0, "ChampionTier:PickRateWeight must be >= 0.")
+    .Validate(options => options.BanRateWeight >= 0, "ChampionTier:BanRateWeight must be >= 0.")
+    .Validate(options => options.WinRateWeight >= 0, "ChampionTier:WinRateWeight must be >= 0.")
+    // Must sum to 1 (not just "> 0"): TierScore is documented as a [0,1]
+    // blend of percentile-ranked metrics (each already in [0,1]), and the
+    // no-ban-data renormalization path (ChampionTierCalculator.ResolveWeights)
+    // only preserves that bound if the configured weights start at 1.
+    .Validate(
+        options => Math.Abs(options.PickRateWeight + options.BanRateWeight + options.WinRateWeight - 1.0) < 1e-9,
+        "ChampionTier: PickRateWeight + BanRateWeight + WinRateWeight must sum to 1.")
+    .Validate(options => options.WinRateShrinkageGames >= 0, "ChampionTier:WinRateShrinkageGames must be >= 0.")
+    .ValidateOnStart();
+builder.Services.AddOptions<StorageHistoryOptions>()
+    .Bind(builder.Configuration.GetSection(StorageHistoryOptions.SectionName))
+    .Validate(options => options.DiskCapacityBytes >= 0, "StorageHistory:DiskCapacityBytes must be >= 0.")
+    .Validate(options => options.DefaultWindowDays > 0, "StorageHistory:DefaultWindowDays must be greater than 0.")
+    .Validate(options => options.TopTables > 0, "StorageHistory:TopTables must be greater than 0.")
+    .Validate(
+        options => options.ThresholdPercents.All(percent => percent is > 0 and <= 100),
+        "StorageHistory:ThresholdPercents must each be in (0, 100].")
+    .ValidateOnStart();
+builder.Services.AddOptions<DataQualityDetectorOptions>()
+    .Bind(builder.Configuration.GetSection(DataQualityDetectorOptions.SectionName))
+    // Only the sizes are validated. The thresholds themselves are deliberately
+    // unconstrained: 0 disables a level, and an operator silencing a card by pushing one
+    // very high is using the knob as intended, not misconfiguring it.
+    .Validate(
+        options => options.OrphanSampleMatchesPerPlatform >= 2,
+        "DataQualityDetectors:OrphanSampleMatchesPerPlatform must be >= 2 (it is split into two windows).")
+    .Validate(
+        options => options.FreshnessChampionLimit > 0,
+        "DataQualityDetectors:FreshnessChampionLimit must be greater than 0.")
+    .Validate(
+        options => options.FreshnessPatchCount > 0,
+        "DataQualityDetectors:FreshnessPatchCount must be greater than 0.")
+    .Validate(
+        options => options.PatchVolumeAnomalyRatio is > 0 and < 1,
+        "DataQualityDetectors:PatchVolumeAnomalyRatio must be in (0, 1).")
+    .Validate(
+        options => options.PatchVolumeMinPatches > 0,
+        "DataQualityDetectors:PatchVolumeMinPatches must be greater than 0.")
+    .ValidateOnStart();
 builder.Services.AddOptions<CompositionSearchOptions>()
     .Bind(builder.Configuration.GetSection(CompositionSearchOptions.SectionName))
     .Validate(
-        options => options.LaneOpponentWeight >= 0 && options.EnemyWeight >= 0 && options.AllyWeight >= 0,
+        options => options.RoleOpponentWeight >= 0 && options.EnemyWeight >= 0 && options.AllyWeight >= 0,
         "CompositionSearch weights must be >= 0.")
     .Validate(options => options.TopK > 0, "CompositionSearch:TopK must be > 0.")
     .Validate(
         options => options.CandidatePoolCap >= options.TopK,
         "CompositionSearch:CandidatePoolCap must be >= TopK.")
     .Validate(options => options.WinWeight >= 1d, "CompositionSearch:WinWeight must be >= 1.")
-    .Validate(
-        options => options.SituationalItemCount >= 0,
-        "CompositionSearch:SituationalItemCount must be >= 0.")
     .ValidateOnStart();
 builder.Services.AddOptions<DatabaseOptions>()
     .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName))
@@ -183,10 +234,17 @@ builder.Services.AddRateLimiter(options =>
 });
 builder.Services.AddScoped<IChampionSummariesQueryService, ChampionSummariesQueryService>();
 builder.Services.AddScoped<IChampionTierListQueryService, ChampionTierListQueryService>();
+builder.Services.AddScoped<IChampionOverviewQueryService, ChampionOverviewQueryService>();
 builder.Services.AddScoped<IChampionBuildsQueryService, ChampionBuildsQueryService>();
 builder.Services.AddScoped<IChampionMatchupQueryService, ChampionMatchupQueryService>();
+builder.Services.AddScoped<IChampionSynergyQueryService, ChampionSynergyQueryService>();
 builder.Services.AddScoped<ICompositionMatchQueryService, CompositionMatchQueryService>();
+// Shared by the composition recommendation (#921) and the matchup-scoped champion page
+// (#923) so a game means the same build to both.
+builder.Services.AddScoped<ParticipantBuildFactsLoader>();
 builder.Services.AddScoped<ICompositionBuildQueryService, CompositionBuildQueryService>();
+builder.Services.AddScoped<IChampionMatchupBuildsQueryService, ChampionMatchupBuildsQueryService>();
+builder.Services.AddScoped<ICompositionGamesQueryService, CompositionGamesQueryService>();
 builder.Services.AddScoped<ICompositionRecommendationQueryService, CompositionRecommendationQueryService>();
 // Same CommunityDragon item-metadata source as the ingestor's pattern
 // aggregation, so the composition recommender reads a game's items
@@ -199,13 +257,18 @@ builder.Services.AddScoped<IChampionPowerspikesQueryService, ChampionPowerspikes
 builder.Services.AddScoped<IChampionTrendQueryService, ChampionTrendQueryService>();
 builder.Services.AddScoped<IChampionPatchDiffQueryService, ChampionPatchDiffQueryService>();
 builder.Services.AddScoped<IChampionMainsComparisonQueryService, ChampionMainsComparisonQueryService>();
+// Shared by the truemain match feed and the composition provenance drawer (#940),
+// so a game renders as the same row on both.
+builder.Services.AddScoped<MatchSummaryHydrator>();
 builder.Services.AddScoped<IMatchSummariesQueryService, MatchSummariesQueryService>();
 builder.Services.AddScoped<IMatchDetailQueryService, MatchDetailQueryService>();
 builder.Services.AddScoped<IProfileQueryService, ProfileQueryService>();
 builder.Services.AddScoped<IPlayerChampionBuildsQueryService, PlayerChampionBuildsQueryService>();
 builder.Services.AddScoped<IPlayerChampionMatchupQueryService, PlayerChampionMatchupQueryService>();
+builder.Services.AddScoped<IPlayerChampionPerformanceQueryService, PlayerChampionPerformanceQueryService>();
 builder.Services.AddScoped<IPlayerBuildDivergenceQueryService, PlayerBuildDivergenceQueryService>();
 builder.Services.AddScoped<IRankHistoryQueryService, RankHistoryQueryService>();
+builder.Services.AddScoped<ITruemainActivityQueryService, TruemainActivityQueryService>();
 builder.Services.AddScoped<ITruemainsLeaderboardQueryService, TruemainsLeaderboardQueryService>();
 builder.Services.AddScoped<ISearchQueryService, SearchQueryService>();
 builder.Services.AddScoped<IPipelineHealthQueryService, PipelineHealthQueryService>();
@@ -213,12 +276,14 @@ builder.Services.AddScoped<IOverviewQueryService, OverviewQueryService>();
 builder.Services.AddScoped<IChampionStatsQueryService, ChampionStatsQueryService>();
 builder.Services.AddScoped<IMatchesOverTimeQueryService, MatchesOverTimeQueryService>();
 builder.Services.AddScoped<ITableStatsQueryService, TableStatsQueryService>();
+builder.Services.AddScoped<IDbStorageHistoryQueryService, DbStorageHistoryQueryService>();
 builder.Services.AddScoped<IProcessRunsQueryService, ProcessRunsQueryService>();
 builder.Services.AddScoped<IProcessIterationsQueryService, ProcessIterationsQueryService>();
 builder.Services.AddScoped<ILogsQueryService, LogsQueryService>();
 builder.Services.AddScoped<ICrashesQueryService, CrashesQueryService>();
 builder.Services.AddScoped<IRiotApiUsageQueryService, RiotApiUsageQueryService>();
 builder.Services.AddScoped<IDataQualityQueryService, DataQualityQueryService>();
+builder.Services.AddScoped<IDataQualityDetectorsQueryService, DataQualityDetectorsQueryService>();
 builder.Services.AddScoped<ISeedRequestService, SeedRequestService>();
 builder.Services.AddScoped<ISeedRequestQueryService, SeedRequestQueryService>();
 builder.Services.AddScoped<ICandidateQueryService, CandidateQueryService>();

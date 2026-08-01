@@ -13,10 +13,13 @@ namespace TrueMain.Controllers.Champions;
 public sealed class ChampionsController(
     IChampionSummariesQueryService summariesQueryService,
     IChampionTierListQueryService tierListQueryService,
+    IChampionOverviewQueryService overviewQueryService,
     IChampionBuildsQueryService buildsQueryService,
+    IChampionMatchupBuildsQueryService matchupBuildsQueryService,
     IChampionTrendQueryService trendQueryService,
     IChampionPatchDiffQueryService patchDiffQueryService,
     IChampionMatchupQueryService matchupQueryService,
+    IChampionSynergyQueryService synergyQueryService,
     IChampionScalingQueryService scalingQueryService,
     IChampionItemTimingsQueryService itemTimingsQueryService,
     IChampionRoamQueryService roamQueryService,
@@ -24,6 +27,9 @@ public sealed class ChampionsController(
     IChampionMainsComparisonQueryService mainsComparisonQueryService,
     ICompositionRecommendationQueryService compositionRecommendationQueryService) : ControllerBase
 {
+    private const int DefaultOverviewLimit = 8;
+    private const int MaxOverviewLimit = 20;
+
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<ChampionSummaryReadModel>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<ChampionSummaryReadModel>>> ListChampionsAsync(
@@ -33,8 +39,8 @@ public sealed class ChampionsController(
     {
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
         var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
-        var summaries = await summariesQueryService.GetAllSummariesAsync(normalizedPatch, normalizedBracket, ct);
-        return Ok(summaries);
+        var result = await summariesQueryService.GetAllSummariesAsync(normalizedPatch, normalizedBracket, ct);
+        return Ok(result.Summaries);
     }
 
     /// <summary>
@@ -68,6 +74,28 @@ public sealed class ChampionsController(
         return Ok(tierList);
     }
 
+    /// <summary>
+    /// Homepage-sized snapshot (#972): the active patch's true "games analyzed"
+    /// total (every aggregated game, not just the rows the ranked directory
+    /// keeps) plus a short, pre-sorted slice of its strongest rows. Always the
+    /// active patch, unfiltered — the homepage has no patch or elo picker of
+    /// its own. <paramref name="limit"/> is clamped to <c>[1, 20]</c>, default
+    /// 8. Reads the same cached entry as an unqualified <c>GET /champions</c>,
+    /// so the two never disagree and the homepage never pays for a second
+    /// aggregate computation. The static route segment never collides with the
+    /// <c>{championId:int}</c> route below — "overview" is not an int.
+    /// </summary>
+    [HttpGet("overview")]
+    [ProducesResponseType(typeof(ChampionOverviewReadModel), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ChampionOverviewReadModel>> GetOverviewAsync(
+        [FromQuery] int? limit,
+        CancellationToken ct = default)
+    {
+        var clampedLimit = Math.Clamp(limit ?? DefaultOverviewLimit, 1, MaxOverviewLimit);
+        var overview = await overviewQueryService.GetOverviewAsync(clampedLimit, ct);
+        return Ok(overview);
+    }
+
     [HttpGet("{championId:int}")]
     [ProducesResponseType(typeof(ChampionResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -77,6 +105,7 @@ public sealed class ChampionsController(
         [FromQuery] string? patch,
         [FromQuery] string? position,
         [FromQuery] string? eloBracket,
+        [FromQuery] int? opponentChampionId,
         CancellationToken ct = default)
     {
         if (!TryNormalizeOptionalPosition(position, out var normalizedPosition, out var problem))
@@ -86,6 +115,27 @@ public sealed class ChampionsController(
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
         var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
+
+        // A matchup needs a position: "vs Darius" is only meaningful in a lane, and the
+        // self-join matches both sides on it. Without one there is nothing to scope, so
+        // the request is rejected rather than silently answered with global data.
+        if (opponentChampionId is > 0)
+        {
+            if (string.IsNullOrEmpty(normalizedPosition))
+            {
+                return ValidationProblem("A matchup requires a position: pass ?position= alongside ?opponentChampionId=.");
+            }
+
+            var matchup = await matchupBuildsQueryService.GetAsync(
+                championId,
+                opponentChampionId.Value,
+                normalizedPatch,
+                normalizedPosition,
+                normalizedBracket,
+                ct);
+
+            return matchup is null ? NotFound() : Ok(matchup);
+        }
 
         var response = await buildsQueryService.GetAsync(
             championId,
@@ -191,6 +241,107 @@ public sealed class ChampionsController(
             normalizedPatch,
             riotAccountId: null,
             opponentChampionId: opponent,
+            normalizedBracket,
+            ct);
+
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Best duo partners for a champion at a position: for every teammate it has
+    /// been paired with often enough, the shared game count, the pair's win rate
+    /// and — the value the list is ranked by — the synergy, i.e. how far that win
+    /// rate lands above or below what the two champions' individual win rates
+    /// already predicted. <paramref name="position"/> is the required Riot team
+    /// position and <paramref name="partnerPosition"/> an optional narrowing to a
+    /// single partner lane; an unrecognised value for either is a 400. Always 200
+    /// with a (possibly empty) list — a champion whose own sample is too thin for
+    /// an expected win rate returns no entries rather than invented ones, and the
+    /// echoed <c>minGames</c> / <c>championGames</c> say why.
+    /// </summary>
+    [HttpGet("{championId:int}/synergies")]
+    [ProducesResponseType(typeof(ChampionSynergiesResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ChampionSynergiesResponse>> GetChampionSynergiesAsync(
+        int championId,
+        [FromQuery] string? position,
+        [FromQuery] string? partnerPosition,
+        [FromQuery] string? patch,
+        [FromQuery] string? eloBracket,
+        CancellationToken ct = default)
+    {
+        if (!TryRequirePosition(position, out var normalizedPosition, out var problem))
+        {
+            return problem;
+        }
+
+        if (!TryNormalizeOptionalPosition(partnerPosition, out var normalizedPartnerPosition, out var partnerProblem))
+        {
+            return partnerProblem;
+        }
+
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+        var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
+
+        var response = await synergyQueryService.GetSynergiesAsync(
+            championId,
+            normalizedPosition,
+            normalizedPatch,
+            normalizedPartnerPosition,
+            normalizedBracket,
+            ct);
+
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Third picks for an already-chosen duo: restricted to the games this champion
+    /// and <paramref name="partner"/> actually played together, the teammates whose
+    /// trio over- or under-performed what all three individual win rates predicted.
+    /// <paramref name="position"/>, <paramref name="partner"/> and
+    /// <paramref name="partnerPosition"/> are all required; an unrecognised position
+    /// is a 400. Always 200 — an empty completion list is the normal answer for a
+    /// duo too rarely played to split a third way, and the response carries the
+    /// duo's own game count so the caller can say exactly that.
+    /// </summary>
+    [HttpGet("{championId:int}/synergies/trios")]
+    [ProducesResponseType(typeof(ChampionTrioSynergiesResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ChampionTrioSynergiesResponse>> GetChampionTrioSynergiesAsync(
+        int championId,
+        [FromQuery] string? position,
+        [FromQuery][Range(1, int.MaxValue)] int partner,
+        [FromQuery] string? partnerPosition,
+        [FromQuery] string? patch,
+        [FromQuery] string? eloBracket,
+        CancellationToken ct = default)
+    {
+        if (!TryRequirePosition(position, out var normalizedPosition, out var problem))
+        {
+            return problem;
+        }
+
+        if (!TryRequirePosition(partnerPosition, out var normalizedPartnerPosition, out var partnerProblem))
+        {
+            return partnerProblem;
+        }
+
+        // One team cannot field two players in a lane, so this would silently return
+        // an empty list forever. Rejecting it names the mistake instead.
+        if (string.Equals(normalizedPosition, normalizedPartnerPosition, StringComparison.Ordinal))
+        {
+            return ValidationProblem("partnerPosition must differ from position — teammates play different lanes.");
+        }
+
+        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+        var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
+
+        var response = await synergyQueryService.GetTrioSynergiesAsync(
+            championId,
+            normalizedPosition,
+            partner,
+            normalizedPartnerPosition,
+            normalizedPatch,
             normalizedBracket,
             ct);
 
@@ -314,6 +465,11 @@ public sealed class ChampionsController(
     /// the builds read keys its tabs, and are both required (a 400 otherwise) —
     /// spikes are only meaningful within one build. Always 200; the events are
     /// empty until the per-minute data has accumulated.
+    /// <paramref name="opponentChampionId"/> narrows the spikes to the games
+    /// played against that lane opponent (#957), the same filter the build
+    /// sections take as <c>?opponentChampionId=</c> on <c>GET /champions/{id}</c>.
+    /// A matchup that has not been folded yet simply has no events — it is not an
+    /// error, so this stays a 200 like every other thin slice here.
     /// </summary>
     [HttpGet("{championId:int}/powerspikes")]
     [ProducesResponseType(typeof(ChampionPowerspikesResponse), StatusCodes.Status200OK)]
@@ -325,6 +481,7 @@ public sealed class ChampionsController(
         [FromQuery] string? eloBracket,
         [FromQuery] int? buildFirstItemId,
         [FromQuery] int? buildKeystoneId,
+        [FromQuery] int? opponentChampionId,
         CancellationToken ct = default)
     {
         if (!TryRequirePosition(position, out var normalizedPosition, out var problem))
@@ -347,6 +504,7 @@ public sealed class ChampionsController(
             normalizedBracket,
             buildFirstItemId.Value,
             buildKeystoneId.Value,
+            opponentChampionId,
             ct);
 
         return Ok(response);
@@ -442,29 +600,81 @@ public sealed class ChampionsController(
         [FromBody] CompositionBuildRequest request,
         CancellationToken ct = default)
     {
+        if (!TryBuildCompositionCriteria(championId, request, out var criteria, out var problem))
+        {
+            return problem;
+        }
+
+        return Ok(await compositionRecommendationQueryService.GetAsync(criteria, ct));
+    }
+
+    /// <summary>
+    /// The games the recommendation for that same draft was computed from, one
+    /// page at a time, in the selection's own order (mains first, then
+    /// similarity, recency breaking ties). Same body as the recommendation
+    /// itself — the draft is the identity of the selection — so the two always
+    /// answer about the same sample; a separate route because the matchup page
+    /// refetches the build on every draft edit and must not pay for hydrating
+    /// match rows nobody opened (#940).
+    /// </summary>
+    [HttpPost("{championId:int}/composition-build/games")]
+    [ProducesResponseType(typeof(CompositionBuildGamesResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<CompositionBuildGamesResponse>> PostCompositionBuildGamesAsync(
+        int championId,
+        [FromBody] CompositionBuildRequest request,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 0,
+        CancellationToken ct = default)
+    {
+        if (!TryBuildCompositionCriteria(championId, request, out var criteria, out var problem))
+        {
+            return problem;
+        }
+
+        return Ok(await compositionRecommendationQueryService.GetGamesAsync(criteria, page, pageSize, ct));
+    }
+
+    /// <summary>
+    /// Validates and normalises a composition draft body into search criteria.
+    /// Shared by the recommendation and its provenance listing so the two can
+    /// never disagree on what a draft means — or on which drafts are rejected.
+    /// </summary>
+    private bool TryBuildCompositionCriteria(
+        int championId,
+        CompositionBuildRequest request,
+        out CompositionSearchCriteria criteria,
+        [NotNullWhen(false)] out ActionResult? problem)
+    {
+        criteria = null!;
+
         if (championId <= 0)
         {
-            return ValidationProblem("championId must be a positive champion id.");
+            problem = ValidationProblem("championId must be a positive champion id.");
+            return false;
         }
 
         if (!TryRequirePosition(request.Position, out var normalizedPosition, out var positionProblem))
         {
-            return positionProblem;
+            problem = positionProblem;
+            return false;
         }
 
         if (!TryNormalizeSlots(request.Allies, "allies", out var allies, out var slotProblem)
             || !TryNormalizeSlots(request.Enemies, "enemies", out var enemies, out slotProblem))
         {
-            return slotProblem;
+            problem = slotProblem;
+            return false;
         }
 
         if (allies.ContainsKey(normalizedPosition))
         {
-            return ValidationProblem(
+            problem = ValidationProblem(
                 "allies must not contain the player's own position — that slot is the champion of the route.");
+            return false;
         }
 
-        var criteria = new CompositionSearchCriteria
+        criteria = new CompositionSearchCriteria
         {
             ChampionId = championId,
             Position = normalizedPosition,
@@ -473,8 +683,8 @@ public sealed class ChampionsController(
             Patch = ChampionQueryParameterNormalizer.NormalizePatch(request.Patch),
             EloBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(request.EloBracket),
         };
-
-        return Ok(await compositionRecommendationQueryService.GetAsync(criteria, ct));
+        problem = null;
+        return true;
     }
 
     /// <summary>

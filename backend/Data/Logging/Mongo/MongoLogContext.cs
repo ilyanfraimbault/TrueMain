@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using Data.Logging.Crash;
 using Data.Metrics.Mongo;
+using Data.Ops.Mongo;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 
@@ -43,6 +44,10 @@ public sealed class MongoLogContext : IDisposable
         AuditEvents = _database.GetCollection<AuditEventDocument>(_options.AuditCollection);
         RiotApiCallRollups = _database.GetCollection<RiotApiCallRollupDocument>(_options.RiotApiCallsCollection);
         Crashes = _database.GetCollection<CrashReportDocument>(_options.CrashesCollection);
+        DbTableSizeSnapshots =
+            _database.GetCollection<DbTableSizeSnapshotDocument>(_options.DbTableSizeSnapshotsCollection);
+        ProcessRuns = _database.GetCollection<ProcessRunDocument>(_options.ProcessRunsCollection);
+        SeedRequests = _database.GetCollection<SeedRequestDocument>(_options.SeedRequestsCollection);
     }
 
     /// <summary>True when a Mongo client was created (logging enabled + connection string present).</summary>
@@ -81,6 +86,37 @@ public sealed class MongoLogContext : IDisposable
     /// synchronously by <c>CrashReporter</c> and read by the admin Crashes panel.
     /// </summary>
     public IMongoCollection<CrashReportDocument> Crashes
+    {
+        get => field ?? throw Inactive();
+        private init;
+    }
+
+    /// <summary>
+    /// Daily per-table Postgres storage snapshots (#925), written by the Ingestor's
+    /// storage-snapshot step (one day-keyed upsert per table) and read by the admin
+    /// database panel's growth charts and disk forecast.
+    /// </summary>
+    public IMongoCollection<DbTableSizeSnapshotDocument> DbTableSizeSnapshots
+    {
+        get => field ?? throw Inactive();
+        private init;
+    }
+
+    /// <summary>
+    /// Recorded ingestor process runs, written by the Ingestor's
+    /// <c>ProcessRunRecorder</c> and read by the admin process panels.
+    /// </summary>
+    public IMongoCollection<ProcessRunDocument> ProcessRuns
+    {
+        get => field ?? throw Inactive();
+        private init;
+    }
+
+    /// <summary>
+    /// The "seed by Riot ID" intake queue (#409): written by the API, claimed and
+    /// resolved by the Ingestor's <c>ManualSeedProcess</c>, read by the admin.
+    /// </summary>
+    public IMongoCollection<SeedRequestDocument> SeedRequests
     {
         get => field ?? throw Inactive();
         private init;
@@ -209,6 +245,124 @@ public sealed class MongoLogContext : IDisposable
 
         await ReconcileTtlIndexAsync(
             RiotApiCallRollups, doc => doc.BucketStartUtc, _options.RiotApiCallsRetention, ct);
+    }
+
+    /// <summary>
+    /// Creates the supporting indexes for the <c>db_table_size_snapshots</c>
+    /// collection idempotently (#925): a unique <c>(snapshotDateUtc, tableName)</c>
+    /// compound so the day-keyed upsert targets exactly one document per table per
+    /// day, a descending <c>snapshotDateUtc</c> index for the window scan every read
+    /// performs, and the reconciled TTL index enforcing
+    /// <see cref="MongoLoggingOptions.DbTableSizeSnapshotsRetention"/>. Called on the
+    /// snapshot step's first run; safe to re-run.
+    /// </summary>
+    public async Task EnsureDbTableSizeSnapshotIndexesAsync(CancellationToken ct)
+    {
+        if (!IsActive)
+        {
+            return;
+        }
+
+        var models = new List<CreateIndexModel<DbTableSizeSnapshotDocument>>
+        {
+            // The upsert key: one document per table per day. Unique, so two ingestor
+            // containers running the pipeline concurrently cannot split a day into
+            // duplicate documents and double every derived per-day delta.
+            new(Builders<DbTableSizeSnapshotDocument>.IndexKeys
+                    .Ascending(doc => doc.SnapshotDateUtc)
+                    .Ascending(doc => doc.TableName),
+                new CreateIndexOptions { Name = "ux_date_table", Unique = true }),
+            // Every read is "the last N days", so the window lower bound is served
+            // descending, newest first.
+            new(Builders<DbTableSizeSnapshotDocument>.IndexKeys.Descending(doc => doc.SnapshotDateUtc),
+                new CreateIndexOptions { Name = "ix_snapshot_date_desc" }),
+            // Back the per-table series: one table's history within the window.
+            new(Builders<DbTableSizeSnapshotDocument>.IndexKeys
+                    .Ascending(doc => doc.TableName)
+                    .Descending(doc => doc.SnapshotDateUtc),
+                new CreateIndexOptions { Name = "ix_table_snapshot_date" })
+        };
+
+        await DbTableSizeSnapshots.Indexes.CreateManyAsync(models, ct);
+
+        await ReconcileTtlIndexAsync(
+            DbTableSizeSnapshots, doc => doc.SnapshotDateUtc, _options.DbTableSizeSnapshotsRetention, ct);
+    }
+
+    /// <summary>
+    /// Creates the supporting indexes for the <c>process_runs</c> collection
+    /// idempotently: a descending <c>(startedAtUtc, _id)</c> compound for the
+    /// newest-first runs listing, an <c>(processName, startedAtUtc)</c> compound
+    /// for the per-process filters and cadence read, an <c>(processName,
+    /// finishedAtUtc)</c> compound for the latest-per-process picks, an
+    /// <c>iterationId</c> index (sparse — only iteration-stamped runs carry the
+    /// field) for the chain view, and the reconciled TTL index enforcing
+    /// <see cref="MongoLoggingOptions.ProcessRunsRetention"/>. Called by the
+    /// store's first-use bootstrap; safe to re-run.
+    /// </summary>
+    public async Task EnsureProcessRunIndexesAsync(CancellationToken ct)
+    {
+        if (!IsActive)
+        {
+            return;
+        }
+
+        var models = new List<CreateIndexModel<ProcessRunDocument>>
+        {
+            new(Builders<ProcessRunDocument>.IndexKeys
+                    .Descending(doc => doc.StartedAtUtc)
+                    .Descending(doc => doc.Id),
+                new CreateIndexOptions { Name = "ix_started_desc" }),
+            new(Builders<ProcessRunDocument>.IndexKeys
+                    .Ascending(doc => doc.ProcessName)
+                    .Descending(doc => doc.StartedAtUtc),
+                new CreateIndexOptions { Name = "ix_process_started" }),
+            new(Builders<ProcessRunDocument>.IndexKeys
+                    .Ascending(doc => doc.ProcessName)
+                    .Descending(doc => doc.FinishedAtUtc),
+                new CreateIndexOptions { Name = "ix_process_finished" }),
+            new(Builders<ProcessRunDocument>.IndexKeys.Ascending(doc => doc.IterationId),
+                new CreateIndexOptions { Name = "ix_iteration", Sparse = true })
+        };
+
+        await ProcessRuns.Indexes.CreateManyAsync(models, ct);
+
+        await ReconcileTtlIndexAsync(ProcessRuns, doc => doc.StartedAtUtc, _options.ProcessRunsRetention, ct);
+    }
+
+    /// <summary>
+    /// Creates the supporting indexes for the <c>seed_requests</c> collection
+    /// idempotently: a descending <c>(requestedAtUtc, _id)</c> compound for the
+    /// newest-first admin listing, a <c>(status, requestedAtUtc)</c> compound for
+    /// the Pending FIFO scan, and a <c>(resolvedPuuid, platformId)</c> compound
+    /// (sparse — only ingested requests carry the PUUID) for the candidate-detail
+    /// lookup. No TTL: seed requests are functional history. Called by the store's
+    /// first-use bootstrap; safe to re-run.
+    /// </summary>
+    public async Task EnsureSeedRequestIndexesAsync(CancellationToken ct)
+    {
+        if (!IsActive)
+        {
+            return;
+        }
+
+        var models = new List<CreateIndexModel<SeedRequestDocument>>
+        {
+            new(Builders<SeedRequestDocument>.IndexKeys
+                    .Descending(doc => doc.RequestedAtUtc)
+                    .Descending(doc => doc.Id),
+                new CreateIndexOptions { Name = "ix_requested_desc" }),
+            new(Builders<SeedRequestDocument>.IndexKeys
+                    .Ascending(doc => doc.Status)
+                    .Ascending(doc => doc.RequestedAtUtc),
+                new CreateIndexOptions { Name = "ix_status_requested" }),
+            new(Builders<SeedRequestDocument>.IndexKeys
+                    .Ascending(doc => doc.ResolvedPuuid)
+                    .Ascending(doc => doc.PlatformId),
+                new CreateIndexOptions { Name = "ix_resolved_puuid", Sparse = true })
+        };
+
+        await SeedRequests.Indexes.CreateManyAsync(models, ct);
     }
 
     /// <summary>

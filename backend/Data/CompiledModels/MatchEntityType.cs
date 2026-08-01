@@ -20,10 +20,10 @@ namespace Data.CompiledModels
                 "Data.Entities.Match",
                 typeof(Match),
                 baseEntityType,
-                propertyCount: 14,
+                propertyCount: 17,
                 navigationCount: 1,
                 unnamedIndexCount: 4,
-                namedIndexCount: 2,
+                namedIndexCount: 5,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -34,6 +34,16 @@ namespace Data.CompiledModels
                 afterSaveBehavior: PropertySaveBehavior.Throw,
                 maxLength: 32);
             id.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var bansAggregated = runtimeEntityType.AddProperty(
+                "BansAggregated",
+                typeof(bool),
+                propertyInfo: typeof(Match).GetProperty("BansAggregated", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Match).GetField("<BansAggregated>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: false);
+            bansAggregated.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            bansAggregated.AddAnnotation("Relational:DefaultValue", false);
 
             var createdAtUtc = runtimeEntityType.AddProperty(
                 "CreatedAtUtc",
@@ -85,6 +95,16 @@ namespace Data.CompiledModels
                 maxLength: 32);
             gameVersion.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
+            var laneOutcomeAggregated = runtimeEntityType.AddProperty(
+                "LaneOutcomeAggregated",
+                typeof(bool),
+                propertyInfo: typeof(Match).GetProperty("LaneOutcomeAggregated", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Match).GetField("<LaneOutcomeAggregated>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: false);
+            laneOutcomeAggregated.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            laneOutcomeAggregated.AddAnnotation("Relational:DefaultValue", false);
+
             var mapId = runtimeEntityType.AddProperty(
                 "MapId",
                 typeof(int),
@@ -129,6 +149,16 @@ namespace Data.CompiledModels
                 sentinel: 0);
             queueId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
+            var synergyAggregated = runtimeEntityType.AddProperty(
+                "SynergyAggregated",
+                typeof(bool),
+                propertyInfo: typeof(Match).GetProperty("SynergyAggregated", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Match).GetField("<SynergyAggregated>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: false);
+            synergyAggregated.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            synergyAggregated.AddAnnotation("Relational:DefaultValue", false);
+
             var timelineIngested = runtimeEntityType.AddProperty(
                 "TimelineIngested",
                 typeof(bool),
@@ -169,6 +199,16 @@ namespace Data.CompiledModels
                 new[] { platformId, queueId, gameStartTimeUtc });
             index2.AddAnnotation("Relational:Name", "IX_matches_platform_queue_game_start");
 
+            var iX_matches_bans_pending = runtimeEntityType.AddIndex(
+                new[] { queueId },
+                name: "IX_matches_bans_pending");
+            iX_matches_bans_pending.AddAnnotation("Relational:Filter", "\"BansAggregated\" = false");
+
+            var iX_matches_lane_outcome_pending = runtimeEntityType.AddIndex(
+                new[] { queueId },
+                name: "IX_matches_lane_outcome_pending");
+            iX_matches_lane_outcome_pending.AddAnnotation("Relational:Filter", "\"LaneOutcomeAggregated\" = false");
+
             var iX_matches_matchup_lead_pending = runtimeEntityType.AddIndex(
                 new[] { queueId },
                 name: "IX_matches_matchup_lead_pending");
@@ -178,6 +218,11 @@ namespace Data.CompiledModels
                 new[] { queueId },
                 name: "IX_matches_snapshot_prune_pending");
             iX_matches_snapshot_prune_pending.AddAnnotation("Relational:Filter", "\"PowerspikeAggregated\" = true AND \"TimelineSnapshotsPruned\" = false");
+
+            var iX_matches_synergy_pending = runtimeEntityType.AddIndex(
+                new[] { queueId },
+                name: "IX_matches_synergy_pending");
+            iX_matches_synergy_pending.AddAnnotation("Relational:Filter", "\"SynergyAggregated\" = false");
 
             return runtimeEntityType;
         }

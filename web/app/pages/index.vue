@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { ChampionSummaryResponse } from '~~/shared/types/champions'
 import type { RegionSlug } from '~~/shared/types/leaderboard'
+import { isLoadingStatus } from '~/utils/async-data'
 
 // The homepage title leads with the brand, so opt out of the global
 // `%s · TrueMain` template — it would duplicate the name in search results.
@@ -10,56 +10,33 @@ useSeoMeta({
   description: 'League of Legends champion builds, runes and skill orders from true main players.',
 })
 
-// Champion summaries for the active patch — drives both the tier-list panel
-// and the hero stat chips. Client-only (`server: false`) with a homepage-own
-// key: the /champions page keys by filter state, and sharing its key would
-// couple the two pages' cache lifecycles for no gain.
-const {
-  data: summaries,
-  status: summariesStatus,
-} = useLazyAsyncData<ChampionSummaryResponse[]>(
-  'home-champion-summaries',
-  () => $fetch<ChampionSummaryResponse[]>('/api/champions'),
-  { server: false, default: () => [] },
-)
+// Homepage snapshot for the active patch (#972): the true games-analyzed
+// total plus a short, pre-sorted slice of the strongest rows — drives both
+// the hero stat chips and the tier-list panel. A dedicated endpoint
+// (`GET /champions/overview`) rather than the full ~500-row `/champions`
+// directory, so the homepage never fetches or sorts data it only shows 8
+// rows and two numbers of.
+const { data: overview, status: overviewStatus } = useChampionOverview()
 
 // Shared static list (champion id/name/icon) — same cache key as the unified
 // search and the other pages, so the prefetch-warmed payload is reused.
-const { data: staticList } = useChampionStaticList()
+const { data: staticList, status: staticListStatus } = useChampionStaticList()
 
 const championsById = useChampionsById(staticList)
 
 const { data: versions } = useDDragonVersions()
 const ddragonPatch = computed(() => versions.value?.[0] ?? null)
 
-// ─── Below-the-fold tier-list gating ─────────────────────────────────────
-// The tier-list panel is a heavy, below-the-fold client-only render (its rows,
-// names and icons all come from `server: false` sources), so its JS chunk is
-// dead weight on the initial critical path. Gate it behind a visibility flag:
-// `<LazyHomeTierlistPanel>` is a dynamic import, so its chunk isn't fetched
-// until `tierlistVisible` flips true. The flag starts `false` on both the
-// server and the client's first render (an IntersectionObserver — client-only —
-// flips it after mount), so the `v-if`/`v-else` branch is identical on each
-// side and hydration stays clean. The summaries fetch itself stays eager: it
-// also feeds the above-the-fold hero chips, so gating the *fetch* would leave
-// those chips skeletoned until scroll — only the panel *render* is deferred.
-const tierlistAnchor = ref<HTMLElement | null>(null)
-const tierlistVisible = ref(false)
-onMounted(() => {
-  const el = tierlistAnchor.value
-  if (!el || typeof IntersectionObserver === 'undefined') {
-    tierlistVisible.value = true
-    return
-  }
-  const observer = new IntersectionObserver((entries) => {
-    if (entries.some(entry => entry.isIntersecting)) {
-      tierlistVisible.value = true
-      observer.disconnect()
-    }
-  }, { rootMargin: '200px' })
-  observer.observe(el)
-  onBeforeUnmount(() => observer.disconnect())
-})
+// The tier-list panel needs both the overview (rows + tier/WR/PR) and the
+// static list (names + icons) — a single loading condition owned by the page,
+// so the panel and its skeleton never each decide independently and disagree.
+// Both sources are `server: false`, so this starts `true` identically on the
+// server and the client's first render (same mechanism `overviewPending`
+// below already relies on for the hero stat chips), keeping hydration clean —
+// no intersection-observer, no dynamic import, so there is no chunk-loading
+// window where neither the skeleton nor the real panel is on screen.
+const tierlistPending = computed(() =>
+  isLoadingStatus(overviewStatus.value) || isLoadingStatus(staticListStatus.value))
 
 // ─── Truemains teaser (SSR, like the /truemains page) ─────────────────────
 const region = ref<RegionSlug | null>(null)
@@ -88,15 +65,13 @@ const trackedTruemains = computed(() =>
     : latchedTotal.value)
 
 // ─── Hero stat chips — every number is derived from a real payload ────────
-const summariesPending = computed(() =>
-  summariesStatus.value === 'idle' || summariesStatus.value === 'pending')
+const overviewPending = computed(() => isLoadingStatus(overviewStatus.value))
 
-const championCount = computed(() =>
-  new Set(summaries.value.map(summary => summary.championId)).size)
-// Summary rows are per (champion, position); each games count is that
-// sample's main-played games, so the sum is "main games analyzed this patch".
-const gamesAnalyzed = computed(() =>
-  summaries.value.reduce((acc, summary) => acc + summary.games, 0))
+const championCount = computed(() => overview.value?.championsRanked ?? 0)
+// The true total aggregated for the patch (#972) — every champion_aggregate_scopes
+// row summed server-side, not just the games behind the rows the ranked
+// directory keeps (which drops below-floor and position-less slices).
+const gamesAnalyzed = computed(() => overview.value?.gamesAnalyzed ?? 0)
 
 // Fixed locale: SSR and the user's browser must format identically or the
 // truemains chip (rendered on the server) would hydration-mismatch.
@@ -147,7 +122,7 @@ function formatCount(value: number): string {
               class="size-4 text-primary"
             />
             <USkeleton
-              v-if="summariesPending"
+              v-if="overviewPending"
               class="h-4 w-28"
             />
             <template v-else-if="championCount > 0">
@@ -166,7 +141,7 @@ function formatCount(value: number): string {
               class="size-4 text-primary"
             />
             <USkeleton
-              v-if="summariesPending"
+              v-if="overviewPending"
               class="h-4 w-32"
             />
             <template v-else-if="gamesAnalyzed > 0">
@@ -202,45 +177,15 @@ function formatCount(value: number): string {
          pair and the truemains rows have room for champion + play-rate
          without truncating names. -->
     <section class="mx-auto grid max-w-6xl gap-6 px-4 pb-20 md:px-6 lg:grid-cols-2">
-      <!-- Tier list: rendered only once its anchor nears the viewport, so the
-           panel's chunk is fetched on demand. Until then a skeleton that mirrors
-           the panel chrome holds the layout (no shift when it swaps in). -->
-      <div ref="tierlistAnchor">
-        <LazyHomeTierlistPanel
-          v-if="tierlistVisible"
-          :summaries="summaries"
-          :champions-by-id="championsById"
-          :pending="summariesPending"
-        />
-        <section
-          v-else
-          class="glass rounded-2xl p-3 sm:p-4"
-          aria-hidden="true"
-        >
-          <header class="flex items-center justify-between gap-3 pb-3">
-            <span class="text-sm font-semibold text-default">Tier list</span>
-            <UButton
-              to="/champions"
-              color="neutral"
-              variant="ghost"
-              size="sm"
-              trailing-icon="i-lucide-arrow-right"
-              label="Full tier list"
-            />
-          </header>
-          <div class="space-y-1">
-            <div
-              v-for="i in 8"
-              :key="i"
-              class="-mx-2 flex items-center gap-3 rounded-lg px-2 py-2"
-            >
-              <USkeleton class="size-9 rounded-lg" />
-              <USkeleton class="h-4 w-32" />
-              <USkeleton class="ml-auto h-4 w-24" />
-            </div>
-          </div>
-        </section>
-      </div>
+      <!-- Tier list: rendered eagerly (no chunk to fetch on demand, no
+           intersection-observer gate — #972), so there is no window where
+           neither the skeleton nor the real panel is on screen. -->
+      <HomeTierlistPanelSkeleton v-if="tierlistPending" />
+      <HomeTierlistPanel
+        v-else
+        :top-rows="overview?.topRows ?? []"
+        :champions-by-id="championsById"
+      />
       <!-- Truemains teaser stays eagerly SSR'd + immediately hydrated: its rows
            come from a `server: true` fetch, and its profile-icon `v-if`/`v-else`
            and champion enrichment resolve from `server: false` sources, so

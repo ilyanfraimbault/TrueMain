@@ -47,6 +47,30 @@ public sealed class MongoLoggingOptions
     public string RiotApiCallsCollection { get; set; } = "riot_api_call_rollups";
 
     /// <summary>
+    /// Collection holding the daily per-table Postgres storage snapshots (#925),
+    /// written by the Ingestor's storage-snapshot step and read by the admin database
+    /// panel's growth charts and disk forecast. Same database as the logs, for the same
+    /// one-connection reason as the rollups above.
+    /// </summary>
+    public string DbTableSizeSnapshotsCollection { get; set; } = "db_table_size_snapshots";
+
+    /// <summary>
+    /// Collection holding recorded ingestor process runs, written by the
+    /// Ingestor's <c>ProcessRunRecorder</c> and read by the admin process panels.
+    /// Moved out of Postgres with the rest of the admin-portal observability data;
+    /// same database as the logs, for the same one-connection reason.
+    /// </summary>
+    public string ProcessRunsCollection { get; set; } = "process_runs";
+
+    /// <summary>
+    /// Collection holding the "seed by Riot ID" intake queue (#409), written by the
+    /// API's seed endpoint, claimed by the Ingestor's <c>ManualSeedProcess</c> and
+    /// read by the admin seed panel. Functional admin data (not telemetry), so it
+    /// has no TTL.
+    /// </summary>
+    public string SeedRequestsCollection { get; set; } = "seed_requests";
+
+    /// <summary>
     /// Master switch. When false (or when <see cref="ConnectionString"/> is
     /// blank) the provider is still registered but drops every record, so
     /// persisted logging can be turned off without code changes.
@@ -97,6 +121,26 @@ public sealed class MongoLoggingOptions
     /// <see cref="TimeSpan.Zero"/> or negative to disable the TTL index.
     /// </summary>
     public TimeSpan RiotApiCallsRetention { get; set; } = TimeSpan.FromDays(14);
+
+    /// <summary>
+    /// Retention window for the <c>db_table_size_snapshots</c> collection (#925),
+    /// enforced by a native Mongo TTL index on <c>snapshotDateUtc</c>. Defaults to 365
+    /// days: unlike the other metrics collections this one is read to *extrapolate*,
+    /// and a linear fit over a fortnight would swing wildly with one backfill or one
+    /// retention pass. A year of daily rows is ~60 tables × 365 documents — negligible,
+    /// and it lets the forecast see a full season of growth. Set to
+    /// <see cref="TimeSpan.Zero"/> or negative to disable the TTL index.
+    /// </summary>
+    public TimeSpan DbTableSizeSnapshotsRetention { get; set; } = TimeSpan.FromDays(365);
+
+    /// <summary>
+    /// Retention window for the <c>process_runs</c> collection, enforced by a
+    /// native Mongo TTL index on <c>startedAtUtc</c>. Defaults to 180 days — long
+    /// enough for the admin's iteration history and failure-rate windows, and a
+    /// bound the Postgres table never had. Set to <see cref="TimeSpan.Zero"/> or
+    /// negative to disable the TTL index.
+    /// </summary>
+    public TimeSpan ProcessRunsRetention { get; set; } = TimeSpan.FromDays(180);
 
     /// <summary>
     /// Collection holding lossless crash reports (one per process crash), written
