@@ -1,17 +1,16 @@
-using Data;
 using Data.Entities;
-using Microsoft.EntityFrameworkCore;
+using Data.Ops.Mongo;
 using TrueMain.ReadModels.Ops;
 
 namespace TrueMain.Services.Ops;
 
 /// <summary>
-/// Reads <c>SeedRequest</c> rows for the admin "seed by Riot ID" panel. The
-/// optional <c>status</c> filter on the list is an exact match on the
-/// <c>SeedRequestStatus</c> name (case-insensitive); an unrecognised value is
-/// ignored (no status filter applied) rather than erroring.
+/// Reads seed requests for the admin "seed by Riot ID" panel, from the Mongo
+/// admin store. The optional <c>status</c> filter on the list is an exact match
+/// on the <c>SeedRequestStatus</c> name (case-insensitive); an unrecognised value
+/// is ignored (no status filter applied) rather than erroring.
 /// </summary>
-public sealed class SeedRequestQueryService(TrueMainDbContext db) : ISeedRequestQueryService
+public sealed class SeedRequestQueryService(ISeedRequestStore store) : ISeedRequestQueryService
 {
     private const int DefaultLimit = 50;
     private const int MinLimit = 1;
@@ -19,11 +18,9 @@ public sealed class SeedRequestQueryService(TrueMainDbContext db) : ISeedRequest
 
     public async Task<SeedRequestReadModel?> GetByIdAsync(Guid id, CancellationToken ct)
     {
-        var entity = await db.SeedRequests
-            .AsNoTracking()
-            .FirstOrDefaultAsync(request => request.Id == id, ct);
+        var document = await store.GetByIdAsync(id, ct);
 
-        return entity is null ? null : ToReadModel(entity);
+        return document is null ? null : ToReadModel(document);
     }
 
     public async Task<IReadOnlyList<SeedRequestReadModel>> GetRecentAsync(
@@ -34,30 +31,13 @@ public sealed class SeedRequestQueryService(TrueMainDbContext db) : ISeedRequest
     {
         var effectiveLimit = Math.Clamp(limit ?? DefaultLimit, MinLimit, MaxLimit);
 
-        var query = db.SeedRequests.AsNoTracking();
+        var statusFilter = TryParseStatus(status, out var parsedStatus)
+            ? parsedStatus
+            : (SeedRequestStatus?)null;
 
-        if (TryParseStatus(status, out var parsedStatus))
-        {
-            query = query.Where(request => request.Status == parsedStatus);
-        }
+        var documents = await store.GetRecentAsync(statusFilter, search, effectiveLimit, ct);
 
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            var pattern = $"%{LikeEscaping.Escape(search.Trim())}%";
-            query = query.Where(request =>
-                EF.Functions.ILike(request.GameName, pattern, LikeEscaping.EscapeChar)
-                || EF.Functions.ILike(request.TagLine, pattern, LikeEscaping.EscapeChar));
-        }
-
-        var entities = await query
-            // Newest-first; Id breaks ties so the list is stable when several
-            // rows share a RequestedAtUtc.
-            .OrderByDescending(request => request.RequestedAtUtc)
-            .ThenByDescending(request => request.Id)
-            .Take(effectiveLimit)
-            .ToListAsync(ct);
-
-        return entities.Select(ToReadModel).ToList();
+        return documents.Select(ToReadModel).ToList();
     }
 
     private static bool TryParseStatus(string? status, out SeedRequestStatus parsed)
@@ -68,10 +48,9 @@ public sealed class SeedRequestQueryService(TrueMainDbContext db) : ISeedRequest
             && Enum.IsDefined(parsed);
     }
 
-    // Mapped in memory (after materialisation) so Status.ToString() is plain CLR,
-    // matching ProcessRunsQueryService. Both the single-by-id and list reads use
-    // this so they return an identical shape.
-    private static SeedRequestReadModel ToReadModel(SeedRequest request)
+    // Both the single-by-id and list reads use this so they return an identical
+    // shape; the candidate detail read maps through it too.
+    internal static SeedRequestReadModel ToReadModel(SeedRequestDocument request)
         => new()
         {
             Id = request.Id,

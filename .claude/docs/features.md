@@ -96,11 +96,11 @@ Separate app with its own deployment and domain — **not** a `/admin` route of 
 
 | Route | What it shows |
 |---|---|
-| `/` | Overview: stat cards (tracked accounts, matches, participants, mains/OTPs, candidates by status), matches-over-time area chart with week/month/year/patch granularity, top-10 champions bar chart |
+| `/` | Overview: stat cards (tracked accounts, matches, participants, mains/OTPs, candidates by status), matches-over-time area chart with day/week/month/year/patch granularity, top-10 champions bar chart |
 | `/champions` | Per-champion games/mains/OTPs, filters region/patch/position/queue, sortable table + 2 bar charts. Surfaces the caveat that mains/OTPs honour **region only** |
 | `/database` | Current table sizes (row estimate, total/table/index bytes, name filter, sortable table, top-12 bar chart) **plus growth history and a disk forecast** (#925): database size over time with a 30 d/90 d/1 y window, estimated rows added per day, a per-table growth list (bytes/day, rows/day, % over the window), and projected crossing dates for configurable fill levels. History comes from daily Mongo snapshots, so widening the window costs the database nothing. The forecast is **absent rather than guessed** — under 3 days of history, flat/shrinking storage, or no configured `StorageHistory:DiskCapacityBytes` each render an explanation instead of a date. Mongo collection sizes are still not shown |
 | `/data-quality` | **Read-only diagnostics.** Top section: **5 automated detectors** (#924) — duplicate dimension rows on the shared canonical key, aggregate freshness per fold (+ on-demand per-champion breakdown), orphan-participant share & Harvest lag, ingestion lag & queue depths, row-level sanity & patch volumes. Each card carries a green/amber/red/unknown verdict, its headline number, non-green rows by default, and the configured thresholds it judged against (`DataQualityDetectors:*`). Below it: the per-match checks (`missingTimeline`, `wrongParticipantCount`, `missingTeamPosition`, `zeroDuration`, `duplicateChampion`), one card per issue type with its own pagination, plus a match-ID slide-over showing both teams by position with missing/duplicate slots tinted. No repair actions |
-| `/candidates` | `main_candidates` pipeline (New→Scored→Queued→Processing→Validated/Rejected) with search/filters + detail slide-over; and the manual seed-request intake list |
+| `/candidates` | `main_candidates` pipeline (New→Scored→Queued→Processing→Validated/Rejected) with search/filters + detail slide-over; and the manual seed-request intake list (seed requests live in Mongo) |
 | `/processes` | Per-process rollup (last status/run/success, recent failures) + paginated runs table with the run `summary` JSON rendered by `ProcessSummaryView`; plus the pipeline-chain iteration view |
 | `/aggregation` | Per aggregation family: exact row counts, distinct champions/patches, freshness, last run + summary, and the ingestion backlogs that should read zero when caught up |
 | `/logs` | Two tabs (deep-linkable `?view=crashes`). **Logs**: severity/category/event-type/process/window/text filters, detail slide-over with exception stack, multi-select copy as JSON. **Crashes**: full report per row — plain-language explanation, exception chain, environment + memory/GC snapshot, recent log tail |
@@ -156,13 +156,13 @@ Pipeline order (`Full`):
 
 ### Data
 `TrueMainDbContext`, 26 `DbSet`s. Tables by domain:
-- **Identity**: `riot_accounts`, `personas` (half-built, unused), `main_candidates`, `seed_requests`, `discovery_cursors`
+- **Identity**: `riot_accounts`, `personas` (half-built, unused), `main_candidates`, `discovery_cursors`
 - **Raw matches**: `matches`, `match_participants`, `match_participant_timeline_snapshots`, `match_participant_kill_positions`, `jungle_first_clears`, `participant_perk_selections`, `perk_selection_catalog` (item/skill events are jsonb, not tables)
 - **Aggregates**: `champion_aggregate_scopes` (account × champion × patch × platform × queue × position × elo bracket) + `champion_aggregate_patterns` (one row per observed build+runes+skills+spells+starters combo), with content-deduplicated `champion_dim_{builds,rune_pages,skill_orders,spell_pairs,starter_items}`. Rune pages store their two **secondary** perks in canonical (ascending id) order — the player's click order made the same page two rows and split its sample (#911)
 - **Derived**: `main_champion_stats`, `champion_matchup_stats`, `champion_synergy_stats` + `champion_synergy_baseline_stats`, `champion_powerspike_{curve,event}_stats`, `powerspike_sigma_stats`
-- **Snapshots / ops**: `rank_snapshots`, `process_runs`
+- **Snapshots / ops**: `rank_snapshots`
 
-**Mongo** (`truemain_logs`, TTL retention): `logs` (90 d, lossy bounded channel), `audit_events` (lossless, synchronous), `riot_api_call_rollups` (14 d), `crashes` (365 d, file-first then Mongo, with unclean-shutdown detection for OOM kills), `db_table_size_snapshots` (365 d, one document per table per day, day-keyed upsert so the pipeline's many daily runs refresh rather than append).
+**Mongo** (`truemain_logs`, TTL retention): `logs` (90 d, lossy bounded channel), `audit_events` (lossless, synchronous), `riot_api_call_rollups` (14 d), `crashes` (365 d, file-first then Mongo, with unclean-shutdown detection for OOM kills), `db_table_size_snapshots` (365 d, one document per table per day, day-keyed upsert so the pipeline's many daily runs refresh rather than append), `process_runs` (180 d TTL, recorder-written run documents read by the admin process panels and Discovery's cadence gate), `seed_requests` (no TTL — functional admin queue: API inserts Pending, ManualSeed claims atomically). The SQL `process_runs`/`seed_requests` tables are frozen leftovers pending a drop migration.
 
 **Compiled model** in `Data/CompiledModels/` is committed and auto-discovered (no `UseModel()` call) — regenerate with `dotnet ef dbcontext optimize` after any schema change.
 **BuildFacts** (`Data/BuildFacts/`) is the build-derivation shared by Ingestor and API: item metadata provider, boots/final-build/starter resolvers, skill-order builder.

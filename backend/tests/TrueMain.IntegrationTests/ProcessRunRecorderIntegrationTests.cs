@@ -1,28 +1,36 @@
+using AwesomeAssertions;
 using Data.Entities;
+using Data.Logging.Mongo;
+using Data.Ops.Mongo;
 using Ingestor.Processes.Summaries;
 using Ingestor.Services;
-using AwesomeAssertions;
-using Microsoft.EntityFrameworkCore;
+using MongoDB.Driver;
 
 namespace TrueMain.IntegrationTests;
 
+/// <summary>
+/// Exercises <see cref="ProcessRunRecorder"/> against the Mongo-backed
+/// <see cref="ProcessRunStore"/> (process runs moved off Postgres with the rest
+/// of the admin-portal data).
+/// </summary>
 [Collection(IntegrationCollection.Name)]
 public sealed class ProcessRunRecorderIntegrationTests
 {
-    private readonly PostgresFixture _fixture;
+    private readonly MongoFixture _mongo;
 
-    public ProcessRunRecorderIntegrationTests(PostgresFixture fixture)
+    public ProcessRunRecorderIntegrationTests(MongoFixture mongo)
     {
-        _fixture = fixture;
+        _mongo = mongo;
     }
 
     [Fact]
-    public async Task RecordStartThenSuccess_StampsTheCurrentIteration_OnTheFinalisedRow()
+    public async Task RecordStartThenSuccess_StampsTheCurrentIteration_OnTheFinalisedRun()
     {
-        await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
         var iterationContext = new IterationContext();
-        var recorder = new ProcessRunRecorder(_fixture.CreateSessionFactory(), iterationContext);
+        using var context = BuildContext();
+        var recorder = new ProcessRunRecorder(new ProcessRunStore(context), iterationContext);
 
         Guid runId;
         Guid iterationId;
@@ -32,13 +40,10 @@ public sealed class ProcessRunRecorderIntegrationTests
             var startedAt = DateTime.UtcNow;
             runId = await recorder.RecordStartAsync("Discovery", startedAt, CancellationToken.None);
 
-            // The in-flight Running row already carries the iteration.
-            await using (var db = _fixture.CreateDbContext())
-            {
-                var running = await db.ProcessRuns.AsNoTracking().SingleAsync(run => run.Id == runId);
-                running.IterationId.Should().Be(iterationId);
-                running.Status.Should().Be(ProcessRunStatus.Running);
-            }
+            // The in-flight Running document already carries the iteration.
+            var running = await GetRunAsync(runId);
+            running.IterationId.Should().Be(iterationId);
+            running.Status.Should().Be(ProcessRunStatus.Running);
 
             await recorder.RecordAsync(
                 runId,
@@ -52,20 +57,18 @@ public sealed class ProcessRunRecorderIntegrationTests
         }
 
         // Finalising in place keeps the iteration and flips the status.
-        await using (var db = _fixture.CreateDbContext())
-        {
-            var finalised = await db.ProcessRuns.AsNoTracking().SingleAsync(run => run.Id == runId);
-            finalised.IterationId.Should().Be(iterationId);
-            finalised.Status.Should().Be(ProcessRunStatus.Success);
-        }
+        var finalised = await GetRunAsync(runId);
+        finalised.IterationId.Should().Be(iterationId);
+        finalised.Status.Should().Be(ProcessRunStatus.Success);
     }
 
     [Fact]
     public async Task RecordAsync_PersistsTheSummaryWithItsCamelCaseKeys()
     {
-        await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
-        var recorder = new ProcessRunRecorder(_fixture.CreateSessionFactory(), new IterationContext());
+        using var context = BuildContext();
+        var recorder = new ProcessRunRecorder(new ProcessRunStore(context), new IterationContext());
         var startedAt = DateTime.UtcNow;
         var runId = await recorder.RecordStartAsync("Discovery", startedAt, CancellationToken.None);
 
@@ -79,14 +82,14 @@ public sealed class ProcessRunRecorderIntegrationTests
             error: null,
             CancellationToken.None);
 
-        // The jsonb column is what the admin portal renders, so assert on the
-        // stored keys rather than on the in-memory record (#268): the summaries
+        // The stored JSON is what the admin portal renders, so assert on the
+        // persisted keys rather than on the in-memory record (#268): the summaries
         // were anonymous types with camelCase members and that shape is persisted.
-        await using var db = _fixture.CreateDbContext();
-        var run = await db.ProcessRuns.AsNoTracking().SingleAsync(r => r.Id == runId);
-        run.Summary.Should().NotBeNull();
+        var run = await GetRunAsync(runId);
+        run.SummaryJson.Should().NotBeNull();
 
-        var platform = run.Summary!.RootElement
+        using var summary = System.Text.Json.JsonDocument.Parse(run.SummaryJson!);
+        var platform = summary.RootElement
             .GetProperty("platforms")
             .EnumerateArray()
             .Single();
@@ -105,33 +108,34 @@ public sealed class ProcessRunRecorderIntegrationTests
     [Fact]
     public async Task RecordStart_OutsideAnyIteration_LeavesIterationNull()
     {
-        await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
-        var recorder = new ProcessRunRecorder(_fixture.CreateSessionFactory(), new IterationContext());
+        using var context = BuildContext();
+        var recorder = new ProcessRunRecorder(new ProcessRunStore(context), new IterationContext());
 
         var startedAt = DateTime.UtcNow;
         var runId = await recorder.RecordStartAsync("AdHoc", startedAt, CancellationToken.None);
 
-        await using var db = _fixture.CreateDbContext();
-        var run = await db.ProcessRuns.AsNoTracking().SingleAsync(r => r.Id == runId);
+        var run = await GetRunAsync(runId);
         run.IterationId.Should().BeNull();
     }
 
     [Fact]
-    public async Task ReconcileOrphanedRunsAsync_FlipsOnlyRunningRowsToAbandoned()
+    public async Task ReconcileOrphanedRunsAsync_FlipsOnlyRunningRunsToAbandoned()
     {
-        await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
         var startedAt = DateTime.UtcNow.AddMinutes(-10);
-        Guid orphanId;
-        Guid successId;
 
-        await using (var db = _fixture.CreateDbContext())
-        {
-            // An orphaned in-flight row (its owning process died) and a settled
-            // success that reconciliation must leave untouched.
-            var orphan = new ProcessRun
+        // An orphaned in-flight run (its owning process died) and a settled
+        // success that reconciliation must leave untouched.
+        var orphanId = Guid.NewGuid();
+        var successId = Guid.NewGuid();
+        await Collection().InsertManyAsync(
+        [
+            new ProcessRunDocument
             {
+                Id = orphanId,
                 ProcessName = "Discovery",
                 StartedAtUtc = startedAt,
                 FinishedAtUtc = startedAt,
@@ -139,62 +143,71 @@ public sealed class ProcessRunRecorderIntegrationTests
                 Status = ProcessRunStatus.Running,
                 Host = "dead-host",
                 LastHeartbeatAtUtc = startedAt
-            };
-            var success = new ProcessRun
+            },
+            new ProcessRunDocument
             {
+                Id = successId,
                 ProcessName = "Scoring",
                 StartedAtUtc = startedAt,
                 FinishedAtUtc = startedAt.AddMinutes(1),
                 DurationMs = 60_000,
                 Status = ProcessRunStatus.Success,
                 Host = "dead-host"
-            };
-            db.ProcessRuns.AddRange(orphan, success);
-            await db.SaveChangesAsync();
-            orphanId = orphan.Id;
-            successId = success.Id;
-        }
+            }
+        ]);
 
-        var recorder = new ProcessRunRecorder(_fixture.CreateSessionFactory(), new IterationContext());
+        using var context = BuildContext();
+        var recorder = new ProcessRunRecorder(new ProcessRunStore(context), new IterationContext());
         var reconciled = await recorder.ReconcileOrphanedRunsAsync(CancellationToken.None);
 
         reconciled.Should().Be(1);
 
-        await using var verify = _fixture.CreateDbContext();
-
-        var orphanAfter = await verify.ProcessRuns.AsNoTracking().SingleAsync(run => run.Id == orphanId);
+        var orphanAfter = await GetRunAsync(orphanId);
         orphanAfter.Status.Should().Be(ProcessRunStatus.Abandoned);
         orphanAfter.Error.Should().Contain("Abandoned");
         // A real finish time + non-zero duration so it stops reading as a
-        // zero-duration in-flight row.
+        // zero-duration in-flight run.
         orphanAfter.FinishedAtUtc.Should().BeAfter(startedAt);
         orphanAfter.DurationMs.Should().BeGreaterThan(0);
 
-        var successAfter = await verify.ProcessRuns.AsNoTracking().SingleAsync(run => run.Id == successId);
+        var successAfter = await GetRunAsync(successId);
         successAfter.Status.Should().Be(ProcessRunStatus.Success);
     }
 
     [Fact]
     public async Task ReconcileOrphanedRunsAsync_ReturnsZero_WhenNothingIsRunning()
     {
-        await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
         var startedAt = DateTime.UtcNow.AddMinutes(-5);
-        await using (var db = _fixture.CreateDbContext())
+        await Collection().InsertOneAsync(new ProcessRunDocument
         {
-            db.ProcessRuns.Add(new ProcessRun
-            {
-                ProcessName = "Discovery",
-                StartedAtUtc = startedAt,
-                FinishedAtUtc = startedAt.AddMinutes(1),
-                DurationMs = 60_000,
-                Status = ProcessRunStatus.Success,
-                Host = "host"
-            });
-            await db.SaveChangesAsync();
-        }
+            Id = Guid.NewGuid(),
+            ProcessName = "Discovery",
+            StartedAtUtc = startedAt,
+            FinishedAtUtc = startedAt.AddMinutes(1),
+            DurationMs = 60_000,
+            Status = ProcessRunStatus.Success,
+            Host = "host"
+        });
 
-        var recorder = new ProcessRunRecorder(_fixture.CreateSessionFactory(), new IterationContext());
+        using var context = BuildContext();
+        var recorder = new ProcessRunRecorder(new ProcessRunStore(context), new IterationContext());
         (await recorder.ReconcileOrphanedRunsAsync(CancellationToken.None)).Should().Be(0);
     }
+
+    private IMongoCollection<ProcessRunDocument> Collection()
+        => _mongo.GetCollection<ProcessRunDocument>(MongoFixture.ProcessRunsCollection);
+
+    private async Task<ProcessRunDocument> GetRunAsync(Guid id)
+        => await Collection().Find(doc => doc.Id == id).SingleAsync();
+
+    private MongoLogContext BuildContext()
+        => new(Microsoft.Extensions.Options.Options.Create(new MongoLoggingOptions
+        {
+            ConnectionString = _mongo.ConnectionString,
+            Database = MongoFixture.DatabaseName,
+            ProcessRunsCollection = MongoFixture.ProcessRunsCollection,
+            Enabled = true
+        }));
 }

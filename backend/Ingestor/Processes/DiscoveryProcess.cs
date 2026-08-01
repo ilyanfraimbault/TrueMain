@@ -1,6 +1,7 @@
 using Core.Lol.Identifiers;
 using Data.Entities;
 using Data.Logging;
+using Data.Ops.Mongo;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Common;
@@ -20,6 +21,7 @@ public sealed class DiscoveryProcess(
     IAccountUpsertService accountUpsertService,
     ICandidateUpsertService candidateUpsertService,
     IRankSnapshotWriter rankSnapshotWriter,
+    IProcessRunStore processRunStore,
     TimeProvider timeProvider,
     IOptions<DiscoveryOptions> discoveryOptions) : IIngestorProcess
 {
@@ -60,8 +62,7 @@ public sealed class DiscoveryProcess(
     /// </summary>
     private async Task<DateTime?> ShouldSkipForCadenceAsync(TimeSpan minRunInterval, CancellationToken ct)
     {
-        await using var session = await sessionFactory.CreateAsync(ct);
-        var lastRunUtc = await session.ProcessRuns.GetLastCompletedRunStartAsync(Name, ct);
+        var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(Name, ct);
         return lastRunUtc is not null && timeProvider.GetUtcNow().UtcDateTime - lastRunUtc.Value < minRunInterval
             ? lastRunUtc
             : null;
