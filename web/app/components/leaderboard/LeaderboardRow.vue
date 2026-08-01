@@ -242,6 +242,7 @@ const positionIcons = computed(() => {
           :keystone="perk(row.topChampions[0]!.primaryKeystoneId)"
           :secondary-style="perkStyle(row.topChampions[0]!.secondaryStyleId)"
           :first-item="buildItem(row.topChampions[0]!.firstItemId)"
+          loading="lazy"
         />
 
         <div

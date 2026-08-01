@@ -25,9 +25,17 @@ const props = withDefaults(defineProps<{
   nameTag?: string | null
   /** Tighter sizing + no "play rate" label, for the narrow homepage panel. */
   compact?: boolean
+  /**
+   * Native lazy-loading hint for the champion icon. The two callers sit in
+   * different places: leaderboard rows are always below the build panel and
+   * pass `'lazy'`, while the homepage teaser renders near the top of the
+   * landing page — so this defaults to unset rather than being hardcoded here.
+   */
+  loading?: 'lazy' | 'eager'
 }>(), {
   nameTag: null,
   compact: false,
+  loading: undefined,
 })
 
 const NuxtLinkComponent = resolveComponent('NuxtLink')
@@ -62,7 +70,7 @@ const championTitle = computed(() => `${props.name} · ${props.champion.games} g
       :title="championTitle"
       :width="iconSize"
       :height="iconSize"
-      loading="lazy"
+      :loading="loading"
       class="shrink-0 rounded-md ring-1 ring-default/40"
     />
 
