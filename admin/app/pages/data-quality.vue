@@ -1,20 +1,32 @@
 <script setup lang="ts">
-// Data Quality panel — surfaces matches with incomplete/inconsistent data from
-// `GET /api/ops/data-quality/incomplete-matches`, grouped by issue type. Each
-// check is queue-scoped on the backend (lane checks never fire on ARAM), so the
-// list only carries genuine problems. Row click (or a match-ID search /
+// Data Quality panel. Two halves, in the order an operator needs them (#992):
+//
+//  1. A verdict — one line answering "is the database healthy right now?".
+//  2. The automated detectors (#924), severity-ordered, one line each: what the
+//     check is and what it found. Thresholds, source notes and healthy rows sit
+//     behind a per-detector expand, because they are reference material, not
+//     status, and printing them on every card made five passing checks as loud
+//     as five failing ones.
+//  3. The flagged matches from `GET /api/ops/data-quality/incomplete-matches`,
+//     grouped by issue type in an accordion so one table shows at a time. The
+//     queue/age filters and the match-ID search live *in* this section: they
+//     have never applied to the detectors, which audit the whole corpus rather
+//     than a queue-and-age slice, and sitting in the page header they read as if
+//     they did.
+//
+// Each check is queue-scoped on the backend (lane checks never fire on ARAM), so
+// the list only carries genuine problems. Row click (or a match-ID search /
 // deep-link via `?match=ID`) opens a slide-over with the two teams laid out by
 // position and the missing slots highlighted. Read-only diagnostics — no repair.
 import type {
   AggregateFreshnessResponse,
+  BadgeColor,
   DataQualityIssueType,
+  DetectorStatus,
   IssueMeta,
   MatchDataQualityDetail,
-  MatchTeam,
 } from '~~/shared/types/ops'
-import { formatDateTime, formatDuration } from '~~/shared/utils/format'
-
-const { nameFor, iconFor } = useChampionStatic()
+import { formatDateTime } from '~~/shared/utils/format'
 
 // --- Filters -----------------------------------------------------------------
 const issue = ref<'all' | DataQualityIssueType>(ALL)
@@ -25,7 +37,7 @@ const pageSize = 25
 // Issue-type metadata: label, icon, badge color — drives the filter select and
 // the group headers/badges so presentation stays consistent across the panel.
 // `IssueMeta` / `BadgeColor` live in shared/types/ops so this page and
-// DataQualityGroupCard share one definition.
+// DataQualityGroupTable share one definition.
 const ISSUE_META: Record<DataQualityIssueType, IssueMeta> = {
   missingTimeline: {
     label: 'Missing timeline',
@@ -105,15 +117,15 @@ const ageItems = [
   { label: 'Older than 7 days', value: '168' },
 ]
 
-// Queue/age filters shared by every group card; each card pins its own `issue`
-// and owns its independent page (see DataQualityGroupCard).
+// Queue/age filters shared by every group table; each table pins its own `issue`
+// and owns its independent page (see DataQualityGroupTable).
 const baseFilters = computed(() => ({
   queue: queue.value === ALL ? undefined : Number(queue.value),
   minAgeHours: ageWindow.value === ALL ? undefined : Number(ageWindow.value),
 }))
 
 // Overview fetch: discovers which issue groups exist and their full counts under
-// the active filters. The per-group rows it returns are unused — each card
+// the active filters. The per-group rows it returns are unused — each table
 // re-fetches its own paged slice — so it stays pinned to page 1.
 const overviewFilters = computed(() => ({
   ...baseFilters.value,
@@ -133,6 +145,10 @@ function resetFilters() {
 
 const { data, pending, error, refresh } = useIncompleteMatches(overviewFilters)
 
+const groups = computed(() => data.value?.groups ?? [])
+const total = computed(() => data.value?.total ?? 0)
+const staleHours = computed(() => data.value?.staleTimelineThresholdHours ?? 6)
+
 // --- Automated detectors (#924) ---------------------------------------------
 // Independent of the filters above: the detectors audit the whole corpus, not a
 // queue-and-age slice of flagged matches.
@@ -144,14 +160,77 @@ const {
 } = useDataQualityDetectors()
 
 const detectors = computed(() => detectorsData.value?.detectors ?? [])
-const worstDetectorStatus = computed(() => {
-  const statuses = detectors.value.map(detector => detector.status)
-  if (statuses.includes('red')) return 'red'
-  if (statuses.includes('amber')) return 'amber'
-  // Unknown outranks green here for the same reason it does on the backend: a
-  // summary badge must not claim clean when part of it was never measured.
-  return statuses.includes('unknown') ? 'unknown' : 'green'
+
+// Worst first. `unknown` outranks green for the same reason it does on the
+// backend — a summary must not read clean when part of it was never measured —
+// but stays below amber: it is a gap in the audit, not a failure.
+const STATUS_RANK: Record<DetectorStatus, number> = { red: 0, amber: 1, unknown: 2, green: 3 }
+const orderedDetectors = computed(
+  () => [...detectors.value].sort((a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status]),
+)
+const failingDetectors = computed(() => orderedDetectors.value.filter(d => d.status !== 'green'))
+const passingDetectors = computed(() => orderedDetectors.value.filter(d => d.status === 'green'))
+
+// Passing checks are collapsed by default: on a healthy corpus the section is
+// one line, and the operator's attention is never spent on the four checks that
+// found nothing.
+const showPassing = ref(false)
+const listedDetectors = computed(
+  () => (showPassing.value ? orderedDetectors.value : failingDetectors.value),
+)
+
+function plural(count: number, one: string, many: string): string {
+  return count === 1 ? one : many
+}
+
+/**
+ * The single line the panel exists to produce. Worded from the counts so it can
+ * never claim clean while something is red, and neutral — not green — when there
+ * is nothing to report on.
+ */
+const verdict = computed<{ tone: 'success' | 'warning' | 'error' | 'neutral', icon: string, title: string }>(() => {
+  const counts = { red: 0, amber: 0, unknown: 0, green: 0 }
+  for (const detector of detectors.value) {
+    counts[detector.status]++
+  }
+
+  if (detectors.value.length === 0) {
+    return { tone: 'neutral', icon: 'i-lucide-circle-help', title: 'No automated checks reported' }
+  }
+  if (counts.red > 0) {
+    return {
+      tone: 'error',
+      icon: 'i-lucide-octagon-alert',
+      title: `${counts.red} ${plural(counts.red, 'check is', 'checks are')} failing`,
+    }
+  }
+  if (counts.amber > 0) {
+    return {
+      tone: 'warning',
+      icon: 'i-lucide-triangle-alert',
+      title: `${counts.amber} ${plural(counts.amber, 'check needs', 'checks need')} attention`,
+    }
+  }
+  if (counts.unknown > 0) {
+    return {
+      tone: 'neutral',
+      icon: 'i-lucide-circle-help',
+      title: `${counts.unknown} ${plural(counts.unknown, 'check', 'checks')} could not be measured`,
+    }
+  }
+  return {
+    tone: 'success',
+    icon: 'i-lucide-shield-check',
+    title: `All ${detectors.value.length} checks pass`,
+  }
 })
+
+const VERDICT_TONE_CLASS: Record<'success' | 'warning' | 'error' | 'neutral', string> = {
+  success: 'text-success',
+  warning: 'text-warning',
+  error: 'text-error',
+  neutral: 'text-muted',
+}
 
 // The per-champion freshness breakdown is the one heavy query, so it loads on an
 // explicit click rather than with the panel.
@@ -191,9 +270,52 @@ function refreshAll() {
   }
 }
 
-const groups = computed(() => data.value?.groups ?? [])
-const total = computed(() => data.value?.total ?? 0)
-const staleHours = computed(() => data.value?.staleTimelineThresholdHours ?? 6)
+// --- Flagged-match groups ----------------------------------------------------
+// Worst first here too, so the group the accordion opens on arrival is the one
+// worth opening: hard inconsistencies (error) before soft ones (warning), then
+// the biggest group.
+const ISSUE_SEVERITY: Record<BadgeColor, number> = {
+  error: 0,
+  warning: 1,
+  info: 2,
+  primary: 3,
+  success: 4,
+  neutral: 5,
+}
+const ISSUE_ICON_CLASS: Record<BadgeColor, string> = {
+  error: 'text-error',
+  warning: 'text-warning',
+  info: 'text-info',
+  primary: 'text-primary',
+  success: 'text-success',
+  neutral: 'text-muted',
+}
+
+const groupItems = computed(() => [...groups.value]
+  .sort((a, b) => {
+    const severity = ISSUE_SEVERITY[ISSUE_META[a.issueType].color]
+      - ISSUE_SEVERITY[ISSUE_META[b.issueType].color]
+    return severity !== 0 ? severity : b.count - a.count
+  })
+  .map(group => ({
+    value: group.issueType,
+    group,
+    meta: ISSUE_META[group.issueType],
+  })))
+
+// One group open at a time. Re-pinned to the worst group whenever the current
+// one leaves the list (a filter change), so the accordion is never left showing
+// nothing with groups available underneath it.
+const openGroup = ref('')
+watch(
+  groupItems,
+  (items) => {
+    if (!items.some(item => item.value === openGroup.value)) {
+      openGroup.value = items[0]?.value ?? ''
+    }
+  },
+  { immediate: true },
+)
 
 // --- Match-ID search / deep link --------------------------------------------
 const matchIdInput = ref('')
@@ -223,40 +345,7 @@ function submitMatchSearch() {
   }
 }
 
-// --- Detail layout helpers ---------------------------------------------------
 const detailTitle = computed(() => detail.value?.matchId ?? detailId.value ?? 'Match detail')
-
-// Identity tint for a team header: blue side stays blue, red side stays red,
-// whatever the result — win/loss is conveyed by the Victory/Defeat badge so
-// "Blue team" can never render red. Unknown team ids stay neutral.
-function teamAccent(teamId: number): string {
-  if (teamId === 100) {
-    return 'text-info'
-  }
-  if (teamId === 200) {
-    return 'text-error'
-  }
-  return 'text-muted'
-}
-function teamLabel(teamId: number, index: number): string {
-  if (teamId === 100) {
-    return 'Blue team'
-  }
-  if (teamId === 200) {
-    return 'Red team'
-  }
-  return `Team ${index + 1}`
-}
-
-// Header count: actual vs expected ("4/5 players") so a short roster reads as
-// short, with members that exist but didn't map onto a lane called out as
-// unplaced instead of being passed off as missing players.
-function teamPlayersLabel(team: MatchTeam): string {
-  const count = team.expectedPlayerCount !== null
-    ? `${team.playerCount}/${team.expectedPlayerCount} players`
-    : `${team.playerCount} ${team.playerCount === 1 ? 'player' : 'players'}`
-  return team.unplacedCount > 0 ? `${count} · ${team.unplacedCount} unplaced` : count
-}
 </script>
 
 <template>
@@ -277,9 +366,102 @@ function teamPlayersLabel(team: MatchTeam): string {
           />
         </template>
       </UDashboardNavbar>
+    </template>
 
-      <UDashboardToolbar>
-        <template #left>
+    <template #body>
+      <!-- The verdict: the one line the panel exists to produce. -->
+      <div v-if="detectorsPending && detectors.length === 0" class="mb-8">
+        <USkeleton class="h-12 w-full max-w-md" />
+      </div>
+      <div v-else-if="!detectorsError" class="mb-8 flex items-start gap-3">
+        <UIcon
+          :name="verdict.icon"
+          class="size-6 shrink-0"
+          :class="VERDICT_TONE_CLASS[verdict.tone]"
+        />
+        <div class="min-w-0">
+          <p class="text-base font-medium" :class="VERDICT_TONE_CLASS[verdict.tone]">
+            {{ verdict.title }}
+          </p>
+          <p class="mt-0.5 text-xs text-muted">
+            {{ detectors.length }} automated {{ plural(detectors.length, 'check', 'checks') }}<template
+              v-if="detectorsData"
+            > · evaluated {{ formatDateTime(detectorsData.evaluatedAtUtc) }}</template><template
+              v-if="!pending && !error"
+            > · {{ total.toLocaleString('en-US') }} flagged {{ plural(total, 'match', 'matches') }}
+              {{ hasActiveFilters ? 'under the active filters' : 'in the scanned window' }}</template>
+          </p>
+        </div>
+      </div>
+
+      <!-- 1. Automated detectors: what the database says about itself. -->
+      <section class="mb-10">
+        <h2 class="mb-3 text-sm font-medium text-highlighted">
+          Automated checks
+        </h2>
+
+        <FetchErrorAlert
+          v-if="detectorsError"
+          :error="detectorsError"
+          title="Failed to load the automated detectors"
+        />
+
+        <div v-else-if="detectorsPending && detectors.length === 0" class="space-y-3">
+          <USkeleton v-for="n in 3" :key="n" class="h-14 w-full" />
+        </div>
+
+        <UCard v-else :ui="{ body: 'py-2' }">
+          <div class="divide-y divide-default">
+            <DataQualityDetectorItem
+              v-for="detector in listedDetectors"
+              :key="detector.key"
+              :detector="detector"
+              drill-down-label="Per-champion breakdown"
+              @drill-down="openFreshness"
+            />
+          </div>
+
+          <div v-if="passingDetectors.length > 0" class="pt-2" :class="listedDetectors.length > 0 ? 'border-t border-default mt-2' : ''">
+            <UButton
+              size="xs"
+              color="neutral"
+              variant="ghost"
+              :icon="showPassing ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
+              :label="showPassing
+                ? 'Hide passing checks'
+                : `Show ${passingDetectors.length} passing ${plural(passingDetectors.length, 'check', 'checks')}`"
+              @click="showPassing = !showPassing"
+            />
+          </div>
+        </UCard>
+      </section>
+
+      <!-- 2. Flagged matches, with the controls that actually govern them. -->
+      <section>
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 class="text-sm font-medium text-highlighted">
+            Flagged matches
+          </h2>
+          <div class="flex items-center gap-2">
+            <UInput
+              v-model="matchIdInput"
+              icon="i-lucide-search"
+              placeholder="Inspect a match by ID (e.g. EUW1_1234567890)"
+              class="w-64 font-mono sm:w-80"
+              @keydown.enter="submitMatchSearch"
+            />
+            <UButton
+              icon="i-lucide-arrow-right"
+              color="neutral"
+              variant="subtle"
+              label="Inspect"
+              :disabled="!matchIdInput.trim()"
+              @click="submitMatchSearch"
+            />
+          </div>
+        </div>
+
+        <div class="mb-4 flex flex-wrap items-center gap-2">
           <USelect
             v-model="issue"
             :items="issueItems"
@@ -301,8 +483,6 @@ function teamPlayersLabel(team: MatchTeam): string {
             placeholder="Age"
             class="w-44"
           />
-        </template>
-        <template #right>
           <UButton
             v-if="hasActiveFilters"
             icon="i-lucide-x"
@@ -311,135 +491,78 @@ function teamPlayersLabel(team: MatchTeam): string {
             label="Clear"
             @click="resetFilters"
           />
-        </template>
-      </UDashboardToolbar>
-    </template>
-
-    <template #body>
-      <FetchErrorAlert
-        v-if="error"
-        :error="error"
-        title="Failed to load data-quality report"
-        class="mb-6"
-      />
-
-      <!-- Automated detectors (#924): the checks that would have caught the last
-           incidents on their own, rather than by someone browsing the site. -->
-      <section class="mb-8">
-        <div class="flex flex-wrap items-center gap-2 mb-3">
-          <h2 class="text-sm font-medium text-highlighted">
-            Automated detectors
-          </h2>
-          <UBadge
-            v-if="!detectorsPending && detectors.length > 0"
-            :color="worstDetectorStatus === 'red'
-              ? 'error'
-              : worstDetectorStatus === 'amber'
-                ? 'warning'
-                : worstDetectorStatus === 'unknown' ? 'neutral' : 'success'"
-            variant="subtle"
-            :label="worstDetectorStatus === 'green'
-              ? 'All checks pass'
-              : worstDetectorStatus === 'unknown'
-                ? 'Partly unmeasured'
-                : 'Needs attention'"
-          />
-          <span v-if="detectorsData" class="text-xs text-dimmed">
-            Evaluated {{ formatDateTime(detectorsData.evaluatedAtUtc) }}
-          </span>
+          <p class="ms-auto text-xs text-dimmed">
+            A missing timeline is only flagged once older than {{ staleHours }}h.
+          </p>
         </div>
 
         <FetchErrorAlert
-          v-if="detectorsError"
-          :error="detectorsError"
-          title="Failed to load the automated detectors"
-          class="mb-4"
+          v-if="error"
+          :error="error"
+          title="Failed to load data-quality report"
         />
 
-        <div v-else-if="detectorsPending && detectors.length === 0" class="grid gap-4 lg:grid-cols-2">
-          <USkeleton v-for="n in 4" :key="n" class="h-48 w-full" />
+        <!-- Loading skeleton -->
+        <div v-else-if="pending && groups.length === 0" class="space-y-3">
+          <USkeleton v-for="n in 3" :key="n" class="h-12 w-full" />
         </div>
 
-        <div v-else class="grid gap-4 lg:grid-cols-2">
-          <DataQualityDetectorCard
-            v-for="detector in detectors"
-            :key="detector.key"
-            :detector="detector"
-            drill-down-label="Per-champion breakdown"
-            @drill-down="openFreshness"
-          />
+        <!-- Empty state -->
+        <div v-else-if="groups.length === 0" class="py-12 text-center">
+          <UIcon name="i-lucide-shield-check" class="mx-auto mb-3 size-8 text-success/70" />
+          <p class="text-sm font-medium text-highlighted">
+            No incomplete or inconsistent matches found.
+          </p>
+          <p class="mt-1 text-xs text-muted">
+            Nothing in the scanned window trips the active checks.
+          </p>
         </div>
+
+        <!-- One accordion item per flagged issue type: the worst group opens on
+             arrival, and only that group's table is mounted — so a single fetch
+             runs instead of one per group. -->
+        <UCard v-else :ui="{ body: 'py-0' }">
+          <UAccordion
+            v-model="openGroup"
+            :items="groupItems"
+            :ui="{ trigger: 'py-3 gap-3', label: 'flex-1 min-w-0', body: 'pb-4' }"
+          >
+            <template #default="{ item }">
+              <span class="flex w-full min-w-0 items-center gap-3">
+                <UIcon
+                  :name="item.meta.icon"
+                  class="size-4 shrink-0"
+                  :class="ISSUE_ICON_CLASS[item.meta.color]"
+                />
+                <span class="shrink-0 text-sm font-medium text-highlighted">
+                  {{ item.meta.label }}
+                </span>
+                <span class="hidden min-w-0 truncate text-xs font-normal text-muted sm:block">
+                  {{ item.meta.description }}
+                </span>
+                <UBadge
+                  class="ms-auto shrink-0"
+                  :color="item.meta.color"
+                  variant="subtle"
+                  :label="`${item.group.count.toLocaleString('en-US')} ${plural(item.group.count, 'match', 'matches')}`"
+                />
+              </span>
+            </template>
+
+            <template #body="{ item }">
+              <DataQualityGroupTable
+                :issue-type="item.group.issueType"
+                :count="item.group.count"
+                :base-filters="baseFilters"
+                :page-size="pageSize"
+                :meta="ISSUE_META"
+                :queue-label="queueLabel"
+                @select="openDetail"
+              />
+            </template>
+          </UAccordion>
+        </UCard>
       </section>
-
-      <!-- Match-ID lookup / deep-link -->
-      <div class="flex flex-wrap items-center gap-3 mb-6">
-        <UInput
-          v-model="matchIdInput"
-          icon="i-lucide-search"
-          placeholder="Inspect a match by ID (e.g. EUW1_1234567890)"
-          class="w-full sm:w-96 font-mono"
-          @keydown.enter="submitMatchSearch"
-        />
-        <UButton
-          icon="i-lucide-arrow-right"
-          color="neutral"
-          variant="subtle"
-          label="Inspect"
-          :disabled="!matchIdInput.trim()"
-          @click="submitMatchSearch"
-        />
-      </div>
-
-      <!-- Summary -->
-      <div class="flex flex-wrap items-center gap-2 mb-5">
-        <UBadge
-          v-if="!pending"
-          :color="total === 0 ? 'success' : 'neutral'"
-          variant="subtle"
-          :icon="total === 0 ? 'i-lucide-circle-check' : 'i-lucide-flag'"
-          :label="total === 0
-            ? 'No issues in the scanned window'
-            : `${total.toLocaleString('en-US')} flagged ${total === 1 ? 'match' : 'matches'}`"
-        />
-        <span class="text-xs text-dimmed">
-          A missing timeline is only flagged once older than {{ staleHours }}h.
-        </span>
-      </div>
-
-      <!-- Empty state -->
-      <div
-        v-if="!pending && groups.length === 0 && !error"
-        class="py-16 text-center"
-      >
-        <UIcon name="i-lucide-shield-check" class="size-10 text-success/70 mx-auto mb-3" />
-        <p class="text-sm text-highlighted font-medium">
-          No incomplete or inconsistent matches found.
-        </p>
-        <p class="text-xs text-muted mt-1">
-          Nothing in the scanned window trips the active checks.
-        </p>
-      </div>
-
-      <!-- Loading skeleton -->
-      <div v-else-if="pending && groups.length === 0" class="space-y-4">
-        <USkeleton v-for="n in 3" :key="n" class="h-40 w-full" />
-      </div>
-
-      <!-- One card per flagged issue type. Each card fetches and paginates its
-           OWN match slice, so a small group never shows an empty page. -->
-      <div v-else class="space-y-6">
-        <DataQualityGroupCard
-          v-for="group in groups"
-          :key="group.issueType"
-          :issue-type="group.issueType"
-          :count="group.count"
-          :base-filters="baseFilters"
-          :page-size="pageSize"
-          :meta="ISSUE_META"
-          :queue-label="queueLabel"
-          @select="openDetail"
-        />
-      </div>
 
       <!-- Per-match detail slide-over: teams by position, gaps highlighted -->
       <USlideover
@@ -448,198 +571,14 @@ function teamPlayersLabel(team: MatchTeam): string {
         :ui="{ content: 'sm:max-w-2xl' }"
       >
         <template #body>
-          <div v-if="detailPending" class="space-y-4">
-            <USkeleton class="h-16 w-full" />
-            <USkeleton class="h-64 w-full" />
-          </div>
-
-          <FetchErrorAlert
-            v-else-if="detailError"
-            :message="detailError"
-            :trace-id="detailErrorTraceId"
-            title="Could not load match"
+          <DataQualityMatchDetail
+            :detail="detail"
+            :pending="detailPending"
+            :error="detailError"
+            :error-trace-id="detailErrorTraceId"
+            :meta="ISSUE_META"
+            :queue-label="queueLabel"
           />
-
-          <div v-else-if="detail" class="space-y-5">
-            <!-- Header facts -->
-            <dl class="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-              <div>
-                <dt class="text-muted text-xs uppercase mb-0.5">Region</dt>
-                <dd class="font-mono text-xs">{{ detail.platformId }}</dd>
-              </div>
-              <div>
-                <dt class="text-muted text-xs uppercase mb-0.5">Queue</dt>
-                <dd>
-                  {{ queueLabel(detail.queueId) }}
-                  <span v-if="detail.queueId !== 0" class="text-dimmed">({{ detail.queueId }})</span>
-                  <span v-else class="block text-xs text-dimmed mt-0.5">
-                    Riot sent no queue id — the game likely aborted before stats were recorded.
-                  </span>
-                </dd>
-              </div>
-              <div>
-                <dt class="text-muted text-xs uppercase mb-0.5">Played</dt>
-                <dd class="tabular-nums text-xs">{{ formatDateTime(detail.gameStartTimeUtc) }}</dd>
-              </div>
-              <div>
-                <dt class="text-muted text-xs uppercase mb-0.5">Duration</dt>
-                <dd
-                  class="tabular-nums text-xs"
-                  :class="detail.gameDurationSeconds <= 0 ? 'text-error font-medium' : ''"
-                >
-                  {{ detail.gameDurationSeconds <= 0
-                    ? '0 (no length recorded)'
-                    : formatDuration(detail.gameDurationSeconds * 1000) }}
-                </dd>
-              </div>
-              <div>
-                <dt class="text-muted text-xs uppercase mb-0.5">Players</dt>
-                <dd
-                  class="tabular-nums text-xs"
-                  :class="detail.expectedParticipantCount !== null
-                    && detail.participantCount !== detail.expectedParticipantCount
-                    ? 'text-error font-medium'
-                    : ''"
-                >
-                  {{ detail.participantCount }}<template
-                    v-if="detail.expectedParticipantCount !== null"
-                  >&nbsp;/&nbsp;{{ detail.expectedParticipantCount }} expected</template>
-                </dd>
-              </div>
-              <div>
-                <dt class="text-muted text-xs uppercase mb-0.5">Timeline</dt>
-                <dd>
-                  <UBadge
-                    :color="detail.timelineIngested ? 'success' : 'warning'"
-                    variant="subtle"
-                    size="sm"
-                    :icon="detail.timelineIngested ? 'i-lucide-check' : 'i-lucide-clock-alert'"
-                    :label="detail.timelineIngested ? 'Ingested' : 'Missing'"
-                  />
-                </dd>
-              </div>
-            </dl>
-
-            <!-- Flagged issues for this match -->
-            <div v-if="detail.issues.length > 0">
-              <p class="text-muted text-xs uppercase mb-1.5">Flagged issues</p>
-              <div class="flex flex-wrap gap-1.5">
-                <UBadge
-                  v-for="type in detail.issues"
-                  :key="type"
-                  :color="ISSUE_META[type].color"
-                  variant="subtle"
-                  size="sm"
-                  :icon="ISSUE_META[type].icon"
-                  :label="ISSUE_META[type].label"
-                />
-              </div>
-            </div>
-            <UAlert
-              v-else
-              color="success"
-              variant="subtle"
-              icon="i-lucide-circle-check"
-              title="No issues"
-              description="This match passes every applicable check."
-            />
-
-            <!-- Teams laid out by position -->
-            <div v-if="detail.teams.length > 0" class="space-y-4">
-              <p class="text-muted text-xs uppercase">
-                {{ detail.hasLanes ? 'Teams by position' : 'Teams' }}
-              </p>
-              <div
-                v-for="(team, teamIndex) in detail.teams"
-                :key="team.teamId"
-                class="rounded-lg border border-default overflow-hidden"
-              >
-                <div class="flex items-center justify-between gap-3 px-3 py-2 bg-elevated/30">
-                  <div class="flex items-center gap-2 min-w-0">
-                    <p class="text-xs font-medium truncate" :class="teamAccent(team.teamId)">
-                      {{ teamLabel(team.teamId, teamIndex) }}
-                      <span class="text-dimmed font-normal">· team {{ team.teamId }}</span>
-                    </p>
-                    <UBadge
-                      v-if="team.win !== null"
-                      :color="team.win ? 'success' : 'error'"
-                      variant="subtle"
-                      size="sm"
-                      :label="team.win ? 'Victory' : 'Defeat'"
-                    />
-                  </div>
-                  <span
-                    class="text-xs whitespace-nowrap"
-                    :class="team.expectedPlayerCount !== null
-                      && team.playerCount !== team.expectedPlayerCount
-                      ? 'text-error font-medium'
-                      : 'text-muted'"
-                  >
-                    {{ teamPlayersLabel(team) }}
-                  </span>
-                </div>
-                <ul class="divide-y divide-default">
-                  <li
-                    v-for="(slot, slotIndex) in team.slots"
-                    :key="`${slot.position}-${slot.participantId ?? slotIndex}`"
-                    class="flex items-center gap-3 px-3 py-2"
-                    :class="!slot.filled ? 'bg-error/5' : slot.duplicateChampion ? 'bg-warning/5' : ''"
-                  >
-                    <!-- Position label (lane queues) -->
-                    <div
-                      v-if="detail.hasLanes"
-                      class="w-20 shrink-0 text-xs font-medium uppercase"
-                      :class="slot.filled ? 'text-muted' : 'text-error'"
-                    >
-                      {{ slot.position || 'UNKNOWN' }}
-                    </div>
-
-                    <!-- Filled slot: champion + summoner -->
-                    <template v-if="slot.filled">
-                      <NuxtImg
-                        v-if="slot.championId !== null && iconFor(slot.championId)"
-                        :src="iconFor(slot.championId)!"
-                        :alt="nameFor(slot.championId)"
-                        width="24"
-                        height="24"
-                        loading="lazy"
-                        class="size-6 rounded ring-1 ring-default shrink-0"
-                      />
-                      <div
-                        v-else
-                        class="size-6 rounded bg-elevated ring-1 ring-default shrink-0"
-                      />
-                      <div class="min-w-0 flex-1">
-                        <p class="text-xs text-highlighted truncate">
-                          {{ slot.championId !== null ? nameFor(slot.championId) : '—' }}
-                        </p>
-                        <p class="text-xs text-muted truncate">
-                          {{ slot.summonerName || '—' }}
-                        </p>
-                      </div>
-                      <UBadge
-                        v-if="slot.duplicateChampion"
-                        color="warning"
-                        variant="subtle"
-                        size="sm"
-                        icon="i-lucide-copy"
-                        label="Duplicate"
-                      />
-                    </template>
-
-                    <!-- Empty slot: a highlighted gap -->
-                    <template v-else>
-                      <UIcon name="i-lucide-circle-slash" class="size-6 text-error/60 shrink-0" />
-                      <span class="text-xs text-error italic">Missing</span>
-                    </template>
-                  </li>
-                </ul>
-              </div>
-            </div>
-            <p v-else class="text-sm text-muted">
-              No participant rows recorded for this match.
-            </p>
-          </div>
         </template>
       </USlideover>
 
@@ -650,72 +589,11 @@ function teamPlayersLabel(team: MatchTeam): string {
         :ui="{ content: 'sm:max-w-xl' }"
       >
         <template #body>
-          <div v-if="freshnessPending" class="space-y-3">
-            <USkeleton v-for="n in 6" :key="n" class="h-10 w-full" />
-          </div>
-
-          <UAlert
-            v-else-if="freshnessError"
-            color="error"
-            variant="subtle"
-            icon="i-lucide-triangle-alert"
-            title="Failed to load"
-            :description="freshnessError ?? undefined"
+          <DataQualityFreshnessBreakdown
+            :freshness="freshness"
+            :pending="freshnessPending"
+            :error="freshnessError"
           />
-
-          <div v-else-if="freshness" class="space-y-4">
-            <div class="flex flex-wrap items-center gap-2">
-              <UBadge
-                :color="freshness.staleChampionCount === 0 ? 'success' : 'warning'"
-                variant="subtle"
-                :label="`${freshness.staleChampionCount} of ${freshness.championCount} stale`"
-              />
-              <span class="text-xs text-dimmed">
-                Stale after {{ freshness.staleAfterHours }} h · patches
-                {{ freshness.patches.join(', ') || '—' }}
-              </span>
-            </div>
-
-            <p v-if="freshness.champions.length === 0" class="text-sm text-muted">
-              No aggregate rows on the covered patches yet.
-            </p>
-
-            <ul v-else class="divide-default divide-y">
-              <li
-                v-for="row in freshness.champions"
-                :key="`${row.championId}-${row.patch}`"
-                class="flex items-center justify-between gap-3 py-2"
-              >
-                <div class="flex items-center gap-2 min-w-0">
-                  <img
-                    v-if="iconFor(row.championId)"
-                    :src="iconFor(row.championId)!"
-                    :alt="nameFor(row.championId)"
-                    class="size-6 rounded"
-                    loading="lazy"
-                  >
-                  <div class="min-w-0">
-                    <p class="text-xs text-highlighted truncate">
-                      {{ nameFor(row.championId) }}
-                    </p>
-                    <p class="text-xs text-dimmed">
-                      {{ row.patch }} · {{ row.scopeRows }} scope row(s)
-                    </p>
-                  </div>
-                </div>
-                <span
-                  class="text-xs whitespace-nowrap tabular-nums"
-                  :class="row.status === 'red'
-                    ? 'text-error'
-                    : row.status === 'amber' ? 'text-warning' : 'text-success'"
-                >
-                  {{ row.ageHours < 48
-                    ? `${row.ageHours.toFixed(1)} h ago`
-                    : `${(row.ageHours / 24).toFixed(1)} d ago` }}
-                </span>
-              </li>
-            </ul>
-          </div>
         </template>
       </USlideover>
     </template>

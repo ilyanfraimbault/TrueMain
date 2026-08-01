@@ -1,8 +1,13 @@
 <script setup lang="ts">
-// One issue-type card in the Data Quality panel. Owns its OWN pagination and
-// fetches its OWN paged slice (`issue=<type>&page=<n>`), so a small group never
-// renders an empty page just because a sibling group has more rows — each group
-// paginates independently against its own match count.
+// The flagged matches of one issue type. Owns its OWN pagination and fetches its
+// OWN paged slice (`issue=<type>&page=<n>`), so a small group never renders an
+// empty page just because a sibling group has more rows — each group paginates
+// independently against its own match count.
+//
+// Rendered inside the accordion item that names the group (#992), so it carries
+// no header of its own: the summary lives on the always-visible trigger, and the
+// accordion mounts this component only once its group is opened — which is what
+// makes the fetch lazy, one table's worth of rows instead of five on arrival.
 import type { TableColumn } from '@nuxt/ui'
 import type {
   DataQualityIssueType,
@@ -50,8 +55,6 @@ const matches = computed<FlaggedMatch[]>(() => group.value?.matches ?? [])
 // Prefer the live per-issue count, falling back to the parent's overview count.
 const liveCount = computed(() => group.value?.count ?? props.count)
 
-const issueMeta = computed(() => props.meta[props.issueType])
-
 const columns: TableColumn<FlaggedMatch>[] = [
   { accessorKey: 'matchId', header: 'Match' },
   { accessorKey: 'platformId', header: 'Region' },
@@ -63,36 +66,7 @@ const columns: TableColumn<FlaggedMatch>[] = [
 </script>
 
 <template>
-  <UCard :ui="{ body: 'p-0 sm:p-0' }">
-    <template #header>
-      <div class="flex items-center justify-between gap-3">
-        <div class="flex items-center gap-2.5 min-w-0">
-          <UIcon
-            :name="issueMeta.icon"
-            class="size-5 shrink-0"
-            :class="{
-              'text-error': issueMeta.color === 'error',
-              'text-warning': issueMeta.color === 'warning',
-              'text-info': issueMeta.color === 'info',
-            }"
-          />
-          <div class="min-w-0">
-            <p class="text-sm font-medium text-highlighted">
-              {{ issueMeta.label }}
-            </p>
-            <p class="text-xs text-muted line-clamp-1">
-              {{ issueMeta.description }}
-            </p>
-          </div>
-        </div>
-        <UBadge
-          :color="issueMeta.color"
-          variant="subtle"
-          :label="`${liveCount.toLocaleString('en-US')} ${liveCount === 1 ? 'match' : 'matches'}`"
-        />
-      </div>
-    </template>
-
+  <div>
     <UTable
       :data="matches"
       :columns="columns"
@@ -162,18 +136,16 @@ const columns: TableColumn<FlaggedMatch>[] = [
 
     <!-- Independent paginator: only shown when this group spans >1 page, so a
          group that fits on one page never offers an empty second page. -->
-    <template v-if="liveCount > pageSize" #footer>
-      <div class="flex items-center justify-end">
-        <UPagination
-          v-model:page="page"
-          :total="liveCount"
-          :items-per-page="pageSize"
-          :sibling-count="1"
-          active-color="primary"
-          variant="subtle"
-          :disabled="pending"
-        />
-      </div>
-    </template>
-  </UCard>
+    <div v-if="liveCount > pageSize" class="flex items-center justify-end pt-3">
+      <UPagination
+        v-model:page="page"
+        :total="liveCount"
+        :items-per-page="pageSize"
+        :sibling-count="1"
+        active-color="primary"
+        variant="subtle"
+        :disabled="pending"
+      />
+    </div>
+  </div>
 </template>

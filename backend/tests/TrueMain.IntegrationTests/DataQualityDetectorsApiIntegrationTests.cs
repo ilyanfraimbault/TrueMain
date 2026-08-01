@@ -179,6 +179,18 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
         // Every card states the line it drew, so a colour is never the only explanation.
         payload.Detectors.Should().OnlyContain(detector => detector.Thresholds.Count > 0);
 
+        // Every level says which side of it is the bad one, because the panel prints the
+        // line in words and cannot infer the direction from the number.
+        payload.Detectors
+            .SelectMany(detector => detector.Thresholds)
+            .Should().OnlyContain(threshold => threshold.Direction == "above" || threshold.Direction == "below");
+
+        // The one floor among them: a patch is anomalous when its volume falls *below* a
+        // share of the median. Printed as a ceiling it would read as the opposite rule.
+        payload.Detectors.Single(detector => detector.Key == "rowSanity")
+            .Thresholds.Single(threshold => threshold.Unit == "ratio")
+            .Direction.Should().Be("below");
+
         // Nothing has ever run on an empty database, so freshness cannot be green — and
         // its headline must not claim success either. A card whose colour says "not
         // measured" while its sentence says "everything completed" is the dashboard
@@ -484,6 +496,8 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
         public string Label { get; init; } = string.Empty;
         public double? Amber { get; init; }
         public double? Red { get; init; }
+        public string Direction { get; init; } = string.Empty;
+        public string Unit { get; init; } = string.Empty;
     }
 
     private sealed class FreshnessContract
