@@ -592,6 +592,31 @@ grep -l "TrueMainDbContext" $(find backend/Api/Services -name "*QueryService*.cs
 
 ---
 
+## Admin-portal data lives in Mongo, not Postgres (2026-08-01)
+
+**Decision:** everything stored *for the admin portal* belongs in the Mongo observability database
+(`truemain_logs`), not in the SQL schema. Postgres keeps the TrueMain product data — matches, accounts,
+candidates, aggregates — i.e. what ingestion produces and the public site reads. This finished what #416
+(logs), #93 (Riot usage), crashes and #925 (storage snapshots) started: the last two admin-only tables,
+`process_runs` and `seed_requests`, moved to Mongo collections of the same names.
+
+Consequences that matter later:
+
+- `process_runs` finally has retention (180 d TTL index on `startedAtUtc`) — the SQL table had none and grew
+  forever. `seed_requests` has **no** TTL: it is a functional operator queue, not telemetry, and its store
+  **throws** when Mongo is unconfigured instead of silently dropping an operator's request (the
+  observability stores no-op by design).
+- The ManualSeed claim (`Pending→Resolving`) is a single guarded Mongo update — same no-TOCTOU semantics the
+  SQL `ExecuteUpdate` gave. The Riot-ID idempotency check uses a strength-2 collation (case-insensitive,
+  accent-sensitive) instead of escaped ILIKE.
+- Run summaries are stored as **raw JSON text** (`summaryJson`), not nested BSON, so what the admin renders
+  is byte-identical to what the recorder serialized — no BSON→JSON number reshaping.
+- Documents store Guids and enum names as plain strings, deliberately: shell-readable, and the one-shot
+  SQL→Mongo backfill stays a dumb `row_to_json` transform.
+- The SQL tables were **not dropped in the same PR**: the code switch shipped first (no schema change, no
+  compiled-model churn), the historical rows were copied preprod/prod once the frozen tables had no writers,
+  and a follow-up PR drops the tables + regenerates the compiled model.
+
 ## Keeping these files current
 
 A PR that ships a user-facing feature, removes one, or reverses a decision here **must update

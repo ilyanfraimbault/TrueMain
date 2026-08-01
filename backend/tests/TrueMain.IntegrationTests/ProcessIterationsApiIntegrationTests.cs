@@ -1,8 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
 using Data.Entities;
+using Data.Ops.Mongo;
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using MongoDB.Driver;
 
 namespace TrueMain.IntegrationTests;
 
@@ -11,43 +13,42 @@ public sealed class ProcessIterationsApiIntegrationTests
 {
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
     private readonly PostgresFixture _fixture;
+    private readonly MongoFixture _mongo;
 
-    public ProcessIterationsApiIntegrationTests(PostgresFixture fixture)
+    public ProcessIterationsApiIntegrationTests(PostgresFixture fixture, MongoFixture mongo)
     {
         _fixture = fixture;
+        _mongo = mongo;
     }
 
     [Fact]
     public async Task GetProcessIterationsAsync_GroupsRunsByIteration_NewestFirstWithOrderedChain()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
         var now = DateTime.UtcNow;
         var olderIteration = Guid.NewGuid();
         var newerIteration = Guid.NewGuid();
 
-        await using (var db = _fixture.CreateDbContext())
-        {
+        await Runs().InsertManyAsync(
+        [
             // Older iteration: a completed two-process chain.
-            db.ProcessRuns.AddRange(
-                BuildRun(olderIteration, "Discovery", ProcessRunStatus.Success, now.AddMinutes(-70)),
-                BuildRun(olderIteration, "Scoring", ProcessRunStatus.Success, now.AddMinutes(-68)));
+            BuildRun(olderIteration, "Discovery", ProcessRunStatus.Success, now.AddMinutes(-70)),
+            BuildRun(olderIteration, "Scoring", ProcessRunStatus.Success, now.AddMinutes(-68)),
 
             // Newer iteration, still in flight: Discovery succeeded, Scoring failed,
             // MatchIngestion currently Running. Inserted out of order to prove the
             // endpoint orders the chain by StartedAtUtc, not insert order.
-            db.ProcessRuns.AddRange(
-                BuildRunning(newerIteration, "MatchIngestion", now.AddMinutes(-1)),
-                BuildRun(newerIteration, "Discovery", ProcessRunStatus.Success, now.AddMinutes(-10)),
-                BuildRun(newerIteration, "Scoring", ProcessRunStatus.Failed, now.AddMinutes(-6)));
+            BuildRunning(newerIteration, "MatchIngestion", now.AddMinutes(-1)),
+            BuildRun(newerIteration, "Discovery", ProcessRunStatus.Success, now.AddMinutes(-10)),
+            BuildRun(newerIteration, "Scoring", ProcessRunStatus.Failed, now.AddMinutes(-6)),
 
             // An un-grouped historical run (no iteration) must NOT appear here.
-            db.ProcessRuns.Add(BuildRun(null, "LegacyJob", ProcessRunStatus.Success, now.AddMinutes(-200)));
+            BuildRun(null, "LegacyJob", ProcessRunStatus.Success, now.AddMinutes(-200))
+        ]);
 
-            await db.SaveChangesAsync();
-        }
-
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateClient(factory);
 
         var response = await client.GetAsync("/ops/process-iterations");
@@ -81,24 +82,23 @@ public sealed class ProcessIterationsApiIntegrationTests
     public async Task GetProcessIterationsAsync_FinishedOnly_ExcludesTheInFlightIteration()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
         var now = DateTime.UtcNow;
         var finished = Guid.NewGuid();
         var running = Guid.NewGuid();
 
-        await using (var db = _fixture.CreateDbContext())
-        {
-            // An older completed pass and a newer in-flight one (MatchIngestion is
-            // Running with a fresh heartbeat, so it reads as genuinely running).
-            db.ProcessRuns.AddRange(
-                BuildRun(finished, "Discovery", ProcessRunStatus.Success, now.AddMinutes(-30)),
-                BuildRun(finished, "Scoring", ProcessRunStatus.Success, now.AddMinutes(-28)),
-                BuildRun(running, "Discovery", ProcessRunStatus.Success, now.AddMinutes(-2)),
-                BuildRunning(running, "MatchIngestion", now.AddMinutes(-1)));
-            await db.SaveChangesAsync();
-        }
+        // An older completed pass and a newer in-flight one (MatchIngestion is
+        // Running with a fresh heartbeat, so it reads as genuinely running).
+        await Runs().InsertManyAsync(
+        [
+            BuildRun(finished, "Discovery", ProcessRunStatus.Success, now.AddMinutes(-30)),
+            BuildRun(finished, "Scoring", ProcessRunStatus.Success, now.AddMinutes(-28)),
+            BuildRun(running, "Discovery", ProcessRunStatus.Success, now.AddMinutes(-2)),
+            BuildRunning(running, "MatchIngestion", now.AddMinutes(-1))
+        ]);
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateClient(factory);
 
         // Default: the in-flight pass is included and leads the list.
@@ -121,22 +121,17 @@ public sealed class ProcessIterationsApiIntegrationTests
     public async Task GetProcessIterationsAsync_PagesIterations()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
         var now = DateTime.UtcNow;
-        await using (var db = _fixture.CreateDbContext())
+        // Three iterations, one minute apart.
+        for (var i = 0; i < 3; i++)
         {
-            // Three iterations, one minute apart.
-            for (var i = 0; i < 3; i++)
-            {
-                var id = Guid.NewGuid();
-                db.ProcessRuns.Add(
-                    BuildRun(id, "Discovery", ProcessRunStatus.Success, now.AddMinutes(-i)));
-            }
-
-            await db.SaveChangesAsync();
+            await Runs().InsertOneAsync(
+                BuildRun(Guid.NewGuid(), "Discovery", ProcessRunStatus.Success, now.AddMinutes(-i)));
         }
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateClient(factory);
 
         var pageOne = await GetPayloadAsync(client, "/ops/process-iterations?page=1&pageSize=2");
@@ -154,8 +149,9 @@ public sealed class ProcessIterationsApiIntegrationTests
     public async Task GetProcessIterationsAsync_ShouldRequireOpsApiKey()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("https://localhost")
@@ -185,13 +181,17 @@ public sealed class ProcessIterationsApiIntegrationTests
         return payload!;
     }
 
-    private static ProcessRun BuildRun(
+    private IMongoCollection<ProcessRunDocument> Runs()
+        => _mongo.GetCollection<ProcessRunDocument>(MongoFixture.ProcessRunsCollection);
+
+    private static ProcessRunDocument BuildRun(
         Guid? iterationId,
         string processName,
         ProcessRunStatus status,
         DateTime startedAtUtc)
         => new()
         {
+            Id = Guid.NewGuid(),
             IterationId = iterationId,
             ProcessName = processName,
             StartedAtUtc = startedAtUtc,
@@ -204,9 +204,10 @@ public sealed class ProcessIterationsApiIntegrationTests
     // Fresh heartbeat (mirrors the start, as RecordStartAsync does in production)
     // so the read query reports this as Running rather than mapping a stale beat
     // to Abandoned.
-    private static ProcessRun BuildRunning(Guid? iterationId, string processName, DateTime startedAtUtc)
+    private static ProcessRunDocument BuildRunning(Guid? iterationId, string processName, DateTime startedAtUtc)
         => new()
         {
+            Id = Guid.NewGuid(),
             IterationId = iterationId,
             ProcessName = processName,
             StartedAtUtc = startedAtUtc,
@@ -217,8 +218,17 @@ public sealed class ProcessIterationsApiIntegrationTests
             LastHeartbeatAtUtc = startedAtUtc
         };
 
-    private sealed class ApiWebApplicationFactory(PostgresFixture fixture)
-        : TrueMainWebApplicationFactory<Program>(fixture);
+    // Point the host at the test Mongo container (process runs are read from the
+    // Mongo store) and mute the diagnostic sink so incidental host warnings never
+    // write extra documents.
+    private sealed class ApiWebApplicationFactory(PostgresFixture fixture, MongoFixture mongo)
+        : TrueMainWebApplicationFactory<Program>(
+            fixture,
+            [
+                new KeyValuePair<string, string?>("MongoLogging:ConnectionString", mongo.ConnectionString),
+                new KeyValuePair<string, string?>("MongoLogging:Database", MongoFixture.DatabaseName),
+                new KeyValuePair<string, string?>("MongoLogging:MinimumLevel", "None")
+            ]);
 
     private sealed class IterationsContract
     {

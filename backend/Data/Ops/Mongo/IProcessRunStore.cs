@@ -1,0 +1,132 @@
+using Data.Entities;
+
+namespace Data.Ops.Mongo;
+
+/// <summary>
+/// Mongo-backed store for recorded ingestor process runs (the <c>process_runs</c>
+/// collection). Writes come from the Ingestor's <c>ProcessRunRecorder</c> (plus
+/// the Discovery cadence read); the query methods serve the admin process panels.
+/// Like the rest of the observability store, everything degrades to a no-op /
+/// empty result when Mongo is not configured — process runs are operator-facing
+/// telemetry, and a missing Mongo must never take the pipeline down.
+/// </summary>
+public interface IProcessRunStore
+{
+    /// <summary>Inserts a new run document (the Running start row, or a recovered terminal row).</summary>
+    Task InsertAsync(ProcessRunDocument run, CancellationToken ct);
+
+    /// <summary>
+    /// Finalises the in-flight run in place (finish time, duration, terminal
+    /// status, error, summary). Returns false when no document matched
+    /// <paramref name="id"/> — the caller then records a fresh terminal document so
+    /// the outcome is never lost. Returns true without writing when the store is
+    /// inactive.
+    /// </summary>
+    Task<bool> FinalizeAsync(
+        Guid id,
+        DateTime finishedAtUtc,
+        int durationMs,
+        ProcessRunStatus status,
+        string? error,
+        string? summaryJson,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Refreshes the liveness heartbeat of an in-flight run. Guarded on
+    /// <see cref="ProcessRunStatus.Running"/> so a finished (or reaped) run is
+    /// never resurrected as "fresh".
+    /// </summary>
+    Task TouchHeartbeatAsync(Guid id, DateTime nowUtc, CancellationToken ct);
+
+    /// <summary>
+    /// Flips every still-Running document to <see cref="ProcessRunStatus.Abandoned"/>
+    /// with a real finish time and duration. Called at ingestor startup — the
+    /// single-instance ingestor owns every in-flight run, so anything Running at
+    /// boot died with the previous process. Returns the number of runs abandoned.
+    /// </summary>
+    Task<int> AbandonRunningAsync(DateTime finishedAtUtc, string error, CancellationToken ct);
+
+    /// <summary>
+    /// The start time of the most recent completed (non-Running) run of
+    /// <paramref name="processName"/>, or null when none exists — the Discovery
+    /// cadence gate.
+    /// </summary>
+    Task<DateTime?> GetLastCompletedRunStartAsync(string processName, CancellationToken ct);
+
+    /// <summary>
+    /// One page of runs, newest-first (started desc, id desc), with the total
+    /// count of the filtered set. Filters are optional: exact process name, exact
+    /// raw status, and a started-at lower bound.
+    /// </summary>
+    Task<ProcessRunPage> QueryRunsAsync(
+        string? processName,
+        ProcessRunStatus? status,
+        DateTime? since,
+        int page,
+        int pageSize,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Per-process rollup over the (optionally name-filtered) whole collection:
+    /// the latest run's raw status + heartbeat, last run start, last successful
+    /// finish, and run/failure counts within the window
+    /// (<paramref name="windowStart"/> null = unbounded, true all-time totals).
+    /// Ordered by process name.
+    /// </summary>
+    Task<IReadOnlyList<ProcessRunRollup>> GetRollupsAsync(
+        string? processName,
+        DateTime? windowStart,
+        CancellationToken ct);
+
+    /// <summary>
+    /// One page of iteration headers (iteration-stamped runs grouped by
+    /// <see cref="ProcessRunDocument.IterationId"/>), newest-first by the pass
+    /// start. With <paramref name="finishedOnly"/> an iteration that still has a
+    /// Running run with a heartbeat at or after
+    /// <paramref name="freshHeartbeatCutoff"/> is excluded from the page and the
+    /// total.
+    /// </summary>
+    Task<ProcessIterationHeaderPage> QueryIterationsAsync(
+        int page,
+        int pageSize,
+        bool finishedOnly,
+        DateTime freshHeartbeatCutoff,
+        CancellationToken ct);
+
+    /// <summary>Every run of the given iterations, ordered by start asc then id.</summary>
+    Task<IReadOnlyList<ProcessRunDocument>> GetRunsForIterationsAsync(
+        IReadOnlyCollection<Guid> iterationIds,
+        CancellationToken ct);
+
+    /// <summary>
+    /// The newest run per process (by finish time) among
+    /// <paramref name="processNames"/> — optionally the newest <em>successful</em>
+    /// run. Processes with no matching run are simply absent.
+    /// </summary>
+    Task<IReadOnlyList<ProcessRunDocument>> GetLatestPerProcessAsync(
+        IReadOnlyCollection<string> processNames,
+        bool onlySuccesses,
+        CancellationToken ct);
+}
+
+/// <summary>One page of <see cref="ProcessRunDocument"/>s plus the filtered total.</summary>
+public sealed record ProcessRunPage(IReadOnlyList<ProcessRunDocument> Runs, long Total);
+
+/// <summary>
+/// Per-process rollup row for the admin runs panel. Statuses are raw — the read
+/// service maps a stale-heartbeat Running latest run to Abandoned.
+/// </summary>
+public sealed record ProcessRunRollup(
+    string ProcessName,
+    ProcessRunStatus LatestStatus,
+    DateTime? LatestHeartbeatAtUtc,
+    DateTime LastRunAtUtc,
+    DateTime? LastSuccessAtUtc,
+    long RunCountInWindow,
+    long FailureCountInWindow);
+
+/// <summary>One iteration header (grouping key + pass start) for the chain view.</summary>
+public sealed record ProcessIterationHeader(Guid IterationId, DateTime StartedAtUtc);
+
+/// <summary>One page of iteration headers plus the filtered total.</summary>
+public sealed record ProcessIterationHeaderPage(IReadOnlyList<ProcessIterationHeader> Headers, long Total);

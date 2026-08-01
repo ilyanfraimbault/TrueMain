@@ -4,6 +4,7 @@ using Core.Options;
 using Data;
 using Data.DataQuality;
 using Data.Entities;
+using Data.Ops.Mongo;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
@@ -35,6 +36,7 @@ namespace TrueMain.Services.Ops;
 /// </summary>
 public sealed class DataQualityDetectorsQueryService(
     TrueMainDbContext db,
+    IProcessRunStore processRunStore,
     IOptions<DataQualityDetectorOptions> options,
     IOptions<MainAnalysisOptions> mainAnalysisOptions,
     TimeProvider timeProvider,
@@ -285,21 +287,14 @@ public sealed class DataQualityDetectorsQueryService(
         DateTime now,
         CancellationToken ct)
     {
-        var lastSuccesses = await db.ProcessRuns
-            .AsNoTracking()
-            .Where(run => AggregationProcessNames.Contains(run.ProcessName)
-                && run.Status == ProcessRunStatus.Success)
-            .GroupBy(run => run.ProcessName)
-            .Select(group => new
-            {
-                ProcessName = group.Key,
-                LastSuccessAtUtc = group.Max(run => run.FinishedAtUtc)
-            })
-            .ToListAsync(ct);
+        // The newest successful run per fold, from the Mongo process-run store
+        // (moved off Postgres with the rest of the admin observability data).
+        var lastSuccesses = await processRunStore.GetLatestPerProcessAsync(
+            AggregationProcessNames, onlySuccesses: true, ct);
 
         var byProcess = lastSuccesses.ToDictionary(
-            row => row.ProcessName,
-            row => row.LastSuccessAtUtc,
+            run => run.ProcessName,
+            run => run.FinishedAtUtc,
             StringComparer.Ordinal);
 
         var rows = new List<DataQualityDetectorRowReadModel>();
@@ -427,11 +422,11 @@ public sealed class DataQualityDetectorsQueryService(
 
         // Harvest is what turns orphan participants into candidates, so its silence is the
         // other half of a rising orphan share — same card, own row.
-        var harvestLast = await db.ProcessRuns
-            .AsNoTracking()
-            .Where(run => run.ProcessName == HarvestProcessName && run.Status == ProcessRunStatus.Success)
-            .Select(run => (DateTime?)run.FinishedAtUtc)
-            .MaxAsync(ct);
+        var harvestRuns = await processRunStore.GetLatestPerProcessAsync(
+            [HarvestProcessName], onlySuccesses: true, ct);
+        var harvestLast = harvestRuns is [var latestHarvest, ..]
+            ? (DateTime?)latestHarvest.FinishedAtUtc
+            : null;
         var harvestAge = DataQualityDetectorEvaluator.AgeHours(harvestLast, now);
         var harvestStatus = DataQualityDetectorEvaluator.Classify(
             harvestAge,

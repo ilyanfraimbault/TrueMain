@@ -83,6 +83,7 @@ public sealed class MatchesOverTimeQueryService(TrueMainDbContext db) : IMatches
     // constants ever reach the SQL — never a user-controlled value.
     private static string TruncUnit(MatchTimeGranularity granularity) => granularity switch
     {
+        MatchTimeGranularity.Day => "day",
         MatchTimeGranularity.Week => "week",
         MatchTimeGranularity.Month => "month",
         MatchTimeGranularity.Year => "year",

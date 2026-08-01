@@ -1,6 +1,8 @@
 using AwesomeAssertions;
 using Core.Lol.Identifiers;
 using Data.Entities;
+using Data.Logging.Mongo;
+using Data.Ops.Mongo;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.Discovery;
@@ -8,23 +10,37 @@ using Ingestor.Riot;
 using Ingestor.Riot.Dto;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using MongoDB.Driver;
 
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class ManualSeedProcessIntegrationTests
+public sealed class ManualSeedProcessIntegrationTests : IDisposable
 {
     private readonly PostgresFixture _fixture;
+    private readonly MongoFixture _mongo;
+    private readonly MongoLogContext _context;
 
-    public ManualSeedProcessIntegrationTests(PostgresFixture fixture)
+    public ManualSeedProcessIntegrationTests(PostgresFixture fixture, MongoFixture mongo)
     {
         _fixture = fixture;
+        _mongo = mongo;
+        _context = new MongoLogContext(Microsoft.Extensions.Options.Options.Create(new MongoLoggingOptions
+        {
+            ConnectionString = _mongo.ConnectionString,
+            Database = MongoFixture.DatabaseName,
+            SeedRequestsCollection = MongoFixture.SeedRequestsCollection,
+            Enabled = true
+        }));
     }
+
+    public void Dispose() => _context.Dispose();
 
     [Fact]
     public async Task RunAsync_ResolvableRiotId_UpsertsAccountAndQueuesCandidatesAndMarksIngested()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
         var requestId = Guid.NewGuid();
         await SeedRequestAsync(requestId, "Phantasm", "EUW1", "EUW1");
@@ -59,7 +75,7 @@ public sealed class ManualSeedProcessIntegrationTests
             "seeded candidates are promoted straight to Queued, skipping Scoring");
         candidates.Select(c => c.ChampionId).Should().BeEquivalentTo([64, 157]);
 
-        var request = await db.SeedRequests.SingleAsync(r => r.Id == requestId);
+        var request = await GetRequestAsync(requestId);
         request.Status.Should().Be(SeedRequestStatus.Ingested);
         request.Error.Should().BeNull();
         request.ResolvedPuuid.Should().Be("puuid-seed-1");
@@ -71,6 +87,7 @@ public sealed class ManualSeedProcessIntegrationTests
     public async Task RunAsync_UnresolvableRiotId_MarksFailedWithoutCreatingAccount()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
         var requestId = Guid.NewGuid();
         await SeedRequestAsync(requestId, "Ghost", "NA1", "NA1");
@@ -87,7 +104,7 @@ public sealed class ManualSeedProcessIntegrationTests
         (await db.RiotAccounts.AnyAsync()).Should().BeFalse();
         (await db.MainCandidates.AnyAsync()).Should().BeFalse();
 
-        var request = await db.SeedRequests.SingleAsync(r => r.Id == requestId);
+        var request = await GetRequestAsync(requestId);
         request.Status.Should().Be(SeedRequestStatus.Failed);
         request.Error.Should().Be("Riot ID not found");
         request.ProcessedAtUtc.Should().NotBeNull();
@@ -98,6 +115,7 @@ public sealed class ManualSeedProcessIntegrationTests
     public async Task RunAsync_RiotThrows_MarksFailedWithTruncatedError()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
         var requestId = Guid.NewGuid();
         await SeedRequestAsync(requestId, "Phantasm", "EUW1", "EUW1");
@@ -108,8 +126,7 @@ public sealed class ManualSeedProcessIntegrationTests
 
         await process.RunCoreAsync(CancellationToken.None);
 
-        await using var db = _fixture.CreateDbContext();
-        var request = await db.SeedRequests.SingleAsync(r => r.Id == requestId);
+        var request = await GetRequestAsync(requestId);
         request.Status.Should().Be(SeedRequestStatus.Failed);
         request.Error.Should().Contain("riot exploded");
         request.ProcessedAtUtc.Should().NotBeNull();
@@ -119,6 +136,7 @@ public sealed class ManualSeedProcessIntegrationTests
     public async Task RunAsync_CancelledAfterClaim_ResetsRequestToPendingAndRethrows()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
         var requestId = Guid.NewGuid();
         await SeedRequestAsync(requestId, "Phantasm", "EUW1", "EUW1");
@@ -134,8 +152,7 @@ public sealed class ManualSeedProcessIntegrationTests
         var act = async () => await process.RunCoreAsync(cts.Token);
         await act.Should().ThrowAsync<OperationCanceledException>();
 
-        await using var db = _fixture.CreateDbContext();
-        var request = await db.SeedRequests.SingleAsync(r => r.Id == requestId);
+        var request = await GetRequestAsync(requestId);
         // Reset to Pending so a later run can re-claim it, rather than stranded
         // forever in Resolving.
         request.Status.Should().Be(SeedRequestStatus.Pending);
@@ -148,6 +165,7 @@ public sealed class ManualSeedProcessIntegrationTests
             accountClient,
             platformClient,
             _fixture.CreateSessionFactory(),
+            new SeedRequestStore(_context),
             new AccountUpsertService(),
             new CandidateUpsertService(),
             new NoOpAuditLog(),
@@ -158,10 +176,14 @@ public sealed class ManualSeedProcessIntegrationTests
                 MaxLastPlayDays = 0
             }));
 
+    private IMongoCollection<SeedRequestDocument> Requests()
+        => _mongo.GetCollection<SeedRequestDocument>(MongoFixture.SeedRequestsCollection);
+
+    private async Task<SeedRequestDocument> GetRequestAsync(Guid id)
+        => await Requests().Find(doc => doc.Id == id).SingleAsync();
+
     private async Task SeedRequestAsync(Guid id, string gameName, string tagLine, string platformId)
-    {
-        await using var db = _fixture.CreateDbContext();
-        db.SeedRequests.Add(new SeedRequest
+        => await Requests().InsertOneAsync(new SeedRequestDocument
         {
             Id = id,
             GameName = gameName,
@@ -170,8 +192,6 @@ public sealed class ManualSeedProcessIntegrationTests
             Status = SeedRequestStatus.Pending,
             RequestedAtUtc = DateTime.UtcNow
         });
-        await db.SaveChangesAsync();
-    }
 
     private static RiotChampionMasteryDto Mastery(int championId, long points, int daysAgo)
         => new()

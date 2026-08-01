@@ -1,5 +1,6 @@
 using Data;
 using Data.Entities;
+using Data.Ops.Mongo;
 using Microsoft.EntityFrameworkCore;
 using TrueMain.ReadModels.Ops;
 
@@ -16,7 +17,9 @@ namespace TrueMain.Services.Ops;
 /// ingested <c>MatchParticipant</c> rows and surfaces the manual <c>SeedRequest</c>
 /// that brought the account in, matched on <c>ResolvedPuuid</c> + platform.
 /// </summary>
-public sealed class CandidateQueryService(TrueMainDbContext db) : ICandidateQueryService
+public sealed class CandidateQueryService(
+    TrueMainDbContext db,
+    ISeedRequestStore seedRequestStore) : ICandidateQueryService
 {
     private const int DefaultPageSize = 25;
     private const int MinPageSize = 1;
@@ -140,30 +143,15 @@ public sealed class CandidateQueryService(TrueMainDbContext db) : ICandidateQuer
             .AsNoTracking()
             .LongCountAsync(participant => participant.Puuid == candidate.Puuid, ct);
 
-        // The manual seed request that resolved to this account, if any. Matched on
-        // ResolvedPuuid + PlatformId so an organically-discovered candidate (never
-        // seeded) gets none; newest-first in case the same Riot ID was seeded more
-        // than once across resets.
-        var seedRequest = await db.SeedRequests
-            .AsNoTracking()
-            .Where(request => request.ResolvedPuuid == candidate.Puuid
-                && request.PlatformId == candidate.PlatformId)
-            .OrderByDescending(request => request.RequestedAtUtc)
-            .ThenByDescending(request => request.Id)
-            .Select(request => new SeedRequestReadModel
-            {
-                Id = request.Id,
-                GameName = request.GameName,
-                TagLine = request.TagLine,
-                PlatformId = request.PlatformId,
-                Status = request.Status.ToString(),
-                Error = request.Error,
-                RequestedAtUtc = request.RequestedAtUtc,
-                ProcessedAtUtc = request.ProcessedAtUtc,
-                ResolvedPuuid = request.ResolvedPuuid,
-                ResolvedRiotAccountId = request.ResolvedRiotAccountId
-            })
-            .FirstOrDefaultAsync(ct);
+        // The manual seed request that resolved to this account, if any (from the
+        // Mongo admin store). Matched on ResolvedPuuid + PlatformId so an
+        // organically-discovered candidate (never seeded) gets none; newest-first
+        // in case the same Riot ID was seeded more than once across resets.
+        var seedDocument = await seedRequestStore.GetLatestResolvedForAccountAsync(
+            candidate.Puuid, candidate.PlatformId, ct);
+        var seedRequest = seedDocument is null
+            ? null
+            : SeedRequestQueryService.ToReadModel(seedDocument);
 
         return new CandidateDetailReadModel
         {

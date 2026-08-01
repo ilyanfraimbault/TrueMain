@@ -2,6 +2,7 @@ using Core.Lol.Map;
 using System.Net;
 using System.Text.Json;
 using Data.Entities;
+using Data.Ops.Mongo;
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 
@@ -12,19 +13,22 @@ public sealed class AggregationsApiIntegrationTests
 {
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
     private readonly PostgresFixture _fixture;
+    private readonly MongoFixture _mongo;
 
-    public AggregationsApiIntegrationTests(PostgresFixture fixture)
+    public AggregationsApiIntegrationTests(PostgresFixture fixture, MongoFixture mongo)
     {
         _fixture = fixture;
+        _mongo = mongo;
     }
 
     [Fact]
     public async Task GetAggregationsAsync_ShouldReturnFamiliesRunsAndBacklog()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
         await SeedAggregationsAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateClient(factory);
 
         var response = await client.GetAsync("/ops/stats/aggregations");
@@ -86,8 +90,9 @@ public sealed class AggregationsApiIntegrationTests
     public async Task GetAggregationsAsync_ShouldRequireOpsApiKey()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("https://localhost")
@@ -167,18 +172,23 @@ public sealed class AggregationsApiIntegrationTests
             BuildParticipant("AGG_3", "untracked-puuid", riotAccountId: null, eloBracket: string.Empty,
                 Guid.Parse("bbbbbbbb-0000-0000-0000-000000000003")));
 
-        db.ProcessRuns.AddRange(
-            new ProcessRun
+        await db.SaveChangesAsync();
+
+        await _mongo.GetCollection<ProcessRunDocument>(MongoFixture.ProcessRunsCollection).InsertManyAsync(
+        [
+            new ProcessRunDocument
             {
+                Id = Guid.NewGuid(),
                 ProcessName = "ChampionMatchupLeadAggregation",
                 StartedAtUtc = now.AddHours(-2),
                 FinishedAtUtc = now.AddHours(-2).AddMinutes(3),
                 DurationMs = 180_000,
                 Status = ProcessRunStatus.Success,
-                Summary = JsonDocument.Parse("""{"matchupRows":3,"leadRows":1}""")
+                SummaryJson = """{"matchupRows":3,"leadRows":1}"""
             },
-            new ProcessRun
+            new ProcessRunDocument
             {
+                Id = Guid.NewGuid(),
                 ProcessName = "ChampionMatchupLeadAggregation",
                 StartedAtUtc = now.AddHours(-1),
                 FinishedAtUtc = now.AddHours(-1).AddMinutes(1),
@@ -186,16 +196,16 @@ public sealed class AggregationsApiIntegrationTests
                 Status = ProcessRunStatus.Failed,
                 Error = "boom"
             },
-            new ProcessRun
+            new ProcessRunDocument
             {
+                Id = Guid.NewGuid(),
                 ProcessName = "ChampionPatternAggregation",
                 StartedAtUtc = now.AddHours(-2),
                 FinishedAtUtc = now.AddHours(-2).AddMinutes(5),
                 DurationMs = 300_000,
                 Status = ProcessRunStatus.Success
-            });
-
-        await db.SaveChangesAsync();
+            }
+        ]);
     }
 
     private static ChampionAggregateScope BuildScope(Guid riotAccountId, int championId, string gameVersion, DateTime now)
@@ -302,6 +312,12 @@ public sealed class AggregationsApiIntegrationTests
         return client;
     }
 
-    private sealed class ApiWebApplicationFactory(PostgresFixture fixture)
-        : TrueMainWebApplicationFactory<Program>(fixture);
+    private sealed class ApiWebApplicationFactory(PostgresFixture fixture, MongoFixture mongo)
+        : TrueMainWebApplicationFactory<Program>(
+            fixture,
+            [
+                new KeyValuePair<string, string?>("MongoLogging:ConnectionString", mongo.ConnectionString),
+                new KeyValuePair<string, string?>("MongoLogging:Database", MongoFixture.DatabaseName),
+                new KeyValuePair<string, string?>("MongoLogging:MinimumLevel", "None")
+            ]);
 }

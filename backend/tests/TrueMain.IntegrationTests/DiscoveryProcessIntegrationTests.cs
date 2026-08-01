@@ -35,6 +35,7 @@ public sealed class DiscoveryProcessIntegrationTests
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
+            new FakeProcessRunStore(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
@@ -84,6 +85,7 @@ public sealed class DiscoveryProcessIntegrationTests
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
+            new FakeProcessRunStore(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
@@ -118,6 +120,7 @@ public sealed class DiscoveryProcessIntegrationTests
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
+            new FakeProcessRunStore(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
@@ -199,6 +202,7 @@ public sealed class DiscoveryProcessIntegrationTests
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
+            new FakeProcessRunStore(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
@@ -258,6 +262,7 @@ public sealed class DiscoveryProcessIntegrationTests
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
+            new FakeProcessRunStore(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
@@ -290,6 +295,7 @@ public sealed class DiscoveryProcessIntegrationTests
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
+            new FakeProcessRunStore(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
@@ -327,6 +333,7 @@ public sealed class DiscoveryProcessIntegrationTests
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
+            new FakeProcessRunStore(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {

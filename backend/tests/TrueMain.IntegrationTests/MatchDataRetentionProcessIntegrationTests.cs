@@ -14,6 +14,7 @@ namespace TrueMain.IntegrationTests;
 public sealed class MatchDataRetentionProcessIntegrationTests
 {
     private readonly PostgresFixture _fixture;
+    private readonly FakeProcessRunStore _processRunStore = new();
 
     public MatchDataRetentionProcessIntegrationTests(PostgresFixture fixture)
     {
@@ -42,7 +43,7 @@ public sealed class MatchDataRetentionProcessIntegrationTests
         // two in-window ranked matches survive.
         remainingMatchIds.Should().BeEquivalentTo(["RET_2", "RET_4"]);
         (await db.MatchParticipants.AsNoTracking().CountAsync()).Should().Be(2);
-        (await db.ProcessRuns.AsNoTracking().AnyAsync(run => run.ProcessName == "MatchDataRetention")).Should().BeTrue();
+        _processRunStore.Runs.Should().Contain(run => run.ProcessName == "MatchDataRetention");
     }
 
     [Fact]
@@ -333,7 +334,7 @@ public sealed class MatchDataRetentionProcessIntegrationTests
 
         return new RecordedProcess<MatchDataRetentionProcess>(
             process,
-            new ProcessRunRecorder(_fixture.CreateSessionFactory(), new IterationContext()),
+            new ProcessRunRecorder(_processRunStore, new IterationContext()),
             TimeProvider.System,
             NullLogger<RecordedProcess<MatchDataRetentionProcess>>.Instance);
     }

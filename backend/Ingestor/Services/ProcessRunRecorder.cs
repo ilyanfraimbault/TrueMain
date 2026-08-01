@@ -1,30 +1,28 @@
-using System.Text.Json;
 using Data.Entities;
-using Data.Repositories;
+using Data.Ops.Mongo;
 using Ingestor.Processes.Summaries;
 
 namespace Ingestor.Services;
 
 public sealed class ProcessRunRecorder(
-    IDataSessionFactory sessionFactory,
+    IProcessRunStore store,
     IIterationContext iterationContext) : IProcessRunRecorder
 {
     private const int MaxErrorLength = 2048;
 
     public async Task<Guid> RecordStartAsync(string processName, DateTime startedAtUtc, CancellationToken ct)
     {
-        await using var session = await sessionFactory.CreateAsync(ct);
-
-        var run = new ProcessRun
+        var run = new ProcessRunDocument
         {
+            Id = Guid.NewGuid(),
             ProcessName = processName,
-            // Stamp the in-flight row with the iteration the Worker opened for this
-            // pass (null when recorded outside a pass), so every run of the pass
-            // groups under one iteration in the admin chain view.
+            // Stamp the in-flight document with the iteration the Worker opened for
+            // this pass (null when recorded outside a pass), so every run of the
+            // pass groups under one iteration in the admin chain view.
             IterationId = iterationContext.CurrentIterationId,
             StartedAtUtc = startedAtUtc,
-            // No finish yet; mirror StartedAtUtc as a placeholder (the column is
-            // non-nullable) so the row reads as zero-duration until it completes.
+            // No finish yet; mirror StartedAtUtc as a placeholder so the document
+            // reads as zero-duration until it completes.
             FinishedAtUtc = startedAtUtc,
             DurationMs = 0,
             Status = ProcessRunStatus.Running,
@@ -34,8 +32,7 @@ public sealed class ProcessRunRecorder(
             Host = Environment.MachineName
         };
 
-        session.ProcessRuns.Add(run);
-        await session.SaveChangesAsync(ct);
+        await store.InsertAsync(run, ct);
 
         return run.Id;
     }
@@ -50,93 +47,58 @@ public sealed class ProcessRunRecorder(
         string? error,
         CancellationToken ct)
     {
-        await using var session = await sessionFactory.CreateAsync(ct);
-
-        // Source-generated metadata (#268), and straight to a JsonDocument rather
-        // than serializing to a string and re-parsing it.
-        JsonDocument? summaryDoc = summary is null ? null : ProcessRunSummaryJson.ToDocument(summary);
+        // Source-generated metadata (#268), persisted as the raw JSON text.
+        var summaryJson = summary is null ? null : ProcessRunSummaryJson.Serialize(summary);
 
         // Clamp before the int cast: an extreme span (e.g. a very stale run) could
         // exceed int.MaxValue ms (~24.8 days) and overflow into a negative duration.
         var durationMs = (int)Math.Clamp((finishedAtUtc - startedAtUtc).TotalMilliseconds, 0, int.MaxValue);
         var truncatedError = Truncate(error, MaxErrorLength);
 
-        // Finalise the in-flight Running row in place. If the lookup misses (the
-        // row was pruned by retention before completion, or runId isn't a real
-        // id) fall back to inserting a fresh terminal row so the outcome is never
-        // lost. FindAsync returns null for a non-existent key, so no Guid.Empty
-        // special-case is needed.
-        var existing = await session.ProcessRuns.GetByIdAsync(runId, ct);
+        // Finalise the in-flight Running document in place. If the update misses
+        // (the document was reaped by the TTL before completion, or runId isn't a
+        // real id) fall back to inserting a fresh terminal document so the outcome
+        // is never lost.
+        var finalized = await store.FinalizeAsync(
+            runId, finishedAtUtc, durationMs, status, truncatedError, summaryJson, ct);
 
-        if (existing is null)
+        if (!finalized)
         {
-            session.ProcessRuns.Add(new ProcessRun
-            {
-                ProcessName = processName,
-                // The original Running row (which carried the iteration) is gone;
-                // re-stamp from the still-current pass so the recovered terminal
-                // row stays grouped with its iteration.
-                IterationId = iterationContext.CurrentIterationId,
-                StartedAtUtc = startedAtUtc,
-                FinishedAtUtc = finishedAtUtc,
-                DurationMs = durationMs,
-                Status = status,
-                Error = truncatedError,
-                Host = Environment.MachineName,
-                Summary = summaryDoc
-            });
+            await store.InsertAsync(
+                new ProcessRunDocument
+                {
+                    Id = runId == Guid.Empty ? Guid.NewGuid() : runId,
+                    ProcessName = processName,
+                    // The original Running document (which carried the iteration) is
+                    // gone; re-stamp from the still-current pass so the recovered
+                    // terminal document stays grouped with its iteration.
+                    IterationId = iterationContext.CurrentIterationId,
+                    StartedAtUtc = startedAtUtc,
+                    FinishedAtUtc = finishedAtUtc,
+                    DurationMs = durationMs,
+                    Status = status,
+                    Error = truncatedError,
+                    Host = Environment.MachineName,
+                    SummaryJson = summaryJson
+                },
+                ct);
         }
-        else
-        {
-            existing.FinishedAtUtc = finishedAtUtc;
-            existing.DurationMs = durationMs;
-            existing.Status = status;
-            existing.Error = truncatedError;
-            existing.Summary = summaryDoc;
-        }
-
-        await session.SaveChangesAsync(ct);
     }
 
-    public async Task HeartbeatAsync(Guid runId, CancellationToken ct)
-    {
-        await using var session = await sessionFactory.CreateAsync(ct);
+    public Task HeartbeatAsync(Guid runId, CancellationToken ct)
+        // Guarded on Status == Running inside the store: a no-op when the document
+        // is gone (reaped) or already terminal — only an in-flight Running document
+        // carries a meaningful heartbeat, and refreshing a finished one would
+        // resurrect it as "fresh".
+        => store.TouchHeartbeatAsync(runId, DateTime.UtcNow, ct);
 
-        // Set-based UPDATE guarded on Status == Running: no read round-trip, and a
-        // no-op when the row is gone (pruned) or already terminal — only an
-        // in-flight Running row carries a meaningful heartbeat, and refreshing a
-        // finished row would resurrect it as "fresh".
-        await session.ProcessRuns.TouchHeartbeatAsync(runId, DateTime.UtcNow, ct);
-    }
-
-    public async Task<int> ReconcileOrphanedRunsAsync(CancellationToken ct)
-    {
-        await using var session = await sessionFactory.CreateAsync(ct);
-
+    public Task<int> ReconcileOrphanedRunsAsync(CancellationToken ct)
         // Single-instance ingestor: anything still Running at startup was owned by
-        // the previous process that is now gone, so it can never complete. Flip
-        // every such row to Abandoned with a real finish time and duration so it
-        // stops reading as perpetually in-flight.
-        var orphaned = await session.ProcessRuns.GetRunningAsync(ct);
-        if (orphaned.Count == 0)
-        {
-            return 0;
-        }
-
-        var finishedAtUtc = DateTime.UtcNow;
-        foreach (var run in orphaned)
-        {
-            run.FinishedAtUtc = finishedAtUtc;
-            // Clamp before the int cast: an orphaned run can be arbitrarily old, and
-            // a span over int.MaxValue ms (~24.8 days) would overflow to negative.
-            run.DurationMs = (int)Math.Clamp((finishedAtUtc - run.StartedAtUtc).TotalMilliseconds, 0, int.MaxValue);
-            run.Status = ProcessRunStatus.Abandoned;
-            run.Error = "Abandoned: ingestor restarted while this run was in flight.";
-        }
-
-        await session.SaveChangesAsync(ct);
-        return orphaned.Count;
-    }
+        // the previous process that is now gone, so it can never complete.
+        => store.AbandonRunningAsync(
+            DateTime.UtcNow,
+            "Abandoned: ingestor restarted while this run was in flight.",
+            ct);
 
     private static string? Truncate(string? value, int maxLength)
     {

@@ -103,7 +103,7 @@ export function useChampionStats(
 
 /**
  * `GET /api/ops/stats/matches-over-time` — match counts bucketed by game date at
- * the given granularity (week/month/year/patch), returned chronologically. Pass a
+ * the given granularity (day/week/month/year/patch), returned chronologically. Pass a
  * reactive ref/getter so the chart re-fetches when the granularity changes.
  */
 export function useMatchesOverTime(

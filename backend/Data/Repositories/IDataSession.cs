@@ -13,9 +13,7 @@ public interface IDataSession : IAsyncDisposable
     IMatchParticipantKillPositionRepository MatchParticipantKillPositions { get; }
     IJungleFirstClearRepository JungleFirstClears { get; }
     IMatchBanRepository MatchBans { get; }
-    IProcessRunRepository ProcessRuns { get; }
     IRankSnapshotRepository RankSnapshots { get; }
-    ISeedRequestRepository SeedRequests { get; }
     IDiscoveryCursorRepository DiscoveryCursors { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct);

@@ -16,6 +16,8 @@ public sealed class MongoFixture : IAsyncLifetime
     public const string LogsCollection = "logs";
     public const string AuditCollection = "audit_events";
     public const string RiotApiCallsCollection = "riot_api_call_rollups";
+    public const string ProcessRunsCollection = "process_runs";
+    public const string SeedRequestsCollection = "seed_requests";
 
     private readonly MongoDbContainer _container = new MongoDbBuilder("mongo:8.0")
         // Match PostgresFixture's reasoning: keep Testcontainers' Ryuk reaper
@@ -63,5 +65,7 @@ public sealed class MongoFixture : IAsyncLifetime
         await db.DropCollectionAsync(LogsCollection);
         await db.DropCollectionAsync(AuditCollection);
         await db.DropCollectionAsync(RiotApiCallsCollection);
+        await db.DropCollectionAsync(ProcessRunsCollection);
+        await db.DropCollectionAsync(SeedRequestsCollection);
     }
 }
