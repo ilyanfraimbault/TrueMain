@@ -46,6 +46,40 @@ public sealed class MatchDataRetentionProcessIntegrationTests
     }
 
     [Fact]
+    public async Task RunAsync_ShouldDrainOutOfWindowRankedMatchesAcrossMultipleBatches()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        // Several out-of-window ranked matches on an old patch plus one in-window match.
+        // With PatchExpiredDeleteBatchSize = 1 (the test builder) the expired drain runs
+        // one transaction per match, so every one must go rather than a single unbounded
+        // delete that would blow the command timeout on a real backlog (#982).
+        var now = DateTime.UtcNow;
+        await using (var seedDb = _fixture.CreateDbContext())
+        {
+            for (var index = 0; index < 5; index++)
+            {
+                var id = $"OLD_{index}";
+                seedDb.Matches.Add(BuildMatch(id, "KR", now.AddDays(-10), "16.3.7"));
+                seedDb.MatchParticipants.Add(BuildParticipant(
+                    Guid.Parse($"88888888-8888-8888-8888-8888888880{index:D2}"), id));
+            }
+
+            seedDb.Matches.Add(BuildMatch("KEEP_1", "KR", now, "16.4.2"));
+            seedDb.MatchParticipants.Add(BuildParticipant(
+                Guid.Parse("88888888-8888-8888-8888-888888889001"), "KEEP_1"));
+            await seedDb.SaveChangesAsync();
+        }
+
+        await BuildRecordedProcess(retainedPatchCount: 1).RunCoreAsync(CancellationToken.None);
+
+        await using var db = _fixture.CreateDbContext();
+        (await db.Matches.AsNoTracking().OrderBy(match => match.Id).Select(match => match.Id).ToListAsync())
+            .Should().BeEquivalentTo(["KEEP_1"]);
+        (await db.MatchParticipants.AsNoTracking().CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
     public async Task RunAsync_ShouldDrainNonRankedMatchesEvenWithNoRankedMatchesPresent()
     {
         await _fixture.ResetDatabaseAsync();
@@ -317,6 +351,7 @@ public sealed class MatchDataRetentionProcessIntegrationTests
             {
                 RetainedPatchCount = retainedPatchCount,
                 NonRankedDeleteBatchSize = 1,
+                PatchExpiredDeleteBatchSize = 1,
                 AggregateRetainedPatchCount = aggregateRetainedPatchCount
             }),
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions

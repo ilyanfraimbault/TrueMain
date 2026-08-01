@@ -17,6 +17,19 @@ public class MatchDataRetentionOptions
     public int NonRankedDeleteBatchSize { get; set; } = 500;
 
     /// <summary>
+    /// Number of expired (out-of-window patch) matches deleted per transaction when
+    /// draining the tracked queue's stale patches. Kept small for the same reason as
+    /// <see cref="NonRankedDeleteBatchSize"/>: the cascading delete of a match's child
+    /// rows (timeline snapshots / kill positions / jungle clears / perk selections /
+    /// bans) makes a single unbounded delete a lock, WAL and command-timeout hazard —
+    /// once a whole patch drops out of the window the id list is large enough to blow
+    /// the 300s command timeout, which never commits, so the backlog never shrinks and
+    /// every run re-times-out (#982). Batching makes incremental, committed progress
+    /// across batches (and across runs if interrupted).
+    /// </summary>
+    public int PatchExpiredDeleteBatchSize { get; set; } = 500;
+
+    /// <summary>
     /// Number of most-recent patches whose champion aggregates (scopes+patterns,
     /// matchup stats, timeline leads, powerspike stats) are retained. <c>0</c>
     /// (the default) disables aggregate retention entirely: old-patch aggregates
