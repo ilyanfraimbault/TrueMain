@@ -41,26 +41,51 @@ const emit = defineEmits<{
   'update:open': [value: boolean]
 }>()
 
-const PAGE_SIZE = 10
+// A full drawer's worth of rows. The API caps a page at 25; this is sized to
+// fill the viewport height the drawer now takes rather than to a round number,
+// so a typical desktop sees the whole page without scrolling.
+const PAGE_SIZE = 13
 
 const { data, isLoading, error, fetchPage, clear } = useCompositionBuildGames()
 const page = ref(1)
 
+// The list owns its own scrolling (the drawer body just clips) so a page change
+// can put the reader back at the top — landing on page 2 halfway down the list
+// reads as "nothing happened".
+const listEl = useTemplateRef<HTMLElement>('listEl')
+
+// Identity of the selection the currently-held page was fetched for. The draft
+// *is* the identity — same draft, same games — so comparing serialised drafts
+// tells us whether what we already have still answers the question.
+const draftKey = computed(() =>
+  props.draftRequest ? JSON.stringify(props.draftRequest) : null)
+const loadedDraftKey = ref<string | null>(null)
+
 function loadPage(targetPage: number) {
   if (props.championId === null || !props.draftRequest) return
   page.value = targetPage
+  loadedDraftKey.value = draftKey.value
   void fetchPage(props.championId, props.draftRequest, targetPage, PAGE_SIZE)
+    .finally(() => {
+      listEl.value?.scrollTo({ top: 0 })
+    })
 }
 
-// Fetch on open, and again if the draft changes while the drawer stays open
-// (a debounced recommendation can still land while the user is browsing the
-// list) — closed, it just goes stale and refetches from page 1 next open.
+// Fetch on open — but only when what we hold no longer answers the current
+// draft. Reopening the drawer on an unchanged draft used to re-pay the whole
+// fetch for a page already sitting in memory.
 watch(() => props.open, (isOpen) => {
-  if (isOpen) loadPage(1)
+  if (!isOpen) return
+  if (data.value && loadedDraftKey.value === draftKey.value) return
+  loadPage(1)
 })
-watch(() => props.draftRequest, () => {
+
+// Watched on the serialised draft, not the object: the parent re-creates the
+// request object on every draft edit, so a deep watch on the reference fired
+// on re-renders that changed nothing and reset the reader to page 1.
+watch(draftKey, () => {
   if (props.open) loadPage(1)
-}, { deep: true })
+})
 
 onBeforeUnmount(clear)
 
@@ -117,13 +142,16 @@ function pilotIconUrl(pilot: CompositionGamePilot | null): string | null {
       // the body and the pagination stays pinned in the footer, instead of the
       // whole column scrolling and the pager drifting off the bottom.
       container: 'h-full min-h-0 gap-3 overflow-hidden',
-      body: 'min-h-0 flex-1 overflow-y-auto',
+      body: 'min-h-0 flex-1 overflow-hidden',
       footer: 'shrink-0',
     }"
     @update:open="emit('update:open', $event)"
   >
     <template #body>
-      <div class="flex flex-col gap-2 pb-1">
+      <div
+        ref="listEl"
+        class="flex h-full flex-col gap-2 overflow-y-auto pb-1"
+      >
         <UAlert
           v-if="error"
           color="error"
@@ -132,8 +160,12 @@ function pilotIconUrl(pilot: CompositionGamePilot | null): string | null {
           :description="describeFetchError(error)"
         />
 
-        <template v-if="isLoading && !data">
-          <MatchRowSkeleton v-for="i in 4" :key="`games-drawer-skel-${i}`" />
+        <!-- Skeletons on *every* fetch, not just the first: a page change goes
+             to the server (each page hydrates its own match rows), and holding
+             the previous page on screen meanwhile made clicking "2" look like
+             a dead button. -->
+        <template v-if="isLoading">
+          <MatchRowSkeleton v-for="i in PAGE_SIZE" :key="`games-drawer-skel-${i}`" />
         </template>
 
         <template v-else-if="data">
@@ -203,7 +235,10 @@ function pilotIconUrl(pilot: CompositionGamePilot | null): string | null {
     </template>
 
     <!-- Pagination lives in the footer, outside the scrolling body, so it stays
-         pinned to the bottom of the drawer whatever the page is showing. -->
+         pinned to the bottom of the drawer whatever the page is showing.
+         Centred via the `list` slot, not a `justify-center` on the component:
+         UPagination's root is a bare <nav> with no display of its own, so a
+         justify-* class there is inert — the flex row is the list inside it. -->
     <template #footer>
       <UPagination
         v-if="data && data.total > data.pageSize"
@@ -215,7 +250,7 @@ function pilotIconUrl(pilot: CompositionGamePilot | null): string | null {
         variant="ghost"
         active-color="primary"
         active-variant="soft"
-        class="justify-center"
+        :ui="{ list: 'justify-center' }"
         @update:page="loadPage"
       />
     </template>
