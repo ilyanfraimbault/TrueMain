@@ -49,10 +49,7 @@ public sealed class FakeProcessRunStore : IProcessRunStore
     public Task TouchHeartbeatAsync(Guid id, DateTime nowUtc, CancellationToken ct)
     {
         var run = Runs.FirstOrDefault(candidate => candidate.Id == id && candidate.Status == ProcessRunStatus.Running);
-        if (run is not null)
-        {
-            run.LastHeartbeatAtUtc = nowUtc;
-        }
+        run?.LastHeartbeatAtUtc = nowUtc;
 
         return Task.CompletedTask;
     }
