@@ -861,6 +861,12 @@ export interface DataQualityThreshold {
   amber: number | null
   red: number | null
   unit: 'count' | 'percent' | 'hours' | 'ratio'
+  /**
+   * Which side of the level is the bad one. `below` marks a floor (patch volume
+   * against the median); everything else is a ceiling. The number alone does not
+   * say which, and printing a floor as a ceiling inverts its meaning.
+   */
+  direction: 'above' | 'below'
 }
 
 /** One detector's card (#924). */

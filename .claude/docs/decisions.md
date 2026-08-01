@@ -545,7 +545,18 @@ possible. Approval is the single external unlock for all of it — #780.
   the row at each tier width so the compact layouts are reviewable without reproducing the host surface.
 - **Detector thresholds are configuration, not constants** (`DataQualityDetectors:*`). The honest line differs
   between preprod and production, and an operator silencing a crying-wolf card must not need a redeploy. A
-  level of `0` disables it, which is how a warning-only signal is expressed.
+  level of `0` disables it, which is how a warning-only signal is expressed. They are **stated in words with
+  their direction** ("warning above 8 h", "warning below 40% of the median") rather than printed as a pair of
+  numbers: the payload carries a `direction`, because a floor rendered like a ceiling inverts its meaning and
+  nothing in the number itself says which it is.
+- **A health panel answers before it reports** (#992). `/data-quality` opens on one verdict line, then the
+  detectors as a severity-ordered list — one line each, passing checks collapsed behind a single disclosure —
+  with rows, thresholds and source notes behind a per-detector expand. The first cut printed everything every
+  detector knows on every detector at once, so five passing checks were as loud as five failing ones and the
+  page had no shape; the operator could not tell, on arrival, whether anything was wrong. **Colour states the
+  current reading, never a configured constant**: amber and red on threshold values put warning colours on a
+  healthy panel, which is how a page teaches its reader that its colours mean nothing. Everything the cards
+  carried is still one click away — legibility here is ordering and defaults, not removal.
 
 ---
 

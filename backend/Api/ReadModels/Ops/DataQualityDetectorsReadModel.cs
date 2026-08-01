@@ -124,6 +124,15 @@ public sealed record DataQualityThresholdReadModel
 
     /// <summary>Unit of the two levels: <c>count</c>, <c>percent</c>, <c>hours</c> or <c>ratio</c>.</summary>
     public string Unit { get; init; } = "count";
+
+    /// <summary>
+    /// Which side of the level is the bad one: <c>above</c> (a count, an age or a share
+    /// that has to stay low) or <c>below</c> (a floor — a patch whose match volume has to
+    /// stay near the median). The panel cannot infer this from the number, and without it
+    /// a printed level is ambiguous: "warning at 40%" reads as a ceiling when it is a
+    /// floor.
+    /// </summary>
+    public string Direction { get; init; } = "above";
 }
 
 /// <summary>

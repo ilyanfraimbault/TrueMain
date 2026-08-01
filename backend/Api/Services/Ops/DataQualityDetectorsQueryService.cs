@@ -706,7 +706,9 @@ public sealed class DataQualityDetectorsQueryService(
             [
                 Threshold("impossible rows", settings.InconsistentAggregateRowsAmber, settings.InconsistentAggregateRowsRed, "count"),
                 Threshold("zero-sample rows", settings.ZeroSampleAggregateRowsAmber, settings.ZeroSampleAggregateRowsRed, "count"),
-                Threshold("patch volume vs median", settings.PatchVolumeAnomalyRatio, 0, "ratio")
+                // A floor, not a ceiling: a patch is anomalous when its match count falls
+                // *below* this share of the median patch.
+                Threshold("patch volume vs median", settings.PatchVolumeAnomalyRatio, 0, "ratio", "below")
             ]
         };
     }
@@ -928,13 +930,20 @@ public sealed class DataQualityDetectorsQueryService(
             Note = note
         };
 
-    private static DataQualityThresholdReadModel Threshold(string label, double amber, double red, string unit) => new()
+    private static DataQualityThresholdReadModel Threshold(
+        string label,
+        double amber,
+        double red,
+        string unit,
+        string direction = "above") => new()
     {
         Label = label,
-        // A level of 0 or less is disabled, and the panel should say "—" rather than "0".
+        // A level of 0 or less is disabled, and the panel should omit it rather than
+        // print a level of "0" that nothing can ever trip.
         Amber = amber > 0 ? amber : null,
         Red = red > 0 ? red : null,
-        Unit = unit
+        Unit = unit,
+        Direction = direction
     };
 
     private static DetectorStatus ParseStatus(DataQualityDetectorRowReadModel row) => row.Status switch
