@@ -62,6 +62,7 @@ const championTitle = computed(() => `${props.name} · ${props.champion.games} g
       :title="championTitle"
       :width="iconSize"
       :height="iconSize"
+      loading="lazy"
       class="shrink-0 rounded-md ring-1 ring-default/40"
     />
 

@@ -57,9 +57,20 @@ const FETCH_SIZE = 64
 // srcset/sizes attributes that a fixed 64×64 fetch (`densities="1x"`) never
 // needed. useImage() yields the identical `_ipx/s_64x64/…` URL, so browser
 // and server IPX caches are unaffected.
+// WebP for every icon that reaches this component. Measured on the live
+// assets at the 64×64 fetch size: champion 10194 B -> 1100 B, perk
+// 8933 B -> 3396 B, item 6096 B -> 2130 B, all indistinguishable from the PNG
+// at display size (the perk icons — thin bright line art on transparency —
+// are the demanding case and survive it). A champion page moves ~600 KB of
+// icons, so this is the cheapest large cut available to it.
+//
+// Deliberately NOT applied globally: RankIcon's sources are `.svg`, which IPX
+// currently passes straight through as `image/svg+xml`. Forcing a raster
+// format there would trade a vector that stays crisp at any DPR for a 20 px
+// bitmap, so that component builds its own URL and keeps the SVG.
 const ipx = useImage()
 const optimizedSrc = computed(() =>
-  props.src ? ipx(props.src, { width: FETCH_SIZE, height: FETCH_SIZE }) : undefined)
+  props.src ? ipx(props.src, { width: FETCH_SIZE, height: FETCH_SIZE, format: 'webp' }) : undefined)
 
 // A cached image can finish loading before hydration attaches the @load
 // listener; without this check the skeleton would cover it forever.

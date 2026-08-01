@@ -21,6 +21,13 @@ export interface BoundedByteCache<T extends { byteLength: number }> {
   get: (key: string) => T | undefined
   /** No-op if `value.byteLength > maxEntryBytes`; otherwise evicts LRU entries until it fits. */
   set: (key: string, value: T) => void
+  /**
+   * Drops every entry whose key satisfies `shouldEvict`, keeping the byte
+   * budget in step. Returns how many entries went. Used for eviction the LRU
+   * ordering cannot express — entries that are stale by meaning rather than by
+   * age (see server/utils/ipx-patch-retention.ts).
+   */
+  purge: (shouldEvict: (key: string) => boolean) => number
   readonly size: number
   readonly bytes: number
 }
@@ -61,6 +68,17 @@ export function createBoundedByteCache<T extends { byteLength: number }>(
       }
       store.set(key, value)
       bytes += value.byteLength
+    },
+    purge(shouldEvict) {
+      let dropped = 0
+      // Snapshot the keys first: `evict` mutates the Map we would be iterating.
+      for (const key of [...store.keys()]) {
+        if (shouldEvict(key)) {
+          evict(key)
+          dropped++
+        }
+      }
+      return dropped
     },
     get size() {
       return store.size

@@ -617,6 +617,33 @@ Consequences that matter later:
   compiled-model churn), the historical rows were copied preprod/prod once the frozen tables had no writers,
   and a follow-up PR drops the tables + regenerates the compiled model.
 
+**Champion-page icons are slow because of browser queue depth, not the image proxy — measure the split before
+"optimising" it.** The obvious reading of a slow champion page (~118 `/_ipx/**` requests, ~600 KB) is that the
+proxy or Riot's CDN is slow. Splitting per-request timing on preprod says otherwise: **queue 2459 ms, server
+65 ms, download 1 ms**, and the proxy answers 40 concurrent requests in 0.65 s. The cost is the browser holding
+a burst of ~106 distinct, equal-priority image requests issued in one tick when the API data lands. So a
+persistent/disk cache and a boot-time pre-warm were both **rejected**: they buy back tens of milliseconds of an
+850 ms budget, while a disk cache on a public, unauthenticated route that accepts arbitrary modifiers is the
+same disk-exhaustion class that already crash-looped this box (#680). Pre-warming was rejected additionally
+because it fires ~500 requests at Riot and the volunteer-run CommunityDragon mirror on **every** boot, and this
+stack has had restart loops. What is left is payload size and queue depth — #997.
+
+**`SkeletonImage` serves WebP; `RankIcon` deliberately does not.** At the canonical 64×64 fetch size the live
+assets go champion 10194 B → 1100 B, perk 8933 B → 3396 B, item 6096 B → 2130 B with no visible difference —
+the perk icons (thin bright line art over transparency) are the demanding case and survive it. It is **not**
+applied globally: `RankIcon`'s sources are `.svg` and IPX passes them through as `image/svg+xml` today, so
+forcing a raster format would trade a vector that stays crisp at any DPR for a 20 px bitmap. This is a
+format decision inside the existing `<img>` + `useImage()` split, not a change to it — the `@nuxt/image`
+policy (fixed-size icons use `<img>` + `useImage()`, real responsive images use `<NuxtImg>`) still stands.
+
+**The `/_ipx/**` cache evicts by patch, keeping the current patch and the two before it.** Every source URL is
+patch-pinned, so a release turns the whole catalogue over at once and strands the outgoing patch's bytes in the
+64 MB budget precisely when the cache is cold. The sweep runs **only** when a newer patch is first observed, not
+as a check on every write: the champion page has a patch filter, so old-patch URLs are legitimate traffic, and
+evaluating expiry per write would store and immediately drop each of their icons, leaving old-patch browsing
+permanently uncached. The window is the three newest patches *observed* rather than `newest - 2` arithmetic, so
+a season rollover (16.1 after 15.24) keeps the right three — `server/utils/ipx-patch-retention.ts`, #997.
+
 ## Keeping these files current
 
 A PR that ships a user-facing feature, removes one, or reverses a decision here **must update

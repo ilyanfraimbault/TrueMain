@@ -165,6 +165,11 @@ const positionIcons = computed(() => {
     </span>
 
     <!-- Avatar -->
+    <!-- Rows appear in long lists (/truemains) and in the champion page's
+         sidebar, always below the build panel: lazy so they leave the initial
+         request burst to the above-the-fold icons. Rows near the viewport are
+         unaffected — the browser fetches lazy images well before they scroll
+         in. Same call the match-history rows already make. -->
     <SkeletonImage
       v-if="profileIconUrl"
       :src="profileIconUrl"
@@ -172,6 +177,7 @@ const positionIcons = computed(() => {
       class="size-10 shrink-0 rounded"
       width="40"
       height="40"
+      loading="lazy"
     />
     <div v-else class="size-10 shrink-0 rounded bg-elevated/60" aria-hidden="true" />
 
@@ -215,6 +221,7 @@ const positionIcons = computed(() => {
         :class="role.primary ? undefined : 'opacity-40'"
         width="22"
         height="22"
+        loading="lazy"
       >
     </div>
 
@@ -308,7 +315,7 @@ const positionIcons = computed(() => {
       class="flex w-12 shrink-0 items-center justify-end gap-1"
       :title="`${ranked.tier}${showDivision ? ' ' + ranked.division : ''} · ${ranked.leaguePoints.toLocaleString('en-US')} LP`"
     >
-      <RankIcon :tier="ranked.tier" :size="26" />
+      <RankIcon :tier="ranked.tier" :size="26" loading="lazy" />
       <span v-if="showDivision" class="text-sm font-semibold tabular-nums">
         {{ ranked.division }}
       </span>
