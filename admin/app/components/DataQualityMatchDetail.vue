@@ -67,7 +67,7 @@ function teamPlayersLabel(team: MatchTeam): string {
   <FetchErrorAlert
     v-else-if="error"
     :message="error"
-    :trace-id="errorTraceId"
+    :trace-id="errorTraceId ?? undefined"
     title="Could not load match"
   />
 
