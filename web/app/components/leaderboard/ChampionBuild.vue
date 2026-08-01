@@ -98,6 +98,7 @@ const championTitle = computed(() => `${props.name} · ${props.champion.games} g
         :perk="keystone"
         :width="buildSize"
         :height="buildSize"
+        :loading="loading"
         class="rounded-full"
         :style="{ width: `${buildSize}px`, height: `${buildSize}px` }"
       />
@@ -106,6 +107,7 @@ const championTitle = computed(() => `${props.name} · ${props.champion.games} g
         :style="secondaryStyle"
         :width="secondaryOverlaySize"
         :height="secondaryOverlaySize"
+        :loading="loading"
         class="absolute -bottom-1 -right-1.5"
         :class="compact ? 'size-[11px]' : 'size-[13px]'"
       />
@@ -116,6 +118,7 @@ const championTitle = computed(() => `${props.name} · ${props.champion.games} g
       :item="firstItem"
       :width="buildSize"
       :height="buildSize"
+      :loading="loading"
       class="shrink-0 rounded"
       :style="{ width: `${buildSize}px`, height: `${buildSize}px` }"
     />
