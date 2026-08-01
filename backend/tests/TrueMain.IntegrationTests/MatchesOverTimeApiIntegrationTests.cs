@@ -104,10 +104,36 @@ public sealed class MatchesOverTimeApiIntegrationTests
         buckets[0].Matches.Should().Be(1);
     }
 
+    [Fact]
+    public async Task GetMatchesOverTime_Day_ShouldBucketByGameDayInAscendingOrder()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedMatchesAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var response = await client.GetAsync("/ops/stats/matches-over-time?granularity=day");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var buckets = await response.Content.ReadFromJsonAsync<IReadOnlyList<MatchTimeBucketTestContract>>();
+        buckets.Should().NotBeNull();
+
+        // Every seeded match falls on a distinct UTC day, so five one-match day
+        // buckets come back, keyed by the truncated day start, oldest first.
+        buckets!.Should().HaveCount(5);
+        buckets.Select(b => b.Bucket).Should().Equal(
+            "2026-03-10T00:00:00Z",
+            "2026-03-20T00:00:00Z",
+            "2026-03-25T00:00:00Z",
+            "2026-05-05T00:00:00Z",
+            "2026-05-15T00:00:00Z");
+        buckets.Should().OnlyContain(b => b.Matches == 1);
+    }
+
     [Theory]
     [InlineData("/ops/stats/matches-over-time")]
     [InlineData("/ops/stats/matches-over-time?granularity=")]
-    [InlineData("/ops/stats/matches-over-time?granularity=day")]
     [InlineData("/ops/stats/matches-over-time?granularity=quarter")]
     public async Task GetMatchesOverTime_InvalidGranularity_ShouldReturn400ProblemDetails(string url)
     {

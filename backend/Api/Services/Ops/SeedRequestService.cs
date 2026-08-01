@@ -1,22 +1,24 @@
 using Core.Lol.Identifiers;
-using Data;
 using Data.Entities;
 using Data.Logging.Mongo;
-using Microsoft.EntityFrameworkCore;
+using Data.Ops.Mongo;
 
 namespace TrueMain.Services.Ops;
 
 /// <summary>
-/// Records a <c>SeedRequest</c> for the "seed by Riot ID" intake (#409).
+/// Records a seed request for the "seed by Riot ID" intake (#409).
 /// <para>
-/// The API intentionally does only the row insert here — it never calls Riot.
-/// Resolving the PUUID, upserting the account and building its main candidates is
-/// the Ingestor's job (ManualSeedProcess), which keeps this endpoint thin and
-/// fast and avoids putting rate-limited Riot calls on a request thread.
+/// The API intentionally does only the document insert here — it never calls
+/// Riot. Resolving the PUUID, upserting the account and building its main
+/// candidates is the Ingestor's job (ManualSeedProcess), which keeps this
+/// endpoint thin and fast and avoids putting rate-limited Riot calls on a
+/// request thread. The queue lives in the Mongo admin store; the idempotency
+/// lookup is a collation-backed case-insensitive match, replacing the escaped
+/// ILIKE the Postgres implementation needed.
 /// </para>
 /// </summary>
 public sealed class SeedRequestService(
-    TrueMainDbContext db,
+    ISeedRequestStore store,
     IAuditLog auditLog,
     ILogger<SeedRequestService> logger) : ISeedRequestService
 {
@@ -64,20 +66,8 @@ public sealed class SeedRequestService(
         // Idempotency: if an unprocessed request (Pending or Resolving) for the
         // same Riot ID on the same platform already exists, return it instead of
         // queuing a duplicate. Matching is case-insensitive on name/tag since
-        // Riot IDs are case-insensitive; the platform name is canonical. ILike
-        // treats its pattern as a wildcard expression, so the name/tag MUST be
-        // escaped — otherwise a request for gameName="%" would match (and return)
-        // an arbitrary unrelated pending request on that platform.
-        var gameNamePattern = LikeEscaping.Escape(gameName);
-        var tagLinePattern = LikeEscaping.Escape(tagLine);
-        var existing = await db.SeedRequests
-            .Where(request =>
-                (request.Status == SeedRequestStatus.Pending || request.Status == SeedRequestStatus.Resolving)
-                && request.PlatformId == platform
-                && EF.Functions.ILike(request.GameName, gameNamePattern, LikeEscaping.EscapeChar)
-                && EF.Functions.ILike(request.TagLine, tagLinePattern, LikeEscaping.EscapeChar))
-            .OrderBy(request => request.RequestedAtUtc)
-            .FirstOrDefaultAsync(ct);
+        // Riot IDs are case-insensitive; the platform name is canonical.
+        var existing = await store.FindUnprocessedByRiotIdAsync(gameName, tagLine, platform, ct);
 
         if (existing is not null)
         {
@@ -89,7 +79,7 @@ public sealed class SeedRequestService(
             };
         }
 
-        var seedRequest = new SeedRequest
+        var seedRequest = new SeedRequestDocument
         {
             Id = Guid.NewGuid(),
             GameName = gameName,
@@ -99,8 +89,7 @@ public sealed class SeedRequestService(
             RequestedAtUtc = DateTime.UtcNow
         };
 
-        db.SeedRequests.Add(seedRequest);
-        await db.SaveChangesAsync(ct);
+        await store.InsertAsync(seedRequest, ct);
 
         // Operator-action audit: record the intentional "seed a main" action
         // against the audit trail. Only for a freshly-created request — an
@@ -108,19 +97,19 @@ public sealed class SeedRequestService(
         // is synchronous and never routes through the diagnostic-log channel.
         //
         // Best-effort by design: the SeedRequest above is the primary action and
-        // is already committed. The audit write runs AFTER the commit so a Mongo
-        // outage can never block seeding; if it throws (Mongo down, etc.) we log a
-        // Warning and let the operation succeed rather than 500-ing on a request
-        // whose row is already persisted (which a retry would only return
-        // idempotently, never re-auditing). "Lossless" here means the audit channel
-        // is synchronous and unbatched vs the lossy batched diagnostic channel — it
-        // is not a guarantee against a Mongo outage.
+        // is already persisted. The audit write runs AFTER the insert so an audit
+        // failure can never block seeding; if it throws we log a Warning and let
+        // the operation succeed rather than 500-ing on a request whose document is
+        // already persisted (which a retry would only return idempotently, never
+        // re-auditing). "Lossless" here means the audit channel is synchronous and
+        // unbatched vs the lossy batched diagnostic channel — it is not a
+        // guarantee against a Mongo outage.
         try
         {
             await auditLog.RecordAsync(
                 action: "seed_account",
                 actor: "operator",
-                targetType: nameof(SeedRequest),
+                targetType: "SeedRequest",
                 targetId: seedRequest.Id.ToString(),
                 metadata: new Dictionary<string, string>
                 {

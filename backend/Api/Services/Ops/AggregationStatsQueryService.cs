@@ -1,7 +1,7 @@
 using Core.Lol.Patches;
 using Core.Options;
 using Data;
-using Data.Entities;
+using Data.Ops.Mongo;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrueMain.ReadModels.Ops;
@@ -10,6 +10,7 @@ namespace TrueMain.Services.Ops;
 
 public sealed class AggregationStatsQueryService(
     TrueMainDbContext db,
+    IProcessRunStore processRunStore,
     IOptions<MainAnalysisOptions> mainAnalysisOptions) : IAggregationStatsQueryService
 {
     private static readonly string[] ProcessNames =
@@ -220,38 +221,16 @@ public sealed class AggregationStatsQueryService(
         };
     }
 
-    private async Task<List<ProcessRun>> LoadLatestRunsAsync(bool onlySuccesses, CancellationToken ct)
-    {
-        // Postgres DISTINCT ON gives the newest row per process in one pass
-        // (same rationale as PipelineHealthQueryService). Two variants: the
-        // latest run regardless of outcome, and the latest success — they
-        // diverge exactly when the most recent run failed or was abandoned.
-        var successStatus = (int)ProcessRunStatus.Success;
+    private async Task<IReadOnlyList<ProcessRunDocument>> LoadLatestRunsAsync(bool onlySuccesses, CancellationToken ct)
+        // The newest run per process in one grouped pass (same rationale as
+        // PipelineHealthQueryService). Two variants: the latest run regardless of
+        // outcome, and the latest success — they diverge exactly when the most
+        // recent run failed or was abandoned.
+        => await processRunStore.GetLatestPerProcessAsync(ProcessNames, onlySuccesses, ct);
 
-        return onlySuccesses
-            ? await db.ProcessRuns
-                .FromSqlInterpolated(
-                    $"""
-                     SELECT DISTINCT ON ("ProcessName") *
-                     FROM process_runs
-                     WHERE "ProcessName" = ANY({ProcessNames}) AND "Status" = {successStatus}
-                     ORDER BY "ProcessName", "FinishedAtUtc" DESC
-                     """)
-                .AsNoTracking()
-                .ToListAsync(ct)
-            : await db.ProcessRuns
-                .FromSqlInterpolated(
-                    $"""
-                     SELECT DISTINCT ON ("ProcessName") *
-                     FROM process_runs
-                     WHERE "ProcessName" = ANY({ProcessNames})
-                     ORDER BY "ProcessName", "FinishedAtUtc" DESC
-                     """)
-                .AsNoTracking()
-                .ToListAsync(ct);
-    }
-
-    private static AggregationRunReadModel? BuildRunReadModel(ProcessRun? latest, ProcessRun? latestSuccess)
+    private static AggregationRunReadModel? BuildRunReadModel(
+        ProcessRunDocument? latest,
+        ProcessRunDocument? latestSuccess)
     {
         if (latest is null)
         {
@@ -265,7 +244,7 @@ public sealed class AggregationStatsQueryService(
             LastFinishedAtUtc = latest.FinishedAtUtc,
             LastSuccessAtUtc = latestSuccess?.FinishedAtUtc,
             DurationMs = latest.DurationMs,
-            LastSuccessSummary = latestSuccess?.Summary?.RootElement.Clone()
+            LastSuccessSummary = ProcessRunSummaryParsing.Parse(latestSuccess?.SummaryJson)
         };
     }
 }

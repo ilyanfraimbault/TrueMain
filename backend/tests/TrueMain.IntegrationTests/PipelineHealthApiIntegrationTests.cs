@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Data.Entities;
+using Data.Ops.Mongo;
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 
@@ -13,19 +14,22 @@ public sealed class PipelineHealthApiIntegrationTests
 {
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
     private readonly PostgresFixture _fixture;
+    private readonly MongoFixture _mongo;
 
-    public PipelineHealthApiIntegrationTests(PostgresFixture fixture)
+    public PipelineHealthApiIntegrationTests(PostgresFixture fixture, MongoFixture mongo)
     {
         _fixture = fixture;
+        _mongo = mongo;
     }
 
     [Fact]
     public async Task GetPipelineHealthAsync_ShouldReturnProcessAndFreshnessSignals()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
         await SeedPipelineHealthAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("https://localhost")
@@ -59,8 +63,9 @@ public sealed class PipelineHealthApiIntegrationTests
     public async Task GetPipelineHealthAsync_ShouldRequireOpsApiKey()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("https://localhost")
@@ -74,8 +79,9 @@ public sealed class PipelineHealthApiIntegrationTests
     public async Task GetPipelineHealthAsync_ShouldRejectInvalidOpsApiKey()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("https://localhost")
@@ -89,15 +95,18 @@ public sealed class PipelineHealthApiIntegrationTests
     private async Task SeedPipelineHealthAsync()
     {
         var now = DateTime.UtcNow;
-        await using var db = _fixture.CreateDbContext();
 
-        db.ProcessRuns.AddRange(
+        await _mongo.GetCollection<ProcessRunDocument>(MongoFixture.ProcessRunsCollection).InsertManyAsync(
+        [
             BuildProcessRun("Discovery", ProcessRunStatus.Success, now.AddMinutes(-40), now.AddMinutes(-39)),
             BuildProcessRun("Scoring", ProcessRunStatus.Success, now.AddMinutes(-35), now.AddMinutes(-34)),
             BuildProcessRun("MatchIngestion", ProcessRunStatus.Success, now.AddMinutes(-30), now.AddMinutes(-28)),
             BuildProcessRun("MainAnalysis", ProcessRunStatus.Success, now.AddMinutes(-20), now.AddMinutes(-18)),
             BuildProcessRun("ChampionPatternAggregation", ProcessRunStatus.Success, now.AddMinutes(-17), now.AddMinutes(-16)),
-            BuildProcessRun("AccountRefresh", ProcessRunStatus.Success, now.AddMinutes(-10), now.AddMinutes(-9)));
+            BuildProcessRun("AccountRefresh", ProcessRunStatus.Success, now.AddMinutes(-10), now.AddMinutes(-9))
+        ]);
+
+        await using var db = _fixture.CreateDbContext();
 
         db.MainChampionStats.Add(
             new MainChampionStat
@@ -337,10 +346,11 @@ public sealed class PipelineHealthApiIntegrationTests
         await db.SaveChangesAsync();
     }
 
-    private static ProcessRun BuildProcessRun(string processName, ProcessRunStatus status, DateTime startedAtUtc, DateTime finishedAtUtc)
+    private static ProcessRunDocument BuildProcessRun(string processName, ProcessRunStatus status, DateTime startedAtUtc, DateTime finishedAtUtc)
     {
-        return new ProcessRun
+        return new ProcessRunDocument
         {
+            Id = Guid.NewGuid(),
             ProcessName = processName,
             StartedAtUtc = startedAtUtc,
             FinishedAtUtc = finishedAtUtc,
@@ -350,9 +360,15 @@ public sealed class PipelineHealthApiIntegrationTests
         };
     }
 
-    private sealed class ApiWebApplicationFactory(PostgresFixture fixture)
+    private sealed class ApiWebApplicationFactory(PostgresFixture fixture, MongoFixture mongo)
         : TrueMainWebApplicationFactory<Program>(
-            fixture, [new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420")]);
+            fixture,
+            [
+                new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420"),
+                new KeyValuePair<string, string?>("MongoLogging:ConnectionString", mongo.ConnectionString),
+                new KeyValuePair<string, string?>("MongoLogging:Database", MongoFixture.DatabaseName),
+                new KeyValuePair<string, string?>("MongoLogging:MinimumLevel", "None")
+            ]);
 
     private sealed class PipelineHealthResponseTestContract
     {

@@ -19,9 +19,7 @@ public sealed class DataSession : IDataSession
         MatchParticipantKillPositions = new MatchParticipantKillPositionRepository(_db);
         JungleFirstClears = new JungleFirstClearRepository(_db);
         MatchBans = new MatchBanRepository(_db);
-        ProcessRuns = new ProcessRunRepository(_db);
         RankSnapshots = new RankSnapshotRepository(_db);
-        SeedRequests = new SeedRequestRepository(_db);
         DiscoveryCursors = new DiscoveryCursorRepository(_db);
     }
 
@@ -34,9 +32,7 @@ public sealed class DataSession : IDataSession
     public IMatchParticipantKillPositionRepository MatchParticipantKillPositions { get; }
     public IJungleFirstClearRepository JungleFirstClears { get; }
     public IMatchBanRepository MatchBans { get; }
-    public IProcessRunRepository ProcessRuns { get; }
     public IRankSnapshotRepository RankSnapshots { get; }
-    public ISeedRequestRepository SeedRequests { get; }
     public IDiscoveryCursorRepository DiscoveryCursors { get; }
 
     public Task<int> SaveChangesAsync(CancellationToken ct)

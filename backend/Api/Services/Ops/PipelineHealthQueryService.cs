@@ -2,6 +2,7 @@ using Core.Lol.Patches;
 using Core.Options;
 using Data;
 using Data.Entities;
+using Data.Ops.Mongo;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrueMain.ReadModels.Ops;
@@ -10,6 +11,7 @@ namespace TrueMain.Services.Ops;
 
 public sealed class PipelineHealthQueryService(
     TrueMainDbContext db,
+    IProcessRunStore processRunStore,
     IOptions<MainAnalysisOptions> mainAnalysisOptions,
     IHostEnvironment environment) : IPipelineHealthQueryService
 {
@@ -31,21 +33,11 @@ public sealed class PipelineHealthQueryService(
     {
         var queueId = (int)mainAnalysisOptions.Value.QueueId;
 
-        // Postgres DISTINCT ON keeps the first row per ProcessName under the
-        // ORDER BY, giving us the latest run per process in a single pass. This
-        // translates to one server-side query instead of EF Core falling back
-        // to a per-group correlated subquery (or client-side evaluation) for the
-        // GroupBy(...).Select(g => g.OrderByDescending(...).First()) pattern.
-        var latestRuns = await db.ProcessRuns
-            .FromSqlInterpolated(
-                $"""
-                 SELECT DISTINCT ON ("ProcessName") *
-                 FROM process_runs
-                 WHERE "ProcessName" = ANY({ProcessNames})
-                 ORDER BY "ProcessName", "FinishedAtUtc" DESC
-                 """)
-            .AsNoTracking()
-            .ToListAsync(ct);
+        // The latest run per process in a single grouped pass — the Mongo shape of
+        // the DISTINCT ON the Postgres implementation used (process runs moved to
+        // the Mongo observability store with the rest of the admin-portal data).
+        var latestRuns = await processRunStore.GetLatestPerProcessAsync(
+            ProcessNames, onlySuccesses: false, ct);
 
         var queueScopedMatches = db.Matches
             .AsNoTracking()

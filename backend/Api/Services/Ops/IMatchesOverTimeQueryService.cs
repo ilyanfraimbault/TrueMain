@@ -5,6 +5,7 @@ namespace TrueMain.Services.Ops;
 /// <summary>Allowed x-axis granularities for the matches-over-time histogram.</summary>
 public enum MatchTimeGranularity
 {
+    Day,
     Week,
     Month,
     Year,

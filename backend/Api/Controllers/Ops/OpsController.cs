@@ -64,12 +64,12 @@ public sealed class OpsController(
     /// <summary>
     /// Matches-over-time histogram, bucketed by <em>game date</em>
     /// (<c>Match.GameStartTimeUtc</c>) at the requested <paramref name="granularity"/>
-    /// and returned chronologically. For week/month/year each bucket key is the
+    /// and returned chronologically. For day/week/month/year each bucket key is the
     /// ISO-8601 UTC timestamp of the truncated period start; for patch it is the
     /// normalised "MAJOR.MINOR" version (ordered by the earliest game per patch, so
     /// it sorts chronologically rather than lexically). <paramref name="region"/> is
     /// an optional <c>PlatformId</c> filter. 400 if granularity is missing or not one
-    /// of week|month|year|patch.
+    /// of day|week|month|year|patch.
     /// </summary>
     [HttpGet("stats/matches-over-time")]
     [ProducesResponseType(typeof(IReadOnlyList<MatchTimeBucket>), StatusCodes.Status200OK)]
@@ -81,14 +81,14 @@ public sealed class OpsController(
         CancellationToken ct)
     {
         // granularity is required and closed: parse case-insensitively against the
-        // four allowed values and 400 (ProblemDetails) on anything else, so the unit
+        // allowed values and 400 (ProblemDetails) on anything else, so the unit
         // that the query service inlines into date_trunc can only ever be one we own.
         if (!Enum.TryParse<MatchTimeGranularity>(granularity, ignoreCase: true, out var parsed)
             || !Enum.IsDefined(parsed))
         {
             ModelState.AddModelError(
                 nameof(granularity),
-                "granularity is required and must be one of: week, month, year, patch.");
+                "granularity is required and must be one of: day, week, month, year, patch.");
             return ValidationProblem(ModelState);
         }
 

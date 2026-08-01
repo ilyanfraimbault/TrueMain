@@ -1,4 +1,5 @@
 using Core.Lol.Identifiers;
+using Data.Ops.Mongo;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes;
@@ -55,14 +56,13 @@ public sealed class DiscoveryCadenceTests
     {
         public ILadderDiscoveryService Ladder { get; } = Substitute.For<ILadderDiscoveryService>();
         private readonly IDataSessionFactory _sessionFactory = Substitute.For<IDataSessionFactory>();
+        private readonly IProcessRunStore _processRunStore = Substitute.For<IProcessRunStore>();
 
         public Harness(DateTime lastCompletedRunUtc)
         {
             var session = Substitute.For<IDataSession>();
-            var processRuns = Substitute.For<IProcessRunRepository>();
-            processRuns.GetLastCompletedRunStartAsync("Discovery", Arg.Any<CancellationToken>())
+            _processRunStore.GetLastCompletedRunStartAsync("Discovery", Arg.Any<CancellationToken>())
                 .Returns(Task.FromResult<DateTime?>(lastCompletedRunUtc));
-            session.ProcessRuns.Returns(processRuns);
             _sessionFactory.CreateAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(session));
 
             // No summoners resolved -> the per-platform path returns immediately after the
@@ -80,6 +80,7 @@ public sealed class DiscoveryCadenceTests
             Substitute.For<IAccountUpsertService>(),
             Substitute.For<ICandidateUpsertService>(),
             Substitute.For<IRankSnapshotWriter>(),
+            _processRunStore,
             new FixedTimeProvider(FixedNow),
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {

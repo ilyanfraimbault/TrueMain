@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using AwesomeAssertions;
 using Data.Entities;
+using Data.Ops.Mongo;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace TrueMain.IntegrationTests;
@@ -22,6 +23,7 @@ public sealed class CandidatesApiIntegrationTests
 {
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
     private readonly PostgresFixture _fixture;
+    private readonly MongoFixture _mongo;
 
     // Stable ids so facts can assert on specific rows.
     private static readonly Guid ValidatedCandidateId = Guid.Parse("11111111-1111-1111-1111-111111111111");
@@ -32,18 +34,20 @@ public sealed class CandidatesApiIntegrationTests
     private const string KrPuuid = "puuid-new-kr";
     private const string OrphanPuuid = "puuid-orphan-euw";
 
-    public CandidatesApiIntegrationTests(PostgresFixture fixture)
+    public CandidatesApiIntegrationTests(PostgresFixture fixture, MongoFixture mongo)
     {
         _fixture = fixture;
+        _mongo = mongo;
     }
 
     [Fact]
     public async Task GetCandidates_ReturnsStableShape_OrderedByScoreDesc_WithJoinedRiotId()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
         await SeedAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateAuthedClient(factory);
 
         var json = await client.GetStringAsync("/ops/candidates");
@@ -87,9 +91,10 @@ public sealed class CandidatesApiIntegrationTests
     public async Task GetCandidates_FiltersByStatus()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
         await SeedAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateAuthedClient(factory);
 
         var payload = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?status=validated");
@@ -104,9 +109,10 @@ public sealed class CandidatesApiIntegrationTests
     public async Task GetCandidates_FiltersByRegion_CaseInsensitive()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
         await SeedAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateAuthedClient(factory);
 
         var payload = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?region=kr");
@@ -120,9 +126,10 @@ public sealed class CandidatesApiIntegrationTests
     public async Task GetCandidates_SearchesByRiotId_PuuidAndChampionId()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
         await SeedAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateAuthedClient(factory);
 
         // Riot ID (gameName) — only the Validated candidate's account is "Phantasm".
@@ -142,9 +149,10 @@ public sealed class CandidatesApiIntegrationTests
     public async Task GetCandidateById_ReturnsDetail_WithLinkedSeedRequestAndIngestedMatchCount()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
         await SeedAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateAuthedClient(factory);
 
         var json = await client.GetStringAsync($"/ops/candidates/{ValidatedCandidateId}");
@@ -175,9 +183,10 @@ public sealed class CandidatesApiIntegrationTests
     public async Task GetCandidateById_ReturnsNullSeedRequest_ForOrganicallyDiscoveredCandidate()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
         await SeedAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateAuthedClient(factory);
 
         var json = await client.GetStringAsync($"/ops/candidates/{NewKrCandidateId}");
@@ -193,8 +202,9 @@ public sealed class CandidatesApiIntegrationTests
     public async Task GetCandidateById_ReturnsNotFound_ForUnknownId()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateAuthedClient(factory);
 
         var response = await client.GetAsync($"/ops/candidates/{Guid.NewGuid()}");
@@ -205,8 +215,9 @@ public sealed class CandidatesApiIntegrationTests
     public async Task CandidateEndpoints_RequireOpsApiKey()
     {
         await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
 
-        await using var factory = new ApiWebApplicationFactory(_fixture);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("https://localhost")
@@ -272,19 +283,21 @@ public sealed class CandidatesApiIntegrationTests
                 Status = MainCandidateStatus.Scored
             });
 
-        // A manual seed request that resolved to the Validated candidate's account.
-        db.SeedRequests.Add(new SeedRequest
-        {
-            Id = Guid.NewGuid(),
-            GameName = "Phantasm",
-            TagLine = "EUW",
-            PlatformId = "EUW1",
-            Status = SeedRequestStatus.Ingested,
-            RequestedAtUtc = now.AddDays(-3),
-            ProcessedAtUtc = now.AddDays(-3).AddMinutes(2),
-            ResolvedPuuid = ValidatedPuuid,
-            ResolvedRiotAccountId = Guid.NewGuid()
-        });
+        // A manual seed request that resolved to the Validated candidate's account
+        // (in the Mongo admin store).
+        await _mongo.GetCollection<SeedRequestDocument>(MongoFixture.SeedRequestsCollection)
+            .InsertOneAsync(new SeedRequestDocument
+            {
+                Id = Guid.NewGuid(),
+                GameName = "Phantasm",
+                TagLine = "EUW",
+                PlatformId = "EUW1",
+                Status = SeedRequestStatus.Ingested,
+                RequestedAtUtc = now.AddDays(-3),
+                ProcessedAtUtc = now.AddDays(-3).AddMinutes(2),
+                ResolvedPuuid = ValidatedPuuid,
+                ResolvedRiotAccountId = Guid.NewGuid()
+            });
 
         // Two ingested matches + participant rows for the Validated candidate's
         // PUUID (MatchParticipant has a FK to Match on MatchId, so the parent rows
@@ -359,10 +372,14 @@ public sealed class CandidatesApiIntegrationTests
 
     // Disable the database logging sink in the test host so incidental host
     // warnings never write log rows (kept consistent with the other ops API tests).
-    private sealed class ApiWebApplicationFactory(PostgresFixture fixture)
+    private sealed class ApiWebApplicationFactory(PostgresFixture fixture, MongoFixture mongo)
         : TrueMainWebApplicationFactory<Program>(
             fixture,
-            [new KeyValuePair<string, string?>("LoggingSink:Enabled", "false")]);
+            [
+                new KeyValuePair<string, string?>("MongoLogging:ConnectionString", mongo.ConnectionString),
+                new KeyValuePair<string, string?>("MongoLogging:Database", MongoFixture.DatabaseName),
+                new KeyValuePair<string, string?>("MongoLogging:MinimumLevel", "None")
+            ]);
 
     private sealed class CandidatesContract
     {
