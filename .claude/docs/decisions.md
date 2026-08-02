@@ -636,6 +636,17 @@ forcing a raster format would trade a vector that stays crisp at any DPR for a 2
 format decision inside the existing `<img>` + `useImage()` split, not a change to it — the `@nuxt/image`
 policy (fixed-size icons use `<img>` + `useImage()`, real responsive images use `<NuxtImg>`) still stands.
 
+**Every icon URL is built by one helper, so one asset is one cache entry.** `useCanonicalIcon()` is the
+only place that decides fetch size and format; `SkeletonImage` calls it, and so does each component that
+deliberately renders a plain `<img>` instead (lane glyphs in leaderboard/profile rows and match rows, the
+search palette's trailing icons — fixed-size glyphs appearing dozens of times per page, where one
+component instance per icon costs more than it gives). Hand-writing `ipx(...)` per call site is what this
+replaces, and the drift was real: the same position glyph was being fetched at 12, 20, 22 *and* 64 px —
+four downloads and four cache entries for one image — while the search palette bound the **raw Data
+Dragon URL**, shipping a 120×120 PNG (30 267 B, straight from Riot's CDN, uncached by us) into a 20 px
+box that the proxy serves in 306 B. `RankIcon` remains the one deliberate exception, for the SVG reason
+above — #1000.
+
 **The `/_ipx/**` cache evicts by patch, keeping the current patch and the two before it.** Every source URL is
 patch-pinned, so a release turns the whole catalogue over at once and strands the outgoing patch's bytes in the
 64 MB budget precisely when the cache is cold. The sweep runs **only** when a newer patch is first observed, not

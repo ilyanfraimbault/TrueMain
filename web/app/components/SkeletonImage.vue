@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ICON_FETCH_SIZE } from '~/utils/icon-fetch'
+
 defineOptions({ inheritAttrs: false })
 
 const props = defineProps<{
@@ -41,21 +43,18 @@ watch(() => props.src, () => {
   failed.value = false
 })
 
-// Canonical IPX fetch size. DDragon ships item icons at 64×64; CDragon perk
-// icons are larger but downscale cleanly. Funneling every request through
-// this one size makes the same asset share a single browser cache entry no
-// matter the CSS display size of its instances (build path 36 px, runes
-// 32 px, tabs 28 px, shards 16 px — all hit the same `_ipx/s_64x64/…` URL).
+// Canonical IPX fetch size, shared with every other icon call site through
+// `useCanonicalIcon()` — see utils/icon-fetch.ts for why one size matters.
 // Display size still comes from the caller's wrapper class (`size-9`,
 // `size-7`, etc.) via the `size-full` rule on the inner img.
-const FETCH_SIZE = 64
+const FETCH_SIZE = ICON_FETCH_SIZE
 
 // Plain <img> + a URL built once, instead of <NuxtImg>. This component backs
 // every icon on the site (hundreds per page), and profiling showed the long
 // main-thread tasks on data arrival were dominated by NuxtImg's responsive
 // machinery — a component instance per icon computing and writing
 // srcset/sizes attributes that a fixed 64×64 fetch (`densities="1x"`) never
-// needed. useImage() yields the identical `_ipx/s_64x64/…` URL, so browser
+// needed. `useCanonicalIcon()` yields the identical `_ipx/…` URL, so browser
 // and server IPX caches are unaffected.
 // WebP for every icon that reaches this component. Measured on the live
 // assets at the 64×64 fetch size: champion 10194 B -> 1100 B, perk
@@ -68,9 +67,8 @@ const FETCH_SIZE = 64
 // currently passes straight through as `image/svg+xml`. Forcing a raster
 // format there would trade a vector that stays crisp at any DPR for a 20 px
 // bitmap, so that component builds its own URL and keeps the SVG.
-const ipx = useImage()
-const optimizedSrc = computed(() =>
-  props.src ? ipx(props.src, { width: FETCH_SIZE, height: FETCH_SIZE, format: 'webp' }) : undefined)
+const canonicalIcon = useCanonicalIcon()
+const optimizedSrc = computed(() => canonicalIcon(props.src))
 
 // A cached image can finish loading before hydration attaches the @load
 // listener; without this check the skeleton would cover it forever.

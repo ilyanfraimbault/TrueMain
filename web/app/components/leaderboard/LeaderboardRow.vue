@@ -110,8 +110,10 @@ const dedicationScoreLabel = computed(() =>
 
 // Plain <img> + a URL built here instead of <NuxtImg> — same `_ipx/…` URL,
 // minus the responsive srcset machinery a fixed 22px icon never needed. See
-// SkeletonImage.vue for the profiling rationale.
-const ipx = useImage()
+// SkeletonImage.vue for the profiling rationale. The URL itself comes from the
+// shared helper so this glyph resolves to the same cache entry as every other
+// place that renders it, at whatever size they display it.
+const canonicalIcon = useCanonicalIcon()
 
 // Primary + secondary lane icons. Each entry carries its icon URL and a
 // tooltip. The list is empty when the backend has no position data (no main
@@ -214,7 +216,7 @@ const positionIcons = computed(() => {
       <img
         v-for="role in positionIcons"
         :key="role.position"
-        :src="ipx(role.iconUrl, { width: 22, height: 22 })"
+        :src="canonicalIcon(role.iconUrl)"
         :alt="role.title"
         :title="role.title"
         class="size-[22px] shrink-0"

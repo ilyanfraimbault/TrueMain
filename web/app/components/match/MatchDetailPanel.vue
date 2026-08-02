@@ -32,6 +32,10 @@ const { data: detail, isLoading, notFound } = useMatchDetail(
   () => props.matchId,
 )
 
+// Lane glyph badges are plain <img> (ten of them per scoreboard), so they need
+// the canonical URL built explicitly rather than the raw `/positions/*.png`.
+const canonicalIcon = useCanonicalIcon()
+
 const participants = computed(() => detail.value?.participants ?? [])
 const blueTeam = computed(() => participants.value.filter(p => p.teamId === 100))
 const redTeam = computed(() => participants.value.filter(p => p.teamId === 200))
@@ -149,7 +153,7 @@ const tabItems = [
                   />
                   <img
                     v-if="p.teamPosition"
-                    :src="getPositionIconUrl(p.teamPosition)"
+                    :src="canonicalIcon(getPositionIconUrl(p.teamPosition))"
                     :alt="p.teamPosition"
                     class="absolute -bottom-1 -left-1 size-5 rounded-full bg-default p-0.5 ring-1 ring-default"
                     aria-hidden="true"
