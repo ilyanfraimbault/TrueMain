@@ -28,6 +28,13 @@ const props = defineProps<{
   nameTag?: string | null
 }>()
 
+// The lane glyph overlaying the champion portrait renders as a plain <img>
+// (one component instance per icon is not worth it at this count), so it needs
+// the canonical URL built explicitly — without it the raw `/positions/*.png`
+// was served full-size for a 12 px box, and as a fourth distinct cache entry
+// for a glyph the rest of the page already had.
+const canonicalIcon = useCanonicalIcon()
+
 // A nameTag is required to fetch the detail payload, so it gates the whole
 // expand affordance — without it the row degrades to a plain article.
 const canExpand = computed(() => !!props.nameTag)
@@ -321,7 +328,8 @@ const rowTint = computed(() =>
           >
             <img
               v-if="selfPosition"
-              :src="getPositionIconUrl(selfPosition)"
+              :src="canonicalIcon(getPositionIconUrl(selfPosition))"
+              loading="lazy"
               :alt="POSITION_BY_VALUE.get(selfPosition)?.label ?? selfPosition"
               class="size-3 @2xl:size-3.5"
             >
