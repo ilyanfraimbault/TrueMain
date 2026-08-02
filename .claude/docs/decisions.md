@@ -644,8 +644,14 @@ component instance per icon costs more than it gives). Hand-writing `ipx(...)` p
 replaces, and the drift was real: the same position glyph was being fetched at 12, 20, 22 *and* 64 px —
 four downloads and four cache entries for one image — while the search palette bound the **raw Data
 Dragon URL**, shipping a 120×120 PNG (30 267 B, straight from Riot's CDN, uncached by us) into a 20 px
-box that the proxy serves in 306 B. `RankIcon` remains the one deliberate exception, for the SVG reason
-above — #1000.
+box. Measured on preprod after the change, that icon arrives in **1 446 B**.
+
+Note the number the canonical size deliberately gives up: fetched at the palette's own 20 px it would be
+306 B, roughly five times smaller again. It is fetched at 64 px anyway, because a *second* size is a
+second cache entry — the same champion portrait already exists at 64 px from every other page, so the
+canonical URL is usually a cache hit costing nothing, while a bespoke 20 px variant would always be a
+fresh download. Sizing per call site is the local optimum and the global mistake; that is the whole point
+of the helper. `RankIcon` remains the one deliberate exception, for the SVG reason above — #1000.
 
 **The `/_ipx/**` cache evicts by patch, keeping the current patch and the two before it.** Every source URL is
 patch-pinned, so a release turns the whole catalogue over at once and strands the outgoing patch's bytes in the
