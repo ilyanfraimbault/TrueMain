@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { useCanonicalIcon } from '~~/app/composables/useCanonicalIcon'
 import { ICON_FETCH_SIZE } from '~~/app/utils/icon-fetch'
 
 /**
@@ -42,6 +43,54 @@ function sourceFiles(dir: string, prefix = ''): string[] {
     return /\.(?:vue|ts)$/.test(entry) ? [rel] : []
   })
 }
+
+describe('useCanonicalIcon', () => {
+  // `useImage()` is a Nuxt auto-import, so the composable resolves it off the
+  // global scope at call time — which is exactly what lets it be stubbed here.
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  function stubIpx() {
+    const ipx = vi.fn((src: string, modifiers: unknown) => `/_ipx/${JSON.stringify(modifiers)}/${src}`)
+    vi.stubGlobal('useImage', () => ipx)
+    return ipx
+  }
+
+  it('asks for a square ICON_FETCH_SIZE fetch in WebP', () => {
+    const ipx = stubIpx()
+
+    useCanonicalIcon()('https://ddragon.leagueoflegends.com/cdn/16.15.1/img/champion/Annie.png')
+
+    expect(ipx).toHaveBeenCalledWith(
+      'https://ddragon.leagueoflegends.com/cdn/16.15.1/img/champion/Annie.png',
+      { width: ICON_FETCH_SIZE, height: ICON_FETCH_SIZE, format: 'webp' },
+    )
+  })
+
+  it('gives two different display sizes of one asset the same URL', () => {
+    stubIpx()
+    const canonicalIcon = useCanonicalIcon()
+    const src = 'https://ddragon.leagueoflegends.com/cdn/16.15.1/img/item/3157.png'
+
+    // The whole point: a 12 px lane glyph and a 64 px build slot must not
+    // produce two cache entries. Callers cannot pass a size, so they cannot
+    // diverge — this pins that they still cannot.
+    expect(canonicalIcon(src)).toBe(canonicalIcon(src))
+  })
+
+  it('returns undefined for a missing src without calling through', () => {
+    const ipx = stubIpx()
+    const canonicalIcon = useCanonicalIcon()
+
+    // Callers bind the result straight to `:src`; emitting `/_ipx/…/null`
+    // would turn an absent icon into a 404 instead of an empty slot.
+    expect(canonicalIcon(null)).toBeUndefined()
+    expect(canonicalIcon(undefined)).toBeUndefined()
+    expect(canonicalIcon('')).toBeUndefined()
+    expect(ipx).not.toHaveBeenCalled()
+  })
+})
 
 describe('canonical icon URLs', () => {
   it('is the size SkeletonImage and the shared helper both fetch at', () => {
@@ -85,7 +134,10 @@ describe('canonical icon URLs', () => {
       expect(tags.length, `unparsed <img> tag in ${rel}`).toBe((source.match(/<img\b/g) ?? []).length)
 
       for (const tag of tags) {
-        const src = /:src="([^"]*)"/.exec(tag)?.[1]
+        // Both quote styles: nothing in web/ lints Vue templates, so a
+        // single-quoted binding is reachable and would otherwise slip through.
+        const match = /:src=(?:"([^"]*)"|'([^']*)')/.exec(tag)
+        const src = match?.[1] ?? match?.[2]
         if (src && !ALLOWED_SRC.some(pattern => pattern.test(src.trim()))) {
           offenders.push(`${rel}: :src="${src}"`)
         }
