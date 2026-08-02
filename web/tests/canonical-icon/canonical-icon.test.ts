@@ -57,15 +57,40 @@ describe('canonical icon URLs', () => {
     expect(offenders).toEqual([])
   })
 
-  it('has no component binding a raw Data Dragon or Community Dragon URL to an <img>', () => {
-    // The regression the search palette shipped: `:src="champion.iconUrl"`
-    // where `iconUrl` is the upstream CDN URL, so the browser fetches a
-    // full-size asset from Riot with no resize, no WebP and no cache of ours.
-    const offenders = sourceFiles(APP_DIR).filter((rel) => {
-      if (!rel.endsWith('.vue')) return false
-      const source = readFileSync(join(APP_DIR, rel), 'utf8')
-      return /:src="(?:https?:)?\/\/(?:ddragon\.leagueoflegends\.com|raw\.communitydragon\.org)/.test(source)
-    })
+  it('binds every raw <img> to a URL builder rather than to an upstream URL', () => {
+    // The regression the search palette shipped was `:src="champion.iconUrl"`
+    // — a *variable* holding the upstream CDN URL, so the browser fetched a
+    // 120×120 asset from Riot with no resize, no WebP and no cache of ours.
+    // Matching CDN hostnames in the source would not have caught that (the
+    // hostname is nowhere in the template), and neither would the useImage()
+    // whitelist above (the component simply never called it). Allow-listing
+    // the *expression* is what closes it: `champion.iconUrl` is none of these.
+    const ALLOWED_SRC = [
+      /^canonicalIcon\(/, // the shared helper
+      /^optimizedSrc$/, // SkeletonImage's own computed, itself the helper
+      /^ipx\(/, // RankIcon's documented SVG exception
+    ]
+
+    const offenders: string[] = []
+
+    for (const rel of sourceFiles(APP_DIR)) {
+      if (!rel.endsWith('.vue')) continue
+      // Comments mention `<img>` prose in several components; stripping them
+      // first keeps those out of the scan.
+      const source = readFileSync(join(APP_DIR, rel), 'utf8').replace(/<!--[\s\S]*?-->/g, '')
+
+      const tags = source.match(/<img\b[^>]*>/g) ?? []
+      // Guards the parser itself: an attribute value containing `>` would end
+      // the match early and silently shrink the scan.
+      expect(tags.length, `unparsed <img> tag in ${rel}`).toBe((source.match(/<img\b/g) ?? []).length)
+
+      for (const tag of tags) {
+        const src = /:src="([^"]*)"/.exec(tag)?.[1]
+        if (src && !ALLOWED_SRC.some(pattern => pattern.test(src.trim()))) {
+          offenders.push(`${rel}: :src="${src}"`)
+        }
+      }
+    }
 
     expect(offenders).toEqual([])
   })
