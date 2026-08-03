@@ -32,9 +32,12 @@ const rows = computed(() => {
 </script>
 
 <template>
-  <UTooltip :delay-duration="150">
+  <UTooltip
+    :delay-duration="150"
+    :ui="{ content: 'p-1.5' }"
+  >
     <template #content>
-      <div class="grid grid-cols-[auto_auto] gap-x-4 gap-y-0.5 px-1 py-0.5 text-xs">
+      <div class="grid grid-cols-[auto_auto] gap-x-4 gap-y-0.5 text-xs">
         <template
           v-for="row in rows"
           :key="row.label"
