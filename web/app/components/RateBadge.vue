@@ -19,7 +19,7 @@ const rows = computed(() => {
   const stats: { label: string, value: string }[] = []
 
   if (props.games !== undefined) {
-    stats.push({ label: 'Games', value: props.games.toLocaleString('en-US') })
+    stats.push({ label: props.games === 1 ? 'Game' : 'Games', value: props.games.toLocaleString('en-US') })
   }
 
   stats.push(
