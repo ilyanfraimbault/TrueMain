@@ -54,6 +54,7 @@ const synergyLabel = computed(() => {
       :alt="champion.name"
       width="32"
       height="32"
+      loading="lazy"
       class="size-8 shrink-0 rounded"
     />
     <div v-else class="size-8 shrink-0 rounded bg-elevated" aria-hidden="true" />
@@ -64,6 +65,7 @@ const synergyLabel = computed(() => {
       :alt="positionOption.label"
       :width="16"
       :height="16"
+      loading="lazy"
       class="size-4 shrink-0 opacity-70"
     />
 

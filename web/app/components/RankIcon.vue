@@ -6,6 +6,12 @@
 const props = defineProps<{
   tier: string | null | undefined
   size?: number
+  /**
+   * Native browser lazy-loading hint, forwarded to the underlying <img>. Set
+   * to `'lazy'` on emblems that live in long rows below the fold; leave unset
+   * for the above-the-fold ones (a profile header's own rank badge).
+   */
+  loading?: 'lazy' | 'eager'
 }>()
 
 const dim = computed(() => props.size ?? 28)
@@ -35,6 +41,7 @@ const iconUrl = computed(() => {
     :title="tier ?? undefined"
     :width="dim"
     :height="dim"
+    :loading="loading"
     class="shrink-0"
     :style="{ width: `${dim}px`, height: `${dim}px` }"
   >

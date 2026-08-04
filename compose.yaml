@@ -139,6 +139,7 @@ services:
       NUXT_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-truemain}
       NUXT_PUBLIC_UMAMI_URL: http://localhost:3100
       NUXT_PUBLIC_UMAMI_SHARE_URL: ${UMAMI_SHARE_URL:-}
+      NUXT_PUBLIC_UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
     depends_on:
       api:
         condition: service_healthy

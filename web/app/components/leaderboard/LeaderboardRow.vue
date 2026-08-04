@@ -110,8 +110,10 @@ const dedicationScoreLabel = computed(() =>
 
 // Plain <img> + a URL built here instead of <NuxtImg> — same `_ipx/…` URL,
 // minus the responsive srcset machinery a fixed 22px icon never needed. See
-// SkeletonImage.vue for the profiling rationale.
-const ipx = useImage()
+// SkeletonImage.vue for the profiling rationale. The URL itself comes from the
+// shared helper so this glyph resolves to the same cache entry as every other
+// place that renders it, at whatever size they display it.
+const canonicalIcon = useCanonicalIcon()
 
 // Primary + secondary lane icons. Each entry carries its icon URL and a
 // tooltip. The list is empty when the backend has no position data (no main
@@ -165,6 +167,11 @@ const positionIcons = computed(() => {
     </span>
 
     <!-- Avatar -->
+    <!-- Rows appear in long lists (/truemains) and in the champion page's
+         sidebar, always below the build panel: lazy so they leave the initial
+         request burst to the above-the-fold icons. Rows near the viewport are
+         unaffected — the browser fetches lazy images well before they scroll
+         in. Same call the match-history rows already make. -->
     <SkeletonImage
       v-if="profileIconUrl"
       :src="profileIconUrl"
@@ -172,6 +179,7 @@ const positionIcons = computed(() => {
       class="size-10 shrink-0 rounded"
       width="40"
       height="40"
+      loading="lazy"
     />
     <div v-else class="size-10 shrink-0 rounded bg-elevated/60" aria-hidden="true" />
 
@@ -208,13 +216,14 @@ const positionIcons = computed(() => {
       <img
         v-for="role in positionIcons"
         :key="role.position"
-        :src="ipx(role.iconUrl, { width: 22, height: 22 })"
+        :src="canonicalIcon(role.iconUrl)"
         :alt="role.title"
         :title="role.title"
         class="size-[22px] shrink-0"
         :class="role.primary ? undefined : 'opacity-40'"
         width="22"
         height="22"
+        loading="lazy"
       >
     </div>
 
@@ -235,6 +244,7 @@ const positionIcons = computed(() => {
           :keystone="perk(row.topChampions[0]!.primaryKeystoneId)"
           :secondary-style="perkStyle(row.topChampions[0]!.secondaryStyleId)"
           :first-item="buildItem(row.topChampions[0]!.firstItemId)"
+          loading="lazy"
         />
 
         <div
@@ -308,7 +318,7 @@ const positionIcons = computed(() => {
       class="flex w-12 shrink-0 items-center justify-end gap-1"
       :title="`${ranked.tier}${showDivision ? ' ' + ranked.division : ''} · ${ranked.leaguePoints.toLocaleString('en-US')} LP`"
     >
-      <RankIcon :tier="ranked.tier" :size="26" />
+      <RankIcon :tier="ranked.tier" :size="26" loading="lazy" />
       <span v-if="showDivision" class="text-sm font-semibold tabular-nums">
         {{ ranked.division }}
       </span>

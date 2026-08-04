@@ -492,6 +492,16 @@ builds. Caddy also normalises `X-Forwarded-For` (dropping client-supplied values
 admin brute-force throttle non-spoofable. DNS must be **DNS-only, not Cloudflare-proxied**, or the ACME
 challenge fails — #433, #430, #426.
 
+**The admin `/analytics` iframe stays on Umami's public share view, not the authenticated app — kept as-is on purpose, 2026-08-04.**
+The authenticated app *can* be framed: Caddy rewrites `analytics.truemain.lol`'s `frame-ancestors` to allow
+`admin.truemain.lol` (`Caddyfile`), and the two subdomains share `truemain.lol` so the Umami session cookie
+would reach the iframe. That rules out CSP as the reason to prefer the share view. The owner chose to keep it
+anyway: the share view renders with no Umami login, while the authenticated app would show Umami's login
+screen inside the iframe whenever no session is active. Session replays/heatmaps (#1013) — absent from the
+share view's hardcoded nav because a share link is an unauthenticated public URL and a replay is a full DOM
+recording — stay reachable only via the deep links added in #1014, opened in a new tab. Revisit if the
+login-in-iframe friction becomes the bigger annoyance — #1013.
+
 **`/ops/*` is the only authenticated API surface** (`X-Ops-Key`, min 32 chars, rotated independently of the
 Riot key). Everything else is public and rate-limited to 100 req/min per IP — `docs/api.md`.
 
@@ -616,6 +626,50 @@ Consequences that matter later:
 - The SQL tables were **not dropped in the same PR**: the code switch shipped first (no schema change, no
   compiled-model churn), the historical rows were copied preprod/prod once the frozen tables had no writers,
   and a follow-up PR drops the tables + regenerates the compiled model.
+
+**Champion-page icons are slow because of browser queue depth, not the image proxy — measure the split before
+"optimising" it.** The obvious reading of a slow champion page (~118 `/_ipx/**` requests, ~600 KB) is that the
+proxy or Riot's CDN is slow. Splitting per-request timing on preprod says otherwise: **queue 2459 ms, server
+65 ms, download 1 ms**, and the proxy answers 40 concurrent requests in 0.65 s. The cost is the browser holding
+a burst of ~106 distinct, equal-priority image requests issued in one tick when the API data lands. So a
+persistent/disk cache and a boot-time pre-warm were both **rejected**: they buy back tens of milliseconds of an
+850 ms budget, while a disk cache on a public, unauthenticated route that accepts arbitrary modifiers is the
+same disk-exhaustion class that already crash-looped this box (#680). Pre-warming was rejected additionally
+because it fires ~500 requests at Riot and the volunteer-run CommunityDragon mirror on **every** boot, and this
+stack has had restart loops. What is left is payload size and queue depth — #997.
+
+**`SkeletonImage` serves WebP; `RankIcon` deliberately does not.** At the canonical 64×64 fetch size the live
+assets go champion 10194 B → 1100 B, perk 8933 B → 3396 B, item 6096 B → 2130 B with no visible difference —
+the perk icons (thin bright line art over transparency) are the demanding case and survive it. It is **not**
+applied globally: `RankIcon`'s sources are `.svg` and IPX passes them through as `image/svg+xml` today, so
+forcing a raster format would trade a vector that stays crisp at any DPR for a 20 px bitmap. This is a
+format decision inside the existing `<img>` + `useImage()` split, not a change to it — the `@nuxt/image`
+policy (fixed-size icons use `<img>` + `useImage()`, real responsive images use `<NuxtImg>`) still stands.
+
+**Every icon URL is built by one helper, so one asset is one cache entry.** `useCanonicalIcon()` is the
+only place that decides fetch size and format; `SkeletonImage` calls it, and so does each component that
+deliberately renders a plain `<img>` instead (lane glyphs in leaderboard/profile rows and match rows, the
+search palette's trailing icons — fixed-size glyphs appearing dozens of times per page, where one
+component instance per icon costs more than it gives). Hand-writing `ipx(...)` per call site is what this
+replaces, and the drift was real: the same position glyph was being fetched at 12, 20, 22 *and* 64 px —
+four downloads and four cache entries for one image — while the search palette bound the **raw Data
+Dragon URL**, shipping a 120×120 PNG (30 267 B, straight from Riot's CDN, uncached by us) into a 20 px
+box. Measured on preprod after the change, that icon arrives in **1 446 B**.
+
+Note the number the canonical size deliberately gives up: fetched at the palette's own 20 px it would be
+306 B, roughly five times smaller again. It is fetched at 64 px anyway, because a *second* size is a
+second cache entry — the same champion portrait already exists at 64 px from every other page, so the
+canonical URL is usually a cache hit costing nothing, while a bespoke 20 px variant would always be a
+fresh download. Sizing per call site is the local optimum and the global mistake; that is the whole point
+of the helper. `RankIcon` remains the one deliberate exception, for the SVG reason above — #1000.
+
+**The `/_ipx/**` cache evicts by patch, keeping the current patch and the two before it.** Every source URL is
+patch-pinned, so a release turns the whole catalogue over at once and strands the outgoing patch's bytes in the
+64 MB budget precisely when the cache is cold. The sweep runs **only** when a newer patch is first observed, not
+as a check on every write: the champion page has a patch filter, so old-patch URLs are legitimate traffic, and
+evaluating expiry per write would store and immediately drop each of their icons, leaving old-patch browsing
+permanently uncached. The window is the three newest patches *observed* rather than `newest - 2` arithmetic, so
+a season rollover (16.1 after 15.24) keeps the right three — `server/utils/ipx-patch-retention.ts`, #997.
 
 ## Keeping these files current
 

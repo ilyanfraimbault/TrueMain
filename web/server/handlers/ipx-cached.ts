@@ -3,6 +3,7 @@ import { useBase } from 'h3'
 import { createIPX, createIPXH3Handler, ipxFSStorage, ipxHttpStorage } from 'ipx'
 import { IPX_CACHE_SECONDS } from '~~/shared/utils/ipx'
 import { createBoundedByteCache } from '../utils/bounded-byte-cache'
+import { createPatchRetention, isOutsideRetention } from '../utils/ipx-patch-retention'
 
 /**
  * Drop-in replacement for the `/_ipx/**` handler @nuxt/image ships, adding the
@@ -46,6 +47,11 @@ const cache = createBoundedByteCache<CachedImage>({
   // can't crowd out the icons that make up the rest of the catalogue.
   maxEntryBytes: 2 * 1024 * 1024,
 })
+
+// Patch turnover is the one eviction the LRU gets wrong: on release day every
+// key changes at once, so the outgoing patch's bytes sit in the budget,
+// unreachable, exactly when the cache is cold. See ipx-patch-retention.ts.
+const patchRetention = createPatchRetention()
 
 interface CachedImage {
   body: Buffer
@@ -100,6 +106,18 @@ export default defineEventHandler(async (event) => {
   // Only 200s with a real image body are worth keeping; IPX answers errors
   // with a JSON object and conditional requests with an empty 304.
   if (Buffer.isBuffer(body) && getResponseStatus(event) === 200) {
+    // Sweep before storing so the incoming patch's first entry doesn't share
+    // the budget with the patch that just aged out. Returns non-null only on
+    // the first request of a newer patch, so this is a no-op on every other
+    // cache miss.
+    const retained = patchRetention.observe(key)
+    if (retained) {
+      const dropped = cache.purge(cacheKey => isOutsideRetention(cacheKey, retained))
+      if (dropped > 0) {
+        console.info(`[ipx] new patch observed, dropped ${dropped} cached image(s) from expired patches`)
+      }
+    }
+
     cache.set(key, {
       body,
       byteLength: body.byteLength,

@@ -25,9 +25,17 @@ const props = withDefaults(defineProps<{
   nameTag?: string | null
   /** Tighter sizing + no "play rate" label, for the narrow homepage panel. */
   compact?: boolean
+  /**
+   * Native lazy-loading hint for the champion icon. The two callers sit in
+   * different places: leaderboard rows are always below the build panel and
+   * pass `'lazy'`, while the homepage teaser renders near the top of the
+   * landing page — so this defaults to unset rather than being hardcoded here.
+   */
+  loading?: 'lazy' | 'eager'
 }>(), {
   nameTag: null,
   compact: false,
+  loading: undefined,
 })
 
 const NuxtLinkComponent = resolveComponent('NuxtLink')
@@ -62,6 +70,7 @@ const championTitle = computed(() => `${props.name} · ${props.champion.games} g
       :title="championTitle"
       :width="iconSize"
       :height="iconSize"
+      :loading="loading"
       class="shrink-0 rounded-md ring-1 ring-default/40"
     />
 
@@ -89,6 +98,7 @@ const championTitle = computed(() => `${props.name} · ${props.champion.games} g
         :perk="keystone"
         :width="buildSize"
         :height="buildSize"
+        :loading="loading"
         class="rounded-full"
         :style="{ width: `${buildSize}px`, height: `${buildSize}px` }"
       />
@@ -97,6 +107,7 @@ const championTitle = computed(() => `${props.name} · ${props.champion.games} g
         :style="secondaryStyle"
         :width="secondaryOverlaySize"
         :height="secondaryOverlaySize"
+        :loading="loading"
         class="absolute -bottom-1 -right-1.5"
         :class="compact ? 'size-[11px]' : 'size-[13px]'"
       />
@@ -107,6 +118,7 @@ const championTitle = computed(() => `${props.name} · ${props.champion.games} g
       :item="firstItem"
       :width="buildSize"
       :height="buildSize"
+      :loading="loading"
       class="shrink-0 rounded"
       :style="{ width: `${buildSize}px`, height: `${buildSize}px` }"
     />

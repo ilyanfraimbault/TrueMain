@@ -33,8 +33,9 @@ function championLink(championId: number) {
 
 // Plain <img> + a URL built here instead of <NuxtImg> — same `_ipx/…` URL,
 // minus the responsive srcset machinery a fixed 12px icon never needed. See
-// SkeletonImage.vue for the profiling rationale.
-const ipx = useImage()
+// SkeletonImage.vue for the profiling rationale. The URL comes from the shared
+// helper so the glyph shares one cache entry across every size it is shown at.
+const canonicalIcon = useCanonicalIcon()
 </script>
 
 <template>
@@ -78,7 +79,7 @@ const ipx = useImage()
               <div class="flex items-center gap-1 text-[11px] text-muted tabular-nums">
                 <img
                   v-if="main.primaryPosition"
-                  :src="ipx(getPositionIconUrl(main.primaryPosition), { width: 12, height: 12 })"
+                  :src="canonicalIcon(getPositionIconUrl(main.primaryPosition))"
                   :alt="main.primaryPosition"
                   class="size-3"
                   width="12"

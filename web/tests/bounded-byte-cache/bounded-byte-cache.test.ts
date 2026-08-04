@@ -67,4 +67,25 @@ describe('createBoundedByteCache', () => {
     expect(cache.bytes).toBe(20)
     expect(cache.size).toBe(1)
   })
+
+  it('purge drops the matching entries and reclaims their bytes', () => {
+    const cache = createBoundedByteCache<Blob>({ maxBytes: 100, maxEntryBytes: 100 })
+    cache.set('keep-a', blob(10))
+    cache.set('drop-b', blob(10))
+    cache.set('drop-c', blob(10))
+
+    expect(cache.purge(key => key.startsWith('drop-'))).toBe(2)
+    expect(cache.get('keep-a')).toBeDefined()
+    expect(cache.get('drop-b')).toBeUndefined()
+    expect(cache.bytes).toBe(10)
+    expect(cache.size).toBe(1)
+  })
+
+  it('purge that matches nothing leaves the cache untouched', () => {
+    const cache = createBoundedByteCache<Blob>({ maxBytes: 100, maxEntryBytes: 100 })
+    cache.set('a', blob(10))
+    expect(cache.purge(() => false)).toBe(0)
+    expect(cache.bytes).toBe(10)
+    expect(cache.size).toBe(1)
+  })
 })
