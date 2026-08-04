@@ -106,7 +106,7 @@ Separate app with its own deployment and domain — **not** a `/admin` route of 
 | `/aggregation` | Per aggregation family: exact row counts, distinct champions/patches, freshness, last run + summary, and the ingestion backlogs that should read zero when caught up |
 | `/logs` | Two tabs (deep-linkable `?view=crashes`). **Logs**: severity/category/event-type/process/window/text filters, detail slide-over with exception stack, multi-select copy as JSON. **Crashes**: full report per row — plain-language explanation, exception chain, environment + memory/GC snapshot, recent log tail |
 | `/riot-api` | Riot usage over 1h/24h/7d from the Mongo rollups: totals, per-endpoint table, status-code histogram, call-volume chart, latest rate-limit snapshot |
-| `/analytics` | Iframe onto the self-hosted Umami. 54 lines, no backend call |
+| `/analytics` | Iframe onto the self-hosted Umami, plus "Replays"/"Heatmaps" deep links into the **authenticated** Umami app (#1013) — those two views are absent from Umami's share-view nav by design (a share link is an unauthenticated public URL, a replay is a full DOM recording), so the iframe can never reach them. Links hide when `NUXT_PUBLIC_UMAMI_WEBSITE_ID` is unset. No backend call |
 | `/seed` | "Add mains": single-add form with a Pending→Resolving→Ingested/Failed stepper (polls ~2 s), bulk-add textarea (`name#tag[,REGION]`) with dedupe + malformed-line flagging + progress bar, shared history table |
 
 Tests: `admin/tests/` covers only `process-summary`. No page-level or proxy tests.

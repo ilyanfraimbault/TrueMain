@@ -135,6 +135,7 @@ services:
       NUXT_TRUST_PROXY: "true"
       NUXT_PUBLIC_UMAMI_URL: https://analytics.truemain.lol
       NUXT_PUBLIC_UMAMI_SHARE_URL: ${UMAMI_SHARE_URL:-}
+      NUXT_PUBLIC_UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
     depends_on:
       api:
         condition: service_healthy
