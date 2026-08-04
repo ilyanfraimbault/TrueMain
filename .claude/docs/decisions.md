@@ -492,6 +492,16 @@ builds. Caddy also normalises `X-Forwarded-For` (dropping client-supplied values
 admin brute-force throttle non-spoofable. DNS must be **DNS-only, not Cloudflare-proxied**, or the ACME
 challenge fails — #433, #430, #426.
 
+**The admin `/analytics` iframe stays on Umami's public share view, not the authenticated app — kept as-is on purpose, 2026-08-04.**
+The authenticated app *can* be framed: Caddy rewrites `analytics.truemain.lol`'s `frame-ancestors` to allow
+`admin.truemain.lol` (`Caddyfile`), and the two subdomains share `truemain.lol` so the Umami session cookie
+would reach the iframe. That rules out CSP as the reason to prefer the share view. The owner chose to keep it
+anyway: the share view renders with no Umami login, while the authenticated app would show Umami's login
+screen inside the iframe whenever no session is active. Session replays/heatmaps (#1013) — absent from the
+share view's hardcoded nav because a share link is an unauthenticated public URL and a replay is a full DOM
+recording — stay reachable only via the deep links added in #1014, opened in a new tab. Revisit if the
+login-in-iframe friction becomes the bigger annoyance — #1013.
+
 **`/ops/*` is the only authenticated API surface** (`X-Ops-Key`, min 32 chars, rotated independently of the
 Riot key). Everything else is public and rate-limited to 100 req/min per IP — `docs/api.md`.
 
