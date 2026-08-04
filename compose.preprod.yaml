@@ -219,6 +219,28 @@ services:
     networks:
       - truemain_internal
 
+  # Umami self-hosted has no built-in retention for session replay/heatmap
+  # data (#1018) — without this, session_replay/heatmap_event grow unbounded,
+  # the heaviest tables Umami writes. Postgres image with the entrypoint
+  # overridden to just run the purge script on a loop, no server started.
+  umami-replay-cleanup:
+    image: postgres:17.2-alpine
+    container_name: truemain-preprod-umami-replay-cleanup
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: "${UMAMI_DB_PASSWORD:?set UMAMI_DB_PASSWORD before deploying}"
+      RETENTION_DAYS: ${UMAMI_REPLAY_RETENTION_DAYS:-7}
+    user: postgres
+    entrypoint: ["sh", "/cleanup.sh"]
+    configs:
+      - source: umami_replay_cleanup_script
+        target: /cleanup.sh
+    depends_on:
+      umami-db:
+        condition: service_healthy
+    networks:
+      - truemain_internal
+
   umami-proxy:
     image: caddy:2-alpine
     container_name: truemain-preprod-umami-proxy
@@ -264,6 +286,20 @@ configs:
       		header_down Content-Security-Policy "frame-ancestors 'self'" "frame-ancestors 'self' {$$UMAMI_ALLOWED_FRAME_ORIGIN}"
       	}
       }
+
+  umami_replay_cleanup_script:
+    content: |
+      #!/bin/sh
+      set -eu
+      while true; do
+        if psql -h umami-db -U umami -d umami -v ON_ERROR_STOP=1 -c \
+          "DELETE FROM session_replay WHERE created_at < now() - interval '$${RETENTION_DAYS} days'; DELETE FROM heatmap_event WHERE created_at < now() - interval '$${RETENTION_DAYS} days';"; then
+          echo "$$(date -Iseconds) purged replay/heatmap rows older than $${RETENTION_DAYS} days"
+        else
+          echo "$$(date -Iseconds) purge failed, will retry next cycle" >&2
+        fi
+        sleep 86400
+      done
 
 volumes:
   truemain_preprod_db_data:
