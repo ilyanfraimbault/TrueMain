@@ -502,6 +502,15 @@ share view's hardcoded nav because a share link is an unauthenticated public URL
 recording — stay reachable only via the deep links added in #1014, opened in a new tab. Revisit if the
 login-in-iframe friction becomes the bigger annoyance — #1013.
 
+**Umami session replay/heatmap rows are purged after 7 days by a sidecar container, not left to grow.**
+Self-hosted Umami has no built-in retention for `session_replay`/`heatmap_event` — the `retentionDays` label
+in its client bundle only surfaces on Cloud-subscription screens. Both are the heaviest tables Umami writes
+(a replay is a full stream of DOM mutations), and the sample rate was raised to 100% (owner's call — current
+traffic is low enough to afford it). Left unbounded, this repeats the disk-fill shape of #680 (Postgres hit
+68 GB, VPS ran out of disk). `umami-replay-cleanup` (all three compose files) is a `postgres:17.2-alpine`
+container with its entrypoint overridden to just loop a `psql` purge once a day — no server started, matching
+`umami-db`'s Postgres major version. Retention is `UMAMI_REPLAY_RETENTION_DAYS`, default 7 — #1018.
+
 **`/ops/*` is the only authenticated API surface** (`X-Ops-Key`, min 32 chars, rotated independently of the
 Riot key). Everything else is public and rate-limited to 100 req/min per IP — `docs/api.md`.
 
