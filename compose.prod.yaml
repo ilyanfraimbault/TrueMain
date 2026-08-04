@@ -194,6 +194,27 @@ services:
     networks:
       - truemain_internal
 
+  # Umami self-hosted has no built-in retention for session replay/heatmap
+  # data (#1018) — without this, session_replay/heatmap_event grow unbounded,
+  # the heaviest tables Umami writes. Postgres image with the entrypoint
+  # overridden to just run the purge script on a loop, no server started.
+  umami-replay-cleanup:
+    image: postgres:17.2-alpine
+    container_name: truemain-umami-replay-cleanup
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: "${UMAMI_DB_PASSWORD:?set UMAMI_DB_PASSWORD before deploying}"
+      RETENTION_DAYS: ${UMAMI_REPLAY_RETENTION_DAYS:-7}
+    entrypoint: ["sh", "/cleanup.sh"]
+    configs:
+      - source: umami_replay_cleanup_script
+        target: /cleanup.sh
+    depends_on:
+      umami-db:
+        condition: service_healthy
+    networks:
+      - truemain_internal
+
   ingestor:
     image: ghcr.io/ilyanfraimbault/truemain-ingestor:${IMAGE_TAG:-latest}
     container_name: truemain-ingestor
@@ -221,6 +242,18 @@ services:
         condition: service_healthy
     networks:
       - truemain_internal
+
+configs:
+  umami_replay_cleanup_script:
+    content: |
+      #!/bin/sh
+      set -eu
+      while true; do
+        psql -h umami-db -U umami -d umami -v ON_ERROR_STOP=1 -c \
+          "DELETE FROM session_replay WHERE created_at < now() - interval '$${RETENTION_DAYS} days'; DELETE FROM heatmap_event WHERE created_at < now() - interval '$${RETENTION_DAYS} days';"
+        echo "$$(date -Iseconds) purged replay/heatmap rows older than $${RETENTION_DAYS} days"
+        sleep 86400
+      done
 
 volumes:
   truemain_db_data:
