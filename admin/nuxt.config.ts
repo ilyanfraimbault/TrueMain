@@ -87,8 +87,12 @@ export default defineNuxtConfig({
       // link and as the iframe fallback; `umamiShareUrl` is a public
       // share-link dashboard that embeds without an Umami login inside the
       // iframe. Both empty (dev default) → the page shows a setup notice.
+      // `umamiWebsiteId` only powers the replay/heatmap deep links (#1013):
+      // those views exist solely in the authenticated app, never in the share
+      // view, so they cannot be reached from the iframe.
       umamiUrl: process.env.NUXT_PUBLIC_UMAMI_URL ?? '',
       umamiShareUrl: process.env.NUXT_PUBLIC_UMAMI_SHARE_URL ?? '',
+      umamiWebsiteId: process.env.NUXT_PUBLIC_UMAMI_WEBSITE_ID ?? '',
     },
   },
 })
