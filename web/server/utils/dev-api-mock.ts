@@ -745,7 +745,10 @@ async function mockPowerspikes(
   const buildItems = rotation > 0
     ? [...archetype.items.slice(rotation), ...archetype.items.slice(0, rotation)]
     : archetype.items
-  const events: ChampionPowerspikeEvent[] = buildItems.slice(0, 6).map((itemId, i) => ({
+  // Up to 7 bars, not 6: the core path is the first item plus a walk capped at
+  // ChampionBuildPathAnalyzer.ItemPathMaxDepth (6), so the real endpoint can return
+  // seven — and dev has to be able to show the widest row the layout must survive.
+  const events: ChampionPowerspikeEvent[] = buildItems.slice(0, 7).map((itemId, i) => ({
     type: 'item' as const,
     refId: itemId,
     avgMinute: round3(9 + i * 4.6 + rng() * 1.6),
