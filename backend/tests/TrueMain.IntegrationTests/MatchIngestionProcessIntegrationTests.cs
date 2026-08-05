@@ -77,10 +77,10 @@ public sealed class MatchIngestionProcessIntegrationTests
         public List<Data.Repositories.AccountKey> Validated { get; } = [];
         public List<Data.Repositories.AccountKey> Reverted { get; } = [];
 
-        public Task ValidateAsync(Data.Repositories.AccountKey account, CancellationToken ct)
+        public Task<bool> ValidateAsync(Data.Repositories.AccountKey account, CancellationToken ct)
         {
             Validated.Add(account);
-            return Task.CompletedTask;
+            return Task.FromResult(true);
         }
 
         public Task RevertAsync(Data.Repositories.AccountKey account, CancellationToken ct)

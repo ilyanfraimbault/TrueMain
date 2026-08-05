@@ -1516,6 +1516,93 @@ ou Rejected), paginés.
 
 `gameName`/`tagLine` `null` tant que le compte n'est pas résolu.
 
+## `GET /ops/candidates/funnel`
+
+Débit du funnel de candidats par période : entrées (ladder / harvest / seed
+manuel), scorés, promus, validés et rétrogradés (#1024).
+
+Complément de `GET /ops/candidates`, qui donne l'état *instantané* du funnel — un
+funnel plein mais complètement bloqué et un funnel qui coule y sont identiques.
+
+La source est le résumé des runs enregistrés dans `process_runs`, **jamais** un
+comptage de lignes de `main_candidates` : la rétention supprime les candidats
+périmés, donc compter les lignes par statut sur une période passée sous-estime
+chaque bucket, et d'autant plus qu'on remonte loin. Un résumé de run est écrit une
+fois et jamais réécrit : supprimer le candidat ne décompte pas le run qui l'a
+découvert. La série est donc bornée par le TTL de `process_runs`.
+
+**Query**
+
+| Param | Type | Requis | Défaut | Description |
+|-------|------|--------|--------|-------------|
+| `granularity` | string | oui | — | `day`, `week` ou `month`. Toute autre valeur → `400`. |
+| `windowDays` | int | non | 30 | Fenêtre en jours, clampée à [1, 365]. |
+
+**Réponse `200`** — `CandidateFunnelReadModel`
+
+```json
+{
+  "buckets": [
+    {
+      "bucket": "2026-08-04T00:00:00Z",
+      "intakeLadder": 42,
+      "intakeHarvest": 7,
+      "intakeManual": 2,
+      "scored": 140,
+      "promoted": 30,
+      "validated": 25,
+      "demoted": 3,
+      "runs": 6
+    }
+  ],
+  "windowDays": 30,
+  "retentionDays": 180,
+  "earliestRunAtUtc": "2026-07-06T02:14:00Z",
+  "validatedFirstMeasuredAtUtc": "2026-08-04T05:00:00Z"
+}
+```
+
+- `intakeManual` compte des candidats *mis en file*, pas insérés : un seed manuel
+  promeut des lignes que la discovery a souvent déjà créées.
+- `promoted` est le top-N par plateforme ; l'écart avec `scored` est la coupe
+  compétitive, pas une panne.
+- `validated` est `null` — et non `0` — pour les périodes antérieures à
+  `validatedFirstMeasuredAtUtc` : le compteur n'existait pas encore, et un panneau
+  de santé ne présente pas ce qu'il n'a pas mesuré comme un zéro mesuré (#924).
+- `demoted` est aujourd'hui la seule sortie négative du funnel : le statut
+  `Rejected` existe sur l'entité mais aucun process ne l'assigne.
+- `runs` compte les runs des six process contributeurs ; `0` distingue « le
+  pipeline n'a pas tourné » de « il a tourné et n'a rien bougé ».
+- Les périodes creuses *à l'intérieur* de la plage observée valent zéro ; rien
+  n'est rempli avant `earliestRunAtUtc`, et `retentionDays` borne `windowDays`.
+
+## `GET /ops/candidates/queue-latency`
+
+Latence de file des candidats actuellement retenus : médiane et p90 de
+découverte → scoring, puis scoring → validation (#1024).
+
+**Instantané sur les lignes présentes, pas une série historique** — d'où l'absence
+de fenêtre. Les candidats élagués n'y sont pas, et la population survivante penche
+vers ceux qui ont bougé : à lire comme « à quelle vitesse la file sert ce qu'elle
+contient », pas « combien de temps un candidat attend ».
+
+**Réponse `200`** — `CandidateQueueLatencyReadModel`
+
+```json
+{
+  "discoveredToScored": { "samples": 8421, "medianSeconds": 10800, "p90Seconds": 16560 },
+  "scoredToValidated": { "samples": 512, "medianSeconds": 10800, "p90Seconds": 43200 },
+  "retainedCandidates": 10400,
+  "asOfUtc": "2026-08-05T12:00:00Z"
+}
+```
+
+- Les percentiles sont `null` quand `samples` vaut 0 : aucune ligne ne portait les
+  deux bornes du segment, ce qui n'est pas une latence nulle.
+- `scoredToValidated` part vide au déploiement : `ValidatedAtUtc` n'était pas écrit
+  avant #1024 (la promotion ne posait que le statut), donc le segment se remplit au
+  fil des validations.
+
 ## `GET /ops/candidates/{id}`
 
 Détail d'un candidat : champs pipeline + identité jointe + nombre de matchs

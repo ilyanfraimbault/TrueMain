@@ -59,13 +59,22 @@ public sealed record MatchIngestionPlatformSummary(
     int MatchesSkipped,
     int TimelinesUpdated);
 
-/// <summary>Match ingestion outcome, with a per-platform breakdown.</summary>
+/// <summary>
+/// Match ingestion outcome, with a per-platform breakdown.
+/// <see cref="AccountsValidated"/> (#1024) is the candidate funnel's exit: accounts whose
+/// candidates cleared ingestion and moved Processing → Validated. It is lower than
+/// <see cref="AccountsProcessed"/> whenever a claimed account had nothing left to promote,
+/// and it is the only record of a validation — the transition itself leaves no trace in
+/// <c>main_candidates</c> once retention prunes the row. Appended after <see cref="Errors"/>
+/// so the pre-existing keys keep their wire order.
+/// </summary>
 public sealed record MatchIngestionSummary(
     int AccountsProcessed,
     int MatchesInserted,
     int MatchesSkipped,
     int TimelinesUpdated,
     int Errors,
+    int AccountsValidated,
     IReadOnlyList<MatchIngestionPlatformSummary> ByPlatform) : IProcessRunSummary;
 
 /// <summary>Manual seed outcome for the claimed batch.</summary>

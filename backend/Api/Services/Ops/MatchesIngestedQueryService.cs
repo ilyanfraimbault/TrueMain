@@ -1,5 +1,3 @@
-using System.Globalization;
-using System.Text.Json;
 using Data.Logging.Mongo;
 using Data.Ops.Mongo;
 using Microsoft.Extensions.Options;
@@ -47,7 +45,7 @@ public sealed class MatchesIngestedQueryService(
 
         var retentionDays = (int)Math.Round(mongoOptions.Value.ProcessRunsRetention.TotalDays);
 
-        var runs = await store.GetRunSummariesAsync(ProcessName, since, ct);
+        var runs = await store.GetRunSummariesAsync([ProcessName], since, ct);
 
         var model = new MatchesIngestedReadModel
         {
@@ -65,7 +63,7 @@ public sealed class MatchesIngestedQueryService(
         {
             ct.ThrowIfCancellationRequested();
 
-            var bucket = Truncate(run.StartedAtUtc, granularity);
+            var bucket = RunTimeBuckets.Truncate(run.StartedAtUtc, granularity);
             var counters = totals.TryGetValue(bucket, out var existing) ? existing : new Counters();
 
             // A run always counts, summary or not: a failed or still-running pass is
@@ -88,20 +86,20 @@ public sealed class MatchesIngestedQueryService(
         // filling it with zeros would assert an idle pipeline we have no record of.
         var earliest = runs[0].StartedAtUtc;
         var buckets = new List<MatchesIngestedBucket>();
-        var cursor = Truncate(earliest, granularity);
-        var last = Truncate(nowUtc, granularity);
+        var cursor = RunTimeBuckets.Truncate(earliest, granularity);
+        var last = RunTimeBuckets.Truncate(nowUtc, granularity);
 
         while (cursor <= last)
         {
             var counters = totals.TryGetValue(cursor, out var found) ? found : new Counters();
             buckets.Add(new MatchesIngestedBucket(
-                FormatBucket(cursor),
+                RunTimeBuckets.Format(cursor),
                 counters.Inserted,
                 counters.Skipped,
                 counters.Timelines,
                 counters.Runs));
 
-            cursor = Advance(cursor, granularity);
+            cursor = RunTimeBuckets.Advance(cursor, granularity);
         }
 
         return model with
@@ -123,68 +121,17 @@ public sealed class MatchesIngestedQueryService(
         skipped = 0;
         timelines = 0;
 
-        if (string.IsNullOrWhiteSpace(summaryJson))
+        using var document = ProcessRunSummaryParsing.TryParseObject(summaryJson);
+        if (document is null)
         {
             return false;
         }
 
-        try
-        {
-            using var document = JsonDocument.Parse(summaryJson);
-            if (document.RootElement.ValueKind != JsonValueKind.Object)
-            {
-                return false;
-            }
-
-            inserted = ReadInt64(document.RootElement, "matchesInserted");
-            skipped = ReadInt64(document.RootElement, "matchesSkipped");
-            timelines = ReadInt64(document.RootElement, "timelinesUpdated");
-            return true;
-        }
-        catch (JsonException)
-        {
-            // Same posture as ProcessRunSummaryParsing: a malformed summary is a
-            // missing summary, not a reason to fail the whole panel.
-            return false;
-        }
+        inserted = ProcessRunSummaryParsing.ReadInt64(document.RootElement, "matchesInserted");
+        skipped = ProcessRunSummaryParsing.ReadInt64(document.RootElement, "matchesSkipped");
+        timelines = ProcessRunSummaryParsing.ReadInt64(document.RootElement, "timelinesUpdated");
+        return true;
     }
-
-    private static long ReadInt64(JsonElement element, string property)
-        => element.TryGetProperty(property, out var value)
-           && value.ValueKind == JsonValueKind.Number
-           && value.TryGetInt64(out var number)
-            ? number
-            : 0;
-
-    /// <summary>
-    /// Period start in UTC. Weeks are Monday-based to match Postgres'
-    /// <c>date_trunc('week')</c>, which the sibling matches-over-time series uses —
-    /// two charts side by side must not disagree about where a week begins.
-    /// </summary>
-    private static DateTime Truncate(DateTime instant, IngestionTimeGranularity granularity)
-    {
-        var day = DateTime.SpecifyKind(instant.Date, DateTimeKind.Utc);
-
-        return granularity switch
-        {
-            IngestionTimeGranularity.Day => day,
-            IngestionTimeGranularity.Week => day.AddDays(-((int)day.DayOfWeek + 6) % 7),
-            IngestionTimeGranularity.Month => new DateTime(day.Year, day.Month, 1, 0, 0, 0, DateTimeKind.Utc),
-            _ => throw new ArgumentOutOfRangeException(nameof(granularity), granularity, null)
-        };
-    }
-
-    private static DateTime Advance(DateTime bucket, IngestionTimeGranularity granularity)
-        => granularity switch
-        {
-            IngestionTimeGranularity.Day => bucket.AddDays(1),
-            IngestionTimeGranularity.Week => bucket.AddDays(7),
-            IngestionTimeGranularity.Month => bucket.AddMonths(1),
-            _ => throw new ArgumentOutOfRangeException(nameof(granularity), granularity, null)
-        };
-
-    private static string FormatBucket(DateTime bucket)
-        => bucket.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
 
     private struct Counters
     {

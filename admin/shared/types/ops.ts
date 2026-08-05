@@ -651,6 +651,83 @@ export interface CandidateDetail extends CandidateRow {
   seedRequest: SeedRequestReadModel | null
 }
 
+/**
+ * `GET /api/ops/candidates/funnel` (#1024) — candidate throughput per period, read
+ * from the recorded process-run summaries rather than from `main_candidates` row
+ * counts: retention prunes stale candidates, so counting rows by status per past
+ * period under-reports every bucket and increasingly so the further back it looks.
+ * The whole series is therefore bounded by the `process_runs` TTL.
+ */
+export interface CandidateFunnel {
+  buckets: CandidateFunnelBucket[]
+  /** The requested window in days, after backend clamping. */
+  windowDays: number
+  /** How long run history is kept — the hard bound on `windowDays`. */
+  retentionDays: number
+  /**
+   * Start of the oldest run in the window: the earliest period the series can speak
+   * for. `null` when no run survives at all — an empty range, not a range of zeros.
+   */
+  earliestRunAtUtc: string | null
+  /**
+   * Start of the first run that recorded the validated counter, which the ingestor
+   * only began writing with #1024. Buckets before it carry `validated: null`.
+   */
+  validatedFirstMeasuredAtUtc: string | null
+}
+
+/**
+ * One period of the funnel. Intake is split by producing process because the three
+ * sources fail independently — the ladder drying up and the harvest drying up are
+ * different incidents with the same total.
+ */
+export interface CandidateFunnelBucket {
+  /** Period start, ISO-8601 UTC. */
+  bucket: string
+  /** Candidates inserted by ladder discovery. */
+  intakeLadder: number
+  /** Candidates inserted by the orphan-participant harvest. */
+  intakeHarvest: number
+  /** Candidates an operator's manual seed pushed into the queue. */
+  intakeManual: number
+  scored: number
+  /** Candidates promoted to the ingestion queue — the per-platform top-N. */
+  promoted: number
+  /** Accounts that cleared ingestion. `null`, not `0`, before the counter existed. */
+  validated: number | null
+  /** Accounts demoted back out of Validated on a critical play rate. */
+  demoted: number
+  /** Runs of any contributing process in this period; `0` means the pipeline was idle. */
+  runs: number
+}
+
+/**
+ * `GET /api/ops/candidates/queue-latency` (#1024) — how long the candidates that
+ * exist *right now* took to move through the queue. A snapshot over retained rows,
+ * never a historical average: pruned candidates are not in it, and the surviving
+ * population skews towards the ones that did move. Label it as such wherever shown.
+ */
+export interface CandidateQueueLatency {
+  /** Discovery → scoring, over candidates that have been scored. */
+  discoveredToScored: CandidateLatencyLeg
+  /** Scoring → cleared ingestion, over candidates that have been validated. */
+  scoredToValidated: CandidateLatencyLeg
+  /** Candidate rows currently retained — the population every leg is drawn from. */
+  retainedCandidates: number
+  asOfUtc: string
+}
+
+/**
+ * One leg of the queue. Both percentiles are `null` when `samples` is 0 — no row
+ * carried both ends of the leg, which is not a latency of zero.
+ */
+export interface CandidateLatencyLeg {
+  samples: number
+  medianSeconds: number | null
+  /** The slow tail: it diverging from the median is the shape of a backed-up queue. */
+  p90Seconds: number | null
+}
+
 // =============================================================================
 // Data quality — `GET /api/ops/data-quality/*`
 // =============================================================================
