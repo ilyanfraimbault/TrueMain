@@ -943,6 +943,7 @@ process de snapshot n'a pas tourné)
     { "dateUtc": "2026-07-27T00:00:00Z", "databaseBytes": 44352195072, "postgresBytes": 41231686144, "mongoBytes": 3120508928, "totalBytes": 39000000000, "rowEstimate": 21000000 }
   ],
   "engines": ["mongo", "postgres"],
+  "comparableDays": 90,
   "tables": [
     {
       "engine": "postgres",
@@ -984,7 +985,9 @@ process de snapshot n'a pas tourné)
   Aucune valeur de remplacement n'est inventée. « Jours d'historique » ne compte que les
   jours mesurant les **mêmes moteurs** que le plus récent : le jour où Mongo commence à
   être mesuré ajoute son empreinte d'un coup, et ajuster une tendance à travers cette
-  marche lirait un saut unique comme un rythme quotidien.
+  marche lirait un saut unique comme un rythme quotidien. `comparableDays` expose ce
+  compte, pour que le panneau nomme la vraie raison de l'absence au lieu de redériver
+  la règle de son côté.
 - `projectedAtUtc` : `null` = échéance à plus d'un siècle **dans un sens ou dans
   l'autre** (aucune date exploitable à ce rythme) ; une date passée = seuil déjà franchi.
 

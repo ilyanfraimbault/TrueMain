@@ -106,6 +106,14 @@ export interface DbStorageHistory {
    * snapshot lands, and wherever Mongo is unconfigured, this is postgres alone.
    */
   engines: StorageEngine[]
+  /**
+   * How many of the most recent days the forecast is allowed to fit: the trailing
+   * run of days measuring the same engines as the latest one. Equal to
+   * `daily.length` in the steady state, smaller only just after an engine started
+   * or stopped being measured. The panel reads this rather than re-deriving the
+   * rule, so its explanation cannot drift from the backend's behaviour.
+   */
+  comparableDays: number
   /** Null when no honest projection is possible; see `DbStorageForecast`. */
   forecast: DbStorageForecast | null
 }

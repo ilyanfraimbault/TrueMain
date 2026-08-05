@@ -115,6 +115,7 @@ public sealed class DbStorageHistoryQueryServiceTests
 
         var result = await CreateService(store).GetAsync(null, CancellationToken.None);
 
+        result.ComparableDays.Should().Be(3, "every day measures the same two engines");
         result.Daily.Should().OnlyContain(point => point.DatabaseBytes == 13_000_000_000L);
         result.Daily.Should().OnlyContain(point => point.PostgresBytes == 10_000_000_000L);
         result.Daily.Should().OnlyContain(point => point.MongoBytes == 3_000_000_000L);
@@ -176,6 +177,10 @@ public sealed class DbStorageHistoryQueryServiceTests
         result.Daily.Should().HaveCount(5, "every measured day is still charted");
         result.Forecast.Should().BeNull(
             "the only comparable day is the one Mongo first appeared on");
+        // The panel names the reason off this number rather than re-deriving the rule,
+        // so it has to say "1 of the 5 charted days is comparable", not just "no
+        // forecast".
+        result.ComparableDays.Should().Be(1);
     }
 
     private static DbStorageHistoryQueryService CreateService(

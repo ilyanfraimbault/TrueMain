@@ -26,6 +26,21 @@ public sealed record DbStorageHistoryReadModel
     public IReadOnlyList<string> Engines { get; init; } = [];
 
     /// <summary>
+    /// How many of the most recent days the forecast is actually allowed to fit: the
+    /// trailing run of days measuring the same engines as the latest one. Equal to
+    /// <see cref="Daily"/>'s length in the steady state, and smaller only just after
+    /// an engine started or stopped being measured — the day Mongo first appears adds
+    /// its footprint in one step, and a step is not a growth rate (#1023).
+    ///
+    /// <para>
+    /// Exposed rather than left implicit so the panel can name the real reason a
+    /// forecast is missing instead of re-deriving the rule with its own heuristic and
+    /// drifting from this one.
+    /// </para>
+    /// </summary>
+    public int ComparableDays { get; init; }
+
+    /// <summary>
     /// Null when no projection can honestly be made: fewer than three days of
     /// history, flat or shrinking storage, or no configured disk capacity. Never a
     /// placeholder — the panel shows why instead.

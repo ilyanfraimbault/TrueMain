@@ -163,9 +163,17 @@ const coverageLabel = computed(() => {
 })
 const latestPoint = computed(() => dailyPoints.value.at(-1) ?? null)
 
+// How many trailing days the backend is willing to fit — days measuring the same
+// engines as the latest one. Read from the payload rather than re-derived here:
+// a second implementation of the rule would drift, and the drift would show up as
+// the panel confidently naming the wrong reason.
+const comparableDays = computed(() => history.value?.comparableDays ?? 0)
+
 // Why there is no forecast, in the operator's terms. The backend deliberately
-// returns null rather than a placeholder date, so the panel has to say which of
-// the three reasons applies instead of rendering an empty card.
+// returns null rather than a placeholder date, so the panel has to say which
+// reason applies instead of rendering an empty card.
+const MIN_FORECAST_DAYS = 3
+
 const forecastAbsenceReason = computed(() => {
   if (historyPending.value || forecast.value) {
     return null
@@ -173,15 +181,15 @@ const forecastAbsenceReason = computed(() => {
   if (dailyPoints.value.length === 0) {
     return 'No snapshots recorded yet — the ingestor writes one per pipeline run.'
   }
-  // The trend is only fitted over days measuring the same engines as the latest
-  // one, so the day Mongo first appears restarts the count: its footprint lands
-  // in one step, and a step is not a growth rate.
-  if (dailyPoints.value.some(point => point.mongoBytes === 0) && (latestPoint.value?.mongoBytes ?? 0) > 0) {
-    return 'Mongo has only just started being measured — the trend restarts from the '
-      + 'first day covering both engines, and needs three of them.'
-  }
-  if (dailyPoints.value.length < 3) {
-    return `Only ${dailyPoints.value.length} day(s) of history — three are needed before a trend can be fitted.`
+  if (comparableDays.value < MIN_FORECAST_DAYS) {
+    // Fewer comparable days than charted days means the set of measured engines
+    // changed recently: the newcomer's footprint lands in one step, and a step is
+    // not a growth rate, so the fit restarts after it.
+    return comparableDays.value < dailyPoints.value.length
+      ? `The measured engines changed ${comparableDays.value} day(s) ago — the trend restarts `
+        + `from there, and needs ${MIN_FORECAST_DAYS} days covering the same engines.`
+      : `Only ${dailyPoints.value.length} day(s) of history — ${MIN_FORECAST_DAYS} are needed `
+        + 'before a trend can be fitted.'
   }
   return 'Storage is flat or shrinking over this window, or no disk capacity is configured (StorageHistory:DiskCapacityBytes).'
 })

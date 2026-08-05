@@ -96,12 +96,15 @@ public sealed class DbStorageHistoryQueryService(
             .OrderBy(engine => engine, StringComparer.Ordinal)
             .ToList();
 
+        var comparable = ComparableDays(points, daily);
+
         return new DbStorageHistoryReadModel
         {
             Daily = daily,
             Tables = tables,
             Engines = engines,
-            Forecast = BuildForecast(ComparableDays(points, daily), settings),
+            ComparableDays = comparable.Count,
+            Forecast = BuildForecast(comparable, settings),
         };
     }
 
