@@ -18,6 +18,7 @@ public sealed class MongoFixture : IAsyncLifetime
     public const string RiotApiCallsCollection = "riot_api_call_rollups";
     public const string ProcessRunsCollection = "process_runs";
     public const string SeedRequestsCollection = "seed_requests";
+    public const string DbTableSizeSnapshotsCollection = "db_table_size_snapshots";
 
     private readonly MongoDbContainer _container = new MongoDbBuilder("mongo:8.0")
         // Match PostgresFixture's reasoning: keep Testcontainers' Ryuk reaper
@@ -67,5 +68,9 @@ public sealed class MongoFixture : IAsyncLifetime
         await db.DropCollectionAsync(RiotApiCallsCollection);
         await db.DropCollectionAsync(ProcessRunsCollection);
         await db.DropCollectionAsync(SeedRequestsCollection);
+        // Dropped like the rest, and it matters more here: the collection carries a
+        // unique index the storage-snapshot tests reconcile, so a leaked index would
+        // make them pass or fail depending on run order.
+        await db.DropCollectionAsync(DbTableSizeSnapshotsCollection);
     }
 }

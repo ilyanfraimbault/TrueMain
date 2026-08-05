@@ -70,10 +70,13 @@ public static class MongoLoggingServiceCollectionExtensions
         services.TryAddSingleton<IRiotApiUsageQuery, RiotApiUsageQuery>();
         services.AddHostedService<RiotApiMetricsSink>();
 
-        // Daily Postgres storage snapshots (#925). No sink and no channel: the
-        // Ingestor's snapshot step calls the store directly once per pipeline run, and
-        // the Api only reads it for the admin growth charts.
+        // Daily storage snapshots (#925). No sink and no channel: the Ingestor's
+        // snapshot step calls the store directly once per pipeline run, and the Api
+        // only reads it for the admin growth charts. Since #1023 the snapshot also
+        // measures Mongo itself, through the stats reader — the Api uses it too, for
+        // the live sizes panel.
         services.TryAddSingleton<IDbStorageSnapshotStore, DbStorageSnapshotStore>();
+        services.TryAddSingleton<IMongoStorageStatsReader, MongoStorageStatsReader>();
 
         // Admin-portal data moved off Postgres: recorded process runs (written by
         // the Ingestor's ProcessRunRecorder, read by the admin process panels) and

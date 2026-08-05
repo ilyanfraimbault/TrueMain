@@ -325,6 +325,27 @@ window instead of starting at deploy like #920's bans — #919.
 dimensions rather than games: ~22.2k rows, a few MB, versus a self-join over ~35 GB running single-threaded.
 Reads became ~13-row indexed selects — #606.
 
+**The disk figure sums Postgres and Mongo, because there is one disk** (#1023). The panel and the forecast
+measured Postgres only, while Mongo holds the logs, crashes, audit events, Riot rollups, process runs and seed
+requests — two of those (`audit_events`, `seed_requests`) with **no TTL at all**, i.e. the collections most
+likely to surprise us were exactly the ones nothing watched. Verified on prod before building: every named
+volume uses the default local driver and lands on a single `/dev/sda1` (193 GB), so the saturation date was
+optimistic by construction. The daily rollup therefore takes one reading per engine and **sums** them; taking
+the max — which is what grouping by day alone did — would have reported whichever engine is larger as the
+disk. The snapshot grain gains an `engine` discriminator, and the upsert key becomes `(day, engine, name)`:
+`process_runs` and `seed_requests` exist as both a (frozen) Postgres table and a Mongo collection, so without
+it one engine's reading would overwrite the other's every day. Pre-#1023 documents are stamped `postgres`
+on the next index pass — they are Postgres readings by construction, and leaving the field absent would make
+the engine-filtered upsert insert a *second* document for the same day and table, silently doubling it.
+
+**A step change in what is measured is not growth, so the forecast restarts at it** (#1023). The day Mongo
+first gets measured adds its whole footprint at once. Fitted whole, the series reads that one-off jump as a
+daily rate and predicts a saturation that is not coming. The forecast is therefore fitted only over the
+trailing days that measure the *same set of engines* as the most recent one — so it goes absent for three
+days after the change, which is a state the panel already explains, rather than confidently wrong for ninety.
+Splicing the series or backfilling a Mongo number for days nobody measured were both rejected: the honest
+answer to "we changed the instrument" is a gap, not a reconstruction.
+
 **Daily storage snapshots go to Mongo and are keyed on the day, not the run.**
 Storage history is append-only, time-ordered, ops-only telemetry with no relational joins — the exact
 criteria that put logs and metrics in Mongo below — and a native TTL index prunes it for free instead of
