@@ -370,8 +370,7 @@ public sealed class ChampionPowerspikesApiIntegrationTests
         // One pattern slice per bracket, so the core build path resolves on the same
         // bands the events are read on — a Gold-only request must not fall through to
         // a path derived from the Iron cohort.
-        await SeedBuildAggregateAsync(db, account.Id, perBracketGames, EloBracket.Gold);
-        await SeedBuildAggregateAsync(db, account.Id, perBracketGames, EloBracket.Iron);
+        await SeedBuildAggregateAsync(db, account.Id, perBracketGames, EloBracket.Gold, EloBracket.Iron);
 
         await RunAggregationAsync();
     }
@@ -421,17 +420,30 @@ public sealed class ChampionPowerspikesApiIntegrationTests
     /// are withheld rather than guessed. Production always has both, because the
     /// same fold writes them.
     /// </summary>
+    /// <remarks>
+    /// One seeder instance for every bracket, not one per call: the dim tables are
+    /// globally deduplicated (the same build shape is a single row whatever scope
+    /// references it), and that dedup cache lives on the seeder — two instances each
+    /// insert the row and collide on its unique index.
+    /// </remarks>
     private static Task SeedBuildAggregateAsync(
-        Data.TrueMainDbContext db, Guid accountId, int games, string eloBracket)
-        => new ChampionAggregateSeeder()
-            .AddPatternWithRune(
+        Data.TrueMainDbContext db, Guid accountId, int games, params string[] eloBrackets)
+    {
+        var seeder = new ChampionAggregateSeeder();
+
+        foreach (var eloBracket in eloBrackets)
+        {
+            seeder.AddPatternWithRune(
                 accountId, Champion, ScopePatch, platformId: "EUW1", QueueId, Position,
                 summoner1Id: 4, summoner2Id: 14, skillOrderKey: "Q",
                 buildItems: [CoreItem], bootsItemId: 0,
                 primaryStyleId: 8100, primaryKeystoneId: Keystone, secondaryStyleId: 8000,
                 games: games, wins: games / 2,
-                new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), eloBracket)
-            .SaveAsync(db);
+                new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), eloBracket);
+        }
+
+        return seeder.SaveAsync(db);
+    }
 
     // Fold the seeded dense snapshots into the powerspike stat tables the read now
     // consumes, exactly as the ingestor's incremental aggregation does in production.
