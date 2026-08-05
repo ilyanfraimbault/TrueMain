@@ -69,6 +69,50 @@ export interface MatchTimeBucket {
   matches: number
 }
 
+/**
+ * Granularities of the ingestion-throughput series. Narrower than
+ * `MatchTimeGranularity` on purpose: a patch is a property of the games, not of
+ * when we ingested them, and a year cannot fill two buckets under the 180-day
+ * run retention.
+ */
+export type IngestionTimeGranularity = 'day' | 'week' | 'month'
+
+/**
+ * `GET /api/ops/stats/matches-ingested` — how many matches the pipeline actually
+ * ingested per period (#1025), from the recorded MatchIngestion run summaries.
+ *
+ * A different question from `matches-over-time`, which buckets games by when they
+ * were *played*: that one barely moves when ingestion stalls, and grows in the
+ * past when a backfill lands. Sourced from run summaries rather than
+ * `matches.CreatedAtUtc` because retention deletes matches, which would make an
+ * old bucket shrink over time — a curve rewriting its own history.
+ */
+export interface MatchesIngested {
+  /** Oldest first. Quiet periods inside the observed range are present at zero. */
+  buckets: MatchesIngestedBucket[]
+  /** The effective window in days, after the backend clamped the request. */
+  windowDays: number
+  /** The process_runs TTL in days — how far back run history can possibly go. */
+  retentionDays: number
+  /** Start of the oldest run seen, or null when the window holds none. */
+  earliestRunAtUtc: string | null
+}
+
+export interface MatchesIngestedBucket {
+  /** ISO-8601 UTC period start, same shape as `MatchTimeBucket.bucket`. */
+  bucket: string
+  matchesInserted: number
+  /**
+   * Seen and not written (already ingested, or filtered out). Carried because
+   * inserted-alone cannot tell "nothing to do" from "working hard and storing
+   * nothing", which are opposite operational states.
+   */
+  matchesSkipped: number
+  timelinesUpdated: number
+  /** Ingestion runs started in the period, summary or not. */
+  runs: number
+}
+
 /** Which engine a storage object belongs to (#1023). Both share one volume. */
 export type StorageEngine = 'postgres' | 'mongo'
 

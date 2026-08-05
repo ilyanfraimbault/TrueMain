@@ -346,6 +346,28 @@ days after the change, which is a state the panel already explains, rather than 
 Splicing the series or backfilling a Mongo number for days nobody measured were both rejected: the honest
 answer to "we changed the instrument" is a gap, not a reconstruction.
 
+**Ingestion throughput is measured from the run summaries, not from `matches.CreatedAtUtc`** (#1025). The
+overview's existing chart buckets `GameStartTimeUtc` — when the games were *played* — which is a property of
+the player population: it barely moves when ingestion stalls, and a backfill makes it grow in the past. The
+portal therefore carried no signal for "did the pipeline keep up", which is exactly what the two retention
+crash-loops (#982, #988) needed. `matches.CreatedAtUtc` exists and is the obvious source, but retention deletes
+out-of-window and non-tracked-queue matches, so an old bucket shrinks over time and the curve rewrites its own
+history. The `MatchIngestion` run summaries in Mongo are retention-proof by construction: deleting a match does
+not rewrite the run that ingested it. The cost is a 180-day ceiling (the `process_runs` TTL), which the
+response reports so the panel states the bound rather than drawing the tail beyond it as zero ingestion.
+The two charts stay side by side and separately labelled — they answer different questions and merging them
+would lose one.
+
+**The counters are summed in memory because the summary is stored as opaque JSON text** (#1025).
+`ProcessRunDocument.SummaryJson` is a string on purpose (#990: the admin receives byte-identical bytes to what
+the recorder wrote), so Mongo cannot `$sum` a field inside it. The split is the one that plays to each side:
+the server does the indexed `(processName, startedAtUtc)` range scan and projects two fields, the read parses
+and does the arithmetic. Three consequences are deliberate. A run with **no** summary — failed, abandoned, or a
+no-work pass whose shape differs — still counts as an attempt with absent counters, because dropping it would
+make a crash-looping ingestor read as an idle one. Quiet periods **inside** the observed range are zero-filled,
+since a stalled pipeline is the thing the chart exists to show. And nothing is filled **before** the oldest
+surviving run: that period was not measured, and zeros there would assert a repose we have no record of.
+
 **Daily storage snapshots go to Mongo and are keyed on the day, not the run.**
 Storage history is append-only, time-ordered, ops-only telemetry with no relational joins — the exact
 criteria that put logs and metrics in Mongo below — and a native TTL index prunes it for free instead of

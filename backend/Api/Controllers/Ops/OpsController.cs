@@ -15,6 +15,7 @@ public sealed class OpsController(
     IOverviewQueryService overviewQueryService,
     IChampionStatsQueryService championStatsQueryService,
     IMatchesOverTimeQueryService matchesOverTimeQueryService,
+    IMatchesIngestedQueryService matchesIngestedQueryService,
     ITableStatsQueryService tableStatsQueryService,
     IDbStorageHistoryQueryService dbStorageHistoryQueryService,
     IProcessRunsQueryService processRunsQueryService,
@@ -94,6 +95,42 @@ public sealed class OpsController(
 
         var rows = await matchesOverTimeQueryService.GetAsync(parsed, region, ct);
         return Ok(rows);
+    }
+
+    /// <summary>
+    /// Match ingestion throughput: how many matches the pipeline actually ingested
+    /// per period, from the recorded <c>MatchIngestion</c> run summaries (#1025).
+    /// </summary>
+    /// <remarks>
+    /// Not a variant of <c>stats/matches-over-time</c>, which buckets games by when
+    /// they were <em>played</em> and barely moves when ingestion stalls. This one
+    /// answers whether the pipeline kept up. Bounded by the <c>process_runs</c> TTL,
+    /// which the response reports so the caller can state the bound rather than
+    /// drawing the tail beyond it as zero ingestion.
+    /// </remarks>
+    [HttpGet("stats/matches-ingested")]
+    [ProducesResponseType(typeof(MatchesIngestedReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<MatchesIngestedReadModel>> GetMatchesIngestedAsync(
+        [FromQuery] string? granularity,
+        [FromQuery] int? windowDays,
+        CancellationToken ct)
+    {
+        // Closed set, parsed case-insensitively, same shape as matches-over-time.
+        // Narrower on purpose: patch is a property of the games rather than of when we
+        // ingested them, and year cannot fill two buckets under the run retention.
+        if (!Enum.TryParse<IngestionTimeGranularity>(granularity, ignoreCase: true, out var parsed)
+            || !Enum.IsDefined(parsed))
+        {
+            ModelState.AddModelError(
+                nameof(granularity),
+                "granularity is required and must be one of: day, week, month.");
+            return ValidationProblem(ModelState);
+        }
+
+        var readModel = await matchesIngestedQueryService.GetAsync(parsed, windowDays, ct);
+        return Ok(readModel);
     }
 
     /// <summary>
