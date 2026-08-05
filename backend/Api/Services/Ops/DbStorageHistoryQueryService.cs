@@ -52,9 +52,15 @@ public sealed class DbStorageHistoryQueryService(
             .Select(group => new DbStorageDailyPoint
             {
                 DateUtc = group.Key,
-                // DatabaseBytes is denormalised onto every row of a day, so any row
-                // carries it; Max rather than First guards a partially-written day.
-                DatabaseBytes = group.Max(point => point.DatabaseBytes),
+                // Sum across engines, never Max: DatabaseBytes is denormalised onto
+                // every row of a day *for its own engine*, so the day carries one
+                // figure per engine and both sit on the same volume (#1023). Max would
+                // silently report whichever engine is larger as the disk total. Within
+                // an engine it is still Max rather than First, which guards a
+                // partially-written day.
+                DatabaseBytes = SumPerEngine(group),
+                PostgresBytes = EngineBytes(group, StorageEngines.Postgres),
+                MongoBytes = EngineBytes(group, StorageEngines.Mongo),
                 TotalBytes = group.Sum(point => point.TotalBytes),
                 RowEstimate = group.Sum(point => point.RowEstimate),
             })
@@ -63,32 +69,109 @@ public sealed class DbStorageHistoryQueryService(
         var latestDate = daily[^1].DateUtc;
         var currentSizes = points
             .Where(point => point.SnapshotDateUtc == latestDate)
-            .ToDictionary(point => point.TableName, point => point.TotalBytes, StringComparer.Ordinal);
+            .ToDictionary(point => (point.Engine, point.TableName), point => point.TotalBytes);
 
+        // Keyed on (engine, name), not name alone: process_runs and seed_requests
+        // exist on both sides, and collapsing them would add a Postgres table's size
+        // to a Mongo collection's.
         var topTables = currentSizes
             .OrderByDescending(entry => entry.Value)
-            .ThenBy(entry => entry.Key, StringComparer.Ordinal)
+            .ThenBy(entry => entry.Key.TableName, StringComparer.Ordinal)
             .Take(Math.Max(1, settings.TopTables))
             .Select(entry => entry.Key)
-            .ToHashSet(StringComparer.Ordinal);
+            .ToHashSet();
 
         var tables = points
-            .Where(point => topTables.Contains(point.TableName))
-            .GroupBy(point => point.TableName, StringComparer.Ordinal)
-            .Select(group => BuildSeries(group.Key, [.. group.OrderBy(point => point.SnapshotDateUtc)]))
+            .Where(point => topTables.Contains((point.Engine, point.TableName)))
+            .GroupBy(point => (point.Engine, point.TableName))
+            .Select(group => BuildSeries(
+                group.Key.Engine, group.Key.TableName, [.. group.OrderBy(point => point.SnapshotDateUtc)]))
             .OrderByDescending(series => series.CurrentBytes)
             .ThenBy(series => series.TableName, StringComparer.Ordinal)
             .ToList();
+
+        var engines = points
+            .Select(point => point.Engine)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(engine => engine, StringComparer.Ordinal)
+            .ToList();
+
+        var comparable = ComparableDays(points, daily);
 
         return new DbStorageHistoryReadModel
         {
             Daily = daily,
             Tables = tables,
-            Forecast = BuildForecast(daily, settings),
+            Engines = engines,
+            ComparableDays = comparable.Count,
+            Forecast = BuildForecast(comparable, settings),
         };
     }
 
-    private static DbStorageTableSeries BuildSeries(string tableName, IReadOnlyList<DbTableSizeSnapshotPoint> ordered)
+    /// <summary>
+    /// The day's disk footprint: one reading per engine, summed. Both engines share a
+    /// volume, so the disk total is their sum.
+    /// </summary>
+    private static long SumPerEngine(IEnumerable<DbTableSizeSnapshotPoint> day)
+        => day
+            .GroupBy(point => point.Engine, StringComparer.Ordinal)
+            .Sum(engine => engine.Max(point => point.DatabaseBytes));
+
+    private static long EngineBytes(IEnumerable<DbTableSizeSnapshotPoint> day, string engine)
+    {
+        var rows = day.Where(point => string.Equals(point.Engine, engine, StringComparison.Ordinal)).ToList();
+        return rows.Count == 0 ? 0 : rows.Max(point => point.DatabaseBytes);
+    }
+
+    /// <summary>
+    /// The trailing days that measure the same set of engines as the most recent one.
+    ///
+    /// <para>
+    /// The day Mongo first gets measured (#1023) adds its whole footprint at once, and
+    /// that step is not growth — fitting a trend across it would read the one-off jump
+    /// as a daily rate and forecast a saturation that is not coming. Rather than
+    /// splice the series or backfill a number nobody measured, the forecast simply
+    /// starts again from the first comparable day and stays absent until three of them
+    /// exist, which is the rule the panel already explains.
+    /// </para>
+    /// </summary>
+    private static List<DbStorageDailyPoint> ComparableDays(
+        IReadOnlyList<DbTableSizeSnapshotPoint> points,
+        List<DbStorageDailyPoint> daily)
+    {
+        var enginesByDay = points
+            .GroupBy(point => point.SnapshotDateUtc)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .Select(point => point.Engine)
+                    .ToHashSet(StringComparer.Ordinal));
+
+        if (!enginesByDay.TryGetValue(daily[^1].DateUtc, out var latestEngines))
+        {
+            return daily;
+        }
+
+        var comparable = new List<DbStorageDailyPoint>(daily.Count);
+        for (var index = daily.Count - 1; index >= 0; index--)
+        {
+            if (!enginesByDay.TryGetValue(daily[index].DateUtc, out var engines)
+                || !engines.SetEquals(latestEngines))
+            {
+                break;
+            }
+
+            comparable.Add(daily[index]);
+        }
+
+        comparable.Reverse();
+        return comparable;
+    }
+
+    private static DbStorageTableSeries BuildSeries(
+        string engine,
+        string tableName,
+        IReadOnlyList<DbTableSizeSnapshotPoint> ordered)
     {
         var first = ordered[0];
         var last = ordered[^1];
@@ -101,6 +184,7 @@ public sealed class DbStorageHistoryQueryService(
 
         return new DbStorageTableSeries
         {
+            Engine = engine,
             TableName = tableName,
             Points = [.. ordered.Select(point => new DbStorageTablePoint
             {

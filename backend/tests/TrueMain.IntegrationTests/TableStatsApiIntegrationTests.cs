@@ -41,6 +41,7 @@ public sealed class TableStatsApiIntegrationTests
         document.RootElement[0].EnumerateObject().Select(property => property.Name)
             .Should().BeEquivalentTo(
             [
+                "engine",
                 "tableName",
                 "rowEstimate",
                 "totalBytes",
@@ -51,8 +52,13 @@ public sealed class TableStatsApiIntegrationTests
         var rows = await response.Content.ReadFromJsonAsync<IReadOnlyList<TableStatRowTestContract>>();
         rows.Should().NotBeNull();
 
+        // Mongo is unconfigured in this fixture, so the reader reports nothing and the
+        // list is Postgres-only — an engine not measured, which is not the same as an
+        // engine measured as empty (#1023).
+        rows!.Should().OnlyContain(row => row.Engine == "postgres");
+
         // The core mapped tables must be present in the public schema.
-        rows!.Select(row => row.TableName).Should().Contain(
+        rows.Select(row => row.TableName).Should().Contain(
             ["matches", "match_participants", "main_champion_stats", "process_runs", "riot_accounts"]);
 
         // Every reported table has sane, non-negative byte figures and total >=
@@ -85,6 +91,8 @@ public sealed class TableStatsApiIntegrationTests
 
     private sealed class TableStatRowTestContract
     {
+        public string Engine { get; init; } = string.Empty;
+
         public string TableName { get; init; } = string.Empty;
 
         public long RowEstimate { get; init; }

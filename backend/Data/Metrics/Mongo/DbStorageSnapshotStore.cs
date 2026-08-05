@@ -22,6 +22,7 @@ internal sealed class DbStorageSnapshotStore(MongoLogContext context) : IDbStora
 
     public async Task<int> UpsertDayAsync(
         DateTime snapshotDateUtc,
+        string engine,
         long databaseBytes,
         IReadOnlyList<DbTableSizeSample> samples,
         CancellationToken ct)
@@ -50,6 +51,7 @@ internal sealed class DbStorageSnapshotStore(MongoLogContext context) : IDbStora
         {
             var filter = Builders<DbTableSizeSnapshotDocument>.Filter.And(
                 Builders<DbTableSizeSnapshotDocument>.Filter.Eq(doc => doc.SnapshotDateUtc, day),
+                Builders<DbTableSizeSnapshotDocument>.Filter.Eq(doc => doc.Engine, engine),
                 Builders<DbTableSizeSnapshotDocument>.Filter.Eq(doc => doc.TableName, sample.TableName));
 
             // $set, not $inc: a snapshot is an absolute reading, and the run that
@@ -87,12 +89,14 @@ internal sealed class DbStorageSnapshotStore(MongoLogContext context) : IDbStora
         var documents = await context.DbTableSizeSnapshots
             .Find(doc => doc.SnapshotDateUtc >= since)
             .SortBy(doc => doc.SnapshotDateUtc)
+            .ThenBy(doc => doc.Engine)
             .ThenBy(doc => doc.TableName)
             .ToListAsync(ct);
 
         return documents
             .Select(doc => new DbTableSizeSnapshotPoint(
                 DateTime.SpecifyKind(doc.SnapshotDateUtc, DateTimeKind.Utc),
+                doc.Engine,
                 doc.TableName,
                 doc.RowEstimate,
                 doc.TotalBytes,

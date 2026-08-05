@@ -167,10 +167,19 @@ public sealed record BanAggregationSummary(
 /// no metrics store shows up on the admin process page — a completed run that
 /// persisted nothing, not a failure.
 /// </summary>
+/// <remarks>
+/// The Mongo counters (#1023) are the engine's own footprint, measured through
+/// <c>dbStats</c> / <c>$collStats</c>. They are 0 when Mongo is unconfigured — the
+/// same condition that zeroes <see cref="Written"/>, since that is also where the
+/// readings would have been stored.
+/// </remarks>
 public sealed record StorageSnapshotSummary(
     int Tables,
     int Written,
-    long DatabaseBytes) : IProcessRunSummary;
+    long DatabaseBytes,
+    int MongoCollections,
+    int MongoWritten,
+    long MongoBytes) : IProcessRunSummary;
 
 /// <summary>
 /// Rune-page deduplication outcome (#911). The counters separate the two ways a

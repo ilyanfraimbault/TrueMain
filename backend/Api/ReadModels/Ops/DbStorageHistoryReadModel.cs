@@ -18,6 +18,29 @@ public sealed record DbStorageHistoryReadModel
     public IReadOnlyList<DbStorageTableSeries> Tables { get; init; } = [];
 
     /// <summary>
+    /// The storage engines the window actually contains readings for — <c>postgres</c>,
+    /// <c>mongo</c>, or both (#1023). The panel states it rather than implying the
+    /// figures are the whole disk: before the first Mongo snapshot lands, and in any
+    /// environment where Mongo is unconfigured, the totals cover Postgres only.
+    /// </summary>
+    public IReadOnlyList<string> Engines { get; init; } = [];
+
+    /// <summary>
+    /// How many of the most recent days the forecast is actually allowed to fit: the
+    /// trailing run of days measuring the same engines as the latest one. Equal to
+    /// <see cref="Daily"/>'s length in the steady state, and smaller only just after
+    /// an engine started or stopped being measured — the day Mongo first appears adds
+    /// its footprint in one step, and a step is not a growth rate (#1023).
+    ///
+    /// <para>
+    /// Exposed rather than left implicit so the panel can name the real reason a
+    /// forecast is missing instead of re-deriving the rule with its own heuristic and
+    /// drifting from this one.
+    /// </para>
+    /// </summary>
+    public int ComparableDays { get; init; }
+
+    /// <summary>
     /// Null when no projection can honestly be made: fewer than three days of
     /// history, flat or shrinking storage, or no configured disk capacity. Never a
     /// placeholder — the panel shows why instead.
@@ -31,12 +54,31 @@ public sealed record DbStorageDailyPoint
     public DateTime DateUtc { get; init; }
 
     /// <summary>
-    /// Measured <c>pg_database_size</c> — what actually occupies the volume, including
-    /// catalogs. This, not <see cref="TotalBytes"/>, is what the forecast projects.
+    /// What actually occupies the volume that day: measured <c>pg_database_size</c>
+    /// (catalogs included) plus Mongo's own on-disk size, summed because both engines
+    /// share one volume (#1023). This, not <see cref="TotalBytes"/>, is what the
+    /// forecast projects.
     /// </summary>
     public long DatabaseBytes { get; init; }
 
-    /// <summary>Sum of <c>pg_total_relation_size</c> over <c>public</c>-schema tables.</summary>
+    /// <summary>
+    /// The Postgres half of <see cref="DatabaseBytes"/>, so the panel can show the
+    /// split instead of asserting one opaque total. 0 when the day has no Postgres
+    /// reading.
+    /// </summary>
+    public long PostgresBytes { get; init; }
+
+    /// <summary>
+    /// The Mongo half of <see cref="DatabaseBytes"/>. 0 for every day before #1023
+    /// shipped and in environments where Mongo is unconfigured — which is why the
+    /// forecast only fits days measuring the same engines as the latest one.
+    /// </summary>
+    public long MongoBytes { get; init; }
+
+    /// <summary>
+    /// Sum of the per-object sizes: <c>pg_total_relation_size</c> over
+    /// <c>public</c>-schema tables, plus each Mongo collection's storage + indexes.
+    /// </summary>
     public long TotalBytes { get; init; }
 
     /// <summary>Sum of the planner's live-tuple estimates. A trend figure, not an audit count.</summary>
@@ -46,6 +88,9 @@ public sealed record DbStorageDailyPoint
 /// <summary>One table's growth over the window.</summary>
 public sealed record DbStorageTableSeries
 {
+    /// <summary>Which engine owns the object: <c>postgres</c> or <c>mongo</c>.</summary>
+    public string Engine { get; init; } = string.Empty;
+
     public string TableName { get; init; } = string.Empty;
 
     public IReadOnlyList<DbStorageTablePoint> Points { get; init; } = [];

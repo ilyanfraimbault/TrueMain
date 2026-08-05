@@ -903,15 +903,24 @@ Histogramme du nombre de matchs dans le temps, par date de game.
 
 ## `GET /ops/db/tables`
 
-Empreinte de stockage des tables Postgres.
+Empreinte de stockage des tables Postgres **et des collections Mongo** (#1023) — les
+deux moteurs partagent le même volume, donc la liste ne s'arrête pas à la frontière
+d'un moteur. Triée par `totalBytes` décroissant, tous moteurs confondus.
 
 **Réponse `200`** — `TableStatRow[]`
 
 ```json
 [
-  { "tableName": "match_participants", "rowEstimate": 15000000, "totalBytes": 8589934592, "tableBytes": 5368709120, "indexBytes": 3221225472 }
+  { "engine": "postgres", "tableName": "match_participants", "rowEstimate": 15000000, "totalBytes": 8589934592, "tableBytes": 5368709120, "indexBytes": 3221225472 },
+  { "engine": "mongo", "tableName": "logs", "rowEstimate": 4200000, "totalBytes": 3120508928, "tableBytes": 2684354560, "indexBytes": 436154368 }
 ]
 ```
+
+- `engine` : `postgres` ou `mongo`. Nécessaire et pas cosmétique — `process_runs` et
+  `seed_requests` existent des deux côtés (table Postgres gelée + collection Mongo).
+- `rowEstimate` : estimation du planner côté Postgres, **compte exact** côté Mongo.
+- Les collections Mongo sont absentes de la réponse si Mongo n'est pas configuré : le
+  moteur n'est alors pas mesuré, ce qui n'est pas la même chose que vide.
 
 ## `GET /ops/db/history`
 
@@ -931,10 +940,13 @@ process de snapshot n'a pas tourné)
 ```json
 {
   "daily": [
-    { "dateUtc": "2026-07-27T00:00:00Z", "databaseBytes": 41231686144, "totalBytes": 39000000000, "rowEstimate": 21000000 }
+    { "dateUtc": "2026-07-27T00:00:00Z", "databaseBytes": 44352195072, "postgresBytes": 41231686144, "mongoBytes": 3120508928, "totalBytes": 39000000000, "rowEstimate": 21000000 }
   ],
+  "engines": ["mongo", "postgres"],
+  "comparableDays": 90,
   "tables": [
     {
+      "engine": "postgres",
       "tableName": "match_participants",
       "points": [{ "dateUtc": "2026-07-27T00:00:00Z", "totalBytes": 8589934592, "rowEstimate": 15000000 }],
       "currentBytes": 8589934592,
@@ -954,9 +966,14 @@ process de snapshot n'a pas tourné)
 }
 ```
 
-- `databaseBytes` : `pg_database_size` **mesuré** — c'est ce qui remplit le volume
-  (catalogues compris), et c'est ce que la prévision extrapole. `totalBytes` n'est que
-  la somme des tables du schéma `public`, donc toujours plus petit.
+- `databaseBytes` : `pg_database_size` **mesuré** (catalogues compris) **+** la taille
+  sur disque de Mongo (`dbStats.storageSize + indexSize`), **sommés** — les deux moteurs
+  sont sur le même volume, donc c'est bien la somme qui le remplit, jamais le plus gros
+  des deux. C'est ce que la prévision extrapole. `postgresBytes` / `mongoBytes` donnent
+  la répartition. `totalBytes` n'est que la somme des objets, donc toujours plus petit.
+- `engines` : les moteurs réellement mesurés sur la fenêtre. Avant le premier snapshot
+  Mongo, et partout où Mongo n'est pas configuré, les totaux ne couvrent que Postgres —
+  le panneau l'affiche au lieu de les présenter comme « le disque ».
 - `rowEstimate` : somme des estimations du planner, indicateur de tendance et non un
   compte exact.
 - `tables` : uniquement les plus grosses (`StorageHistory:TopTables`, 10 par défaut) ;
@@ -965,7 +982,12 @@ process de snapshot n'a pas tourné)
   définie plutôt qu'infinie).
 - `forecast` : **`null`** s'il y a moins de 3 jours d'historique, si le stockage est
   stable ou décroissant, ou si `StorageHistory:DiskCapacityBytes` n'est pas configuré.
-  Aucune valeur de remplacement n'est inventée.
+  Aucune valeur de remplacement n'est inventée. « Jours d'historique » ne compte que les
+  jours mesurant les **mêmes moteurs** que le plus récent : le jour où Mongo commence à
+  être mesuré ajoute son empreinte d'un coup, et ajuster une tendance à travers cette
+  marche lirait un saut unique comme un rythme quotidien. `comparableDays` expose ce
+  compte, pour que le panneau nomme la vraie raison de l'absence au lieu de redériver
+  la règle de son côté.
 - `projectedAtUtc` : `null` = échéance à plus d'un siècle **dans un sens ou dans
   l'autre** (aucune date exploitable à ce rythme) ; une date passée = seuil déjà franchi.
 
