@@ -28,8 +28,19 @@ public sealed class MongoStorageStatsReader(MongoLogContext context) : IMongoSto
 
         var databaseBytes = ReadInt64(dbStats, "storageSize") + ReadInt64(dbStats, "indexSize");
 
-        using var namesCursor = await database.ListCollectionNamesAsync(cancellationToken: ct);
-        var names = await namesCursor.ToListAsync(ct);
+        // Real collections only. A view has no storage of its own, and asking one for
+        // storageStats is an error rather than an empty answer — filtering here keeps
+        // a view someone adds later from failing the whole snapshot step.
+        using var namesCursor = await database.ListCollectionsAsync(
+            new ListCollectionsOptions
+            {
+                Filter = Builders<BsonDocument>.Filter.Eq("type", "collection")
+            },
+            ct);
+
+        var names = (await namesCursor.ToListAsync(ct))
+            .Select(info => info["name"].AsString)
+            .ToList();
         names.Sort(StringComparer.Ordinal);
 
         var collections = new List<DbTableSizeSample>(names.Count);
@@ -56,9 +67,10 @@ public sealed class MongoStorageStatsReader(MongoLogContext context) : IMongoSto
     /// deployment runs 8.0.
     /// </summary>
     /// <returns>
-    /// <see langword="null"/> when the object has no storage stats to report — a view,
-    /// for instance, which <c>$collStats</c> answers for without a
-    /// <c>storageStats</c> document. Skipped rather than counted as zero bytes.
+    /// <see langword="null"/> when the server reports no <c>storageStats</c> document.
+    /// Views are already filtered out by the caller, so this is a belt-and-braces
+    /// guard; skipped rather than counted as zero bytes, since zero would read as an
+    /// empty collection.
     /// </returns>
     private static async Task<DbTableSizeSample?> ReadCollectionStatsAsync(
         IMongoDatabase database,

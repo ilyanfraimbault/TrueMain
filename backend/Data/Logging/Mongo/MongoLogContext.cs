@@ -397,8 +397,10 @@ public sealed class MongoLogContext : IDisposable
     /// <summary>
     /// Drops <paramref name="indexName"/> when it exists, so a superseded index can be
     /// retired without the caller having to know whether this deployment has already
-    /// run. Listing first rather than catching the driver's "index not found" keeps
-    /// the no-op case free of an exception round-trip.
+    /// run. Listing first keeps the steady-state no-op free of an exception
+    /// round-trip; the drop still tolerates the index having vanished in between,
+    /// because check-then-act races two hosts ensuring indexes at the same time (an
+    /// overlapping redeploy is exactly when both would run this).
     /// </summary>
     private static async Task DropIndexIfExistsAsync<TDoc>(
         IMongoCollection<TDoc> collection,
@@ -413,9 +415,19 @@ public sealed class MongoLogContext : IDisposable
                      && name.IsString
                      && name.AsString == indexName);
 
-        if (exists)
+        if (!exists)
+        {
+            return;
+        }
+
+        try
         {
             await collection.Indexes.DropOneAsync(indexName, ct);
+        }
+        catch (MongoCommandException ex) when (ex.CodeName == "IndexNotFound")
+        {
+            // Another host dropped it between the list and the drop. The desired end
+            // state is "gone", and it is gone.
         }
     }
 
