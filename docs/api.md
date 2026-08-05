@@ -901,6 +901,58 @@ Histogramme du nombre de matchs dans le temps, par date de game.
 `bucket` = timestamp ISO du début de période (week/month/year), ou `MAJEUR.MINEUR`
 (`16.4`) pour `patch`.
 
+## `GET /ops/stats/matches-ingested`
+
+Débit d'ingestion (#1025) : combien de matchs le pipeline a réellement **ingérés**
+par période, agrégé depuis les summaries des runs `MatchIngestion` en Mongo.
+
+Ce n'est **pas** une variante de `stats/matches-over-time`, qui bucketise sur
+`GameStartTimeUtc` — donc *quand les parties ont été jouées*. Cette série-là bouge à
+peine quand l'ingestion cale, et grossit *dans le passé* quand un backfill tombe.
+Celle-ci répond à « est-ce que le pipeline a suivi cette semaine ».
+
+Source volontairement les summaries de runs et non `matches.CreatedAtUtc` : la
+rétention supprime des matchs, donc un bucket ancien rétrécirait avec le temps — une
+courbe qui réécrit son propre passé. Supprimer un match ne réécrit pas le run qui l'a
+ingéré.
+
+**Query**
+
+| Param        | Type   | Requis | Défaut | Description |
+|--------------|--------|--------|--------|-------------|
+| `granularity`| string | oui    | —      | `day`, `week` ou `month`. `patch` et `year` sont refusés (400) : un patch est une propriété des parties, pas de leur ingestion, et une année ne peut pas remplir deux buckets sous la rétention des runs. |
+| `windowDays` | int    | non    | `30`   | Fenêtre en jours, bornée à 365. |
+
+**Réponse `200`** — `MatchesIngestedReadModel`
+
+```json
+{
+  "buckets": [
+    { "bucket": "2026-08-04T00:00:00Z", "matchesInserted": 42, "matchesSkipped": 5, "timelinesUpdated": 18, "runs": 2 }
+  ],
+  "windowDays": 30,
+  "retentionDays": 180,
+  "earliestRunAtUtc": "2026-07-07T02:14:00Z"
+}
+```
+
+- `bucket` : début de période en ISO-8601 UTC, même forme que `matches-over-time`.
+  Les semaines commencent le **lundi**, comme `date_trunc('week')` côté Postgres — le
+  `$dateTrunc` de Mongo commencerait dimanche et les deux graphes ne s'aligneraient pas.
+- `runs` : nombre de runs démarrés dans la période, **summary ou non**. Un run échoué
+  ou abandonné n'a pas de compteurs mais reste une tentative : le retirer ferait
+  passer un ingestor en crash-loop pour un ingestor au repos.
+- `matchesSkipped` / `timelinesUpdated` : portés parce que `matchesInserted` seul ne
+  distingue pas « plus rien à faire » de « tourne à fond et n'écrit rien », qui sont
+  deux états opposés.
+- Les périodes creuses **à l'intérieur** de la plage observée sont présentes à zéro —
+  un pipeline arrêté est précisément ce que ce graphe doit montrer. En revanche rien
+  n'est rempli **avant** `earliestRunAtUtc` : une période que la rétention a déjà
+  effacée n'a pas été mesurée, et la peindre à zéro affirmerait un repos dont on n'a
+  aucune trace.
+- `retentionDays` : TTL de `process_runs`. Renvoyé pour que le panneau énonce la borne
+  au lieu de laisser la queue vide passer pour une absence d'ingestion.
+
 ## `GET /ops/db/tables`
 
 Empreinte de stockage des tables Postgres **et des collections Mongo** (#1023) — les

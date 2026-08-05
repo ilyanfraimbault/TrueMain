@@ -67,6 +67,24 @@ public interface IProcessRunStore
         CancellationToken ct);
 
     /// <summary>
+    /// The start time and raw summary JSON of every run of
+    /// <paramref name="processName"/> started at or after <paramref name="sinceUtc"/>,
+    /// oldest first. Projects only those two fields, because the caller needs the
+    /// summary's counters and nothing else, and 180 days of a back-to-back pipeline is
+    /// a lot of documents to hydrate whole.
+    /// </summary>
+    /// <remarks>
+    /// The summary stays a string here: it is stored as opaque JSON text (see
+    /// <see cref="ProcessRunDocument.SummaryJson"/>), so Mongo cannot sum a counter
+    /// inside it and the caller parses. What the server still does is the part it is
+    /// good at — the indexed <c>(processName, startedAtUtc)</c> range scan.
+    /// </remarks>
+    Task<IReadOnlyList<ProcessRunSummarySample>> GetRunSummariesAsync(
+        string processName,
+        DateTime sinceUtc,
+        CancellationToken ct);
+
+    /// <summary>
     /// Per-process rollup over the (optionally name-filtered) whole collection:
     /// the latest run's raw status + heartbeat, last run start, last successful
     /// finish, and run/failure counts within the window
@@ -108,6 +126,13 @@ public interface IProcessRunStore
         bool onlySuccesses,
         CancellationToken ct);
 }
+
+/// <summary>
+/// One run reduced to what a counter series needs: when it started, and the raw
+/// summary JSON its counters live in. <see cref="SummaryJson"/> is null for a run
+/// that recorded none — a failure, an abandoned run, or one still in flight.
+/// </summary>
+public sealed record ProcessRunSummarySample(DateTime StartedAtUtc, string? SummaryJson);
 
 /// <summary>One page of <see cref="ProcessRunDocument"/>s plus the filtered total.</summary>
 public sealed record ProcessRunPage(IReadOnlyList<ProcessRunDocument> Runs, long Total);

@@ -177,6 +177,33 @@ internal sealed class ProcessRunStore(MongoLogContext context) : IProcessRunStor
         return new ProcessRunPage(runs, total);
     }
 
+    public async Task<IReadOnlyList<ProcessRunSummarySample>> GetRunSummariesAsync(
+        string processName,
+        DateTime sinceUtc,
+        CancellationToken ct)
+    {
+        if (!context.IsActive)
+        {
+            return [];
+        }
+
+        await EnsureIndexesOnceAsync(ct);
+
+        var filter = Builders<ProcessRunDocument>.Filter.And(
+            Builders<ProcessRunDocument>.Filter.Eq(doc => doc.ProcessName, processName),
+            Builders<ProcessRunDocument>.Filter.Gte(doc => doc.StartedAtUtc, sinceUtc));
+
+        // ix_process_started covers this filter and the sort exactly. Oldest first so
+        // the caller can walk the window forward into buckets without re-sorting.
+        var runs = await context.ProcessRuns
+            .Find(filter)
+            .Project(doc => new ProcessRunSummarySample(doc.StartedAtUtc, doc.SummaryJson))
+            .Sort(Builders<ProcessRunDocument>.Sort.Ascending(doc => doc.StartedAtUtc))
+            .ToListAsync(ct);
+
+        return runs;
+    }
+
     public async Task<IReadOnlyList<ProcessRunRollup>> GetRollupsAsync(
         string? processName,
         DateTime? windowStart,

@@ -12,6 +12,8 @@ import type {
   CrashesResponse,
   DbStorageHistory,
   DbTableRow,
+  IngestionTimeGranularity,
+  MatchesIngested,
   IncompleteMatchesFilters,
   IncompleteMatchesResponse,
   LogsFilters,
@@ -112,6 +114,21 @@ export function useMatchesOverTime(
   return useOps<MatchTimeBucket[]>(
     '/stats/matches-over-time',
     () => ({ granularity: toValue(granularity) }),
+  )
+}
+
+/**
+ * Ingestion throughput (#1025) — how many matches the pipeline ingested per
+ * period. Deliberately a separate call from `useMatchesOverTime`: the two answer
+ * different questions and must never be mistaken for two views of one series.
+ */
+export function useMatchesIngested(
+  granularity: MaybeRefOrGetter<IngestionTimeGranularity>,
+  windowDays: MaybeRefOrGetter<number>,
+) {
+  return useOps<MatchesIngested>(
+    '/stats/matches-ingested',
+    () => ({ granularity: toValue(granularity), windowDays: toValue(windowDays) }),
   )
 }
 
