@@ -40,9 +40,9 @@ public sealed class MatchesIngestedQueryServiceTests
         // with a different shape. Neither carries matchesInserted, and neither is a
         // period without an attempt.
         var store = StoreWith(
-            new ProcessRunSummarySample(Now.AddHours(-4), "not json at all"),
-            new ProcessRunSummarySample(Now.AddHours(-3), """{"reason":"no accounts due","selected":0}"""),
-            new ProcessRunSummarySample(Now.AddHours(-2), null));
+            new ProcessRunSummarySample("MatchIngestion", Now.AddHours(-4), "not json at all"),
+            new ProcessRunSummarySample("MatchIngestion", Now.AddHours(-3), """{"reason":"no accounts due","selected":0}"""),
+            new ProcessRunSummarySample("MatchIngestion", Now.AddHours(-2), null));
 
         var result = await CreateService(store).GetAsync(
             IngestionTimeGranularity.Day, windowDays: 7, CancellationToken.None);
@@ -135,7 +135,7 @@ public sealed class MatchesIngestedQueryServiceTests
     {
         var store = Substitute.For<IProcessRunStore>();
         store.GetRunSummariesAsync(
-                Arg.Any<string>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+                Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
             .Returns<IReadOnlyList<ProcessRunSummarySample>>(
                 _ => [.. samples.OrderBy(sample => sample.StartedAtUtc)]);
         return store;
@@ -158,9 +158,10 @@ public sealed class MatchesIngestedQueryServiceTests
         int skipped = 0,
         int timelines = 0)
         => new(
+            "MatchIngestion",
             startedAtUtc,
             $$"""
-              {"accountsProcessed":1,"matchesInserted":{{inserted}},"matchesSkipped":{{skipped}},"timelinesUpdated":{{timelines}},"errors":0,"byPlatform":[]}
+              {"accountsProcessed":1,"matchesInserted":{{inserted}},"matchesSkipped":{{skipped}},"timelinesUpdated":{{timelines}},"errors":0,"accountsValidated":1,"byPlatform":[]}
               """);
 
     private sealed class FixedTimeProvider(DateTime utcNow) : TimeProvider

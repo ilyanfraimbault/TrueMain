@@ -14,13 +14,157 @@ import type {
   BadgeColor,
   CandidateDetail,
   CandidateRow,
+  IngestionTimeGranularity,
   MainCandidateStatus,
   SeedRequestReadModel,
   SeedRequestStatus,
 } from '~~/shared/types/ops'
-import { formatDateTime, formatNumber } from '~~/shared/utils/format'
+import { formatDateTime, formatDuration, formatNumber } from '~~/shared/utils/format'
 
 const { nameFor, iconFor } = useChampionStatic()
+
+// =============================================================================
+// Throughput (#1024) — the historical half of this page
+// =============================================================================
+// Everything below this block shows the funnel's *instantaneous* state, on which
+// a full-but-stalled pipeline and a flowing one look identical. These series
+// answer the other question — how much actually moved per period — and read the
+// recorded process-run summaries, never `main_candidates` row counts: retention
+// prunes stale candidates, so counting rows by status per past period would make
+// every old bucket shrink a little more each week.
+const funnelGranularityItems: { label: string, value: IngestionTimeGranularity }[] = [
+  { label: 'Day', value: 'day' },
+  { label: 'Week', value: 'week' },
+  { label: 'Month', value: 'month' },
+]
+const funnelWindowItems = [
+  { label: '7 days', value: 7 },
+  { label: '30 days', value: 30 },
+  { label: '90 days', value: 90 },
+]
+const funnelGranularity = ref<IngestionTimeGranularity>('day')
+const funnelWindowDays = ref(30)
+
+const {
+  data: funnel,
+  pending: funnelPending,
+  error: funnelError,
+  refresh: refreshFunnel,
+} = useCandidateFunnel(funnelGranularity, funnelWindowDays)
+
+const {
+  data: latency,
+  pending: latencyPending,
+  error: latencyError,
+  refresh: refreshLatency,
+} = useCandidateQueueLatency()
+
+const funnelBuckets = computed(() => funnel.value?.buckets ?? [])
+
+// Intake is stacked: the three sources add up to "candidates that entered", and
+// the split matters because they fail independently — the ladder drying up and
+// the harvest drying up are different incidents with the same total.
+const intakeChartData = computed(() =>
+  funnelBuckets.value.map(bucket => ({
+    label: formatBucketLabel(bucket.bucket, funnelGranularity.value),
+    ladder: bucket.intakeLadder,
+    harvest: bucket.intakeHarvest,
+    manual: bucket.intakeManual,
+  })),
+)
+const intakeChartCategories = {
+  ladder: { name: 'Ladder', color: CHART_SERIES[0] },
+  harvest: { name: 'Harvest', color: CHART_SERIES[1] },
+  manual: { name: 'Manual seed', color: CHART_SERIES[2] },
+}
+
+// Progression is lines, not stacked areas: these are three narrowing stages of the
+// same population, so stacking them would draw a total that means nothing. Drawn
+// without fills so the gap in `validated` below stays visible.
+const progressChartData = computed(() =>
+  funnelBuckets.value.map(bucket => ({
+    label: formatBucketLabel(bucket.bucket, funnelGranularity.value),
+    scored: bucket.scored,
+    promoted: bucket.promoted,
+    // null = the counter did not exist yet. Mapped to undefined so the line breaks
+    // there instead of drawing a zero the pipeline never reported (#924).
+    validated: bucket.validated ?? undefined,
+  })),
+)
+const progressChartCategories = {
+  scored: { name: 'Scored', color: CHART_SERIES[0] },
+  promoted: { name: 'Promoted', color: CHART_SERIES[1] },
+  validated: { name: 'Validated', color: CHART_SERIES[2] },
+}
+
+const intakeXFormatter = computed(() =>
+  indexLabelFormatter(intakeChartData.value, row => row.label),
+)
+const progressXFormatter = computed(() =>
+  indexLabelFormatter(progressChartData.value, row => row.label),
+)
+
+// Window totals, rendered as text under each chart. Not decoration: the series
+// colours sit below 3:1 against the light surface, so the numbers rather than the
+// fills are what carries magnitude for a reader who cannot separate the hues.
+const funnelTotals = computed(() =>
+  funnelBuckets.value.reduce(
+    (acc, bucket) => ({
+      ladder: acc.ladder + bucket.intakeLadder,
+      harvest: acc.harvest + bucket.intakeHarvest,
+      manual: acc.manual + bucket.intakeManual,
+      scored: acc.scored + bucket.scored,
+      promoted: acc.promoted + bucket.promoted,
+      // Stays null until a measured bucket contributes, so an unmeasured window
+      // totals to an em dash rather than to a confident zero.
+      validated: bucket.validated === null
+        ? acc.validated
+        : (acc.validated ?? 0) + bucket.validated,
+      demoted: acc.demoted + bucket.demoted,
+      runs: acc.runs + bucket.runs,
+    }),
+    {
+      ladder: 0,
+      harvest: 0,
+      manual: 0,
+      scored: 0,
+      promoted: 0,
+      validated: null as number | null,
+      demoted: 0,
+      runs: 0,
+    },
+  ),
+)
+
+const funnelBoundNote = computed(() => {
+  const payload = funnel.value
+  if (!payload || payload.buckets.length === 0) {
+    return null
+  }
+  return payload.windowDays > payload.retentionDays
+    ? `Run history is kept ${payload.retentionDays} days, so the series stops there rather than at the requested ${payload.windowDays}.`
+    : null
+})
+
+const validatedNote = computed(() => {
+  const payload = funnel.value
+  if (!payload || payload.buckets.length === 0) {
+    return null
+  }
+  if (!payload.validatedFirstMeasuredAtUtc) {
+    return 'Validated accounts are not counted in any run on record yet — the counter ships with this panel and fills from the next ingestion run onwards.'
+  }
+  const firstBucket = payload.buckets[0]?.bucket
+  // Only worth saying while the window still reaches back past the counter.
+  return firstBucket && new Date(firstBucket) < new Date(payload.validatedFirstMeasuredAtUtc)
+    ? `Validated was not measured before ${formatDateTime(payload.validatedFirstMeasuredAtUtc)} — that stretch of the line is absent, not zero.`
+    : null
+})
+
+/** Seconds → the shared duration label; null (no sample) reads as an em dash. */
+function latencyLabel(seconds: number | null | undefined): string {
+  return seconds === null || seconds === undefined ? '—' : formatDuration(seconds * 1000)
+}
 
 // =============================================================================
 // View 1 — Candidates
@@ -188,11 +332,15 @@ const seedColumns: TableColumn<SeedRequestReadModel>[] = [
   { accessorKey: 'error', header: 'Error' },
 ]
 
-// --- Refresh both panels at once --------------------------------------------
-const anyPending = computed(() => candidatePending.value || seedPending.value)
+// --- Refresh every panel at once --------------------------------------------
+const anyPending = computed(() =>
+  candidatePending.value || seedPending.value || funnelPending.value || latencyPending.value,
+)
 function refreshAll() {
   refreshCandidates()
   refreshSeedRequests()
+  refreshFunnel()
+  refreshLatency()
 }
 
 // =============================================================================
@@ -254,6 +402,163 @@ function isRejected(status: MainCandidateStatus | undefined): boolean {
     </template>
 
     <template #body>
+      <!-- ========================== Throughput =========================== -->
+      <UCard :ui="{ root: 'overflow-visible' }" class="mb-8">
+        <template #header>
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <p class="text-sm font-medium text-highlighted">
+                Throughput
+              </p>
+              <p class="text-xs text-dimmed mt-0.5">
+                How much moved per period, by <em>run</em> date. The list below shows
+                the funnel's current state, which looks the same whether it is
+                flowing or stalled.
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              <USelect
+                v-model="funnelGranularity"
+                :items="funnelGranularityItems"
+                class="w-28"
+                aria-label="Funnel bucket granularity"
+              />
+              <USelect
+                v-model="funnelWindowDays"
+                :items="funnelWindowItems"
+                class="w-28"
+                aria-label="Funnel window"
+              />
+            </div>
+          </div>
+        </template>
+
+        <FetchErrorAlert
+          v-if="funnelError"
+          :error="funnelError"
+          title="Failed to load candidate throughput"
+        />
+        <USkeleton v-else-if="funnelPending" class="h-[260px] w-full" />
+        <div
+          v-else-if="funnelBuckets.length === 0"
+          class="h-[260px] flex items-center justify-center text-sm text-muted"
+        >
+          No pipeline runs on record in this window.
+        </div>
+        <template v-else>
+          <div class="grid gap-6 lg:grid-cols-2">
+            <div>
+              <p class="text-xs text-muted uppercase mb-1.5">
+                Intake by source
+              </p>
+              <ClientOnly>
+                <NcAreaChart
+                  :data="intakeChartData"
+                  :height="240"
+                  :categories="intakeChartCategories"
+                  :stacked="true"
+                  :x-num-ticks="Math.min(intakeChartData.length, 6)"
+                  :x-formatter="intakeXFormatter"
+                  :y-formatter="formatCount"
+                  v-bind="multiAreaChartProps()"
+                />
+                <template #fallback>
+                  <USkeleton class="h-[240px] w-full" />
+                </template>
+              </ClientOnly>
+              <p class="mt-3 text-xs text-dimmed tabular-nums">
+                {{ formatNumber(funnelTotals.ladder) }} ladder ·
+                {{ formatNumber(funnelTotals.harvest) }} harvest ·
+                {{ formatNumber(funnelTotals.manual) }} manual seed
+              </p>
+            </div>
+
+            <div>
+              <p class="text-xs text-muted uppercase mb-1.5">
+                Progression
+              </p>
+              <ClientOnly>
+                <NcAreaChart
+                  :data="progressChartData"
+                  :height="240"
+                  :categories="progressChartCategories"
+                  :hide-area="true"
+                  :x-num-ticks="Math.min(progressChartData.length, 6)"
+                  :x-formatter="progressXFormatter"
+                  :y-formatter="formatCount"
+                  v-bind="multiAreaChartProps()"
+                />
+                <template #fallback>
+                  <USkeleton class="h-[240px] w-full" />
+                </template>
+              </ClientOnly>
+              <p class="mt-3 text-xs text-dimmed tabular-nums">
+                {{ formatNumber(funnelTotals.scored) }} scored ·
+                {{ formatNumber(funnelTotals.promoted) }} promoted ·
+                {{ formatNumber(funnelTotals.validated) }} validated ·
+                {{ formatNumber(funnelTotals.demoted) }} demoted
+              </p>
+            </div>
+          </div>
+
+          <p class="mt-4 text-xs text-dimmed tabular-nums">
+            {{ formatNumber(funnelTotals.runs) }} pipeline runs in this window
+          </p>
+          <p v-if="validatedNote" class="mt-1 text-xs text-dimmed">
+            {{ validatedNote }}
+          </p>
+          <p v-if="funnelBoundNote" class="mt-1 text-xs text-dimmed">
+            {{ funnelBoundNote }}
+          </p>
+        </template>
+
+        <template #footer>
+          <FetchErrorAlert
+            v-if="latencyError"
+            :error="latencyError"
+            title="Failed to load queue latency"
+          />
+          <USkeleton v-else-if="latencyPending" class="h-16 w-full" />
+          <div v-else-if="latency">
+            <p class="text-xs text-muted uppercase mb-2">
+              Queue latency — snapshot
+            </p>
+            <div class="grid gap-4 sm:grid-cols-2">
+              <div>
+                <p class="text-xs text-dimmed">
+                  Discovered → scored
+                </p>
+                <p class="text-sm text-highlighted tabular-nums">
+                  {{ latencyLabel(latency.discoveredToScored.medianSeconds) }} median ·
+                  {{ latencyLabel(latency.discoveredToScored.p90Seconds) }} p90
+                  <span class="text-dimmed">
+                    ({{ formatNumber(latency.discoveredToScored.samples) }} candidates)
+                  </span>
+                </p>
+              </div>
+              <div>
+                <p class="text-xs text-dimmed">
+                  Scored → validated
+                </p>
+                <p class="text-sm text-highlighted tabular-nums">
+                  {{ latencyLabel(latency.scoredToValidated.medianSeconds) }} median ·
+                  {{ latencyLabel(latency.scoredToValidated.p90Seconds) }} p90
+                  <span class="text-dimmed">
+                    ({{ formatNumber(latency.scoredToValidated.samples) }} candidates)
+                  </span>
+                </p>
+              </div>
+            </div>
+            <p class="mt-2 text-xs text-dimmed">
+              Measured over the {{ formatNumber(latency.retainedCandidates) }} candidates
+              retained right now, not over history: pruned candidates are not in it, so
+              this says how fast the queue serves what is in it — not how long a
+              candidate waits.
+            </p>
+          </div>
+        </template>
+      </UCard>
+
       <!-- ============================ View 1 ============================= -->
       <UCard :ui="{ body: 'p-0 sm:p-0' }" class="mb-8">
         <template #header>

@@ -368,6 +368,44 @@ make a crash-looping ingestor read as an idle one. Quiet periods **inside** the 
 since a stalled pipeline is the thing the chart exists to show. And nothing is filled **before** the oldest
 surviving run: that period was not measured, and zeros there would assert a repose we have no record of.
 
+**The candidate funnel measures Validated and Demoted, because Rejected is a status nothing assigns** (#1024).
+The issue asked for a rejection counter, on the reading that rejections were the funnel's missing outcome. They
+are not missing — they do not exist: `MainCandidateStatus.Rejected` is read in five places (the pruning
+predicate, the harvest's refusal to resurrect, the manual seed's requeue list, the admin filter, the overview
+breakdown) and **assigned in none**, so the `Rejected` bucket the portal has always shown is structurally zero.
+Adding the requested counter would have shipped a permanently flat series dressed as a measurement. What the
+funnel genuinely lacked was its *exit*: `AccountValidationService` promotes Processing → Validated without
+feeding any summary counter, so nothing recorded how many accounts cleared ingestion. That counter
+(`MatchIngestionSummary.AccountsValidated`) is what got added, alongside `MainAnalysisSummary.DemotedAccounts`,
+which already existed and is the pipeline's only real negative outcome. Whether a rejection verdict should
+exist at all — or whether the status should be removed, since several guards branch on a value that cannot
+occur — is a product question, left to #1029 rather than smuggled into a chart.
+
+**A forward-only counter renders as absent, not as zero, and key presence is what says which** (#1024).
+`accountsValidated` did not exist before this deploy, so every `MatchIngestion` run already in the 180-day
+window lacks the key. Summing absent-as-zero would have drawn months of "the pipeline validated nobody", which
+is the exact failure #924 named. The series therefore reports the *first run whose summary carried the key* and
+nulls every bucket before it. The boundary is global rather than per-bucket on purpose: past it, a period whose
+only runs were no-work passes really did validate nothing, and a null there would hide a genuine stall behind
+the same signal used for "not instrumented yet".
+
+**`ValidatedAtUtc` had never been written in production, and the queue-latency snapshot is why that surfaced**
+(#1024). The column, its migration and its API field had shipped long ago, but every Validated transition went
+through `SetStatusForAccountAsync`, whose `ExecuteUpdateAsync` sets `Status` and nothing else — so the column
+was null on every row, and the admin's candidate detail had been rendering an em dash for it since it existed.
+The promotion now goes through a dedicated `MarkValidatedForAccountAsync` that stamps both in one statement,
+rather than a flag on the generic setter: this is the only transition that owns that column. One behavioural
+consequence is deliberate and was previously dead code — `PruneStaleNeverPromotedAsync` filters on
+`ValidatedAtUtc == null`, so a candidate that was validated and later demoted is now genuinely exempt from the
+stale prune, which is what "never promoted" always claimed to mean.
+
+**Queue latency is a snapshot over retained rows and is labelled as one, rather than being faked into a series**
+(#1024). `main_candidates` carries the three timestamps, so percentiles per past week look computable — but
+retention prunes stale candidates, so any historical bucket would be computed over a survivor set that keeps
+shrinking. The snapshot is the honest version of what those columns can answer, and it ships with its own bias
+stated (pruning skews the survivors towards candidates that moved) and its sample count next to each percentile.
+It takes no window parameter, which is the API making the same point structurally: there is no period to select.
+
 **Daily storage snapshots go to Mongo and are keyed on the day, not the run.**
 Storage history is append-only, time-ordered, ops-only telemetry with no relational joins — the exact
 criteria that put logs and metrics in Mongo below — and a native TTL index prunes it for free instead of

@@ -9,18 +9,13 @@ public sealed class AccountValidationService(
     TimeProvider timeProvider,
     ILogger<AccountValidationService> logger) : IAccountValidationService
 {
-    public async Task ValidateAsync(AccountKey account, CancellationToken ct)
+    public async Task<bool> ValidateAsync(AccountKey account, CancellationToken ct)
     {
         await using var session = await sessionFactory.CreateAsync(ct);
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
 
         var updated = await session.MainCandidates
-            .SetStatusForAccountAsync(
-                account.PlatformId,
-                account.Puuid,
-                MainCandidateStatus.Processing,
-                MainCandidateStatus.Validated,
-                ct);
+            .MarkValidatedForAccountAsync(account.PlatformId, account.Puuid, nowUtc, ct);
 
         if (updated > 0)
         {
@@ -39,6 +34,8 @@ public sealed class AccountValidationService(
         await session.RiotAccounts.UpdateLastMatchIngestAtAsync(account.PlatformId, account.Puuid, nowUtc, ct);
         await session.RiotAccounts.SetMatchIngestStatusAsync(account.PlatformId, account.Puuid, MatchIngestStatus.Idle, ct);
         await session.SaveChangesAsync(ct);
+
+        return updated > 0;
     }
 
     public async Task RevertAsync(AccountKey account, CancellationToken ct)

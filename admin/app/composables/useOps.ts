@@ -4,6 +4,8 @@ import type {
   AggregationsResponse,
   DataQualityDetectorsResponse,
   CandidateDetail,
+  CandidateFunnel,
+  CandidateQueueLatency,
   CandidatesFilters,
   CandidatesResponse,
   ChampionStatsFilters,
@@ -305,6 +307,30 @@ export function useCandidates(
     '/candidates',
     filters ? () => ({ ...toValue(filters) }) : undefined,
   )
+}
+
+/**
+ * Candidate funnel throughput (#1024) — intake, promotion and outcome per period.
+ * The historical half of the `/candidates` page: the list above it shows the
+ * instantaneous status counts, which cannot tell a flowing funnel from a stalled one.
+ */
+export function useCandidateFunnel(
+  granularity: MaybeRefOrGetter<IngestionTimeGranularity>,
+  windowDays: MaybeRefOrGetter<number>,
+) {
+  return useOps<CandidateFunnel>(
+    '/candidates/funnel',
+    () => ({ granularity: toValue(granularity), windowDays: toValue(windowDays) }),
+  )
+}
+
+/**
+ * Queue-latency snapshot (#1024) — takes no window on purpose: it is computed from
+ * the timestamps of the candidates retained right now, so there is no period to
+ * select and it must never be presented as a historical average.
+ */
+export function useCandidateQueueLatency() {
+  return useOps<CandidateQueueLatency>('/candidates/queue-latency')
 }
 
 /**

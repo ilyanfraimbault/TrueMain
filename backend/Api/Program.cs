@@ -288,6 +288,8 @@ builder.Services.AddScoped<IDataQualityDetectorsQueryService, DataQualityDetecto
 builder.Services.AddScoped<ISeedRequestService, SeedRequestService>();
 builder.Services.AddScoped<ISeedRequestQueryService, SeedRequestQueryService>();
 builder.Services.AddScoped<ICandidateQueryService, CandidateQueryService>();
+builder.Services.AddScoped<ICandidateFunnelQueryService, CandidateFunnelQueryService>();
+builder.Services.AddScoped<ICandidateQueueLatencyQueryService, CandidateQueueLatencyQueryService>();
 builder.Services.AddScoped<IAggregationStatsQueryService, AggregationStatsQueryService>();
 // AddTrueMainData registers the IDbContextFactory<TrueMainDbContext> — which
 // services that fire concurrent queries (e.g. ProfileQueryService) use to create

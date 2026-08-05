@@ -67,9 +67,9 @@ public interface IProcessRunStore
         CancellationToken ct);
 
     /// <summary>
-    /// The start time and raw summary JSON of every run of
-    /// <paramref name="processName"/> started at or after <paramref name="sinceUtc"/>,
-    /// oldest first. Projects only those two fields, because the caller needs the
+    /// The process name, start time and raw summary JSON of every run of any of
+    /// <paramref name="processNames"/> started at or after <paramref name="sinceUtc"/>,
+    /// oldest first. Projects only those three fields, because the caller needs the
     /// summary's counters and nothing else, and 180 days of a back-to-back pipeline is
     /// a lot of documents to hydrate whole.
     /// </summary>
@@ -78,9 +78,15 @@ public interface IProcessRunStore
     /// <see cref="ProcessRunDocument.SummaryJson"/>), so Mongo cannot sum a counter
     /// inside it and the caller parses. What the server still does is the part it is
     /// good at — the indexed <c>(processName, startedAtUtc)</c> range scan.
+    ///
+    /// <para>
+    /// Several names in one call because the candidate funnel (#1024) draws one series
+    /// from six different processes and would otherwise fan out into six round trips
+    /// over the same index for the same window.
+    /// </para>
     /// </remarks>
     Task<IReadOnlyList<ProcessRunSummarySample>> GetRunSummariesAsync(
-        string processName,
+        IReadOnlyCollection<string> processNames,
         DateTime sinceUtc,
         CancellationToken ct);
 
@@ -128,11 +134,12 @@ public interface IProcessRunStore
 }
 
 /// <summary>
-/// One run reduced to what a counter series needs: when it started, and the raw
-/// summary JSON its counters live in. <see cref="SummaryJson"/> is null for a run
-/// that recorded none — a failure, an abandoned run, or one still in flight.
+/// One run reduced to what a counter series needs: which process it was, when it
+/// started, and the raw summary JSON its counters live in. <see cref="SummaryJson"/>
+/// is null for a run that recorded none — a failure, an abandoned run, or one still
+/// in flight.
 /// </summary>
-public sealed record ProcessRunSummarySample(DateTime StartedAtUtc, string? SummaryJson);
+public sealed record ProcessRunSummarySample(string ProcessName, DateTime StartedAtUtc, string? SummaryJson);
 
 /// <summary>One page of <see cref="ProcessRunDocument"/>s plus the filtered total.</summary>
 public sealed record ProcessRunPage(IReadOnlyList<ProcessRunDocument> Runs, long Total);

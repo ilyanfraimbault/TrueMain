@@ -2,9 +2,9 @@ using TrueMain.ReadModels.Ops;
 
 namespace TrueMain.Services.Ops;
 
-public interface IMatchesIngestedQueryService
+public interface ICandidateFunnelQueryService
 {
-    Task<MatchesIngestedReadModel> GetAsync(
+    Task<CandidateFunnelReadModel> GetAsync(
         IngestionTimeGranularity granularity,
         int? windowDays,
         CancellationToken ct);

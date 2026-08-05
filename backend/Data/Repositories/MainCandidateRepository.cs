@@ -87,6 +87,17 @@ public sealed class MainCandidateRepository(TrueMainDbContext db) : IMainCandida
         return affectedAccounts;
     }
 
+    public Task<int> MarkValidatedForAccountAsync(string platformId, string puuid, DateTime validatedAtUtc, CancellationToken ct)
+    {
+        return db.MainCandidates
+            .Where(c => c.PlatformId == platformId && c.Puuid == puuid && c.Status == MainCandidateStatus.Processing)
+            .ExecuteUpdateAsync(
+                s => s
+                    .SetProperty(c => c.Status, MainCandidateStatus.Validated)
+                    .SetProperty(c => c.ValidatedAtUtc, validatedAtUtc),
+                ct);
+    }
+
     public Task<List<MainCandidate>> GetByStatusAsync(MainCandidateStatus status, CancellationToken ct)
         => db.MainCandidates.AsNoTracking().Where(c => c.Status == status).ToListAsync(ct);
 

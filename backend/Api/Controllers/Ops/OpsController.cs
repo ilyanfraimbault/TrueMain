@@ -27,6 +27,8 @@ public sealed class OpsController(
     ISeedRequestService seedRequestService,
     ISeedRequestQueryService seedRequestQueryService,
     ICandidateQueryService candidateQueryService,
+    ICandidateFunnelQueryService candidateFunnelQueryService,
+    ICandidateQueueLatencyQueryService candidateQueueLatencyQueryService,
     ICrashesQueryService crashesQueryService,
     IAggregationStatsQueryService aggregationStatsQueryService) : ControllerBase
 {
@@ -487,6 +489,57 @@ public sealed class OpsController(
     {
         var readModel = await candidateQueryService.GetCandidatesAsync(
             status, region, search, page, pageSize, ct);
+        return Ok(readModel);
+    }
+
+    /// <summary>
+    /// Candidate funnel throughput per period (#1024): intake split by source, scored,
+    /// promoted, validated and demoted, from the recorded run summaries.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not derived from <c>main_candidates</c> row counts: retention prunes
+    /// stale candidates, so counting rows by status per past period under-reports every
+    /// bucket and increasingly so the further back it looks. Bounded by the
+    /// <c>process_runs</c> TTL, which the response reports. The validated series is
+    /// forward-only and reads null before the counter existed — never zero.
+    /// </remarks>
+    [HttpGet("candidates/funnel")]
+    [ProducesResponseType(typeof(CandidateFunnelReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<CandidateFunnelReadModel>> GetCandidateFunnelAsync(
+        [FromQuery] string? granularity,
+        [FromQuery] int? windowDays,
+        CancellationToken ct)
+    {
+        if (!Enum.TryParse<IngestionTimeGranularity>(granularity, ignoreCase: true, out var parsed)
+            || !Enum.IsDefined(parsed))
+        {
+            ModelState.AddModelError(
+                nameof(granularity),
+                "granularity is required and must be one of: day, week, month.");
+            return ValidationProblem(ModelState);
+        }
+
+        var readModel = await candidateFunnelQueryService.GetAsync(parsed, windowDays, ct);
+        return Ok(readModel);
+    }
+
+    /// <summary>
+    /// Queue latency for the candidates currently retained (#1024): median and p90 of
+    /// discovery → scoring and scoring → validated.
+    /// </summary>
+    /// <remarks>
+    /// A snapshot over the rows that exist right now, not a historical average, and it
+    /// takes no window for that reason — pruned candidates are simply not in it. The
+    /// companion of <c>candidates/funnel</c>, which is the historical half.
+    /// </remarks>
+    [HttpGet("candidates/queue-latency")]
+    [ProducesResponseType(typeof(CandidateQueueLatencyReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<CandidateQueueLatencyReadModel>> GetCandidateQueueLatencyAsync(CancellationToken ct)
+    {
+        var readModel = await candidateQueueLatencyQueryService.GetAsync(ct);
         return Ok(readModel);
     }
 

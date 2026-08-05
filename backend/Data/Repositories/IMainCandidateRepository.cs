@@ -21,6 +21,22 @@ public interface IMainCandidateRepository
         MainCandidateStatus from,
         MainCandidateStatus to,
         CancellationToken ct);
+    /// <summary>
+    /// The <see cref="MainCandidateStatus.Processing"/> → <see cref="MainCandidateStatus.Validated"/>
+    /// promotion, stamping <see cref="MainCandidate.ValidatedAtUtc"/> in the same statement.
+    /// A separate method rather than a flag on <c>SetStatusForAccountAsync</c> because
+    /// this is the only transition that owns that column: every other one leaves it
+    /// alone, and the plain status setter used to leave it alone here too, which is why
+    /// the column read as "never validated" for every row in production (#1024).
+    /// </summary>
+    /// <remarks>
+    /// A re-validated candidate (reverted to Queued, ingested again) is re-stamped: the
+    /// column is when it last cleared ingestion, which is what the queue-latency snapshot
+    /// measures against <see cref="MainCandidate.ScoredAtUtc"/> — itself reset on rescoring.
+    /// It stays non-null either way, so the never-promoted pruning predicate is unaffected.
+    /// </remarks>
+    Task<int> MarkValidatedForAccountAsync(string platformId, string puuid, DateTime validatedAtUtc, CancellationToken ct);
+
     Task<List<MainCandidate>> GetByStatusAsync(MainCandidateStatus status, CancellationToken ct);
     Task<List<MainCandidate>> GetNewBatchAsync(int batchSize, CancellationToken ct);
     Task<List<MainCandidate>> GetByPlatformPuuidAndChampionsAsync(string platformId, string puuid, List<int> championIds, CancellationToken ct);

@@ -81,18 +81,18 @@ public sealed class FakeProcessRunStore : IProcessRunStore
 
     /// <summary>
     /// Serves this one from <see cref="Runs"/> rather than returning empty like the
-    /// other stubs: it is what the ingestion-throughput series reads, so a test that
-    /// seeds runs here must see them.
+    /// other stubs: it is what the ingestion-throughput and candidate-funnel series
+    /// read, so a test that seeds runs here must see them.
     /// </summary>
     public Task<IReadOnlyList<ProcessRunSummarySample>> GetRunSummariesAsync(
-        string processName,
+        IReadOnlyCollection<string> processNames,
         DateTime sinceUtc,
         CancellationToken ct)
         => Task.FromResult<IReadOnlyList<ProcessRunSummarySample>>(
             [.. Runs
-                .Where(run => run.ProcessName == processName && run.StartedAtUtc >= sinceUtc)
+                .Where(run => processNames.Contains(run.ProcessName) && run.StartedAtUtc >= sinceUtc)
                 .OrderBy(run => run.StartedAtUtc)
-                .Select(run => new ProcessRunSummarySample(run.StartedAtUtc, run.SummaryJson))]);
+                .Select(run => new ProcessRunSummarySample(run.ProcessName, run.StartedAtUtc, run.SummaryJson))]);
 
     public Task<IReadOnlyList<ProcessRunRollup>> GetRollupsAsync(
         string? processName,

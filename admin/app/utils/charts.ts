@@ -7,6 +7,21 @@ import { CurveType, Orientation } from 'vue-chrts'
 // `categories[key].color` explicitly (amber-400 below).
 export const CHART_PRIMARY = '#34d399' // emerald-400
 export const CHART_ACCENT_AMBER = '#fbbf24' // amber-400
+export const CHART_ACCENT_SKY = '#38bdf8' // sky-400
+
+// Categorical series colours for a multi-series chart, in FIXED slot order:
+// series 1 takes CHART_SERIES[0], series 2 CHART_SERIES[1], and so on. The order
+// is the colourblind-safety mechanism, not decoration — emerald↔amber and
+// amber↔sky are the adjacent pairs, and this ordering is the one that keeps both
+// apart (worst adjacent CVD ΔE 10.6, normal-vision ΔE 21.2, OKLab ×100, measured
+// against the dark card surface #18181b). Putting emerald next to sky instead
+// collapses to ΔE 3.0 under tritanopia. Never cycle or reorder per chart; a
+// fourth series folds into an "other" bucket or gets its own chart.
+//
+// Both are below 3:1 against the LIGHT surface, so any chart using them ships the
+// per-series totals as visible text underneath — identity and magnitude are then
+// readable without relying on the fill at all.
+export const CHART_SERIES = [CHART_PRIMARY, CHART_ACCENT_AMBER, CHART_ACCENT_SKY] as const
 
 // Axis tick text colour — zinc-400, matching `text-muted` so axis labels read
 // as quiet metadata rather than competing with the data.
@@ -76,6 +91,35 @@ export function areaChartProps() {
     crosshairConfig: { color: CHART_PRIMARY, strokeColor: CHART_PRIMARY, strokeWidth: 1 },
     hideLegend: true,
     padding: { top: 8, right: 8, bottom: 4, left: 8 },
+  }
+}
+
+// Shared props for a MULTI-SERIES area chart (candidate funnel #1024). Same
+// styling as `areaChartProps()` with three differences that all follow from having
+// more than one series:
+//   * the legend is shown — with several series, identity may never be carried by
+//     colour alone, so the legend is mandatory rather than optional chrome;
+//   * the crosshair goes neutral, because an emerald one belongs to a chart whose
+//     only series is emerald and would read as a fourth series here;
+//   * `gradientStops` drops the pinned emerald `stopColor`. NcAreaChart writes each
+//     stop's `stop-color` from the category's own colour and ignores the value we
+//     pass (verified in vue-chrts@2.1.4 AreaChart.js), so pinning it would only
+//     mislead the next reader into thinking every area is emerald.
+// Callers still pass `:categories` (drawing colours from CHART_SERIES in order),
+// and `:stacked` when the series sum to a meaningful whole.
+export function multiAreaChartProps() {
+  return {
+    ...areaChartProps(),
+    gradientStops: [
+      { offset: '0%', stopOpacity: 0.4 },
+      { offset: '100%', stopOpacity: 0 },
+    ],
+    hideLegend: false,
+    crosshairConfig: {
+      color: CHART_AXIS_TEXT_COLOR,
+      strokeColor: CHART_AXIS_TEXT_COLOR,
+      strokeWidth: 1,
+    },
   }
 }
 
