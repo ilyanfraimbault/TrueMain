@@ -738,13 +738,17 @@ async function mockPowerspikes(
   const gameScale = opponentChampionId > 0 ? 0.02 : 1
   const archetype = ARCHETYPES[s.archetype]
   // One spike per core item: mostly positive, tapering with build order, the
-  // odd negative read on late defensive buys. The real endpoint orders by
-  // *signed* magnitude descending — mirror that.
+  // odd negative read on late defensive buys. The real endpoint returns the
+  // build's core path only, in build order (#1021) — which is what this loop
+  // already produces, since it walks the archetype's item sequence.
   const rotation = archetype.items.indexOf(buildFirstItemId)
   const buildItems = rotation > 0
     ? [...archetype.items.slice(rotation), ...archetype.items.slice(0, rotation)]
     : archetype.items
-  const events: ChampionPowerspikeEvent[] = buildItems.slice(0, 6).map((itemId, i) => ({
+  // Up to 7 bars, not 6: the core path is the first item plus a walk capped at
+  // ChampionBuildPathAnalyzer.ItemPathMaxDepth (6), so the real endpoint can return
+  // seven — and dev has to be able to show the widest row the layout must survive.
+  const events: ChampionPowerspikeEvent[] = buildItems.slice(0, 7).map((itemId, i) => ({
     type: 'item' as const,
     refId: itemId,
     avgMinute: round3(9 + i * 4.6 + rng() * 1.6),
@@ -758,7 +762,9 @@ async function mockPowerspikes(
     spikeMagnitude: round3(0.05 - level * 0.002 + (rng() - 0.5) * 0.01),
     games: Math.max(1, Math.round(s.pr * POOL_GAMES * (level === 16 ? 0.4 : 0.9) * gameScale)),
   })))
-  events.sort((a, b) => b.spikeMagnitude - a.spikeMagnitude)
+  // Items in build order, then the level milestones ascending — the response is a
+  // display order now, not a ranking, so sorting it by magnitude here would let the
+  // mock pass a component the real payload would break (#1021).
   return {
     championId: s.id,
     position: s.position,

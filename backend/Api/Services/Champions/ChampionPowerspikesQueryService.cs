@@ -122,9 +122,17 @@ public sealed class ChampionPowerspikesQueryService(
         // series is the baseline the event spikes are measured against.
         var (_, powerByMinute) = await BuildCurveAsync(
             championId, position, normalizedPatch, bands, minGames, sigmaByMinute, ct);
+        // Which items this build actually builds, in build order. The event rows are
+        // keyed on the build but hold every item each game completed, so without this
+        // list the read cannot tell a core item from a situational one — and the
+        // section was showing items absent from the tab's own core path (#1021).
+        var coreItemPath = await ChampionCoreBuildPathResolver.ResolveAsync(
+            db, cache, queueId, championId, position, normalizedPatch, bands, bracketToken,
+            buildFirstItemId, buildKeystoneId, ct);
+
         var events = await BuildEventsAsync(
             championId, position, normalizedPatch, bands, minGames,
-            buildFirstItemId, buildKeystoneId, opponent, powerByMinute, ct);
+            buildFirstItemId, buildKeystoneId, opponent, powerByMinute, coreItemPath, ct);
 
         var response = new ChampionPowerspikesResponse
         {
@@ -209,11 +217,16 @@ public sealed class ChampionPowerspikesQueryService(
 
     // Fold the event spikes to the requested scope (sum spike/minute + games per
     // event), divide by games and subtract the population's baseline curvature at
-    // the event's mean minute. Ordered by descending magnitude.
+    // the event's mean minute.
     //
-    // Rows are scoped to one core build (#890), so the item events returned are by
-    // construction the ones that build completes — no intersection with a dominant
-    // build is needed, and two builds of the same champion no longer blend.
+    // Rows are scoped to one core build (#890), which scopes the *games* but not the
+    // *items*: every item a game completed produces a row, so a situational item
+    // bought in a minority of the slice's games sits in the table next to the build's
+    // own. Ranking by magnitude then let it outrank a core item, and the panel showed
+    // items absent from the tab's core path. Item events are therefore intersected
+    // with that path and returned in its order (#1021) — the order is the build's,
+    // not a ranking and not a chronology. Level events keep their own milestone
+    // order; they are not build items and no path applies to them.
     //
     // With an opponent (#957) the same rows are narrowed to the games played against
     // them. Rows carry exactly one opponent each, so the unscoped call keeps summing
@@ -228,8 +241,22 @@ public sealed class ChampionPowerspikesQueryService(
         int buildKeystoneId,
         int? opponentChampionId,
         IReadOnlyDictionary<int, double> powerByMinute,
+        IReadOnlyList<int> coreItemPath,
         CancellationToken ct)
     {
+        // Rank by position in the build path, so an item's place among the bars is
+        // the place it holds in the build. An empty path means the slice has no
+        // aggregate rows to derive one from; item spikes are then withheld rather
+        // than shown unordered, since "which items are this build's" is exactly what
+        // could not be answered.
+        // TryAdd, not ToDictionary: an item repeated in the path keeps its earliest
+        // slot instead of throwing.
+        var pathRankByItemId = new Dictionary<int, int>();
+        for (var rank = 0; rank < coreItemPath.Count; rank++)
+        {
+            pathRankByItemId.TryAdd(coreItemPath[rank], rank);
+        }
+
         var query = db.ChampionPowerspikeEventStats
             .AsNoTracking()
             .Where(e => e.ChampionId == championId
@@ -283,7 +310,10 @@ public sealed class ChampionPowerspikesQueryService(
             return [];
         }
 
+        const string ItemEventType = "item";
+
         return rows
+            .Where(r => r.EventType != ItemEventType || pathRankByItemId.ContainsKey(r.RefId))
             .Select(r =>
             {
                 var avgMinute = r.SumMinute / r.Games;
@@ -301,7 +331,11 @@ public sealed class ChampionPowerspikesQueryService(
                     Games = r.Games
                 };
             })
-            .OrderByDescending(e => e.SpikeMagnitude)
+            // Items in build order first, then the level milestones in their own
+            // order. Magnitude no longer sorts anything: the bar row is read
+            // left-to-right as the build, so ranking by size would scramble it.
+            .OrderBy(e => e.Type == ItemEventType ? 0 : 1)
+            .ThenBy(e => e.Type == ItemEventType ? pathRankByItemId[e.RefId] : e.RefId)
             .ToList();
     }
 

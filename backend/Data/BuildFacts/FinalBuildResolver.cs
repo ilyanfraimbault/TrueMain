@@ -138,7 +138,15 @@ public static class FinalBuildResolver
         }
     }
 
-    private static bool IsEligibleFinalBuildItem(ItemMetadata metadata)
+    /// <summary>
+    /// Whether an item can appear in a build path at all. <c>IsFinalItem</c> alone
+    /// is not that test — it only means "nothing builds out of this", which is also
+    /// true of potions, wards, trinkets, Doran's and support-quest items. Anything
+    /// reading purchases to talk about a *build* has to apply this whole predicate,
+    /// so it is public and lives here: the powerspike fold used to restate a looser
+    /// version of it and surfaced consumables as power spikes (#1021).
+    /// </summary>
+    public static bool IsEligibleFinalBuildItem(ItemMetadata metadata)
         => metadata is { IsFinalItem: true, IsConsumable: false }
            && (metadata.InStore || metadata.IsInventoryTransformItem)
            && !IgnoredFinalBuildItemIds.Contains(metadata.Id)
@@ -159,7 +167,13 @@ public static class FinalBuildResolver
            // what StarterItemAnalyzer's timing-based window misses.
            && !metadata.IsStarterClassItem;
 
-    private static int GetDisplayedBuildItemId(ItemMetadata metadata)
+    /// <summary>
+    /// The id a build path shows for an item. Inventory-transform items (an item
+    /// whose identity shifts in place) are displayed as the item that was actually
+    /// bought, so a purchase-driven read and the dim build tables name the same
+    /// thing and their ids join.
+    /// </summary>
+    public static int GetDisplayedBuildItemId(ItemMetadata metadata)
         => metadata.IsInventoryTransformItem && metadata.TransformFromItemId is > 0
             ? metadata.TransformFromItemId.Value
             : metadata.Id;

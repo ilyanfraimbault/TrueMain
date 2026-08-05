@@ -30,6 +30,17 @@ public sealed class ChampionPowerspikeAggregationProcessIntegrationTests
     private const int CoreItemId = 3157; // Zhonya's Hourglass — legendary, non-boots
     private const int ItemPurchaseMinute = 14;
 
+    // Three items nothing builds out of, and therefore three items the old
+    // IsFinalItem-only filter accepted as power spikes (#1021). Each is rejected
+    // for a different reason by the build path's own eligibility rule: consumable,
+    // starter-class, trinket. All are bought inside the ±3-minute window so a spike
+    // would be computable for them — their absence is the filter's doing, not the
+    // window's.
+    private const int ConsumableItemId = 2003;   // Health Potion
+    private const int StarterItemId = 1055;      // Doran's Blade
+    private const int TrinketItemId = 3340;      // Stealth Ward
+    private const int IneligiblePurchaseMinute = 11;
+
     // The core build every seeded game belongs to: first completed item + keystone.
     private const int KeystoneId = 8112;
     private const int KeystoneCatalogId = 1;
@@ -88,6 +99,59 @@ public sealed class ChampionPowerspikeAggregationProcessIntegrationTests
             row.SumDamageDiff.Should().BeApproximately(0, 1e-6);
             row.SumGoldDiffSq.Should().BeGreaterThan(0);
         }
+    }
+
+    [Fact]
+    public async Task RunAsync_IgnoresItemsThatCannotBelongToABuildPath()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedGamesAsync();
+
+        await CreateProcess().RunCoreAsync(CancellationToken.None);
+
+        await using var db = _fixture.CreateDbContext();
+
+        var itemRefIds = await db.ChampionPowerspikeEventStats.AsNoTracking()
+            .Where(e => e.EventType == "item")
+            .Select(e => e.RefId)
+            .ToListAsync();
+
+        // Each seeded game completes four items nothing builds out of; only the one
+        // that can appear in a build path is a power spike. Before #1021 the filter
+        // was IsFinalItem alone and all four produced rows.
+        itemRefIds.Should().Equal([CoreItemId]);
+    }
+
+    [Fact]
+    public async Task RunAsync_PurgesStoredItemEventsThatCannotBelongToABuildPath()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedGamesAsync();
+
+        // A row the pre-#1021 filter would have written, plus one for an item the
+        // current metadata knows nothing about — a reworked or removed item, folded
+        // legitimately under the rule of its own patch.
+        const int UnknownItemId = 999_001;
+        await using (var seed = _fixture.CreateDbContext())
+        {
+            seed.ChampionPowerspikeEventStats.AddRange(
+                StaleEvent(ConsumableItemId),
+                StaleEvent(UnknownItemId));
+            await seed.SaveChangesAsync();
+        }
+
+        await CreateProcess().RunCoreAsync(CancellationToken.None);
+
+        await using var db = _fixture.CreateDbContext();
+        var itemRefIds = await db.ChampionPowerspikeEventStats.AsNoTracking()
+            .Where(e => e.EventType == "item")
+            .Select(e => e.RefId)
+            .ToListAsync();
+
+        itemRefIds.Should().NotContain(ConsumableItemId, "a consumable can never be a build's power spike");
+        itemRefIds.Should().Contain(UnknownItemId,
+            "an item the current patch no longer describes was judged by the rule of its own patch, "
+            + "and the purge must not rewrite that");
     }
 
     [Fact]
@@ -238,6 +302,27 @@ public sealed class ChampionPowerspikeAggregationProcessIntegrationTests
         await db.SaveChangesAsync();
     }
 
+    // An already-stored item event, shaped like the ones the fold writes for the
+    // seeded slice — only the item id varies.
+    private static ChampionPowerspikeEventStat StaleEvent(int refId)
+        => new()
+        {
+            Id = Guid.NewGuid(),
+            ChampionId = Champion,
+            TeamPosition = Position,
+            Patch = "16.4",
+            EloBracket = EloBracket,
+            BuildFirstItemId = CoreItemId,
+            BuildKeystoneId = KeystoneId,
+            OpponentChampionId = Opponent,
+            EventType = "item",
+            RefId = refId,
+            SumSpike = 1.0,
+            SumMinute = 12,
+            Games = 1,
+            AggregatedAtUtc = new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc)
+        };
+
     private static int LevelAt(int minute) => minute switch
     {
         >= 20 => 16,
@@ -268,7 +353,13 @@ public sealed class ChampionPowerspikeAggregationProcessIntegrationTests
             ChampLevel = 16,
             Item0 = coreItem ? CoreItemId : 0,
             ItemEvents = coreItem && purchaseMs is not null
-                ? [new ItemEvent { TimestampMs = purchaseMs.Value, EventType = "ITEM_PURCHASED", ItemId = CoreItemId }]
+                ?
+                [
+                    new ItemEvent { TimestampMs = purchaseMs.Value, EventType = "ITEM_PURCHASED", ItemId = CoreItemId },
+                    new ItemEvent { TimestampMs = IneligiblePurchaseMinute * 60_000, EventType = "ITEM_PURCHASED", ItemId = ConsumableItemId },
+                    new ItemEvent { TimestampMs = IneligiblePurchaseMinute * 60_000, EventType = "ITEM_PURCHASED", ItemId = StarterItemId },
+                    new ItemEvent { TimestampMs = IneligiblePurchaseMinute * 60_000, EventType = "ITEM_PURCHASED", ItemId = TrinketItemId }
+                ]
                 : [],
             SkillEvents = []
         };
@@ -294,12 +385,19 @@ public sealed class ChampionPowerspikeAggregationProcessIntegrationTests
 
     private sealed class FakeItemMetadataProvider : IItemMetadataProvider
     {
-        // CoreItemId is the only completed (final, non-boots) item the seeds buy,
-        // so it is both the build's first item and its single item spike.
+        // Every entry here has IsFinalItem — nothing builds out of a potion, a
+        // Doran's or a trinket either. CoreItemId is the only one that may reach a
+        // build path, so it is the only one that may become an item spike.
         private static readonly IReadOnlyDictionary<int, ItemMetadata> Metadata =
             new Dictionary<int, ItemMetadata>
             {
-                [CoreItemId] = new(CoreItemId, 3000, true, false, false, false, true, false)
+                [CoreItemId] = new(CoreItemId, 3000, true, false, false, false, true, false),
+                [ConsumableItemId] = new(ConsumableItemId, 50, true, true, false, false, true, false),
+                [StarterItemId] = new(StarterItemId, 450, true, false, false, false, true, false)
+                {
+                    IsStarterClassItem = true
+                },
+                [TrinketItemId] = new(TrinketItemId, 0, true, false, false, false, true, false)
             };
 
         public Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemsAsync(string gameVersion, CancellationToken ct)
