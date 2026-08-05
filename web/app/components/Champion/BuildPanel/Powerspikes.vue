@@ -41,11 +41,13 @@ interface SpikeBar {
   games: number
 }
 
-// Capped so a long build doesn't squeeze the bars into slivers; the strongest
-// survive the cap, then everything is re-ordered by completion time so the row
-// reads as a build timeline rather than a ranking.
-const MAX_ITEM_BARS = 6
-
+// Server order is the build's core path order, and it is rendered as given
+// (#1021). The previous "top 6 by magnitude, then re-sort by average minute" is
+// gone on both counts: the payload now only carries this build's own core items,
+// so there is nothing to rank away, and average minutes are per-item means over
+// different sets of games — sorting by them fabricated a chronology the numbers
+// never supported (two bars a minute apart described two disjoint cohorts, not
+// two purchases). The path is capped server-side, so no client cap is needed.
 const itemBars = computed<SpikeBar[]>(() =>
   props.events
     .filter(event => event.type === 'item' && event.spikeMagnitude > 0)
@@ -58,10 +60,7 @@ const itemBars = computed<SpikeBar[]>(() =>
       spikeMagnitude: event.spikeMagnitude,
       games: event.games,
     }))
-    .filter(bar => bar.item !== null)
-    .sort((left, right) => right.spikeMagnitude - left.spikeMagnitude)
-    .slice(0, MAX_ITEM_BARS)
-    .sort((left, right) => left.avgMinute - right.avgMinute),
+    .filter(bar => bar.item !== null),
 )
 
 // Levels are the three ultimate-rank milestones, always in ascending order —
@@ -102,6 +101,19 @@ const barHeightPercent = (spike: number): number =>
 
 const formatGameTime = (minutes: number): string => formatDuration(Math.round(minutes * 60))
 const formatGames = (count: number): string => count.toLocaleString('en-US')
+
+// Each bar's minute is a mean over its own games — the ones where that item was
+// completed at all — so the bars do not share a denominator and the row is not a
+// single game's timeline. The wording says "on average" and each bar carries its
+// own sample, so the number is read as the per-item statistic it is rather than
+// as a purchase clock. Conditioning the minutes on the preceding core items is
+// #1022; until then the copy must not imply it already happens.
+const tooltipFor = (bar: SpikeBar): string => {
+  const when = bar.item
+    ? `completed ~${formatGameTime(bar.avgMinute)} on average`
+    : `reached ~${formatGameTime(bar.avgMinute)} on average`
+  return `${bar.label} · +${bar.spikeMagnitude.toFixed(2)} lead acceleration · ${when} · ${formatGames(bar.games)} games`
+}
 
 // Spikes are folded per lane opponent only for matches ingested since #957, so a
 // matchup can legitimately have no row at all while the champion at large has
@@ -168,7 +180,7 @@ const emptyMessage = computed(() => {
       <UTooltip
         v-for="bar in bars"
         :key="bar.key"
-        :text="`${bar.label} · +${bar.spikeMagnitude.toFixed(2)} lead acceleration · ~${formatGameTime(bar.avgMinute)} · ${formatGames(bar.games)} games`"
+        :text="tooltipFor(bar)"
       >
         <div class="flex flex-col items-center gap-1">
           <div class="flex h-28 w-full items-end justify-center">

@@ -60,6 +60,28 @@ the `MatchupLeadAggregation` options section were deliberately **not renamed** �
 A blended cross-build answer is wrong (Botrk vs Kraken rushes behave differently). Winrate delta was
 considered and rejected as confounded — completing a third item correlates with already winning — #890, #775.
 
+**Scoping the aggregate to a build scopes the games, not the items — the item set has to be intersected at
+read time** (#1021). The event rows carry `(BuildFirstItemId, BuildKeystoneId)`, but within that slice *every*
+item a game completed produces a row, so a situational item bought in a minority of the slice's games sat in
+the table beside the build's own. Ranking the bars by magnitude then let it outrank a core item, and the panel
+showed items absent from the tab's core path. Fixed on the read: item events are intersected with the core
+path (`ChampionCoreBuildPathResolver`, resolving it exactly as the builds read does) and returned in **build
+order**, not by magnitude and not by mean minute. Two consequences worth keeping in mind. **The panel is
+withheld rather than approximated** when no path resolves — the aggregate slice is gone, say nothing, because
+"which items are this build's" is the one question that could not be answered. And **the bar row is not a
+timeline**: each item's minute is a mean over its own games (those where it was completed at all), so two
+adjacent bars can sit a minute apart while describing disjoint cohorts. That is what made the row read as
+impossible; ordering by the build rather than by those minutes stops presenting them as a sequence, and
+conditioning them on the preceding core items is #1022.
+
+**"Completed item" is the build path's eligibility rule, shared, not a local restatement of it** (#1021). The
+powerspike fold tested `IsFinalItem && !IsBootsItem`, but `IsFinalItem` only means "nothing builds out of
+this" — equally true of potions, control wards, trinkets, Doran's and support-quest items, all of which were
+being folded and rendered as power spikes. `FinalBuildResolver.IsEligibleFinalBuildItem` is now public and is
+the single definition; an item that cannot appear in a build cannot be that build's power spike. Ids are
+mapped through `GetDisplayedBuildItemId` for the same reason the build path does it, or a transform item
+would be named one way by the fold and another by the dim tables and never match.
+
 **Matchup-scoped power spikes are a dimension on the aggregate, not a live recompute — because a live
 recompute is impossible.**
 The other matchup-filtered sections fold `match_participants` live (#923), so #957 was written assuming the

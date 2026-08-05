@@ -1,4 +1,3 @@
-using Core.Lol.Items;
 using Core.Lol.Patches;
 using Core.Options;
 using Data;
@@ -43,9 +42,12 @@ namespace Ingestor.Processes;
 /// <see cref="FinalBuildResolver"/> so the keys join. A champion built two ways
 /// therefore yields two independent sets of item spikes rather than one blend.
 /// Item events are the participant's own genuinely completed items — detected from
-/// <see cref="ItemMetadata.IsFinalItem"/> on the purchase events, not from what
-/// happens to sit in the final inventory, which would count a component that never
-/// got upgraded and miss an item completed then sold.
+/// the purchase events, not from what happens to sit in the final inventory, which
+/// would count a component that never got upgraded and miss an item completed then
+/// sold. What counts as completed is
+/// <see cref="FinalBuildResolver.IsEligibleFinalBuildItem"/>, the build path's own
+/// rule: an item that cannot appear in a build cannot be that build's power spike
+/// (#1021).
 ///
 /// Event rows also carry the lane opponent the spike was measured against (#957).
 /// The fold already resolves that opponent — the power series <em>is</em> the diff
@@ -70,12 +72,6 @@ public sealed class ChampionPowerspikeAggregationProcess(
     // Mirrors ChampionPowerspikesQueryService.
     private const int SpikeWindowMinutes = 3;
 
-    // Boots are a separate pattern dimension and never appear in a dominant build's
-    // BuildItem slots, so their item spikes could never be displayed — exclude them
-    // up front to keep the event table lean.
-    private static readonly IReadOnlySet<int> ExcludedItemIds =
-        new HashSet<int>(LolItemIds.TierTwoBoots.All) { LolItemIds.BootsOfSpeed };
-
     public string Name => "ChampionPowerspikeAggregation";
 
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
@@ -87,6 +83,8 @@ public sealed class ChampionPowerspikeAggregationProcess(
 
         var processedMatches = 0;
         var batches = 0;
+
+        await PurgeIneligibleItemEventsAsync(queueId, ct);
 
         while (maxPerRun == 0 || processedMatches < maxPerRun)
         {
@@ -130,6 +128,93 @@ public sealed class ChampionPowerspikeAggregationProcess(
             batches);
 
         return new MatchAggregationSummary(processedMatches, batches);
+    }
+
+    /// <summary>
+    /// Deletes item event rows for items that can never belong to a build path —
+    /// the potions, trinkets, starters and support-quest items the pre-#1021 filter
+    /// accepted. The read already hides them (it intersects with the core path), so
+    /// this is storage hygiene rather than a correctness fix, and it is worth doing
+    /// because those items are bought in nearly every game: they are a large,
+    /// permanently unreadable share of the table.
+    /// </summary>
+    /// <remarks>
+    /// Drains over as many runs as it needs, then costs one scan per run: the
+    /// predicate is <c>(EventType, RefId)</c>, the trailing pair of the natural-key
+    /// index, so Postgres can serve the steady-state "nothing left" answer index-only
+    /// but cannot seek to it. That is the same bargain
+    /// <see cref="RunePageDeduplicationProcess"/> makes, and the reason no index was
+    /// added for it — a permanent write cost to speed up a cleanup that converges.
+    /// </remarks>
+    /// <remarks>
+    /// Only ids the current patch's metadata <em>knows and rejects</em> are deleted.
+    /// An id absent from that metadata is left alone on purpose: a reworked or
+    /// removed item is unknown today yet was a legitimate spike on the patch it was
+    /// folded under, and deleting it would rewrite history to match a rule it was
+    /// never judged by.
+    /// </remarks>
+    private async Task PurgeIneligibleItemEventsAsync(int queueId, CancellationToken ct)
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync(ct);
+
+        var latestGameVersion = await db.Matches
+            .AsNoTracking()
+            .Where(m => m.QueueId == queueId && m.GameVersion != "")
+            .OrderByDescending(m => m.GameStartTimeUtc)
+            .Select(m => m.GameVersion)
+            .FirstOrDefaultAsync(ct);
+
+        if (string.IsNullOrEmpty(latestGameVersion))
+        {
+            return;
+        }
+
+        var itemMetadata = await itemMetadataProvider.GetItemsAsync(latestGameVersion, ct);
+        var ineligibleIds = itemMetadata.Values
+            .Where(meta => !FinalBuildResolver.IsEligibleFinalBuildItem(meta))
+            .Select(meta => meta.Id)
+            .ToList();
+
+        if (ineligibleIds.Count == 0)
+        {
+            return;
+        }
+
+        // Bounded batches, one transaction each, like the retention deletes (#982,
+        // #988): the predicate is not index-aligned, so a single statement over the
+        // whole table is the shape that blew the command timeout there. Each batch
+        // commits its own progress, so an interrupted run resumes instead of redoing.
+        const int deleteBatchSize = 5_000;
+        var deleted = 0;
+
+        while (true)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var batchIds = await db.ChampionPowerspikeEventStats
+                .AsNoTracking()
+                .Where(e => e.EventType == "item" && ineligibleIds.Contains(e.RefId))
+                .OrderBy(e => e.Id)
+                .Take(deleteBatchSize)
+                .Select(e => e.Id)
+                .ToListAsync(ct);
+
+            if (batchIds.Count == 0)
+            {
+                break;
+            }
+
+            deleted += await db.ChampionPowerspikeEventStats
+                .Where(e => batchIds.Contains(e.Id))
+                .ExecuteDeleteAsync(ct);
+        }
+
+        if (deleted > 0)
+        {
+            logger.LogInformation(
+                "Purged {Deleted} powerspike item event rows for items that cannot belong to a build path.",
+                deleted);
+        }
     }
 
     private async Task ProcessBatchAsync(
@@ -440,17 +525,24 @@ public sealed class ChampionPowerspikeAggregationProcess(
         }
 
         // Item completions: the first purchase of each genuinely completed item.
-        // Completion comes from the patch's item metadata (IsFinalItem), not from
-        // the final inventory — a component that never got upgraded is not a spike,
-        // and an item completed then sold still is one.
+        // Completion comes from the patch's item metadata, not from the final
+        // inventory — a component that never got upgraded is not a spike, and an
+        // item completed then sold still is one.
+        //
+        // Eligibility is FinalBuildResolver's, shared rather than restated (#1021).
+        // The old local test was `IsFinalItem && !IsBootsItem`, but IsFinalItem only
+        // means "nothing builds out of this", which is equally true of potions,
+        // control wards, trinkets, Doran's and support-quest items — all of which
+        // were being folded and rendered as power spikes. Ids are mapped through
+        // GetDisplayedBuildItemId for the same reason the build path is: a
+        // transform item has to be named the way the dim build tables name it, or
+        // the event cannot be matched to the build it belongs to.
         var completions = p1.ItemEvents
             .Where(e => e.ItemId > 0
-                && !ExcludedItemIds.Contains(e.ItemId)
                 && e.EventType.Equals("ITEM_PURCHASED", StringComparison.OrdinalIgnoreCase)
                 && itemMetadata.TryGetValue(e.ItemId, out var meta)
-                && meta.IsFinalItem
-                && !meta.IsBootsItem)
-            .GroupBy(e => e.ItemId)
+                && FinalBuildResolver.IsEligibleFinalBuildItem(meta))
+            .GroupBy(e => FinalBuildResolver.GetDisplayedBuildItemId(itemMetadata[e.ItemId]))
             .Select(g => new { ItemId = g.Key, FirstMs = g.Min(e => e.TimestampMs) });
 
         foreach (var completion in completions)

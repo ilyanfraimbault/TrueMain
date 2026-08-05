@@ -17,7 +17,13 @@ public sealed record ChampionPowerspikesResponse
     public string Position { get; init; } = string.Empty;
     public string? Patch { get; init; }
 
-    /// <summary>Spike events, ordered by descending magnitude.</summary>
+    /// <summary>
+    /// Spike events in display order: item events first, in the order the build's
+    /// core path completes them, then the level milestones ascending. Item events
+    /// are restricted to that core path — an item the build does not take is not
+    /// one of its power spikes (#1021). Consumers render this order as given;
+    /// re-sorting by magnitude would turn the bar row back into a ranking.
+    /// </summary>
     public IReadOnlyList<ChampionPowerspikeEvent> Events { get; init; } = [];
 }
 
