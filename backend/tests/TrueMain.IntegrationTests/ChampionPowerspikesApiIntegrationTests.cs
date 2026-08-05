@@ -139,6 +139,31 @@ public sealed class ChampionPowerspikesApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetChampionPowerspikesAsync_OrdersItemsByTheirSlotInAMultiItemCoreBuildPath()
+    {
+        await _fixture.ResetDatabaseAsync();
+        // Same games, but the aggregate now says this build takes both items — so
+        // both are core, and the order must be the build's. The seeded games complete
+        // the second path item *earlier* than the first (OffPathItem at kink−4,
+        // CoreItem at kink), so mean-minute order is the exact reverse of build
+        // order: an accidental sort by minute — the one the client used to impose —
+        // fails this assertion rather than passing by coincidence.
+        await SeedAsync(games: 12, corePath: [CoreItem, OffPathItem]);
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var spikes = await client.GetFromJsonAsync<ChampionPowerspikesResponse>(
+            $"/champions/{Champion}/powerspikes?position={Position}&{BuildQuery}");
+
+        var items = spikes!.Events.Where(e => e.Type == "item").ToList();
+        items.Select(e => e.RefId).Should().Equal([CoreItem, OffPathItem]);
+        items[0]!.AvgMinute.Should().BeGreaterThan(items[1]!.AvgMinute,
+            "the first path item completes later than the second, so build order and "
+            + "minute order genuinely disagree here");
+    }
+
+    [Fact]
     public async Task GetChampionPowerspikesAsync_WithholdsItemSpikesWhenNoCoreBuildPathResolves()
     {
         await _fixture.ResetDatabaseAsync();
@@ -314,7 +339,12 @@ public sealed class ChampionPowerspikesApiIntegrationTests
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
-    private async Task SeedAsync(int games)
+    /// <param name="corePath">
+    /// The item path the pattern aggregate reports for this build, i.e. what the
+    /// build tab shows as its core. Defaults to the single first item; the read
+    /// intersects the folded item events with it.
+    /// </param>
+    private async Task SeedAsync(int games, IReadOnlyList<int>? corePath = null)
     {
         await using var db = _fixture.CreateDbContext();
 
@@ -333,7 +363,7 @@ public sealed class ChampionPowerspikesApiIntegrationTests
 
         await db.SaveChangesAsync();
 
-        await SeedBuildAggregateAsync(db, account.Id, games, EloBracket.Gold);
+        await SeedBuildAggregateAsync(db, account.Id, games, corePath ?? [CoreItem], EloBracket.Gold);
 
         await RunAggregationAsync();
     }
@@ -370,7 +400,8 @@ public sealed class ChampionPowerspikesApiIntegrationTests
         // One pattern slice per bracket, so the core build path resolves on the same
         // bands the events are read on — a Gold-only request must not fall through to
         // a path derived from the Iron cohort.
-        await SeedBuildAggregateAsync(db, account.Id, perBracketGames, EloBracket.Gold, EloBracket.Iron);
+        await SeedBuildAggregateAsync(
+            db, account.Id, perBracketGames, [CoreItem], EloBracket.Gold, EloBracket.Iron);
 
         await RunAggregationAsync();
     }
@@ -406,7 +437,7 @@ public sealed class ChampionPowerspikesApiIntegrationTests
 
         // The opponent is a dimension of the event rows, not of the pattern
         // aggregate, so one slice covers both matchups' core path.
-        await SeedBuildAggregateAsync(db, account.Id, 2 * perOpponentGames, EloBracket.Gold);
+        await SeedBuildAggregateAsync(db, account.Id, 2 * perOpponentGames, [CoreItem], EloBracket.Gold);
 
         await RunAggregationAsync();
     }
@@ -427,7 +458,8 @@ public sealed class ChampionPowerspikesApiIntegrationTests
     /// insert the row and collide on its unique index.
     /// </remarks>
     private static Task SeedBuildAggregateAsync(
-        Data.TrueMainDbContext db, Guid accountId, int games, params string[] eloBrackets)
+        Data.TrueMainDbContext db, Guid accountId, int games,
+        IReadOnlyList<int> buildItems, params string[] eloBrackets)
     {
         var seeder = new ChampionAggregateSeeder();
 
@@ -436,7 +468,7 @@ public sealed class ChampionPowerspikesApiIntegrationTests
             seeder.AddPatternWithRune(
                 accountId, Champion, ScopePatch, platformId: "EUW1", QueueId, Position,
                 summoner1Id: 4, summoner2Id: 14, skillOrderKey: "Q",
-                buildItems: [CoreItem], bootsItemId: 0,
+                buildItems, bootsItemId: 0,
                 primaryStyleId: 8100, primaryKeystoneId: Keystone, secondaryStyleId: 8000,
                 games: games, wins: games / 2,
                 new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), eloBracket);
@@ -485,9 +517,11 @@ public sealed class ChampionPowerspikesApiIntegrationTests
         [
             new ItemEvent { EventType = "ITEM_PURCHASED", ItemId = NoiseItem, TimestampMs = 5 * 60_000 },
             new ItemEvent { EventType = "ITEM_PURCHASED", ItemId = CoreItem, TimestampMs = kink * 60_000 },
-            // Completed in every game and absent from the build's core path: the fold
-            // records it, the read must not show it (#1021).
-            new ItemEvent { EventType = "ITEM_PURCHASED", ItemId = OffPathItem, TimestampMs = (kink + 4) * 60_000 }
+            // Completed in every game and, by default, absent from the build's core
+            // path: the fold records it, the read must not show it (#1021). Bought
+            // *before* the core item on purpose — the one test that does put it on
+            // the path relies on build order and minute order disagreeing.
+            new ItemEvent { EventType = "ITEM_PURCHASED", ItemId = OffPathItem, TimestampMs = (kink - 4) * 60_000 }
         ];
         db.MatchParticipants.Add(champion);
         db.MatchParticipants.Add(Participant(matchId, 2, opponentChampionId, teamId: 200, win: false));

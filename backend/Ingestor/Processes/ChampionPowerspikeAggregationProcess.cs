@@ -139,7 +139,8 @@ public sealed class ChampionPowerspikeAggregationProcess(
     /// permanently unreadable share of the table.
     /// </summary>
     /// <remarks>
-    /// Drains over as many runs as it needs, then costs one scan per run: the
+    /// Drains over as many runs as it needs (capped per run so a tick is never spent
+    /// entirely on cleanup), then costs one scan per run: the
     /// predicate is <c>(EventType, RefId)</c>, the trailing pair of the natural-key
     /// index, so Postgres can serve the steady-state "nothing left" answer index-only
     /// but cannot seek to it. That is the same bargain
@@ -157,19 +158,24 @@ public sealed class ChampionPowerspikeAggregationProcess(
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
 
-        var latestGameVersion = await db.Matches
+        // Any catalog will do, so this takes the first row rather than the newest:
+        // ordering by GameStartTimeUtc cannot use the (PlatformId, QueueId,
+        // GameStartTimeUtc) index when PlatformId is unconstrained, and it would sort
+        // a large slice of `matches` on every ingestor tick. Deletion is conservative
+        // — only ids the catalog knows *and* rejects — so an older catalog removes
+        // fewer rows and never the wrong ones.
+        var gameVersion = await db.Matches
             .AsNoTracking()
             .Where(m => m.QueueId == queueId && m.GameVersion != "")
-            .OrderByDescending(m => m.GameStartTimeUtc)
             .Select(m => m.GameVersion)
             .FirstOrDefaultAsync(ct);
 
-        if (string.IsNullOrEmpty(latestGameVersion))
+        if (string.IsNullOrEmpty(gameVersion))
         {
             return;
         }
 
-        var itemMetadata = await itemMetadataProvider.GetItemsAsync(latestGameVersion, ct);
+        var itemMetadata = await itemMetadataProvider.GetItemsAsync(gameVersion, ct);
         var ineligibleIds = itemMetadata.Values
             .Where(meta => !FinalBuildResolver.IsEligibleFinalBuildItem(meta))
             .Select(meta => meta.Id)
@@ -184,10 +190,16 @@ public sealed class ChampionPowerspikeAggregationProcess(
         // #988): the predicate is not index-aligned, so a single statement over the
         // whole table is the shape that blew the command timeout there. Each batch
         // commits its own progress, so an interrupted run resumes instead of redoing.
+        // Capped per run, like the match loop's MaxMatchesPerRun: these items are
+        // bought in nearly every game, so the backlog on the first run after deploy
+        // is a large share of the table, and an uncapped drain would spend that whole
+        // ingestor tick cleaning up before folding a single new match. It resumes on
+        // the next run.
         const int deleteBatchSize = 5_000;
+        const int maxDeleteBatchesPerRun = 20;
         var deleted = 0;
 
-        while (true)
+        for (var batch = 0; batch < maxDeleteBatchesPerRun; batch++)
         {
             ct.ThrowIfCancellationRequested();
 
