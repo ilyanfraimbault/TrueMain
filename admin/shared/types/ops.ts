@@ -64,6 +64,11 @@ export type MatchTimeGranularity = 'day' | 'week' | 'month' | 'year' | 'patch'
  *     (e.g. `2026-06-01T00:00:00Z`) — format the label client-side per granularity.
  *   - patch: the normalized `MAJOR.MINOR` version string (e.g. `16.4`) — use as-is.
  */
+export interface MatchTimeBucket {
+  bucket: string
+  matches: number
+}
+
 /**
  * Granularities of the ingestion-throughput series. Narrower than
  * `MatchTimeGranularity` on purpose: a patch is a property of the games, not of
@@ -106,11 +111,6 @@ export interface MatchesIngestedBucket {
   timelinesUpdated: number
   /** Ingestion runs started in the period, summary or not. */
   runs: number
-}
-
-export interface MatchTimeBucket {
-  bucket: string
-  matches: number
 }
 
 /** Which engine a storage object belongs to (#1023). Both share one volume. */
