@@ -644,8 +644,11 @@ possible. Approval is the single external unlock for all of it — #780.
 - **API wire conventions**: camelCase JSON, RFC 7807 problem details on all 4xx/5xx, no global `/api` prefix,
   `patch` normalised to `major.minor` (invalid values treated as unfiltered), canonical Riot position values,
   `pageSize`/`limit` ≤ 0 means "default" — `docs/api.md`.
-- **Every issue goes on GitHub Project #2.** Priority is the sprint bucket: P0 current, P1 next, P2 after,
-  P3 someday. No milestones.
+- **Every issue goes on GitHub Project #2.** Scheduling and urgency are two separate fields: **Sprint** (the
+  14-day iteration field) says *when* the work is planned, **Priority** (P0–P3) says how urgent it is and
+  orders work inside a sprint. Priority used to double as the sprint bucket ("P0 = current sprint"); that
+  overloading was dropped because it silently competed with the real iteration field the board was already
+  using. No milestones.
 - **A health panel may not pass what it did not measure** (#924). Detector verdicts are green / amber / red /
   **unknown**, and `unknown` never means "fine": an unmeasurable row outranks green in the roll-up (one
   unchecked platform must not let a card claim to be clean) but stays below red (it must not hide a real
