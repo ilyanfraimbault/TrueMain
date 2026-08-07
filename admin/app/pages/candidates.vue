@@ -11,7 +11,6 @@
 // Read-only — no write actions in v1 (use "Add mains" to queue a request).
 import type { TableColumn } from '@nuxt/ui'
 import type {
-  BadgeColor,
   CandidateDetail,
   CandidateRow,
   IngestionTimeGranularity,
@@ -169,43 +168,11 @@ function latencyLabel(seconds: number | null | undefined): string {
 // =============================================================================
 // View 1 — Candidates
 // =============================================================================
-const candidateStatuses: MainCandidateStatus[] = [
-  'New',
-  'Scored',
-  'Queued',
-  'Processing',
-  'Validated',
-  'Rejected',
-]
-
-// Pipeline-stage badge colors trace New → Validated/Rejected (kept close to the
-// Overview candidate-pipeline palette so the two panels read consistently).
-const CANDIDATE_STATUS_COLOR: Record<MainCandidateStatus, BadgeColor> = {
-  New: 'neutral',
-  Scored: 'info',
-  Queued: 'warning',
-  Processing: 'warning',
-  Validated: 'success',
-  Rejected: 'error',
-}
-const CANDIDATE_STATUS_ICON: Record<MainCandidateStatus, string> = {
-  New: 'i-lucide-sparkles',
-  Scored: 'i-lucide-calculator',
-  Queued: 'i-lucide-list-ordered',
-  Processing: 'i-lucide-loader',
-  Validated: 'i-lucide-circle-check',
-  Rejected: 'i-lucide-circle-x',
-}
-function candidateStatusColor(status: MainCandidateStatus): BadgeColor {
-  return CANDIDATE_STATUS_COLOR[status] ?? 'neutral'
-}
-function candidateStatusIcon(status: MainCandidateStatus): string {
-  return CANDIDATE_STATUS_ICON[status] ?? 'i-lucide-circle'
-}
-
+// Status badge colors/icons live in `utils/candidate-status.ts` (auto-imported)
+// so this page and the account explorer badge a status identically.
 const candidateStatusItems = [
   { label: 'All statuses', value: ALL },
-  ...candidateStatuses.map(status => ({ label: status, value: status })),
+  ...CANDIDATE_STATUSES.map(status => ({ label: status, value: status })),
 ]
 
 const candidateStatus = ref<'all' | MainCandidateStatus>(ALL)
@@ -271,30 +238,11 @@ const candidateColumns: TableColumn<CandidateRow>[] = [
 // =============================================================================
 // View 2 — Demandes d'ajout (seed requests)
 // =============================================================================
-const seedStatuses: SeedRequestStatus[] = ['Pending', 'Resolving', 'Ingested', 'Failed']
-
-const SEED_STATUS_COLOR: Record<SeedRequestStatus, BadgeColor> = {
-  Pending: 'neutral',
-  Resolving: 'info',
-  Ingested: 'success',
-  Failed: 'error',
-}
-const SEED_STATUS_ICON: Record<SeedRequestStatus, string> = {
-  Pending: 'i-lucide-clock',
-  Resolving: 'i-lucide-loader',
-  Ingested: 'i-lucide-circle-check',
-  Failed: 'i-lucide-circle-x',
-}
-function seedStatusColor(status: SeedRequestStatus): BadgeColor {
-  return SEED_STATUS_COLOR[status] ?? 'neutral'
-}
-function seedStatusIcon(status: SeedRequestStatus): string {
-  return SEED_STATUS_ICON[status] ?? 'i-lucide-circle'
-}
-
+// Badge colors/icons live in `utils/pipeline-status.ts` (auto-imported) so this
+// page and the account explorer badge a status identically.
 const seedStatusItems = [
   { label: 'All statuses', value: ALL },
-  ...seedStatuses.map(status => ({ label: status, value: status })),
+  ...SEED_STATUSES.map(status => ({ label: status, value: status })),
 ]
 
 const seedStatus = ref<'all' | SeedRequestStatus>(ALL)

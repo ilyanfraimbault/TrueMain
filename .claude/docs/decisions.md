@@ -251,6 +251,29 @@ cut keeps an order of magnitude of headroom while catching a future mode built t
 
 ## Data & storage
 
+**The account explorer (#1032) reports raw score inputs, not score components — and never calls Riot.**
+The issue asked for a candidate's score "and its components" (recency/rank/points/scarcity). `main_candidates`
+persists only the final `Score` double; the blend lives in `ScoringProcess.ComputeScore` inside the Ingestor,
+and `ScoringOptions` (its weights) is Ingestor-only config the `Api` project cannot see. Recomputing the
+breakdown at read time was rejected: champion scarcity is a live snapshot of current coverage, so a
+recomputed decomposition would silently disagree with the `Score` sitting next to it on the same row —
+wrong on a page built specifically to be trusted for diagnosis. The endpoint instead exposes the persisted
+inputs (`LastPlayTimeUtc`, `ChampionRankInMasteryTop`, `ChampionPoints`, `ObservedGames`) and states plainly
+that the decomposition is not stored. Same reasoning kept the endpoint **database-only**: the API has no
+Riot client, so an unrecognised Riot ID renders as `NeverDiscovered` (200), not a 404 — the read never claims
+to know whether the Riot ID exists at Riot, only whether the pipeline has ever recorded it.
+
+**`MainActivity` deactivation carries no persisted reason, so the account explorer says so rather than guessing.**
+`MainActivityProcess` writes exactly two fields — `MainChampionStat.IsActive` and
+`RiotAccount.LastActivityCheckAtUtc` — collapsing two distinct causes (mastery `lastPlayTime` older than the
+inactivity window, or no mastery entry for the champion at all) into one boolean, with no `DeactivatedAtUtc`
+or reason column (#900). A failed mastery lookup leaves both fields untouched, so `IsActive = false` is only
+a *confirmed* retirement when `LastActivityCheckAtUtc` is recent — an older stamp means the last check that
+actually completed predates the flag flip, or never ran to confirm it. Adding a reason column was considered
+and deferred: it needs an Ingestor write-path change and a migration, for a fact the pipeline does not
+currently observe (mastery-v4 returns "no entry", not "entry expired *because* X"). The read-model names both
+possible causes and reports the confirmation timestamp instead.
+
 **Champion aggregates are replace-by-scope on *live* patches only. Old patches are frozen and must never be wiped.**
 Retention deletes `match_participants` past `RetainedPatchCount` (default 2). The cleanup set originally
 spanned all patches, so every aggregation run deleted old-patch scopes and could only rebuild those still
