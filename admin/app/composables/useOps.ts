@@ -1,5 +1,6 @@
 import type { MaybeRefOrGetter } from 'vue'
 import type {
+  AccountExplorer,
   AggregateFreshnessResponse,
   AggregationsResponse,
   DataQualityDetectorsResponse,
@@ -343,6 +344,22 @@ export function useCandidateQueueLatency() {
 export function getCandidateDetail(id: string) {
   return $fetch<CandidateDetail>(
     `/api/ops/candidates/${encodeURIComponent(id)}`,
+  )
+}
+
+/**
+ * `GET /api/ops/accounts/{nameTag}` — everything the pipeline knows about one
+ * Riot ID (#1032). A one-shot `$fetch` because the explorer submits a search
+ * imperatively rather than watching a reactive key.
+ *
+ * Unlike the other detail reads this one **never 404s**: an unknown Riot ID comes
+ * back 200 in the `NeverDiscovered` state, so callers need no not-found branch.
+ * It still throws a `FetchError` on 400 (malformed Riot ID, unknown region).
+ */
+export function getAccountExplorer(riotId: string, region?: string) {
+  return $fetch<AccountExplorer>(
+    `/api/ops/accounts/${encodeURIComponent(riotId)}`,
+    { query: region ? { region } : undefined },
   )
 }
 
