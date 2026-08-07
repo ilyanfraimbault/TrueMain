@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { PerformanceComponentKind } from '~~/shared/types/performance'
 import type { ChampionPosition } from '~/utils/positions'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 import { isLoadingStatus } from '~/utils/async-data'
@@ -38,64 +37,69 @@ const hasSample = computed(() => data.value?.averageScore != null)
 const championLabel = computed(() => props.championName ?? 'this champion')
 
 /**
- * Human wording per component. The parenthetical on the two lead components is
- * load-bearing: they are the same measurement over two different phases, and
- * without the minute ranges a reader cannot tell them apart.
- */
-const COMPONENT_LABELS: Record<PerformanceComponentKind, string> = {
-  Combat: 'Combat (KDA)',
-  KillParticipation: 'Kill participation',
-  DamageShare: 'Damage share',
-  GoldShare: 'Gold share',
-  Farming: 'Farming',
-  Vision: 'Vision',
-  Laning: 'Laning leads (≤ 15 min)',
-  MidGame: 'Mid-game leads (> 15 min)',
-  Roam: 'Roaming',
-}
-
-// Only components the role actually grades, heaviest first — the order the
-// score itself cares about, so the rows a reader scans first are the ones that
-// moved the number most. A component the role zeroes out (roam for a jungler)
-// is dropped entirely rather than shown as a permanent 0.
-const gradedComponents = computed(() =>
-  (data.value?.components ?? [])
-    .filter(c => c.weight > 0)
-    .map(c => ({
-      ...c,
-      label: COMPONENT_LABELS[c.kind] ?? c.kind,
-    }))
-    .sort((a, b) => b.weight - a.weight),
-)
-
-/**
- * Verdict on the average. Deliberately coarse — four bands, and only the top
- * one gets the brand accent, so the emphasis lands on a genuinely strong player
- * instead of colouring every row. 50 is the model's "average on every available
- * component" midpoint, which is what makes it the band boundary.
+ * Verdict on the average, on the same S→D ladder the champions list already
+ * uses — a reader who knows the tier colours reads the headline number without
+ * reading the word next to it. Colours are the `--color-tier-*` tokens, written
+ * as static class strings so Tailwind's scanner emits them.
+ *
+ * 50 is the model's "average on every available component" midpoint, which is
+ * what makes it a band boundary.
  */
 const verdict = computed<{ label: string, tone: string } | null>(() => {
   const score = data.value?.averageScore
   if (score == null) return null
-  if (score >= 75) return { label: 'Exceptional', tone: 'text-primary' }
-  if (score >= 62) return { label: 'Strong', tone: 'text-default' }
-  if (score >= 50) return { label: 'Solid', tone: 'text-muted' }
-  return { label: 'Developing', tone: 'text-muted' }
+  if (score >= 75) return { label: 'Exceptional', tone: 'text-tier-s' }
+  if (score >= 62) return { label: 'Strong', tone: 'text-tier-a' }
+  if (score >= 50) return { label: 'Solid', tone: 'text-tier-b' }
+  return { label: 'Developing', tone: 'text-tier-c' }
 })
 
-const barWidth = (value: number | null) =>
-  value === null ? '0%' : `${Math.round(Math.min(1, Math.max(0, value)) * 100)}%`
+/**
+ * The four sample figures, each with the one line that says what it actually
+ * measures. The hints are the whole point of the block: "Top of team 25%" is
+ * meaningless until you know it counts the games this player outscored their
+ * own four teammates.
+ */
+const stats = computed(() => {
+  const d = data.value
+  if (!d) return []
+  return [
+    {
+      key: 'best',
+      label: 'Best',
+      value: `${d.bestScore}`,
+      hint: 'Highest score in a single game.',
+    },
+    {
+      key: 'worst',
+      label: 'Worst',
+      value: `${d.worstScore}`,
+      hint: 'Lowest score in a single game.',
+    },
+    {
+      key: 'top-of-team',
+      label: 'Top of team',
+      value: formatPercentage(d.topOfTeamRate ?? 0, 0),
+      hint: 'Games scored above all four teammates.',
+    },
+    {
+      key: 'games',
+      label: 'Games',
+      value: `${d.games}`,
+      hint: `Ranked games scored, out of the last ${d.window}.`,
+    },
+  ]
+})
 </script>
 
 <template>
   <SectionCard
     title="Performance"
-    :subtitle="`How ${playerName} has been playing ${championLabel}, scored game by game.`"
     :level="3"
   >
     <USkeleton
       v-if="isLoading"
-      class="h-56 w-full rounded-lg"
+      class="h-36 w-full rounded-lg"
     />
 
     <UAlert
@@ -122,96 +126,47 @@ const barWidth = (value: number | null) =>
       </template>
     </p>
 
+    <!-- No inner card here: the section is already a card, and the headline is
+         all that is left of the panel, so a second frame around it would be
+         pure boxing. -->
     <div
       v-else-if="data"
-      class="flex flex-col gap-5"
+      class="@container flex flex-col gap-4"
     >
-      <!-- Headline: the average, its verdict, and the sample it came from. -->
-      <div class="glass flex flex-wrap items-end justify-between gap-4 rounded-lg p-4">
-        <div class="flex items-end gap-3">
-          <span class="text-4xl font-semibold leading-none tabular-nums text-primary">
-            {{ data.averageScore!.toFixed(1) }}
+      <div class="flex items-end gap-3">
+        <span
+          class="text-5xl font-semibold leading-none tabular-nums"
+          :class="verdict?.tone"
+        >
+          {{ data.averageScore!.toFixed(1) }}
+        </span>
+        <div class="flex flex-col gap-1 pb-1">
+          <span class="text-xs text-muted">/ 100 average</span>
+          <span
+            v-if="verdict"
+            class="text-sm font-semibold"
+            :class="verdict.tone"
+          >
+            {{ verdict.label }}
           </span>
-          <div class="flex flex-col gap-0.5 pb-0.5">
-            <span class="text-xs text-muted">/ 100 average</span>
-            <span
-              v-if="verdict"
-              class="text-sm font-medium"
-              :class="verdict.tone"
-            >
-              {{ verdict.label }}
-            </span>
-          </div>
         </div>
-
-        <dl class="flex flex-wrap gap-x-6 gap-y-1 text-xs">
-          <div class="flex flex-col gap-0.5">
-            <dt class="text-muted">Best</dt>
-            <dd class="font-semibold tabular-nums">{{ data.bestScore }}</dd>
-          </div>
-          <div class="flex flex-col gap-0.5">
-            <dt class="text-muted">Worst</dt>
-            <dd class="font-semibold tabular-nums">{{ data.worstScore }}</dd>
-          </div>
-          <div class="flex flex-col gap-0.5">
-            <dt class="text-muted">Top of team</dt>
-            <dd class="font-semibold tabular-nums">
-              {{ formatPercentage(data.topOfTeamRate ?? 0, 0) }}
-            </dd>
-          </div>
-          <div class="flex flex-col gap-0.5">
-            <dt class="text-muted">Games</dt>
-            <dd class="font-semibold tabular-nums">{{ data.games }}</dd>
-          </div>
-        </dl>
       </div>
 
-      <!-- Per-component breakdown. Each bar is the mean 0..1 grade; the
-           midpoint tick marks 0.5, which is what an even lane / an average
-           share scores, so a reader can see at a glance which axes are above
-           the model's own middle. -->
-      <ul class="flex flex-col gap-2.5">
-        <li
-          v-for="component in gradedComponents"
-          :key="component.kind"
-          class="flex flex-col gap-1"
+      <!-- Container-relative, not viewport-relative (#967): this card lives in
+           the narrow right rail on desktop and full-width on mobile, so the
+           four figures only get their own column once the card itself is wide
+           enough to keep each hint on two lines. -->
+      <dl class="grid grid-cols-2 gap-x-6 gap-y-4 border-t border-default pt-4 @lg:grid-cols-4">
+        <div
+          v-for="stat in stats"
+          :key="stat.key"
+          class="flex flex-col gap-0.5"
         >
-          <div class="flex items-baseline justify-between gap-2 text-xs">
-            <span class="text-muted">{{ component.label }}</span>
-            <span class="flex items-baseline gap-2">
-              <span
-                v-if="component.games < data.games"
-                class="text-[11px] text-dimmed"
-                :title="`Averaged over the ${component.games} of ${data.games} games where this signal was available.`"
-              >
-                {{ component.games }}/{{ data.games }} games
-              </span>
-              <span
-                class="font-semibold tabular-nums"
-                :class="component.value === null ? 'text-dimmed' : ''"
-              >
-                {{ component.value === null ? '–' : formatPercentage(component.value, 0) }}
-              </span>
-            </span>
-          </div>
-          <div class="relative h-2 w-full overflow-hidden rounded-full bg-elevated">
-            <div
-              class="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-rosegold-600/70 to-rosegold-400 transition-[width] duration-500"
-              :style="{ width: barWidth(component.value) }"
-            />
-            <div
-              class="absolute inset-y-0 left-1/2 w-px bg-default/60"
-              aria-hidden="true"
-            />
-          </div>
-        </li>
-      </ul>
-
-      <p class="text-[11px] text-dimmed">
-        Scored over {{ playerName }}'s last {{ data.window }} ranked games on
-        {{ championLabel }}. A component with no data in a game lowers its own
-        sample, never its average.
-      </p>
+          <dt class="text-xs text-muted">{{ stat.label }}</dt>
+          <dd class="text-lg font-semibold leading-none tabular-nums">{{ stat.value }}</dd>
+          <dd class="text-[11px] leading-snug text-dimmed">{{ stat.hint }}</dd>
+        </div>
+      </dl>
     </div>
   </SectionCard>
 </template>
