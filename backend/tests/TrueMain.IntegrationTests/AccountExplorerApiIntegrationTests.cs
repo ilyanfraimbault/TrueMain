@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using AwesomeAssertions;
 using Data.Entities;
+using Data.Ops.Mongo;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace TrueMain.IntegrationTests;
@@ -194,6 +195,192 @@ public sealed class AccountExplorerApiIntegrationTests
 
         root.GetProperty("state").GetString().Should().Be("Invalidated");
         root.GetProperty("identity").GetProperty("status").GetString().Should().Be("Invalid");
+    }
+
+    [Fact]
+    public async Task GetAccountExplorer_InvalidatedAccountWithStaleActiveMain_ReportsNotTracked()
+    {
+        // Regression: an account can be invalidated after MainAnalysis already
+        // wrote an IsMain && IsActive row for it. The real ingest claim
+        // (ClaimAccountsForMatchIngestAtomicallyAsync) gates on
+        // RiotAccountStatus.Active before either membership arm matters, so this
+        // account is never actually selected for ingestion — tracking.isTracked
+        // must agree with that, or the page contradicts its own state banner.
+        await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
+        var now = DateTime.UtcNow;
+        const string puuid = "puuid-invalid-with-stale-main-euw";
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var account = BuildAccount(puuid, "StaleGhost", "EUW", "EUW1", now);
+            account.Status = RiotAccountStatus.Invalid;
+            db.RiotAccounts.Add(account);
+            db.MainChampionStats.Add(new MainChampionStat
+            {
+                Id = Guid.NewGuid(),
+                PlatformId = "EUW1",
+                Puuid = puuid,
+                ChampionId = 7,
+                TotalMatches = 40,
+                ChampionMatches = 32,
+                PlayRate = 0.8,
+                IsMain = true,
+                IsActive = true,
+                PrimaryPosition = "MIDDLE",
+                CalculatedAtUtc = now.AddDays(-10)
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
+        using var client = CreateAuthedClient(factory);
+
+        var json = await client.GetStringAsync("/ops/accounts/StaleGhost-EUW");
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+
+        root.GetProperty("state").GetString().Should().Be("Invalidated");
+        var tracking = root.GetProperty("tracking");
+        tracking.GetProperty("isTracked").GetBoolean().Should().BeFalse();
+        tracking.GetProperty("trackedVia").ValueKind.Should().Be(JsonValueKind.Null);
+        // The raw structural fact stays visible even though it no longer makes
+        // the account eligible — losing it would hide exactly the stale-row
+        // situation this test exists to catch.
+        tracking.GetProperty("hasActiveMain").GetBoolean().Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetAccountExplorer_NoAccountButSeedRequestExists_ReturnsSeedRequestedOnlyState()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
+        var now = DateTime.UtcNow;
+
+        await _mongo.GetCollection<SeedRequestDocument>(MongoFixture.SeedRequestsCollection)
+            .InsertOneAsync(new SeedRequestDocument
+            {
+                Id = Guid.NewGuid(),
+                GameName = "NotYetResolved",
+                TagLine = "EUW",
+                PlatformId = "EUW1",
+                Status = SeedRequestStatus.Failed,
+                Error = "account-v1 returned 404",
+                RequestedAtUtc = now.AddHours(-3),
+                ProcessedAtUtc = now.AddHours(-2)
+            });
+
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
+        using var client = CreateAuthedClient(factory);
+
+        var json = await client.GetStringAsync("/ops/accounts/NotYetResolved-EUW");
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+
+        root.GetProperty("state").GetString().Should().Be("SeedRequestedOnly");
+        root.GetProperty("identity").ValueKind.Should().Be(JsonValueKind.Null);
+        root.GetProperty("seedRequest").GetProperty("status").GetString().Should().Be("Failed");
+        root.GetProperty("stateDetail").GetString().Should().Contain("Failed");
+    }
+
+    [Fact]
+    public async Task GetAccountExplorer_AnalysedButNoMainCleared_ReturnsNotAMainState()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
+        var now = DateTime.UtcNow;
+        const string puuid = "puuid-not-a-main-euw";
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            db.RiotAccounts.Add(BuildAccount(puuid, "Casual", "EUW", "EUW1", now));
+            db.MainChampionStats.Add(new MainChampionStat
+            {
+                Id = Guid.NewGuid(),
+                PlatformId = "EUW1",
+                Puuid = puuid,
+                ChampionId = 42,
+                TotalMatches = 40,
+                ChampionMatches = 3,
+                PlayRate = 0.075,
+                IsMain = false,
+                IsActive = true,
+                PrimaryPosition = "SUPPORT",
+                CalculatedAtUtc = now.AddHours(-1)
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
+        using var client = CreateAuthedClient(factory);
+
+        var json = await client.GetStringAsync("/ops/accounts/Casual-EUW");
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+
+        root.GetProperty("state").GetString().Should().Be("NotAMain");
+        root.GetProperty("mains").GetProperty("rows").GetArrayLength().Should().Be(1);
+        root.GetProperty("mains").GetProperty("rows")[0].GetProperty("isMain").GetBoolean().Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GetAccountExplorer_AccountWithNothingElse_ReturnsDiscoveredState()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
+        var now = DateTime.UtcNow;
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            db.RiotAccounts.Add(BuildAccount("puuid-discovered-only-euw", "JustHere", "EUW", "EUW1", now));
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
+        using var client = CreateAuthedClient(factory);
+
+        var json = await client.GetStringAsync("/ops/accounts/JustHere-EUW");
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+
+        root.GetProperty("state").GetString().Should().Be("Discovered");
+        root.GetProperty("candidates").GetArrayLength().Should().Be(0);
+        root.GetProperty("mains").GetProperty("rows").GetArrayLength().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task GetAccountExplorer_SameRiotIdAcrossRegions_ListsOtherAccounts()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
+        var now = DateTime.UtcNow;
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            // Same (GameName, TagLine) recycled across two regions — the index is
+            // deliberately non-unique. The more recently active row (EUW1) must
+            // resolve first; the older one (NA1) shows up as a collision, not a
+            // silently arbitrated duplicate.
+            var euw = BuildAccount("puuid-collision-euw", "Recycled", "EUW", "EUW1", now);
+            euw.LastMatchIngestAtUtc = now.AddMinutes(-5);
+            var na = BuildAccount("puuid-collision-na", "Recycled", "EUW", "NA1", now.AddDays(-90));
+            na.LastMatchIngestAtUtc = now.AddDays(-60);
+
+            db.RiotAccounts.AddRange(euw, na);
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
+        using var client = CreateAuthedClient(factory);
+
+        var json = await client.GetStringAsync("/ops/accounts/Recycled-EUW");
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+
+        root.GetProperty("identity").GetProperty("platformId").GetString().Should().Be("EUW1");
+        var others = root.GetProperty("otherAccountsWithSameRiotId");
+        others.GetArrayLength().Should().Be(1);
+        others[0].GetProperty("platformId").GetString().Should().Be("NA1");
     }
 
     [Fact]

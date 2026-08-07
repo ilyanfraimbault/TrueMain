@@ -538,13 +538,24 @@ public sealed class AccountExplorerQueryService(
         bool hasActiveMain,
         bool hasQueuedCandidate)
     {
-        var trackedVia = (hasActiveMain, hasQueuedCandidate) switch
-        {
-            (true, true) => "Both",
-            (true, false) => "EstablishedMain",
-            (false, true) => "QueuedCandidate",
-            _ => null
-        };
+        // The real ingest claim (ClaimAccountsForMatchIngestAtomicallyAsync) gates
+        // on RiotAccountStatus.Active before either membership arm is even
+        // evaluated. An Invalidated account can still carry a stale IsMain row
+        // from before it was invalidated, so membership alone would report it as
+        // tracked while the state banner above says Invalidated — the exact
+        // contradiction this page exists to prevent. Eligibility must agree with
+        // the real gate.
+        var eligible = account.Status == RiotAccountStatus.Active;
+
+        var trackedVia = eligible
+            ? (hasActiveMain, hasQueuedCandidate) switch
+            {
+                (true, true) => "Both",
+                (true, false) => "EstablishedMain",
+                (false, true) => "QueuedCandidate",
+                _ => null
+            }
+            : null;
 
         var claimAge = account.MatchIngestClaimedAtUtc is null
             ? (double?)null
