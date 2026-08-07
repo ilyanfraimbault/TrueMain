@@ -216,6 +216,15 @@ restated what the build tree above it already shows, minus the ordering, so #939
 component, read-model field, backend aggregation and the `SituationalItemCount` option. Reviving it means
 reviving the aggregator, not just the component — #939.
 
+**The player performance panel shows the score and its sample only — no per-component breakdown.**
+The #918 panel stacked nine component bars under the average, each with a midpoint tick nobody could read
+(the tick marked the model's 0.5 "even lane / average share" baseline, and it looked like a rendering
+artefact), plus a subtitle and a footnote explaining the scoring model. It buried the one number a reader
+came for. What is left is the average, its verdict on the S→D tier ladder that colours the number itself,
+and the four sample figures — each with a one-line hint, since "Top of team 25%" means nothing until you
+know it counts games this player outscored their own four teammates. The API still returns `components`:
+the breakdown is the natural content of a future drill-down, and the payload is cheap.
+
 **The static champion list drops Data Dragon entries with an id at or above 10 000 — alternate-mode kits, not champions.**
 Patch 16.15 ("League classique") added 60 legacy kits to `champion.json`: alias `Jade_<BaseAlias>`, key
 `60000 + <base key>`, and the *same display name* as the original — `Jade_Ahri` (60103) sits next to Ahri
