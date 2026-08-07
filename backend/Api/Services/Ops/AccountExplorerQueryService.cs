@@ -283,6 +283,10 @@ public sealed class AccountExplorerQueryService(
         IReadOnlyList<AccountExplorerMainRowReadModel> mainRows,
         CancellationToken ct)
     {
+        // Puuid alone, deliberately: it is globally unique (unlike the
+        // (GameName, TagLine, PlatformId) triple resolved above), and a game
+        // played before a region transfer still belongs to this account even
+        // though its PlatformId no longer matches the account's current one.
         var gameStarts =
             from participant in db.MatchParticipants.AsNoTracking()
             join match in db.Matches.AsNoTracking() on participant.MatchId equals match.Id
