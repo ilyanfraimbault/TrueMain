@@ -841,6 +841,27 @@ Ingestor's "as of" timestamp can be older than the page load without meaning any
 Api's is always "now" — the page states this per process rather than presenting both timestamps the same
 way.
 
+**"Servable" is a share of the settled patches' median, never an absolute line count.** The patch-coverage
+verdict (#1033) asks whether enough `(champion, lane)` lines clear `ChampionsList:MinSampleGames` for the
+directory and tier list to mean anything — and the honest bar for that moves with the corpus. The number of
+lines clearing ten games grows every time tracked accounts are added, so a hard-coded "300 lines" would read
+permanently green on production and permanently red on preprod, which is the same as having no check. The bar
+is therefore `PatchCoverage:ServableLinesRatio` (0.6) of the **median of the patches strictly older than the
+one being served** — the settled ones. The served patch and anything newer are excluded from their own
+reference on purpose: a still-filling patch dragged into the median pulls the bar down to whatever it
+currently is, and the check goes green on an empty patch. That is the same "the edge patch is not comparable"
+rule the patch-volume detector already applies (#924). `PatchCoverage:ServableLinesMinimum` is the fallback
+when a database holds a single patch (preprod's normal state) — crude, and still an answer rather than a
+shrug.
+
+**A fold that shipped mid-corpus reports `null`, never `0`, on the patches it predates.** Raw match payloads
+are not kept, so #920's bans and #957's per-opponent spikes can never be backfilled: their absence on an older
+patch is a property of when the fold shipped, not a failure. Printing `0 rows` there sends an operator hunting
+a bug that does not exist, so the read model carries `measured: false` with the first patch the fold ever
+wrote a row on, and the page prints "not measured before *patch*" **in place of** the counts rather than
+beside them. The first-measured patch falls out of the same grouped scan that produces the per-patch numbers,
+so distinguishing the two costs nothing — `PatchCoverageQueryService`, #1033.
+
 ## Keeping these files current
 
 A PR that ships a user-facing feature, removes one, or reverses a decision here **must update
