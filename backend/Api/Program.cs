@@ -171,8 +171,13 @@ builder.Services.AddOptions<StorageHistoryOptions>()
     .ValidateOnStart();
 builder.Services.AddOptions<PipelineHealthOptions>()
     .Bind(builder.Configuration.GetSection(PipelineHealthOptions.SectionName))
+    // Only enforced when both levels are enabled: either can independently be set to <= 0
+    // to disable it (PipelineHealthOptions), and requiring the ordering unconditionally
+    // would reject that documented "amber off, red on" configuration at boot.
     .Validate(
-        options => options.DiskForecastAmberDays >= options.DiskForecastRedDays,
+        options => options.DiskForecastAmberDays <= 0
+            || options.DiskForecastRedDays <= 0
+            || options.DiskForecastAmberDays >= options.DiskForecastRedDays,
         "PipelineHealth:DiskForecastAmberDays must be >= DiskForecastRedDays (amber fires first).")
     .ValidateOnStart();
 builder.Services.AddOptions<DataQualityDetectorOptions>()
