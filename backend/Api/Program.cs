@@ -169,6 +169,12 @@ builder.Services.AddOptions<StorageHistoryOptions>()
         options => options.ThresholdPercents.All(percent => percent is > 0 and <= 100),
         "StorageHistory:ThresholdPercents must each be in (0, 100].")
     .ValidateOnStart();
+builder.Services.AddOptions<PipelineHealthOptions>()
+    .Bind(builder.Configuration.GetSection(PipelineHealthOptions.SectionName))
+    .Validate(
+        options => options.DiskForecastAmberDays >= options.DiskForecastRedDays,
+        "PipelineHealth:DiskForecastAmberDays must be >= DiskForecastRedDays (amber fires first).")
+    .ValidateOnStart();
 builder.Services.AddOptions<DataQualityDetectorOptions>()
     .Bind(builder.Configuration.GetSection(DataQualityDetectorOptions.SectionName))
     // Only the sizes are validated. The thresholds themselves are deliberately

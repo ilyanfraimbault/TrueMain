@@ -683,6 +683,28 @@ possible. Approval is the single external unlock for all of it — #780.
   healthy panel, which is how a page teaches its reader that its colours mean nothing. Everything the cards
   carried is still one click away — legibility here is ordering and defaults, not removal.
 
+- **The health cockpit (`/health`, #1031) holds no depth of its own — every tile is a link, and the verdict
+  is judged server-side.** Answering "is the pipeline healthy right now?" used to mean opening four pages
+  (`/`, `/processes`, `/data-quality`, `/database`). `PipelineHealthEvaluator` is pure (no DB, no clock) and
+  reuses `DataQualityDetectorEvaluator`'s `DetectorStatus`/`Worst` precedence on purpose, so the cockpit's dots
+  and the pages it links to cannot disagree about what "amber" means — a tile that judged a signal differently
+  from the panel it points at would be lying. Two of the four signals are lifted verbatim from the existing
+  `/data-quality` detector payload (data quality rolled up, ingestion lag copied through as its own top-level
+  tile) rather than re-measured; only the disk forecast gets its own knobs (`PipelineHealth:DiskForecastAmberDays`/
+  `RedDays`, validated amber ≥ red on boot) because "how many days out is close enough to act on" is a call the
+  storage panel's own `StorageHistory:ThresholdPercents` doesn't make. The green/amber/red/unknown vocabulary was
+  extracted from `DataQualityDetectorItem.vue` into `admin/shared/utils/detector-status.ts` at the same time, for
+  the same reason: two panels painting the same four statuses from private tables is how they drift.
+
+- **A process that has never recorded a run is `unknown`, not amber; an abandoned run is a warning, not an
+  error** (#1031). The cockpit's process signal deliberately does not judge *how long ago* a process last
+  succeeded — the ten pipeline processes run on wildly different cadences, and inventing a per-process
+  expectation here would be a second, competing source of truth for "the pipeline has stopped", which is what
+  the ingestion-lag detector and raw-data freshness already answer. `Missing` (no run ever recorded) rolls up
+  as unknown rather than green precisely so a fresh environment doesn't report ten processes as healthy;
+  `Abandoned` (the run's host died mid-flight, outcome unknown) is a different claim from "it ran and failed"
+  and is coloured accordingly.
+
 ---
 
 ## Where API reads live

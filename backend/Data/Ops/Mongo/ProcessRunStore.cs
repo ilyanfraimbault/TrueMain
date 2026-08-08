@@ -414,6 +414,29 @@ internal sealed class ProcessRunStore(MongoLogContext context) : IProcessRunStor
             .ToListAsync(ct);
     }
 
+    public async Task<long> CountTerminalRunsSinceAsync(string processName, DateTime? afterUtc, CancellationToken ct)
+    {
+        if (!context.IsActive)
+        {
+            return 0;
+        }
+
+        await EnsureIndexesOnceAsync(ct);
+
+        var builder = Builders<ProcessRunDocument>.Filter;
+        var filter = builder.Eq(doc => doc.ProcessName, processName)
+                     & builder.Ne(doc => doc.Status, ProcessRunStatus.Running);
+
+        if (afterUtc is not null)
+        {
+            // Strictly after: the successful run that bounds the streak must not count
+            // itself as a member of it.
+            filter &= builder.Gt(doc => doc.StartedAtUtc, afterUtc.Value);
+        }
+
+        return await context.ProcessRuns.CountDocumentsAsync(filter, cancellationToken: ct);
+    }
+
     private static FilterDefinition<ProcessRunDocument> BuildRunsFilter(
         string? processName,
         ProcessRunStatus? status,

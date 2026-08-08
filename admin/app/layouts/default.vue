@@ -8,6 +8,7 @@ const open = ref(false)
 // truth for the sidebar.
 const items = computed<NavigationMenuItem[]>(() => [
   { label: 'Overview', icon: 'i-lucide-layout-dashboard', to: '/' },
+  { label: 'Health', icon: 'i-lucide-heart-pulse', to: '/health' },
   { label: 'Champions', icon: 'i-lucide-swords', to: '/champions' },
   { label: 'Database', icon: 'i-lucide-database', to: '/database' },
   { label: 'Data Quality', icon: 'i-lucide-shield-alert', to: '/data-quality' },

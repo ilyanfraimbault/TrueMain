@@ -24,6 +24,7 @@ import type {
   MatchTimeBucket,
   MatchTimeGranularity,
   OverviewStats,
+  PipelineHealth,
   ProcessIterationsFilters,
   ProcessIterationsResponse,
   ProcessRunsFilters,
@@ -243,6 +244,16 @@ export function useIncompleteMatches(
     '/data-quality/incomplete-matches',
     filters ? () => ({ ...toValue(filters) }) : undefined,
   )
+}
+
+/**
+ * `GET /api/ops/pipeline-health` — the health cockpit's single payload (#1031): one
+ * rolled-up verdict, one line per signal, and the raw measurements behind them. Takes
+ * no filters; the verdict and its thresholds are server-side, so the cockpit and the
+ * panels it links to cannot drift apart.
+ */
+export function usePipelineHealth() {
+  return useOps<PipelineHealth>('/pipeline-health')
 }
 
 /**
