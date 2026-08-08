@@ -56,7 +56,7 @@ public sealed record PipelineHealthSignalReadModel
 {
     /// <summary>
     /// Stable identifier: <c>processes</c>, <c>dataQuality</c>, <c>ingestionLag</c>,
-    /// <c>rawFreshness</c>, <c>diskForecast</c>.
+    /// <c>diskForecast</c>.
     /// </summary>
     public string Key { get; init; } = string.Empty;
 
