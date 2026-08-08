@@ -5,6 +5,7 @@
 // Mongo collection the Ingestor writes via its HTTP metrics handler.
 import type { TableColumn } from '@nuxt/ui'
 import type {
+  RiotCallerUsage,
   RiotEndpointUsage,
   RiotStatusCount,
   RiotUsageWindow,
@@ -38,6 +39,8 @@ const totalErrors = computed(() => data.value?.totalErrors ?? 0)
 const errorRate = computed(() => data.value?.errorRate ?? 0)
 const avgLatencyMs = computed(() => data.value?.avgLatencyMs ?? 0)
 const rateLimit = computed(() => data.value?.rateLimit ?? null)
+const callerBreakdown = computed<RiotCallerUsage[]>(() => data.value?.callerBreakdown ?? [])
+const headroom = computed(() => data.value?.headroom ?? null)
 
 // --- Summary -----------------------------------------------------------------
 const errorRatePct = computed(() => `${(errorRate.value * 100).toFixed(1)}%`)
@@ -135,8 +138,10 @@ function formatWindowSeconds(seconds: number): string {
   }
   return `${seconds}s`
 }
-function rateColor(bucket: RateBucket): 'primary' | 'warning' | 'error' {
-  const ratio = bucket.limit > 0 ? bucket.count / bucket.limit : 0
+// Takes the raw numbers (not a RateBucket) so it also drives the per-endpoint
+// method-limit bars in the table below, not just the app-limit buckets.
+function rateColor(count: number, limit: number): 'primary' | 'warning' | 'error' {
+  const ratio = limit > 0 ? count / limit : 0
   if (ratio >= 0.9) {
     return 'error'
   }
@@ -145,17 +150,28 @@ function rateColor(bucket: RateBucket): 'primary' | 'warning' | 'error' {
   }
   return 'primary'
 }
+// A method-limit header is usually a single pair (e.g. "500:60"); reuse
+// buildRateBuckets and take the first (and typically only) bucket.
+function methodRateBucket(row: RiotEndpointUsage): RateBucket | null {
+  return buildRateBuckets(row.methodRateLimit, row.methodRateLimitCount)[0] ?? null
+}
 
 // --- Time-series chart -------------------------------------------------------
 // Call volume per bucket as an AREA chart (mirrors the "Matches over time"
 // pattern). Bucket size is fixed by the window (5m / 1h / 6h) server-side.
+// Retries (429s) are a second series (#1035): budget spent for no data, worth
+// seeing distinctly from the total volume rather than buried in "errors".
 const timeSeriesData = computed(() =>
   (data.value?.timeSeries ?? []).map(bucket => ({
     label: formatCallBucketLabel(bucket.bucketUtc),
     calls: bucket.calls,
+    retries: bucket.retries,
   })),
 )
-const timeSeriesCategories = { calls: { name: 'Calls', color: CHART_PRIMARY } }
+const timeSeriesCategories = {
+  calls: { name: 'Calls', color: CHART_SERIES[0] },
+  retries: { name: 'Retries (429)', color: CHART_SERIES[1] },
+}
 const timeSeriesXFormatter = computed(() =>
   indexLabelFormatter(timeSeriesData.value, row => row.label),
 )
@@ -182,6 +198,35 @@ function formatCallBucketLabel(iso: string): string {
   })
 }
 
+// --- Consumption by caller -----------------------------------------------------
+// Horizontal categorical bar chart (#1035): who is spending the budget. Follows
+// the same `horizontalBarProps`/`barChartHeight` pattern as the top-tables /
+// top-champions charts elsewhere in the admin.
+const callerChartData = computed(() =>
+  callerBreakdown.value.map(row => ({ label: row.caller, calls: row.calls })),
+)
+const callerChartHeight = computed(() =>
+  barChartHeight(callerChartData.value.length, { min: 120, step: 32 }),
+)
+const callerCategories = { calls: { name: 'Calls', color: CHART_PRIMARY } }
+const callerLabelFormatter = computed(() =>
+  indexLabelFormatter(callerChartData.value, row => row.label),
+)
+
+// --- Budget headroom -----------------------------------------------------------
+// Arithmetic on measured cost per account (#1035), always over the last 7 days
+// regardless of the panel's selected window — see RiotApiUsageQueryService.
+function formatCallsPerDay(value: number | null): string {
+  return value === null ? '—' : `${formatNumber(Math.round(value))}/day`
+}
+const bindingLimitLabel = computed(() => {
+  const binding = headroom.value?.bindingLimit
+  if (!binding) {
+    return null
+  }
+  return `${formatNumber(binding.limit)} calls / ${formatWindowSeconds(binding.windowSeconds)} → ${formatCallsPerDay(binding.maxCallsPerDay)}`
+})
+
 // --- Endpoint table ----------------------------------------------------------
 const sorting = ref([{ id: 'calls', desc: true }])
 const columns: TableColumn<RiotEndpointUsage>[] = [
@@ -190,6 +235,7 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
   { accessorKey: 'successes', header: ({ column }) => sortableHeader(column, 'Success', 'right') },
   { accessorKey: 'errors', header: ({ column }) => sortableHeader(column, 'Errors', 'right') },
   { accessorKey: 'avgLatencyMs', header: ({ column }) => sortableHeader(column, 'Avg latency', 'right') },
+  { id: 'methodLimit', header: 'Method limit' },
   { accessorKey: 'lastCalledAtUtc', header: ({ column }) => sortableHeader(column, 'Last call', 'right') },
 ]
 </script>
@@ -317,7 +363,7 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
                 class="mt-1"
                 :model-value="bucket.count"
                 :max="bucket.limit || 1"
-                :color="rateColor(bucket)"
+                :color="rateColor(bucket.count, bucket.limit)"
                 size="sm"
               />
             </div>
@@ -388,13 +434,113 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
             :x-num-ticks="Math.min(timeSeriesData.length, 8)"
             :x-formatter="timeSeriesXFormatter"
             :y-formatter="formatCount"
-            v-bind="areaChartProps()"
+            v-bind="multiAreaChartProps()"
           />
           <template #fallback>
             <USkeleton class="h-[260px] w-full" />
           </template>
         </ClientOnly>
       </UCard>
+
+      <!-- Consumption by caller + budget headroom -->
+      <div class="grid gap-6 lg:grid-cols-2 mb-6">
+        <UCard>
+          <template #header>
+            <p class="text-xs text-muted uppercase">
+              Consumption by caller
+            </p>
+          </template>
+
+          <USkeleton v-if="pending" :style="{ height: `${callerChartHeight}px` }" class="w-full" />
+          <div
+            v-else-if="callerChartData.length === 0"
+            class="flex h-[120px] items-center justify-center text-sm text-muted"
+          >
+            No calls recorded in this window.
+          </div>
+          <ClientOnly v-else>
+            <NcBarChart
+              :data="callerChartData"
+              :height="callerChartHeight"
+              :categories="callerCategories"
+              :y-axis="['calls']"
+              :y-num-ticks="callerChartData.length"
+              :x-formatter="formatCount"
+              :y-formatter="callerLabelFormatter"
+              :tooltip-title-formatter="labelTooltipTitle"
+              v-bind="horizontalBarProps(120)"
+            />
+            <template #fallback>
+              <USkeleton :style="{ height: `${callerChartHeight}px` }" class="w-full" />
+            </template>
+          </ClientOnly>
+        </UCard>
+
+        <UCard>
+          <template #header>
+            <p class="text-xs text-muted uppercase">
+              Budget headroom
+            </p>
+          </template>
+
+          <div v-if="headroom?.sufficientData" class="flex flex-col gap-4">
+            <div>
+              <p class="text-xs text-muted uppercase">
+                More accounts fit
+              </p>
+              <p class="mt-1 text-2xl font-semibold text-highlighted tabular-nums">
+                ≈ {{ formatNumber(headroom.additionalAccountsHeadroom ?? 0) }}
+              </p>
+            </div>
+            <dl class="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <dt class="text-muted">
+                  Tracked accounts
+                </dt>
+                <dd class="tabular-nums text-highlighted">
+                  {{ formatNumber(headroom.trackedAccounts) }}
+                </dd>
+              </div>
+              <div>
+                <dt class="text-muted">
+                  Cost per account
+                </dt>
+                <dd class="tabular-nums text-highlighted">
+                  {{ formatCallsPerDay(headroom.callsPerAccountPerDay) }}
+                </dd>
+              </div>
+              <div>
+                <dt class="text-muted">
+                  Binding limit
+                </dt>
+                <dd class="tabular-nums text-highlighted">
+                  {{ bindingLimitLabel }}
+                </dd>
+              </div>
+              <div>
+                <dt class="text-muted">
+                  Spare capacity
+                </dt>
+                <dd class="tabular-nums text-highlighted">
+                  {{ formatCallsPerDay(headroom.spareCallsPerDay) }}
+                </dd>
+              </div>
+            </dl>
+          </div>
+          <p v-else class="text-sm text-muted">
+            Not enough data yet to estimate: {{ (headroom?.observedWindowHours ?? 0).toFixed(1) }}h observed,
+            {{ (headroom?.requiredWindowHours ?? 24).toFixed(0) }}h needed.
+            <template v-if="headroom && headroom.observedWindowHours >= headroom.requiredWindowHours">
+              <template v-if="headroom.trackedAccounts === 0">
+                No accounts are tracked yet.
+              </template>
+              <template v-else>
+                No rate-limit snapshot has been seen yet.
+              </template>
+            </template>
+          </p>
+        </UCard>
+      </div>
 
       <!-- Endpoint breakdown -->
       <UCard :ui="{ body: 'p-0 sm:p-0' }">
@@ -447,6 +593,21 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
             <div class="text-right tabular-nums text-muted">
               {{ formatDuration(row.original.avgLatencyMs) }}
             </div>
+          </template>
+          <template #methodLimit-cell="{ row }">
+            <div v-if="methodRateBucket(row.original)" class="w-32">
+              <div class="flex items-center justify-between text-xs text-muted tabular-nums">
+                <span>per {{ formatWindowSeconds(methodRateBucket(row.original)!.windowSeconds) }}</span>
+                <span>{{ formatNumber(methodRateBucket(row.original)!.count) }} / {{ formatNumber(methodRateBucket(row.original)!.limit) }}</span>
+              </div>
+              <UProgress
+                :model-value="methodRateBucket(row.original)!.count"
+                :max="methodRateBucket(row.original)!.limit || 1"
+                :color="rateColor(methodRateBucket(row.original)!.count, methodRateBucket(row.original)!.limit)"
+                size="sm"
+              />
+            </div>
+            <span v-else class="text-sm text-muted">—</span>
           </template>
           <template #lastCalledAtUtc-cell="{ row }">
             <div class="text-right text-sm text-muted">

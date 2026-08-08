@@ -71,6 +71,9 @@ builder.Services.AddScoped<IChampionDimensionResolver, ChampionDimensionResolver
 // singletons; the AsyncLocal inside keeps the value isolated to each pass's flow.
 builder.Services.AddSingleton<IIterationContext, IterationContext>();
 builder.Services.AddSingleton<IProcessRunRecorder, ProcessRunRecorder>();
+// Same shape as IIterationContext, but carries the running process's name for
+// RiotApiMetricsHandler to attribute Riot API consumption per caller (#1035).
+builder.Services.AddSingleton<ICallerContext, CallerContext>();
 // Each process is keyed by the JobMode it implements; the Worker resolves the
 // one it needs per step. Kept in an extension method so the unit tests can
 // assert the real production wiring covers every JobMode.

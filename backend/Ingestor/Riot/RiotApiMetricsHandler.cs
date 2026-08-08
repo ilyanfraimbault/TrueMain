@@ -1,23 +1,25 @@
 using System.Diagnostics;
 using System.Globalization;
 using Data.Metrics.Mongo;
+using Ingestor.Services;
 
 namespace Ingestor.Riot;
 
 /// <summary>
 /// <see cref="DelegatingHandler"/> that records one Riot API usage metric per HTTP
-/// attempt (#93): endpoint key, status code, latency and rate-limit response
-/// headers. Registered on each typed Riot client <em>inside</em> the resilience
-/// handler, so it sees every physical attempt — including the retried 429s the
-/// resilience pipeline backs off on — which is exactly what the rate-limit and
-/// status-code views need.
+/// attempt (#93): endpoint key, status code, latency, rate-limit response headers,
+/// and the calling process's name from <see cref="ICallerContext"/> (#1035).
+/// Registered on each typed Riot client <em>inside</em> the resilience handler, so
+/// it sees every physical attempt — including the retried 429s the resilience
+/// pipeline backs off on — which is exactly what the rate-limit and status-code
+/// views need.
 /// </summary>
 /// <remarks>
 /// Recording is fire-and-forget and fully defensive: it only enqueues onto a
 /// bounded in-memory channel and every failure is swallowed, so instrumentation
 /// can never slow down, fault or change the outcome of a Riot call.
 /// </remarks>
-internal sealed class RiotApiMetricsHandler(IRiotApiCallRecorder recorder) : DelegatingHandler
+internal sealed class RiotApiMetricsHandler(IRiotApiCallRecorder recorder, ICallerContext callerContext) : DelegatingHandler
 {
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
@@ -63,7 +65,8 @@ internal sealed class RiotApiMetricsHandler(IRiotApiCallRecorder recorder) : Del
                 Header(response, "X-Method-Rate-Limit"),
                 Header(response, "X-Method-Rate-Limit-Count"),
                 RetryAfterSeconds(response),
-                Header(response, "X-Rate-Limit-Type")));
+                Header(response, "X-Rate-Limit-Type"),
+                callerContext.CurrentCaller));
         }
         catch
         {

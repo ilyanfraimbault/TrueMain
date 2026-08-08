@@ -19,4 +19,5 @@ public sealed record RiotApiCallRecord(
     string? MethodRateLimit,
     string? MethodRateLimitCount,
     int? RetryAfterSeconds,
-    string? RateLimitType);
+    string? RateLimitType,
+    string? CallerProcess);

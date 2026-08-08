@@ -11,7 +11,7 @@ namespace Data.Metrics.Mongo;
 /// Background service that drains the <see cref="RiotApiMetricsChannel"/> and folds
 /// each batch into per-minute <see cref="RiotApiCallRollupDocument"/> rollups in the
 /// <c>riot_api_call_rollups</c> collection, one <c>$inc</c>-upsert per
-/// <c>(minute, endpoint, statusCode)</c> key. Batches by count
+/// <c>(minute, endpoint, statusCode, callerProcess)</c> key. Batches by count
 /// (<see cref="MongoLoggingOptions.BatchSize"/>) or time
 /// (<see cref="MongoLoggingOptions.FlushInterval"/>), whichever comes first.
 /// A trimmed-down sibling of <c>MongoLogSink</c> sharing its bounded-channel,
@@ -137,10 +137,10 @@ internal sealed class RiotApiMetricsSink(
     /// <summary>
     /// Folds the drained <paramref name="records"/> into per-minute rollups and
     /// applies them as one unordered <c>$inc</c>-upsert per
-    /// <c>(bucketStartUtc, endpoint, statusCode)</c> key. The unique index on that
-    /// triple (see <c>MongoLogContext.EnsureRiotApiCallIndexesAsync</c>) makes each
-    /// upsert target exactly one document; the filter supplies the key fields on
-    /// insert, so they are not re-set in the update.
+    /// <c>(bucketStartUtc, endpoint, statusCode, callerProcess)</c> key. The unique
+    /// index on that quadruple (see <c>MongoLogContext.EnsureRiotApiCallIndexesAsync</c>)
+    /// makes each upsert target exactly one document; the filter supplies the key
+    /// fields on insert, so they are not re-set in the update.
     /// </summary>
     private async Task PersistAsync(IReadOnlyList<RiotApiCallRecord> records, CancellationToken ct)
     {
@@ -175,9 +175,10 @@ internal sealed class RiotApiMetricsSink(
     }
 
     /// <summary>
-    /// Groups a batch by <c>(minute, endpoint, statusCode)</c> and builds one upsert
-    /// per group: <c>$inc</c> the count and latency sum, <c>$max</c> the last-called
-    /// timestamp, and <c>$set</c> the last-seen descriptive/rate-limit fields.
+    /// Groups a batch by <c>(minute, endpoint, statusCode, callerProcess)</c> and
+    /// builds one upsert per group: <c>$inc</c> the count and latency sum, <c>$max</c>
+    /// the last-called timestamp, and <c>$set</c> the last-seen descriptive/rate-limit
+    /// fields.
     /// </summary>
     /// <remarks>
     /// Only <em>non-null</em> field values are <c>$set</c>: a later call in the same
@@ -189,7 +190,7 @@ internal sealed class RiotApiMetricsSink(
     /// </remarks>
     private List<WriteModel<RiotApiCallRollupDocument>> Fold(IReadOnlyList<RiotApiCallRecord> records)
     {
-        var accumulators = new Dictionary<(DateTime Bucket, string Endpoint, int StatusCode), Accumulator>();
+        var accumulators = new Dictionary<(DateTime Bucket, string Endpoint, int StatusCode, string? CallerProcess), Accumulator>();
 
         foreach (var record in records)
         {
@@ -197,7 +198,8 @@ internal sealed class RiotApiMetricsSink(
                 record.TimestampUtc.Year, record.TimestampUtc.Month, record.TimestampUtc.Day,
                 record.TimestampUtc.Hour, record.TimestampUtc.Minute, 0, DateTimeKind.Utc);
             var endpoint = Truncate(record.Endpoint, 128) ?? string.Empty;
-            var key = (bucket, endpoint, record.StatusCode);
+            var callerProcess = Truncate(record.CallerProcess, 64);
+            var key = (bucket, endpoint, record.StatusCode, callerProcess);
 
             if (!accumulators.TryGetValue(key, out var acc))
             {
@@ -209,16 +211,17 @@ internal sealed class RiotApiMetricsSink(
         }
 
         var writes = new List<WriteModel<RiotApiCallRollupDocument>>(accumulators.Count);
-        foreach (var ((bucket, endpoint, statusCode), acc) in accumulators)
+        foreach (var ((bucket, endpoint, statusCode, callerProcess), acc) in accumulators)
         {
             var filter = Builders<RiotApiCallRollupDocument>.Filter.And(
                 Builders<RiotApiCallRollupDocument>.Filter.Eq(doc => doc.BucketStartUtc, bucket),
                 Builders<RiotApiCallRollupDocument>.Filter.Eq(doc => doc.Endpoint, endpoint),
-                Builders<RiotApiCallRollupDocument>.Filter.Eq(doc => doc.StatusCode, statusCode));
+                Builders<RiotApiCallRollupDocument>.Filter.Eq(doc => doc.StatusCode, statusCode),
+                Builders<RiotApiCallRollupDocument>.Filter.Eq(doc => doc.CallerProcess, callerProcess));
 
-            // Key fields (bucket/endpoint/statusCode) come from the filter on insert,
-            // so they are intentionally not in the update — setting them too would
-            // conflict with the filter-implied values.
+            // Key fields (bucket/endpoint/statusCode/callerProcess) come from the
+            // filter on insert, so they are intentionally not in the update —
+            // setting them too would conflict with the filter-implied values.
             var updates = new List<UpdateDefinition<RiotApiCallRollupDocument>>
             {
                 Update.Inc(doc => doc.Count, acc.Count),

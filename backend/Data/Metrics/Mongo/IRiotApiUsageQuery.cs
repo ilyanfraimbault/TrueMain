@@ -44,6 +44,14 @@ public interface IRiotApiUsageQuery
     /// <param name="endpoint">Optional exact endpoint key to restrict the breakdowns to.</param>
     /// <param name="ct">Cancellation token.</param>
     Task<RiotApiUsage> GetAsync(RiotUsageWindow window, string? endpoint, CancellationToken ct);
+
+    /// <summary>
+    /// Raw inputs for the budget-headroom estimate (#1035): always the last 7 days
+    /// regardless of the caller's selected window, and never endpoint-filtered —
+    /// the estimate answers a question ("how many more accounts fit") that must
+    /// not depend on what the operator happens to be looking at.
+    /// </summary>
+    Task<RiotApiSaturationInputs> GetSaturationInputsAsync(CancellationToken ct);
 }
 
 /// <summary>
@@ -59,13 +67,18 @@ public sealed record RiotApiUsage(
     IReadOnlyList<RiotApiEndpointUsage> Endpoints,
     IReadOnlyList<RiotApiStatusCount> StatusCodes,
     IReadOnlyList<RiotApiUsageBucket> TimeSeries,
-    RiotApiRateLimitSnapshot? RateLimit);
+    RiotApiRateLimitSnapshot? RateLimit,
+    IReadOnlyList<RiotApiCallerUsage> CallerBreakdown);
 
 /// <summary>
 /// Per-endpoint rollup, ordered by <see cref="Calls"/> descending.
 /// <see cref="SumLatencyMs"/> is the unrounded latency total kept so the
 /// window-wide mean can be derived exactly (Σ sum / Σ calls) without re-weighting
-/// the already-divided <see cref="AvgLatencyMs"/>.
+/// the already-divided <see cref="AvgLatencyMs"/>. <see cref="MethodRateLimit"/>/
+/// <see cref="MethodRateLimitCount"/> are the freshest <c>X-Method-Rate-Limit[-Count]</c>
+/// headers seen for this endpoint in the window (#1035) — null when no call for
+/// this endpoint carried them, since method limits saturate independently of the
+/// app-wide one.
 /// </summary>
 public sealed record RiotApiEndpointUsage(
     string Endpoint,
@@ -74,13 +87,19 @@ public sealed record RiotApiEndpointUsage(
     long Errors,
     double AvgLatencyMs,
     long SumLatencyMs,
-    DateTime LastCalledAtUtc);
+    DateTime LastCalledAtUtc,
+    string? MethodRateLimit,
+    string? MethodRateLimitCount);
 
 /// <summary>One row of the status-code histogram. <c>0</c> means a transport fault (no response).</summary>
 public sealed record RiotApiStatusCount(int StatusCode, long Count);
 
-/// <summary>One time bucket of the call-volume series (chronological).</summary>
-public sealed record RiotApiUsageBucket(DateTime BucketUtc, long Calls, long Errors);
+/// <summary>
+/// One time bucket of the call-volume series (chronological). <see cref="Retries"/>
+/// is the subset of <see cref="Calls"/> that landed a 429 — budget spent for no
+/// data (#1035), already counted separately from successful attempts at record time.
+/// </summary>
+public sealed record RiotApiUsageBucket(DateTime BucketUtc, long Calls, long Errors, long Retries);
 
 /// <summary>
 /// The most recent Riot rate-limit header snapshot in the window, or null when no
@@ -96,3 +115,21 @@ public sealed record RiotApiRateLimitSnapshot(
     string? MethodRateLimitCount,
     int? RetryAfterSeconds,
     string? RateLimitType);
+
+/// <summary>
+/// Calls attributed to one caller process (#1035), e.g. <c>Discovery</c> or
+/// <c>MatchIngestion</c>. <see cref="Caller"/> is <c>"unknown"</c> for calls made
+/// outside a tracked pipeline pass, or recorded before caller attribution shipped.
+/// </summary>
+public sealed record RiotApiCallerUsage(string Caller, long Calls, long Errors);
+
+/// <summary>
+/// Raw 7-day inputs for the Api layer's budget-headroom arithmetic (#1035).
+/// <see cref="EarliestBucketUtc"/> is null when there were no calls at all in the
+/// last 7 days, which the caller treats as "insufficient data" alongside a too-short
+/// observed span.
+/// </summary>
+public sealed record RiotApiSaturationInputs(
+    long TotalCalls,
+    DateTime? EarliestBucketUtc,
+    RiotApiRateLimitSnapshot? RateLimit);

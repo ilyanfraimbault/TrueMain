@@ -885,6 +885,10 @@ export interface RiotEndpointUsage {
   errors: number
   avgLatencyMs: number
   lastCalledAtUtc: string
+  /** Freshest `X-Method-Rate-Limit` header seen for this endpoint, or null (#1035). */
+  methodRateLimit: string | null
+  /** Freshest `X-Method-Rate-Limit-Count` header seen for this endpoint, or null (#1035). */
+  methodRateLimitCount: string | null
 }
 
 /** One status-code histogram row. `statusCode` 0 means a transport fault (no response). */
@@ -898,6 +902,41 @@ export interface RiotUsageBucket {
   bucketUtc: string
   calls: number
   errors: number
+  /** Subset of `calls` that landed a 429 — budget spent for no data (#1035). */
+  retries: number
+}
+
+/** Calls attributed to one caller process (#1035). `"unknown"` when unattributed. */
+export interface RiotCallerUsage {
+  caller: string
+  calls: number
+  errors: number
+}
+
+/** The app rate-limit window with the smallest sustained-load daily ceiling (#1035). */
+export interface RiotBindingLimit {
+  limit: number
+  windowSeconds: number
+  maxCallsPerDay: number
+}
+
+/**
+ * Budget-headroom estimate (#1035): "how many more tracked accounts fit", always
+ * computed over the last 7 days regardless of the panel's selected window.
+ * `sufficientData` is `false` — with only `observedWindowHours`/`requiredWindowHours`
+ * set — when there isn't enough rollup history yet, no accounts are tracked, or no
+ * rate-limit snapshot was seen.
+ */
+export interface RiotApiHeadroom {
+  sufficientData: boolean
+  observedWindowHours: number
+  requiredWindowHours: number
+  trackedAccounts: number
+  callsPerAccountPerDay: number | null
+  observedCallsPerDay: number | null
+  bindingLimit: RiotBindingLimit | null
+  spareCallsPerDay: number | null
+  additionalAccountsHeadroom: number | null
 }
 
 /**
@@ -930,6 +969,9 @@ export interface RiotApiUsage {
   statusCodes: RiotStatusCount[]
   timeSeries: RiotUsageBucket[]
   rateLimit: RiotRateLimit | null
+  /** Calls attributed to each caller process, ordered by `calls` descending (#1035). */
+  callerBreakdown: RiotCallerUsage[]
+  headroom: RiotApiHeadroom
 }
 
 /**
