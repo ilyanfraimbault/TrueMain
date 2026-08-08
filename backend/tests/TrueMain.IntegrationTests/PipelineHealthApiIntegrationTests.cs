@@ -43,12 +43,12 @@ public sealed class PipelineHealthApiIntegrationTests
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
         root.EnumerateObject().Select(property => property.Name)
-            .Should().BeEquivalentTo(["processes", "rawData", "gaps"]);
+            .Should().BeEquivalentTo(["status", "headline", "evaluatedAtUtc", "signals", "processes", "rawData", "gaps"]);
 
         var payload = await response.Content.ReadFromJsonAsync<PipelineHealthResponseTestContract>();
         payload.Should().NotBeNull();
-        payload!.Processes.Should().Contain(process => process.ProcessName == "MatchIngestion" && process.Status == "success");
-        payload.Processes.Should().Contain(process => process.ProcessName == "ChampionPatternAggregation" && process.Status == "success");
+        payload!.Processes.Should().Contain(process => process.ProcessName == "MatchIngestion" && process.Status == "Success");
+        payload.Processes.Should().Contain(process => process.ProcessName == "ChampionPatternAggregation" && process.Status == "Success");
         payload.RawData.QueueId.Should().Be(420);
         payload.RawData.RawMatchCount.Should().Be(3);
         payload.RawData.RawParticipantCount.Should().Be(3);

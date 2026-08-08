@@ -294,10 +294,12 @@ public sealed class PipelineHealthQueryService(
         {
             logger.LogWarning(ex, "Pipeline-health data-quality signals failed to measure");
 
+            var reason = SanitizeError(ex.Message, environment.IsProduction()) ?? "internal error";
+
             return
             [
-                UnmeasurableSignal("dataQuality", "Data quality", "/data-quality", ex.Message),
-                UnmeasurableSignal("ingestionLag", "Ingestion lag & queues", "/data-quality", ex.Message)
+                UnmeasurableSignal("dataQuality", "Data quality", "/data-quality", reason),
+                UnmeasurableSignal("ingestionLag", "Ingestion lag & queues", "/data-quality", reason)
             ];
         }
         finally
@@ -321,7 +323,8 @@ public sealed class PipelineHealthQueryService(
         {
             logger.LogWarning(ex, "Pipeline-health signal {Signal} failed to measure", key);
 
-            return UnmeasurableSignal(key, title, detailPath, ex.Message);
+            return UnmeasurableSignal(
+                key, title, detailPath, SanitizeError(ex.Message, environment.IsProduction()) ?? "internal error");
         }
         finally
         {
