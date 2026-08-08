@@ -22,8 +22,10 @@ namespace Data.Metrics.Mongo;
 /// collection (and the panel's whole-window aggregations) scale with raw call
 /// volume, pegging Mongo's CPU. A native TTL index on <see cref="BucketStartUtc"/>
 /// (see <c>MongoLogContext</c>) bounds retention; a unique index on
-/// <c>(bucketStartUtc, endpoint, statusCode)</c> makes the upsert target exactly
-/// one document.
+/// <c>(bucketStartUtc, endpoint, statusCode, callerProcess)</c> makes the upsert
+/// target exactly one document (#1035 — <see cref="CallerProcess"/> joined the key
+/// so the same minute/endpoint/status can be split by which pipeline process
+/// spent the budget).
 /// </remarks>
 public sealed class RiotApiCallRollupDocument
 {
@@ -132,4 +134,15 @@ public sealed class RiotApiCallRollupDocument
     [BsonElement("processName")]
     [BsonIgnoreIfNull]
     public string? ProcessName { get; set; }
+
+    /// <summary>
+    /// The Ingestor pipeline process that made the call (e.g. <c>Discovery</c>,
+    /// <c>MatchIngestion</c>), read from the Ingestor's ambient caller context at
+    /// record time. Part of the rollup key (#1035), so consumption can be
+    /// attributed per caller; <see langword="null"/> for calls made outside a
+    /// tracked pipeline pass, or for rollups written before this field existed.
+    /// </summary>
+    [BsonElement("callerProcess")]
+    [BsonIgnoreIfNull]
+    public string? CallerProcess { get; set; }
 }

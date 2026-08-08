@@ -462,7 +462,28 @@ Postgres log rows were deliberately not migrated — #416.
 
 **Ops logs are signal-only: Polly retry noise is not persisted, domain events are.**
 Every Riot 429 emitted `Execution attempt` + `OnRetry` warning pairs — dozens per minute while rate-limited —
-burying everything useful — #444.
+burying everything useful — #444. This does not apply to `riot_api_call_rollups`: that collection exists
+specifically to count every physical attempt including retried 429s (#93), a different data path from the
+structured logs #444 is about.
+
+**Riot API caller attribution uses an `AsyncLocal` ambient context, mirroring `IterationContext`.**
+`riot_api_call_rollups` needed a "who spent this budget" dimension (#1035) but the three typed Riot clients
+are shared `HttpClient`s across every `IIngestorProcess`, so there is no per-caller `HttpClient` to key on.
+`Worker.RunModeAsync` opens a call scope (`ICallerContext.BeginCall(process.Name)`) around each process's
+`RunCoreAsync`, the same shape `IterationContext` already uses for the pass-level iteration id; the metrics
+handler reads it ambiently. The rollup's upsert key widened from `(bucket, endpoint, statusCode)` to include
+`callerProcess`, so the unique index had to be dropped and recreated (`MongoLogContext.EnsureRiotApiCallIndexesAsync`)
+rather than just adding a field — two different callers in the same minute/endpoint/status are two documents,
+which the old 3-field unique index would have rejected as a duplicate key.
+
+**The budget-headroom estimate (#1035) requires 24h of rollup history before it will extrapolate, and picks
+the app rate-limit window with the smallest daily ceiling as "binding".**
+Riot returns several simultaneous app-limit windows (e.g. `20:1,100:120`); the one that binds first under
+sustained load is the smallest `limit * 86400 / windowSeconds`, not the one with the highest current-instant
+usage ratio (that's what the existing app-rate-limit card already shows). Below 24h of observed history the
+page renders an explicit "not enough data" state instead of extrapolating a daily cost from a thin window —
+same reasoning as the disk forecast's absent state below. Implementation:
+`RiotApiUsageQueryService.BuildHeadroom`/`ResolveBindingLimit` (`internal static`, unit-tested directly).
 
 **Rank snapshots are capped at one row per account per UTC day (DB-level unique index).**
 Intra-day LP granularity has no consumer. Accepted: rank history, match detail and the "nearest snapshot" elo

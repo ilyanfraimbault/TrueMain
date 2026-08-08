@@ -44,7 +44,7 @@ public sealed class RiotApiMetricsSinkIntegrationTests
             var names = (await collection.Indexes.List().ToListAsync())
                 .Select(index => index["name"].AsString)
                 .ToList();
-            return names.Contains("ux_bucket_endpoint_status")
+            return names.Contains("ux_bucket_endpoint_status_caller")
                 && names.Contains("ix_timestamp_desc")
                 && names.Contains("ix_endpoint_timestamp")
                 && names.Contains("ttl_timestamp");
@@ -130,6 +130,42 @@ public sealed class RiotApiMetricsSinkIntegrationTests
         rollup.AppRateLimitCount.Should().Be("9:1");
     }
 
+    [Fact]
+    public async Task Sink_TwoCallersInSameBucketEndpointStatus_FoldIntoTwoDocuments()
+    {
+        await _mongo.ResetAsync();
+
+        using var host = BuildHost();
+        await host.StartAsync();
+
+        var collection = _mongo.GetCollection<RiotApiCallRollupDocument>(MongoFixture.RiotApiCallsCollection);
+        var at = DateTime.UtcNow;
+        var recorder = host.Services.GetRequiredService<IRiotApiCallRecorder>();
+
+        // Same minute, endpoint and status, but two different callers: the widened
+        // (#1035) unique index must keep these as two documents, not collapse them
+        // into one the way the old 3-field key would have.
+        recorder.Record(Record("match-v5.match", 200, 50, at, callerProcess: "Discovery"));
+        recorder.Record(Record("match-v5.match", 200, 60, at, callerProcess: "MatchIngestion"));
+        // A third call with no caller context (e.g. ManualSeed running outside a
+        // tracked pass) must land as its own "unknown" document rather than being
+        // dropped or merged into either named caller's rollup.
+        recorder.Record(Record("match-v5.match", 200, 70, at));
+
+        await WaitUntilAsync(async () =>
+        {
+            var docs = await collection.Find(FilterDefinition<RiotApiCallRollupDocument>.Empty).ToListAsync();
+            return docs.Count == 3;
+        });
+
+        await host.StopAsync();
+
+        var documents = await collection.Find(FilterDefinition<RiotApiCallRollupDocument>.Empty).ToListAsync();
+        documents.Should().HaveCount(3);
+        documents.Should().OnlyContain(doc => doc.Count == 1);
+        documents.Select(doc => doc.CallerProcess).Should().BeEquivalentTo(["Discovery", "MatchIngestion", null]);
+    }
+
     private IHost BuildHost()
     {
         var builder = Host.CreateApplicationBuilder();
@@ -152,7 +188,8 @@ public sealed class RiotApiMetricsSinkIntegrationTests
         DateTime at,
         string? appLimit = null,
         string? appCount = null,
-        int? retryAfter = null)
+        int? retryAfter = null,
+        string? callerProcess = null)
         => new(
             at,
             endpoint,
@@ -165,7 +202,8 @@ public sealed class RiotApiMetricsSinkIntegrationTests
             MethodRateLimit: null,
             MethodRateLimitCount: null,
             RetryAfterSeconds: retryAfter,
-            RateLimitType: null);
+            RateLimitType: null,
+            CallerProcess: callerProcess);
 
     private static async Task WaitUntilAsync(Func<Task<bool>> condition)
     {

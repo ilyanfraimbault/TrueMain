@@ -194,6 +194,7 @@ public sealed class WorkerFailureMetricsTests
             scopeFactory,
             jobOptions,
             new IterationContext(),
+            new CallerContext(),
             lifetime,
             new IngestorMetrics(meterFactory));
     }
