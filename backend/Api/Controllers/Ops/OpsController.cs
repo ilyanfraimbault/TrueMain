@@ -26,6 +26,7 @@ public sealed class OpsController(
     IRiotApiUsageQueryService riotApiUsageQueryService,
     IDataQualityQueryService dataQualityQueryService,
     IDataQualityDetectorsQueryService dataQualityDetectorsQueryService,
+    IEffectiveConfigurationQueryService effectiveConfigurationQueryService,
     ISeedRequestService seedRequestService,
     ISeedRequestQueryService seedRequestQueryService,
     ICandidateQueryService candidateQueryService,
@@ -394,6 +395,22 @@ public sealed class OpsController(
     {
         var readModel = await dataQualityQueryService.GetMatchDetailAsync(id, ct);
         return readModel is null ? NotFound() : Ok(readModel);
+    }
+
+    /// <summary>
+    /// What every host is actually running with (#1034): the Api's own options, read live
+    /// from its container, plus the Ingestor's — published to Mongo at its own boot, since
+    /// the Api cannot introspect a process it does not run in. Read-only; no secret-bearing
+    /// section is ever included (see <see cref="Data.Configuration.EffectiveConfigurationCatalog"/>).
+    /// </summary>
+    [HttpGet("configuration")]
+    [ProducesResponseType(typeof(EffectiveConfigurationOverviewReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<EffectiveConfigurationOverviewReadModel>> GetConfigurationAsync(
+        CancellationToken ct)
+    {
+        var readModel = await effectiveConfigurationQueryService.GetAsync(ct);
+        return Ok(readModel);
     }
 
     /// <summary>
