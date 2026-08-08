@@ -839,6 +839,50 @@ evaluating expiry per write would store and immediately drop each of their icons
 permanently uncached. The window is the three newest patches *observed* rather than `newest - 2` arithmetic, so
 a season rollover (16.1 after 15.24) keeps the right three — `server/utils/ipx-patch-retention.ts`, #997.
 
+## The configuration viewer is an allow-list, and each host reports itself (2026-08-08)
+
+**Decision:** `/ops/configuration` (#1034) exposes sections through a hand-declared allow-list
+(`EffectiveConfigurationCatalog`) that names an options type and, when needed, an explicit
+`IncludeProperties` subset — never a full options dump filtered for secrets afterward. A deny-list is one
+forgotten property away from returning the Riot key, connection string or `X-Ops-Key`, and the property
+that leaks is always the one added after the filter was written. A name-shaped backstop
+(`EffectiveConfigurationRedaction.IsSecretName`) drops anything credential-shaped that slips into a
+catalog entry anyway, and a unit test walks both production catalogs asserting that backstop never has to
+fire — so a new section with a secret-shaped property fails a test, not a review.
+
+**The Api and the Ingestor report themselves through two different mechanisms, on purpose.** The Api reads
+its own `IOptions<T>` live, on every request — it can introspect its own container, so there is nothing to
+cache. The Ingestor cannot be introspected by the Api (different container, and its options classes live
+in an assembly the Api does not reference), so it publishes a snapshot of its bound options to Mongo
+(`effective_configuration`, one document per process, **overwritten** at every boot — it runs `RunOnce` +
+`restart: unless-stopped`, many boots a day, and the page wants "what is it running now", not a log of
+every past boot) via a boot-time `IHostedService`, registered ahead of the pipeline's own worker since a
+fast `RunOnce` pass can end the process before a later-registered service would run. Consequence: the
+Ingestor's "as of" timestamp can be older than the page load without meaning anything is stale, while the
+Api's is always "now" — the page states this per process rather than presenting both timestamps the same
+way.
+
+**"Servable" is a share of the settled patches' median, never an absolute line count.** The patch-coverage
+verdict (#1033) asks whether enough `(champion, lane)` lines clear `ChampionsList:MinSampleGames` for the
+directory and tier list to mean anything — and the honest bar for that moves with the corpus. The number of
+lines clearing ten games grows every time tracked accounts are added, so a hard-coded "300 lines" would read
+permanently green on production and permanently red on preprod, which is the same as having no check. The bar
+is therefore `PatchCoverage:ServableLinesRatio` (0.6) of the **median of the patches strictly older than the
+one being served** — the settled ones. The served patch and anything newer are excluded from their own
+reference on purpose: a still-filling patch dragged into the median pulls the bar down to whatever it
+currently is, and the check goes green on an empty patch. That is the same "the edge patch is not comparable"
+rule the patch-volume detector already applies (#924). `PatchCoverage:ServableLinesMinimum` is the fallback
+when a database holds a single patch (preprod's normal state) — crude, and still an answer rather than a
+shrug.
+
+**A fold that shipped mid-corpus reports `null`, never `0`, on the patches it predates.** Raw match payloads
+are not kept, so #920's bans and #957's per-opponent spikes can never be backfilled: their absence on an older
+patch is a property of when the fold shipped, not a failure. Printing `0 rows` there sends an operator hunting
+a bug that does not exist, so the read model carries `measured: false` with the first patch the fold ever
+wrote a row on, and the page prints "not measured before *patch*" **in place of** the counts rather than
+beside them. The first-measured patch falls out of the same grouped scan that produces the per-patch numbers,
+so distinguishing the two costs nothing — `PatchCoverageQueryService`, #1033.
+
 ## Keeping these files current
 
 A PR that ships a user-facing feature, removes one, or reverses a decision here **must update

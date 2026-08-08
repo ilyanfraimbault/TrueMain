@@ -190,6 +190,17 @@ builder.Services.AddOptions<DataQualityDetectorOptions>()
         options => options.PatchVolumeMinPatches > 0,
         "DataQualityDetectors:PatchVolumeMinPatches must be greater than 0.")
     .ValidateOnStart();
+builder.Services.AddOptions<PatchCoverageOptions>()
+    .Bind(builder.Configuration.GetSection(PatchCoverageOptions.SectionName))
+    .Validate(options => options.PatchCount > 0, "PatchCoverage:PatchCount must be greater than 0.")
+    .Validate(options => options.ThinLineLimit > 0, "PatchCoverage:ThinLineLimit must be greater than 0.")
+    .Validate(
+        options => options.ServableLinesRatio is > 0 and <= 1,
+        "PatchCoverage:ServableLinesRatio must be in (0, 1].")
+    .Validate(
+        options => options.ServableLinesMinimum >= 0,
+        "PatchCoverage:ServableLinesMinimum must be >= 0.")
+    .ValidateOnStart();
 builder.Services.AddOptions<CompositionSearchOptions>()
     .Bind(builder.Configuration.GetSection(CompositionSearchOptions.SectionName))
     .Validate(
@@ -285,9 +296,11 @@ builder.Services.AddScoped<ICrashesQueryService, CrashesQueryService>();
 builder.Services.AddScoped<IRiotApiUsageQueryService, RiotApiUsageQueryService>();
 builder.Services.AddScoped<IDataQualityQueryService, DataQualityQueryService>();
 builder.Services.AddScoped<IDataQualityDetectorsQueryService, DataQualityDetectorsQueryService>();
+builder.Services.AddScoped<IEffectiveConfigurationQueryService, EffectiveConfigurationQueryService>();
 builder.Services.AddScoped<ISeedRequestService, SeedRequestService>();
 builder.Services.AddScoped<ISeedRequestQueryService, SeedRequestQueryService>();
 builder.Services.AddScoped<IAccountExplorerQueryService, AccountExplorerQueryService>();
+builder.Services.AddScoped<IPatchCoverageQueryService, PatchCoverageQueryService>();
 builder.Services.AddScoped<ICandidateQueryService, CandidateQueryService>();
 builder.Services.AddScoped<ICandidateFunnelQueryService, CandidateFunnelQueryService>();
 builder.Services.AddScoped<ICandidateQueueLatencyQueryService, CandidateQueueLatencyQueryService>();

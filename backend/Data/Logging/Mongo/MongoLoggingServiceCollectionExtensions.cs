@@ -85,6 +85,11 @@ public static class MongoLoggingServiceCollectionExtensions
         services.TryAddSingleton<IProcessRunStore, ProcessRunStore>();
         services.TryAddSingleton<ISeedRequestStore, SeedRequestStore>();
 
+        // Effective-configuration snapshots (#1034): written by the Ingestor's boot-time
+        // publisher, read by the Api for the admin configuration page. Registered in both hosts
+        // like the stores above — the Api never writes, the Ingestor never reads.
+        services.TryAddSingleton<IEffectiveConfigurationStore, EffectiveConfigurationStore>();
+
         return services;
     }
 }

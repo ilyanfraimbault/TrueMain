@@ -1113,6 +1113,107 @@ export interface AggregateFreshnessResponse {
 }
 
 // =============================================================================
+// Patch coverage — `GET /api/ops/patch-coverage` (#1033)
+// =============================================================================
+
+/**
+ * Why a patch is or is not servable. `notAggregated` and `thin` are deliberately
+ * distinct: both mean "almost nothing clears the floor", and they call for
+ * opposite reactions — wait for the fold, versus stop trusting the patch.
+ */
+export type PatchVerdict = 'servable' | 'thin' | 'notAggregated' | 'unknown'
+
+/** One game date's ingestion on a patch. */
+export interface PatchCoverageDay {
+  /** UTC game date, ISO `yyyy-MM-dd`. */
+  date: string
+  matches: number
+  participants: number
+}
+
+/** A `(champion, lane)` line that has games but not enough of them. */
+export interface PatchThinLine {
+  championId: number
+  position: string
+  games: number
+  /** Games still missing before the line clears the floor. */
+  gamesToFloor: number
+}
+
+/** One aggregation fold's state on one patch. */
+export interface PatchFoldCoverage {
+  key: string
+  label: string
+  /**
+   * False when the patch predates the fold entirely (#920 bans, #957 per-opponent
+   * spikes). Every count is then `null` rather than `0`: raw matches are not kept,
+   * so those rows are absent by construction, not missing — and a zero would read
+   * as "the fold is broken on this patch".
+   */
+  measured: boolean
+  /** Oldest patch the fold has any row on, or null when it has none at all. */
+  firstMeasuredPatch: string | null
+  /** Set if and only if `measured` is false. */
+  notMeasuredNote: string | null
+  rows: number | null
+  champions: number | null
+  lastAggregatedAtUtc: string | null
+  ageHours: number | null
+  status: DetectorStatus
+  /** Matches still to fold, or null for folds carrying no per-match flag. */
+  pendingMatches: number | null
+  note: string | null
+}
+
+/** One patch's ingestion, aggregate coverage and per-fold state. */
+export interface PatchCoverageRow {
+  patch: string
+  /** True for the patch the public reads currently resolve to. */
+  isCurrent: boolean
+  verdict: PatchVerdict
+  status: DetectorStatus
+  headline: string
+  matches: number
+  participants: number
+  firstGameStartUtc: string | null
+  lastGameStartUtc: string | null
+  daily: PatchCoverageDay[]
+  /** `(champion, lane)` pairs holding at least one aggregate row. */
+  lines: number
+  linesPastFloor: number
+  champions: number
+  championsPastFloor: number
+  /** The bar `linesPastFloor` was judged against; null when the patch was not judged. */
+  servableLinesBar: number | null
+  servableLinesBarNote: string | null
+  belowFloorCount: number
+  belowFloor: PatchThinLine[]
+  folds: PatchFoldCoverage[]
+}
+
+/** `GET /api/ops/patch-coverage` — is the current patch servable? (#1033) */
+export interface PatchCoverageResponse {
+  queueId: number
+  /** Echoed from `ChampionsList:MinSampleGames`, never re-declared admin-side. */
+  minSampleGames: number
+  floorNote: string
+  /** Newest patch holding an aggregate row — what the public reads resolve to. */
+  currentPatch: string | null
+  verdict: PatchVerdict
+  status: DetectorStatus
+  headline: string
+  /**
+   * Why no verdict could be given. Set only when a measurement failed — without the
+   * coverage rollup, `thin` and `notAggregated` are indistinguishable, and guessing
+   * between them is worse than saying nothing.
+   */
+  unknownReason: string | null
+  patches: PatchCoverageRow[]
+  sourceNote: string
+  evaluatedAtUtc: string
+}
+
+// =============================================================================
 // Account explorer — `GET /api/ops/accounts/{nameTag}` (#1032)
 // =============================================================================
 
@@ -1377,4 +1478,67 @@ export interface AccountExplorerRankSnapshot {
   /** Null on snapshots taken before queue totals were recorded. */
   wins: number | null
   losses: number | null
+}
+
+// =============================================================================
+// Effective configuration viewer — `GET /api/ops/configuration` (#1034)
+// =============================================================================
+
+/**
+ * Where a bound value came from (#1034). `default` — no provider supplies the key,
+ * the value is the class default. `override` — a provider supplies it; `source`
+ * names which one. `derived` — no provider supplies it, yet the value differs from
+ * the class default, so something computed it at boot.
+ */
+export type EffectiveConfigurationOrigin = 'default' | 'override' | 'derived'
+
+/** How to read an effective-configuration value's number. */
+export type EffectiveConfigurationUnit = 'bytes' | 'duration' | 'count' | 'percent' | 'flag' | 'list' | 'text'
+
+/** One bound option, as the process holds it. */
+export interface EffectiveConfigurationValue {
+  /** Fully-qualified configuration key, e.g. `StorageHistory:DiskCapacityBytes`. */
+  key: string
+  /** The property name alone, e.g. `DiskCapacityBytes`. */
+  name: string
+  /** The pasteable-back-into-configuration form. Null when the option is unset. */
+  value: string | null
+  /** The humanised form ("90 days", "1.0 TB"), or null when it would repeat `value`. */
+  valueLabel: string | null
+  origin: EffectiveConfigurationOrigin
+  /** Which provider supplied an override, e.g. `environment`. Null for `default`/`derived`. */
+  source: string | null
+  unit: EffectiveConfigurationUnit
+  /** Set when the value is unset and that has a visible consequence elsewhere in the portal. */
+  notice: string | null
+}
+
+/** One configuration section's worth of values, with the prose explaining what it drives. */
+export interface EffectiveConfigurationSection {
+  /** The configuration key prefix, e.g. `StorageHistory`. */
+  name: string
+  title: string
+  description: string
+  values: EffectiveConfigurationValue[]
+}
+
+/** One process's snapshot: which build, which environment, and its sections. */
+export interface EffectiveConfigurationProcess {
+  /** Which host bound these values — `Api` or `Ingestor`. */
+  processName: string
+  environment: string
+  /** The build this process is running, or null for a plain local build. */
+  version: string | null
+  /**
+   * When this snapshot was taken. For the Api this is always "now" — it is built
+   * live on every request. For the Ingestor it is the boot time of its last run:
+   * still what that process is running, even if older than the last deploy.
+   */
+  capturedAtUtc: string
+  sections: EffectiveConfigurationSection[]
+}
+
+/** `GET /api/ops/configuration` — what every host is actually running with. */
+export interface EffectiveConfigurationOverviewResponse {
+  processes: EffectiveConfigurationProcess[]
 }

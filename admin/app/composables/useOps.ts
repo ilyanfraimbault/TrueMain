@@ -15,6 +15,7 @@ import type {
   CrashesResponse,
   DbStorageHistory,
   DbTableRow,
+  EffectiveConfigurationOverviewResponse,
   IncompleteMatchesFilters,
   IncompleteMatchesResponse,
   IngestionTimeGranularity,
@@ -25,6 +26,7 @@ import type {
   MatchTimeBucket,
   MatchTimeGranularity,
   OverviewStats,
+  PatchCoverageResponse,
   ProcessIterationsFilters,
   ProcessIterationsResponse,
   ProcessRunsFilters,
@@ -159,6 +161,20 @@ export function useAggregations() {
 }
 
 /**
+ * `GET /api/ops/patch-coverage` — whether the patches the public reads are
+ * actually servable (#1033).
+ *
+ * A page-load `useFetch` rather than an on-demand `$fetch` because it *is* the
+ * page: the whole route exists to answer one question, so there is nothing to
+ * show before it resolves. It is still a set of grouped scans over tables with no
+ * index on their patch column, which is why it lives on its own route instead of
+ * as a card on `/aggregation`.
+ */
+export function usePatchCoverage() {
+  return useOps<PatchCoverageResponse>('/patch-coverage')
+}
+
+/**
  * `GET /api/ops/process-runs` — server-paginated runs (newest first) plus the
  * per-process rollup, which covers the full filtered set regardless of paging.
  * Pass a reactive getter so the table re-fetches when a filter or the page
@@ -263,6 +279,15 @@ export function useDataQualityDetectors() {
  */
 export function getAggregateFreshness() {
   return $fetch<AggregateFreshnessResponse>('/api/ops/data-quality/aggregate-freshness')
+}
+
+/**
+ * `GET /api/ops/configuration` — what every host is actually running with
+ * (#1034): the Api's own options, read live, plus the Ingestor's, published to
+ * Mongo at its own boot. Takes no filters.
+ */
+export function useEffectiveConfiguration() {
+  return useOps<EffectiveConfigurationOverviewResponse>('/configuration')
 }
 
 /**

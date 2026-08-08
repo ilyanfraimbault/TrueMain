@@ -86,8 +86,9 @@ public sealed class AggregationStatsQueryService(
         var patternRows = await db.ChampionAggregatePatterns.AsNoTracking().LongCountAsync(ct);
         var distinctChampions = await scopes.Select(scope => scope.ChampionId).Distinct().CountAsync(ct);
 
-        // Scopes store the raw game version; normalize client-side so patches
-        // count as "MAJOR.MINOR" like the other families.
+        // The aggregation normalises GameVersion on write, so this is already
+        // "MAJOR.MINOR" — normalise anyway, so a value written in any other form
+        // still counts as one patch rather than a second one.
         var gameVersions = await scopes.Select(scope => scope.GameVersion).Distinct().ToListAsync(ct);
         var distinctPatches = gameVersions
             .Select(PatchVersion.Normalize)

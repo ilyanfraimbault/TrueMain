@@ -71,6 +71,15 @@ public sealed class MongoLoggingOptions
     public string SeedRequestsCollection { get; set; } = "seed_requests";
 
     /// <summary>
+    /// Collection holding one effective-configuration snapshot per process (#1034), published
+    /// by the Ingestor at each boot and read by the admin configuration page. Functional
+    /// operator state rather than telemetry, so — like <see cref="SeedRequestsCollection"/> —
+    /// it has no TTL: expiring it would blank the page exactly when the ingestor has been down
+    /// long enough for an operator to care what it is running.
+    /// </summary>
+    public string EffectiveConfigurationCollection { get; set; } = "effective_configuration";
+
+    /// <summary>
     /// Master switch. When false (or when <see cref="ConnectionString"/> is
     /// blank) the provider is still registered but drops every record, so
     /// persisted logging can be turned off without code changes.
