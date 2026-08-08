@@ -15,6 +15,7 @@ const items = computed<NavigationMenuItem[]>(() => [
   { label: 'Accounts', icon: 'i-lucide-user-search', to: '/accounts' },
   { label: 'Processes', icon: 'i-lucide-activity', to: '/processes' },
   { label: 'Aggregation', icon: 'i-lucide-combine', to: '/aggregation' },
+  { label: 'Patch Coverage', icon: 'i-lucide-layers', to: '/patch-coverage' },
   { label: 'Logs', icon: 'i-lucide-scroll-text', to: '/logs' },
   { label: 'Riot API', icon: 'i-lucide-gauge', to: '/riot-api' },
   { label: 'Analytics', icon: 'i-lucide-chart-line', to: '/analytics' },

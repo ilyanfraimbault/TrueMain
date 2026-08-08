@@ -25,6 +25,7 @@ import type {
   MatchTimeBucket,
   MatchTimeGranularity,
   OverviewStats,
+  PatchCoverageResponse,
   ProcessIterationsFilters,
   ProcessIterationsResponse,
   ProcessRunsFilters,
@@ -156,6 +157,20 @@ export function useDbStorageHistory(windowDays: MaybeRefOrGetter<number>) {
  */
 export function useAggregations() {
   return useOps<AggregationsResponse>('/stats/aggregations')
+}
+
+/**
+ * `GET /api/ops/patch-coverage` — whether the patches the public reads are
+ * actually servable (#1033).
+ *
+ * A page-load `useFetch` rather than an on-demand `$fetch` because it *is* the
+ * page: the whole route exists to answer one question, so there is nothing to
+ * show before it resolves. It is still a set of grouped scans over tables with no
+ * index on their patch column, which is why it lives on its own route instead of
+ * as a card on `/aggregation`.
+ */
+export function usePatchCoverage() {
+  return useOps<PatchCoverageResponse>('/patch-coverage')
 }
 
 /**
