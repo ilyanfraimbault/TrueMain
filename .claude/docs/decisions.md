@@ -238,6 +238,15 @@ restated what the build tree above it already shows, minus the ordering, so #939
 component, read-model field, backend aggregation and the `SituationalItemCount` option. Reviving it means
 reviving the aggregator, not just the component — #939.
 
+**The player performance panel shows the score and its sample only — no per-component breakdown.**
+The #918 panel stacked nine component bars under the average, each with a midpoint tick nobody could read
+(the tick marked the model's 0.5 "even lane / average share" baseline, and it looked like a rendering
+artefact), plus a subtitle and a footnote explaining the scoring model. It buried the one number a reader
+came for. What is left is the average, its verdict on the S→D tier ladder that colours the number itself,
+and the four sample figures — each with a one-line hint, since "Top of team 25%" means nothing until you
+know it counts games this player outscored their own four teammates. The API still returns `components`:
+the breakdown is the natural content of a future drill-down, and the payload is cheap.
+
 **The static champion list drops Data Dragon entries with an id at or above 10 000 — alternate-mode kits, not champions.**
 Patch 16.15 ("League classique") added 60 legacy kits to `champion.json`: alias `Jade_<BaseAlias>`, key
 `60000 + <base key>`, and the *same display name* as the original — `Jade_Ahri` (60103) sits next to Ahri
@@ -250,6 +259,29 @@ cut keeps an order of magnitude of headroom while catching a future mode built t
 ---
 
 ## Data & storage
+
+**The account explorer (#1032) reports raw score inputs, not score components — and never calls Riot.**
+The issue asked for a candidate's score "and its components" (recency/rank/points/scarcity). `main_candidates`
+persists only the final `Score` double; the blend lives in `ScoringProcess.ComputeScore` inside the Ingestor,
+and `ScoringOptions` (its weights) is Ingestor-only config the `Api` project cannot see. Recomputing the
+breakdown at read time was rejected: champion scarcity is a live snapshot of current coverage, so a
+recomputed decomposition would silently disagree with the `Score` sitting next to it on the same row —
+wrong on a page built specifically to be trusted for diagnosis. The endpoint instead exposes the persisted
+inputs (`LastPlayTimeUtc`, `ChampionRankInMasteryTop`, `ChampionPoints`, `ObservedGames`) and states plainly
+that the decomposition is not stored. Same reasoning kept the endpoint **database-only**: the API has no
+Riot client, so an unrecognised Riot ID renders as `NeverDiscovered` (200), not a 404 — the read never claims
+to know whether the Riot ID exists at Riot, only whether the pipeline has ever recorded it.
+
+**`MainActivity` deactivation carries no persisted reason, so the account explorer says so rather than guessing.**
+`MainActivityProcess` writes exactly two fields — `MainChampionStat.IsActive` and
+`RiotAccount.LastActivityCheckAtUtc` — collapsing two distinct causes (mastery `lastPlayTime` older than the
+inactivity window, or no mastery entry for the champion at all) into one boolean, with no `DeactivatedAtUtc`
+or reason column (#900). A failed mastery lookup leaves both fields untouched, so `IsActive = false` is only
+a *confirmed* retirement when `LastActivityCheckAtUtc` is recent — an older stamp means the last check that
+actually completed predates the flag flip, or never ran to confirm it. Adding a reason column was considered
+and deferred: it needs an Ingestor write-path change and a migration, for a fact the pipeline does not
+currently observe (mastery-v4 returns "no entry", not "entry expired *because* X"). The read-model names both
+possible causes and reports the confirmation timestamp instead.
 
 **Champion aggregates are replace-by-scope on *live* patches only. Old patches are frozen and must never be wiped.**
 Retention deletes `match_participants` past `RetainedPatchCount` (default 2). The cleanup set originally
@@ -807,6 +839,50 @@ as a check on every write: the champion page has a patch filter, so old-patch UR
 evaluating expiry per write would store and immediately drop each of their icons, leaving old-patch browsing
 permanently uncached. The window is the three newest patches *observed* rather than `newest - 2` arithmetic, so
 a season rollover (16.1 after 15.24) keeps the right three — `server/utils/ipx-patch-retention.ts`, #997.
+
+## The configuration viewer is an allow-list, and each host reports itself (2026-08-08)
+
+**Decision:** `/ops/configuration` (#1034) exposes sections through a hand-declared allow-list
+(`EffectiveConfigurationCatalog`) that names an options type and, when needed, an explicit
+`IncludeProperties` subset — never a full options dump filtered for secrets afterward. A deny-list is one
+forgotten property away from returning the Riot key, connection string or `X-Ops-Key`, and the property
+that leaks is always the one added after the filter was written. A name-shaped backstop
+(`EffectiveConfigurationRedaction.IsSecretName`) drops anything credential-shaped that slips into a
+catalog entry anyway, and a unit test walks both production catalogs asserting that backstop never has to
+fire — so a new section with a secret-shaped property fails a test, not a review.
+
+**The Api and the Ingestor report themselves through two different mechanisms, on purpose.** The Api reads
+its own `IOptions<T>` live, on every request — it can introspect its own container, so there is nothing to
+cache. The Ingestor cannot be introspected by the Api (different container, and its options classes live
+in an assembly the Api does not reference), so it publishes a snapshot of its bound options to Mongo
+(`effective_configuration`, one document per process, **overwritten** at every boot — it runs `RunOnce` +
+`restart: unless-stopped`, many boots a day, and the page wants "what is it running now", not a log of
+every past boot) via a boot-time `IHostedService`, registered ahead of the pipeline's own worker since a
+fast `RunOnce` pass can end the process before a later-registered service would run. Consequence: the
+Ingestor's "as of" timestamp can be older than the page load without meaning anything is stale, while the
+Api's is always "now" — the page states this per process rather than presenting both timestamps the same
+way.
+
+**"Servable" is a share of the settled patches' median, never an absolute line count.** The patch-coverage
+verdict (#1033) asks whether enough `(champion, lane)` lines clear `ChampionsList:MinSampleGames` for the
+directory and tier list to mean anything — and the honest bar for that moves with the corpus. The number of
+lines clearing ten games grows every time tracked accounts are added, so a hard-coded "300 lines" would read
+permanently green on production and permanently red on preprod, which is the same as having no check. The bar
+is therefore `PatchCoverage:ServableLinesRatio` (0.6) of the **median of the patches strictly older than the
+one being served** — the settled ones. The served patch and anything newer are excluded from their own
+reference on purpose: a still-filling patch dragged into the median pulls the bar down to whatever it
+currently is, and the check goes green on an empty patch. That is the same "the edge patch is not comparable"
+rule the patch-volume detector already applies (#924). `PatchCoverage:ServableLinesMinimum` is the fallback
+when a database holds a single patch (preprod's normal state) — crude, and still an answer rather than a
+shrug.
+
+**A fold that shipped mid-corpus reports `null`, never `0`, on the patches it predates.** Raw match payloads
+are not kept, so #920's bans and #957's per-opponent spikes can never be backfilled: their absence on an older
+patch is a property of when the fold shipped, not a failure. Printing `0 rows` there sends an operator hunting
+a bug that does not exist, so the read model carries `measured: false` with the first patch the fold ever
+wrote a row on, and the page prints "not measured before *patch*" **in place of** the counts rather than
+beside them. The first-measured patch falls out of the same grouped scan that produces the per-patch numbers,
+so distinguishing the two costs nothing — `PatchCoverageQueryService`, #1033.
 
 ## Keeping these files current
 

@@ -1145,3 +1145,434 @@ export interface PipelineHealth {
   rawData: RawDataFreshness
   gaps: PipelineGaps
 }
+
+// =============================================================================
+// Patch coverage — `GET /api/ops/patch-coverage` (#1033)
+// =============================================================================
+
+/**
+ * Why a patch is or is not servable. `notAggregated` and `thin` are deliberately
+ * distinct: both mean "almost nothing clears the floor", and they call for
+ * opposite reactions — wait for the fold, versus stop trusting the patch.
+ */
+export type PatchVerdict = 'servable' | 'thin' | 'notAggregated' | 'unknown'
+
+/** One game date's ingestion on a patch. */
+export interface PatchCoverageDay {
+  /** UTC game date, ISO `yyyy-MM-dd`. */
+  date: string
+  matches: number
+  participants: number
+}
+
+/** A `(champion, lane)` line that has games but not enough of them. */
+export interface PatchThinLine {
+  championId: number
+  position: string
+  games: number
+  /** Games still missing before the line clears the floor. */
+  gamesToFloor: number
+}
+
+/** One aggregation fold's state on one patch. */
+export interface PatchFoldCoverage {
+  key: string
+  label: string
+  /**
+   * False when the patch predates the fold entirely (#920 bans, #957 per-opponent
+   * spikes). Every count is then `null` rather than `0`: raw matches are not kept,
+   * so those rows are absent by construction, not missing — and a zero would read
+   * as "the fold is broken on this patch".
+   */
+  measured: boolean
+  /** Oldest patch the fold has any row on, or null when it has none at all. */
+  firstMeasuredPatch: string | null
+  /** Set if and only if `measured` is false. */
+  notMeasuredNote: string | null
+  rows: number | null
+  champions: number | null
+  lastAggregatedAtUtc: string | null
+  ageHours: number | null
+  status: DetectorStatus
+  /** Matches still to fold, or null for folds carrying no per-match flag. */
+  pendingMatches: number | null
+  note: string | null
+}
+
+/** One patch's ingestion, aggregate coverage and per-fold state. */
+export interface PatchCoverageRow {
+  patch: string
+  /** True for the patch the public reads currently resolve to. */
+  isCurrent: boolean
+  verdict: PatchVerdict
+  status: DetectorStatus
+  headline: string
+  matches: number
+  participants: number
+  firstGameStartUtc: string | null
+  lastGameStartUtc: string | null
+  daily: PatchCoverageDay[]
+  /** `(champion, lane)` pairs holding at least one aggregate row. */
+  lines: number
+  linesPastFloor: number
+  champions: number
+  championsPastFloor: number
+  /** The bar `linesPastFloor` was judged against; null when the patch was not judged. */
+  servableLinesBar: number | null
+  servableLinesBarNote: string | null
+  belowFloorCount: number
+  belowFloor: PatchThinLine[]
+  folds: PatchFoldCoverage[]
+}
+
+/** `GET /api/ops/patch-coverage` — is the current patch servable? (#1033) */
+export interface PatchCoverageResponse {
+  queueId: number
+  /** Echoed from `ChampionsList:MinSampleGames`, never re-declared admin-side. */
+  minSampleGames: number
+  floorNote: string
+  /** Newest patch holding an aggregate row — what the public reads resolve to. */
+  currentPatch: string | null
+  verdict: PatchVerdict
+  status: DetectorStatus
+  headline: string
+  /**
+   * Why no verdict could be given. Set only when a measurement failed — without the
+   * coverage rollup, `thin` and `notAggregated` are indistinguishable, and guessing
+   * between them is worse than saying nothing.
+   */
+  unknownReason: string | null
+  patches: PatchCoverageRow[]
+  sourceNote: string
+  evaluatedAtUtc: string
+}
+
+// =============================================================================
+// Account explorer — `GET /api/ops/accounts/{nameTag}` (#1032)
+// =============================================================================
+
+/**
+ * The one-word verdict on a Riot ID, resolved server-side first-match-wins:
+ *   NeverDiscovered   — no account row and no seed request. Says nothing about
+ *                       whether the Riot ID exists: this read never calls Riot.
+ *   SeedRequestedOnly — no account row, but an operator asked for it; the seed
+ *                       request's own status/error says why it has not landed.
+ *   Invalidated       — the PUUID 404s and AccountRefresh could not recover it.
+ *                       Excluded from every selection: nothing will move again.
+ *   Tracked           — in the match-ingestion population (queued candidate,
+ *                       active main, or both).
+ *   Retired           — had mains, MainActivity deactivated all of them (#900).
+ *                       Rows are flagged, never deleted.
+ *   NotAMain          — analysed, but nothing cleared the adaptive IsMain floor.
+ *   CandidateOnly     — in the candidate funnel, never analysed.
+ *   Discovered        — the account exists and nothing else has happened to it.
+ */
+export type AccountPipelineState
+  = | 'NeverDiscovered'
+    | 'SeedRequestedOnly'
+    | 'Invalidated'
+    | 'Tracked'
+    | 'Retired'
+    | 'NotAMain'
+    | 'CandidateOnly'
+    | 'Discovered'
+
+/**
+ * `GET /api/ops/accounts/{nameTag}?region=` — everything the pipeline knows about
+ * one Riot ID. Never 404s: an unknown Riot ID is a populated response in the
+ * `NeverDiscovered` state, because that is an answer this page exists to give.
+ * 400 only on a malformed Riot ID or an unknown region.
+ *
+ * `identity`, `tracking` and `matchesIngested` are `null` together — they all
+ * require a resolved account row.
+ */
+export interface AccountExplorer {
+  query: AccountExplorerQuery
+  state: AccountPipelineState
+  /** The state in a sentence, built server-side. Render it verbatim. */
+  stateDetail: string
+  identity: AccountExplorerIdentity | null
+  /**
+   * Other accounts carrying the same Riot ID. `(gameName, tagLine, platformId)`
+   * is deliberately not unique — Riot IDs are recyclable and collide across
+   * regions — so the resolver picks the most recently active and lists the rest
+   * here instead of arbitrating in silence. Usually empty.
+   */
+  otherAccountsWithSameRiotId: AccountExplorerAccountRef[]
+  tracking: AccountExplorerTracking | null
+  matchesIngested: AccountExplorerMatchesIngested | null
+  /**
+   * `main_candidates` rows, highest score first. Always empty when `identity` is
+   * null: candidates are keyed on (platformId, puuid) and carry no Riot ID, so a
+   * candidate whose account is not upserted yet cannot be found from a Riot ID.
+   */
+  candidates: AccountExplorerCandidate[]
+  /** The manual "add a main" trail — the only reliable manual-seed signal. */
+  seedRequest: SeedRequestReadModel | null
+  mains: AccountExplorerMains
+  /**
+   * Most recent first, capped at 50. At most one row per UTC day, solo queue
+   * only, never pruned — the one series here whose gaps are gaps in play.
+   */
+  rankSnapshots: AccountExplorerRankSnapshot[]
+}
+
+/** The request as the backend resolved it. */
+export interface AccountExplorerQuery {
+  gameName: string
+  tagLine: string
+  /** The requested platform id, or null when the search was region-wide. */
+  region: string | null
+}
+
+/** The resolved account and the per-process freshness stamps. */
+export interface AccountExplorerIdentity {
+  riotAccountId: string
+  puuid: string
+  gameName: string
+  tagLine: string | null
+  platformId: string
+  profileIconId: number
+  summonerLevel: number
+  /** `RiotAccountStatus` name: 'Active' or 'Invalid'. */
+  status: string
+  createdAtUtc: string
+  updatedAtUtc: string
+  /** Last successful account-v1 identity resolution. */
+  lastProfileSyncAtUtc: string | null
+  /** Last successful league-v4 read — stamped even when the rank was unchanged. */
+  lastRankSyncAtUtc: string | null
+  /** Can be newer than every main row's `calculatedAtUtc` — see `analysisSkipped`. */
+  lastMainCalcAtUtc: string | null
+  /** Last *successful* mastery check; a failed lookup leaves it untouched. */
+  lastActivityCheckAtUtc: string | null
+  lastMatchIngestAtUtc: string | null
+  /** Rank sort key from the latest snapshot; `null` = never seen ranked, not 0. */
+  rankScore: number | null
+}
+
+/** One of the other accounts sharing this Riot ID. */
+export interface AccountExplorerAccountRef {
+  riotAccountId: string
+  puuid: string
+  platformId: string
+  status: string
+  lastMatchIngestAtUtc: string | null
+}
+
+/**
+ * Ingest-population membership and lease state. Every threshold that would turn
+ * these into a verdict (claim lease, inactivity window, retained patch count) is
+ * Ingestor config the API cannot see, so this section reports ages and stops —
+ * it never claims a lease is stale. Judge `claimAgeSeconds` against
+ * `MatchIngestion:ClaimLeaseMinutes` (30 by default) yourself.
+ */
+export interface AccountExplorerTracking {
+  /** Derived, not a column: the two membership arms of the ingest claim. */
+  isTracked: boolean
+  trackedVia: 'EstablishedMain' | 'QueuedCandidate' | 'Both' | null
+  hasActiveMain: boolean
+  hasQueuedCandidate: boolean
+  /** `MatchIngestStatus` name: 'Idle' or 'Processing'. */
+  matchIngestStatus: string
+  matchIngestClaimedAtUtc: string | null
+  claimAgeSeconds: number | null
+  lastMatchIngestAtUtc: string | null
+  /** Claimable but its lease has never come up — the queue has not reached it. */
+  neverIngested: boolean
+}
+
+/**
+ * The three game counts that exist, each with the population it counts. They are
+ * not three views of one number and must never be rendered as one: label each.
+ */
+export interface AccountExplorerMatchesIngested {
+  /** Live participant rows: every champion, but bounded by retention. */
+  liveParticipantCount: number
+  /** Measured off the surviving rows, not derived from the retention config. */
+  oldestRetainedGameStartUtc: string | null
+  newestRetainedGameStartUtc: string | null
+  /** Frozen aggregates: survive forever, but cover **main champions only**. */
+  careerGamesFromAggregates: number
+  aggregatedPatchCount: number
+  /** A lower bound: a scope records its most recent game, not its first. */
+  oldestAggregatedGameStartUtc: string | null
+  /** Last MainAnalysis pass's sample size, capped at 50. A ceiling, not a total. */
+  lastAnalysisSampleSize: number | null
+  /**
+   * True when the frozen aggregates prove games existed that the live rows no
+   * longer hold. **False does not mean nothing was pruned** — the aggregates only
+   * cover main champions. Render `prunedNote` either way; never show a bare 0.
+   */
+  pruned: boolean
+  prunedNote: string
+}
+
+/** One `main_candidates` row and what the scorer had to work with. */
+export interface AccountExplorerCandidate {
+  id: string
+  championId: number
+  status: MainCandidateStatus
+  /**
+   * `MainCandidateSource` name. `ManualSeed` is never assigned in production —
+   * ManualSeedProcess reuses the ladder upsert — so a manually seeded candidate
+   * reads `Ladder`. Read `seedRequest` for the manual trail.
+   */
+  source: 'Ladder' | 'ManualSeed' | 'Harvest'
+  score: number
+  /**
+   * The persisted inputs. The score's **components are not stored** — only the
+   * final blend — so they cannot be shown, and recomputing them would mix today's
+   * scarcity snapshot into a number produced against an older one.
+   */
+  scoreInputs: AccountExplorerCandidateScoreInputs
+  discoveredAtUtc: string
+  scoredAtUtc: string | null
+  validatedAtUtc: string | null
+}
+
+/** Ladder candidates carry mastery rank/points; harvest ones carry observed games. */
+export interface AccountExplorerCandidateScoreInputs {
+  lastPlayTimeUtc: string
+  championRankInMasteryTop: number
+  championPoints: number
+  observedGames: number
+  /** Persisted but not a scoring input yet. */
+  observedWins: number
+}
+
+export interface AccountExplorerMains {
+  rows: AccountExplorerMainRow[]
+  thresholds: AccountExplorerMainThresholds
+}
+
+/** The configured MainAnalysis thresholds a row's verdict should be read against. */
+export interface AccountExplorerMainThresholds {
+  /** Base play rate required for a well-covered champion (0.20). */
+  playRateThreshold: number
+  /** Lowest the adaptive threshold can drop to (0.12, #407). */
+  playRateFloor: number
+  otpPlayRateThreshold: number
+  /** Below this, MainAnalysis refuses to overwrite an established main (#825). */
+  minMatchesToEvaluate: number
+  /** Why only a band is given. Render it next to the numbers. */
+  effectiveThresholdNote: string
+}
+
+/** One `main_champion_stats` row. */
+export interface AccountExplorerMainRow {
+  championId: number
+  /** The pass's sample size, not the account's total. */
+  totalMatches: number
+  championMatches: number
+  playRate: number
+  isMain: boolean
+  isOtp: boolean
+  /** A main only thanks to the coverage-relaxed floor (#407). */
+  isExtendedSample: boolean
+  isActive: boolean
+  primaryPosition: string
+  positionBreakdown: AccountExplorerPositionStat[]
+  calculatedAtUtc: string
+  /**
+   * The last MainAnalysis run is newer than this row: the process looked and
+   * declined to overwrite (thin-sample guard, #825). Not a stale-data bug.
+   */
+  analysisSkipped: boolean
+  /** Null while active. */
+  deactivation: AccountExplorerDeactivation | null
+}
+
+/** What is knowable about a retired main row — which is less than one would like. */
+export interface AccountExplorerDeactivation {
+  /**
+   * The account's last *successful* mastery check. Null means the retirement was
+   * never confirmed by a completed check, since a failed lookup leaves both the
+   * flag and the stamp untouched.
+   */
+  confirmedByActivityCheckAtUtc: string | null
+  /** Always false: there is no retirement-reason column. */
+  reasonKnown: boolean
+  /** The two causes the boolean collapses together, spelled out. Render it. */
+  reasonNote: string
+}
+
+export interface AccountExplorerPositionStat {
+  position: string
+  games: number
+  rate: number
+}
+
+/** One `rank_snapshots` row. */
+export interface AccountExplorerRankSnapshot {
+  capturedAtUtc: string
+  tier: string
+  division: string
+  leaguePoints: number
+  /** Null on snapshots taken before queue totals were recorded. */
+  wins: number | null
+  losses: number | null
+}
+
+// =============================================================================
+// Effective configuration viewer — `GET /api/ops/configuration` (#1034)
+// =============================================================================
+
+/**
+ * Where a bound value came from (#1034). `default` — no provider supplies the key,
+ * the value is the class default. `override` — a provider supplies it; `source`
+ * names which one. `derived` — no provider supplies it, yet the value differs from
+ * the class default, so something computed it at boot.
+ */
+export type EffectiveConfigurationOrigin = 'default' | 'override' | 'derived'
+
+/** How to read an effective-configuration value's number. */
+export type EffectiveConfigurationUnit = 'bytes' | 'duration' | 'count' | 'percent' | 'flag' | 'list' | 'text'
+
+/** One bound option, as the process holds it. */
+export interface EffectiveConfigurationValue {
+  /** Fully-qualified configuration key, e.g. `StorageHistory:DiskCapacityBytes`. */
+  key: string
+  /** The property name alone, e.g. `DiskCapacityBytes`. */
+  name: string
+  /** The pasteable-back-into-configuration form. Null when the option is unset. */
+  value: string | null
+  /** The humanised form ("90 days", "1.0 TB"), or null when it would repeat `value`. */
+  valueLabel: string | null
+  origin: EffectiveConfigurationOrigin
+  /** Which provider supplied an override, e.g. `environment`. Null for `default`/`derived`. */
+  source: string | null
+  unit: EffectiveConfigurationUnit
+  /** Set when the value is unset and that has a visible consequence elsewhere in the portal. */
+  notice: string | null
+}
+
+/** One configuration section's worth of values, with the prose explaining what it drives. */
+export interface EffectiveConfigurationSection {
+  /** The configuration key prefix, e.g. `StorageHistory`. */
+  name: string
+  title: string
+  description: string
+  values: EffectiveConfigurationValue[]
+}
+
+/** One process's snapshot: which build, which environment, and its sections. */
+export interface EffectiveConfigurationProcess {
+  /** Which host bound these values — `Api` or `Ingestor`. */
+  processName: string
+  environment: string
+  /** The build this process is running, or null for a plain local build. */
+  version: string | null
+  /**
+   * When this snapshot was taken. For the Api this is always "now" — it is built
+   * live on every request. For the Ingestor it is the boot time of its last run:
+   * still what that process is running, even if older than the last deploy.
+   */
+  capturedAtUtc: string
+  sections: EffectiveConfigurationSection[]
+}
+
+/** `GET /api/ops/configuration` — what every host is actually running with. */
+export interface EffectiveConfigurationOverviewResponse {
+  processes: EffectiveConfigurationProcess[]
+}
