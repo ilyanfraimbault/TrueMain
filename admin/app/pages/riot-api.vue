@@ -595,19 +595,23 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
             </div>
           </template>
           <template #methodLimit-cell="{ row }">
-            <div v-if="methodRateBucket(row.original)" class="w-32">
-              <div class="flex items-center justify-between text-xs text-muted tabular-nums">
-                <span>per {{ formatWindowSeconds(methodRateBucket(row.original)!.windowSeconds) }}</span>
-                <span>{{ formatNumber(methodRateBucket(row.original)!.count) }} / {{ formatNumber(methodRateBucket(row.original)!.limit) }}</span>
+            <!-- `[methodRateBucket(...)]` computes it exactly once per row; the single
+                 iteration then branches on `bucket` instead of recomputing it. -->
+            <template v-for="bucket in [methodRateBucket(row.original)]" :key="row.original.endpoint">
+              <div v-if="bucket" class="w-32">
+                <div class="flex items-center justify-between text-xs text-muted tabular-nums">
+                  <span>per {{ formatWindowSeconds(bucket.windowSeconds) }}</span>
+                  <span>{{ formatNumber(bucket.count) }} / {{ formatNumber(bucket.limit) }}</span>
+                </div>
+                <UProgress
+                  :model-value="bucket.count"
+                  :max="bucket.limit || 1"
+                  :color="rateColor(bucket.count, bucket.limit)"
+                  size="sm"
+                />
               </div>
-              <UProgress
-                :model-value="methodRateBucket(row.original)!.count"
-                :max="methodRateBucket(row.original)!.limit || 1"
-                :color="rateColor(methodRateBucket(row.original)!.count, methodRateBucket(row.original)!.limit)"
-                size="sm"
-              />
-            </div>
-            <span v-else class="text-sm text-muted">—</span>
+              <span v-else class="text-sm text-muted">—</span>
+            </template>
           </template>
           <template #lastCalledAtUtc-cell="{ row }">
             <div class="text-right text-sm text-muted">

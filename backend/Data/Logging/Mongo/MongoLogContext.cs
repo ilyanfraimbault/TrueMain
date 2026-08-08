@@ -247,19 +247,8 @@ public sealed class MongoLogContext : IDisposable
         // to include callerProcess, so two different callers landing in the same
         // minute/endpoint/status now upsert two documents instead of one. The old
         // 3-field unique index would reject the second as a duplicate key, so it
-        // must be dropped before the new 4-field one is created — best-effort, since
-        // a fresh database never had it. IndexNotFound is not exposed as a distinct
-        // exception type by the driver, so any command failure here is swallowed:
-        // the create below is what actually matters, and it will surface a real
-        // Mongo problem on its own.
-        try
-        {
-            await RiotApiCallRollups.Indexes.DropOneAsync("ux_bucket_endpoint_status", ct);
-        }
-        catch
-        {
-            // Index absent (fresh database) or already dropped by a prior run.
-        }
+        // must be dropped before the new 4-field one is created.
+        await DropIndexIfExistsAsync(RiotApiCallRollups, "ux_bucket_endpoint_status", ct);
 
         var models = new List<CreateIndexModel<RiotApiCallRollupDocument>>
         {
