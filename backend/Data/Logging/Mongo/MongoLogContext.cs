@@ -48,6 +48,8 @@ public sealed class MongoLogContext : IDisposable
             _database.GetCollection<DbTableSizeSnapshotDocument>(_options.DbTableSizeSnapshotsCollection);
         ProcessRuns = _database.GetCollection<ProcessRunDocument>(_options.ProcessRunsCollection);
         SeedRequests = _database.GetCollection<SeedRequestDocument>(_options.SeedRequestsCollection);
+        EffectiveConfigurations = _database.GetCollection<EffectiveConfigurationDocument>(
+            _options.EffectiveConfigurationCollection);
     }
 
     /// <summary>True when a Mongo client was created (logging enabled + connection string present).</summary>
@@ -126,6 +128,17 @@ public sealed class MongoLogContext : IDisposable
     /// resolved by the Ingestor's <c>ManualSeedProcess</c>, read by the admin.
     /// </summary>
     public IMongoCollection<SeedRequestDocument> SeedRequests
+    {
+        get => field ?? throw Inactive();
+        private init;
+    }
+
+    /// <summary>
+    /// One effective-configuration snapshot per process (#1034): published by the Ingestor at
+    /// each boot, read by the Api to serve the admin configuration page. The Api's own half of
+    /// that page is built live from its container and never goes through here.
+    /// </summary>
+    public IMongoCollection<EffectiveConfigurationDocument> EffectiveConfigurations
     {
         get => field ?? throw Inactive();
         private init;
@@ -392,6 +405,29 @@ public sealed class MongoLogContext : IDisposable
         };
 
         await SeedRequests.Indexes.CreateManyAsync(models, ct);
+    }
+
+    /// <summary>
+    /// Creates the supporting index for the <c>effective_configuration</c> collection
+    /// idempotently (#1034): a unique ascending index on <c>processName</c>, which is the whole
+    /// key — the collection holds exactly one document per process and every boot overwrites
+    /// it. Unique so two overlapping ingestor containers during a redeploy cannot split a
+    /// process into duplicate snapshots that the page would then render twice. No TTL: this is
+    /// functional operator state, like <c>seed_requests</c>. Called by the store's first-use
+    /// bootstrap; safe to re-run.
+    /// </summary>
+    public async Task EnsureEffectiveConfigurationIndexesAsync(CancellationToken ct)
+    {
+        if (!IsActive)
+        {
+            return;
+        }
+
+        await EffectiveConfigurations.Indexes.CreateOneAsync(
+            new CreateIndexModel<EffectiveConfigurationDocument>(
+                Builders<EffectiveConfigurationDocument>.IndexKeys.Ascending(doc => doc.ProcessName),
+                new CreateIndexOptions { Name = "ux_process", Unique = true }),
+            cancellationToken: ct);
     }
 
     /// <summary>
