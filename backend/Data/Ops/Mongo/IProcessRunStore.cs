@@ -131,6 +131,20 @@ public interface IProcessRunStore
         IReadOnlyCollection<string> processNames,
         bool onlySuccesses,
         CancellationToken ct);
+
+    /// <summary>
+    /// How many terminal (non-Running) runs of <paramref name="processName"/> started
+    /// strictly after <paramref name="afterUtc"/>; null counts every terminal run.
+    /// </summary>
+    /// <remarks>
+    /// Pass the process's last successful finish and the count <em>is</em> its current
+    /// failure streak — every terminal run since a success is by definition not one. Kept a
+    /// count rather than folded into <see cref="GetRollupsAsync"/> because the streak needs
+    /// the last-success timestamp that rollup computes in the same <c>$group</c>, and
+    /// because the cockpit (#1031) only asks it of processes whose latest run did not
+    /// succeed — usually none, so the healthy case costs nothing.
+    /// </remarks>
+    Task<long> CountTerminalRunsSinceAsync(string processName, DateTime? afterUtc, CancellationToken ct);
 }
 
 /// <summary>

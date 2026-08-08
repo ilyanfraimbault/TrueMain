@@ -118,4 +118,10 @@ public sealed class FakeProcessRunStore : IProcessRunStore
         bool onlySuccesses,
         CancellationToken ct)
         => Task.FromResult<IReadOnlyList<ProcessRunDocument>>([]);
+
+    public Task<long> CountTerminalRunsSinceAsync(string processName, DateTime? afterUtc, CancellationToken ct)
+        => Task.FromResult((long)Runs.Count(run =>
+            run.ProcessName == processName
+            && run.Status != ProcessRunStatus.Running
+            && (afterUtc is null || run.StartedAtUtc > afterUtc.Value)));
 }

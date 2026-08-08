@@ -12,6 +12,9 @@
 // the next one stays a backend-only change and this component never branches on
 // `key`.
 import type { DataQualityDetector, DataQualityThreshold, DetectorStatus } from '~~/shared/types/ops'
+// One dot, one colour, one word — the status vocabulary is shared with the health
+// cockpit's tiles (#1031) so the two panels cannot drift apart on what amber means.
+import { detectorStatusMeta, detectorValueClass } from '~~/shared/utils/detector-status'
 
 const props = defineProps<{
   detector: DataQualityDetector
@@ -23,20 +26,7 @@ const emit = defineEmits<{ drillDown: [] }>()
 
 const expanded = ref(false)
 
-// One dot, one colour, one word — the status is stated once. `unknown` is
-// neutral: not a pass and not an alarm, it says "not measured", and dressing it
-// as either would be the dashboard lying.
-const STATUS_META: Record<DetectorStatus, { dot: string, text: string, label: string }> = {
-  green: { dot: 'bg-success', text: 'text-success', label: 'Passing' },
-  amber: { dot: 'bg-warning', text: 'text-warning', label: 'Needs attention' },
-  red: { dot: 'bg-error', text: 'text-error', label: 'Failing' },
-  // A literal neutral rather than a semantic background token: `bg-muted` is a
-  // surface colour and a 8px dot painted in it is invisible against the card,
-  // which would leave an unmeasured check looking like a check with no verdict.
-  unknown: { dot: 'bg-neutral-400 dark:bg-neutral-500', text: 'text-dimmed', label: 'Not measured' },
-}
-
-const meta = computed(() => STATUS_META[props.detector.status] ?? STATUS_META.unknown)
+const meta = computed(() => detectorStatusMeta(props.detector.status))
 
 // Rows worth surfacing without a click: anything not green. A clean detector
 // collapses to its headline, so the list reads as a list of problems rather than
@@ -44,10 +34,8 @@ const meta = computed(() => STATUS_META[props.detector.status] ?? STATUS_META.un
 const notableRows = computed(() => props.detector.rows.filter(row => row.status !== 'green'))
 const visibleRows = computed(() => (expanded.value ? props.detector.rows : notableRows.value))
 
-// Colour on a value means "this reading is off". A healthy row inside the
-// expanded list stays neutral so the expand doesn't repaint the page.
 function rowValueClass(status: DetectorStatus): string {
-  return status === 'green' ? 'text-muted' : STATUS_META[status]?.text ?? 'text-dimmed'
+  return detectorValueClass(status)
 }
 
 function formatLevel(value: number, unit: DataQualityThreshold['unit']): string {
