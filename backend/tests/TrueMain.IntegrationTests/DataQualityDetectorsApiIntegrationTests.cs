@@ -221,7 +221,12 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
         payload.Champions[0].ChampionId.Should().Be(266, "the stalest champion leads the breakdown");
         payload.Champions[0].Status.Should().Be("red");
         payload.StaleChampionCount.Should().Be(1);
-        payload.ChampionCount.Should().Be(2);
+        payload.ChampionCount.Should().Be(
+            3,
+            "the breakdown must find scopes written in either GameVersion form, not just the one it assumes");
+        payload.Patches.Should().Equal("16.15", "both stored forms normalise onto the same patch");
+        payload.Champions.Select(champion => champion.ChampionId)
+            .Should().Contain(12, "a scope stored with the raw four-segment version still belongs to the patch");
     }
 
     [Fact]
@@ -372,6 +377,10 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
         // Aatrox aggregated three days ago (past the 24 h red line), Ahri an hour ago.
         db.ChampionAggregateScopes.Add(BuildScope(account.Id, championId: 266, now.AddDays(-3)));
         db.ChampionAggregateScopes.Add(BuildScope(account.Id, championId: 103, now.AddHours(-1)));
+        // Alistar on the raw four-segment version. It normalises onto the same patch as
+        // the two above, so the breakdown must both find it and fold it into one patch.
+        db.ChampionAggregateScopes.Add(
+            BuildScope(account.Id, championId: 12, now.AddHours(-1), gameVersion: "16.15.1.1"));
 
         await db.SaveChangesAsync();
     }
@@ -440,12 +449,20 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
         SkillEvents = []
     };
 
-    private static ChampionAggregateScope BuildScope(Guid accountId, int championId, DateTime aggregatedAt) => new()
+    // gameVersion defaults to the form the aggregation actually writes (normalised on
+    // write). The raw four-segment form is passed explicitly by the freshness test, which
+    // has to cover both: filtering on an assumed shape rather than on the stored values is
+    // what silently emptied the breakdown in production.
+    private static ChampionAggregateScope BuildScope(
+        Guid accountId,
+        int championId,
+        DateTime aggregatedAt,
+        string gameVersion = "16.15") => new()
     {
         Id = Guid.NewGuid(),
         RiotAccountId = accountId,
         ChampionId = championId,
-        GameVersion = "16.15.1",
+        GameVersion = gameVersion,
         PlatformId = "EUW1",
         QueueId = (int)LolQueueId.RankedSoloDuo,
         Position = "MIDDLE",
@@ -502,6 +519,7 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
 
     private sealed class FreshnessContract
     {
+        public IReadOnlyList<string> Patches { get; init; } = [];
         public IReadOnlyList<ChampionFreshnessContract> Champions { get; init; } = [];
         public int ChampionCount { get; init; }
         public int StaleChampionCount { get; init; }
