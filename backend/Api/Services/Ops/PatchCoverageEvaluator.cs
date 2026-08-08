@@ -59,16 +59,34 @@ internal static class PatchCoverageEvaluator
     /// they are never collapsed into one "low coverage" state.
     ///
     /// <para>
+    /// <paramref name="aggregateRows"/> is deliberately a different question from
+    /// <paramref name="lines"/>. Whether the fold has <em>run</em> is answered by any scope
+    /// row at all, including the lane-less sentinel rows the ranked directory drops;
+    /// whether the patch is <em>rankable</em> is answered by the lane-bearing lines only.
+    /// Deciding "not aggregated" from the line count would label a patch whose scope rows
+    /// happen to carry no lane as unaggregated, which is the one thing it is not.
+    /// </para>
+    ///
+    /// <para>
     /// Severity depends on whether the patch is the one being served. A thin patch nobody
     /// reads is history; a thin patch behind today's tier list is the site publishing a
     /// ranking it cannot support, which is red.
     /// </para>
     /// </summary>
-    public static PatchCoverageVerdict ReadVerdict(long matches, long lines, long linesPastFloor, double bar, bool isServed)
-        => (matches, lines) switch
+    public static PatchCoverageVerdict ReadVerdict(
+        long matches,
+        long aggregateRows,
+        long lines,
+        long linesPastFloor,
+        double bar,
+        bool isServed)
+        => (matches, aggregateRows) switch
         {
             (<= 0, <= 0) => new PatchCoverageVerdict("unknown", DetectorStatus.Unknown, Judged: false),
             (_, <= 0) => new PatchCoverageVerdict("notAggregated", DetectorStatus.Amber, Judged: false),
+            // Aggregated but with nothing the directory can rank. Thin, not unaggregated:
+            // the fold ran, and what it produced still cannot carry a patch-scoped page.
+            _ when lines <= 0 => new PatchCoverageVerdict("thin", isServed ? DetectorStatus.Red : DetectorStatus.Amber, Judged: true),
             _ when linesPastFloor >= bar => new PatchCoverageVerdict("servable", DetectorStatus.Green, Judged: true),
             _ => new PatchCoverageVerdict("thin", isServed ? DetectorStatus.Red : DetectorStatus.Amber, Judged: true)
         };

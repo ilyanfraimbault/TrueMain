@@ -206,8 +206,12 @@ public sealed class PatchCoverageQueryService(
         var matches = ingestion?.Matches ?? 0;
         var lines = coverage?.Lines ?? 0;
         var linesPastFloor = coverage?.LinesPastFloor ?? 0;
+        // Every scope row on the patch, lane-less sentinels included. "Has the fold run"
+        // and "is the patch rankable" are different questions and need different counts.
+        var aggregateRows = coverage?.BuildRows ?? 0;
 
-        var verdict = PatchCoverageEvaluator.ReadVerdict(matches, lines, linesPastFloor, bar.Value, isCurrent);
+        var verdict = PatchCoverageEvaluator.ReadVerdict(
+            matches, aggregateRows, lines, linesPastFloor, bar.Value, isCurrent);
 
         // Worded from the verdict, never computed from the count alone: a sentence that
         // says "142 lines clear the floor" beside an amber badge leaves the reader to
@@ -221,6 +225,11 @@ public sealed class PatchCoverageQueryService(
             "servable" => string.Create(
                 CultureInfo.InvariantCulture,
                 $"{linesPastFloor} of {lines} (champion, lane) lines clear the {floor}-game floor, at or above the bar of {bar.Value:F0} — enough for the directory and tier list to rank on."),
+            // Aggregated, and still with nothing to rank. Worth its own sentence: the
+            // generic thin wording would print "0 of 0 lines", which reads as a bug.
+            "thin" when lines <= 0 => string.Create(
+                CultureInfo.InvariantCulture,
+                $"{aggregateRows} aggregate row(s) on this patch and not one carries a lane, so the directory and tier list have nothing to rank. Aggregated, not rankable."),
             _ => string.Create(
                 CultureInfo.InvariantCulture,
                 $"Only {linesPastFloor} of {lines} (champion, lane) lines clear the {floor}-game floor, against a bar of {bar.Value:F0}{(isCurrent ? " — and this is the patch the site serves, so the tier list is ranking on those lines" : string.Empty)}.")

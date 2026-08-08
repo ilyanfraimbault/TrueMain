@@ -17,17 +17,32 @@ public sealed class PatchCoverageEvaluatorTests
         // The whole point of the view. Both report zero servable lines and they call for
         // opposite reactions: one is a fold that has not run, the other is a patch that
         // genuinely lacks games.
-        var unaggregated = PatchCoverageEvaluator.ReadVerdict(matches: 500, lines: 0, linesPastFloor: 0, bar: 100, isServed: false);
-        var thin = PatchCoverageEvaluator.ReadVerdict(matches: 500, lines: 40, linesPastFloor: 3, bar: 100, isServed: false);
+        var unaggregated = PatchCoverageEvaluator.ReadVerdict(matches: 500, aggregateRows: 0, lines: 0, linesPastFloor: 0, bar: 100, isServed: false);
+        var thin = PatchCoverageEvaluator.ReadVerdict(matches: 500, aggregateRows: 900, lines: 40, linesPastFloor: 3, bar: 100, isServed: false);
 
         unaggregated.Verdict.Should().Be("notAggregated");
         thin.Verdict.Should().Be("thin");
     }
 
     [Fact]
+    public void ReadVerdict_CallsAnAggregatedButLanelessPatchThin_NotUnaggregated()
+    {
+        // "Has the fold run" is answered by any scope row, including the lane-less
+        // sentinels the ranked directory drops; "is the patch rankable" is answered by the
+        // lane-bearing lines only. Reading the first question off the second would label a
+        // patch whose rows happen to carry no lane as unaggregated — the one thing it is
+        // not, and it would send an operator looking for a fold that already ran.
+        var verdict = PatchCoverageEvaluator.ReadVerdict(
+            matches: 500, aggregateRows: 900, lines: 0, linesPastFloor: 0, bar: 100, isServed: true);
+
+        verdict.Verdict.Should().Be("thin");
+        verdict.Judged.Should().BeTrue();
+    }
+
+    [Fact]
     public void ReadVerdict_ReadsAnEmptyPatchAsUnknown_NeverAsAPass()
     {
-        var verdict = PatchCoverageEvaluator.ReadVerdict(matches: 0, lines: 0, linesPastFloor: 0, bar: 100, isServed: false);
+        var verdict = PatchCoverageEvaluator.ReadVerdict(matches: 0, aggregateRows: 0, lines: 0, linesPastFloor: 0, bar: 100, isServed: false);
 
         // Nothing was ingested and nothing was aggregated, so there is no reading. Green
         // here would be a dashboard reporting health on a patch it never measured.
@@ -39,8 +54,8 @@ public sealed class PatchCoverageEvaluatorTests
     [Fact]
     public void ReadVerdict_RaisesAThinPatchToRed_OnlyWhenItIsTheOneBeingServed()
     {
-        var served = PatchCoverageEvaluator.ReadVerdict(matches: 500, lines: 40, linesPastFloor: 3, bar: 100, isServed: true);
-        var historical = PatchCoverageEvaluator.ReadVerdict(matches: 500, lines: 40, linesPastFloor: 3, bar: 100, isServed: false);
+        var served = PatchCoverageEvaluator.ReadVerdict(matches: 500, aggregateRows: 900, lines: 40, linesPastFloor: 3, bar: 100, isServed: true);
+        var historical = PatchCoverageEvaluator.ReadVerdict(matches: 500, aggregateRows: 900, lines: 40, linesPastFloor: 3, bar: 100, isServed: false);
 
         // A thin patch nobody reads is history; a thin patch behind today's tier list is
         // the site publishing a ranking it cannot support.
@@ -54,7 +69,7 @@ public sealed class PatchCoverageEvaluatorTests
         // Reaching the bar is `>=`, matching every other threshold on the ops panels. An
         // off-by-one here reads as "one line short" on a patch that is exactly at the bar.
         PatchCoverageEvaluator
-            .ReadVerdict(matches: 500, lines: 200, linesPastFloor: 100, bar: 100, isServed: true)
+            .ReadVerdict(matches: 500, aggregateRows: 900, lines: 200, linesPastFloor: 100, bar: 100, isServed: true)
             .Verdict.Should().Be("servable");
     }
 

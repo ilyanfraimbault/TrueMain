@@ -224,7 +224,11 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
         payload.ChampionCount.Should().Be(
             3,
             "the breakdown must find scopes written in either GameVersion form, not just the one it assumes");
-        payload.Patches.Should().Equal("16.15", "both stored forms normalise onto the same patch");
+        // ContainSingle().Which rather than Equal(): `Equal("16.15", "because …")` binds to
+        // the params overload, so the reason is read as a second expected patch.
+        payload.Patches.Should()
+            .ContainSingle("both stored forms normalise onto the same patch")
+            .Which.Should().Be("16.15");
         payload.Champions.Select(champion => champion.ChampionId)
             .Should().Contain(12, "a scope stored with the raw four-segment version still belongs to the patch");
     }
