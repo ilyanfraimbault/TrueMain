@@ -15,6 +15,7 @@ import type {
   CrashesResponse,
   DbStorageHistory,
   DbTableRow,
+  EffectiveConfigurationOverviewResponse,
   IncompleteMatchesFilters,
   IncompleteMatchesResponse,
   IngestionTimeGranularity,
@@ -278,6 +279,15 @@ export function useDataQualityDetectors() {
  */
 export function getAggregateFreshness() {
   return $fetch<AggregateFreshnessResponse>('/api/ops/data-quality/aggregate-freshness')
+}
+
+/**
+ * `GET /api/ops/configuration` — what every host is actually running with
+ * (#1034): the Api's own options, read live, plus the Ingestor's, published to
+ * Mongo at its own boot. Takes no filters.
+ */
+export function useEffectiveConfiguration() {
+  return useOps<EffectiveConfigurationOverviewResponse>('/configuration')
 }
 
 /**
