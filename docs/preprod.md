@@ -58,9 +58,15 @@ vim .env
 docker compose up -d
 ```
 
+The API container will not create the schema itself (migrations are applied
+out-of-band, not on startup — see below): run the `Deploy Preprod` workflow
+once via `gh workflow run deploy-preprod.yml` (or the Actions UI) right after
+this first bring-up, so `migrate-preprod` creates the schema before the API
+is expected to serve traffic.
+
 The compose file uses `truemain_preprod_*` volume names, so even on the old
-production host the stack starts from a virgin Postgres/Mongo. The API applies
-EF migrations on startup (`Database__ApplyMigrationsOnStartup=true`); the
+production host the stack starts from a virgin Postgres/Mongo. Migrations are
+applied by the `migrate-preprod` CI job (see below), not at API startup; the
 ingestor then populates the database over its cycles.
 
 Exposed ports (HTTP, no TLS — restrict by firewall to trusted IPs):
@@ -102,6 +108,38 @@ locally and pulls + recreates the containers — a bare `:preprod` would leave
 the previous image running, since redeploying an unchanged mutable tag never
 recreates anything (#765). `IMAGE_TAG` is unset outside CI, so the manual
 fallback below (and a first bring-up) resolves to `:preprod` as before.
+
+### Applying migrations before the deploy
+
+The `migrate-preprod` job runs between `publish-preprod` and `deploy-preprod`
+and applies pending EF migrations as an idempotent SQL script — see
+`docs/production-migrations.md` for why this replaced startup migrations.
+Unlike the `deploy-preprod` guard on `PREPROD_ENV_FILE`, this one fails the
+job (not a green skip) when its secrets are missing: since
+`Database__ApplyMigrationsOnStartup` is permanently `false` in
+`compose.preprod.yaml`, letting `deploy-preprod` proceed without a migration
+attempt would silently roll a new image against a possibly-stale schema.
+
+| Kind     | Name                   | Value                                                        |
+| -------- | ---------------------- | ------------------------------------------------------------ |
+| secret   | `PREPROD_SSH_HOST`     | the preprod VPS address (same host `ssh preprod` in `~/.ssh/config` points at) |
+| secret   | `PREPROD_SSH_KEY`      | private key for a dedicated CI-only key authorized as `root` on the VPS, **not** the personal `~/.ssh/id_ed25519` — same `root` account (Docker group membership is root-equivalent anyway), but a separately revocable key |
+| variable | `PREPROD_SSH_HOST_KEY` | the VPS's SSH host public key, `known_hosts` format (pin this instead of trusting `ssh-keyscan` fresh on every run) |
+
+Postgres is only bound to `127.0.0.1:5432` on the VPS, so the job connects
+over SSH and pipes the generated script into `psql` running inside the
+already-live `truemain-preprod-postgres` container, using the
+`POSTGRES_USER`/`POSTGRES_DB` already set in `/docker/truemain-preprod/.env`.
+`deploy-preprod` depends on this job succeeding, so a failed or skipped
+migration blocks the image roll.
+
+`PREPROD_SSH_KEY`'s public half is installed in the VPS's
+`~/.ssh/authorized_keys` with a forced `command=/usr/local/bin/apply-migration.sh`
+(plus `no-pty`/`no-port-forwarding`/`no-agent-forwarding`/`no-X11-forwarding`) —
+whatever the CI step sends as a remote command is ignored, so a leaked key
+can only ever pipe SQL into that one fixed `psql` invocation, never get a
+general root shell. The script itself (owning the container name and compose
+path) lives on the VPS, not in the workflow.
 
 ### Manual fallback
 

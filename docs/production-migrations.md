@@ -7,10 +7,11 @@
   `Database:ApplyMigrationsOnStartup` (env var
   `Database__ApplyMigrationsOnStartup`), which is `true` in the dev compose
   files and in `appsettings.Development.json`.
-- **Production:** prefer applying an **idempotent SQL script** generated from
-  the migrations as a discrete deployment step, with
-  `Database__ApplyMigrationsOnStartup` set to `false`. The script can be
-  reviewed, archived, handed to a DBA, and rolled back in a controlled way.
+- **Preprod and production:** an **idempotent SQL script** generated from the
+  migrations is applied as a discrete deployment step, by the
+  `migrate-preprod`/`migrate-prod` jobs in `deploy-preprod.yml`/`deploy-prod.yml`,
+  before the new images roll. `Database__ApplyMigrationsOnStartup` is `false`
+  in both `compose.preprod.yaml` and `compose.prod.yaml`.
 
 This doc covers issue #246. It documents the production path; the startup
 behaviour itself is already gated by `DatabaseOptions.ApplyMigrationsOnStartup`
@@ -64,17 +65,27 @@ dotnet ef migrations script \
 
 - `--idempotent` makes the script safe to run regardless of the database's
   current migration state.
-- The design-time factory builds its connection from configuration / user
-  secrets / environment, or you can pass `--connection "<conn>"`. Generating the
-  script does **not** require a reachable database.
+- `dotnet ef migrations script` has no `--connection` flag (unlike `database
+  update`/`dbcontext scaffold`) — `DesignTimeDbContextFactory` still needs a
+  syntactically valid connection string to build against, so on a runner with
+  no real database reachable, supply one via the `ConnectionStrings__TrueMain`
+  environment variable instead — `DesignTimeDbContextFactory` layers
+  appsettings/user-secrets/environment, with environment variables taking
+  precedence, so this doesn't require touching any file. Generating the
+  script does **not** require a reachable database — the string never has to
+  resolve to anything real.
 
-Always open and review the generated SQL before it leaves CI — confirm there
-are no unintended `DROP`s and no destructive data operations.
+Always open and review the generated SQL before it applies — confirm there
+are no unintended `DROP`s and no destructive data operations. The
+`migrate-preprod`/`migrate-prod` jobs print the full script to the job log
+(`::group::migration.sql`) and upload it as a build artifact (90-day
+retention) before applying it, so both runs leave an auditable record —
+see "CI wiring" below.
 
 ### Apply the script
 
-Run the reviewed script against the target database as a deployment step,
-**before** the new application image starts:
+The general shape, if you had a direct connection string to the target
+database:
 
 ```bash
 psql "$PRODUCTION_CONNECTION_STRING" --single-transaction -f truemain.sql
@@ -85,34 +96,75 @@ that a small number of migration operations cannot run inside a transaction
 (for example operations that alter the database itself); EF isolates those into
 their own migrations, but keep it in mind when reviewing.
 
-## Suggested CI wiring
+Neither VPS exposes a connection string reachable from CI (see "CI wiring"
+below), so the actual `migrate-preprod`/`migrate-prod` jobs pipe the script
+into `psql` inside the running container over SSH instead — same
+`--single-transaction` flag, different transport.
 
-The exact CI/deploy mechanics are an owner decision (see the "Open decisions"
-section). A workable shape:
+## CI wiring
 
-1. **Build stage** — generate the idempotent script and publish it as a build
-   artifact:
+Both `deploy-preprod.yml` (on every push to `develop`) and `deploy-prod.yml`
+(on every published release) run three jobs in sequence: publish images →
+apply migrations → roll the VPS. The deploy job depends on the migrate job
+succeeding, so a failed or aborted migration blocks the image roll instead of
+shipping a schema mismatch. Preprod runs this on every merge to `develop`,
+so it is the first place a bad migration script shows up — before it ever
+reaches prod.
+
+The migrate job, in each workflow:
+
+1. Fails immediately if its SSH secrets are missing — deliberately not a
+   green skip. Now that `ApplyMigrationsOnStartup` is permanently `false`,
+   letting the deploy job proceed without attempting the migration would
+   silently roll a new image against a possibly-stale schema, which is
+   exactly the failure mode this whole change exists to prevent.
+2. Restores `Data.csproj` (a plain checkout has no `obj/project.assets.json`
+   yet, and `dotnet ef` does not restore on its own), then generates the
+   idempotent script from the deployed commit/tag's checkout.
+   `dotnet ef migrations script` never opens a connection, but
+   `DesignTimeDbContextFactory` still requires a syntactically valid
+   connection string to build against — and unlike `database update`/
+   `dbcontext scaffold`, `migrations script` has no `--connection` flag — so
+   the runner (which has no real database reachable, let alone credentials)
+   is given a throwaway one via the `ConnectionStrings__TrueMain` environment
+   variable:
 
    ```yaml
+   - name: Restore Data project
+     working-directory: backend
+     run: dotnet restore Data/Data.csproj
+
    - name: Generate idempotent migration script
      working-directory: backend
+     env:
+       ConnectionStrings__TrueMain: Host=localhost;Port=5432;Database=truemain;Username=truemain;Password=truemain
      run: |
        dotnet ef migrations script --idempotent \
          --project Data/Data.csproj --startup-project Data/Data.csproj \
-         --output "$GITHUB_WORKSPACE/artifacts/migrations/truemain.sql"
-   - uses: actions/upload-artifact@v4
-     with:
-       name: migration-script
-       path: artifacts/migrations/truemain.sql
+         --output "$RUNNER_TEMP/migration.sql"
    ```
 
-2. **Deploy stage** — download the artifact, apply it against production with a
-   restricted migration credential, then roll the application image. Keep
-   `Database__ApplyMigrationsOnStartup=false` for the production services so the
-   app never migrates on its own.
+3. Prints the script to the job log and uploads it as a build artifact
+   (90-day retention) — an auditable record of exactly what ran, since
+   nothing else in this path shows the SQL before it applies.
+4. Applies it over SSH by piping it into `psql` inside the already-running
+   Postgres container — neither VPS's Postgres has a connection reachable
+   from a GitHub-hosted runner (prod: no published port at all; preprod:
+   loopback-only). The SSH key is dedicated to CI and locked to a forced
+   `command=` on the VPS side (see `docs/preprod.md`/`docs/prod.md`), so the
+   workflow doesn't send a remote command at all — whatever it sent would be
+   ignored anyway. The host key is pinned via a `PREPROD_SSH_HOST_KEY`/
+   `PROD_SSH_HOST_KEY` repo variable rather than trusted fresh from
+   `ssh-keyscan` on every run, which would only be TOFU-per-run (no real
+   protection, since ephemeral runners never have a prior-trusted
+   `known_hosts` to compare against).
 
-3. Optionally fail the build when the model has changes without a corresponding
-   migration, using `dotnet ef migrations has-pending-model-changes`.
+The credential used inside the container is the same `POSTGRES_USER` the app
+connects with — there is no separate restricted migration-only role today.
+Splitting one off is follow-up work, not blocking (#1058).
+
+Not yet done: failing the build when the model has pending changes without a
+corresponding migration, via `dotnet ef migrations has-pending-model-changes`.
 
 ## Local development
 
@@ -123,16 +175,14 @@ Nothing changes for local work. The dev compose files
 startup as before. The migrator now logs when it applies, succeeds, skips
 (gating disabled), or fails — see `backend/Data/DatabaseMigrator.cs`.
 
-## Open decisions
+## Follow-up work
 
-- **`compose.prod.yaml` currently sets
-  `Database__ApplyMigrationsOnStartup: "true"`.** To adopt the script-based path
-  above, this must be flipped to `"false"` and the deploy pipeline must apply
-  the script before the API/Ingestor start. Flipping it is a deploy-mechanics
-  change left to the owner so it can be sequenced with the CI work and with
-  issue #208.
-- Whether the migration is applied with `psql`, `dotnet ef database update` from
-  a controlled runner, or a dedicated migration job is also an owner decision.
+- The migration credential is currently the same `POSTGRES_USER` the app
+  connects with, not a dedicated schema-only role — see the "CI wiring"
+  section above. Splitting one off needs a Postgres-side role change, tracked
+  separately from the CD wiring (#1058).
+- `dotnet ef migrations has-pending-model-changes` is not yet wired into CI to
+  catch a model change without a matching migration.
 
 [applying]: https://learn.microsoft.com/ef/core/managing-schemas/migrations/applying
 [aspnet]: https://learn.microsoft.com/aspnet/core/data/ef-rp/migrations#applying-migrations-in-production

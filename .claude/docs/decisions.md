@@ -626,11 +626,16 @@ failure the mutable tag had been masking — #738, #765, #767.
 A divergent host-only `docker-compose.yml` meant the pool-cap fix never reached prod, the uncapped pools kept
 running and the `53300` outage returned — #462.
 
-**Prod still applies EF migrations on startup; moving to an out-of-band script is an OPEN decision.**
-`ApplyMigrationsOnStartup: "true"` in `compose.prod.yaml`. Microsoft advises against it (concurrency, elevated
-privileges, no review or rollback), and `docs/production-migrations.md` documents the script path while
-stating that flipping the flag is deliberately left to the owner. This is why the "no heavy startup migration"
-rule above is load-bearing — #208, #246.
+**Preprod and prod both apply migrations out-of-band, as a discrete CI step before the images roll — not at startup.**
+`Database__ApplyMigrationsOnStartup` is `false` in both `compose.preprod.yaml` and `compose.prod.yaml`
+(Microsoft advises against startup migration under concurrency: elevated app-account privileges, no review
+or rollback). The `migrate-preprod`/`migrate-prod` jobs in `deploy-preprod.yml`/`deploy-prod.yml` generate an
+idempotent SQL script from the deployed commit/tag and apply it over SSH by piping it into `psql` inside the
+running Postgres container — neither VPS exposes a connection reachable from a GitHub-hosted runner. The
+deploy job depends on the migrate job, so a failed migration blocks the image roll. Preprod runs this on
+every merge to `develop`, so it catches a bad migration before it ever reaches prod. The credential is still
+the app's own `POSTGRES_USER`, not a dedicated migration-only role — splitting one off is open follow-up
+work, not this decision — #208, #246, #1058, `docs/production-migrations.md`.
 
 **Preprod tracks `develop`, has its own Riot API key, and is deliberately tiny — a new key forces an empty database.**
 PUUIDs are encrypted per API app, so key and database are an inseparable pair: old data is unusable with a new

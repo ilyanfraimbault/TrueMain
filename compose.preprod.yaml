@@ -79,7 +79,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
-      Database__ApplyMigrationsOnStartup: "true"
+      Database__ApplyMigrationsOnStartup: "false"
       ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=100;No Reset On Close=true;Application Name=truemain-api
       ConnectionStrings__TrueMainMigrations: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Application Name=truemain-migrator
       MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
