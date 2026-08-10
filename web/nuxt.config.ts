@@ -84,15 +84,21 @@ export default defineNuxtConfig({
   // Self-host the two families the app uses (see the `--font-*` vars in
   // main.css): Inter for prose, headings and labels; Geist Mono for stat values
   // and the micro-labels that annotate them. Declared explicitly so the
-  // download doesn't rely on CSS scanning of the theme vars.
+  // download doesn't rely on CSS scanning of the *theme vars* — the family
+  // names only ever appear inside `--font-sans` / `--font-mono`.
   //
-  // Weights are pinned to the ones actually used — Inter 400/500/600/700 and
-  // Geist Mono 500/600 (the `stat-label` / `stat-value` utilities) — so the
-  // second family costs two subsets rather than a full variable axis.
+  // Deliberately **no `weights`**. Pinning the list looks like a free saving and
+  // is a trap: the module already discovers the weights it needs from the
+  // `font-weight` declarations Tailwind emits, so a pin can only ever be a
+  // second, staler copy of that answer. A first cut here pinned 400/500/600/700
+  // and silently dropped `font-extrabold` (TierBadge's tier letters) and
+  // `font-light` (the footer links) — the browser doesn't error on a missing
+  // face, it fakes one, so the regression would have shipped looking merely
+  // slightly off. Any future `font-*` utility would have re-armed it.
   fonts: {
     families: [
-      { name: 'Inter', provider: 'google', weights: [400, 500, 600, 700] },
-      { name: 'Geist Mono', provider: 'google', weights: [500, 600] },
+      { name: 'Inter', provider: 'google' },
+      { name: 'Geist Mono', provider: 'google' },
     ],
   },
   // Namespace upstream nuxt-charts components under `Nc*` so our own
