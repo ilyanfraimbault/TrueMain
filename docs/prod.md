@@ -48,6 +48,39 @@ The prod stack already lives in Docker Manager as the `truemain` project
 (`/docker/truemain/docker-compose.yml`), so no adoption step is needed — the
 action overwrites that project's compose with `compose.prod.yaml` and redeploys.
 
+### Applying migrations before the deploy
+
+The `migrate-prod` job runs between `publish` and `deploy-prod` and applies
+pending EF migrations as an idempotent SQL script — see
+`docs/production-migrations.md` for why this replaced startup migrations.
+Unlike the `deploy-prod` guard on `PROD_ENV_FILE`, this one fails the job
+(not a green skip) when its secrets are missing: since
+`Database__ApplyMigrationsOnStartup` is permanently `false` in
+`compose.prod.yaml`, letting `deploy-prod` proceed without a migration
+attempt would silently roll a new image against a possibly-stale schema.
+
+| Kind     | Name                 | Value                                                        |
+| -------- | -------------------- | ------------------------------------------------------------ |
+| secret   | `PROD_SSH_HOST`      | the prod VPS address (same host `ssh prod` in `~/.ssh/config` points at) |
+| secret   | `PROD_SSH_KEY`       | private key for a dedicated CI-only key authorized as `root` on the VPS, **not** the personal `~/.ssh/id_ed25519` — same `root` account (Docker group membership is root-equivalent anyway), but a separately revocable key |
+| variable | `PROD_SSH_HOST_KEY`  | the VPS's SSH host public key, `known_hosts` format (pin this instead of trusting `ssh-keyscan` fresh on every run) |
+
+Postgres only listens on the VPS-internal Docker network (no published port),
+so the job connects over SSH and pipes the generated script into `psql`
+running inside the already-live `truemain-postgres` container, using the
+`POSTGRES_USER`/`POSTGRES_DB` already set in `/docker/truemain/.env` — the
+same credential the app itself connects with. `deploy-prod` depends on this
+job succeeding, so a failed or skipped migration blocks the image roll rather
+than shipping a schema mismatch.
+
+`PROD_SSH_KEY`'s public half is installed in the VPS's `~/.ssh/authorized_keys`
+with a forced `command=/usr/local/bin/apply-migration.sh` (plus
+`no-pty`/`no-port-forwarding`/`no-agent-forwarding`/`no-X11-forwarding`) —
+whatever the CI step sends as a remote command is ignored, so a leaked key
+can only ever pipe SQL into that one fixed `psql` invocation, never get a
+general root shell. The script itself (owning the container name and compose
+path) lives on the VPS, not in the workflow.
+
 ### Manual fallback
 
 ```bash

@@ -88,15 +88,86 @@ jobs:
             ${{ env.IMAGE_ADMIN }}:preprod
             ${{ env.IMAGE_ADMIN }}:${{ github.sha }}
 
+  migrate-preprod:
+    name: Apply Preprod Migrations
+    runs-on: ubuntu-24.04
+    needs: publish-preprod
+    if: success()
+    concurrency:
+      group: migrate-preprod
+      cancel-in-progress: false
+
+    steps:
+      - name: Require PREPROD_SSH_HOST / PREPROD_SSH_KEY
+        env:
+          PREPROD_SSH_HOST: ${{ secrets.PREPROD_SSH_HOST }}
+          PREPROD_SSH_KEY: ${{ secrets.PREPROD_SSH_KEY }}
+        run: |
+          if [ -z "$PREPROD_SSH_HOST" ] || [ -z "$PREPROD_SSH_KEY" ]; then
+            echo "::error::PREPROD_SSH_HOST/PREPROD_SSH_KEY are unset — refusing to let deploy-preprod proceed against a possibly-unmigrated schema. Set both secrets (see docs/preprod.md)."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install EF Core CLI
+        run: dotnet tool install --global dotnet-ef --version 10.0.10
+
+      - name: Restore Data project
+        working-directory: backend
+        run: dotnet restore Data/Data.csproj
+
+      - name: Generate idempotent migration script
+        working-directory: backend
+        env:
+          ConnectionStrings__TrueMain: Host=localhost;Port=5432;Database=truemain;Username=truemain;Password=truemain
+        run: |
+          dotnet ef migrations script --idempotent \
+            --project Data/Data.csproj --startup-project Data/Data.csproj \
+            --output "$RUNNER_TEMP/migration.sql"
+
+      - name: Print migration script
+        run: |
+          echo "::group::migration.sql"
+          cat "$RUNNER_TEMP/migration.sql"
+          echo "::endgroup::"
+
+      - name: Upload migration script
+        uses: actions/upload-artifact@v4
+        with:
+          name: preprod-migration-${{ github.sha }}
+          path: ${{ runner.temp }}/migration.sql
+          retention-days: 90
+
+      - name: Apply migration script over SSH
+        env:
+          PREPROD_SSH_HOST: ${{ secrets.PREPROD_SSH_HOST }}
+          PREPROD_SSH_KEY: ${{ secrets.PREPROD_SSH_KEY }}
+          PREPROD_SSH_HOST_KEY: ${{ vars.PREPROD_SSH_HOST_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$PREPROD_SSH_KEY" > ~/.ssh/preprod_ed25519
+          chmod 600 ~/.ssh/preprod_ed25519
+          printf '%s\n' "$PREPROD_SSH_HOST_KEY" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/preprod_ed25519 -o StrictHostKeyChecking=yes "root@${PREPROD_SSH_HOST}" \
+            < "$RUNNER_TEMP/migration.sql"
+
   deploy-preprod:
     name: Deploy Preprod VPS
     runs-on: ubuntu-24.04
-    needs: publish-preprod
+    needs: [publish-preprod, migrate-preprod]
     # No-op until the Hostinger credentials are configured: set the
     # HOSTINGER_PREPROD_VM_ID repository variable plus the HOSTINGER_API_KEY
     # and PREPROD_ENV_FILE secrets (see docs/preprod.md). success() must be
     # explicit — a custom `if:` replaces the implicit needs-succeeded check,
-    # and deploying after a failed publish would ship stale/mixed images.
+    # and deploying after a failed publish or a failed migration would ship
+    # stale/mixed images or images that expect a schema not yet applied.
     if: success() && vars.HOSTINGER_PREPROD_VM_ID != ''
     concurrency:
       group: deploy-preprod
