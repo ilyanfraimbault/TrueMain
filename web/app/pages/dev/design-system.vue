@@ -184,9 +184,9 @@ const TEXT_TOKENS = [
     <SectionCard
       :level="2"
       title="Materials"
-      subtitle="`surface` is the app-wide panel; `surface-hover` steps it up the ladder on hover. `glass` survives for the home hero only, where a backdrop still sits behind a panel."
+      subtitle="`surface` is the app-wide panel; `surface-hover` steps it up the ladder on hover. There is no translucent material — the former `glass` was removed once nothing used it."
     >
-      <div class="grid gap-3 sm:grid-cols-3">
+      <div class="grid gap-3 sm:grid-cols-2">
         <div class="surface rounded-xl p-4">
           <p class="text-sm font-medium text-default">
             surface
@@ -201,14 +201,6 @@ const TEXT_TOKENS = [
           </p>
           <p class="mt-1 text-xs text-muted">
             Hover me — the fill moves up one step.
-          </p>
-        </div>
-        <div class="glass rounded-xl p-4">
-          <p class="text-sm font-medium text-default">
-            glass
-          </p>
-          <p class="mt-1 text-xs text-muted">
-            Home hero only. Reads flat here: there is nothing behind it.
           </p>
         </div>
       </div>

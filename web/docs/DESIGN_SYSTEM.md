@@ -46,8 +46,9 @@ Reach for the material utilities rather than composing a surface by hand:
   your own radius and padding. Every `UCard` gets it globally from `app.config.ts`.
 - **`surface-hover`** — the interactive counterpart. It moves the element up one step on the ladder rather
   than washing it with a tint, so hover reads as "raised" like every other level.
-- **`glass`** — translucent and blurred. **Home hero only**, the one place a backdrop still sits behind a
-  panel. Anywhere else it has nothing to blur and simply costs a compositing layer.
+
+There is no translucent material. The former `glass` was removed once the last call site went opaque —
+including the home hero's search field, which reads better solid against the eclipse.
 
 **`surface` owns `background-color` and `border` — don't restate them.** Writing `class="surface border
 border-default/60 bg-elevated/60"` is not merely redundant: a plain utility out-cascades a `@utility`
@@ -87,7 +88,7 @@ name.
 
 **Nuxt UI appends per-variant `root` classes rather than replacing them, and a plain utility out-cascades a
 `@utility` declaration.** That is why the `card` theme in `app.config.ts` neutralises `soft`'s stock
-`bg-elevated/50` to `bg-transparent`: left alone it wins over `surface`'s background and the material never
+`bg-elevated/50` to the opaque `bg-elevated`: left alone it wins over `surface`'s background and the material never
 reaches the card. Expect the same trap on any component theme you extend with a material utility.
 
 ## Component naming conventions

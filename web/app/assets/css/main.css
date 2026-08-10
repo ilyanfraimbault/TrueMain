@@ -227,7 +227,8 @@ html {
  * own radius and padding at the call site.
  *
  * This is the successor to `glass`, which was applied to every card, every
- * badge and 55 hand-written call sites. Translucency everywhere meant nothing
+ * badge and 55 hand-written call sites — and is now gone entirely (see below).
+ * Translucency everywhere meant nothing
  * was ever *on top of* anything: a panel, a row inside it and the page behind
  * both landed within a few percent of each other, so the eye had no elevation
  * to read. Opacity plus the four distinct `--ui-bg-*` steps (see `:root` below)
@@ -254,30 +255,23 @@ html {
 }
 
 /*
- * Glass surface — the translucent, blurred panel material. Now used *only* in
- * the home hero, the one place an animated backdrop still sits behind a panel
- * and there is therefore something to blur. Everywhere else uses `surface`.
+ * The `glass` utility that used to live here is gone. It was kept at first for
+ * the home hero — the one place an animated backdrop still sits behind a panel
+ * and there is therefore something to blur — but the hero's own search field
+ * reads better solid against the eclipse, the way the reference designs stack a
+ * hard-edged block on an atmospheric ground. That left the utility with no call
+ * site at all, and a material documented as load-bearing with nothing using it
+ * is how a design system starts lying about itself.
  *
- * The hairline is faintly rose-tinted (a mix of the primary over the neutral
- * border) and the panel carries an inset top-highlight + a soft drop shadow so
- * it lifts off the eclipse instead of dissolving into it. Blur is paired with a
- * touch of saturate() to keep the rose haze behind the glass from going muddy.
+ * If a blurred panel is ever wanted again it is four lines
+ * (`backdrop-filter: blur(16px) saturate(1.2)` plus a translucent fill) — see
+ * this file's history. Two things to carry over with it: author only the
+ * unprefixed `backdrop-filter` (Lightning CSS emits the `-webkit-` fallback
+ * from the browserslist targets; hand-writing both collapsed it to `-webkit-`
+ * only and silently dropped the blur in Firefox), and never combine it with
+ * `overflow-hidden` on the same element, which bleeds the blur past the radius
+ * in WebKit.
  */
-@utility glass {
-  border: 1px solid color-mix(in oklch, var(--ui-color-primary-400) 20%, color-mix(in oklch, var(--ui-border) 72%, transparent));
-  background-color: color-mix(in oklch, var(--ui-bg-elevated) 75%, transparent);
-  /*
-   * Only the unprefixed property is authored: Tailwind v4's Lightning CSS
-   * emits the `-webkit-` fallback itself from the browserslist targets.
-   * Authoring both by hand made the build collapse them to `-webkit-` only,
-   * which silently dropped the blur on Firefox (no `-webkit-backdrop-filter`
-   * support) — the cards read as flat panels there.
-   */
-  backdrop-filter: blur(16px) saturate(1.2);
-  box-shadow:
-    inset 0 1px 0 0 color-mix(in oklch, var(--ui-color-primary-200) 10%, transparent),
-    0 10px 30px -18px color-mix(in oklch, black 60%, transparent);
-}
 
 /*
  * Shared "not the selected option" treatment for images (rune/perk icons) —

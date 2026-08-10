@@ -948,7 +948,10 @@ read as one flat warm mass. What replaced it:
   everywhere meant nothing was ever *on top of* anything. Paired with it, the elevation ladder was
   un-flattened: `--ui-bg-muted` and `--ui-bg-elevated` had both pointed at `neutral-800`, so the whole app
   had two levels — page and not-page — and depth had to be carried by borders that were themselves
-  translucent. There are now four distinct opaque steps. `glass` survives only in the home hero.
+  translucent. There are now four distinct opaque steps. `glass` is removed outright: it was kept at first for
+  the home hero, but the hero's own search field reads better solid against the eclipse, which left the
+  utility with no call site — and a material the docs call load-bearing with nothing using it is how a design
+  system starts lying about itself.
 - **A second family carries the numbers.** `--font-mono` had been deliberately aliased to Inter; it now
   points at Geist Mono, used by the `stat-value` / `stat-label` utilities. The old scale put a value and its
   label one step apart (`text-sm` over `text-xs`, same family, same weight), so a dense row read as noise.
