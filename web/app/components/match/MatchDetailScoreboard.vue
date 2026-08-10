@@ -102,7 +102,7 @@ function ordinal(placement: number) {
 </script>
 
 <template>
-  <section class="surface overflow-hidden rounded-md border border-default/60 bg-elevated/60">
+  <section class="surface overflow-hidden rounded-md">
     <header
       class="flex items-center justify-between px-3 py-2 text-xs font-semibold"
       :class="win ? 'text-sky-400' : 'text-red-400'"

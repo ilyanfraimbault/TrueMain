@@ -114,7 +114,7 @@ const hasSkills = computed(() => props.participant.skillEvents.length > 0)
   <div class="flex flex-col gap-3">
     <!-- Laning @15 + global per-minute stats -->
     <div class="grid gap-3 sm:grid-cols-2">
-      <div class="surface rounded-md border border-default/60 bg-elevated/60 p-3">
+      <div class="surface rounded-md p-3">
         <p class="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
           <UIcon name="i-lucide-swords" class="size-3.5 text-primary" />
           Laning phase (at 15)
@@ -145,7 +145,7 @@ const hasSkills = computed(() => props.participant.skillEvents.length > 0)
         <p v-else class="text-[11px] text-muted">No laning data for this game.</p>
       </div>
 
-      <div class="surface rounded-md border border-default/60 bg-elevated/60 p-3">
+      <div class="surface rounded-md p-3">
         <p class="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
           <UIcon name="i-lucide-activity" class="size-3.5 text-primary" />
           Global stats
@@ -172,7 +172,7 @@ const hasSkills = computed(() => props.participant.skillEvents.length > 0)
     </div>
 
     <!-- Build order -->
-    <div class="surface rounded-md border border-default/60 bg-elevated/60 p-3">
+    <div class="surface rounded-md p-3">
       <p class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted">Build order</p>
       <div v-if="buildGroups.length" class="flex flex-wrap items-start gap-x-1 gap-y-3">
         <template v-for="(group, gi) in buildGroups" :key="`grp-${gi}`">
@@ -211,7 +211,7 @@ const hasSkills = computed(() => props.participant.skillEvents.length > 0)
     </div>
 
     <!-- Skill order -->
-    <div class="surface rounded-md border border-default/60 bg-elevated/60 p-3">
+    <div class="surface rounded-md p-3">
       <p class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted">Skill order</p>
       <div v-if="hasSkills" class="space-y-1 overflow-x-auto">
         <div

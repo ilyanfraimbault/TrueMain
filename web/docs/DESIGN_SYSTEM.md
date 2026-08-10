@@ -49,9 +49,11 @@ Reach for the material utilities rather than composing a surface by hand:
 - **`glass`** — translucent and blurred. **Home hero only**, the one place a backdrop still sits behind a
   panel. Anywhere else it has nothing to blur and simply costs a compositing layer.
 
-Don't reintroduce translucent fills (`bg-elevated/60` and friends) on surfaces. Opacity is what collapsed the
-ladder in the first place: a panel, a row inside it and the page behind both landed within a few percent of
-each other and the eye had no depth to read.
+**`surface` owns `background-color` and `border` — don't restate them.** Writing `class="surface border
+border-default/60 bg-elevated/60"` is not merely redundant: a plain utility out-cascades a `@utility`
+declaration, so the literal pair wins and the element is translucent again. It looks like it was converted
+and isn't. Opacity is what collapsed the ladder in the first place — a panel, a row inside it and the page
+behind all landed within a few percent of each other and the eye had no depth to read.
 
 ## A stat is a pair, and the pair has a house style
 

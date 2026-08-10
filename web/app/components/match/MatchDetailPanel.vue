@@ -77,12 +77,15 @@ const tabItems = [
 </script>
 
 <template>
-  <!-- Fully opaque body surface so the expanded panel reads as one card with
-       the row header instead of showing page through the tabs and the gaps
-       between cards. This used to be `/90` plus a heavy backdrop-blur to hide
+  <!-- Fully opaque body so the expanded panel reads as one card with the row
+       header instead of showing page through the tabs and the gaps between
+       cards. This used to be `bg-default/90` plus a heavy backdrop-blur to hide
        the animated eclipse behind it; the backdrop no longer renders outside
-       the home hero, so the fill can simply be solid. -->
-  <div class="border-t border-default/60 bg-default px-3 pb-3 pt-3">
+       the home hero, so the fill can simply be solid.
+       `bg-muted` rather than `bg-default`: the body is the *recessed* step of
+       the ladder, a well the `surface` panels inside it sit up out of. Painting
+       it at the page colour would punch a hole through the row instead. -->
+  <div class="border-t border-default/60 bg-muted px-3 pb-3 pt-3">
     <!-- Detailed skeleton, not a spinner: the accordion opens straight to
          ~the loaded height and the real content swaps in without the row
          lurching once the (large) detail fetch resolves. -->

@@ -21,7 +21,7 @@
     <div
       v-for="team in 2"
       :key="`sk-team-${team}`"
-      class="surface overflow-hidden rounded-md border border-default/60 bg-elevated/60"
+      class="surface overflow-hidden rounded-md"
     >
       <!-- Team header: side + result on the left, aggregates on the right -->
       <div class="flex items-center justify-between px-3 py-2">
