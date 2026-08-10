@@ -182,8 +182,8 @@
    * `rosegold-400`, giving the best tier the brand colour and stripping it of
    * any comparative meaning.
    *
-   * Tailwind v4 auto-generates `text-tier-*` / `bg-tier-*` utilities from these
-   * vars; TierBadge.vue paints a filled pill with the matching pair.
+   * Tailwind v4 auto-generates `text-tier-*` utilities from these vars;
+   * TierBadge.vue colours the bare letter with the matching one.
    */
   --color-tier-s: #3ad6c4;               /* data-good (best) */
   --color-tier-a: #7fc9c0;               /* data-good-dim */

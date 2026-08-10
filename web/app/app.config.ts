@@ -14,10 +14,13 @@ export default defineAppConfig({
     //
     // Nuxt UI *appends* per-variant `root` classes rather than replacing them,
     // and a plain utility out-cascades a `@utility` declaration. That is why
-    // `soft`'s stock `bg-elevated/50` used to have to be overridden here: it
-    // won over the glass background and rendered every card at 50%. The same
-    // trap applies to `surface`, so the variant fill is neutralised to
-    // `bg-transparent` and the material owns the background outright.
+    // `soft`'s stock `bg-elevated/50` has to be overridden here: left alone it
+    // wins over `surface`'s background-color and every card renders at 50%.
+    //
+    // The override is the *opaque* `bg-elevated`, not `bg-transparent` — the
+    // cascade cuts both ways, so a transparent utility would win just as hard
+    // and leave every card in the app with no fill at all. The literal simply
+    // restates the value `surface` was going to paint.
     card: {
       slots: {
         root: 'surface rounded-xl',
@@ -28,7 +31,7 @@ export default defineAppConfig({
       variants: {
         variant: {
           soft: {
-            root: 'bg-transparent divide-y divide-default',
+            root: 'bg-elevated divide-y divide-default',
           },
         },
       },
