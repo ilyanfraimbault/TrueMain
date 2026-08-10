@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Core.Lol.Map;
 using Core.Lol.Identifiers;
 using Data.Entities;
@@ -6,6 +7,7 @@ using AwesomeAssertions;
 using Ingestor.Processes.Components.MatchIngestion;
 using Ingestor.Riot;
 using Ingestor.Riot.Dto;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace TrueMain.IntegrationTests;
 
@@ -29,7 +31,7 @@ public sealed class MatchTimelineRecoveryIntegrationTests
 
         await using var db = _fixture.CreateDbContext();
         await using var session = new DataSession(db);
-        var service = new TimelineIngestionService(new FakeRiotMatchClient());
+        var service = new TimelineIngestionService(new FakeRiotMatchClient(), NullLogger<TimelineIngestionService>.Instance);
 
         var updated = await service.IngestTimelinesAsync(
             session,
@@ -50,6 +52,39 @@ public sealed class MatchTimelineRecoveryIntegrationTests
 
         var match = verifyDb.Matches.Single(m => m.Id == matchId);
         match.TimelineIngested.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task TimelineIngestionService_ShouldIsolateATruncatedTimelineAndKeepIngestingTheRest()
+    {
+        await _fixture.ResetDatabaseAsync();
+        const string truncatedMatchId = "KR_200";
+        const string healthyMatchId = "KR_201";
+
+        await SeedPendingMatchAsync(truncatedMatchId);
+        await SeedPendingMatchAsync(healthyMatchId);
+
+        await using var db = _fixture.CreateDbContext();
+        await using var session = new DataSession(db);
+        var service = new TimelineIngestionService(
+            new FakeRiotMatchClient(truncatedMatchIds: [truncatedMatchId]),
+            NullLogger<TimelineIngestionService>.Instance);
+
+        var updated = await service.IngestTimelinesAsync(
+            session,
+            RegionalRoute.Asia,
+            new[] { truncatedMatchId, healthyMatchId },
+            Array.Empty<string>(),
+            saveBatchSize: 10,
+            CancellationToken.None);
+
+        updated.Should().Be(1);
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        // The healthy match commits — the bad payload no longer takes it down with it.
+        verifyDb.Matches.Single(m => m.Id == healthyMatchId).TimelineIngested.Should().BeTrue();
+        // The truncated one stays pending so a later run re-fetches it.
+        verifyDb.Matches.Single(m => m.Id == truncatedMatchId).TimelineIngested.Should().BeFalse();
     }
 
     private async Task SeedPendingMatchAsync(string matchId)
@@ -115,7 +150,7 @@ public sealed class MatchTimelineRecoveryIntegrationTests
         await db.SaveChangesAsync();
     }
 
-    private sealed class FakeRiotMatchClient : IRiotMatchClient
+    private sealed class FakeRiotMatchClient(params string[] truncatedMatchIds) : IRiotMatchClient
     {
         public Task<RiotMatchDto> GetMatchAsync(string matchId, RegionalRoute region, CancellationToken ct)
             => throw new NotSupportedException();
@@ -125,6 +160,14 @@ public sealed class MatchTimelineRecoveryIntegrationTests
 
         public Task<MatchTimelineDto> GetTimelineAsync(string matchId, RegionalRoute region, CancellationToken ct)
         {
+            // Mirrors what a body cut short mid-stream surfaces as: the response was
+            // a 200, so the resilience handler let it through and System.Text.Json
+            // blows up while reading.
+            if (truncatedMatchIds.Contains(matchId, StringComparer.Ordinal))
+            {
+                throw new JsonException("Expected a value, but instead reached end of data.");
+            }
+
             return Task.FromResult(new MatchTimelineDto
             {
                 Events =
