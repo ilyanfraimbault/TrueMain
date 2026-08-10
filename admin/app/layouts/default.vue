@@ -8,12 +8,16 @@ const open = ref(false)
 // truth for the sidebar.
 const items = computed<NavigationMenuItem[]>(() => [
   { label: 'Overview', icon: 'i-lucide-layout-dashboard', to: '/' },
+  { label: 'Health', icon: 'i-lucide-heart-pulse', to: '/health' },
   { label: 'Champions', icon: 'i-lucide-swords', to: '/champions' },
   { label: 'Database', icon: 'i-lucide-database', to: '/database' },
   { label: 'Data Quality', icon: 'i-lucide-shield-alert', to: '/data-quality' },
+  { label: 'Configuration', icon: 'i-lucide-settings', to: '/configuration' },
   { label: 'Candidates', icon: 'i-lucide-users-round', to: '/candidates' },
+  { label: 'Accounts', icon: 'i-lucide-user-search', to: '/accounts' },
   { label: 'Processes', icon: 'i-lucide-activity', to: '/processes' },
   { label: 'Aggregation', icon: 'i-lucide-combine', to: '/aggregation' },
+  { label: 'Patch Coverage', icon: 'i-lucide-layers', to: '/patch-coverage' },
   { label: 'Logs', icon: 'i-lucide-scroll-text', to: '/logs' },
   { label: 'Riot API', icon: 'i-lucide-gauge', to: '/riot-api' },
   { label: 'Analytics', icon: 'i-lucide-chart-line', to: '/analytics' },

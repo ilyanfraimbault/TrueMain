@@ -69,9 +69,63 @@ export interface MatchTimeBucket {
   matches: number
 }
 
-/** One row of `GET /api/ops/db/tables` (sorted by `totalBytes` desc). */
+/**
+ * Granularities of the ingestion-throughput series. Narrower than
+ * `MatchTimeGranularity` on purpose: a patch is a property of the games, not of
+ * when we ingested them, and a year cannot fill two buckets under the 180-day
+ * run retention.
+ */
+export type IngestionTimeGranularity = 'day' | 'week' | 'month'
+
+/**
+ * `GET /api/ops/stats/matches-ingested` — how many matches the pipeline actually
+ * ingested per period (#1025), from the recorded MatchIngestion run summaries.
+ *
+ * A different question from `matches-over-time`, which buckets games by when they
+ * were *played*: that one barely moves when ingestion stalls, and grows in the
+ * past when a backfill lands. Sourced from run summaries rather than
+ * `matches.CreatedAtUtc` because retention deletes matches, which would make an
+ * old bucket shrink over time — a curve rewriting its own history.
+ */
+export interface MatchesIngested {
+  /** Oldest first. Quiet periods inside the observed range are present at zero. */
+  buckets: MatchesIngestedBucket[]
+  /** The effective window in days, after the backend clamped the request. */
+  windowDays: number
+  /** The process_runs TTL in days — how far back run history can possibly go. */
+  retentionDays: number
+  /** Start of the oldest run seen, or null when the window holds none. */
+  earliestRunAtUtc: string | null
+}
+
+export interface MatchesIngestedBucket {
+  /** ISO-8601 UTC period start, same shape as `MatchTimeBucket.bucket`. */
+  bucket: string
+  matchesInserted: number
+  /**
+   * Seen and not written (already ingested, or filtered out). Carried because
+   * inserted-alone cannot tell "nothing to do" from "working hard and storing
+   * nothing", which are opposite operational states.
+   */
+  matchesSkipped: number
+  timelinesUpdated: number
+  /** Ingestion runs started in the period, summary or not. */
+  runs: number
+}
+
+/** Which engine a storage object belongs to (#1023). Both share one volume. */
+export type StorageEngine = 'postgres' | 'mongo'
+
+/**
+ * One row of `GET /api/ops/db/tables` (sorted by `totalBytes` desc across both
+ * engines — the question is "what is biggest on this disk", which does not stop
+ * at an engine boundary).
+ */
 export interface DbTableRow {
+  engine: StorageEngine
+  /** Postgres table name, or Mongo collection name. */
   tableName: string
+  /** Planner estimate for Postgres, exact document count for Mongo. */
   rowEstimate: number
   totalBytes: number
   tableBytes: number
@@ -88,22 +142,41 @@ export interface DbTableRow {
  */
 export interface DbStorageHistory {
   daily: DbStorageDailyPoint[]
-  /** The largest tables only — smaller ones still count in `daily` totals. */
+  /** The largest objects only — smaller ones still count in `daily` totals. */
   tables: DbStorageTableSeries[]
+  /**
+   * The engines the window actually holds readings for. Says what the totals
+   * cover instead of implying they are the whole disk: before the first Mongo
+   * snapshot lands, and wherever Mongo is unconfigured, this is postgres alone.
+   */
+  engines: StorageEngine[]
+  /**
+   * How many of the most recent days the forecast is allowed to fit: the trailing
+   * run of days measuring the same engines as the latest one. Equal to
+   * `daily.length` in the steady state, smaller only just after an engine started
+   * or stopped being measured. The panel reads this rather than re-deriving the
+   * rule, so its explanation cannot drift from the backend's behaviour.
+   */
+  comparableDays: number
   /** Null when no honest projection is possible; see `DbStorageForecast`. */
   forecast: DbStorageForecast | null
 }
 
 export interface DbStorageDailyPoint {
   dateUtc: string
-  /** Measured `pg_database_size` — what actually occupies the volume. */
+  /** Postgres + Mongo on-disk size — what actually occupies the volume. */
   databaseBytes: number
-  /** Sum of per-table sizes; smaller than `databaseBytes` (no catalogs). */
+  /** The Postgres half of `databaseBytes`; 0 if the day has no Postgres reading. */
+  postgresBytes: number
+  /** The Mongo half; 0 for every day before #1023 and where Mongo is unconfigured. */
+  mongoBytes: number
+  /** Sum of per-object sizes; smaller than `databaseBytes` (no catalogs). */
   totalBytes: number
   rowEstimate: number
 }
 
 export interface DbStorageTableSeries {
+  engine: StorageEngine
   tableName: string
   points: DbStorageTablePoint[]
   currentBytes: number
@@ -123,6 +196,10 @@ export interface DbStorageTablePoint {
  * Null on the parent when fewer than 3 days of history exist, when storage is
  * flat or shrinking, or when no disk capacity is configured — the panel explains
  * which rather than showing a made-up date.
+ *
+ * "Days of history" counts only the days measuring the same engines as the most
+ * recent one: the day Mongo first appears adds its whole footprint at once, and
+ * fitting a trend across that step would read a one-off jump as a daily rate.
  */
 export interface DbStorageForecast {
   bytesPerDay: number
@@ -574,6 +651,83 @@ export interface CandidateDetail extends CandidateRow {
   seedRequest: SeedRequestReadModel | null
 }
 
+/**
+ * `GET /api/ops/candidates/funnel` (#1024) — candidate throughput per period, read
+ * from the recorded process-run summaries rather than from `main_candidates` row
+ * counts: retention prunes stale candidates, so counting rows by status per past
+ * period under-reports every bucket and increasingly so the further back it looks.
+ * The whole series is therefore bounded by the `process_runs` TTL.
+ */
+export interface CandidateFunnel {
+  buckets: CandidateFunnelBucket[]
+  /** The requested window in days, after backend clamping. */
+  windowDays: number
+  /** How long run history is kept — the hard bound on `windowDays`. */
+  retentionDays: number
+  /**
+   * Start of the oldest run in the window: the earliest period the series can speak
+   * for. `null` when no run survives at all — an empty range, not a range of zeros.
+   */
+  earliestRunAtUtc: string | null
+  /**
+   * Start of the first run that recorded the validated counter, which the ingestor
+   * only began writing with #1024. Buckets before it carry `validated: null`.
+   */
+  validatedFirstMeasuredAtUtc: string | null
+}
+
+/**
+ * One period of the funnel. Intake is split by producing process because the three
+ * sources fail independently — the ladder drying up and the harvest drying up are
+ * different incidents with the same total.
+ */
+export interface CandidateFunnelBucket {
+  /** Period start, ISO-8601 UTC. */
+  bucket: string
+  /** Candidates inserted by ladder discovery. */
+  intakeLadder: number
+  /** Candidates inserted by the orphan-participant harvest. */
+  intakeHarvest: number
+  /** Candidates an operator's manual seed pushed into the queue. */
+  intakeManual: number
+  scored: number
+  /** Candidates promoted to the ingestion queue — the per-platform top-N. */
+  promoted: number
+  /** Accounts that cleared ingestion. `null`, not `0`, before the counter existed. */
+  validated: number | null
+  /** Accounts demoted back out of Validated on a critical play rate. */
+  demoted: number
+  /** Runs of any contributing process in this period; `0` means the pipeline was idle. */
+  runs: number
+}
+
+/**
+ * `GET /api/ops/candidates/queue-latency` (#1024) — how long the candidates that
+ * exist *right now* took to move through the queue. A snapshot over retained rows,
+ * never a historical average: pruned candidates are not in it, and the surviving
+ * population skews towards the ones that did move. Label it as such wherever shown.
+ */
+export interface CandidateQueueLatency {
+  /** Discovery → scoring, over candidates that have been scored. */
+  discoveredToScored: CandidateLatencyLeg
+  /** Scoring → cleared ingestion, over candidates that have been validated. */
+  scoredToValidated: CandidateLatencyLeg
+  /** Candidate rows currently retained — the population every leg is drawn from. */
+  retainedCandidates: number
+  asOfUtc: string
+}
+
+/**
+ * One leg of the queue. Both percentiles are `null` when `samples` is 0 — no row
+ * carried both ends of the leg, which is not a latency of zero.
+ */
+export interface CandidateLatencyLeg {
+  samples: number
+  medianSeconds: number | null
+  /** The slow tail: it diverging from the median is the shape of a backed-up queue. */
+  p90Seconds: number | null
+}
+
 // =============================================================================
 // Data quality — `GET /api/ops/data-quality/*`
 // =============================================================================
@@ -731,6 +885,10 @@ export interface RiotEndpointUsage {
   errors: number
   avgLatencyMs: number
   lastCalledAtUtc: string
+  /** Freshest `X-Method-Rate-Limit` header seen for this endpoint, or null (#1035). */
+  methodRateLimit: string | null
+  /** Freshest `X-Method-Rate-Limit-Count` header seen for this endpoint, or null (#1035). */
+  methodRateLimitCount: string | null
 }
 
 /** One status-code histogram row. `statusCode` 0 means a transport fault (no response). */
@@ -744,6 +902,41 @@ export interface RiotUsageBucket {
   bucketUtc: string
   calls: number
   errors: number
+  /** Subset of `calls` that landed a 429 — budget spent for no data (#1035). */
+  retries: number
+}
+
+/** Calls attributed to one caller process (#1035). `"unknown"` when unattributed. */
+export interface RiotCallerUsage {
+  caller: string
+  calls: number
+  errors: number
+}
+
+/** The app rate-limit window with the smallest sustained-load daily ceiling (#1035). */
+export interface RiotBindingLimit {
+  limit: number
+  windowSeconds: number
+  maxCallsPerDay: number
+}
+
+/**
+ * Budget-headroom estimate (#1035): "how many more tracked accounts fit", always
+ * computed over the last 7 days regardless of the panel's selected window.
+ * `sufficientData` is `false` — with only `observedWindowHours`/`requiredWindowHours`
+ * set — when there isn't enough rollup history yet, no accounts are tracked, or no
+ * rate-limit snapshot was seen.
+ */
+export interface RiotApiHeadroom {
+  sufficientData: boolean
+  observedWindowHours: number
+  requiredWindowHours: number
+  trackedAccounts: number
+  callsPerAccountPerDay: number | null
+  observedCallsPerDay: number | null
+  bindingLimit: RiotBindingLimit | null
+  spareCallsPerDay: number | null
+  additionalAccountsHeadroom: number | null
 }
 
 /**
@@ -776,6 +969,9 @@ export interface RiotApiUsage {
   statusCodes: RiotStatusCount[]
   timeSeries: RiotUsageBucket[]
   rateLimit: RiotRateLimit | null
+  /** Calls attributed to each caller process, ordered by `calls` descending (#1035). */
+  callerBreakdown: RiotCallerUsage[]
+  headroom: RiotApiHeadroom
 }
 
 /**
@@ -914,4 +1110,511 @@ export interface AggregateFreshnessResponse {
   staleChampionCount: number
   staleAfterHours: number
   evaluatedAtUtc: string
+}
+
+/**
+ * One cockpit signal (#1031): a verdict, the sentence behind it, and the route that
+ * owns its detail. The cockpit holds no depth of its own — every tile is a link.
+ */
+export interface PipelineHealthSignal {
+  /** `processes` | `dataQuality` | `ingestionLag` | `diskForecast`. */
+  key: string
+  title: string
+  status: DetectorStatus
+  /** The one sentence explaining this signal's state. */
+  headline: string
+  /**
+   * Set if and only if `status` is `unknown`. Rendered in place of a number, because
+   * a zero here would read as a pass.
+   */
+  unknownReason: string | null
+  /** Admin route owning the detail: `/processes`, `/data-quality`, `/database`. */
+  detailPath: string
+}
+
+/** Effective status of one pipeline process, PascalCase as `/ops/process-runs` spells it. */
+export type ProcessHealthStatus = 'Success' | 'Failed' | 'Running' | 'Abandoned' | 'Missing'
+
+/** One process's run health. Timestamps are null when it has never recorded a run. */
+export interface ProcessHealth {
+  processName: string
+  status: ProcessHealthStatus
+  lastStartedAtUtc: string | null
+  lastFinishedAtUtc: string | null
+  /** Null when the process has never succeeded — not the same as "succeeded long ago". */
+  lastSuccessAtUtc: string | null
+  /** Terminal runs since the last success; 0 when the latest run succeeded. */
+  consecutiveFailures: number
+  durationMs: number
+  error: string | null
+}
+
+/** Newest ingested match and patch on one platform. */
+export interface PlatformRawDataFreshness {
+  platformId: string
+  latestMatchStartAtUtc: string | null
+  latestPatchVersion: string
+}
+
+/** Raw-corpus counters, scoped to the configured ranked queue. */
+export interface RawDataFreshness {
+  queueId: number
+  rawMatchCount: number
+  rawParticipantCount: number
+  platforms: PlatformRawDataFreshness[]
+}
+
+/** The two pipeline gaps. Null means "nothing to measure", never zero. */
+export interface PipelineGaps {
+  matchIngestionToMainAnalysisMinutes: number | null
+  championDataLagMinutes: number | null
+}
+
+/**
+ * `GET /api/ops/pipeline-health` — the health cockpit's single payload (#1031).
+ * One rolled-up verdict over the signals below, each of which links to the panel that
+ * owns its detail.
+ */
+export interface PipelineHealth {
+  status: DetectorStatus
+  /** The verdict as one actionable sentence. */
+  headline: string
+  /** Stated on the page: a cockpit that hides its age gets read as live. */
+  evaluatedAtUtc: string
+  /** Severity-ordered, worst first. */
+  signals: PipelineHealthSignal[]
+  processes: ProcessHealth[]
+  rawData: RawDataFreshness
+  gaps: PipelineGaps
+}
+
+// =============================================================================
+// Patch coverage — `GET /api/ops/patch-coverage` (#1033)
+// =============================================================================
+
+/**
+ * Why a patch is or is not servable. `notAggregated` and `thin` are deliberately
+ * distinct: both mean "almost nothing clears the floor", and they call for
+ * opposite reactions — wait for the fold, versus stop trusting the patch.
+ */
+export type PatchVerdict = 'servable' | 'thin' | 'notAggregated' | 'unknown'
+
+/** One game date's ingestion on a patch. */
+export interface PatchCoverageDay {
+  /** UTC game date, ISO `yyyy-MM-dd`. */
+  date: string
+  matches: number
+  participants: number
+}
+
+/** A `(champion, lane)` line that has games but not enough of them. */
+export interface PatchThinLine {
+  championId: number
+  position: string
+  games: number
+  /** Games still missing before the line clears the floor. */
+  gamesToFloor: number
+}
+
+/** One aggregation fold's state on one patch. */
+export interface PatchFoldCoverage {
+  key: string
+  label: string
+  /**
+   * False when the patch predates the fold entirely (#920 bans, #957 per-opponent
+   * spikes). Every count is then `null` rather than `0`: raw matches are not kept,
+   * so those rows are absent by construction, not missing — and a zero would read
+   * as "the fold is broken on this patch".
+   */
+  measured: boolean
+  /** Oldest patch the fold has any row on, or null when it has none at all. */
+  firstMeasuredPatch: string | null
+  /** Set if and only if `measured` is false. */
+  notMeasuredNote: string | null
+  rows: number | null
+  champions: number | null
+  lastAggregatedAtUtc: string | null
+  ageHours: number | null
+  status: DetectorStatus
+  /** Matches still to fold, or null for folds carrying no per-match flag. */
+  pendingMatches: number | null
+  note: string | null
+}
+
+/** One patch's ingestion, aggregate coverage and per-fold state. */
+export interface PatchCoverageRow {
+  patch: string
+  /** True for the patch the public reads currently resolve to. */
+  isCurrent: boolean
+  verdict: PatchVerdict
+  status: DetectorStatus
+  headline: string
+  matches: number
+  participants: number
+  firstGameStartUtc: string | null
+  lastGameStartUtc: string | null
+  daily: PatchCoverageDay[]
+  /** `(champion, lane)` pairs holding at least one aggregate row. */
+  lines: number
+  linesPastFloor: number
+  champions: number
+  championsPastFloor: number
+  /** The bar `linesPastFloor` was judged against; null when the patch was not judged. */
+  servableLinesBar: number | null
+  servableLinesBarNote: string | null
+  belowFloorCount: number
+  belowFloor: PatchThinLine[]
+  folds: PatchFoldCoverage[]
+}
+
+/** `GET /api/ops/patch-coverage` — is the current patch servable? (#1033) */
+export interface PatchCoverageResponse {
+  queueId: number
+  /** Echoed from `ChampionsList:MinSampleGames`, never re-declared admin-side. */
+  minSampleGames: number
+  floorNote: string
+  /** Newest patch holding an aggregate row — what the public reads resolve to. */
+  currentPatch: string | null
+  verdict: PatchVerdict
+  status: DetectorStatus
+  headline: string
+  /**
+   * Why no verdict could be given. Set only when a measurement failed — without the
+   * coverage rollup, `thin` and `notAggregated` are indistinguishable, and guessing
+   * between them is worse than saying nothing.
+   */
+  unknownReason: string | null
+  patches: PatchCoverageRow[]
+  sourceNote: string
+  evaluatedAtUtc: string
+}
+
+// =============================================================================
+// Account explorer — `GET /api/ops/accounts/{nameTag}` (#1032)
+// =============================================================================
+
+/**
+ * The one-word verdict on a Riot ID, resolved server-side first-match-wins:
+ *   NeverDiscovered   — no account row and no seed request. Says nothing about
+ *                       whether the Riot ID exists: this read never calls Riot.
+ *   SeedRequestedOnly — no account row, but an operator asked for it; the seed
+ *                       request's own status/error says why it has not landed.
+ *   Invalidated       — the PUUID 404s and AccountRefresh could not recover it.
+ *                       Excluded from every selection: nothing will move again.
+ *   Tracked           — in the match-ingestion population (queued candidate,
+ *                       active main, or both).
+ *   Retired           — had mains, MainActivity deactivated all of them (#900).
+ *                       Rows are flagged, never deleted.
+ *   NotAMain          — analysed, but nothing cleared the adaptive IsMain floor.
+ *   CandidateOnly     — in the candidate funnel, never analysed.
+ *   Discovered        — the account exists and nothing else has happened to it.
+ */
+export type AccountPipelineState
+  = | 'NeverDiscovered'
+    | 'SeedRequestedOnly'
+    | 'Invalidated'
+    | 'Tracked'
+    | 'Retired'
+    | 'NotAMain'
+    | 'CandidateOnly'
+    | 'Discovered'
+
+/**
+ * `GET /api/ops/accounts/{nameTag}?region=` — everything the pipeline knows about
+ * one Riot ID. Never 404s: an unknown Riot ID is a populated response in the
+ * `NeverDiscovered` state, because that is an answer this page exists to give.
+ * 400 only on a malformed Riot ID or an unknown region.
+ *
+ * `identity`, `tracking` and `matchesIngested` are `null` together — they all
+ * require a resolved account row.
+ */
+export interface AccountExplorer {
+  query: AccountExplorerQuery
+  state: AccountPipelineState
+  /** The state in a sentence, built server-side. Render it verbatim. */
+  stateDetail: string
+  identity: AccountExplorerIdentity | null
+  /**
+   * Other accounts carrying the same Riot ID. `(gameName, tagLine, platformId)`
+   * is deliberately not unique — Riot IDs are recyclable and collide across
+   * regions — so the resolver picks the most recently active and lists the rest
+   * here instead of arbitrating in silence. Usually empty.
+   */
+  otherAccountsWithSameRiotId: AccountExplorerAccountRef[]
+  tracking: AccountExplorerTracking | null
+  matchesIngested: AccountExplorerMatchesIngested | null
+  /**
+   * `main_candidates` rows, highest score first. Always empty when `identity` is
+   * null: candidates are keyed on (platformId, puuid) and carry no Riot ID, so a
+   * candidate whose account is not upserted yet cannot be found from a Riot ID.
+   */
+  candidates: AccountExplorerCandidate[]
+  /** The manual "add a main" trail — the only reliable manual-seed signal. */
+  seedRequest: SeedRequestReadModel | null
+  mains: AccountExplorerMains
+  /**
+   * Most recent first, capped at 50. At most one row per UTC day, solo queue
+   * only, never pruned — the one series here whose gaps are gaps in play.
+   */
+  rankSnapshots: AccountExplorerRankSnapshot[]
+}
+
+/** The request as the backend resolved it. */
+export interface AccountExplorerQuery {
+  gameName: string
+  tagLine: string
+  /** The requested platform id, or null when the search was region-wide. */
+  region: string | null
+}
+
+/** The resolved account and the per-process freshness stamps. */
+export interface AccountExplorerIdentity {
+  riotAccountId: string
+  puuid: string
+  gameName: string
+  tagLine: string | null
+  platformId: string
+  profileIconId: number
+  summonerLevel: number
+  /** `RiotAccountStatus` name: 'Active' or 'Invalid'. */
+  status: string
+  createdAtUtc: string
+  updatedAtUtc: string
+  /** Last successful account-v1 identity resolution. */
+  lastProfileSyncAtUtc: string | null
+  /** Last successful league-v4 read — stamped even when the rank was unchanged. */
+  lastRankSyncAtUtc: string | null
+  /** Can be newer than every main row's `calculatedAtUtc` — see `analysisSkipped`. */
+  lastMainCalcAtUtc: string | null
+  /** Last *successful* mastery check; a failed lookup leaves it untouched. */
+  lastActivityCheckAtUtc: string | null
+  lastMatchIngestAtUtc: string | null
+  /** Rank sort key from the latest snapshot; `null` = never seen ranked, not 0. */
+  rankScore: number | null
+}
+
+/** One of the other accounts sharing this Riot ID. */
+export interface AccountExplorerAccountRef {
+  riotAccountId: string
+  puuid: string
+  platformId: string
+  status: string
+  lastMatchIngestAtUtc: string | null
+}
+
+/**
+ * Ingest-population membership and lease state. Every threshold that would turn
+ * these into a verdict (claim lease, inactivity window, retained patch count) is
+ * Ingestor config the API cannot see, so this section reports ages and stops —
+ * it never claims a lease is stale. Judge `claimAgeSeconds` against
+ * `MatchIngestion:ClaimLeaseMinutes` (30 by default) yourself.
+ */
+export interface AccountExplorerTracking {
+  /** Derived, not a column: the two membership arms of the ingest claim. */
+  isTracked: boolean
+  trackedVia: 'EstablishedMain' | 'QueuedCandidate' | 'Both' | null
+  hasActiveMain: boolean
+  hasQueuedCandidate: boolean
+  /** `MatchIngestStatus` name: 'Idle' or 'Processing'. */
+  matchIngestStatus: string
+  matchIngestClaimedAtUtc: string | null
+  claimAgeSeconds: number | null
+  lastMatchIngestAtUtc: string | null
+  /** Claimable but its lease has never come up — the queue has not reached it. */
+  neverIngested: boolean
+}
+
+/**
+ * The three game counts that exist, each with the population it counts. They are
+ * not three views of one number and must never be rendered as one: label each.
+ */
+export interface AccountExplorerMatchesIngested {
+  /** Live participant rows: every champion, but bounded by retention. */
+  liveParticipantCount: number
+  /** Measured off the surviving rows, not derived from the retention config. */
+  oldestRetainedGameStartUtc: string | null
+  newestRetainedGameStartUtc: string | null
+  /** Frozen aggregates: survive forever, but cover **main champions only**. */
+  careerGamesFromAggregates: number
+  aggregatedPatchCount: number
+  /** A lower bound: a scope records its most recent game, not its first. */
+  oldestAggregatedGameStartUtc: string | null
+  /** Last MainAnalysis pass's sample size, capped at 50. A ceiling, not a total. */
+  lastAnalysisSampleSize: number | null
+  /**
+   * True when the frozen aggregates prove games existed that the live rows no
+   * longer hold. **False does not mean nothing was pruned** — the aggregates only
+   * cover main champions. Render `prunedNote` either way; never show a bare 0.
+   */
+  pruned: boolean
+  prunedNote: string
+}
+
+/** One `main_candidates` row and what the scorer had to work with. */
+export interface AccountExplorerCandidate {
+  id: string
+  championId: number
+  status: MainCandidateStatus
+  /**
+   * `MainCandidateSource` name. `ManualSeed` is never assigned in production —
+   * ManualSeedProcess reuses the ladder upsert — so a manually seeded candidate
+   * reads `Ladder`. Read `seedRequest` for the manual trail.
+   */
+  source: 'Ladder' | 'ManualSeed' | 'Harvest'
+  score: number
+  /**
+   * The persisted inputs. The score's **components are not stored** — only the
+   * final blend — so they cannot be shown, and recomputing them would mix today's
+   * scarcity snapshot into a number produced against an older one.
+   */
+  scoreInputs: AccountExplorerCandidateScoreInputs
+  discoveredAtUtc: string
+  scoredAtUtc: string | null
+  validatedAtUtc: string | null
+}
+
+/** Ladder candidates carry mastery rank/points; harvest ones carry observed games. */
+export interface AccountExplorerCandidateScoreInputs {
+  lastPlayTimeUtc: string
+  championRankInMasteryTop: number
+  championPoints: number
+  observedGames: number
+  /** Persisted but not a scoring input yet. */
+  observedWins: number
+}
+
+export interface AccountExplorerMains {
+  rows: AccountExplorerMainRow[]
+  thresholds: AccountExplorerMainThresholds
+}
+
+/** The configured MainAnalysis thresholds a row's verdict should be read against. */
+export interface AccountExplorerMainThresholds {
+  /** Base play rate required for a well-covered champion (0.20). */
+  playRateThreshold: number
+  /** Lowest the adaptive threshold can drop to (0.12, #407). */
+  playRateFloor: number
+  otpPlayRateThreshold: number
+  /** Below this, MainAnalysis refuses to overwrite an established main (#825). */
+  minMatchesToEvaluate: number
+  /** Why only a band is given. Render it next to the numbers. */
+  effectiveThresholdNote: string
+}
+
+/** One `main_champion_stats` row. */
+export interface AccountExplorerMainRow {
+  championId: number
+  /** The pass's sample size, not the account's total. */
+  totalMatches: number
+  championMatches: number
+  playRate: number
+  isMain: boolean
+  isOtp: boolean
+  /** A main only thanks to the coverage-relaxed floor (#407). */
+  isExtendedSample: boolean
+  isActive: boolean
+  primaryPosition: string
+  positionBreakdown: AccountExplorerPositionStat[]
+  calculatedAtUtc: string
+  /**
+   * The last MainAnalysis run is newer than this row: the process looked and
+   * declined to overwrite (thin-sample guard, #825). Not a stale-data bug.
+   */
+  analysisSkipped: boolean
+  /** Null while active. */
+  deactivation: AccountExplorerDeactivation | null
+}
+
+/** What is knowable about a retired main row — which is less than one would like. */
+export interface AccountExplorerDeactivation {
+  /**
+   * The account's last *successful* mastery check. Null means the retirement was
+   * never confirmed by a completed check, since a failed lookup leaves both the
+   * flag and the stamp untouched.
+   */
+  confirmedByActivityCheckAtUtc: string | null
+  /** Always false: there is no retirement-reason column. */
+  reasonKnown: boolean
+  /** The two causes the boolean collapses together, spelled out. Render it. */
+  reasonNote: string
+}
+
+export interface AccountExplorerPositionStat {
+  position: string
+  games: number
+  rate: number
+}
+
+/** One `rank_snapshots` row. */
+export interface AccountExplorerRankSnapshot {
+  capturedAtUtc: string
+  tier: string
+  division: string
+  leaguePoints: number
+  /** Null on snapshots taken before queue totals were recorded. */
+  wins: number | null
+  losses: number | null
+}
+
+// =============================================================================
+// Effective configuration viewer — `GET /api/ops/configuration` (#1034)
+// =============================================================================
+
+/**
+ * Where a bound value came from (#1034). `default` — no provider supplies the key,
+ * the value is the class default. `override` — a provider supplies it; `source`
+ * names which one. `derived` — no provider supplies it, yet the value differs from
+ * the class default, so something computed it at boot.
+ */
+export type EffectiveConfigurationOrigin = 'default' | 'override' | 'derived'
+
+/** How to read an effective-configuration value's number. */
+export type EffectiveConfigurationUnit = 'bytes' | 'duration' | 'count' | 'percent' | 'flag' | 'list' | 'text'
+
+/** One bound option, as the process holds it. */
+export interface EffectiveConfigurationValue {
+  /** Fully-qualified configuration key, e.g. `StorageHistory:DiskCapacityBytes`. */
+  key: string
+  /** The property name alone, e.g. `DiskCapacityBytes`. */
+  name: string
+  /** The pasteable-back-into-configuration form. Null when the option is unset. */
+  value: string | null
+  /** The humanised form ("90 days", "1.0 TB"), or null when it would repeat `value`. */
+  valueLabel: string | null
+  origin: EffectiveConfigurationOrigin
+  /** Which provider supplied an override, e.g. `environment`. Null for `default`/`derived`. */
+  source: string | null
+  unit: EffectiveConfigurationUnit
+  /** Set when the value is unset and that has a visible consequence elsewhere in the portal. */
+  notice: string | null
+}
+
+/** One configuration section's worth of values, with the prose explaining what it drives. */
+export interface EffectiveConfigurationSection {
+  /** The configuration key prefix, e.g. `StorageHistory`. */
+  name: string
+  title: string
+  description: string
+  values: EffectiveConfigurationValue[]
+}
+
+/** One process's snapshot: which build, which environment, and its sections. */
+export interface EffectiveConfigurationProcess {
+  /** Which host bound these values — `Api` or `Ingestor`. */
+  processName: string
+  environment: string
+  /** The build this process is running, or null for a plain local build. */
+  version: string | null
+  /**
+   * When this snapshot was taken. For the Api this is always "now" — it is built
+   * live on every request. For the Ingestor it is the boot time of its last run:
+   * still what that process is running, even if older than the last deploy.
+   */
+  capturedAtUtc: string
+  sections: EffectiveConfigurationSection[]
+}
+
+/** `GET /api/ops/configuration` — what every host is actually running with. */
+export interface EffectiveConfigurationOverviewResponse {
+  processes: EffectiveConfigurationProcess[]
 }

@@ -28,7 +28,8 @@ public sealed class AccountValidationIntegrationTests
             TimeProvider.System,
             NullLogger<AccountValidationService>.Instance);
 
-        await service.ValidateAsync(accountKey, CancellationToken.None);
+        var validated = await service.ValidateAsync(accountKey, CancellationToken.None);
+        validated.Should().BeTrue("a Processing candidate was promoted");
 
         await using (var verifyDb = _fixture.CreateDbContext())
         {
@@ -39,6 +40,9 @@ public sealed class AccountValidationIntegrationTests
             account.MatchIngestClaimedAtUtc.Should().BeNull();
             account.LastMatchIngestAtUtc.Should().NotBeNull();
             candidate.Status.Should().Be(MainCandidateStatus.Validated);
+            candidate.ValidatedAtUtc.Should().NotBeNull(
+                "the promotion stamps the column the queue-latency snapshot reads (#1024); "
+                + "it used to set the status alone, leaving every row 'never validated'");
         }
 
         await SetProcessingStateAsync(accountKey);
@@ -52,6 +56,39 @@ public sealed class AccountValidationIntegrationTests
             account.MatchIngestStatus.Should().Be(MatchIngestStatus.Idle);
             account.MatchIngestClaimedAtUtc.Should().BeNull();
             candidate.Status.Should().Be(MainCandidateStatus.Queued);
+        }
+    }
+
+    [Fact]
+    public async Task ValidateAsync_ShouldReportNothingValidated_WhenTheAccountHasNoProcessingCandidate()
+    {
+        // The funnel counts validated *accounts* off this return value (#1024), so an
+        // account whose candidates were already promoted — or reverted out from under
+        // the claim — must not inflate the count on the way through.
+        await _fixture.ResetDatabaseAsync();
+        var accountKey = new Data.Repositories.AccountKey("KR", "puuid-nothing-to-promote");
+
+        await SeedProcessingStateAsync(accountKey);
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var candidate = db.MainCandidates.Single(c => c.Puuid == accountKey.Puuid);
+            candidate.Status = MainCandidateStatus.Queued;
+            await db.SaveChangesAsync();
+        }
+
+        var service = new AccountValidationService(
+            _fixture.CreateSessionFactory(),
+            TimeProvider.System,
+            NullLogger<AccountValidationService>.Instance);
+
+        var validated = await service.ValidateAsync(accountKey, CancellationToken.None);
+
+        validated.Should().BeFalse();
+        await using (var verifyDb = _fixture.CreateDbContext())
+        {
+            var candidate = verifyDb.MainCandidates.Single(c => c.Puuid == accountKey.Puuid);
+            candidate.Status.Should().Be(MainCandidateStatus.Queued, "only Processing rows are promoted");
+            candidate.ValidatedAtUtc.Should().BeNull();
         }
     }
 

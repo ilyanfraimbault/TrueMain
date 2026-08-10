@@ -10,6 +10,7 @@ public sealed class Worker(
     IServiceScopeFactory scopeFactory,
     IOptions<JobOptions> jobOptions,
     IIterationContext iterationContext,
+    ICallerContext callerContext,
     IHostApplicationLifetime applicationLifetime,
     IngestorMetrics metrics) : BackgroundService
 {
@@ -166,6 +167,12 @@ public sealed class Worker(
                     + $"(reached while running Job:Mode '{mode}'). "
                     + $"Registered modes: {DescribeRegisteredModes(scope.ServiceProvider)}. "
                     + "Register the missing one via AddRecordedProcess<T>(JobMode) in AddIngestorProcesses.");
+
+            // Ambient caller attribution (#1035): every Riot call the process makes
+            // while this scope is open is tagged with its name in the usage rollups,
+            // so /riot-api can attribute consumption per caller. Scoped to just the
+            // RunCoreAsync call so it never leaks into the next process below.
+            using var callerScope = callerContext.BeginCall(process.Name);
 
             try
             {

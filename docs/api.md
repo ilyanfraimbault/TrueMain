@@ -901,17 +901,78 @@ Histogramme du nombre de matchs dans le temps, par date de game.
 `bucket` = timestamp ISO du début de période (week/month/year), ou `MAJEUR.MINEUR`
 (`16.4`) pour `patch`.
 
+## `GET /ops/stats/matches-ingested`
+
+Débit d'ingestion (#1025) : combien de matchs le pipeline a réellement **ingérés**
+par période, agrégé depuis les summaries des runs `MatchIngestion` en Mongo.
+
+Ce n'est **pas** une variante de `stats/matches-over-time`, qui bucketise sur
+`GameStartTimeUtc` — donc *quand les parties ont été jouées*. Cette série-là bouge à
+peine quand l'ingestion cale, et grossit *dans le passé* quand un backfill tombe.
+Celle-ci répond à « est-ce que le pipeline a suivi cette semaine ».
+
+Source volontairement les summaries de runs et non `matches.CreatedAtUtc` : la
+rétention supprime des matchs, donc un bucket ancien rétrécirait avec le temps — une
+courbe qui réécrit son propre passé. Supprimer un match ne réécrit pas le run qui l'a
+ingéré.
+
+**Query**
+
+| Param        | Type   | Requis | Défaut | Description |
+|--------------|--------|--------|--------|-------------|
+| `granularity`| string | oui    | —      | `day`, `week` ou `month`. `patch` et `year` sont refusés (400) : un patch est une propriété des parties, pas de leur ingestion, et une année ne peut pas remplir deux buckets sous la rétention des runs. |
+| `windowDays` | int    | non    | `30`   | Fenêtre en jours, bornée à 365. |
+
+**Réponse `200`** — `MatchesIngestedReadModel`
+
+```json
+{
+  "buckets": [
+    { "bucket": "2026-08-04T00:00:00Z", "matchesInserted": 42, "matchesSkipped": 5, "timelinesUpdated": 18, "runs": 2 }
+  ],
+  "windowDays": 30,
+  "retentionDays": 180,
+  "earliestRunAtUtc": "2026-07-07T02:14:00Z"
+}
+```
+
+- `bucket` : début de période en ISO-8601 UTC, même forme que `matches-over-time`.
+  Les semaines commencent le **lundi**, comme `date_trunc('week')` côté Postgres — le
+  `$dateTrunc` de Mongo commencerait dimanche et les deux graphes ne s'aligneraient pas.
+- `runs` : nombre de runs démarrés dans la période, **summary ou non**. Un run échoué
+  ou abandonné n'a pas de compteurs mais reste une tentative : le retirer ferait
+  passer un ingestor en crash-loop pour un ingestor au repos.
+- `matchesSkipped` / `timelinesUpdated` : portés parce que `matchesInserted` seul ne
+  distingue pas « plus rien à faire » de « tourne à fond et n'écrit rien », qui sont
+  deux états opposés.
+- Les périodes creuses **à l'intérieur** de la plage observée sont présentes à zéro —
+  un pipeline arrêté est précisément ce que ce graphe doit montrer. En revanche rien
+  n'est rempli **avant** `earliestRunAtUtc` : une période que la rétention a déjà
+  effacée n'a pas été mesurée, et la peindre à zéro affirmerait un repos dont on n'a
+  aucune trace.
+- `retentionDays` : TTL de `process_runs`. Renvoyé pour que le panneau énonce la borne
+  au lieu de laisser la queue vide passer pour une absence d'ingestion.
+
 ## `GET /ops/db/tables`
 
-Empreinte de stockage des tables Postgres.
+Empreinte de stockage des tables Postgres **et des collections Mongo** (#1023) — les
+deux moteurs partagent le même volume, donc la liste ne s'arrête pas à la frontière
+d'un moteur. Triée par `totalBytes` décroissant, tous moteurs confondus.
 
 **Réponse `200`** — `TableStatRow[]`
 
 ```json
 [
-  { "tableName": "match_participants", "rowEstimate": 15000000, "totalBytes": 8589934592, "tableBytes": 5368709120, "indexBytes": 3221225472 }
+  { "engine": "postgres", "tableName": "match_participants", "rowEstimate": 15000000, "totalBytes": 8589934592, "tableBytes": 5368709120, "indexBytes": 3221225472 },
+  { "engine": "mongo", "tableName": "logs", "rowEstimate": 4200000, "totalBytes": 3120508928, "tableBytes": 2684354560, "indexBytes": 436154368 }
 ]
 ```
+
+- `engine` : `postgres` ou `mongo`. Nécessaire et pas cosmétique — `process_runs` et
+  `seed_requests` existent des deux côtés (table Postgres gelée + collection Mongo).
+- `rowEstimate` : estimation du planner côté Postgres, **compte exact** côté Mongo.
+- Les collections Mongo sont absentes de la réponse si Mongo n'est pas configuré : le
+  moteur n'est alors pas mesuré, ce qui n'est pas la même chose que vide.
 
 ## `GET /ops/db/history`
 
@@ -931,10 +992,13 @@ process de snapshot n'a pas tourné)
 ```json
 {
   "daily": [
-    { "dateUtc": "2026-07-27T00:00:00Z", "databaseBytes": 41231686144, "totalBytes": 39000000000, "rowEstimate": 21000000 }
+    { "dateUtc": "2026-07-27T00:00:00Z", "databaseBytes": 44352195072, "postgresBytes": 41231686144, "mongoBytes": 3120508928, "totalBytes": 39000000000, "rowEstimate": 21000000 }
   ],
+  "engines": ["mongo", "postgres"],
+  "comparableDays": 90,
   "tables": [
     {
+      "engine": "postgres",
       "tableName": "match_participants",
       "points": [{ "dateUtc": "2026-07-27T00:00:00Z", "totalBytes": 8589934592, "rowEstimate": 15000000 }],
       "currentBytes": 8589934592,
@@ -954,9 +1018,14 @@ process de snapshot n'a pas tourné)
 }
 ```
 
-- `databaseBytes` : `pg_database_size` **mesuré** — c'est ce qui remplit le volume
-  (catalogues compris), et c'est ce que la prévision extrapole. `totalBytes` n'est que
-  la somme des tables du schéma `public`, donc toujours plus petit.
+- `databaseBytes` : `pg_database_size` **mesuré** (catalogues compris) **+** la taille
+  sur disque de Mongo (`dbStats.storageSize + indexSize`), **sommés** — les deux moteurs
+  sont sur le même volume, donc c'est bien la somme qui le remplit, jamais le plus gros
+  des deux. C'est ce que la prévision extrapole. `postgresBytes` / `mongoBytes` donnent
+  la répartition. `totalBytes` n'est que la somme des objets, donc toujours plus petit.
+- `engines` : les moteurs réellement mesurés sur la fenêtre. Avant le premier snapshot
+  Mongo, et partout où Mongo n'est pas configuré, les totaux ne couvrent que Postgres —
+  le panneau l'affiche au lieu de les présenter comme « le disque ».
 - `rowEstimate` : somme des estimations du planner, indicateur de tendance et non un
   compte exact.
 - `tables` : uniquement les plus grosses (`StorageHistory:TopTables`, 10 par défaut) ;
@@ -965,7 +1034,12 @@ process de snapshot n'a pas tourné)
   définie plutôt qu'infinie).
 - `forecast` : **`null`** s'il y a moins de 3 jours d'historique, si le stockage est
   stable ou décroissant, ou si `StorageHistory:DiskCapacityBytes` n'est pas configuré.
-  Aucune valeur de remplacement n'est inventée.
+  Aucune valeur de remplacement n'est inventée. « Jours d'historique » ne compte que les
+  jours mesurant les **mêmes moteurs** que le plus récent : le jour où Mongo commence à
+  être mesuré ajoute son empreinte d'un coup, et ajuster une tendance à travers cette
+  marche lirait un saut unique comme un rythme quotidien. `comparableDays` expose ce
+  compte, pour que le panneau nomme la vraie raison de l'absence au lieu de redériver
+  la règle de son côté.
 - `projectedAtUtc` : `null` = échéance à plus d'un siècle **dans un sens ou dans
   l'autre** (aucune date exploitable à ce rythme) ; une date passée = seuil déjà franchi.
 
@@ -1441,6 +1515,93 @@ ou Rejected), paginés.
 ```
 
 `gameName`/`tagLine` `null` tant que le compte n'est pas résolu.
+
+## `GET /ops/candidates/funnel`
+
+Débit du funnel de candidats par période : entrées (ladder / harvest / seed
+manuel), scorés, promus, validés et rétrogradés (#1024).
+
+Complément de `GET /ops/candidates`, qui donne l'état *instantané* du funnel — un
+funnel plein mais complètement bloqué et un funnel qui coule y sont identiques.
+
+La source est le résumé des runs enregistrés dans `process_runs`, **jamais** un
+comptage de lignes de `main_candidates` : la rétention supprime les candidats
+périmés, donc compter les lignes par statut sur une période passée sous-estime
+chaque bucket, et d'autant plus qu'on remonte loin. Un résumé de run est écrit une
+fois et jamais réécrit : supprimer le candidat ne décompte pas le run qui l'a
+découvert. La série est donc bornée par le TTL de `process_runs`.
+
+**Query**
+
+| Param | Type | Requis | Défaut | Description |
+|-------|------|--------|--------|-------------|
+| `granularity` | string | oui | — | `day`, `week` ou `month`. Toute autre valeur → `400`. |
+| `windowDays` | int | non | 30 | Fenêtre en jours, clampée à [1, 365]. |
+
+**Réponse `200`** — `CandidateFunnelReadModel`
+
+```json
+{
+  "buckets": [
+    {
+      "bucket": "2026-08-04T00:00:00Z",
+      "intakeLadder": 42,
+      "intakeHarvest": 7,
+      "intakeManual": 2,
+      "scored": 140,
+      "promoted": 30,
+      "validated": 25,
+      "demoted": 3,
+      "runs": 6
+    }
+  ],
+  "windowDays": 30,
+  "retentionDays": 180,
+  "earliestRunAtUtc": "2026-07-06T02:14:00Z",
+  "validatedFirstMeasuredAtUtc": "2026-08-04T05:00:00Z"
+}
+```
+
+- `intakeManual` compte des candidats *mis en file*, pas insérés : un seed manuel
+  promeut des lignes que la discovery a souvent déjà créées.
+- `promoted` est le top-N par plateforme ; l'écart avec `scored` est la coupe
+  compétitive, pas une panne.
+- `validated` est `null` — et non `0` — pour les périodes antérieures à
+  `validatedFirstMeasuredAtUtc` : le compteur n'existait pas encore, et un panneau
+  de santé ne présente pas ce qu'il n'a pas mesuré comme un zéro mesuré (#924).
+- `demoted` est aujourd'hui la seule sortie négative du funnel : le statut
+  `Rejected` existe sur l'entité mais aucun process ne l'assigne.
+- `runs` compte les runs des six process contributeurs ; `0` distingue « le
+  pipeline n'a pas tourné » de « il a tourné et n'a rien bougé ».
+- Les périodes creuses *à l'intérieur* de la plage observée valent zéro ; rien
+  n'est rempli avant `earliestRunAtUtc`, et `retentionDays` borne `windowDays`.
+
+## `GET /ops/candidates/queue-latency`
+
+Latence de file des candidats actuellement retenus : médiane et p90 de
+découverte → scoring, puis scoring → validation (#1024).
+
+**Instantané sur les lignes présentes, pas une série historique** — d'où l'absence
+de fenêtre. Les candidats élagués n'y sont pas, et la population survivante penche
+vers ceux qui ont bougé : à lire comme « à quelle vitesse la file sert ce qu'elle
+contient », pas « combien de temps un candidat attend ».
+
+**Réponse `200`** — `CandidateQueueLatencyReadModel`
+
+```json
+{
+  "discoveredToScored": { "samples": 8421, "medianSeconds": 10800, "p90Seconds": 16560 },
+  "scoredToValidated": { "samples": 512, "medianSeconds": 10800, "p90Seconds": 43200 },
+  "retainedCandidates": 10400,
+  "asOfUtc": "2026-08-05T12:00:00Z"
+}
+```
+
+- Les percentiles sont `null` quand `samples` vaut 0 : aucune ligne ne portait les
+  deux bornes du segment, ce qui n'est pas une latence nulle.
+- `scoredToValidated` part vide au déploiement : `ValidatedAtUtc` n'était pas écrit
+  avant #1024 (la promotion ne posait que le statut), donc le segment se remplit au
+  fil des validations.
 
 ## `GET /ops/candidates/{id}`
 

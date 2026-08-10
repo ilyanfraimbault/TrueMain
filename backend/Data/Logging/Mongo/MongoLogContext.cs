@@ -48,10 +48,21 @@ public sealed class MongoLogContext : IDisposable
             _database.GetCollection<DbTableSizeSnapshotDocument>(_options.DbTableSizeSnapshotsCollection);
         ProcessRuns = _database.GetCollection<ProcessRunDocument>(_options.ProcessRunsCollection);
         SeedRequests = _database.GetCollection<SeedRequestDocument>(_options.SeedRequestsCollection);
+        EffectiveConfigurations = _database.GetCollection<EffectiveConfigurationDocument>(
+            _options.EffectiveConfigurationCollection);
     }
 
     /// <summary>True when a Mongo client was created (logging enabled + connection string present).</summary>
     public bool IsActive => _database is not null;
+
+    /// <summary>
+    /// The raw database handle, for the few callers that need an admin command rather
+    /// than a typed collection — today only the storage-stats reader (#1023), which
+    /// runs <c>dbStats</c> and <c>$collStats</c> over every collection including ones
+    /// this context does not model. Everything with a document type should go through
+    /// the typed collection properties instead.
+    /// </summary>
+    internal IMongoDatabase Database => _database ?? throw Inactive();
 
     // The collection wrappers are cached in the property backing field (the `field`
     // keyword): GetCollection<T>() allocates a fresh wrapper on every call, and the
@@ -117,6 +128,17 @@ public sealed class MongoLogContext : IDisposable
     /// resolved by the Ingestor's <c>ManualSeedProcess</c>, read by the admin.
     /// </summary>
     public IMongoCollection<SeedRequestDocument> SeedRequests
+    {
+        get => field ?? throw Inactive();
+        private init;
+    }
+
+    /// <summary>
+    /// One effective-configuration snapshot per process (#1034): published by the Ingestor at
+    /// each boot, read by the Api to serve the admin configuration page. The Api's own half of
+    /// that page is built live from its container and never goes through here.
+    /// </summary>
+    public IMongoCollection<EffectiveConfigurationDocument> EffectiveConfigurations
     {
         get => field ?? throw Inactive();
         private init;
@@ -207,10 +229,10 @@ public sealed class MongoLogContext : IDisposable
     /// <summary>
     /// Creates the supporting indexes for the <c>riot_api_call_rollups</c> metrics
     /// collection idempotently (#93): a unique <c>(bucketStartUtc, endpoint,
-    /// statusCode)</c> compound so each <c>$inc</c>-upsert targets exactly one
-    /// rollup, a descending <c>bucketStartUtc</c> index for window scans, an
-    /// <c>(endpoint, bucketStartUtc)</c> compound for the per-endpoint filter, and
-    /// the reconciled TTL index on <c>bucketStartUtc</c> enforcing
+    /// statusCode, callerProcess)</c> compound so each <c>$inc</c>-upsert targets
+    /// exactly one rollup, a descending <c>bucketStartUtc</c> index for window
+    /// scans, an <c>(endpoint, bucketStartUtc)</c> compound for the per-endpoint
+    /// filter, and the reconciled TTL index on <c>bucketStartUtc</c> enforcing
     /// <see cref="MongoLoggingOptions.RiotApiCallsRetention"/>. Called once on
     /// <c>RiotApiMetricsSink</c> startup; safe to re-run.
     /// </summary>
@@ -221,15 +243,23 @@ public sealed class MongoLogContext : IDisposable
             return;
         }
 
+        // #1035: the upsert key widened from (bucketStartUtc, endpoint, statusCode)
+        // to include callerProcess, so two different callers landing in the same
+        // minute/endpoint/status now upsert two documents instead of one. The old
+        // 3-field unique index would reject the second as a duplicate key, so it
+        // must be dropped before the new 4-field one is created.
+        await DropIndexIfExistsAsync(RiotApiCallRollups, "ux_bucket_endpoint_status", ct);
+
         var models = new List<CreateIndexModel<RiotApiCallRollupDocument>>
         {
-            // The upsert key: one rollup per minute/endpoint/status. Unique so a
-            // concurrency race can't split a bucket into duplicate documents.
+            // The upsert key: one rollup per minute/endpoint/status/caller. Unique so
+            // a concurrency race can't split a bucket into duplicate documents.
             new(Builders<RiotApiCallRollupDocument>.IndexKeys
                     .Ascending(doc => doc.BucketStartUtc)
                     .Ascending(doc => doc.Endpoint)
-                    .Ascending(doc => doc.StatusCode),
-                new CreateIndexOptions { Name = "ux_bucket_endpoint_status", Unique = true }),
+                    .Ascending(doc => doc.StatusCode)
+                    .Ascending(doc => doc.CallerProcess),
+                new CreateIndexOptions { Name = "ux_bucket_endpoint_status_caller", Unique = true }),
             // The window lower bound (bucketStartUtc >= since) is on every read; a
             // descending index serves it and the newest-first rate-limit lookup.
             new(Builders<RiotApiCallRollupDocument>.IndexKeys.Descending(doc => doc.BucketStartUtc),
@@ -249,10 +279,11 @@ public sealed class MongoLogContext : IDisposable
 
     /// <summary>
     /// Creates the supporting indexes for the <c>db_table_size_snapshots</c>
-    /// collection idempotently (#925): a unique <c>(snapshotDateUtc, tableName)</c>
-    /// compound so the day-keyed upsert targets exactly one document per table per
-    /// day, a descending <c>snapshotDateUtc</c> index for the window scan every read
-    /// performs, and the reconciled TTL index enforcing
+    /// collection idempotently (#925): a unique
+    /// <c>(snapshotDateUtc, engine, tableName)</c> compound so the day-keyed upsert
+    /// targets exactly one document per object per day, a descending
+    /// <c>snapshotDateUtc</c> index for the window scan every read performs, and the
+    /// reconciled TTL index enforcing
     /// <see cref="MongoLoggingOptions.DbTableSizeSnapshotsRetention"/>. Called on the
     /// snapshot step's first run; safe to re-run.
     /// </summary>
@@ -263,15 +294,34 @@ public sealed class MongoLogContext : IDisposable
             return;
         }
 
+        // #1023 widened the upsert key with the engine, so the pre-existing
+        // (snapshotDateUtc, tableName) unique index has to go: process_runs and
+        // seed_requests are both a Postgres table and a Mongo collection, and under
+        // the old index the second engine written each day would collide with the
+        // first. Dropped before the new one is created so the collection is never
+        // left with a constraint the writer cannot satisfy.
+        await DropIndexIfExistsAsync(DbTableSizeSnapshots, "ux_date_table", ct);
+
+        // Stamp the engine onto the documents written before #1023. They are Postgres
+        // readings by construction, and without the field the writer's engine-filtered
+        // upsert would not match them: it would insert a *second* document for the same
+        // day and table, and the read sums per day, so every backfilled day would
+        // silently double. Matches nothing from the second run on.
+        await DbTableSizeSnapshots.UpdateManyAsync(
+            Builders<DbTableSizeSnapshotDocument>.Filter.Exists(doc => doc.Engine, exists: false),
+            Builders<DbTableSizeSnapshotDocument>.Update.Set(doc => doc.Engine, StorageEngines.Postgres),
+            cancellationToken: ct);
+
         var models = new List<CreateIndexModel<DbTableSizeSnapshotDocument>>
         {
-            // The upsert key: one document per table per day. Unique, so two ingestor
+            // The upsert key: one document per object per day. Unique, so two ingestor
             // containers running the pipeline concurrently cannot split a day into
             // duplicate documents and double every derived per-day delta.
             new(Builders<DbTableSizeSnapshotDocument>.IndexKeys
                     .Ascending(doc => doc.SnapshotDateUtc)
+                    .Ascending(doc => doc.Engine)
                     .Ascending(doc => doc.TableName),
-                new CreateIndexOptions { Name = "ux_date_table", Unique = true }),
+                new CreateIndexOptions { Name = "ux_date_engine_table", Unique = true }),
             // Every read is "the last N days", so the window lower bound is served
             // descending, newest first.
             new(Builders<DbTableSizeSnapshotDocument>.IndexKeys.Descending(doc => doc.SnapshotDateUtc),
@@ -363,6 +413,66 @@ public sealed class MongoLogContext : IDisposable
         };
 
         await SeedRequests.Indexes.CreateManyAsync(models, ct);
+    }
+
+    /// <summary>
+    /// Creates the supporting index for the <c>effective_configuration</c> collection
+    /// idempotently (#1034): a unique ascending index on <c>processName</c>, which is the whole
+    /// key — the collection holds exactly one document per process and every boot overwrites
+    /// it. Unique so two overlapping ingestor containers during a redeploy cannot split a
+    /// process into duplicate snapshots that the page would then render twice. No TTL: this is
+    /// functional operator state, like <c>seed_requests</c>. Called by the store's first-use
+    /// bootstrap; safe to re-run.
+    /// </summary>
+    public async Task EnsureEffectiveConfigurationIndexesAsync(CancellationToken ct)
+    {
+        if (!IsActive)
+        {
+            return;
+        }
+
+        await EffectiveConfigurations.Indexes.CreateOneAsync(
+            new CreateIndexModel<EffectiveConfigurationDocument>(
+                Builders<EffectiveConfigurationDocument>.IndexKeys.Ascending(doc => doc.ProcessName),
+                new CreateIndexOptions { Name = "ux_process", Unique = true }),
+            cancellationToken: ct);
+    }
+
+    /// <summary>
+    /// Drops <paramref name="indexName"/> when it exists, so a superseded index can be
+    /// retired without the caller having to know whether this deployment has already
+    /// run. Listing first keeps the steady-state no-op free of an exception
+    /// round-trip; the drop still tolerates the index having vanished in between,
+    /// because check-then-act races two hosts ensuring indexes at the same time (an
+    /// overlapping redeploy is exactly when both would run this).
+    /// </summary>
+    private static async Task DropIndexIfExistsAsync<TDoc>(
+        IMongoCollection<TDoc> collection,
+        string indexName,
+        CancellationToken ct)
+    {
+        using var cursor = await collection.Indexes.ListAsync(ct);
+        var indexes = await cursor.ToListAsync(ct);
+
+        var exists = indexes.Any(
+            index => index.TryGetValue("name", out var name)
+                     && name.IsString
+                     && name.AsString == indexName);
+
+        if (!exists)
+        {
+            return;
+        }
+
+        try
+        {
+            await collection.Indexes.DropOneAsync(indexName, ct);
+        }
+        catch (MongoCommandException ex) when (ex.CodeName == "IndexNotFound")
+        {
+            // Another host dropped it between the list and the drop. The desired end
+            // state is "gone", and it is gone.
+        }
     }
 
     /// <summary>

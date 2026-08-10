@@ -4,10 +4,23 @@
 // a "top 10 champions by games" breakdown from `GET /api/ops/stats/champions`
 // (no filters). Everything is real: empty/zero responses render honest zero
 // states, never fabricated series.
-import type { MatchTimeGranularity } from '~~/shared/types/ops'
-import { formatNumber } from '~~/shared/utils/format'
+import type { IngestionTimeGranularity, MatchTimeGranularity } from '~~/shared/types/ops'
+import { detectorStatusMeta } from '~~/shared/utils/detector-status'
+import { formatNumber, formatTimeAgo } from '~~/shared/utils/format'
 
 const { data: stats, pending, error, refresh } = useOverviewStats()
+
+// --- Health verdict strip (#1031) --------------------------------------------
+// One line: the cockpit's rolled-up verdict, linking to /health for the signals
+// behind it. The Overview remains the post-login landing page, so this is where
+// "is anything on fire?" gets answered without a click.
+const {
+  data: health,
+  pending: healthPending,
+  error: healthError,
+} = usePipelineHealth()
+
+const healthVerdict = computed(() => detectorStatusMeta(health.value?.status))
 
 // --- Matches over time -------------------------------------------------------
 // Histogram of match counts by GAME date at a selectable granularity. The select
@@ -46,6 +59,76 @@ const matchesXFormatter = computed(() =>
 const matchesTotal = computed(() =>
   matchesChartData.value.reduce((sum, b) => sum + (b.matches ?? 0), 0),
 )
+
+// --- Matches ingested (#1025) ------------------------------------------------
+// The pipeline's own throughput, bucketed by RUN date — a different question from
+// the chart above, which buckets by game date and therefore barely moves when
+// ingestion stalls. Kept as its own card and its own request so the two can never
+// be read as two views of one series.
+const ingestedGranularityItems: { label: string, value: IngestionTimeGranularity }[] = [
+  { label: 'Day', value: 'day' },
+  { label: 'Week', value: 'week' },
+  { label: 'Month', value: 'month' },
+]
+const ingestedGranularity = ref<IngestionTimeGranularity>('day')
+
+const ingestedWindowItems = [
+  { label: '7 days', value: 7 },
+  { label: '30 days', value: 30 },
+  { label: '90 days', value: 90 },
+]
+const ingestedWindowDays = ref(30)
+
+const {
+  data: ingested,
+  pending: ingestedPending,
+  error: ingestedError,
+} = useMatchesIngested(ingestedGranularity, ingestedWindowDays)
+
+const ingestedChartData = computed(() =>
+  (ingested.value?.buckets ?? []).map(b => ({
+    label: formatBucketLabel(b.bucket, ingestedGranularity.value),
+    inserted: b.matchesInserted,
+  })),
+)
+const ingestedChartCategories = {
+  inserted: { name: 'Inserted', color: CHART_PRIMARY },
+}
+
+// The companion counters, as totals rather than as a second area: inserted alone
+// cannot tell "nothing left to do" from "ran hard and stored nothing", and those
+// are opposite states. A window with runs, no inserts and plenty skipped is the
+// second one, and it reads straight off this line.
+const ingestedTotals = computed(() => {
+  const buckets = ingested.value?.buckets ?? []
+  return buckets.reduce(
+    (acc, b) => ({
+      runs: acc.runs + b.runs,
+      skipped: acc.skipped + b.matchesSkipped,
+      timelines: acc.timelines + b.timelinesUpdated,
+    }),
+    { runs: 0, skipped: 0, timelines: 0 },
+  )
+})
+const ingestedXFormatter = computed(() =>
+  indexLabelFormatter(ingestedChartData.value, row => row.label),
+)
+const ingestedTotal = computed(() =>
+  ingestedChartData.value.reduce((sum, b) => sum + (b.inserted ?? 0), 0),
+)
+
+// The series cannot see past the run-retention TTL, and the requested window can
+// exceed it. Say so rather than letting the missing tail read as a stopped
+// pipeline — the one misreading this chart exists to prevent.
+const ingestedBoundNote = computed(() => {
+  const payload = ingested.value
+  if (!payload || payload.buckets.length === 0) {
+    return null
+  }
+  return payload.windowDays > payload.retentionDays
+    ? `Run history is kept ${payload.retentionDays} days, so the series stops there rather than at the requested ${payload.windowDays}.`
+    : null
+})
 
 // Top-10 champions by games (the endpoint already returns games-desc), used for
 // the bar chart at the bottom. Independent request so a champions-stats error
@@ -212,6 +295,41 @@ const topChampionsLoading = computed(
         class="mb-6"
       />
 
+      <!-- Health verdict strip (#1031). The Overview stays the landing page, so the
+           cockpit's one-line answer is surfaced here rather than making an operator
+           navigate to find out whether anything is on fire. Deliberately the verdict and
+           nothing else: the tiles and the signals live on /health.
+
+           Its own fetch, so a broken /ops/pipeline-health costs this strip and not the
+           panel below it — and says so in place rather than rendering a healthy-looking
+           blank. -->
+      <NuxtLink
+        v-if="healthPending || health || healthError"
+        to="/health"
+        class="group block mb-6 rounded-lg focus-visible:outline-2 focus-visible:outline-primary"
+      >
+        <UCard class="transition-colors group-hover:bg-elevated/50">
+          <USkeleton v-if="healthPending && !health" class="h-6 w-72" />
+          <div v-else class="flex items-center gap-3">
+            <UIcon
+              :name="healthVerdict.icon"
+              class="size-5 shrink-0"
+              :class="healthError ? 'text-dimmed' : healthVerdict.text"
+            />
+            <p class="text-sm grow min-w-0 truncate" :class="healthError ? 'text-dimmed italic' : 'text-highlighted'">
+              {{ healthError ? 'Pipeline health could not be loaded.' : health?.headline }}
+            </p>
+            <span v-if="health && !healthError" class="text-xs text-muted shrink-0">
+              {{ formatTimeAgo(health.evaluatedAtUtc) }}
+            </span>
+            <UIcon
+              name="i-lucide-arrow-up-right"
+              class="size-4 shrink-0 text-dimmed group-hover:text-muted"
+            />
+          </div>
+        </UCard>
+      </NuxtLink>
+
       <!-- Matches over time -->
       <UCard :ui="{ root: 'overflow-visible' }" class="mb-6">
         <template #header>
@@ -221,7 +339,7 @@ const topChampionsLoading = computed(
                 Matches over time
               </p>
               <p class="text-sm text-dimmed">
-                New matches by game date.
+                New matches by game <em>date</em> — when they were played, not when we ingested them.
               </p>
             </div>
             <div class="flex items-center gap-2">
@@ -267,6 +385,79 @@ const topChampionsLoading = computed(
             <USkeleton class="h-[260px] w-full" />
           </template>
         </ClientOnly>
+      </UCard>
+
+      <!-- Matches ingested (#1025) -->
+      <UCard :ui="{ root: 'overflow-visible' }" class="mb-6">
+        <template #header>
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <p class="text-xs text-muted uppercase mb-1.5">
+                Matches ingested
+              </p>
+              <p class="text-sm text-dimmed">
+                Pipeline throughput by <em>run</em> date — whether ingestion kept up.
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              <UBadge
+                v-if="!ingestedPending && !ingestedError && ingestedChartData.length"
+                color="neutral"
+                variant="subtle"
+                :label="`${formatNumber(ingestedTotal)} inserted`"
+              />
+              <USelect
+                v-model="ingestedGranularity"
+                :items="ingestedGranularityItems"
+                class="w-28"
+                aria-label="Ingestion bucket granularity"
+              />
+              <USelect
+                v-model="ingestedWindowDays"
+                :items="ingestedWindowItems"
+                class="w-28"
+                aria-label="Ingestion window"
+              />
+            </div>
+          </div>
+        </template>
+
+        <FetchErrorAlert
+          v-if="ingestedError"
+          :error="ingestedError"
+          title="Failed to load ingestion throughput"
+        />
+        <USkeleton v-else-if="ingestedPending" class="h-[260px] w-full" />
+        <div
+          v-else-if="ingestedChartData.length === 0"
+          class="h-[260px] flex items-center justify-center text-sm text-muted"
+        >
+          No ingestion runs on record in this window.
+        </div>
+        <template v-else>
+          <ClientOnly>
+            <NcAreaChart
+              :data="ingestedChartData"
+              :height="260"
+              :categories="ingestedChartCategories"
+              :x-num-ticks="Math.min(ingestedChartData.length, 8)"
+              :x-formatter="ingestedXFormatter"
+              :y-formatter="formatCount"
+              v-bind="areaChartProps()"
+            />
+            <template #fallback>
+              <USkeleton class="h-[260px] w-full" />
+            </template>
+          </ClientOnly>
+          <p class="mt-3 text-xs text-dimmed tabular-nums">
+            {{ formatNumber(ingestedTotals.runs) }} runs ·
+            {{ formatNumber(ingestedTotals.skipped) }} skipped ·
+            {{ formatNumber(ingestedTotals.timelines) }} timelines updated
+          </p>
+          <p v-if="ingestedBoundNote" class="mt-1 text-xs text-dimmed">
+            {{ ingestedBoundNote }}
+          </p>
+        </template>
       </UCard>
 
       <!-- Stat cards -->

@@ -1,8 +1,10 @@
+using Core.Lol.Identifiers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TrueMain.Authentication;
 using TrueMain.ReadModels.Ops;
 using TrueMain.Services.Ops;
+using TrueMain.Services.Truemains;
 
 namespace TrueMain.Controllers.Ops;
 
@@ -15,6 +17,7 @@ public sealed class OpsController(
     IOverviewQueryService overviewQueryService,
     IChampionStatsQueryService championStatsQueryService,
     IMatchesOverTimeQueryService matchesOverTimeQueryService,
+    IMatchesIngestedQueryService matchesIngestedQueryService,
     ITableStatsQueryService tableStatsQueryService,
     IDbStorageHistoryQueryService dbStorageHistoryQueryService,
     IProcessRunsQueryService processRunsQueryService,
@@ -23,10 +26,15 @@ public sealed class OpsController(
     IRiotApiUsageQueryService riotApiUsageQueryService,
     IDataQualityQueryService dataQualityQueryService,
     IDataQualityDetectorsQueryService dataQualityDetectorsQueryService,
+    IEffectiveConfigurationQueryService effectiveConfigurationQueryService,
     ISeedRequestService seedRequestService,
     ISeedRequestQueryService seedRequestQueryService,
     ICandidateQueryService candidateQueryService,
+    ICandidateFunnelQueryService candidateFunnelQueryService,
+    ICandidateQueueLatencyQueryService candidateQueueLatencyQueryService,
     ICrashesQueryService crashesQueryService,
+    IAccountExplorerQueryService accountExplorerQueryService,
+    IPatchCoverageQueryService patchCoverageQueryService,
     IAggregationStatsQueryService aggregationStatsQueryService) : ControllerBase
 {
     [HttpGet("pipeline-health")]
@@ -97,6 +105,42 @@ public sealed class OpsController(
     }
 
     /// <summary>
+    /// Match ingestion throughput: how many matches the pipeline actually ingested
+    /// per period, from the recorded <c>MatchIngestion</c> run summaries (#1025).
+    /// </summary>
+    /// <remarks>
+    /// Not a variant of <c>stats/matches-over-time</c>, which buckets games by when
+    /// they were <em>played</em> and barely moves when ingestion stalls. This one
+    /// answers whether the pipeline kept up. Bounded by the <c>process_runs</c> TTL,
+    /// which the response reports so the caller can state the bound rather than
+    /// drawing the tail beyond it as zero ingestion.
+    /// </remarks>
+    [HttpGet("stats/matches-ingested")]
+    [ProducesResponseType(typeof(MatchesIngestedReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<MatchesIngestedReadModel>> GetMatchesIngestedAsync(
+        [FromQuery] string? granularity,
+        [FromQuery] int? windowDays,
+        CancellationToken ct)
+    {
+        // Closed set, parsed case-insensitively, same shape as matches-over-time.
+        // Narrower on purpose: patch is a property of the games rather than of when we
+        // ingested them, and year cannot fill two buckets under the run retention.
+        if (!Enum.TryParse<IngestionTimeGranularity>(granularity, ignoreCase: true, out var parsed)
+            || !Enum.IsDefined(parsed))
+        {
+            ModelState.AddModelError(
+                nameof(granularity),
+                "granularity is required and must be one of: day, week, month.");
+            return ValidationProblem(ModelState);
+        }
+
+        var readModel = await matchesIngestedQueryService.GetAsync(parsed, windowDays, ct);
+        return Ok(readModel);
+    }
+
+    /// <summary>
     /// Aggregation pipelines snapshot for the admin Aggregation panel: per family
     /// (builds patterns, matchups, timeline leads, powerspikes, mains) the exact
     /// row counts of its tables, champion/patch coverage, data freshness and the
@@ -109,6 +153,28 @@ public sealed class OpsController(
     public async Task<ActionResult<AggregationsReadModel>> GetAggregationsAsync(CancellationToken ct)
     {
         var readModel = await aggregationStatsQueryService.GetAsync(ct);
+        return Ok(readModel);
+    }
+
+    /// <summary>
+    /// Whether the patches the public surfaces read are actually servable (#1033): per
+    /// patch, matches and participants ingested by game date, how many
+    /// <c>(champion, lane)</c> lines have an aggregate at all and how many clear the
+    /// games floor the champion directory reads with, which lines are still below it, and
+    /// each fold's coverage and freshness on that patch.
+    ///
+    /// <para>
+    /// Its own endpoint rather than a card on the aggregation panel because it is a set of
+    /// grouped scans over tables that carry no index on their patch column — affordable
+    /// behind an explicit navigation, not on a page that loads on login.
+    /// </para>
+    /// </summary>
+    [HttpGet("patch-coverage")]
+    [ProducesResponseType(typeof(PatchCoverageReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<PatchCoverageReadModel>> GetPatchCoverageAsync(CancellationToken ct)
+    {
+        var readModel = await patchCoverageQueryService.GetAsync(ct);
         return Ok(readModel);
     }
 
@@ -355,6 +421,22 @@ public sealed class OpsController(
     }
 
     /// <summary>
+    /// What every host is actually running with (#1034): the Api's own options, read live
+    /// from its container, plus the Ingestor's — published to Mongo at its own boot, since
+    /// the Api cannot introspect a process it does not run in. Read-only; no secret-bearing
+    /// section is ever included (see <see cref="Data.Configuration.EffectiveConfigurationCatalog"/>).
+    /// </summary>
+    [HttpGet("configuration")]
+    [ProducesResponseType(typeof(EffectiveConfigurationOverviewReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<EffectiveConfigurationOverviewReadModel>> GetConfigurationAsync(
+        CancellationToken ct)
+    {
+        var readModel = await effectiveConfigurationQueryService.GetAsync(ct);
+        return Ok(readModel);
+    }
+
+    /// <summary>
     /// Seeds a single account into the pipeline by its Riot ID (gameName +
     /// tagLine + platformId), instead of waiting for the ladder Discovery to
     /// surface it. Records a <c>SeedRequest</c> at <c>Pending</c> and returns 202;
@@ -422,6 +504,66 @@ public sealed class OpsController(
     }
 
     /// <summary>
+    /// Traces one Riot ID through the whole pipeline (#1032): identity and refresh
+    /// state, the match-ingestion lease, the candidate funnel, the analysed main
+    /// champions and the rank history, in one read-model. Read-only, and
+    /// database-only — the API holds no Riot client, so this never resolves a Riot
+    /// ID that the pipeline has not already recorded.
+    /// <para>
+    /// Declared after the literal <c>accounts/seed</c> routes; literal segments
+    /// outrank the <c>{nameTag}</c> parameter, so those keep resolving to the seed
+    /// endpoints.
+    /// </para>
+    /// </summary>
+    /// <param name="nameTag">
+    /// The Riot ID, either as typed (<c>Name#TAG</c>, percent-encoded) or in the
+    /// hyphen slug form the public routes use (<c>Name-TAG</c>). 400 when it parses
+    /// as neither.
+    /// </param>
+    /// <param name="region">
+    /// Restrict the search to one platform (e.g. "EUW1"). Omit to search every
+    /// region — a Riot ID is only unique within a routing region, so the read-model
+    /// lists any other account carrying it. 400 on an unknown platform, because
+    /// silently answering "never discovered" for a typo would be a lie.
+    /// </param>
+    /// <param name="ct">Request cancellation token.</param>
+    [HttpGet("accounts/{nameTag}")]
+    [ProducesResponseType(typeof(AccountExplorerReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<AccountExplorerReadModel>> GetAccountExplorerAsync(
+        string nameTag,
+        [FromQuery] string? region,
+        CancellationToken ct)
+    {
+        if (!NameTagParser.TryParseRiotId(nameTag, out var parsed))
+        {
+            return ValidationProblem(
+                $"nameTag must be a Riot ID of the form Name#TAG or Name-TAG "
+                + $"(at most {NameTagParser.MaxRiotIdLength} characters).");
+        }
+
+        string? platformId = null;
+        if (!string.IsNullOrWhiteSpace(region))
+        {
+            if (!PlatformId.TryParse(region.Trim(), out var platform))
+            {
+                return ValidationProblem(
+                    $"region '{region}' is not a known platform route (e.g. EUW1, KR, NA1).");
+            }
+
+            platformId = platform.Value;
+        }
+
+        // No 404: an unknown Riot ID is a state this endpoint exists to report,
+        // and a 404 would render in the admin as a failure rather than an answer.
+        var readModel = await accountExplorerQueryService.GetAsync(
+            parsed.GameName, parsed.TagLine, platformId, ct);
+
+        return Ok(readModel);
+    }
+
+    /// <summary>
     /// Lists main candidates (the ingestion pipeline: New → Scored → Queued →
     /// Processing → Validated, or Rejected), most-relevant first, paged. Filterable
     /// by <paramref name="status"/> and <paramref name="region"/> (PlatformId), and
@@ -450,6 +592,57 @@ public sealed class OpsController(
     {
         var readModel = await candidateQueryService.GetCandidatesAsync(
             status, region, search, page, pageSize, ct);
+        return Ok(readModel);
+    }
+
+    /// <summary>
+    /// Candidate funnel throughput per period (#1024): intake split by source, scored,
+    /// promoted, validated and demoted, from the recorded run summaries.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not derived from <c>main_candidates</c> row counts: retention prunes
+    /// stale candidates, so counting rows by status per past period under-reports every
+    /// bucket and increasingly so the further back it looks. Bounded by the
+    /// <c>process_runs</c> TTL, which the response reports. The validated series is
+    /// forward-only and reads null before the counter existed — never zero.
+    /// </remarks>
+    [HttpGet("candidates/funnel")]
+    [ProducesResponseType(typeof(CandidateFunnelReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<CandidateFunnelReadModel>> GetCandidateFunnelAsync(
+        [FromQuery] string? granularity,
+        [FromQuery] int? windowDays,
+        CancellationToken ct)
+    {
+        if (!Enum.TryParse<IngestionTimeGranularity>(granularity, ignoreCase: true, out var parsed)
+            || !Enum.IsDefined(parsed))
+        {
+            ModelState.AddModelError(
+                nameof(granularity),
+                "granularity is required and must be one of: day, week, month.");
+            return ValidationProblem(ModelState);
+        }
+
+        var readModel = await candidateFunnelQueryService.GetAsync(parsed, windowDays, ct);
+        return Ok(readModel);
+    }
+
+    /// <summary>
+    /// Queue latency for the candidates currently retained (#1024): median and p90 of
+    /// discovery → scoring and scoring → validated.
+    /// </summary>
+    /// <remarks>
+    /// A snapshot over the rows that exist right now, not a historical average, and it
+    /// takes no window for that reason — pruned candidates are simply not in it. The
+    /// companion of <c>candidates/funnel</c>, which is the historical half.
+    /// </remarks>
+    [HttpGet("candidates/queue-latency")]
+    [ProducesResponseType(typeof(CandidateQueueLatencyReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<CandidateQueueLatencyReadModel>> GetCandidateQueueLatencyAsync(CancellationToken ct)
+    {
+        var readModel = await candidateQueueLatencyQueryService.GetAsync(ct);
         return Ok(readModel);
     }
 

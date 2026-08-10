@@ -2,6 +2,7 @@ using System.Net;
 using AwesomeAssertions;
 using Data.Metrics.Mongo;
 using Ingestor.Riot;
+using Ingestor.Services;
 using NSubstitute;
 
 namespace TrueMain.UnitTests;
@@ -14,6 +15,8 @@ public sealed class RiotApiMetricsHandlerTests
         var recorder = Substitute.For<IRiotApiCallRecorder>();
         RiotApiCallRecord? captured = null;
         recorder.Record(Arg.Do<RiotApiCallRecord>(record => captured = record));
+        var callerContext = Substitute.For<ICallerContext>();
+        callerContext.CurrentCaller.Returns("Discovery");
 
         var response = new HttpResponseMessage(HttpStatusCode.OK);
         response.Headers.TryAddWithoutValidation("X-App-Rate-Limit", "20:1,100:120");
@@ -22,7 +25,7 @@ public sealed class RiotApiMetricsHandlerTests
         // `handler` owns the inner stub; the invoker is told not to dispose the
         // handler (disposeHandler: false) so each disposable is released exactly
         // once by its own `using`.
-        using var handler = new RiotApiMetricsHandler(recorder) { InnerHandler = new StubHandler(response) };
+        using var handler = new RiotApiMetricsHandler(recorder, callerContext) { InnerHandler = new StubHandler(response) };
         using var invoker = new HttpMessageInvoker(handler, disposeHandler: false);
         using var request = new HttpRequestMessage(
             HttpMethod.Get, "https://europe.api.riotgames.com/lol/match/v5/matches/EUW1_1");
@@ -37,6 +40,7 @@ public sealed class RiotApiMetricsHandlerTests
         captured.StatusCode.Should().Be(200);
         captured.AppRateLimit.Should().Be("20:1,100:120");
         captured.AppRateLimitCount.Should().Be("3:1,57:120");
+        captured.CallerProcess.Should().Be("Discovery");
     }
 
     [Fact]
@@ -45,12 +49,14 @@ public sealed class RiotApiMetricsHandlerTests
         var recorder = Substitute.For<IRiotApiCallRecorder>();
         RiotApiCallRecord? captured = null;
         recorder.Record(Arg.Do<RiotApiCallRecord>(record => captured = record));
+        var callerContext = Substitute.For<ICallerContext>();
+        callerContext.CurrentCaller.Returns("MatchIngestion");
 
         var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
         response.Headers.TryAddWithoutValidation("Retry-After", "5");
         response.Headers.TryAddWithoutValidation("X-Rate-Limit-Type", "application");
 
-        using var handler = new RiotApiMetricsHandler(recorder) { InnerHandler = new StubHandler(response) };
+        using var handler = new RiotApiMetricsHandler(recorder, callerContext) { InnerHandler = new StubHandler(response) };
         using var invoker = new HttpMessageInvoker(handler, disposeHandler: false);
         using var request = new HttpRequestMessage(
             HttpMethod.Get, "https://europe.api.riotgames.com/lol/match/v5/matches/EUW1_1/timeline");
@@ -61,6 +67,7 @@ public sealed class RiotApiMetricsHandlerTests
         captured!.StatusCode.Should().Be(429);
         captured.RetryAfterSeconds.Should().Be(5);
         captured.RateLimitType.Should().Be("application");
+        captured.CallerProcess.Should().Be("MatchIngestion");
     }
 
     [Fact]
@@ -69,8 +76,13 @@ public sealed class RiotApiMetricsHandlerTests
         var recorder = Substitute.For<IRiotApiCallRecorder>();
         RiotApiCallRecord? captured = null;
         recorder.Record(Arg.Do<RiotApiCallRecord>(record => captured = record));
+        var callerContext = Substitute.For<ICallerContext>();
+        // Unlike the two tests above: no scope is open, matching a real
+        // CallerContext's CurrentCaller outside a tracked pass. NSubstitute
+        // defaults an unconfigured string member to "", so this must be explicit.
+        callerContext.CurrentCaller.Returns((string?)null);
 
-        using var handler = new RiotApiMetricsHandler(recorder)
+        using var handler = new RiotApiMetricsHandler(recorder, callerContext)
         {
             InnerHandler = new StubHandler(new HttpRequestException("boom"))
         };
@@ -86,6 +98,9 @@ public sealed class RiotApiMetricsHandlerTests
         captured.Should().NotBeNull();
         captured!.Endpoint.Should().Be("summoner-v4.byPuuid");
         captured.StatusCode.Should().Be(0);
+        // No caller context was set up here (unlike the two tests above), so the
+        // record reflects "outside a tracked pass" rather than a stubbed name.
+        captured.CallerProcess.Should().BeNull();
     }
 
     /// <summary>Inner handler that returns a fixed response or faults the send.</summary>

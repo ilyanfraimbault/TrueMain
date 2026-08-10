@@ -31,7 +31,7 @@ public sealed class MatchIngestionProcessIntegrationTests
             _fixture.CreateSessionFactory(),
             new FakeMatchClaimService(),
             new MatchSnapshotWriter(new FakeRiotMatchClient(), TimeProvider.System, Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo })),
-            new TimelineIngestionService(new FakeRiotMatchClient()),
+            new TimelineIngestionService(new FakeRiotMatchClient(), NullLogger<TimelineIngestionService>.Instance),
             validationService,
             Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions
             {
@@ -77,10 +77,10 @@ public sealed class MatchIngestionProcessIntegrationTests
         public List<Data.Repositories.AccountKey> Validated { get; } = [];
         public List<Data.Repositories.AccountKey> Reverted { get; } = [];
 
-        public Task ValidateAsync(Data.Repositories.AccountKey account, CancellationToken ct)
+        public Task<bool> ValidateAsync(Data.Repositories.AccountKey account, CancellationToken ct)
         {
             Validated.Add(account);
-            return Task.CompletedTask;
+            return Task.FromResult(true);
         }
 
         public Task RevertAsync(Data.Repositories.AccountKey account, CancellationToken ct)

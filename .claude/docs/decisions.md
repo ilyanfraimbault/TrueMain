@@ -60,6 +60,28 @@ the `MatchupLeadAggregation` options section were deliberately **not renamed** �
 A blended cross-build answer is wrong (Botrk vs Kraken rushes behave differently). Winrate delta was
 considered and rejected as confounded — completing a third item correlates with already winning — #890, #775.
 
+**Scoping the aggregate to a build scopes the games, not the items — the item set has to be intersected at
+read time** (#1021). The event rows carry `(BuildFirstItemId, BuildKeystoneId)`, but within that slice *every*
+item a game completed produces a row, so a situational item bought in a minority of the slice's games sat in
+the table beside the build's own. Ranking the bars by magnitude then let it outrank a core item, and the panel
+showed items absent from the tab's core path. Fixed on the read: item events are intersected with the core
+path (`ChampionCoreBuildPathResolver`, resolving it exactly as the builds read does) and returned in **build
+order**, not by magnitude and not by mean minute. Two consequences worth keeping in mind. **The panel is
+withheld rather than approximated** when no path resolves — the aggregate slice is gone, say nothing, because
+"which items are this build's" is the one question that could not be answered. And **the bar row is not a
+timeline**: each item's minute is a mean over its own games (those where it was completed at all), so two
+adjacent bars can sit a minute apart while describing disjoint cohorts. That is what made the row read as
+impossible; ordering by the build rather than by those minutes stops presenting them as a sequence, and
+conditioning them on the preceding core items is #1022.
+
+**"Completed item" is the build path's eligibility rule, shared, not a local restatement of it** (#1021). The
+powerspike fold tested `IsFinalItem && !IsBootsItem`, but `IsFinalItem` only means "nothing builds out of
+this" — equally true of potions, control wards, trinkets, Doran's and support-quest items, all of which were
+being folded and rendered as power spikes. `FinalBuildResolver.IsEligibleFinalBuildItem` is now public and is
+the single definition; an item that cannot appear in a build cannot be that build's power spike. Ids are
+mapped through `GetDisplayedBuildItemId` for the same reason the build path does it, or a transform item
+would be named one way by the fold and another by the dim tables and never match.
+
 **Matchup-scoped power spikes are a dimension on the aggregate, not a live recompute — because a live
 recompute is impossible.**
 The other matchup-filtered sections fold `match_participants` live (#923), so #957 was written assuming the
@@ -216,6 +238,15 @@ restated what the build tree above it already shows, minus the ordering, so #939
 component, read-model field, backend aggregation and the `SituationalItemCount` option. Reviving it means
 reviving the aggregator, not just the component — #939.
 
+**The player performance panel shows the score and its sample only — no per-component breakdown.**
+The #918 panel stacked nine component bars under the average, each with a midpoint tick nobody could read
+(the tick marked the model's 0.5 "even lane / average share" baseline, and it looked like a rendering
+artefact), plus a subtitle and a footnote explaining the scoring model. It buried the one number a reader
+came for. What is left is the average, its verdict on the S→D tier ladder that colours the number itself,
+and the four sample figures — each with a one-line hint, since "Top of team 25%" means nothing until you
+know it counts games this player outscored their own four teammates. The API still returns `components`:
+the breakdown is the natural content of a future drill-down, and the payload is cheap.
+
 **The static champion list drops Data Dragon entries with an id at or above 10 000 — alternate-mode kits, not champions.**
 Patch 16.15 ("League classique") added 60 legacy kits to `champion.json`: alias `Jade_<BaseAlias>`, key
 `60000 + <base key>`, and the *same display name* as the original — `Jade_Ahri` (60103) sits next to Ahri
@@ -228,6 +259,29 @@ cut keeps an order of magnitude of headroom while catching a future mode built t
 ---
 
 ## Data & storage
+
+**The account explorer (#1032) reports raw score inputs, not score components — and never calls Riot.**
+The issue asked for a candidate's score "and its components" (recency/rank/points/scarcity). `main_candidates`
+persists only the final `Score` double; the blend lives in `ScoringProcess.ComputeScore` inside the Ingestor,
+and `ScoringOptions` (its weights) is Ingestor-only config the `Api` project cannot see. Recomputing the
+breakdown at read time was rejected: champion scarcity is a live snapshot of current coverage, so a
+recomputed decomposition would silently disagree with the `Score` sitting next to it on the same row —
+wrong on a page built specifically to be trusted for diagnosis. The endpoint instead exposes the persisted
+inputs (`LastPlayTimeUtc`, `ChampionRankInMasteryTop`, `ChampionPoints`, `ObservedGames`) and states plainly
+that the decomposition is not stored. Same reasoning kept the endpoint **database-only**: the API has no
+Riot client, so an unrecognised Riot ID renders as `NeverDiscovered` (200), not a 404 — the read never claims
+to know whether the Riot ID exists at Riot, only whether the pipeline has ever recorded it.
+
+**`MainActivity` deactivation carries no persisted reason, so the account explorer says so rather than guessing.**
+`MainActivityProcess` writes exactly two fields — `MainChampionStat.IsActive` and
+`RiotAccount.LastActivityCheckAtUtc` — collapsing two distinct causes (mastery `lastPlayTime` older than the
+inactivity window, or no mastery entry for the champion at all) into one boolean, with no `DeactivatedAtUtc`
+or reason column (#900). A failed mastery lookup leaves both fields untouched, so `IsActive = false` is only
+a *confirmed* retirement when `LastActivityCheckAtUtc` is recent — an older stamp means the last check that
+actually completed predates the flag flip, or never ran to confirm it. Adding a reason column was considered
+and deferred: it needs an Ingestor write-path change and a migration, for a fact the pipeline does not
+currently observe (mastery-v4 returns "no entry", not "entry expired *because* X"). The read-model names both
+possible causes and reports the confirmation timestamp instead.
 
 **Champion aggregates are replace-by-scope on *live* patches only. Old patches are frozen and must never be wiped.**
 Retention deletes `match_participants` past `RetainedPatchCount` (default 2). The cleanup set originally
@@ -303,6 +357,87 @@ window instead of starting at deploy like #920's bans — #919.
 dimensions rather than games: ~22.2k rows, a few MB, versus a self-join over ~35 GB running single-threaded.
 Reads became ~13-row indexed selects — #606.
 
+**The disk figure sums Postgres and Mongo, because there is one disk** (#1023). The panel and the forecast
+measured Postgres only, while Mongo holds the logs, crashes, audit events, Riot rollups, process runs and seed
+requests — two of those (`audit_events`, `seed_requests`) with **no TTL at all**, i.e. the collections most
+likely to surprise us were exactly the ones nothing watched. Verified on prod before building: every named
+volume uses the default local driver and lands on a single `/dev/sda1` (193 GB), so the saturation date was
+optimistic by construction. The daily rollup therefore takes one reading per engine and **sums** them; taking
+the max — which is what grouping by day alone did — would have reported whichever engine is larger as the
+disk. The snapshot grain gains an `engine` discriminator, and the upsert key becomes `(day, engine, name)`:
+`process_runs` and `seed_requests` exist as both a (frozen) Postgres table and a Mongo collection, so without
+it one engine's reading would overwrite the other's every day. Pre-#1023 documents are stamped `postgres`
+on the next index pass — they are Postgres readings by construction, and leaving the field absent would make
+the engine-filtered upsert insert a *second* document for the same day and table, silently doubling it.
+
+**A step change in what is measured is not growth, so the forecast restarts at it** (#1023). The day Mongo
+first gets measured adds its whole footprint at once. Fitted whole, the series reads that one-off jump as a
+daily rate and predicts a saturation that is not coming. The forecast is therefore fitted only over the
+trailing days that measure the *same set of engines* as the most recent one — so it goes absent for three
+days after the change, which is a state the panel already explains, rather than confidently wrong for ninety.
+Splicing the series or backfilling a Mongo number for days nobody measured were both rejected: the honest
+answer to "we changed the instrument" is a gap, not a reconstruction.
+
+**Ingestion throughput is measured from the run summaries, not from `matches.CreatedAtUtc`** (#1025). The
+overview's existing chart buckets `GameStartTimeUtc` — when the games were *played* — which is a property of
+the player population: it barely moves when ingestion stalls, and a backfill makes it grow in the past. The
+portal therefore carried no signal for "did the pipeline keep up", which is exactly what the two retention
+crash-loops (#982, #988) needed. `matches.CreatedAtUtc` exists and is the obvious source, but retention deletes
+out-of-window and non-tracked-queue matches, so an old bucket shrinks over time and the curve rewrites its own
+history. The `MatchIngestion` run summaries in Mongo are retention-proof by construction: deleting a match does
+not rewrite the run that ingested it. The cost is a 180-day ceiling (the `process_runs` TTL), which the
+response reports so the panel states the bound rather than drawing the tail beyond it as zero ingestion.
+The two charts stay side by side and separately labelled — they answer different questions and merging them
+would lose one.
+
+**The counters are summed in memory because the summary is stored as opaque JSON text** (#1025).
+`ProcessRunDocument.SummaryJson` is a string on purpose (#990: the admin receives byte-identical bytes to what
+the recorder wrote), so Mongo cannot `$sum` a field inside it. The split is the one that plays to each side:
+the server does the indexed `(processName, startedAtUtc)` range scan and projects two fields, the read parses
+and does the arithmetic. Three consequences are deliberate. A run with **no** summary — failed, abandoned, or a
+no-work pass whose shape differs — still counts as an attempt with absent counters, because dropping it would
+make a crash-looping ingestor read as an idle one. Quiet periods **inside** the observed range are zero-filled,
+since a stalled pipeline is the thing the chart exists to show. And nothing is filled **before** the oldest
+surviving run: that period was not measured, and zeros there would assert a repose we have no record of.
+
+**The candidate funnel measures Validated and Demoted, because Rejected is a status nothing assigns** (#1024).
+The issue asked for a rejection counter, on the reading that rejections were the funnel's missing outcome. They
+are not missing — they do not exist: `MainCandidateStatus.Rejected` is read in five places (the pruning
+predicate, the harvest's refusal to resurrect, the manual seed's requeue list, the admin filter, the overview
+breakdown) and **assigned in none**, so the `Rejected` bucket the portal has always shown is structurally zero.
+Adding the requested counter would have shipped a permanently flat series dressed as a measurement. What the
+funnel genuinely lacked was its *exit*: `AccountValidationService` promotes Processing → Validated without
+feeding any summary counter, so nothing recorded how many accounts cleared ingestion. That counter
+(`MatchIngestionSummary.AccountsValidated`) is what got added, alongside `MainAnalysisSummary.DemotedAccounts`,
+which already existed and is the pipeline's only real negative outcome. Whether a rejection verdict should
+exist at all — or whether the status should be removed, since several guards branch on a value that cannot
+occur — is a product question, left to #1029 rather than smuggled into a chart.
+
+**A forward-only counter renders as absent, not as zero, and key presence is what says which** (#1024).
+`accountsValidated` did not exist before this deploy, so every `MatchIngestion` run already in the 180-day
+window lacks the key. Summing absent-as-zero would have drawn months of "the pipeline validated nobody", which
+is the exact failure #924 named. The series therefore reports the *first run whose summary carried the key* and
+nulls every bucket before it. The boundary is global rather than per-bucket on purpose: past it, a period whose
+only runs were no-work passes really did validate nothing, and a null there would hide a genuine stall behind
+the same signal used for "not instrumented yet".
+
+**`ValidatedAtUtc` had never been written in production, and the queue-latency snapshot is why that surfaced**
+(#1024). The column, its migration and its API field had shipped long ago, but every Validated transition went
+through `SetStatusForAccountAsync`, whose `ExecuteUpdateAsync` sets `Status` and nothing else — so the column
+was null on every row, and the admin's candidate detail had been rendering an em dash for it since it existed.
+The promotion now goes through a dedicated `MarkValidatedForAccountAsync` that stamps both in one statement,
+rather than a flag on the generic setter: this is the only transition that owns that column. One behavioural
+consequence is deliberate and was previously dead code — `PruneStaleNeverPromotedAsync` filters on
+`ValidatedAtUtc == null`, so a candidate that was validated and later demoted is now genuinely exempt from the
+stale prune, which is what "never promoted" always claimed to mean.
+
+**Queue latency is a snapshot over retained rows and is labelled as one, rather than being faked into a series**
+(#1024). `main_candidates` carries the three timestamps, so percentiles per past week look computable — but
+retention prunes stale candidates, so any historical bucket would be computed over a survivor set that keeps
+shrinking. The snapshot is the honest version of what those columns can answer, and it ships with its own bias
+stated (pruning skews the survivors towards candidates that moved) and its sample count next to each percentile.
+It takes no window parameter, which is the API making the same point structurally: there is no period to select.
+
 **Daily storage snapshots go to Mongo and are keyed on the day, not the run.**
 Storage history is append-only, time-ordered, ops-only telemetry with no relational joins — the exact
 criteria that put logs and metrics in Mongo below — and a native TTL index prunes it for free instead of
@@ -327,7 +462,28 @@ Postgres log rows were deliberately not migrated — #416.
 
 **Ops logs are signal-only: Polly retry noise is not persisted, domain events are.**
 Every Riot 429 emitted `Execution attempt` + `OnRetry` warning pairs — dozens per minute while rate-limited —
-burying everything useful — #444.
+burying everything useful — #444. This does not apply to `riot_api_call_rollups`: that collection exists
+specifically to count every physical attempt including retried 429s (#93), a different data path from the
+structured logs #444 is about.
+
+**Riot API caller attribution uses an `AsyncLocal` ambient context, mirroring `IterationContext`.**
+`riot_api_call_rollups` needed a "who spent this budget" dimension (#1035) but the three typed Riot clients
+are shared `HttpClient`s across every `IIngestorProcess`, so there is no per-caller `HttpClient` to key on.
+`Worker.RunModeAsync` opens a call scope (`ICallerContext.BeginCall(process.Name)`) around each process's
+`RunCoreAsync`, the same shape `IterationContext` already uses for the pass-level iteration id; the metrics
+handler reads it ambiently. The rollup's upsert key widened from `(bucket, endpoint, statusCode)` to include
+`callerProcess`, so the unique index had to be dropped and recreated (`MongoLogContext.EnsureRiotApiCallIndexesAsync`)
+rather than just adding a field — two different callers in the same minute/endpoint/status are two documents,
+which the old 3-field unique index would have rejected as a duplicate key.
+
+**The budget-headroom estimate (#1035) requires 24h of rollup history before it will extrapolate, and picks
+the app rate-limit window with the smallest daily ceiling as "binding".**
+Riot returns several simultaneous app-limit windows (e.g. `20:1,100:120`); the one that binds first under
+sustained load is the smallest `limit * 86400 / windowSeconds`, not the one with the highest current-instant
+usage ratio (that's what the existing app-rate-limit card already shows). Below 24h of observed history the
+page renders an explicit "not enough data" state instead of extrapolating a daily cost from a thin window —
+same reasoning as the disk forecast's absent state below. Implementation:
+`RiotApiUsageQueryService.BuildHeadroom`/`ResolveBindingLimit` (`internal static`, unit-tested directly).
 
 **Rank snapshots are capped at one row per account per UTC day (DB-level unique index).**
 Intra-day LP granularity has no consumer. Accepted: rank history, match detail and the "nearest snapshot" elo
@@ -426,6 +582,21 @@ fix; the caps are what actually shipped (no `pgbouncer` service exists in the co
 Discovery's 40 s total timeout (a regression from deriving the total from attempt count, which Riot's
 `Retry-After` easily exceeds) crashed the first process in a plain `foreach`, so **nothing else in the pipeline
 ran between May 30 and June 12** — #443.
+
+**A streamed Riot response can fail *after* the resilience handler has waved it through — isolate the
+call site.** Since #253 the Riot clients fetch with `HttpCompletionOption.ResponseHeadersRead` and
+deserialize off the still-flowing stream. `AddStandardResilienceHandler` decides whether to retry on the
+*headers*, so a body that dies mid-stream arrives as a perfectly good 200 and the retry strategy never sees
+the failure: it surfaces as a `JsonException` thrown outside the pipeline. In `TimelineIngestionService` one
+such truncated timeline aborted `IngestSingleAccountAsync`, rolling back the account's whole per-account
+transaction — every match snapshot already ingested in that run was discarded and the account reverted to
+queued, for one flaky HTTP body (3 occurrences in prod between 2026-07-21 and 2026-08-09) — #1052.
+Fixed by catching the payload-level faults around the *fetch only* and leaving `TimelineIngested = false`,
+which hands the match to the existing pending-timeline path for a later run. A consecutive-failure cap
+(`MaxConsecutiveTimelineFailures`) still rethrows, so a Riot outage aborts the account instead of reporting a
+healthy run that ingested nothing. 👉 The general rule: retry policies cannot cover streamed bodies, so
+per-item error isolation belongs at the call site — the same principle as the Worker's per-process isolation
+above, one level down.
 
 **The EF compiled model must be regenerated on every schema change.**
 `dotnet ef dbcontext optimize` → `Data/CompiledModels`. Originally for cold start; the operational reason is
@@ -541,8 +712,11 @@ possible. Approval is the single external unlock for all of it — #780.
 - **API wire conventions**: camelCase JSON, RFC 7807 problem details on all 4xx/5xx, no global `/api` prefix,
   `patch` normalised to `major.minor` (invalid values treated as unfiltered), canonical Riot position values,
   `pageSize`/`limit` ≤ 0 means "default" — `docs/api.md`.
-- **Every issue goes on GitHub Project #2.** Priority is the sprint bucket: P0 current, P1 next, P2 after,
-  P3 someday. No milestones.
+- **Every issue goes on GitHub Project #2.** Scheduling and urgency are two separate fields: **Sprint** (the
+  14-day iteration field) says *when* the work is planned, **Priority** (P0–P3) says how urgent it is and
+  orders work inside a sprint. Priority used to double as the sprint bucket ("P0 = current sprint"); that
+  overloading was dropped because it silently competed with the real iteration field the board was already
+  using. No milestones.
 - **A health panel may not pass what it did not measure** (#924). Detector verdicts are green / amber / red /
   **unknown**, and `unknown` never means "fine": an unmeasurable row outranks green in the roll-up (one
   unchecked platform must not let a card claim to be clean) but stays below red (it must not hide a real
@@ -576,6 +750,28 @@ possible. Approval is the single external unlock for all of it — #780.
   current reading, never a configured constant**: amber and red on threshold values put warning colours on a
   healthy panel, which is how a page teaches its reader that its colours mean nothing. Everything the cards
   carried is still one click away — legibility here is ordering and defaults, not removal.
+
+- **The health cockpit (`/health`, #1031) holds no depth of its own — every tile is a link, and the verdict
+  is judged server-side.** Answering "is the pipeline healthy right now?" used to mean opening four pages
+  (`/`, `/processes`, `/data-quality`, `/database`). `PipelineHealthEvaluator` is pure (no DB, no clock) and
+  reuses `DataQualityDetectorEvaluator`'s `DetectorStatus`/`Worst` precedence on purpose, so the cockpit's dots
+  and the pages it links to cannot disagree about what "amber" means — a tile that judged a signal differently
+  from the panel it points at would be lying. Two of the four signals are lifted verbatim from the existing
+  `/data-quality` detector payload (data quality rolled up, ingestion lag copied through as its own top-level
+  tile) rather than re-measured; only the disk forecast gets its own knobs (`PipelineHealth:DiskForecastAmberDays`/
+  `RedDays`, validated amber ≥ red on boot) because "how many days out is close enough to act on" is a call the
+  storage panel's own `StorageHistory:ThresholdPercents` doesn't make. The green/amber/red/unknown vocabulary was
+  extracted from `DataQualityDetectorItem.vue` into `admin/shared/utils/detector-status.ts` at the same time, for
+  the same reason: two panels painting the same four statuses from private tables is how they drift.
+
+- **A process that has never recorded a run is `unknown`, not amber; an abandoned run is a warning, not an
+  error** (#1031). The cockpit's process signal deliberately does not judge *how long ago* a process last
+  succeeded — the ten pipeline processes run on wildly different cadences, and inventing a per-process
+  expectation here would be a second, competing source of truth for "the pipeline has stopped", which is what
+  the ingestion-lag detector and raw-data freshness already answer. `Missing` (no run ever recorded) rolls up
+  as unknown rather than green precisely so a fresh environment doesn't report ten processes as healthy;
+  `Abandoned` (the run's host died mid-flight, outcome unknown) is a different claim from "it ran and failed"
+  and is coloured accordingly.
 
 ---
 
@@ -679,6 +875,50 @@ as a check on every write: the champion page has a patch filter, so old-patch UR
 evaluating expiry per write would store and immediately drop each of their icons, leaving old-patch browsing
 permanently uncached. The window is the three newest patches *observed* rather than `newest - 2` arithmetic, so
 a season rollover (16.1 after 15.24) keeps the right three — `server/utils/ipx-patch-retention.ts`, #997.
+
+## The configuration viewer is an allow-list, and each host reports itself (2026-08-08)
+
+**Decision:** `/ops/configuration` (#1034) exposes sections through a hand-declared allow-list
+(`EffectiveConfigurationCatalog`) that names an options type and, when needed, an explicit
+`IncludeProperties` subset — never a full options dump filtered for secrets afterward. A deny-list is one
+forgotten property away from returning the Riot key, connection string or `X-Ops-Key`, and the property
+that leaks is always the one added after the filter was written. A name-shaped backstop
+(`EffectiveConfigurationRedaction.IsSecretName`) drops anything credential-shaped that slips into a
+catalog entry anyway, and a unit test walks both production catalogs asserting that backstop never has to
+fire — so a new section with a secret-shaped property fails a test, not a review.
+
+**The Api and the Ingestor report themselves through two different mechanisms, on purpose.** The Api reads
+its own `IOptions<T>` live, on every request — it can introspect its own container, so there is nothing to
+cache. The Ingestor cannot be introspected by the Api (different container, and its options classes live
+in an assembly the Api does not reference), so it publishes a snapshot of its bound options to Mongo
+(`effective_configuration`, one document per process, **overwritten** at every boot — it runs `RunOnce` +
+`restart: unless-stopped`, many boots a day, and the page wants "what is it running now", not a log of
+every past boot) via a boot-time `IHostedService`, registered ahead of the pipeline's own worker since a
+fast `RunOnce` pass can end the process before a later-registered service would run. Consequence: the
+Ingestor's "as of" timestamp can be older than the page load without meaning anything is stale, while the
+Api's is always "now" — the page states this per process rather than presenting both timestamps the same
+way.
+
+**"Servable" is a share of the settled patches' median, never an absolute line count.** The patch-coverage
+verdict (#1033) asks whether enough `(champion, lane)` lines clear `ChampionsList:MinSampleGames` for the
+directory and tier list to mean anything — and the honest bar for that moves with the corpus. The number of
+lines clearing ten games grows every time tracked accounts are added, so a hard-coded "300 lines" would read
+permanently green on production and permanently red on preprod, which is the same as having no check. The bar
+is therefore `PatchCoverage:ServableLinesRatio` (0.6) of the **median of the patches strictly older than the
+one being served** — the settled ones. The served patch and anything newer are excluded from their own
+reference on purpose: a still-filling patch dragged into the median pulls the bar down to whatever it
+currently is, and the check goes green on an empty patch. That is the same "the edge patch is not comparable"
+rule the patch-volume detector already applies (#924). `PatchCoverage:ServableLinesMinimum` is the fallback
+when a database holds a single patch (preprod's normal state) — crude, and still an answer rather than a
+shrug.
+
+**A fold that shipped mid-corpus reports `null`, never `0`, on the patches it predates.** Raw match payloads
+are not kept, so #920's bans and #957's per-opponent spikes can never be backfilled: their absence on an older
+patch is a property of when the fold shipped, not a failure. Printing `0 rows` there sends an operator hunting
+a bug that does not exist, so the read model carries `measured: false` with the first patch the fold ever
+wrote a row on, and the page prints "not measured before *patch*" **in place of** the counts rather than
+beside them. The first-measured patch falls out of the same grouped scan that produces the per-patch numbers,
+so distinguishing the two costs nothing — `PatchCoverageQueryService`, #1033.
 
 ## Keeping these files current
 

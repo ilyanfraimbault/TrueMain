@@ -169,6 +169,17 @@ builder.Services.AddOptions<StorageHistoryOptions>()
         options => options.ThresholdPercents.All(percent => percent is > 0 and <= 100),
         "StorageHistory:ThresholdPercents must each be in (0, 100].")
     .ValidateOnStart();
+builder.Services.AddOptions<PipelineHealthOptions>()
+    .Bind(builder.Configuration.GetSection(PipelineHealthOptions.SectionName))
+    // Only enforced when both levels are enabled: either can independently be set to <= 0
+    // to disable it (PipelineHealthOptions), and requiring the ordering unconditionally
+    // would reject that documented "amber off, red on" configuration at boot.
+    .Validate(
+        options => options.DiskForecastAmberDays <= 0
+            || options.DiskForecastRedDays <= 0
+            || options.DiskForecastAmberDays >= options.DiskForecastRedDays,
+        "PipelineHealth:DiskForecastAmberDays must be >= DiskForecastRedDays (amber fires first).")
+    .ValidateOnStart();
 builder.Services.AddOptions<DataQualityDetectorOptions>()
     .Bind(builder.Configuration.GetSection(DataQualityDetectorOptions.SectionName))
     // Only the sizes are validated. The thresholds themselves are deliberately
@@ -189,6 +200,17 @@ builder.Services.AddOptions<DataQualityDetectorOptions>()
     .Validate(
         options => options.PatchVolumeMinPatches > 0,
         "DataQualityDetectors:PatchVolumeMinPatches must be greater than 0.")
+    .ValidateOnStart();
+builder.Services.AddOptions<PatchCoverageOptions>()
+    .Bind(builder.Configuration.GetSection(PatchCoverageOptions.SectionName))
+    .Validate(options => options.PatchCount > 0, "PatchCoverage:PatchCount must be greater than 0.")
+    .Validate(options => options.ThinLineLimit > 0, "PatchCoverage:ThinLineLimit must be greater than 0.")
+    .Validate(
+        options => options.ServableLinesRatio is > 0 and <= 1,
+        "PatchCoverage:ServableLinesRatio must be in (0, 1].")
+    .Validate(
+        options => options.ServableLinesMinimum >= 0,
+        "PatchCoverage:ServableLinesMinimum must be >= 0.")
     .ValidateOnStart();
 builder.Services.AddOptions<CompositionSearchOptions>()
     .Bind(builder.Configuration.GetSection(CompositionSearchOptions.SectionName))
@@ -275,6 +297,7 @@ builder.Services.AddScoped<IPipelineHealthQueryService, PipelineHealthQueryServi
 builder.Services.AddScoped<IOverviewQueryService, OverviewQueryService>();
 builder.Services.AddScoped<IChampionStatsQueryService, ChampionStatsQueryService>();
 builder.Services.AddScoped<IMatchesOverTimeQueryService, MatchesOverTimeQueryService>();
+builder.Services.AddScoped<IMatchesIngestedQueryService, MatchesIngestedQueryService>();
 builder.Services.AddScoped<ITableStatsQueryService, TableStatsQueryService>();
 builder.Services.AddScoped<IDbStorageHistoryQueryService, DbStorageHistoryQueryService>();
 builder.Services.AddScoped<IProcessRunsQueryService, ProcessRunsQueryService>();
@@ -284,9 +307,14 @@ builder.Services.AddScoped<ICrashesQueryService, CrashesQueryService>();
 builder.Services.AddScoped<IRiotApiUsageQueryService, RiotApiUsageQueryService>();
 builder.Services.AddScoped<IDataQualityQueryService, DataQualityQueryService>();
 builder.Services.AddScoped<IDataQualityDetectorsQueryService, DataQualityDetectorsQueryService>();
+builder.Services.AddScoped<IEffectiveConfigurationQueryService, EffectiveConfigurationQueryService>();
 builder.Services.AddScoped<ISeedRequestService, SeedRequestService>();
 builder.Services.AddScoped<ISeedRequestQueryService, SeedRequestQueryService>();
+builder.Services.AddScoped<IAccountExplorerQueryService, AccountExplorerQueryService>();
+builder.Services.AddScoped<IPatchCoverageQueryService, PatchCoverageQueryService>();
 builder.Services.AddScoped<ICandidateQueryService, CandidateQueryService>();
+builder.Services.AddScoped<ICandidateFunnelQueryService, CandidateFunnelQueryService>();
+builder.Services.AddScoped<ICandidateQueueLatencyQueryService, CandidateQueueLatencyQueryService>();
 builder.Services.AddScoped<IAggregationStatsQueryService, AggregationStatsQueryService>();
 // AddTrueMainData registers the IDbContextFactory<TrueMainDbContext> — which
 // services that fire concurrent queries (e.g. ProfileQueryService) use to create

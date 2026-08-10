@@ -47,7 +47,16 @@ A PR is **done** when, on its current HEAD: CI is green, the Claude review verdi
 
 ## Project board
 
-Every issue goes on GitHub Project #2 ("TrueMain"). Status: Todo / In Progress / Done. Priority = sprint bucket: P0 current, P1 next, P2 after, P3 someday (no milestones). Update fields with `.claude/scripts/project-set.sh <issue> <Status|Priority> <value>`.
+Every issue goes on GitHub Project #2 ("TrueMain"). No milestones. Three fields, all set with
+`.claude/scripts/project-set.sh <issue> <Status|Priority|Sprint> <value>`:
+
+- **Status** — `Todo` / `In Progress` / `Done`.
+- **Sprint** — the project's iteration field (14 days): **when** the work is planned. "mets ça sur mon sprint"
+  means the *current* iteration. Values: `current` | `next` | `none` | an exact title like `"Sprint 4"`;
+  `current`/`next` are resolved by date at call time because iteration ids rotate. Unplanned backlog carries
+  no sprint.
+- **Priority** — `P0`/`P1`/`P2`/`P3`: urgency only, orthogonal to the calendar. It orders work *inside* a
+  sprint; it does **not** encode which sprint. Default `P2` unless the user signals urgency.
 
 ## Build & verification (CI traps)
 

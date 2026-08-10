@@ -177,6 +177,33 @@ internal sealed class ProcessRunStore(MongoLogContext context) : IProcessRunStor
         return new ProcessRunPage(runs, total);
     }
 
+    public async Task<IReadOnlyList<ProcessRunSummarySample>> GetRunSummariesAsync(
+        IReadOnlyCollection<string> processNames,
+        DateTime sinceUtc,
+        CancellationToken ct)
+    {
+        if (!context.IsActive || processNames.Count == 0)
+        {
+            return [];
+        }
+
+        await EnsureIndexesOnceAsync(ct);
+
+        var filter = Builders<ProcessRunDocument>.Filter.And(
+            Builders<ProcessRunDocument>.Filter.In(doc => doc.ProcessName, processNames),
+            Builders<ProcessRunDocument>.Filter.Gte(doc => doc.StartedAtUtc, sinceUtc));
+
+        // ix_process_started covers this filter and the sort exactly. Oldest first so
+        // the caller can walk the window forward into buckets without re-sorting.
+        var runs = await context.ProcessRuns
+            .Find(filter)
+            .Project(doc => new ProcessRunSummarySample(doc.ProcessName, doc.StartedAtUtc, doc.SummaryJson))
+            .Sort(Builders<ProcessRunDocument>.Sort.Ascending(doc => doc.StartedAtUtc))
+            .ToListAsync(ct);
+
+        return runs;
+    }
+
     public async Task<IReadOnlyList<ProcessRunRollup>> GetRollupsAsync(
         string? processName,
         DateTime? windowStart,
@@ -385,6 +412,29 @@ internal sealed class ProcessRunStore(MongoLogContext context) : IProcessRunStor
         return await context.ProcessRuns
             .Aggregate<ProcessRunDocument>(pipeline, cancellationToken: ct)
             .ToListAsync(ct);
+    }
+
+    public async Task<long> CountTerminalRunsSinceAsync(string processName, DateTime? afterUtc, CancellationToken ct)
+    {
+        if (!context.IsActive)
+        {
+            return 0;
+        }
+
+        await EnsureIndexesOnceAsync(ct);
+
+        var builder = Builders<ProcessRunDocument>.Filter;
+        var filter = builder.Eq(doc => doc.ProcessName, processName)
+                     & builder.Ne(doc => doc.Status, ProcessRunStatus.Running);
+
+        if (afterUtc is not null)
+        {
+            // Strictly after: the successful run that bounds the streak must not count
+            // itself as a member of it.
+            filter &= builder.Gt(doc => doc.StartedAtUtc, afterUtc.Value);
+        }
+
+        return await context.ProcessRuns.CountDocumentsAsync(filter, cancellationToken: ct);
     }
 
     private static FilterDefinition<ProcessRunDocument> BuildRunsFilter(

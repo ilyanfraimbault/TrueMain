@@ -79,6 +79,21 @@ public sealed class FakeProcessRunStore : IProcessRunStore
         CancellationToken ct)
         => Task.FromResult(new ProcessRunPage([], 0));
 
+    /// <summary>
+    /// Serves this one from <see cref="Runs"/> rather than returning empty like the
+    /// other stubs: it is what the ingestion-throughput and candidate-funnel series
+    /// read, so a test that seeds runs here must see them.
+    /// </summary>
+    public Task<IReadOnlyList<ProcessRunSummarySample>> GetRunSummariesAsync(
+        IReadOnlyCollection<string> processNames,
+        DateTime sinceUtc,
+        CancellationToken ct)
+        => Task.FromResult<IReadOnlyList<ProcessRunSummarySample>>(
+            [.. Runs
+                .Where(run => processNames.Contains(run.ProcessName) && run.StartedAtUtc >= sinceUtc)
+                .OrderBy(run => run.StartedAtUtc)
+                .Select(run => new ProcessRunSummarySample(run.ProcessName, run.StartedAtUtc, run.SummaryJson))]);
+
     public Task<IReadOnlyList<ProcessRunRollup>> GetRollupsAsync(
         string? processName,
         DateTime? windowStart,
@@ -103,4 +118,10 @@ public sealed class FakeProcessRunStore : IProcessRunStore
         bool onlySuccesses,
         CancellationToken ct)
         => Task.FromResult<IReadOnlyList<ProcessRunDocument>>([]);
+
+    public Task<long> CountTerminalRunsSinceAsync(string processName, DateTime? afterUtc, CancellationToken ct)
+        => Task.FromResult((long)Runs.Count(run =>
+            run.ProcessName == processName
+            && run.Status != ProcessRunStatus.Running
+            && (afterUtc is null || run.StartedAtUtc > afterUtc.Value)));
 }

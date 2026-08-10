@@ -10,8 +10,21 @@ namespace TrueMain.ReadModels.Ops;
 /// </summary>
 public sealed record TableStatRow
 {
+    /// <summary>
+    /// Which engine the object belongs to: <c>postgres</c> or <c>mongo</c> (#1023). A
+    /// table and a collection are not the same kind of object, and two of them share a
+    /// name (<c>process_runs</c>, <c>seed_requests</c>), so the list says which is
+    /// which rather than merging them into one undifferentiated column.
+    /// </summary>
+    public string Engine { get; init; } = string.Empty;
+
+    /// <summary>The Postgres table name, or the Mongo collection name.</summary>
     public string TableName { get; init; } = string.Empty;
 
+    /// <summary>
+    /// Planner live-tuple estimate for Postgres (0 before the first ANALYZE); an exact
+    /// document count for Mongo, which reports one cheaply.
+    /// </summary>
     public long RowEstimate { get; init; }
 
     public long TotalBytes { get; init; }

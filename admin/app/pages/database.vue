@@ -1,9 +1,11 @@
 <script setup lang="ts">
-// Database panel — table sizes / row estimates from `GET /api/ops/db/tables`
-// (returned total-bytes desc). Sortable table with humanized sizes plus a bar
-// chart of the largest tables by total size.
+// Database panel — sizes / row estimates from `GET /api/ops/db/tables`
+// (returned total-bytes desc). Covers BOTH engines since #1023: Postgres tables
+// and Mongo collections share one volume, so a Postgres-only list understated
+// the disk and made the forecast optimistic by construction. Sortable table with
+// humanized sizes plus a bar chart of the largest objects by total size.
 import type { TableColumn } from '@nuxt/ui'
-import type { DbTableRow } from '~~/shared/types/ops'
+import type { DbTableRow, StorageEngine } from '~~/shared/types/ops'
 import { formatNumber, humanizeBytes } from '~~/shared/utils/format'
 
 const { data, pending, error, refresh } = useDbTables()
@@ -20,6 +22,18 @@ const rows = computed<DbTableRow[]>(() => {
   return all.filter(t => t.tableName.toLowerCase().includes(term))
 })
 
+// Two engines can carry the same name (process_runs, seed_requests exist as both
+// a frozen Postgres table and a Mongo collection), so rows are keyed and labelled
+// by engine rather than by name alone.
+// Indexed as a loose record on purpose: an engine the API grows later should read
+// as its own raw name rather than as an empty cell.
+const ENGINE_LABELS: Record<string, string> = {
+  postgres: 'Postgres',
+  mongo: 'Mongo',
+}
+
+const engineLabel = (engine: StorageEngine): string => ENGINE_LABELS[engine] ?? engine
+
 const totalDbBytes = computed(() =>
   (data.value ?? []).reduce((sum, t) => sum + (t.totalBytes ?? 0), 0),
 )
@@ -29,8 +43,12 @@ const sorting = ref([{ id: 'totalBytes', desc: true }])
 
 const columns: TableColumn<DbTableRow>[] = [
   {
+    accessorKey: 'engine',
+    header: ({ column }) => sortableHeader(column, 'Engine'),
+  },
+  {
     accessorKey: 'tableName',
-    header: ({ column }) => sortableHeader(column, 'Table'),
+    header: ({ column }) => sortableHeader(column, 'Table / collection'),
   },
   {
     accessorKey: 'rowEstimate',
@@ -65,7 +83,9 @@ const topTables = computed(() =>
   [...(data.value ?? [])]
     .sort((a, b) => b.totalBytes - a.totalBytes)
     .slice(0, TOP_N)
-    .map(t => ({ label: t.tableName, bytes: t.totalBytes })),
+    // The label carries the engine: two of these names exist on both sides, and a
+    // bar chart has no other column to tell them apart.
+    .map(t => ({ label: `${t.tableName} (${engineLabel(t.engine)})`, bytes: t.totalBytes })),
 )
 // Chart grows with the number of bars; the skeleton mirrors it to avoid CLS.
 const topTablesChartHeight = computed(() =>
@@ -102,7 +122,11 @@ const growthRows = computed(() =>
     databaseBytes: point.databaseBytes,
   })),
 )
-const growthCategories = { databaseBytes: { name: 'Database size', color: CHART_PRIMARY } }
+// One series, the summed on-disk size — the same number the forecast projects.
+// The per-engine split is stated in the forecast card rather than drawn as two
+// stacked series: the operator's question here is "is the volume filling up",
+// and that is one line.
+const growthCategories = { databaseBytes: { name: 'Disk size (Postgres + Mongo)', color: CHART_PRIMARY } }
 const growthValueFormatter = (tick: number | Date) => humanizeBytes(Number(tick), 1)
 const growthLabelFormatter = computed(() =>
   indexLabelFormatter(growthRows.value, row => row.label),
@@ -125,9 +149,31 @@ const rowsPerDayLabelFormatter = computed(() =>
 
 const forecast = computed(() => history.value?.forecast ?? null)
 
+// What the numbers actually cover. Postgres and Mongo share one volume, so the
+// disk figures sum both — but only once both have been measured, and Mongo is
+// optional in every environment. Saying so is the difference between "the disk
+// is 60 GB" and "the part of the disk we measured is 60 GB".
+const enginesCovered = computed(() => history.value?.engines ?? [])
+const coverageLabel = computed(() => {
+  const engines = enginesCovered.value
+  if (engines.length === 0) {
+    return null
+  }
+  return engines.map(engineLabel).join(' + ')
+})
+const latestPoint = computed(() => dailyPoints.value.at(-1) ?? null)
+
+// How many trailing days the backend is willing to fit — days measuring the same
+// engines as the latest one. Read from the payload rather than re-derived here:
+// a second implementation of the rule would drift, and the drift would show up as
+// the panel confidently naming the wrong reason.
+const comparableDays = computed(() => history.value?.comparableDays ?? 0)
+
 // Why there is no forecast, in the operator's terms. The backend deliberately
-// returns null rather than a placeholder date, so the panel has to say which of
-// the three reasons applies instead of rendering an empty card.
+// returns null rather than a placeholder date, so the panel has to say which
+// reason applies instead of rendering an empty card.
+const MIN_FORECAST_DAYS = 3
+
 const forecastAbsenceReason = computed(() => {
   if (historyPending.value || forecast.value) {
     return null
@@ -135,8 +181,15 @@ const forecastAbsenceReason = computed(() => {
   if (dailyPoints.value.length === 0) {
     return 'No snapshots recorded yet — the ingestor writes one per pipeline run.'
   }
-  if (dailyPoints.value.length < 3) {
-    return `Only ${dailyPoints.value.length} day(s) of history — three are needed before a trend can be fitted.`
+  if (comparableDays.value < MIN_FORECAST_DAYS) {
+    // Fewer comparable days than charted days means the set of measured engines
+    // changed recently: the newcomer's footprint lands in one step, and a step is
+    // not a growth rate, so the fit restarts after it.
+    return comparableDays.value < dailyPoints.value.length
+      ? `The measured engines changed ${comparableDays.value} day(s) ago — the trend restarts `
+        + `from there, and needs ${MIN_FORECAST_DAYS} days covering the same engines.`
+      : `Only ${dailyPoints.value.length} day(s) of history — ${MIN_FORECAST_DAYS} are needed `
+        + 'before a trend can be fitted.'
   }
   return 'Storage is flat or shrinking over this window, or no disk capacity is configured (StorageHistory:DiskCapacityBytes).'
 })
@@ -218,9 +271,19 @@ function crossingColor(projectedAtUtc: string | null): 'error' | 'warning' | 'ne
       <UCard class="mb-6">
         <template #header>
           <div class="flex items-center justify-between gap-2">
-            <p class="text-xs text-muted uppercase">
-              Disk forecast
-            </p>
+            <div class="flex min-w-0 flex-col gap-0.5">
+              <p class="text-xs text-muted uppercase">
+                Disk forecast
+              </p>
+              <!-- Never let the figures pass as "the disk" without saying what
+                   they add up: Mongo is optional, and before its first snapshot
+                   the totals are Postgres alone. -->
+              <p v-if="coverageLabel" class="text-xs text-dimmed">
+                Covering {{ coverageLabel }}<template v-if="latestPoint && latestPoint.mongoBytes > 0">
+                  — {{ humanizeBytes(latestPoint.postgresBytes, 1) }} + {{ humanizeBytes(latestPoint.mongoBytes, 1) }}
+                </template>
+              </p>
+            </div>
             <UBadge
               v-if="forecast"
               color="neutral"
@@ -332,10 +395,19 @@ function crossingColor(projectedAtUtc: string | null): 'error' | 'warning' | 'ne
         <div class="divide-y divide-default">
           <div
             v-for="series in history!.tables"
-            :key="series.tableName"
+            :key="`${series.engine}:${series.tableName}`"
             class="flex items-center justify-between gap-4 px-4 py-2"
           >
-            <span class="font-mono text-sm text-highlighted truncate">{{ series.tableName }}</span>
+            <span class="flex min-w-0 items-center gap-2">
+              <UBadge
+                variant="subtle"
+                :color="series.engine === 'mongo' ? 'success' : 'info'"
+                size="sm"
+              >
+                {{ engineLabel(series.engine) }}
+              </UBadge>
+              <span class="font-mono text-sm text-highlighted truncate">{{ series.tableName }}</span>
+            </span>
             <div class="flex shrink-0 items-center gap-4 tabular-nums text-sm">
               <span class="text-muted">{{ humanizeBytes(series.currentBytes) }}</span>
               <span class="w-28 text-right" :class="series.bytesPerDay > 0 ? 'text-highlighted' : 'text-muted'">
@@ -416,6 +488,15 @@ function crossingColor(projectedAtUtc: string | null): 'error' | 'warning' | 'ne
           loading-color="primary"
           :ui="{ td: 'py-2' }"
         >
+          <template #engine-cell="{ row }">
+            <UBadge
+              variant="subtle"
+              :color="row.original.engine === 'mongo' ? 'success' : 'info'"
+              size="sm"
+            >
+              {{ engineLabel(row.original.engine) }}
+            </UBadge>
+          </template>
           <template #tableName-cell="{ row }">
             <span class="font-medium text-highlighted font-mono text-sm">
               {{ row.original.tableName }}

@@ -1,9 +1,12 @@
 import type { MaybeRefOrGetter } from 'vue'
 import type {
+  AccountExplorer,
   AggregateFreshnessResponse,
   AggregationsResponse,
   DataQualityDetectorsResponse,
   CandidateDetail,
+  CandidateFunnel,
+  CandidateQueueLatency,
   CandidatesFilters,
   CandidatesResponse,
   ChampionStatsFilters,
@@ -12,14 +15,19 @@ import type {
   CrashesResponse,
   DbStorageHistory,
   DbTableRow,
+  EffectiveConfigurationOverviewResponse,
   IncompleteMatchesFilters,
   IncompleteMatchesResponse,
+  IngestionTimeGranularity,
   LogsFilters,
   LogsResponse,
   MatchDataQualityDetail,
+  MatchesIngested,
   MatchTimeBucket,
   MatchTimeGranularity,
   OverviewStats,
+  PatchCoverageResponse,
+  PipelineHealth,
   ProcessIterationsFilters,
   ProcessIterationsResponse,
   ProcessRunsFilters,
@@ -115,6 +123,21 @@ export function useMatchesOverTime(
   )
 }
 
+/**
+ * Ingestion throughput (#1025) — how many matches the pipeline ingested per
+ * period. Deliberately a separate call from `useMatchesOverTime`: the two answer
+ * different questions and must never be mistaken for two views of one series.
+ */
+export function useMatchesIngested(
+  granularity: MaybeRefOrGetter<IngestionTimeGranularity>,
+  windowDays: MaybeRefOrGetter<number>,
+) {
+  return useOps<MatchesIngested>(
+    '/stats/matches-ingested',
+    () => ({ granularity: toValue(granularity), windowDays: toValue(windowDays) }),
+  )
+}
+
 /** `GET /api/ops/db/tables` — table sizes/row estimates, sorted by total bytes. */
 export function useDbTables() {
   return useOps<DbTableRow[]>('/db/tables')
@@ -136,6 +159,20 @@ export function useDbStorageHistory(windowDays: MaybeRefOrGetter<number>) {
  */
 export function useAggregations() {
   return useOps<AggregationsResponse>('/stats/aggregations')
+}
+
+/**
+ * `GET /api/ops/patch-coverage` — whether the patches the public reads are
+ * actually servable (#1033).
+ *
+ * A page-load `useFetch` rather than an on-demand `$fetch` because it *is* the
+ * page: the whole route exists to answer one question, so there is nothing to
+ * show before it resolves. It is still a set of grouped scans over tables with no
+ * index on their patch column, which is why it lives on its own route instead of
+ * as a card on `/aggregation`.
+ */
+export function usePatchCoverage() {
+  return useOps<PatchCoverageResponse>('/patch-coverage')
 }
 
 /**
@@ -227,6 +264,16 @@ export function useIncompleteMatches(
 }
 
 /**
+ * `GET /api/ops/pipeline-health` — the health cockpit's single payload (#1031): one
+ * rolled-up verdict, one line per signal, and the raw measurements behind them. Takes
+ * no filters; the verdict and its thresholds are server-side, so the cockpit and the
+ * panels it links to cannot drift apart.
+ */
+export function usePipelineHealth() {
+  return useOps<PipelineHealth>('/pipeline-health')
+}
+
+/**
  * `GET /api/ops/data-quality/detectors` — the automated anomaly detectors (#924):
  * one card per detector with its verdict, headline number, drill-down rows and
  * the thresholds it judged against. Takes no filters; every threshold is
@@ -243,6 +290,15 @@ export function useDataQualityDetectors() {
  */
 export function getAggregateFreshness() {
   return $fetch<AggregateFreshnessResponse>('/api/ops/data-quality/aggregate-freshness')
+}
+
+/**
+ * `GET /api/ops/configuration` — what every host is actually running with
+ * (#1034): the Api's own options, read live, plus the Ingestor's, published to
+ * Mongo at its own boot. Takes no filters.
+ */
+export function useEffectiveConfiguration() {
+  return useOps<EffectiveConfigurationOverviewResponse>('/configuration')
 }
 
 /**
@@ -291,6 +347,30 @@ export function useCandidates(
 }
 
 /**
+ * Candidate funnel throughput (#1024) — intake, promotion and outcome per period.
+ * The historical half of the `/candidates` page: the list above it shows the
+ * instantaneous status counts, which cannot tell a flowing funnel from a stalled one.
+ */
+export function useCandidateFunnel(
+  granularity: MaybeRefOrGetter<IngestionTimeGranularity>,
+  windowDays: MaybeRefOrGetter<number>,
+) {
+  return useOps<CandidateFunnel>(
+    '/candidates/funnel',
+    () => ({ granularity: toValue(granularity), windowDays: toValue(windowDays) }),
+  )
+}
+
+/**
+ * Queue-latency snapshot (#1024) — takes no window on purpose: it is computed from
+ * the timestamps of the candidates retained right now, so there is no period to
+ * select and it must never be presented as a historical average.
+ */
+export function useCandidateQueueLatency() {
+  return useOps<CandidateQueueLatency>('/candidates/queue-latency')
+}
+
+/**
  * `GET /api/ops/candidates/{id}` — one candidate's detail (pipeline fields,
  * ingested match count, linked seed request). A one-shot `$fetch` because the
  * slide-over loads it imperatively on row click / deep-link rather than watching
@@ -300,6 +380,22 @@ export function useCandidates(
 export function getCandidateDetail(id: string) {
   return $fetch<CandidateDetail>(
     `/api/ops/candidates/${encodeURIComponent(id)}`,
+  )
+}
+
+/**
+ * `GET /api/ops/accounts/{nameTag}` — everything the pipeline knows about one
+ * Riot ID (#1032). A one-shot `$fetch` because the explorer submits a search
+ * imperatively rather than watching a reactive key.
+ *
+ * Unlike the other detail reads this one **never 404s**: an unknown Riot ID comes
+ * back 200 in the `NeverDiscovered` state, so callers need no not-found branch.
+ * It still throws a `FetchError` on 400 (malformed Riot ID, unknown region).
+ */
+export function getAccountExplorer(riotId: string, region?: string) {
+  return $fetch<AccountExplorer>(
+    `/api/ops/accounts/${encodeURIComponent(riotId)}`,
+    { query: region ? { region } : undefined },
   )
 }
 

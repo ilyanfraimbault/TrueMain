@@ -59,13 +59,22 @@ public sealed record MatchIngestionPlatformSummary(
     int MatchesSkipped,
     int TimelinesUpdated);
 
-/// <summary>Match ingestion outcome, with a per-platform breakdown.</summary>
+/// <summary>
+/// Match ingestion outcome, with a per-platform breakdown.
+/// <see cref="AccountsValidated"/> (#1024) is the candidate funnel's exit: accounts whose
+/// candidates cleared ingestion and moved Processing → Validated. It is lower than
+/// <see cref="AccountsProcessed"/> whenever a claimed account had nothing left to promote,
+/// and it is the only record of a validation — the transition itself leaves no trace in
+/// <c>main_candidates</c> once retention prunes the row. Appended after <see cref="Errors"/>
+/// so the pre-existing keys keep their wire order.
+/// </summary>
 public sealed record MatchIngestionSummary(
     int AccountsProcessed,
     int MatchesInserted,
     int MatchesSkipped,
     int TimelinesUpdated,
     int Errors,
+    int AccountsValidated,
     IReadOnlyList<MatchIngestionPlatformSummary> ByPlatform) : IProcessRunSummary;
 
 /// <summary>Manual seed outcome for the claimed batch.</summary>
@@ -167,10 +176,19 @@ public sealed record BanAggregationSummary(
 /// no metrics store shows up on the admin process page — a completed run that
 /// persisted nothing, not a failure.
 /// </summary>
+/// <remarks>
+/// The Mongo counters (#1023) are the engine's own footprint, measured through
+/// <c>dbStats</c> / <c>$collStats</c>. They are 0 when Mongo is unconfigured — the
+/// same condition that zeroes <see cref="Written"/>, since that is also where the
+/// readings would have been stored.
+/// </remarks>
 public sealed record StorageSnapshotSummary(
     int Tables,
     int Written,
-    long DatabaseBytes) : IProcessRunSummary;
+    long DatabaseBytes,
+    int MongoCollections,
+    int MongoWritten,
+    long MongoBytes) : IProcessRunSummary;
 
 /// <summary>
 /// Rune-page deduplication outcome (#911). The counters separate the two ways a

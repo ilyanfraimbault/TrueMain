@@ -34,7 +34,7 @@ const rows = computed(() => {
 <template>
   <UTooltip
     :delay-duration="150"
-    :ui="{ content: 'p-1.5' }"
+    :ui="{ content: 'h-auto items-start p-1.5' }"
   >
     <template #content>
       <div class="grid grid-cols-[auto_auto] gap-x-4 gap-y-0.5 text-xs">

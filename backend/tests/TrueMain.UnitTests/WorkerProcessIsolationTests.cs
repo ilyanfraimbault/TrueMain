@@ -178,6 +178,7 @@ public sealed class WorkerProcessIsolationTests
             scopeFactory,
             jobOptions,
             iterationContext,
+            new CallerContext(),
             lifetime,
             TestIngestorMetrics.Create());
     }

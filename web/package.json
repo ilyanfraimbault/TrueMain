@@ -26,17 +26,17 @@
     "@nuxtjs/seo": "^5.3.2",
     "@resvg/resvg-js": "^2.6.2",
     "nuxt": "^4.4.8",
-    "nuxt-charts": "^2.1.4",
+    "nuxt-charts": "^2.2.0",
     "satori": "^0.29.0",
-    "vue": "^3.5.39"
+    "vue": "^3.5.41"
   },
   "devDependencies": {
     "@types/node": "^26.1.0",
-    "happy-dom": "^20.10.2",
-    "tailwindcss": "^4.3.2",
+    "happy-dom": "^20.11.1",
+    "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10",
-    "vue-chrts": "2.1.4",
+    "vue-chrts": "2.2.0",
     "vue-tsc": "^3.3.7"
   }
 }

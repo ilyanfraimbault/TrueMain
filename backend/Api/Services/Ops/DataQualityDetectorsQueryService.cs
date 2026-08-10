@@ -107,19 +107,22 @@ public sealed class DataQualityDetectorsQueryService(
         var patchCount = Math.Max(1, settings.FreshnessPatchCount);
         var championLimit = Math.Max(1, settings.FreshnessChampionLimit);
 
-        // Newest patches first. Only these are judged: older ones are frozen by design
+        // Every stored GameVersion, indexed by the patch it normalises onto. Newest
+        // patches first: only these are judged, because older ones are frozen by design
         // (#466) and can never be refreshed, so reporting them as stale is noise that
         // never clears.
-        var patches = await db.ChampionAggregateScopes
+        var storedVersions = await db.ChampionAggregateScopes
             .AsNoTracking()
             .Select(scope => scope.GameVersion)
             .Distinct()
             .ToListAsync(ct);
 
-        var newestPatches = patches
-            .Select(PatchVersion.Normalize)
-            .Distinct(StringComparer.Ordinal)
-            .Where(patch => PatchVersion.TryParse(patch, out _))
+        var versionsByPatch = storedVersions
+            .Where(version => PatchVersion.TryParse(version, out _))
+            .GroupBy(PatchVersion.Normalize, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.ToList(), StringComparer.Ordinal);
+
+        var newestPatches = versionsByPatch.Keys
             .OrderByDescending(PatchVersion.Parse)
             .Take(patchCount)
             .ToList();
@@ -133,13 +136,16 @@ public sealed class DataQualityDetectorsQueryService(
             };
         }
 
-        // GameVersion is stored raw ("16.15.1.x"), so match on the normalised prefix
-        // rather than on equality with the display patch.
-        var prefixes = newestPatches.Select(patch => patch + ".").ToList();
+        // Filter on the values the column actually holds, resolved above, rather than on
+        // a shape we assume it has. The aggregation normalises on write, so production
+        // stores "16.15" — matching `StartsWith("16.15.")` selected nothing at all and
+        // silently emptied the whole breakdown. Going through the stored values keeps the
+        // filter correct whichever form a row was written in.
+        var scopeVersions = newestPatches.SelectMany(patch => versionsByPatch[patch]).ToList();
 
         var rows = await db.ChampionAggregateScopes
             .AsNoTracking()
-            .Where(scope => prefixes.Any(prefix => scope.GameVersion.StartsWith(prefix)))
+            .Where(scope => scopeVersions.Contains(scope.GameVersion))
             .GroupBy(scope => new { scope.ChampionId, scope.GameVersion })
             .Select(group => new
             {

@@ -67,6 +67,30 @@ public interface IProcessRunStore
         CancellationToken ct);
 
     /// <summary>
+    /// The process name, start time and raw summary JSON of every run of any of
+    /// <paramref name="processNames"/> started at or after <paramref name="sinceUtc"/>,
+    /// oldest first. Projects only those three fields, because the caller needs the
+    /// summary's counters and nothing else, and 180 days of a back-to-back pipeline is
+    /// a lot of documents to hydrate whole.
+    /// </summary>
+    /// <remarks>
+    /// The summary stays a string here: it is stored as opaque JSON text (see
+    /// <see cref="ProcessRunDocument.SummaryJson"/>), so Mongo cannot sum a counter
+    /// inside it and the caller parses. What the server still does is the part it is
+    /// good at — the indexed <c>(processName, startedAtUtc)</c> range scan.
+    ///
+    /// <para>
+    /// Several names in one call because the candidate funnel (#1024) draws one series
+    /// from six different processes and would otherwise fan out into six round trips
+    /// over the same index for the same window.
+    /// </para>
+    /// </remarks>
+    Task<IReadOnlyList<ProcessRunSummarySample>> GetRunSummariesAsync(
+        IReadOnlyCollection<string> processNames,
+        DateTime sinceUtc,
+        CancellationToken ct);
+
+    /// <summary>
     /// Per-process rollup over the (optionally name-filtered) whole collection:
     /// the latest run's raw status + heartbeat, last run start, last successful
     /// finish, and run/failure counts within the window
@@ -107,7 +131,29 @@ public interface IProcessRunStore
         IReadOnlyCollection<string> processNames,
         bool onlySuccesses,
         CancellationToken ct);
+
+    /// <summary>
+    /// How many terminal (non-Running) runs of <paramref name="processName"/> started
+    /// strictly after <paramref name="afterUtc"/>; null counts every terminal run.
+    /// </summary>
+    /// <remarks>
+    /// Pass the process's last successful finish and the count <em>is</em> its current
+    /// failure streak — every terminal run since a success is by definition not one. Kept a
+    /// count rather than folded into <see cref="GetRollupsAsync"/> because the streak needs
+    /// the last-success timestamp that rollup computes in the same <c>$group</c>, and
+    /// because the cockpit (#1031) only asks it of processes whose latest run did not
+    /// succeed — usually none, so the healthy case costs nothing.
+    /// </remarks>
+    Task<long> CountTerminalRunsSinceAsync(string processName, DateTime? afterUtc, CancellationToken ct);
 }
+
+/// <summary>
+/// One run reduced to what a counter series needs: which process it was, when it
+/// started, and the raw summary JSON its counters live in. <see cref="SummaryJson"/>
+/// is null for a run that recorded none — a failure, an abandoned run, or one still
+/// in flight.
+/// </summary>
+public sealed record ProcessRunSummarySample(string ProcessName, DateTime StartedAtUtc, string? SummaryJson);
 
 /// <summary>One page of <see cref="ProcessRunDocument"/>s plus the filtered total.</summary>
 public sealed record ProcessRunPage(IReadOnlyList<ProcessRunDocument> Runs, long Total);

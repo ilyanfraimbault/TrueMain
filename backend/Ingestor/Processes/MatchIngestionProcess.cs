@@ -74,6 +74,11 @@ public sealed class MatchIngestionProcess(
             {
                 var accountSummary = await IngestSingleAccountAsync(account, options, ct);
                 summary.TotalAccounts++;
+                if (accountSummary.Validated)
+                {
+                    summary.TotalValidated++;
+                }
+
                 summary.TotalInserted += accountSummary.Inserted;
                 summary.TotalSkipped += accountSummary.Skipped;
                 summary.TotalTimelines += accountSummary.TimelinesUpdated;
@@ -182,7 +187,7 @@ public sealed class MatchIngestionProcess(
 
         await transaction.CommitAsync(ct);
 
-        await accountValidationService.ValidateAsync(account, ct);
+        var validated = await accountValidationService.ValidateAsync(account, ct);
 
         logger.LogInformation(
             "Match ingestion for {Platform}/{Puuid}: inserted={Inserted}, skipped={Skipped}, timelinesUpdated={Timelines}.",
@@ -192,7 +197,7 @@ public sealed class MatchIngestionProcess(
             snapshotResult.Skipped,
             timelineUpdated);
 
-        return new AccountIngestionSummary(platformId, snapshotResult.Inserted, snapshotResult.Skipped, timelineUpdated);
+        return new AccountIngestionSummary(platformId, snapshotResult.Inserted, snapshotResult.Skipped, timelineUpdated, validated);
     }
 
     private void LogPlatformSummaries(IReadOnlyDictionary<string, PlatformSummary> summaryByPlatform)
@@ -222,6 +227,7 @@ public sealed class MatchIngestionProcess(
             summary.TotalSkipped,
             summary.TotalTimelines,
             summary.TotalErrors,
+            summary.TotalValidated,
             summary.ByPlatform
                 .Where(entry => entry.Value.AccountsProcessed > 0)
                 .Select(entry => new MatchIngestionPlatformSummary(
@@ -233,7 +239,12 @@ public sealed class MatchIngestionProcess(
                 .ToList());
     }
 
-    private sealed record AccountIngestionSummary(string PlatformId, int Inserted, int Skipped, int TimelinesUpdated);
+    private sealed record AccountIngestionSummary(
+        string PlatformId,
+        int Inserted,
+        int Skipped,
+        int TimelinesUpdated,
+        bool Validated);
 
     private sealed class IngestionSummary
     {
@@ -244,6 +255,7 @@ public sealed class MatchIngestionProcess(
 
         public Dictionary<string, PlatformSummary> ByPlatform { get; }
         public int TotalAccounts { get; set; }
+        public int TotalValidated { get; set; }
         public int TotalInserted { get; set; }
         public int TotalSkipped { get; set; }
         public int TotalTimelines { get; set; }
