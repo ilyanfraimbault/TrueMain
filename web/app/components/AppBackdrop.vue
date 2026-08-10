@@ -238,22 +238,38 @@ onMounted(() => {
   // per frame in draw(), so the light glides instead of jumping.
   const pointerTarget = { x: 0.7, y: 0.62 }
   const pointer = { ...pointerTarget }
+  // Last raw viewport coordinates seen, converted to canvas space once per
+  // frame — see onPointerMove / syncPointerTarget below.
+  const pointerClient = { x: 0, y: 0 }
   let pointerK = 0
   let lastPointerMoveAt = -Infinity
 
-  // Normalised against the canvas box, not the viewport: the backdrop is
-  // bounded by the hero section, so viewport coordinates would put the flare
-  // somewhere other than under the cursor — and would keep drifting it while
-  // the pointer moves far below the hero. Clamped so a cursor outside the hero
-  // parks the highlight at the nearest edge instead of flying off the shader's
-  // 0-1 domain.
+  // The handler only records raw viewport coordinates — no layout read.
+  // `pointermove` fires at the device's poll rate (often several hundred hertz),
+  // and `getBoundingClientRect()` forces a synchronous layout, so converting
+  // here would pay for a reflow per sample to feed a loop that consumes the
+  // result 24 times a second. Caching the rect instead would be wrong rather
+  // than slow: it is viewport-relative, so it goes stale the moment the hero
+  // scrolls, and a ResizeObserver never fires on scroll.
   function onPointerMove(event: PointerEvent) {
+    pointerClient.x = event.clientX
+    pointerClient.y = event.clientY
+    lastPointerMoveAt = performance.now()
+  }
+
+  // Viewport → canvas-normalised, run once per frame from draw(). The backdrop
+  // is bounded by the hero section, so raw viewport fractions would put the
+  // flare somewhere other than under the cursor and would keep dragging it
+  // while the pointer moved far below the hero. Clamped so a cursor outside the
+  // hero parks the highlight at the nearest edge rather than flying off the
+  // shader's 0-1 domain.
+  function syncPointerTarget() {
+    if (lastPointerMoveAt === -Infinity) return
     const bounds = canvas!.getBoundingClientRect()
     if (bounds.width === 0 || bounds.height === 0) return
     const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
-    pointerTarget.x = clamp01((event.clientX - bounds.left) / bounds.width)
-    pointerTarget.y = 1 - clamp01((event.clientY - bounds.top) / bounds.height)
-    lastPointerMoveAt = performance.now()
+    pointerTarget.x = clamp01((pointerClient.x - bounds.left) / bounds.width)
+    pointerTarget.y = 1 - clamp01((pointerClient.y - bounds.top) / bounds.height)
   }
 
   function resize() {
@@ -269,6 +285,7 @@ onMounted(() => {
 
   function draw(timeSeconds: number) {
     resize()
+    syncPointerTarget()
     // Runs at ~24fps (loop is frame-gated). These per-frame factors act as
     // time constants; they're scaled by 30/24 from the previous 30fps loop so
     // the cursor response is unchanged in wall-clock time (~0.3s for the
