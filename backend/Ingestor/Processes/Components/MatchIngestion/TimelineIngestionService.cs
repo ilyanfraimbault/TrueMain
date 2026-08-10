@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Core.Lol.Identifiers;
 using Data.Entities;
 using Data.Repositories;
@@ -6,7 +7,9 @@ using Ingestor.Riot.Dto;
 
 namespace Ingestor.Processes.Components.MatchIngestion;
 
-public sealed class TimelineIngestionService(IRiotMatchClient riotMatchClient) : ITimelineIngestionService
+public sealed class TimelineIngestionService(
+    IRiotMatchClient riotMatchClient,
+    ILogger<TimelineIngestionService> logger) : ITimelineIngestionService
 {
     /// <summary>
     /// Skill events past level 11 add no information for our pattern aggregation
@@ -15,6 +18,14 @@ public sealed class TimelineIngestionService(IRiotMatchClient riotMatchClient) :
     /// backlog: SkillEvents tronquer à 11.
     /// </summary>
     internal const int MaxSkillEventsPerParticipant = 11;
+
+    /// <summary>
+    /// How many timelines in a row may fail to download before we stop treating the
+    /// failures as isolated bad payloads and let the exception abort the account.
+    /// One truncated body is Riot flakiness; five back to back is an outage, and
+    /// swallowing those would report a healthy run that ingested nothing.
+    /// </summary>
+    internal const int MaxConsecutiveTimelineFailures = 5;
 
     public async Task<int> IngestTimelinesAsync(
         IDataSession session,
@@ -31,13 +42,43 @@ public sealed class TimelineIngestionService(IRiotMatchClient riotMatchClient) :
 
         var timelineUpdated = 0;
         var batchSize = Math.Max(1, saveBatchSize);
+        var consecutiveFailures = 0;
 
         for (var i = 0; i < timelineTargetIds.Count; i += batchSize)
         {
             var batch = timelineTargetIds.Skip(i).Take(batchSize).ToList();
             foreach (var matchId in batch)
             {
-                var timelineDto = await riotMatchClient.GetTimelineAsync(matchId, region, ct);
+                MatchTimelineDto timelineDto;
+                try
+                {
+                    timelineDto = await riotMatchClient.GetTimelineAsync(matchId, region, ct);
+                }
+                // Riot occasionally cuts a timeline body short: the response is a
+                // 200 whose payload dies mid-stream. The resilience handler cannot
+                // retry it — it decides on the headers, and since #253 the body is
+                // deserialized off the still-flowing stream, outside the pipeline.
+                // Isolate the bad match instead of letting it roll back the whole
+                // account's transaction: leaving TimelineIngested false hands it to
+                // the pending-timeline path, which re-fetches it on a later run.
+                catch (Exception ex) when (ex is JsonException or HttpRequestException or IOException
+                                           && !ct.IsCancellationRequested)
+                {
+                    consecutiveFailures++;
+                    if (consecutiveFailures >= MaxConsecutiveTimelineFailures)
+                    {
+                        throw;
+                    }
+
+                    logger.LogWarning(
+                        ex,
+                        "Timeline download failed for {MatchId}; leaving it pending for a later run.",
+                        matchId);
+                    continue;
+                }
+
+                consecutiveFailures = 0;
+
                 var applied = await ApplyTimelineAsync(session, matchId, timelineDto, ct);
                 if (!applied)
                 {

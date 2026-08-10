@@ -583,6 +583,21 @@ Discovery's 40 s total timeout (a regression from deriving the total from attemp
 `Retry-After` easily exceeds) crashed the first process in a plain `foreach`, so **nothing else in the pipeline
 ran between May 30 and June 12** — #443.
 
+**A streamed Riot response can fail *after* the resilience handler has waved it through — isolate the
+call site.** Since #253 the Riot clients fetch with `HttpCompletionOption.ResponseHeadersRead` and
+deserialize off the still-flowing stream. `AddStandardResilienceHandler` decides whether to retry on the
+*headers*, so a body that dies mid-stream arrives as a perfectly good 200 and the retry strategy never sees
+the failure: it surfaces as a `JsonException` thrown outside the pipeline. In `TimelineIngestionService` one
+such truncated timeline aborted `IngestSingleAccountAsync`, rolling back the account's whole per-account
+transaction — every match snapshot already ingested in that run was discarded and the account reverted to
+queued, for one flaky HTTP body (3 occurrences in prod between 2026-07-21 and 2026-08-09) — #1052.
+Fixed by catching the payload-level faults around the *fetch only* and leaving `TimelineIngested = false`,
+which hands the match to the existing pending-timeline path for a later run. A consecutive-failure cap
+(`MaxConsecutiveTimelineFailures`) still rethrows, so a Riot outage aborts the account instead of reporting a
+healthy run that ingested nothing. 👉 The general rule: retry policies cannot cover streamed bodies, so
+per-item error isolation belongs at the call site — the same principle as the Worker's per-process isolation
+above, one level down.
+
 **The EF compiled model must be regenerated on every schema change.**
 `dotnet ef dbcontext optimize` → `Data/CompiledModels`. Originally for cold start; the operational reason is
 that a stale model *silently drops columns*. Two concurrent schema PRs always conflict there — the second
