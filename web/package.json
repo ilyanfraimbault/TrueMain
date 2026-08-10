@@ -28,7 +28,9 @@
     "nuxt": "^4.5.2",
     "nuxt-charts": "^2.1.4",
     "satori": "^0.29.0",
-    "vue": "^3.5.40"
+    "vue": "^3.5.40",
+    "ipx": "3.1.1",
+    "@unhead/vue": "^3.3.1"
   },
   "devDependencies": {
     "@types/node": "^26.1.0",
@@ -38,5 +40,8 @@
     "vitest": "^4.1.10",
     "vue-chrts": "2.2.0",
     "vue-tsc": "^3.3.7"
+  },
+  "overrides": {
+    "ipx": "3.1.1"
   }
 }
