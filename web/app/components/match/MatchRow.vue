@@ -266,7 +266,7 @@ const rowTint = computed(() =>
 
     <!-- Row header: tinted clickable summary. The win/loss signal is carried
          by the row tint plus the coloured result label alone — no edge strip,
-         it read as heavy against the surface surface. -->
+         it read as heavy against the row surface. -->
     <div class="flex transition-colors" :class="rowTint">
       <!-- Expand affordance: a role=button div (not a native <button>) so the
            hover-only GameTooltip triggers inside — themselves UTooltip buttons
