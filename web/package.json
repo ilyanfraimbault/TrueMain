@@ -28,7 +28,7 @@
     "nuxt": "^4.4.8",
     "nuxt-charts": "^2.1.4",
     "satori": "^0.29.0",
-    "vue": "^3.5.40"
+    "vue": "^3.5.41"
   },
   "devDependencies": {
     "@types/node": "^26.1.0",
