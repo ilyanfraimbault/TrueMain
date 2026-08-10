@@ -40,7 +40,7 @@ function perk(id: number) {
 </script>
 
 <template>
-  <section class="glass flex flex-col items-center gap-2 rounded-md border border-default/60 bg-elevated/60 p-3">
+  <section class="surface flex flex-col items-center gap-2 rounded-md p-3">
     <!-- Portrait + keystone badge -->
     <div class="relative">
       <SkeletonImage

@@ -348,7 +348,7 @@ const thinSides = computed(() => {
             v-for="row in metricRows"
             :key="row.label"
           >
-            <span class="glass-hover -mx-1 rounded-md px-1 py-1 text-sm text-muted">
+            <span class="surface-hover -mx-1 rounded-md px-1 py-1 text-sm text-muted">
               {{ row.label }}
             </span>
             <div class="flex flex-col items-end py-1">

@@ -18,12 +18,18 @@
 
 /*
  * ─── Brand palette ────────────────────────────────────────────────────────
- * TrueMain's surfaces are *rose-gold-only* (the successor to the old
- * emerald-only rule). `rosegold` is the app primary; `mauve` is a warm,
- * near-neutral charcoal (a whisper of rose in the darks) that replaces the
- * cold zinc so the whole shell reads warm. Nuxt UI maps `--ui-color-primary-*`
- * / `--ui-color-neutral-*` onto these via the names in app.config.ts, and
- * Tailwind v4 auto-generates `bg-rosegold-*` / `text-mauve-*` etc.
+ * `rosegold` is the app primary and the *only* brand accent. It is deliberately
+ * scarce: brand and interaction only (logo, active nav, focus rings, primary
+ * buttons, links, selected states, the hero accent word). It never colours a
+ * data value — that job belongs to the cold→warm data axis below — and it is
+ * never a generic surface tint. Scarcity is what makes it read as an accent.
+ *
+ * This reverses the former "surfaces are rose-gold-only" rule, which paired the
+ * warm accent with an equally warm neutral (`mauve-900 #211d1e`). The accent sat
+ * on a background already halfway to its own hue, so chromatic separation was
+ * near zero and the whole app read as one flat warm mass. `ink` replaces it: a
+ * near-neutral, faintly cool charcoal. The rosegold ramp itself is unchanged —
+ * it simply reads far more saturated now that nothing around it is warm.
  *
  * A single genuine *gold* accent (`--color-gold`) sells the "rose GOLD" read
  * on hairlines and the logo — used sparingly so the primary stays the rose,
@@ -48,17 +54,17 @@
   --color-rosegold-900: #6f353b;
   --color-rosegold-950: #3c191d;
 
-  --color-mauve-50: #faf7f7;
-  --color-mauve-100: #f3eeef;
-  --color-mauve-200: #e6dee0;
-  --color-mauve-300: #d3c7ca;
-  --color-mauve-400: #a99ba0;
-  --color-mauve-500: #7f7276;
-  --color-mauve-600: #665a5e;
-  --color-mauve-700: #524749;
-  --color-mauve-800: #362f31;
-  --color-mauve-900: #211d1e;
-  --color-mauve-950: #161213;
+  --color-ink-50: #f7f7f8;
+  --color-ink-100: #eeeef0;
+  --color-ink-200: #d9d9dd;
+  --color-ink-300: #b7b7be;
+  --color-ink-400: #8b8b95;
+  --color-ink-500: #6a6a74;
+  --color-ink-600: #4e4e57;
+  --color-ink-700: #3a3a42;
+  --color-ink-800: #26262c;
+  --color-ink-900: #17171b;
+  --color-ink-950: #0b0b0d;
 
   /* Warm metallic gold — accent-of-the-accent (hairlines, logo sheen). */
   --color-gold: #d9b676;
@@ -66,14 +72,19 @@
 
 @theme {
   /*
-   * App typography — one family everywhere. Inter (self-hosted via
-   * @nuxt/fonts, see nuxt.config.ts) drives every surface; `--font-mono` is
-   * deliberately pointed at the same stack so the few `font-mono` accent
-   * classes (eyebrow labels, rank numbers) render in Inter too rather than
-   * a clashing monospace. `tabular-nums` still keeps numeric columns aligned.
+   * App typography — two families with distinct jobs. Inter carries prose,
+   * headings and labels; Geist Mono carries *measurements* — every stat value
+   * and every micro-label that annotates one (see the `stat-value` /
+   * `stat-label` utilities below). Both self-hosted via @nuxt/fonts.
+   *
+   * `--font-mono` used to be aliased to Inter so `font-mono` accent classes
+   * wouldn't clash with the sans. That alias is lifted: on a stats site the
+   * technical face applied to the numbers is exactly what gives them presence,
+   * and the value/label pairing below depends on the two families reading as
+   * different registers. `tabular-nums` still does the column alignment.
    */
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   --animate-shimmer: shimmer 8s ease-in-out infinite alternate;
 
@@ -87,10 +98,34 @@
   --width-starter-items: 116px;
 
   /*
+   * ─── Data axis ──────────────────────────────────────────────────────────
+   * The semantic palette for *measurements*: win rates, deltas, match results,
+   * tiers, meters. Unlike the stat colors below, these are full surface colors —
+   * `bg-data-*`, `ring-data-*`, `border-data-*` are all fair game.
+   *
+   * The axis is cold→warm rather than the usual green→red. Green/red was
+   * rejected because `rosegold-500 #d9736c` is itself a desaturated red: a red
+   * "loss" value sitting next to a rose-gold accent in a dense table is a coin
+   * flip to read. Teal and amber share no hue with the brand, so a coloured
+   * number can never be mistaken for an interactive one.
+   *
+   * The `-dim` stops are for large fills (meters, heatmap cells) where the full
+   * stop would shout; the full stops are for text and small marks.
+   */
+  --color-data-good: #3ad6c4;      /* above average, win */
+  --color-data-good-dim: #7fc9c0;
+  --color-data-mid: #8b8b95;       /* average / no signal — ink-400 */
+  --color-data-bad-dim: #d9a45f;
+  --color-data-bad: #f0a13c;       /* below average, loss */
+
+  /*
    * Stat / damage-type colors for rich game-entity tooltips. Text emphasis
-   * only — the app is rose-gold-only on surfaces, so do NOT use these as
-   * `bg-*` / `ring-*` / `border-*`. Tailwind v4 auto-generates `text-stat-*`
-   * utilities from these `--color-*` vars.
+   * only — do NOT use these as `bg-*` / `ring-*` / `border-*`. They reproduce
+   * Riot's in-client vocabulary, which overlaps the data axis above (armor and
+   * item-active are amber, MR and adaptive are cyan); confining them to tooltip
+   * prose is what keeps that overlap from ever landing on a data surface.
+   * Tailwind v4 auto-generates `text-stat-*` utilities from these `--color-*`
+   * vars.
    *
    * Palette source: hex values eyedropper-sampled from the live League of
    * Legends client (item tooltips, ability tooltips, rune tooltips) on
@@ -137,24 +172,24 @@
 
   /*
    * Champion performance-tier scale (S → D) for the champions-list tier
-   * column. Reads as a medal ladder — a metaphor every LoL player already
-   * knows from ranked (Iron → Bronze → Silver → Gold): better tier = more
-   * precious metal. S sits above gold on the brand rose-gold primary, so the
-   * best tier is also the one wearing the app's accent. Kept saturated enough
-   * to stay legible on the dark surface.
+   * column. Sits directly on the data axis above, so a champion's tier and its
+   * win rate speak the same colour language: teal at the top, neutral at the
+   * average, amber at the bottom.
+   *
+   * This replaces a medal ladder (rose-gold → gold → silver → bronze → iron).
+   * That metaphor broke twice over: its gold and bronze stops are amber, which
+   * now means "bad", so A and C read as warnings; and `tier-s` was literally
+   * `rosegold-400`, giving the best tier the brand colour and stripping it of
+   * any comparative meaning.
+   *
    * Tailwind v4 auto-generates `text-tier-*` utilities from these vars;
    * TierBadge.vue colours the bare letter with the matching one.
-   *   S — rose-gold (brand primary, best)
-   *   A — gold
-   *   B — silver
-   *   C — bronze
-   *   D — iron       (worst)
    */
-  --color-tier-s: #e58f83;               /* rose-gold — rosegold-400 (best) */
-  --color-tier-a: #e2b95c;               /* gold */
-  --color-tier-b: #b9c2cd;               /* silver */
-  --color-tier-c: #b3763f;               /* bronze */
-  --color-tier-d: #837a7c;               /* iron (worst) */
+  --color-tier-s: #3ad6c4;               /* data-good (best) */
+  --color-tier-a: #7fc9c0;               /* data-good-dim */
+  --color-tier-b: #8b8b95;               /* data-mid — the average */
+  --color-tier-c: #d9a45f;               /* data-bad-dim */
+  --color-tier-d: #f0a13c;               /* data-bad (worst) */
 
   /* Misc / structural */
   --color-stat-status: #9366a9;          /* status / CC keywords (Slowing, Immobilizing, Airborne, Stun) — muted violet */
@@ -174,42 +209,69 @@
  * Apply the sans family to the document. Tailwind v4's preflight does not
  * pin a body font-family, so without this the page would keep using the
  * browser default rather than the `--font-sans` (Inter) declared above.
+ *
+ * The page fill is pinned here too. It used to be supplied incidentally by the
+ * viewport-fixed AppBackdrop sitting behind every route; now that the backdrop
+ * is scoped to the home hero, the document itself has to paint the base of the
+ * elevation ladder — otherwise overscroll and any area a page doesn't cover
+ * fall through to the browser default.
  */
 html {
   font-family: var(--font-sans);
+  background-color: var(--ui-bg);
 }
 
 /*
- * Glass surface — the translucent, blurred panel material used across the app
- * (home panels, search box, tooltips). Material only: choose your own radius
- * and padding at the call site. Built on the Nuxt UI bg/border tokens so it
- * tracks both colour modes automatically.
+ * ─── Surface: the app-wide panel material ───────────────────────────────────
+ * Opaque fill, neutral hairline, one soft shadow. Material only — choose your
+ * own radius and padding at the call site.
  *
- * The hairline is faintly rose-tinted (a mix of the primary over the neutral
- * border) and the panel carries an inset top-highlight + a soft drop shadow so
- * cards lift off the animated backdrop instead of dissolving into it. Blur is
- * paired with a touch of saturate() to keep the rose haze behind the glass from
- * going muddy.
+ * This is the successor to `glass`, which was applied to every card, every
+ * badge and 55 hand-written call sites — and is now gone entirely (see below).
+ * Translucency everywhere meant nothing
+ * was ever *on top of* anything: a panel, a row inside it and the page behind
+ * both landed within a few percent of each other, so the eye had no elevation
+ * to read. Opacity plus the four distinct `--ui-bg-*` steps (see `:root` below)
+ * is what makes the ladder legible.
  *
- * `.glass-hover` adds a rose-tinted hover/focus wash for interactive rows and
- * tiles — deliberately *not* the neutral `bg-elevated` grey, which reads as a
- * dead "disabled" hover against the rose-gold surface.
+ * `surface-hover` is the interactive counterpart: it moves the row up one step
+ * on that same ladder rather than washing it with a tint, so hovering reads as
+ * "raised", consistent with every other level in the app.
  */
-@utility glass {
-  border: 1px solid color-mix(in oklch, var(--ui-color-primary-400) 20%, color-mix(in oklch, var(--ui-border) 72%, transparent));
-  background-color: color-mix(in oklch, var(--ui-bg-elevated) 75%, transparent);
-  /*
-   * Only the unprefixed property is authored: Tailwind v4's Lightning CSS
-   * emits the `-webkit-` fallback itself from the browserslist targets.
-   * Authoring both by hand made the build collapse them to `-webkit-` only,
-   * which silently dropped the blur on Firefox (no `-webkit-backdrop-filter`
-   * support) — the cards read as flat panels there.
-   */
-  backdrop-filter: blur(16px) saturate(1.2);
-  box-shadow:
-    inset 0 1px 0 0 color-mix(in oklch, var(--ui-color-primary-200) 10%, transparent),
-    0 10px 30px -18px color-mix(in oklch, black 60%, transparent);
+@utility surface {
+  background-color: var(--ui-bg-elevated);
+  border: 1px solid var(--ui-border);
+  box-shadow: 0 1px 2px 0 color-mix(in oklch, black 40%, transparent);
 }
+
+@utility surface-hover {
+  transition: background-color 150ms ease, border-color 150ms ease;
+
+  &:hover,
+  &:focus-visible {
+    background-color: var(--ui-bg-accented);
+    border-color: var(--ui-border-accented);
+  }
+}
+
+/*
+ * The `glass` utility that used to live here is gone. It was kept at first for
+ * the home hero — the one place an animated backdrop still sits behind a panel
+ * and there is therefore something to blur — but the hero's own search field
+ * reads better solid against the eclipse, the way the reference designs stack a
+ * hard-edged block on an atmospheric ground. That left the utility with no call
+ * site at all, and a material documented as load-bearing with nothing using it
+ * is how a design system starts lying about itself.
+ *
+ * If a blurred panel is ever wanted again it is four lines
+ * (`backdrop-filter: blur(16px) saturate(1.2)` plus a translucent fill) — see
+ * this file's history. Two things to carry over with it: author only the
+ * unprefixed `backdrop-filter` (Lightning CSS emits the `-webkit-` fallback
+ * from the browserslist targets; hand-writing both collapsed it to `-webkit-`
+ * only and silently dropped the blur in Firefox), and never combine it with
+ * `overflow-hidden` on the same element, which bleeds the blur past the radius
+ * in WebKit.
+ */
 
 /*
  * Shared "not the selected option" treatment for images (rune/perk icons) —
@@ -233,14 +295,34 @@ html {
   @apply ring-1 ring-primary/40;
 }
 
-@utility glass-hover {
-  transition: background-color 150ms ease, border-color 150ms ease;
+/*
+ * ─── Measurement typography ────────────────────────────────────────────────
+ * A stat is always a *pair*: the value and the label naming it (52% / WR,
+ * 2.4 / KDA, 18 / games). These two utilities are that pair's house style, and
+ * the gap between them is the point — the old scale put value and label one
+ * step apart (`text-sm` over `text-xs`, same family, same weight), so a dense
+ * row read as undifferentiated noise.
+ *
+ * `stat-value` sets family, weight and figure style but *not* size: a headline
+ * KPI and a table cell are the same material at different scales, so the call
+ * site (or StatBlock's `size` prop) picks the step.
+ */
+@utility stat-value {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--ui-text-highlighted);
+}
 
-  &:hover,
-  &:focus-visible {
-    background-color: color-mix(in oklch, var(--ui-color-primary-500) 14%, transparent);
-    border-color: color-mix(in oklch, var(--ui-color-primary-400) 35%, transparent);
-  }
+@utility stat-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.2;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ui-text-dimmed);
 }
 
 /*
@@ -259,12 +341,38 @@ html {
   to { transform: rotate(360deg); }
 }
 
-.dark {
-  --ui-bg: var(--ui-color-neutral-900);
-  --ui-bg-muted: var(--ui-color-neutral-800);
-  --ui-bg-elevated: var(--ui-color-neutral-800);
-  --ui-bg-accented: var(--ui-color-neutral-700);
+/*
+ * ─── Elevation ladder ──────────────────────────────────────────────────────
+ * Four distinct steps: page → recessed → raised → interactive. Every surface in
+ * the app sits on one of them, and `surface` / `surface-hover` move between the
+ * last two.
+ *
+ * The previous mapping pointed `--ui-bg-muted` and `--ui-bg-elevated` at the
+ * *same* shade (neutral-800), which left the whole app with two levels: page
+ * and not-page. A card, a row nested in that card, and an inset header strip
+ * were all one colour, so depth had to be carried by borders alone — and the
+ * borders were themselves translucent. Giving each step its own value is what
+ * makes nested structure readable without any extra chrome.
+ *
+ * Written on `:root` rather than `.dark`: the app is dark-only (there is no
+ * colour-mode toggle), so these are simply *the* surface tokens. Keeping them
+ * under `.dark` would leave a light theme half-defined and silently reachable.
+ * `:root.dark` is listed alongside so the block still out-specifies Nuxt UI's
+ * own `.dark` declarations once `<html>` carries the class — matching on source
+ * order alone would depend on where the module injects its stylesheet.
+ *
+ * The two middle steps are raw hex: this is the semantic layer, and no stop on
+ * the `ink` primitive ramp falls between 950 and 800 where the ladder needs
+ * them. The outer two do land on ramp stops and reference them by name.
+ */
+:root,
+:root.dark {
+  --ui-bg: var(--ui-color-neutral-950);          /* page */
+  --ui-bg-muted: #131317;                        /* recessed — inset strips, empty states */
+  --ui-bg-elevated: #1b1b20;                     /* raised — cards, rows */
+  --ui-bg-accented: #24242a;                     /* interactive — hover, nested */
   --ui-border: var(--ui-color-neutral-800);
+  --ui-border-accented: var(--ui-color-neutral-700);
 }
 
 /*

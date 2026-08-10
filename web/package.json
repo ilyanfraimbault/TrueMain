@@ -2,7 +2,7 @@
   "name": "truemain-web",
   "type": "module",
   "private": true,
-  "//browserslist": "Includes modern Firefox so Lightning CSS keeps the unprefixed `backdrop-filter` (Firefox never supported `-webkit-backdrop-filter`). Without a Firefox target it collapses the glass blur to `-webkit-` only and Firefox renders flat panels. Kept modern enough that oklch/color-mix stay native (no rgb downlevel).",
+  "//browserslist": "Kept modern enough that oklch/color-mix stay native (no rgb downlevel) — the `surface` material and the whole token layer are built on them. The Firefox target used to matter for a second reason too: it made Lightning CSS keep the unprefixed `backdrop-filter`, without which the blur collapsed to `-webkit-` only and Firefox rendered flat panels. #1060 removed the last translucent surface, so only the colour-function reason is live now.",
   "browserslist": [
     "Chrome >= 111",
     "Edge >= 111",

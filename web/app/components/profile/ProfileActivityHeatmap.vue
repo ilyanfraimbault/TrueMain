@@ -19,7 +19,7 @@ import {
  * - **An empty period is not a lost one.** A cell with no games gets its own
  *   faint tile, the way GitHub draws an idle day, while a cell whose games were
  *   all losses gets a muted rose-grey fill. An outline alone dissolved into the
- *   glass surface, so the empty state is painted — but barely: punched out as a
+ *   card surface, so the empty state is painted — but barely: punched out as a
  *   dark hole it read as a hard-edged gap in the card rather than as a lull.
  */
 const props = withDefaults(defineProps<{
@@ -152,7 +152,7 @@ const isEmpty = computed(() => cells.value.length === 0)
       </div>
     </div>
 
-    <div class="glass flex flex-col gap-2 rounded-lg p-3">
+    <div class="surface flex flex-col gap-2 rounded-lg p-3">
       <USkeleton v-if="loading" class="h-24 w-full rounded-md" />
 
       <template v-else-if="!data">
@@ -197,7 +197,7 @@ const isEmpty = computed(() => cells.value.length === 0)
             v-if="hovered && tooltipAnchor"
             ref="tooltipEl"
             role="tooltip"
-            class="glass pointer-events-none absolute z-10 -translate-x-1/2 whitespace-nowrap rounded-md px-2 py-1 text-xs leading-tight tabular-nums shadow-lg"
+            class="surface pointer-events-none absolute z-10 -translate-x-1/2 whitespace-nowrap rounded-md px-2 py-1 text-xs leading-tight tabular-nums shadow-lg"
             :class="tooltipAnchor.above ? '-translate-y-full' : 'translate-y-0'"
             :style="{
               left: `${tooltipAnchor.x}px`,

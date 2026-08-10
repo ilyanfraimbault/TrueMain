@@ -58,7 +58,6 @@ const items = computed<NavigationMenuItem[]>(() => [
 
     <template #right>
       <AppSearch variant="button" shortcut />
-      <UColorModeButton />
     </template>
 
     <template #body>

@@ -33,7 +33,7 @@ defineEmits<{
 
 <template>
   <section
-    class="glass space-y-4 rounded-xl p-4 sm:p-5"
+    class="surface space-y-4 rounded-xl p-4 sm:p-5"
     aria-label="Rest of the draft"
   >
     <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -65,7 +65,7 @@ defineEmits<{
           >
             <li
               v-if="option.value !== playedPosition"
-              class="glass-hover flex items-center gap-3 rounded-lg px-2.5 py-1.5"
+              class="surface-hover flex items-center gap-3 rounded-lg px-2.5 py-1.5"
             >
               <SkeletonImage
                 :src="option.iconUrl"
@@ -99,7 +99,7 @@ defineEmits<{
           >
             <li
               v-if="option.value !== playedPosition"
-              class="glass-hover flex items-center gap-3 rounded-lg px-2.5 py-1.5"
+              class="surface-hover flex items-center gap-3 rounded-lg px-2.5 py-1.5"
             >
               <SkeletonImage
                 :src="option.iconUrl"

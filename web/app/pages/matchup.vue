@@ -314,7 +314,7 @@ const fallbackNotice = computed(() => {
         v-else-if="recommendation.build.gamesConsidered === 0"
         :title="playedChampion ? `Recommended for ${playedChampion.name}` : 'Recommendation'"
       >
-        <div class="glass rounded-lg px-6 py-12 text-center">
+        <div class="surface rounded-lg px-6 py-12 text-center">
           <p class="font-medium">
             No similar games found
           </p>

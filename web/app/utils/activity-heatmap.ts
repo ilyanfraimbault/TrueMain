@@ -7,20 +7,26 @@ import type { ActivityBucket, ActivityMode, ActivitySeries } from '~~/shared/typ
  */
 
 /**
- * Win end of the scale — `rosegold-400` (see `assets/css/main.css`). The grid is
- * read the way GitHub's contribution grid is: one warm hue whose intensity is
- * the signal. Borrowing the match feed's sky blue instead would drop a cold
- * accent into a rose-gold-only surface for no gain — the feed already carries
- * the per-game result twenty pixels away.
+ * Win end of the scale — `--color-data-good` (see `assets/css/main.css`). The
+ * grid is read the way GitHub's contribution grid is: hue carries the sign,
+ * intensity carries the weight.
+ *
+ * This used to be `rosegold-400`, on the reasoning that the app was rose-gold
+ * only on surfaces and a second hue would have been an intrusion. That rule is
+ * gone: measurements now have their own cold→warm axis precisely so a reader
+ * never has to work out whether a colour means "good" or "brand". A win cell is
+ * the same teal as an S tier and an above-average win rate.
  */
-export const ACTIVITY_WIN_RGB = [229, 143, 131] as const
+export const ACTIVITY_WIN_RGB = [58, 214, 196] as const
 
 /**
- * Loss end of the scale — `mauve-400`, the warm near-neutral. A losing period
- * has to stay distinguishable from a winning one without competing with it, so
- * it desaturates towards the shell instead of picking up a second hue.
+ * Loss end of the scale — `--color-data-bad`. Formerly `mauve-400`, a near
+ * neutral chosen to desaturate towards the shell rather than take a second hue.
+ * On the data axis the losing side has a colour of its own, and amber is far
+ * enough from teal that the sign of a period reads at 11 px without relying on
+ * intensity.
  */
-export const ACTIVITY_LOSS_RGB = [169, 155, 160] as const
+export const ACTIVITY_LOSS_RGB = [240, 161, 60] as const
 
 /**
  * Alpha of the least emphatic populated cell — a coin-flip, single-game period.

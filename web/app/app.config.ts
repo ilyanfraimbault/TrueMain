@@ -2,24 +2,28 @@ export default defineAppConfig({
   ui: {
     colors: {
       // Custom palettes defined in assets/css/main.css @theme. `rosegold` is
-      // the brand accent (warm rose with a gold read); `mauve` is a warm
-      // near-neutral charcoal replacing the old cold zinc.
+      // the brand accent, reserved for brand and interaction only; `ink` is the
+      // near-neutral, faintly cool charcoal every surface is built from. The
+      // two are deliberately unrelated in hue — that separation is what lets a
+      // scarce warm accent register at all.
       primary: 'rosegold',
-      neutral: 'mauve',
+      neutral: 'ink',
     },
-    // Give every UCard the app-wide glass material (translucent, blurred
-    // surface — see the `glass` utility in main.css) and trim the default
-    // padding a notch. Nuxt UI *appends* per-variant `root` classes rather
-    // than replacing them, so the `outline` default would keep its opaque
-    // `bg-default` + `ring` and bury the glass. `soft` is the base we build on
-    // (single translucent fill + divider, no ring), but its stock
-    // `bg-elevated/50` is *overridden* below: as a plain utility it wins the
-    // cascade over the `glass` background-color, so the glass opacity never
-    // reached the card — cards rendered at 50% regardless. We raise it to /75
-    // here so the panels actually separate from the animated backdrop.
+    // Give every UCard the app-wide `surface` material (opaque fill, neutral
+    // hairline — see main.css) and trim the default padding a notch.
+    //
+    // Nuxt UI *appends* per-variant `root` classes rather than replacing them,
+    // and a plain utility out-cascades a `@utility` declaration. That is why
+    // `soft`'s stock `bg-elevated/50` has to be overridden here: left alone it
+    // wins over `surface`'s background-color and every card renders at 50%.
+    //
+    // The override is the *opaque* `bg-elevated`, not `bg-transparent` — the
+    // cascade cuts both ways, so a transparent utility would win just as hard
+    // and leave every card in the app with no fill at all. The literal simply
+    // restates the value `surface` was going to paint.
     card: {
       slots: {
-        root: 'glass rounded-2xl',
+        root: 'surface rounded-xl',
         header: 'p-3 sm:px-4 sm:py-3.5',
         body: 'p-3 sm:p-4',
         footer: 'p-3 sm:px-4',
@@ -27,7 +31,7 @@ export default defineAppConfig({
       variants: {
         variant: {
           soft: {
-            root: 'bg-elevated/75 divide-y divide-default',
+            root: 'bg-elevated divide-y divide-default',
           },
         },
       },
@@ -35,16 +39,13 @@ export default defineAppConfig({
         variant: 'soft',
       },
     },
-    // `subtle` already ships a translucent `bg-{color}/10` fill + a matching
-    // `ring ring-inset ring-{color}/25` per Nuxt UI's badge theme — the same
-    // ring+translucency shape as the app's other glass elements. Adding just
-    // `backdrop-blur-sm` on top brings it in line with the `glass` card
-    // material and `ItemRankBadge`'s pill, without flattening the per-color
-    // (pick vs. win) distinction those variants carry.
+    // `subtle` ships a translucent `bg-{color}/10` fill + a matching
+    // `ring ring-inset ring-{color}/25`, which is the right shape for a badge:
+    // it tints without becoming a surface of its own, and keeps the per-color
+    // (pick vs. win) distinction those variants carry. The global
+    // `backdrop-blur-sm` that used to sit on top is gone with the rest of the
+    // glass — there is nothing behind a badge left to blur.
     badge: {
-      slots: {
-        base: 'backdrop-blur-sm',
-      },
       defaultVariants: {
         variant: 'subtle',
       },

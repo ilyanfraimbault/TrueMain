@@ -1,9 +1,13 @@
 import { ELO_TIERS } from '~/utils/elo-brackets'
 
 // Tier visual + label helpers shared across the profile card and the
-// leaderboard row. The colour map intentionally keeps the warm cues for
-// Iron→Gold (players read those ranks from the colour first) and uses the
-// project's emerald-leaning palette elsewhere.
+// leaderboard row.
+//
+// This is the one map in the app that is deliberately off-palette: these are
+// *Riot's* rank colours, not TrueMain's. A player reads Iron/Bronze/Gold from
+// the colour before the word, so reproducing the in-client cues beats making
+// them agree with the brand. They never collide with the data axis in practice
+// because a rank names a bracket rather than scoring anything.
 
 export const TIER_COLORS: Record<string, string> = {
   IRON: 'text-stone-400',
@@ -45,8 +49,8 @@ const DIVISION_ORDER: Record<string, number> = {
 
 /** Returns a hex color for the tier, or a muted default. */
 export function tierHex(tier: string | null | undefined): string {
-  if (!tier) return '#71717a' // zinc-500
-  return TIER_HEX[tier.toUpperCase()] ?? '#71717a'
+  if (!tier) return '#6a6a74' // ink-500 — the neutral fallback, never a guessed rank
+  return TIER_HEX[tier.toUpperCase()] ?? '#6a6a74'
 }
 
 /**

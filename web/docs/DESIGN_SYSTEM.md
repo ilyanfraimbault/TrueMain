@@ -2,12 +2,76 @@
 
 Conventions that are enforced by nothing but habit — write them here before they drift.
 
+The tokens themselves live in [`main.css`](../app/assets/css/main.css), with the reasoning behind each
+choice in its comment. `.claude/docs/decisions.md` records why the system looks the way it does. Every
+token, elevation step and material is rendered on one screen at **`/dev/design-system`** — check a change
+there before touring the real pages.
+
+The app is **dark-only**. There is no colour-mode toggle and no `dark:` variant anywhere; the surface tokens
+sit on `:root`. Don't add a light variant to a component — it will never be reviewed.
+
+## Colour has three jobs, and they don't overlap
+
+| Family | Owns | Allowed on |
+| --- | --- | --- |
+| `primary` (rosegold) | Brand and interaction | Logo, active nav, focus rings, primary buttons, links, selected states |
+| `--color-data-*` | Measurements | Anything — `text-*`, `bg-*`, `ring-*`, `border-*` |
+| `--color-stat-*` | Riot's in-game vocabulary | **Tooltip prose only** — never `bg-*` / `ring-*` / `border-*` |
+
+**Rose gold is scarce on purpose.** It never colours a data value and is never a generic surface tint. An
+accent applied to everything stops being an accent — that is exactly how the previous rose-gold-only system
+ended up reading as one flat warm mass.
+
+**The data axis is cold → warm**, not green → red: `--color-data-good` (teal) → `--color-data-mid` (neutral)
+→ `--color-data-bad` (amber), with `-dim` stops for large fills. Green/red is off the table because
+`rosegold-500` is itself a desaturated red, so a red "loss" beside the accent in a dense table is a coin flip
+to read. The `--color-tier-*` ladder rides this same axis, so a champion's tier and its win rate speak one
+language.
+
+`--color-stat-*` overlaps the axis (armor is amber, magic resist is cyan). That is tolerated *because* those
+tokens are confined to tooltip prose — putting one on a data surface is what would make the overlap
+ambiguous.
+
+The one deliberate exception is `TIER_COLORS` / `TIER_HEX` in [`utils/tiers.ts`](../app/utils/tiers.ts):
+those are **Riot's** rank colours, reproduced because a player reads Iron/Bronze/Gold from the colour before
+the word.
+
+## Elevation is four opaque steps
+
+`bg-default` (page) → `bg-muted` (recessed) → `bg-elevated` (raised) → `bg-accented` (interactive).
+
+Reach for the material utilities rather than composing a surface by hand:
+
+- **`surface`** — the app-wide panel: opaque fill, neutral hairline, one soft shadow. Material only; pick
+  your own radius and padding. Every `UCard` gets it globally from `app.config.ts`.
+- **`surface-hover`** — the interactive counterpart. It moves the element up one step on the ladder rather
+  than washing it with a tint, so hover reads as "raised" like every other level.
+
+There is no translucent material. The former `glass` was removed once the last call site went opaque —
+including the home hero's search field, which reads better solid against the eclipse.
+
+**`surface` owns `background-color` and `border` — don't restate them.** Writing `class="surface border
+border-default/60 bg-elevated/60"` is not merely redundant: a plain utility out-cascades a `@utility`
+declaration, so the literal pair wins and the element is translucent again. It looks like it was converted
+and isn't. Opacity is what collapsed the ladder in the first place — a panel, a row inside it and the page
+behind all landed within a few percent of each other and the eye had no depth to read.
+
+## A stat is a pair, and the pair has a house style
+
+Two families with distinct jobs: **Inter** carries prose, headings and labels; **Geist Mono** carries
+measurements.
+
+- **`stat-value`** — family, weight and figure style, but deliberately *not* size: a headline KPI and a table
+  cell are the same material at different scales, so the call site picks the step.
+- **`stat-label`** — 10 px, uppercase, wide tracking, dimmed.
+
+The gap between the two is the point. The old scale put a value and its label one step apart (`text-sm` over
+`text-xs`, same family, same weight), which made a dense row read as undifferentiated noise.
+
 ## Semantic text hierarchy
 
-Four semantic text color tokens from `@nuxt/ui` (`text-default`, `text-muted`,
-`text-dimmed`, `text-highlighted`) cover every text color need. Prefer them over
-raw `text-{color}-{shade}` utilities so text automatically tracks light/dark mode
-and the rose-gold palette defined in [`main.css`](../app/assets/css/main.css).
+Four semantic text color tokens from `@nuxt/ui` (`text-default`, `text-muted`, `text-dimmed`,
+`text-highlighted`) cover every text color need. Prefer them over raw `text-{color}-{shade}` utilities.
 
 | Token | Use for |
 | --- | --- |
@@ -16,9 +80,20 @@ and the rose-gold palette defined in [`main.css`](../app/assets/css/main.css).
 | `text-dimmed` | Tertiary / disabled content — placeholder text, disabled controls, the least important label on a dense row. |
 | `text-highlighted` | Emphasis — active state, the value the user came to see (a stat, a champion name), page titles. |
 
+## Two traps worth knowing
+
+**Tailwind only emits utilities it can see statically.** A computed `text-tier-${x}` or `bg-ink-${shade}`
+renders as an unstyled element — build a literal map (see `TierBadge.vue`) rather than interpolating a class
+name.
+
+**Nuxt UI appends per-variant `root` classes rather than replacing them, and a plain utility out-cascades a
+`@utility` declaration.** That is why the `card` theme in `app.config.ts` neutralises `soft`'s stock
+`bg-elevated/50` to the opaque `bg-elevated`: left alone it wins over `surface`'s background and the material never
+reaches the card. Expect the same trap on any component theme you extend with a material utility.
+
 ## Component naming conventions
 
-- **`App*`** (`AppHeader`, `AppLogo`, `AppFooter`, `AppSearch`, `AppBackdrop`) — layout/shell components. One instance each, mounted from `app.vue` or a layout, not meant to be reused inside a page.
+- **`App*`** (`AppHeader`, `AppLogo`, `AppFooter`, `AppSearch`, `AppBackdrop`) — layout/shell components. One instance each, mounted from `app.vue` or a page, not meant to be reused inside a page.
 - **`Champion/*`** — feature-scoped components for the champion detail area (`Champion/Header`, `Champion/Matchups`, `Champion/BuildPanel`, ...). Each owns a section of the champion page.
 - **`Champion/Core/*`** — low-level data-viz primitives consumed by build panels (`Champion/Core/Runes`, `Champion/Core/BuildPath`, `Champion/Core/Spells`, ...). These render a single build artifact and stay presentational — no data fetching, no page-level state.
 
