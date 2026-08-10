@@ -60,14 +60,14 @@ const verdict = computed<{ label: string, tone: string } | null>(() => {
 
     <p
       v-else-if="!hasData"
-      class="glass rounded-lg px-4 py-8 text-center text-sm text-muted"
+      class="surface rounded-lg px-4 py-8 text-center text-sm text-muted"
     >
       Not enough roam data yet for this champion and lane.
     </p>
 
     <div
       v-else
-      class="glass flex flex-col gap-4 rounded-lg p-4"
+      class="surface flex flex-col gap-4 rounded-lg p-4"
     >
       <div class="flex items-baseline justify-between gap-2">
         <p class="text-xs text-muted">

@@ -33,7 +33,7 @@ const PORTRAIT_PX = 72
 
 <template>
   <section
-    class="glass rounded-2xl p-4 sm:p-6"
+    class="surface rounded-2xl p-4 sm:p-6"
     aria-label="Matchup"
   >
     <div class="grid items-stretch gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">

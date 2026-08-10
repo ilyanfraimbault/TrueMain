@@ -334,7 +334,7 @@ const truemainAnnouncement = computed(() => {
 // shadowed look (matching the former ChampionSearch); `md` is the compact
 // default used elsewhere (e.g. the leaderboard).
 const fieldSizeClass = computed(() => props.size === 'lg'
-  ? 'h-14 rounded-2xl px-5 text-base shadow-lg shadow-black/5 dark:shadow-black/20'
+  ? 'h-14 rounded-2xl px-5 text-base shadow-lg shadow-black/20'
   : 'h-12 rounded-xl px-4 text-sm')
 
 // Start each open from a clean slate so a stale term never flashes old results.
@@ -361,7 +361,7 @@ defineShortcuts(computed(() => ({
     <div v-if="props.variant === 'field'" class="relative">
       <button
         type="button"
-        class="group flex w-full items-center gap-3 border bg-default/60 text-left backdrop-blur-md transition-colors hover:border-primary/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        class="group flex w-full items-center gap-3 border bg-elevated text-left transition-colors hover:border-primary/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         :class="[fieldSizeClass, activeChampion ? 'border-primary/50 pr-12' : 'border-default']"
         :aria-label="activeChampion ? `Filtering by ${activeChampion.name} — search a champion or player` : 'Search a champion or player'"
         @click="open = true"

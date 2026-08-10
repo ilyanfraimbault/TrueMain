@@ -69,7 +69,7 @@ const { data: championStatic } = useChampionStatic(
     />
     <div
       v-else
-      class="glass rounded-lg px-6 py-10 text-center"
+      class="surface rounded-lg px-6 py-10 text-center"
     >
       <p class="font-medium">
         No build data yet

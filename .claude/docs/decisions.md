@@ -920,6 +920,56 @@ wrote a row on, and the page prints "not measured before *patch*" **in place of*
 beside them. The first-measured patch falls out of the same grouped scan that produces the per-patch numbers,
 so distinguishing the two costs nothing — `PatchCoverageQueryService`, #1033.
 
+## The rose-gold-only surface rule is reversed: neutral surfaces, a scarce accent, and a data axis of its own (2026-08-10)
+
+**Decided in #1060 (part of the #1059 redesign), reversing the "surfaces are rose-gold-only" rule that
+`main.css` had carried as the successor to an earlier emerald-only one.** The old rule paired a warm accent
+(`rosegold-400 #e58f83`) with a warm neutral (`mauve-900 #211d1e`) and forbade any second hue on a surface.
+The accent therefore sat on a background already halfway to its own colour, so nothing separated: the site
+read as one flat warm mass. What replaced it:
+
+- **`ink` replaces `mauve`** — a near-neutral, faintly cool charcoal. The `rosegold` ramp is **unchanged**;
+  it simply reads far more saturated once nothing around it is warm. The fix was never the hue.
+- **Rose gold is scarce on purpose**: brand and interaction only (logo, active nav, focus rings, primary
+  buttons, links, selected states, the hero accent word). It never colours a data value and is never a
+  generic surface tint. Scarcity is the whole mechanism — an accent applied to everything is not an accent.
+- **Measurements get their own cold→warm axis** (`--color-data-*`: teal good → neutral → amber bad), and
+  unlike the `--color-stat-*` tooltip vocabulary it **is** allowed as `bg-*` / `ring-*` / `border-*`. The
+  former rule banned semantic colour on data outright, which on a stats site gave away half the legibility:
+  a 52% and a 9% rendered identically. Green/red was rejected rather than overlooked — `rosegold-500
+  #d9736c` is itself a desaturated red, and a red "loss" beside the accent in a dense table is a coin flip
+  to read. Teal and amber share no hue with the brand, so a coloured number can never be mistaken for an
+  interactive one. The activity heatmap moved onto this axis at the same time, retiring the #927 reasoning
+  that a second hue on the grid would be an intrusion.
+- **The tier ladder rides the same axis.** Its medal metaphor (rose-gold → gold → silver → bronze → iron)
+  broke twice over once amber meant "bad": A and C read as warnings, and `tier-s` was *literally*
+  `rosegold-400`, giving the best tier the brand colour and no comparative meaning at all.
+- **`surface` replaces `glass`** at all 55 call sites plus the global `UCard` / `UBadge` themes. Translucency
+  everywhere meant nothing was ever *on top of* anything. Paired with it, the elevation ladder was
+  un-flattened: `--ui-bg-muted` and `--ui-bg-elevated` had both pointed at `neutral-800`, so the whole app
+  had two levels — page and not-page — and depth had to be carried by borders that were themselves
+  translucent. There are now four distinct opaque steps. `glass` survives only in the home hero.
+- **A second family carries the numbers.** `--font-mono` had been deliberately aliased to Inter; it now
+  points at Geist Mono, used by the `stat-value` / `stat-label` utilities. The old scale put a value and its
+  label one step apart (`text-sm` over `text-xs`, same family, same weight), so a dense row read as noise.
+
+**The eclipse is scoped to the home hero** (`AppBackdrop.vue` moved out of `app.vue`). As a viewport-fixed
+layer behind every route its corona passed *through* the champion and leaderboard tables: rows near the glow
+rendered a visibly different luminance from those outside it, and a table that changes brightness down its own
+length cannot be scanned. The signature is kept where the page's job is atmosphere, and dropped where the
+page's job is numbers. Share cards keep the eclipse regardless of the page they were shared from — a share
+card advertises the site.
+
+**Light mode is gone** — the toggle, the five `dark:` variants, and the `.dark` scoping of the surface
+tokens. It was never designed or tested (five variants in 119 files), and keeping it half-defined meant
+every future token decision had to be made twice. The module has no "forced" switch — `preference` is only a
+default — so the colour-mode `storageKey` was moved at the same time, retiring the `light` value a returning
+visitor might still carry from before the toggle was removed.
+
+Reviewable at `pages/dev/design-system.vue`, which is the compensating control for having no Storybook and no
+SFC-mounting test setup: every token, elevation step and material on one screen, stripped from production
+builds like the other `dev/*` playgrounds.
+
 ## Keeping these files current
 
 A PR that ships a user-facing feature, removes one, or reverses a decision here **must update

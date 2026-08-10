@@ -79,7 +79,7 @@ function fmtGold(value: number) {
 // the presentation.
 
 // Four-step scale inside the brand rose-gold (`primary`) palette: the better
-// the game, the denser the pill. Sub-50 stays neutral glass so an average row
+// the game, the denser the pill. Sub-50 stays neutral surface so an average row
 // doesn't shout.
 function scoreClass(score: number) {
   if (score >= 80) return 'bg-primary/20 text-primary ring-primary/50'
@@ -102,7 +102,7 @@ function ordinal(placement: number) {
 </script>
 
 <template>
-  <section class="glass overflow-hidden rounded-md border border-default/60 bg-elevated/60">
+  <section class="surface overflow-hidden rounded-md border border-default/60 bg-elevated/60">
     <header
       class="flex items-center justify-between px-3 py-2 text-xs font-semibold"
       :class="win ? 'text-sky-400' : 'text-red-400'"
@@ -254,7 +254,7 @@ function ordinal(placement: number) {
           <div class="flex w-[3.25rem] shrink-0 flex-col items-end gap-0.5">
             <UTooltip :text="`Performance score ${p.performanceScore}/100`">
               <span
-                class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-bold leading-none tabular-nums ring-1 backdrop-blur-sm"
+                class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-bold leading-none tabular-nums ring-1"
                 :class="scoreClass(p.performanceScore)"
               >
                 <UIcon

@@ -241,9 +241,18 @@ onMounted(() => {
   let pointerK = 0
   let lastPointerMoveAt = -Infinity
 
+  // Normalised against the canvas box, not the viewport: the backdrop is
+  // bounded by the hero section, so viewport coordinates would put the flare
+  // somewhere other than under the cursor — and would keep drifting it while
+  // the pointer moves far below the hero. Clamped so a cursor outside the hero
+  // parks the highlight at the nearest edge instead of flying off the shader's
+  // 0-1 domain.
   function onPointerMove(event: PointerEvent) {
-    pointerTarget.x = event.clientX / window.innerWidth
-    pointerTarget.y = 1 - event.clientY / window.innerHeight
+    const bounds = canvas!.getBoundingClientRect()
+    if (bounds.width === 0 || bounds.height === 0) return
+    const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
+    pointerTarget.x = clamp01((event.clientX - bounds.left) / bounds.width)
+    pointerTarget.y = 1 - clamp01((event.clientY - bounds.top) / bounds.height)
     lastPointerMoveAt = performance.now()
   }
 
@@ -373,9 +382,17 @@ onBeforeUnmount(() => teardown?.())
 </script>
 
 <template>
+  <!-- `absolute`, not `fixed`: the backdrop is mounted inside the home hero and
+       is bounded by it. It used to sit in `app.vue` as a viewport-fixed layer
+       behind every route, which meant the eclipse's corona passed *through* the
+       champion and leaderboard tables — rows near the glow rendered a visibly
+       different luminance from the ones outside it, and a table that changes
+       brightness down its own length cannot be scanned. Scoping it to the one
+       page whose job is atmosphere keeps the signature without taxing the data
+       pages. The host element owns the bounds and `overflow-hidden`. -->
   <div
     aria-hidden="true"
-    class="pointer-events-none fixed inset-0 -z-10 overflow-hidden opacity-80 dark:opacity-100"
+    class="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
   >
     <!-- Static wash: the no-WebGL / pre-first-frame baseline only. Kept very
          faint and short so it doesn't bleed up through the shader's

@@ -81,12 +81,18 @@ export default defineNuxtConfig({
       height: 630,
     },
   },
-  // Self-host a single family — Inter — used across the whole app (see the
-  // `--font-*` vars in main.css). Declared explicitly so the download doesn't
-  // rely on CSS scanning of the theme vars.
+  // Self-host the two families the app uses (see the `--font-*` vars in
+  // main.css): Inter for prose, headings and labels; Geist Mono for stat values
+  // and the micro-labels that annotate them. Declared explicitly so the
+  // download doesn't rely on CSS scanning of the theme vars.
+  //
+  // Weights are pinned to the ones actually used — Inter 400/500/600/700 and
+  // Geist Mono 500/600 (the `stat-label` / `stat-value` utilities) — so the
+  // second family costs two subsets rather than a full variable axis.
   fonts: {
     families: [
-      { name: 'Inter', provider: 'google' },
+      { name: 'Inter', provider: 'google', weights: [400, 500, 600, 700] },
+      { name: 'Geist Mono', provider: 'google', weights: [500, 600] },
     ],
   },
   // Namespace upstream nuxt-charts components under `Nc*` so our own
@@ -98,6 +104,12 @@ export default defineNuxtConfig({
   },
   app: {
     head: {
+      // The app is dark-only. Nuxt UI keys its own theme off the `.dark` class,
+      // and the surface ladder in main.css is written to out-specify it either
+      // way, but pinning the class server-side means the very first painted
+      // frame is already dark — without it the document flashes Nuxt UI's light
+      // defaults until @nuxtjs/color-mode's script runs.
+      htmlAttrs: { class: 'dark' },
       link: [
         // .ico first as the universal fallback; SVG last so browsers that
         // support it (all modern ones) pick the crisp vector M-check mark.
@@ -109,9 +121,19 @@ export default defineNuxtConfig({
   css: ['./app/assets/css/main.css'],
   compatibilityDate: '2026-05-15',
   devtools: { enabled: true },
+  // Dark-only: there is no colour-mode toggle in the header any more. The
+  // module stays installed because @nuxt/ui depends on it, and it has no
+  // "forced" switch — `preference` is only a *default*, and a returning visitor
+  // who had toggled light before the button was removed still carries
+  // `nuxt-color-mode=light` in localStorage. Nothing would ever write over it
+  // again, so they would be pinned for good to a theme that is no longer
+  // designed or tested. Moving to a fresh storage key retires those values in
+  // one line: the new key is never written (no toggle exists), so every visit
+  // falls through to the preference below.
   colorMode: {
     preference: 'dark',
     fallback: 'dark',
+    storageKey: 'truemain-color-mode',
   },
   image: {
     // Allow-list for the ipx provider's URL generation. The storage options

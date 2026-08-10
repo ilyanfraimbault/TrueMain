@@ -17,7 +17,7 @@ defineProps<{
 </script>
 
 <template>
-  <div class="glass rounded-lg px-6 py-12 text-center">
+  <div class="surface rounded-lg px-6 py-12 text-center">
     <p class="text-base font-semibold">
       {{ notFound ? 'Player not found' : filtered ? 'No matches found' : 'No matches yet' }}
     </p>

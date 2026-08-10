@@ -96,12 +96,12 @@ const staticBundleReady = computed(() =>
 </script>
 
 <template>
-  <section ref="cardEl" class="glass overflow-hidden rounded-lg">
+  <section ref="cardEl" class="surface overflow-hidden rounded-lg">
     <!-- Player header -->
     <div class="flex items-center gap-3 border-b border-default/60 px-3 py-2.5">
       <NuxtLink
         :to="profileHref"
-        class="glass-hover -m-1 flex min-w-0 flex-1 items-center gap-3 rounded-md border border-transparent p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        class="surface-hover -m-1 flex min-w-0 flex-1 items-center gap-3 rounded-md border border-transparent p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
         <SkeletonImage
           :src="profileIconUrl"

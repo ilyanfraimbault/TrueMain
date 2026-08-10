@@ -9,7 +9,7 @@ const ROW_COUNT = 8
 
 <template>
   <section
-    class="glass rounded-2xl p-3 sm:p-4"
+    class="surface rounded-2xl p-3 sm:p-4"
     aria-hidden="true"
   >
     <header class="flex items-center justify-between gap-3 pb-3">

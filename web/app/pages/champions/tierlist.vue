@@ -196,7 +196,7 @@ function championDestination(entry: { championId: number, position: string }) {
                 <NuxtLink
                   :to="championDestination(entry)"
                   :aria-label="entryAriaLabel(entry)"
-                  class="glass-hover flex items-center gap-2 rounded-md border border-default/60 bg-elevated/40 px-2 py-1.5"
+                  class="surface-hover flex items-center gap-2 rounded-md border border-default/60 bg-elevated/40 px-2 py-1.5"
                 >
                   <SkeletonImage
                     :src="entry.iconUrl"

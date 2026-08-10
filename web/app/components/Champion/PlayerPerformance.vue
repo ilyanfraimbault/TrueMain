@@ -115,7 +115,7 @@ const stats = computed(() => {
          of a vague "not enough data". -->
     <p
       v-else-if="!data || !hasSample"
-      class="glass rounded-lg px-4 py-8 text-center text-sm text-muted"
+      class="surface rounded-lg px-4 py-8 text-center text-sm text-muted"
     >
       <template v-if="data && data.games > 0">
         Only {{ data.games }} {{ data.games === 1 ? 'game' : 'games' }} on record here —

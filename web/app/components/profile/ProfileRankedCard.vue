@@ -180,7 +180,7 @@ const showEmptyChart = computed(
 </script>
 
 <template>
-  <section class="flex flex-col gap-3 glass rounded-lg px-4 py-3">
+  <section class="flex flex-col gap-3 surface rounded-lg px-4 py-3">
     <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
       Ranked Solo/Duo
     </h2>

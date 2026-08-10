@@ -77,11 +77,12 @@ const tabItems = [
 </script>
 
 <template>
-  <!-- Opaque body surface so the expanded panel reads as one card with the row
-       header instead of letting the animated backdrop bleed through the tabs
-       and gaps between cards. The heavy backdrop-blur keeps the rose-gold
-       eclipse from showing through the surface's remaining transparency. -->
-  <div class="border-t border-default/60 bg-default/90 px-3 pb-3 pt-3 backdrop-blur-2xl">
+  <!-- Fully opaque body surface so the expanded panel reads as one card with
+       the row header instead of showing page through the tabs and the gaps
+       between cards. This used to be `/90` plus a heavy backdrop-blur to hide
+       the animated eclipse behind it; the backdrop no longer renders outside
+       the home hero, so the fill can simply be solid. -->
+  <div class="border-t border-default/60 bg-default px-3 pb-3 pt-3">
     <!-- Detailed skeleton, not a spinner: the accordion opens straight to
          ~the loaded height and the real content swaps in without the row
          lurching once the (large) detail fetch resolves. -->

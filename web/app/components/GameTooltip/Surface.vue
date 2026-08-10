@@ -6,7 +6,7 @@
 </script>
 
 <template>
-  <div class="max-w-xs rounded-lg bg-default/85 p-3 text-sm leading-snug text-default shadow-lg ring-1 ring-default backdrop-blur-md max-h-[70vh] overflow-y-auto">
+  <div class="max-w-xs rounded-lg bg-default p-3 text-sm leading-snug text-default shadow-lg ring-1 ring-default max-h-[70vh] overflow-y-auto">
     <slot />
   </div>
 </template>

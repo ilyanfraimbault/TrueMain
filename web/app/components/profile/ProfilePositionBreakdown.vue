@@ -49,9 +49,11 @@ const canonicalIcon = useCanonicalIcon()
     <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
       Role distribution
     </h2>
-    <!-- No `overflow-hidden` alongside `glass`'s backdrop-filter (WebKit clips
-         the blur past the radius); the rows have no edge background to clip. -->
-    <ul class="flex flex-col divide-y divide-default/40 glass rounded-lg">
+    <!-- No `overflow-hidden`: the rows have no edge background to clip. It used
+         to be forbidden here anyway — `glass`'s backdrop-filter made WebKit clip
+         the blur past the radius — but `surface` is opaque and carries no such
+         constraint. -->
+    <ul class="flex flex-col divide-y divide-default/40 surface rounded-lg">
       <li
         v-for="role in sorted"
         :key="role.position"
