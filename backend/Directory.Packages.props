@@ -34,7 +34,7 @@
          instruments created through an IMeterFactory. Same dotnet/extensions band as
          Microsoft.Extensions.Http.Resilience above. Test-only. -->
     <PackageVersion Include="Microsoft.Extensions.Diagnostics.Testing" Version="10.8.0" />
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <!-- xunit.core only (IAsyncLifetime, fixtures) without the assert/analyzer
          packages the metapackage drags in: TrueMain.TestKit hosts shared fixtures
