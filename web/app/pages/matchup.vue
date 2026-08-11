@@ -233,7 +233,6 @@ const fallbackNotice = computed(() => {
     <PageHeader
       eyebrow="Draft tools"
       title="Matchup"
-      description="Pick your champion and your role opponent — the build below rebuilds live from real games of that matchup."
     />
 
     <UAlert
@@ -380,10 +379,6 @@ const fallbackNotice = computed(() => {
       />
       <p class="mt-3 font-medium text-highlighted">
         Pick a champion and a role
-      </p>
-      <p class="mx-auto mt-1 max-w-md text-sm text-muted">
-        The build appears here, rebuilt from real games of that champion in that role.
-        Add a role opponent to narrow it down to the matchup.
       </p>
     </div>
   </main>

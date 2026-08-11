@@ -44,29 +44,20 @@ defineEmits<{
     aria-label="Matchup"
   >
     <!-- Role first: it gates the whole page (no build is fetched without it)
-         and it used to hide, unlabelled, under the champion select. -->
+         and it used to hide under the champion select. The strip is icons only,
+         so the picked role is named in words beside it — that name is the only
+         text in the block, which is why it earns its place. -->
     <div class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-default pb-4">
-      <p class="stat-label">
-        Your role
-      </p>
       <RolePicker
         :position="playedPosition"
         hide-all
         @update:position="$emit('update:playedPosition', $event)"
       />
-      <!-- The strip is icons only, so the picked role is named in words —
-           it used to be the label under the `vs` chip. -->
       <p
         v-if="playedPosition"
         class="text-xs text-muted"
       >
         {{ POSITION_BY_VALUE.get(playedPosition)?.label ?? playedPosition }}
-      </p>
-      <p
-        v-else
-        class="text-xs text-dimmed"
-      >
-        Required — builds are read per role.
       </p>
     </div>
 
@@ -74,9 +65,7 @@ defineEmits<{
       <BuilderChampionSlot
         :champions="champions"
         :champion-id="playedChampionId"
-        label="You play"
         title="Choose your champion"
-        empty-caption="Pick a champion"
         accent
         @update:champion-id="$emit('update:playedChampionId', $event)"
       />
@@ -89,9 +78,7 @@ defineEmits<{
       <BuilderChampionSlot
         :champions="champions"
         :champion-id="opponentChampionId"
-        label="Role opponent"
         title="Choose the role opponent"
-        empty-caption="Any opponent"
         @update:champion-id="$emit('update:opponentChampionId', $event)"
       />
     </div>

@@ -8,11 +8,17 @@ import type { ChampionStaticListItem } from '~~/shared/types/static-data'
  * `AppSearch`, minus the truemain and browse groups).
  *
  * It replaces a `ChampionPicker` select. At this size the select was the loudest
- * thing in the stage — a 490 px field wrapping a single word — while the
- * portrait beside it, the thing you actually read, was decoration. Inverting the
- * two puts the picture in charge and moves the name to a caption. Search also
- * beats a dropdown for ~170 entries: the palette opens focused, with fuzzy
- * matching, so a champion is two keystrokes away instead of a scroll.
+ * thing in the stage — a wide field wrapping a single word — while the portrait
+ * beside it, the thing you actually read, was decoration. Inverting the two puts
+ * the picture in charge and moves the name to a caption. Search also beats a
+ * dropdown for ~170 entries: the palette opens focused, with fuzzy matching, so
+ * a champion is two keystrokes away instead of a scroll.
+ *
+ * Deliberately unlabelled. A `?` on an empty tile, a portrait on a filled one
+ * and the swords between them already say "these two fight each other"; a
+ * micro-label over each and a caption under each empty one added four lines of
+ * text to a control with two states. The accessible names live on the trigger's
+ * `aria-label`, where they cost nothing visually.
  *
  * `ChampionPicker` stays as-is for the eight draft slots in `TeamContext`, which
  * are a dense list of secondary inputs — a portrait grid there would out-shout
@@ -21,21 +27,16 @@ import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 const props = withDefaults(defineProps<{
   champions: ChampionStaticListItem[]
   championId: number | null
-  /** Micro-label above the portrait ("You play", "Role opponent"). */
-  label: string
   /** Modal heading, and the accessible name of the trigger. */
   title: string
-  /** Caption under an empty tile — what picking one would mean. */
-  emptyCaption?: string
   /**
-   * Ring the tile and the label in the brand accent. Reserved for the player's
-   * own side: it is a selected/owned state, not decoration.
+   * Ring the tile in the brand accent. Reserved for the player's own side: it
+   * is a selected/owned state, not decoration.
    */
   accent?: boolean
   /** Offer a "clear" row in the palette and an inline clear button. */
   clearable?: boolean
 }>(), {
-  emptyCaption: 'No champion',
   accent: false,
   clearable: true,
 })
@@ -95,20 +96,13 @@ watch(open, (isOpen) => {
 
 <template>
   <div class="flex flex-col items-center gap-2">
-    <p
-      class="stat-label"
-      :class="accent ? 'text-primary' : ''"
-    >
-      {{ label }}
-    </p>
-
     <!-- The clear button is a sibling of the trigger, not a child: a button
          inside a button is invalid HTML and the inner one never receives the
          click. -->
     <div class="relative">
       <button
         type="button"
-        class="group relative flex size-24 items-center justify-center overflow-hidden rounded-2xl ring-2 ring-inset transition-colors hover:ring-primary focus-visible:ring-primary focus-visible:outline-none sm:size-32"
+        class="group relative flex size-24 cursor-pointer items-center justify-center overflow-hidden rounded-2xl ring-2 ring-inset transition-colors hover:ring-primary focus-visible:ring-primary focus-visible:outline-none sm:size-32"
         :class="[
           accent ? 'ring-primary/60' : 'ring-accented',
           champion ? '' : 'bg-muted',
@@ -132,16 +126,6 @@ watch(open, (isOpen) => {
           v-else
           class="font-mono text-4xl font-semibold text-dimmed transition-colors group-hover:text-default"
         >?</span>
-        <!-- Says the portrait is a control. Only on hover/focus so the resting
-             state stays the picture the eye is meant to read. `bg-default` and
-             not the theme's `bg-inverted`, which is white on a dark-only app
-             (same reason BuildTabs darkens its active pill by hand). -->
-        <span class="absolute inset-0 flex items-center justify-center bg-default/70 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-          <UIcon
-            name="i-lucide-search"
-            class="size-6 text-highlighted"
-          />
-        </span>
       </button>
       <UButton
         v-if="clearable && champion"
@@ -150,16 +134,15 @@ watch(open, (isOpen) => {
         variant="solid"
         size="xs"
         class="absolute -end-1.5 -top-1.5 rounded-full"
-        :aria-label="`Clear ${label.toLowerCase()} (${champion.name})`"
+        :aria-label="`Clear ${champion.name}`"
         @click="select(null)"
       />
     </div>
 
-    <p
-      class="max-w-32 truncate text-sm font-medium"
-      :class="champion ? 'text-highlighted' : 'text-dimmed'"
-    >
-      {{ champion?.name ?? emptyCaption }}
+    <!-- Always rendered, empty when no champion is picked: it reserves the
+         caption's line so the two tiles don't jump when one is filled. -->
+    <p class="h-5 max-w-32 truncate text-sm font-medium text-highlighted">
+      {{ champion?.name ?? '' }}
     </p>
 
     <UModal
