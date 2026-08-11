@@ -33,7 +33,7 @@ const positionOption = computed(() => POSITION_BY_VALUE.get(props.position) ?? n
 const NEUTRAL_BAND = 0.01
 const synergyClass = computed(() => {
   if (Math.abs(props.synergy) < NEUTRAL_BAND) return 'text-muted'
-  return props.synergy > 0 ? 'text-emerald-400' : 'text-red-400'
+  return props.synergy > 0 ? 'text-data-good' : 'text-data-bad'
 })
 const gamesTooltip = computed(() =>
   `${props.games.toLocaleString('en-US')} game(s) together — `

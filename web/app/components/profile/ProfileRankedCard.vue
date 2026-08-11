@@ -208,7 +208,7 @@ const showEmptyChart = computed(
           <UIcon
             :name="delta30d >= 0 ? 'i-lucide-trending-up' : 'i-lucide-trending-down'"
             class="size-3.5"
-            :class="delta30d >= 0 ? 'text-emerald-400' : 'text-red-400'"
+            :class="delta30d >= 0 ? 'text-data-good' : 'text-data-bad'"
           />
           <span class="font-semibold tabular-nums text-default">
             {{ Math.abs(delta30d) }} LP
@@ -222,7 +222,7 @@ const showEmptyChart = computed(
           <UIcon
             :name="delta7d >= 0 ? 'i-lucide-trending-up' : 'i-lucide-trending-down'"
             class="size-3.5"
-            :class="delta7d >= 0 ? 'text-emerald-400' : 'text-red-400'"
+            :class="delta7d >= 0 ? 'text-data-good' : 'text-data-bad'"
           />
           <span class="font-semibold tabular-nums text-default">
             {{ Math.abs(delta7d) }} LP

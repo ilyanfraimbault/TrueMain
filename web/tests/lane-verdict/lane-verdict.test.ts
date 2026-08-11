@@ -58,12 +58,20 @@ describe('formatGoldDiff', () => {
   })
 })
 
-describe('goldDiffTone', () => {
+describe('goldDiffBand', () => {
   it('stays neutral inside the even band', () => {
-    expect(goldDiffTone(LANE_EVEN_GOLD)).toContain('emerald')
-    expect(goldDiffTone(LANE_EVEN_GOLD - 1)).toBe('text-muted')
-    expect(goldDiffTone(-(LANE_EVEN_GOLD - 1))).toBe('text-muted')
-    expect(goldDiffTone(-LANE_EVEN_GOLD)).toContain('red')
+    expect(goldDiffBand(LANE_EVEN_GOLD)).toBe('good')
+    expect(goldDiffBand(LANE_EVEN_GOLD - 1)).toBe('mid')
+    expect(goldDiffBand(-(LANE_EVEN_GOLD - 1))).toBe('mid')
+    expect(goldDiffBand(-LANE_EVEN_GOLD)).toBe('bad')
+  })
+
+  // An unmeasured gap and a measured dead heat are different answers: `default`
+  // leaves the value uncoloured, `mid` says "measured, and it is even".
+  it('has no reading at all for an unmeasured gap', () => {
+    expect(goldDiffBand(null)).toBe('default')
+    expect(goldDiffBand(undefined)).toBe('default')
+    expect(goldDiffBand(0)).toBe('mid')
   })
 })
 

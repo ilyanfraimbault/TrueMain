@@ -3,6 +3,7 @@ import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import type { ChampionMatchupEntry } from '~~/shared/types/champions'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 import { formatGoldDiff } from '~/utils/lane-verdict'
+import { winRateTone } from '~/utils/rate-tone'
 
 const props = defineProps<{
   entry: ChampionMatchupEntry
@@ -16,10 +17,11 @@ const props = defineProps<{
   to?: string
 }>()
 
-// Win rate above / below even — the universal green / red read.
-const winRateClass = computed(() =>
-  props.entry.winRate >= 0.5 ? 'text-emerald-400' : 'text-red-400',
-)
+// Win rate through the shared band, so this row, the tier-list chip, the
+// champion directory and the matchup card all colour the same number the same
+// way. It used to be a hand-rolled green/red — "the universal read", which it is
+// everywhere except in a palette whose accent is itself a desaturated red.
+const winRateClass = computed(() => winRateTone(props.entry.winRate))
 
 // Lane win rate (#919) sits beside the game win rate, but it is a different
 // measurement over a different denominator and must not read as a second opinion
@@ -34,10 +36,10 @@ const winRateClass = computed(() =>
 const laneWinRateLabel = computed(() =>
   props.entry.laneWinRate === null ? '—' : formatPercentage(props.entry.laneWinRate, 0),
 )
-const laneWinRateClass = computed(() => {
-  if (props.entry.laneWinRate === null) return 'text-dimmed'
-  return props.entry.laneWinRate >= 0.5 ? 'text-emerald-400' : 'text-red-400'
-})
+// `text-dimmed` for a null rather than `winRateTone`'s `text-muted`: an
+// unmeasured lane is quieter still than a measured average one.
+const laneWinRateClass = computed(() =>
+  props.entry.laneWinRate === null ? 'text-dimmed' : winRateTone(props.entry.laneWinRate))
 // The gold gap rides in the same tooltip (#976): it is the magnitude the rate
 // cannot carry — 60% of lanes won by 120 gold and by 1200 are the same rate —
 // but it rests on its own, smaller sample, so it is spelled out rather than

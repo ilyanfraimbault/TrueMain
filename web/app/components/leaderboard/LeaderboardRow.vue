@@ -4,6 +4,7 @@ import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '~
 import { formatPercentage, getPositionIconUrl, getProfileIconUrl } from '~~/shared/utils/ddragon'
 import { POSITION_BY_VALUE } from '~/utils/positions'
 import { isApexTier } from '~/utils/tiers'
+import { winRateTone } from '~/utils/rate-tone'
 
 // One row of the leaderboard. The whole row navigates to the player's profile
 // via a stretched overlay link, while the top-champion icons are their own
@@ -329,19 +330,36 @@ const positionIcons = computed(() => {
          above stay fixed. -->
     <div class="hidden flex-1 @xl:block" />
 
-    <!-- Games / KDA / WR (far right, fixed widths). -->
+    <!-- Games / KDA / WR (far right, fixed widths — the widths are load-bearing
+         for the @container tiers above, so they stay exactly as they were).
+         Only the win rate takes a colour: games is a count and KDA has no
+         agreed neutral point, so neither has a better/worse reading to encode.
+         `rate-tone` owns the win-rate band, the same as everywhere else. -->
     <div class="hidden shrink-0 items-center gap-4 @xl:flex">
-      <div class="flex w-12 flex-col items-end">
-        <span class="text-sm font-semibold tabular-nums text-default">{{ row.stats.games.toLocaleString() }}</span>
-        <span class="text-[10px] text-muted">games</span>
+      <div class="flex w-12 justify-end">
+        <StatBlock
+          :value="row.stats.games.toLocaleString()"
+          label="games"
+          size="sm"
+          align="end"
+        />
       </div>
-      <div v-if="kdaLabel !== null" class="flex w-12 flex-col items-end">
-        <span class="text-sm font-semibold tabular-nums text-default">{{ kdaLabel }}</span>
-        <span class="text-[10px] text-muted">KDA</span>
+      <div v-if="kdaLabel !== null" class="flex w-12 justify-end">
+        <StatBlock
+          :value="kdaLabel"
+          label="KDA"
+          size="sm"
+          align="end"
+        />
       </div>
-      <div v-if="winRateLabel !== null" class="flex w-12 flex-col items-end">
-        <span class="text-sm font-semibold tabular-nums text-default">{{ winRateLabel }}</span>
-        <span class="text-[10px] text-muted">WR</span>
+      <div v-if="winRateLabel !== null" class="flex w-12 justify-end">
+        <StatBlock
+          :value="winRateLabel"
+          label="WR"
+          size="sm"
+          align="end"
+          :value-class="winRateTone(row.stats.winRate)"
+        />
       </div>
     </div>
 
