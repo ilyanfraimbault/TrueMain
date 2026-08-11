@@ -9,28 +9,25 @@ import { POSITION_BY_VALUE } from '~/utils/positions'
  * Everything else on the page (the eight remaining draft slots) is a
  * refinement of what is picked here, so this block sits above the fold.
  *
- * Composed as one band rather than two boxes: role on top, then the two sides
- * on a shared baseline. The previous version stacked label/portrait/picker
- * vertically in two ring-bordered sub-panels of *different heights* — your side
- * carried the role picker, the opponent's did not — so nothing lined up across
- * the `vs` axis. Both sides are now the same row shape, which makes them align
- * by construction and halves the height.
+ * Two portraits facing each other, and nothing else. The picks are made by
+ * clicking a portrait (`ChampionSlot` opens a champion search); the role, which
+ * gates every fetch on the page, is a labelled header row above them. The
+ * select fields this replaced were the loudest thing in the stage — a wide
+ * combobox wrapping a single word — while the portrait beside each one carried
+ * no interaction at all.
  *
  * Ownership is carried by the accent, not by a tinted panel: your label and
- * your portrait ring are `primary`, the opponent's are neutral. The old
- * `bg-primary/5` + `ring-primary/25` panel was a rose-gold *surface* tint,
- * which the design system no longer allows — and against the warm neutral it
- * replaced, it barely registered anyway.
+ * portrait ring are `primary`, the opponent's are neutral. The former
+ * `bg-primary/5` + `ring-primary/25` side panel was a rose-gold *surface* tint,
+ * which the design system no longer allows.
  *
  * Purely presentational: the page owns the draft state, this component only
  * emits picks.
  */
 defineProps<{
   champions: ChampionStaticListItem[]
-  playedChampion: ChampionStaticListItem | null
   playedChampionId: number | null
   playedPosition: ChampionPosition | null
-  opponentChampion: ChampionStaticListItem | null
   opponentChampionId: number | null
 }>()
 
@@ -39,17 +36,15 @@ defineEmits<{
   'update:playedPosition': [value: ChampionPosition | null]
   'update:opponentChampionId': [value: number | null]
 }>()
-
-const PORTRAIT_PX = 72
 </script>
 
 <template>
   <section
-    class="surface space-y-4 rounded-2xl p-4 sm:p-6"
+    class="surface space-y-5 rounded-2xl p-4 sm:p-6"
     aria-label="Matchup"
   >
     <!-- Role first: it gates the whole page (no build is fetched without it)
-         and it is the one pick that used to hide under the champion select. -->
+         and it used to hide, unlabelled, under the champion select. -->
     <div class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-default pb-4">
       <p class="stat-label">
         Your role
@@ -75,86 +70,30 @@ const PORTRAIT_PX = 72
       </p>
     </div>
 
-    <div class="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center">
-      <!-- Your side: the only place the played champion can be set.
-           All four portrait states use the same `ring-2 ring-inset`, so picking
-           a champion swaps the fill without nudging the row by the ring width. -->
-      <div class="flex items-center gap-3 sm:gap-4">
-        <SkeletonImage
-          v-if="playedChampion"
-          :src="playedChampion.iconUrl"
-          :alt="playedChampion.name"
-          :width="PORTRAIT_PX"
-          :height="PORTRAIT_PX"
-          class="size-18 shrink-0 rounded-xl ring-2 ring-inset ring-primary"
-        />
-        <div
-          v-else
-          class="flex size-18 shrink-0 items-center justify-center rounded-xl bg-muted ring-2 ring-inset ring-primary/40"
-        >
-          <UIcon
-            name="i-lucide-user-round"
-            class="size-7 text-dimmed"
-          />
-        </div>
-        <div class="min-w-0 flex-1 space-y-1.5">
-          <p class="stat-label text-primary">
-            You play
-          </p>
-          <ChampionPicker
-            :champions="champions"
-            :champion-id="playedChampionId"
-            placeholder="Choose your champion"
-            size="lg"
-            trigger-class="w-full"
-            @update:champion-id="$emit('update:playedChampionId', $event)"
-          />
-        </div>
-      </div>
+    <div class="flex items-center justify-center gap-5 py-2 sm:gap-12">
+      <BuilderChampionSlot
+        :champions="champions"
+        :champion-id="playedChampionId"
+        label="You play"
+        title="Choose your champion"
+        empty-caption="Pick a champion"
+        accent
+        @update:champion-id="$emit('update:playedChampionId', $event)"
+      />
 
-      <!-- The chip is the whole separator: on a dark surface a 1px rule between
-           two panels of the same fill is invisible anyway, and the grid gap
-           already does the separating. -->
-      <div class="flex items-center justify-center">
-        <!-- Not `stat-label`: this is a marker between two 72px portraits and
-             needs the size the 10px micro-label doesn't have. -->
-        <span class="rounded-full border border-accented bg-muted px-2.5 py-1 font-mono text-xs font-semibold uppercase tracking-widest text-muted">
-          vs
-        </span>
-      </div>
+      <UIcon
+        name="i-lucide-swords"
+        class="size-6 shrink-0 text-dimmed sm:size-7"
+      />
 
-      <div class="flex items-center gap-3 sm:gap-4">
-        <SkeletonImage
-          v-if="opponentChampion"
-          :src="opponentChampion.iconUrl"
-          :alt="opponentChampion.name"
-          :width="PORTRAIT_PX"
-          :height="PORTRAIT_PX"
-          class="size-18 shrink-0 rounded-xl ring-2 ring-inset ring-accented"
-        />
-        <div
-          v-else
-          class="flex size-18 shrink-0 items-center justify-center rounded-xl bg-muted ring-2 ring-inset ring-accented"
-        >
-          <UIcon
-            name="i-lucide-swords"
-            class="size-7 text-dimmed"
-          />
-        </div>
-        <div class="min-w-0 flex-1 space-y-1.5">
-          <p class="stat-label">
-            Role opponent
-          </p>
-          <ChampionPicker
-            :champions="champions"
-            :champion-id="opponentChampionId"
-            placeholder="Any opponent"
-            size="lg"
-            trigger-class="w-full"
-            @update:champion-id="$emit('update:opponentChampionId', $event)"
-          />
-        </div>
-      </div>
+      <BuilderChampionSlot
+        :champions="champions"
+        :champion-id="opponentChampionId"
+        label="Role opponent"
+        title="Choose the role opponent"
+        empty-caption="Any opponent"
+        @update:champion-id="$emit('update:opponentChampionId', $event)"
+      />
     </div>
   </section>
 </template>

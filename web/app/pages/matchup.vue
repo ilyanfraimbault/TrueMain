@@ -246,10 +246,8 @@ const fallbackNotice = computed(() => {
 
     <BuilderMatchupStage
       :champions="champions"
-      :played-champion="playedChampion"
       :played-champion-id="playedChampionId"
       :played-position="playedPosition"
-      :opponent-champion="opponentChampion"
       :opponent-champion-id="opponentChampionId"
       @update:played-champion-id="playedChampionId = $event"
       @update:played-position="playedPosition = $event"
