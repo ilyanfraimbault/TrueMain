@@ -251,11 +251,24 @@ public sealed class ChampionSummariesQueryService(
             .ThenBy(summary => summary.Position, StringComparer.Ordinal)
             .ToList();
 
+        // Then keep only each champion's dominant lanes, so the directory is a
+        // list of champions rather than of every (champion, lane) pair the
+        // population has ever produced (#1082). Before tiering on purpose: the
+        // tier is a percentile within a lane, and an off-role line is not one
+        // of that lane's peers.
+        var dominant = ChampionDominantLaneFilter
+            .KeepDominantLanes(summaries, championsOptions.Value)
+            .ToList();
+        logger.LogInformation(
+            "{Surface} dominant_lanes kept={Kept} dropped={Dropped} maxLanes={MaxLanes} minSecondaryShare={MinShare}",
+            Surface, dominant.Count, summaries.Count - dominant.Count,
+            championsOptions.Value.MaxLanesPerChampion, championsOptions.Value.MinSecondaryLanePlayRate);
+
         // Tier is a lane-relative ranking (see AssignTiers), so it can only be
         // assigned once the whole patch's rows exist. Compute it in a single
         // pass over the ordered list and stamp each row in place — the list
         // order itself is unchanged.
-        var tiered = AssignTiers(summaries, tierOptions.Value);
+        var tiered = AssignTiers(dominant, tierOptions.Value);
 
         return new ChampionSummariesResult
         {

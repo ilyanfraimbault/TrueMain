@@ -195,6 +195,76 @@ public sealed class ChampionSummariesApiIntegrationTests
     }
 
     [Fact]
+    public async Task ListChampionsAsync_KeepsOnlyEachChampionsDominantLanes()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        // Champion 300 flexes across four lanes; champion 301 is a one-lane
+        // champion with a 4% off-role pick. Without the cap the directory
+        // prints six lines for two champions — the shape that makes it 5 × N.
+        var now = DateTime.UtcNow;
+        var accountId = Guid.Parse("55555555-5555-5555-5555-555555555555");
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            db.RiotAccounts.Add(new RiotAccount
+            {
+                Id = accountId,
+                PlatformId = "KR",
+                Puuid = "summaries-puuid-dominant",
+                GameName = "summaries-dominant",
+                SummonerId = "summaries-dominant-summoner",
+                ProfileIconId = 1,
+                SummonerLevel = 100,
+                LastProfileSyncAtUtc = now,
+                CreatedAtUtc = now.AddDays(-10),
+                UpdatedAtUtc = now.AddDays(-1),
+            });
+            await db.SaveChangesAsync();
+
+            var seeder = new ChampionAggregateSeeder();
+            void Seed(int championId, string position, int games) =>
+                seeder.AddPatternWithRune(
+                    accountId, championId, "16.5", "KR", 420, position,
+                    summoner1Id: 4, summoner2Id: 12, skillOrderKey: "Q-W-E",
+                    buildItems: [3153, 3006, 3031], bootsItemId: 3006,
+                    primaryStyleId: 8000, primaryKeystoneId: 8008, secondaryStyleId: 8400,
+                    games: games, wins: games / 2, aggregatedAtUtc: now);
+
+            // 600 / 250 / 90 / 60: the last two lose to the cap even though the
+            // 90-game one (9% of the champion's games) clears the sample floor.
+            Seed(300, "MIDDLE", 600);
+            Seed(300, "TOP", 250);
+            Seed(300, "UTILITY", 90);
+            Seed(300, "JUNGLE", 60);
+            // 960 / 40: a slot is free, but 4% is not a second identity.
+            Seed(301, "BOTTOM", 960);
+            Seed(301, "UTILITY", 40);
+            await seeder.SaveAsync(db);
+        }
+
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var response = await client.GetAsync("/champions");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var summaries = await response.Content.ReadFromJsonAsync<IReadOnlyList<ChampionSummaryReadModel>>();
+        summaries.Should().NotBeNull();
+
+        summaries!.Where(item => item.ChampionId == 300).Select(item => item.Position)
+            .Should().BeEquivalentTo(["MIDDLE", "TOP"]);
+        summaries.Where(item => item.ChampionId == 301).Select(item => item.Position)
+            .Should().BeEquivalentTo(["BOTTOM"]);
+        summaries.GroupBy(item => item.ChampionId)
+            .Should().OnlyContain(group => group.Count() <= 2,
+                "no champion may occupy more than its two dominant lanes");
+    }
+
+    [Fact]
     public async Task ListChampionsAsync_TierIsUnaffectedByAnotherLanesPopulationSize()
     {
         // #971 review finding: tiering percentile-ranks pick/ban/win *within*
