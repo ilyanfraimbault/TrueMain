@@ -43,6 +43,28 @@ public sealed class ChampionDominantLaneFilterTests
     }
 
     [Fact]
+    public void KeepDominantLanes_keeps_a_second_lane_sitting_exactly_on_the_floor()
+    {
+        // The boundary is the contract of a threshold: a lane holding exactly
+        // the configured share is dominant, not "almost".
+        var onTheFloor = new[]
+        {
+            Lane(position: "MIDDLE", games: 900, lanePlayRate: 0.90),
+            Lane(position: "TOP", games: 100, lanePlayRate: 0.10),
+        };
+        var justUnder = new[]
+        {
+            Lane(position: "MIDDLE", games: 901, lanePlayRate: 0.901),
+            Lane(position: "TOP", games: 99, lanePlayRate: 0.099),
+        };
+
+        ChampionDominantLaneFilter.KeepDominantLanes(onTheFloor, Options())
+            .Select(row => row.Position).Should().Equal("MIDDLE", "TOP");
+        ChampionDominantLaneFilter.KeepDominantLanes(justUnder, Options())
+            .Select(row => row.Position).Should().Equal("MIDDLE");
+    }
+
+    [Fact]
     public void KeepDominantLanes_keeps_the_main_lane_however_thin_its_share()
     {
         // A genuine five-lane flex: no lane clears the 10% floor on its own

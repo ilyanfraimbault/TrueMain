@@ -31,7 +31,11 @@ namespace TrueMain.Services.Champions;
 /// against picks nobody plays there. It runs <b>after</b> the
 /// <see cref="ChampionsListOptions.MinSampleGames"/> floor for the same reason
 /// — a lane that never cleared the sample floor is not evidence of a second
-/// identity, so it must not consume one of the two slots.
+/// identity, so it must not consume one of the two slots. Note that
+/// <c>LanePlayRate</c> itself is computed over the champion's games in
+/// <em>every</em> lane, dropped ones included: the share stays "of this
+/// champion's games", so a champion whose off-role lines were filtered out does
+/// not see its remaining lanes inflate toward 100%.
 /// </para>
 /// </summary>
 public static class ChampionDominantLaneFilter
