@@ -116,12 +116,16 @@ watch(open, (isOpen) => {
         :aria-label="champion ? `${title} — currently ${champion.name}` : title"
         @click="open = true"
       >
+        <!-- No `width`/`height`: SkeletonImage turns them into an inline
+             `style="width:…px"` to reserve layout space, and an inline style
+             beats `size-full`'s class rule — the portrait would stay pinned at
+             one breakpoint's size inside a tile that grows at `sm:`. The button
+             already reserves the space, so `size-full` alone is correct here
+             (same as AppSearch's palette rows). -->
         <SkeletonImage
           v-if="champion"
           :src="champion.iconUrl"
           :alt="''"
-          :width="96"
-          :height="96"
           class="size-full"
         />
         <span
