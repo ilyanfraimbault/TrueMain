@@ -25,8 +25,6 @@ const props = withDefaults(defineProps<{
   label: string
   /** Modal heading, and the accessible name of the trigger. */
   title: string
-  /** Icon shown in the empty tile's palette row and as the modal's own icon. */
-  emptyIcon?: string
   /** Caption under an empty tile — what picking one would mean. */
   emptyCaption?: string
   /**
@@ -37,7 +35,6 @@ const props = withDefaults(defineProps<{
   /** Offer a "clear" row in the palette and an inline clear button. */
   clearable?: boolean
 }>(), {
-  emptyIcon: 'i-lucide-swords',
   emptyCaption: 'No champion',
   accent: false,
   clearable: true,
