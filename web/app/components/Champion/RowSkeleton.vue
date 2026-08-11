@@ -6,7 +6,7 @@
 
 <template>
   <div
-    class="flex items-center gap-4 rounded-lg border border-default/40 bg-elevated/20 px-3 py-2.5"
+    class="surface flex items-center gap-4 rounded-lg px-3 py-2.5"
     aria-hidden="true"
   >
     <!-- Champion -->
