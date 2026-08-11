@@ -336,6 +336,13 @@ export interface ChampionSynergyEntry {
   games: number
   wins: number
   winRate: number
+  /**
+   * Share of the champion's own games this partner was on the team for. The
+   * quantity `ChampionsList:MinSynergyPlayRate` floors — a pairing can carry a
+   * spectacular synergy and still be something that happened 21 times out of
+   * 8 202 games.
+   */
+  playRate: number
   /** Sample behind `partnerBaselineWinRate`; always ≥ `games`. */
   partnerBaselineGames: number
   /** The partner's win rate as somebody's teammate, across all their pairings. */

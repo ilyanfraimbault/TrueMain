@@ -121,6 +121,22 @@ consequence: the trio slice sees only the retention window while the duo slice r
 frozen patches, so their game counts differ — `pairGames` is returned explicitly rather than reused from the duo
 response — #922.
 
+**Synergies floor on a share of the champion's games *and* on whether the partner plays that lane at all.**
+The three games floors below were not enough. On production, Viego JUNGLE's four best synergies were pairings of
+**21 to 26 games out of 8 202** (0.26%), led by a **+24.7% "synergy" resting on 21 games** — and the very top line
+was **Sylas BOTTOM**, which is not a role Sylas plays. Two separate defects wearing the same shirt, so two
+separate filters: `MinSynergyPlayRate` (1%, combined with `MinSynergyGames` by taking the larger, exactly like
+#1087's matchup floor) for pairings that are merely rare, and `MinSynergyPartnerLanePlayRate` (10% of that
+partner's ally games across every lane) for pairings that are *impossible*. The share floor is set at twice the
+matchup one because synergy is a difference of two rates and carries the sum of their error — the same reasoning
+that already put `MinSynergyGames` above `MinMatchupGames`. After both, the list starts at Darius TOP over 271
+games and still holds 131 of 223 partners.
+↳ The lane share is computed off the `ALLY` side of the baselines already in memory, **not** off the pairing rows:
+those are filtered to one champion's teammates and exclude its own lane, so a share derived from them would read
+Udyr as a 100% toplaner on any jungler's page purely because his jungle games cannot appear there. The trio path
+gets the lane filter but **no** share floor — a trio's sample is a subset of its duo's, which is why
+`MinSynergyTrioGames` already sits *below* `MinSynergyGames` — #1090.
+
 **Synergy carries three separate sample floors, and a thin sample yields no entry rather than a hedged one.**
 `MinSynergyGames` (20) is deliberately above the matchup floor: synergy is a *difference* between two rates, so its
 sampling error is the sum of theirs. `MinSynergyTrioGames` (12) is necessarily below it, since a trio's sample is a

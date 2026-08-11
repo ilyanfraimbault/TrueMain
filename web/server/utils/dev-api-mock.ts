@@ -925,7 +925,10 @@ async function mockSynergies(
 
   const rng = mulberry32(s.id * 977)
   const championGames = Math.round(600 + rng() * 2400)
-  const minGames = 20
+  // Mirrors the backend's max(MinSynergyGames, MinSynergyPlayRate × championGames):
+  // with a mocked champion between 600 and 3 000 games the share floor is 6 to 30,
+  // so which of the two binds varies by champion — the point of the pair.
+  const minGames = Math.max(20, Math.ceil(0.01 * championGames))
 
   const partners: ChampionSynergyEntry[] = CHAMPION_SEEDS
     .filter(p => p.position !== s.position && (!partnerPosition || p.position === partnerPosition))
@@ -942,6 +945,7 @@ async function mockSynergies(
         games,
         wins: Math.round(games * winRate),
         winRate,
+        playRate: round3(games / championGames),
         partnerBaselineGames: baselineGames,
         partnerBaselineWinRate: baselineWinRate,
         expectedWinRate: round3(expected),

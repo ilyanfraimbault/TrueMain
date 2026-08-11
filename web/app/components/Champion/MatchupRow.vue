@@ -56,10 +56,15 @@ const laneTooltip = computed(() => {
 })
 
 // A link when it leads somewhere, a plain div when it doesn't — never a
-// link-styled element that does nothing. Typed as a bare `string` rather than
-// inlined in the template: a literal `'NuxtLink' | 'div'` union makes vue-tsc
-// resolve both arms and reject `to` on the div half.
-const rowTag = computed<string>(() => (props.to ? 'NuxtLink' : 'div'))
+// link-styled element that does nothing.
+//
+// The component has to be *resolved here*, not named as a string in `:is`. A
+// string only resolves to an intrinsic element or a component registered in this
+// SFC's scope, and Nuxt's auto-import is a compile-time template transform that
+// never sees a dynamic `:is` — so `:is="'NuxtLink'"` rendered a literal
+// <nuxtlink> element: laid out correctly, styled correctly, and completely inert
+// on click. Same idiom as leaderboard/ChampionBuild.vue and builder/GamesDrawer.vue.
+const NuxtLinkComponent = resolveComponent('NuxtLink')
 
 // The row's own sample, spelled out for the screen reader and the hover: "33
 // games" alone does not say whether that is a matchup you see every other game
@@ -76,7 +81,7 @@ const gamesTooltip = computed(() => {
 
 <template>
   <component
-    :is="rowTag"
+    :is="to ? NuxtLinkComponent : 'div'"
     :to="to"
     :aria-label="to && opponent ? `Build against ${opponent.name}` : undefined"
     class="flex items-center gap-3 rounded-md px-2 py-1.5 transition-colors hover:bg-elevated/40"

@@ -50,11 +50,22 @@ public sealed class ChampionSynergyQueryService(
     {
         var normalizedPatch = NormalizePatch(patch);
         var bands = EloBracket.ResolveFilter(eloBracket);
-        var minGames = championsOptions.Value.MinSynergyGames;
-        var minBaselineGames = championsOptions.Value.MinSynergyBaselineGames;
+        var settings = championsOptions.Value;
+        var minBaselineGames = settings.MinSynergyBaselineGames;
 
         var baselines = await ReadBaselinesAsync(normalizedPatch, bands, ct);
         var self = baselines.Self(championId, position);
+
+        // The pairing floor scales with how much the champion is played, exactly as
+        // the matchup one does (#1087): an absolute floor alone let 21-game pairings
+        // — 0.26% of the champion's games — top the ranking, which is worse here than
+        // on matchups because synergy is a difference of two rates and carries the
+        // sum of their error. The larger of the two floors applies, so a rarely
+        // played champion still falls back to the absolute one.
+        var shareFloor = settings.MinSynergyPlayRate <= 0d
+            ? 0
+            : (int)Math.Ceiling(settings.MinSynergyPlayRate * self.Games);
+        var minGames = Math.Max(settings.MinSynergyGames, shareFloor);
 
         var response = new ChampionSynergiesResponse
         {
@@ -119,6 +130,16 @@ public sealed class ChampionSynergyQueryService(
                 continue;
             }
 
+            // Is this lane a role the partner actually plays? A pairing can clear
+            // every games floor and still be a role-detection artefact — "Sylas
+            // BOTTOM" led this list on production — and no reader can act on a duo
+            // whose other half does not exist.
+            if (!baselines.IsRealLane(
+                row.PartnerChampionId, row.PartnerPosition, settings.MinSynergyPartnerLanePlayRate))
+            {
+                continue;
+            }
+
             var allyWinRate = RateMath.Rate(ally.Wins, ally.Games);
             var observed = RateMath.Rate(row.Wins, row.Games);
             var expected = SynergyMath.ExpectedWinRate(selfWinRate, [allyWinRate], baselines.CohortWinRate);
@@ -130,6 +151,7 @@ public sealed class ChampionSynergyQueryService(
                 Games = row.Games,
                 Wins = row.Wins,
                 WinRate = observed,
+                PlayRate = RateMath.Rate(row.Games, self.Games),
                 PartnerBaselineGames = ally.Games,
                 PartnerBaselineWinRate = allyWinRate,
                 ExpectedWinRate = expected,
@@ -267,6 +289,18 @@ public sealed class ChampionSynergyQueryService(
                 continue;
             }
 
+            // Same role check as the duo path — a third pick nobody plays at that
+            // lane is no more actionable than a partner nobody plays there. No share
+            // floor here though: a trio's sample is a subset of its duo's, and a
+            // share of the pair's games would leave almost every duo with no third
+            // pick at all, which is the reason MinSynergyTrioGames already sits below
+            // MinSynergyGames.
+            if (!baselines.IsRealLane(
+                row.ChampionId, row.TeamPosition, championsOptions.Value.MinSynergyPartnerLanePlayRate))
+            {
+                continue;
+            }
+
             var thirdWinRate = RateMath.Rate(third.Wins, third.Games);
             var observed = RateMath.Rate(row.Wins, row.Games);
             var expected = SynergyMath.ExpectedWinRate(
@@ -355,14 +389,19 @@ public sealed class ChampionSynergyQueryService(
         private readonly Dictionary<(int ChampionId, string Position), Marginal> _self;
         private readonly Dictionary<(int ChampionId, string Position), Marginal> _ally;
 
+        /// <summary>Ally games per champion summed over every lane — <see cref="IsRealLane"/>'s denominator.</summary>
+        private readonly Dictionary<int, int> _laneTotals;
+
         private BaselineSet(
             Dictionary<(int, string), Marginal> self,
             Dictionary<(int, string), Marginal> ally,
+            Dictionary<int, int> laneTotals,
             int cohortGames,
             int cohortWins)
         {
             _self = self;
             _ally = ally;
+            _laneTotals = laneTotals;
             CohortGames = cohortGames;
             CohortWins = cohortWins;
         }
@@ -377,6 +416,7 @@ public sealed class ChampionSynergyQueryService(
         {
             var self = new Dictionary<(int, string), Marginal>();
             var ally = new Dictionary<(int, string), Marginal>();
+            var laneTotals = new Dictionary<int, int>();
             var cohortGames = 0;
             var cohortWins = 0;
 
@@ -391,10 +431,11 @@ public sealed class ChampionSynergyQueryService(
                 else if (string.Equals(row.Side, SynergyBaselineSide.Ally, StringComparison.Ordinal))
                 {
                     ally[(row.ChampionId, row.TeamPosition)] = new Marginal(row.Games, row.Wins);
+                    laneTotals[row.ChampionId] = laneTotals.GetValueOrDefault(row.ChampionId, 0) + row.Games;
                 }
             }
 
-            return new BaselineSet(self, ally, cohortGames, cohortWins);
+            return new BaselineSet(self, ally, laneTotals, cohortGames, cohortWins);
         }
 
         /// <summary>The champion's own marginal, or an empty one when it has no games in scope.</summary>
@@ -404,6 +445,39 @@ public sealed class ChampionSynergyQueryService(
         /// <summary>The champion's marginal as somebody's teammate, or an empty one.</summary>
         public Marginal Ally(int championId, string position)
             => _ally.GetValueOrDefault((championId, position), Marginal.Empty);
+
+        /// <summary>
+        /// Whether <paramref name="position"/> is a lane this champion actually plays:
+        /// its share of the champion's ally games across every lane, against
+        /// <paramref name="minLanePlayRate"/>. A champion with no ally games at all in
+        /// scope fails — nothing is known about its roles, and the caller's other
+        /// floors have already established the pairing is thin.
+        ///
+        /// <para>
+        /// The denominator is the whole <c>ALLY</c> side for that champion, which is
+        /// why this lives on the baseline set rather than being derived from the
+        /// pairing rows: those are already filtered to one champion's teammates and to
+        /// lanes other than its own, so a share computed from them would measure the
+        /// wrong thing — Udyr would read as a 100% toplaner on a jungler's page purely
+        /// because his jungle games cannot appear there.
+        /// </para>
+        /// </summary>
+        public bool IsRealLane(int championId, string position, double minLanePlayRate)
+        {
+            if (minLanePlayRate <= 0d)
+            {
+                return true;
+            }
+
+            var lane = Ally(championId, position).Games;
+            if (lane == 0)
+            {
+                return false;
+            }
+
+            var acrossLanes = _laneTotals.GetValueOrDefault(championId, 0);
+            return acrossLanes > 0 && (double)lane / acrossLanes >= minLanePlayRate;
+        }
     }
 
     private readonly record struct Marginal(int Games, int Wins)

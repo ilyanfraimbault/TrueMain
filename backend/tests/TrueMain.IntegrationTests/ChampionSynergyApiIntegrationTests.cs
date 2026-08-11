@@ -111,6 +111,55 @@ public sealed class ChampionSynergyApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetChampionSynergiesAsync_DropsAPartnerOnALaneItBarelyPlays()
+    {
+        await _fixture.ResetDatabaseAsync();
+        // Garen at BOTTOM: the pairing clears the games floor and the baseline floor,
+        // and BOTTOM holds 25 of his 325 ally games — 7.7%, under the 10% floor. This
+        // is the "Sylas BOTTOM" line that topped Viego JUNGLE's synergies on
+        // production: a real count of games behind a role the champion does not play,
+        // which no reader can act on however good the win rate is.
+        await SeedOffRolePartnerAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var synergies = await client.GetFromJsonAsync<ChampionSynergiesResponse>(
+            $"/champions/{Champion}/synergies?position={Position}");
+
+        synergies!.Partners.Should().NotContain(
+            p => p.PartnerChampionId == Top && p.PartnerPosition == "BOTTOM",
+            "BOTTOM is 7.7% of this champion's games — a role-detection artefact, not a duo");
+        synergies.Partners.Should().Contain(
+            p => p.PartnerChampionId == Top && p.PartnerPosition == "TOP",
+            "the same partner on the lane it actually plays is a real pairing");
+    }
+
+    [Fact]
+    public async Task GetChampionSynergiesAsync_ScalesThePairFloorWithTheChampionsVolume()
+    {
+        await _fixture.ResetDatabaseAsync();
+        // 3 000 champion games, so the share floor (1%) is 30 and outranks the
+        // absolute floor of 10. A 25-game pairing is comfortably above the absolute
+        // floor and still 0.8% of the champion's games — the shape that filled the
+        // top of the ranking with pairings nobody has played.
+        await SeedHighVolumeChampionAsync(championGames: 3_000, thinPairGames: 25, thickPairGames: 60);
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var synergies = await client.GetFromJsonAsync<ChampionSynergiesResponse>(
+            $"/champions/{Champion}/synergies?position={Position}");
+
+        synergies!.MinGames.Should().Be(30, "the share floor binds and is echoed back");
+        synergies.Partners.Should().NotContain(p => p.PartnerChampionId == Support);
+
+        var adc = synergies.Partners.Should().ContainSingle(p => p.PartnerChampionId == Adc).Subject;
+        adc.Games.Should().Be(60);
+        adc.PlayRate.Should().BeApproximately(60d / 3_000d, 1e-9);
+    }
+
+    [Fact]
     public async Task GetChampionSynergiesAsync_NarrowsToOnePartnerLane_WithoutMovingTheNumbers()
     {
         await _fixture.ResetDatabaseAsync();
@@ -258,6 +307,49 @@ public sealed class ChampionSynergyApiIntegrationTests
         await db.SaveChangesAsync();
     }
 
+    /// <summary>
+    /// Seeds one partner seen on two lanes — its real one and one it barely plays —
+    /// with both pairings well clear of every games floor, so only the lane-share
+    /// filter can tell them apart.
+    /// </summary>
+    private async Task SeedOffRolePartnerAsync()
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        db.ChampionSynergyBaselineStats.AddRange(
+            Baseline(Champion, Position, SynergyBaselineSide.Self, games: 100, wins: 50),
+            Baseline(103, Position, SynergyBaselineSide.Self, games: 100, wins: 50),
+            Baseline(Top, "TOP", SynergyBaselineSide.Ally, games: 300, wins: 150),
+            Baseline(Top, "BOTTOM", SynergyBaselineSide.Ally, games: 25, wins: 18));
+
+        db.ChampionSynergyStats.AddRange(
+            Pair(Top, "TOP", games: 20, wins: 11),
+            Pair(Top, "BOTTOM", games: 20, wins: 16));
+
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Seeds a champion played enough that the share floor overtakes the absolute
+    /// one, with a pairing on each side of it.
+    /// </summary>
+    private async Task SeedHighVolumeChampionAsync(int championGames, int thinPairGames, int thickPairGames)
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        db.ChampionSynergyBaselineStats.AddRange(
+            Baseline(Champion, Position, SynergyBaselineSide.Self, championGames, wins: championGames / 2),
+            Baseline(103, Position, SynergyBaselineSide.Self, games: 100, wins: 50),
+            Baseline(Support, "UTILITY", SynergyBaselineSide.Ally, games: 400, wins: 200),
+            Baseline(Adc, "BOTTOM", SynergyBaselineSide.Ally, games: 400, wins: 200));
+
+        db.ChampionSynergyStats.AddRange(
+            Pair(Support, "UTILITY", thinPairGames, wins: (int)(thinPairGames * 0.8)),
+            Pair(Adc, "BOTTOM", thickPairGames, wins: (int)(thickPairGames * 0.6)));
+
+        await db.SaveChangesAsync();
+    }
+
     private static ChampionSynergyStat Pair(int partnerChampionId, string partnerPosition, int games, int wins)
         => new()
         {
@@ -394,6 +486,8 @@ public sealed class ChampionSynergyApiIntegrationTests
             [
                 new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420"),
                 new KeyValuePair<string, string?>("ChampionsList:MinSynergyGames", "10"),
+                new KeyValuePair<string, string?>("ChampionsList:MinSynergyPlayRate", "0.01"),
+                new KeyValuePair<string, string?>("ChampionsList:MinSynergyPartnerLanePlayRate", "0.10"),
                 new KeyValuePair<string, string?>("ChampionsList:MinSynergyTrioGames", "5"),
                 new KeyValuePair<string, string?>("ChampionsList:MinSynergyBaselineGames", "20"),
             ]);

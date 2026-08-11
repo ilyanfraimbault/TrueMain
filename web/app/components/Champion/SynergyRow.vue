@@ -9,6 +9,12 @@ const props = withDefaults(defineProps<{
   championId: number
   position: string
   games: number
+  /**
+   * Share of the champion's games this partner was on the team for. Optional so
+   * the trio list, whose rows are a slice of one duo rather than of the champion,
+   * can leave it out rather than quote a share of the wrong denominator.
+   */
+  playRate?: number
   winRate: number
   /** Observed minus expected win rate — the value the list is ranked by. */
   synergy: number
@@ -29,6 +35,10 @@ const synergyClass = computed(() => {
   if (Math.abs(props.synergy) < NEUTRAL_BAND) return 'text-muted'
   return props.synergy > 0 ? 'text-emerald-400' : 'text-red-400'
 })
+const gamesTooltip = computed(() =>
+  `${props.games.toLocaleString('en-US')} game(s) together — `
+  + `${formatPercentage(props.playRate ?? 0, 1)} of this champion's games`,
+)
 const synergyLabel = computed(() => {
   const points = props.synergy * 100
   const rounded = Math.round(points * 10) / 10
@@ -75,8 +85,16 @@ const synergyLabel = computed(() => {
 
     <!-- Sample size and raw win rate stay visible next to the synergy: the
          ranking value is a difference, and a difference means nothing without
-         the two numbers and the count it came from. -->
-    <span class="shrink-0 text-xs tabular-nums text-muted">
+         the two numbers and the count it came from. How often the pairing
+         actually happens rides in the tooltip — it is what the backend's floor
+         is expressed in, and "58 games" alone doesn't say whether that is a
+         teammate you see constantly or twice a month. -->
+    <UTooltip v-if="playRate !== undefined" :text="gamesTooltip">
+      <span class="shrink-0 text-xs tabular-nums text-muted">
+        {{ games.toLocaleString('en-US') }} games
+      </span>
+    </UTooltip>
+    <span v-else class="shrink-0 text-xs tabular-nums text-muted">
       {{ games.toLocaleString('en-US') }} games
     </span>
     <span class="w-12 shrink-0 text-right text-xs tabular-nums text-muted">
