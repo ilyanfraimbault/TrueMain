@@ -103,6 +103,13 @@ Four semantic text color tokens from `@nuxt/ui` (`text-default`, `text-muted`, `
 renders as an unstyled element — build a literal map (see `TierBadge.vue`) rather than interpolating a class
 name.
 
+**A plain utility overrides a `@utility`'s own property — rely on it deliberately, not by accident.**
+`class="stat-label text-primary"` renders rose gold, because Tailwind sorts custom `@utility` rules *before*
+generated ones inside the utilities layer, so `.text-primary` wins on source order at equal specificity. That is
+the intended way to recolour a `stat-label` or resize a `stat-value`. It is also the trap below, seen from the
+other side: the same rule means a stray `bg-elevated/60` beats `surface`'s fill. Overriding one declared
+property is fine; restating the material's own is what breaks it.
+
 **Nuxt UI appends per-variant `root` classes rather than replacing them, and a plain utility out-cascades a
 `@utility` declaration.** That is why the `card` theme in `app.config.ts` neutralises `soft`'s stock
 `bg-elevated/50` to the opaque `bg-elevated`: left alone it wins over `surface`'s background and the material never

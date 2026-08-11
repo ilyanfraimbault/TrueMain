@@ -8,10 +8,11 @@
  * These used to be copied from `web/` so the two apps would read as one product.
  * That claim no longer holds: `web/` moved to an `ink` neutral with a four-step
  * opaque elevation ladder (#1060) while the admin is still stock emerald/zinc,
- * and the two have not looked alike for a while — see the stale note in
- * `app.config.ts`. Bringing the portal onto the redesigned system is tracked
- * separately; until then this block stands on its own rather than pretending to
- * mirror something it no longer matches.
+ * and the two have not looked alike for a while (`app.config.ts` says the same,
+ * next to the palette itself). Bringing the portal onto the redesigned system
+ * was scoped out of the epic (#1059), not forgotten; until then this block
+ * stands on its own rather than pretending to mirror something it no longer
+ * matches.
  */
 .dark {
   --ui-bg: var(--ui-color-neutral-900);

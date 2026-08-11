@@ -64,6 +64,17 @@ const ELEVATION = [
 
 const TIERS = ['S', 'A', 'B', 'C', 'D']
 
+// `max: 0.09` on the pick rates: a real champion directory's pick rates all sit
+// in a narrow band near the bottom of 0..1, so the column is normalised against
+// its own peak. Presence keeps `max: 1` to show the difference.
+const METRIC_BARS = [
+  { label: 'Pick rate', value: 0.082, max: 0.09, tone: 'neutral' as const, display: '8.2%' },
+  { label: 'Pick rate', value: 0.031, max: 0.09, tone: 'neutral' as const, display: '3.1%' },
+  { label: 'Pick rate', value: 0.004, max: 0.09, tone: 'neutral' as const, display: '0.4%' },
+  { label: 'Win rate', value: 0.542, max: 1, tone: 'good' as const, display: '54.2%' },
+  { label: 'Win rate', value: 0.478, max: 1, tone: 'bad' as const, display: '47.8%' },
+]
+
 const TEXT_TOKENS = [
   { util: 'text-highlighted', use: 'The value the user came for' },
   { util: 'text-default', use: 'Primary content' },
@@ -263,6 +274,67 @@ const TEXT_TOKENS = [
           >
             {{ token.util }} — {{ token.use }}
           </p>
+        </div>
+      </div>
+    </SectionCard>
+
+    <!-- ─── Stat primitives ──────────────────────────────────────────────── -->
+    <SectionCard
+      :level="2"
+      title="StatBlock"
+      subtitle="The value/label pair, at every scale and every tone. `default` is “no better/worse reading exists”; `mid` is “measured, and it is average”."
+    >
+      <div class="flex flex-col gap-6">
+        <div class="flex flex-wrap items-end gap-8">
+          <StatBlock value="54.2%" label="Win rate" size="xl" tone="good" />
+          <StatBlock value="47.8%" label="Win rate" size="lg" tone="bad" />
+          <StatBlock value="50.1%" label="Win rate" size="md" tone="mid" />
+          <StatBlock value="155 974" label="Games" size="md" />
+          <StatBlock value="2.4" label="KDA" size="sm" />
+        </div>
+        <div class="flex flex-wrap items-start gap-8">
+          <StatBlock
+            value="100"
+            label="Games used"
+            caption="65 by mains · of 5,000 scanned"
+          />
+          <StatBlock
+            value="—"
+            label="Gold @15"
+            caption="nothing decided yet"
+          />
+          <StatBlock
+            value="+262"
+            label="Gold @15"
+            tone="good"
+            caption="avg over 204 games"
+            align="end"
+          />
+        </div>
+      </div>
+    </SectionCard>
+
+    <SectionCard
+      :level="2"
+      title="MetricBar"
+      subtitle="A rate as a length. `max` normalises a column against its own peak — a 6% pick rate against a 100% track is a rounding error you cannot see."
+    >
+      <div class="flex flex-col gap-4">
+        <div
+          v-for="bar in METRIC_BARS"
+          :key="bar.label"
+          class="flex items-center gap-3"
+        >
+          <span class="stat-label w-28 shrink-0">{{ bar.label }}</span>
+          <span class="w-40 shrink-0">
+            <MetricBar
+              :value="bar.value"
+              :max="bar.max"
+              :tone="bar.tone"
+              :label="`${bar.label} ${bar.value}`"
+            />
+          </span>
+          <span class="stat-value text-sm">{{ bar.display }}</span>
         </div>
       </div>
     </SectionCard>
