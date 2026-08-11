@@ -11,13 +11,15 @@ import { POSITION_BY_VALUE } from '~/utils/positions'
  *
  * Two portraits facing each other, and nothing else. The picks are made by
  * clicking a portrait (`ChampionSlot` opens a champion search); the role, which
- * gates every fetch on the page, is a labelled header row above them. The
+ * gates every fetch on the page, sits on its own header row above them. The
  * select fields this replaced were the loudest thing in the stage — a wide
  * combobox wrapping a single word — while the portrait beside each one carried
  * no interaction at all.
  *
- * Ownership is carried by the accent, not by a tinted panel: your label and
- * portrait ring are `primary`, the opponent's are neutral. The former
+ * Near-textless on purpose (#1067): the only words left are the picked role,
+ * which the icon-only strip cannot express, and the champion names under filled
+ * tiles. Ownership is carried by the accent alone — your portrait's ring is
+ * `primary`, the opponent's neutral — and not by a tinted panel: the former
  * `bg-primary/5` + `ring-primary/25` side panel was a rose-gold *surface* tint,
  * which the design system no longer allows.
  *
