@@ -13,6 +13,29 @@ const props = defineProps<{
   games?: number
 }>()
 
+/**
+ * Win rate is the one value here with a better/worse reading, so it carries the
+ * data axis; pick rate is a popularity share and stays neutral — a 2% pick rate
+ * is not a *bad* pick rate.
+ *
+ * It used to be `color="primary"`, i.e. rose gold on a measurement, which the
+ * design system now reserves for brand and interaction. Worse, it was the same
+ * chip colour whatever the number said, so the accent was decorating a value
+ * instead of reading it.
+ *
+ * The band is ±2 points around even. Below that the difference is inside the
+ * noise of the small samples this badge exists for — measured on production,
+ * the median champion-vs-opponent pair holds 4 games — and colouring a 51%
+ * teal would be asserting a signal the sample cannot carry.
+ */
+const WIN_RATE_EVEN_BAND = 0.02
+
+const winRateClass = computed(() => {
+  if (props.winRate >= 0.5 + WIN_RATE_EVEN_BAND) return 'bg-data-good/15 text-data-good'
+  if (props.winRate <= 0.5 - WIN_RATE_EVEN_BAND) return 'bg-data-bad/15 text-data-bad'
+  return 'bg-data-mid/15 text-data-mid'
+})
+
 // One line per stat, label and value in their own column, so the three numbers
 // read as a small table instead of a sentence to parse.
 const rows = computed(() => {
@@ -55,12 +78,15 @@ const rows = computed(() => {
       >
         {{ formatPercentage(pickRate) }} pick
       </UBadge>
-      <UBadge
-        color="primary"
-        size="sm"
+      <!-- Not a UBadge: its colours are the Nuxt UI semantic palette, and the
+           data axis is deliberately not in it. Same geometry as the `sm` badge
+           beside it so the pair still reads as one control. -->
+      <span
+        class="inline-flex items-center rounded-sm px-1.5 py-0.5 text-xs font-medium tabular-nums"
+        :class="winRateClass"
       >
         {{ formatPercentage(winRate) }} win
-      </UBadge>
+      </span>
     </div>
   </UTooltip>
 </template>
