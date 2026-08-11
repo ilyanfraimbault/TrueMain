@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import type { ChampionTierListResponse } from '~~/shared/types/champions'
-import { POSITION_BY_VALUE, isChampionPosition, type ChampionPosition } from '~/utils/positions'
+import { isChampionPosition, type ChampionPosition } from '~/utils/positions'
 import { ELO_BRACKET_ALL, normalizeEloBracket } from '~/utils/elo-brackets'
 import { isLoadingStatus } from '~/utils/async-data'
 import { describeFetchError } from '~/utils/errors'
-import { formatPercentage, formatPercentageOrDash } from '~~/shared/utils/ddragon'
 
 useSeoMeta({
   title: 'Champion Tier List',
@@ -108,19 +107,7 @@ const tierGroups = computed(() =>
 
 const hasRows = computed(() => tierGroups.value.some(group => group.entries.length > 0))
 
-// The visible stat line renders a missing ban rate as an em dash, which a screen
-// reader would announce as "dash BR". Drop the segment entirely instead — an
-// absent stat is better left unsaid than read out as punctuation.
-function entryAriaLabel(entry: { name: string, winRate: number, pickRate: number, banRate: number | null }) {
-  const stats = [
-    `${formatPercentage(entry.winRate, 0)} WR`,
-    `${formatPercentage(entry.pickRate, 0)} PR`,
-    ...(entry.banRate === null ? [] : [`${formatPercentage(entry.banRate, 0)} BR`]),
-  ]
-  return `View ${entry.name} (${stats.join(', ')})`
-}
-
-// Each row links to the champion page, pinned to the current patch + the row's
+// Each chip links to the champion page, pinned to the current patch + the row's
 // own position — same destination shape as the /champions directory rows.
 function championDestination(entry: { championId: number, position: string }) {
   return {
@@ -141,6 +128,7 @@ function championDestination(entry: { championId: number, position: string }) {
       </h1>
       <p class="text-sm text-muted">
         Champions ranked into S–D tiers by winrate and pickrate for the current patch, per role.
+        Hover a champion for its win, pick and ban rate.
       </p>
 
       <div class="flex flex-wrap items-center justify-between gap-3">
@@ -188,42 +176,23 @@ function championDestination(entry: { championId: number, position: string }) {
               </div>
             </template>
 
-            <ul class="flex flex-wrap gap-2">
+            <!-- `gap-3` rather than the portrait's own spacing: the lane badge
+                 overhangs the bottom-right corner, so neighbouring chips need
+                 room for it not to collide with the next portrait. -->
+            <ul class="flex flex-wrap gap-3">
               <li
                 v-for="entry in group.entries"
                 :key="`${entry.championId}-${entry.position}`"
               >
-                <NuxtLink
+                <ChampionTierChip
                   :to="championDestination(entry)"
-                  :aria-label="entryAriaLabel(entry)"
-                  class="glass-hover flex items-center gap-2 rounded-md border border-default/60 bg-elevated/40 px-2 py-1.5"
-                >
-                  <SkeletonImage
-                    :src="entry.iconUrl"
-                    :alt="entry.name"
-                    width="32"
-                    height="32"
-                    class="size-8 rounded"
-                  />
-                  <div class="flex flex-col">
-                    <div class="flex items-center gap-1">
-                      <span class="truncate text-sm font-medium">{{ entry.name }}</span>
-                      <SkeletonImage
-                        v-if="POSITION_BY_VALUE.get(entry.position)?.iconUrl"
-                        :src="POSITION_BY_VALUE.get(entry.position)!.iconUrl"
-                        :alt="entry.position"
-                        :width="14"
-                        :height="14"
-                        class="size-[14px] shrink-0"
-                      />
-                    </div>
-                    <!-- BR shows an em dash on patches predating ban ingestion
-                         (#920) rather than a misleading 0%. -->
-                    <span class="text-xs text-muted tabular-nums">
-                      {{ formatPercentage(entry.winRate, 0) }} WR · {{ formatPercentage(entry.pickRate, 0) }} PR · {{ formatPercentageOrDash(entry.banRate, 0) }} BR
-                    </span>
-                  </div>
-                </NuxtLink>
+                  :name="entry.name"
+                  :icon-url="entry.iconUrl"
+                  :position="entry.position"
+                  :win-rate="entry.winRate"
+                  :pick-rate="entry.pickRate"
+                  :ban-rate="entry.banRate"
+                />
               </li>
             </ul>
           </SectionCard>

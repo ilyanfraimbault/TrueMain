@@ -42,7 +42,7 @@ const scoreLabel = computed(() => props.dedication.score.toFixed(1))
       Dedication
     </h2>
 
-    <div class="glass flex flex-col gap-3 rounded-lg p-3">
+    <div class="surface flex flex-col gap-3 rounded-lg p-3">
       <!-- Score + the champion it is about. The champion cell links to this
            player's own build page for it, which is the natural next click. -->
       <div class="flex items-center gap-3">
@@ -68,7 +68,7 @@ const scoreLabel = computed(() => props.dedication.score.toFixed(1))
 
         <NuxtLink
           :to="championHref"
-          class="glass-hover ml-auto flex min-w-0 items-center gap-2 rounded-md px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          class="surface-hover ml-auto flex min-w-0 items-center gap-2 rounded-md px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <SkeletonImage
             :src="champion?.iconUrl ?? null"

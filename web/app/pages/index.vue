@@ -83,9 +83,19 @@ function formatCount(value: number): string {
 
 <template>
   <div>
-    <!-- Hero — the global AppBackdrop shader shows through; no per-section
-         background of its own. -->
-    <section class="relative">
+    <!-- Hero — the one place the eclipse shader renders. It is mounted here
+         rather than in `app.vue` so it is bounded by this section: as a
+         viewport-fixed layer it bled through the champion and leaderboard
+         tables and made rows change luminance down the length of the list.
+         `relative` + `overflow-hidden` give the absolutely-positioned backdrop
+         its bounds, and the fade below hands off to the flat page background so
+         the corona doesn't stop at a hard edge. -->
+    <section class="relative overflow-hidden">
+      <AppBackdrop />
+      <div
+        aria-hidden="true"
+        class="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-32 bg-gradient-to-b from-transparent to-default"
+      />
       <div class="relative mx-auto flex max-w-3xl flex-col items-center px-6 pb-16 pt-20 text-center sm:pb-24 sm:pt-28">
         <p class="text-sm font-medium text-primary">
           Champion intelligence

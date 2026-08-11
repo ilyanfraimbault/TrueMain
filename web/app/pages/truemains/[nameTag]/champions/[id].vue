@@ -251,7 +251,7 @@ const performanceSnapshot = useLazyHydrationSnapshot(
     <template v-else>
       <div
         v-if="notEnoughData && !isRefetching"
-        class="flex flex-col items-center gap-3 glass rounded-lg px-6 py-8 text-center"
+        class="flex flex-col items-center gap-3 surface rounded-lg px-6 py-8 text-center"
       >
         <SkeletonImage
           v-if="displayIconUrl"

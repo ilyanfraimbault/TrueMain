@@ -238,13 +238,38 @@ onMounted(() => {
   // per frame in draw(), so the light glides instead of jumping.
   const pointerTarget = { x: 0.7, y: 0.62 }
   const pointer = { ...pointerTarget }
+  // Last raw viewport coordinates seen, converted to canvas space once per
+  // frame — see onPointerMove / syncPointerTarget below.
+  const pointerClient = { x: 0, y: 0 }
   let pointerK = 0
   let lastPointerMoveAt = -Infinity
 
+  // The handler only records raw viewport coordinates — no layout read.
+  // `pointermove` fires at the device's poll rate (often several hundred hertz),
+  // and `getBoundingClientRect()` forces a synchronous layout, so converting
+  // here would pay for a reflow per sample to feed a loop that consumes the
+  // result 24 times a second. Caching the rect instead would be wrong rather
+  // than slow: it is viewport-relative, so it goes stale the moment the hero
+  // scrolls, and a ResizeObserver never fires on scroll.
   function onPointerMove(event: PointerEvent) {
-    pointerTarget.x = event.clientX / window.innerWidth
-    pointerTarget.y = 1 - event.clientY / window.innerHeight
+    pointerClient.x = event.clientX
+    pointerClient.y = event.clientY
     lastPointerMoveAt = performance.now()
+  }
+
+  // Viewport → canvas-normalised, run once per frame from draw(). The backdrop
+  // is bounded by the hero section, so raw viewport fractions would put the
+  // flare somewhere other than under the cursor and would keep dragging it
+  // while the pointer moved far below the hero. Clamped so a cursor outside the
+  // hero parks the highlight at the nearest edge rather than flying off the
+  // shader's 0-1 domain.
+  function syncPointerTarget() {
+    if (lastPointerMoveAt === -Infinity) return
+    const bounds = canvas!.getBoundingClientRect()
+    if (bounds.width === 0 || bounds.height === 0) return
+    const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
+    pointerTarget.x = clamp01((pointerClient.x - bounds.left) / bounds.width)
+    pointerTarget.y = 1 - clamp01((pointerClient.y - bounds.top) / bounds.height)
   }
 
   function resize() {
@@ -260,6 +285,7 @@ onMounted(() => {
 
   function draw(timeSeconds: number) {
     resize()
+    syncPointerTarget()
     // Runs at ~24fps (loop is frame-gated). These per-frame factors act as
     // time constants; they're scaled by 30/24 from the previous 30fps loop so
     // the cursor response is unchanged in wall-clock time (~0.3s for the
@@ -373,9 +399,17 @@ onBeforeUnmount(() => teardown?.())
 </script>
 
 <template>
+  <!-- `absolute`, not `fixed`: the backdrop is mounted inside the home hero and
+       is bounded by it. It used to sit in `app.vue` as a viewport-fixed layer
+       behind every route, which meant the eclipse's corona passed *through* the
+       champion and leaderboard tables — rows near the glow rendered a visibly
+       different luminance from the ones outside it, and a table that changes
+       brightness down its own length cannot be scanned. Scoping it to the one
+       page whose job is atmosphere keeps the signature without taxing the data
+       pages. The host element owns the bounds and `overflow-hidden`. -->
   <div
     aria-hidden="true"
-    class="pointer-events-none fixed inset-0 -z-10 overflow-hidden opacity-80 dark:opacity-100"
+    class="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
   >
     <!-- Static wash: the no-WebGL / pre-first-frame baseline only. Kept very
          faint and short so it doesn't bleed up through the shader's

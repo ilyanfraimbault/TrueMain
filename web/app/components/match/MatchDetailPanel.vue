@@ -77,11 +77,15 @@ const tabItems = [
 </script>
 
 <template>
-  <!-- Opaque body surface so the expanded panel reads as one card with the row
-       header instead of letting the animated backdrop bleed through the tabs
-       and gaps between cards. The heavy backdrop-blur keeps the rose-gold
-       eclipse from showing through the surface's remaining transparency. -->
-  <div class="border-t border-default/60 bg-default/90 px-3 pb-3 pt-3 backdrop-blur-2xl">
+  <!-- Fully opaque body so the expanded panel reads as one card with the row
+       header instead of showing page through the tabs and the gaps between
+       cards. This used to be `bg-default/90` plus a heavy backdrop-blur to hide
+       the animated eclipse behind it; the backdrop no longer renders outside
+       the home hero, so the fill can simply be solid.
+       `bg-muted` rather than `bg-default`: the body is the *recessed* step of
+       the ladder, a well the `surface` panels inside it sit up out of. Painting
+       it at the page colour would punch a hole through the row instead. -->
+  <div class="border-t border-default bg-muted px-3 pb-3 pt-3">
     <!-- Detailed skeleton, not a spinner: the accordion opens straight to
          ~the loaded height and the real content swaps in without the row
          lurching once the (large) detail fetch resolves. -->
@@ -89,7 +93,7 @@ const tabItems = [
 
     <div
       v-else-if="notFound || !detail"
-      class="rounded-md border border-default/60 bg-elevated/60 p-6 text-center text-sm text-muted"
+      class="surface rounded-md p-6 text-center text-sm text-muted"
     >
       Match details unavailable.
     </div>
@@ -129,8 +133,14 @@ const tabItems = [
       <!-- ── Details: player selector + single-player breakdown ──────── -->
       <template #details>
         <div class="mt-3 flex flex-col gap-3">
-          <!-- Selector: blue team · vs · red team, spread across the full width -->
-          <div class="flex items-center justify-center gap-3 overflow-x-auto pb-1 sm:justify-between">
+          <!-- Selector: blue team · vs · red team. Sized off the *row's* width
+               (`MatchRow` is the `@container`), never the viewport: the same row
+               renders full-bleed on a profile and inside a 2xl drawer, so a
+               `sm:` here would pick the wrong layout in one of the two.
+               Ten 56px portraits plus their gaps need ~694px, so the two teams
+               only sit side by side from `@3xl`; below that they stack, which
+               is what fits the drawer. `@sm` shrinks them again on a phone. -->
+          <div class="flex flex-col items-center gap-2 overflow-x-auto pb-1 @3xl:flex-row @3xl:justify-between @3xl:gap-3">
             <template v-for="(team, teamIdx) in [blueTeam, redTeam]" :key="`team-${teamIdx}`">
               <div class="flex shrink-0 items-center gap-2">
                 <button
@@ -149,7 +159,7 @@ const tabItems = [
                   <SkeletonImage
                     :src="champIcon(p.championId)"
                     :alt="champName(p.championId)"
-                    class="size-14 rounded"
+                    class="size-11 rounded @sm:size-14"
                   />
                   <img
                     v-if="p.teamPosition"
@@ -163,7 +173,7 @@ const tabItems = [
 
               <span
                 v-if="teamIdx === 0"
-                class="mx-2 shrink-0 select-none text-2xl font-semibold text-muted"
+                class="shrink-0 select-none text-2xl font-semibold text-muted @3xl:mx-2"
                 aria-hidden="true"
               >vs</span>
             </template>
@@ -194,7 +204,10 @@ const tabItems = [
 
       <!-- ── Runes: compact 10-player grid ───────────────────────────── -->
       <template #runes>
-        <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        <!-- Container-sized for the same reason as the selector above: on a
+             1440px viewport `lg:` matched inside the 2xl drawer too, packing
+             five rune pages into a 624px box. -->
+        <div class="mt-3 grid grid-cols-2 gap-2 @md:grid-cols-3 @2xl:grid-cols-5">
           <MatchDetailRunePage
             v-for="p in participants"
             :key="`runes-${p.participantId}`"

@@ -6,7 +6,7 @@ withDefaults(defineProps<{ matchCount?: number }>(), { matchCount: 3 })
 </script>
 
 <template>
-  <section class="glass overflow-hidden rounded-lg" aria-hidden="true">
+  <section class="surface overflow-hidden rounded-lg" aria-hidden="true">
     <div class="flex items-center gap-3 border-b border-default/60 px-3 py-2.5">
       <USkeleton class="size-10 shrink-0 rounded" />
       <div class="flex flex-col gap-1.5">

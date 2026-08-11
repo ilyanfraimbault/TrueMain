@@ -139,7 +139,7 @@ function onRegionKeydown(event: KeyboardEvent) {
 <template>
   <section
     ref="rootEl"
-    class="glass flex flex-col rounded-2xl p-3 sm:p-4"
+    class="surface flex flex-col rounded-2xl p-3 sm:p-4"
     aria-labelledby="home-truemains-title"
   >
     <header class="flex flex-wrap items-center justify-between gap-3 pb-3">
@@ -214,7 +214,7 @@ function onRegionKeydown(event: KeyboardEvent) {
              the rank stays flush with the section header (no row indent). -->
         <NuxtLink
           :to="href"
-          class="glass-hover -mx-2 flex items-center gap-3 rounded-lg px-2 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          class="surface-hover -mx-2 flex items-center gap-3 rounded-lg px-2 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <span
             class="w-4 shrink-0 text-center text-xs tabular-nums"

@@ -5,8 +5,8 @@ import { getPositionIconUrl } from '~~/shared/utils/ddragon'
 // Segmented picker: an "All positions" button followed by the five Riot
 // positions. Same look-and-feel as the /champions filter strip so the
 // leaderboard and the champion list feel like one app. Selected state
-// uses `color="neutral" variant="soft"` — keeps the emerald accent out of
-// the segmented control where it would compete with the rest of the UI.
+// uses `color="neutral" variant="soft"`: the brand accent stays on the page's
+// primary controls, and a strip of six buttons is not one of them.
 //
 // `hideAll` drops the leading "All positions" button — used on the
 // champion detail page where the API always returns data for a specific

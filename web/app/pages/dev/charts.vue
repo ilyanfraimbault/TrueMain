@@ -62,7 +62,7 @@ const winrates: WinratePoint[] = [
 const winrateCategories = {
   yone: { name: 'Yone', color: '#e58f83' },
   ahri: { name: 'Ahri', color: '#f59e0b' },
-  zed: { name: 'Zed',  color: '#71717a' },
+  zed: { name: 'Zed',  color: '#6a6a74' },
 }
 
 const winrateXFormatter = (tick: number): string =>

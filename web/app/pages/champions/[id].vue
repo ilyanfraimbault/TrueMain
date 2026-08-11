@@ -423,7 +423,7 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
         @update:model-value="value => setFilter({ eloBracket: value })"
       />
 
-      <div class="flex flex-col items-center gap-1 glass rounded-lg px-6 py-12 text-center">
+      <div class="flex flex-col items-center gap-1 surface rounded-lg px-6 py-12 text-center">
         <p class="text-sm font-medium text-default">
           No {{ displayName ?? 'champion' }} games in {{ eloBracketLabel(selectedEloBracket) }} yet
         </p>
@@ -473,7 +473,7 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
         />
       </header>
 
-      <div class="flex flex-col items-center gap-1 glass rounded-lg px-6 py-12 text-center">
+      <div class="flex flex-col items-center gap-1 surface rounded-lg px-6 py-12 text-center">
         <p class="text-sm text-muted">
           Not enough data
         </p>

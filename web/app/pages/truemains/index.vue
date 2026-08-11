@@ -160,7 +160,7 @@ const championsById = useChampionsById(champions)
       <LeaderboardRowSkeleton v-for="i in LEADERBOARD_PAGE_SIZE" :key="`skel-${i}`" />
     </div>
 
-    <div v-else-if="rows.length === 0 && !leaderboardError" class="glass rounded-md px-4 py-8 text-center text-sm text-muted">
+    <div v-else-if="rows.length === 0 && !leaderboardError" class="surface rounded-md px-4 py-8 text-center text-sm text-muted">
       No truemains match these filters yet.
     </div>
 

@@ -23,18 +23,18 @@ export { eloBracketLabel as formatEloBracket } from '~/utils/elo-brackets'
 
 import { POSITION_BY_VALUE } from '~/utils/positions'
 
-/** `--color-mauve-950`, the app's darkest surface — the card ground. */
-export const INK = '#161213'
-/** `--color-mauve-900`, one step up: panel fills inside the card. */
-export const PANEL = '#211d1e'
-/** `--color-mauve-800` — the quiet border around non-accented panels. */
-export const PANEL_BORDER = '#362f31'
-/** `--color-mauve-200` — primary text on the dark ground. */
-export const TEXT = '#e6dee0'
-/** `--color-mauve-400` — labels and secondary text. */
-export const TEXT_MUTED = '#a99ba0'
-/** `--color-mauve-500` — the dimmest legible step (footer, units). */
-export const TEXT_DIM = '#7f7276'
+/** `--color-ink-950`, the app's darkest surface — the card ground. */
+export const INK = '#0b0b0d'
+/** The `--ui-bg-elevated` step: panel fills inside the card. */
+export const PANEL = '#1b1b20'
+/** `--color-ink-800` — the quiet border around non-accented panels. */
+export const PANEL_BORDER = '#26262c'
+/** `--color-ink-200` — primary text on the dark ground. */
+export const TEXT = '#d9d9dd'
+/** `--color-ink-400` — labels and secondary text. */
+export const TEXT_MUTED = '#8b8b95'
+/** `--color-ink-500` — the dimmest legible step (footer, units). */
+export const TEXT_DIM = '#6a6a74'
 /** `--color-rosegold-400`, the brand accent as it reads on dark. */
 export const ROSEGOLD = '#e58f83'
 /** `--color-rosegold-300`, the lighter end of the wordmark ramp. */
@@ -46,24 +46,28 @@ export const ROSEGOLD_LIGHT = '#eeaea3'
 export const GOLD_HAIRLINE = 'rgba(217, 182, 118, 0.22)'
 
 /**
- * The `--color-tier-*` performance ladder (S rose-gold → D iron). This one has
- * no hex counterpart in `app/utils` — `TierBadge.vue` reaches for it through
- * `text-tier-*` classes — so it is restated here rather than imported. An
- * unknown or missing tier is deliberately absent from the map: the card drops
- * the badge, mirroring the badge's own dash-instead-of-a-guess behaviour.
+ * The `--color-tier-*` performance ladder, riding the app's cold→warm data axis
+ * (S teal → D amber). This one has no hex counterpart in `app/utils` —
+ * `TierBadge.vue` reaches for it through `text-tier-*` classes — so it is
+ * restated here rather than imported. An unknown or missing tier is deliberately
+ * absent from the map: the card drops the badge, mirroring the badge's own
+ * dash-instead-of-a-guess behaviour.
  */
 export const TIER_COLOR: Record<string, string> = {
-  S: '#e58f83',
-  A: '#e2b95c',
-  B: '#b9c2cd',
-  C: '#b3763f',
-  D: '#837a7c',
+  S: '#3ad6c4',
+  A: '#7fc9c0',
+  B: '#8b8b95',
+  C: '#d9a45f',
+  D: '#f0a13c',
 }
 
 /**
- * The rose-gold "eclipse" the site paints behind every page (`AppBackdrop.vue`
- * draws it in WebGL). Two offset radial washes are as close as Satori's
- * gradient support gets, and they carry the same warm off-centre glow.
+ * The rose-gold "eclipse" the site paints behind the home hero
+ * (`AppBackdrop.vue` draws it in WebGL). Two offset radial washes are as close
+ * as Satori's gradient support gets, and they carry the same warm off-centre
+ * glow. The card keeps it whatever page it was shared from: a share card is an
+ * ad for the site, so it wears the brand's signature rather than the sober
+ * treatment the data pages get.
  */
 export const BACKDROP = [
   'radial-gradient(900px 620px at 78% -12%, rgba(229,143,131,0.30), rgba(229,143,131,0) 70%)',

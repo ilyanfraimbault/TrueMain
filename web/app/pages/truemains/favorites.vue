@@ -116,7 +116,7 @@ const runeTree = computed(() => runeTreeData.value ?? null)
       />
     </div>
 
-    <div v-else-if="favorites.length === 0" class="glass rounded-lg px-6 py-12 text-center">
+    <div v-else-if="favorites.length === 0" class="surface rounded-lg px-6 py-12 text-center">
       <UIcon name="i-lucide-star" class="size-8 text-primary" aria-hidden="true" />
       <p class="mt-3 text-base font-semibold">
         No favorites yet

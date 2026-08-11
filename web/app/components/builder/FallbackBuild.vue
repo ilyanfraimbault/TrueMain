@@ -13,6 +13,12 @@ const props = defineProps<{
   championId: number
   position: string
   championName: string | null
+  /**
+   * Why the reader is looking at the standard build instead of a matchup one.
+   * Rendered as a warning icon beside the title with this as its tooltip —
+   * never as prose, so the caveat never pushes the build down the page.
+   */
+  notice?: string | null
 }>()
 
 const { data: champion, status, error } = useLazyAsyncData<ChampionResponse | null>(
@@ -35,6 +41,9 @@ const { data: champion, status, error } = useLazyAsyncData<ChampionResponse | nu
   { watch: [() => props.championId, () => props.position] },
 )
 
+const cardTitle = computed(() =>
+  props.championName ? `${props.championName}'s standard build` : 'Standard build')
+
 const build = computed(() => champion.value?.builds[0] ?? null)
 
 const assetsPatch = computed(() => champion.value?.patch ?? null)
@@ -47,10 +56,29 @@ const { data: championStatic } = useChampionStatic(
 </script>
 
 <template>
-  <SectionCard
-    :title="championName ? `${championName}'s standard build` : 'Standard build'"
-    subtitle="The champion page's top build, not specific to this draft."
-  >
+  <!-- `#title` opts the card out of its automatic `aria-labelledby`, so the
+       region is named here instead — otherwise the whole section goes unnamed
+       for anyone navigating by landmark. -->
+  <SectionCard :aria-label="cardTitle">
+    <template #title>
+      <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <h3 class="text-sm font-medium text-default">
+          {{ cardTitle }}
+        </h3>
+        <!-- Icon only, message in the tooltip — the same qualifier pattern the
+             recommendation card uses for a thin sample. -->
+        <UTooltip
+          v-if="notice"
+          :text="notice"
+          :delay-duration="150"
+        >
+          <UIcon
+            name="i-lucide-triangle-alert"
+            class="size-4 text-warning"
+          />
+        </UTooltip>
+      </div>
+    </template>
     <ChampionBuildTabsSkeleton v-if="status === 'pending'" />
     <UAlert
       v-else-if="error"
@@ -69,7 +97,7 @@ const { data: championStatic } = useChampionStatic(
     />
     <div
       v-else
-      class="glass rounded-lg px-6 py-10 text-center"
+      class="surface rounded-lg px-6 py-10 text-center"
     >
       <p class="font-medium">
         No build data yet

@@ -17,7 +17,7 @@ const contactEmail = 'contact@truemain.lol'
       :description="`Last updated ${lastUpdated}`"
     />
 
-    <article class="glass space-y-8 rounded-xl p-5 text-sm leading-relaxed text-muted sm:p-8">
+    <article class="surface space-y-8 rounded-xl p-5 text-sm leading-relaxed text-muted sm:p-8">
       <section class="space-y-3">
         <h2 class="text-lg font-semibold text-highlighted">
           Who we are

@@ -3,7 +3,7 @@ defineProps<{ noop?: never }>()
 </script>
 
 <template>
-  <section class="flex flex-col gap-3 rounded-lg bg-elevated/40 px-4 py-3">
+  <section class="surface flex flex-col gap-3 rounded-lg px-4 py-3">
     <USkeleton class="h-3 w-24" />
     <div class="flex items-center gap-3">
       <USkeleton class="size-12 rounded-full" />

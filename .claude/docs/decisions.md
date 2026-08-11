@@ -256,6 +256,22 @@ doubled every search hit and picker row with a dead end and put 60 empty pages i
 (`server/api/static/champions.get.ts`). 10 000 rather than 60 000: the highest real Riot key is 950, so the
 cut keeps an order of magnitude of headroom while catching a future mode built the same way — #966.
 
+**A tier-list chip is a portrait and its lane badge — the name and the three rates are tooltip content.**
+The chip used to be a pill: icon, name, lane glyph and a `52% WR · 12% PR · 8% BR` line, ~190 px wide. Five
+tier groups of those is a page you scroll rather than scan, and the question the tier list answers ("who is
+strong right now") is answered by the *faces* — a player recognises a portrait faster than they read a name.
+So the chip is now the portrait alone with the lane badged into its bottom-right corner (the anchoring the
+directory already uses for the secondary rune tree), and hovering gives the name plus `Win rate / Pick rate /
+Ban rate`. In the tooltip the values *are* coloured on the `--color-data-*` axis, which the directory row
+deliberately refuses — colour that is noise in a dense table of forty rows is the whole point of a panel
+showing three numbers. Only the win rate uses the good↔bad axis; pick and ban rate fade to muted at the low
+end instead of turning amber, because a pocket pick is rare, not bad — and they get *separate* bands, since
+they do not share a denominator: on 16.15 the median pick rate is 0.3% against a median ban rate of 2.6%, so
+one threshold pair would have coloured every ban and no pick (`app/utils/rate-tone.ts`). The cost is
+that no tooltip opens on touch, so the link's `aria-label` carries name, lane and all three rates — that
+string is also what a screen reader gets, and it is the reason the missing ban rate is dropped from it
+entirely rather than announced as "dash BR".
+
 ---
 
 ## Data & storage
@@ -537,6 +553,17 @@ sample, not the latency** — which is the opposite of what the issue assumed. D
 matchup whatever its volume, with the game count on every variation, rather than hiding thin sections or
 silently widening the window. The reader is told how thin the answer is instead of being given a fabricated one.
 
+↳ **`/matchup` was the one place that didn't follow this, and now does** (#1075). The draft tool carried its own
+`MATCHUP_SAMPLE_FLOOR = 8`: below it the matchup build was replaced by the champion's standard build behind a
+warning banner, with the real build one "Show it anyway" click away. Against the measurement above — median
+**4 games** per pair — that floor was withholding the matchup build for **more than half of every pair a reader
+can select**, which is exactly the "hiding thin sections" this decision rejected. The build now always renders
+and is qualified in place by `RecommendationPanel`'s existing low-sample icon, whose own floor (20 games) sits
+well above anything the removed one caught. Only the genuinely empty case survives — no recorded game at all,
+where there is no matchup build to show — and even that is now an icon-and-tooltip on the standard build's card
+rather than a banner. **Caveats belong in a tooltip on the answer, not in a block above it**: a banner pushes
+the thing the reader came for down the page and gets dismissed as chrome either way.
+
 **An expensive read path behind a TTL cache needs a single-flight, not a lock** (#870,
 `Api/Services/RequestCoalescer.cs`). The cache protects steady state; the stampede happens on the first
 request and at every TTL expiry, when concurrent callers all miss at once and each start the same scan — up to
@@ -626,11 +653,16 @@ failure the mutable tag had been masking — #738, #765, #767.
 A divergent host-only `docker-compose.yml` meant the pool-cap fix never reached prod, the uncapped pools kept
 running and the `53300` outage returned — #462.
 
-**Prod still applies EF migrations on startup; moving to an out-of-band script is an OPEN decision.**
-`ApplyMigrationsOnStartup: "true"` in `compose.prod.yaml`. Microsoft advises against it (concurrency, elevated
-privileges, no review or rollback), and `docs/production-migrations.md` documents the script path while
-stating that flipping the flag is deliberately left to the owner. This is why the "no heavy startup migration"
-rule above is load-bearing — #208, #246.
+**Preprod and prod both apply migrations out-of-band, as a discrete CI step before the images roll — not at startup.**
+`Database__ApplyMigrationsOnStartup` is `false` in both `compose.preprod.yaml` and `compose.prod.yaml`
+(Microsoft advises against startup migration under concurrency: elevated app-account privileges, no review
+or rollback). The `migrate-preprod`/`migrate-prod` jobs in `deploy-preprod.yml`/`deploy-prod.yml` generate an
+idempotent SQL script from the deployed commit/tag and apply it over SSH by piping it into `psql` inside the
+running Postgres container — neither VPS exposes a connection reachable from a GitHub-hosted runner. The
+deploy job depends on the migrate job, so a failed migration blocks the image roll. Preprod runs this on
+every merge to `develop`, so it catches a bad migration before it ever reaches prod. The credential is still
+the app's own `POSTGRES_USER`, not a dedicated migration-only role — splitting one off is open follow-up
+work, not this decision — #208, #246, #1058, `docs/production-migrations.md`.
 
 **Preprod tracks `develop`, has its own Riot API key, and is deliberately tiny — a new key forces an empty database.**
 PUUIDs are encrypted per API app, so key and database are an inseparable pair: old data is unusable with a new
@@ -919,6 +951,59 @@ a bug that does not exist, so the read model carries `measured: false` with the 
 wrote a row on, and the page prints "not measured before *patch*" **in place of** the counts rather than
 beside them. The first-measured patch falls out of the same grouped scan that produces the per-patch numbers,
 so distinguishing the two costs nothing — `PatchCoverageQueryService`, #1033.
+
+## The rose-gold-only surface rule is reversed: neutral surfaces, a scarce accent, and a data axis of its own (2026-08-10)
+
+**Decided in #1060 (part of the #1059 redesign), reversing the "surfaces are rose-gold-only" rule that
+`main.css` had carried as the successor to an earlier emerald-only one.** The old rule paired a warm accent
+(`rosegold-400 #e58f83`) with a warm neutral (`mauve-900 #211d1e`) and forbade any second hue on a surface.
+The accent therefore sat on a background already halfway to its own colour, so nothing separated: the site
+read as one flat warm mass. What replaced it:
+
+- **`ink` replaces `mauve`** — a near-neutral, faintly cool charcoal. The `rosegold` ramp is **unchanged**;
+  it simply reads far more saturated once nothing around it is warm. The fix was never the hue.
+- **Rose gold is scarce on purpose**: brand and interaction only (logo, active nav, focus rings, primary
+  buttons, links, selected states, the hero accent word). It never colours a data value and is never a
+  generic surface tint. Scarcity is the whole mechanism — an accent applied to everything is not an accent.
+- **Measurements get their own cold→warm axis** (`--color-data-*`: teal good → neutral → amber bad), and
+  unlike the `--color-stat-*` tooltip vocabulary it **is** allowed as `bg-*` / `ring-*` / `border-*`. The
+  former rule banned semantic colour on data outright, which on a stats site gave away half the legibility:
+  a 52% and a 9% rendered identically. Green/red was rejected rather than overlooked — `rosegold-500
+  #d9736c` is itself a desaturated red, and a red "loss" beside the accent in a dense table is a coin flip
+  to read. Teal and amber share no hue with the brand, so a coloured number can never be mistaken for an
+  interactive one. The activity heatmap moved onto this axis at the same time, retiring the #927 reasoning
+  that a second hue on the grid would be an intrusion.
+- **The tier ladder rides the same axis.** Its medal metaphor (rose-gold → gold → silver → bronze → iron)
+  broke twice over once amber meant "bad": A and C read as warnings, and `tier-s` was *literally*
+  `rosegold-400`, giving the best tier the brand colour and no comparative meaning at all.
+- **`surface` replaces `glass`** at all 55 call sites plus the global `UCard` / `UBadge` themes. Translucency
+  everywhere meant nothing was ever *on top of* anything. Paired with it, the elevation ladder was
+  un-flattened: `--ui-bg-muted` and `--ui-bg-elevated` had both pointed at `neutral-800`, so the whole app
+  had two levels — page and not-page — and depth had to be carried by borders that were themselves
+  translucent. There are now four distinct opaque steps. `glass` is removed outright: it was kept at first for
+  the home hero, but the hero's own search field reads better solid against the eclipse, which left the
+  utility with no call site — and a material the docs call load-bearing with nothing using it is how a design
+  system starts lying about itself.
+- **A second family carries the numbers.** `--font-mono` had been deliberately aliased to Inter; it now
+  points at Geist Mono, used by the `stat-value` / `stat-label` utilities. The old scale put a value and its
+  label one step apart (`text-sm` over `text-xs`, same family, same weight), so a dense row read as noise.
+
+**The eclipse is scoped to the home hero** (`AppBackdrop.vue` moved out of `app.vue`). As a viewport-fixed
+layer behind every route its corona passed *through* the champion and leaderboard tables: rows near the glow
+rendered a visibly different luminance from those outside it, and a table that changes brightness down its own
+length cannot be scanned. The signature is kept where the page's job is atmosphere, and dropped where the
+page's job is numbers. Share cards keep the eclipse regardless of the page they were shared from — a share
+card advertises the site.
+
+**Light mode is gone** — the toggle, the five `dark:` variants, and the `.dark` scoping of the surface
+tokens. It was never designed or tested (five variants in 119 files), and keeping it half-defined meant
+every future token decision had to be made twice. The module has no "forced" switch — `preference` is only a
+default — so the colour-mode `storageKey` was moved at the same time, retiring the `light` value a returning
+visitor might still carry from before the toggle was removed.
+
+Reviewable at `pages/dev/design-system.vue`, which is the compensating control for having no Storybook and no
+SFC-mounting test setup: every token, elevation step and material on one screen, stripped from production
+builds like the other `dev/*` playgrounds.
 
 ## Keeping these files current
 

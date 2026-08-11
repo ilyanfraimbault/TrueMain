@@ -1,7 +1,7 @@
 <template>
   <section class="flex flex-col gap-2" aria-hidden="true">
     <USkeleton class="h-3 w-32" />
-    <ul class="flex flex-col divide-y divide-default/40 overflow-hidden rounded-lg bg-elevated/40">
+    <ul class="surface flex flex-col divide-y divide-default/40 overflow-hidden rounded-lg">
       <li
         v-for="i in 3"
         :key="i"
