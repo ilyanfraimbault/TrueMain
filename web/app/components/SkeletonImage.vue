@@ -92,15 +92,19 @@ onMounted(() => {
     :style="reservedStyle"
   >
     <span class="relative block size-full">
-      <!-- Plain span mirroring USkeleton's default look (animate-pulse +
-           rounded-md + bg-elevated) — one fewer component instance per icon,
-           which matters at hundreds of icons per page. The pulse is dropped
-           once the image has actually failed: a 404 is a final state, and
-           animating it made dead icons (e.g. a profile icon Data Dragon
-           doesn't ship) read as loading forever. -->
+      <!-- Plain span mirroring USkeleton's look (animate-pulse + rounded-md +
+           the fill set on `ui.skeleton.base` in app.config.ts) — one fewer
+           component instance per icon, which matters at hundreds of icons per
+           page. **Keep the fill in sync with that override**: this is the most
+           numerous skeleton on the site, so it is what "the page is loading"
+           actually looks like. It used to be `bg-elevated`, i.e. the exact fill
+           of every card it sits in — invisible.
+           The pulse is dropped once the image has actually failed: a 404 is a
+           final state, and animating it made dead icons (e.g. a profile icon
+           Data Dragon doesn't ship) read as loading forever. -->
       <span
         v-if="!src || !loaded || failed"
-        class="absolute inset-0 size-full rounded-md bg-elevated"
+        class="absolute inset-0 size-full rounded-md bg-ink-700"
         :class="failed ? '' : 'animate-pulse'"
       />
       <img

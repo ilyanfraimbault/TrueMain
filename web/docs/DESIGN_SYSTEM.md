@@ -56,6 +56,23 @@ declaration, so the literal pair wins and the element is translucent again. It l
 and isn't. Opacity is what collapsed the ladder in the first place — a panel, a row inside it and the page
 behind all landed within a few percent of each other and the eye had no depth to read.
 
+## A skeleton wears the material it replaces
+
+Two rules, both learned by breaking them:
+
+**The shell is the real component's material, opaque.** A placeholder row uses `surface`, exactly like the
+`ListRowSurface` it stands in for — never a translucent stand-in. A dimmer shell means the whole list brightens
+when the data lands, which reads as the page changing rather than filling in.
+
+**The blocks are `bg-ink-700`, not a ladder step.** `animate-pulse` is `50% { opacity: .5 }`, so half of every
+cycle the fill is blended halfway back into whatever is behind it. Judge a skeleton colour at *half* opacity:
+`bg-accented` over a card lands on `#1f1f25` and vanishes, `ink-700` lands near `#2a2a31` and reads. The fill
+lives in `ui.skeleton.base` (`app.config.ts`) and is duplicated once, deliberately, in `SkeletonImage.vue`,
+which hand-rolls the same look to avoid a component instance per icon — **keep the two in sync**.
+
+Nuxt UI's own default is `bg-elevated`, which since the ink rebuild is the exact fill of every card. Left alone,
+every skeleton inside a card is invisible.
+
 ## A stat is a pair, and the pair has a house style
 
 Two families with distinct jobs: **Inter** carries prose, headings and labels; **Geist Mono** carries

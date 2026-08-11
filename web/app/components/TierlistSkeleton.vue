@@ -27,7 +27,7 @@ const GROUPS = [6, 9, 7, 5, 3]
           v-for="i in count"
           :key="i"
         >
-          <div class="flex items-center gap-2 rounded-md border border-default/60 bg-elevated/40 px-2 py-1.5">
+          <div class="surface flex items-center gap-2 rounded-md px-2 py-1.5">
             <USkeleton class="size-8 rounded" />
             <div class="flex flex-col gap-1">
               <USkeleton class="h-4 w-20" />

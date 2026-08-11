@@ -3,7 +3,7 @@
        rows) so the left rail doesn't shift when the profile resolves. -->
   <section class="flex flex-col gap-2" aria-hidden="true">
     <USkeleton class="h-3 w-24" />
-    <div class="flex flex-col gap-3 rounded-lg bg-elevated/40 p-3">
+    <div class="surface flex flex-col gap-3 rounded-lg p-3">
       <div class="flex items-center gap-3">
         <div class="flex flex-col gap-1">
           <USkeleton class="h-8 w-16" />
