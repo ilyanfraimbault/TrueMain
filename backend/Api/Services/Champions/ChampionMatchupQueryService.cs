@@ -106,13 +106,12 @@ public sealed class ChampionMatchupQueryService(
         }
 
         // The search narrows to its one opponent in SQL — an indexed seek, and the
-        // reason it never pays for the champion's whole opponent field.
-        if (opponentChampionId is { } opponent)
-        {
-            query = query.Where(s => s.OpponentChampionId == opponent);
-        }
+        // reason it never pays to materialise the champion's whole opponent field.
+        var scopedQuery = opponentChampionId is { } opponent
+            ? query.Where(s => s.OpponentChampionId == opponent)
+            : query;
 
-        var rows = await query
+        var rows = await scopedQuery
             .GroupBy(s => s.OpponentChampionId)
             .Select(g => new
             {
@@ -136,9 +135,17 @@ public sealed class ChampionMatchupQueryService(
             .ToListAsync(ct);
 
         // The champion's whole opponent field, before any floor: the denominator the
-        // play-rate floor is a share of. Meaningless on the search, which read a
-        // single row and would otherwise divide it by itself and call it 100%.
-        var totalGames = opponentChampionId is null ? rows.Sum(x => (long)x.Games) : 0L;
+        // play-rate floor is a share of, and the one that turns a matchup's games into
+        // "how often this matchup actually happens".
+        //
+        // The search read a single row, so it cannot sum its way to that total — it
+        // would be dividing the row by itself and calling it 100%. It used to report a
+        // play rate of 0 instead, which the matchup page (#1098) shows as a headline
+        // figure, so the total is now a second aggregate over the same scope: one
+        // indexed SUM, no rows materialised.
+        var totalGames = opponentChampionId is null
+            ? rows.Sum(x => (long)x.Games)
+            : await query.SumAsync(s => (long)s.Games, ct);
 
         var qualifying = opponentChampionId is null
             ? rows.Where(x => x.Games >= LeaderboardFloor(totalGames))

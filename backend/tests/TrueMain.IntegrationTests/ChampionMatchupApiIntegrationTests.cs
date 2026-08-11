@@ -24,6 +24,14 @@ public sealed class ChampionMatchupApiIntegrationTests
     private const int OtherOpponent = 91; // Talon — a different MIDDLE opponent
     private const string Position = "MIDDLE";
 
+    /// <summary>
+    /// Matchup games <see cref="SeedMatchupSampleAsync"/> leaves in the aggregate:
+    /// 12 vs Zed and 1 vs Talon. The four decoys are excluded by their own rule
+    /// (same team, other lane, other queue), so none of them lands in a row.
+    /// This is the denominator of every play rate over that sample.
+    /// </summary>
+    private const int TotalSeededGames = 13;
+
     private readonly PostgresFixture _fixture;
 
     public ChampionMatchupApiIntegrationTests(PostgresFixture fixture)
@@ -162,6 +170,9 @@ public sealed class ChampionMatchupApiIntegrationTests
         talon.OpponentChampionId.Should().Be(OtherOpponent);
         talon.Games.Should().Be(1);
         talon.Wins.Should().Be(1);
+        // The share is over the champion's whole field, floor or no floor — the one
+        // game below the floor is still one game out of every Yone game at the role.
+        talon.PlayRate.Should().BeApproximately(1d / TotalSeededGames, 1e-9);
     }
 
     [Fact]
@@ -254,6 +265,11 @@ public sealed class ChampionMatchupApiIntegrationTests
         var found = searched!.Matchups.Should().ContainSingle().Subject;
         found.Games.Should().Be(listed.Games);
         found.Wins.Should().Be(listed.Wins);
+        // The share too (#1098): the search reads one row, so its denominator comes
+        // from a second scoped SUM rather than from the row. It used to report 0 —
+        // "a matchup nobody plays", out of the matchup the leaderboard ranks.
+        found.PlayRate.Should().BeApproximately(listed.PlayRate, 1e-9);
+        found.PlayRate.Should().BeGreaterThan(0d);
     }
 
     [Fact]

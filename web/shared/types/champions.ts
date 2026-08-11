@@ -263,8 +263,9 @@ export interface ChampionMatchupEntry {
    * Share of the champion's total matchup games this opponent holds, in the same
    * scope and before any floor. What the backend's leaderboard floor is expressed
    * in (`ChampionsList:MinMatchupPlayRate`), so it is also the honest way to say
-   * how often the matchup actually happens. `0` on the single-opponent search,
-   * which reads one row and has no total to divide by.
+   * how often the matchup actually happens — including on the single-opponent
+   * search, which takes the denominator from its own scoped total. `0` only on the
+   * player-scoped route, whose live join holds no such total.
    */
   playRate: number
   /**

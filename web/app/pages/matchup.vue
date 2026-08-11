@@ -224,6 +224,19 @@ const missingMatchupNotice = computed(() => {
       @update:opponent-champion-id="opponentChampionId = $event"
     />
 
+    <!-- The matchup's own record, above everything the draft can change.
+         Mounted on the champion / role / opponent triple alone, so it survives
+         the standard-build fallback below — which is exactly the state where a
+         reader needs to know how much (or how little) is behind the page. -->
+    <BuilderMatchupStats
+      v-if="playedChampionId !== null && playedPosition !== null && opponentChampionId !== null"
+      :champion-id="playedChampionId"
+      :position="playedPosition"
+      :opponent-champion-id="opponentChampionId"
+      :champion-name="playedChampion?.name ?? null"
+      :opponent-name="opponentChampion?.name ?? null"
+    />
+
     <BuilderTeamContext
       v-if="isDraftReady && playedPosition"
       :champions="champions"
@@ -284,7 +297,6 @@ const missingMatchupNotice = computed(() => {
             :champion-icon-url="playedChampion?.iconUrl ?? null"
             :opponent-name="opponentChampion?.name ?? null"
             :opponent-icon-url="opponentChampion?.iconUrl ?? null"
-            :opponent-champion-id="opponentChampionId"
             :draft-request="currentDraftRequest"
             :champions="champions"
           />
