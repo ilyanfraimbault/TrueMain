@@ -300,6 +300,20 @@ doubled every search hit and picker row with a dead end and put 60 empty pages i
 (`server/api/static/champions.get.ts`). 10 000 rather than 60 000: the highest real Riot key is 950, so the
 cut keeps an order of magnitude of headroom while catching a future mode built the same way — #966.
 
+**A champion gets at most two lines in the directory — its dominant lanes — and the cap is applied before tiering.**
+`champion_aggregate_scopes` holds a row per `(champion, lane)` the population played, and champions flex, so the
+directory was up to 5 × N: 561 lines for 173 champions on patch 16.15. That list answers "which champion-lane
+pairs exist" when the question asked is "which champions are strong". The lines past each champion's top two
+carried 5.9% of the games between them, so the cap costs almost no evidence: `ChampionDominantLaneFilter` keeps
+the two most-played lanes (`ChampionsList:MaxLanesPerChampion`), and a *secondary* lane only if it holds 10% of
+the champion's own games (`MinSecondaryLanePlayRate`) — 37 of the 152 champions with a second lane play it under
+5% of the time, which is an off-role pick, not a second identity. The most-played lane is kept whatever its
+share, so an evenly-spread five-lane flex still appears once rather than vanishing from a list of champions.
+**Before tiering, after the sample floor**: a tier is a percentile *within a lane*, so an off-role line must not
+be one of that lane's peers, while a line that never cleared the sample floor must not consume one of the two
+slots. One filter in `ChampionSummariesQueryService` covers the directory, the tier list and the homepage teaser,
+because all three read that one cached payload — #1082.
+
 **A tier-list chip is a portrait and its lane badge — the name and the three rates are tooltip content.**
 The chip used to be a pill: icon, name, lane glyph and a `52% WR · 12% PR · 8% BR` line, ~190 px wide. Five
 tier groups of those is a page you scroll rather than scan, and the question the tier list answers ("who is

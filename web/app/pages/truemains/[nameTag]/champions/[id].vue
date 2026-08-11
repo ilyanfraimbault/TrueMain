@@ -291,14 +291,18 @@ const performanceSnapshot = useLazyHydrationSnapshot(
       -->
       <template v-if="!notEnoughData">
         <header class="flex flex-wrap items-center gap-4">
+          <!-- `seoDisplayName` (SSR-resolved) rather than the client-only
+               `displayName`, and skeletons instead of zeroes until the
+               player's aggregate lands — same as the global champion page. -->
           <ChampionHeader
-            :champion-name="displayName"
+            :champion-name="seoDisplayName"
             :champion-icon-url="displayIconUrl"
             :champion-id="championId"
             :position="champion?.position || selectedPosition || ''"
             :total-games="champion?.totalGames ?? 0"
             :total-wins="champion?.totalWins ?? 0"
             :low-sample-message="lowSampleMessage"
+            :loading="!champion"
           />
           <ChampionFilters
             :selected-patch="selectedPatch"
