@@ -55,6 +55,12 @@ const laneTooltip = computed(() => {
   return gap ? `${rate} · ${gap}` : rate
 })
 
+// A link when it leads somewhere, a plain div when it doesn't — never a
+// link-styled element that does nothing. Typed as a bare `string` rather than
+// inlined in the template: a literal `'NuxtLink' | 'div'` union makes vue-tsc
+// resolve both arms and reject `to` on the div half.
+const rowTag = computed<string>(() => (props.to ? 'NuxtLink' : 'div'))
+
 // The row's own sample, spelled out for the screen reader and the hover: "33
 // games" alone does not say whether that is a matchup you see every other game
 // or one you have met three times all split (#1082). The percentage is the
@@ -70,7 +76,7 @@ const gamesTooltip = computed(() => {
 
 <template>
   <component
-    :is="to ? 'NuxtLink' : 'div'"
+    :is="rowTag"
     :to="to"
     :aria-label="to && opponent ? `Build against ${opponent.name}` : undefined"
     class="flex items-center gap-3 rounded-md px-2 py-1.5 transition-colors hover:bg-elevated/40"
