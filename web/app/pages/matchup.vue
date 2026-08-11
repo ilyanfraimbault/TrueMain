@@ -160,45 +160,27 @@ const hasContextPicks = computed(() =>
 // ─── Graceful degradation ────────────────────────────────────────────────────
 
 /**
- * Below this many games of the requested matchup, every dimension of the
- * aggregate is one or two games away from flipping. Rather than dressing that
- * up as a matchup read, the page shows the champion's standard build with an
- * explicit notice (the thin build stays one click away).
+ * There is exactly one degraded state left (#1075): the matchup was pinned and
+ * **never recorded**, so the API returns zero games rather than relaxing the
+ * filter (`CompositionMatchQueryService`: `MatchupFound = !matchupRequested ||
+ * selectedMatches.Count > 0`). With no matchup build to render, the champion's
+ * standard build is the only thing there is.
+ *
+ * A *thin* matchup is no longer a degraded state. It used to be hidden below
+ * eight games behind an alert and a "Show it anyway" button — which contradicted
+ * the rule the champion page has followed since #923 ("show the matchup whatever
+ * its volume, with the game count on it, rather than hiding thin sections"), and
+ * which mattered far more than it looks: the production measurement behind that
+ * decision put the **median** champion x opponent x position pair at 4 games, so
+ * the floor was withholding the matchup build for over half of all pairs. The
+ * build now always renders, and `RecommendationPanel` qualifies it in place —
+ * its own low-sample tooltip fires under 20 games, well above anything this
+ * floor caught.
  */
-const MATCHUP_SAMPLE_FLOOR = 8
-
-/** Matchup pinned but never recorded — the API found zero games. */
 const matchupMissing = computed(() =>
   recommendation.value !== null
   && recommendation.value.matchupRequested
   && !recommendation.value.matchupFound)
-
-const matchupSampleSize = computed(() => recommendation.value?.build.gamesConsidered ?? 0)
-
-/** Matchup pinned and found, but on too few games to be read as a matchup build. */
-const matchupTooThin = computed(() =>
-  recommendation.value !== null
-  && recommendation.value.matchupRequested
-  && recommendation.value.matchupFound
-  && matchupSampleSize.value > 0
-  && matchupSampleSize.value < MATCHUP_SAMPLE_FLOOR)
-
-/** Opt-in escape hatch from the thin-sample fallback, reset on every matchup change. */
-const showThinMatchupBuild = ref(false)
-watch([playedChampionId, playedPosition, opponentChampionId], () => {
-  showThinMatchupBuild.value = false
-})
-
-const showFallbackBuild = computed(() =>
-  matchupMissing.value || (matchupTooThin.value && !showThinMatchupBuild.value))
-
-function revealThinMatchupBuild() {
-  showThinMatchupBuild.value = true
-}
-
-function hideThinMatchupBuild() {
-  showThinMatchupBuild.value = false
-}
 
 function setAlly(position: ChampionPosition, championId: number | null) {
   allySlots.value[position] = championId
@@ -208,23 +190,12 @@ function setEnemy(position: ChampionPosition, championId: number | null) {
   enemySlots.value[position] = championId
 }
 
-const fallbackNotice = computed(() => {
+/** Tooltip on the standard build's warning icon — the whole explanation, in one line. */
+const missingMatchupNotice = computed(() => {
   const champion = playedChampion.value?.name ?? 'this champion'
   const opponent = opponentChampion.value?.name ?? 'that champion'
   const role = roleLabel.value ? ` at ${roleLabel.value}` : ''
-  if (matchupMissing.value) {
-    return {
-      title: `No recorded ${champion} vs ${opponent} game`,
-      description: `Nothing in our data for this matchup${role} — showing `
-        + `${champion}'s standard build instead.`,
-    }
-  }
-  const games = matchupSampleSize.value
-  return {
-    title: `Only ${games} recorded ${champion} vs ${opponent} game${games === 1 ? '' : 's'}`,
-    description: `Too thin to derive a matchup build${role} — showing `
-      + `${champion}'s standard build instead.`,
-  }
+  return `No recorded ${champion} vs ${opponent} game${role} — showing ${champion}'s standard build.`
 })
 </script>
 
@@ -274,38 +245,17 @@ const fallbackNotice = computed(() => {
     />
 
     <template v-if="recommendation && isDraftReady">
-      <!-- Matchup pinned but unusable (never recorded, or a handful of games):
-           say so and fall back to the champion's baseline build instead of
-           fabricating a matchup-specific one. -->
-      <template v-if="showFallbackBuild">
-        <UAlert
-          color="warning"
-          variant="soft"
-          icon="i-lucide-search-x"
-          :title="fallbackNotice.title"
-          :description="fallbackNotice.description"
-        >
-          <template
-            v-if="matchupTooThin"
-            #actions
-          >
-            <UButton
-              color="neutral"
-              variant="outline"
-              size="xs"
-              @click="revealThinMatchupBuild"
-            >
-              Show it anyway
-            </UButton>
-          </template>
-        </UAlert>
-        <BuilderFallbackBuild
-          v-if="playedChampionId !== null && playedPosition !== null"
-          :champion-id="playedChampionId"
-          :position="playedPosition"
-          :champion-name="playedChampion?.name ?? null"
-        />
-      </template>
+      <!-- Matchup pinned but never recorded: there is no matchup build to
+           render, so this falls back to the champion's baseline one. The whole
+           explanation rides in the card's warning-icon tooltip — a banner here
+           was three lines of prose above a build the reader can already see. -->
+      <BuilderFallbackBuild
+        v-if="matchupMissing && playedChampionId !== null && playedPosition !== null"
+        :champion-id="playedChampionId"
+        :position="playedPosition"
+        :champion-name="playedChampion?.name ?? null"
+        :notice="missingMatchupNotice"
+      />
 
       <SectionCard
         v-else-if="recommendation.build.gamesConsidered === 0"
@@ -321,29 +271,9 @@ const fallbackNotice = computed(() => {
         </div>
       </SectionCard>
 
+      <!-- Any matchup with at least one game: shown, however thin. The panel
+           carries its own low-sample warning icon, so nothing is added here. -->
       <template v-else>
-        <!-- Thin matchup build shown on demand: keep the caveat on screen and
-             offer the way back to the standard build. -->
-        <UAlert
-          v-if="matchupTooThin"
-          color="warning"
-          variant="soft"
-          icon="i-lucide-triangle-alert"
-          :title="`Built from ${matchupSampleSize} game${matchupSampleSize === 1 ? '' : 's'} of this matchup`"
-          description="Single games swing every dimension at this sample size."
-        >
-          <template #actions>
-            <UButton
-              color="neutral"
-              variant="outline"
-              size="xs"
-              @click="hideThinMatchupBuild"
-            >
-              Back to the standard build
-            </UButton>
-          </template>
-        </UAlert>
-
         <div
           class="transition-opacity duration-200"
           :class="isLoading ? 'opacity-60' : ''"
