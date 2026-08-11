@@ -1,13 +1,14 @@
 /**
  * Tailwind text colours for the three champion rates, on the `--color-data-*`
- * axis (teal good → neutral → amber bad) the palette reserves for measurements
+ * axis (rose gold above average → neutral below it) the palette reserves for
+ * measurements
  * — never the rose-gold accent, which means "interactive" (see the #1060
  * decision). Class strings are written out in full so Tailwind's static scan
  * generates them; a computed `text-data-${tone}` would be invisible to it.
  *
  * Only the win rate rides the good↔bad axis. Pick and ban rate are *presence*,
  * not performance: a niche champion is not "bad" at being picked, so those two
- * use a one-sided ramp that fades to muted instead of turning amber — and they
+ * use a one-sided ramp that fades to muted — and they
  * do not share a scale with each other either (see the constants below).
  */
 
@@ -65,7 +66,7 @@ function presenceTone(value: number | null | undefined, notable: number, high: n
 
 /**
  * Colour for a pick rate (0..1). One-sided on purpose: high presence gets the
- * teal end, everything else stays muted rather than being accused of being bad.
+ * accent end, everything else stays muted rather than being accused of being bad.
  */
 export function pickRateTone(value: number | null | undefined): string {
   return presenceTone(value, PICK_RATE_NOTABLE, PICK_RATE_HIGH)

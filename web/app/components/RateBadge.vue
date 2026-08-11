@@ -16,15 +16,15 @@ const props = defineProps<{
 
 /**
  * Both chips read their value through `utils/rate-tone`, the same module the
- * tier-list chip uses — a win rate must not be teal in one place and neutral in
- * another on pages a reader moves between. The bands and their calibration live
+ * tier-list chip uses — a win rate must not be accented in one place and neutral
+ * in another on pages a reader moves between. The bands and their calibration live
  * there (win rate symmetric around 50%; pick rate one-sided, because a niche
  * champion is not *bad* at being picked).
  *
- * The win chip used to be `color="primary"`: rose gold on a measurement, which
- * the design system reserves for brand and interaction — and the same colour
+ * The win chip used to be a flat `color="primary"` — the same rose gold
  * whatever the number said, so the accent decorated a value instead of reading
- * it.
+ * it. The accent is back on measurements (#1096), but it now *means* something:
+ * it marks the good end, and a losing rate steps down to neutral instead.
  */
 const winRateClass = computed(() => winRateTone(props.winRate))
 const pickRateClass = computed(() => pickRateTone(props.pickRate))

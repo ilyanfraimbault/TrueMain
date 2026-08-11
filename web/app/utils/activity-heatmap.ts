@@ -7,26 +7,25 @@ import type { ActivityBucket, ActivityMode, ActivitySeries } from '~~/shared/typ
  */
 
 /**
- * Win end of the scale — `--color-data-good` (see `assets/css/main.css`). The
- * grid is read the way GitHub's contribution grid is: hue carries the sign,
- * intensity carries the weight.
+ * Win end of the scale — `--color-data-good`, i.e. `rosegold-400` (see
+ * `assets/css/main.css`). The grid is read the way GitHub's contribution grid
+ * is: hue carries the sign, intensity carries the weight.
  *
- * This used to be `rosegold-400`, on the reasoning that the app was rose-gold
- * only on surfaces and a second hue would have been an intrusion. That rule is
- * gone: measurements now have their own cold→warm axis precisely so a reader
- * never has to work out whether a colour means "good" or "brand". A win cell is
- * the same teal as an S tier and an above-average win rate.
+ * #1060 briefly moved this to a teal, on the reasoning that measurements should
+ * own a hue the brand does not. The product call reversed that: the accent
+ * carries the winning side again.
  */
-export const ACTIVITY_WIN_RGB = [58, 214, 196] as const
+export const ACTIVITY_WIN_RGB = [229, 143, 131] as const
 
 /**
- * Loss end of the scale — `--color-data-bad`. Formerly `mauve-400`, a near
- * neutral chosen to desaturate towards the shell rather than take a second hue.
- * On the data axis the losing side has a colour of its own, and amber is far
- * enough from teal that the sign of a period reads at 11 px without relying on
- * intensity.
+ * Loss end of the scale — `--color-data-bad`, the neutral ramp rather than a
+ * second hue. With a one-sided axis the losing side is *not* flagged, it is
+ * merely undecorated, so here the sign is carried by the split between "warm
+ * accent" and "grey" rather than by two opposed hues. That puts more weight on
+ * intensity than the two-hue version did: a single-game losing period is a
+ * faint grey cell, which is the intended read — it is barely a signal.
  */
-export const ACTIVITY_LOSS_RGB = [240, 161, 60] as const
+export const ACTIVITY_LOSS_RGB = [139, 139, 149] as const
 
 /**
  * Alpha of the least emphatic populated cell — a coin-flip, single-game period.
