@@ -5,6 +5,7 @@ import { normalizeEloBracket } from '~/utils/elo-brackets'
 import { isLoadingStatus } from '~/utils/async-data'
 import { describeFetchError } from '~/utils/errors'
 import { formatPercentage, formatPercentageOrDash } from '~~/shared/utils/ddragon'
+import { banRateTone, pickRateTone, winRateTone } from '~/utils/rate-tone'
 
 // Mirrors the backend default; the page size is fixed in the UI (no
 // per-page selector) so the only stateful pagination value carried in the
@@ -380,23 +381,49 @@ const { perk, perkStyle, item: staticItem } = useBuildResolvers(runeTree, itemsM
                 <TierBadge :tier="row.tier" />
               </div>
 
-              <!-- Rates: bold whole-percent on top, small muted label below.
-                   Numbers stay default-coloured — colour-coding tested too
-                   noisy against the rest of the row. -->
-              <div class="flex shrink-0 items-center gap-5 tabular-nums">
-                <div class="flex min-w-[3rem] flex-col items-center">
-                  <span class="text-lg font-bold leading-none">{{ formatPercentage(row.winRate, 0) }}</span>
-                  <span class="mt-0.5 text-xs text-muted">WR</span>
+              <!-- Rates as `StatBlock`s: Geist Mono value over a 10px micro-label,
+                   which is the whole point — the hand-written pair this replaced
+                   put the two one step apart (`text-lg` over `text-xs`, same
+                   family) and a 50-row list read as noise.
+                   Colours come from `utils/rate-tone`, the same helper the tier
+                   list's chip uses, so a champion's win rate cannot be one colour
+                   here and another there. An older comment here said colour was
+                   "tested too noisy"; the bands that exist now are much quieter
+                   than whatever that was — the losing side of a win rate is grey,
+                   not a warning, and pick/ban are one-sided so only genuinely
+                   present champions take the accent at all. -->
+              <div class="flex shrink-0 items-center gap-5">
+                <!-- The min-width lives on a wrapper, not on `StatBlock`:
+                     its root already carries `min-w-0`, and a fallthrough
+                     `min-w-[3rem]` on the same element would leave which one
+                     wins to stylesheet order rather than to intent. -->
+                <div class="flex min-w-[3rem] justify-center">
+                  <StatBlock
+                    :value="formatPercentage(row.winRate, 0)"
+                    label="WR"
+                    align="center"
+                    :value-class="winRateTone(row.winRate)"
+                  />
                 </div>
-                <div class="flex min-w-[3rem] flex-col items-center">
-                  <span class="text-lg font-bold leading-none">{{ formatPercentage(row.pickRate, 0) }}</span>
-                  <span class="mt-0.5 text-xs text-muted">PR</span>
+                <div class="flex min-w-[3rem] justify-center">
+                  <StatBlock
+                    :value="formatPercentage(row.pickRate, 0)"
+                    label="PR"
+                    align="center"
+                    :value-class="pickRateTone(row.pickRate)"
+                  />
                 </div>
                 <!-- Ban rate: a dash on patches predating ban ingestion (#920),
-                     since "not observed" is not the same answer as "0%". -->
-                <div class="flex min-w-[3rem] flex-col items-center">
-                  <span class="text-lg font-bold leading-none">{{ formatPercentageOrDash(row.banRate, 0) }}</span>
-                  <span class="mt-0.5 text-xs text-muted">BR</span>
+                     since "not observed" is not the same answer as "0%". The
+                     tone helper returns `text-muted` for a null, so the dash is
+                     never accented. -->
+                <div class="flex min-w-[3rem] justify-center">
+                  <StatBlock
+                    :value="formatPercentageOrDash(row.banRate, 0)"
+                    label="BR"
+                    align="center"
+                    :value-class="banRateTone(row.banRate)"
+                  />
                 </div>
               </div>
             </ListRowSurface>
