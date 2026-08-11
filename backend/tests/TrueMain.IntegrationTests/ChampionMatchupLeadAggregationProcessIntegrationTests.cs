@@ -48,6 +48,9 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests
         var matchup = await db.ChampionMatchupStats.AsNoTracking().SingleAsync();
         matchup.ChampionId.Should().Be(Champion);
         matchup.TeamPosition.Should().Be(Position);
+        // The cohort gate is champion-side only: Zed's participant is untracked and
+        // has no main row, and must still count as the opponent. Narrowing both
+        // sides would measure mains-versus-mains, a far thinner question.
         matchup.OpponentChampionId.Should().Be(Opponent);
         matchup.Patch.Should().Be("16.4", "the raw GameVersion folds to major.minor");
         matchup.Games.Should().Be(12);
@@ -59,10 +62,9 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests
     {
         await _fixture.ResetDatabaseAsync();
         await SeedGamesAsync(games: 12, version: "16.4.521.123", wins: 7);
-        // No main_champion_stats row for Ahri: she must reach the write path
-        // purely through the global pass (tracked account on a non-main champion),
-        // the case the per-champion work-list used to skip.
-        await SeedGamesAsync(games: 8, version: "16.4.521.123", wins: 3, matchPrefix: "ahri", champion: 103, opponent: 134, main: false);
+        // A second champion the same account also mains: one pass must land both,
+        // which is the property the per-champion work-list used to break.
+        await SeedGamesAsync(games: 8, version: "16.4.521.123", wins: 3, matchPrefix: "ahri", champion: 103, opponent: 134);
 
         await CreateProcess().RunCoreAsync(CancellationToken.None);
 
@@ -84,6 +86,32 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests
         yone.OpponentChampionId.Should().Be(Opponent);
         yone.Games.Should().Be(12);
         yone.Wins.Should().Be(7);
+    }
+
+    [Fact]
+    public async Task RunAsync_SkipsGamesWhereThePlayerIsNotAMainOfTheChampion()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedGamesAsync(games: 12, version: "16.4.521.123", wins: 7);
+        // Same tracked account, a champion it is not a main of. This used to fold —
+        // the gate was "an account we know" — which is what put 3.2× more games
+        // behind the matchups panel than behind the champion header above it. The
+        // cohort is now the one the champion aggregates use: mains only.
+        await SeedGamesAsync(
+            games: 8, version: "16.4.521.123", wins: 3,
+            matchPrefix: "offmain", champion: 103, opponent: 134, main: false);
+
+        await CreateProcess().RunCoreAsync(CancellationToken.None);
+
+        await using var db = _fixture.CreateDbContext();
+
+        var matchup = await db.ChampionMatchupStats.AsNoTracking().SingleAsync();
+        matchup.ChampionId.Should().Be(Champion, "only the champion the account mains is folded");
+        matchup.Games.Should().Be(12);
+
+        // Still marked done: the off-cohort matches were examined and contributed
+        // nothing, and leaving them pending would re-scan them every cycle forever.
+        (await db.Matches.CountAsync(m => !m.MatchupLeadAggregated)).Should().Be(0);
     }
 
     [Fact]
@@ -186,9 +214,10 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests
             db.RiotAccounts.Add(account);
         }
 
-        // The champion write-list unions main_champion_stats champions (#606
-        // fix mirroring #604) with what the global pass surfaces; seeding with
-        // main: false exercises the global-pass-only path.
+        // The fold's champion-side cohort (Data.Aggregation.MatchupCohort) joins on
+        // (platform, puuid, champion) and requires IsMain, so this row is what makes
+        // the seeded games countable at all; `main: false` seeds a champion the same
+        // account plays without maining it, which must fold to nothing.
         if (main && !await db.MainChampionStats.AnyAsync(s => s.Puuid == account.Puuid && s.ChampionId == champion))
         {
             db.MainChampionStats.Add(new MainChampionStat
@@ -211,7 +240,7 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests
             var match = new MatchBuilder().WithId(matchId).WithQueueId(QueueId).WithGameVersion(version).WithTimelineIngested().Build();
             db.Matches.Add(match);
 
-            db.MatchParticipants.Add(Participant(matchId, 1, champion, teamId: 100, win: i < wins, riotAccountId: account.Id));
+            db.MatchParticipants.Add(Participant(matchId, 1, champion, teamId: 100, win: i < wins, riotAccountId: account.Id, puuid: account.Puuid));
             db.MatchParticipants.Add(Participant(matchId, 2, opponent, teamId: 200, win: i >= wins));
 
             foreach (var minute in Intervals)
@@ -253,12 +282,13 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests
         };
 
     private static MatchParticipant Participant(
-        string matchId, int participantId, int championId, int teamId, bool win, Guid? riotAccountId = null)
+        string matchId, int participantId, int championId, int teamId, bool win,
+        Guid? riotAccountId = null, string? puuid = null)
         => new()
         {
             MatchId = matchId,
             ParticipantId = participantId,
-            Puuid = $"puuid-{matchId}-{participantId}",
+            Puuid = puuid ?? $"puuid-{matchId}-{participantId}",
             RiotAccountId = riotAccountId,
             SummonerName = "seed",
             SummonerLevel = 100,

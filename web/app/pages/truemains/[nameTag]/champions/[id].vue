@@ -368,6 +368,14 @@ const performanceSnapshot = useLazyHydrationSnapshot(
                  live, already-loaded `staticList`) so the deferred hydration
                  doesn't mismatch (#834/#837) — same pattern as the global
                  champion page. -->
+            <!--
+              Deliberately cross-patch, unlike the global panel and unlike the
+              build sections above it: this slice is one player's own games, where
+              a patch filter would leave nearly every opponent under the 3-game
+              per-player floor and empty the panel. The global panel needs the
+              patch for the opposite reason — its aggregate outlives the matches
+              it was folded from, so unscoped it spans *more* history than the page.
+            -->
             <LazyChampionMatchups
               hydrate-on-visible
               :champion-id="championId"

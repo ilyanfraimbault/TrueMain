@@ -220,9 +220,53 @@ position / bracket narrowing). That makes `patch.games == dedication.careerGames
 centimetres apart. A narrower filter (per platform, per lane) would have been defensible on its own and would
 have made the grid disagree with the card above it — #927.
 
-**The matchup opponent-search stays a live query while the matchups panel reads the aggregate.**
-The `opponent=` path filters to a single adversary (already fast) and uses a floor of 1 game, which an
-aggregate built at floor 10 cannot serve — #606.
+**The matchup opponent-search reads the aggregate, like the panel — this reverses #606's "the search stays live".**
+#606 kept the `opponent=` path on a live self-join because "an aggregate built at floor 10" could not answer a
+one-game lookup. The rows were never stored with a floor, only the read applied one, so the premise was wrong from
+the start — and the split cost real correctness. The live join sees the retention window (2 patches of
+`match_participants`) while the aggregate keeps every patch it ever folded, so on production the same matchup
+answered **22 games / 27% on the leaderboard and 13 games / 15% in the search**. Worse, #976 had already moved the
+search's *lane* counters onto the aggregate while leaving its games live, so rows came back reporting a gold gap
+averaged over **more lanes than the games shown beside them** (Singed: 13 games, 16 lanes). Both halves now come
+from the same rows, and the search keeps its floor-free contract by simply not applying the read's floors. The
+player-scoped slice stays live — the aggregate has no account dimension — #1087.
+
+**The matchups leaderboard floors on a *share* of the champion's games, and ranks on Wilson bounds, not the raw rate.**
+An absolute floor cannot work across champions three orders of magnitude apart in volume: 10 games is the whole
+matchup on a rarely played champion and 0.07% of the sample on a heavily played one. Measured on Viego JUNGLE, the
+11 opponents under 30 games were **0.3% of 53 739 games and held 5/5 of "best" and 3/5 of "worst"** — the panel was
+a small-sample detector, because on a field of 86 opponents the most extreme rate is essentially always the
+thinnest sample. Two changes, both needed: `MinMatchupPlayRate` (0.5%) combined with `MinMatchupGames` by taking
+the **larger**, which keeps 51 of 71 opponents (94.6% of games) on a popular champion and goes inert on a thin one;
+and ranking best on the Wilson **lower** bound and worst on the **upper** one, which self-regulates by sample size
+so no floor has to be tuned per champion. Three of the five previous "best" matchups had an interval containing the
+50% baseline. The floors are the read side's, so moving them is a config change and never a re-fold — #1087.
+
+**The lane win rate carries its own floor, because it is its own sample.**
+`MinDecidedLaneGames` (10) is separate from every games floor above it: the production median decided/games ratio
+is **0.58**, so a row clearing 40 games can rest its lane column on six decided lanes — and it was printing "100%
+lane" off seven, the most confident-looking cell on the panel resting on its smallest sample. Below the floor the
+rate is null (an em dash) while `decidedLaneGames` is still returned, so the caller can say *why* rather than
+silently omitting it — #1087.
+
+**The matchup folds count mains of the champion, not every account we know.**
+`champion_matchup_stats` gated on `RiotAccountId != null` while the champion aggregates feeding the header, the
+tier list, the trend and the builds gate on `main_champion_stats.IsMain`. On production that put **14 576 games
+behind the matchups panel and 4 605 behind the header directly above it** — same champion, lane and patch, ×3.2 —
+and the read-side comment asserted the two cohorts matched. The gate now lives in `Data/Aggregation/MatchupCohort.cs`
+so the two folds that write those rows cannot drift apart from each other or from the pattern reader. **Champion
+side only**: the opponent stays whoever held that lane, since narrowing both sides would measure mains-versus-mains,
+a different and far thinner question. Because both folds are additive and flag-gated, tightening the gate corrects
+nothing already written — the migration wipes the table and re-folds the retained window, which loses the matchups
+of patches whose raw matches are already gone (accepted: the panel became per-patch in the same change, so those
+patches were no longer readable anyway) — #1087.
+
+**The matchups panel follows the page's patch filter on the global route, and deliberately does not on the player one.**
+It forwarded position and elo but never patch, and its aggregate outlives the matches it was folded from, so the
+panel spanned **16.12→16.15 (53 739 games) under a header reading 4 603** — two contradicting numbers a few
+centimetres apart. The player-scoped slice stays cross-patch on purpose, for the opposite reason the global one
+needed scoping: one player meets the same lane opponent a handful of times *in total*, so a patch filter would put
+nearly every opponent under the 3-game per-player floor and empty the panel — #1087.
 
 **The draft tool is the "Matchup" page (`/matchup`), and its opponent is the *role* opponent.**
 "Lane opponent" is meaningless for a jungler, and the page is not a build editor — it answers "what do I build

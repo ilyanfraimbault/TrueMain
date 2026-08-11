@@ -7,6 +7,13 @@ import { formatGoldDiff } from '~/utils/lane-verdict'
 const props = defineProps<{
   entry: ChampionMatchupEntry
   opponent: ChampionStaticListItem | null
+  /**
+   * Where the row leads — the `/matchup` tool with both champions and the role
+   * already pinned. Optional so the row stays renderable without a destination,
+   * in which case it is a plain `div` and carries no interaction affordance at
+   * all (never a link-styled element that does nothing).
+   */
+  to?: string
 }>()
 
 // Win rate above / below even — the universal green / red read.
@@ -47,10 +54,28 @@ const laneTooltip = computed(() => {
   const rate = `Lane win rate over ${decidedLaneGames.toLocaleString()} decided lane(s)`
   return gap ? `${rate} · ${gap}` : rate
 })
+
+// The row's own sample, spelled out for the screen reader and the hover: "33
+// games" alone does not say whether that is a matchup you see every other game
+// or one you have met three times all split (#1082). The percentage is the
+// quantity the backend's leaderboard floor is expressed in, so this is also the
+// answer to "why is this opponent in the list and that one is not".
+const gamesTooltip = computed(() => {
+  const games = `${props.entry.games.toLocaleString()} game(s)`
+  return props.entry.playRate > 0
+    ? `${games} · ${formatPercentage(props.entry.playRate, 1)} of this champion's matchups`
+    : games
+})
 </script>
 
 <template>
-  <div class="flex items-center gap-3 rounded-md px-2 py-1.5 transition-colors hover:bg-elevated/40">
+  <component
+    :is="to ? 'NuxtLink' : 'div'"
+    :to="to"
+    :aria-label="to && opponent ? `Build against ${opponent.name}` : undefined"
+    class="flex items-center gap-3 rounded-md px-2 py-1.5 transition-colors hover:bg-elevated/40"
+    :class="to ? 'cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary' : undefined"
+  >
     <SkeletonImage
       v-if="opponent?.iconUrl"
       :src="opponent.iconUrl"
@@ -64,9 +89,11 @@ const laneTooltip = computed(() => {
     <span class="min-w-0 flex-1 truncate text-sm text-default">
       {{ opponent?.name ?? `Champion ${entry.opponentChampionId}` }}
     </span>
-    <span class="shrink-0 text-xs tabular-nums text-muted">
-      {{ entry.games.toLocaleString() }} games
-    </span>
+    <UTooltip :text="gamesTooltip">
+      <span class="shrink-0 text-xs tabular-nums text-muted">
+        {{ entry.games.toLocaleString() }} games
+      </span>
+    </UTooltip>
     <UTooltip :text="laneTooltip">
       <span
         class="w-12 shrink-0 text-right text-sm font-medium tabular-nums"
@@ -79,5 +106,5 @@ const laneTooltip = computed(() => {
     >
       {{ formatPercentage(entry.winRate, 0) }}
     </span>
-  </div>
+  </component>
 </template>

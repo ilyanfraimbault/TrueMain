@@ -1,6 +1,7 @@
 using Core.Lol.Patches;
 using Core.Options;
 using Data;
+using Data.Aggregation;
 using Data.Entities;
 using Ingestor.Options;
 using Ingestor.Processes.Summaries;
@@ -139,6 +140,8 @@ public sealed class ChampionLaneOutcomeAggregationProcess(
             .Select(m => new { m.Id, m.GameVersion })
             .ToDictionaryAsync(m => m.Id, m => PatchVersion.Normalize(m.GameVersion), ct);
 
+        var cohort = await MatchupCohort.LoadAsync(db, matchIds, ct);
+
         var participants = await db.MatchParticipants
             .AsNoTracking()
             .Where(p => matchIds.Contains(p.MatchId) && CanonicalPositions.Contains(p.TeamPosition))
@@ -148,8 +151,7 @@ public sealed class ChampionLaneOutcomeAggregationProcess(
                 p.ChampionId,
                 p.TeamId,
                 p.TeamPosition,
-                p.EloBracket,
-                p.RiotAccountId != null))
+                p.EloBracket))
             .ToListAsync(ct);
 
         // The gold reading both sides are compared on. Keyed per (match, participant);
@@ -179,10 +181,11 @@ public sealed class ChampionLaneOutcomeAggregationProcess(
             foreach (var self in parts)
             {
                 // Same asymmetry as the matchup fold it sits beside: the (champion,
-                // position) side is always a tracked account, the opponent is whoever
-                // was in that lane. Keeping the two folds' cohorts identical is what
-                // lets the read put lane WR and game WR on the same row.
-                if (!self.Tracked)
+                // position) side is a main of that champion, the opponent is whoever
+                // was in that lane. Keeping the two folds' cohorts identical — hence
+                // the shared MatchupCohort — is what lets the read put lane WR and
+                // game WR on the same row.
+                if (!cohort.Contains(new MatchupCohortKey(matchId, self.ParticipantId)))
                 {
                     continue;
                 }
@@ -311,8 +314,7 @@ public sealed class ChampionLaneOutcomeAggregationProcess(
         int ChampionId,
         int TeamId,
         string TeamPosition,
-        string EloBracket,
-        bool Tracked);
+        string EloBracket);
 
     private readonly record struct MatchupKey(
         int ChampionId,

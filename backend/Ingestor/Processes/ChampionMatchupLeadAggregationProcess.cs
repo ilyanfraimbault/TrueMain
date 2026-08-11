@@ -1,6 +1,7 @@
 using Core.Lol.Patches;
 using Core.Options;
 using Data;
+using Data.Aggregation;
 using Data.Entities;
 using Ingestor.Options;
 using Ingestor.Processes.Summaries;
@@ -31,6 +32,13 @@ namespace Ingestor.Processes;
 /// the real total. Aged-out patches are never revisited (retention only ever drops
 /// whole patches, never a mid-patch straggler — see <c>MatchDataRetentionProcess</c>),
 /// so their rows simply freeze once their matches are gone, same as Powerspike.
+///
+/// <para>
+/// The champion side of every row is a <b>main of that champion</b>
+/// (<see cref="MatchupCohort"/>), the same cohort the champion aggregates on the page
+/// around the panel count. It used to be the wider "any account we know", which put
+/// 3.2× more games behind the matchups panel than behind the header directly above it.
+/// </para>
 /// </summary>
 public sealed class ChampionMatchupLeadAggregationProcess(
     ILogger<ChampionMatchupLeadAggregationProcess> logger,
@@ -116,16 +124,22 @@ public sealed class ChampionMatchupLeadAggregationProcess(
             .Select(m => new { m.Id, m.GameVersion })
             .ToDictionaryAsync(m => m.Id, m => PatchVersion.Normalize(m.GameVersion), ct);
 
+        // Who may contribute a champion-side row. Every participant below is loaded
+        // regardless — an off-cohort player is still somebody's lane opponent — and
+        // membership is tested per row against this set. See MatchupCohort for why the
+        // gate is "main of this champion" rather than "account we know".
+        var cohort = await MatchupCohort.LoadAsync(db, matchIds, ct);
+
         var participants = await db.MatchParticipants
             .AsNoTracking()
             .Where(p => matchIds.Contains(p.MatchId) && CanonicalPositions.Contains(p.TeamPosition))
             .Select(p => new ParticipantRow(
                 p.MatchId,
+                p.ParticipantId,
                 p.ChampionId,
                 p.TeamId,
                 p.TeamPosition,
                 p.EloBracket,
-                p.RiotAccountId != null,
                 p.Win))
             .ToListAsync(ct);
 
@@ -145,7 +159,7 @@ public sealed class ChampionMatchupLeadAggregationProcess(
 
             foreach (var p1 in parts)
             {
-                if (!p1.Tracked)
+                if (!cohort.Contains(new MatchupCohortKey(matchId, p1.ParticipantId)))
                 {
                     continue;
                 }
@@ -224,11 +238,11 @@ public sealed class ChampionMatchupLeadAggregationProcess(
 
     private sealed record ParticipantRow(
         string MatchId,
+        int ParticipantId,
         int ChampionId,
         int TeamId,
         string TeamPosition,
         string EloBracket,
-        bool Tracked,
         bool Win);
 
     private readonly record struct MatchupKey(int ChampionId, string TeamPosition, int OpponentChampionId, string Patch, string EloBracket);

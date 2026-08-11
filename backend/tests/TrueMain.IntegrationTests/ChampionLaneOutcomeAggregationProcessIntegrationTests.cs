@@ -200,6 +200,24 @@ public sealed class ChampionLaneOutcomeAggregationProcessIntegrationTests
             .Build();
         db.RiotAccounts.Add(account);
 
+        // The fold's champion-side cohort is "main of this champion"
+        // (Data.Aggregation.MatchupCohort), joined on (platform, puuid, champion) —
+        // so a tracked account alone no longer folds anything, and the participant
+        // rows below must carry the account's real puuid the way RiotMatchMapper
+        // writes them.
+        db.MainChampionStats.Add(new MainChampionStat
+        {
+            PlatformId = account.PlatformId,
+            Puuid = account.Puuid,
+            ChampionId = Champion,
+            TotalMatches = games,
+            ChampionMatches = games,
+            PlayRate = 1.0,
+            IsMain = true,
+            PrimaryPosition = Position,
+            CalculatedAtUtc = DateTime.UtcNow,
+        });
+
         for (var i = 0; i < games; i++)
         {
             var matchId = $"lane-{i}";
@@ -210,7 +228,7 @@ public sealed class ChampionLaneOutcomeAggregationProcessIntegrationTests
                 .WithTimelineIngested()
                 .Build());
 
-            db.MatchParticipants.Add(Participant(matchId, 1, Champion, teamId: 100, account.Id));
+            db.MatchParticipants.Add(Participant(matchId, 1, Champion, teamId: 100, account.Id, account.Puuid));
             db.MatchParticipants.Add(Participant(matchId, 2, Opponent, teamId: 200, riotAccountId: null));
 
             if (withSnapshots)
@@ -224,12 +242,12 @@ public sealed class ChampionLaneOutcomeAggregationProcessIntegrationTests
     }
 
     private static MatchParticipant Participant(
-        string matchId, int participantId, int championId, int teamId, Guid? riotAccountId)
+        string matchId, int participantId, int championId, int teamId, Guid? riotAccountId, string? puuid = null)
         => new()
         {
             MatchId = matchId,
             ParticipantId = participantId,
-            Puuid = $"puuid-{matchId}-{participantId}",
+            Puuid = puuid ?? $"puuid-{matchId}-{participantId}",
             RiotAccountId = riotAccountId,
             SummonerName = "seed",
             SummonerLevel = 100,
