@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   formatGoldDiff,
   goldDiffBand,
-  goldDiffTone,
   laneVerdict,
   LANE_DOMINANT_GOLD,
   LANE_EVEN_GOLD,
