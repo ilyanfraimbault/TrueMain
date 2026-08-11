@@ -11,13 +11,15 @@ import { POSITION_BY_VALUE } from '~/utils/positions'
  *
  * Two portraits facing each other, and nothing else. The picks are made by
  * clicking a portrait (`ChampionSlot` opens a champion search); the role, which
- * gates every fetch on the page, is a labelled header row above them. The
+ * gates every fetch on the page, sits on its own header row above them. The
  * select fields this replaced were the loudest thing in the stage — a wide
  * combobox wrapping a single word — while the portrait beside each one carried
  * no interaction at all.
  *
- * Ownership is carried by the accent, not by a tinted panel: your label and
- * portrait ring are `primary`, the opponent's are neutral. The former
+ * Near-textless on purpose (#1067): the only words left are the picked role,
+ * which the icon-only strip cannot express, and the champion names under filled
+ * tiles. Ownership is carried by the accent alone — your portrait's ring is
+ * `primary`, the opponent's neutral — and not by a tinted panel: the former
  * `bg-primary/5` + `ring-primary/25` side panel was a rose-gold *surface* tint,
  * which the design system no longer allows.
  *
@@ -44,29 +46,20 @@ defineEmits<{
     aria-label="Matchup"
   >
     <!-- Role first: it gates the whole page (no build is fetched without it)
-         and it used to hide, unlabelled, under the champion select. -->
+         and it used to hide under the champion select. The strip is icons only,
+         so the picked role is named in words beside it — that name is the only
+         text in the block, which is why it earns its place. -->
     <div class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-default pb-4">
-      <p class="stat-label">
-        Your role
-      </p>
       <RolePicker
         :position="playedPosition"
         hide-all
         @update:position="$emit('update:playedPosition', $event)"
       />
-      <!-- The strip is icons only, so the picked role is named in words —
-           it used to be the label under the `vs` chip. -->
       <p
         v-if="playedPosition"
         class="text-xs text-muted"
       >
         {{ POSITION_BY_VALUE.get(playedPosition)?.label ?? playedPosition }}
-      </p>
-      <p
-        v-else
-        class="text-xs text-dimmed"
-      >
-        Required — builds are read per role.
       </p>
     </div>
 
@@ -74,9 +67,7 @@ defineEmits<{
       <BuilderChampionSlot
         :champions="champions"
         :champion-id="playedChampionId"
-        label="You play"
         title="Choose your champion"
-        empty-caption="Pick a champion"
         accent
         @update:champion-id="$emit('update:playedChampionId', $event)"
       />
@@ -89,9 +80,7 @@ defineEmits<{
       <BuilderChampionSlot
         :champions="champions"
         :champion-id="opponentChampionId"
-        label="Role opponent"
         title="Choose the role opponent"
-        empty-caption="Any opponent"
         @update:champion-id="$emit('update:opponentChampionId', $event)"
       />
     </div>
