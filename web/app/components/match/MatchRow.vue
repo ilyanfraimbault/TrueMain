@@ -175,15 +175,21 @@ const kdaRatio = computed(() => {
   return `${((kills + assists) / deaths).toFixed(2)} KDA`
 })
 
-// Value-graded accent on the KDA ratio (op.gg-style): amber for standout
-// games (Perfect or 5+), sky for solid ones (3+), muted otherwise. Sky
-// intentionally matches the win axis; amber is a warm standout accent, close
-// to but not the same token as the `gold` MVP crown below.
+// Value-graded accent on the KDA ratio (op.gg-style): gold for standout games
+// (Perfect or 5+), the data axis' good end for solid ones (3+), muted
+// otherwise.
+//
+// The middle step used to be `text-sky-300` under a comment claiming it
+// "matches the win axis". It never did — the win axis is the row's own
+// blue/red result colour, not this — and a sky blue on a measurement is a hue
+// this palette does not have. Standout is `--color-gold`, the same token the
+// MVP crown wears, which is the point: a Perfect KDA is the row saying the same
+// thing the crown does.
 const kdaColor = computed(() => {
   const { kills, deaths, assists } = self.value
   const ratio = deaths === 0 ? Infinity : (kills + assists) / deaths
-  if (ratio >= 5) return 'text-amber-300'
-  if (ratio >= 3) return 'text-sky-300'
+  if (ratio >= 5) return 'text-gold'
+  if (ratio >= 3) return 'text-data-good'
   return 'text-muted'
 })
 
@@ -219,8 +225,8 @@ function ordinal(n: number): string {
 // thresholds the model's own bands imply: 50 is "average on every available
 // component", so a standout has to clear it comfortably.
 const perfColor = computed(() => {
-  if (perfScore.value >= 75) return 'text-amber-300'
-  if (perfScore.value >= 60) return 'text-sky-300'
+  if (perfScore.value >= 75) return 'text-gold'
+  if (perfScore.value >= 60) return 'text-data-good'
   return 'text-muted'
 })
 

@@ -23,9 +23,13 @@ const champName = computed(() => champ.value?.name ?? `Champion ${props.particip
 
 const laning = computed(() => props.participant.laning15)
 
+// A laning differential is a measurement, so it speaks the data axis rather
+// than the blue/red the row uses for *which side won*. Ahead is the accent,
+// behind steps down to the neutral end — the same one-sided read as every other
+// number on the site since #1096.
 function diffClass(value: number) {
-  if (value > 0) return 'text-sky-400'
-  if (value < 0) return 'text-red-400'
+  if (value > 0) return 'text-data-good'
+  if (value < 0) return 'text-data-bad'
   return 'text-muted'
 }
 function fmtDiff(value: number) {
