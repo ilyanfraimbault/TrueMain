@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { RouteLocationRaw } from 'vue-router'
 import { POSITION_BY_VALUE } from '~/utils/positions'
-import { presenceTone, winRateTone } from '~/utils/rate-tone'
+import { banRateTone, pickRateTone, winRateTone } from '~/utils/rate-tone'
 import { formatPercentage, formatPercentageOrDash } from '~~/shared/utils/ddragon'
 
 // A champion in the tier list: the portrait, its lane badged into the corner,
@@ -26,8 +26,8 @@ const positionOption = computed(() => POSITION_BY_VALUE.get(props.position))
 // read as a small table — same shape as RateBadge's tooltip.
 const stats = computed(() => [
   { label: 'Win rate', value: formatPercentage(props.winRate), tone: winRateTone(props.winRate) },
-  { label: 'Pick rate', value: formatPercentage(props.pickRate), tone: presenceTone(props.pickRate) },
-  { label: 'Ban rate', value: formatPercentageOrDash(props.banRate), tone: presenceTone(props.banRate) },
+  { label: 'Pick rate', value: formatPercentage(props.pickRate), tone: pickRateTone(props.pickRate) },
+  { label: 'Ban rate', value: formatPercentageOrDash(props.banRate), tone: banRateTone(props.banRate) },
 ])
 
 // The tooltip is hover-only, so the link itself has to carry the whole content

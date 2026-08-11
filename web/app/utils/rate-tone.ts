@@ -7,7 +7,8 @@
  *
  * Only the win rate rides the good↔bad axis. Pick and ban rate are *presence*,
  * not performance: a niche champion is not "bad" at being picked, so those two
- * use a one-sided ramp that fades to muted instead of turning amber.
+ * use a one-sided ramp that fades to muted instead of turning amber — and they
+ * do not share a scale with each other either (see the constants below).
  */
 
 /** Win rates inside ±this of 50% are noise, not an edge. */
@@ -33,24 +34,44 @@ export function winRateTone(value: number | null | undefined): string {
 }
 
 /**
- * Above this share, the champion is a staple of the lane (or a ban the lobby
- * spends a slot on). Pick rate's denominator is mains' games *at that lane*, so
- * a lane of ~20 viable champions puts the average around 5% — the two bands are
- * "roughly one of the standard picks" and "clearly more than that".
+ * Pick and ban rate share a shape — "how present is this champion" — but not a
+ * scale, so they get their own bands. Both are calibrated against the live
+ * tier list on patch 16.15 (561 rows) rather than guessed, because a threshold
+ * no row ever crosses is a colour that never appears.
+ *
+ * Pick rate's denominator is mains' games *at that lane*, split across ~110
+ * champion rows per lane: the median row sits at 0.3% and the busiest champion
+ * on the patch reaches 7.6%. 2% is roughly the top sixth of the list, 4% its
+ * top thirtieth.
  */
-export const PRESENCE_HIGH = 0.1
-
-/** Above this share, the champion is a regular sight rather than a pocket pick. */
-export const PRESENCE_NOTABLE = 0.05
+export const PICK_RATE_HIGH = 0.04
+export const PICK_RATE_NOTABLE = 0.02
 
 /**
- * Colour for a pick or ban rate (0..1). One-sided on purpose: high presence
- * gets the teal end, everything else stays muted rather than being accused of
- * being bad.
+ * Ban rate counts every observed match, so it runs an order of magnitude
+ * higher — median 2.6%, and the most-hated champion of the patch is banned in
+ * 59.5% of games. 5% is the third of the list anyone bothers to ban; 15% is a
+ * champion the lobby regularly spends a ban slot on.
  */
-export function presenceTone(value: number | null | undefined): string {
+export const BAN_RATE_HIGH = 0.15
+export const BAN_RATE_NOTABLE = 0.05
+
+function presenceTone(value: number | null | undefined, notable: number, high: number): string {
   if (value === null || value === undefined) return 'text-muted'
-  if (value >= PRESENCE_HIGH) return 'text-data-good'
-  if (value >= PRESENCE_NOTABLE) return 'text-data-good-dim'
+  if (value >= high) return 'text-data-good'
+  if (value >= notable) return 'text-data-good-dim'
   return 'text-muted'
+}
+
+/**
+ * Colour for a pick rate (0..1). One-sided on purpose: high presence gets the
+ * teal end, everything else stays muted rather than being accused of being bad.
+ */
+export function pickRateTone(value: number | null | undefined): string {
+  return presenceTone(value, PICK_RATE_NOTABLE, PICK_RATE_HIGH)
+}
+
+/** Colour for a ban rate (0..1), on its own scale — see the constants above. */
+export function banRateTone(value: number | null | undefined): string {
+  return presenceTone(value, BAN_RATE_NOTABLE, BAN_RATE_HIGH)
 }

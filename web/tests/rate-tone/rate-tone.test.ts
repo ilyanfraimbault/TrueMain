@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
-  PRESENCE_HIGH,
-  PRESENCE_NOTABLE,
-  presenceTone,
+  BAN_RATE_HIGH,
+  BAN_RATE_NOTABLE,
+  banRateTone,
+  PICK_RATE_HIGH,
+  PICK_RATE_NOTABLE,
+  pickRateTone,
   WIN_RATE_DECISIVE,
   WIN_RATE_EDGE,
   winRateTone,
@@ -32,21 +35,38 @@ describe('winRateTone', () => {
   })
 })
 
-describe('presenceTone', () => {
+describe('pickRateTone', () => {
   it('only colours the high end — a rare pick is not a bad one', () => {
-    expect(presenceTone(0.2)).toBe('text-data-good')
-    expect(presenceTone(0.07)).toBe('text-data-good-dim')
-    expect(presenceTone(0.01)).toBe('text-muted')
-    expect(presenceTone(0)).toBe('text-muted')
+    expect(pickRateTone(0.06)).toBe('text-data-good')
+    expect(pickRateTone(0.03)).toBe('text-data-good-dim')
+    expect(pickRateTone(0.003)).toBe('text-muted')
+    expect(pickRateTone(0)).toBe('text-muted')
   })
 
   it('puts each boundary in the stronger band', () => {
-    expect(presenceTone(PRESENCE_HIGH)).toBe('text-data-good')
-    expect(presenceTone(PRESENCE_NOTABLE)).toBe('text-data-good-dim')
-    expect(presenceTone(PRESENCE_NOTABLE - 0.001)).toBe('text-muted')
+    expect(pickRateTone(PICK_RATE_HIGH)).toBe('text-data-good')
+    expect(pickRateTone(PICK_RATE_NOTABLE)).toBe('text-data-good-dim')
+    expect(pickRateTone(PICK_RATE_NOTABLE - 0.001)).toBe('text-muted')
+  })
+})
+
+describe('banRateTone', () => {
+  it('runs an order of magnitude above pick rate, so it bands higher', () => {
+    expect(banRateTone(0.3)).toBe('text-data-good')
+    expect(banRateTone(0.09)).toBe('text-data-good-dim')
+    expect(banRateTone(0.02)).toBe('text-muted')
+    // The scales are genuinely different: 6% is a busy ban and an unheard-of pick.
+    expect(banRateTone(0.06)).toBe('text-data-good-dim')
+    expect(pickRateTone(0.06)).toBe('text-data-good')
   })
 
-  it('stays muted for a ban rate the patch never observed (#920)', () => {
-    expect(presenceTone(null)).toBe('text-muted')
+  it('puts each boundary in the stronger band', () => {
+    expect(banRateTone(BAN_RATE_HIGH)).toBe('text-data-good')
+    expect(banRateTone(BAN_RATE_NOTABLE)).toBe('text-data-good-dim')
+    expect(banRateTone(BAN_RATE_NOTABLE - 0.001)).toBe('text-muted')
+  })
+
+  it('stays muted for a patch that never observed bans (#920)', () => {
+    expect(banRateTone(null)).toBe('text-muted')
   })
 })

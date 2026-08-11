@@ -265,7 +265,9 @@ directory already uses for the secondary rune tree), and hovering gives the name
 Ban rate`. In the tooltip the values *are* coloured on the `--color-data-*` axis, which the directory row
 deliberately refuses — colour that is noise in a dense table of forty rows is the whole point of a panel
 showing three numbers. Only the win rate uses the good↔bad axis; pick and ban rate fade to muted at the low
-end instead of turning amber, because a pocket pick is rare, not bad (`app/utils/rate-tone.ts`). The cost is
+end instead of turning amber, because a pocket pick is rare, not bad — and they get *separate* bands, since
+they do not share a denominator: on 16.15 the median pick rate is 0.3% against a median ban rate of 2.6%, so
+one threshold pair would have coloured every ban and no pick (`app/utils/rate-tone.ts`). The cost is
 that no tooltip opens on touch, so the link's `aria-label` carries name, lane and all three rates — that
 string is also what a screen reader gets, and it is the reason the missing ban rate is dropped from it
 entirely rather than announced as "dash BR".
