@@ -8,7 +8,7 @@
 
 <template>
   <article
-    class="@container flex overflow-hidden rounded-md bg-elevated/30"
+    class="@container flex overflow-hidden rounded-md bg-elevated"
     aria-hidden="true"
   >
     <div class="flex flex-1 flex-wrap items-center gap-2 px-2 py-2 @md:flex-nowrap @2xl:gap-3 @2xl:px-3 @2xl:py-2.5">

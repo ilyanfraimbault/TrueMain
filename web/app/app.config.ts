@@ -39,6 +39,19 @@ export default defineAppConfig({
         variant: 'soft',
       },
     },
+    // Nuxt UI paints a skeleton `bg-elevated` — which, since #1060, is the exact
+    // fill of every `surface` card. A skeleton inside a card was therefore
+    // invisible: same colour, no edge, nothing to see while a page loaded.
+    //
+    // `ink-700` rather than the next ladder step (`bg-accented`, #24242a)
+    // because `animate-pulse` is `50% { opacity: .5 }` — half of every cycle the
+    // fill is blended halfway back into whatever is behind it. Accented at 50%
+    // over a card lands on #1f1f25 and disappears again; ink-700 at 50% lands
+    // near #2a2a31, which is the contrast the static swatch only *looks* like it
+    // has. Judge a skeleton colour at half opacity, not at full.
+    skeleton: {
+      base: 'bg-ink-700',
+    },
     // `subtle` ships a translucent `bg-{color}/10` fill + a matching
     // `ring ring-inset ring-{color}/25`, which is the right shape for a badge:
     // it tints without becoming a surface of its own, and keeps the per-color

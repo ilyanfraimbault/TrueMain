@@ -1,11 +1,16 @@
 <script setup lang="ts">
 // Same column shape as LeaderboardRow.vue so placeholders don't shift the
 // layout when the data resolves — including the same @container breakpoints.
+// The shell is `surface`, the same material the real row gets from
+// ListRowSurface: a translucent stand-in reads as a *dimmer* row, so the whole
+// list brightened when the data landed. Radius, padding and gap were drifting
+// from ListRowSurface too (rounded-md/py-2/gap-3 against rounded-lg/py-2.5/
+// gap-2), which is a 4px height shift per row — realigned here.
 </script>
 
 <template>
   <div
-    class="@container flex items-center gap-3 rounded-md border border-default/40 bg-elevated/20 px-3 py-2"
+    class="surface @container flex items-center gap-2 rounded-lg px-3 py-2.5"
     aria-hidden="true"
   >
     <USkeleton class="h-4 w-8" />

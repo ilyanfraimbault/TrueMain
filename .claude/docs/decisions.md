@@ -551,6 +551,17 @@ sample, not the latency** — which is the opposite of what the issue assumed. D
 matchup whatever its volume, with the game count on every variation, rather than hiding thin sections or
 silently widening the window. The reader is told how thin the answer is instead of being given a fabricated one.
 
+↳ **`/matchup` was the one place that didn't follow this, and now does** (#1075). The draft tool carried its own
+`MATCHUP_SAMPLE_FLOOR = 8`: below it the matchup build was replaced by the champion's standard build behind a
+warning banner, with the real build one "Show it anyway" click away. Against the measurement above — median
+**4 games** per pair — that floor was withholding the matchup build for **more than half of every pair a reader
+can select**, which is exactly the "hiding thin sections" this decision rejected. The build now always renders
+and is qualified in place by `RecommendationPanel`'s existing low-sample icon, whose own floor (20 games) sits
+well above anything the removed one caught. Only the genuinely empty case survives — no recorded game at all,
+where there is no matchup build to show — and even that is now an icon-and-tooltip on the standard build's card
+rather than a banner. **Caveats belong in a tooltip on the answer, not in a block above it**: a banner pushes
+the thing the reader came for down the page and gets dismissed as chrome either way.
+
 **An expensive read path behind a TTL cache needs a single-flight, not a lock** (#870,
 `Api/Services/RequestCoalescer.cs`). The cache protects steady state; the stampede happens on the first
 request and at every TTL expiry, when concurrent callers all miss at once and each start the same scan — up to

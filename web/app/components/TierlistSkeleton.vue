@@ -27,6 +27,10 @@ const GROUPS = [12, 18, 15, 10, 6]
           v-for="i in count"
           :key="i"
         >
+          <!-- The chip is now a bare portrait, so its placeholder is the
+               portrait's own material — the same box `SkeletonImage` paints
+               while the icon loads, at the same size and radius (#1078: a
+               shell takes the material of what it replaces). -->
           <USkeleton class="size-12 rounded-lg" />
         </li>
       </ul>
