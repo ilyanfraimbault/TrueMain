@@ -21,6 +21,7 @@ import type {
   ChampionBuild,
   ChampionComparisonSide,
   ChampionMainsComparison,
+  ChampionMatchupEntry,
   ChampionMatchups,
   ChampionOverviewResponse,
   ChampionPatchDiffResponse,
@@ -823,7 +824,7 @@ async function mockMatchups(id: number): Promise<ChampionMatchups | null> {
     championId: s.id,
     position: s.position,
     patch: await latestShortPatch(),
-    matchups: opponents.map((o) => {
+    matchups: withMatchupShares(opponents.map((o) => {
       const games = Math.round(40 + rng() * 360)
       const winRate = round3(Math.min(0.6, Math.max(0.4, 0.5 + (s.wr - o.wr) * 1.6 + (rng() - 0.5) * 0.07)))
       // Lane outcome (#919). Only *decided* lanes count, so the sample is always a
@@ -859,8 +860,35 @@ async function mockMatchups(id: number): Promise<ChampionMatchups | null> {
         averageGoldDiffAt15,
         goldDiffLaneGames,
       }
-    }),
+    })),
   }
+}
+
+/**
+ * Fills in the two fields the panel *ranks* on, which the rows above cannot know
+ * on their own: `playRate` needs the field's total, and the Wilson bounds need to
+ * agree with the real ones or the mock would order the best/worst lists
+ * differently from production — the one property of this panel worth eyeballing
+ * without a backend. Mirrors `RateMath.WilsonInterval`.
+ */
+function withMatchupShares(
+  rows: Omit<ChampionMatchupEntry, 'playRate' | 'winRateLowerBound' | 'winRateUpperBound'>[],
+): ChampionMatchupEntry[] {
+  const total = rows.reduce((sum, row) => sum + row.games, 0)
+  const z = 1.959963984540054
+  return rows.map((row) => {
+    const n = row.games
+    const p = n === 0 ? 0 : row.wins / n
+    const denominator = 1 + (z * z) / n
+    const centre = (p + (z * z) / (2 * n)) / denominator
+    const margin = (z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n))) / denominator
+    return {
+      ...row,
+      playRate: total === 0 ? 0 : round3(n / total),
+      winRateLowerBound: round3(Math.max(0, centre - margin)),
+      winRateUpperBound: round3(Math.min(1, centre + margin)),
+    }
+  })
 }
 
 // Synergy mocks (#922). The panel's whole point is that the ranking value is

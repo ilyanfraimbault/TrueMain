@@ -630,6 +630,7 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
             :champion-id="championId"
             :position="selectedPosition"
             :elo-bracket="eloBracketParam"
+            :patch="selectedPatch"
             v-bind="matchupsSnapshot.value"
             @vue:mounted="matchupsSnapshot.reveal"
           />

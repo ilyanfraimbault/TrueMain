@@ -52,16 +52,64 @@ public sealed class ChampionsListOptions
     public double MinSecondaryLanePlayRate { get; set; } = 0.10;
 
     /// <summary>
-    /// Minimum games a champion-vs-opponent lane matchup needs before the
-    /// matchup endpoints include it. A handful of games against a specific
-    /// opponent is noise — a single lucky game would read as a 100% matchup —
-    /// so opponents below this floor are dropped from the list in SQL (a HAVING
-    /// on the grouped game count); the endpoint still returns 200 with the
-    /// qualifying entries (an empty list when none clear the floor). Ten is the
+    /// Absolute minimum games a champion-vs-opponent lane matchup needs before the
+    /// matchup leaderboard includes it. A handful of games against a specific
+    /// opponent is noise — a single lucky game would read as a 100% matchup — so
+    /// opponents below this floor are dropped; the endpoint still returns 200 with
+    /// the qualifying entries (an empty list when none clear the floor). Ten is the
     /// smallest sample where the head-to-head win rate starts to carry signal
     /// rather than echoing one or two games. Set to 0 to disable the floor.
+    ///
+    /// <para>
+    /// This is the floor for *thin* champions only. On a heavily played one it is
+    /// far too permissive — measured on production, Viego JUNGLE met 71 opponents
+    /// over 14.7k games on a single patch and the 8 lines under 20 games were 0.2%
+    /// of that sample yet held the entire best/worst leaderboard. The share-based
+    /// <see cref="MinMatchupPlayRate"/> is what scales with volume; the effective
+    /// floor is the larger of the two.
+    /// </para>
     /// </summary>
     public int MinMatchupGames { get; set; } = 10;
+
+    /// <summary>
+    /// Minimum share of the champion's total matchup games — the games summed over
+    /// every opponent it met in the same scope — a single opponent must hold to
+    /// appear on the matchup leaderboard. The floor a matchup is actually judged
+    /// against is <c>max(MinMatchupGames, MinMatchupPlayRate × total)</c>, so it
+    /// tracks how much the champion is played instead of being tuned per champion.
+    ///
+    /// <para>
+    /// 0.5% measured on production: it keeps 51 of Viego JUNGLE's 71 opponents on
+    /// patch 16.15 (94.6% of the games) while cutting every line the leaderboard
+    /// was previously topped by. On a thin champion it is *below* the absolute
+    /// floor and therefore inert — Aurelion Sol MIDDLE's 1 650 games put it at 8,
+    /// under <see cref="MinMatchupGames"/> — which is the point: no champion ends
+    /// up with an empty panel because it is unpopular.
+    /// </para>
+    ///
+    /// <para>
+    /// The single-opponent search ignores this floor, like it ignores the absolute
+    /// one: a deliberate lookup answers with whatever games exist. Set to 0 to
+    /// disable.
+    /// </para>
+    /// </summary>
+    public double MinMatchupPlayRate { get; set; } = 0.005;
+
+    /// <summary>
+    /// Minimum *decided* lanes (won or lost past the gold threshold at 15 minutes)
+    /// behind the lane win rate before the matchup endpoints report it. Below this,
+    /// the entry keeps its games and its game win rate and returns a null lane rate,
+    /// which the frontend renders as an em dash.
+    ///
+    /// <para>
+    /// A separate floor because it is a separate sample: the games floors above
+    /// count games played, and only ~58% of those (production median) are ever
+    /// decided lanes. Floor-clearing rows were printing "100% lane" off seven
+    /// decided lanes — the most confident-looking cell on the panel resting on its
+    /// smallest sample. Set to 0 to report every non-empty lane sample.
+    /// </para>
+    /// </summary>
+    public int MinDecidedLaneGames { get; set; } = 10;
 
     /// <summary>
     /// Minimum games a champion-vs-opponent matchup needs in a

@@ -260,13 +260,37 @@ export interface ChampionMatchupEntry {
   wins: number
   winRate: number
   /**
+   * Share of the champion's total matchup games this opponent holds, in the same
+   * scope and before any floor. What the backend's leaderboard floor is expressed
+   * in (`ChampionsList:MinMatchupPlayRate`), so it is also the honest way to say
+   * how often the matchup actually happens. `0` on the single-opponent search,
+   * which reads one row and has no total to divide by.
+   */
+  playRate: number
+  /**
+   * Lower bound of the 95% Wilson interval around `winRate` — "at worst this
+   * matchup is this good". **Rank the best list on this, not on `winRate`.**
+   * Sorting the raw rate makes the leaderboard a small-sample detector: the most
+   * extreme rate on a wide field is essentially always the thinnest sample, so
+   * eleven games at 82% outranked 739 games at 57%. Both bound at ~52% and ~54%.
+   */
+  winRateLowerBound: number
+  /**
+   * Upper bound of the same interval, and the key for the *worst* list, ascending
+   * — a bad matchup is one whose ceiling is low. Using the lower bound at both
+   * ends would rank the worst list by which sample is thinnest, reintroducing at
+   * the bottom exactly what the top was fixed for.
+   */
+  winRateUpperBound: number
+  /**
    * Share of *decided* lanes won against this opponent — ahead by more than the
    * configured gold threshold at 15 minutes (#919). Denominator is
    * `decidedLaneGames`, never `games`: a match with no timeline, one that ended
    * before 15 min, or a lane inside the threshold band is not a decided lane.
    *
-   * `null` = nothing can be said (no decided lane in scope, or a player-scoped
-   * slice, which has no lane data behind it). Never render it as 0%.
+   * `null` = nothing can be said: fewer decided lanes than
+   * `ChampionsList:MinDecidedLaneGames` (which includes none at all), or a
+   * player-scoped slice, which has no lane data behind it. Never render it as 0%.
    */
   laneWinRate: number | null
   /** Lanes actually decided; the sample `laneWinRate` rests on. Smaller than `games`. */
@@ -287,9 +311,10 @@ export interface ChampionMatchupEntry {
 }
 
 /**
- * All of a champion's lane matchups at a position. Served from the
- * `champion_matchup_stats` aggregate for the panel, computed live from match
- * participants only for the single-opponent search (floor of 1 game). The client
+ * All of a champion's lane matchups at a position and (when the caller pins one)
+ * patch. Served from the `champion_matchup_stats` aggregate for every global
+ * slice, search included; computed live from match participants only for the
+ * player-scoped route, which the aggregate has no dimension for. The client
  * slices a best/worst leaderboard out of it and filters it for the search.
  */
 export interface ChampionMatchups {

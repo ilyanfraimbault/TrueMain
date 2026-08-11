@@ -2,13 +2,15 @@ namespace Data.Entities;
 
 /// <summary>
 /// Pre-aggregated champion-vs-lane-opponent record for the global matchups
-/// leaderboard. One row per (champion, position, opponent, patch) slice over the
-/// tracked-account population on the configured queue. Stores the additive facts
-/// only — games and wins, with NO sample floor applied — so the read side can
-/// fold rows to the requested patch scope (a single patch, or all patches summed)
-/// and apply the games floor on the merged total. Replaces the per-request
-/// self-join over <see cref="MatchParticipant"/> for the global slice (#606); the
-/// player-scoped and opponent-search slices stay live.
+/// leaderboard. One row per (champion, position, opponent, patch) slice on the
+/// configured queue, counting the games of players who are <b>mains of the
+/// champion side</b> — see <c>Data.Aggregation.MatchupCohort</c>, which both folds
+/// share — against whoever held that lane. Stores the additive facts only, with NO
+/// sample floor applied, so the read side can fold rows to the requested patch
+/// scope (a single patch, or all patches summed) and apply its floors on the
+/// merged total. Replaces the per-request self-join over
+/// <see cref="MatchParticipant"/> for every global slice (#606); only the
+/// player-scoped slice stays live, having no dimension here.
 /// </summary>
 public class ChampionMatchupStat
 {
