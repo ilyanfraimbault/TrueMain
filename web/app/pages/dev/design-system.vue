@@ -320,9 +320,10 @@ const TEXT_TOKENS = [
       subtitle="A rate as a length. `max` normalises a column against its own peak — a 6% pick rate against a 100% track is a rounding error you cannot see."
     >
       <div class="flex flex-col gap-4">
+        <!-- Keyed on the pair, not the label: three of these are "Pick rate". -->
         <div
           v-for="bar in METRIC_BARS"
-          :key="bar.label"
+          :key="`${bar.label}-${bar.display}`"
           class="flex items-center gap-3"
         >
           <span class="stat-label w-28 shrink-0">{{ bar.label }}</span>
