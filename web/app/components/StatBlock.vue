@@ -30,11 +30,20 @@ const props = withDefaults(defineProps<{
    * exists". An em dash for an unmeasured value should use `default`.
    */
   tone?: 'default' | 'good' | 'mid' | 'bad'
+  /**
+   * Escape hatch for callers that already own a *domain* colour rule and return
+   * a Tailwind text class from it — `utils/rate-tone` is the one that matters:
+   * a win rate must be banded identically wherever it appears, and re-deriving
+   * `tone` from the same number at each call site is how that drifts. Wins over
+   * `tone` when both are set.
+   */
+  valueClass?: string | null
   /** Display step of the value. The label stays 10px at every size. */
   size?: 'sm' | 'md' | 'lg' | 'xl'
   align?: 'start' | 'center' | 'end'
 }>(), {
   caption: null,
+  valueClass: null,
   tone: 'default',
   size: 'md',
   align: 'start',
@@ -63,7 +72,7 @@ const ALIGN_CLASS = {
   end: 'items-end text-right',
 } as const
 
-const toneClass = computed(() => TONE_CLASS[props.tone])
+const toneClass = computed(() => props.valueClass ?? TONE_CLASS[props.tone])
 const sizeClass = computed(() => SIZE_CLASS[props.size])
 const alignClass = computed(() => ALIGN_CLASS[props.align])
 </script>
