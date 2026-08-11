@@ -19,19 +19,39 @@ export const WIN_RATE_EDGE = 0.01
 export const WIN_RATE_DECISIVE = 0.03
 
 /**
- * Colour for a win rate (0..1), or muted when there is nothing to colour.
- * Symmetric around 50% — the boundary value always belongs to the stronger band
- * on both sides, so 51% and 49% are equally emphatic.
+ * The reading `StatBlock` takes: where a value sits on the data axis, with no
+ * class attached. `default` is "no such reading exists" — an unmeasured value —
+ * and is distinct from `mid`, which is "measured, and it is average".
  */
-export function winRateTone(value: number | null | undefined): string {
-  if (value === null || value === undefined) return 'text-muted'
+export type RateBand = 'default' | 'good' | 'mid' | 'bad'
+
+/**
+ * Which side of the pack a win rate (0..1) is on. Symmetric around 50% — the
+ * boundary value always belongs to the stronger band on both sides, so 51% and
+ * 49% are equally emphatic.
+ */
+export function winRateBand(value: number | null | undefined): RateBand {
+  if (value === null || value === undefined) return 'default'
 
   const delta = value - 0.5
-  if (delta >= WIN_RATE_DECISIVE) return 'text-data-good'
-  if (delta >= WIN_RATE_EDGE) return 'text-data-good-dim'
-  if (delta <= -WIN_RATE_DECISIVE) return 'text-data-bad'
-  if (delta <= -WIN_RATE_EDGE) return 'text-data-bad-dim'
-  return 'text-data-mid'
+  if (delta >= WIN_RATE_EDGE) return 'good'
+  if (delta <= -WIN_RATE_EDGE) return 'bad'
+  return 'mid'
+}
+
+/**
+ * Colour for a win rate (0..1), or muted when there is nothing to colour. Same
+ * bands as `winRateBand`, plus the dim step inside `WIN_RATE_DECISIVE` — a rate
+ * that is ahead but not out of the pack should not shout as loudly as one that is.
+ */
+export function winRateTone(value: number | null | undefined): string {
+  const band = winRateBand(value)
+  if (band === 'default') return 'text-muted'
+  if (band === 'mid') return 'text-data-mid'
+
+  const decisive = Math.abs((value as number) - 0.5) >= WIN_RATE_DECISIVE
+  if (band === 'good') return decisive ? 'text-data-good' : 'text-data-good-dim'
+  return decisive ? 'text-data-bad' : 'text-data-bad-dim'
 }
 
 /**
@@ -70,6 +90,16 @@ function presenceTone(value: number | null | undefined, notable: number, high: n
  */
 export function pickRateTone(value: number | null | undefined): string {
   return presenceTone(value, PICK_RATE_NOTABLE, PICK_RATE_HIGH)
+}
+
+/**
+ * Same one-sided read as `pickRateTone`, as a `StatBlock` band: notable presence
+ * takes the accent end and everything else stays uncoloured. Never `bad` and
+ * never `mid` — a rare pick is rare, not average and not poor.
+ */
+export function pickRateBand(value: number | null | undefined): RateBand {
+  if (value === null || value === undefined) return 'default'
+  return value >= PICK_RATE_NOTABLE ? 'good' : 'default'
 }
 
 /** Colour for a ban rate (0..1), on its own scale — see the constants above. */

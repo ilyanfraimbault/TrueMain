@@ -69,6 +69,18 @@ export function formatGoldDiff(value: number): string {
   return `${sign}${Math.abs(rounded).toLocaleString('en-US')}`
 }
 
+/**
+ * The gap as a `StatBlock` band: ahead of the even band is good, behind it is bad,
+ * inside it is a measured draw. `null` has no reading at all — a gap that was never
+ * measured must not render as "dead even", the most decisive-looking verdict there is.
+ */
+export function goldDiffBand(value: number | null | undefined): 'default' | 'good' | 'mid' | 'bad' {
+  if (value === null || value === undefined) return 'default'
+  if (value >= LANE_EVEN_GOLD) return 'good'
+  if (value <= -LANE_EVEN_GOLD) return 'bad'
+  return 'mid'
+}
+
 /** Green ahead, red behind, muted inside the even band — same read as a win rate. */
 export function goldDiffTone(value: number): string {
   if (value >= LANE_EVEN_GOLD) return 'text-emerald-400'

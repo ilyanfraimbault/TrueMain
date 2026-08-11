@@ -87,14 +87,36 @@ const { data: championStatic } = useChampionStatic(
       title="Standard build unavailable"
       :description="describeFetchError(error)"
     />
-    <ChampionBuildPanel
+    <!-- The core block and the build tree, not the champion page's whole build
+         panel. This page is read to answer "what do I build into this
+         opponent": the champion's global variations, alternative rune pages and
+         power spikes answer a different question, and reading them here as if
+         they were the matchup's is worse than not showing them. -->
+    <div
       v-else-if="build && championStatic"
-      :build="build"
-      :champion-static="championStatic"
-      :items-map="itemsMap"
-      :summoners-map="summonersMap ?? {}"
-      :rune-tree="runeTree"
-    />
+      class="space-y-6"
+    >
+      <ChampionBuildPanelCore
+        :summoner-spells="build.core.summonerSpells"
+        :starter-items="build.core.starterItems"
+        :skill-order="build.core.skillOrder"
+        :boots="build.core.boots"
+        :item-path="build.core.itemPath"
+        :rune-page="build.core.runePage"
+        :champion-static="championStatic"
+        :items-map="itemsMap"
+        :summoners-map="summonersMap ?? {}"
+        :rune-tree="runeTree"
+        :keystone-size="35"
+      />
+      <ChampionBuildPanelBuildTree
+        v-if="build.buildTree.length > 0"
+        :tree="build.buildTree"
+        :first-item-id="build.firstItemId"
+        :item-path="build.core.itemPath?.itemIds ?? []"
+        :items-map="itemsMap"
+      />
+    </div>
     <div
       v-else
       class="surface rounded-lg px-6 py-10 text-center"

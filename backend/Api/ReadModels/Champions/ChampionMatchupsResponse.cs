@@ -66,8 +66,12 @@ public sealed record ChampionMatchupEntry
     /// any floor. The quantity the leaderboard's floor is expressed in
     /// (<see cref="TrueMain.Options.ChampionsListOptions.MinMatchupPlayRate"/>), returned
     /// so a client can say "you meet this opponent in 4% of your games" rather than
-    /// leaving a bare game count to mean whatever the reader assumes. Zero on the
-    /// single-opponent search, which reads one row and so has no total to divide by.
+    /// leaving a bare game count to mean whatever the reader assumes. The
+    /// single-opponent search reads one row, so it takes its denominator from a second
+    /// aggregate over the same scope rather than from the row itself.
+    ///
+    /// Zero only on the player-scoped route, whose live join is narrowed to the one
+    /// opponent and holds no such total.
     /// </summary>
     public double PlayRate { get; init; }
 

@@ -638,6 +638,20 @@ where there is no matchup build to show — and even that is now an icon-and-too
 rather than a banner. **Caveats belong in a tooltip on the answer, not in a block above it**: a banner pushes
 the thing the reader came for down the page and gets dismissed as chrome either way.
 
+↳ **A figure about the matchup does not live inside the card about the sample** (#1098). #976 folded the lane
+verdict into `RecommendationPanel`'s strip, on the reasoning that a win rate and a gold gap are one sentence
+read at two points in the game. True of the reading, wrong about the lifetime: that card is a live query over
+the retention window, and on the fallback path above it does not render at all — so a matchup with nothing
+left in `match_participants` lost **every number on the page** at the exact moment the build under it was the
+champion's global one rather than the matchup's. The matchup's record (games, win rate, matchup rate, lane
+figures) now has its own strip on the page, mounted on champion / role / opponent alone; the card keeps only
+what describes its own sample. `champion_matchup_stats` outlives the matches it was folded from, which is why
+the strip still answers where the live query cannot. The general rule: **two populations, two strips** — a
+figure belongs to the component whose mount condition matches the data's, not to the one it reads well beside.
+Same PR, same reasoning applied to the fallback build: it renders the standard build's core and tree only, not
+the champion page's variations and rune list, which are the champion's answer to a question this page isn't
+asking and are read as the matchup's simply by sitting here.
+
 **An expensive read path behind a TTL cache needs a single-flight, not a lock** (#870,
 `Api/Services/RequestCoalescer.cs`). The cache protects steady state; the stampede happens on the first
 request and at every TTL expiry, when concurrent callers all miss at once and each start the same scan — up to
