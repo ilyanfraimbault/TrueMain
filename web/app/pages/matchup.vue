@@ -367,5 +367,26 @@ const fallbackNotice = computed(() => {
 
     <!-- First fetch after the pick: a lightweight skeleton instead of a blank page. -->
     <ChampionBuildTabsSkeleton v-else-if="isDraftReady && isLoading" />
+
+    <!-- Nothing picked yet. Without this the page is a stage floating over a
+         screen of empty background — it reads as broken rather than as waiting
+         for input. Dashed, recessed and unlabelled by a heading so it stays a
+         placeholder and not a third panel to parse. -->
+    <div
+      v-if="!isDraftReady"
+      class="rounded-xl border border-dashed border-accented bg-muted px-6 py-12 text-center"
+    >
+      <UIcon
+        name="i-lucide-swords"
+        class="size-8 text-dimmed"
+      />
+      <p class="mt-3 font-medium text-highlighted">
+        Pick a champion and a role
+      </p>
+      <p class="mx-auto mt-1 max-w-md text-sm text-muted">
+        The build appears here, rebuilt from real games of that champion in that role.
+        Add a role opponent to narrow it down to the matchup.
+      </p>
+    </div>
   </main>
 </template>
