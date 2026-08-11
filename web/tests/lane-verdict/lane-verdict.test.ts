@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   formatGoldDiff,
+  goldDiffBand,
   goldDiffTone,
   laneVerdict,
   LANE_DOMINANT_GOLD,
@@ -63,5 +64,23 @@ describe('goldDiffTone', () => {
     expect(goldDiffTone(LANE_EVEN_GOLD - 1)).toBe('text-muted')
     expect(goldDiffTone(-(LANE_EVEN_GOLD - 1))).toBe('text-muted')
     expect(goldDiffTone(-LANE_EVEN_GOLD)).toContain('red')
+  })
+})
+
+describe('goldDiffBand', () => {
+  it('reads the same bands as the tone, on the same boundaries', () => {
+    expect(goldDiffBand(LANE_EVEN_GOLD)).toBe('good')
+    expect(goldDiffBand(LANE_EVEN_GOLD - 1)).toBe('mid')
+    expect(goldDiffBand(-(LANE_EVEN_GOLD - 1))).toBe('mid')
+    expect(goldDiffBand(-LANE_EVEN_GOLD)).toBe('bad')
+  })
+
+  it('separates a measured draw from a gap nobody measured', () => {
+    // `mid` is "we measured it and it is even"; `default` is "there is no such
+    // reading". Collapsing them prints the most decisive-looking verdict there
+    // is — dead even — out of data that does not exist (#976).
+    expect(goldDiffBand(0)).toBe('mid')
+    expect(goldDiffBand(null)).toBe('default')
+    expect(goldDiffBand(undefined)).toBe('default')
   })
 })
