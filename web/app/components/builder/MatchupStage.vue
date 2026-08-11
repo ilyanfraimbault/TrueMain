@@ -9,12 +9,16 @@ import { POSITION_BY_VALUE } from '~/utils/positions'
  * Everything else on the page (the eight remaining draft slots) is a
  * refinement of what is picked here, so this block sits above the fold.
  *
- * Two portraits facing each other, and nothing else. The picks are made by
- * clicking a portrait (`ChampionSlot` opens a champion search); the role, which
- * gates every fetch on the page, sits on its own header row above them. The
- * select fields this replaced were the loudest thing in the stage — a wide
- * combobox wrapping a single word — while the portrait beside each one carried
- * no interaction at all.
+ * Two portraits facing each other, the role strip centred underneath, and no
+ * panel around any of it. The picks are made by clicking a portrait
+ * (`ChampionSlot` opens a champion search); the select fields this replaced were
+ * the loudest thing in the stage — a wide combobox wrapping a single word —
+ * while the portrait beside each one carried no interaction at all.
+ *
+ * **No surface on purpose** (#1069). Every other block on the page is a card, so
+ * a card here made the matchup one panel among three rather than the thing the
+ * page is about. Two lit portraits on the page background read as the subject;
+ * the same two inside a bordered box read as a form.
  *
  * Near-textless on purpose (#1067): the only words left are the picked role,
  * which the icon-only strip cannot express, and the champion names under filled
@@ -42,28 +46,10 @@ defineEmits<{
 
 <template>
   <section
-    class="surface space-y-5 rounded-2xl p-4 sm:p-6"
+    class="space-y-5 py-2"
     aria-label="Matchup"
   >
-    <!-- Role first: it gates the whole page (no build is fetched without it)
-         and it used to hide under the champion select. The strip is icons only,
-         so the picked role is named in words beside it — that name is the only
-         text in the block, which is why it earns its place. -->
-    <div class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-default pb-4">
-      <RolePicker
-        :position="playedPosition"
-        hide-all
-        @update:position="$emit('update:playedPosition', $event)"
-      />
-      <p
-        v-if="playedPosition"
-        class="text-xs text-muted"
-      >
-        {{ POSITION_BY_VALUE.get(playedPosition)?.label ?? playedPosition }}
-      </p>
-    </div>
-
-    <div class="flex items-center justify-center gap-5 py-2 sm:gap-12">
+    <div class="flex items-center justify-center gap-5 sm:gap-12">
       <BuilderChampionSlot
         :champions="champions"
         :champion-id="playedChampionId"
@@ -83,6 +69,31 @@ defineEmits<{
         title="Choose the role opponent"
         @update:champion-id="$emit('update:opponentChampionId', $event)"
       />
+    </div>
+
+    <!-- Role under the two picks, on the same centre line. It gates every fetch
+         on the page, but it is one choice among five against ~170 champions —
+         reading it second matches the order the picks are actually made in.
+         The strip is icons only, so the picked role is named in words beside
+         it; that name is the only text here, which is why it earns its place. -->
+    <div class="flex justify-center">
+      <div class="relative">
+        <RolePicker
+          :position="playedPosition"
+          hide-all
+          @update:position="$emit('update:playedPosition', $event)"
+        />
+        <!-- Hung off the strip rather than laid out beside it: in a centred
+             flex row the label's width would shift the strip off the portraits'
+             centre line, and shift it again on every role whose name is a
+             different length. -->
+        <p
+          v-if="playedPosition"
+          class="absolute start-full top-1/2 ms-3 -translate-y-1/2 whitespace-nowrap text-xs text-muted"
+        >
+          {{ POSITION_BY_VALUE.get(playedPosition)?.label ?? playedPosition }}
+        </p>
+      </div>
     </div>
   </section>
 </template>
