@@ -147,6 +147,45 @@ public sealed class ChampionsListOptions
     public int MinSynergyGames { get; set; } = 20;
 
     /// <summary>
+    /// Minimum share of the champion's own games a pairing must appear in before the
+    /// synergies panel shows it — the same shape as
+    /// <see cref="MinMatchupPlayRate"/>, and for the same reason: an absolute floor
+    /// alone lets the ranking fill up with pairings that happened a handful of times.
+    /// The effective floor is <c>max(MinSynergyGames, MinSynergyPlayRate × the
+    /// champion's games)</c>.
+    ///
+    /// <para>
+    /// Set at 1%, twice the matchup floor, because synergy is a *difference* between
+    /// two rates and so carries the sum of their sampling error — the same reasoning
+    /// that already puts <see cref="MinSynergyGames"/> above
+    /// <see cref="MinMatchupGames"/>. Measured on production, Viego JUNGLE's top four
+    /// synergies were pairings of 21 to 26 games out of 8 202 (0.26%), led by a +24.7%
+    /// "synergy" resting on 21 games; at 1% the list starts at Darius TOP over 271
+    /// games and still holds 131 of 223 partners.
+    /// </para>
+    /// </summary>
+    public double MinSynergyPlayRate { get; set; } = 0.01;
+
+    /// <summary>
+    /// Minimum share of a partner champion's own games — across every lane it is
+    /// seen in as a teammate, in the same scope — that must sit on the lane a
+    /// pairing is offered at. Below it the pairing is dropped whatever its volume:
+    /// the lane is not a role that champion plays, so the pairing is a role-detection
+    /// artefact rather than a duo anybody can pick.
+    ///
+    /// <para>
+    /// This is <see cref="MinSecondaryLanePlayRate"/>'s idea (#1082) applied to the
+    /// partner side, with its own denominator — hence its own option rather than a
+    /// shared one. It is what removes lines like "Sylas BOTTOM", which topped Viego
+    /// JUNGLE's synergies on production while Sylas is not an ADC. Deliberately a
+    /// second filter and not a replacement for
+    /// <see cref="MinSynergyPlayRate"/>: they catch different things, a pairing being
+    /// rare and a pairing being impossible. Set to 0 to disable.
+    /// </para>
+    /// </summary>
+    public double MinSynergyPartnerLanePlayRate { get; set; } = 0.10;
+
+    /// <summary>
     /// Minimum games a trio (champion + chosen partner + third pick) needs before it
     /// is offered as a completion. Necessarily lower than
     /// <see cref="MinSynergyGames"/>: a trio's sample is a subset of its duo's, so

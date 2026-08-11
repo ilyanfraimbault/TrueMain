@@ -150,6 +150,14 @@ builder.Services.AddOptions<ChampionsListOptions>()
         options => options.MinMatchupPlayRate is >= 0d and < 1d,
         "ChampionsList:MinMatchupPlayRate must be in [0, 1).")
     .Validate(options => options.MinDecidedLaneGames >= 0, "ChampionsList:MinDecidedLaneGames must be >= 0.")
+    // Shares, so out of [0,1) they stop meaning anything: 1 would demand a pairing
+    // present in every game the champion ever played, which no pairing is.
+    .Validate(
+        options => options.MinSynergyPlayRate is >= 0d and < 1d,
+        "ChampionsList:MinSynergyPlayRate must be in [0, 1).")
+    .Validate(
+        options => options.MinSynergyPartnerLanePlayRate is >= 0d and <= 1d,
+        "ChampionsList:MinSynergyPartnerLanePlayRate must be in [0, 1].")
     .Validate(options => options.MinPlayerMatchupGames >= 0, "ChampionsList:MinPlayerMatchupGames must be >= 0.")
     .Validate(options => options.MaxLanesPerChampion >= 0, "ChampionsList:MaxLanesPerChampion must be >= 0.")
     .Validate(

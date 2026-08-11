@@ -86,6 +86,14 @@ public sealed record ChampionSynergyEntry
     public double WinRate { get; init; }
 
     /// <summary>
+    /// Share of the champion's own games this partner was on the team for — the
+    /// quantity <see cref="TrueMain.Options.ChampionsListOptions.MinSynergyPlayRate"/>
+    /// floors, returned so a caller can say "you have this teammate in 3% of your
+    /// games" instead of leaving a bare count to mean whatever the reader assumes.
+    /// </summary>
+    public double PlayRate { get; init; }
+
+    /// <summary>
     /// Games behind <see cref="PartnerBaselineWinRate"/> — always at least
     /// <see cref="Games"/>, since it counts every game this champion was a tracked
     /// player's teammate, not only the ones alongside the queried champion.
