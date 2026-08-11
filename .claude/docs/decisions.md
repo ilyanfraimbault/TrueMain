@@ -256,6 +256,22 @@ doubled every search hit and picker row with a dead end and put 60 empty pages i
 (`server/api/static/champions.get.ts`). 10 000 rather than 60 000: the highest real Riot key is 950, so the
 cut keeps an order of magnitude of headroom while catching a future mode built the same way — #966.
 
+**A tier-list chip is a portrait and its lane badge — the name and the three rates are tooltip content.**
+The chip used to be a pill: icon, name, lane glyph and a `52% WR · 12% PR · 8% BR` line, ~190 px wide. Five
+tier groups of those is a page you scroll rather than scan, and the question the tier list answers ("who is
+strong right now") is answered by the *faces* — a player recognises a portrait faster than they read a name.
+So the chip is now the portrait alone with the lane badged into its bottom-right corner (the anchoring the
+directory already uses for the secondary rune tree), and hovering gives the name plus `Win rate / Pick rate /
+Ban rate`. In the tooltip the values *are* coloured on the `--color-data-*` axis, which the directory row
+deliberately refuses — colour that is noise in a dense table of forty rows is the whole point of a panel
+showing three numbers. Only the win rate uses the good↔bad axis; pick and ban rate fade to muted at the low
+end instead of turning amber, because a pocket pick is rare, not bad — and they get *separate* bands, since
+they do not share a denominator: on 16.15 the median pick rate is 0.3% against a median ban rate of 2.6%, so
+one threshold pair would have coloured every ban and no pick (`app/utils/rate-tone.ts`). The cost is
+that no tooltip opens on touch, so the link's `aria-label` carries name, lane and all three rates — that
+string is also what a screen reader gets, and it is the reason the missing ban rate is dropped from it
+entirely rather than announced as "dash BR".
+
 ---
 
 ## Data & storage
