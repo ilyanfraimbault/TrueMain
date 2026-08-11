@@ -18,8 +18,10 @@ import type { ActivityBucket, ActivityMode, ActivitySeries } from '~~/shared/typ
 export const ACTIVITY_WIN_RGB = [229, 143, 131] as const
 
 /**
- * Loss end of the scale — `--color-data-bad`, the neutral ramp rather than a
- * second hue. With a one-sided axis the losing side is *not* flagged, it is
+ * Loss end of the scale — `--color-data-mid` (`ink-400`), not `--color-data-bad`
+ * (`ink-500`), and that is on purpose: these cells are painted at low alpha, and
+ * the darker stop disappears into the grid at the intensities most periods land
+ * on. The neutral ramp rather than a second hue. With a one-sided axis the losing side is *not* flagged, it is
  * merely undecorated, so here the sign is carried by the split between "warm
  * accent" and "grey" rather than by two opposed hues. That puts more weight on
  * intensity than the two-hue version did: a single-game losing period is a
