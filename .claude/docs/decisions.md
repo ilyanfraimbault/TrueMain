@@ -1050,6 +1050,11 @@ read as one flat warm mass. What replaced it:
 - **The tier ladder rides the same axis.** Its medal metaphor (rose-gold → gold → silver → bronze → iron)
   broke twice over once amber meant "bad": A and C read as warnings, and `tier-s` was *literally*
   `rosegold-400`, giving the best tier the brand colour and no comparative meaning at all.
+
+> ⚠️ **The two bullets above were reversed on 2026-08-11 — see the entry below.** The cold→warm data axis and
+> the teal tier ladder are gone; measurements are rose gold again and the medal ladder is back. Everything
+> else in this entry (ink surfaces, the four-step opaque elevation, `surface` replacing `glass`, dark-only)
+> still stands.
 - **`surface` replaces `glass`** at all 55 call sites plus the global `UCard` / `UBadge` themes. Translucency
   everywhere meant nothing was ever *on top of* anything. Paired with it, the elevation ladder was
   un-flattened: `--ui-bg-muted` and `--ui-bg-elevated` had both pointed at `neutral-800`, so the whole app
@@ -1061,6 +1066,34 @@ read as one flat warm mass. What replaced it:
 - **A second family carries the numbers.** `--font-mono` had been deliberately aliased to Inter; it now
   points at Geist Mono, used by the `stat-value` / `stat-label` utilities. The old scale put a value and its
   label one step apart (`text-sm` over `text-xs`, same family, same weight), so a dense row read as noise.
+
+## Measurements are rose gold again: the cold→warm data axis is withdrawn (2026-08-11)
+
+**Decided by the product owner in #1096, reversing two bullets of the #1060 entry above** — the `--color-data-*`
+cold→warm axis and the teal tier ladder. Everything else #1060 shipped (ink surfaces, four opaque elevation
+steps, `surface` over `glass`, dark-only, the scoped eclipse) is untouched and stays.
+
+The teal was doing what a two-hue scale is meant to do. The call was not that it failed at its job, but that
+the site should read as rose gold and should not carry a cyan it never wanted. Recorded plainly because the
+#1060 reasoning is still on this page and will read as current otherwise.
+
+- **The axis is one-sided now.** `--color-data-good` is `rosegold-400`; below average simply steps down the
+  neutral ramp (`--color-data-bad` is `ink-500`). A losing win rate is *not* flagged in a warning colour, it
+  is merely not highlighted. Consumers did not change — `rate-tone.ts`, `StatBlock`, `MetricBar` and
+  `TierBadge` all read the same tokens, so this was a token edit, not a component sweep.
+- **The medal ladder is back** (rose gold → gold → silver → bronze → iron). #1060 retired it on the grounds
+  that gold and bronze are amber and amber meant "bad"; with the warm end of the axis gone, the collision it
+  was avoiding no longer exists. `dedication.ts` and `PlayerPerformance.vue` read `--color-tier-*` directly,
+  so the dedication ranks and performance verdicts followed for free.
+- **The activity heatmap returns to rose gold / neutral**, which is where #927 had it. The sign of a period is
+  now carried by *accent vs grey* rather than by two opposed hues, which puts more weight on intensity: a
+  one-game losing period is a faint grey cell. That is the intended read — it is barely a signal.
+
+**The cost, stated so nobody re-derives it in surprise: the accent is no longer exclusive to interaction.**
+#1060's central mechanism was that rose gold meant "you can touch this" and nothing else, which is what let it
+stay legible while scarce. A rose-gold number is now a *good* number, not a clickable one. Affordance has to
+come from shape and position — a border, a cursor, a control's own chrome — and never from hue alone. Any
+future "make it obvious this is clickable" that reaches for the accent alone will not work any more.
 
 **The eclipse is scoped to the home hero** (`AppBackdrop.vue` moved out of `app.vue`). As a viewport-fixed
 layer behind every route its corona passed *through* the champion and leaderboard tables: rows near the glow

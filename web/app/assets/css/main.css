@@ -103,20 +103,30 @@
    * tiers, meters. Unlike the stat colors below, these are full surface colors —
    * `bg-data-*`, `ring-data-*`, `border-data-*` are all fair game.
    *
-   * The axis is cold→warm rather than the usual green→red. Green/red was
-   * rejected because `rosegold-500 #d9736c` is itself a desaturated red: a red
-   * "loss" value sitting next to a rose-gold accent in a dense table is a coin
-   * flip to read. Teal and amber share no hue with the brand, so a coloured
-   * number can never be mistaken for an interactive one.
+   * The axis is **one-sided**: rose gold marks what is above average, and
+   * everything below it simply steps down the neutral ramp. There is no second
+   * hue — a losing win rate is not flagged in warning colours, it is merely not
+   * highlighted.
+   *
+   * This replaces a cold→warm axis (teal good → amber bad) shipped by #1060.
+   * That axis did what a two-hue scale is supposed to do, and the product call
+   * was that the site should read rose gold rather than carry a cyan it never
+   * wanted. Rose gold is therefore back on measurements, which is the one place
+   * the #1060 rules had removed it from.
+   *
+   * The consequence to know before extending this: **the accent is no longer
+   * exclusive to interaction.** A rose-gold number is a good number, not a
+   * clickable one, so affordance has to come from shape and position — a
+   * border, a cursor, a control's chrome — and never from hue alone.
    *
    * The `-dim` stops are for large fills (meters, heatmap cells) where the full
    * stop would shout; the full stops are for text and small marks.
    */
-  --color-data-good: #3ad6c4;      /* above average, win */
-  --color-data-good-dim: #7fc9c0;
+  --color-data-good: #e58f83;      /* above average, win — rosegold-400 */
+  --color-data-good-dim: #b88d8c;  /* rosegold stepped toward the neutral */
   --color-data-mid: #8b8b95;       /* average / no signal — ink-400 */
-  --color-data-bad-dim: #d9a45f;
-  --color-data-bad: #f0a13c;       /* below average, loss */
+  --color-data-bad-dim: #7b7b85;
+  --color-data-bad: #6a6a74;       /* below average, loss — ink-500 */
 
   /*
    * Stat / damage-type colors for rich game-entity tooltips. Text emphasis
@@ -172,24 +182,26 @@
 
   /*
    * Champion performance-tier scale (S → D) for the champions-list tier
-   * column. Sits directly on the data axis above, so a champion's tier and its
-   * win rate speak the same colour language: teal at the top, neutral at the
-   * average, amber at the bottom.
+   * column: a **medal ladder** — rose gold, gold, silver, bronze, iron. Five
+   * ranks read as five ranks without a legend, which is what this column is
+   * for.
    *
-   * This replaces a medal ladder (rose-gold → gold → silver → bronze → iron).
-   * That metaphor broke twice over: its gold and bronze stops are amber, which
-   * now means "bad", so A and C read as warnings; and `tier-s` was literally
-   * `rosegold-400`, giving the best tier the brand colour and stripping it of
-   * any comparative meaning.
+   * #1060 briefly put this on a teal→amber axis and argued the medal metaphor
+   * was broken, on the grounds that gold and bronze are amber and amber then
+   * meant "bad". With the warm end of that axis gone (see the data axis above),
+   * the collision it was avoiding no longer exists, and the ladder is back.
    *
-   * Tailwind v4 auto-generates `text-tier-*` utilities from these vars;
-   * TierBadge.vue colours the bare letter with the matching one.
+   * `tier-s` is `rosegold-400`, the brand accent, and that is deliberate: the
+   * best tier is the one thing on the page that has earned it.
+   *
+   * Tailwind v4 auto-generates `text-tier-*` / `bg-tier-*` utilities from these
+   * vars; TierBadge.vue fills its pill with the matching one.
    */
-  --color-tier-s: #3ad6c4;               /* data-good (best) */
-  --color-tier-a: #7fc9c0;               /* data-good-dim */
-  --color-tier-b: #8b8b95;               /* data-mid — the average */
-  --color-tier-c: #d9a45f;               /* data-bad-dim */
-  --color-tier-d: #f0a13c;               /* data-bad (worst) */
+  --color-tier-s: #e58f83;               /* rose gold — rosegold-400 (best) */
+  --color-tier-a: #e2b95c;               /* gold */
+  --color-tier-b: #b9c2cd;               /* silver */
+  --color-tier-c: #b3763f;               /* bronze */
+  --color-tier-d: #837a7c;               /* iron (worst) */
 
   /* Misc / structural */
   --color-stat-status: #9366a9;          /* status / CC keywords (Slowing, Immobilizing, Airborne, Stun) — muted violet */

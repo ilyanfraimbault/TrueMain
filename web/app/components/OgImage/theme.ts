@@ -46,19 +46,21 @@ export const ROSEGOLD_LIGHT = '#eeaea3'
 export const GOLD_HAIRLINE = 'rgba(217, 182, 118, 0.22)'
 
 /**
- * The `--color-tier-*` performance ladder, riding the app's cold→warm data axis
- * (S teal → D amber). This one has no hex counterpart in `app/utils` —
- * `TierBadge.vue` reaches for it through `text-tier-*` classes — so it is
- * restated here rather than imported. An unknown or missing tier is deliberately
+ * The `--color-tier-*` performance ladder — the medal scale, rose gold at S
+ * down to iron at D. This one has no hex counterpart in `app/utils` —
+ * `TierBadge.vue` reaches for it through `bg-tier-*` classes — so it is
+ * restated here rather than imported, and **has to be updated by hand whenever
+ * main.css moves**: Satori cannot resolve a CSS variable, which is why these
+ * are literals in the first place. An unknown or missing tier is deliberately
  * absent from the map: the card drops the badge, mirroring the badge's own
  * dash-instead-of-a-guess behaviour.
  */
 export const TIER_COLOR: Record<string, string> = {
-  S: '#3ad6c4',
-  A: '#7fc9c0',
-  B: '#8b8b95',
-  C: '#d9a45f',
-  D: '#f0a13c',
+  S: '#e58f83',
+  A: '#e2b95c',
+  B: '#b9c2cd',
+  C: '#b3763f',
+  D: '#837a7c',
 }
 
 /**

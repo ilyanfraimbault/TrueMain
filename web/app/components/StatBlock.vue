@@ -12,8 +12,9 @@
  * micro-label — see `stat-value` / `stat-label` in main.css, which own the
  * family, weight and figure style so a call site only picks the scale.
  *
- * Colour is opt-in and means one thing: where the value sits on the cold→warm
- * data axis. `default` leaves it at `text-highlighted` — use it for counts and
+ * Colour is opt-in and means one thing: where the value sits on the one-sided
+ * data axis — rose gold above average, stepping down the neutral ramp below it.
+ * `default` leaves the value at `text-highlighted`; use it for counts and
  * anything with no better/worse reading, because a number that is merely *large*
  * is not a number that is *good*.
  */

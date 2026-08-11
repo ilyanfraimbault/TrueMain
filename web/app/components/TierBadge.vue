@@ -3,13 +3,17 @@
 // (ChampionTierCalculator); this component only maps the letter to its colour.
 // Lives at the top level so it auto-registers as <TierBadge>.
 //
-// A filled pill rather than the bare coloured glyph it used to be. Since the
-// ladder was realigned onto the data axis (#1060), `A` (#7fc9c0) and `B`
-// (#8b8b95) are one desaturation step apart — as bare letters at `text-lg` the
-// two were genuinely hard to tell apart, which is fatal for the one column a
-// tier list exists to be sorted by. A saturated fill separates them at a
-// glance, and it makes the tier the loudest thing in the row, which is what it
-// should be.
+// A filled pill rather than the bare coloured glyph this used to be. The
+// original reason was that the teal ladder put `A` and `B` one desaturation
+// step apart and they were hard to tell apart as bare letters; the medal ladder
+// is back (gold vs silver is not a subtle difference) so that argument no
+// longer applies. The pill stays for the remaining one: it makes the tier the
+// loudest thing in the row, which is what the column a tier list is sorted by
+// should be. Reverting to the bare letter is a one-line change if that reads as
+// too much.
+//
+// Dark ink on every fill, checked rather than assumed: the medal stops give
+// 8.0 / 10.6 / 10.9 / 5.2 / 4.7 : 1 against `ink-950`, so all five clear AA.
 const props = defineProps<{
   /** Tier letter from the API: 'S' | 'A' | 'B' | 'C' | 'D'. */
   tier: string
@@ -21,7 +25,7 @@ const props = defineProps<{
 // from the --color-tier-* tokens in main.css.
 //
 // The letter is `ink-950` on every tier, not `text-inverted`: the fills run
-// from a bright teal to a mid grey, all of them light enough to need dark ink,
+// from rose gold to iron, all of them light enough to need dark ink,
 // and `inverted` is a theme token that would flip if a light mode ever returned
 // — while these fills would not.
 const TIER_CLASS: Record<string, string> = {
