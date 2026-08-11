@@ -41,9 +41,12 @@ const winRateChangeLabel = computed(() => {
   const sign = value > 0 ? '+' : ''
   return `${sign}${formatPercentage(value, 1)}`
 })
+// The swing is a measurement, so it speaks the data axis rather than Nuxt UI's
+// semantic palette — `text-success` is a green the palette does not contain, and
+// since #1096 "worse" is a step down the neutral ramp rather than a red.
 const winRateTone = computed(() => {
   if (Math.abs(winRateChange.value) < 0.0005) return 'text-muted'
-  return winRateChange.value > 0 ? 'text-success' : 'text-error'
+  return winRateChange.value > 0 ? 'text-data-good' : 'text-data-bad'
 })
 
 function onFromChange(value: unknown) {

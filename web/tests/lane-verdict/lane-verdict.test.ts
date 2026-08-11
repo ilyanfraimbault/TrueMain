@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   formatGoldDiff,
   goldDiffBand,
-  goldDiffTone,
   laneVerdict,
   LANE_DOMINANT_GOLD,
   LANE_EVEN_GOLD,
@@ -55,15 +54,6 @@ describe('formatGoldDiff', () => {
     // A gap that rounds away has no side to favour — and must not print "−0".
     expect(formatGoldDiff(-0.4)).toBe('0')
     expect(formatGoldDiff(1240)).toBe('+1,240')
-  })
-})
-
-describe('goldDiffTone', () => {
-  it('stays neutral inside the even band', () => {
-    expect(goldDiffTone(LANE_EVEN_GOLD)).toContain('emerald')
-    expect(goldDiffTone(LANE_EVEN_GOLD - 1)).toBe('text-muted')
-    expect(goldDiffTone(-(LANE_EVEN_GOLD - 1))).toBe('text-muted')
-    expect(goldDiffTone(-LANE_EVEN_GOLD)).toContain('red')
   })
 })
 

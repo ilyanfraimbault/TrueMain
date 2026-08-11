@@ -173,7 +173,7 @@ function matchupToolLink(opponentChampionId: number): string | undefined {
                same px-2 and two w-12 columns — so the captions sit over their
                values. -->
           <div class="flex items-center gap-3 px-2">
-            <p class="flex-1 text-xs font-semibold uppercase tracking-wide text-emerald-400/80">
+            <p class="flex-1 text-xs font-semibold uppercase tracking-wide text-data-good">
               Best matchups
             </p>
             <span class="w-12 shrink-0 text-right text-[10px] uppercase tracking-wide text-dimmed">Lane</span>
@@ -194,7 +194,7 @@ function matchupToolLink(opponentChampionId: number): string | undefined {
                same px-2 and two w-12 columns — so the captions sit over their
                values. -->
           <div class="flex items-center gap-3 px-2">
-            <p class="flex-1 text-xs font-semibold uppercase tracking-wide text-red-400/80">
+            <p class="flex-1 text-xs font-semibold uppercase tracking-wide text-data-bad">
               Worst matchups
             </p>
             <span class="w-12 shrink-0 text-right text-[10px] uppercase tracking-wide text-dimmed">Lane</span>

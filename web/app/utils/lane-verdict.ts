@@ -81,9 +81,3 @@ export function goldDiffBand(value: number | null | undefined): 'default' | 'goo
   return 'mid'
 }
 
-/** Green ahead, red behind, muted inside the even band — same read as a win rate. */
-export function goldDiffTone(value: number): string {
-  if (value >= LANE_EVEN_GOLD) return 'text-emerald-400'
-  if (value <= -LANE_EVEN_GOLD) return 'text-red-400'
-  return 'text-muted'
-}
