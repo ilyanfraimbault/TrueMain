@@ -132,12 +132,18 @@ function pilotIconUrl(pilot: CompositionGamePilot | null): string | null {
   <UDrawer
     :open="open"
     direction="right"
+    handle-only
     :title="title"
     description="The games this build was computed from, in the order the selection picked them."
     :ui="{
       // Wide enough for a MatchRow to clear its @xl tier, where the row shows
       // both team compositions — the reason to open this drawer at all.
       content: 'w-full sm:max-w-2xl',
+      // `handleOnly` above: without it vaul treats a drag anywhere in the
+      // content as a drag on the drawer, so dragging a *horizontally scrolling*
+      // child — the player selector inside an expanded MatchRow — slid the
+      // drawer shut instead of scrolling. Closing still works from the handle,
+      // the overlay and Escape.
       // The drawer owns the full viewport height: the game list scrolls inside
       // the body and the pagination stays pinned in the footer, instead of the
       // whole column scrolling and the pager drifting off the bottom.
