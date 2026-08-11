@@ -451,8 +451,11 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
     -->
     <template v-else-if="notEnoughData">
       <header class="flex flex-wrap items-center gap-4">
+        <!-- No `loading` here: this state is settled — the champion has no
+             aggregate at all, so the zeroes below are the answer, not a
+             placeholder. -->
         <ChampionHeader
-          :champion-name="displayName"
+          :champion-name="seoDisplayName"
           :champion-icon-url="displayIconUrl"
           :champion-id="championId"
           :position="champion?.position || selectedPosition || ''"
@@ -490,13 +493,18 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
     -->
     <template v-else>
       <header class="flex flex-wrap items-center gap-4">
+        <!-- `seoDisplayName`, not the client-only `displayName`: it's already
+             resolved at SSR, so the h1 carries the real champion name in the
+             server HTML instead of `Champion {id}` — and the title only
+             skeletons on a client-side navigation, where nothing is known yet. -->
         <ChampionHeader
-          :champion-name="displayName"
+          :champion-name="seoDisplayName"
           :champion-icon-url="displayIconUrl"
           :champion-id="championId"
           :position="champion?.position || selectedPosition || ''"
           :total-games="champion?.totalGames ?? 0"
           :total-wins="champion?.totalWins ?? 0"
+          :loading="!champion"
         />
         <ChampionFilters
           :selected-patch="selectedPatch"

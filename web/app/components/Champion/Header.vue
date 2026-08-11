@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { POSITION_BY_VALUE } from '~/utils/positions'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 
 const props = defineProps<{
@@ -12,10 +13,21 @@ const props = defineProps<{
   // this text in its tooltip — mirroring the builder's RecommendationPanel
   // rather than a full-width UAlert.
   lowSampleMessage?: string | null
+  // The champion aggregate hasn't landed yet. Skeleton the title and the stat
+  // line rather than rendering the props' placeholder values — those read as
+  // real data ("Champion 164 · 0 games · 0.0% WR") instead of as a loading
+  // state.
+  loading?: boolean
 }>()
 
 const displayName = computed(() => props.championName ?? `Champion ${props.championId}`)
 const winRate = computed(() => (props.totalGames === 0 ? 0 : props.totalWins / props.totalGames))
+
+// The lane as its icon rather than the raw API value: `UTILITY` is Riot's
+// internal name for support, and the glyph is what players actually read on a
+// lane badge everywhere else on the site. The label stays available as the alt
+// text (and in the tooltip) so it's never icon-only for a screen reader.
+const positionOption = computed(() => POSITION_BY_VALUE.get(props.position) ?? null)
 </script>
 
 <template>
@@ -28,8 +40,17 @@ const winRate = computed(() => (props.totalGames === 0 ? 0 : props.totalWins / p
       class="size-20 rounded"
     />
     <div class="flex-1">
-      <div class="flex items-center gap-2">
-        <h1 class="text-2xl font-semibold">
+      <div class="flex h-8 items-center gap-2">
+        <!-- Same height as the title it replaces, so the header doesn't jump
+             when the name lands. -->
+        <USkeleton
+          v-if="loading && !championName"
+          class="h-7 w-48"
+        />
+        <h1
+          v-else
+          class="text-2xl font-semibold"
+        >
           {{ displayName }}
         </h1>
         <!-- The message lives in the tooltip so it never crowds the header. -->
@@ -44,9 +65,31 @@ const winRate = computed(() => (props.totalGames === 0 ? 0 : props.totalWins / p
           />
         </UTooltip>
       </div>
-      <p class="text-sm text-muted">
-        {{ position || '—' }} · {{ totalGames }} games · {{ formatPercentage(winRate) }} WR
-      </p>
+      <!-- A div, not a <p>: the lane tooltip renders interactive markup that
+           has no business inside a paragraph. -->
+      <div class="flex h-5 items-center gap-1.5 text-sm text-muted">
+        <USkeleton
+          v-if="loading"
+          class="h-3.5 w-44"
+        />
+        <template v-else>
+          <UTooltip
+            v-if="positionOption"
+            :text="positionOption.label"
+            :delay-duration="150"
+          >
+            <SkeletonImage
+              :src="positionOption.iconUrl"
+              :alt="positionOption.label"
+              :width="16"
+              :height="16"
+              class="size-4"
+            />
+          </UTooltip>
+          <span v-else>—</span>
+          <span>· {{ totalGames }} games · {{ formatPercentage(winRate) }} WR</span>
+        </template>
+      </div>
     </div>
   </div>
 </template>
