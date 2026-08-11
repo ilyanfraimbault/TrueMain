@@ -21,7 +21,7 @@ Champion/lane directory, one row per (champion, position). Filters: role, champi
 Pagination and search are **client-side** (the endpoint returns the whole ~500-row directory, `PAGE_SIZE = 50`). Body wrapped in `<ClientOnly>` with skeletons; all fetches `server: false` deliberately (hydration-mismatch fix, #149).
 
 ### `/champions/tierlist` — `web/app/pages/champions/tierlist.vue`
-Server-computed tier list. One `SectionCard` per tier group (S→D), each a grid of champion chips linking to the champion page. Filters: role, elo, patch. Each chip's stat line reads `WR · PR · BR` (same ban-rate caveats as the directory).
+Server-computed tier list. One `SectionCard` per tier group (S→D), each a wall of champion portraits linking to the champion page (`ChampionTierChip`). Filters: role, elo, patch. A chip is the portrait alone, with its lane badged into the bottom-right corner; the name and `Win rate / Pick rate / Ban rate` live in the hover tooltip, values coloured on the `--color-data-*` axis by `app/utils/rate-tone.ts` (same ban-rate caveats as the directory). The link's `aria-label` carries name + lane + the three rates, since no tooltip opens on touch or for a screen reader.
 
 ### `/champions/:id` — `web/app/pages/champions/[id].vue`
 The richest page — two columns at `xl`.
