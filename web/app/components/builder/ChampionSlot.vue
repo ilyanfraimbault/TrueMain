@@ -14,11 +14,11 @@ import type { ChampionStaticListItem } from '~~/shared/types/static-data'
  * dropdown for ~170 entries: the palette opens focused, with fuzzy matching, so
  * a champion is two keystrokes away instead of a scroll.
  *
- * Deliberately unlabelled. A `?` on an empty tile, a portrait on a filled one
- * and the swords between them already say "these two fight each other"; a
- * micro-label over each and a caption under each empty one added four lines of
- * text to a control with two states. The accessible names live on the trigger's
- * `aria-label`, where they cost nothing visually.
+ * Deliberately wordless. A `?` on an empty tile, a portrait on a filled one and
+ * the swords between them already say "these two fight each other"; the
+ * champion's own splash names it better than a caption repeating the name
+ * underneath. The accessible names live on the trigger's `aria-label`, where
+ * they cost nothing visually.
  *
  * `ChampionPicker` stays as-is for the eight draft slots in `TeamContext`, which
  * are a dense list of secondary inputs — a portrait grid there would out-shout
@@ -95,55 +95,51 @@ watch(open, (isOpen) => {
 </script>
 
 <template>
-  <div class="flex flex-col items-center gap-2">
-    <!-- The clear button is a sibling of the trigger, not a child: a button
-         inside a button is invalid HTML and the inner one never receives the
-         click. -->
-    <div class="relative">
-      <button
-        type="button"
-        class="group relative flex size-24 cursor-pointer items-center justify-center overflow-hidden rounded-2xl ring-2 ring-inset transition-colors hover:ring-primary focus-visible:ring-primary focus-visible:outline-none sm:size-32"
-        :class="[
-          accent ? 'ring-primary/60' : 'ring-accented',
-          champion ? '' : 'bg-muted',
-        ]"
-        :aria-label="champion ? `${title} — currently ${champion.name}` : title"
-        @click="open = true"
-      >
-        <!-- No `width`/`height`: SkeletonImage turns them into an inline
-             `style="width:…px"` to reserve layout space, and an inline style
-             beats `size-full`'s class rule — the portrait would stay pinned at
-             one breakpoint's size inside a tile that grows at `sm:`. The button
-             already reserves the space, so `size-full` alone is correct here
-             (same as AppSearch's palette rows). -->
-        <SkeletonImage
-          v-if="champion"
-          :src="champion.iconUrl"
-          :alt="''"
-          class="size-full"
-        />
-        <span
-          v-else
-          class="font-mono text-4xl font-semibold text-dimmed transition-colors group-hover:text-default"
-        >?</span>
-      </button>
-      <UButton
-        v-if="clearable && champion"
-        icon="i-lucide-x"
-        color="neutral"
-        variant="solid"
-        size="xs"
-        class="absolute -end-1.5 -top-1.5 rounded-full"
-        :aria-label="`Clear ${champion.name}`"
-        @click="select(null)"
+  <!-- The clear button is a sibling of the trigger, not a child: a button
+       inside a button is invalid HTML and the inner one never receives the
+       click. -->
+  <div class="relative">
+    <button
+      type="button"
+      class="group relative flex size-24 cursor-pointer items-center justify-center overflow-hidden rounded-2xl ring-2 ring-inset transition-colors hover:ring-primary focus-visible:ring-primary focus-visible:outline-none sm:size-32"
+      :class="[
+        accent ? 'ring-primary/60' : 'ring-accented',
+        champion ? '' : 'bg-muted',
+      ]"
+      :aria-label="champion ? `${title} — currently ${champion.name}` : title"
+      @click="open = true"
+    >
+      <!-- No `width`/`height`: SkeletonImage turns them into an inline
+           `style="width:…px"` to reserve layout space, and an inline style
+           beats `size-full`'s class rule — the portrait would stay pinned at
+           one breakpoint's size inside a tile that grows at `sm:`. The button
+           already reserves the space, so `size-full` alone is correct here
+           (same as AppSearch's palette rows). -->
+      <SkeletonImage
+        v-if="champion"
+        :src="champion.iconUrl"
+        :alt="''"
+        class="size-full"
       />
-    </div>
-
-    <!-- Always rendered, empty when no champion is picked: it reserves the
-         caption's line so the two tiles don't jump when one is filled. -->
-    <p class="h-5 max-w-32 truncate text-sm font-medium text-highlighted">
-      {{ champion?.name ?? '' }}
-    </p>
+      <span
+        v-else
+        class="font-mono text-4xl font-semibold text-dimmed transition-colors group-hover:text-default"
+      >?</span>
+    </button>
+    <!-- `subtle`, not `solid`: on a dark-only theme `color="neutral"` solid is
+         white, which put a bright disc on top of the champion art it sits on.
+         Subtle is the elevated surface with a hairline — legible over any
+         splash without competing with it. -->
+    <UButton
+      v-if="clearable && champion"
+      icon="i-lucide-x"
+      color="neutral"
+      variant="subtle"
+      size="xs"
+      class="absolute -end-1.5 -top-1.5 rounded-full"
+      :aria-label="`Clear ${champion.name}`"
+      @click="select(null)"
+    />
 
     <UModal
       v-model:open="open"

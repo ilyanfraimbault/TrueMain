@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import type { ChampionPosition } from '~/utils/positions'
-import { POSITION_BY_VALUE } from '~/utils/positions'
 
 /**
  * Centre stage of the matchup page (#921): the matchup — your champion and
@@ -20,9 +19,9 @@ import { POSITION_BY_VALUE } from '~/utils/positions'
  * page is about. Two lit portraits on the page background read as the subject;
  * the same two inside a bordered box read as a form.
  *
- * Near-textless on purpose (#1067): the only words left are the picked role,
- * which the icon-only strip cannot express, and the champion names under filled
- * tiles. Ownership is carried by the accent alone — your portrait's ring is
+ * Wordless on purpose (#1067, #1071): the portraits, the swords and the role
+ * icons carry it, and every name lives in an `aria-label` instead of on screen.
+ * Ownership is carried by the accent alone — your portrait's ring is
  * `primary`, the opponent's neutral — and not by a tinted panel: the former
  * `bg-primary/5` + `ring-primary/25` side panel was a rose-gold *surface* tint,
  * which the design system no longer allows.
@@ -74,26 +73,14 @@ defineEmits<{
     <!-- Role under the two picks, on the same centre line. It gates every fetch
          on the page, but it is one choice among five against ~170 champions —
          reading it second matches the order the picks are actually made in.
-         The strip is icons only, so the picked role is named in words beside
-         it; that name is the only text here, which is why it earns its place. -->
+         No name beside the strip: each button already carries the role's own
+         icon and its `aria-label`, so the word only repeated the selected one. -->
     <div class="flex justify-center">
-      <div class="relative">
-        <RolePicker
-          :position="playedPosition"
-          hide-all
-          @update:position="$emit('update:playedPosition', $event)"
-        />
-        <!-- Hung off the strip rather than laid out beside it: in a centred
-             flex row the label's width would shift the strip off the portraits'
-             centre line, and shift it again on every role whose name is a
-             different length. -->
-        <p
-          v-if="playedPosition"
-          class="absolute start-full top-1/2 ms-3 -translate-y-1/2 whitespace-nowrap text-xs text-muted"
-        >
-          {{ POSITION_BY_VALUE.get(playedPosition)?.label ?? playedPosition }}
-        </p>
-      </div>
+      <RolePicker
+        :position="playedPosition"
+        hide-all
+        @update:position="$emit('update:playedPosition', $event)"
+      />
     </div>
   </section>
 </template>
