@@ -22,6 +22,36 @@ public sealed class ChampionsListOptions
     public int MinSampleGames { get; set; } = 10;
 
     /// <summary>
+    /// Most <c>(champion, lane)</c> lines one champion may contribute to the
+    /// directory and the tier list, keeping its most-played lanes. Champions
+    /// flex, so a game's ~170 champions produced up to 5 × N lines — measured on
+    /// patch 16.15, 561 lines for 173 champions, of which the lines beyond each
+    /// champion's top two carried 5.9% of the games. A list that prints Ahri
+    /// five times is not a champion list; two is the honest ceiling because a
+    /// champion has at most one main lane and one real secondary. Lines beyond
+    /// the cap are dropped from the payload and from the tier percentiles, so a
+    /// lane's peer group is the champions genuinely played there. Set to 0 to
+    /// disable the cap.
+    /// </summary>
+    public int MaxLanesPerChampion { get; set; } = 2;
+
+    /// <summary>
+    /// Share of a champion's own games a <em>secondary</em> lane must carry to
+    /// count as one of its dominant positions — the read model's
+    /// <c>LanePlayRate</c>. The cap alone is not enough: 37 of the 152 champions
+    /// with a second lane on patch 16.15 played it in under 5% of their games —
+    /// off-role picks, not a second identity — and printing them beside the real
+    /// duals says the two are the same kind of fact.
+    ///
+    /// <para>
+    /// A champion's most-played lane is always kept whatever its share, so a
+    /// genuine five-lane flex still appears once rather than vanishing from a
+    /// list of champions. Set to 0 to keep every lane up to the cap.
+    /// </para>
+    /// </summary>
+    public double MinSecondaryLanePlayRate { get; set; } = 0.10;
+
+    /// <summary>
     /// Minimum games a champion-vs-opponent lane matchup needs before the
     /// matchup endpoints include it. A handful of games against a specific
     /// opponent is noise — a single lucky game would read as a 100% matchup —

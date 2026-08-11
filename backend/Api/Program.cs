@@ -145,6 +145,10 @@ builder.Services.AddOptions<ChampionsListOptions>()
     .Validate(options => options.MinSampleGames >= 0, "ChampionsList:MinSampleGames must be >= 0.")
     .Validate(options => options.MinMatchupGames >= 0, "ChampionsList:MinMatchupGames must be >= 0.")
     .Validate(options => options.MinPlayerMatchupGames >= 0, "ChampionsList:MinPlayerMatchupGames must be >= 0.")
+    .Validate(options => options.MaxLanesPerChampion >= 0, "ChampionsList:MaxLanesPerChampion must be >= 0.")
+    .Validate(
+        options => options.MinSecondaryLanePlayRate is >= 0 and <= 1,
+        "ChampionsList:MinSecondaryLanePlayRate must be a share between 0 and 1.")
     .ValidateOnStart();
 builder.Services.AddOptions<ChampionTierOptions>()
     .Bind(builder.Configuration.GetSection(ChampionTierOptions.SectionName))
