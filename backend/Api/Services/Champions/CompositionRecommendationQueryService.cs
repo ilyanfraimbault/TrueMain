@@ -22,6 +22,7 @@ public sealed class CompositionRecommendationQueryService(
     ICompositionMatchQueryService matchQueryService,
     ICompositionBuildQueryService buildQueryService,
     ICompositionGamesQueryService gamesQueryService,
+    ICompositionLaneOutcomeQueryService laneQueryService,
     IMemoryCache cache)
     : ICompositionRecommendationQueryService
 {
@@ -50,6 +51,9 @@ public sealed class CompositionRecommendationQueryService(
         var matches = await GetMatchesAsync(criteria, bracketToken, ct);
         var build = await buildQueryService.AggregateAsync(
             criteria.ChampionId, criteria.Position, matches.Matches, matches.MaxPossibleScore, ct);
+        // Judged over the selection itself, so every cell of the tool's stat line
+        // counts the same games (#1117).
+        var lane = await laneQueryService.GetAsync(criteria.Position, matches.Matches, ct);
 
         var response = new CompositionBuildResponse
         {
@@ -67,6 +71,7 @@ public sealed class CompositionRecommendationQueryService(
                 MaxPossibleScore = matches.MaxPossibleScore,
                 MeanSimilarity = matches.MeanSimilarity,
             },
+            Lane = lane,
             Build = build,
         };
 

@@ -237,12 +237,11 @@ const missingMatchupNotice = computed(() => {
          little) is behind the page. -->
     <BuilderMatchupStats
       v-if="playedChampionId !== null && playedPosition !== null && opponentChampionId !== null"
-      :champion-id="playedChampionId"
       :position="playedPosition"
-      :opponent-champion-id="opponentChampionId"
       :champion-name="playedChampion?.name ?? null"
       :opponent-name="opponentChampion?.name ?? null"
       :recommendation="recommendation ?? null"
+      :loading="isLoading"
       @show-games="gamesDrawerOpen = true"
     />
 

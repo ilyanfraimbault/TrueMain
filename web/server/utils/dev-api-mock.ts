@@ -1953,6 +1953,15 @@ async function mockCompositionBuild(id: number, body?: unknown): Promise<Composi
         maxPossibleScore: 10 + slotCount * 3,
         meanSimilarity: 0,
       },
+      // Nothing sampled, so nothing to judge: the strip must show em dashes here,
+      // never a 0% lane.
+      lane: {
+        measuredGames: 0,
+        decidedGames: 0,
+        winRate: null,
+        averageGoldDiffAt15: null,
+        averageXpDiffAt15: null,
+      },
       build: {
         gamesConsidered: 0,
         wins: 0,
@@ -2001,6 +2010,22 @@ async function mockCompositionBuild(id: number, body?: unknown): Promise<Composi
       // confidence strip visibly reacts to draft edits in mock mode.
       meanSimilarity: round3(Math.max(0.18, 0.75 - slotCount * 0.05 + rng() * 0.1)),
     },
+    // Judged over the sampled games (#1117): fewer are measurable than sampled (a
+    // game that ended before 15 min is not a judgeable lane), fewer still decided,
+    // and the XP gap points the other way one champion in three so the "gold ahead,
+    // XP behind" reading is reachable without a backend.
+    lane: (() => {
+      const measured = Math.max(1, Math.round(games * (0.7 + rng() * 0.25)))
+      const decided = Math.max(0, Math.round(measured * (0.45 + rng() * 0.3)))
+      const gold = Math.round((s.wr - 0.5) * 4200 + (rng() - 0.5) * 400)
+      return {
+        measuredGames: measured,
+        decidedGames: decided,
+        winRate: decided === 0 ? null : round3(Math.min(0.85, Math.max(0.15, s.wr + (rng() - 0.5) * 0.2))),
+        averageGoldDiffAt15: gold,
+        averageXpDiffAt15: Math.round(gold * (s.id % 3 === 0 ? -0.4 : 0.55) + (rng() - 0.5) * 260),
+      }
+    })(),
     build: {
       gamesConsidered: games,
       wins,

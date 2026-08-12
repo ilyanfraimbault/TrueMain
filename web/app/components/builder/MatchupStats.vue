@@ -3,7 +3,6 @@ import type { CompositionBuildResponse } from '~~/shared/types/composition'
 import type { ChampionPosition } from '~/utils/positions'
 import type { RateBand } from '~/utils/rate-tone'
 import { formatPercentage } from '~~/shared/utils/ddragon'
-import { isLoadingStatus } from '~/utils/async-data'
 import { POSITION_BY_VALUE } from '~/utils/positions'
 import { formatGoldDiff, formatXpDiff, laneVerdict } from '~/utils/lane-verdict'
 import { winRateBand } from '~/utils/rate-tone'
@@ -23,37 +22,34 @@ import { winRateBand } from '~/utils/rate-tone'
  * <b>Why it stays on the page rather than moving into the panel.</b> #1098's
  * reason still holds: `RecommendationPanel` does not render on the standard-build
  * fallback path, and mounting these figures inside it made them vanish precisely
- * when the reader most needs to know how thin the ground is. So the lane half
- * renders from the champion / role / opponent triple alone, and the sample half
- * degrades to em dashes when there is no recommendation to describe.
+ * when the reader most needs to know how thin the ground is.
  *
- * The lane half is unscoped by patch on purpose: the matchup aggregate outlives
- * the raw matches, and "is this matchup winnable" is better served by every game
- * we hold than by a thin slice of the current patch.
+ * <b>Every cell now counts the same games (#1117).</b> The lane half used to read
+ * the matchup aggregate, whose champion side is mains-only (#1087) while a
+ * composition sample takes any pilot — so "8 games used · 0 by mains" sat beside a
+ * lane win rate of "—", which is exactly the contradiction merging the strips was
+ * meant to end. The backend now judges the lane over the selection itself, so this
+ * component has a single source and makes a single request.
  */
 const props = defineProps<{
-  championId: number
   position: ChampionPosition
-  opponentChampionId: number
   championName: string | null
   opponentName: string | null
   /** Null until the recommendation resolves, and on the fallback path. */
   recommendation: CompositionBuildResponse | null
+  /**
+   * A refetch is in flight. The strip keeps its previous numbers and dims rather
+   * than emptying, so editing the draft doesn't jump the build below it up the
+   * page — the same treatment the recommendation card gets.
+   */
+  loading?: boolean
 }>()
 
 const emit = defineEmits<{ 'show-games': [] }>()
 
-const { data, status } = useChampionMatchups(
-  () => props.championId,
-  () => props.position,
-  { opponentChampionId: () => props.opponentChampionId },
-)
-
-const matchup = computed(() =>
-  data.value?.matchups.find(m => m.opponentChampionId === props.opponentChampionId) ?? null)
-
 const build = computed(() => props.recommendation?.build ?? null)
 const confidence = computed(() => props.recommendation?.confidence ?? null)
+const lane = computed(() => props.recommendation?.lane ?? null)
 
 // The jungle has no lane (#939): the same figures are read as a matchup tempo
 // there, and the labels say so rather than claiming a lane that isn't one.
@@ -65,10 +61,10 @@ const sampleWinRate = computed(() => {
   return games > 0 ? (build.value?.wins ?? 0) / games : null
 })
 
-const goldDiff = computed(() => matchup.value?.averageGoldDiffAt15 ?? null)
-const goldLanes = computed(() => matchup.value?.goldDiffLaneGames ?? 0)
-const xpDiff = computed(() => matchup.value?.averageXpDiffAt15 ?? null)
-const verdict = computed(() => laneVerdict(goldDiff.value, goldLanes.value, laneNoun.value))
+const goldDiff = computed(() => lane.value?.averageGoldDiffAt15 ?? null)
+const measuredLanes = computed(() => lane.value?.measuredGames ?? 0)
+const xpDiff = computed(() => lane.value?.averageXpDiffAt15 ?? null)
+const verdict = computed(() => laneVerdict(goldDiff.value, measuredLanes.value, laneNoun.value))
 
 /**
  * The two gaps on one line under the lane rate. Gold and XP sit together because
@@ -95,7 +91,7 @@ interface StatCell {
 }
 
 const stats = computed<StatCell[]>(() => {
-  const entry = matchup.value
+  const entry = lane.value
   const sample = build.value
   const conf = confidence.value
   const champion = props.championName ?? 'the champion'
@@ -129,26 +125,24 @@ const stats = computed<StatCell[]>(() => {
       label: 'Win rate',
       value: sampleWinRate.value === null ? '—' : formatPercentage(sampleWinRate.value),
       caption: 'across those games',
-      hint: 'Win rate across the games the build is computed from — a smaller sample than '
-        + `the ${laneNoun.value} figures beside it, which cover every recorded game of the pair.`,
+      hint: 'Win rate across the games the build is computed from — the same games every '
+        + `cell of this line counts, ${laneNoun.value} figures included.`,
       tone: winRateBand(sampleWinRate.value),
     },
     {
       key: 'lane',
       label: isJungle.value ? 'Ahead at 15' : 'Lane win rate',
-      value: entry?.laneWinRate == null ? '—' : formatPercentage(entry.laneWinRate, 0),
-      caption: entry?.laneWinRate == null
+      value: entry?.winRate == null ? '—' : formatPercentage(entry.winRate, 0),
+      caption: entry?.winRate == null
         ? 'nothing decided yet'
-        : `of ${entry.decidedLaneGames.toLocaleString('en-US')} decided`,
-      hint: `Share of ${champion} vs ${opponent} games that reached 15 minutes clearly ahead, `
-        + 'out of those that ended clearly ahead or behind. Measured over every recorded game '
-        + 'of the pair, not over the sample the build uses.',
-      tone: winRateBand(entry?.laneWinRate ?? null),
+        : `of ${entry.decidedGames.toLocaleString('en-US')} decided`,
+      hint: `Share of these ${champion} vs ${opponent} games that reached 15 minutes clearly `
+        + 'ahead, out of those that ended clearly ahead or behind — the same games the cells '
+        + 'beside it count, so the whole line describes one sample.',
+      tone: winRateBand(entry?.winRate ?? null),
     },
   ]
 })
-
-const isLoading = computed(() => isLoadingStatus(status.value))
 
 /** Nothing recorded at all — said in one line rather than as four em dashes. */
 const emptyNotice = computed(() => {
@@ -166,7 +160,7 @@ const emptyNotice = computed(() => {
     :level="2"
   >
     <div
-      v-if="isLoading && matchup === null"
+      v-if="recommendation === null"
       class="grid grid-cols-2 gap-4 lg:grid-cols-4"
     >
       <div
@@ -180,19 +174,16 @@ const emptyNotice = computed(() => {
     </div>
 
     <p
-      v-else-if="matchup === null && recommendation === null"
+      v-else-if="(build?.gamesConsidered ?? 0) === 0"
       class="text-sm text-muted"
     >
       {{ emptyNotice }}
     </p>
 
-    <!-- Dimmed rather than replaced while the next matchup loads: the strip
-         keeps its height, so picking a new opponent doesn't jump the build
-         below it up the page. -->
     <div
       v-else
       class="grid grid-cols-2 gap-4 transition-opacity duration-200 lg:grid-cols-4"
-      :class="isLoading ? 'opacity-60' : ''"
+      :class="loading ? 'opacity-60' : ''"
     >
       <div
         v-for="stat in stats"

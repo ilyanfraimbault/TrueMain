@@ -244,6 +244,10 @@ builder.Services.AddOptions<CompositionSearchOptions>()
         options => options.CandidatePoolCap >= options.TopK,
         "CompositionSearch:CandidatePoolCap must be >= TopK.")
     .Validate(options => options.WinWeight >= 1d, "CompositionSearch:WinWeight must be >= 1.")
+    // A negative threshold would make every lane "won" and its mirror "lost" at once.
+    .Validate(
+        options => options.LaneGoldLeadThreshold >= 0,
+        "CompositionSearch:LaneGoldLeadThreshold must be >= 0.")
     .ValidateOnStart();
 builder.Services.AddOptions<DatabaseOptions>()
     .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName))
@@ -289,6 +293,7 @@ builder.Services.AddScoped<ParticipantBuildFactsLoader>();
 builder.Services.AddScoped<ICompositionBuildQueryService, CompositionBuildQueryService>();
 builder.Services.AddScoped<IChampionMatchupBuildsQueryService, ChampionMatchupBuildsQueryService>();
 builder.Services.AddScoped<ICompositionGamesQueryService, CompositionGamesQueryService>();
+builder.Services.AddScoped<ICompositionLaneOutcomeQueryService, CompositionLaneOutcomeQueryService>();
 builder.Services.AddScoped<ICompositionRecommendationQueryService, CompositionRecommendationQueryService>();
 // Same CommunityDragon item-metadata source as the ingestor's pattern
 // aggregation, so the composition recommender reads a game's items

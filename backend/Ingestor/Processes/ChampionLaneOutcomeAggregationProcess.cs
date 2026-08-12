@@ -1,3 +1,4 @@
+using Core.Lol.Lane;
 using Core.Lol.Patches;
 using Core.Options;
 using Data;
@@ -243,13 +244,16 @@ public sealed class ChampionLaneOutcomeAggregationProcess(
                 accumulator.LaneXpDiffSum += selfReading.Xp - opponentReading.Xp;
                 accumulator.LaneXpDiffGames++;
 
-                if (lead > goldLeadThreshold)
+                // Shared with the API's live pass over a composition's sampled games
+                // (#1117): "the lane was won" must mean one thing across the site.
+                switch (LaneOutcomeRules.Judge(lead, goldLeadThreshold))
                 {
-                    accumulator.LaneWins++;
-                }
-                else if (lead < -goldLeadThreshold)
-                {
-                    accumulator.LaneLosses++;
+                    case LaneStanding.Won:
+                        accumulator.LaneWins++;
+                        break;
+                    case LaneStanding.Lost:
+                        accumulator.LaneLosses++;
+                        break;
                 }
             }
         }

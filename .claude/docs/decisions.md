@@ -236,6 +236,28 @@ position / bracket narrowing). That makes `patch.games == dedication.careerGames
 centimetres apart. A narrower filter (per platform, per lane) would have been defensible on its own and would
 have made the grid disagree with the card above it — #927.
 
+**The matchup tool judges the lane over its own sampled games — this finishes #1111's merge.**
+#1111 put the recommendation's figures and the matchup's lane figures on one line but left the lane half reading
+`champion_matchup_stats`. Two populations behind one strip, and they disagree in a way readers spot immediately:
+the aggregate's champion side is **mains-only** since #1087 while a composition sample takes any pilot, so a
+matchup showing **"8 games used · 0 by mains"** sat beside a lane win rate of **"—"**. Reported from production
+as "pourquoi il n'y a pas de lane winrate ? pourtant tous les matchs qu'on a récupéré ont le bon matchup" — and
+that is exactly right: those games *are* games of the matchup, they were simply not the games being measured.
+The backend now judges the lane over the selection itself, so every cell counts the same games and the strip
+makes one request instead of two.
+↳ **Not the scan #606 retired.** The selection already holds its games' `(MatchId, ParticipantId)` keys — at most
+`CompositionSearch:TopK` (100) of them — so this reads two snapshot rows per game by key. #606 retired a
+self-join over every retained match, which is a different thing.
+↳ **The trade accepted:** the lane now rests on tens of games instead of the aggregate's hundreds, so it is
+noisier. It is also *the right games*, the cell always prints its own denominator ("of 5 decided"), and
+`MinDecidedLaneGames` is deliberately **not** applied here — that floor belongs to the champion page's
+leaderboard, where a reader is comparing matchups; here they are looking at one draft, and blanking the figure
+would fail exactly the thin drafts the tool exists to answer.
+↳ **"The lane was won" is now defined once**, in `Core/Lol/Lane/LaneOutcomeRules.cs`, shared by the ingestor's
+fold and this live pass. The threshold stays a separate option per consumer — changing the ingestor's re-defines
+every *stored* counter and cannot be applied retroactively (#919), while this one recomputes per request — but
+both default to the same constant, and a deployment overriding one must override both — #1117.
+
 **`/matchup` carries one line of numbers, not two — and it stores the XP gap beside the gold one.**
 The page had grown a "This matchup" strip (games / win rate / matchup rate / lane WR / gold @15) above a
 recommendation card that opened with its own (games used / draft match / win rate): **two `games` figures and two
