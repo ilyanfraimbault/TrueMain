@@ -241,6 +241,7 @@ const missingMatchupNotice = computed(() => {
       :champion-name="playedChampion?.name ?? null"
       :opponent-name="opponentChampion?.name ?? null"
       :recommendation="recommendation ?? null"
+      :loading="isLoading"
       @show-games="gamesDrawerOpen = true"
     />
 

@@ -37,6 +37,12 @@ const props = defineProps<{
   opponentName: string | null
   /** Null until the recommendation resolves, and on the fallback path. */
   recommendation: CompositionBuildResponse | null
+  /**
+   * A refetch is in flight. The strip keeps its previous numbers and dims rather
+   * than emptying, so editing the draft doesn't jump the build below it up the
+   * page — the same treatment the recommendation card gets.
+   */
+  loading?: boolean
 }>()
 
 const emit = defineEmits<{ 'show-games': [] }>()
@@ -119,8 +125,8 @@ const stats = computed<StatCell[]>(() => {
       label: 'Win rate',
       value: sampleWinRate.value === null ? '—' : formatPercentage(sampleWinRate.value),
       caption: 'across those games',
-      hint: 'Win rate across the games the build is computed from — a smaller sample than '
-        + `the ${laneNoun.value} figures beside it, which cover every recorded game of the pair.`,
+      hint: 'Win rate across the games the build is computed from — the same games every '
+        + `cell of this line counts, ${laneNoun.value} figures included.`,
       tone: winRateBand(sampleWinRate.value),
     },
     {
@@ -176,7 +182,8 @@ const emptyNotice = computed(() => {
 
     <div
       v-else
-      class="grid grid-cols-2 gap-4 lg:grid-cols-4"
+      class="grid grid-cols-2 gap-4 transition-opacity duration-200 lg:grid-cols-4"
+      :class="loading ? 'opacity-60' : ''"
     >
       <div
         v-for="stat in stats"
