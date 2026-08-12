@@ -429,10 +429,14 @@ namespace Data.Migrations
                         .HasDefaultValue(0);
 
                     b.Property<int>("LaneXpDiffGames")
-                        .HasColumnType("integer");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
 
                     b.Property<long>("LaneXpDiffSum")
-                        .HasColumnType("bigint");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L);
 
                     b.Property<int>("OpponentChampionId")
                         .HasColumnType("integer");

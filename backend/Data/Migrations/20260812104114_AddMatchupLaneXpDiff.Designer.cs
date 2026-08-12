@@ -15,7 +15,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Data.Migrations
 {
     [DbContext(typeof(TrueMainDbContext))]
-    [Migration("20260812101834_AddMatchupLaneXpDiff")]
+    [Migration("20260812104114_AddMatchupLaneXpDiff")]
     partial class AddMatchupLaneXpDiff
     {
         /// <inheritdoc />
@@ -432,10 +432,14 @@ namespace Data.Migrations
                         .HasDefaultValue(0);
 
                     b.Property<int>("LaneXpDiffGames")
-                        .HasColumnType("integer");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
 
                     b.Property<long>("LaneXpDiffSum")
-                        .HasColumnType("bigint");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L);
 
                     b.Property<int>("OpponentChampionId")
                         .HasColumnType("integer");
