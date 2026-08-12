@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Core.Lol.Items;
@@ -9,32 +10,76 @@ namespace Data.BuildFacts;
 
 public sealed class CommunityDragonItemMetadataProvider(
     HttpClient httpClient,
-    ILogger<CommunityDragonItemMetadataProvider> logger) : IItemMetadataProvider
+    ILogger<CommunityDragonItemMetadataProvider> logger,
+    TimeProvider timeProvider) : IItemMetadataProvider
 {
+    /// <summary>
+    /// CommunityDragon's branch of last resort. It always exists and tracks the
+    /// newest game data it has published, so it is the previous patch while a
+    /// freshly shipped patch is still missing, and becomes that patch as soon as
+    /// CommunityDragon catches up.
+    /// </summary>
+    private const string LatestBranch = "latest";
+
+    /// <summary>
+    /// How long a fallback stands before the real patch branch is probed again.
+    /// Bounds how long a long-lived process (notably the Api, which runs for days)
+    /// keeps reading a just-shipped patch through the previous patch's metadata.
+    /// </summary>
+    private static readonly TimeSpan FallbackRecheckInterval = TimeSpan.FromMinutes(30);
+
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly IReadOnlySet<int> TierTwoBootIds = LolItemIds.TierTwoBoots.All;
-    private readonly ConcurrentDictionary<string, Lazy<Task<IReadOnlyDictionary<int, ItemMetadata>>>> _cache = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, Lazy<Task<PatchItems>>> _cache = new(StringComparer.Ordinal);
 
-    public Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemsAsync(string gameVersion, CancellationToken ct)
+    public async Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemsAsync(string gameVersion, CancellationToken ct)
     {
         var patch = PatchVersion.Parse(gameVersion).ToMajorMinor();
-        var lazyTask = _cache.GetOrAdd(patch, static (normalizedPatch, provider) =>
-            new Lazy<Task<IReadOnlyDictionary<int, ItemMetadata>>>(
-                () => provider.LoadPatchItemsAsync(normalizedPatch, CancellationToken.None),
-                LazyThreadSafetyMode.ExecutionAndPublication),
-            this);
 
-        return lazyTask.Value.WaitAsync(ct);
+        // Two attempts at most: the second one runs against an entry this call just
+        // created, which cannot itself be a stale fallback, so the loop terminates.
+        for (var attempt = 0; ; attempt++)
+        {
+            var lazyTask = _cache.GetOrAdd(patch, static (normalizedPatch, provider) =>
+                new Lazy<Task<PatchItems>>(
+                    () => provider.LoadPatchItemsAsync(normalizedPatch, CancellationToken.None),
+                    LazyThreadSafetyMode.ExecutionAndPublication),
+                this);
+
+            PatchItems patchItems;
+            try
+            {
+                patchItems = await lazyTask.Value.WaitAsync(ct);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                // A faulted load must not be remembered: the shared Lazy would keep
+                // rethrowing the original failure for the life of the process, long
+                // after the transient cause cleared.
+                Evict(patch, lazyTask);
+                throw;
+            }
+
+            if (!patchItems.IsFallback
+                || attempt > 0
+                || timeProvider.GetUtcNow() - patchItems.LoadedAtUtc < FallbackRecheckInterval)
+            {
+                return patchItems.Items;
+            }
+
+            // The fallback has stood long enough that CommunityDragon may have
+            // published the real branch by now — drop it and load once more.
+            Evict(patch, lazyTask);
+        }
     }
 
-    private async Task<IReadOnlyDictionary<int, ItemMetadata>> LoadPatchItemsAsync(string patch, CancellationToken ct)
-    {
-        var url = $"https://raw.communitydragon.org/{patch}/plugins/rcp-be-lol-game-data/global/default/v1/items.json";
-        using var response = await httpClient.GetAsync(url, ct);
-        response.EnsureSuccessStatusCode();
+    private void Evict(string patch, Lazy<Task<PatchItems>> entry)
+        => ((ICollection<KeyValuePair<string, Lazy<Task<PatchItems>>>>)_cache)
+            .Remove(new KeyValuePair<string, Lazy<Task<PatchItems>>>(patch, entry));
 
-        await using var stream = await response.Content.ReadAsStreamAsync(ct);
-        var items = await JsonSerializer.DeserializeAsync<List<CommunityDragonItem>>(stream, JsonOptions, ct) ?? [];
+    private async Task<PatchItems> LoadPatchItemsAsync(string patch, CancellationToken ct)
+    {
+        var (items, isFallback) = await FetchPatchItemsAsync(patch, ct);
 
         logger.LogInformation("Loaded {Count} item metadata rows for patch {Patch}.", items.Count, patch);
 
@@ -46,7 +91,7 @@ public sealed class CommunityDragonItemMetadataProvider(
                 patch, supportFamily.RootId, supportFamily.IntermediateIds.Count, supportFamily.CompletionIds.Count);
         }
 
-        return items.ToDictionary(
+        var metadata = items.ToDictionary(
             item => item.Id,
             item =>
             {
@@ -73,7 +118,76 @@ public sealed class CommunityDragonItemMetadataProvider(
                     IsStarterClassItem = IsStarterClassItem(item, isBootsItem)
                 };
             });
+
+        return new PatchItems(metadata, isFallback, timeProvider.GetUtcNow());
     }
+
+    /// <summary>
+    /// Fetch a patch's item metadata, falling back to <see cref="LatestBranch"/>
+    /// when CommunityDragon has not published that patch's branch yet.
+    /// </summary>
+    /// <remarks>
+    /// CommunityDragon mirrors a patch hours-to-days after Riot ships it, so on
+    /// every patch day the first games on the new patch reach aggregation while
+    /// <c>/&lt;patch&gt;/</c> still 404s. Treating that as fatal aborted both
+    /// <c>ChampionPatternAggregation</c> and <c>ChampionPowerspikeAggregation</c>
+    /// for the whole live-patch corpus over a handful of new-patch rows (#1107).
+    /// The previous patch's item metadata is a far better answer than no run at
+    /// all: item ids are stable across patches, and powerspike in particular
+    /// flags every match in a batch as folded whether or not it contributed, so
+    /// skipping the rows would drop them from the aggregates permanently.
+    /// </remarks>
+    private async Task<(List<CommunityDragonItem> Items, bool IsFallback)> FetchPatchItemsAsync(
+        string patch,
+        CancellationToken ct)
+    {
+        var items = await TryFetchBranchAsync(patch, ct);
+        if (items is not null)
+        {
+            return (items, false);
+        }
+
+        logger.LogWarning(
+            "CommunityDragon has not published patch {Patch} yet; falling back to its '{Branch}' branch for item metadata.",
+            patch,
+            LatestBranch);
+
+        var latest = await TryFetchBranchAsync(LatestBranch, ct)
+            ?? throw new InvalidOperationException(
+                $"CommunityDragon serves neither patch '{patch}' nor its '{LatestBranch}' branch.");
+
+        return (latest, true);
+    }
+
+    /// <summary>
+    /// Read one CommunityDragon branch, returning <see langword="null"/> when that
+    /// branch does not exist. Any other failure still throws — an unpublished
+    /// branch is expected, an outage is not.
+    /// </summary>
+    private async Task<List<CommunityDragonItem>?> TryFetchBranchAsync(string branch, CancellationToken ct)
+    {
+        var url = $"https://raw.communitydragon.org/{branch}/plugins/rcp-be-lol-game-data/global/default/v1/items.json";
+        using var response = await httpClient.GetAsync(url, ct);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+
+        await using var stream = await response.Content.ReadAsStreamAsync(ct);
+        return await JsonSerializer.DeserializeAsync<List<CommunityDragonItem>>(stream, JsonOptions, ct) ?? [];
+    }
+
+    /// <summary>
+    /// A patch's resolved item metadata, plus whether it actually came from that
+    /// patch's branch and when it was loaded — the two facts
+    /// <see cref="GetItemsAsync"/> needs to decide when to re-probe.
+    /// </summary>
+    private sealed record PatchItems(
+        IReadOnlyDictionary<int, ItemMetadata> Items,
+        bool IsFallback,
+        DateTimeOffset LoadedAtUtc);
 
     /// <summary>
     /// Detect the support-quest item family for a given patch, 100% from

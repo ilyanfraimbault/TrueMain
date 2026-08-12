@@ -713,6 +713,21 @@ healthy run that ingested nothing. 👉 The general rule: retry policies cannot 
 per-item error isolation belongs at the call site — the same principle as the Worker's per-process isolation
 above, one level down.
 
+**A CommunityDragon patch branch that does not exist yet is a transient condition, not a fatal one.**
+CommunityDragon mirrors a patch hours-to-days after Riot ships it, so on every patch day the first games on
+the new patch reach aggregation while `raw.communitydragon.org/<patch>/` still 404s. `EnsureSuccessStatusCode`
+let that escape `CommunityDragonItemMetadataProvider`, and 7 matches on 16.16 aborted **both**
+`ChampionPatternAggregation` and `ChampionPowerspikeAggregation` on every ingestor cycle — powerspike fully
+stalled, since its batch selector re-picks the same uncommitted batch forever (16 errors on 2026-08-12, one
+failure of each process per cycle) — #1107. Fixed by falling back to the `latest` branch (the previous patch
+until CommunityDragon catches up, then the new one) and re-probing the real branch every 30 min. Skipping the
+affected matches was rejected: `ProcessBatchAsync` flags every match in a batch as `PowerspikeAggregated`
+whether or not it contributed, so a skipped match is dropped from the aggregates permanently — stale-by-one-patch
+item metadata beats a hole. A non-404 failure still throws; an outage must not be papered over with the wrong
+patch's data. Faulted loads are also no longer cached — a `Lazy<Task<…>>` that faults kept rethrowing the
+original error for the life of the process, which for the Api means days. 👉 The general rule: an upstream that
+publishes on its own schedule needs a degraded answer, not an exception, on the window where it lags.
+
 **The EF compiled model must be regenerated on every schema change.**
 `dotnet ef dbcontext optimize` → `Data/CompiledModels`. Originally for cold start; the operational reason is
 that a stale model *silently drops columns*. Two concurrent schema PRs always conflict there — the second

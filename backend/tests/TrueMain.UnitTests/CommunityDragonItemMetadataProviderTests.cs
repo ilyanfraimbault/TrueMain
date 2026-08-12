@@ -39,7 +39,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
 
         using var handler = new StubHttpMessageHandler(payload);
         using var httpClient = new HttpClient(handler);
-        var provider = new CommunityDragonItemMetadataProvider(httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance);
+        var provider = new CommunityDragonItemMetadataProvider(httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance, TimeProvider.System);
 
         var items = await provider.GetItemsAsync("16.7.1", CancellationToken.None);
 
@@ -78,7 +78,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
 
         using var handler = new StubHttpMessageHandler(payload);
         using var httpClient = new HttpClient(handler);
-        var provider = new CommunityDragonItemMetadataProvider(httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance);
+        var provider = new CommunityDragonItemMetadataProvider(httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance, TimeProvider.System);
 
         var items = await provider.GetItemsAsync("16.7.1", CancellationToken.None);
 
@@ -143,7 +143,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
 
         using var handler = new StubHttpMessageHandler(payload);
         using var httpClient = new HttpClient(handler);
-        var provider = new CommunityDragonItemMetadataProvider(httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance);
+        var provider = new CommunityDragonItemMetadataProvider(httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance, TimeProvider.System);
 
         var items = await provider.GetItemsAsync("16.10.1", CancellationToken.None);
 
@@ -182,7 +182,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
 
         using var handler = new StubHttpMessageHandler(payload);
         using var httpClient = new HttpClient(handler);
-        var provider = new CommunityDragonItemMetadataProvider(httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance);
+        var provider = new CommunityDragonItemMetadataProvider(httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance, TimeProvider.System);
 
         var items = await provider.GetItemsAsync("14.20.1", CancellationToken.None);
 
@@ -223,7 +223,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
 
         using var handler = new StubHttpMessageHandler(payload);
         using var httpClient = new HttpClient(handler);
-        var provider = new CommunityDragonItemMetadataProvider(httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance);
+        var provider = new CommunityDragonItemMetadataProvider(httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance, TimeProvider.System);
 
         var items = await provider.GetItemsAsync("99.99.1", CancellationToken.None);
 
@@ -270,7 +270,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
 
         using var handler = new StubHttpMessageHandler(payload);
         using var httpClient = new HttpClient(handler);
-        var provider = new CommunityDragonItemMetadataProvider(httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance);
+        var provider = new CommunityDragonItemMetadataProvider(httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance, TimeProvider.System);
 
         var items = await provider.GetItemsAsync("16.10.1", CancellationToken.None);
 
@@ -326,7 +326,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
 
         using var handler = new StubHttpMessageHandler(payload);
         using var httpClient = new HttpClient(handler);
-        var provider = new CommunityDragonItemMetadataProvider(httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance);
+        var provider = new CommunityDragonItemMetadataProvider(httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance, TimeProvider.System);
 
         var items = await provider.GetItemsAsync("16.10.1", CancellationToken.None);
 
@@ -336,6 +336,105 @@ public sealed class CommunityDragonItemMetadataProviderTests
         items[2003].IsStarterClassItem.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task GetItemsAsync_should_fall_back_to_latest_when_the_patch_branch_is_not_published_yet()
+    {
+        // Patch day: Riot has shipped 16.16 and games are already flowing, but
+        // CommunityDragon has not mirrored that branch yet (#1107).
+        using var handler = new RoutingHttpMessageHandler(branch =>
+            branch == "16.16" ? null : OneItemPayload);
+        using var httpClient = new HttpClient(handler);
+        var provider = new CommunityDragonItemMetadataProvider(
+            httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance, TimeProvider.System);
+
+        var items = await provider.GetItemsAsync("16.16.804.9184", CancellationToken.None);
+
+        items.Should().ContainKey(3172);
+        handler.RequestedBranches.Should().Equal("16.16", "latest");
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_should_reprobe_the_patch_branch_once_the_fallback_goes_stale()
+    {
+        var published = false;
+        using var handler = new RoutingHttpMessageHandler(branch =>
+            branch == "16.16" && !published ? null : OneItemPayload);
+        using var httpClient = new HttpClient(handler);
+        var clock = new StubTimeProvider(new DateTimeOffset(2026, 8, 12, 3, 0, 0, TimeSpan.Zero));
+        var provider = new CommunityDragonItemMetadataProvider(
+            httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance, clock);
+
+        await provider.GetItemsAsync("16.16.804.9184", CancellationToken.None);
+
+        // Within the recheck window the fallback stands: no further requests.
+        clock.Advance(TimeSpan.FromMinutes(29));
+        await provider.GetItemsAsync("16.16.804.9184", CancellationToken.None);
+        handler.RequestedBranches.Should().Equal("16.16", "latest");
+
+        // Past it, CommunityDragon is probed again — and by now it has the branch,
+        // so the real patch metadata replaces the fallback and sticks.
+        published = true;
+        clock.Advance(TimeSpan.FromMinutes(2));
+        await provider.GetItemsAsync("16.16.804.9184", CancellationToken.None);
+        await provider.GetItemsAsync("16.16.804.9184", CancellationToken.None);
+
+        handler.RequestedBranches.Should().Equal("16.16", "latest", "16.16");
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_should_not_cache_a_faulted_load()
+    {
+        // A transient outage must not poison the patch entry for the life of the
+        // process: the next caller has to get a fresh attempt.
+        var failNext = true;
+        using var handler = new RoutingHttpMessageHandler(_ =>
+        {
+            if (!failNext)
+            {
+                return OneItemPayload;
+            }
+            failNext = false;
+            throw new HttpRequestException("connection reset");
+        });
+        using var httpClient = new HttpClient(handler);
+        var provider = new CommunityDragonItemMetadataProvider(
+            httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance, TimeProvider.System);
+
+        await Assert.ThrowsAsync<HttpRequestException>(
+            () => provider.GetItemsAsync("16.15.1", CancellationToken.None));
+
+        var items = await provider.GetItemsAsync("16.15.1", CancellationToken.None);
+
+        items.Should().ContainKey(3172);
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_should_surface_a_non_404_failure_rather_than_falling_back()
+    {
+        // An outage is not an unpublished branch — it must not be papered over
+        // with the previous patch's metadata.
+        using var handler = new StatusHttpMessageHandler(HttpStatusCode.InternalServerError);
+        using var httpClient = new HttpClient(handler);
+        var provider = new CommunityDragonItemMetadataProvider(
+            httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance, TimeProvider.System);
+
+        await Assert.ThrowsAsync<HttpRequestException>(
+            () => provider.GetItemsAsync("16.15.1", CancellationToken.None));
+    }
+
+    private const string OneItemPayload = """
+[
+  {
+    "id": 3172, "name": "Gunmetal Greaves", "description": "", "active": true,
+    "inStore": true, "from": [3006], "to": [], "categories": ["AttackSpeed"],
+    "maxStacks": 1, "requiredChampion": "", "requiredAlly": "",
+    "requiredBuffCurrencyName": "", "requiredBuffCurrencyCost": 0,
+    "specialRecipe": 0, "isEnchantment": false, "price": 0,
+    "priceTotal": 1100, "displayInItemSets": true, "iconPath": ""
+  }
+]
+""";
+
     private sealed class StubHttpMessageHandler(string payload) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -343,5 +442,44 @@ public sealed class CommunityDragonItemMetadataProviderTests
             {
                 Content = new StringContent(payload, Encoding.UTF8, "application/json")
             });
+    }
+
+    private sealed class StatusHttpMessageHandler(HttpStatusCode statusCode) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            => Task.FromResult(new HttpResponseMessage(statusCode));
+    }
+
+    /// <summary>
+    /// Answers per CommunityDragon branch — the first path segment of the request —
+    /// and records the branches asked for, in order. A <see langword="null"/> payload
+    /// stands for a branch CommunityDragon has not published (404).
+    /// </summary>
+    private sealed class RoutingHttpMessageHandler(Func<string, string?> payloadForBranch) : HttpMessageHandler
+    {
+        public List<string> RequestedBranches { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var branch = request.RequestUri!.Segments[1].TrimEnd('/');
+            RequestedBranches.Add(branch);
+
+            var payload = payloadForBranch(branch);
+            return Task.FromResult(payload is null
+                ? new HttpResponseMessage(HttpStatusCode.NotFound)
+                : new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(payload, Encoding.UTF8, "application/json")
+                });
+        }
+    }
+
+    private sealed class StubTimeProvider(DateTimeOffset now) : TimeProvider
+    {
+        private DateTimeOffset _now = now;
+
+        public void Advance(TimeSpan delta) => _now += delta;
+
+        public override DateTimeOffset GetUtcNow() => _now;
     }
 }

@@ -288,7 +288,9 @@ builder.Services.AddScoped<ICompositionGamesQueryService, CompositionGamesQueryS
 builder.Services.AddScoped<ICompositionRecommendationQueryService, CompositionRecommendationQueryService>();
 // Same CommunityDragon item-metadata source as the ingestor's pattern
 // aggregation, so the composition recommender reads a game's items
-// identically. Patch-cached inside the provider.
+// identically. Patch-cached inside the provider, which clocks how long a
+// not-yet-published patch has been served from the fallback branch (#1107).
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddHttpClient<IItemMetadataProvider, CommunityDragonItemMetadataProvider>();
 builder.Services.AddScoped<IChampionScalingQueryService, ChampionScalingQueryService>();
 builder.Services.AddScoped<IChampionItemTimingsQueryService, ChampionItemTimingsQueryService>();
