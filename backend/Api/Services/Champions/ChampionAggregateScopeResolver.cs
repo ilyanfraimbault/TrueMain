@@ -33,6 +33,62 @@ internal static class ChampionAggregateScopeResolver
     }
 
     /// <summary>
+    /// Deduplicated and newest-first — the order every default-patch walk uses, and
+    /// the one place the "which patch is newer" comparison lives.
+    /// </summary>
+    public static IReadOnlyList<string> OrderNewestFirst(IEnumerable<string> gameVersions)
+        => [.. gameVersions.Distinct(StringComparer.Ordinal).OrderByDescending(ParsePatchVersion)];
+
+    /// <summary>
+    /// Picks the patch the patch-less public reads default to (#1109): walking back
+    /// from the newest, the first one carrying at least <paramref name="minLines"/>
+    /// <c>(champion, lane)</c> lines above the directory's min-sample floor.
+    ///
+    /// <para>
+    /// The plain "newest patch with any row at all" rule this replaced put the site
+    /// on a patch its own directory then filtered down to nothing, for the whole
+    /// window between a patch's first fold and its first few thousand games. A patch
+    /// becomes current here only once it can fill the page it is about to be shown on.
+    /// </para>
+    ///
+    /// <para>
+    /// Falls back to the newest patch when <em>nothing</em> clears the bar rather
+    /// than returning null: on a fresh deployment, or with a bar set above the whole
+    /// site's volume, a thin directory is the honest state and an empty one is not.
+    /// The same fallback makes a zero or negative <paramref name="minLines"/> the
+    /// documented off-switch.
+    /// </para>
+    /// </summary>
+    /// <param name="gameVersions">Candidate patches, in any order.</param>
+    /// <param name="linesPastFloorByPatch">
+    /// Lines clearing the floor, per patch — keyed by the same strings
+    /// <paramref name="gameVersions"/> carries. A patch absent from the lookup counts
+    /// as zero, so a candidate whose lines were never measured can never win.
+    /// </param>
+    /// <param name="minLines">The bar, <c>ChampionsList:MinServablePatchLines</c>.</param>
+    public static string? ResolveServablePatch(
+        IEnumerable<string> gameVersions,
+        IReadOnlyDictionary<string, int> linesPastFloorByPatch,
+        int minLines)
+    {
+        var ordered = OrderNewestFirst(gameVersions);
+        if (minLines <= 0)
+        {
+            return ordered.FirstOrDefault();
+        }
+
+        foreach (var gameVersion in ordered)
+        {
+            if (linesPastFloorByPatch.GetValueOrDefault(gameVersion) >= minLines)
+            {
+                return gameVersion;
+            }
+        }
+
+        return ordered.FirstOrDefault();
+    }
+
+    /// <summary>
     /// Picks the most recent patch whose dominant-position game count clears
     /// <paramref name="minGames"/>. For player-scoped views: a player's latest
     /// patch is often too thin to rank, so resolving to the newest patch where

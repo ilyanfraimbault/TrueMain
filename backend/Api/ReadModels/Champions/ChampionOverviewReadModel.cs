@@ -10,20 +10,38 @@ namespace TrueMain.ReadModels.Champions;
 /// </summary>
 public sealed record ChampionOverviewReadModel
 {
-    /// <summary>Canonical <c>major.minor</c> patch this snapshot was computed for.</summary>
+    /// <summary>
+    /// Canonical <c>major.minor</c> patch <see cref="TopRows"/> was computed for —
+    /// the patch the site serves. Not necessarily the newest patch with data: a patch
+    /// too thin to fill a directory is skipped (#1109). <see cref="CountedPatches"/>
+    /// is what the volume figures span, and is usually wider.
+    /// </summary>
     public string PatchVersion { get; init; } = string.Empty;
 
     /// <summary>
     /// True sum of games aggregated across every <c>(champion, position)</c>
-    /// slice on the active patch — see <see cref="ChampionSummariesResult.TotalGames"/>,
-    /// which this is copied from. Not the sum of <see cref="TopRows"/> (a short slice)
-    /// nor of the ranked directory alone (which excludes below-floor and
-    /// position-less rows).
+    /// slice on each of <see cref="CountedPatches"/> — see
+    /// <see cref="ChampionSummariesResult.TotalGames"/>, whose definition this
+    /// reuses per patch. Not the sum of <see cref="TopRows"/> (a short slice) nor of
+    /// the ranked directory alone (which excludes below-floor and position-less rows).
     /// </summary>
     public long GamesAnalyzed { get; init; }
 
-    /// <summary>Distinct champions with at least one ranked row on the active patch.</summary>
+    /// <summary>
+    /// Distinct champions with at least one ranked row on <em>any</em> of
+    /// <see cref="CountedPatches"/> — distinct, not summed, so a champion ranked on
+    /// both patches counts once.
+    /// </summary>
     public int ChampionsRanked { get; init; }
+
+    /// <summary>
+    /// The patches <see cref="GamesAnalyzed"/> and <see cref="ChampionsRanked"/> span,
+    /// newest first — the served patch and up to
+    /// <c>ChampionsList:HomepagePatchWindow - 1</c> patches before it (#1109). Sent so
+    /// the homepage can say what its headline number covers instead of implying it is
+    /// this patch alone; a single entry means the figures are patch-scoped as before.
+    /// </summary>
+    public IReadOnlyList<string> CountedPatches { get; init; } = [];
 
     /// <summary>
     /// The strongest rows on the patch, tier-then-score ordered (S first,

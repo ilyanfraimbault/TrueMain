@@ -22,6 +22,51 @@ public sealed class ChampionsListOptions
     public int MinSampleGames { get; set; } = 10;
 
     /// <summary>
+    /// How many <c>(champion, lane)</c> lines past <see cref="MinSampleGames"/> a
+    /// patch must hold before the patch-less public reads default to it. Under this
+    /// bar the reads serve the previous patch instead, walking back until one clears
+    /// it (#1109).
+    ///
+    /// <para>
+    /// Without a bar the reads resolved to the newest patch holding a <em>single</em>
+    /// aggregate row, and the two rules then contradicted each other: on production
+    /// on 2026-08-12, seven one-game lines were enough to move the whole site onto
+    /// 16.16, where none of the seven cleared the ten-game floor — an empty directory,
+    /// an empty tier list and a "4 main games analyzed" homepage, while 16.15 sat
+    /// beside them with 331 628 games. It self-healed in hours and recurred every
+    /// patch day.
+    /// </para>
+    ///
+    /// <para>
+    /// Counted in lines rather than raw games on purpose: lines past the floor are
+    /// exactly what the directory renders, so the bar measures the thing that was
+    /// broken instead of a proxy for it. Fifty is roughly forty champions — a thin
+    /// but genuine directory, about three to five hours into a patch at production's
+    /// volume, against the ~560 lines a settled patch reaches. Set to 0 to disable
+    /// the bar and serve the newest patch with any data at all, the pre-#1109
+    /// behaviour.
+    /// </para>
+    /// </summary>
+    public int MinServablePatchLines { get; set; } = 50;
+
+    /// <summary>
+    /// How many patches the homepage's volume chips ("main games analyzed", the
+    /// champion count) span, counting back from the served patch. Two, so the
+    /// headline figure does not crater every time a patch rolls over: the served
+    /// patch is at most a few days old for half of its life, and a number that
+    /// falls by an order of magnitude every two weeks reads as data loss rather
+    /// than as a patch boundary.
+    ///
+    /// <para>
+    /// The chips only — the homepage tier-list panel stays on the served patch
+    /// alone. Merging two patches into one S→D percentile field would rank
+    /// champions against a meta that never existed, which is a different and worse
+    /// lie than a small number. Set to 1 to scope the chips to the served patch.
+    /// </para>
+    /// </summary>
+    public int HomepagePatchWindow { get; set; } = 2;
+
+    /// <summary>
     /// Most <c>(champion, lane)</c> lines one champion may contribute to the
     /// directory and the tier list, keeping its most-played lanes. Champions
     /// flex, so a game's ~170 champions produced up to 5 × N lines — measured on

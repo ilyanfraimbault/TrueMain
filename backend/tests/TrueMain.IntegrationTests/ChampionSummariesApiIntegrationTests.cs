@@ -351,6 +351,83 @@ public sealed class ChampionSummariesApiIntegrationTests
             .ToDictionary(summary => summary.ChampionId, summary => summary.Tier);
     }
 
+    [Fact]
+    public async Task ListChampionsAsync_ServesThePreviousPatchWhenTheNewestCannotFillADirectory()
+    {
+        // The directory is the surface #1109 was reported on: on patch day it went to
+        // "No champion stats for this patch yet" because the reads had switched onto a
+        // patch holding seven one-game lines. It must now stay on the patch that can
+        // still answer the question, and say so in every row's patchVersion.
+        await _fixture.ResetDatabaseAsync();
+
+        var now = DateTime.UtcNow;
+        var accountId = Guid.Parse("44444444-4444-4444-4444-444444444444");
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            db.RiotAccounts.Add(new RiotAccount
+            {
+                Id = accountId,
+                PlatformId = "KR",
+                Puuid = "servable-puuid",
+                GameName = "servable",
+                SummonerId = "servable-summoner",
+                ProfileIconId = 1,
+                SummonerLevel = 100,
+                LastProfileSyncAtUtc = now,
+                CreatedAtUtc = now.AddDays(-10),
+                UpdatedAtUtc = now.AddDays(-1),
+            });
+            await db.SaveChangesAsync();
+
+            var seeder = new ChampionAggregateSeeder();
+            // 16.16: rows exist, nothing rankable — one game each.
+            foreach (var championId in new[] { 700, 701 })
+            {
+                SeedLine(seeder, accountId, championId, "16.16", games: 1, wins: 0, now);
+            }
+            // 16.15: six lines past the 20-game floor, over the bar of five.
+            for (var championId = 710; championId <= 715; championId++)
+            {
+                SeedLine(seeder, accountId, championId, "16.15", games: 40, wins: 22, now);
+            }
+            await seeder.SaveAsync(db);
+        }
+
+        await using var factory = new ApiWebApplicationFactory(
+            _fixture, minSampleGames: 20, minServablePatchLines: 5);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var response = await client.GetAsync("/champions");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var summaries = await response.Content.ReadFromJsonAsync<IReadOnlyList<ChampionSummaryReadModel>>();
+        summaries.Should().NotBeNull();
+        summaries!.Should().HaveCount(6, "the six 16.15 lines are served, not the two unrankable 16.16 ones");
+        summaries.Should().OnlyContain(summary => summary.PatchVersion == "16.15",
+            "the fallback is reported, not hidden — the patch picker has to show what is actually on screen");
+
+        // An explicit request still wins: the thin patch stays reachable, it just is
+        // not what an unqualified read defaults to.
+        var explicitResponse = await client.GetAsync("/champions?patch=16.16");
+        var explicitSummaries = await explicitResponse.Content
+            .ReadFromJsonAsync<IReadOnlyList<ChampionSummaryReadModel>>();
+        explicitSummaries.Should().BeEmpty("16.16's lines are all under the sample floor");
+    }
+
+    private static void SeedLine(
+        ChampionAggregateSeeder seeder, Guid accountId, int championId, string patch,
+        int games, int wins, DateTime aggregatedAtUtc)
+        => seeder.AddPatternWithRune(
+            accountId, championId, patch, "KR", 420, "TOP",
+            summoner1Id: 4, summoner2Id: 12, skillOrderKey: "Q-W-E",
+            buildItems: [3153, 3006, 3031], bootsItemId: 3006,
+            primaryStyleId: 8000, primaryKeystoneId: 8008, secondaryStyleId: 8400,
+            games: games, wins: wins, aggregatedAtUtc: aggregatedAtUtc);
+
     // The two aggregation tests above seed a few low-game slices on purpose, so
     // they disable the sample floor (0) to assert over every seeded row. The
     // dedicated floor test drives it at a real threshold instead.
@@ -399,11 +476,16 @@ public sealed class ChampionSummariesApiIntegrationTests
         return now;
     }
 
-    private sealed class ApiWebApplicationFactory(PostgresFixture fixture, int minSampleGames)
+    private sealed class ApiWebApplicationFactory(
+        PostgresFixture fixture, int minSampleGames, int minServablePatchLines = 0)
         : TrueMainWebApplicationFactory<Program>(
             fixture,
             [
                 new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420"),
                 new KeyValuePair<string, string?>("ChampionsList:MinSampleGames", minSampleGames.ToString()),
+                // Off unless a test asks for it, so the single-patch cases above keep
+                // exercising exactly what they were written for.
+                new KeyValuePair<string, string?>(
+                    "ChampionsList:MinServablePatchLines", minServablePatchLines.ToString()),
             ]);
 }
