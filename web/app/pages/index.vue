@@ -73,11 +73,14 @@ const championCount = computed(() => overview.value?.championsRanked ?? 0)
 // (which drops below-floor and position-less slices).
 const gamesAnalyzed = computed(() => overview.value?.gamesAnalyzed ?? 0)
 
-// The chips span more than one patch (#1109), so they have to say so: a figure
-// that silently covers two patches while the tier list beside it covers one
-// invites the reader to divide one by the other. Named rather than counted —
-// "over 16.15–16.14" is checkable against the patch picker, "over 2 patches" is
-// not.
+// Both volume chips span more than one patch (#1109), so both have to say so: a
+// figure that silently covers two patches while the tier list beside it covers
+// one invites the reader to divide one by the other. Carried on each chip rather
+// than once for the pair — the truemains chip sits in the same row and is *not*
+// patch-scoped, so a shared trailing qualifier would read as covering it too.
+// Named rather than counted: "over 16.15–16.14" is checkable against the patch
+// picker, "over 2 patches" is not. Empty on a one-patch window, so the usual
+// case is unchanged.
 const countedPatchLabel = computed(() => {
   const patches = overview.value?.countedPatches ?? []
   return patches.length > 1 ? ` over ${patches.join('–')}` : ''
@@ -150,7 +153,7 @@ function formatCount(value: number): string {
                 Champions ranked
               </dt>
               <dd class="text-muted">
-                <span class="font-semibold tabular-nums text-default">{{ formatCount(championCount) }}</span> champions ranked
+                <span class="font-semibold tabular-nums text-default">{{ formatCount(championCount) }}</span> champions ranked{{ countedPatchLabel }}
               </dd>
             </template>
           </div>
