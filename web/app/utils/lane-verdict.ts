@@ -70,6 +70,17 @@ export function formatGoldDiff(value: number): string {
 }
 
 /**
+ * The experience gap, same signed format (#1111). Its own function rather than a
+ * reuse of `formatGoldDiff` because the two are not interchangeable in meaning —
+ * gold is who bought more, XP is who is bigger — and because the verdict bands
+ * above are gold's alone: an XP gap of 300 is not "a very good lane", it is barely
+ * a third of a level. Giving XP a formatter and *not* a band is the point.
+ */
+export function formatXpDiff(value: number): string {
+  return formatGoldDiff(value)
+}
+
+/**
  * The gap as a `StatBlock` band: ahead of the even band is good, behind it is bad,
  * inside it is a measured draw. `null` has no reading at all — a gap that was never
  * measured must not render as "dead even", the most decisive-looking verdict there is.

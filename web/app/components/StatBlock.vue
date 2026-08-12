@@ -8,9 +8,10 @@
  * The point is the *gap* between the two lines. The old hand-written pairs put
  * a value and its label one step apart (`text-sm` over `text-xs`, same family,
  * same weight), which made a dense row read as undifferentiated noise. Here the
- * value is Geist Mono at a real display step and the label is a 10px uppercase
+ * value sits at a real display step and the label is a 10px uppercase
  * micro-label — see `stat-value` / `stat-label` in main.css, which own the
- * family, weight and figure style so a call site only picks the scale.
+ * family, weight and figure style so a call site only picks the scale. Both are
+ * Inter (#1111): what separates them is size, weight, casing and tracking.
  *
  * Colour is opt-in and means one thing: where the value sits on the one-sided
  * data axis — rose gold above average, stepping down the neutral ramp below it.

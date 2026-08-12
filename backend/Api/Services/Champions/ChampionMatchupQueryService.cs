@@ -127,6 +127,10 @@ public sealed class ChampionMatchupQueryService(
                 // summing both keeps the average over exactly what was measured.
                 GoldDiffSum = g.Sum(x => x.LaneGoldDiffSum),
                 GoldDiffGames = g.Sum(x => x.LaneGoldDiffGames),
+                // The experience gap behind the same lanes (#1111), on its own
+                // denominator for the same reason the gold gap needed one.
+                XpDiffSum = g.Sum(x => x.LaneXpDiffSum),
+                XpDiffGames = g.Sum(x => x.LaneXpDiffGames),
             })
             // A row can exist with zero games — the lane fold inserts one when it
             // reaches a matchup before its sibling does — and it is not a matchup
@@ -157,7 +161,7 @@ public sealed class ChampionMatchupQueryService(
             x.Wins,
             TotalGames: totalGames,
             LaneOutcome: (LaneOutcome?)new LaneOutcome(
-                x.LaneWins, x.LaneLosses, x.GoldDiffSum, x.GoldDiffGames))));
+                x.LaneWins, x.LaneLosses, x.GoldDiffSum, x.GoldDiffGames, x.XpDiffSum, x.XpDiffGames))));
     }
 
     /// <summary>
@@ -302,6 +306,10 @@ public sealed class ChampionMatchupQueryService(
                     AverageGoldDiffAt15 = x.LaneOutcome is { GoldDiffGames: > 0 } gap
                         ? (double)gap.GoldDiffSum / gap.GoldDiffGames
                         : null,
+                    XpDiffLaneGames = x.LaneOutcome?.XpDiffGames ?? 0,
+                    AverageXpDiffAt15 = x.LaneOutcome is { XpDiffGames: > 0 } xp
+                        ? (double)xp.XpDiffSum / xp.XpDiffGames
+                        : null,
                 };
             })
             .OrderByDescending(m => m.WinRate)
@@ -310,10 +318,12 @@ public sealed class ChampionMatchupQueryService(
 
     /// <summary>
     /// Lane wins and losses past the threshold (evens are in neither), plus the summed
-    /// gold gap at 15 minutes over its own sample — smaller than <see cref="Decided"/>
-    /// on rows folded before #976, and the reason the two carry separate denominators.
+    /// gold and experience gaps at 15 minutes, each over its own sample — smaller than
+    /// <see cref="Decided"/> on rows folded before #976 / #1111 respectively, which is
+    /// the reason all three carry separate denominators.
     /// </summary>
-    private readonly record struct LaneOutcome(int Wins, int Losses, long GoldDiffSum, int GoldDiffGames)
+    private readonly record struct LaneOutcome(
+        int Wins, int Losses, long GoldDiffSum, int GoldDiffGames, long XpDiffSum, int XpDiffGames)
     {
         public int Decided => Wins + Losses;
     }

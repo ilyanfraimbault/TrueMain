@@ -82,10 +82,11 @@ export default defineNuxtConfig({
     },
   },
   // Self-host the two families the app uses (see the `--font-*` vars in
-  // main.css): Inter for prose, headings and labels; Geist Mono for stat values
-  // and the micro-labels that annotate them. Declared explicitly so the
-  // download doesn't rely on CSS scanning of the *theme vars* — the family
-  // names only ever appear inside `--font-sans` / `--font-mono`.
+  // main.css): Inter for everything the reader reads, measurements included, and
+  // Geist Mono for the few places monospace is the meaning — tier letters, the
+  // empty-slot glyph, hex codes. Declared explicitly so the download doesn't rely
+  // on CSS scanning of the *theme vars* — the family names only ever appear
+  // inside `--font-sans` / `--font-mono`.
   //
   // Deliberately **no `weights`**. Pinning the list looks like a free saving and
   // is a trap: the module already discovers the weights it needs from the

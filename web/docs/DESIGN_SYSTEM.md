@@ -82,8 +82,10 @@ every skeleton inside a card is invisible.
 
 ## A stat is a pair, and the pair has a house style
 
-Two families with distinct jobs: **Inter** carries prose, headings and labels; **Geist Mono** carries
-measurements.
+**Inter carries everything the reader reads**, measurements included. Geist Mono is kept only where monospace
+is the meaning rather than a flourish — tier letters, the empty-slot glyph, hex codes on `/dev/design-system`.
+#1060 had put the two utilities below on Geist Mono; withdrawn in #1111, because across a dense page it read as
+a second unrelated typeface rather than as a register.
 
 - **`stat-value`** — family, weight and figure style, but deliberately *not* size: a headline KPI and a table
   cell are the same material at different scales, so the call site picks the step.

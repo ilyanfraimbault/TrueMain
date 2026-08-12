@@ -853,6 +853,13 @@ async function mockMatchups(id: number): Promise<ChampionMatchups | null> {
       const averageGoldDiffAt15 = goldDiffLaneGames === 0
         ? null
         : Math.round((s.wr - o.wr) * 9000 + (rng() - 0.5) * 320)
+      // XP rides on the same sample but deliberately not on the same sign every
+      // time (#1111): roughly a third of matchups get a gap pointing the other
+      // way, so the "gold ahead, XP behind" reading the pair exists for is
+      // reachable without a backend.
+      const averageXpDiffAt15 = averageGoldDiffAt15 === null
+        ? null
+        : Math.round(averageGoldDiffAt15 * (o.id % 3 === 0 ? -0.4 : 0.55) + (rng() - 0.5) * 260)
       return {
         opponentChampionId: o.id,
         games,
@@ -862,6 +869,8 @@ async function mockMatchups(id: number): Promise<ChampionMatchups | null> {
         decidedLaneGames,
         averageGoldDiffAt15,
         goldDiffLaneGames,
+        averageXpDiffAt15,
+        xpDiffLaneGames: goldDiffLaneGames,
       }
     })),
   }

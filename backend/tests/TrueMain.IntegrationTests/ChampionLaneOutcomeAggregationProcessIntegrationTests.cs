@@ -29,6 +29,9 @@ public sealed class ChampionLaneOutcomeAggregationProcessIntegrationTests
     private const string RawVersion = "16.4.521.123";
     private const int Threshold = 300;
 
+    /// <summary>Experience both sides carry unless a case sets them apart.</summary>
+    private const int DefaultXp = 8_000;
+
     private readonly PostgresFixture _fixture;
 
     public ChampionLaneOutcomeAggregationProcessIntegrationTests(PostgresFixture fixture)
@@ -95,6 +98,28 @@ public sealed class ChampionLaneOutcomeAggregationProcessIntegrationTests
         // very games that make a matchup even (#976).
         stat.LaneGoldDiffGames.Should().Be(5, "an even lane still has a measured gap");
         stat.LaneGoldDiffSum.Should().Be(5L * lead);
+    }
+
+    [Fact]
+    public async Task RunAsync_SumsTheExperienceGapOnItsOwnCounter()
+    {
+        await _fixture.ResetDatabaseAsync();
+        // Ahead in gold, behind in experience (#1111): a lane won on kills and lost on
+        // waves. This is the case both counters exist for — deriving XP from gold, or
+        // banding it with the gold verdict, would report a very good lane where the
+        // champion is a level down and the next all-in flips it.
+        await SeedGamesAsync(
+            games: 4, selfGold: 6_000, opponentGold: 5_000,
+            selfXp: 7_400, opponentXp: 8_000);
+
+        await CreateProcess().RunCoreAsync(CancellationToken.None);
+
+        var stat = await SingleStatAsync();
+        stat.LaneGoldDiffSum.Should().Be(4_000, "the gold gap is unchanged by the XP one");
+        stat.LaneXpDiffSum.Should().Be(-2_400, "signed the same way, and pointing the other direction here");
+        stat.LaneXpDiffGames.Should().Be(4);
+        stat.LaneXpDiffGames.Should().Be(stat.LaneGoldDiffGames,
+            "both gaps come off the same 15-minute snapshot, so they cover the same lanes going forward");
     }
 
     [Fact]
@@ -189,7 +214,9 @@ public sealed class ChampionLaneOutcomeAggregationProcessIntegrationTests
         int games,
         int selfGold,
         int opponentGold,
-        bool withSnapshots = true)
+        bool withSnapshots = true,
+        int selfXp = DefaultXp,
+        int opponentXp = DefaultXp)
     {
         await using var db = _fixture.CreateDbContext();
 
@@ -233,8 +260,8 @@ public sealed class ChampionLaneOutcomeAggregationProcessIntegrationTests
 
             if (withSnapshots)
             {
-                db.MatchParticipantTimelineSnapshots.Add(Snapshot(matchId, 1, selfGold));
-                db.MatchParticipantTimelineSnapshots.Add(Snapshot(matchId, 2, opponentGold));
+                db.MatchParticipantTimelineSnapshots.Add(Snapshot(matchId, 1, selfGold, selfXp));
+                db.MatchParticipantTimelineSnapshots.Add(Snapshot(matchId, 2, opponentGold, opponentXp));
             }
         }
 
@@ -266,7 +293,8 @@ public sealed class ChampionLaneOutcomeAggregationProcessIntegrationTests
             SkillEvents = [],
         };
 
-    private static MatchParticipantTimelineSnapshot Snapshot(string matchId, int participantId, int totalGold)
+    private static MatchParticipantTimelineSnapshot Snapshot(
+        string matchId, int participantId, int totalGold, int xp = DefaultXp)
         => new()
         {
             Id = Guid.NewGuid(),
@@ -278,7 +306,7 @@ public sealed class ChampionLaneOutcomeAggregationProcessIntegrationTests
             MinionsKilled = 100,
             JungleMinionsKilled = 0,
             Level = 11,
-            Xp = 8000,
+            Xp = xp,
             Kills = 2,
             DamageToChampions = 5000,
         };

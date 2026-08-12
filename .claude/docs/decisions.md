@@ -236,6 +236,38 @@ position / bracket narrowing). That makes `patch.games == dedication.careerGames
 centimetres apart. A narrower filter (per platform, per lane) would have been defensible on its own and would
 have made the grid disagree with the card above it — #927.
 
+**`/matchup` carries one line of numbers, not two — and it stores the XP gap beside the gold one.**
+The page had grown a "This matchup" strip (games / win rate / matchup rate / lane WR / gold @15) above a
+recommendation card that opened with its own (games used / draft match / win rate): **two `games` figures and two
+`win rate` figures centimetres apart**, measuring different populations, with nothing on screen saying so. Merged
+into four cells — games used, draft match, win rate, lane win rate — on the reasoning that every game in the
+sample *is* a game of this matchup. **The win rate kept is the sample's**, decided by the product owner; the
+matchup-wide record (its own game count, win rate and matchup rate) is gone from the page rather than shown
+twice, and each surviving cell states its own denominator because the two populations are still different sizes.
+↳ The strip stays mounted **outside** `RecommendationPanel`, which is #1098's reason and still holds: that card
+does not render on the standard-build fallback, and the figures used to vanish exactly where the reader most
+needs them. The provenance-drawer *button* moved into the strip while the drawer itself stayed in the card, which
+already fetches the item / rune / spell maps it needs — the page owns the open flag between them.
+↳ **XP @15 is stored, not derived** (`LaneXpDiffSum` over its own `LaneXpDiffGames`, mirroring #976's gold pair).
+Gold is who bought more, XP is who is bigger, and they routinely disagree: a lane won on kills and lost on waves
+shows a gold lead over an XP deficit, which the next all-in reverses. Only gold is banded — 300 XP is a third of
+a level, not "a very good lane" — so the verdict badge stays gold's alone and the two gaps share an uncoloured
+line, since one tone cannot speak for two numbers pointing opposite ways.
+↳ **The migration re-folds rather than backfilling**, because an additive flag-gated fold cannot correct itself.
+It was nearly free to do here: #1087's own wipe had not yet reached production, so the two migrations apply back
+to back and prod re-folds its window **once**, with gold and XP together. Preprod, which had already consumed
+#1087, paid a second re-fold of its single retained patch — #1111.
+
+**Measurements are set in Inter again: the mono stat face is withdrawn.**
+#1060 lifted the `--font-mono` → Inter alias and put `stat-value` / `stat-label` on Geist Mono, on the argument
+that a technical face gives numbers presence and that the value/label pair needs two registers. Withdrawn by the
+product owner in #1111: across a dense page it read as a second, unrelated typeface rather than as a register.
+The pair keeps its separation from size, weight, casing and tracking — which was always doing most of the work —
+and `tabular-nums` still aligns the columns. Geist Mono stays loaded for the few places monospace is the *meaning*
+rather than a flourish: tier letters, the empty-slot glyph, hex codes on `/dev/design-system`. One edit in
+`main.css` reaches every stat on the site, which is why the family lives in the utility and not at the call
+sites — #1111.
+
 **The matchup opponent-search reads the aggregate, like the panel — this reverses #606's "the search stays live".**
 #606 kept the `opponent=` path on a live self-join because "an aggregate built at floor 10" could not answer a
 one-game lookup. The rows were never stored with a floor, only the read applied one, so the premise was wrong from
