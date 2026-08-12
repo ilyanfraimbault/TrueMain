@@ -195,6 +195,66 @@ public sealed class ChampionOverviewApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetOverviewAsync_KeepsTheFullWindowWhenTheWalkStepsBackTwice()
+    {
+        // The window has to be measured from where the walk landed, not from a fixed
+        // depth: with two thin patches stacked up, a window sized against "one thin
+        // patch ahead" returns a single patch while quietly claiming to span two.
+        await _fixture.ResetDatabaseAsync();
+
+        var now = DateTime.UtcNow;
+        var accountId = Guid.Parse("99999999-9999-9999-9999-999999999999");
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            db.RiotAccounts.Add(new RiotAccount
+            {
+                Id = accountId,
+                PlatformId = "KR",
+                Puuid = "overview-puuid-5",
+                GameName = "overview-five",
+                SummonerId = "overview-five-summoner",
+                ProfileIconId = 1,
+                SummonerLevel = 100,
+                LastProfileSyncAtUtc = now,
+                CreatedAtUtc = now.AddDays(-10),
+                UpdatedAtUtc = now.AddDays(-1),
+            });
+            await db.SaveChangesAsync();
+
+            var seeder = new ChampionAggregateSeeder();
+            // Two thin patches in front, so the walk has to step back twice.
+            Add(seeder, accountId, 800, "16.16", games: 1, wins: 0, now);
+            Add(seeder, accountId, 801, "16.15", games: 2, wins: 1, now);
+            // 16.14 is served; 16.13 is the second half of the homepage window.
+            for (var championId = 810; championId <= 815; championId++)
+            {
+                Add(seeder, accountId, championId, "16.14", games: 40, wins: 22, now);
+            }
+            for (var championId = 820; championId <= 822; championId++)
+            {
+                Add(seeder, accountId, championId, "16.13", games: 50, wins: 25, now);
+            }
+            await seeder.SaveAsync(db);
+        }
+
+        await using var factory = new ApiWebApplicationFactory(
+            _fixture, minSampleGames: 20, minServablePatchLines: 5);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var overview = await (await client.GetAsync("/champions/overview"))
+            .Content.ReadFromJsonAsync<ChampionOverviewReadModel>();
+
+        overview!.PatchVersion.Should().Be("16.14", "neither 16.16 nor 16.15 can fill a directory");
+        overview.CountedPatches.Should().Equal("16.14", "16.13",
+            "the window still spans two patches after a two-step walk-back");
+        overview.GamesAnalyzed.Should().Be((6 * 40) + (3 * 50));
+    }
+
+    [Fact]
     public async Task GetOverviewAsync_WithTheBarDisabled_ServesTheNewestPatchAgain()
     {
         // The documented off-switch: MinServablePatchLines = 0 restores the pre-#1109

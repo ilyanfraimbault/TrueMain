@@ -34,12 +34,11 @@ public sealed class ChampionSummariesQueryService(
     private const string PatchListCacheKey = "champions:summaries:patch-list";
     private const string Surface = "champions-summaries";
 
-    // Floor on how many patches back the volume scan reaches. Three covers both
-    // readers at the default settings: the servable walk stops at the first patch
-    // clearing the bar and a settled patch always does, so it never looks past the
-    // second; the homepage window starts at the served patch, one deeper still.
-    // Bounding the scan at all is the point — the table grows without limit.
-    private const int MinPatchVolumeWindow = 3;
+    // How far back the servable walk looks before giving up and serving the newest
+    // patch anyway. Bounded because the scan behind it costs one grouped pass per
+    // patch and the table only grows: if the four newest patches are all too thin to
+    // rank, the site has an ingestion problem that serving a fifth would only hide.
+    private const int MaxServableWalkBack = 4;
 
     // Every cache entry must carry a Size because the shared MemoryCache runs
     // with a SizeLimit (see Program.cs). Without a Size the Set is silently
@@ -123,29 +122,22 @@ public sealed class ChampionSummariesQueryService(
         }
 
         var ordered = await LoadPatchesNewestFirstAsync(ct);
-        var volumes = await LoadPatchVolumesAsync(TakeVolumeWindow(ordered), ct);
-
-        // From the served patch backwards, never forwards: a patch the bar rejected
-        // is not one the homepage should count either, or the chips would advertise
-        // games from a patch every other surface is refusing to show.
         var servedIndex = IndexOf(ordered, served);
-        if (servedIndex < 0)
-        {
-            return [.. volumes.Where(volume => string.Equals(volume.Patch, served, StringComparison.Ordinal))];
-        }
 
-        return
-        [
-            .. ordered
-                .Skip(servedIndex)
-                .Take(patchCount)
-                .Select(patch => volumes.FirstOrDefault(volume =>
-                    string.Equals(volume.Patch, patch, StringComparison.Ordinal)))
-                // A window reaching past the measured candidates yields fewer patches
-                // rather than zeroes — see PatchVolumeWindow.
-                .Where(volume => volume is not null)
-                .Select(volume => volume!)
-        ];
+        // From the served patch backwards, never forwards: a patch the bar rejected is
+        // not one the homepage should count either, or the chips would advertise games
+        // from a patch every other surface is refusing to show.
+        //
+        // The window is measured from where the walk actually landed, not from a fixed
+        // depth. ResolveServablePatch can step back more than once, so any constant
+        // sized against "one thin patch" silently returns fewer patches than asked for
+        // the moment two thin patches stack up — which is the failure this window
+        // exists to prevent, one patch further along.
+        IReadOnlyList<string> window = servedIndex < 0
+            ? [served]
+            : [.. ordered.Skip(servedIndex).Take(patchCount)];
+
+        return await LoadPatchVolumesAsync(window, ct);
     }
 
     private async Task<string?> ResolveActivePatchAsync(string? requestedPatch, CancellationToken ct)
@@ -188,7 +180,7 @@ public sealed class ChampionSummariesQueryService(
             return patchesNewestFirst.FirstOrDefault();
         }
 
-        var candidates = TakeVolumeWindow(patchesNewestFirst);
+        IReadOnlyList<string> candidates = [.. patchesNewestFirst.Take(MaxServableWalkBack)];
         var volumes = await LoadPatchVolumesAsync(candidates, ct);
         var linesPastFloor = volumes.ToDictionary(
             volume => volume.Patch,
@@ -244,11 +236,17 @@ public sealed class ChampionSummariesQueryService(
     }
 
     /// <summary>
-    /// One grouped scan over the candidate patches, folded into the per-patch
-    /// counters both the servable bar and the homepage chips read. Cached on the
-    /// summaries TTL rather than the (much longer) active-patch one, so the homepage
-    /// total tracks the folds at the same rate the directory does — the resolved
-    /// patch is stable for days, the games behind it are not.
+    /// One grouped scan over the given patches, folded into the per-patch counters
+    /// both the servable bar and the homepage chips read — each asking for the slice
+    /// it actually needs, and sharing this cache entry when those slices coincide.
+    ///
+    /// <para>
+    /// Cached on the summaries TTL rather than the (much longer) active-patch one, so
+    /// the homepage total tracks the folds at the same rate the directory does: the
+    /// resolved patch is stable for days, the games behind it are not. The bar reads
+    /// this only when the active-patch entry misses — once per TTL — so the two
+    /// callers' scans do not compound on the hot path.
+    /// </para>
     /// </summary>
     private async Task<IReadOnlyList<ChampionPatchVolume>> LoadPatchVolumesAsync(
         IReadOnlyList<string> patches, CancellationToken ct)
@@ -324,22 +322,6 @@ public sealed class ChampionSummariesQueryService(
         cache.Set(cacheKey, volumes, CacheEntry(SummariesCacheTtl));
         return volumes;
     }
-
-    /// <summary>
-    /// The candidate slice both readers measure, so they share one cache entry and
-    /// one scan instead of each grouping its own overlapping set.
-    ///
-    /// <para>
-    /// Derived from <c>ChampionsList:HomepagePatchWindow</c> rather than fixed: the
-    /// homepage window starts at the served patch, so with a thin patch ahead of it
-    /// the scan needs one more patch than the window spans. A constant would let a
-    /// raised window silently return fewer patches than it asked for, which would make
-    /// the option quietly lie about what it does.
-    /// </para>
-    /// </summary>
-    private IReadOnlyList<string> TakeVolumeWindow(IReadOnlyList<string> patchesNewestFirst)
-        => [.. patchesNewestFirst.Take(
-            Math.Max(MinPatchVolumeWindow, championsOptions.Value.HomepagePatchWindow + 1))];
 
     private static int IndexOf(IReadOnlyList<string> patches, string patch)
     {
