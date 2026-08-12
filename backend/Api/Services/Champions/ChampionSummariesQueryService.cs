@@ -34,12 +34,12 @@ public sealed class ChampionSummariesQueryService(
     private const string PatchListCacheKey = "champions:summaries:patch-list";
     private const string Surface = "champions-summaries";
 
-    // How many patches back the volume scan reaches. Three covers both readers: the
-    // servable walk stops at the first patch clearing the bar and a settled patch
-    // always does, so it never looks past the second; the homepage window starts at
-    // the served patch, one deeper still. Bounding it keeps this a scan of three
-    // patches' scope rows rather than of the whole table, which grows without limit.
-    private const int PatchVolumeWindow = 3;
+    // Floor on how many patches back the volume scan reaches. Three covers both
+    // readers at the default settings: the servable walk stops at the first patch
+    // clearing the bar and a settled patch always does, so it never looks past the
+    // second; the homepage window starts at the served patch, one deeper still.
+    // Bounding the scan at all is the point — the table grows without limit.
+    private const int MinPatchVolumeWindow = 3;
 
     // Every cache entry must carry a Size because the shared MemoryCache runs
     // with a SizeLimit (see Program.cs). Without a Size the Set is silently
@@ -328,9 +328,18 @@ public sealed class ChampionSummariesQueryService(
     /// <summary>
     /// The candidate slice both readers measure, so they share one cache entry and
     /// one scan instead of each grouping its own overlapping set.
+    ///
+    /// <para>
+    /// Derived from <c>ChampionsList:HomepagePatchWindow</c> rather than fixed: the
+    /// homepage window starts at the served patch, so with a thin patch ahead of it
+    /// the scan needs one more patch than the window spans. A constant would let a
+    /// raised window silently return fewer patches than it asked for, which would make
+    /// the option quietly lie about what it does.
+    /// </para>
     /// </summary>
-    private static IReadOnlyList<string> TakeVolumeWindow(IReadOnlyList<string> patchesNewestFirst)
-        => [.. patchesNewestFirst.Take(PatchVolumeWindow)];
+    private IReadOnlyList<string> TakeVolumeWindow(IReadOnlyList<string> patchesNewestFirst)
+        => [.. patchesNewestFirst.Take(
+            Math.Max(MinPatchVolumeWindow, championsOptions.Value.HomepagePatchWindow + 1))];
 
     private static int IndexOf(IReadOnlyList<string> patches, string patch)
     {
