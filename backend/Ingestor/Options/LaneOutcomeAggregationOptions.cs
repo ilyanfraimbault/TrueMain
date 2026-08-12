@@ -1,3 +1,4 @@
+using Core.Lol.Lane;
 namespace Ingestor.Options;
 
 /// <summary>
@@ -24,7 +25,7 @@ public class LaneOutcomeAggregationOptions
     /// them, and frozen patches can never be recomputed (#466).
     /// </para>
     /// </summary>
-    public int GoldLeadThreshold { get; set; } = 300;
+    public int GoldLeadThreshold { get; set; } = LaneOutcomeRules.DefaultGoldLeadThreshold;
 
     /// <summary>
     /// Pending matches folded per transaction. Mirrors the sibling folds; the working set
