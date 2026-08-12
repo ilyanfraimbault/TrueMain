@@ -229,8 +229,10 @@ const { data: championScaling, status: scalingStatus } = useChampionScaling(
 )
 
 // Roam metric — out-of-lane early kill participations (issue #536). Same lane/patch
-// scoping and gating as the other timeline-derived stats.
-const { data: championRoam, status: roamStatus } = useChampionRoam(
+// scoping and gating as the other timeline-derived stats. Only the @15 average is
+// read, and only to decide whether the header carries a "Roamer" badge; the @5/@10
+// windows stay in the API for whoever wants the curve later.
+const { data: championRoam } = useChampionRoam(
   championId,
   trendPosition,
   selectedPatch,
@@ -354,16 +356,6 @@ const scalingSnapshot = useLazyHydrationSnapshot(
     buckets: championScaling.value?.buckets ?? [],
     scalingIndex: championScaling.value?.scalingIndex ?? null,
     loading: isLoadingStatus(scalingStatus.value),
-  }),
-)
-const roamSnapshot = useLazyHydrationSnapshot(
-  { kp5: null as number | null, kp10: null as number | null, kp15: null as number | null, games: 0, loading: true },
-  () => ({
-    kp5: championRoam.value?.roamKp5 ?? null,
-    kp10: championRoam.value?.roamKp10 ?? null,
-    kp15: championRoam.value?.roamKp15 ?? null,
-    games: championRoam.value?.games ?? 0,
-    loading: isLoadingStatus(roamStatus.value),
   }),
 )
 const truemainsSnapshot = useLazyHydrationSnapshot(
@@ -504,6 +496,7 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
           :position="champion?.position || selectedPosition || ''"
           :total-games="champion?.totalGames ?? 0"
           :total-wins="champion?.totalWins ?? 0"
+          :roam-kp15="championRoam?.roamKp15 ?? null"
           :loading="!champion"
         />
         <ChampionFilters
@@ -591,13 +584,6 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
             hydrate-on-visible
             v-bind="scalingSnapshot.value"
             @vue:mounted="scalingSnapshot.reveal"
-          />
-
-          <LazyChampionRoam
-            v-if="trendPosition !== 'JUNGLE'"
-            hydrate-on-visible
-            v-bind="roamSnapshot.value"
-            @vue:mounted="roamSnapshot.reveal"
           />
 
           <!--

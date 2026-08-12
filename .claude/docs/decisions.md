@@ -307,6 +307,18 @@ and the four sample figures — each with a one-line hint, since "Top of team 25
 know it counts games this player outscored their own four teammates. The API still returns `components`:
 the breakdown is the natural content of a future drill-down, and the payload is cheap.
 
+**Roaming is a badge in the header, not a panel.** The #536 panel gave a full below-the-fold section — title,
+subtitle, sample line, three hand-drawn bars and a verdict word — to three cumulative averages, and two of the
+three states it could reach ("Balanced", "Lane-focused") were "this champion is like most champions", which is
+not worth a section. Nobody visits a champion page to learn it kills people out of lane before minute 15. What
+is left is one `Roamer` badge next to the win rate, shown only when the @15 average clears `ROAMER_KP15` (1.5,
+`web/app/utils/roam-verdict.ts`) — the threshold is a product call, so it lives in the frontend like
+`laneVerdict`'s bands — with the number itself in the tooltip. The badge is deliberately one-sided: not being
+a roamer is the default the rest of the page already implies, and an unmeasured champion (below the backend's
+sample floor, or `JUNGLE`) is silent for the same reason it must not read as either. Nothing changed behind it:
+`/champions/{id}/roam` still computes and returns @5/@10/@15, the page still fetches all three, and reviving a
+curve means writing a component, not a backend.
+
 **The static champion list drops Data Dragon entries with an id at or above 10 000 — alternate-mode kits, not champions.**
 Patch 16.15 ("League classique") added 60 legacy kits to `champion.json`: alias `Jade_<BaseAlias>`, key
 `60000 + <base key>`, and the *same display name* as the original — `Jade_Ahri` (60103) sits next to Ahri

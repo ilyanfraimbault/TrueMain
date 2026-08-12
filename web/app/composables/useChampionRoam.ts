@@ -5,6 +5,11 @@ import type { ChampionRoamResponse } from '~~/shared/types/champions'
  * the champion detail page (issue #536). Forwards position + the pinned
  * patch, with the shared key/gating contract from
  * {@link createChampionPatchSlice}.
+ *
+ * The page only reads `roamKp15`, and only through `roamVerdict` — the header's
+ * "Roamer" badge is the entire surface of this metric now that the three-bar
+ * panel is gone. The other two windows keep coming back so the curve stays
+ * available without a backend change.
  */
 export const useChampionRoam = createChampionPatchSlice<ChampionRoamResponse>({
   keyPrefix: 'champion-roam',
