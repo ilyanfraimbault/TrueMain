@@ -149,4 +149,27 @@ public sealed record ChampionMatchupEntry
     /// lanes into a confident label.
     /// </summary>
     public int GoldDiffLaneGames { get; init; }
+
+    /// <summary>
+    /// Mean experience gap over the lane opponent at 15 minutes, signed from the
+    /// champion's point of view (#1111) — the second half of "who is ahead", and not
+    /// a restatement of <see cref="AverageGoldDiffAt15"/>. Gold is who bought more,
+    /// XP is who is bigger; a lane won on kills while losing waves shows a gold lead
+    /// over an XP deficit, which is a lead the next all-in reverses.
+    ///
+    /// <para>
+    /// <see langword="null"/> when the gap was never measured over this scope, never
+    /// 0 — same rule as the gold gap, and for the same reason: 0 is the most
+    /// decisive-looking value the number can take.
+    /// </para>
+    /// </summary>
+    public double? AverageXpDiffAt15 { get; init; }
+
+    /// <summary>
+    /// Lanes <see cref="AverageXpDiffAt15"/> is averaged over. Its own counter rather
+    /// than a reuse of <see cref="GoldDiffLaneGames"/>: rows folded before #1111 carry
+    /// gold and no XP, and borrowing the gold denominator would report those as a
+    /// dead-even lane out of data that does not exist.
+    /// </summary>
+    public int XpDiffLaneGames { get; init; }
 }

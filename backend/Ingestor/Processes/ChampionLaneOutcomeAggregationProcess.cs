@@ -50,6 +50,16 @@ namespace Ingestor.Processes;
 /// <c>LaneGoldDiffGames</c>, which is what lets the read side band a matchup as even
 /// / good / dominant — and lets those band edges move without re-folding anything.
 /// </para>
+///
+/// <para>
+/// <b>And the experience beside the gold (#1111).</b> The same 15-minute snapshot
+/// already read for gold carries <c>Xp</c>, summed into <c>LaneXpDiffSum</c> over its
+/// own <c>LaneXpDiffGames</c>. Two numbers rather than one because they answer
+/// different questions and routinely disagree: gold is who bought more, XP is who is
+/// bigger, and a lane won on kills while losing waves reads as a gold lead over an XP
+/// deficit — a lead the next all-in reverses. Deriving either from the other would
+/// erase exactly the case worth showing.
+/// </para>
 /// </summary>
 public sealed class ChampionLaneOutcomeAggregationProcess(
     ILogger<ChampionLaneOutcomeAggregationProcess> logger,
@@ -157,11 +167,11 @@ public sealed class ChampionLaneOutcomeAggregationProcess(
         // The gold reading both sides are compared on. Keyed per (match, participant);
         // a match whose timeline was never ingested simply has no rows here, and its
         // lanes are then not judgeable — counted in neither LaneGames nor the outcomes.
-        var goldAt15 = await db.MatchParticipantTimelineSnapshots
+        var readingsAt15 = await db.MatchParticipantTimelineSnapshots
             .AsNoTracking()
             .Where(s => matchIds.Contains(s.MatchId) && s.IntervalMinute == LaneOutcomeMinute)
-            .Select(s => new { s.MatchId, s.ParticipantId, s.TotalGold })
-            .ToDictionaryAsync(s => (s.MatchId, s.ParticipantId), s => s.TotalGold, ct);
+            .Select(s => new { s.MatchId, s.ParticipantId, s.TotalGold, s.Xp })
+            .ToDictionaryAsync(s => (s.MatchId, s.ParticipantId), s => new Reading(s.TotalGold, s.Xp), ct);
 
         var participantsByMatch = participants
             .GroupBy(p => p.MatchId)
@@ -197,8 +207,8 @@ public sealed class ChampionLaneOutcomeAggregationProcess(
                     continue;
                 }
 
-                if (!goldAt15.TryGetValue((matchId, self.ParticipantId), out var selfGold)
-                    || !goldAt15.TryGetValue((matchId, opponent.ParticipantId), out var opponentGold))
+                if (!readingsAt15.TryGetValue((matchId, self.ParticipantId), out var selfReading)
+                    || !readingsAt15.TryGetValue((matchId, opponent.ParticipantId), out var opponentReading))
                 {
                     // No 15-minute reading for one of the two: a real game, but not a
                     // lane anyone can call. Left out of every counter rather than
@@ -216,7 +226,7 @@ public sealed class ChampionLaneOutcomeAggregationProcess(
                 accumulator.LaneGames++;
                 judgedLanes++;
 
-                var lead = selfGold - opponentGold;
+                var lead = selfReading.TotalGold - opponentReading.TotalGold;
 
                 // The magnitude behind the outcome (#976). The threshold below answers
                 // "was the lane won"; this answers "by how much", which the counters
@@ -225,6 +235,13 @@ public sealed class ChampionLaneOutcomeAggregationProcess(
                 // sum — read as "unknown gap" instead of "even lane".
                 accumulator.LaneGoldDiffSum += lead;
                 accumulator.LaneGoldDiffGames++;
+
+                // The other half of "who is ahead" (#1111), on its own counter. Gold
+                // says who bought more, XP says who is bigger, and a lane won on kills
+                // while losing waves shows one without the other — the disagreement is
+                // the reading, so neither may be derived from the other.
+                accumulator.LaneXpDiffSum += selfReading.Xp - opponentReading.Xp;
+                accumulator.LaneXpDiffGames++;
 
                 if (lead > goldLeadThreshold)
                 {
@@ -272,21 +289,26 @@ public sealed class ChampionLaneOutcomeAggregationProcess(
             INSERT INTO champion_matchup_stats
                 ("Id", "ChampionId", "TeamPosition", "OpponentChampionId", "Patch", "elo_bracket",
                  "Games", "Wins", "LaneGames", "LaneWins", "LaneLosses",
-                 "LaneGoldDiffSum", "LaneGoldDiffGames", "AggregatedAtUtc")
+                 "LaneGoldDiffSum", "LaneGoldDiffGames",
+                 "LaneXpDiffSum", "LaneXpDiffGames", "AggregatedAtUtc")
             SELECT gen_random_uuid(), t.champ, t.pos, t.opp, t.patch, t.elo,
                    0, 0, t.lane_games, t.lane_wins, t.lane_losses,
-                   t.gold_diff_sum, t.gold_diff_games, @aggAt
+                   t.gold_diff_sum, t.gold_diff_games,
+                   t.xp_diff_sum, t.xp_diff_games, @aggAt
             FROM unnest(@champs::integer[], @positions::text[], @opponents::integer[], @patches::text[],
                         @elos::text[], @laneGames::integer[], @laneWins::integer[], @laneLosses::integer[],
-                        @goldDiffSums::bigint[], @goldDiffGames::integer[])
+                        @goldDiffSums::bigint[], @goldDiffGames::integer[],
+                        @xpDiffSums::bigint[], @xpDiffGames::integer[])
                 AS t(champ, pos, opp, patch, elo, lane_games, lane_wins, lane_losses,
-                     gold_diff_sum, gold_diff_games)
+                     gold_diff_sum, gold_diff_games, xp_diff_sum, xp_diff_games)
             ON CONFLICT ("ChampionId", "TeamPosition", "OpponentChampionId", "Patch", "elo_bracket") DO UPDATE SET
                 "LaneGames" = champion_matchup_stats."LaneGames" + EXCLUDED."LaneGames",
                 "LaneWins" = champion_matchup_stats."LaneWins" + EXCLUDED."LaneWins",
                 "LaneLosses" = champion_matchup_stats."LaneLosses" + EXCLUDED."LaneLosses",
                 "LaneGoldDiffSum" = champion_matchup_stats."LaneGoldDiffSum" + EXCLUDED."LaneGoldDiffSum",
                 "LaneGoldDiffGames" = champion_matchup_stats."LaneGoldDiffGames" + EXCLUDED."LaneGoldDiffGames",
+                "LaneXpDiffSum" = champion_matchup_stats."LaneXpDiffSum" + EXCLUDED."LaneXpDiffSum",
+                "LaneXpDiffGames" = champion_matchup_stats."LaneXpDiffGames" + EXCLUDED."LaneXpDiffGames",
                 "AggregatedAtUtc" = EXCLUDED."AggregatedAtUtc"
             """;
 
@@ -303,7 +325,9 @@ public sealed class ChampionLaneOutcomeAggregationProcess(
                 new NpgsqlParameter("laneWins", rows.Select(r => r.Value.LaneWins).ToArray()),
                 new NpgsqlParameter("laneLosses", rows.Select(r => r.Value.LaneLosses).ToArray()),
                 new NpgsqlParameter("goldDiffSums", rows.Select(r => r.Value.LaneGoldDiffSum).ToArray()),
-                new NpgsqlParameter("goldDiffGames", rows.Select(r => r.Value.LaneGoldDiffGames).ToArray())
+                new NpgsqlParameter("goldDiffGames", rows.Select(r => r.Value.LaneGoldDiffGames).ToArray()),
+                new NpgsqlParameter("xpDiffSums", rows.Select(r => r.Value.LaneXpDiffSum).ToArray()),
+                new NpgsqlParameter("xpDiffGames", rows.Select(r => r.Value.LaneXpDiffGames).ToArray())
             ],
             ct);
     }
@@ -325,6 +349,9 @@ public sealed class ChampionLaneOutcomeAggregationProcess(
 
     private readonly record struct WrittenRows(int JudgedLanes, int Rows);
 
+    /// <summary>The 15-minute snapshot both gaps are measured from.</summary>
+    private readonly record struct Reading(int TotalGold, int Xp);
+
     private sealed class LaneAccumulator
     {
         public int LaneGames;
@@ -332,5 +359,7 @@ public sealed class ChampionLaneOutcomeAggregationProcess(
         public int LaneLosses;
         public long LaneGoldDiffSum;
         public int LaneGoldDiffGames;
+        public long LaneXpDiffSum;
+        public int LaneXpDiffGames;
     }
 }

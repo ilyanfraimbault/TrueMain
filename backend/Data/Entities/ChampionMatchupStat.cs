@@ -90,5 +90,38 @@ public class ChampionMatchupStat
     /// </summary>
     public int LaneGoldDiffGames { get; set; }
 
+    /// <summary>
+    /// Sum of the champion's experience gap over its lane opponent at 15 minutes,
+    /// over the lanes counted in <see cref="LaneXpDiffGames"/> (#1111). Signed, and
+    /// summed rather than bucketed for the same reason as
+    /// <see cref="LaneGoldDiffSum"/>.
+    ///
+    /// <para>
+    /// Beside the gold gap rather than instead of it, because the two disagree in a
+    /// way that is the whole point: gold answers "who bought more", XP answers "who
+    /// is bigger". A lane won on kills and lost on waves shows a gold lead over an XP
+    /// deficit — an unstable lead that a level-2 all-in reverses — and a lane won on
+    /// pure farm shows the opposite. Neither number implies the other.
+    /// </para>
+    /// </summary>
+    public long LaneXpDiffSum { get; set; }
+
+    /// <summary>
+    /// Lanes <see cref="LaneXpDiffSum"/> covers — the average gap is
+    /// <c>LaneXpDiffSum / LaneXpDiffGames</c>, unknown when this is 0. A third
+    /// denominator for the same reason #976 needed a second one: rows folded before
+    /// #1111 have gold and no XP, and borrowing
+    /// <see cref="LaneGoldDiffGames"/> would report those as a +0 XP gap — a
+    /// confident "dead even" out of data that was never collected.
+    ///
+    /// <para>
+    /// In practice the two converge immediately rather than over a backlog: #1111
+    /// shipped its columns alongside a re-fold of the whole retained window, so every
+    /// row that has gold has XP. The separate counter is what keeps that an
+    /// observation rather than an assumption.
+    /// </para>
+    /// </summary>
+    public int LaneXpDiffGames { get; set; }
+
     public DateTime AggregatedAtUtc { get; set; }
 }

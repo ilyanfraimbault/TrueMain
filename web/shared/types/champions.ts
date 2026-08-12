@@ -320,6 +320,15 @@ export interface ChampionMatchupEntry {
    * a thin one shows the count instead of a label.
    */
   goldDiffLaneGames: number
+  /**
+   * Mean experience gap at 15 min, signed from this champion's side (#1111). Not a
+   * restatement of the gold gap: gold is who bought more, XP is who is bigger, and a
+   * lane won on kills while losing waves shows a gold lead over an XP deficit. `null`
+   * when never measured — never render it as 0.
+   */
+  averageXpDiffAt15: number | null
+  /** Lanes `averageXpDiffAt15` covers; its own denominator, like the gold one. */
+  xpDiffLaneGames: number
 }
 
 /**

@@ -194,6 +194,12 @@ public sealed class ChampionMatchupApiIntegrationTests
         zed.GoldDiffLaneGames.Should().Be(25, "both patch slices' samples fold together");
         zed.AverageGoldDiffAt15.Should().BeApproximately(200d, 1e-9,
             "(6000 - 1000) gold over 25 measured lanes — not over the 38 judged ones");
+
+        // The experience gap folds the same way and lands on the opposite side of
+        // zero: gold ahead, XP behind. Neither may be inferred from the other.
+        zed.XpDiffLaneGames.Should().Be(25);
+        zed.AverageXpDiffAt15.Should().BeApproximately(-100d, 1e-9,
+            "(-3000 + 500) xp over the same 25 lanes");
     }
 
     [Fact]
@@ -214,6 +220,8 @@ public sealed class ChampionMatchupApiIntegrationTests
         var zed = matchups!.Matchups.Should().ContainSingle(m => m.OpponentChampionId == Opponent).Subject;
         zed.AverageGoldDiffAt15.Should().BeNull("no lane of this matchup has a measured gap");
         zed.GoldDiffLaneGames.Should().Be(0);
+        zed.AverageXpDiffAt15.Should().BeNull("an unmeasured gap is unknown, never a dead-even lane");
+        zed.XpDiffLaneGames.Should().Be(0);
         zed.LaneWinRate.Should().NotBeNull("the outcome counters are unaffected — only the gap is missing");
     }
 
@@ -783,6 +791,10 @@ public sealed class ChampionMatchupApiIntegrationTests
                 LaneLosses = 6,
                 LaneGoldDiffSum = measured ? 6000 : 0,
                 LaneGoldDiffGames = measured ? 20 : 0,
+                // Pointing the other way from the gold on this slice, which is the
+                // reading the two counters exist to keep separable (#1111).
+                LaneXpDiffSum = measured ? -3000 : 0,
+                LaneXpDiffGames = measured ? 20 : 0,
                 AggregatedAtUtc = now
             },
             new ChampionMatchupStat
@@ -799,6 +811,8 @@ public sealed class ChampionMatchupApiIntegrationTests
                 LaneLosses = 4,
                 LaneGoldDiffSum = measured ? -1000 : 0,
                 LaneGoldDiffGames = measured ? 5 : 0,
+                LaneXpDiffSum = measured ? 500 : 0,
+                LaneXpDiffGames = measured ? 5 : 0,
                 AggregatedAtUtc = now
             });
 
