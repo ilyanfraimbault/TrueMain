@@ -10,10 +10,10 @@
 
 <template>
   <div
-    class="surface @container flex items-center gap-2 rounded-lg px-3 py-2.5"
+    class="surface @container flex items-center gap-1.5 rounded-lg px-3 py-2.5"
     aria-hidden="true"
   >
-    <USkeleton class="h-4 w-8" />
+    <USkeleton class="h-4 w-6 @xl:w-8" />
     <USkeleton class="size-5 rounded-full" />
     <USkeleton class="size-10 rounded" />
     <div class="min-w-0 flex-1 space-y-1">
@@ -30,7 +30,7 @@
       <USkeleton class="size-7 rounded" />
     </div>
     <!-- Dedication slot — reserved at every width, like the real row. -->
-    <div class="flex w-16 shrink-0 flex-col items-end gap-1">
+    <div class="flex w-14 shrink-0 flex-col items-end gap-1 @xl:w-16">
       <USkeleton class="h-4 w-8" />
       <USkeleton class="h-3 w-14" />
     </div>

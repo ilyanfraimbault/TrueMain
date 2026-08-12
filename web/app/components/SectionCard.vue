@@ -9,6 +9,13 @@ withDefaults(defineProps<{
    * the `3` default.
    */
   level?: 2 | 3 | 4
+  /**
+   * Per-slot class overrides forwarded to the underlying `UCard` — the escape
+   * hatch for a card whose context needs different padding from the app-wide
+   * default (a sidebar card, say). Declared rather than left to attribute
+   * fallthrough so the template stays type-checked.
+   */
+  ui?: { root?: string, header?: string, body?: string, footer?: string }
 }>(), {
   level: 3,
 })
@@ -37,6 +44,7 @@ const headingId = useId()
 <template>
   <UCard
     as="section"
+    :ui="ui"
     :aria-labelledby="title && !$slots.title ? headingId : undefined"
   >
     <template #header>
