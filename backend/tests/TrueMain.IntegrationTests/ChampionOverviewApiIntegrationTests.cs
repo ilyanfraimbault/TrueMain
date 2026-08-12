@@ -249,8 +249,9 @@ public sealed class ChampionOverviewApiIntegrationTests
             .Content.ReadFromJsonAsync<ChampionOverviewReadModel>();
 
         overview!.PatchVersion.Should().Be("16.14", "neither 16.16 nor 16.15 can fill a directory");
-        overview.CountedPatches.Should().Equal("16.14", "16.13",
-            "the window still spans two patches after a two-step walk-back");
+        // No `because` argument: Equal(params string[]) would read it as a third
+        // expected patch.
+        overview.CountedPatches.Should().Equal("16.14", "16.13");
         overview.GamesAnalyzed.Should().Be((6 * 40) + (3 * 50));
     }
 
