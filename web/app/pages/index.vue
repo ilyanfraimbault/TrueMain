@@ -68,10 +68,20 @@ const trackedTruemains = computed(() =>
 const overviewPending = computed(() => isLoadingStatus(overviewStatus.value))
 
 const championCount = computed(() => overview.value?.championsRanked ?? 0)
-// The true total aggregated for the patch (#972) — every champion_aggregate_scopes
-// row summed server-side, not just the games behind the rows the ranked
-// directory keeps (which drops below-floor and position-less slices).
+// The true total aggregated (#972) — every champion_aggregate_scopes row summed
+// server-side, not just the games behind the rows the ranked directory keeps
+// (which drops below-floor and position-less slices).
 const gamesAnalyzed = computed(() => overview.value?.gamesAnalyzed ?? 0)
+
+// The chips span more than one patch (#1109), so they have to say so: a figure
+// that silently covers two patches while the tier list beside it covers one
+// invites the reader to divide one by the other. Named rather than counted —
+// "over 16.15–16.14" is checkable against the patch picker, "over 2 patches" is
+// not.
+const countedPatchLabel = computed(() => {
+  const patches = overview.value?.countedPatches ?? []
+  return patches.length > 1 ? ` over ${patches.join('–')}` : ''
+})
 
 // Fixed locale: SSR and the user's browser must format identically or the
 // truemains chip (rendered on the server) would hydration-mismatch.
@@ -159,7 +169,7 @@ function formatCount(value: number): string {
                 Main games analyzed
               </dt>
               <dd class="text-muted">
-                <span class="font-semibold tabular-nums text-default">{{ formatCount(gamesAnalyzed) }}</span> main games analyzed
+                <span class="font-semibold tabular-nums text-default">{{ formatCount(gamesAnalyzed) }}</span> main games analyzed{{ countedPatchLabel }}
               </dd>
             </template>
           </div>

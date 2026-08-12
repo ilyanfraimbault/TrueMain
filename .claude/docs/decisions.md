@@ -1141,6 +1141,45 @@ Reviewable at `pages/dev/design-system.vue`, which is the compensating control f
 SFC-mounting test setup: every token, elevation step and material on one screen, stripped from production
 builds like the other `dev/*` playgrounds.
 
+## A patch is served only once it can fill a directory (2026-08-12)
+
+**#1109.** The public reads used to default to the newest patch holding *any* aggregate row, and the directory
+then dropped every `(champion, lane)` line under `ChampionsList:MinSampleGames`. The two rules contradicted
+each other for the whole window between a patch's first fold and its first few thousand games. On production,
+hours after 16.16 shipped, seven one-game lines moved the entire site onto it — an empty directory, an empty
+tier list and a "4 main games analyzed" hero, while 16.15 sat beside them with 331 628 games. It self-healed
+in hours and recurred **every patch day**.
+
+- **The bar is counted in lines past the floor, not in games.** `ChampionsList:MinServablePatchLines` (50) is
+  measured on exactly what the directory renders, so it can't clear while the page stays empty. A raw games
+  threshold is a proxy for that and would have to be re-tuned as the site's volume grows; lines past the floor
+  are self-describing at any volume. 50 ≈ 40 champions, roughly three to five hours into a patch at current
+  volume, against the ~560 lines a settled patch reaches.
+- **The definition is shared, not re-implemented** (`Data/Aggregation/ChampionDirectoryLines.cs`). The count
+  that gates serving, the count the directory renders and the count the admin patch-coverage page reports are
+  one fold. Two copies would eventually disagree, and the failure mode is specific: the page would certify a
+  patch the site had refused, or bless one it had switched onto.
+- **The fallback is reported, never silent.** The served patch travels in `patchVersion` and drives the patch
+  picker, so the site says "16.15" while it is showing 16.15, and the thin patch stays explicitly selectable.
+  Serving old data under a new patch's name would be strictly worse than the empty page it replaced.
+- **Nothing clears the bar ⇒ serve the newest anyway.** On a fresh deployment a thin directory is the honest
+  state and an empty one is not. Same branch makes `0` the documented off-switch.
+- **The homepage volume chips span two patches** (`ChampionsList:HomepagePatchWindow`), the served one and the
+  one before it, so the headline figure doesn't fall by an order of magnitude every two weeks — which reads as
+  data loss, not as a patch boundary. The chips **name the range** they cover. The tier-list teaser beside them
+  does *not* merge patches: a tier is a percentile within one patch's field, and a blended ranking would
+  describe a meta that never existed. That asymmetry is deliberate and is why the two read from different calls.
+- **The window never reaches forward.** It starts at the served patch, so games on a patch every other surface
+  is refusing to show are not advertised on the homepage either.
+
+Player- and champion-scoped views were never affected: `ChampionScopeLoader` has had
+`ResolveLatestPatchAboveFloor` since long before this, for the same reason. #1109 is that idea finally applied
+to the global reads.
+
+Shares a trigger with #1107 (CommunityDragon's unpublished patch branch aborting the folds) but nothing else —
+and fixing #1107 makes this one *more* urgent, since the folds now succeed on patch day and the flip onto a
+thin patch would happen sooner.
+
 ## Keeping these files current
 
 A PR that ships a user-facing feature, removes one, or reverses a decision here **must update

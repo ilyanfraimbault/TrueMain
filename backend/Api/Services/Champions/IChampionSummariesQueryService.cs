@@ -19,4 +19,20 @@ public interface IChampionSummariesQueryService
     /// </summary>
     Task<ChampionSummariesResult> GetAllSummariesAsync(
         string? patch, string? eloBracket, CancellationToken ct);
+
+    /// <summary>
+    /// Volume counters for the served patch and the patches before it, newest first,
+    /// at most <paramref name="patchCount"/> of them (#1109). Never reaches past the
+    /// served patch: a patch the servable bar rejected is not one the homepage counts
+    /// either.
+    ///
+    /// <para>
+    /// Deliberately not <see cref="GetAllSummariesAsync"/> once per patch — the
+    /// homepage needs two numbers, not two directories, and this takes one grouped
+    /// scan shared with the patch resolution itself. Returns fewer entries than asked
+    /// (possibly none) when the window reaches past the patches that exist.
+    /// </para>
+    /// </summary>
+    Task<IReadOnlyList<ChampionPatchVolume>> GetServedPatchVolumesAsync(
+        int patchCount, CancellationToken ct);
 }

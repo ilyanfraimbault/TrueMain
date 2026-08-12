@@ -80,11 +80,22 @@ export interface ChampionTierEntry {
  * patch, unfiltered — the homepage has no patch or elo picker of its own.
  */
 export interface ChampionOverviewResponse {
+  /**
+   * The patch `topRows` is ranked on — the patch the site serves, which is not
+   * necessarily the newest one with data: a patch too thin to fill a directory is
+   * skipped (#1109).
+   */
   patchVersion: string
-  /** True sum of games aggregated across every (champion, position) slice on the active patch. */
+  /** True sum of games aggregated across every (champion, position) slice on each of `countedPatches`. */
   gamesAnalyzed: number
-  /** Distinct champions with at least one ranked row on the active patch. */
+  /** Distinct champions with at least one ranked row on any of `countedPatches` — counted once each. */
   championsRanked: number
+  /**
+   * The patches the two figures above span, newest first: the served patch and the
+   * ones before it (#1109), so the headline volume doesn't crater on patch day. A
+   * single entry means they are scoped to the served patch alone.
+   */
+  countedPatches: string[]
   /** Strongest rows, tier-then-games ordered (S first, busiest within a tier first), truncated to the requested limit. */
   topRows: ChampionOverviewRow[]
 }

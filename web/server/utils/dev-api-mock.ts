@@ -427,6 +427,9 @@ async function mockChampionOverview(query: Record<string, unknown>): Promise<Cha
     patchVersion: patch,
     gamesAnalyzed: summaries.reduce((acc, s) => acc + s.games, 0),
     championsRanked: new Set(summaries.map(s => s.championId)).size,
+    // The mock holds one patch, so the chips are patch-scoped and say nothing extra
+    // — the multi-patch window (#1109) needs real aggregate history to be worth faking.
+    countedPatches: [patch],
     topRows,
   }
 }
