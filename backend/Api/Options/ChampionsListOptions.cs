@@ -22,6 +22,51 @@ public sealed class ChampionsListOptions
     public int MinSampleGames { get; set; } = 10;
 
     /// <summary>
+    /// How many <c>(champion, lane)</c> lines past <see cref="MinSampleGames"/> a
+    /// patch must hold before the patch-less public reads default to it. Under this
+    /// bar the reads serve the previous patch instead, walking back until one clears
+    /// it (#1109).
+    ///
+    /// <para>
+    /// Without a bar the reads resolved to the newest patch holding a <em>single</em>
+    /// aggregate row, and the two rules then contradicted each other: on production
+    /// on 2026-08-12, seven one-game lines were enough to move the whole site onto
+    /// 16.16, where none of the seven cleared the ten-game floor — an empty directory,
+    /// an empty tier list and a "4 main games analyzed" homepage, while 16.15 sat
+    /// beside them with 331 628 games. It self-healed in hours and recurred every
+    /// patch day.
+    /// </para>
+    ///
+    /// <para>
+    /// Counted in lines rather than raw games on purpose: lines past the floor are
+    /// exactly what the directory renders, so the bar measures the thing that was
+    /// broken instead of a proxy for it. Fifty is roughly forty champions — a thin
+    /// but genuine directory, about three to five hours into a patch at production's
+    /// volume, against the ~560 lines a settled patch reaches. Set to 0 to disable
+    /// the bar and serve the newest patch with any data at all, the pre-#1109
+    /// behaviour.
+    /// </para>
+    /// </summary>
+    public int MinServablePatchLines { get; set; } = 50;
+
+    /// <summary>
+    /// How many patches the homepage's volume chips ("main games analyzed", the
+    /// champion count) span, counting back from the served patch. Two, so the
+    /// headline figure does not crater every time a patch rolls over: the served
+    /// patch is at most a few days old for half of its life, and a number that
+    /// falls by an order of magnitude every two weeks reads as data loss rather
+    /// than as a patch boundary.
+    ///
+    /// <para>
+    /// The chips only — the homepage tier-list panel stays on the served patch
+    /// alone. Merging two patches into one S→D percentile field would rank
+    /// champions against a meta that never existed, which is a different and worse
+    /// lie than a small number. Set to 1 to scope the chips to the served patch.
+    /// </para>
+    /// </summary>
+    public int HomepagePatchWindow { get; set; } = 2;
+
+    /// <summary>
     /// Most <c>(champion, lane)</c> lines one champion may contribute to the
     /// directory and the tier list, keeping its most-played lanes. Champions
     /// flex, so a game's ~170 champions produced up to 5 × N lines — measured on
@@ -52,16 +97,64 @@ public sealed class ChampionsListOptions
     public double MinSecondaryLanePlayRate { get; set; } = 0.10;
 
     /// <summary>
-    /// Minimum games a champion-vs-opponent lane matchup needs before the
-    /// matchup endpoints include it. A handful of games against a specific
-    /// opponent is noise — a single lucky game would read as a 100% matchup —
-    /// so opponents below this floor are dropped from the list in SQL (a HAVING
-    /// on the grouped game count); the endpoint still returns 200 with the
-    /// qualifying entries (an empty list when none clear the floor). Ten is the
+    /// Absolute minimum games a champion-vs-opponent lane matchup needs before the
+    /// matchup leaderboard includes it. A handful of games against a specific
+    /// opponent is noise — a single lucky game would read as a 100% matchup — so
+    /// opponents below this floor are dropped; the endpoint still returns 200 with
+    /// the qualifying entries (an empty list when none clear the floor). Ten is the
     /// smallest sample where the head-to-head win rate starts to carry signal
     /// rather than echoing one or two games. Set to 0 to disable the floor.
+    ///
+    /// <para>
+    /// This is the floor for *thin* champions only. On a heavily played one it is
+    /// far too permissive — measured on production, Viego JUNGLE met 71 opponents
+    /// over 14.7k games on a single patch and the 8 lines under 20 games were 0.2%
+    /// of that sample yet held the entire best/worst leaderboard. The share-based
+    /// <see cref="MinMatchupPlayRate"/> is what scales with volume; the effective
+    /// floor is the larger of the two.
+    /// </para>
     /// </summary>
     public int MinMatchupGames { get; set; } = 10;
+
+    /// <summary>
+    /// Minimum share of the champion's total matchup games — the games summed over
+    /// every opponent it met in the same scope — a single opponent must hold to
+    /// appear on the matchup leaderboard. The floor a matchup is actually judged
+    /// against is <c>max(MinMatchupGames, MinMatchupPlayRate × total)</c>, so it
+    /// tracks how much the champion is played instead of being tuned per champion.
+    ///
+    /// <para>
+    /// 0.5% measured on production: it keeps 51 of Viego JUNGLE's 71 opponents on
+    /// patch 16.15 (94.6% of the games) while cutting every line the leaderboard
+    /// was previously topped by. On a thin champion it is *below* the absolute
+    /// floor and therefore inert — Aurelion Sol MIDDLE's 1 650 games put it at 8,
+    /// under <see cref="MinMatchupGames"/> — which is the point: no champion ends
+    /// up with an empty panel because it is unpopular.
+    /// </para>
+    ///
+    /// <para>
+    /// The single-opponent search ignores this floor, like it ignores the absolute
+    /// one: a deliberate lookup answers with whatever games exist. Set to 0 to
+    /// disable.
+    /// </para>
+    /// </summary>
+    public double MinMatchupPlayRate { get; set; } = 0.005;
+
+    /// <summary>
+    /// Minimum *decided* lanes (won or lost past the gold threshold at 15 minutes)
+    /// behind the lane win rate before the matchup endpoints report it. Below this,
+    /// the entry keeps its games and its game win rate and returns a null lane rate,
+    /// which the frontend renders as an em dash.
+    ///
+    /// <para>
+    /// A separate floor because it is a separate sample: the games floors above
+    /// count games played, and only ~58% of those (production median) are ever
+    /// decided lanes. Floor-clearing rows were printing "100% lane" off seven
+    /// decided lanes — the most confident-looking cell on the panel resting on its
+    /// smallest sample. Set to 0 to report every non-empty lane sample.
+    /// </para>
+    /// </summary>
+    public int MinDecidedLaneGames { get; set; } = 10;
 
     /// <summary>
     /// Minimum games a champion-vs-opponent matchup needs in a
@@ -97,6 +190,45 @@ public sealed class ChampionsListOptions
     /// print +15% synergy and top the list. Set to 0 to disable.
     /// </summary>
     public int MinSynergyGames { get; set; } = 20;
+
+    /// <summary>
+    /// Minimum share of the champion's own games a pairing must appear in before the
+    /// synergies panel shows it — the same shape as
+    /// <see cref="MinMatchupPlayRate"/>, and for the same reason: an absolute floor
+    /// alone lets the ranking fill up with pairings that happened a handful of times.
+    /// The effective floor is <c>max(MinSynergyGames, MinSynergyPlayRate × the
+    /// champion's games)</c>.
+    ///
+    /// <para>
+    /// Set at 1%, twice the matchup floor, because synergy is a *difference* between
+    /// two rates and so carries the sum of their sampling error — the same reasoning
+    /// that already puts <see cref="MinSynergyGames"/> above
+    /// <see cref="MinMatchupGames"/>. Measured on production, Viego JUNGLE's top four
+    /// synergies were pairings of 21 to 26 games out of 8 202 (0.26%), led by a +24.7%
+    /// "synergy" resting on 21 games; at 1% the list starts at Darius TOP over 271
+    /// games and still holds 131 of 223 partners.
+    /// </para>
+    /// </summary>
+    public double MinSynergyPlayRate { get; set; } = 0.01;
+
+    /// <summary>
+    /// Minimum share of a partner champion's own games — across every lane it is
+    /// seen in as a teammate, in the same scope — that must sit on the lane a
+    /// pairing is offered at. Below it the pairing is dropped whatever its volume:
+    /// the lane is not a role that champion plays, so the pairing is a role-detection
+    /// artefact rather than a duo anybody can pick.
+    ///
+    /// <para>
+    /// This is <see cref="MinSecondaryLanePlayRate"/>'s idea (#1082) applied to the
+    /// partner side, with its own denominator — hence its own option rather than a
+    /// shared one. It is what removes lines like "Sylas BOTTOM", which topped Viego
+    /// JUNGLE's synergies on production while Sylas is not an ADC. Deliberately a
+    /// second filter and not a replacement for
+    /// <see cref="MinSynergyPlayRate"/>: they catch different things, a pairing being
+    /// rare and a pairing being impossible. Set to 0 to disable.
+    /// </para>
+    /// </summary>
+    public double MinSynergyPartnerLanePlayRate { get; set; } = 0.10;
 
     /// <summary>
     /// Minimum games a trio (champion + chosen partner + third pick) needs before it

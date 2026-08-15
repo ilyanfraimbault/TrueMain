@@ -156,7 +156,7 @@ const METRICS: MetricRow[] = [
 // epsilon keeps a rounding-level difference from being coloured as a real gap.
 function deltaTone(delta: number, epsilon: number) {
   if (Math.abs(delta) < epsilon) return 'text-muted'
-  return delta > 0 ? 'text-success' : 'text-error'
+  return delta > 0 ? 'text-data-good' : 'text-data-bad'
 }
 
 const metricRows = computed(() => {

@@ -2,6 +2,7 @@ using System.Globalization;
 using Core.Lol.Patches;
 using Core.Options;
 using Data;
+using Data.Aggregation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
@@ -478,22 +479,16 @@ public sealed class PatchCoverageQueryService(
                     var buildChampions = patchGroup.Select(row => row.ChampionId).Distinct().Count();
                     var buildLast = patchGroup.Max(row => row.LastAggregatedAtUtc);
 
-                    var lines = patchGroup
-                        // A blank Position is the "no lane" sentinel (Position is
-                        // non-nullable) and the ranked directory drops it, so a line that
-                        // never reaches a public page must not be counted as coverage here.
-                        .Where(row => row.Position.Trim() != string.Empty)
-                        .GroupBy(row => new { row.ChampionId, row.Position })
-                        .Select(group => new
-                        {
-                            group.Key.ChampionId,
-                            group.Key.Position,
-                            Games = (long)group.Sum(row => row.Games)
-                        })
-                        .ToList();
+                    // Folded through the shared definition, not a local copy of it: the
+                    // count this page reports and the count the servable bar gates
+                    // serving on (#1109) have to be the same number, or the page
+                    // certifies a patch the site refused — or worse, blesses one it
+                    // switched onto. Lane-less rows are dropped inside Fold.
+                    var lines = ChampionDirectoryLines.Fold(patchGroup.Select(row =>
+                        new ChampionDirectoryLine(patchGroup.Key, row.ChampionId, row.Position, row.Games)));
 
-                    var pastFloor = lines.Where(line => line.Games >= floor).ToList();
-                    var below = lines.Where(line => line.Games < floor).ToList();
+                    var pastFloor = lines.Where(line => ChampionDirectoryLines.ClearsFloor(line, floor)).ToList();
+                    var below = lines.Where(line => !ChampionDirectoryLines.ClearsFloor(line, floor)).ToList();
 
                     return new PatchCoverage(
                         lines.Count,

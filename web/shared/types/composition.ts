@@ -68,7 +68,36 @@ export interface CompositionBuildResponse {
    */
   matchupFound: boolean
   confidence: CompositionConfidence
+  /**
+   * How the lane went in the sampled games (#1117) — measured over exactly the
+   * games `confidence` counts, so the tool's stat line describes one population
+   * throughout. It used to read the matchup aggregate, whose champion side is
+   * mains-only (#1087), which showed "—" beside a sample of eight games whenever
+   * no main had played the matchup.
+   */
+  lane: CompositionLane
   build: CompositionBuildRecommendation
+}
+
+/** The lane at 15 minutes over a recommendation's own sample. */
+export interface CompositionLane {
+  /**
+   * Sampled games where both lane sides had a 15-minute reading — smaller than
+   * the sample, since a game that ended early is a game but not a judgeable lane.
+   * The denominator of both gaps below, evens included.
+   */
+  measuredGames: number
+  /** Of those, the ones settled past the gold threshold either way. */
+  decidedGames: number
+  /** Share of `decidedGames` won. `null` when none were — never render it as 0%. */
+  winRate: number | null
+  /** Mean gold gap at 15 min over `measuredGames`, signed. `null` when unmeasured. */
+  averageGoldDiffAt15: number | null
+  /**
+   * Mean XP gap over the same games. Beside the gold, not derived from it: a lane
+   * won on kills and lost on waves shows one ahead and the other behind.
+   */
+  averageXpDiffAt15: number | null
 }
 
 /**

@@ -272,6 +272,110 @@ public sealed class CompositionBuildApiIntegrationTests
     /// Conqueror-style rune page; the requested enemy mid on team 200;
     /// distinct filler champions everywhere else.
     /// </summary>
+    [Fact]
+    public async Task PostCompositionBuild_JudgesTheLaneOverTheSampledGamesThemselves()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        // Three games of the matchup: one lane clearly won, one clearly lost, one
+        // inside the threshold band. The third is the reason `decidedGames` is its
+        // own counter — it is measurable, and it decides nothing.
+        await SeedGameAsync("COMPL_WON", win: true, enemyMid: RoleOpponent, buildOrder: [3031, 3153]);
+        await SeedGameAsync("COMPL_LOST", win: false, enemyMid: RoleOpponent, buildOrder: [3031, 3153]);
+        await SeedGameAsync("COMPL_EVEN", win: true, enemyMid: RoleOpponent, buildOrder: [3031, 3153]);
+        // Ahead in gold, behind in XP on the won lane — the disagreement the two
+        // figures exist for, and proof neither is derived from the other.
+        await SeedLaneSnapshotsAsync("COMPL_WON", selfGold: 6_000, opponentGold: 5_000, selfXp: 7_400, opponentXp: 8_000);
+        await SeedLaneSnapshotsAsync("COMPL_LOST", selfGold: 5_000, opponentGold: 6_000, selfXp: 7_000, opponentXp: 8_000);
+        await SeedLaneSnapshotsAsync("COMPL_EVEN", selfGold: 5_100, opponentGold: 5_000, selfXp: 8_000, opponentXp: 8_000);
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var response = await client.PostAsJsonAsync(
+            $"/champions/{Champion}/composition-build",
+            new
+            {
+                position = Position,
+                enemies = new[] { new { championId = RoleOpponent, position = Position } },
+            });
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var payload = await response.Content.ReadFromJsonAsync<CompositionBuildResponse>();
+        var lane = payload!.Lane;
+
+        lane.MeasuredGames.Should().Be(3, "all three games have both 15-minute readings");
+        lane.DecidedGames.Should().Be(2, "the +100 gold lane is inside the threshold and decides nothing");
+        lane.WinRate.Should().BeApproximately(0.5d, 1e-9, "one of the two decided lanes was won");
+
+        // Averaged over the measured games, evens included — an even lane is exactly
+        // what the win rate above cannot express.
+        lane.AverageGoldDiffAt15.Should().BeApproximately((1_000 - 1_000 + 100) / 3d, 1e-9);
+        lane.AverageXpDiffAt15.Should().BeApproximately((-600 - 1_000 + 0) / 3d, 1e-9);
+    }
+
+    [Fact]
+    public async Task PostCompositionBuild_ReportsAnUnjudgeableLaneAsUnknownRatherThanEven()
+    {
+        await _fixture.ResetDatabaseAsync();
+        // A sampled game whose timeline was never ingested: a real game, not a lane
+        // anyone can call. Zeroes here would print a dead-even lane out of nothing.
+        await SeedGameAsync("COMPL_NOSNAP", win: true, enemyMid: RoleOpponent, buildOrder: [3031, 3153]);
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var payload = await (await client.PostAsJsonAsync(
+            $"/champions/{Champion}/composition-build",
+            new
+            {
+                position = Position,
+                enemies = new[] { new { championId = RoleOpponent, position = Position } },
+            })).Content.ReadFromJsonAsync<CompositionBuildResponse>();
+
+        payload!.Build.GamesConsidered.Should().Be(1, "the game itself is still sampled");
+        payload.Lane.MeasuredGames.Should().Be(0);
+        payload.Lane.WinRate.Should().BeNull();
+        payload.Lane.AverageGoldDiffAt15.Should().BeNull();
+        payload.Lane.AverageXpDiffAt15.Should().BeNull();
+    }
+
+    /// <summary>
+    /// The two 15-minute snapshots a lane is judged from (#1117): the searched
+    /// participant (always id 1) and the enemy on the same lane (id 8 — team 200 is
+    /// seeded TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY from 6). Gold and XP are set apart
+    /// independently so a game can be ahead in one and behind in the other.
+    /// </summary>
+    private async Task SeedLaneSnapshotsAsync(
+        string matchId, int selfGold, int opponentGold, int selfXp, int opponentXp)
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        db.MatchParticipantTimelineSnapshots.AddRange(
+            LaneSnapshot(matchId, participantId: 1, selfGold, selfXp),
+            LaneSnapshot(matchId, participantId: 8, opponentGold, opponentXp));
+
+        await db.SaveChangesAsync();
+    }
+
+    private static MatchParticipantTimelineSnapshot LaneSnapshot(
+        string matchId, int participantId, int totalGold, int xp)
+        => new()
+        {
+            Id = Guid.NewGuid(),
+            MatchId = matchId,
+            ParticipantId = participantId,
+            IntervalMinute = 15,
+            TimestampMs = 15 * 60 * 1000,
+            TotalGold = totalGold,
+            MinionsKilled = 100,
+            JungleMinionsKilled = 0,
+            Level = 11,
+            Xp = xp,
+            Kills = 2,
+            DamageToChampions = 5000,
+        };
+
     private async Task SeedGameAsync(string matchId, bool win, int enemyMid, int[] buildOrder)
     {
         await using var db = _fixture.CreateDbContext();

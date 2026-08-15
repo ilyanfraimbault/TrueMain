@@ -4,6 +4,7 @@ import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '~
 import { formatPercentage, getPositionIconUrl, getProfileIconUrl } from '~~/shared/utils/ddragon'
 import { POSITION_BY_VALUE } from '~/utils/positions'
 import { isApexTier } from '~/utils/tiers'
+import { winRateTone } from '~/utils/rate-tone'
 
 // One row of the leaderboard. The whole row navigates to the player's profile
 // via a stretched overlay link, while the top-champion icons are their own
@@ -150,7 +151,7 @@ const positionIcons = computed(() => {
        the width it's actually given — full-width on /truemains, compact in
        the champion-page sidebar — instead of the viewport. -->
   <ListRowSurface
-    class="group @container relative gap-2"
+    class="group @container relative gap-1.5"
   >
     <!-- Stretched profile link: a sibling overlay (not a wrapper) so the
          champion icons can be their own links without nesting <a> in <a>.
@@ -161,8 +162,11 @@ const positionIcons = computed(() => {
       :aria-label="profileAriaLabel"
       class="absolute inset-0 z-[1] rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
     />
-    <!-- Rank -->
-    <span class="w-8 shrink-0 text-center text-sm font-semibold tabular-nums text-muted">
+    <!-- Rank. Narrow rows (the champion page's sidebar) get the tighter slot:
+         the ordinal is the least informative column in the row, and every pixel
+         it gives back goes to the Riot ID, which is the column that actually
+         truncates there. -->
+    <span class="w-6 shrink-0 text-center text-xs font-semibold tabular-nums text-muted @xl:w-8 @xl:text-sm">
       #{{ row.rank }}
     </span>
 
@@ -189,9 +193,14 @@ const positionIcons = computed(() => {
          still keep the champion roughly centred. Capped so it can't run away on
          ultra-wide screens. -->
     <div class="min-w-0 flex-[3] @2xl:max-w-72 @4xl:max-w-80 @5xl:max-w-96">
+      <!-- Game name and tag are one identifier, so the tag never truncates: it
+           holds its width (`shrink-0`) and the name absorbs the clipping. The
+           name is set a notch below the row's body size and the tag a notch
+           below that — the hierarchy reads without the name having to be big,
+           which is what let the pair fit in the sidebar at all. -->
       <div class="flex items-baseline gap-1 truncate">
-        <span class="truncate font-bold text-default">{{ row.identity.gameName }}</span>
-        <span v-if="row.identity.tagLine" class="shrink-0 text-xs text-muted">#{{ row.identity.tagLine }}</span>
+        <span class="truncate text-sm font-bold text-default">{{ row.identity.gameName }}</span>
+        <span v-if="row.identity.tagLine" class="shrink-0 text-[11px] text-muted">#{{ row.identity.tagLine }}</span>
         <!-- One-trick pony marker. `relative z-10` lifts it above the stretched
              profile-link overlay so its tooltip is reachable on hover. -->
         <span
@@ -287,7 +296,7 @@ const positionIcons = computed(() => {
       :delay-duration="150"
       :ui="{ content: 'p-0 h-auto max-w-none bg-transparent ring-0 shadow-none text-default' }"
     >
-      <div class="relative z-10 flex w-16 shrink-0 flex-col items-end">
+      <div class="relative z-10 flex w-14 shrink-0 flex-col items-end @xl:w-16">
         <span
           class="text-sm font-semibold tabular-nums"
           :class="[dedicationColorClass, { 'underline decoration-dotted underline-offset-2': highlightDedication }]"
@@ -307,7 +316,7 @@ const positionIcons = computed(() => {
         </GameTooltipSurface>
       </template>
     </UTooltip>
-    <div v-else class="w-16 shrink-0" />
+    <div v-else class="w-14 shrink-0 @xl:w-16" />
 
     <!-- Rank emblem. The tier crest carries the visual weight; the LP figure
          is dropped (too wide for the row) and only the division survives for
@@ -329,19 +338,36 @@ const positionIcons = computed(() => {
          above stay fixed. -->
     <div class="hidden flex-1 @xl:block" />
 
-    <!-- Games / KDA / WR (far right, fixed widths). -->
+    <!-- Games / KDA / WR (far right, fixed widths — the widths are load-bearing
+         for the @container tiers above, so they stay exactly as they were).
+         Only the win rate takes a colour: games is a count and KDA has no
+         agreed neutral point, so neither has a better/worse reading to encode.
+         `rate-tone` owns the win-rate band, the same as everywhere else. -->
     <div class="hidden shrink-0 items-center gap-4 @xl:flex">
-      <div class="flex w-12 flex-col items-end">
-        <span class="text-sm font-semibold tabular-nums text-default">{{ row.stats.games.toLocaleString() }}</span>
-        <span class="text-[10px] text-muted">games</span>
+      <div class="flex w-12 justify-end">
+        <StatBlock
+          :value="row.stats.games.toLocaleString()"
+          label="games"
+          size="sm"
+          align="end"
+        />
       </div>
-      <div v-if="kdaLabel !== null" class="flex w-12 flex-col items-end">
-        <span class="text-sm font-semibold tabular-nums text-default">{{ kdaLabel }}</span>
-        <span class="text-[10px] text-muted">KDA</span>
+      <div v-if="kdaLabel !== null" class="flex w-12 justify-end">
+        <StatBlock
+          :value="kdaLabel"
+          label="KDA"
+          size="sm"
+          align="end"
+        />
       </div>
-      <div v-if="winRateLabel !== null" class="flex w-12 flex-col items-end">
-        <span class="text-sm font-semibold tabular-nums text-default">{{ winRateLabel }}</span>
-        <span class="text-[10px] text-muted">WR</span>
+      <div v-if="winRateLabel !== null" class="flex w-12 justify-end">
+        <StatBlock
+          :value="winRateLabel"
+          label="WR"
+          size="sm"
+          align="end"
+          :value-class="winRateTone(row.stats.winRate)"
+        />
       </div>
     </div>
 

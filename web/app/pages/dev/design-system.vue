@@ -47,12 +47,15 @@ const ROSEGOLD_RAMP = [
   { name: '700', class: 'bg-rosegold-700', hex: '#a1454a' },
 ]
 
+// Hexes are restated here for the caption only — the swatch itself paints from
+// the CSS var, so a stale hex shows up as a caption that disagrees with the
+// colour beside it. Keep them in step with `--color-data-*` in main.css.
 const DATA_AXIS = [
-  { name: 'data-good', class: 'bg-data-good', hex: '#3ad6c4', use: 'Above average, win' },
-  { name: 'data-good-dim', class: 'bg-data-good-dim', hex: '#7fc9c0', use: 'Large fills on the good side' },
-  { name: 'data-mid', class: 'bg-data-mid', hex: '#8b8b95', use: 'Average, no signal' },
-  { name: 'data-bad-dim', class: 'bg-data-bad-dim', hex: '#d9a45f', use: 'Large fills on the bad side' },
-  { name: 'data-bad', class: 'bg-data-bad', hex: '#f0a13c', use: 'Below average, loss' },
+  { name: 'data-good', class: 'bg-data-good', hex: '#e58f83', use: 'Above average, win — rosegold-400' },
+  { name: 'data-good-dim', class: 'bg-data-good-dim', hex: '#b88d8c', use: 'Large fills on the good side' },
+  { name: 'data-mid', class: 'bg-data-mid', hex: '#8b8b95', use: 'Average, no signal — ink-400' },
+  { name: 'data-bad-dim', class: 'bg-data-bad-dim', hex: '#7b7b85', use: 'Large fills below average' },
+  { name: 'data-bad', class: 'bg-data-bad', hex: '#6a6a74', use: 'Below average, loss — ink-500' },
 ]
 
 const ELEVATION = [
@@ -63,6 +66,17 @@ const ELEVATION = [
 ]
 
 const TIERS = ['S', 'A', 'B', 'C', 'D']
+
+// `max: 0.09` on the pick rates: a real champion directory's pick rates all sit
+// in a narrow band near the bottom of 0..1, so the column is normalised against
+// its own peak. Presence keeps `max: 1` to show the difference.
+const METRIC_BARS = [
+  { label: 'Pick rate', value: 0.082, max: 0.09, tone: 'neutral' as const, display: '8.2%' },
+  { label: 'Pick rate', value: 0.031, max: 0.09, tone: 'neutral' as const, display: '3.1%' },
+  { label: 'Pick rate', value: 0.004, max: 0.09, tone: 'neutral' as const, display: '0.4%' },
+  { label: 'Win rate', value: 0.542, max: 1, tone: 'good' as const, display: '54.2%' },
+  { label: 'Win rate', value: 0.478, max: 1, tone: 'bad' as const, display: '47.8%' },
+]
 
 const TEXT_TOKENS = [
   { util: 'text-highlighted', use: 'The value the user came for' },
@@ -105,7 +119,7 @@ const TEXT_TOKENS = [
     <SectionCard
       :level="2"
       title="Rose gold — the brand accent"
-      subtitle="Brand and interaction only: logo, active nav, focus rings, primary buttons, links, selected states. Never a data value, never a generic surface tint."
+      subtitle="Brand, interaction — and, since #1096, the good end of a measurement. Still never a generic surface tint: an accent on every panel stops being an accent."
     >
       <div class="flex flex-wrap gap-2">
         <div
@@ -126,7 +140,7 @@ const TEXT_TOKENS = [
     <SectionCard
       :level="2"
       title="Data axis"
-      subtitle="Cold → warm rather than green → red: rose gold is itself a desaturated red, so a red loss value next to the accent is a coin flip to read. Teal and amber share no hue with the brand."
+      subtitle="One-sided: rose gold marks what is above average, everything below simply steps down the neutral ramp. A losing value is not flagged in a warning colour, it is just not highlighted — so the bad end is deliberately quieter than the average one."
     >
       <div class="flex flex-wrap gap-4">
         <div
@@ -267,11 +281,73 @@ const TEXT_TOKENS = [
       </div>
     </SectionCard>
 
+    <!-- ─── Stat primitives ──────────────────────────────────────────────── -->
+    <SectionCard
+      :level="2"
+      title="StatBlock"
+      subtitle="The value/label pair, at every scale and every tone. `default` is “no better/worse reading exists”; `mid` is “measured, and it is average”."
+    >
+      <div class="flex flex-col gap-6">
+        <div class="flex flex-wrap items-end gap-8">
+          <StatBlock value="54.2%" label="Win rate" size="xl" tone="good" />
+          <StatBlock value="47.8%" label="Win rate" size="lg" tone="bad" />
+          <StatBlock value="50.1%" label="Win rate" size="md" tone="mid" />
+          <StatBlock value="155 974" label="Games" size="md" />
+          <StatBlock value="2.4" label="KDA" size="sm" />
+        </div>
+        <div class="flex flex-wrap items-start gap-8">
+          <StatBlock
+            value="100"
+            label="Games used"
+            caption="65 by mains · of 5,000 scanned"
+          />
+          <StatBlock
+            value="—"
+            label="Gold @15"
+            caption="nothing decided yet"
+          />
+          <StatBlock
+            value="+262"
+            label="Gold @15"
+            tone="good"
+            caption="avg over 204 games"
+            align="end"
+          />
+        </div>
+      </div>
+    </SectionCard>
+
+    <SectionCard
+      :level="2"
+      title="MetricBar"
+      subtitle="A rate as a length. `max` normalises a column against its own peak — a 6% pick rate against a 100% track is a rounding error you cannot see."
+    >
+      <div class="flex flex-col gap-4">
+        <!-- Keyed on the pair, not the label: three of these are "Pick rate". -->
+        <div
+          v-for="bar in METRIC_BARS"
+          :key="`${bar.label}-${bar.display}`"
+          class="flex items-center gap-3"
+        >
+          <span class="stat-label w-28 shrink-0">{{ bar.label }}</span>
+          <span class="w-40 shrink-0">
+            <MetricBar
+              :value="bar.value"
+              :max="bar.max"
+              :tone="bar.tone"
+              :label="`${bar.label} ${bar.value}`"
+            />
+          </span>
+          <span class="stat-value text-sm">{{ bar.display }}</span>
+        </div>
+      </div>
+    </SectionCard>
+
     <!-- ─── Tier ladder ──────────────────────────────────────────────────── -->
     <SectionCard
       :level="2"
       title="Tier ladder"
-      subtitle="Rides the data axis so a champion’s tier and its win rate speak one language. Replaces a medal metaphor whose gold and bronze now read as warnings."
+      subtitle="The medal scale — rose gold, gold, silver, bronze, iron. Five ranks read as five ranks without a legend. #1060 briefly replaced it with a teal→amber ladder; with the warm end of the axis withdrawn (#1096) the collision that motivated it is gone."
     >
       <div class="flex flex-wrap items-center gap-6">
         <div

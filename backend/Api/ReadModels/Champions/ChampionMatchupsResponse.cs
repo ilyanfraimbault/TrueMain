@@ -5,18 +5,22 @@ namespace TrueMain.ReadModels.Champions;
 /// how a champion performed at a position against every lane opponent (same
 /// <c>TeamPosition</c>, opposite <c>TeamId</c>) it met over the scoped games.
 ///
-/// Served from the pre-aggregated <c>champion_matchup_stats</c> (#606) for the
-/// panel, and computed live from <c>match_participants</c> only for the
-/// single-opponent search, whose floor of 1 game an aggregate built at floor 10
-/// cannot answer. (The previous version of this comment claimed there was no
-/// aggregation table at all, which stopped being true with #606.)
+/// Served from the pre-aggregated <c>champion_matchup_stats</c> (#606) for every
+/// global slice — leaderboard and single-opponent search alike. Only the
+/// player-scoped route is computed live from <c>match_participants</c>, because
+/// the aggregate carries no account dimension. (The rows are stored floor-free,
+/// so the search reading them keeps its "answer from one game up" contract; the
+/// earlier claim that an aggregate "built at floor 10" could not serve it was
+/// never true of the storage, only of the read.)
 ///
-/// Only opponents with at least the configured minimum games
-/// (<see cref="TrueMain.Options.ChampionsListOptions.MinMatchupGames"/>) appear;
-/// thinner head-to-heads are noise. <see cref="Matchups"/> is ordered by
-/// <see cref="ChampionMatchupEntry.WinRate"/> descending so a caller slicing the
-/// best / worst opponents gets a stable list, but the frontend derives nothing
-/// else from the order.
+/// The leaderboard drops opponents below the larger of
+/// <see cref="TrueMain.Options.ChampionsListOptions.MinMatchupGames"/> and
+/// <see cref="TrueMain.Options.ChampionsListOptions.MinMatchupPlayRate"/> × the
+/// champion's total matchup games in the same scope; the search applies neither.
+///
+/// <see cref="Matchups"/> is ordered by <see cref="ChampionMatchupEntry.WinRate"/>
+/// descending, but the best / worst slicing is *not* that order — see
+/// <see cref="ChampionMatchupEntry.WinRateLowerBound"/>.
 /// </summary>
 public sealed record ChampionMatchupsResponse
 {
@@ -57,6 +61,41 @@ public sealed record ChampionMatchupEntry
     public double WinRate { get; init; }
 
     /// <summary>
+    /// Share this opponent holds of the champion's total matchup games in the same
+    /// scope — <see cref="Games"/> over the games summed across every opponent, before
+    /// any floor. The quantity the leaderboard's floor is expressed in
+    /// (<see cref="TrueMain.Options.ChampionsListOptions.MinMatchupPlayRate"/>), returned
+    /// so a client can say "you meet this opponent in 4% of your games" rather than
+    /// leaving a bare game count to mean whatever the reader assumes. The
+    /// single-opponent search reads one row, so it takes its denominator from a second
+    /// aggregate over the same scope rather than from the row itself.
+    ///
+    /// Zero only on the player-scoped route, whose live join is narrowed to the one
+    /// opponent and holds no such total.
+    /// </summary>
+    public double PlayRate { get; init; }
+
+    /// <summary>
+    /// Lower bound of the 95% Wilson interval around <see cref="WinRate"/> — "at worst,
+    /// this matchup is this good". <b>This is what the best-matchups list is ranked
+    /// by</b>, not <see cref="WinRate"/>: ranking the raw rate makes the leaderboard a
+    /// small-sample detector, because on a wide enough field the most extreme rate is
+    /// always the thinnest sample. A 62% over 96 games bounds at 53%, a 53% over 995
+    /// games bounds at 50%, and a 82% over 11 games bounds at 52% — which is the whole
+    /// point, since eleven games cannot establish an 82% matchup.
+    /// </summary>
+    public double WinRateLowerBound { get; init; }
+
+    /// <summary>
+    /// Upper bound of the same interval — "at best, this matchup is only this good" —
+    /// and the key the *worst*-matchups list is ranked by, ascending. Deliberately not
+    /// the mirror of the lower bound: a bad matchup is one whose ceiling is low, and
+    /// using the lower bound at both ends would rank the worst list by which sample is
+    /// thinnest, reintroducing at the bottom exactly what the top was fixed for.
+    /// </summary>
+    public double WinRateUpperBound { get; init; }
+
+    /// <summary>
     /// Share of *decided* lanes the champion won against this opponent — ahead by
     /// more than the configured gold threshold at 15 minutes (#919).
     ///
@@ -68,11 +107,13 @@ public sealed record ChampionMatchupEntry
     /// </para>
     ///
     /// <para>
-    /// <see langword="null"/> when nothing can be said: no decided lane in the scope,
-    /// or a <em>player-scoped</em> slice, whose lane cannot be read off a
-    /// population-wide aggregate. The global single-opponent search does carry it —
-    /// its head-to-head is live, but its lane counters are read from the aggregate
-    /// for that one opponent (#976). Never a substitute zero.
+    /// <see langword="null"/> when nothing can be said: fewer decided lanes than
+    /// <see cref="TrueMain.Options.ChampionsListOptions.MinDecidedLaneGames"/> (which
+    /// includes none at all), or a <em>player-scoped</em> slice, whose lane cannot be
+    /// read off a population-wide aggregate. Every global slice carries it, search
+    /// included — both halves of that row now come from the same aggregate rows, so
+    /// the lane sample can no longer exceed the games it sits beside. Never a
+    /// substitute zero.
     /// </para>
     /// </summary>
     public double? LaneWinRate { get; init; }
@@ -108,4 +149,27 @@ public sealed record ChampionMatchupEntry
     /// lanes into a confident label.
     /// </summary>
     public int GoldDiffLaneGames { get; init; }
+
+    /// <summary>
+    /// Mean experience gap over the lane opponent at 15 minutes, signed from the
+    /// champion's point of view (#1111) — the second half of "who is ahead", and not
+    /// a restatement of <see cref="AverageGoldDiffAt15"/>. Gold is who bought more,
+    /// XP is who is bigger; a lane won on kills while losing waves shows a gold lead
+    /// over an XP deficit, which is a lead the next all-in reverses.
+    ///
+    /// <para>
+    /// <see langword="null"/> when the gap was never measured over this scope, never
+    /// 0 — same rule as the gold gap, and for the same reason: 0 is the most
+    /// decisive-looking value the number can take.
+    /// </para>
+    /// </summary>
+    public double? AverageXpDiffAt15 { get; init; }
+
+    /// <summary>
+    /// Lanes <see cref="AverageXpDiffAt15"/> is averaged over. Its own counter rather
+    /// than a reuse of <see cref="GoldDiffLaneGames"/>: rows folded before #1111 carry
+    /// gold and no XP, and borrowing the gold denominator would report those as a
+    /// dead-even lane out of data that does not exist.
+    /// </summary>
+    public int XpDiffLaneGames { get; init; }
 }

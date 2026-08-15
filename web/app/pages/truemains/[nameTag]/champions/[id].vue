@@ -291,14 +291,18 @@ const performanceSnapshot = useLazyHydrationSnapshot(
       -->
       <template v-if="!notEnoughData">
         <header class="flex flex-wrap items-center gap-4">
+          <!-- `seoDisplayName` (SSR-resolved) rather than the client-only
+               `displayName`, and skeletons instead of zeroes until the
+               player's aggregate lands — same as the global champion page. -->
           <ChampionHeader
-            :champion-name="displayName"
+            :champion-name="seoDisplayName"
             :champion-icon-url="displayIconUrl"
             :champion-id="championId"
             :position="champion?.position || selectedPosition || ''"
             :total-games="champion?.totalGames ?? 0"
             :total-wins="champion?.totalWins ?? 0"
             :low-sample-message="lowSampleMessage"
+            :loading="!champion"
           />
           <ChampionFilters
             :selected-patch="selectedPatch"
@@ -368,6 +372,14 @@ const performanceSnapshot = useLazyHydrationSnapshot(
                  live, already-loaded `staticList`) so the deferred hydration
                  doesn't mismatch (#834/#837) — same pattern as the global
                  champion page. -->
+            <!--
+              Deliberately cross-patch, unlike the global panel and unlike the
+              build sections above it: this slice is one player's own games, where
+              a patch filter would leave nearly every opponent under the 3-game
+              per-player floor and empty the panel. The global panel needs the
+              patch for the opposite reason — its aggregate outlives the matches
+              it was folded from, so unscoped it spans *more* history than the page.
+            -->
             <LazyChampionMatchups
               hydrate-on-visible
               :champion-id="championId"

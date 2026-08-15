@@ -121,6 +121,22 @@ consequence: the trio slice sees only the retention window while the duo slice r
 frozen patches, so their game counts differ — `pairGames` is returned explicitly rather than reused from the duo
 response — #922.
 
+**Synergies floor on a share of the champion's games *and* on whether the partner plays that lane at all.**
+The three games floors below were not enough. On production, Viego JUNGLE's four best synergies were pairings of
+**21 to 26 games out of 8 202** (0.26%), led by a **+24.7% "synergy" resting on 21 games** — and the very top line
+was **Sylas BOTTOM**, which is not a role Sylas plays. Two separate defects wearing the same shirt, so two
+separate filters: `MinSynergyPlayRate` (1%, combined with `MinSynergyGames` by taking the larger, exactly like
+#1087's matchup floor) for pairings that are merely rare, and `MinSynergyPartnerLanePlayRate` (10% of that
+partner's ally games across every lane) for pairings that are *impossible*. The share floor is set at twice the
+matchup one because synergy is a difference of two rates and carries the sum of their error — the same reasoning
+that already put `MinSynergyGames` above `MinMatchupGames`. After both, the list starts at Darius TOP over 271
+games and still holds 131 of 223 partners.
+↳ The lane share is computed off the `ALLY` side of the baselines already in memory, **not** off the pairing rows:
+those are filtered to one champion's teammates and exclude its own lane, so a share derived from them would read
+Udyr as a 100% toplaner on any jungler's page purely because his jungle games cannot appear there. The trio path
+gets the lane filter but **no** share floor — a trio's sample is a subset of its duo's, which is why
+`MinSynergyTrioGames` already sits *below* `MinSynergyGames` — #1090.
+
 **Synergy carries three separate sample floors, and a thin sample yields no entry rather than a hedged one.**
 `MinSynergyGames` (20) is deliberately above the matchup floor: synergy is a *difference* between two rates, so its
 sampling error is the sum of theirs. `MinSynergyTrioGames` (12) is necessarily below it, since a trio's sample is a
@@ -220,9 +236,107 @@ position / bracket narrowing). That makes `patch.games == dedication.careerGames
 centimetres apart. A narrower filter (per platform, per lane) would have been defensible on its own and would
 have made the grid disagree with the card above it — #927.
 
-**The matchup opponent-search stays a live query while the matchups panel reads the aggregate.**
-The `opponent=` path filters to a single adversary (already fast) and uses a floor of 1 game, which an
-aggregate built at floor 10 cannot serve — #606.
+**The matchup tool judges the lane over its own sampled games — this finishes #1111's merge.**
+#1111 put the recommendation's figures and the matchup's lane figures on one line but left the lane half reading
+`champion_matchup_stats`. Two populations behind one strip, and they disagree in a way readers spot immediately:
+the aggregate's champion side is **mains-only** since #1087 while a composition sample takes any pilot, so a
+matchup showing **"8 games used · 0 by mains"** sat beside a lane win rate of **"—"**. Reported from production
+as "pourquoi il n'y a pas de lane winrate ? pourtant tous les matchs qu'on a récupéré ont le bon matchup" — and
+that is exactly right: those games *are* games of the matchup, they were simply not the games being measured.
+The backend now judges the lane over the selection itself, so every cell counts the same games and the strip
+makes one request instead of two.
+↳ **Not the scan #606 retired.** The selection already holds its games' `(MatchId, ParticipantId)` keys — at most
+`CompositionSearch:TopK` (100) of them — so this reads two snapshot rows per game by key. #606 retired a
+self-join over every retained match, which is a different thing.
+↳ **The trade accepted:** the lane now rests on tens of games instead of the aggregate's hundreds, so it is
+noisier. It is also *the right games*, the cell always prints its own denominator ("of 5 decided"), and
+`MinDecidedLaneGames` is deliberately **not** applied here — that floor belongs to the champion page's
+leaderboard, where a reader is comparing matchups; here they are looking at one draft, and blanking the figure
+would fail exactly the thin drafts the tool exists to answer.
+↳ **"The lane was won" is now defined once**, in `Core/Lol/Lane/LaneOutcomeRules.cs`, shared by the ingestor's
+fold and this live pass. The threshold stays a separate option per consumer — changing the ingestor's re-defines
+every *stored* counter and cannot be applied retroactively (#919), while this one recomputes per request — but
+both default to the same constant, and a deployment overriding one must override both — #1117.
+
+**`/matchup` carries one line of numbers, not two — and it stores the XP gap beside the gold one.**
+The page had grown a "This matchup" strip (games / win rate / matchup rate / lane WR / gold @15) above a
+recommendation card that opened with its own (games used / draft match / win rate): **two `games` figures and two
+`win rate` figures centimetres apart**, measuring different populations, with nothing on screen saying so. Merged
+into four cells — games used, draft match, win rate, lane win rate — on the reasoning that every game in the
+sample *is* a game of this matchup. **The win rate kept is the sample's**, decided by the product owner; the
+matchup-wide record (its own game count, win rate and matchup rate) is gone from the page rather than shown
+twice, and each surviving cell states its own denominator because the two populations are still different sizes.
+↳ The strip stays mounted **outside** `RecommendationPanel`, which is #1098's reason and still holds: that card
+does not render on the standard-build fallback, and the figures used to vanish exactly where the reader most
+needs them. The provenance-drawer *button* moved into the strip while the drawer itself stayed in the card, which
+already fetches the item / rune / spell maps it needs — the page owns the open flag between them.
+↳ **XP @15 is stored, not derived** (`LaneXpDiffSum` over its own `LaneXpDiffGames`, mirroring #976's gold pair).
+Gold is who bought more, XP is who is bigger, and they routinely disagree: a lane won on kills and lost on waves
+shows a gold lead over an XP deficit, which the next all-in reverses. Only gold is banded — 300 XP is a third of
+a level, not "a very good lane" — so the verdict badge stays gold's alone and the two gaps share an uncoloured
+line, since one tone cannot speak for two numbers pointing opposite ways.
+↳ **The migration re-folds rather than backfilling**, because an additive flag-gated fold cannot correct itself.
+It was nearly free to do here: #1087's own wipe had not yet reached production, so the two migrations apply back
+to back and prod re-folds its window **once**, with gold and XP together. Preprod, which had already consumed
+#1087, paid a second re-fold of its single retained patch — #1111.
+
+**Measurements are set in Inter again: the mono stat face is withdrawn.**
+#1060 lifted the `--font-mono` → Inter alias and put `stat-value` / `stat-label` on Geist Mono, on the argument
+that a technical face gives numbers presence and that the value/label pair needs two registers. Withdrawn by the
+product owner in #1111: across a dense page it read as a second, unrelated typeface rather than as a register.
+The pair keeps its separation from size, weight, casing and tracking — which was always doing most of the work —
+and `tabular-nums` still aligns the columns. Geist Mono stays loaded for the few places monospace is the *meaning*
+rather than a flourish: tier letters, the empty-slot glyph, hex codes on `/dev/design-system`. One edit in
+`main.css` reaches every stat on the site, which is why the family lives in the utility and not at the call
+sites — #1111.
+
+**The matchup opponent-search reads the aggregate, like the panel — this reverses #606's "the search stays live".**
+#606 kept the `opponent=` path on a live self-join because "an aggregate built at floor 10" could not answer a
+one-game lookup. The rows were never stored with a floor, only the read applied one, so the premise was wrong from
+the start — and the split cost real correctness. The live join sees the retention window (2 patches of
+`match_participants`) while the aggregate keeps every patch it ever folded, so on production the same matchup
+answered **22 games / 27% on the leaderboard and 13 games / 15% in the search**. Worse, #976 had already moved the
+search's *lane* counters onto the aggregate while leaving its games live, so rows came back reporting a gold gap
+averaged over **more lanes than the games shown beside them** (Singed: 13 games, 16 lanes). Both halves now come
+from the same rows, and the search keeps its floor-free contract by simply not applying the read's floors. The
+player-scoped slice stays live — the aggregate has no account dimension — #1087.
+
+**The matchups leaderboard floors on a *share* of the champion's games, and ranks on Wilson bounds, not the raw rate.**
+An absolute floor cannot work across champions three orders of magnitude apart in volume: 10 games is the whole
+matchup on a rarely played champion and 0.07% of the sample on a heavily played one. Measured on Viego JUNGLE, the
+11 opponents under 30 games were **0.3% of 53 739 games and held 5/5 of "best" and 3/5 of "worst"** — the panel was
+a small-sample detector, because on a field of 86 opponents the most extreme rate is essentially always the
+thinnest sample. Two changes, both needed: `MinMatchupPlayRate` (0.5%) combined with `MinMatchupGames` by taking
+the **larger**, which keeps 51 of 71 opponents (94.6% of games) on a popular champion and goes inert on a thin one;
+and ranking best on the Wilson **lower** bound and worst on the **upper** one, which self-regulates by sample size
+so no floor has to be tuned per champion. Three of the five previous "best" matchups had an interval containing the
+50% baseline. The floors are the read side's, so moving them is a config change and never a re-fold — #1087.
+
+**The lane win rate carries its own floor, because it is its own sample.**
+`MinDecidedLaneGames` (10) is separate from every games floor above it: the production median decided/games ratio
+is **0.58**, so a row clearing 40 games can rest its lane column on six decided lanes — and it was printing "100%
+lane" off seven, the most confident-looking cell on the panel resting on its smallest sample. Below the floor the
+rate is null (an em dash) while `decidedLaneGames` is still returned, so the caller can say *why* rather than
+silently omitting it — #1087.
+
+**The matchup folds count mains of the champion, not every account we know.**
+`champion_matchup_stats` gated on `RiotAccountId != null` while the champion aggregates feeding the header, the
+tier list, the trend and the builds gate on `main_champion_stats.IsMain`. On production that put **14 576 games
+behind the matchups panel and 4 605 behind the header directly above it** — same champion, lane and patch, ×3.2 —
+and the read-side comment asserted the two cohorts matched. The gate now lives in `Data/Aggregation/MatchupCohort.cs`
+so the two folds that write those rows cannot drift apart from each other or from the pattern reader. **Champion
+side only**: the opponent stays whoever held that lane, since narrowing both sides would measure mains-versus-mains,
+a different and far thinner question. Because both folds are additive and flag-gated, tightening the gate corrects
+nothing already written — the migration wipes the table and re-folds the retained window, which loses the matchups
+of patches whose raw matches are already gone (accepted: the panel became per-patch in the same change, so those
+patches were no longer readable anyway) — #1087.
+
+**The matchups panel follows the page's patch filter on the global route, and deliberately does not on the player one.**
+It forwarded position and elo but never patch, and its aggregate outlives the matches it was folded from, so the
+panel spanned **16.12→16.15 (53 739 games) under a header reading 4 603** — two contradicting numbers a few
+centimetres apart. The player-scoped slice stays cross-patch on purpose, for the opposite reason the global one
+needed scoping: one player meets the same lane opponent a handful of times *in total*, so a patch filter would put
+nearly every opponent under the 3-game per-player floor and empty the panel — #1087.
 
 **The draft tool is the "Matchup" page (`/matchup`), and its opponent is the *role* opponent.**
 "Lane opponent" is meaningless for a jungler, and the page is not a build editor — it answers "what do I build
@@ -246,6 +360,18 @@ came for. What is left is the average, its verdict on the S→D tier ladder that
 and the four sample figures — each with a one-line hint, since "Top of team 25%" means nothing until you
 know it counts games this player outscored their own four teammates. The API still returns `components`:
 the breakdown is the natural content of a future drill-down, and the payload is cheap.
+
+**Roaming is a badge in the header, not a panel.** The #536 panel gave a full below-the-fold section — title,
+subtitle, sample line, three hand-drawn bars and a verdict word — to three cumulative averages, and two of the
+three states it could reach ("Balanced", "Lane-focused") were "this champion is like most champions", which is
+not worth a section. Nobody visits a champion page to learn it kills people out of lane before minute 15. What
+is left is one `Roamer` badge next to the win rate, shown only when the @15 average clears `ROAMER_KP15` (1.5,
+`web/app/utils/roam-verdict.ts`) — the threshold is a product call, so it lives in the frontend like
+`laneVerdict`'s bands — with the number itself in the tooltip. The badge is deliberately one-sided: not being
+a roamer is the default the rest of the page already implies, and an unmeasured champion (below the backend's
+sample floor, or `JUNGLE`) is silent for the same reason it must not read as either. Nothing changed behind it:
+`/champions/{id}/roam` still computes and returns @5/@10/@15, the page still fetches all three, and reviving a
+curve means writing a component, not a backend.
 
 **The static champion list drops Data Dragon entries with an id at or above 10 000 — alternate-mode kits, not champions.**
 Patch 16.15 ("League classique") added 60 legacy kits to `champion.json`: alias `Jade_<BaseAlias>`, key
@@ -578,6 +704,20 @@ where there is no matchup build to show — and even that is now an icon-and-too
 rather than a banner. **Caveats belong in a tooltip on the answer, not in a block above it**: a banner pushes
 the thing the reader came for down the page and gets dismissed as chrome either way.
 
+↳ **A figure about the matchup does not live inside the card about the sample** (#1098). #976 folded the lane
+verdict into `RecommendationPanel`'s strip, on the reasoning that a win rate and a gold gap are one sentence
+read at two points in the game. True of the reading, wrong about the lifetime: that card is a live query over
+the retention window, and on the fallback path above it does not render at all — so a matchup with nothing
+left in `match_participants` lost **every number on the page** at the exact moment the build under it was the
+champion's global one rather than the matchup's. The matchup's record (games, win rate, matchup rate, lane
+figures) now has its own strip on the page, mounted on champion / role / opponent alone; the card keeps only
+what describes its own sample. `champion_matchup_stats` outlives the matches it was folded from, which is why
+the strip still answers where the live query cannot. The general rule: **two populations, two strips** — a
+figure belongs to the component whose mount condition matches the data's, not to the one it reads well beside.
+Same PR, same reasoning applied to the fallback build: it renders the standard build's core and tree only, not
+the champion page's variations and rune list, which are the champion's answer to a question this page isn't
+asking and are read as the matchup's simply by sitting here.
+
 **An expensive read path behind a TTL cache needs a single-flight, not a lock** (#870,
 `Api/Services/RequestCoalescer.cs`). The cache protects steady state; the stampede happens on the first
 request and at every TTL expiry, when concurrent callers all miss at once and each start the same scan — up to
@@ -638,6 +778,21 @@ which hands the match to the existing pending-timeline path for a later run. A c
 healthy run that ingested nothing. 👉 The general rule: retry policies cannot cover streamed bodies, so
 per-item error isolation belongs at the call site — the same principle as the Worker's per-process isolation
 above, one level down.
+
+**A CommunityDragon patch branch that does not exist yet is a transient condition, not a fatal one.**
+CommunityDragon mirrors a patch hours-to-days after Riot ships it, so on every patch day the first games on
+the new patch reach aggregation while `raw.communitydragon.org/<patch>/` still 404s. `EnsureSuccessStatusCode`
+let that escape `CommunityDragonItemMetadataProvider`, and 7 matches on 16.16 aborted **both**
+`ChampionPatternAggregation` and `ChampionPowerspikeAggregation` on every ingestor cycle — powerspike fully
+stalled, since its batch selector re-picks the same uncommitted batch forever (16 errors on 2026-08-12, one
+failure of each process per cycle) — #1107. Fixed by falling back to the `latest` branch (the previous patch
+until CommunityDragon catches up, then the new one) and re-probing the real branch every 30 min. Skipping the
+affected matches was rejected: `ProcessBatchAsync` flags every match in a batch as `PowerspikeAggregated`
+whether or not it contributed, so a skipped match is dropped from the aggregates permanently — stale-by-one-patch
+item metadata beats a hole. A non-404 failure still throws; an outage must not be papered over with the wrong
+patch's data. Faulted loads are also no longer cached — a `Lazy<Task<…>>` that faults kept rethrowing the
+original error for the life of the process, which for the Api means days. 👉 The general rule: an upstream that
+publishes on its own schedule needs a degraded answer, not an exception, on the window where it lags.
 
 **The EF compiled model must be regenerated on every schema change.**
 `dotnet ef dbcontext optimize` → `Data/CompiledModels`. Originally for cold start; the operational reason is
@@ -990,6 +1145,11 @@ read as one flat warm mass. What replaced it:
 - **The tier ladder rides the same axis.** Its medal metaphor (rose-gold → gold → silver → bronze → iron)
   broke twice over once amber meant "bad": A and C read as warnings, and `tier-s` was *literally*
   `rosegold-400`, giving the best tier the brand colour and no comparative meaning at all.
+
+> ⚠️ **The two bullets above were reversed on 2026-08-11 — see the entry below.** The cold→warm data axis and
+> the teal tier ladder are gone; measurements are rose gold again and the medal ladder is back. Everything
+> else in this entry (ink surfaces, the four-step opaque elevation, `surface` replacing `glass`, dark-only)
+> still stands.
 - **`surface` replaces `glass`** at all 55 call sites plus the global `UCard` / `UBadge` themes. Translucency
   everywhere meant nothing was ever *on top of* anything. Paired with it, the elevation ladder was
   un-flattened: `--ui-bg-muted` and `--ui-bg-elevated` had both pointed at `neutral-800`, so the whole app
@@ -1001,6 +1161,34 @@ read as one flat warm mass. What replaced it:
 - **A second family carries the numbers.** `--font-mono` had been deliberately aliased to Inter; it now
   points at Geist Mono, used by the `stat-value` / `stat-label` utilities. The old scale put a value and its
   label one step apart (`text-sm` over `text-xs`, same family, same weight), so a dense row read as noise.
+
+## Measurements are rose gold again: the cold→warm data axis is withdrawn (2026-08-11)
+
+**Decided by the product owner in #1096, reversing two bullets of the #1060 entry above** — the `--color-data-*`
+cold→warm axis and the teal tier ladder. Everything else #1060 shipped (ink surfaces, four opaque elevation
+steps, `surface` over `glass`, dark-only, the scoped eclipse) is untouched and stays.
+
+The teal was doing what a two-hue scale is meant to do. The call was not that it failed at its job, but that
+the site should read as rose gold and should not carry a cyan it never wanted. Recorded plainly because the
+#1060 reasoning is still on this page and will read as current otherwise.
+
+- **The axis is one-sided now.** `--color-data-good` is `rosegold-400`; below average simply steps down the
+  neutral ramp (`--color-data-bad` is `ink-500`). A losing win rate is *not* flagged in a warning colour, it
+  is merely not highlighted. Consumers did not change — `rate-tone.ts`, `StatBlock`, `MetricBar` and
+  `TierBadge` all read the same tokens, so this was a token edit, not a component sweep.
+- **The medal ladder is back** (rose gold → gold → silver → bronze → iron). #1060 retired it on the grounds
+  that gold and bronze are amber and amber meant "bad"; with the warm end of the axis gone, the collision it
+  was avoiding no longer exists. `dedication.ts` and `PlayerPerformance.vue` read `--color-tier-*` directly,
+  so the dedication ranks and performance verdicts followed for free.
+- **The activity heatmap returns to rose gold / neutral**, which is where #927 had it. The sign of a period is
+  now carried by *accent vs grey* rather than by two opposed hues, which puts more weight on intensity: a
+  one-game losing period is a faint grey cell. That is the intended read — it is barely a signal.
+
+**The cost, stated so nobody re-derives it in surprise: the accent is no longer exclusive to interaction.**
+#1060's central mechanism was that rose gold meant "you can touch this" and nothing else, which is what let it
+stay legible while scarce. A rose-gold number is now a *good* number, not a clickable one. Affordance has to
+come from shape and position — a border, a cursor, a control's own chrome — and never from hue alone. Any
+future "make it obvious this is clickable" that reaches for the accent alone will not work any more.
 
 **The eclipse is scoped to the home hero** (`AppBackdrop.vue` moved out of `app.vue`). As a viewport-fixed
 layer behind every route its corona passed *through* the champion and leaderboard tables: rows near the glow
@@ -1018,6 +1206,45 @@ visitor might still carry from before the toggle was removed.
 Reviewable at `pages/dev/design-system.vue`, which is the compensating control for having no Storybook and no
 SFC-mounting test setup: every token, elevation step and material on one screen, stripped from production
 builds like the other `dev/*` playgrounds.
+
+## A patch is served only once it can fill a directory (2026-08-12)
+
+**#1109.** The public reads used to default to the newest patch holding *any* aggregate row, and the directory
+then dropped every `(champion, lane)` line under `ChampionsList:MinSampleGames`. The two rules contradicted
+each other for the whole window between a patch's first fold and its first few thousand games. On production,
+hours after 16.16 shipped, seven one-game lines moved the entire site onto it — an empty directory, an empty
+tier list and a "4 main games analyzed" hero, while 16.15 sat beside them with 331 628 games. It self-healed
+in hours and recurred **every patch day**.
+
+- **The bar is counted in lines past the floor, not in games.** `ChampionsList:MinServablePatchLines` (50) is
+  measured on exactly what the directory renders, so it can't clear while the page stays empty. A raw games
+  threshold is a proxy for that and would have to be re-tuned as the site's volume grows; lines past the floor
+  are self-describing at any volume. 50 ≈ 40 champions, roughly three to five hours into a patch at current
+  volume, against the ~560 lines a settled patch reaches.
+- **The definition is shared, not re-implemented** (`Data/Aggregation/ChampionDirectoryLines.cs`). The count
+  that gates serving, the count the directory renders and the count the admin patch-coverage page reports are
+  one fold. Two copies would eventually disagree, and the failure mode is specific: the page would certify a
+  patch the site had refused, or bless one it had switched onto.
+- **The fallback is reported, never silent.** The served patch travels in `patchVersion` and drives the patch
+  picker, so the site says "16.15" while it is showing 16.15, and the thin patch stays explicitly selectable.
+  Serving old data under a new patch's name would be strictly worse than the empty page it replaced.
+- **Nothing clears the bar ⇒ serve the newest anyway.** On a fresh deployment a thin directory is the honest
+  state and an empty one is not. Same branch makes `0` the documented off-switch.
+- **The homepage volume chips span two patches** (`ChampionsList:HomepagePatchWindow`), the served one and the
+  one before it, so the headline figure doesn't fall by an order of magnitude every two weeks — which reads as
+  data loss, not as a patch boundary. The chips **name the range** they cover. The tier-list teaser beside them
+  does *not* merge patches: a tier is a percentile within one patch's field, and a blended ranking would
+  describe a meta that never existed. That asymmetry is deliberate and is why the two read from different calls.
+- **The window never reaches forward.** It starts at the served patch, so games on a patch every other surface
+  is refusing to show are not advertised on the homepage either.
+
+Player- and champion-scoped views were never affected: `ChampionScopeLoader` has had
+`ResolveLatestPatchAboveFloor` since long before this, for the same reason. #1109 is that idea finally applied
+to the global reads.
+
+Shares a trigger with #1107 (CommunityDragon's unpublished patch branch aborting the folds) but nothing else —
+and fixing #1107 makes this one *more* urgent, since the folds now succeed on patch day and the flip onto a
+thin patch would happen sooner.
 
 ## Keeping these files current
 

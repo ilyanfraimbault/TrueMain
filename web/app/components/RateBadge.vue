@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { formatPercentage } from '~~/shared/utils/ddragon'
+import { pickRateTone, winRateTone } from '~/utils/rate-tone'
 
 // `games` is what the percentages are computed from. It used to sit next to the
 // badges (#923) because a matchup slice is usually small — measured on
@@ -12,6 +13,21 @@ const props = defineProps<{
   winRate: number
   games?: number
 }>()
+
+/**
+ * Both chips read their value through `utils/rate-tone`, the same module the
+ * tier-list chip uses — a win rate must not be accented in one place and neutral
+ * in another on pages a reader moves between. The bands and their calibration live
+ * there (win rate symmetric around 50%; pick rate one-sided, because a niche
+ * champion is not *bad* at being picked).
+ *
+ * The win chip used to be a flat `color="primary"` — the same rose gold
+ * whatever the number said, so the accent decorated a value instead of reading
+ * it. The accent is back on measurements (#1096), but it now *means* something:
+ * it marks the good end, and a losing rate steps down to neutral instead.
+ */
+const winRateClass = computed(() => winRateTone(props.winRate))
+const pickRateClass = computed(() => pickRateTone(props.pickRate))
 
 // One line per stat, label and value in their own column, so the three numbers
 // read as a small table instead of a sentence to parse.
@@ -48,19 +64,24 @@ const rows = computed(() => {
       </div>
     </template>
 
+    <!-- Neither chip is a `UBadge`: its `color` takes the Nuxt UI semantic
+         palette, and the data axis is deliberately not in it. The fill stays
+         one neutral step for both so the *colour* carries only the reading —
+         `rate-tone` returns a text class, and letting a background vary too
+         would be a second, unsynchronised encoding of the same number. -->
     <div class="flex shrink-0 items-center gap-2 whitespace-nowrap">
-      <UBadge
-        color="neutral"
-        size="sm"
+      <span
+        class="inline-flex items-center rounded-sm bg-elevated px-1.5 py-0.5 text-xs font-medium tabular-nums ring-1 ring-inset ring-accented"
+        :class="pickRateClass"
       >
         {{ formatPercentage(pickRate) }} pick
-      </UBadge>
-      <UBadge
-        color="primary"
-        size="sm"
+      </span>
+      <span
+        class="inline-flex items-center rounded-sm bg-elevated px-1.5 py-0.5 text-xs font-medium tabular-nums ring-1 ring-inset ring-accented"
+        :class="winRateClass"
       >
         {{ formatPercentage(winRate) }} win
-      </UBadge>
+      </span>
     </div>
   </UTooltip>
 </template>

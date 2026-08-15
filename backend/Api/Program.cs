@@ -143,7 +143,25 @@ builder.Services.AddOptions<TruemainsLeaderboardOptions>()
 builder.Services.AddOptions<ChampionsListOptions>()
     .Bind(builder.Configuration.GetSection(ChampionsListOptions.SectionName))
     .Validate(options => options.MinSampleGames >= 0, "ChampionsList:MinSampleGames must be >= 0.")
+    .Validate(options => options.MinServablePatchLines >= 0, "ChampionsList:MinServablePatchLines must be >= 0.")
+    // At least the served patch itself: 0 would leave the homepage chips spanning no
+    // patch at all and reading 0 games, the very state #1109 removed.
+    .Validate(options => options.HomepagePatchWindow >= 1, "ChampionsList:HomepagePatchWindow must be >= 1.")
     .Validate(options => options.MinMatchupGames >= 0, "ChampionsList:MinMatchupGames must be >= 0.")
+    // A share, so out of [0,1) it stops meaning anything: 1 would demand a single
+    // opponent account for every game the champion ever played, which no matchup can.
+    .Validate(
+        options => options.MinMatchupPlayRate is >= 0d and < 1d,
+        "ChampionsList:MinMatchupPlayRate must be in [0, 1).")
+    .Validate(options => options.MinDecidedLaneGames >= 0, "ChampionsList:MinDecidedLaneGames must be >= 0.")
+    // Shares, so out of [0,1) they stop meaning anything: 1 would demand a pairing
+    // present in every game the champion ever played, which no pairing is.
+    .Validate(
+        options => options.MinSynergyPlayRate is >= 0d and < 1d,
+        "ChampionsList:MinSynergyPlayRate must be in [0, 1).")
+    .Validate(
+        options => options.MinSynergyPartnerLanePlayRate is >= 0d and <= 1d,
+        "ChampionsList:MinSynergyPartnerLanePlayRate must be in [0, 1].")
     .Validate(options => options.MinPlayerMatchupGames >= 0, "ChampionsList:MinPlayerMatchupGames must be >= 0.")
     .Validate(options => options.MaxLanesPerChampion >= 0, "ChampionsList:MaxLanesPerChampion must be >= 0.")
     .Validate(
@@ -226,6 +244,10 @@ builder.Services.AddOptions<CompositionSearchOptions>()
         options => options.CandidatePoolCap >= options.TopK,
         "CompositionSearch:CandidatePoolCap must be >= TopK.")
     .Validate(options => options.WinWeight >= 1d, "CompositionSearch:WinWeight must be >= 1.")
+    // A negative threshold would make every lane "won" and its mirror "lost" at once.
+    .Validate(
+        options => options.LaneGoldLeadThreshold >= 0,
+        "CompositionSearch:LaneGoldLeadThreshold must be >= 0.")
     .ValidateOnStart();
 builder.Services.AddOptions<DatabaseOptions>()
     .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName))
@@ -271,10 +293,13 @@ builder.Services.AddScoped<ParticipantBuildFactsLoader>();
 builder.Services.AddScoped<ICompositionBuildQueryService, CompositionBuildQueryService>();
 builder.Services.AddScoped<IChampionMatchupBuildsQueryService, ChampionMatchupBuildsQueryService>();
 builder.Services.AddScoped<ICompositionGamesQueryService, CompositionGamesQueryService>();
+builder.Services.AddScoped<ICompositionLaneOutcomeQueryService, CompositionLaneOutcomeQueryService>();
 builder.Services.AddScoped<ICompositionRecommendationQueryService, CompositionRecommendationQueryService>();
 // Same CommunityDragon item-metadata source as the ingestor's pattern
 // aggregation, so the composition recommender reads a game's items
-// identically. Patch-cached inside the provider.
+// identically. Patch-cached inside the provider, which clocks how long a
+// not-yet-published patch has been served from the fallback branch (#1107).
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddHttpClient<IItemMetadataProvider, CommunityDragonItemMetadataProvider>();
 builder.Services.AddScoped<IChampionScalingQueryService, ChampionScalingQueryService>();
 builder.Services.AddScoped<IChampionItemTimingsQueryService, ChampionItemTimingsQueryService>();

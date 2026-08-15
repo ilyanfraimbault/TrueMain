@@ -152,6 +152,7 @@ watch(() => [props.championId, props.position], () => {
             :champion-id="partner.partnerChampionId"
             :position="partner.partnerPosition"
             :games="partner.games"
+            :play-rate="partner.playRate"
             :win-rate="partner.winRate"
             :synergy="partner.synergy"
             @select="togglePartner(partner)"

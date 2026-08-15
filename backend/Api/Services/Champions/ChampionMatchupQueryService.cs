@@ -10,20 +10,33 @@ using TrueMain.ReadModels.Champions;
 namespace TrueMain.Services.Champions;
 
 /// <summary>
-/// Champion lane-matchups query. The global leaderboard slice is served from the
-/// pre-aggregated <c>champion_matchup_stats</c> table (#606): one indexed read,
-/// folded to the requested patch scope with the games floor applied on the merged
-/// total. The player-scoped and opponent-search slices stay live — they self-join
-/// <c>match_participants</c> to pair the champion with its lane opponent (same
-/// <c>TeamPosition</c>, opposite <c>TeamId</c>, same match), because they need
-/// per-account filtering / a sub-floor the aggregate does not carry.
+/// Champion lane-matchups query. Every <em>global</em> slice — the leaderboard and
+/// the single-opponent search alike — is served from the pre-aggregated
+/// <c>champion_matchup_stats</c> table (#606): one indexed read, folded to the
+/// requested patch / elo scope. Only the <em>player-scoped</em> slice stays live,
+/// self-joining <c>match_participants</c> to pair the champion with its lane
+/// opponent (same <c>TeamPosition</c>, opposite <c>TeamId</c>, same match), because
+/// the aggregate carries no account dimension and never will without one.
 ///
 /// <para>
-/// The two sources meet on the global opponent search (#976): its games and wins stay
-/// live so a one-game head-to-head still shows, while its lane counters — win rate and
-/// average gold gap at 15 minutes, neither computable without the timeline — are read
-/// from the aggregate row for that opponent. The player-scoped search keeps them null
-/// rather than lending it the population's lane.
+/// <b>The search moved off the live join.</b> It used to self-join for its games and
+/// wins while reading its lane counters from the aggregate (#976), on the premise
+/// that an aggregate "built at floor 10" could not answer a one-game lookup. The
+/// rows were never stored with a floor — only the read applied one — so the premise
+/// was wrong, and the split cost real correctness: the live join sees the retention
+/// window (two patches of <c>match_participants</c>) while the aggregate keeps every
+/// patch it ever folded, so the same matchup answered 22 games on the leaderboard
+/// and 13 in the search, and rows came back reporting a gold gap averaged over more
+/// lanes than the games they were shown next to. Both halves now come from the same
+/// rows.
+/// </para>
+///
+/// <para>
+/// <b>Two floors on the leaderboard, none on the search.</b> A deliberate lookup
+/// answers with whatever games exist, down to one. The leaderboard drops anything
+/// under <c>max(MinMatchupGames, MinMatchupPlayRate × total)</c> — see
+/// <see cref="ChampionsListOptions.MinMatchupPlayRate"/> for why an absolute floor
+/// alone cannot work across champions three orders of magnitude apart in volume.
 /// </para>
 /// </summary>
 public sealed class ChampionMatchupQueryService(
@@ -53,14 +66,11 @@ public sealed class ChampionMatchupQueryService(
         // the champion side on both the aggregate and the live paths.
         var bands = EloBracket.ResolveFilter(eloBracket);
 
-        // The global slice (no player, no opponent) is the only one backed by the
-        // aggregate. The other two stay live: an opponent lookup wants the
-        // head-to-head from a single game (floor 1), and a player slice filters to
-        // one account with a lower floor — neither is expressible against a
-        // global, floor-free aggregate.
-        var matchups = opponentChampionId is null && riotAccountId is null
-            ? await ReadFromAggregateAsync(championId, position, normalizedPatch, bands, ct)
-            : await ComputeLiveAsync(championId, position, normalizedPatch, riotAccountId, opponentChampionId, bands, ct);
+        // One account means one player's own games, which the aggregate cannot
+        // isolate. Everything else reads the aggregate.
+        var matchups = riotAccountId is { } accountId
+            ? await ComputeLiveAsync(championId, position, normalizedPatch, accountId, opponentChampionId, bands, ct)
+            : await ReadFromAggregateAsync(championId, position, normalizedPatch, opponentChampionId, bands, ct);
 
         return new ChampionMatchupsResponse
         {
@@ -75,14 +85,13 @@ public sealed class ChampionMatchupQueryService(
         int championId,
         string position,
         string? normalizedPatch,
+        int? opponentChampionId,
         IReadOnlyCollection<string>? bands,
         CancellationToken ct)
     {
-        var minGames = championsOptions.Value.MinMatchupGames;
-
         // Rows are stored per (opponent, patch, band) with no floor. Fold to the
         // requested scope — one patch, or every patch summed; the requested elo
-        // bands, or every band — then apply the floor on the merged total so the
+        // bands, or every band — then apply the floors on the merged total so the
         // all-patches view floors on the real total, not on any single slice.
         var query = db.ChampionMatchupStats
             .AsNoTracking()
@@ -96,7 +105,13 @@ public sealed class ChampionMatchupQueryService(
             query = query.Where(s => bands.Contains(s.EloBracket));
         }
 
-        var rows = await query
+        // The search narrows to its one opponent in SQL — an indexed seek, and the
+        // reason it never pays to materialise the champion's whole opponent field.
+        var scopedQuery = opponentChampionId is { } opponent
+            ? query.Where(s => s.OpponentChampionId == opponent)
+            : query;
+
+        var rows = await scopedQuery
             .GroupBy(s => s.OpponentChampionId)
             .Select(g => new
             {
@@ -112,74 +127,70 @@ public sealed class ChampionMatchupQueryService(
                 // summing both keeps the average over exactly what was measured.
                 GoldDiffSum = g.Sum(x => x.LaneGoldDiffSum),
                 GoldDiffGames = g.Sum(x => x.LaneGoldDiffGames),
+                // The experience gap behind the same lanes (#1111), on its own
+                // denominator for the same reason the gold gap needed one.
+                XpDiffSum = g.Sum(x => x.LaneXpDiffSum),
+                XpDiffGames = g.Sum(x => x.LaneXpDiffGames),
             })
-            .Where(x => x.Games >= minGames)
+            // A row can exist with zero games — the lane fold inserts one when it
+            // reaches a matchup before its sibling does — and it is not a matchup
+            // anybody played. Dropped here rather than left to divide by zero.
+            .Where(x => x.Games > 0)
             .ToListAsync(ct);
 
-        return ToOrderedEntries(rows.Select(x => (
+        // The champion's whole opponent field, before any floor: the denominator the
+        // play-rate floor is a share of, and the one that turns a matchup's games into
+        // "how often this matchup actually happens".
+        //
+        // The search read a single row, so it cannot sum its way to that total — it
+        // would be dividing the row by itself and calling it 100%. It used to report a
+        // play rate of 0 instead, which the matchup page (#1098) shows as a headline
+        // figure, so the total is now a second aggregate over the same scope: one
+        // indexed SUM, no rows materialised.
+        var totalGames = opponentChampionId is null
+            ? rows.Sum(x => (long)x.Games)
+            : await query.SumAsync(s => (long)s.Games, ct);
+
+        var qualifying = opponentChampionId is null
+            ? rows.Where(x => x.Games >= LeaderboardFloor(totalGames))
+            : rows;
+
+        return ToOrderedEntries(qualifying.Select(x => (
             x.Opponent,
             x.Games,
             x.Wins,
+            TotalGames: totalGames,
             LaneOutcome: (LaneOutcome?)new LaneOutcome(
-                x.LaneWins, x.LaneLosses, x.GoldDiffSum, x.GoldDiffGames))));
+                x.LaneWins, x.LaneLosses, x.GoldDiffSum, x.GoldDiffGames, x.XpDiffSum, x.XpDiffGames))));
     }
 
     /// <summary>
-    /// Lane counters for one opponent, read straight from the aggregate over the same
-    /// patch / elo scope the caller asked for — the half the live opponent search cannot
-    /// compute for itself (#976).
+    /// Games a matchup needs to earn a place on the leaderboard: the larger of the
+    /// absolute floor and the champion's own volume times the play-rate floor.
     ///
     /// <para>
-    /// Global slice only. The aggregate is folded over the whole tracked population, so
-    /// pinning it onto a player-scoped row would tell one player their lane went the way
-    /// everybody else's did. The caller keeps lane data null there instead.
+    /// The larger, not either alone. The absolute floor is the one that matters on a
+    /// champion nobody plays, where a share of a small total is a fraction of a game;
+    /// the share is the one that matters on a popular champion, where ten games is
+    /// 0.07% of the sample and every such line outranks the real matchups. Rounding
+    /// is up, so the share floor is never softened to the game below it.
     /// </para>
     /// </summary>
-    private async Task<LaneOutcome?> ReadOpponentLaneOutcomeAsync(
-        int championId,
-        string position,
-        int opponentChampionId,
-        string? normalizedPatch,
-        IReadOnlyCollection<string>? bands,
-        CancellationToken ct)
+    private int LeaderboardFloor(long totalGames)
     {
-        var query = db.ChampionMatchupStats
-            .AsNoTracking()
-            .Where(s => s.ChampionId == championId
-                && s.TeamPosition == position
-                && s.OpponentChampionId == opponentChampionId);
-        if (normalizedPatch is not null)
-        {
-            query = query.Where(s => s.Patch == normalizedPatch);
-        }
-        if (bands is not null)
-        {
-            query = query.Where(s => bands.Contains(s.EloBracket));
-        }
+        var settings = championsOptions.Value;
+        var shareFloor = settings.MinMatchupPlayRate <= 0d
+            ? 0
+            : (int)Math.Ceiling(settings.MinMatchupPlayRate * totalGames);
 
-        // No floor and no grouping key: the head-to-head is already one opponent, and
-        // the rows only need folding across the patch / band slices in scope.
-        var totals = await query
-            .GroupBy(_ => 1)
-            .Select(g => new
-            {
-                LaneWins = g.Sum(x => x.LaneWins),
-                LaneLosses = g.Sum(x => x.LaneLosses),
-                GoldDiffSum = g.Sum(x => x.LaneGoldDiffSum),
-                GoldDiffGames = g.Sum(x => x.LaneGoldDiffGames),
-            })
-            .FirstOrDefaultAsync(ct);
-
-        return totals is null
-            ? null
-            : new LaneOutcome(totals.LaneWins, totals.LaneLosses, totals.GoldDiffSum, totals.GoldDiffGames);
+        return Math.Max(settings.MinMatchupGames, shareFloor);
     }
 
     private async Task<List<ChampionMatchupEntry>> ComputeLiveAsync(
         int championId,
         string position,
         string? normalizedPatch,
-        Guid? riotAccountId,
+        Guid riotAccountId,
         int? opponentChampionId,
         IReadOnlyCollection<string>? bands,
         CancellationToken ct)
@@ -192,34 +203,29 @@ public sealed class ChampionMatchupQueryService(
         // would never hit; the LIKE prefix bridges normalised input to it.
         var patchPrefix = normalizedPatch is null ? null : $"{normalizedPatch}.%";
 
-        // Floor matrix for the two live slices. A deliberate opponent lookup shows
-        // the head-to-head from a single game up (floor 1); a player leaderboard
-        // keeps the lower per-player floor.
+        // A deliberate opponent lookup shows the head-to-head from a single game up;
+        // the player's own leaderboard keeps the lower per-player floor. The
+        // share-based floor never applies here — one player's whole matchup history
+        // is smaller than one opponent's slice of the population's, so a share of it
+        // rounds to a game or two and would only restate the floor above it.
         var minGames = opponentChampionId is not null
             ? 1
             : championsOptions.Value.MinPlayerMatchupGames;
 
         // The champion side of the lane: rows for this champion at this
         // position, on the configured queue (matched via the correlated
-        // EXISTS over matches), optionally narrowed to one player.
+        // EXISTS over matches), narrowed to the one account asked for.
         var championRows = db.MatchParticipants
             .AsNoTracking()
             .Where(p1 => p1.ChampionId == championId && p1.TeamPosition == position)
+            .Where(p1 => p1.RiotAccountId == riotAccountId)
             .Where(p1 => db.Matches.Any(m =>
                 m.Id == p1.MatchId
                 && m.QueueId == queueId
                 && (normalizedPatch == null
                     || EF.Functions.Like(m.GameVersion, patchPrefix!))));
 
-        // Scope the champion side to tracked accounts so the matchup pool matches
-        // the champion page's aggregation, which only counts tracked truemains —
-        // never the untracked random players who merely shared a truemain's game.
-        // A player-scoped call narrows to one account.
-        championRows = riotAccountId is { } accountId
-            ? championRows.Where(p1 => p1.RiotAccountId == accountId)
-            : championRows.Where(p1 => p1.RiotAccountId != null);
-
-        // Narrow the champion side to the requested elo bands (null = every band).
+        // Narrow to the requested elo bands (null = every band).
         if (bands is not null)
         {
             championRows = championRows.Where(p1 => bands.Contains(p1.EloBracket));
@@ -247,59 +253,77 @@ public sealed class ChampionMatchupQueryService(
             .Where(x => x.Games >= minGames)
             .ToListAsync(ct);
 
-        // The lane half never comes from this query: joining the 15-minute snapshots
-        // live would reintroduce the per-request timeline scan #606 moved into an
-        // aggregate. A deliberate *global* opponent lookup reads the pre-folded row
-        // for that one opponent instead (#976) — one indexed seek, no scan.
-        //
-        // A player-scoped slice keeps it null. The aggregate covers every tracked
-        // account, so lending it to one player's row would report the population's
-        // lane as theirs; unknown is the honest answer until the fold is player-aware.
-        var laneOutcome = opponentChampionId is { } opponent && riotAccountId is null
-            ? await ReadOpponentLaneOutcomeAsync(championId, position, opponent, normalizedPatch, bands, ct)
-            : null;
+        // Play rate over what survived the floor rather than over the player's whole
+        // field: unlike the aggregate path there is no cheap floor-free total here,
+        // and one player's dropped tail is a handful of games. Zero on the search,
+        // same as the aggregate path, for the same reason.
+        var totalGames = opponentChampionId is null ? rows.Sum(x => (long)x.Games) : 0L;
 
-        return ToOrderedEntries(rows.Select(x => (x.Opponent, x.Games, x.Wins, LaneOutcome: laneOutcome)));
+        // Lane counters stay null. The aggregate covers every tracked account, so
+        // lending them to one player's row would report the population's lane as
+        // theirs; unknown is the honest answer until the fold is player-aware.
+        return ToOrderedEntries(rows.Select(x => (
+            x.Opponent, x.Games, x.Wins, TotalGames: totalGames, LaneOutcome: (LaneOutcome?)null)));
     }
 
     /// <summary>
     /// Shared final projection for both read paths: materialised
     /// (opponent, games, wins) rows — every one already above its floor, so
     /// games is never zero — mapped to entries ordered best-winrate first.
+    /// The best / worst *slicing* is the caller's, and reads the Wilson bounds
+    /// rather than this order.
     /// </summary>
-    private static List<ChampionMatchupEntry> ToOrderedEntries(
-        IEnumerable<(int Opponent, int Games, int Wins, LaneOutcome? LaneOutcome)> rows)
-        => rows
-            .Select(x => new ChampionMatchupEntry
+    private List<ChampionMatchupEntry> ToOrderedEntries(
+        IEnumerable<(int Opponent, int Games, int Wins, long TotalGames, LaneOutcome? LaneOutcome)> rows)
+    {
+        var minDecidedLanes = championsOptions.Value.MinDecidedLaneGames;
+
+        return rows
+            .Select(x =>
             {
-                OpponentChampionId = x.Opponent,
-                Games = x.Games,
-                Wins = x.Wins,
-                WinRate = RateMath.Rate(x.Wins, x.Games),
-                // Decided lanes only. Zero decided lanes yields null rather than 0%:
-                // "no lane was ever settled here" and "the lane is always lost" are
-                // different facts and must not render alike.
-                DecidedLaneGames = x.LaneOutcome?.Decided ?? 0,
-                LaneWinRate = x.LaneOutcome is { Decided: > 0 } outcome
-                    ? RateMath.Rate(outcome.Wins, outcome.Decided)
-                    : null,
-                // Averaged over the lanes the gap was measured on — never over decided
-                // lanes or games, both of which are larger and would drag the average
-                // toward zero by the share of lanes nobody ever measured (#976).
-                GoldDiffLaneGames = x.LaneOutcome?.GoldDiffGames ?? 0,
-                AverageGoldDiffAt15 = x.LaneOutcome is { GoldDiffGames: > 0 } gap
-                    ? (double)gap.GoldDiffSum / gap.GoldDiffGames
-                    : null,
+                var (lower, upper) = RateMath.WilsonInterval(x.Wins, x.Games);
+                return new ChampionMatchupEntry
+                {
+                    OpponentChampionId = x.Opponent,
+                    Games = x.Games,
+                    Wins = x.Wins,
+                    WinRate = RateMath.Rate(x.Wins, x.Games),
+                    PlayRate = RateMath.Rate(x.Games, x.TotalGames),
+                    WinRateLowerBound = lower,
+                    WinRateUpperBound = upper,
+                    // Decided lanes only, and only enough of them. Too few yields null
+                    // rather than a rate: "no lane was ever settled here", "one lane was
+                    // settled and we won it" and "the lane is always lost" are three
+                    // different facts and must not render alike.
+                    DecidedLaneGames = x.LaneOutcome?.Decided ?? 0,
+                    LaneWinRate = x.LaneOutcome is { } outcome && outcome.Decided >= Math.Max(1, minDecidedLanes)
+                        ? RateMath.Rate(outcome.Wins, outcome.Decided)
+                        : null,
+                    // Averaged over the lanes the gap was measured on — never over decided
+                    // lanes or games, both of which are larger and would drag the average
+                    // toward zero by the share of lanes nobody ever measured (#976).
+                    GoldDiffLaneGames = x.LaneOutcome?.GoldDiffGames ?? 0,
+                    AverageGoldDiffAt15 = x.LaneOutcome is { GoldDiffGames: > 0 } gap
+                        ? (double)gap.GoldDiffSum / gap.GoldDiffGames
+                        : null,
+                    XpDiffLaneGames = x.LaneOutcome?.XpDiffGames ?? 0,
+                    AverageXpDiffAt15 = x.LaneOutcome is { XpDiffGames: > 0 } xp
+                        ? (double)xp.XpDiffSum / xp.XpDiffGames
+                        : null,
+                };
             })
             .OrderByDescending(m => m.WinRate)
             .ToList();
+    }
 
     /// <summary>
     /// Lane wins and losses past the threshold (evens are in neither), plus the summed
-    /// gold gap at 15 minutes over its own sample — smaller than <see cref="Decided"/>
-    /// on rows folded before #976, and the reason the two carry separate denominators.
+    /// gold and experience gaps at 15 minutes, each over its own sample — smaller than
+    /// <see cref="Decided"/> on rows folded before #976 / #1111 respectively, which is
+    /// the reason all three carry separate denominators.
     /// </summary>
-    private readonly record struct LaneOutcome(int Wins, int Losses, long GoldDiffSum, int GoldDiffGames)
+    private readonly record struct LaneOutcome(
+        int Wins, int Losses, long GoldDiffSum, int GoldDiffGames, long XpDiffSum, int XpDiffGames)
     {
         public int Decided => Wins + Losses;
     }

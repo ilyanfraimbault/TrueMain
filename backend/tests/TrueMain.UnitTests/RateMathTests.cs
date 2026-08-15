@@ -61,4 +61,48 @@ public sealed class RateMathTests
         RateMath.WinRate(0, 0).Should().BeNull();
         RateMath.WinRate(3, 1).Should().Be(0.75d);
     }
+
+    [Fact]
+    public void WilsonInterval_brackets_the_observed_rate_and_stays_a_probability()
+    {
+        var (lower, upper) = RateMath.WilsonInterval(wins: 12, games: 20);
+
+        lower.Should().BeLessThan(0.6d);
+        upper.Should().BeGreaterThan(0.6d);
+        lower.Should().BeGreaterThanOrEqualTo(0d);
+        upper.Should().BeLessThanOrEqualTo(1d);
+    }
+
+    [Fact]
+    public void WilsonInterval_stays_inside_zero_to_one_at_the_extremes()
+    {
+        // The reason this is Wilson and not the textbook normal interval: a perfect
+        // record puts the normal upper bound past 1.0, which is not a probability.
+        var perfect = RateMath.WilsonInterval(wins: 9, games: 9);
+        perfect.Upper.Should().BeLessThanOrEqualTo(1d);
+        perfect.Lower.Should().BeGreaterThan(0d).And.BeLessThan(1d);
+
+        var winless = RateMath.WilsonInterval(wins: 0, games: 9);
+        winless.Lower.Should().BeGreaterThanOrEqualTo(0d);
+        winless.Upper.Should().BeGreaterThan(0d);
+    }
+
+    [Fact]
+    public void WilsonInterval_narrows_as_the_sample_grows()
+    {
+        // The whole point of ranking on the bound: the same rate measured on more
+        // games claims more, so a thin sample cannot out-rank a thick one on
+        // variance alone.
+        var thin = RateMath.WilsonInterval(wins: 12, games: 20);
+        var thick = RateMath.WilsonInterval(wins: 600, games: 1_000);
+
+        (thick.Upper - thick.Lower).Should().BeLessThan(thin.Upper - thin.Lower);
+        thick.Lower.Should().BeGreaterThan(thin.Lower, "same 60%, far more evidence for it");
+    }
+
+    [Fact]
+    public void WilsonInterval_on_an_empty_sample_constrains_nothing()
+    {
+        RateMath.WilsonInterval(wins: 0, games: 0).Should().Be((0d, 1d));
+    }
 }

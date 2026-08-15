@@ -157,11 +157,194 @@ public sealed class ChampionOverviewApiIntegrationTests
         clampedOverview!.TopRows.Should().HaveCount(10, "only 10 rows were seeded, well under the 20-row clamp ceiling");
     }
 
-    private sealed class ApiWebApplicationFactory(PostgresFixture fixture, int minSampleGames)
+    [Fact]
+    public async Task GetOverviewAsync_SkipsAPatchTooThinToRank_AndSumsTheChipsAcrossTheWindow()
+    {
+        // The #1109 regression end to end. 16.16 exists and holds aggregate rows, but
+        // not one of its lines clears the sample floor: serving it printed an empty
+        // directory, an empty tier list and a two-digit "games analyzed" on the
+        // homepage while 16.15 sat beside it with a full patch of data.
+        await _fixture.ResetDatabaseAsync();
+        await SeedThinNewPatchAsync(Guid.Parse("77777777-7777-7777-7777-777777777777"), "overview-puuid-3");
+
+        await using var factory = new ApiWebApplicationFactory(
+            _fixture, minSampleGames: 20, minServablePatchLines: 5);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var response = await client.GetAsync("/champions/overview");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var overview = await response.Content.ReadFromJsonAsync<ChampionOverviewReadModel>();
+        overview.Should().NotBeNull();
+
+        overview!.PatchVersion.Should().Be("16.15",
+            "16.16 holds rows but none clear the floor, so it cannot fill a directory yet");
+        overview.TopRows.Should().NotBeEmpty("the whole point of the fallback is a populated teaser");
+        overview.TopRows.Should().OnlyContain(row => row.ChampionId >= 500 && row.ChampionId <= 505,
+            "the teaser is ranked on the served patch alone");
+
+        overview.CountedPatches.Should().Equal("16.15", "16.14");
+        overview.GamesAnalyzed.Should().Be((6 * 40) + (3 * 50),
+            "the chips span the served patch and the one before it — and never reach forward to 16.16, "
+            + "whose games every other surface is refusing to show");
+        overview.ChampionsRanked.Should().Be(8,
+            "six champions on 16.15 plus three on 16.14, of which champion 505 is on both and counts once");
+    }
+
+    [Fact]
+    public async Task GetOverviewAsync_KeepsTheFullWindowWhenTheWalkStepsBackTwice()
+    {
+        // The window has to be measured from where the walk landed, not from a fixed
+        // depth: with two thin patches stacked up, a window sized against "one thin
+        // patch ahead" returns a single patch while quietly claiming to span two.
+        await _fixture.ResetDatabaseAsync();
+
+        var now = DateTime.UtcNow;
+        var accountId = Guid.Parse("99999999-9999-9999-9999-999999999999");
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            db.RiotAccounts.Add(new RiotAccount
+            {
+                Id = accountId,
+                PlatformId = "KR",
+                Puuid = "overview-puuid-5",
+                GameName = "overview-five",
+                SummonerId = "overview-five-summoner",
+                ProfileIconId = 1,
+                SummonerLevel = 100,
+                LastProfileSyncAtUtc = now,
+                CreatedAtUtc = now.AddDays(-10),
+                UpdatedAtUtc = now.AddDays(-1),
+            });
+            await db.SaveChangesAsync();
+
+            var seeder = new ChampionAggregateSeeder();
+            // Two thin patches in front, so the walk has to step back twice.
+            Add(seeder, accountId, 800, "16.16", games: 1, wins: 0, now);
+            Add(seeder, accountId, 801, "16.15", games: 2, wins: 1, now);
+            // 16.14 is served; 16.13 is the second half of the homepage window.
+            for (var championId = 810; championId <= 815; championId++)
+            {
+                Add(seeder, accountId, championId, "16.14", games: 40, wins: 22, now);
+            }
+            for (var championId = 820; championId <= 822; championId++)
+            {
+                Add(seeder, accountId, championId, "16.13", games: 50, wins: 25, now);
+            }
+            await seeder.SaveAsync(db);
+        }
+
+        await using var factory = new ApiWebApplicationFactory(
+            _fixture, minSampleGames: 20, minServablePatchLines: 5);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var overview = await (await client.GetAsync("/champions/overview"))
+            .Content.ReadFromJsonAsync<ChampionOverviewReadModel>();
+
+        overview!.PatchVersion.Should().Be("16.14", "neither 16.16 nor 16.15 can fill a directory");
+        // No `because` argument: Equal(params string[]) would read it as a third
+        // expected patch.
+        overview.CountedPatches.Should().Equal("16.14", "16.13");
+        overview.GamesAnalyzed.Should().Be((6 * 40) + (3 * 50));
+    }
+
+    [Fact]
+    public async Task GetOverviewAsync_WithTheBarDisabled_ServesTheNewestPatchAgain()
+    {
+        // The documented off-switch: MinServablePatchLines = 0 restores the pre-#1109
+        // rule, newest patch with any row at all.
+        await _fixture.ResetDatabaseAsync();
+        await SeedThinNewPatchAsync(Guid.Parse("88888888-8888-8888-8888-888888888888"), "overview-puuid-4");
+
+        await using var factory = new ApiWebApplicationFactory(
+            _fixture, minSampleGames: 20, minServablePatchLines: 0);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var overview = await (await client.GetAsync("/champions/overview"))
+            .Content.ReadFromJsonAsync<ChampionOverviewReadModel>();
+
+        overview!.PatchVersion.Should().Be("16.16");
+        overview.TopRows.Should().BeEmpty("no 16.16 line clears the floor — the state the bar exists to avoid");
+    }
+
+    /// <summary>
+    /// Three patches: a brand-new one too thin to rank, a full one behind it, and an
+    /// older one so the homepage window has a second patch to sum. Champion 505 is on
+    /// both settled patches, so a summed champion count would over-report by one.
+    /// </summary>
+    private async Task SeedThinNewPatchAsync(Guid accountId, string puuid)
+    {
+        var now = DateTime.UtcNow;
+
+        await using var db = _fixture.CreateDbContext();
+        db.RiotAccounts.Add(new RiotAccount
+        {
+            Id = accountId,
+            PlatformId = "KR",
+            Puuid = puuid,
+            GameName = puuid,
+            SummonerId = puuid + "-summoner",
+            ProfileIconId = 1,
+            SummonerLevel = 100,
+            LastProfileSyncAtUtc = now,
+            CreatedAtUtc = now.AddDays(-10),
+            UpdatedAtUtc = now.AddDays(-1),
+        });
+        await db.SaveChangesAsync();
+
+        var seeder = new ChampionAggregateSeeder();
+
+        // 16.16 — the patch that just shipped: rows exist, nothing is rankable.
+        foreach (var championId in new[] { 600, 601 })
+        {
+            Add(seeder, accountId, championId, "16.16", games: 1, wins: 1, now);
+        }
+
+        // 16.15 — the served patch: six lines past the floor, over the bar of five.
+        for (var championId = 500; championId <= 505; championId++)
+        {
+            Add(seeder, accountId, championId, "16.15", games: 40, wins: 22, now);
+        }
+
+        // 16.14 — counted by the chips, ranked by nothing.
+        foreach (var championId in new[] { 505, 506, 507 })
+        {
+            Add(seeder, accountId, championId, "16.14", games: 50, wins: 25, now);
+        }
+
+        await seeder.SaveAsync(db);
+    }
+
+    private static void Add(
+        ChampionAggregateSeeder seeder, Guid accountId, int championId, string patch,
+        int games, int wins, DateTime aggregatedAtUtc)
+        => seeder.AddPatternWithRune(
+            accountId, championId, patch, "KR", 420, "TOP",
+            summoner1Id: 4, summoner2Id: 12, skillOrderKey: "Q-W-E",
+            buildItems: [3153, 3006, 3031], bootsItemId: 3006,
+            primaryStyleId: 8000, primaryKeystoneId: 8008, secondaryStyleId: 8400,
+            games: games, wins: wins, aggregatedAtUtc: aggregatedAtUtc);
+
+    private sealed class ApiWebApplicationFactory(
+        PostgresFixture fixture, int minSampleGames, int minServablePatchLines = 0)
         : TrueMainWebApplicationFactory<Program>(
             fixture,
             [
                 new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420"),
                 new KeyValuePair<string, string?>("ChampionsList:MinSampleGames", minSampleGames.ToString()),
+                // Off by default here so the single-patch cases above keep exercising
+                // exactly what they were written for.
+                new KeyValuePair<string, string?>(
+                    "ChampionsList:MinServablePatchLines", minServablePatchLines.ToString()),
             ]);
 }

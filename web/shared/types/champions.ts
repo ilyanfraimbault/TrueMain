@@ -80,11 +80,22 @@ export interface ChampionTierEntry {
  * patch, unfiltered — the homepage has no patch or elo picker of its own.
  */
 export interface ChampionOverviewResponse {
+  /**
+   * The patch `topRows` is ranked on — the patch the site serves, which is not
+   * necessarily the newest one with data: a patch too thin to fill a directory is
+   * skipped (#1109).
+   */
   patchVersion: string
-  /** True sum of games aggregated across every (champion, position) slice on the active patch. */
+  /** True sum of games aggregated across every (champion, position) slice on each of `countedPatches`. */
   gamesAnalyzed: number
-  /** Distinct champions with at least one ranked row on the active patch. */
+  /** Distinct champions with at least one ranked row on any of `countedPatches` — counted once each. */
   championsRanked: number
+  /**
+   * The patches the two figures above span, newest first: the served patch and the
+   * ones before it (#1109), so the headline volume doesn't crater on patch day. A
+   * single entry means they are scoped to the served patch alone.
+   */
+  countedPatches: string[]
   /** Strongest rows, tier-then-games ordered (S first, busiest within a tier first), truncated to the requested limit. */
   topRows: ChampionOverviewRow[]
 }
@@ -260,13 +271,38 @@ export interface ChampionMatchupEntry {
   wins: number
   winRate: number
   /**
+   * Share of the champion's total matchup games this opponent holds, in the same
+   * scope and before any floor. What the backend's leaderboard floor is expressed
+   * in (`ChampionsList:MinMatchupPlayRate`), so it is also the honest way to say
+   * how often the matchup actually happens — including on the single-opponent
+   * search, which takes the denominator from its own scoped total. `0` only on the
+   * player-scoped route, whose live join holds no such total.
+   */
+  playRate: number
+  /**
+   * Lower bound of the 95% Wilson interval around `winRate` — "at worst this
+   * matchup is this good". **Rank the best list on this, not on `winRate`.**
+   * Sorting the raw rate makes the leaderboard a small-sample detector: the most
+   * extreme rate on a wide field is essentially always the thinnest sample, so
+   * eleven games at 82% outranked 739 games at 57%. Both bound at ~52% and ~54%.
+   */
+  winRateLowerBound: number
+  /**
+   * Upper bound of the same interval, and the key for the *worst* list, ascending
+   * — a bad matchup is one whose ceiling is low. Using the lower bound at both
+   * ends would rank the worst list by which sample is thinnest, reintroducing at
+   * the bottom exactly what the top was fixed for.
+   */
+  winRateUpperBound: number
+  /**
    * Share of *decided* lanes won against this opponent — ahead by more than the
    * configured gold threshold at 15 minutes (#919). Denominator is
    * `decidedLaneGames`, never `games`: a match with no timeline, one that ended
    * before 15 min, or a lane inside the threshold band is not a decided lane.
    *
-   * `null` = nothing can be said (no decided lane in scope, or a player-scoped
-   * slice, which has no lane data behind it). Never render it as 0%.
+   * `null` = nothing can be said: fewer decided lanes than
+   * `ChampionsList:MinDecidedLaneGames` (which includes none at all), or a
+   * player-scoped slice, which has no lane data behind it. Never render it as 0%.
    */
   laneWinRate: number | null
   /** Lanes actually decided; the sample `laneWinRate` rests on. Smaller than `games`. */
@@ -284,12 +320,22 @@ export interface ChampionMatchupEntry {
    * a thin one shows the count instead of a label.
    */
   goldDiffLaneGames: number
+  /**
+   * Mean experience gap at 15 min, signed from this champion's side (#1111). Not a
+   * restatement of the gold gap: gold is who bought more, XP is who is bigger, and a
+   * lane won on kills while losing waves shows a gold lead over an XP deficit. `null`
+   * when never measured — never render it as 0.
+   */
+  averageXpDiffAt15: number | null
+  /** Lanes `averageXpDiffAt15` covers; its own denominator, like the gold one. */
+  xpDiffLaneGames: number
 }
 
 /**
- * All of a champion's lane matchups at a position. Served from the
- * `champion_matchup_stats` aggregate for the panel, computed live from match
- * participants only for the single-opponent search (floor of 1 game). The client
+ * All of a champion's lane matchups at a position and (when the caller pins one)
+ * patch. Served from the `champion_matchup_stats` aggregate for every global
+ * slice, search included; computed live from match participants only for the
+ * player-scoped route, which the aggregate has no dimension for. The client
  * slices a best/worst leaderboard out of it and filters it for the search.
  */
 export interface ChampionMatchups {
@@ -311,6 +357,13 @@ export interface ChampionSynergyEntry {
   games: number
   wins: number
   winRate: number
+  /**
+   * Share of the champion's own games this partner was on the team for. The
+   * quantity `ChampionsList:MinSynergyPlayRate` floors — a pairing can carry a
+   * spectacular synergy and still be something that happened 21 times out of
+   * 8 202 games.
+   */
+  playRate: number
   /** Sample behind `partnerBaselineWinRate`; always ≥ `games`. */
   partnerBaselineGames: number
   /** The partner's win rate as somebody's teammate, across all their pairings. */

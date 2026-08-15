@@ -14,7 +14,7 @@ public sealed class CompositionRecommendationQueryServiceTests
         var buildQuery = new CountingBuildQueryService();
         using var cache = new MemoryCache(new MemoryCacheOptions { SizeLimit = 16 });
         var service = new CompositionRecommendationQueryService(
-            matchQuery, buildQuery, new CountingGamesQueryService(), cache);
+            matchQuery, buildQuery, new CountingGamesQueryService(), new StubLaneQueryService(), cache);
 
         var criteria = new CompositionSearchCriteria
         {
@@ -38,7 +38,7 @@ public sealed class CompositionRecommendationQueryServiceTests
         var buildQuery = new CountingBuildQueryService();
         using var cache = new MemoryCache(new MemoryCacheOptions { SizeLimit = 16 });
         var service = new CompositionRecommendationQueryService(
-            matchQuery, buildQuery, new CountingGamesQueryService(), cache);
+            matchQuery, buildQuery, new CountingGamesQueryService(), new StubLaneQueryService(), cache);
 
         await service.GetAsync(
             new CompositionSearchCriteria
@@ -67,7 +67,7 @@ public sealed class CompositionRecommendationQueryServiceTests
         var buildQuery = new CountingBuildQueryService();
         using var cache = new MemoryCache(new MemoryCacheOptions { SizeLimit = 16 });
         var service = new CompositionRecommendationQueryService(
-            matchQuery, buildQuery, new CountingGamesQueryService(), cache);
+            matchQuery, buildQuery, new CountingGamesQueryService(), new StubLaneQueryService(), cache);
 
         // Same draft, slots listed in a different order: dictionaries are
         // sorted into the key, so the second call must hit.
@@ -99,7 +99,7 @@ public sealed class CompositionRecommendationQueryServiceTests
         var gamesQuery = new CountingGamesQueryService();
         using var cache = new MemoryCache(new MemoryCacheOptions { SizeLimit = 16 });
         var service = new CompositionRecommendationQueryService(
-            matchQuery, buildQuery, gamesQuery, cache);
+            matchQuery, buildQuery, gamesQuery, new StubLaneQueryService(), cache);
 
         var criteria = new CompositionSearchCriteria
         {
@@ -125,7 +125,7 @@ public sealed class CompositionRecommendationQueryServiceTests
         var gamesQuery = new CountingGamesQueryService();
         using var cache = new MemoryCache(new MemoryCacheOptions { SizeLimit = 16 });
         var service = new CompositionRecommendationQueryService(
-            matchQuery, new CountingBuildQueryService(), gamesQuery, cache);
+            matchQuery, new CountingBuildQueryService(), gamesQuery, new StubLaneQueryService(), cache);
 
         var criteria = new CompositionSearchCriteria { ChampionId = 157, Position = "MIDDLE" };
 
@@ -145,7 +145,7 @@ public sealed class CompositionRecommendationQueryServiceTests
         var gamesQuery = new CountingGamesQueryService();
         using var cache = new MemoryCache(new MemoryCacheOptions { SizeLimit = 16 });
         var service = new CompositionRecommendationQueryService(
-            matchQuery, new CountingBuildQueryService(), gamesQuery, cache);
+            matchQuery, new CountingBuildQueryService(), gamesQuery, new StubLaneQueryService(), cache);
 
         var games = await service.GetGamesAsync(
             new CompositionSearchCriteria { ChampionId = 157, Position = "MIDDLE" },
@@ -203,6 +203,30 @@ public sealed class CompositionRecommendationQueryServiceTests
     /// Records the refs it was handed instead of hitting the database, so the
     /// paging tests can assert on which slice of the selection was hydrated.
     /// </summary>
+    /// <summary>
+    /// Returns a fixed lane reading so the cache and plumbing tests stay about what
+    /// they are about. The judging itself is covered against real Postgres, since it
+    /// is a query over snapshots rather than arithmetic.
+    /// </summary>
+    private sealed class StubLaneQueryService : ICompositionLaneOutcomeQueryService
+    {
+        public int Calls { get; private set; }
+
+        public Task<CompositionLaneReadModel> GetAsync(
+            string position, IReadOnlyList<CompositionMatchRef> matches, CancellationToken ct)
+        {
+            Calls++;
+            return Task.FromResult(new CompositionLaneReadModel
+            {
+                MeasuredGames = matches.Count,
+                DecidedGames = matches.Count,
+                WinRate = matches.Count == 0 ? null : 0.5d,
+                AverageGoldDiffAt15 = matches.Count == 0 ? null : 120d,
+                AverageXpDiffAt15 = matches.Count == 0 ? null : -80d,
+            });
+        }
+    }
+
     private sealed class CountingGamesQueryService : ICompositionGamesQueryService
     {
         public List<IReadOnlyList<CompositionMatchRef>> Hydrations { get; } = [];

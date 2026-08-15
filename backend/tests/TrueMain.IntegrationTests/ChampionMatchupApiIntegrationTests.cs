@@ -24,6 +24,14 @@ public sealed class ChampionMatchupApiIntegrationTests
     private const int OtherOpponent = 91; // Talon — a different MIDDLE opponent
     private const string Position = "MIDDLE";
 
+    /// <summary>
+    /// Matchup games <see cref="SeedMatchupSampleAsync"/> leaves in the aggregate:
+    /// 12 vs Zed and 1 vs Talon. The four decoys are excluded by their own rule
+    /// (same team, other lane, other queue), so none of them lands in a row.
+    /// This is the denominator of every play rate over that sample.
+    /// </summary>
+    private const int TotalSeededGames = 13;
+
     private readonly PostgresFixture _fixture;
 
     public ChampionMatchupApiIntegrationTests(PostgresFixture fixture)
@@ -162,6 +170,9 @@ public sealed class ChampionMatchupApiIntegrationTests
         talon.OpponentChampionId.Should().Be(OtherOpponent);
         talon.Games.Should().Be(1);
         talon.Wins.Should().Be(1);
+        // The share is over the champion's whole field, floor or no floor — the one
+        // game below the floor is still one game out of every Yone game at the role.
+        talon.PlayRate.Should().BeApproximately(1d / TotalSeededGames, 1e-9);
     }
 
     [Fact]
@@ -183,6 +194,12 @@ public sealed class ChampionMatchupApiIntegrationTests
         zed.GoldDiffLaneGames.Should().Be(25, "both patch slices' samples fold together");
         zed.AverageGoldDiffAt15.Should().BeApproximately(200d, 1e-9,
             "(6000 - 1000) gold over 25 measured lanes — not over the 38 judged ones");
+
+        // The experience gap folds the same way and lands on the opposite side of
+        // zero: gold ahead, XP behind. Neither may be inferred from the other.
+        zed.XpDiffLaneGames.Should().Be(25);
+        zed.AverageXpDiffAt15.Should().BeApproximately(-100d, 1e-9,
+            "(-3000 + 500) xp over the same 25 lanes");
     }
 
     [Fact]
@@ -203,6 +220,8 @@ public sealed class ChampionMatchupApiIntegrationTests
         var zed = matchups!.Matchups.Should().ContainSingle(m => m.OpponentChampionId == Opponent).Subject;
         zed.AverageGoldDiffAt15.Should().BeNull("no lane of this matchup has a measured gap");
         zed.GoldDiffLaneGames.Should().Be(0);
+        zed.AverageXpDiffAt15.Should().BeNull("an unmeasured gap is unknown, never a dead-even lane");
+        zed.XpDiffLaneGames.Should().Be(0);
         zed.LaneWinRate.Should().NotBeNull("the outcome counters are unaffected — only the gap is missing");
     }
 
@@ -217,17 +236,130 @@ public sealed class ChampionMatchupApiIntegrationTests
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
-        // The head-to-head itself stays live — that is what lets a one-game matchup
-        // show at all — while its lane half is read from the aggregate (#976).
+        // Both halves come off the same aggregate rows. They used to come from two
+        // sources — games from a live self-join over the retention window, lane
+        // counters from an aggregate spanning every patch ever folded — which made
+        // rows like "13 games, gold gap averaged over 16 lanes" reachable, and made
+        // the same matchup answer differently here and on the leaderboard.
         var matchups = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
             $"/champions/{Champion}/matchups?position={Position}&opponent={OtherOpponent}");
 
         var talon = matchups!.Matchups.Should().ContainSingle().Subject;
-        talon.Games.Should().Be(3, "games and wins still come from the live self-join");
+        talon.Games.Should().Be(3, "both tracked mains' games are in the aggregate row");
         talon.LaneWinRate.Should().BeApproximately(9d / 12d, 1e-9);
         talon.DecidedLaneGames.Should().Be(12);
         talon.AverageGoldDiffAt15.Should().BeApproximately(275d, 1e-9);
         talon.GoldDiffLaneGames.Should().Be(12);
+    }
+
+    [Fact]
+    public async Task GetChampionMatchupsAsync_AgreesWithTheLeaderboardOnTheSameMatchup()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedMatchupSampleAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var leaderboard = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
+            $"/champions/{Champion}/matchups?position={Position}");
+        var searched = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
+            $"/champions/{Champion}/matchups?position={Position}&opponent={Opponent}");
+
+        // The two used to read different sources and disagreed on production by a
+        // factor of 1.7 on the same matchup — 22 games listed, 13 searched. Only the
+        // floors may differ between them now, never the counts.
+        var listed = leaderboard!.Matchups.Single(m => m.OpponentChampionId == Opponent);
+        var found = searched!.Matchups.Should().ContainSingle().Subject;
+        found.Games.Should().Be(listed.Games);
+        found.Wins.Should().Be(listed.Wins);
+        // The share too (#1098): the search reads one row, so its denominator comes
+        // from a second scoped SUM rather than from the row. It used to report 0 —
+        // "a matchup nobody plays", out of the matchup the leaderboard ranks.
+        found.PlayRate.Should().BeApproximately(listed.PlayRate, 1e-9);
+        found.PlayRate.Should().BeGreaterThan(0d);
+    }
+
+    [Fact]
+    public async Task GetChampionMatchupsAsync_ExcludesOpponentsBelowTheShareOfGamesFloor()
+    {
+        await _fixture.ResetDatabaseAsync();
+        // 9 980 games against Zed and 20 against Talon. Talon is well clear of the
+        // absolute floor of 10 — and is 0.2% of the champion's matchups, under the
+        // 0.5% share floor. This is the case an absolute floor cannot express: on a
+        // champion this heavily played, ten games is noise, while on a rarely played
+        // one the same ten games are the whole matchup.
+        await SeedShareFloorRowsAsync(zedGames: 9_980, talonGames: 20);
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var matchups = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
+            $"/champions/{Champion}/matchups?position={Position}");
+
+        matchups!.Matchups.Should().OnlyContain(m => m.OpponentChampionId == Opponent);
+
+        var zed = matchups.Matchups.Single();
+        zed.PlayRate.Should().BeApproximately(9_980d / 10_000d, 1e-9,
+            "the share is measured against the field before the floor drops anything");
+
+        // The search ignores both floors, so the dropped line is still reachable
+        // deliberately — the whole point of keeping the lookup floor-free.
+        var searched = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
+            $"/champions/{Champion}/matchups?position={Position}&opponent={OtherOpponent}");
+        searched!.Matchups.Should().ContainSingle().Which.Games.Should().Be(20);
+    }
+
+    [Fact]
+    public async Task GetChampionMatchupsAsync_BoundsTheWinRateBySampleSize()
+    {
+        await _fixture.ResetDatabaseAsync();
+        // Two matchups a raw win-rate sort ranks the wrong way round: Talon at 60%
+        // over 20 games, Zed at 56% over 9 980. Talon's rate is higher and its
+        // interval is enormous (±20 points), so its *lower* bound — what the panel
+        // orders on — must land below Zed's.
+        await SeedShareFloorRowsAsync(zedGames: 9_980, talonGames: 20, zedWins: 5_589, talonWins: 12);
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var matchups = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
+            $"/champions/{Champion}/matchups?position={Position}&opponent={OtherOpponent}");
+        var talon = matchups!.Matchups.Should().ContainSingle().Subject;
+
+        var zedResponse = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
+            $"/champions/{Champion}/matchups?position={Position}&opponent={Opponent}");
+        var zed = zedResponse!.Matchups.Should().ContainSingle().Subject;
+
+        talon.WinRate.Should().BeGreaterThan(zed.WinRate, "the raw rates rank Talon first");
+        talon.WinRateLowerBound.Should().BeLessThan(zed.WinRateLowerBound,
+            "twenty games cannot establish an 80% matchup, and the bound is what says so");
+        talon.WinRateLowerBound.Should().BeLessThan(talon.WinRate);
+        talon.WinRateUpperBound.Should().BeGreaterThan(talon.WinRate);
+        zed.WinRateUpperBound.Should().BeLessThan(talon.WinRateUpperBound,
+            "the wide interval is wide at both ends");
+    }
+
+    [Fact]
+    public async Task GetChampionMatchupsAsync_WithholdsTheLaneRateBelowItsOwnFloor()
+    {
+        await _fixture.ResetDatabaseAsync();
+        // 40 games, of which only 6 lanes were ever decided. The games floors say
+        // nothing about that sample: it is roughly half the size on production, and
+        // was printing "100% lane" off seven decided lanes — the most confident cell
+        // on the panel resting on its smallest sample.
+        await SeedThinLaneRowAsync(games: 40, wins: 22, laneWins: 6, laneLosses: 0);
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var matchups = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
+            $"/champions/{Champion}/matchups?position={Position}");
+        var zed = matchups!.Matchups.Should().ContainSingle().Subject;
+
+        zed.Games.Should().Be(40, "the row itself is well above the games floor");
+        zed.LaneWinRate.Should().BeNull("six decided lanes is below MinDecidedLaneGames");
+        zed.DecidedLaneGames.Should().Be(6, "the count is still returned, so the caller can say why");
     }
 
     [Fact]
@@ -441,27 +573,27 @@ public sealed class ChampionMatchupApiIntegrationTests
         for (var i = 0; i < 12; i++)
         {
             var patch = i < 10 ? "16.4.521.123" : "16.5.1";
-            AddLaneMatchup(db, $"m-zed-{i}", patch, QueueId, yoneWins: i < 7, Opponent, yoneAccountId: account.Id);
+            AddLaneMatchup(db, $"m-zed-{i}", patch, QueueId, yoneWins: i < 7, Opponent, yoneAccountId: account.Id, yonePuuid: account.Puuid);
         }
 
         // Decoy 1: Zed on the SAME team as Yone (opposite-team rule excludes it).
         var sameTeam = new MatchBuilder().WithId("m-sameteam").WithQueueId(QueueId).WithTimelineIngested().Build();
         db.Matches.Add(sameTeam);
-        db.MatchParticipants.Add(Participant(sameTeam.Id, 1, Champion, teamId: 100, Position, win: true, riotAccountId: account.Id));
+        db.MatchParticipants.Add(Participant(sameTeam.Id, 1, Champion, teamId: 100, Position, win: true, riotAccountId: account.Id, puuid: account.Puuid));
         db.MatchParticipants.Add(Participant(sameTeam.Id, 2, Opponent, teamId: 100, Position, win: true));
 
         // Decoy 2: Zed present but in a different lane (same-position rule excludes it).
         var otherLane = new MatchBuilder().WithId("m-otherlane").WithQueueId(QueueId).WithTimelineIngested().Build();
         db.Matches.Add(otherLane);
-        db.MatchParticipants.Add(Participant(otherLane.Id, 1, Champion, teamId: 100, Position, win: true, riotAccountId: account.Id));
+        db.MatchParticipants.Add(Participant(otherLane.Id, 1, Champion, teamId: 100, Position, win: true, riotAccountId: account.Id, puuid: account.Puuid));
         db.MatchParticipants.Add(Participant(otherLane.Id, 2, Opponent, teamId: 200, "TOP", win: true));
 
         // Decoy 3: a Yone-vs-Zed lane game on a different queue (queue filter excludes it).
-        AddLaneMatchup(db, "m-wrongqueue", "16.4.521.123", queueId: 400, yoneWins: true, Opponent, yoneAccountId: account.Id);
+        AddLaneMatchup(db, "m-wrongqueue", "16.4.521.123", queueId: 400, yoneWins: true, Opponent, yoneAccountId: account.Id, yonePuuid: account.Puuid);
 
         // Decoy 4: a single Yone-vs-Talon lane game (different opponent; also
         // below the floor on its own, used by the not-enough-data test).
-        AddLaneMatchup(db, "m-talon", "16.4.521.123", QueueId, yoneWins: true, OtherOpponent, yoneAccountId: account.Id);
+        AddLaneMatchup(db, "m-talon", "16.4.521.123", QueueId, yoneWins: true, OtherOpponent, yoneAccountId: account.Id, yonePuuid: account.Puuid);
 
         await db.SaveChangesAsync();
         await RunAggregationAsync();
@@ -493,11 +625,12 @@ public sealed class ChampionMatchupApiIntegrationTests
             .Build();
         db.RiotAccounts.Add(otherAccount);
         db.MainChampionStats.Add(MainStat(account, Champion, games: 11));
+        db.MainChampionStats.Add(MainStat(otherAccount, Champion, games: 5));
 
         for (var i = 0; i < 11; i++)
         {
             AddLaneMatchup(db, $"ms-owned-{i}", "16.4.521.123", QueueId, yoneWins: i < 6, Opponent,
-                yoneAccountId: account.Id);
+                yoneAccountId: account.Id, yonePuuid: account.Puuid);
         }
 
         // A second tracked account's games: part of the global pool, never this
@@ -505,7 +638,7 @@ public sealed class ChampionMatchupApiIntegrationTests
         for (var i = 0; i < 5; i++)
         {
             AddLaneMatchup(db, $"ms-other-{i}", "16.4.521.123", QueueId, yoneWins: true, Opponent,
-                yoneAccountId: otherAccount.Id);
+                yoneAccountId: otherAccount.Id, yonePuuid: otherAccount.Puuid);
         }
 
         // Anonymous games: counted by neither scope (no tracked account).
@@ -540,7 +673,7 @@ public sealed class ChampionMatchupApiIntegrationTests
         for (var i = 0; i < 5; i++)
         {
             AddLaneMatchup(db, $"mf-zed-{i}", "16.4.521.123", QueueId, yoneWins: i < 3, Opponent,
-                yoneAccountId: account.Id);
+                yoneAccountId: account.Id, yonePuuid: account.Puuid);
         }
 
         await db.SaveChangesAsync();
@@ -572,13 +705,14 @@ public sealed class ChampionMatchupApiIntegrationTests
             .Build();
         db.RiotAccounts.Add(otherAccount);
         db.MainChampionStats.Add(MainStat(account, Champion, games: 1));
+        db.MainChampionStats.Add(MainStat(otherAccount, Champion, games: 2));
 
         AddLaneMatchup(db, "mo-owned-0", "16.4.521.123", QueueId, yoneWins: true, OtherOpponent,
-            yoneAccountId: account.Id);
+            yoneAccountId: account.Id, yonePuuid: account.Puuid);
         for (var i = 0; i < 2; i++)
         {
             AddLaneMatchup(db, $"mo-other-{i}", "16.4.521.123", QueueId, yoneWins: true, OtherOpponent,
-                yoneAccountId: otherAccount.Id);
+                yoneAccountId: otherAccount.Id, yonePuuid: otherAccount.Puuid);
         }
         AddLaneMatchup(db, "mo-anon-0", "16.4.521.123", QueueId, yoneWins: true, OtherOpponent);
 
@@ -657,6 +791,10 @@ public sealed class ChampionMatchupApiIntegrationTests
                 LaneLosses = 6,
                 LaneGoldDiffSum = measured ? 6000 : 0,
                 LaneGoldDiffGames = measured ? 20 : 0,
+                // Pointing the other way from the gold on this slice, which is the
+                // reading the two counters exist to keep separable (#1111).
+                LaneXpDiffSum = measured ? -3000 : 0,
+                LaneXpDiffGames = measured ? 20 : 0,
                 AggregatedAtUtc = now
             },
             new ChampionMatchupStat
@@ -673,6 +811,8 @@ public sealed class ChampionMatchupApiIntegrationTests
                 LaneLosses = 4,
                 LaneGoldDiffSum = measured ? -1000 : 0,
                 LaneGoldDiffGames = measured ? 5 : 0,
+                LaneXpDiffSum = measured ? 500 : 0,
+                LaneXpDiffGames = measured ? 5 : 0,
                 AggregatedAtUtc = now
             });
 
@@ -680,9 +820,76 @@ public sealed class ChampionMatchupApiIntegrationTests
     }
 
     /// <summary>
+    /// Seeds two aggregate rows sized so the <em>share</em> floor is the binding one:
+    /// a dominant opponent and a thin one that clears the absolute floor comfortably.
+    /// Written straight to the table — the ratio needed to make the share floor bite
+    /// is ten thousand games, which no seeder should fold match by match.
+    /// </summary>
+    private async Task SeedShareFloorRowsAsync(
+        int zedGames, int talonGames, int? zedWins = null, int? talonWins = null)
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        var now = DateTime.UtcNow;
+        db.ChampionMatchupStats.AddRange(
+            new ChampionMatchupStat
+            {
+                ChampionId = Champion,
+                TeamPosition = Position,
+                OpponentChampionId = Opponent,
+                Patch = "16.4",
+                EloBracket = EloBracket.Gold,
+                Games = zedGames,
+                Wins = zedWins ?? zedGames / 2,
+                AggregatedAtUtc = now,
+            },
+            new ChampionMatchupStat
+            {
+                ChampionId = Champion,
+                TeamPosition = Position,
+                OpponentChampionId = OtherOpponent,
+                Patch = "16.4",
+                EloBracket = EloBracket.Gold,
+                Games = talonGames,
+                Wins = talonWins ?? talonGames / 2,
+                AggregatedAtUtc = now,
+            });
+
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Seeds one aggregate row whose games clear every games floor while its decided
+    /// lanes do not clear theirs — the shape that made the lane column the least
+    /// trustworthy number on the panel.
+    /// </summary>
+    private async Task SeedThinLaneRowAsync(int games, int wins, int laneWins, int laneLosses)
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        db.ChampionMatchupStats.Add(new ChampionMatchupStat
+        {
+            ChampionId = Champion,
+            TeamPosition = Position,
+            OpponentChampionId = Opponent,
+            Patch = "16.4",
+            EloBracket = EloBracket.Gold,
+            Games = games,
+            Wins = wins,
+            LaneGames = laneWins + laneLosses,
+            LaneWins = laneWins,
+            LaneLosses = laneLosses,
+            LaneGoldDiffSum = 1200,
+            LaneGoldDiffGames = laneWins + laneLosses,
+            AggregatedAtUtc = DateTime.UtcNow,
+        });
+
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
     /// Stamps lane counters onto the aggregate row the matchup fold already wrote for
-    /// an opponent, so the read side has the lane half of a head-to-head whose games
-    /// are computed live.
+    /// an opponent, so the read side has the lane half of that head-to-head.
     /// </summary>
     private async Task StampLaneCountersAsync(
         int opponentChampionId, int laneWins, int laneLosses, long goldDiffSum, int goldDiffGames)
@@ -715,7 +922,8 @@ public sealed class ChampionMatchupApiIntegrationTests
         bool yoneWins,
         int opponentChampionId,
         Guid? yoneAccountId = null,
-        string eloBracket = "")
+        string eloBracket = "",
+        string? yonePuuid = null)
     {
         var match = new MatchBuilder()
             .WithId(matchId)
@@ -727,15 +935,16 @@ public sealed class ChampionMatchupApiIntegrationTests
 
         db.MatchParticipants.Add(Participant(
             match.Id, 1, Champion, teamId: 100, Position, win: yoneWins, riotAccountId: yoneAccountId,
-            eloBracket: eloBracket));
+            eloBracket: eloBracket, puuid: yonePuuid));
         db.MatchParticipants.Add(Participant(
             match.Id, 2, opponentChampionId, teamId: 200, Position, win: !yoneWins));
     }
 
     /// <summary>
-    /// The aggregation's champion work-list is derived from main_champion_stats
-    /// (#606 fix mirroring #604), not a scan over match_participants, so every
-    /// seed needs at least one "main" row for the champion under test.
+    /// The fold's champion-side cohort is "a main of this champion"
+    /// (<c>Data.Aggregation.MatchupCohort</c>), so every account whose games are
+    /// meant to reach the aggregate needs one of these rows — including the second
+    /// tracked account in the seeds that assert what the *global* pool holds.
     /// </summary>
     private static MainChampionStat MainStat(RiotAccount account, int championId, int games)
         => new()
@@ -759,12 +968,17 @@ public sealed class ChampionMatchupApiIntegrationTests
         string teamPosition,
         bool win,
         Guid? riotAccountId = null,
-        string eloBracket = "")
+        string eloBracket = "",
+        string? puuid = null)
         => new()
         {
             MatchId = matchId,
             ParticipantId = participantId,
-            Puuid = $"puuid-{matchId}-{participantId}",
+            // The champion-side row must carry its account's real puuid: the fold's
+            // cohort joins main_champion_stats on (platform, puuid, champion), the
+            // way RiotMatchMapper writes them. A synthetic puuid here would make
+            // every seeded game fold to nothing.
+            Puuid = puuid ?? $"puuid-{matchId}-{participantId}",
             RiotAccountId = riotAccountId,
             SummonerName = "seed",
             SummonerLevel = 100,
@@ -803,10 +1017,10 @@ public sealed class ChampionMatchupApiIntegrationTests
         };
 
     /// <summary>
-    /// Runs the ingestor aggregation against the seeded raw rows so the global
-    /// matchups slice (served from <c>champion_matchup_stats</c>) has data. The
-    /// player-scoped and opponent-search slices stay live, so this is a no-op for
-    /// them — but running it after every seed keeps the full pipeline under test.
+    /// Runs the ingestor aggregation against the seeded raw rows so every global
+    /// matchups slice — leaderboard and single-opponent search alike — has data.
+    /// Only the player-scoped slice stays live, so this is a no-op for it, but
+    /// running it after every seed keeps the full pipeline under test.
     /// </summary>
     private async Task RunAggregationAsync()
     {
@@ -831,6 +1045,8 @@ public sealed class ChampionMatchupApiIntegrationTests
             [
                 new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420"),
                 new KeyValuePair<string, string?>("ChampionsList:MinMatchupGames", "10"),
+                new KeyValuePair<string, string?>("ChampionsList:MinMatchupPlayRate", "0.005"),
+                new KeyValuePair<string, string?>("ChampionsList:MinDecidedLaneGames", "10"),
                 new KeyValuePair<string, string?>("ChampionsList:MinPlayerMatchupGames", "3"),
             ]);
 }

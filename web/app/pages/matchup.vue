@@ -82,6 +82,12 @@ const roleLabel = computed(() =>
 
 const { data: recommendation, isLoading, error, submit, clear } = useCompositionBuild()
 
+// The provenance drawer's open state lives here because the two halves of it sit
+// in different components: the button is in the stat line above (#1111), the
+// drawer itself stays in `RecommendationPanel`, which already fetches the item /
+// rune / spell maps it needs at the recommendation's patch.
+const gamesDrawerOpen = ref(false)
+
 const isDraftReady = computed(() => playedChampionId.value !== null && playedPosition.value !== null)
 
 function toSlots(
@@ -224,6 +230,21 @@ const missingMatchupNotice = computed(() => {
       @update:opponent-champion-id="opponentChampionId = $event"
     />
 
+    <!-- The page's one line of numbers (#1111): the recommendation's sample and
+         the matchup's lane figures together. Mounted on the champion / role /
+         opponent triple alone, so it survives the standard-build fallback below
+         — exactly the state where a reader needs to know how much (or how
+         little) is behind the page. -->
+    <BuilderMatchupStats
+      v-if="playedChampionId !== null && playedPosition !== null && opponentChampionId !== null"
+      :position="playedPosition"
+      :champion-name="playedChampion?.name ?? null"
+      :opponent-name="opponentChampion?.name ?? null"
+      :recommendation="recommendation ?? null"
+      :loading="isLoading"
+      @show-games="gamesDrawerOpen = true"
+    />
+
     <BuilderTeamContext
       v-if="isDraftReady && playedPosition"
       :champions="champions"
@@ -284,9 +305,10 @@ const missingMatchupNotice = computed(() => {
             :champion-icon-url="playedChampion?.iconUrl ?? null"
             :opponent-name="opponentChampion?.name ?? null"
             :opponent-icon-url="opponentChampion?.iconUrl ?? null"
-            :opponent-champion-id="opponentChampionId"
             :draft-request="currentDraftRequest"
             :champions="champions"
+            :games-drawer-open="gamesDrawerOpen"
+            @update:games-drawer-open="gamesDrawerOpen = $event"
           />
         </div>
       </template>

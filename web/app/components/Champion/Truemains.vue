@@ -33,10 +33,15 @@ const viewAllHref = computed(() => `/truemains?championId=${props.championId}`)
 </script>
 
 <template>
+  <!-- Tighter card padding than the app default (`p-3 sm:p-4`): this card sits
+       in the champion page's narrow sidebar, where the rows are already fighting
+       for the width the Riot ID needs. Header trimmed with the body so the title
+       stays flush with the rows. -->
   <SectionCard
     :level="2"
     title="Truemains"
     subtitle="Top tracked players on this champion."
+    :ui="{ header: 'p-2 sm:px-2.5 sm:py-3', body: 'p-2 sm:p-2.5' }"
   >
     <div class="flex flex-col gap-2">
       <template v-if="isInitialLoading">

@@ -14,23 +14,30 @@ sit on `:root`. Don't add a light variant to a component — it will never be re
 
 | Family | Owns | Allowed on |
 | --- | --- | --- |
-| `primary` (rosegold) | Brand and interaction | Logo, active nav, focus rings, primary buttons, links, selected states |
+| `primary` (rosegold) | Brand, interaction **and the good end of a measurement** | Logo, active nav, focus rings, primary buttons, links, selected states — and `--color-data-good` |
 | `--color-data-*` | Measurements | Anything — `text-*`, `bg-*`, `ring-*`, `border-*` |
 | `--color-stat-*` | Riot's in-game vocabulary | **Tooltip prose only** — never `bg-*` / `ring-*` / `border-*` |
 
-**Rose gold is scarce on purpose.** It never colours a data value and is never a generic surface tint. An
-accent applied to everything stops being an accent — that is exactly how the previous rose-gold-only system
-ended up reading as one flat warm mass.
+**The data axis is one-sided**: `--color-data-good` is `rosegold-400`, and everything below average steps down
+the neutral ramp to `--color-data-bad` (`ink-500`). A losing value is not flagged in a warning colour, it is
+simply not highlighted. `-dim` stops are for large fills, where a full stop would shout.
 
-**The data axis is cold → warm**, not green → red: `--color-data-good` (teal) → `--color-data-mid` (neutral)
-→ `--color-data-bad` (amber), with `-dim` stops for large fills. Green/red is off the table because
-`rosegold-500` is itself a desaturated red, so a red "loss" beside the accent in a dense table is a coin flip
-to read. The `--color-tier-*` ladder rides this same axis, so a champion's tier and its win rate speak one
-language.
+The `--color-tier-*` ladder is the **medal** scale — rose gold, gold, silver, bronze, iron. Five ranks read as
+five ranks without a legend.
 
-`--color-stat-*` overlaps the axis (armor is amber, magic resist is cyan). That is tolerated *because* those
-tokens are confined to tooltip prose — putting one on a data surface is what would make the overlap
-ambiguous.
+> A cold→warm axis (teal good → amber bad) shipped in #1060 and was withdrawn in #1096. If you are tempted to
+> reintroduce a second hue for "bad", read that decision entry first — the argument against green/red
+> (`rosegold-500` is itself a desaturated red) is still live, and the argument that got the teal removed is
+> not a technical one you can out-argue.
+
+**The accent is no longer exclusive to interaction, and that is the price.** A rose-gold number is a *good*
+number, not a clickable one. Affordance must come from shape and position — a border, a cursor, a control's
+own chrome — and never from hue alone. Rose gold is still not a generic surface tint: an accent applied to
+every panel is how the pre-#1060 system ended up reading as one flat warm mass.
+
+`--color-stat-*` no longer overlaps the data axis at all now that the axis is rose gold and grey, but those
+tokens stay confined to tooltip prose regardless — they are a *vocabulary*, not a scale, and a reader must
+never have to work out whether cyan means "magic resist" or "good".
 
 The one deliberate exception is `TIER_COLORS` / `TIER_HEX` in [`utils/tiers.ts`](../app/utils/tiers.ts):
 those are **Riot's** rank colours, reproduced because a player reads Iron/Bronze/Gold from the colour before
@@ -75,8 +82,10 @@ every skeleton inside a card is invisible.
 
 ## A stat is a pair, and the pair has a house style
 
-Two families with distinct jobs: **Inter** carries prose, headings and labels; **Geist Mono** carries
-measurements.
+**Inter carries everything the reader reads**, measurements included. Geist Mono is kept only where monospace
+is the meaning rather than a flourish — tier letters, the empty-slot glyph, hex codes on `/dev/design-system`.
+#1060 had put the two utilities below on Geist Mono; withdrawn in #1111, because across a dense page it read as
+a second unrelated typeface rather than as a register.
 
 - **`stat-value`** — family, weight and figure style, but deliberately *not* size: a headline KPI and a table
   cell are the same material at different scales, so the call site picks the step.
@@ -102,6 +111,13 @@ Four semantic text color tokens from `@nuxt/ui` (`text-default`, `text-muted`, `
 **Tailwind only emits utilities it can see statically.** A computed `text-tier-${x}` or `bg-ink-${shade}`
 renders as an unstyled element — build a literal map (see `TierBadge.vue`) rather than interpolating a class
 name.
+
+**A plain utility overrides a `@utility`'s own property — rely on it deliberately, not by accident.**
+`class="stat-label text-primary"` renders rose gold, because Tailwind sorts custom `@utility` rules *before*
+generated ones inside the utilities layer, so `.text-primary` wins on source order at equal specificity. That is
+the intended way to recolour a `stat-label` or resize a `stat-value`. It is also the trap below, seen from the
+other side: the same rule means a stray `bg-elevated/60` beats `surface`'s fill. Overriding one declared
+property is fine; restating the material's own is what breaks it.
 
 **Nuxt UI appends per-variant `root` classes rather than replacing them, and a plain utility out-cascades a
 `@utility` declaration.** That is why the `card` theme in `app.config.ts` neutralises `soft`'s stock

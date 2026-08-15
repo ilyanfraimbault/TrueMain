@@ -21,6 +21,7 @@ import type {
   ChampionBuild,
   ChampionComparisonSide,
   ChampionMainsComparison,
+  ChampionMatchupEntry,
   ChampionMatchups,
   ChampionOverviewResponse,
   ChampionPatchDiffResponse,
@@ -426,6 +427,9 @@ async function mockChampionOverview(query: Record<string, unknown>): Promise<Cha
     patchVersion: patch,
     gamesAnalyzed: summaries.reduce((acc, s) => acc + s.games, 0),
     championsRanked: new Set(summaries.map(s => s.championId)).size,
+    // The mock holds one patch, so the chips are patch-scoped and say nothing extra
+    // — the multi-patch window (#1109) needs real aggregate history to be worth faking.
+    countedPatches: [patch],
     topRows,
   }
 }
@@ -823,7 +827,7 @@ async function mockMatchups(id: number): Promise<ChampionMatchups | null> {
     championId: s.id,
     position: s.position,
     patch: await latestShortPatch(),
-    matchups: opponents.map((o) => {
+    matchups: withMatchupShares(opponents.map((o) => {
       const games = Math.round(40 + rng() * 360)
       const winRate = round3(Math.min(0.6, Math.max(0.4, 0.5 + (s.wr - o.wr) * 1.6 + (rng() - 0.5) * 0.07)))
       // Lane outcome (#919). Only *decided* lanes count, so the sample is always a
@@ -849,6 +853,13 @@ async function mockMatchups(id: number): Promise<ChampionMatchups | null> {
       const averageGoldDiffAt15 = goldDiffLaneGames === 0
         ? null
         : Math.round((s.wr - o.wr) * 9000 + (rng() - 0.5) * 320)
+      // XP rides on the same sample but deliberately not on the same sign every
+      // time (#1111): roughly a third of matchups get a gap pointing the other
+      // way, so the "gold ahead, XP behind" reading the pair exists for is
+      // reachable without a backend.
+      const averageXpDiffAt15 = averageGoldDiffAt15 === null
+        ? null
+        : Math.round(averageGoldDiffAt15 * (o.id % 3 === 0 ? -0.4 : 0.55) + (rng() - 0.5) * 260)
       return {
         opponentChampionId: o.id,
         games,
@@ -858,9 +869,38 @@ async function mockMatchups(id: number): Promise<ChampionMatchups | null> {
         decidedLaneGames,
         averageGoldDiffAt15,
         goldDiffLaneGames,
+        averageXpDiffAt15,
+        xpDiffLaneGames: goldDiffLaneGames,
       }
-    }),
+    })),
   }
+}
+
+/**
+ * Fills in the two fields the panel *ranks* on, which the rows above cannot know
+ * on their own: `playRate` needs the field's total, and the Wilson bounds need to
+ * agree with the real ones or the mock would order the best/worst lists
+ * differently from production — the one property of this panel worth eyeballing
+ * without a backend. Mirrors `RateMath.WilsonInterval`.
+ */
+function withMatchupShares(
+  rows: Omit<ChampionMatchupEntry, 'playRate' | 'winRateLowerBound' | 'winRateUpperBound'>[],
+): ChampionMatchupEntry[] {
+  const total = rows.reduce((sum, row) => sum + row.games, 0)
+  const z = 1.959963984540054
+  return rows.map((row) => {
+    const n = row.games
+    const p = n === 0 ? 0 : row.wins / n
+    const denominator = 1 + (z * z) / n
+    const centre = (p + (z * z) / (2 * n)) / denominator
+    const margin = (z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n))) / denominator
+    return {
+      ...row,
+      playRate: total === 0 ? 0 : round3(n / total),
+      winRateLowerBound: round3(Math.max(0, centre - margin)),
+      winRateUpperBound: round3(Math.min(1, centre + margin)),
+    }
+  })
 }
 
 // Synergy mocks (#922). The panel's whole point is that the ranking value is
@@ -897,7 +937,10 @@ async function mockSynergies(
 
   const rng = mulberry32(s.id * 977)
   const championGames = Math.round(600 + rng() * 2400)
-  const minGames = 20
+  // Mirrors the backend's max(MinSynergyGames, MinSynergyPlayRate × championGames):
+  // with a mocked champion between 600 and 3 000 games the share floor is 6 to 30,
+  // so which of the two binds varies by champion — the point of the pair.
+  const minGames = Math.max(20, Math.ceil(0.01 * championGames))
 
   const partners: ChampionSynergyEntry[] = CHAMPION_SEEDS
     .filter(p => p.position !== s.position && (!partnerPosition || p.position === partnerPosition))
@@ -914,6 +957,7 @@ async function mockSynergies(
         games,
         wins: Math.round(games * winRate),
         winRate,
+        playRate: round3(games / championGames),
         partnerBaselineGames: baselineGames,
         partnerBaselineWinRate: baselineWinRate,
         expectedWinRate: round3(expected),
@@ -1909,6 +1953,15 @@ async function mockCompositionBuild(id: number, body?: unknown): Promise<Composi
         maxPossibleScore: 10 + slotCount * 3,
         meanSimilarity: 0,
       },
+      // Nothing sampled, so nothing to judge: the strip must show em dashes here,
+      // never a 0% lane.
+      lane: {
+        measuredGames: 0,
+        decidedGames: 0,
+        winRate: null,
+        averageGoldDiffAt15: null,
+        averageXpDiffAt15: null,
+      },
       build: {
         gamesConsidered: 0,
         wins: 0,
@@ -1957,6 +2010,22 @@ async function mockCompositionBuild(id: number, body?: unknown): Promise<Composi
       // confidence strip visibly reacts to draft edits in mock mode.
       meanSimilarity: round3(Math.max(0.18, 0.75 - slotCount * 0.05 + rng() * 0.1)),
     },
+    // Judged over the sampled games (#1117): fewer are measurable than sampled (a
+    // game that ended before 15 min is not a judgeable lane), fewer still decided,
+    // and the XP gap points the other way one champion in three so the "gold ahead,
+    // XP behind" reading is reachable without a backend.
+    lane: (() => {
+      const measured = Math.max(1, Math.round(games * (0.7 + rng() * 0.25)))
+      const decided = Math.max(0, Math.round(measured * (0.45 + rng() * 0.3)))
+      const gold = Math.round((s.wr - 0.5) * 4200 + (rng() - 0.5) * 400)
+      return {
+        measuredGames: measured,
+        decidedGames: decided,
+        winRate: decided === 0 ? null : round3(Math.min(0.85, Math.max(0.15, s.wr + (rng() - 0.5) * 0.2))),
+        averageGoldDiffAt15: gold,
+        averageXpDiffAt15: Math.round(gold * (s.id % 3 === 0 ? -0.4 : 0.55) + (rng() - 0.5) * 260),
+      }
+    })(),
     build: {
       gamesConsidered: games,
       wins,

@@ -5,11 +5,13 @@ namespace TrueMain.Services.Champions;
 public interface IChampionMatchupQueryService
 {
     /// <summary>
-    /// Lists a champion's lane matchups at a position, live from
-    /// <c>match_participants</c>: for every opponent the champion shared a lane
-    /// with (same <c>TeamPosition</c>, opposite <c>TeamId</c>) in the same
-    /// match, the head-to-head game and win counts, filtered to the configured
-    /// queue (and, for a player-scoped call, to that player's games).
+    /// Lists a champion's lane matchups at a position: for every opponent the
+    /// champion shared a lane with (same <c>TeamPosition</c>, opposite
+    /// <c>TeamId</c>) in the same match, the head-to-head game and win counts,
+    /// plus the lane counters behind them and the Wilson bounds a caller ranks on.
+    /// Read from <c>champion_matchup_stats</c> for every global slice; computed
+    /// live from <c>match_participants</c> only when narrowed to one account,
+    /// which the aggregate has no dimension for.
     /// </summary>
     /// <param name="championId">Riot champion id whose matchups are measured.</param>
     /// <param name="position">
@@ -28,8 +30,9 @@ public interface IChampionMatchupQueryService
     /// </param>
     /// <param name="opponentChampionId">
     /// Optional opponent narrowing. When set, only the head-to-head against this
-    /// one champion is returned (a single entry, or none) and the minimum-games
-    /// floor drops to one — a deliberate lookup, not a ranked list.
+    /// one champion is returned (a single entry, or none) and every games floor is
+    /// dropped — a deliberate lookup answers with what exists, from one game up,
+    /// and is not a ranked list a thin sample could distort.
     /// </param>
     /// <param name="eloBracket">
     /// Optional elo filter — an exact tier (<c>GOLD</c>) or a cumulative "X+"
@@ -38,11 +41,16 @@ public interface IChampionMatchupQueryService
     /// </param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>
-    /// The matchups list, ordered by win rate descending. Only opponents with
-    /// at least the configured minimum games
-    /// (<see cref="TrueMain.Options.ChampionsListOptions.MinMatchupGames"/>)
-    /// appear; when no opponent clears the floor the list is empty (still a
-    /// 200, never 404 — the controller only 404s on an unknown player).
+    /// The matchups list, ordered by win rate descending. On the leaderboard only
+    /// opponents holding at least
+    /// <see cref="TrueMain.Options.ChampionsListOptions.MinMatchupGames"/> games
+    /// <em>and</em> at least
+    /// <see cref="TrueMain.Options.ChampionsListOptions.MinMatchupPlayRate"/> of the
+    /// champion's total matchup games appear; when none clears the floor the list is
+    /// empty (still a 200, never 404 — the controller only 404s on an unknown
+    /// player). Callers slice best / worst on
+    /// <see cref="ChampionMatchupEntry.WinRateLowerBound"/> and
+    /// <see cref="ChampionMatchupEntry.WinRateUpperBound"/>, not on this order.
     /// </returns>
     Task<ChampionMatchupsResponse> GetAsync(
         int championId,

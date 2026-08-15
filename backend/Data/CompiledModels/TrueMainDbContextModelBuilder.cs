@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("1418a074-e71a-4bf7-baf3-56815e98576b"), entityTypeCount: 31)
+            : base(skipDetectChanges: false, modelId: new Guid("47dd43a5-ba1d-4ef0-b67d-2133202eafc8"), entityTypeCount: 31)
         {
         }
 
@@ -101,7 +101,7 @@ namespace Data.CompiledModels
             SeedRequestEntityType.CreateAnnotations(seedRequest);
 
             AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn);
-            AddAnnotation("ProductVersion", "10.0.9");
+            AddAnnotation("ProductVersion", "10.0.10");
             AddAnnotation("Relational:MaxIdentifierLength", 63);
         }
     }

@@ -20,15 +20,23 @@ export interface UseChampionMatchupsOptions {
    * are one rank. Sent as `?eloBracket=<value>`.
    */
   eloBracket?: MaybeRefOrGetter<string | null | undefined>
+  /**
+   * Patch to scope the matchups to (`major.minor`). Omitted means every patch the
+   * aggregate still holds — which is *more* patches than the rest of the champion
+   * page shows, since matchup rows outlive the raw matches they were folded from.
+   * Callers on a patch-filtered page must pass their patch or the panel silently
+   * answers a different question than the header above it.
+   */
+  patch?: MaybeRefOrGetter<string | null | undefined>
 }
 
 /**
  * Fetches a champion's lane matchups at a position: the full list the table
  * slices into best/worst, or — when `opponentChampionId` is set — just that one
- * head-to-head (the backend narrows the self-join and drops the games floor to
- * one). Global by default; pass `nameTag` to scope to one player. Fires once a
- * position is known. A 404 (unknown player) resolves to null so the table can
- * render an empty state rather than an error.
+ * head-to-head (the backend seeks the single aggregate row and applies no floor
+ * at all, so a one-game meeting still answers). Global by default; pass `nameTag`
+ * to scope to one player. Fires once a position is known. A 404 (unknown player)
+ * resolves to null so the table can render an empty state rather than an error.
  */
 export function useChampionMatchups(
   championId: MaybeRefOrGetter<number>,
@@ -46,6 +54,7 @@ export function useChampionMatchups(
     return value == null ? undefined : value
   })
   const eloBracketRef = computed(() => toValue(options.eloBracket) || undefined)
+  const patchRef = computed(() => toValue(options.patch) || undefined)
 
   return useLazyAsyncData<ChampionMatchups | null>(
     () => [
@@ -57,6 +66,7 @@ export function useChampionMatchups(
       // Only the global slice varies by bracket, but keying it always keeps the
       // cache entry distinct when the filter changes.
       nameTagRef.value ? '' : eloBracketRef.value ?? '',
+      patchRef.value ?? '',
     ].join('-'),
     async () => {
       const position = positionRef.value
@@ -64,6 +74,7 @@ export function useChampionMatchups(
 
       const query: Record<string, string> = { position }
       if (opponentRef.value != null) query.opponent = String(opponentRef.value)
+      if (patchRef.value) query.patch = patchRef.value
 
       const nameTag = nameTagRef.value
       // The player-scoped route is one player's own games — a rank filter is
@@ -85,7 +96,7 @@ export function useChampionMatchups(
       }
     },
     {
-      watch: [championIdRef, positionRef, nameTagRef, opponentRef, eloBracketRef],
+      watch: [championIdRef, positionRef, nameTagRef, opponentRef, eloBracketRef, patchRef],
       server: false,
     },
   )

@@ -5,9 +5,11 @@ import {
   banRateTone,
   PICK_RATE_HIGH,
   PICK_RATE_NOTABLE,
+  pickRateBand,
   pickRateTone,
   WIN_RATE_DECISIVE,
   WIN_RATE_EDGE,
+  winRateBand,
   winRateTone,
 } from '~/utils/rate-tone'
 
@@ -68,5 +70,32 @@ describe('banRateTone', () => {
 
   it('stays muted for a patch that never observed bans (#920)', () => {
     expect(banRateTone(null)).toBe('text-muted')
+  })
+})
+
+describe('winRateBand', () => {
+  it('collapses the dim step but keeps the side', () => {
+    expect(winRateBand(0.5 + WIN_RATE_DECISIVE)).toBe('good')
+    expect(winRateBand(0.5 + WIN_RATE_EDGE)).toBe('good')
+    expect(winRateBand(0.5 - WIN_RATE_EDGE)).toBe('bad')
+    expect(winRateBand(0.5 - WIN_RATE_DECISIVE)).toBe('bad')
+  })
+
+  it('separates a measured average from no reading at all', () => {
+    // `mid` is "measured, and it is 50%"; `default` is "there is nothing to
+    // read" — the em-dash case. `StatBlock` colours the two differently.
+    expect(winRateBand(0.5)).toBe('mid')
+    expect(winRateBand(null)).toBe('default')
+    expect(winRateBand(undefined)).toBe('default')
+  })
+})
+
+describe('pickRateBand', () => {
+  it('is one-sided: presence or nothing, never bad', () => {
+    expect(pickRateBand(PICK_RATE_HIGH)).toBe('good')
+    expect(pickRateBand(PICK_RATE_NOTABLE)).toBe('good')
+    expect(pickRateBand(PICK_RATE_NOTABLE - 0.001)).toBe('default')
+    expect(pickRateBand(0)).toBe('default')
+    expect(pickRateBand(null)).toBe('default')
   })
 })

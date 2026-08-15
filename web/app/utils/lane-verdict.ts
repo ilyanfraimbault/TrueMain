@@ -69,9 +69,26 @@ export function formatGoldDiff(value: number): string {
   return `${sign}${Math.abs(rounded).toLocaleString('en-US')}`
 }
 
-/** Green ahead, red behind, muted inside the even band — same read as a win rate. */
-export function goldDiffTone(value: number): string {
-  if (value >= LANE_EVEN_GOLD) return 'text-emerald-400'
-  if (value <= -LANE_EVEN_GOLD) return 'text-red-400'
-  return 'text-muted'
+/**
+ * The experience gap, same signed format (#1111). Its own function rather than a
+ * reuse of `formatGoldDiff` because the two are not interchangeable in meaning —
+ * gold is who bought more, XP is who is bigger — and because the verdict bands
+ * above are gold's alone: an XP gap of 300 is not "a very good lane", it is barely
+ * a third of a level. Giving XP a formatter and *not* a band is the point.
+ */
+export function formatXpDiff(value: number): string {
+  return formatGoldDiff(value)
 }
+
+/**
+ * The gap as a `StatBlock` band: ahead of the even band is good, behind it is bad,
+ * inside it is a measured draw. `null` has no reading at all — a gap that was never
+ * measured must not render as "dead even", the most decisive-looking verdict there is.
+ */
+export function goldDiffBand(value: number | null | undefined): 'default' | 'good' | 'mid' | 'bad' {
+  if (value === null || value === undefined) return 'default'
+  if (value >= LANE_EVEN_GOLD) return 'good'
+  if (value <= -LANE_EVEN_GOLD) return 'bad'
+  return 'mid'
+}
+

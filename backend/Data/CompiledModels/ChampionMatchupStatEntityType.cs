@@ -20,7 +20,7 @@ namespace Data.CompiledModels
                 "Data.Entities.ChampionMatchupStat",
                 typeof(ChampionMatchupStat),
                 baseEntityType,
-                propertyCount: 14,
+                propertyCount: 16,
                 unnamedIndexCount: 1,
                 keyCount: 1);
 
@@ -118,6 +118,26 @@ namespace Data.CompiledModels
                 sentinel: 0);
             laneWins.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
             laneWins.AddAnnotation("Relational:DefaultValue", 0);
+
+            var laneXpDiffGames = runtimeEntityType.AddProperty(
+                "LaneXpDiffGames",
+                typeof(int),
+                propertyInfo: typeof(ChampionMatchupStat).GetProperty("LaneXpDiffGames", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(ChampionMatchupStat).GetField("<LaneXpDiffGames>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: 0);
+            laneXpDiffGames.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            laneXpDiffGames.AddAnnotation("Relational:DefaultValue", 0);
+
+            var laneXpDiffSum = runtimeEntityType.AddProperty(
+                "LaneXpDiffSum",
+                typeof(long),
+                propertyInfo: typeof(ChampionMatchupStat).GetProperty("LaneXpDiffSum", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(ChampionMatchupStat).GetField("<LaneXpDiffSum>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: 0L);
+            laneXpDiffSum.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            laneXpDiffSum.AddAnnotation("Relational:DefaultValue", 0L);
 
             var opponentChampionId = runtimeEntityType.AddProperty(
                 "OpponentChampionId",

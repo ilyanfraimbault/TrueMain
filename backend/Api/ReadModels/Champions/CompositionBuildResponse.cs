@@ -34,6 +34,15 @@ public sealed record CompositionBuildResponse
 
     public required CompositionConfidenceReadModel Confidence { get; init; }
 
+    /// <summary>
+    /// How the lane went in the sampled games (#1117) — measured over exactly the games
+    /// <see cref="Confidence"/> counts, so the tool's stat line describes one population
+    /// throughout. It used to read the matchup aggregate instead, whose champion side is
+    /// mains-only (#1087), which showed "—" beside a sample of eight games whenever no
+    /// main had played the matchup.
+    /// </summary>
+    public required CompositionLaneReadModel Lane { get; init; }
+
     public required CompositionBuildRecommendation Build { get; init; }
 }
 
@@ -62,4 +71,52 @@ public sealed record CompositionConfidenceReadModel
 
     /// <summary>Mean of score/max over the selected games, in [0, 1].</summary>
     public required double MeanSimilarity { get; init; }
+}
+
+/// <summary>
+/// The lane at 15 minutes over a recommendation's own sample. Three denominators
+/// because they are three different questions: how many of the sampled games could be
+/// judged at all, how many of those were actually decided, and — for the gaps — the
+/// judged ones again, evens included.
+/// </summary>
+public sealed record CompositionLaneReadModel
+{
+    /// <summary>Nothing sampled, or nothing judgeable in it.</summary>
+    public static CompositionLaneReadModel Empty { get; } = new();
+
+    /// <summary>
+    /// Sampled games where both lane sides had a 15-minute reading. Smaller than the
+    /// sample: a game that ended before the mark, or whose timeline was never ingested,
+    /// is a game but not a judgeable lane.
+    /// </summary>
+    public int MeasuredGames { get; init; }
+
+    /// <summary>
+    /// Of <see cref="MeasuredGames"/>, those settled past the gold threshold either
+    /// way. Lanes inside the band are decided by neither side and belong to neither —
+    /// which is why this is stored rather than derived from the measured count.
+    /// </summary>
+    public int DecidedGames { get; init; }
+
+    /// <summary>
+    /// Share of <see cref="DecidedGames"/> the champion was ahead in.
+    /// <see langword="null"/> when none were decided — never 0, which would read as
+    /// "the lane is always lost".
+    /// </summary>
+    public double? WinRate { get; init; }
+
+    /// <summary>
+    /// Mean gold gap over the lane opponent at 15 minutes, across
+    /// <see cref="MeasuredGames"/> — evens included, since an even lane is exactly what
+    /// the counters above cannot express. <see langword="null"/> when nothing was
+    /// measured.
+    /// </summary>
+    public double? AverageGoldDiffAt15 { get; init; }
+
+    /// <summary>
+    /// Mean experience gap over the same games. Beside the gold rather than derived
+    /// from it: gold is who bought more, XP is who is bigger, and a lane won on kills
+    /// while losing waves shows one ahead and the other behind.
+    /// </summary>
+    public double? AverageXpDiffAt15 { get; init; }
 }

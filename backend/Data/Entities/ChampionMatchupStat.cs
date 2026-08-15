@@ -2,13 +2,15 @@ namespace Data.Entities;
 
 /// <summary>
 /// Pre-aggregated champion-vs-lane-opponent record for the global matchups
-/// leaderboard. One row per (champion, position, opponent, patch) slice over the
-/// tracked-account population on the configured queue. Stores the additive facts
-/// only — games and wins, with NO sample floor applied — so the read side can
-/// fold rows to the requested patch scope (a single patch, or all patches summed)
-/// and apply the games floor on the merged total. Replaces the per-request
-/// self-join over <see cref="MatchParticipant"/> for the global slice (#606); the
-/// player-scoped and opponent-search slices stay live.
+/// leaderboard. One row per (champion, position, opponent, patch) slice on the
+/// configured queue, counting the games of players who are <b>mains of the
+/// champion side</b> — see <c>Data.Aggregation.MatchupCohort</c>, which both folds
+/// share — against whoever held that lane. Stores the additive facts only, with NO
+/// sample floor applied, so the read side can fold rows to the requested patch
+/// scope (a single patch, or all patches summed) and apply its floors on the
+/// merged total. Replaces the per-request self-join over
+/// <see cref="MatchParticipant"/> for every global slice (#606); only the
+/// player-scoped slice stays live, having no dimension here.
 /// </summary>
 public class ChampionMatchupStat
 {
@@ -87,6 +89,39 @@ public class ChampionMatchupStat
     /// </para>
     /// </summary>
     public int LaneGoldDiffGames { get; set; }
+
+    /// <summary>
+    /// Sum of the champion's experience gap over its lane opponent at 15 minutes,
+    /// over the lanes counted in <see cref="LaneXpDiffGames"/> (#1111). Signed, and
+    /// summed rather than bucketed for the same reason as
+    /// <see cref="LaneGoldDiffSum"/>.
+    ///
+    /// <para>
+    /// Beside the gold gap rather than instead of it, because the two disagree in a
+    /// way that is the whole point: gold answers "who bought more", XP answers "who
+    /// is bigger". A lane won on kills and lost on waves shows a gold lead over an XP
+    /// deficit — an unstable lead that a level-2 all-in reverses — and a lane won on
+    /// pure farm shows the opposite. Neither number implies the other.
+    /// </para>
+    /// </summary>
+    public long LaneXpDiffSum { get; set; }
+
+    /// <summary>
+    /// Lanes <see cref="LaneXpDiffSum"/> covers — the average gap is
+    /// <c>LaneXpDiffSum / LaneXpDiffGames</c>, unknown when this is 0. A third
+    /// denominator for the same reason #976 needed a second one: rows folded before
+    /// #1111 have gold and no XP, and borrowing
+    /// <see cref="LaneGoldDiffGames"/> would report those as a +0 XP gap — a
+    /// confident "dead even" out of data that was never collected.
+    ///
+    /// <para>
+    /// In practice the two converge immediately rather than over a backlog: #1111
+    /// shipped its columns alongside a re-fold of the whole retained window, so every
+    /// row that has gold has XP. The separate counter is what keeps that an
+    /// observation rather than an assumption.
+    /// </para>
+    /// </summary>
+    public int LaneXpDiffGames { get; set; }
 
     public DateTime AggregatedAtUtc { get; set; }
 }

@@ -229,8 +229,10 @@ const { data: championScaling, status: scalingStatus } = useChampionScaling(
 )
 
 // Roam metric — out-of-lane early kill participations (issue #536). Same lane/patch
-// scoping and gating as the other timeline-derived stats.
-const { data: championRoam, status: roamStatus } = useChampionRoam(
+// scoping and gating as the other timeline-derived stats. Only the @15 average is
+// read, and only to decide whether the header carries a "Roamer" badge; the @5/@10
+// windows stay in the API for whoever wants the curve later.
+const { data: championRoam } = useChampionRoam(
   championId,
   trendPosition,
   selectedPatch,
@@ -356,16 +358,6 @@ const scalingSnapshot = useLazyHydrationSnapshot(
     loading: isLoadingStatus(scalingStatus.value),
   }),
 )
-const roamSnapshot = useLazyHydrationSnapshot(
-  { kp5: null as number | null, kp10: null as number | null, kp15: null as number | null, games: 0, loading: true },
-  () => ({
-    kp5: championRoam.value?.roamKp5 ?? null,
-    kp10: championRoam.value?.roamKp10 ?? null,
-    kp15: championRoam.value?.roamKp15 ?? null,
-    games: championRoam.value?.games ?? 0,
-    loading: isLoadingStatus(roamStatus.value),
-  }),
-)
 const truemainsSnapshot = useLazyHydrationSnapshot(
   { champions: [] as ChampionStaticListItem[], itemsMap: {} as Record<number, StaticItemData>, patch: null as string | null },
   () => ({ champions: staticList.value ?? [], itemsMap: itemsMap.value ?? {}, patch: latestVersion.value }),
@@ -451,8 +443,11 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
     -->
     <template v-else-if="notEnoughData">
       <header class="flex flex-wrap items-center gap-4">
+        <!-- No `loading` here: this state is settled — the champion has no
+             aggregate at all, so the zeroes below are the answer, not a
+             placeholder. -->
         <ChampionHeader
-          :champion-name="displayName"
+          :champion-name="seoDisplayName"
           :champion-icon-url="displayIconUrl"
           :champion-id="championId"
           :position="champion?.position || selectedPosition || ''"
@@ -490,13 +485,19 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
     -->
     <template v-else>
       <header class="flex flex-wrap items-center gap-4">
+        <!-- `seoDisplayName`, not the client-only `displayName`: it's already
+             resolved at SSR, so the h1 carries the real champion name in the
+             server HTML instead of `Champion {id}` — and the title only
+             skeletons on a client-side navigation, where nothing is known yet. -->
         <ChampionHeader
-          :champion-name="displayName"
+          :champion-name="seoDisplayName"
           :champion-icon-url="displayIconUrl"
           :champion-id="championId"
           :position="champion?.position || selectedPosition || ''"
           :total-games="champion?.totalGames ?? 0"
           :total-wins="champion?.totalWins ?? 0"
+          :roam-kp15="championRoam?.roamKp15 ?? null"
+          :loading="!champion"
         />
         <ChampionFilters
           :selected-patch="selectedPatch"
@@ -585,13 +586,6 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
             @vue:mounted="scalingSnapshot.reveal"
           />
 
-          <LazyChampionRoam
-            v-if="trendPosition !== 'JUNGLE'"
-            hydrate-on-visible
-            v-bind="roamSnapshot.value"
-            @vue:mounted="roamSnapshot.reveal"
-          />
-
           <!--
             Duo/trio synergies (#922). In the main column rather than the
             sidebar: the rows carry four columns plus a lane filter, and picking
@@ -622,6 +616,7 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
             :champion-id="championId"
             :position="selectedPosition"
             :elo-bracket="eloBracketParam"
+            :patch="selectedPatch"
             v-bind="matchupsSnapshot.value"
             @vue:mounted="matchupsSnapshot.reveal"
           />
