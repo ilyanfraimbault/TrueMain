@@ -9,6 +9,7 @@ import type {
   ChampionTrendPoint,
 } from '~~/shared/types/champions'
 import type { ChampionStaticData, ChampionStaticListItem, StaticItemData } from '~~/shared/types/static-data'
+import type { ChampionBuildSummary } from '~~/shared/types/champion-build-summary'
 
 const route = useRoute()
 const championId = computed(() => Number.parseInt(String(route.params.id), 10))
@@ -97,6 +98,61 @@ if (import.meta.server) await seoStaticFetch
 const { data: seoStatic } = seoStaticFetch
 const seoDisplayName = computed(() => seoStatic.value?.championName ?? displayName.value)
 const seoPositionLabel = computed(() => POSITION_BY_VALUE.get(trendPosition.value ?? '')?.label)
+
+// The build in words, server-rendered (#1123) — the one piece of build content
+// that reaches the HTML before JS runs. Everything else on this page is
+// `server: false`, so a crawler used to receive a shell under a title promising
+// a build.
+//
+// Not a hydration risk, and specifically not #149's: that was a *client-only*
+// fetch racing SSR and winning, so the server rendered content while the
+// client's first render started in its loading state. This one is SSR-enabled
+// and its result travels in the Nuxt payload, so the client's hydration render
+// reads the same object the server rendered from — the two agree by
+// construction. The interactive panels stay client-only exactly as they were.
+//
+// Keyed on the **URL** filters, not on `selectedPatch`/`selectedPosition`:
+// those reconcile to the aggregate's resolved values once the client-only
+// champion fetch lands, which would change the key after hydration and cost a
+// second round trip (plus a visible re-render) on every load. The URL filters
+// are identical on the server and at hydration, and the endpoint resolves the
+// same defaults the aggregate does, so both describe the same slice.
+//
+// Awaited server-side only, for the reason spelled out on `seoStaticFetch`
+// above: the app has no Suspense fallback on `<NuxtPage>`, so awaiting on the
+// client would freeze the outgoing page on every champion-to-champion
+// navigation.
+const buildSummaryFetch = useAsyncData(
+  () => [
+    'champion-build-summary',
+    championId.value,
+    filters.value.patch ?? '',
+    filters.value.position ?? '',
+    filters.value.eloBracket ?? '',
+    filters.value.opponentChampionId ?? '',
+  ].join('-'),
+  () => $fetch<ChampionBuildSummary>(`/api/champion-summary/${championId.value}`, {
+    query: {
+      patch: filters.value.patch || undefined,
+      position: filters.value.position || undefined,
+      eloBracket: filters.value.eloBracket || undefined,
+      // #923's matchup filter re-slices every build section server-side, so the
+      // summary has to carry it or it describes the global build in prose right
+      // under panels showing the matchup's.
+      opponentChampionId: filters.value.opponentChampionId || undefined,
+    },
+  }),
+  {
+    watch: [championId, filters],
+    // `default` rather than letting `data` start as `undefined`: "not fetched
+    // yet", "the fetch failed" and "the slice has nothing to say" are one state
+    // for this block — it renders nothing — so giving them one value keeps the
+    // component from having to distinguish three nothings.
+    default: () => null,
+  },
+)
+if (import.meta.server) await buildSummaryFetch
+const { data: buildSummary } = buildSummaryFetch
 
 useSeoMeta({
   title: () => seoDisplayName.value
@@ -550,6 +606,16 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
             :opponent-champion-id="filters.opponentChampionId ?? null"
           />
           <ChampionBuildTabsSkeleton v-else />
+
+          <!--
+            The build in words (#1123). Rendered plainly — not `Lazy`, not
+            `hydrate-on-visible` — because being present in the server HTML is
+            the entire point; a lazy wrapper would put it back behind the same
+            JS gate as everything else. Sits under the tabs rather than above
+            them so the icon grid a player came for stays the first thing on
+            screen; before hydration it is the only build content there is.
+          -->
+          <ChampionBuildSummary :summary="buildSummary" />
 
           <!--
             Everything below the build tabs is below the fold and pulls the
