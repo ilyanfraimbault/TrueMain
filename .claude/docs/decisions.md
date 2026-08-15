@@ -183,6 +183,29 @@ would put a backend round-trip on every human page view to serve the unfurl path
 the card's numbers are resolved at share time, so they can differ from a page the visitor left open —
 both are real, an hour apart at most (the cache TTL) — #926.
 
+**The champion page server-renders its build as prose — the one SSR round-trip the page pays.**
+#926 declined an SSR-enabled fetch on this page because it would put a backend round-trip on every human
+page view to serve the unfurl path. #1123 takes the same cost for a different benefit and reaches the
+opposite answer, so the difference is worth stating rather than reading as a reversal. Measured on
+preprod, `/champions/{id}` shipped **~1.5 kB of visible HTML and zero build content** before JS — no rune
+name, no item name, not the word "Runes" — under a `<title>` promising "Ahri Build". A title that promises
+a build over a page that delivers a shell is thin content, and it is why the champion pages could not rank
+for their own subject. That is a permanent, sitewide ceiling; a share card is one unfurl.
+Three things make the cost small enough to accept. The fan-out sits behind a 1 h `defineCachedFunction`
+keyed on (champion, lane, patch, rank), so it is **one backend call per slice per hour, not one per view**.
+The endpoint resolves the ids to *names* server-side and returns ~1 kB, so the client never receives the
+~373 KiB item map that made "just SSR the existing fetches" impossible in the first place. And it is keyed
+on the **URL** filters rather than the reconciled `selectedPatch`/`selectedPosition`, which would flip the
+key once the client-only aggregate lands and cost a second round-trip on every load.
+Not a #149 regression, and the distinction is the load-bearing one: #149 was a *client-only* fetch racing
+SSR and winning, so the server rendered content the client's first render didn't have. This fetch is
+SSR-enabled and travels in the Nuxt payload, so hydration reads the same object the server rendered from —
+the two agree by construction. Every interactive panel stays `server: false` exactly as before.
+Accepted consequences: the summary is at most an hour behind the panels above it (same TTL as the share
+card, same reasoning), and it describes `builds[0]` — the tab the page opens on — never "the best build",
+which would describe something the reader isn't looking at. It is **visible**, never `sr-only`: text
+written for a crawler and hidden from the reader is cloaking — #1123.
+
 **"Client-only fetch" has to be enforced on the *side*, not merely intended — an immediate watcher is not client-only.**
 `useTruemainFetch` (profile / rank-history / matches) is hand-rolled refs precisely because these payloads are
 per-viewer and must never enter shared SSR HTML, but its initial run hung off `watch(..., { immediate: true })`,
