@@ -137,7 +137,14 @@ const buildSummaryFetch = useAsyncData(
       eloBracket: filters.value.eloBracket || undefined,
     },
   }),
-  { watch: [championId, filters] },
+  {
+    watch: [championId, filters],
+    // `default` rather than letting `data` start as `undefined`: "not fetched
+    // yet", "the fetch failed" and "the slice has nothing to say" are one state
+    // for this block — it renders nothing — so giving them one value keeps the
+    // component from having to distinguish three nothings.
+    default: () => null,
+  },
 )
 if (import.meta.server) await buildSummaryFetch
 const { data: buildSummary } = buildSummaryFetch
