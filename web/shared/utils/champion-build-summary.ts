@@ -56,25 +56,29 @@ function bracketPhrase(eloBracket: string): string {
 }
 
 /**
- * Small counts as capitalised words, so a sentence never opens with a numeral.
- * Only ever called sentence-initially with a value of 2 or more (the count of
- * *other* builds; one is worded separately), hence the sparse start. Anything
- * past single digits falls back to the figure rather than growing this into a
+ * Small counts as words, so a sentence never opens with a numeral and a
+ * repeated item reads as a quantity. Only ever called with 2 or more (one of
+ * anything is worded without a count), hence the sparse start. Past single
+ * digits it falls back to the figure rather than growing into a
  * number-to-words implementation.
  */
 const NUMBER_WORDS: Readonly<Record<number, string>> = {
-  2: 'Two',
-  3: 'Three',
-  4: 'Four',
-  5: 'Five',
-  6: 'Six',
-  7: 'Seven',
-  8: 'Eight',
-  9: 'Nine',
+  2: 'two',
+  3: 'three',
+  4: 'four',
+  5: 'five',
+  6: 'six',
+  7: 'seven',
+  8: 'eight',
+  9: 'nine',
 }
 
 function spellSmallNumber(value: number): string {
   return NUMBER_WORDS[value] ?? String(value)
+}
+
+function capitalise(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
 /** Sentence-cased join: `a`, `a and b`, `a, b and c`. */
@@ -83,8 +87,26 @@ function listPhrase(parts: string[]): string {
   return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
 }
 
+/**
+ * Entity names for a sentence, with runs of the same item collapsed into a
+ * count: a starter set genuinely holds two potions as two entries, and
+ * "Health Potion and Health Potion" is accurate but not English. The icon grid
+ * is right to repeat them; prose is not.
+ *
+ * Consecutive runs only, so the collapse can never reorder a list whose order
+ * is the claim — the core path in particular, which never repeats an item
+ * anyway.
+ */
 function names(entities: SummaryEntity[]): string {
-  return listPhrase(entities.map(entity => entity.name))
+  const parts: string[] = []
+  for (let i = 0; i < entities.length;) {
+    const entity = entities[i]!
+    let count = 1
+    while (entities[i + count]?.id === entity.id) count++
+    parts.push(count > 1 ? `${spellSmallNumber(count)} ${entity.name}s` : entity.name)
+    i += count
+  }
+  return listPhrase(parts)
 }
 
 /**
@@ -286,7 +308,7 @@ export function championBuildSentences(summary: ChampionBuildSummary): string[] 
     sentences.push(
       others === 1
         ? `One other build is played often enough ${lane || 'on this lane'} to be measured on its own.`
-        : `${spellSmallNumber(others)} other builds are played often enough ${lane || 'on this lane'} to be measured on their own.`,
+        : `${capitalise(spellSmallNumber(others))} other builds are played often enough ${lane || 'on this lane'} to be measured on their own.`,
     )
   }
 

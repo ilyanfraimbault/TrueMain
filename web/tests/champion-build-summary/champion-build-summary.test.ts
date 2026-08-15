@@ -28,6 +28,7 @@ const ITEMS: Record<number, StaticItemData> = {
   3157: { id: 3157, name: 'Zhonya\'s Hourglass', iconUrl: '', totalGold: 3250 },
   4645: { id: 4645, name: 'Shadowflame', iconUrl: '', totalGold: 3200 },
   6655: { id: 6655, name: 'Luden\'s Companion', iconUrl: '', totalGold: 3200 },
+  2003: { id: 2003, name: 'Health Potion', iconUrl: '', totalGold: 50 },
 }
 
 const RUNE_TREE = {
@@ -249,6 +250,24 @@ describe('championBuildSentences', () => {
     // Second, so it qualifies every figure after it rather than trailing them.
     expect(sentences[1]).toContain('below the sample TrueMain requires')
     expect(championBuildSentences(resolve()).join(' ')).not.toContain('indicative')
+  })
+
+  it('counts a repeated starter item instead of naming it twice', () => {
+    // A real starter set holds two potions as two entries. Repeating the name is
+    // accurate and unreadable; the count has to stay exact either way.
+    const base = champion().builds[0]!
+    const sentences = championBuildSentences(resolve({
+      builds: [{
+        ...base,
+        core: {
+          ...base.core,
+          starterItems: { itemIds: [1056, 2003, 2003], games: 90, pickRate: 0.36, winRate: 0.52 },
+        },
+      }],
+    }))
+    const text = sentences.join(' ')
+    expect(text).toContain('starts Doran\'s Ring and two Health Potions')
+    expect(text).not.toContain('Health Potion and Health Potion')
   })
 
   it('does not open the item clause with a bare and when boots are all it has', () => {
