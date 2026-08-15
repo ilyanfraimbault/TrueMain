@@ -31,6 +31,20 @@ export interface ChampionBuildSummary {
   patch: string | null
   /** `ALL`, a bare tier, or a `<TIER>_PLUS` form — echoed from the aggregate. */
   eloBracket: string
+  /**
+   * Lane opponent the slice is scoped to (#923's `?vs=`), resolved to a name.
+   * Null on the unfiltered page. Load-bearing: with an opponent pinned, the
+   * panels above this block describe the *matchup's* build, so a paragraph that
+   * didn't carry the opponent would confidently describe a different build than
+   * the one on screen.
+   */
+  opponentName: string | null
+  /**
+   * False when the slice is below the trustworthy-build floor. The page already
+   * flags it visually; the prose has to say it too, or the indexable version of
+   * the page is the one that drops the caveat.
+   */
+  minSampleMet: boolean
   games: number
   wins: number
   winRate: number

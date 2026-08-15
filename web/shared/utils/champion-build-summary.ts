@@ -123,6 +123,8 @@ export interface ResolveChampionBuildSummaryInput {
   summonersMap: Record<number, StaticSummonerSpellData> | null
   /** Echoed when the aggregate is missing, so the model always states its scope. */
   requestedEloBracket: string
+  /** Resolved name of the pinned lane opponent, or null when none is pinned. */
+  opponentName?: string | null
 }
 
 export function resolveChampionBuildSummary(
@@ -177,6 +179,9 @@ export function resolveChampionBuildSummary(
     position: champion?.position ?? null,
     patch: champion?.patch ?? null,
     eloBracket: champion?.eloBracket ?? input.requestedEloBracket,
+    opponentName: input.opponentName ?? null,
+    // Absent aggregate ⇒ no sample at all, which is not "sample met".
+    minSampleMet: champion?.minSampleMet ?? false,
     games: champion?.totalGames ?? 0,
     wins: champion?.totalWins ?? 0,
     winRate: champion && champion.totalGames > 0
@@ -208,9 +213,19 @@ export function championBuildSentences(summary: ChampionBuildSummary): string[] 
     summary.patch ? `on patch ${summary.patch}` : '',
     bracket ? `in ${bracket}` : '',
   ].filter(Boolean).join(' ')
+  const versus = summary.opponentName ? ` against ${summary.opponentName}` : ''
   sentences.push(
-    `${scope}, ${name} mains win ${formatPercentage(summary.winRate)} of their games${lane ? ` ${lane}` : ''}.`,
+    `${scope}, ${name} mains win ${formatPercentage(summary.winRate)} of their games${lane ? ` ${lane}` : ''}${versus}.`,
   )
+
+  // Second, so it qualifies everything after it. The page flags a thin slice
+  // with a warning icon; without this the *indexable* version of the page would
+  // be the one that states the figures unqualified.
+  if (!summary.minSampleMet) {
+    sentences.push(
+      'That is below the sample TrueMain requires before it treats a build as settled, so read the figures here as indicative.',
+    )
+  }
 
   const build = summary.build
   if (!build) return sentences
@@ -221,9 +236,16 @@ export function championBuildSentences(summary: ChampionBuildSummary): string[] 
   const itemClauses: string[] = []
   if (build.starterItems.length) itemClauses.push(`starts ${names(build.starterItems)}`)
   if (build.coreItems.length) itemClauses.push(`completes ${names(build.coreItems)} in that order`)
-  if (build.boots) itemClauses.push(`and takes ${build.boots.name}`)
+  if (build.boots) itemClauses.push(`takes ${build.boots.name}`)
   if (itemClauses.length) {
-    sentences.push(`${opener} — ${itemClauses.join(', ')}.`)
+    // The `and` belongs to the join, not to any one clause: hard-coding it on
+    // the boots clause produced a bare "— and takes Sorcerer's Shoes." whenever
+    // the starter and core path were the missing halves. Oxford comma because
+    // these clauses are long enough that the unpunctuated version misreads.
+    const joined = itemClauses.length > 1
+      ? `${itemClauses.slice(0, -1).join(', ')}, and ${itemClauses[itemClauses.length - 1]}`
+      : itemClauses[0]
+    sentences.push(`${opener} — ${joined}.`)
   }
 
   if (build.keystone) {

@@ -46,6 +46,22 @@ interface SummaryQuery {
   patch: string | null
   eloBracket: string | null
   position: string | null
+  /**
+   * Lane opponent (#923's `?vs=`). Not optional polish: with one pinned, the
+   * page's panels are re-sliced to the games the two champions actually met in,
+   * so a summary that ignored it would describe the champion's *global* build in
+   * prose directly under panels showing a different one.
+   */
+  opponentChampionId: number | null
+}
+
+function readChampionId(raw: string | undefined): number | null {
+  // Same bound as the OG endpoint's `championId` guard, and for the same reason
+  // the query patterns exist: this route is publicly reachable and every
+  // distinct key is a cache entry plus a backend call.
+  if (!raw || !/^\d{1,7}$/.test(raw)) return null
+  const value = Number(raw)
+  return value > 0 ? value : null
 }
 
 function readQuery(event: H3Event): SummaryQuery {
@@ -61,6 +77,9 @@ function readQuery(event: H3Event): SummaryQuery {
     patch: pick('patch', PATCH_RE),
     eloBracket: pick('eloBracket', ELO_BRACKET_RE),
     position: pick('position', POSITION_RE),
+    opponentChampionId: readChampionId(
+      typeof query.opponentChampionId === 'string' ? query.opponentChampionId.trim() : undefined,
+    ),
   }
 }
 
@@ -68,7 +87,7 @@ const loadChampionBuildSummary = defineCachedFunction(
   async (championId: number, query: SummaryQuery): Promise<ChampionBuildSummary> => {
     const patch = query.patch ?? undefined
 
-    const [champion, championStatic, itemsMap, runeTree, summonersMap] = await Promise.all([
+    const [champion, championStatic, itemsMap, runeTree, summonersMap, opponentStatic] = await Promise.all([
       // A 404 here is meaningful rather than exceptional — the champion simply
       // has no aggregate for this slice — and `resolveChampionBuildSummary`
       // renders that as an empty summary, the same "no data" the page shows.
@@ -77,12 +96,18 @@ const loadChampionBuildSummary = defineCachedFunction(
           patch,
           position: query.position ?? undefined,
           eloBracket: query.eloBracket ?? undefined,
+          opponentChampionId: query.opponentChampionId ?? undefined,
         },
       }).catch(() => null),
       $fetch<ChampionStaticData>(`/api/static/${championId}`, { query: { patch } }).catch(() => null),
       $fetch<Record<number, StaticItemData>>('/api/static/items', { query: { patch } }).catch(() => null),
       $fetch<RuneTreeResponse>('/api/static/rune-tree', { query: { patch } }).catch(() => null),
       $fetch<Record<number, StaticSummonerSpellData>>('/api/static/summoner-spells', { query: { patch } }).catch(() => null),
+      // Only when one is pinned — the unfiltered page must not pay a sixth
+      // lookup for a name it will never print.
+      query.opponentChampionId === null
+        ? Promise.resolve(null)
+        : $fetch<ChampionStaticData>(`/api/static/${query.opponentChampionId}`, { query: { patch } }).catch(() => null),
     ])
 
     return resolveChampionBuildSummary({
@@ -93,19 +118,25 @@ const loadChampionBuildSummary = defineCachedFunction(
       runeTree,
       summonersMap,
       requestedEloBracket: query.eloBracket ?? 'ALL',
+      opponentName: opponentStatic?.championName ?? null,
     })
   },
   {
     maxAge: 60 * 60,
     name: 'champion-build-summary',
-    getKey: (championId: number, query: SummaryQuery) =>
-      [championId, query.patch ?? '', query.eloBracket ?? '', query.position ?? ''].join('-'),
+    getKey: (championId: number, query: SummaryQuery) => [
+      championId,
+      query.patch ?? '',
+      query.eloBracket ?? '',
+      query.position ?? '',
+      query.opponentChampionId ?? '',
+    ].join('-'),
   },
 )
 
 export default defineEventHandler(async (event): Promise<ChampionBuildSummary> => {
-  const championId = Number(getRouterParam(event, 'championId'))
-  if (!Number.isInteger(championId) || championId <= 0) {
+  const championId = readChampionId(getRouterParam(event, 'championId'))
+  if (championId === null) {
     throw createError({ statusCode: 400, statusMessage: 'Invalid championId' })
   }
   return loadChampionBuildSummary(championId, readQuery(event))

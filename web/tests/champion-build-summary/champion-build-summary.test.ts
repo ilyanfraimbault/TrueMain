@@ -111,7 +111,7 @@ function champion(overrides: Partial<ChampionResponse> = {}): ChampionResponse {
   }
 }
 
-function resolve(overrides: Partial<ChampionResponse> = {}) {
+function resolve(overrides: Partial<ChampionResponse> = {}, opponentName: string | null = null) {
   return resolveChampionBuildSummary({
     championId: 103,
     champion: champion(overrides),
@@ -120,6 +120,7 @@ function resolve(overrides: Partial<ChampionResponse> = {}) {
     runeTree: RUNE_TREE,
     summonersMap: SUMMONERS,
     requestedEloBracket: 'ALL',
+    opponentName,
   })
 }
 
@@ -230,6 +231,33 @@ describe('championBuildSentences', () => {
     expect(two.at(-1)).toBe('One other build is played often enough in the mid lane to be measured on its own.')
 
     expect(championBuildSentences(resolve()).at(-1)).toBe('Summoner spells are Flash and Ignite.')
+  })
+
+  it('names the pinned lane opponent the slice was computed against', () => {
+    // Without this the paragraph describes the champion's global build in prose
+    // directly under panels re-sliced to the matchup (#923) — the exact
+    // "summary contradicts the page" failure the block exists to avoid.
+    const sentences = championBuildSentences(resolve({ totalGames: 41, totalWins: 20 }, 'Zed'))
+    expect(sentences[0]).toBe(
+      'Across 41 ranked games on patch 16.16, Ahri mains win 48.8% of their games in the mid lane against Zed.',
+    )
+    expect(championBuildSentences(resolve())[0]).not.toContain(' against ')
+  })
+
+  it('carries the low-sample caveat the page shows as an icon', () => {
+    const sentences = championBuildSentences(resolve({ minSampleMet: false }))
+    // Second, so it qualifies every figure after it rather than trailing them.
+    expect(sentences[1]).toContain('below the sample TrueMain requires')
+    expect(championBuildSentences(resolve()).join(' ')).not.toContain('indicative')
+  })
+
+  it('does not open the item clause with a bare and when boots are all it has', () => {
+    const base = champion().builds[0]!
+    const bootsOnly = championBuildSentences(resolve({
+      builds: [{ ...base, core: { ...base.core, starterItems: null, itemPath: null } }],
+    }))
+    expect(bootsOnly.some(s => s.includes('— and takes'))).toBe(false)
+    expect(bootsOnly.some(s => s.includes('— takes Sorcerer\'s Shoes.'))).toBe(true)
   })
 
   it('says nothing at all without a name or without games', () => {

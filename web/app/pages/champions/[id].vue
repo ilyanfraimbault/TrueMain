@@ -129,12 +129,17 @@ const buildSummaryFetch = useAsyncData(
     filters.value.patch ?? '',
     filters.value.position ?? '',
     filters.value.eloBracket ?? '',
+    filters.value.opponentChampionId ?? '',
   ].join('-'),
   () => $fetch<ChampionBuildSummary>(`/api/champion-summary/${championId.value}`, {
     query: {
       patch: filters.value.patch || undefined,
       position: filters.value.position || undefined,
       eloBracket: filters.value.eloBracket || undefined,
+      // #923's matchup filter re-slices every build section server-side, so the
+      // summary has to carry it or it describes the global build in prose right
+      // under panels showing the matchup's.
+      opponentChampionId: filters.value.opponentChampionId || undefined,
     },
   }),
   {
