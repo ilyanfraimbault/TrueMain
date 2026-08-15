@@ -45,5 +45,16 @@
       to a patched release (>= 10.0.6). Last reviewed: 2026-05-29.
     -->
     <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-w3x6-4m5h-cxqf" />
+    <!--
+      GHSA-q939-rpr3-3284 (CVE-2026-48798, High/7.1): path traversal in SSH.NET's
+      ScpClient during recursive directory downloads — a malicious SCP server can
+      supply traversal filenames to write outside the target directory. SSH.NET is
+      only pulled in transitively by Testcontainers (used solely for local
+      Postgres/Mongo test containers); this codebase never drives a remote/SSH
+      docker host or an SCP transfer, so the vulnerable code path is unreachable.
+      Suppressed pending Testcontainers shipping a patched SSH.NET (>= 2026.0.0).
+      Last reviewed: 2026-08-15.
+    -->
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-q939-rpr3-3284" />
   </ItemGroup>
 </Project>
