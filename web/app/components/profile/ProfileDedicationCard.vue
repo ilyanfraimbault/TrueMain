@@ -20,8 +20,10 @@ const champion = computed(() =>
 const championName = computed(() =>
   champion.value?.name ?? `Champion ${props.dedication.championId}`)
 
+const { truemainPathFor } = useChampionSlugs()
+
 const championHref = computed(() =>
-  `/truemains/${encodeURIComponent(props.nameTag)}/champions/${props.dedication.championId}`)
+  truemainPathFor(props.nameTag, props.dedication.championId))
 
 const components = computed(() => dedicationComponents(props.dedication))
 

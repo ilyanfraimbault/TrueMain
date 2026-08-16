@@ -15,7 +15,19 @@ import type { ChampionStaticData, ChampionStaticListItem, StaticItemData } from 
 // caches deduped across navigations.
 const route = useRoute()
 
-const championId = computed(() => Number.parseInt(String(route.params.id), 10))
+// Same slug scheme and the same guard as the global page (#1124) — the two are
+// mirrors, so a URL shape that held on one and not the other would be exactly
+// the kind of half-converted scheme that rots. `nameTag` is read back from the
+// route rather than closed over, since the guard runs before setup.
+definePageMeta({
+  middleware: to => championRouteGuard(
+    to,
+    segment => `/truemains/${encodeURIComponent(String(to.params.nameTag))}/champions/${segment}`,
+  ),
+})
+
+const { resolveParam, pathFor } = useChampionSlugs()
+const championId = computed(() => resolveParam(String(route.params.slug)).championId ?? Number.NaN)
 const nameTag = computed(() => parseRouteParam(route.params.nameTag))
 
 const { filters, setFilter } = useChampionFilters()
@@ -271,7 +283,7 @@ const performanceSnapshot = useLazyHydrationSnapshot(
           </p>
         </div>
         <NuxtLink
-          :to="`/champions/${championId}`"
+          :to="pathFor(championId)"
           class="rounded text-sm text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           See the global build for {{ displayName ?? `champion ${championId}` }}

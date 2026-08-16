@@ -45,6 +45,20 @@ export function isLiveChampionId(championId: number): boolean {
   return Number.isFinite(championId) && championId > 0 && championId < ALTERNATE_MODE_CHAMPION_ID_FLOOR
 }
 
+/**
+ * DDragon's champion key (`Ahri`, `MasterYi`, `Nunu`) as the URL slug (#1124).
+ *
+ * Lower-casing is the whole transform, on purpose. It is tempting to derive the
+ * slug from the *display* name instead, which is what a reader sees — but that
+ * is lossy and unstable: `Nunu & Willump` and `Bel'Veth` would need punctuation
+ * rules, and Riot renames display names (`Cho'Gath`) without touching the key.
+ * The key is the stable identifier, so the slug is a pure function of it and the
+ * mapping can never drift between the sitemap, the links and the router.
+ */
+export function toChampionSlug(ddragonId: string): string {
+  return ddragonId.toLowerCase()
+}
+
 export function getSummonerSpellImageUrl(imageFileName: string, patch?: string | null): string | null {
   const normalizedPatch = normalizeDataDragonPatch(patch)
   if (!normalizedPatch) {
