@@ -173,6 +173,38 @@ tile, no classified main drops the champion block, and an unknown player falls a
 branded card — the page renders "not found" for the same input, so a profile-shaped preview would be a
 lie. The dedication score is only printed when its `championId` matches the main shown beside it — #926.
 
+**Champion URLs are bare slugs, and the slug map is app state rather than per-page async data.**
+Two calls, one visible and one not. The visible one: `/champions/ahri`, not `/champions/103-ahri`. The
+id-prefixed form was genuinely tempting — the champion id parses straight out of the segment, so the page
+needs no map at all and the whole resolution problem disappears. It was rejected on the one ground that
+outlives the implementation cost: a URL is permanent once indexed and linked, and the prefixed form is
+uglier forever to save work once.
+The invisible one is what that choice then forces. A bare slug has to be resolved to an id *before* the
+page can fetch anything, and every link on every page has to turn an id back into a slug. Doing either
+asynchronously would mean the server renders `/champions/103` links and the client rewrites them to
+`/champions/ahri` — a hydration mismatch on almost every page of the site, and a champion page whose
+fetches all wait on a lookup. So the `championId → slug` map is loaded into `useState` by an **awaited
+universal plugin**, before the first render, and every read of it is synchronous. The cost is one
+Nitro-cached call per SSR render plus ~2.5 kB of payload on every page — which is why the endpoint carries
+ids and slugs only and is not the existing champion list (~20× larger, and patch-keyed for no reason here).
+The slug is DDragon's champion **key** lower-cased, never the display name: the key is stable across Riot's
+renames, and deriving from the name would need punctuation rules for `Nunu & Willump` and `Bel'Veth` that
+the sitemap, the links and the router would each have to implement identically.
+The guard is a **route middleware**, not a check in `setup`: setup does not re-run when only a route param
+changes, so a guard written there fires on a full page load and then silently stops firing on every
+client-side navigation after it. It 404s an unknown segment rather than rendering the empty-build state —
+that state tells a crawler the URL is real and merely thin — and 301s the legacy numeric and mis-cased
+forms, which keeps every pre-#1124 link and external backlink alive while consolidating the ranking signal
+on one URL. Every builder falls back to the numeric id when the map is empty (DDragon outage, a champion
+released between DDragon updates): that link still reaches the page and redirects, where
+`/champions/undefined` would not.
+One asymmetry is worth stating, because the obvious reading of "best-effort map" is wrong on half of it.
+An empty map is cheap for *link building* — every builder falls back to the numeric id. It is not cheap for
+*route resolution*: a slug has nothing to fall back to, so during a DDragon outage with a cold Nitro cache
+`/champions/ahri` is indistinguishable from a typo. Answering 404 there would ask search engines to drop a
+canonical, indexed URL over something transient and self-healing, so `championRouteAction` returns a
+**503** while the map is empty and only 404s once the roster is actually known — #1124.
+
 **Share cards resolve their own data server-side instead of receiving it from the page.**
 `nuxt-og-image` encodes the template props into the (signed) image URL, which is minted during SSR — but
 both pages fetch `server: false` (the #149 hydration fix on champions, the deliberate no-cross-viewer-SSR

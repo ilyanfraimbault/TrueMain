@@ -113,6 +113,14 @@ export interface ChampionStaticListItem {
 }
 
 /**
+ * `championId → url slug` (#1124), served by `/api/static/champion-slugs` and
+ * held in app-wide state. Keys are the numeric ids stringified, since that is
+ * what JSON does to numeric object keys either way — read it through
+ * `useChampionSlugs()` rather than indexing it directly.
+ */
+export type ChampionSlugMap = Record<string, string>
+
+/**
  * One full primary rune tree: the keystone row (3–4 perks depending on the
  * style) followed by 3 sub-rows of 3 perks each. Secondary trees reuse the
  * same `subRows` but never show the `keystones` row.

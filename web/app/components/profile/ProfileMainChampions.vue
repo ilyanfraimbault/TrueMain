@@ -25,10 +25,13 @@ function formatPlayRate(rate: number): string {
 // Drill into how THIS player builds the champion (player-scoped page), not the
 // global meta. The whole row is the link target — so we render a plain icon
 // here rather than <ChampionLink> (whose own <a> would nest inside this one,
-// which is invalid HTML and would also point at the global page). The slug is
-// already URL-shaped; encode it so names with reserved characters round-trip.
+// which is invalid HTML and would also point at the global page). The player
+// slug is already URL-shaped; `truemainPathFor` encodes it so names with
+// reserved characters round-trip.
+const { truemainPathFor } = useChampionSlugs()
+
 function championLink(championId: number) {
-  return `/truemains/${encodeURIComponent(props.nameTag)}/champions/${championId}`
+  return truemainPathFor(props.nameTag, championId)
 }
 
 // Plain <img> + a URL built here instead of <NuxtImg> — same `_ipx/…` URL,

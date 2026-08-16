@@ -12,7 +12,21 @@ import type { ChampionStaticData, ChampionStaticListItem, StaticItemData } from 
 import type { ChampionBuildSummary } from '~~/shared/types/champion-build-summary'
 
 const route = useRoute()
-const championId = computed(() => Number.parseInt(String(route.params.id), 10))
+
+// Champion slugs (#1124). The map is app-wide state filled before the first
+// render, so this resolves synchronously on the server, at hydration and on
+// every client-side navigation — `championId` is a plain computed and every
+// fetch below it keeps working exactly as it did under the numeric route.
+// The 404 and the legacy-URL 301 live in a middleware, not here: setup does not
+// re-run when only the route *param* changes (champion → champion is the same
+// component), so a guard in setup would silently stop firing on client-side
+// navigation. See `championRouteGuard`.
+definePageMeta({
+  middleware: to => championRouteGuard(to, segment => `/champions/${segment}`),
+})
+
+const { resolveParam } = useChampionSlugs()
+const championId = computed(() => resolveParam(String(route.params.slug)).championId ?? Number.NaN)
 
 const { filters, setFilter } = useChampionFilters()
 

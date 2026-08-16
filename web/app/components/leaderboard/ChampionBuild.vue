@@ -40,9 +40,11 @@ const props = withDefaults(defineProps<{
 
 const NuxtLinkComponent = resolveComponent('NuxtLink')
 
+const { truemainPathFor } = useChampionSlugs()
+
 const championHref = computed(() =>
   props.nameTag
-    ? `/truemains/${encodeURIComponent(props.nameTag)}/champions/${props.champion.championId}`
+    ? truemainPathFor(props.nameTag, props.champion.championId)
     : undefined)
 
 const playRatePct = computed(() => {
