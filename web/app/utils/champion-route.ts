@@ -19,26 +19,33 @@ export function championRouteGuard(
   to: RouteLocationNormalized,
   basePath: (segment: string) => string,
 ) {
-  const { resolveParam } = useChampionSlugs()
-  const segment = String(to.params.slug ?? '')
-  const { championId, canonicalSegment } = resolveParam(segment)
+  const { routeAction } = useChampionSlugs()
+  const action = routeAction(String(to.params.slug ?? ''))
 
-  // Not "no data for this champion" — no such champion. The empty-build state
-  // would tell a crawler the URL is real and merely thin, which is the wrong
-  // answer for a typo'd or long-dead URL.
-  if (championId === null) {
-    return abortNavigation(createError({ statusCode: 404, statusMessage: 'Champion not found' }))
-  }
+  switch (action.type) {
+    // Not "no data for this champion" — no such champion. The empty-build state
+    // would tell a crawler the URL is real and merely thin, which is the wrong
+    // answer for a typo'd or long-dead URL.
+    case 'notFound':
+      return abortNavigation(createError({ statusCode: 404, statusMessage: 'Champion not found' }))
 
-  // Legacy `/champions/103` and mis-cased `/champions/Ahri` both resolve here,
-  // and both redirect. Permanent, not a rewrite: the two URLs render the same
-  // page, so the ranking signal has to consolidate on one instead of splitting.
-  // Query and hash ride along — the patch / lane / rank / matchup filters are
-  // what make a shared champion link worth sharing.
-  if (canonicalSegment !== null && canonicalSegment !== segment) {
-    return navigateTo(
-      { path: basePath(canonicalSegment), query: to.query, hash: to.hash },
-      { redirectCode: 301, replace: true },
-    )
+    // The slug map never loaded, so a real champion and a typo are
+    // indistinguishable. Answer "come back later", not "this never existed".
+    case 'unavailable':
+      return abortNavigation(createError({
+        statusCode: 503,
+        statusMessage: 'Champion directory temporarily unavailable',
+      }))
+
+    // Legacy `/champions/103` and mis-cased `/champions/Ahri` both land here.
+    // Permanent, not a rewrite: the two URLs render the same page, so the
+    // ranking signal has to consolidate on one instead of splitting. Query and
+    // hash ride along — the patch / lane / rank / matchup filters are what make
+    // a shared champion link worth sharing.
+    case 'redirect':
+      return navigateTo(
+        { path: basePath(action.segment), query: to.query, hash: to.hash },
+        { redirectCode: 301, replace: true },
+      )
   }
 }

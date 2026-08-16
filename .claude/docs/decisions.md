@@ -197,7 +197,13 @@ that state tells a crawler the URL is real and merely thin — and 301s the lega
 forms, which keeps every pre-#1124 link and external backlink alive while consolidating the ranking signal
 on one URL. Every builder falls back to the numeric id when the map is empty (DDragon outage, a champion
 released between DDragon updates): that link still reaches the page and redirects, where
-`/champions/undefined` would not — #1124.
+`/champions/undefined` would not.
+One asymmetry is worth stating, because the obvious reading of "best-effort map" is wrong on half of it.
+An empty map is cheap for *link building* — every builder falls back to the numeric id. It is not cheap for
+*route resolution*: a slug has nothing to fall back to, so during a DDragon outage with a cold Nitro cache
+`/champions/ahri` is indistinguishable from a typo. Answering 404 there would ask search engines to drop a
+canonical, indexed URL over something transient and self-healing, so `championRouteAction` returns a
+**503** while the map is empty and only 404s once the roster is actually known — #1124.
 
 **Share cards resolve their own data server-side instead of receiving it from the page.**
 `nuxt-og-image` encodes the template props into the (signed) image URL, which is minted during SSR — but

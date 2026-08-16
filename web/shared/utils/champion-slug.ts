@@ -52,6 +52,49 @@ export function truemainChampionPath(
   return `/truemains/${encodeURIComponent(nameTag)}/champions/${championSegment(championId, slugs)}`
 }
 
+/**
+ * What a `/champions/{segment}` request should do. Split out of the middleware
+ * so the decision — which drives a 404, a 503 and a 301 — is a pure function
+ * with no Nuxt runtime around it, and so the cases that differ only in a
+ * character (`Ahri`, `0103`) are directly testable.
+ */
+export type ChampionRouteAction =
+  /** Canonical URL: render. */
+  | { type: 'render', championId: number }
+  /** Not this URL: 301 to `segment`, preserving query and hash. */
+  | { type: 'redirect', championId: number, segment: string }
+  /** No such champion: 404, permanently. */
+  | { type: 'notFound' }
+  /**
+   * We cannot tell yet — the slug map never loaded, so a real slug and a typo
+   * look identical. **503, never 404**: a 404 on `/champions/ahri` during a
+   * DDragon outage with a cold cache would ask search engines to drop a
+   * canonical, indexed URL over something transient and self-healing. This is
+   * the case the plugin's "an outage only costs pretty URLs" note missed — that
+   * is true of *link building*, which falls back to numeric ids, and false of
+   * *route resolution*, which has nothing to fall back to.
+   */
+  | { type: 'unavailable' }
+
+export function championRouteAction(
+  segment: string,
+  slugs: ChampionSlugMap | null | undefined,
+  idBySlug: ChampionIdBySlug,
+): ChampionRouteAction {
+  const { championId, canonicalSegment } = resolveChampionParam(segment, slugs, idBySlug)
+
+  if (championId === null) {
+    // An empty map means we don't know the roster, not that this isn't part of
+    // it. Numeric segments still resolve without the map, so only a *slug* can
+    // land here for that reason.
+    return idBySlug.size === 0 ? { type: 'unavailable' } : { type: 'notFound' }
+  }
+
+  return canonicalSegment !== null && canonicalSegment !== segment
+    ? { type: 'redirect', championId, segment: canonicalSegment }
+    : { type: 'render', championId }
+}
+
 export interface ResolvedChampionParam {
   /** Null when the segment names no champion we know — the page 404s. */
   championId: number | null

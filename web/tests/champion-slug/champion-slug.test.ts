@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildChampionIdBySlug,
   championPath,
+  championRouteAction,
   championSegment,
   resolveChampionParam,
   truemainChampionPath,
@@ -89,5 +90,39 @@ describe('resolveChampionParam', () => {
     const empty = buildChampionIdBySlug(null)
     expect(resolveChampionParam('103', null, empty).championId).toBe(103)
     expect(resolveChampionParam('ahri', null, empty).championId).toBeNull()
+  })
+})
+
+describe('championRouteAction', () => {
+  it('renders the canonical URL without redirecting', () => {
+    expect(championRouteAction('ahri', SLUGS, ID_BY_SLUG))
+      .toEqual({ type: 'render', championId: 103 })
+  })
+
+  it('redirects the legacy numeric id, a mis-cased slug and a padded id', () => {
+    // All three render the same page, so all three have to consolidate onto one
+    // URL. Leading zeros are the easy one to miss — `Number('0103')` is 103, so
+    // without the segment comparison this would silently serve a second URL.
+    for (const segment of ['103', 'Ahri', 'AHRI', '0103']) {
+      expect(championRouteAction(segment, SLUGS, ID_BY_SLUG))
+        .toEqual({ type: 'redirect', championId: 103, segment: 'ahri' })
+    }
+  })
+
+  it('404s an unknown segment when the roster is known', () => {
+    expect(championRouteAction('nonsense', SLUGS, ID_BY_SLUG)).toEqual({ type: 'notFound' })
+  })
+
+  it('503s instead of 404ing a real slug while the map is empty', () => {
+    // The regression this guards: during a DDragon outage with a cold cache,
+    // `/champions/ahri` — canonical and indexed — is indistinguishable from a
+    // typo. Answering 404 asks search engines to drop the URL over something
+    // transient and self-healing; 503 asks them to come back.
+    const empty = buildChampionIdBySlug(null)
+    expect(championRouteAction('ahri', null, empty)).toEqual({ type: 'unavailable' })
+    expect(championRouteAction('nonsense', null, empty)).toEqual({ type: 'unavailable' })
+    // Numeric ids need no map, so they still resolve and still redirect.
+    expect(championRouteAction('103', null, empty))
+      .toEqual({ type: 'render', championId: 103 })
   })
 })

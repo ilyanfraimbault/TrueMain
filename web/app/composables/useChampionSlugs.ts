@@ -2,6 +2,7 @@ import type { ChampionSlugMap } from '~~/shared/types/static-data'
 import {
   buildChampionIdBySlug,
   championPath,
+  championRouteAction,
   resolveChampionParam,
   truemainChampionPath,
 } from '~~/shared/utils/champion-slug'
@@ -34,5 +35,7 @@ export function useChampionSlugs() {
       truemainChampionPath(nameTag, championId, slugs.value),
     /** Reads a route param back to a champion + the segment it belongs under. */
     resolveParam: (segment: string) => resolveChampionParam(segment, slugs.value, idBySlug.value),
+    /** What the route guard should do with a param: render / redirect / 404 / 503. */
+    routeAction: (segment: string) => championRouteAction(segment, slugs.value, idBySlug.value),
   }
 }

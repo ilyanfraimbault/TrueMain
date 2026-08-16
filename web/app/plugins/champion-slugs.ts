@@ -23,8 +23,12 @@ export default defineNuxtPlugin(async (nuxtApp) => {
   const slugs = useState<ChampionSlugMap>(CHAMPION_SLUGS_STATE_KEY, () => ({}))
 
   if (import.meta.server) {
-    // Best-effort: a DDragon outage costs pretty URLs, not the site. Every
-    // builder falls back to the numeric id, which still reaches the page.
+    // Best-effort, but note what "best-effort" costs on each side. For *link
+    // building* an empty map is cheap: every builder falls back to the numeric
+    // id, which still reaches the page. For *route resolution* it is not — a
+    // slug has nothing to fall back to — so `championRouteAction` answers 503
+    // rather than 404 while the map is empty, instead of asking search engines
+    // to drop canonical URLs over a transient outage.
     slugs.value = await $fetch<ChampionSlugMap>('/api/static/champion-slugs').catch(() => ({}))
     return
   }
