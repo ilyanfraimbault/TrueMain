@@ -21,18 +21,15 @@ public interface IChampionSummariesQueryService
         string? patch, string? eloBracket, CancellationToken ct);
 
     /// <summary>
-    /// Volume counters for the served patch and the patches before it, newest first,
-    /// at most <paramref name="patchCount"/> of them (#1109). Never reaches past the
-    /// served patch: a patch the servable bar rejected is not one the homepage counts
-    /// either.
+    /// Every aggregated game on the tracked queue, all patches summed — the homepage's
+    /// lifetime volume chip. Includes below-floor and position-less scopes, the same
+    /// population <see cref="ChampionSummariesResult.TotalGames"/> counts for one patch.
     ///
     /// <para>
-    /// Deliberately not <see cref="GetAllSummariesAsync"/> once per patch — the
-    /// homepage needs two numbers, not two directories, and this takes one grouped
-    /// scan shared with the patch resolution itself. Returns fewer entries than asked
-    /// (possibly none) when the window reaches past the patches that exist.
+    /// One <c>SUM</c> pushed to SQL rather than a directory per patch: the number is a
+    /// scalar, and the patches behind it only ever grow. Cached for half an hour so the
+    /// most-hit page on the site does not scan the aggregate table per request.
     /// </para>
     /// </summary>
-    Task<IReadOnlyList<ChampionPatchVolume>> GetServedPatchVolumesAsync(
-        int patchCount, CancellationToken ct);
+    Task<long> GetTotalGamesAsync(CancellationToken ct);
 }

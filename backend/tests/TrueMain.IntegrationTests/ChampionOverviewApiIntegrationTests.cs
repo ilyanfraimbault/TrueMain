@@ -11,7 +11,7 @@ namespace TrueMain.IntegrationTests;
 /// <summary>
 /// Covers <c>GET /champions/overview</c> (#972) — specifically the concern a
 /// unit test can't: that <c>gamesAnalyzed</c> is a true SQL-level sum over
-/// every <c>champion_aggregate_scopes</c> row on the patch, including rows the
+/// every <c>champion_aggregate_scopes</c> row, on every patch, including rows the
 /// ranked directory itself drops (below the sample floor, or with no
 /// <c>Position</c>). Ordering/limit/tier-fallback logic is covered by
 /// <c>ChampionOverviewQueryServiceTests</c> against a mocked summaries result.
@@ -93,7 +93,6 @@ public sealed class ChampionOverviewApiIntegrationTests
 
         overview!.GamesAnalyzed.Should().Be(40 + 3 + 15,
             "the total sums every seeded scope's games, not just the one row that clears the sample floor and has a position");
-        overview.ChampionsRanked.Should().Be(1, "only champion 300 clears the sample floor with a position");
         overview.TopRows.Should().ContainSingle(row => row.ChampionId == 300);
         overview.TopRows.Should().NotContain(row => row.ChampionId == 301 || row.ChampionId == 302,
             "below-floor and position-less rows never enter the ranked directory, even though they're counted in the total");
@@ -158,7 +157,7 @@ public sealed class ChampionOverviewApiIntegrationTests
     }
 
     [Fact]
-    public async Task GetOverviewAsync_SkipsAPatchTooThinToRank_AndSumsTheChipsAcrossTheWindow()
+    public async Task GetOverviewAsync_SkipsAPatchTooThinToRank_ButStillCountsItsGames()
     {
         // The #1109 regression end to end. 16.16 exists and holds aggregate rows, but
         // not one of its lines clears the sample floor: serving it printed an empty
@@ -186,20 +185,16 @@ public sealed class ChampionOverviewApiIntegrationTests
         overview.TopRows.Should().OnlyContain(row => row.ChampionId >= 500 && row.ChampionId <= 505,
             "the teaser is ranked on the served patch alone");
 
-        overview.CountedPatches.Should().Equal("16.15", "16.14");
-        overview.GamesAnalyzed.Should().Be((6 * 40) + (3 * 50),
-            "the chips span the served patch and the one before it — and never reach forward to 16.16, "
-            + "whose games every other surface is refusing to show");
-        overview.ChampionsRanked.Should().Be(8,
-            "six champions on 16.15 plus three on 16.14, of which champion 505 is on both and counts once");
+        overview.GamesAnalyzed.Should().Be((2 * 1) + (6 * 40) + (3 * 50),
+            "the chip is the lifetime total: refusing to *rank* 16.16 is not a reason to stop "
+            + "counting the games it holds");
     }
 
     [Fact]
-    public async Task GetOverviewAsync_KeepsTheFullWindowWhenTheWalkStepsBackTwice()
+    public async Task GetOverviewAsync_WalksBackTwiceWhenTwoPatchesAreTooThin()
     {
-        // The window has to be measured from where the walk landed, not from a fixed
-        // depth: with two thin patches stacked up, a window sized against "one thin
-        // patch ahead" returns a single patch while quietly claiming to span two.
+        // The walk is not one step deep: with two thin patches stacked up, the served
+        // patch is the third one down.
         await _fixture.ResetDatabaseAsync();
 
         var now = DateTime.UtcNow;
@@ -226,7 +221,7 @@ public sealed class ChampionOverviewApiIntegrationTests
             // Two thin patches in front, so the walk has to step back twice.
             Add(seeder, accountId, 800, "16.16", games: 1, wins: 0, now);
             Add(seeder, accountId, 801, "16.15", games: 2, wins: 1, now);
-            // 16.14 is served; 16.13 is the second half of the homepage window.
+            // 16.14 is served; 16.13 is older history, counted but never ranked.
             for (var championId = 810; championId <= 815; championId++)
             {
                 Add(seeder, accountId, championId, "16.14", games: 40, wins: 22, now);
@@ -249,10 +244,8 @@ public sealed class ChampionOverviewApiIntegrationTests
             .Content.ReadFromJsonAsync<ChampionOverviewReadModel>();
 
         overview!.PatchVersion.Should().Be("16.14", "neither 16.16 nor 16.15 can fill a directory");
-        // No `because` argument: Equal(params string[]) would read it as a third
-        // expected patch.
-        overview.CountedPatches.Should().Equal("16.14", "16.13");
-        overview.GamesAnalyzed.Should().Be((6 * 40) + (3 * 50));
+        overview.GamesAnalyzed.Should().Be(1 + 2 + (6 * 40) + (3 * 50),
+            "every seeded patch contributes to the lifetime total, the two thin ones included");
     }
 
     [Fact]
@@ -279,8 +272,8 @@ public sealed class ChampionOverviewApiIntegrationTests
 
     /// <summary>
     /// Three patches: a brand-new one too thin to rank, a full one behind it, and an
-    /// older one so the homepage window has a second patch to sum. Champion 505 is on
-    /// both settled patches, so a summed champion count would over-report by one.
+    /// older one, so the served patch is neither the newest nor the only one carrying
+    /// games.
     /// </summary>
     private async Task SeedThinNewPatchAsync(Guid accountId, string puuid)
     {
@@ -316,7 +309,7 @@ public sealed class ChampionOverviewApiIntegrationTests
             Add(seeder, accountId, championId, "16.15", games: 40, wins: 22, now);
         }
 
-        // 16.14 — counted by the chips, ranked by nothing.
+        // 16.14 — counted by the total, ranked by nothing.
         foreach (var championId in new[] { 505, 506, 507 })
         {
             Add(seeder, accountId, championId, "16.14", games: 50, wins: 25, now);

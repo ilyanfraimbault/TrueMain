@@ -1285,13 +1285,12 @@ in hours and recurred **every patch day**.
   Serving old data under a new patch's name would be strictly worse than the empty page it replaced.
 - **Nothing clears the bar ⇒ serve the newest anyway.** On a fresh deployment a thin directory is the honest
   state and an empty one is not. Same branch makes `0` the documented off-switch.
-- **The homepage volume chips span two patches** (`ChampionsList:HomepagePatchWindow`), the served one and the
-  one before it, so the headline figure doesn't fall by an order of magnitude every two weeks — which reads as
-  data loss, not as a patch boundary. The chips **name the range** they cover. The tier-list teaser beside them
-  does *not* merge patches: a tier is a percentile within one patch's field, and a blended ranking would
-  describe a meta that never existed. That asymmetry is deliberate and is why the two read from different calls.
-- **The window never reaches forward.** It starts at the served patch, so games on a patch every other surface
-  is refusing to show are not advertised on the homepage either.
+- ~~**The homepage volume chips span two patches**~~ (`ChampionsList:HomepagePatchWindow`) ~~and name the range
+  they cover.~~ **Superseded 2026-08-16** — the chips are lifetime totals now and the window is gone; see the
+  next entry. What survives from this bullet is the asymmetry it exists to protect: the tier-list teaser does
+  *not* merge patches, because a tier is a percentile within one patch's field and a blended ranking would
+  describe a meta that never existed. That is still why the teaser and the volume figure read from different
+  calls.
 
 Player- and champion-scoped views were never affected: `ChampionScopeLoader` has had
 `ResolveLatestPatchAboveFloor` since long before this, for the same reason. #1109 is that idea finally applied
@@ -1300,6 +1299,34 @@ to the global reads.
 Shares a trigger with #1107 (CommunityDragon's unpublished patch branch aborting the folds) but nothing else —
 and fixing #1107 makes this one *more* urgent, since the folds now succeed on patch day and the flip onto a
 thin patch would happen sooner.
+
+## The homepage hero counts a lifetime, compactly, and never names a patch (2026-08-16)
+
+Reverses the chip half of #1109 (above). The patch-window figure was correct and unreadable: `173 champions
+ranked over 16.16–16.15` beside `490,365 main games analyzed over 16.16–16.15` asked a first-time visitor to
+hold a data-scoping caveat before they had any reason to care, and the qualifier itself was only there because
+the number underneath it was patch-scoped and would otherwise have overstated its reach.
+
+- **The volume figure is now every game the aggregate table holds**, all patches (`GetTotalGamesAsync` — one
+  `SUM` over `champion_aggregate_scopes` on the tracked queue, cached **30 min** — the table only grows and no
+  index leads with `queue_id`, so this is a full scan whose cost rises with the site's age, while the chip's
+  three significant digits move about twice an hour). With nothing patch-scoped left to disclose, the
+  qualifier goes, and so does the failure it was compensating for: a lifetime total cannot crater on patch day.
+  On production the aggregates *are* the frozen history — `MatchDataRetention:AggregateRetainedPatchCount` is
+  0 there — so this is a genuine all-time count; preprod opts into aggregate retention and will read lower,
+  which is correct for what preprod holds.
+- **`ChampionsList:HomepagePatchWindow` is deleted**, with `GetServedPatchVolumesAsync` and
+  `ChampionPatchVolume`. The servable-patch bar (`MinServablePatchLines`, the other and larger half of #1109)
+  is untouched and still reads lines past the floor through the same shared fold; only the per-patch *volume*
+  counters nobody reads any more are gone.
+- **"N champions ranked" was dropped rather than kept unqualified.** Of the three chips it is the one that is
+  inherently patch-scoped — a champion is ranked *on a patch* — so keeping it would have dragged the
+  qualifier back onto the row it was being removed from. Two chips that mean the same kind of thing beat three
+  that don't.
+- **Counts are rounded down, not to nearest** (`formatCompactCount`): `490k`, `41k`, `1.2M`. Exact figures
+  invited the reader to treat a half-hour-cached number as a live counter, and a site whose pitch is honest
+  sample sizes should not be the site that rounds 999,600 up to `1M`. One decimal below 10 (`4.1k`), none
+  above (`490k`), where it is noise.
 
 ## Keeping these files current
 

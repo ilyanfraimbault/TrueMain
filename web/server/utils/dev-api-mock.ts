@@ -425,11 +425,9 @@ async function mockChampionOverview(query: Record<string, unknown>): Promise<Cha
 
   return {
     patchVersion: patch,
+    // The mock holds one patch, so its "lifetime" total is that patch's — faking a
+    // deeper history would only move a number nothing in dev reads twice.
     gamesAnalyzed: summaries.reduce((acc, s) => acc + s.games, 0),
-    championsRanked: new Set(summaries.map(s => s.championId)).size,
-    // The mock holds one patch, so the chips are patch-scoped and say nothing extra
-    // — the multi-patch window (#1109) needs real aggregate history to be worth faking.
-    countedPatches: [patch],
     topRows,
   }
 }
