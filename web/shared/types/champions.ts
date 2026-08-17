@@ -73,11 +73,11 @@ export interface ChampionTierEntry {
 
 /**
  * Homepage-sized snapshot of the champion directory (`GET /champions/overview`,
- * #972): the true "games analyzed this patch" total (every aggregated game, not
- * just the rows the ranked directory keeps) plus a short, pre-sorted slice of the
- * strongest rows — so the homepage never fetches and sorts the full ~500-row
- * directory just to render a stat chip and an 8-row teaser. Always the active
- * patch, unfiltered — the homepage has no patch or elo picker of its own.
+ * #972): the lifetime "games analyzed" total (every aggregated game on every
+ * patch, not just the rows the ranked directory keeps) plus a short, pre-sorted
+ * slice of the strongest rows — so the homepage never fetches and sorts the full
+ * ~500-row directory just to render a stat chip and an 8-row teaser. The teaser is
+ * the active patch, unfiltered — the homepage has no patch or elo picker of its own.
  */
 export interface ChampionOverviewResponse {
   /**
@@ -86,16 +86,11 @@ export interface ChampionOverviewResponse {
    * skipped (#1109).
    */
   patchVersion: string
-  /** True sum of games aggregated across every (champion, position) slice on each of `countedPatches`. */
-  gamesAnalyzed: number
-  /** Distinct champions with at least one ranked row on any of `countedPatches` — counted once each. */
-  championsRanked: number
   /**
-   * The patches the two figures above span, newest first: the served patch and the
-   * ones before it (#1109), so the headline volume doesn't crater on patch day. A
-   * single entry means they are scoped to the served patch alone.
+   * Every aggregated game the site holds, all patches summed — the lifetime total,
+   * not this patch's. Says nothing about `patchVersion`, which scopes `topRows` only.
    */
-  countedPatches: string[]
+  gamesAnalyzed: number
   /** Strongest rows, tier-then-games ordered (S first, busiest within a tier first), truncated to the requested limit. */
   topRows: ChampionOverviewRow[]
 }

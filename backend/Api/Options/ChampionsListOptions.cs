@@ -50,23 +50,6 @@ public sealed class ChampionsListOptions
     public int MinServablePatchLines { get; set; } = 50;
 
     /// <summary>
-    /// How many patches the homepage's volume chips ("main games analyzed", the
-    /// champion count) span, counting back from the served patch. Two, so the
-    /// headline figure does not crater every time a patch rolls over: the served
-    /// patch is at most a few days old for half of its life, and a number that
-    /// falls by an order of magnitude every two weeks reads as data loss rather
-    /// than as a patch boundary.
-    ///
-    /// <para>
-    /// The chips only — the homepage tier-list panel stays on the served patch
-    /// alone. Merging two patches into one S→D percentile field would rank
-    /// champions against a meta that never existed, which is a different and worse
-    /// lie than a small number. Set to 1 to scope the chips to the served patch.
-    /// </para>
-    /// </summary>
-    public int HomepagePatchWindow { get; set; } = 2;
-
-    /// <summary>
     /// Most <c>(champion, lane)</c> lines one champion may contribute to the
     /// directory and the tier list, keeping its most-played lanes. Champions
     /// flex, so a game's ~170 champions produced up to 5 × N lines — measured on
