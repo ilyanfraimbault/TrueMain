@@ -1,6 +1,7 @@
 import type {
   BuildSummaryEntityToken,
   BuildSummarySentence,
+  BuildSummarySource,
   BuildSummaryToken,
   BuildSummaryTone,
   ChampionBuildSummary,
@@ -259,9 +260,10 @@ function figure(text: string): BuildSummaryToken {
 function mark(
   entity: SummaryEntity,
   tone: BuildSummaryTone,
+  source: BuildSummarySource,
   text: string = entity.name,
 ): BuildSummaryEntityToken {
-  return { kind: 'entity', text, iconUrl: entity.iconUrl, tone, id: entity.id }
+  return { kind: 'entity', text, iconUrl: entity.iconUrl, tone, source, id: entity.id }
 }
 
 /**
@@ -290,13 +292,17 @@ function joinTokens(parts: BuildSummaryToken[][], lastSeparator: string): BuildS
  * Consecutive runs only, so the collapse can never reorder a list whose order is
  * the claim — the core path in particular, which never repeats an item anyway.
  */
-function marks(entities: SummaryEntity[], tone: BuildSummaryTone): BuildSummaryToken[] {
+function marks(
+  entities: SummaryEntity[],
+  tone: BuildSummaryTone,
+  source: BuildSummarySource,
+): BuildSummaryToken[] {
   const parts: BuildSummaryToken[][] = []
   for (let i = 0; i < entities.length;) {
     const entity = entities[i]!
     let count = 1
     while (entities[i + count]?.id === entity.id) count++
-    parts.push([mark(entity, tone, count > 1 ? `${spellSmallNumber(count)} ${entity.name}s` : entity.name)])
+    parts.push([mark(entity, tone, source, count > 1 ? `${spellSmallNumber(count)} ${entity.name}s` : entity.name)])
     i += count
   }
   return joinTokens(parts, ' and ')
@@ -328,6 +334,7 @@ export function championBuildSentenceTokens(summary: ChampionBuildSummary): Buil
       text: summary.opponentName,
       iconUrl: summary.opponentIconUrl,
       tone: 'champion',
+      source: 'champion',
       id: 'opponent',
     })
   }
@@ -363,12 +370,12 @@ export function championBuildSentenceTokens(summary: ChampionBuildSummary): Buil
 
   const itemClauses: BuildSummaryToken[][] = []
   if (build.starterItems.length) {
-    itemClauses.push([plain('starts '), ...marks(build.starterItems, 'item')])
+    itemClauses.push([plain('starts '), ...marks(build.starterItems, 'item', 'item')])
   }
   if (build.coreItems.length) {
-    itemClauses.push([plain('completes '), ...marks(build.coreItems, 'item'), plain(' in that order')])
+    itemClauses.push([plain('completes '), ...marks(build.coreItems, 'item', 'item'), plain(' in that order')])
   }
-  if (build.boots) itemClauses.push([plain('takes '), mark(build.boots, 'item')])
+  if (build.boots) itemClauses.push([plain('takes '), mark(build.boots, 'item', 'item')])
   if (itemClauses.length) {
     sentences.push([plain('It '), ...joinTokens(itemClauses, ', and '), plain('.')])
   }
@@ -379,14 +386,14 @@ export function championBuildSentenceTokens(summary: ChampionBuildSummary): Buil
     // appending the secondary with another one produced "… and Treasure Hunter
     // and Sorcery secondary …", which reads as a single four-item list.
     const primaryTone = styleTone(build.primaryStyle)
-    const tokens: BuildSummaryToken[] = [plain('It runs '), mark(build.keystone, primaryTone)]
-    if (build.primaryStyle) tokens.push(plain(' out of '), mark(build.primaryStyle, primaryTone))
-    if (build.primaryRunes.length) tokens.push(plain(' with '), ...marks(build.primaryRunes, primaryTone))
+    const tokens: BuildSummaryToken[] = [plain('It runs '), mark(build.keystone, primaryTone, 'perk')]
+    if (build.primaryStyle) tokens.push(plain(' out of '), mark(build.primaryStyle, primaryTone, 'perkStyle'))
+    if (build.primaryRunes.length) tokens.push(plain(' with '), ...marks(build.primaryRunes, primaryTone, 'perk'))
     if (build.secondaryStyle) {
       const secondaryTone = styleTone(build.secondaryStyle)
-      tokens.push(plain(', and '), mark(build.secondaryStyle, secondaryTone), plain(' secondary'))
+      tokens.push(plain(', and '), mark(build.secondaryStyle, secondaryTone, 'perkStyle'), plain(' secondary'))
       if (build.secondaryRunes.length) {
-        tokens.push(plain(' for '), ...marks(build.secondaryRunes, secondaryTone))
+        tokens.push(plain(' for '), ...marks(build.secondaryRunes, secondaryTone, 'perk'))
       }
     }
     tokens.push(plain('.'))
@@ -399,6 +406,7 @@ export function championBuildSentenceTokens(summary: ChampionBuildSummary): Buil
       text: skill.name ? `${skill.key} (${skill.name})` : skill.key,
       iconUrl: skill.iconUrl,
       tone: 'ability',
+      source: 'ability',
       id: skill.key,
     }))
     const [first, ...rest] = chain
@@ -416,7 +424,7 @@ export function championBuildSentenceTokens(summary: ChampionBuildSummary): Buil
   if (build.summonerSpells.length) {
     sentences.push([
       plain('Summoner spells are '),
-      ...marks(build.summonerSpells, 'spell'),
+      ...marks(build.summonerSpells, 'spell', 'summoner'),
       plain('.'),
     ])
   }

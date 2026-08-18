@@ -687,7 +687,13 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
             DOM order still puts it after the tabs, so the crawler and the
             keyboard both meet the page's own build content first.
           -->
-          <ChampionBuildSummary :summary="buildSummary" />
+          <ChampionBuildSummary
+            :summary="buildSummary"
+            :items-map="itemsMap"
+            :rune-tree="runeTree ?? null"
+            :summoners-map="summonersMap"
+            :champion-static="staticData ?? null"
+          />
 
           <LazyChampionTruemains
             hydrate-on-visible

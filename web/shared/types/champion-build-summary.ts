@@ -141,6 +141,25 @@ export interface BuildSummaryValueToken {
   text: string
 }
 
+/**
+ * Which static lookup a mark's full record lives in (#1147).
+ *
+ * The tone can't answer this: a Domination *rune* and the Domination *tree*
+ * share a tone and would resolve against the wrong map. The paragraph carries
+ * only names and icons, so the hover card is looked up client-side in the maps
+ * the champion page already fetched — this is the key it looks up with.
+ *
+ * `perkStyle` and `champion` are marks with **no** hover card: a tree's tooltip
+ * is only its own name, which the sentence has already said.
+ */
+export type BuildSummarySource =
+  | 'item'
+  | 'perk'
+  | 'perkStyle'
+  | 'summoner'
+  | 'ability'
+  | 'champion'
+
 /** A named game entity, rendered with its icon and its tone. */
 export interface BuildSummaryEntityToken {
   kind: 'entity'
@@ -153,7 +172,12 @@ export interface BuildSummaryEntityToken {
   text: string
   iconUrl: string | null
   tone: BuildSummaryTone
-  /** `:key` for the rendered span. Not unique across a sentence on its own. */
+  source: BuildSummarySource
+  /**
+   * The key this mark is looked up by in its `source` map — an item/perk id, a
+   * summoner id, an ability's `Q`/`W`/`E`. Also the `:key` for the rendered
+   * span, though not unique across a sentence on its own.
+   */
   id: number | string
 }
 
