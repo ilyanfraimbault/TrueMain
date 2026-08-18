@@ -55,13 +55,20 @@ const isOtp = computed(() => props.row.topChampions.some(champion => champion.is
 const ranked = computed(() => props.row.ranked)
 const showDivision = computed(() => ranked.value !== null && !isApexTier(ranked.value.tier))
 
+// An em dash rather than a hidden cell: the stat trio is a fixed three-column
+// block, and dropping a cell for a player whose aggregate has no KDA yet
+// (accounts whose tracked games haven't been ingested — half the leaderboard's
+// eligible population at any time) widened the free space the row's spacers
+// share and slid every column left of them out of line with its neighbours.
+const EMPTY_STAT = '—'
+
 const winRateLabel = computed(() => {
   const wr = props.row.stats.winRate
-  return wr === null ? null : formatPercentage(wr, 0)
+  return wr === null ? EMPTY_STAT : formatPercentage(wr, 0)
 })
 const kdaLabel = computed(() => {
   const kda = props.row.stats.kda
-  return kda === null ? null : kda.toFixed(1)
+  return kda === null ? EMPTY_STAT : kda.toFixed(1)
 })
 
 // Shared with the homepage teaser — resolve build ids the same way the
@@ -109,6 +116,17 @@ const dedicationBreakdown = computed(() => {
 const dedicationScoreLabel = computed(() =>
   props.row.dedication === null ? null : props.row.dedication.score.toFixed(1))
 
+// Sub-mains shown beside the signature champion. The API returns up to three
+// top champions, so there are always exactly two slots here — padded with
+// nulls for players who have fewer, because the column sits between the row's
+// two spacers and a variable number of icons would move everything around it.
+const SUB_CHAMPION_SLOTS = 2
+
+const subChampions = computed(() => {
+  const subs = props.row.topChampions.slice(1, SUB_CHAMPION_SLOTS + 1)
+  return Array.from({ length: SUB_CHAMPION_SLOTS }, (_, index) => subs[index] ?? null)
+})
+
 // Plain <img> + a URL built here instead of <NuxtImg> — same `_ipx/…` URL,
 // minus the responsive srcset machinery a fixed 22px icon never needed. See
 // SkeletonImage.vue for the profiling rationale. The URL itself comes from the
@@ -143,13 +161,19 @@ const positionIcons = computed(() => {
 </script>
 
 <template>
-  <!-- Fixed column rhythm so the row never reflows with the number of
-       sub-mains a player has: the name absorbs slack on the left, a flex
-       spacer absorbs it on the right, and every data column in between
-       (champion build, LP, stats) is a fixed width that lines up across
-       every row. The row is its own @container so the columns respond to
-       the width it's actually given — full-width on /truemains, compact in
-       the champion-page sidebar — instead of the viewport. -->
+  <!-- Fixed column rhythm so the row never reflows with how much data a
+       player happens to have: only the name and the two spacers grow, and
+       every data column between them (positions, champion build, dedication,
+       rank, stats) holds a fixed width that lines up down the list. The row
+       is its own @container so the columns respond to the width it's actually
+       given — full-width on /truemains, compact in the champion-page sidebar
+       — instead of the viewport.
+       "Fixed" has to hold all the way down, not just at the column boundary:
+       a cell that disappears (no KDA) or a cluster that shrinks (no aggregated
+       build, no sub-mains) hands its width back to the growers, which then
+       re-split it and drag every column between them off the grid. So each
+       column below reserves its sub-slots too, and a figure the aggregate
+       can't supply renders as an em dash rather than as nothing. -->
   <ListRowSurface
     class="group @container relative gap-1.5"
   >
@@ -240,45 +264,56 @@ const positionIcons = computed(() => {
          column between the name and the stat block on wide rows. -->
     <div class="hidden flex-1 @2xl:block" />
 
-    <!-- Champion build (fixed-width slot, centred). Always reserved so the LP
-         and stat columns stay put whether or not the player has sub-mains;
-         the cluster + any extra champions clip inside it. -->
+    <!-- Champion build (fixed-width slot, centred). Every sub-slot inside it
+         holds its width too — the build cluster via `reserve-slots`, the
+         sub-mains via the padded `subChampions` list — so the column measures
+         the same on a row whose player has one champion and no aggregated
+         build as on one with three champions and a full build. Reserving only
+         the outer 16rem was not enough: a narrower cluster centred itself
+         differently, which moved the signature champion out of line down the
+         list. -->
     <div class="relative z-10 hidden w-64 shrink-0 items-center justify-center gap-3 overflow-hidden @2xl:flex">
-      <template v-if="row.topChampions.length > 0">
+      <!-- 9rem: 30px icon + 40px play rate + two 22px build icons + the three
+           0.5rem gaps between them, i.e. the cluster at its widest. -->
+      <div class="flex w-36 shrink-0 justify-center">
         <LeaderboardChampionBuild
-          :champion="row.topChampions[0]!"
-          :name="championName(row.topChampions[0]!.championId)"
-          :icon-url="championIcon(row.topChampions[0]!.championId)"
+          v-if="row.topChampions[0]"
+          :champion="row.topChampions[0]"
+          :name="championName(row.topChampions[0].championId)"
+          :icon-url="championIcon(row.topChampions[0].championId)"
           :name-tag="rowNameTag"
-          :keystone="perk(row.topChampions[0]!.primaryKeystoneId)"
-          :secondary-style="perkStyle(row.topChampions[0]!.secondaryStyleId)"
-          :first-item="buildItem(row.topChampions[0]!.firstItemId)"
+          :keystone="perk(row.topChampions[0].primaryKeystoneId)"
+          :secondary-style="perkStyle(row.topChampions[0].secondaryStyleId)"
+          :first-item="buildItem(row.topChampions[0].firstItemId)"
+          reserve-slots
           loading="lazy"
         />
+      </div>
 
-        <div
-          v-if="row.topChampions.length > 1"
-          class="hidden items-center gap-1 @5xl:flex"
-        >
-          <template v-for="champ in row.topChampions.slice(1)" :key="champ.championId">
-            <ChampionLink
-              v-if="championIcon(champ.championId)"
-              :champion-id="champ.championId"
-              :name="championName(champ.championId)"
-              :icon-url="championIcon(champ.championId)"
-              :name-tag="rowNameTag"
-              :title="`${championName(champ.championId)} · ${champ.games} games`"
-              class="size-6"
-            />
-            <div
-              v-else
-              class="size-6 rounded bg-elevated/60"
-              :title="`#${champ.championId} · ${champ.games} games`"
-              aria-hidden="true"
-            />
-          </template>
-        </div>
-      </template>
+      <!-- Two 1.5rem icons + the 0.25rem gap between them. -->
+      <div class="hidden w-[52px] shrink-0 items-center gap-1 @5xl:flex">
+        <template v-for="(champ, index) in subChampions" :key="champ?.championId ?? `empty-${index}`">
+          <ChampionLink
+            v-if="champ && championIcon(champ.championId)"
+            :champion-id="champ.championId"
+            :name="championName(champ.championId)"
+            :icon-url="championIcon(champ.championId)"
+            :name-tag="rowNameTag"
+            :title="`${championName(champ.championId)} · ${champ.games} games`"
+            class="size-6"
+          />
+          <div
+            v-else-if="champ"
+            class="size-6 shrink-0 rounded bg-elevated/60"
+            :title="`#${champ.championId} · ${champ.games} games`"
+            aria-hidden="true"
+          />
+          <!-- No sub-main in this slot: an empty box, not a placeholder tile —
+               the row has nothing to show there, and a filled square would read
+               as a champion whose icon failed to load. -->
+          <div v-else class="size-6 shrink-0" aria-hidden="true" />
+        </template>
+      </div>
     </div>
 
     <!-- Dedication. Always reserved (empty slot when the account has no
@@ -340,9 +375,16 @@ const positionIcons = computed(() => {
 
     <!-- Games / KDA / WR (far right, fixed widths — the widths are load-bearing
          for the @container tiers above, so they stay exactly as they were).
+         All three cells are always rendered, an em dash standing in for a
+         figure the aggregate can't supply: dropping a cell handed its width
+         back to the row's flex spacers, which the name column and both spacers
+         then re-split, nudging every column between them off the grid the rest
+         of the list sits on.
          Only the win rate takes a colour: games is a count and KDA has no
          agreed neutral point, so neither has a better/worse reading to encode.
-         `rate-tone` owns the win-rate band, the same as everywhere else. -->
+         `rate-tone` owns the win-rate band, the same as everywhere else — and
+         returns the muted tone for a null rate, which is exactly what the em
+         dash wants. -->
     <div class="hidden shrink-0 items-center gap-4 @xl:flex">
       <div class="flex w-12 justify-end">
         <StatBlock
@@ -352,7 +394,7 @@ const positionIcons = computed(() => {
           align="end"
         />
       </div>
-      <div v-if="kdaLabel !== null" class="flex w-12 justify-end">
+      <div class="flex w-12 justify-end">
         <StatBlock
           :value="kdaLabel"
           label="KDA"
@@ -360,7 +402,7 @@ const positionIcons = computed(() => {
           align="end"
         />
       </div>
-      <div v-if="winRateLabel !== null" class="flex w-12 justify-end">
+      <div class="flex w-12 justify-end">
         <StatBlock
           :value="winRateLabel"
           label="WR"
