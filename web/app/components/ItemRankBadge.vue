@@ -3,6 +3,11 @@
 // (Q/W/E/R) on a spell icon, or the slot number on a build-path item. Lives
 // at the top level so it auto-registers as <ItemRankBadge>. Positioned
 // absolutely, so it expects a `relative`-positioned parent.
+//
+// `pointer-events-none`: the badge sits on top of the icon it labels, which is
+// usually a tooltip trigger. Without it, the bottom strip of every skill icon
+// is a dead zone that opens no tooltip and, worse, reads as leaving the icon
+// mid-hover.
 withDefaults(defineProps<{
   /** Badge label — a skill key (Q/W/E/R) or an item-slot number. */
   value: string | number
@@ -18,7 +23,7 @@ withDefaults(defineProps<{
 
 <template>
   <span
-    class="absolute bottom-0 left-1/2 inline-flex -translate-x-1/2 items-center justify-center rounded font-bold uppercase ring-1"
+    class="pointer-events-none absolute bottom-0 left-1/2 inline-flex -translate-x-1/2 items-center justify-center rounded font-bold uppercase ring-1"
     :class="[
       size === 'md' ? 'h-4 min-w-4 px-1 text-[10px]' : 'h-3 min-w-3 px-0.5 text-[8px]',
       primary ? 'bg-primary text-inverted ring-primary' : 'bg-default text-default ring-default',
