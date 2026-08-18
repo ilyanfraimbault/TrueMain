@@ -17,7 +17,9 @@ import { resolveChampionBuildSummary } from '~~/shared/utils/champion-build-summ
  * `/api/static/items`, ~373 KiB of descriptions and icons that `useStaticItems`
  * keeps client-only on purpose. SSR-ing that map would inline the blob into the
  * HTML of every champion page to print a dozen words. So the ids are resolved
- * *here*, on the server, and only the words travel — a payload around 1 KB.
+ * *here*, on the server, and only the words travel: the names, plus one icon
+ * URL per named entity so the paragraph can mark them inline (#1143). Around
+ * 3 KB, 844 B gzipped, against the ~373 KiB of the map they came from.
  *
  * Shaped exactly like `server/api/og/champion/[championId].get.ts`, and for the
  * same reason: a purpose-built, cached read model that resolves its own slice
@@ -119,6 +121,7 @@ const loadChampionBuildSummary = defineCachedFunction(
       summonersMap,
       requestedEloBracket: query.eloBracket ?? 'ALL',
       opponentName: opponentStatic?.championName ?? null,
+      opponentIconUrl: opponentStatic?.championIconUrl ?? null,
     })
   },
   {
