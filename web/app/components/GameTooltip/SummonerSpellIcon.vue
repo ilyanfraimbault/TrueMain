@@ -21,12 +21,13 @@ const props = withDefaults(defineProps<{
 })
 
 const hasSpell = computed(() => Boolean(props.spell))
-const hasIcon = computed(() => Boolean(props.spell?.iconUrl))
+// Rendered by `SkeletonImage` itself when the spell has no icon URL yet, so the
+// tooltip trigger is always the same element. Branching to a second element
+// here would swap that node once the static data lands, and Reka only ever
+// reads the trigger node at mount — the stale reference leaves the tooltip
+// unable to close on pointer exit, so hovering the icons in turn stacked their
+// tooltips on screen instead of replacing them.
 const fallbackText = computed(() => props.fallbackLabel || props.spell?.name || '')
-const fallbackStyle = computed(() => ({
-  width: typeof props.width === 'number' ? `${props.width}px` : props.width,
-  height: typeof props.height === 'number' ? `${props.height}px` : props.height,
-}))
 </script>
 
 <template>
@@ -36,22 +37,14 @@ const fallbackStyle = computed(() => ({
     :ui="{ content: 'p-0 h-auto max-w-none bg-transparent ring-0 shadow-none text-default' }"
   >
     <SkeletonImage
-      v-if="hasIcon"
       v-bind="$attrs"
       :src="spell?.iconUrl"
       :alt="spell?.name"
+      :fallback="fallbackText"
       :width="width"
       :height="height"
       :loading="loading"
     />
-    <span
-      v-else
-      v-bind="$attrs"
-      class="inline-flex items-center justify-center rounded border border-default text-xs"
-      :style="fallbackStyle"
-    >
-      {{ fallbackText }}
-    </span>
     <template
       v-if="spell"
       #content

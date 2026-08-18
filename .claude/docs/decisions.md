@@ -992,6 +992,15 @@ possible. Approval is the single external unlock for all of it — #780.
   broken everywhere else. Content degrades by tier as the row narrows (compositions, then secondary stats,
   then the loadout wrapping onto a second line) rather than being cut off. `pages/dev/match-row.vue` renders
   the row at each tier width so the compact layouts are reviewable without reproducing the host surface.
+- **A tooltip trigger keeps the same DOM element for the life of the component.** Reka reads the trigger node
+  once, in `onMounted`, and binds the hoverable-content "grace area" `pointerleave` to that snapshot. A trigger
+  that swaps its root element later — a `v-if` icon / `v-else` fallback box flipping over when the static data
+  lands — leaves that listener on a detached node, so the tooltip opens normally and can then *never* close on
+  pointer exit: sweeping across a row of icons piled every tooltip it touched on screen. Icon components that
+  can render before their data therefore keep one unconditional root (`SkeletonImage`, which draws the text
+  fallback itself via its `fallback` prop) instead of two branches. Item and perk icons never had the bug —
+  they always rendered a single `SkeletonImage` — which is why the symptom looked specific to skill orders and
+  summoners.
 - **Detector thresholds are configuration, not constants** (`DataQualityDetectors:*`). The honest line differs
   between preprod and production, and an operator silencing a crying-wolf card must not need a redeploy. A
   level of `0` disables it, which is how a warning-only signal is expressed. They are **stated in words with
