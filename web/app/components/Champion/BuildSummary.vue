@@ -1,5 +1,11 @@
 <script setup lang="ts">
-import type { BuildSummaryTone, ChampionBuildSummary } from '~~/shared/types/champion-build-summary'
+import type { ChampionBuildSummary } from '~~/shared/types/champion-build-summary'
+import type {
+  ChampionStaticData,
+  RuneTreeResponse,
+  StaticItemData,
+  StaticSummonerSpellData,
+} from '~~/shared/types/static-data'
 import { championBuildSentenceTokens, lanePhrase } from '~~/shared/utils/champion-build-summary'
 
 /**
@@ -21,13 +27,26 @@ import { championBuildSentenceTokens, lanePhrase } from '~~/shared/utils/champio
  * measurement is set as a measurement. The words are unchanged: the tokens
  * concatenate to exactly the sentences `championBuildSentences` returns, which
  * is what keeps the decorated paragraph and the indexable one the same
- * paragraph.
+ * paragraph. #1147 then gave each mark the same hover card the icon grid shows,
+ * resolved client-side by `BuildSummaryMark` from the maps the page already has.
  *
  * Renders nothing at all when the summary carries no measurement — an empty
  * card saying "no data" is noise next to the page's own no-data states.
  */
 const props = defineProps<{
   summary: ChampionBuildSummary | null
+  /**
+   * The page's static maps, for the hover cards (#1147). Optional and expected
+   * to be absent on the server: the summary's own payload carries names and
+   * icons only, and a card needs the whole record — so the marks render from
+   * SSR and grow their tooltips when these land. `BuildSummaryMark` does the
+   * lookups; passing the maps down whole avoids building a parallel array of
+   * resolved entities per sentence.
+   */
+  itemsMap?: Record<number, StaticItemData> | null
+  runeTree?: RuneTreeResponse | null
+  summonersMap?: Record<number, StaticSummonerSpellData> | null
+  championStatic?: ChampionStaticData | null
 }>()
 
 const sentences = computed(() =>
@@ -41,46 +60,6 @@ const heading = computed(() => {
   return `How ${name} mains build ${name}${lane ? ` ${lane}` : ''}`
 })
 
-/**
- * Tone → utility. Written out rather than built as `text-rune-${tone}` so
- * Tailwind can see every class it has to generate, and so the mapping from a
- * *semantic* tone to the design system's vocabulary lives in the view instead
- * of in the shared model — see `main.css` for why the five rune tones exist.
- *
- * Summoner spells, abilities and the pinned opponent share `text-highlighted`
- * on purpose: they have no colour of their own in Riot's vocabulary, and the
- * icon beside them already says which kind of thing they are. Inventing three
- * more hues to fill the table would be exactly the rainbow the palette avoids.
- */
-const TONE_CLASS: Readonly<Record<BuildSummaryTone, string>> = {
-  item: 'text-stat-gold',
-  spell: 'text-highlighted',
-  ability: 'text-highlighted',
-  champion: 'text-highlighted',
-  precision: 'text-rune-precision',
-  domination: 'text-rune-domination',
-  sorcery: 'text-rune-sorcery',
-  inspiration: 'text-rune-inspiration',
-  resolve: 'text-rune-resolve',
-  rune: 'text-highlighted',
-}
-
-/** Runes and portraits are round artwork; items, spells and abilities are square. */
-const ROUND_TONES: ReadonlySet<BuildSummaryTone> = new Set<BuildSummaryTone>([
-  'precision',
-  'domination',
-  'sorcery',
-  'inspiration',
-  'resolve',
-  'rune',
-  'champion',
-])
-
-// Plain <img> through the canonical IPX URL rather than `SkeletonImage`: these
-// icons sit *inside* sentences, where a pulsing placeholder box mid-line reads
-// as a broken word, and there are a dozen of them per paragraph. Same 64×64
-// WebP fetch as every other icon on the site, so they share its cache entries.
-const canonicalIcon = useCanonicalIcon()
 </script>
 
 <template>
@@ -106,23 +85,14 @@ const canonicalIcon = useCanonicalIcon()
             v-if="token.kind === 'value'"
             class="font-semibold tabular-nums text-highlighted"
           >{{ token.text }}</strong>
-          <!-- The name and its icon never separate across a line break: an
-               orphaned icon at the end of a line reads as a bullet. -->
-          <span
+          <ChampionBuildSummaryMark
             v-else-if="token.kind === 'entity'"
-            class="whitespace-nowrap font-medium"
-            :class="TONE_CLASS[token.tone]"
-          ><img
-            v-if="token.iconUrl"
-            :src="canonicalIcon(token.iconUrl)"
-            alt=""
-            aria-hidden="true"
-            :width="16"
-            :height="16"
-            loading="lazy"
-            class="mr-1 inline-block size-4 align-[-0.2em]"
-            :class="ROUND_TONES.has(token.tone) ? 'rounded-full' : 'rounded-xs'"
-          >{{ token.text }}</span>
+            :token="token"
+            :items-map="itemsMap"
+            :perks="runeTree?.perks"
+            :summoners-map="summonersMap"
+            :champion-spells="championStatic?.championSpells"
+          />
           <template v-else>{{ token.text }}</template>
         </template>
       </p>

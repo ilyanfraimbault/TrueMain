@@ -371,6 +371,31 @@ describe('championBuildSentenceTokens', () => {
     expect(potions[0]?.text).toBe('two Health Potions')
   })
 
+  it('routes each mark to the static map its record actually lives in', () => {
+    // The tone cannot answer this: a Domination rune and the Domination tree
+    // share a tone, and looking the tree up in `perks` (or the rune in
+    // `perkStyles`) silently yields no hover card at all — a failure that is
+    // invisible until someone hovers the one word that has no tooltip.
+    const bySource = new Map(entities(championBuildSentenceTokens(resolve())).map(t => [t.text, t.source]))
+    expect(bySource.get('Doran\'s Ring')).toBe('item')
+    expect(bySource.get('Sorcerer\'s Shoes')).toBe('item')
+    expect(bySource.get('Electrocute')).toBe('perk')
+    expect(bySource.get('Transcendence')).toBe('perk')
+    expect(bySource.get('Domination')).toBe('perkStyle')
+    expect(bySource.get('Sorcery')).toBe('perkStyle')
+    expect(bySource.get('Flash')).toBe('summoner')
+    expect(bySource.get('Q (Orb of Deception)')).toBe('ability')
+  })
+
+  it('keys an entity by what its map is keyed by', () => {
+    // `id` is the lookup key, not just a `:key` — an ability is keyed by its
+    // slot letter because `championSpells` is, and everything else by its id.
+    const byName = new Map(entities(championBuildSentenceTokens(resolve())).map(t => [t.text, t.id]))
+    expect(byName.get('Doran\'s Ring')).toBe(1056)
+    expect(byName.get('Electrocute')).toBe(8112)
+    expect(byName.get('Q (Orb of Deception)')).toBe('Q')
+  })
+
   it('marks the pinned opponent as a champion', () => {
     const summary = { ...resolve({}, 'Zed'), opponentIconUrl: 'https://cdn/champion/Zed.png' }
     const opponent = entities(championBuildSentenceTokens(summary)).find(token => token.text === 'Zed')

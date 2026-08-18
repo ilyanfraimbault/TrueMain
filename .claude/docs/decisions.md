@@ -262,6 +262,23 @@ compress away — still nothing next to the ~373 KiB item map it replaces),
 and the block now sits after the main column in DOM order — deliberate, so a crawler and a keyboard both
 meet the page's own build panels first — #1143.
 
+**The paragraph's hover cards are resolved client-side, not carried in its payload.**
+#1147 gave every mark in the build paragraph the tooltip its counterpart in the icon grid has. The obvious
+implementation — put the tooltip body in the summary payload next to the name — is the one thing this block
+must never do: the payload exists *because* naming an item server-side must not drag the ~373 KiB item map
+into the HTML, and a hover card needs the whole record (stats, passive, gold), which is most of that map.
+So the marks server-render their words and grow their cards at hydration, out of the maps the champion page
+was already fetching for the panels. Cost to the page: nothing it wasn't already paying; cost to the
+payload: nothing at all. The card is simply absent for the first paint, which is correct — a tooltip is not
+content, it is a response to a pointer that does not exist yet.
+Two things this pins. The tokens carry a `source` (`item` / `perk` / `perkStyle` / `summoner` / `ability` /
+`champion`) rather than inferring the lookup from the tone: a Domination *rune* and the Domination *tree*
+share a tone, and resolving one against the other's map yields no card at all — a failure invisible until
+someone hovers the one word that has no tooltip. And the tooltip is rendered **disabled** until its map
+lands rather than `v-if`-ed around the trigger, because Reka snapshots the trigger element in `onMounted`;
+swapping it when the item map arrives is exactly the #1145 bug, which left tooltips able to open and unable
+to close — #1147.
+
 **"Client-only fetch" has to be enforced on the *side*, not merely intended — an immediate watcher is not client-only.**
 `useTruemainFetch` (profile / rank-history / matches) is hand-rolled refs precisely because these payloads are
 per-viewer and must never enter shared SSR HTML, but its initial run hung off `watch(..., { immediate: true })`,
