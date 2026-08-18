@@ -26,6 +26,20 @@ const props = withDefaults(defineProps<{
   /** Tighter sizing + no "play rate" label, for the narrow homepage panel. */
   compact?: boolean
   /**
+   * Hold every sub-slot's width even when the datum behind it is missing, so
+   * the cluster measures the same on every row.
+   *
+   * A player's keystone / first item come from an aggregated build that a
+   * freshly tracked account may not have yet, and the play rate is 2–4
+   * characters wide. Left to collapse, those three make the cluster's width a
+   * function of how much data the row happens to have — and in a list, a
+   * variable-width cluster drags every column beside it out of alignment.
+   * Callers that lay the cluster out in a fixed column (the leaderboard row)
+   * set this; the homepage teaser, where the cluster is pinned to a flex edge,
+   * does not need it.
+   */
+  reserveSlots?: boolean
+  /**
    * Native lazy-loading hint for the champion icon. The two callers sit in
    * different places: leaderboard rows are always below the build panel and
    * pass `'lazy'`, while the homepage teaser renders near the top of the
@@ -35,6 +49,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   nameTag: null,
   compact: false,
+  reserveSlots: false,
   loading: undefined,
 })
 
@@ -56,6 +71,19 @@ const iconSize = computed(() => (props.compact ? 28 : 30))
 const buildSize = computed(() => (props.compact ? 20 : 22))
 const secondaryOverlaySize = computed(() => (props.compact ? 11 : 13))
 const championTitle = computed(() => `${props.name} · ${props.champion.games} games`)
+
+// Play-rate box under `reserveSlots`: wide enough for the longest value the
+// figure can take ("100%") at each size, so a 23% row and a 100% row put the
+// keystone at the same x. Literal class strings — Tailwind only emits what it
+// can see (see DESIGN_SYSTEM.md).
+const playRateSlotClass = computed(() =>
+  props.reserveSlots ? (props.compact ? 'w-8 shrink-0' : 'w-10 shrink-0') : undefined)
+
+// Build icons only render when the aggregate exists; with `reserveSlots` the
+// box is emitted regardless and simply stays empty.
+const showKeystoneSlot = computed(() => props.keystone !== null || props.reserveSlots)
+const showItemSlot = computed(() => props.firstItem !== null || props.reserveSlots)
+const showPlayRateSlot = computed(() => playRatePct.value !== null || props.reserveSlots)
 </script>
 
 <template>
@@ -79,50 +107,61 @@ const championTitle = computed(() => `${props.name} · ${props.champion.games} g
     <!-- Play rate with a "PR" label, mirroring the "WR" label under the row's
          win rate so the two percentages read as a matched pair. -->
     <div
-      v-if="playRatePct !== null"
+      v-if="showPlayRateSlot"
       class="flex flex-col leading-none"
+      :class="playRateSlotClass"
     >
-      <span
-        class="font-semibold tabular-nums"
-        :class="compact ? 'text-xs' : 'text-sm'"
-      >{{ playRatePct }}</span>
-      <span class="mt-0.5 text-[10px] font-normal uppercase tracking-wide text-muted">PR</span>
+      <template v-if="playRatePct !== null">
+        <span
+          class="font-semibold tabular-nums"
+          :class="compact ? 'text-xs' : 'text-sm'"
+        >{{ playRatePct }}</span>
+        <span class="mt-0.5 text-[10px] font-normal uppercase tracking-wide text-muted">PR</span>
+      </template>
     </div>
 
     <!-- Keystone with the secondary tree as a small overlay badge — same
          presentation as the champion list's top-build column. -->
     <div
-      v-if="keystone"
+      v-if="showKeystoneSlot"
       class="relative shrink-0"
       :style="{ width: `${buildSize}px`, height: `${buildSize}px` }"
     >
-      <GameTooltipPerkIcon
-        :perk="keystone"
+      <template v-if="keystone">
+        <GameTooltipPerkIcon
+          :perk="keystone"
+          :width="buildSize"
+          :height="buildSize"
+          :loading="loading"
+          class="rounded-full"
+          :style="{ width: `${buildSize}px`, height: `${buildSize}px` }"
+        />
+        <GameTooltipPerkStyleIcon
+          v-if="secondaryStyle"
+          :style="secondaryStyle"
+          :width="secondaryOverlaySize"
+          :height="secondaryOverlaySize"
+          :loading="loading"
+          class="absolute -bottom-1 -right-1.5"
+          :class="compact ? 'size-[11px]' : 'size-[13px]'"
+        />
+      </template>
+    </div>
+
+    <div
+      v-if="showItemSlot"
+      class="shrink-0"
+      :style="{ width: `${buildSize}px`, height: `${buildSize}px` }"
+    >
+      <GameTooltipItemIcon
+        v-if="firstItem"
+        :item="firstItem"
         :width="buildSize"
         :height="buildSize"
         :loading="loading"
-        class="rounded-full"
+        class="rounded"
         :style="{ width: `${buildSize}px`, height: `${buildSize}px` }"
       />
-      <GameTooltipPerkStyleIcon
-        v-if="secondaryStyle"
-        :style="secondaryStyle"
-        :width="secondaryOverlaySize"
-        :height="secondaryOverlaySize"
-        :loading="loading"
-        class="absolute -bottom-1 -right-1.5"
-        :class="compact ? 'size-[11px]' : 'size-[13px]'"
-      />
     </div>
-
-    <GameTooltipItemIcon
-      v-if="firstItem"
-      :item="firstItem"
-      :width="buildSize"
-      :height="buildSize"
-      :loading="loading"
-      class="shrink-0 rounded"
-      :style="{ width: `${buildSize}px`, height: `${buildSize}px` }"
-    />
   </component>
 </template>
