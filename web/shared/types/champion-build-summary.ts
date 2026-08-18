@@ -7,8 +7,9 @@
  * client-only (see `useStaticItems`). Server-rendering the page's build content
  * therefore cannot mean "SSR the existing fetches"; it means resolving the ids
  * away on the server and sending down only the handful of strings a crawler and
- * a first paint actually need. This model is that handful — ~1 KB, no icons, no
- * descriptions, no ids the client would have to look up again.
+ * a first paint actually need. This model is that handful — ~3 KB (844 B
+ * gzipped): names, one icon URL each, no descriptions, no ids the client would
+ * have to look up again.
  *
  * Every field is nullable or empty-able on purpose. An id the static maps don't
  * know is **dropped**, never rendered as `Item 3157`: the whole point of the
@@ -16,10 +17,21 @@
  * placeholder that reads like a measurement is worse than a shorter sentence.
  */
 
-/** A game entity the summary prints by name. `id` is kept for `:key` only. */
+/**
+ * A game entity the summary prints by name. `id` is kept for `:key` only.
+ *
+ * `iconUrl` is the one thing this model carries beyond words (#1143): the block
+ * renders each named entity with its own icon inline, so an item, a rune and a
+ * summoner spell are told apart before the sentence is read. It is a URL per
+ * named entity — twenty of them, ~2 KB raw and under 300 B of it after gzip,
+ * since they share their CDN prefixes — not the static maps the ids came from, which is what keeps the payload the size the block was built for.
+ * Null when the static payload had none: the name then stands alone rather than
+ * reserving a gap for an icon that will never load.
+ */
 export interface SummaryEntity {
   id: number
   name: string
+  iconUrl: string | null
 }
 
 export interface ChampionBuildSummary {
@@ -39,6 +51,13 @@ export interface ChampionBuildSummary {
    * the one on screen.
    */
   opponentName: string | null
+  /**
+   * Portrait for the pinned opponent. The only champion icon the block carries:
+   * the champion the page is *about* is named by the heading right above the
+   * paragraph, but a second champion appearing mid-sentence is the one place a
+   * reader has to be told which one it is.
+   */
+  opponentIconUrl: string | null
   /**
    * False when the slice is below the trustworthy-build floor. The page already
    * flags it visually; the prose has to say it too, or the indexable version of
@@ -81,5 +100,67 @@ export interface ChampionBuildSummaryBuild {
    * `name` is null when the champion's spell list didn't resolve — the key alone
    * is still meaningful.
    */
-  skills: Array<{ key: string, name: string | null }>
+  skills: Array<{ key: string, name: string | null, iconUrl: string | null }>
 }
+
+/**
+ * How a named entity is coloured in the paragraph (#1143).
+ *
+ * Not decoration: the five rune tones are the trees' own in-client colours, and
+ * a League player reads "Domination" off the red before the word — the same
+ * argument that keeps Riot's rank colours in `utils/tiers.ts`. Everything else
+ * stays on the app's own vocabulary (see `main.css`), because an item and a
+ * summoner spell are already told apart by the icon next to them.
+ *
+ * Carried as a semantic key rather than a class name so this stays a pure data
+ * model: the mapping to utilities lives in the component that renders it, which
+ * is also what keeps the class strings statically visible to Tailwind.
+ */
+export type BuildSummaryTone =
+  | 'item'
+  | 'spell'
+  | 'ability'
+  | 'champion'
+  | 'precision'
+  | 'domination'
+  | 'sorcery'
+  | 'inspiration'
+  | 'resolve'
+  /** A rune whose tree didn't resolve — named, but not attributed to a colour. */
+  | 'rune'
+
+/** Connective prose. Carries its own spacing, so tokens concatenate verbatim. */
+export interface BuildSummaryTextToken {
+  kind: 'text'
+  text: string
+}
+
+/** A measurement: a count, a percentage, a patch, a rank scope. */
+export interface BuildSummaryValueToken {
+  kind: 'value'
+  text: string
+}
+
+/** A named game entity, rendered with its icon and its tone. */
+export interface BuildSummaryEntityToken {
+  kind: 'entity'
+  /**
+   * What it reads as — not always the bare name: a collapsed run of the same
+   * item is one token reading "two Health Potions", and an ability is
+   * "Q (Five Point Strike)". The plain-text sentence is the concatenation of
+   * these, so what a crawler reads and what a reader reads can never diverge.
+   */
+  text: string
+  iconUrl: string | null
+  tone: BuildSummaryTone
+  /** `:key` for the rendered span. Not unique across a sentence on its own. */
+  id: number | string
+}
+
+export type BuildSummaryToken =
+  | BuildSummaryTextToken
+  | BuildSummaryValueToken
+  | BuildSummaryEntityToken
+
+/** One sentence, in order. `championBuildSentences` is this, concatenated. */
+export type BuildSummarySentence = BuildSummaryToken[]

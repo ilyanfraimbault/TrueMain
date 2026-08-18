@@ -238,6 +238,30 @@ card, same reasoning), and it describes `builds[0]` — the tab the page opens o
 which would describe something the reader isn't looking at. It is **visible**, never `sr-only`: text
 written for a crawler and hidden from the reader is cloaking — #1123.
 
+**The build paragraph is typeset, and rune trees get Riot's colours to do it.**
+#1123 shipped the summary as flat grey prose under the build tabs, where it read as a wall of text naming
+twenty entities a player normally reads as *pictures* — and, sitting below the panels, as a footnote to the
+thing it describes. #1143 changed both. It moved into the right sidebar above Truemains, where it captions
+the icon grid instead of trailing it, and each named entity now renders with its own 16 px icon inline and a
+colour. That required one new token family, `--color-rune-*`: the five keystone trees in their in-client
+colours. It is the second exception to "`--color-stat-*` is Riot vocabulary confined to tooltips", and it
+earns the same justification `TIER_COLORS` does — a player reads "Domination" off the red before the word,
+and a paragraph naming five runes from two trees is unreadable without it. The discipline is unchanged:
+text emphasis only, never a fill, never on a measurement. Sorcery is a blue rather than the client's
+blue-violet, the one deliberate departure, because violet is not a hue this app uses. Items take the
+existing `--color-stat-gold`; summoner spells, abilities and the pinned opponent stay `text-highlighted` —
+inventing three more hues to fill the table is the rainbow the palette exists to avoid.
+Mechanically the sentences are built as **tokens**, not as strings a component re-parses: a regex over
+finished prose would have to find "Doran's Ring" inside a sentence that also names "Doran's Blade", and the
+builder already knows what each fragment is. `championBuildSentences` is those tokens concatenated, so the
+paragraph a crawler reads and the one a reader sees are the same paragraph by construction rather than by
+review. Em dashes are gone with the aside they set off — the build's share is its own sentence now, which
+also means the share survives a build carrying no item data. Accepted consequences: the payload grew from
+~1 kB to ~3 kB, 560 B to 844 B gzipped (one icon URL per named entity, and the shared CDN prefixes
+compress away — still nothing next to the ~373 KiB item map it replaces),
+and the block now sits after the main column in DOM order — deliberate, so a crawler and a keyboard both
+meet the page's own build panels first — #1143.
+
 **"Client-only fetch" has to be enforced on the *side*, not merely intended — an immediate watcher is not client-only.**
 `useTruemainFetch` (profile / rank-history / matches) is hand-rolled refs precisely because these payloads are
 per-viewer and must never enter shared SSR HTML, but its initial run hung off `watch(..., { immediate: true })`,

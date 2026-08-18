@@ -58,6 +58,17 @@ const DATA_AXIS = [
   { name: 'data-bad', class: 'bg-data-bad', hex: '#6a6a74', use: 'Below average, loss — ink-500' },
 ]
 
+// Text emphasis only, like `--color-stat-*` — so they are shown as *words*,
+// which is the only way they are ever allowed to appear. A swatch here would
+// invite the first `bg-rune-domination` in the app.
+const RUNE_TONES = [
+  { name: 'rune-precision', class: 'text-rune-precision', hex: '#c8aa6e', tree: 'Precision' },
+  { name: 'rune-domination', class: 'text-rune-domination', hex: '#d0424b', tree: 'Domination' },
+  { name: 'rune-sorcery', class: 'text-rune-sorcery', hex: '#7a9df0', tree: 'Sorcery' },
+  { name: 'rune-resolve', class: 'text-rune-resolve', hex: '#61b96b', tree: 'Resolve' },
+  { name: 'rune-inspiration', class: 'text-rune-inspiration', hex: '#49aab9', tree: 'Inspiration' },
+]
+
 const ELEVATION = [
   { token: '--ui-bg', util: 'bg-default', hex: '#0b0b0d', use: 'Page' },
   { token: '--ui-bg-muted', util: 'bg-muted', hex: '#131317', use: 'Recessed — inset strips, empty states' },
@@ -154,6 +165,28 @@ const TEXT_TOKENS = [
           />
           <span class="stat-label">{{ stop.name }}</span>
           <span class="text-xs text-muted">{{ stop.use }}</span>
+        </div>
+      </div>
+    </SectionCard>
+
+    <!-- ─── Rune trees ───────────────────────────────────────────────────── -->
+    <SectionCard
+      :level="2"
+      title="Rune trees"
+      subtitle="Riot's five trees in their own colours, for prose that names runes (the champion page's build paragraph). A vocabulary, not a scale — text emphasis only, never a fill, never a measurement. The same exception the rank colours earn: a player reads the tree off the colour before the word."
+    >
+      <div class="flex flex-wrap gap-x-6 gap-y-3">
+        <div
+          v-for="tone in RUNE_TONES"
+          :key="tone.name"
+          class="flex flex-col gap-0.5"
+        >
+          <span
+            class="text-sm font-medium"
+            :class="tone.class"
+          >{{ tone.tree }}</span>
+          <span class="stat-label">{{ tone.name }}</span>
+          <span class="text-xs text-muted">{{ tone.hex }}</span>
         </div>
       </div>
     </SectionCard>
