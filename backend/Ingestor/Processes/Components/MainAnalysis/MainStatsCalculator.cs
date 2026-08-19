@@ -61,7 +61,7 @@ public sealed class MainStatsCalculator : IMainStatsCalculator
             .ToList();
 
         var primaryPosition = positions.Count > 0 ? positions[0].Position : string.Empty;
-        var mainThreshold = ResolveMainThreshold(group.Key, options, coverage);
+        var mainThreshold = ResolveMainThreshold(platformId, group.Key, options, coverage);
         var isMain = eligibleForClassification && playRate >= mainThreshold;
         var isOtp = isMain && playRate >= options.OtpPlayRateThreshold;
         // Compared against the base PlayRateThreshold (not the relaxed per-champion
@@ -90,8 +90,14 @@ public sealed class MainStatsCalculator : IMainStatsCalculator
     /// Per-champion main threshold, interpolated from the coverage deficit:
     /// covered champions keep <see cref="MainAnalysisOptions.PlayRateThreshold"/>,
     /// maximally under-covered champions drop to <see cref="MainAnalysisOptions.PlayRateFloor"/>.
+    /// <para>
+    /// Read on the account's own platform since #1150. The relaxation exists to let a scarce
+    /// champion keep mains it would otherwise lose; scarcity is a per-region fact, so judging
+    /// a KR account against EUW1's coverage held it to a bar its own region could not fill.
+    /// </para>
     /// </summary>
     private static double ResolveMainThreshold(
+        string platformId,
         int championId,
         MainAnalysisOptions options,
         ChampionCoverageSnapshot coverage)
@@ -100,7 +106,7 @@ public sealed class MainStatsCalculator : IMainStatsCalculator
         // Min is a no-op in practice. It guards against an inverted (tightening) threshold if the
         // validator is ever bypassed, mirroring the weightSum guard in ScoringProcess.
         var floor = Math.Min(options.PlayRateFloor, options.PlayRateThreshold);
-        var deficit = coverage.Deficit(championId);
+        var deficit = coverage.Deficit(platformId, championId);
         return options.PlayRateThreshold - (options.PlayRateThreshold - floor) * deficit;
     }
 

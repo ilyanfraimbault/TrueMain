@@ -35,10 +35,12 @@ public class HarvestOptions
     /// <see cref="NewCandidateShare"/> (#495), so a saturated pool cannot spend the whole
     /// budget re-reading the players it already knows.
     ///
-    /// The budget is still cross-platform: a high-traffic region (e.g. KR) can consume most
-    /// of it and leave smaller regions behind on an imbalanced run. That bound is reported
-    /// per platform on the <c>HarvestBudgetExhausted</c> ops event rather than fixed here;
-    /// a per-platform quota remains a possible refinement.
+    /// Split across platforms by coverage deficit before the class split (#1150). It used to
+    /// be one cross-platform ordering, which a high-traffic region consumed almost entirely:
+    /// observed games come from the matches we already ingested, so the densest observations
+    /// are always the region we ingest most, and the harvest could only reproduce the mix that
+    /// produced it. The per-platform outcome is still reported on the
+    /// <c>HarvestBudgetExhausted</c> ops event.
     ///
     /// Raising this also raises the transient heap a run holds: it is the per-class,
     /// per-platform fetch cap too, so a run materialises up to

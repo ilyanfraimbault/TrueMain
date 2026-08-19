@@ -50,7 +50,7 @@ public sealed class RiotAccountClaimIntegrationTests
         var repo = new RiotAccountRepository(db);
 
         var claimed = await repo.ClaimAccountsForMatchIngestAtomicallyAsync(
-            new[] { "KR" },
+            new Dictionary<string, int> { ["KR"] = 1 },
             1,
             0.7,
             now,
@@ -77,7 +77,7 @@ public sealed class RiotAccountClaimIntegrationTests
         var repo = new RiotAccountRepository(db);
 
         var claimed = await repo.ClaimAccountsForMatchIngestAtomicallyAsync(
-            new[] { "KR" },
+            new Dictionary<string, int> { ["KR"] = 4 },
             4,
             0.75,
             now,
@@ -102,7 +102,7 @@ public sealed class RiotAccountClaimIntegrationTests
         var repo = new RiotAccountRepository(db);
 
         var claimed = await repo.ClaimAccountsForMatchIngestAtomicallyAsync(
-            new[] { "KR" },
+            new Dictionary<string, int> { ["KR"] = 10 },
             10,
             0.7,
             now,
@@ -124,7 +124,7 @@ public sealed class RiotAccountClaimIntegrationTests
         var repo = new RiotAccountRepository(db);
 
         var claimed = await repo.ClaimAccountsForMatchIngestAtomicallyAsync(
-            new[] { "KR" },
+            new Dictionary<string, int> { ["KR"] = 3 },
             3,
             0.7,
             DateTime.UtcNow,
@@ -220,6 +220,7 @@ public sealed class RiotAccountClaimIntegrationTests
     {
         await using var db = _fixture.CreateDbContext();
         var repo = new RiotAccountRepository(db);
-        return await repo.ClaimAccountsForMatchIngestAtomicallyAsync(new[] { "KR" }, 2, 0.7, nowUtc, lease, CancellationToken.None);
+        return await repo.ClaimAccountsForMatchIngestAtomicallyAsync(
+            new Dictionary<string, int> { ["KR"] = 2 }, 2, 0.7, nowUtc, lease, CancellationToken.None);
     }
 }

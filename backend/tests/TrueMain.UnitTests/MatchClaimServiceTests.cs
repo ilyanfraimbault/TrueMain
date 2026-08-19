@@ -1,6 +1,7 @@
 using Data.Entities;
 using Data.Repositories;
 using AwesomeAssertions;
+using Ingestor.Processes.Components.Coverage;
 using Ingestor.Processes.Components.MatchIngestion;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -29,7 +30,7 @@ public sealed class MatchClaimServiceTests
 
         riotAccounts
             .ClaimAccountsForMatchIngestAtomicallyAsync(
-                Arg.Any<IReadOnlyCollection<string>>(),
+                Arg.Any<IReadOnlyDictionary<string, int>>(),
                 Arg.Any<int>(),
                 Arg.Any<double>(),
                 Arg.Any<DateTime>(),
@@ -48,14 +49,21 @@ public sealed class MatchClaimServiceTests
         sessionFactory.CreateAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(session));
 
-        var service = new MatchClaimService(sessionFactory, timeProvider, NullLogger<MatchClaimService>.Instance);
+        var coverageProvider = Substitute.For<IChampionCoverageProvider>();
+        coverageProvider.GetSnapshotAsync(Arg.Any<IDataSession>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(ChampionCoverageSnapshot.Empty));
+
+        var service = new MatchClaimService(
+            sessionFactory, coverageProvider, timeProvider, NullLogger<MatchClaimService>.Instance);
 
         var result = await service.ClaimAsync(new[] { "KR" }, 10, 0.7, lease, CancellationToken.None);
 
         result.Should().ContainSingle().Which.Should().Be(new AccountKey("KR", "puuid-1"));
 
+        // The single configured platform gets the whole batch: a neutral snapshot splits
+        // evenly, and an even split over one platform is the batch (#1150).
         await riotAccounts.Received(1).ClaimAccountsForMatchIngestAtomicallyAsync(
-            Arg.Any<IReadOnlyCollection<string>>(),
+            Arg.Is<IReadOnlyDictionary<string, int>>(quotas => quotas["KR"] == 10),
             10,
             0.7,
             nowUtc,

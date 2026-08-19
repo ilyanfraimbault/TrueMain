@@ -1,6 +1,7 @@
 using Data.Entities;
 using Data.Repositories;
 using Ingestor.Options;
+using Ingestor.Processes.Components.Coverage;
 
 namespace Ingestor.Processes.Components.Discovery;
 
@@ -23,6 +24,7 @@ public sealed class ParticipantHarvestService : IParticipantHarvestService
     public async Task<HarvestResult> HarvestAsync(
         IDataSession session,
         HarvestOptions options,
+        ChampionCoverageSnapshot coverage,
         DateTime nowUtc,
         CancellationToken ct)
     {
@@ -33,7 +35,7 @@ public sealed class ParticipantHarvestService : IParticipantHarvestService
         // MinObservedGames/MaxCandidatesPerRun are validated > 0 at startup and clamped by
         // the repository, so pass them through here — the repository is the single guard.
         // MaxCandidatesPerRun caps each class on each platform there; the run-wide budget is
-        // applied below, once, across the union.
+        // split per platform below and then applied inside each slice (#1150).
         //
         // The full budget has to be the per-class cap, not a fraction of it: the reservation
         // spills, so either class may legitimately take the whole budget when the other is
@@ -60,12 +62,12 @@ public sealed class ParticipantHarvestService : IParticipantHarvestService
             sinceUtc,
             ct);
 
-        var rows = SelectWithinBudget(batch, options);
-        var coverage = BuildCoverage(batch, rows);
+        var rows = SelectWithinBudget(batch, options, coverage);
+        var harvestCoverage = BuildCoverage(batch, rows);
 
         if (rows.Count == 0)
         {
-            return new HarvestResult(0, 0, 0, coverage);
+            return new HarvestResult(0, 0, 0, harvestCoverage);
         }
 
         var saveBatchSize = Math.Max(1, options.SaveBatchSize);
@@ -128,45 +130,135 @@ public sealed class ParticipantHarvestService : IParticipantHarvestService
             await session.SaveChangesAsync(ct);
         }
 
-        return new HarvestResult(inserted, updated, accountsCreated, coverage);
+        return new HarvestResult(inserted, updated, accountsCreated, harvestCoverage);
     }
 
     /// <summary>
-    /// Spends the run's budget across the two classes the repository tagged (#495).
+    /// Spends the run's budget across platforms (#1150) and, inside each, across the two
+    /// classes the repository tagged (#495).
     ///
+    /// <para>
     /// Ordering the whole eligible pool by observed games and cutting at
     /// <see cref="HarvestOptions.MaxCandidatesPerRun"/> is self-defeating once the pool
     /// outgrows the cap: the head of that order is the most-observed players, i.e. exactly
     /// the ones already harvested, so the run spends its entire budget refreshing known
-    /// candidates and a pair that just crossed the observed-games gate never gets in.
+    /// candidates and a pair that just crossed MinObservedGames never reaches the window.
     /// Reserving <see cref="HarvestOptions.NewCandidateShare"/> of the budget for pairs with
     /// no candidate yet guarantees discovery keeps moving, and because harvesting a pair
     /// moves it to the known class, that reservation drains a different slice of the backlog
     /// every run instead of re-reading the same head.
+    /// </para>
     ///
-    /// The reservation is a floor, not a partition: each class may use whatever the other
-    /// leaves unused, so the run still fills its budget when one class is short.
+    /// <para>
+    /// That single ordering had the same flaw one dimension up. Observed games come from the
+    /// matches we already ingested, so the densest observations are always the region we
+    /// ingest most, and a global order handed it most of the budget — the harvest could only
+    /// ever reproduce the region mix that produced it. The budget is now split per platform
+    /// by coverage deficit first, and the class split applies inside each platform's slice.
+    /// </para>
+    ///
+    /// <para>
+    /// Both splits are floors, not partitions: a class may use whatever the other leaves, and
+    /// a platform that cannot fill its slice releases it to the platforms that can. So the run
+    /// still fills its whole budget when one class — or one region — is short.
+    /// </para>
     /// </summary>
     private static List<HarvestedCandidateRow> SelectWithinBudget(
         HarvestCandidateBatch batch,
-        HarvestOptions options)
+        HarvestOptions options,
+        ChampionCoverageSnapshot coverage)
     {
         var budget = Math.Max(1, options.MaxCandidatesPerRun);
         var newShare = Math.Clamp(options.NewCandidateShare, 0d, 1d);
 
-        var newRows = ByPriority(batch.Rows.Where(row => !row.IsKnownCandidate));
-        var knownRows = ByPriority(batch.Rows.Where(row => row.IsKnownCandidate));
+        var platforms = batch.Rows
+            .Select(row => row.PlatformId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(platform => platform, StringComparer.Ordinal)
+            .ToList();
 
-        var reservedForNew = Math.Clamp((int)Math.Ceiling(budget * newShare), 0, budget);
-        var takeNew = Math.Min(newRows.Count, Math.Max(reservedForNew, budget - knownRows.Count));
-        var takeKnown = Math.Min(knownRows.Count, budget - takeNew);
+        if (platforms.Count == 0)
+        {
+            return [];
+        }
 
-        // New pairs first: they are the run's priority, and a failure part-way through leaves
-        // discovery advanced rather than only stats refreshed.
-        var selected = new List<HarvestedCandidateRow>(takeNew + takeKnown);
-        selected.AddRange(newRows.Take(takeNew));
-        selected.AddRange(knownRows.Take(takeKnown));
+        var quotas = PlatformBudgetAllocator.Allocate(platforms, budget, coverage);
+
+        var newRows = new Dictionary<string, List<HarvestedCandidateRow>>(StringComparer.OrdinalIgnoreCase);
+        var knownRows = new Dictionary<string, List<HarvestedCandidateRow>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var platform in platforms)
+        {
+            var onPlatform = batch.Rows
+                .Where(row => string.Equals(row.PlatformId, platform, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            newRows[platform] = ByPriority(onPlatform.Where(row => !row.IsKnownCandidate));
+            knownRows[platform] = ByPriority(onPlatform.Where(row => row.IsKnownCandidate));
+        }
+
+        var selected = new List<HarvestedCandidateRow>(budget);
+        var takenNew = platforms.ToDictionary(platform => platform, _ => 0, StringComparer.OrdinalIgnoreCase);
+        var takenKnown = platforms.ToDictionary(platform => platform, _ => 0, StringComparer.OrdinalIgnoreCase);
+
+        // Pass 1 — each platform spends its own slice, new pairs first: they are the run's
+        // priority, and a failure part-way through leaves discovery advanced rather than only
+        // stats refreshed.
+        foreach (var platform in platforms)
+        {
+            var quota = Math.Min(quotas.TryGetValue(platform, out var slot) ? slot : 0, budget);
+            var reservedForNew = Math.Clamp((int)Math.Ceiling(quota * newShare), 0, quota);
+            var takeNew = Math.Min(newRows[platform].Count, Math.Max(reservedForNew, quota - knownRows[platform].Count));
+            var takeKnown = Math.Min(knownRows[platform].Count, quota - takeNew);
+
+            Take(newRows[platform], takenNew, platform, takeNew);
+            Take(knownRows[platform], takenKnown, platform, takeKnown);
+        }
+
+        // Pass 2 — spill, round-robin across platforms so an unfilled slice is shared rather
+        // than handed whole to whichever platform sorts first (which is what a single global
+        // ordering did).
+        var progressed = true;
+        while (selected.Count < budget && progressed)
+        {
+            progressed = false;
+            foreach (var platform in platforms)
+            {
+                if (selected.Count >= budget)
+                {
+                    break;
+                }
+
+                if (Take(newRows[platform], takenNew, platform, 1) > 0
+                    || Take(knownRows[platform], takenKnown, platform, 1) > 0)
+                {
+                    progressed = true;
+                }
+            }
+        }
+
         return selected;
+
+        int Take(
+            List<HarvestedCandidateRow> source,
+            Dictionary<string, int> cursorByPlatform,
+            string platform,
+            int count)
+        {
+            if (count <= 0)
+            {
+                return 0;
+            }
+
+            var cursor = cursorByPlatform[platform];
+            var take = Math.Min(count, source.Count - cursor);
+            if (take <= 0)
+            {
+                return 0;
+            }
+
+            selected.AddRange(source.GetRange(cursor, take));
+            cursorByPlatform[platform] = cursor + take;
+            return take;
+        }
     }
 
     // Most-observed first, then most recently seen. The puuid/champion tiebreak only makes

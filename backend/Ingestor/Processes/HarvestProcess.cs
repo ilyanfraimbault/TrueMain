@@ -2,6 +2,7 @@ using Data.Logging;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Common;
+using Ingestor.Processes.Components.Coverage;
 using Ingestor.Processes.Components.Discovery;
 using Ingestor.Processes.Summaries;
 using Microsoft.Extensions.Options;
@@ -19,6 +20,7 @@ public sealed class HarvestProcess(
     ILogger<HarvestProcess> logger,
     IDataSessionFactory sessionFactory,
     IParticipantHarvestService harvestService,
+    IChampionCoverageProvider coverageProvider,
     IOptions<HarvestOptions> harvestOptions) : IIngestorProcess
 {
     public string Name => "Harvest";
@@ -39,7 +41,10 @@ public sealed class HarvestProcess(
         await using var session = await sessionFactory.CreateAsync(ct);
         var nowUtc = DateTime.UtcNow;
 
-        var result = await harvestService.HarvestAsync(session, options, nowUtc, ct);
+        // The same frozen coverage signal the claim and scoring read, so the harvest's
+        // per-platform budget split agrees with theirs within a cycle (#1150).
+        var championCoverage = await coverageProvider.GetSnapshotAsync(session, ct);
+        var result = await harvestService.HarvestAsync(session, options, championCoverage, nowUtc, ct);
 
         // Named ops event (#444): one per harvest run, so the operator can follow the
         // participant-harvest arm from /ops/logs alongside ladder discovery. Coverage
