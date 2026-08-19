@@ -34,6 +34,7 @@ public sealed class OpsController(
     ICandidateQueueLatencyQueryService candidateQueueLatencyQueryService,
     ICrashesQueryService crashesQueryService,
     IAccountExplorerQueryService accountExplorerQueryService,
+    IAccountFreshnessQueryService accountFreshnessQueryService,
     IPatchCoverageQueryService patchCoverageQueryService,
     IAggregationStatsQueryService aggregationStatsQueryService) : ControllerBase
 {
@@ -437,6 +438,63 @@ public sealed class OpsController(
     }
 
     /// <summary>
+    /// Bulk counterpart to <c>GET accounts/{nameTag}</c>: for each Riot ID, whether we already
+    /// track it, whether it is still usable, and when we last ingested it. Nothing else.
+    /// <para>
+    /// A POST because the input is a list, not because it writes — this is a read. It exists
+    /// so a batch caller stops looping the account explorer: that endpoint traces one Riot ID
+    /// through the entire pipeline, which is right for an operator and ruinous a few thousand
+    /// times in a row (the OTP seeder's first run drove it into 30-second timeouts on the live
+    /// site). Capped at <see cref="AccountFreshnessRequest.BatchLimit"/> entries per request so
+    /// the query stays bounded; a caller with more sends several batches.
+    /// </para>
+    /// 400 for an entry missing a gameName/platformId, an unknown platform route, or a batch
+    /// over the limit.
+    /// </summary>
+    [HttpPost("accounts/freshness")]
+    [ProducesResponseType(typeof(AccountFreshnessResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<AccountFreshnessResponse>> GetAccountFreshnessAsync(
+        [FromBody] AccountFreshnessRequest request,
+        CancellationToken ct)
+    {
+        var entries = request.Accounts ?? [];
+        if (entries.Count == 0)
+        {
+            return Ok(new AccountFreshnessResponse());
+        }
+
+        if (entries.Count > AccountFreshnessRequest.BatchLimit)
+        {
+            return ValidationProblem(
+                $"accounts holds {entries.Count} entries; at most "
+                + $"{AccountFreshnessRequest.BatchLimit} per request. Send several batches.");
+        }
+
+        var queries = new List<AccountFreshnessQuery>(entries.Count);
+        foreach (var entry in entries)
+        {
+            if (string.IsNullOrWhiteSpace(entry.GameName) || string.IsNullOrWhiteSpace(entry.PlatformId))
+            {
+                return ValidationProblem("every entry needs a gameName and a platformId.");
+            }
+
+            if (!PlatformId.TryParse(entry.PlatformId.Trim(), out var platform))
+            {
+                return ValidationProblem(
+                    $"platformId '{entry.PlatformId}' is not a known platform route (e.g. EUW1, KR, NA1).");
+            }
+
+            queries.Add(new AccountFreshnessQuery(
+                entry.GameName.Trim(), (entry.TagLine ?? string.Empty).Trim(), platform.Value));
+        }
+
+        var accounts = await accountFreshnessQueryService.GetAsync(queries, ct);
+        return Ok(new AccountFreshnessResponse { Accounts = accounts });
+    }
+
+    /// <summary>
     /// Seeds a single account into the pipeline by its Riot ID (gameName +
     /// tagLine + platformId), instead of waiting for the ladder Discovery to
     /// surface it. Records a <c>SeedRequest</c> at <c>Pending</c> and returns 202;
@@ -661,6 +719,28 @@ public sealed class OpsController(
         var readModel = await candidateQueryService.GetByIdAsync(id, ct);
         return readModel is null ? NotFound() : Ok(readModel);
     }
+}
+
+/// <summary>Request body for <c>POST /ops/accounts/freshness</c>.</summary>
+public sealed record AccountFreshnessRequest
+{
+    /// <summary>
+    /// Upper bound on one request. Keeps the scan bounded and the payload sane; a caller with
+    /// more Riot IDs sends several batches rather than one unbounded query.
+    /// </summary>
+    public const int BatchLimit = 1000;
+
+    public IReadOnlyList<AccountFreshnessRequestEntry>? Accounts { get; init; }
+}
+
+/// <summary>One Riot ID in an <see cref="AccountFreshnessRequest"/>.</summary>
+public sealed record AccountFreshnessRequestEntry
+{
+    public string? GameName { get; init; }
+
+    public string? TagLine { get; init; }
+
+    public string? PlatformId { get; init; }
 }
 
 /// <summary>Request body for <c>POST /ops/accounts/seed</c>.</summary>
