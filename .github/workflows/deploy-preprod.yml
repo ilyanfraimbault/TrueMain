@@ -139,7 +139,7 @@ jobs:
           echo "::endgroup::"
 
       - name: Upload migration script
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: preprod-migration-${{ github.sha }}
           path: ${{ runner.temp }}/migration.sql
