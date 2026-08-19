@@ -115,6 +115,18 @@ public sealed class ChampionCoverageSnapshotTests
     }
 
     [Fact]
+    public void Deficit_MatchesThePlatformCaseInsensitively()
+    {
+        // The allocator's platform list comes from configuration, so a lower-cased entry must
+        // not read as "no mains" — that would report a maximal deficit for a covered region,
+        // silently and in the wrong direction.
+        var snapshot = Build(new() { [("EUW1", 266)] = 20 });
+
+        snapshot.Deficit("euw1", 266).Should().Be(0);
+        snapshot.MeanDeficit("euw1").Should().Be(0);
+    }
+
+    [Fact]
     public void Constructor_TreatsNonPositiveTargetAsOne()
     {
         var snapshot = Build(new() { [(Kr, 1)] = 0 }, targetMainsPerChampion: 0);

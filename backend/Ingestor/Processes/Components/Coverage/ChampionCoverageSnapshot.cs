@@ -39,7 +39,15 @@ public sealed class ChampionCoverageSnapshot
                 nameof(mainsByPlatformChampion));
         }
 
-        _mainsByPlatformChampion = mainsByPlatformChampion;
+        // Re-keyed through a platform-case-insensitive comparer rather than stored as given.
+        // A raw tuple dictionary compares its string component ordinally, so a lookup keyed
+        // "euw1" would miss a row stored as "EUW1" and report zero mains — i.e. a *maximal*
+        // deficit — with nothing to indicate anything went wrong. Every caller happens to pass
+        // canonical upper-case ids today, but the allocator's platform list comes from
+        // configuration, and a signal that silently inverts on a lower-cased config entry is
+        // not one to leave load-bearing.
+        _mainsByPlatformChampion = mainsByPlatformChampion.ToDictionary(
+            pair => pair.Key, pair => pair.Value, PlatformChampionComparer.Instance);
         _targetMainsPerChampion = Math.Max(1, targetMainsPerChampion);
 
         // The champion universe is the union across platforms, not each platform's own keys:
@@ -62,7 +70,7 @@ public sealed class ChampionCoverageSnapshot
 
     private ChampionCoverageSnapshot()
     {
-        _mainsByPlatformChampion = new Dictionary<(string, int), int>();
+        _mainsByPlatformChampion = new Dictionary<(string, int), int>(PlatformChampionComparer.Instance);
         _targetMainsPerChampion = 1;
         _isNeutral = true;
         ChampionIds = new HashSet<int>();
@@ -148,5 +156,22 @@ public sealed class ChampionCoverageSnapshot
         }
 
         return Math.Clamp(total / ChampionIds.Count, 0, 1);
+    }
+
+    /// <summary>
+    /// Compares (platform, champion) keys with the platform case-insensitively, so the map
+    /// agrees with <see cref="SaturatedChampionIdsByPlatform"/> and with every other
+    /// platform-keyed lookup in the pipeline.
+    /// </summary>
+    private sealed class PlatformChampionComparer : IEqualityComparer<(string PlatformId, int ChampionId)>
+    {
+        public static readonly PlatformChampionComparer Instance = new();
+
+        public bool Equals((string PlatformId, int ChampionId) x, (string PlatformId, int ChampionId) y)
+            => x.ChampionId == y.ChampionId
+               && StringComparer.OrdinalIgnoreCase.Equals(x.PlatformId, y.PlatformId);
+
+        public int GetHashCode((string PlatformId, int ChampionId) obj)
+            => HashCode.Combine(StringComparer.OrdinalIgnoreCase.GetHashCode(obj.PlatformId), obj.ChampionId);
     }
 }
