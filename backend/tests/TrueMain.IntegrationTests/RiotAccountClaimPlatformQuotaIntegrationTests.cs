@@ -95,6 +95,25 @@ public sealed class RiotAccountClaimPlatformQuotaIntegrationTests
         claimed.Should().ContainSingle().Which.Puuid.Should().StartWith("new");
     }
 
+    [Fact]
+    public async Task ClaimAsync_KeepsARaceReserve_WhenASinglePlatformTakesTheWholeBatch()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        // The narrow case: one platform whose quota IS the batch. Scoping the fetch to the
+        // quota alone would leave no spare rows behind it, so a single lost ExecuteUpdate race
+        // would return a short batch. Half of these are already claimed under a live lease, so
+        // the run has to reach past its quota to fill.
+        await SeedQueuedAccountsAsync("KR", 4, now, puuidPrefix: "free");
+        await SeedQueuedAccountsAsync("KR", 4, now, puuidPrefix: "leased", claimedAtUtc: now);
+
+        var claimed = await ClaimAsync(new Dictionary<string, int> { ["KR"] = 4 }, batchSize: 4, now);
+
+        claimed.Should().HaveCount(4);
+        claimed.Should().OnlyContain(key => key.Puuid.StartsWith("free"));
+    }
+
     private static Dictionary<string, int> ByPlatform(IEnumerable<AccountKey> claimed)
         => claimed
             .GroupBy(key => key.PlatformId, StringComparer.Ordinal)
@@ -124,7 +143,8 @@ public sealed class RiotAccountClaimPlatformQuotaIntegrationTests
         int count,
         DateTime now,
         string puuidPrefix = "puuid",
-        DateTime? lastIngestAtUtc = null)
+        DateTime? lastIngestAtUtc = null,
+        DateTime? claimedAtUtc = null)
     {
         await using var db = _fixture.CreateDbContext();
 
@@ -143,7 +163,10 @@ public sealed class RiotAccountClaimPlatformQuotaIntegrationTests
                 CreatedAtUtc = now,
                 UpdatedAtUtc = now,
                 LastMatchIngestAtUtc = lastIngestAtUtc,
-                MatchIngestStatus = MatchIngestStatus.Idle
+                // A live lease makes the row unclaimable, which is how this simulates losing
+                // the race without needing two concurrent workers.
+                MatchIngestStatus = claimedAtUtc is null ? MatchIngestStatus.Idle : MatchIngestStatus.Processing,
+                MatchIngestClaimedAtUtc = claimedAtUtc
             });
 
             db.MainCandidates.Add(new MainCandidate

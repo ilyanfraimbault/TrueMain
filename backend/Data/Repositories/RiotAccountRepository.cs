@@ -309,15 +309,16 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
         var safeLease = lease > TimeSpan.Zero ? lease : TimeSpan.FromMinutes(30);
         var leaseCutoff = nowUtc - safeLease;
 
-        // Over-fetch per platform per class, as the single pre-#900 query did: a claim can
-        // lose the race for a row, and a platform short on one class must be able to absorb
-        // another platform's released quota, so both need a reserve beyond their own slice.
-        // Bounded by the whole batch because that is the most any one platform can end up
-        // claiming once every other platform has spilled to it.
-        var perPlatformFetchCap = safeBatchSize;
-
         // Ordered so the batch is reproducible: the spill pass walks platforms in this order.
         var platforms = quotas.Keys.OrderBy(platform => platform, StringComparer.Ordinal).ToList();
+
+        // Over-fetch per platform per class, keeping the 4x race reserve the single pre-#1150
+        // query had: a claim can lose the ExecuteUpdate race for a row, and without spare rows
+        // behind the quota the batch silently comes back short. Scaling on the platform's own
+        // quota rather than on the batch keeps that reserve proportional however the budget is
+        // split, and the batch-sized floor is what lets one platform absorb every other
+        // platform's released quota when it is the only one with work.
+        int FetchCapFor(string platform) => Math.Max(safeBatchSize, quotas[platform] * 4);
 
         // Both classes are expressed as an EXISTS over the account row rather than as a
         // join on a projected key set: one row per account without a Distinct, and the
@@ -340,7 +341,7 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
                     && stat.Puuid == account.Puuid),
                 platform,
                 leaseCutoff,
-                perPlatformFetchCap,
+                FetchCapFor(platform),
                 ct);
 
             queuedByPlatform[platform] = await SelectClaimableAsync(
@@ -350,7 +351,7 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
                     && candidate.Puuid == account.Puuid),
                 platform,
                 leaseCutoff,
-                perPlatformFetchCap,
+                FetchCapFor(platform),
                 ct);
         }
 
