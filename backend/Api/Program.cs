@@ -144,9 +144,6 @@ builder.Services.AddOptions<ChampionsListOptions>()
     .Bind(builder.Configuration.GetSection(ChampionsListOptions.SectionName))
     .Validate(options => options.MinSampleGames >= 0, "ChampionsList:MinSampleGames must be >= 0.")
     .Validate(options => options.MinServablePatchLines >= 0, "ChampionsList:MinServablePatchLines must be >= 0.")
-    // At least the served patch itself: 0 would leave the homepage chips spanning no
-    // patch at all and reading 0 games, the very state #1109 removed.
-    .Validate(options => options.HomepagePatchWindow >= 1, "ChampionsList:HomepagePatchWindow must be >= 1.")
     .Validate(options => options.MinMatchupGames >= 0, "ChampionsList:MinMatchupGames must be >= 0.")
     // A share, so out of [0,1) it stops meaning anything: 1 would demand a single
     // opponent account for every game the champion ever played, which no matchup can.

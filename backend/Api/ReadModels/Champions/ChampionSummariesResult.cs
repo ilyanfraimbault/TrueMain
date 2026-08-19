@@ -27,9 +27,6 @@ public sealed record ChampionSummariesResult
     /// </summary>
     public long TotalGames { get; init; }
 
-    /// <summary>Distinct champion count across <see cref="Summaries"/> (i.e. after the min-sample floor).</summary>
-    public int ChampionsRanked { get; init; }
-
     /// <summary>The ranked, tiered <c>(champion, position)</c> rows — same shape <c>GET /champions</c> has always returned.</summary>
     public IReadOnlyList<ChampionSummaryReadModel> Summaries { get; init; } = [];
 }

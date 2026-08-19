@@ -15,7 +15,9 @@ import type { BadgeColor, ProcessHealthStatus } from '~~/shared/types/ops'
  * `Missing` is neutral, not a warning: a process that has never recorded a run is
  * unmeasured, and on a fresh environment every one of them is. `Abandoned` is a warning
  * rather than an error because the run's own outcome is unknown — its host died — which
- * is a different claim from "it ran and failed".
+ * is a different claim from "it ran and failed". `Skipped` is neutral for a third reason:
+ * the run is settled and healthy, its cadence guard simply decided it was too early, so
+ * it is neither a success to celebrate nor a problem to flag.
  */
 export function processStatusColor(status: ProcessHealthStatus | string): BadgeColor {
   switch (status) {
@@ -27,6 +29,8 @@ export function processStatusColor(status: ProcessHealthStatus | string): BadgeC
       return 'warning'
     case 'Running':
       return 'info'
+    case 'Skipped':
+      return 'neutral'
     default:
       return 'neutral'
   }

@@ -47,9 +47,14 @@ public interface IProcessRunStore
     Task<int> AbandonRunningAsync(DateTime finishedAtUtc, string error, CancellationToken ct);
 
     /// <summary>
-    /// The start time of the most recent completed (non-Running) run of
-    /// <paramref name="processName"/>, or null when none exists — the Discovery
-    /// cadence gate.
+    /// The start time of the most recent run of <paramref name="processName"/> that
+    /// actually did its work, or null when none exists — the Discovery cadence gate.
+    /// <para>
+    /// <see cref="ProcessRunStatus.Running"/> and <see cref="ProcessRunStatus.Skipped"/>
+    /// are both excluded: the former is the caller's own in-flight row, the latter is a
+    /// run that deliberately did nothing. Counting a skip here would let it stand in for
+    /// the work it declined to do, re-arming the guard on every iteration (#1149).
+    /// </para>
     /// </summary>
     Task<DateTime?> GetLastCompletedRunStartAsync(string processName, CancellationToken ct);
 

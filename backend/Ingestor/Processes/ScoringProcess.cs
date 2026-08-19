@@ -117,15 +117,17 @@ public sealed class ScoringProcess(
         // take the top-N slots the under-covered champions leave. Deliberately a
         // priority, not a filter — with a small scored pool a saturated champion still
         // gets promoted rather than wasting the platform's queue.
-        var saturatedChampionIds = coverage.SaturatedChampionIds.ToList();
-
+        //
+        // Saturation is read per platform (#1150): a champion covered on EUW1 is not
+        // covered on KR, and deprioritising its KR candidates because of EUW1's mains is
+        // exactly how the under-served region stayed under-served.
         foreach (var platformId in scoredByPlatform.Keys.Order(StringComparer.OrdinalIgnoreCase))
         {
             var queuedCandidates = await QueueTopCandidatesByPlatformAsync(
                 session,
                 platformId,
                 scoring.TopNPerPlatform,
-                saturatedChampionIds,
+                coverage.SaturatedChampionIdsFor(platformId).ToList(),
                 ct);
             var scoredCount = scoredByPlatform[platformId];
 
@@ -186,7 +188,7 @@ public sealed class ScoringProcess(
         var rankWeight = scoring.RankWeight;
         var pointsWeight = scoring.PointsWeight;
         var scarcityWeight = Math.Max(0, scoring.ScarcityWeight);
-        var scarcityScore = coverage.Deficit(candidate.ChampionId);
+        var scarcityScore = coverage.Deficit(candidate.PlatformId, candidate.ChampionId);
 
         // Defensive only: startup validation guarantees the four weights sum to > 0, so this
         // branch is unreachable in production. It guards against a divide-by-zero if the

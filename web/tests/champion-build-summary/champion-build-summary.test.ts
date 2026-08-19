@@ -6,8 +6,11 @@ import type {
   StaticItemData,
   StaticSummonerSpellData,
 } from '../../shared/types/static-data'
+import type { BuildSummaryEntityToken, BuildSummarySentence } from '../../shared/types/champion-build-summary'
 import {
+  buildSummarySentenceText,
   championBuildSentences,
+  championBuildSentenceTokens,
   lanePhrase,
   resolveChampionBuildSummary,
 } from '../../shared/utils/champion-build-summary'
@@ -23,7 +26,7 @@ import {
  */
 
 const ITEMS: Record<number, StaticItemData> = {
-  1056: { id: 1056, name: 'Doran\'s Ring', iconUrl: '', totalGold: 400 },
+  1056: { id: 1056, name: 'Doran\'s Ring', iconUrl: 'https://cdn/item/1056.png', totalGold: 400 },
   3020: { id: 3020, name: 'Sorcerer\'s Shoes', iconUrl: '', totalGold: 1100 },
   3157: { id: 3157, name: 'Zhonya\'s Hourglass', iconUrl: '', totalGold: 3250 },
   4645: { id: 4645, name: 'Shadowflame', iconUrl: '', totalGold: 3200 },
@@ -35,7 +38,7 @@ const RUNE_TREE = {
   styles: [],
   shardSlots: [],
   perks: {
-    8112: { id: 8112, name: 'Electrocute', iconUrl: '' },
+    8112: { id: 8112, name: 'Electrocute', iconUrl: 'https://cdn/perk/8112.png' },
     8135: { id: 8135, name: 'Treasure Hunter', iconUrl: '' },
     8138: { id: 8138, name: 'Eyeball Collection', iconUrl: '' },
     8139: { id: 8139, name: 'Absolute Focus', iconUrl: '' },
@@ -58,7 +61,7 @@ const CHAMPION_STATIC: ChampionStaticData = {
   championIconUrl: '',
   partype: 'Mana',
   championSpells: {
-    Q: { key: 'Q', name: 'Orb of Deception', iconUrl: '' },
+    Q: { key: 'Q', name: 'Orb of Deception', iconUrl: 'https://cdn/spell/Q.png' },
     W: { key: 'W', name: 'Fox-Fire', iconUrl: '' },
     E: { key: 'E', name: 'Charm', iconUrl: '' },
     R: { key: 'R', name: 'Spirit Rush', iconUrl: '' },
@@ -196,6 +199,7 @@ describe('championBuildSentences', () => {
     const text = sentences.join(' ')
 
     expect(text).toContain('Across 247 ranked games on patch 16.16, Ahri mains win 50.6% of their games in the mid lane.')
+    expect(text).toContain('Their most common build appears in 38.0% of those games and wins 52.1% of its 94 games.')
     expect(text).toContain('completes Luden\'s Companion, Shadowflame and Zhonya\'s Hourglass in that order')
     expect(text).toContain('starts Doran\'s Ring')
     expect(text).toContain('takes Sorcerer\'s Shoes')
@@ -275,8 +279,17 @@ describe('championBuildSentences', () => {
     const bootsOnly = championBuildSentences(resolve({
       builds: [{ ...base, core: { ...base.core, starterItems: null, itemPath: null } }],
     }))
-    expect(bootsOnly.some(s => s.includes('— and takes'))).toBe(false)
-    expect(bootsOnly.some(s => s.includes('— takes Sorcerer\'s Shoes.'))).toBe(true)
+    expect(bootsOnly.some(s => s.includes('and takes'))).toBe(false)
+    expect(bootsOnly).toContain('It takes Sorcerer\'s Shoes.')
+  })
+
+  it('writes no em dash anywhere', () => {
+    // The paragraph is read in a 26 rem sidebar column, where a parenthetical
+    // set off by dashes breaks the line twice and reads as a stumble. The
+    // build's share is its own sentence instead — pin it, because "just add an
+    // aside" is the natural way to write the next clause someone adds.
+    expect(championBuildSentences(resolve({ minSampleMet: false }, 'Zed')).join(' '))
+      .not.toMatch(/[—–]/)
   })
 
   it('says nothing at all without a name or without games', () => {
@@ -290,6 +303,114 @@ describe('championBuildSentences', () => {
     expect(championBuildSentences(resolve({ builds: [] }))).toEqual([
       'Across 247 ranked games on patch 16.16, Ahri mains win 50.6% of their games in the mid lane.',
     ])
+  })
+})
+
+describe('championBuildSentenceTokens', () => {
+  function entities(sentences: BuildSummarySentence[]): BuildSummaryEntityToken[] {
+    return sentences.flat().filter((token): token is BuildSummaryEntityToken => token.kind === 'entity')
+  }
+
+  it('concatenates to exactly the plain sentences', () => {
+    // The decorated paragraph and the indexable one are the same paragraph.
+    // Two builders would drift, and the drift would be invisible — the page
+    // would keep looking right while the crawler read something else.
+    const summary = resolve({ minSampleMet: false }, 'Zed')
+    expect(championBuildSentenceTokens(summary).map(buildSummarySentenceText))
+      .toEqual(championBuildSentences(summary))
+  })
+
+  it('marks every named entity and leaves the connective prose alone', () => {
+    const named = entities(championBuildSentenceTokens(resolve())).map(token => token.text)
+    expect(named).toContain('Doran\'s Ring')
+    expect(named).toContain('Sorcerer\'s Shoes')
+    expect(named).toContain('Electrocute')
+    expect(named).toContain('Q (Orb of Deception)')
+    expect(named).toContain('Flash')
+    // "in that order", "out of", "secondary for" are prose, not entities.
+    expect(named.some(text => text.includes('in that order'))).toBe(false)
+  })
+
+  it('colours a rune by the tree it was taken from, not by its slot', () => {
+    // The one thing the tones exist for: a paragraph naming five runes from two
+    // trees is unreadable if a Sorcery rune is painted with the primary tree's
+    // colour because it happened to be listed after it.
+    const byName = new Map(entities(championBuildSentenceTokens(resolve())).map(t => [t.text, t.tone]))
+    expect(byName.get('Electrocute')).toBe('domination')
+    expect(byName.get('Domination')).toBe('domination')
+    expect(byName.get('Treasure Hunter')).toBe('domination')
+    expect(byName.get('Sorcery')).toBe('sorcery')
+    expect(byName.get('Transcendence')).toBe('sorcery')
+    expect(byName.get('Doran\'s Ring')).toBe('item')
+    expect(byName.get('Flash')).toBe('spell')
+  })
+
+  it('carries each entity\'s own icon, and none for the ones DDragon left empty', () => {
+    const byName = new Map(entities(championBuildSentenceTokens(resolve())).map(t => [t.text, t.iconUrl]))
+    expect(byName.get('Doran\'s Ring')).toBe('https://cdn/item/1056.png')
+    expect(byName.get('Electrocute')).toBe('https://cdn/perk/8112.png')
+    expect(byName.get('Q (Orb of Deception)')).toBe('https://cdn/spell/Q.png')
+    // An entity DDragon named but shipped no artwork for is still named: the
+    // alternative is a build path that silently loses an item to a missing PNG.
+    expect(byName.get('Shadowflame')).toBeNull()
+  })
+
+  it('keeps a collapsed run of one item as a single mark', () => {
+    const base = champion().builds[0]!
+    const tokens = championBuildSentenceTokens(resolve({
+      builds: [{
+        ...base,
+        core: {
+          ...base.core,
+          starterItems: { itemIds: [1056, 2003, 2003], games: 90, pickRate: 0.36, winRate: 0.52 },
+        },
+      }],
+    }))
+    const potions = entities(tokens).filter(token => token.text.includes('Health Potion'))
+    expect(potions).toHaveLength(1)
+    expect(potions[0]?.text).toBe('two Health Potions')
+  })
+
+  it('routes each mark to the static map its record actually lives in', () => {
+    // The tone cannot answer this: a Domination rune and the Domination tree
+    // share a tone, and looking the tree up in `perks` (or the rune in
+    // `perkStyles`) silently yields no hover card at all — a failure that is
+    // invisible until someone hovers the one word that has no tooltip.
+    const bySource = new Map(entities(championBuildSentenceTokens(resolve())).map(t => [t.text, t.source]))
+    expect(bySource.get('Doran\'s Ring')).toBe('item')
+    expect(bySource.get('Sorcerer\'s Shoes')).toBe('item')
+    expect(bySource.get('Electrocute')).toBe('perk')
+    expect(bySource.get('Transcendence')).toBe('perk')
+    expect(bySource.get('Domination')).toBe('perkStyle')
+    expect(bySource.get('Sorcery')).toBe('perkStyle')
+    expect(bySource.get('Flash')).toBe('summoner')
+    expect(bySource.get('Q (Orb of Deception)')).toBe('ability')
+  })
+
+  it('keys an entity by what its map is keyed by', () => {
+    // `id` is the lookup key, not just a `:key` — an ability is keyed by its
+    // slot letter because `championSpells` is, and everything else by its id.
+    const byName = new Map(entities(championBuildSentenceTokens(resolve())).map(t => [t.text, t.id]))
+    expect(byName.get('Doran\'s Ring')).toBe(1056)
+    expect(byName.get('Electrocute')).toBe(8112)
+    expect(byName.get('Q (Orb of Deception)')).toBe('Q')
+  })
+
+  it('marks the pinned opponent as a champion', () => {
+    const summary = { ...resolve({}, 'Zed'), opponentIconUrl: 'https://cdn/champion/Zed.png' }
+    const opponent = entities(championBuildSentenceTokens(summary)).find(token => token.text === 'Zed')
+    expect(opponent?.tone).toBe('champion')
+    expect(opponent?.iconUrl).toBe('https://cdn/champion/Zed.png')
+  })
+
+  it('sets every figure as a measurement', () => {
+    const values = championBuildSentenceTokens(resolve())
+      .flat()
+      .filter(token => token.kind === 'value')
+      .map(token => token.text)
+    expect(values).toContain('247')
+    expect(values).toContain('16.16')
+    expect(values).toContain('50.6%')
   })
 })
 

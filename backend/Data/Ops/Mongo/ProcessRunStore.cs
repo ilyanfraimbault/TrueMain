@@ -135,8 +135,16 @@ internal sealed class ProcessRunStore(MongoLogContext context) : IProcessRunStor
             return null;
         }
 
+        // Running is excluded because the caller is itself the in-flight run the recorder
+        // just opened. Skipped is excluded because a cadence guard asks "when did this
+        // process last actually run?" — counting a skip as an answer makes the skip its own
+        // predecessor, so the guard re-arms on every iteration and the process never runs
+        // again (#1149). Failed still counts: a failed attempt spent its Riot budget, so the
+        // interval before the next attempt is deliberate.
         var latest = await context.ProcessRuns
-            .Find(doc => doc.ProcessName == processName && doc.Status != ProcessRunStatus.Running)
+            .Find(doc => doc.ProcessName == processName
+                         && doc.Status != ProcessRunStatus.Running
+                         && doc.Status != ProcessRunStatus.Skipped)
             .SortByDescending(doc => doc.StartedAtUtc)
             .Limit(1)
             .FirstOrDefaultAsync(ct);
@@ -423,9 +431,12 @@ internal sealed class ProcessRunStore(MongoLogContext context) : IProcessRunStor
 
         await EnsureIndexesOnceAsync(ct);
 
+        // Running is not terminal, and a Skipped run is terminal but is not a failure
+        // (#1149) — a cadence-gated process that skips hourly between real runs would
+        // otherwise report every skip since its last success as a consecutive failure.
         var builder = Builders<ProcessRunDocument>.Filter;
         var filter = builder.Eq(doc => doc.ProcessName, processName)
-                     & builder.Ne(doc => doc.Status, ProcessRunStatus.Running);
+                     & builder.Nin(doc => doc.Status, [ProcessRunStatus.Running, ProcessRunStatus.Skipped]);
 
         if (afterUtc is not null)
         {

@@ -622,16 +622,6 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
           <ChampionBuildTabsSkeleton v-else />
 
           <!--
-            The build in words (#1123). Rendered plainly — not `Lazy`, not
-            `hydrate-on-visible` — because being present in the server HTML is
-            the entire point; a lazy wrapper would put it back behind the same
-            JS gate as everything else. Sits under the tabs rather than above
-            them so the icon grid a player came for stays the first thing on
-            screen; before hydration it is the only build content there is.
-          -->
-          <ChampionBuildSummary :summary="buildSummary" />
-
-          <!--
             Everything below the build tabs is below the fold and pulls the
             heavy charting bundle (nuxt-charts). Lazy-load each so its JS lands
             in its own chunk and only downloads/hydrates once scrolled into
@@ -683,6 +673,28 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
         </div>
 
         <aside class="min-w-0 space-y-6">
+          <!--
+            The build in words (#1123). Rendered plainly — not `Lazy`, not
+            `hydrate-on-visible` — because being present in the server HTML is
+            the entire point; a lazy wrapper would put it back behind the same
+            JS gate as everything else.
+
+            In the sidebar, beside the icon grid rather than under it (#1143):
+            it is the same build said twice, and stacking the prose below the
+            panels made the second telling read as a footnote nobody scrolls to.
+            Next to them it is the caption for what the reader is already
+            looking at, and it is the one card in this column that needs no JS.
+            DOM order still puts it after the tabs, so the crawler and the
+            keyboard both meet the page's own build content first.
+          -->
+          <ChampionBuildSummary
+            :summary="buildSummary"
+            :items-map="itemsMap"
+            :rune-tree="runeTree ?? null"
+            :summoners-map="summonersMap"
+            :champion-static="staticData ?? null"
+          />
+
           <LazyChampionTruemains
             hydrate-on-visible
             :champion-id="championId"

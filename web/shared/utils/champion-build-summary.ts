@@ -1,4 +1,9 @@
 import type {
+  BuildSummaryEntityToken,
+  BuildSummarySentence,
+  BuildSummarySource,
+  BuildSummaryToken,
+  BuildSummaryTone,
   ChampionBuildSummary,
   ChampionBuildSummaryBuild,
   SummaryEntity,
@@ -81,59 +86,41 @@ function capitalise(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
-/** Sentence-cased join: `a`, `a and b`, `a, b and c`. */
-function listPhrase(parts: string[]): string {
-  if (parts.length <= 1) return parts[0] ?? ''
-  return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
+/** Static entry shape the two resolvers below need — every static map fits it. */
+interface NamedStatic {
+  name: string
+  iconUrl?: string | null
 }
 
 /**
- * Entity names for a sentence, with runs of the same item collapsed into a
- * count: a starter set genuinely holds two potions as two entries, and
- * "Health Potion and Health Potion" is accurate but not English. The icon grid
- * is right to repeat them; prose is not.
+ * Maps ids to `{ id, name, iconUrl }`, **dropping** every id the map doesn't
+ * know rather than substituting a synthetic label. Order is the caller's order —
+ * for the core path that is build order, which is load-bearing.
  *
- * Consecutive runs only, so the collapse can never reorder a list whose order
- * is the claim — the core path in particular, which never repeats an item
- * anyway.
+ * The *name* is what makes an entry survive; the icon is optional and never
+ * gates it. An entity DDragon named but shipped no artwork for is still a true
+ * sentence, and dropping it would silently shorten a build path.
  */
-function names(entities: SummaryEntity[]): string {
-  const parts: string[] = []
-  for (let i = 0; i < entities.length;) {
-    const entity = entities[i]!
-    let count = 1
-    while (entities[i + count]?.id === entity.id) count++
-    parts.push(count > 1 ? `${spellSmallNumber(count)} ${entity.name}s` : entity.name)
-    i += count
-  }
-  return listPhrase(parts)
-}
-
-/**
- * Maps ids to `{ id, name }`, **dropping** every id the map doesn't know rather
- * than substituting a synthetic label. Order is the caller's order — for the
- * core path that is build order, which is load-bearing.
- */
-function resolveMany<T extends { name: string }>(
+function resolveMany<T extends NamedStatic>(
   ids: number[] | null | undefined,
   lookup: Record<number, T> | null | undefined,
 ): SummaryEntity[] {
   if (!ids?.length || !lookup) return []
   const resolved: SummaryEntity[] = []
   for (const id of ids) {
-    const name = lookup[id]?.name
-    if (name) resolved.push({ id, name })
+    const entry = lookup[id]
+    if (entry?.name) resolved.push({ id, name: entry.name, iconUrl: entry.iconUrl || null })
   }
   return resolved
 }
 
-function resolveOne<T extends { name: string }>(
+function resolveOne<T extends NamedStatic>(
   id: number | null | undefined,
   lookup: Record<number, T> | null | undefined,
 ): SummaryEntity | null {
   if (id == null || !lookup) return null
-  const name = lookup[id]?.name
-  return name ? { id, name } : null
+  const entry = lookup[id]
+  return entry?.name ? { id, name: entry.name, iconUrl: entry.iconUrl || null } : null
 }
 
 export interface ResolveChampionBuildSummaryInput {
@@ -147,6 +134,8 @@ export interface ResolveChampionBuildSummaryInput {
   requestedEloBracket: string
   /** Resolved name of the pinned lane opponent, or null when none is pinned. */
   opponentName?: string | null
+  /** Portrait of that opponent, when the static payload carried one. */
+  opponentIconUrl?: string | null
 }
 
 export function resolveChampionBuildSummary(
@@ -191,6 +180,7 @@ export function resolveChampionBuildSummary(
       skills: (core.skillOrder?.sequence ?? []).map(key => ({
         key,
         name: championStatic?.championSpells?.[key]?.name ?? null,
+        iconUrl: championStatic?.championSpells?.[key]?.iconUrl || null,
       })),
     }
   }
@@ -202,6 +192,7 @@ export function resolveChampionBuildSummary(
     patch: champion?.patch ?? null,
     eloBracket: champion?.eloBracket ?? input.requestedEloBracket,
     opponentName: input.opponentName ?? null,
+    opponentIconUrl: input.opponentIconUrl ?? null,
     // Absent aggregate ⇒ no sample at all, which is not "sample met".
     minSampleMet: champion?.minSampleMet ?? false,
     games: champion?.totalGames ?? 0,
@@ -215,38 +206,148 @@ export function resolveChampionBuildSummary(
 }
 
 /**
- * The summary as sentences — the actual indexable text of the champion page.
+ * ─── The sentences, as tokens ───────────────────────────────────────────────
  *
- * One rule throughout: a sentence is emitted only when every figure in it is
- * real. Nothing is padded to reach a word count, because each sentence is a
- * claim about a measurement, and a generic filler sentence next to real numbers
- * makes the real numbers read as filler too.
+ * The summary is the actual indexable text of the champion page, and since
+ * #1143 it is also *typeset*: each named entity carries its icon and a tone, so
+ * the paragraph is scannable the way the icon grid above it is.
+ *
+ * Tokens rather than a string the component parses back apart. A regex over
+ * finished prose would have to find "Doran's Ring" inside a sentence that also
+ * contains "Doran's Blade", and would break on the first item named after a
+ * rune — the builder already knows exactly what each fragment *is*, so it says
+ * so instead of hiding it in punctuation and making the view guess.
+ *
+ * `championBuildSentences` is the concatenation of these, which is what keeps
+ * the sentence a crawler reads identical to the one a reader reads: there is
+ * one builder, not a plain version and a decorated version that can drift.
+ *
+ * One rule survives from #1123 and still governs everything: a sentence is
+ * emitted only when every figure in it is real. Nothing is padded to reach a
+ * word count, because each sentence is a claim about a measurement, and a
+ * generic filler sentence next to real numbers makes the real numbers read as
+ * filler too.
  */
-export function championBuildSentences(summary: ChampionBuildSummary): string[] {
+
+/**
+ * Rune style id → tone. Riot's five trees, and the reason the tones exist at
+ * all: a player reads "Domination" off the red before the word, exactly as they
+ * read Gold off the rank colour (`utils/tiers.ts`). An id outside this map is
+ * still named — it simply isn't attributed to a colour.
+ */
+const STYLE_TONES: Readonly<Record<number, BuildSummaryTone>> = {
+  8000: 'precision',
+  8100: 'domination',
+  8200: 'sorcery',
+  8300: 'inspiration',
+  8400: 'resolve',
+}
+
+function styleTone(style: SummaryEntity | null | undefined): BuildSummaryTone {
+  return (style ? STYLE_TONES[style.id] : undefined) ?? 'rune'
+}
+
+/** Connective prose. Every space in a sentence belongs to one of these. */
+function plain(text: string): BuildSummaryToken {
+  return { kind: 'text', text }
+}
+
+/** A measurement — a count, a percentage, a patch, a rank scope. */
+function figure(text: string): BuildSummaryToken {
+  return { kind: 'value', text }
+}
+
+function mark(
+  entity: SummaryEntity,
+  tone: BuildSummaryTone,
+  source: BuildSummarySource,
+  text: string = entity.name,
+): BuildSummaryEntityToken {
+  return { kind: 'entity', text, iconUrl: entity.iconUrl, tone, source, id: entity.id }
+}
+
+/**
+ * `a`, `a and b`, `a, b and c` — as tokens, separators included.
+ *
+ * `lastSeparator` is the whole difference between a list of *names* (` and `)
+ * and a list of *clauses* (`, and `): the clauses are long enough that the
+ * unpunctuated version misreads, which is why they keep the Oxford comma.
+ */
+function joinTokens(parts: BuildSummaryToken[][], lastSeparator: string): BuildSummaryToken[] {
+  const tokens: BuildSummaryToken[] = []
+  parts.forEach((part, index) => {
+    if (index > 0) tokens.push(plain(index === parts.length - 1 ? lastSeparator : ', '))
+    tokens.push(...part)
+  })
+  return tokens
+}
+
+/**
+ * A list of entities, with runs of the same one collapsed into a count: a
+ * starter set genuinely holds two potions as two entries, and "Health Potion and
+ * Health Potion" is accurate but not English. The icon grid above is right to
+ * repeat them; prose is not — and the collapsed token still carries the one
+ * icon, so "two Health Potions" reads as a quantity rather than as two marks.
+ *
+ * Consecutive runs only, so the collapse can never reorder a list whose order is
+ * the claim — the core path in particular, which never repeats an item anyway.
+ */
+function marks(
+  entities: SummaryEntity[],
+  tone: BuildSummaryTone,
+  source: BuildSummarySource,
+): BuildSummaryToken[] {
+  const parts: BuildSummaryToken[][] = []
+  for (let i = 0; i < entities.length;) {
+    const entity = entities[i]!
+    let count = 1
+    while (entities[i + count]?.id === entity.id) count++
+    parts.push([mark(entity, tone, source, count > 1 ? `${spellSmallNumber(count)} ${entity.name}s` : entity.name)])
+    i += count
+  }
+  return joinTokens(parts, ' and ')
+}
+
+export function championBuildSentenceTokens(summary: ChampionBuildSummary): BuildSummarySentence[] {
   const name = summary.championName
   if (!name || summary.games === 0) return []
 
-  const sentences: string[] = []
+  const sentences: BuildSummarySentence[] = []
   const lane = lanePhrase(summary.position)
   const bracket = bracketPhrase(summary.eloBracket)
 
-  const scope = [
-    `Across ${summary.games.toLocaleString('en-US')} ranked games`,
-    summary.patch ? `on patch ${summary.patch}` : '',
-    bracket ? `in ${bracket}` : '',
-  ].filter(Boolean).join(' ')
-  const versus = summary.opponentName ? ` against ${summary.opponentName}` : ''
-  sentences.push(
-    `${scope}, ${name} mains win ${formatPercentage(summary.winRate)} of their games${lane ? ` ${lane}` : ''}${versus}.`,
+  const scope: BuildSummaryToken[] = [
+    plain('Across '),
+    figure(summary.games.toLocaleString('en-US')),
+    plain(' ranked games'),
+  ]
+  if (summary.patch) scope.push(plain(' on patch '), figure(summary.patch))
+  if (bracket) scope.push(plain(' in '), figure(bracket))
+  scope.push(
+    plain(`, ${name} mains win `),
+    figure(formatPercentage(summary.winRate)),
+    plain(` of their games${lane ? ` ${lane}` : ''}`),
   )
+  if (summary.opponentName) {
+    scope.push(plain(' against '), {
+      kind: 'entity',
+      text: summary.opponentName,
+      iconUrl: summary.opponentIconUrl,
+      tone: 'champion',
+      source: 'champion',
+      id: 'opponent',
+    })
+  }
+  scope.push(plain('.'))
+  sentences.push(scope)
 
   // Second, so it qualifies everything after it. The page flags a thin slice
   // with a warning icon; without this the *indexable* version of the page would
   // be the one that states the figures unqualified.
   if (!summary.minSampleMet) {
-    sentences.push(
+    sentences.push([plain(
       'That is below the sample TrueMain requires before it treats a build as settled, so read the figures here as indicative.',
-    )
+    )])
   }
 
   const build = summary.build
@@ -254,20 +355,29 @@ export function championBuildSentences(summary: ChampionBuildSummary): string[] 
 
   // The build's own share and record, stated before its contents: the contents
   // are only worth reading once you know how much of the sample chose them.
-  const opener = `Their most common build — ${formatPercentage(build.pickRate)} of those games, ${formatPercentage(build.winRate)} win rate over ${build.games.toLocaleString('en-US')} of them`
-  const itemClauses: string[] = []
-  if (build.starterItems.length) itemClauses.push(`starts ${names(build.starterItems)}`)
-  if (build.coreItems.length) itemClauses.push(`completes ${names(build.coreItems)} in that order`)
-  if (build.boots) itemClauses.push(`takes ${build.boots.name}`)
+  // Its own sentence rather than an aside inside the next one, which is what
+  // the em dashes used to buy — they read as a stumble in a narrow column, and
+  // splitting also means the share survives a build with no item data at all.
+  sentences.push([
+    plain('Their most common build appears in '),
+    figure(formatPercentage(build.pickRate)),
+    plain(' of those games and wins '),
+    figure(formatPercentage(build.winRate)),
+    plain(' of its '),
+    figure(build.games.toLocaleString('en-US')),
+    plain(build.games === 1 ? ' game.' : ' games.'),
+  ])
+
+  const itemClauses: BuildSummaryToken[][] = []
+  if (build.starterItems.length) {
+    itemClauses.push([plain('starts '), ...marks(build.starterItems, 'item', 'item')])
+  }
+  if (build.coreItems.length) {
+    itemClauses.push([plain('completes '), ...marks(build.coreItems, 'item', 'item'), plain(' in that order')])
+  }
+  if (build.boots) itemClauses.push([plain('takes '), mark(build.boots, 'item', 'item')])
   if (itemClauses.length) {
-    // The `and` belongs to the join, not to any one clause: hard-coding it on
-    // the boots clause produced a bare "— and takes Sorcerer's Shoes." whenever
-    // the starter and core path were the missing halves. Oxford comma because
-    // these clauses are long enough that the unpunctuated version misreads.
-    const joined = itemClauses.length > 1
-      ? `${itemClauses.slice(0, -1).join(', ')}, and ${itemClauses[itemClauses.length - 1]}`
-      : itemClauses[0]
-    sentences.push(`${opener} — ${joined}.`)
+    sentences.push([plain('It '), ...joinTokens(itemClauses, ', and '), plain('.')])
   }
 
   if (build.keystone) {
@@ -275,42 +385,71 @@ export function championBuildSentences(summary: ChampionBuildSummary): string[] 
     // the primary tree already needs an `and` inside its own rune list, so
     // appending the secondary with another one produced "… and Treasure Hunter
     // and Sorcery secondary …", which reads as a single four-item list.
-    let primary = `It runs ${build.keystone.name}`
-    if (build.primaryStyle) primary += ` out of ${build.primaryStyle.name}`
-    if (build.primaryRunes.length) primary += ` with ${names(build.primaryRunes)}`
-    let secondary = ''
+    const primaryTone = styleTone(build.primaryStyle)
+    const tokens: BuildSummaryToken[] = [plain('It runs '), mark(build.keystone, primaryTone, 'perk')]
+    if (build.primaryStyle) tokens.push(plain(' out of '), mark(build.primaryStyle, primaryTone, 'perkStyle'))
+    if (build.primaryRunes.length) tokens.push(plain(' with '), ...marks(build.primaryRunes, primaryTone, 'perk'))
     if (build.secondaryStyle) {
-      secondary = build.secondaryRunes.length
-        ? `, and ${build.secondaryStyle.name} secondary for ${names(build.secondaryRunes)}`
-        : `, and ${build.secondaryStyle.name} secondary`
+      const secondaryTone = styleTone(build.secondaryStyle)
+      tokens.push(plain(', and '), mark(build.secondaryStyle, secondaryTone, 'perkStyle'), plain(' secondary'))
+      if (build.secondaryRunes.length) {
+        tokens.push(plain(' for '), ...marks(build.secondaryRunes, secondaryTone, 'perk'))
+      }
     }
-    sentences.push(`${primary}${secondary}.`)
+    tokens.push(plain('.'))
+    sentences.push(tokens)
   }
 
   if (build.skills.length) {
-    const chain = build.skills.map(skill =>
-      skill.name ? `${skill.key} (${skill.name})` : skill.key,
-    )
+    const chain = build.skills.map((skill): BuildSummaryEntityToken => ({
+      kind: 'entity',
+      text: skill.name ? `${skill.key} (${skill.name})` : skill.key,
+      iconUrl: skill.iconUrl,
+      tone: 'ability',
+      source: 'ability',
+      id: skill.key,
+    }))
     const [first, ...rest] = chain
-    sentences.push(
-      rest.length
-        ? `Abilities are levelled ${first} first, then ${rest.join(', then ')}.`
-        : `${first} is levelled first.`,
-    )
+    if (rest.length) {
+      const tokens: BuildSummaryToken[] = [plain('Abilities are levelled '), first!, plain(' first')]
+      for (const token of rest) tokens.push(plain(', then '), token)
+      tokens.push(plain('.'))
+      sentences.push(tokens)
+    }
+    else {
+      sentences.push([first!, plain(' is levelled first.')])
+    }
   }
 
   if (build.summonerSpells.length) {
-    sentences.push(`Summoner spells are ${names(build.summonerSpells)}.`)
+    sentences.push([
+      plain('Summoner spells are '),
+      ...marks(build.summonerSpells, 'spell', 'summoner'),
+      plain('.'),
+    ])
   }
 
   const others = summary.buildCount - 1
   if (others > 0) {
-    sentences.push(
+    sentences.push([plain(
       others === 1
         ? `One other build is played often enough ${lane || 'on this lane'} to be measured on its own.`
         : `${capitalise(spellSmallNumber(others))} other builds are played often enough ${lane || 'on this lane'} to be measured on their own.`,
-    )
+    )])
   }
 
   return sentences
+}
+
+/** One sentence's tokens, concatenated — what a crawler and a screen reader get. */
+export function buildSummarySentenceText(sentence: BuildSummarySentence): string {
+  return sentence.map(token => token.text).join('')
+}
+
+/**
+ * The summary as plain sentences. Derived from the tokens rather than built
+ * alongside them, so the decorated paragraph and its text can never disagree.
+ */
+export function championBuildSentences(summary: ChampionBuildSummary): string[] {
+  return championBuildSentenceTokens(summary).map(buildSummarySentenceText)
 }
