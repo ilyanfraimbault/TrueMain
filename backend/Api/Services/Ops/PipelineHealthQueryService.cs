@@ -135,8 +135,10 @@ public sealed class PipelineHealthQueryService(
 
             // Only ask for the streak when the latest run did not succeed. On a healthy
             // pipeline that is zero extra queries; on a broken one it is one small counted
-            // query for the process that is actually broken.
-            var consecutiveFailures = effectiveStatus == ProcessRunStatus.Success
+            // query for the process that is actually broken. Skipped counts as healthy
+            // here (#1149): a cadence guard declining to run is the guard working, not a
+            // failure, so it must not open a streak on an otherwise-fine process.
+            var consecutiveFailures = effectiveStatus is ProcessRunStatus.Success or ProcessRunStatus.Skipped
                 ? 0
                 : await processRunStore.CountTerminalRunsSinceAsync(
                     processName, rollup?.LastSuccessAtUtc, ct);

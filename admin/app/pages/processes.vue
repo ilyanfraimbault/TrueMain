@@ -24,6 +24,7 @@ const statusItems = [
   { label: 'Success', value: 'Success' },
   { label: 'Failed', value: 'Failed' },
   { label: 'Abandoned', value: 'Abandoned' },
+  { label: 'Skipped', value: 'Skipped' },
 ]
 
 // Default view = the most recent runs regardless of recency: send NO `since`
@@ -75,8 +76,9 @@ watch([processName, status, sinceWindow], () => {
 
 // Running uses the emerald `primary` accent (in-flight, not yet an outcome);
 // Success is `success`, Abandoned is `warning` (orphaned, not a clean fail),
-// Failed is `error`.
-function statusColor(s: ProcessRunStatus): 'primary' | 'success' | 'error' | 'warning' {
+// Skipped is `neutral` (a cadence guard declined to run — settled and healthy,
+// but nothing happened, so it must not read as a success), Failed is `error`.
+function statusColor(s: ProcessRunStatus): 'primary' | 'success' | 'error' | 'warning' | 'neutral' {
   switch (s) {
     case 'Running':
       return 'primary'
@@ -84,6 +86,8 @@ function statusColor(s: ProcessRunStatus): 'primary' | 'success' | 'error' | 'wa
       return 'success'
     case 'Abandoned':
       return 'warning'
+    case 'Skipped':
+      return 'neutral'
     default:
       return 'error'
   }
@@ -96,6 +100,8 @@ function statusIcon(s: ProcessRunStatus): string {
       return 'i-lucide-circle-check'
     case 'Abandoned':
       return 'i-lucide-circle-slash'
+    case 'Skipped':
+      return 'i-lucide-skip-forward'
     default:
       return 'i-lucide-circle-x'
   }
@@ -313,7 +319,8 @@ const columns: TableColumn<ProcessRun>[] = [
 const sorting = ref([{ id: 'startedAtUtc', desc: true }])
 
 // Tint rows by status: failed rows get an error tint, in-flight (Running) rows
-// a subtle emerald tint. `meta.class.tr` is a function evaluated per row.
+// a subtle emerald tint. Success and Skipped stay untinted — a skip is a settled,
+// healthy outcome that simply did nothing. `meta.class.tr` is evaluated per row.
 const tableMeta = {
   class: {
     tr: (row: { original: ProcessRun }) => {
@@ -391,11 +398,12 @@ const selectedIterationEntries = computed<IterationEntry[]>(() =>
 
 // Per-iteration outcome tallies for the detail header. Only finished iterations
 // reach this view (the in-flight one is excluded from the list), so there is no
-// `running` bucket — every run has settled to Success/Failed/Abandoned.
+// `running` bucket — every run has settled to Success/Skipped/Failed/Abandoned.
 const selectedIterationTally = computed(() => {
   const runs = selectedIteration.value?.runs ?? []
   return {
     success: runs.filter(run => run.status === 'Success').length,
+    skipped: runs.filter(run => run.status === 'Skipped').length,
     failed: runs.filter(run => run.status === 'Failed').length,
     abandoned: runs.filter(run => run.status === 'Abandoned').length,
   }
@@ -953,6 +961,13 @@ const selectedIterationTally = computed(() => {
                 variant="subtle"
                 size="sm"
                 :label="`${selectedIterationTally.success} ok`"
+              />
+              <UBadge
+                v-if="selectedIterationTally.skipped > 0"
+                color="neutral"
+                variant="subtle"
+                size="sm"
+                :label="`${selectedIterationTally.skipped} skipped`"
               />
               <UBadge
                 v-if="selectedIterationTally.failed > 0"
