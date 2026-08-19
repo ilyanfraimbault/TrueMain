@@ -11,10 +11,10 @@ namespace Ingestor.Processes;
 /// </summary>
 /// <remarks>
 /// A <c>Running</c> row is written before the inner process starts and then
-/// flipped to <c>Success</c>/<c>Failed</c> on completion — so the row IS the
-/// shared "what's running now" state. While the inner process runs, a background
-/// loop refreshes the row's heartbeat so read queries can distinguish a genuinely
-/// in-flight run from one whose host died (the latter ages out to Abandoned).
+/// flipped to <c>Success</c>/<c>Skipped</c>/<c>Failed</c> on completion — so the
+/// row IS the shared "what's running now" state. While the inner process runs, a
+/// background loop refreshes the row's heartbeat so read queries can distinguish a
+/// genuinely in-flight run from one whose host died (the latter ages out to Abandoned).
 /// </remarks>
 public sealed class RecordedProcess<TInner>(
     TInner inner,
@@ -43,7 +43,7 @@ public sealed class RecordedProcess<TInner>(
         {
             var payload = await inner.RunCoreAsync(ct);
             var finishedAt = timeProvider.GetUtcNow().UtcDateTime;
-            await recorder.RecordSuccessAsync(runId, Name, startedAt, finishedAt, payload, ct);
+            await recorder.RecordCompletionAsync(runId, Name, startedAt, finishedAt, payload, ct);
             // Ops event (#722): persisted by the Mongo sink despite being
             // Information, so every pipeline step's completion is visible and
             // filterable in the admin Logs panel alongside real diagnostics.

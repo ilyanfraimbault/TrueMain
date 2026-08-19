@@ -62,5 +62,24 @@ public enum ProcessRunStatus
     /// read queries from a stale (or missing) <c>LastHeartbeatAtUtc</c>. Surfaces
     /// the run as never-completed instead of perpetually in-flight.
     /// </summary>
-    Abandoned = 3
+    Abandoned = 3,
+
+    /// <summary>
+    /// The process started but deliberately did no work, because a cadence guard
+    /// (e.g. <c>Discovery:MinRunInterval</c>) decided this iteration was too early.
+    /// <para>
+    /// Distinct from <see cref="Success"/> on purpose (#1149). A cadence guard asks
+    /// "when did this process last actually run?", which it answers from
+    /// <c>IProcessRunStore.GetLastCompletedRunStartAsync</c>. While a skip was recorded
+    /// as <c>Success</c> it counted as its own last completed run, so every subsequent
+    /// iteration re-read a completed run minutes old and skipped again — the skip
+    /// re-armed itself and the process ran exactly once, ever. Skipped rows are excluded
+    /// from that query, so the interval is always measured against real work.
+    /// </para>
+    /// <para>
+    /// It is not a failure either: a skip is the guard working as designed, so read-side
+    /// health treats it as a settled, healthy outcome — just one that did nothing.
+    /// </para>
+    /// </summary>
+    Skipped = 4
 }
