@@ -51,6 +51,14 @@ public sealed class AccountFreshnessQueryService(TrueMainDbContext db) : IAccoun
         // the (GameName, TagLine, PlatformId) index, so this scans; that is affordable because
         // the endpoint caps a request at BatchLimit rows and is called by batch jobs, not by a
         // page render.
+        //
+        // The two sides lower-case through different implementations — ToLowerInvariant here,
+        // Postgres `lower()` there — which can disagree on a few non-ASCII characters (the
+        // Turkish dotted I being the usual example). Left as is rather than contorted around,
+        // because the failure is bounded and one-directional: a disagreement can only make us
+        // miss a row we hold, which reports the account as unknown and costs the caller one
+        // redundant seed. It can never invent an account we do not have, nor report a stale one
+        // as fresh — the two answers acting on it would get wrong.
         var names = requested
             .Select(entry => entry.GameName.Trim().ToLowerInvariant())
             .Where(name => name.Length > 0)
@@ -78,8 +86,12 @@ public sealed class AccountFreshnessQueryService(TrueMainDbContext db) : IAccoun
         // The name filter alone is not the answer: a Riot ID is only unique within a platform,
         // and the same game name exists on several. Resolve the full triple here rather than
         // pushing three OR-ed IN lists into SQL.
-        var byKey = new Dictionary<string, (RiotAccountStatus Status, DateTime? LastIngest)>(
-            StringComparer.OrdinalIgnoreCase);
+        //
+        // Keyed on the triple itself, not on a joined string: any separator would be a
+        // character a game name might one day contain, and a collision here silently merges two
+        // different players' answers. A tuple cannot collide, so the question does not arise.
+        var byKey = new Dictionary<(string, string, string), (RiotAccountStatus Status, DateTime? LastIngest)>(
+            PlatformRiotIdComparer.Instance);
         foreach (var row in rows)
         {
             var key = Key(row.GameName, row.TagLine ?? string.Empty, row.PlatformId);
@@ -113,6 +125,28 @@ public sealed class AccountFreshnessQueryService(TrueMainDbContext db) : IAccoun
             .ToList();
     }
 
-    private static string Key(string gameName, string tagLine, string platformId)
-        => $"{platformId.Trim()}|{gameName.Trim()}|{tagLine.Trim()}";
+    private static (string PlatformId, string GameName, string TagLine) Key(
+        string gameName, string tagLine, string platformId)
+        => (platformId.Trim(), gameName.Trim(), tagLine.Trim());
+
+    /// <summary>
+    /// Compares a (platform, gameName, tagLine) triple case-insensitively on all three parts.
+    /// </summary>
+    private sealed class PlatformRiotIdComparer : IEqualityComparer<(string PlatformId, string GameName, string TagLine)>
+    {
+        public static readonly PlatformRiotIdComparer Instance = new();
+
+        public bool Equals(
+            (string PlatformId, string GameName, string TagLine) x,
+            (string PlatformId, string GameName, string TagLine) y)
+            => StringComparer.OrdinalIgnoreCase.Equals(x.PlatformId, y.PlatformId)
+               && StringComparer.OrdinalIgnoreCase.Equals(x.GameName, y.GameName)
+               && StringComparer.OrdinalIgnoreCase.Equals(x.TagLine, y.TagLine);
+
+        public int GetHashCode((string PlatformId, string GameName, string TagLine) obj)
+            => HashCode.Combine(
+                StringComparer.OrdinalIgnoreCase.GetHashCode(obj.PlatformId),
+                StringComparer.OrdinalIgnoreCase.GetHashCode(obj.GameName),
+                StringComparer.OrdinalIgnoreCase.GetHashCode(obj.TagLine));
+    }
 }
