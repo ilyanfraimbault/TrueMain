@@ -149,6 +149,43 @@ public sealed class AccountFreshnessApiIntegrationTests
     }
 
     [Fact]
+    public async Task PostFreshness_ResolvesADuplicateRiotIdByLastActivity_NotByHavingBeenIngested()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
+        var now = DateTime.UtcNow;
+
+        // A Riot ID is mutable and recyclable, so a renamed account and whoever took its old
+        // name coexist until AccountRefresh resolves them. Ranking the never-ingested row below
+        // any ever-ingested one would let the stale row mask the live one — and "tracked but its
+        // claim has never come up" is the case this endpoint exists to surface.
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var abandoned = Account("puuid-abandoned", "Twice", "KR1", "KR", now, now.AddDays(-200));
+            abandoned.UpdatedAtUtc = now.AddDays(-200);
+
+            var current = Account("puuid-current", "Twice", "KR1", "KR", now, null);
+            current.UpdatedAtUtc = now.AddHours(-1);
+
+            db.RiotAccounts.AddRange(abandoned, current);
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
+        using var client = CreateAuthedClient(factory);
+
+        var response = await client.PostAsJsonAsync("/ops/accounts/freshness", new
+        {
+            accounts = new[] { new { gameName = "Twice", tagLine = "KR1", platformId = "KR" } }
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var row = (await response.Content.ReadFromJsonAsync<FreshnessResponse>())!.Accounts.Single();
+        row.Known.Should().BeTrue();
+        row.LastMatchIngestAtUtc.Should().BeNull("the recently-refreshed row wins on last activity");
+    }
+
+    [Fact]
     public async Task PostFreshness_ReturnsEmpty_ForAnEmptyBatch()
     {
         await _fixture.ResetDatabaseAsync();

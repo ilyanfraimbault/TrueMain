@@ -75,11 +75,13 @@ public sealed class AccountFreshnessQueryService(TrueMainDbContext db) : IAccoun
             .Where(account => names.Contains(account.GameName.ToLower()))
             .Select(account => new
             {
+                account.Id,
                 account.GameName,
                 account.TagLine,
                 account.PlatformId,
                 account.Status,
-                account.LastMatchIngestAtUtc
+                account.LastMatchIngestAtUtc,
+                account.UpdatedAtUtc
             })
             .ToListAsync(ct);
 
@@ -90,17 +92,27 @@ public sealed class AccountFreshnessQueryService(TrueMainDbContext db) : IAccoun
         // Keyed on the triple itself, not on a joined string: any separator would be a
         // character a game name might one day contain, and a collision here silently merges two
         // different players' answers. A tuple cannot collide, so the question does not arise.
+        // Two rows can legitimately share a Riot ID on one platform: it is a mutable, recyclable
+        // third-party attribute, so a renamed account and the person who took its old name
+        // coexist until AccountRefresh resolves them (RiotAccountConfiguration explains why the
+        // triple is deliberately not unique). The tie-break is the same one the account explorer
+        // and the public profile reads use — most recent activity, then id — so all three name
+        // the same account for the same Riot ID.
+        //
+        // "Activity" falls back to UpdatedAtUtc rather than the epoch, and that matters here
+        // specifically: ranking a never-ingested row below any ever-ingested one, however
+        // stale, would let a duplicate mask exactly the "tracked but its claim has never come
+        // up" case this endpoint exists to surface.
         var byKey = new Dictionary<(string, string, string), (RiotAccountStatus Status, DateTime? LastIngest)>(
             PlatformRiotIdComparer.Instance);
-        foreach (var row in rows)
+        foreach (var row in rows
+                     .OrderByDescending(row => row.LastMatchIngestAtUtc ?? row.UpdatedAtUtc)
+                     .ThenBy(row => row.Id))
         {
             var key = Key(row.GameName, row.TagLine ?? string.Empty, row.PlatformId);
-            // A duplicate key would mean two accounts share a Riot ID on one platform, which the
-            // unique puuid index does not forbid outright (a renamed account can collide until
-            // AccountRefresh resolves it). Keep the most recently ingested one — that is the one
-            // a caller would be asking about.
-            if (!byKey.TryGetValue(key, out var existing)
-                || (row.LastMatchIngestAtUtc ?? DateTime.MinValue) > (existing.LastIngest ?? DateTime.MinValue))
+            // Ordered above, so the first row for a key is the winner and later ones are the
+            // duplicates it outranks.
+            if (!byKey.ContainsKey(key))
             {
                 byKey[key] = (row.Status, row.LastMatchIngestAtUtc);
             }
