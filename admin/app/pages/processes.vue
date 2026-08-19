@@ -218,6 +218,8 @@ function outcomeColor(outcome: ChainOutcome): 'primary' | 'success' | 'error' | 
       return 'neutral'
   }
 }
+// `Skipped` and `notRun` are both neutral, but they are not the same claim — one ran
+// and declined, the other never started — so they must not share an icon.
 function outcomeIcon(outcome: ChainOutcome): string {
   switch (outcome) {
     case 'Running':
@@ -228,6 +230,8 @@ function outcomeIcon(outcome: ChainOutcome): string {
       return 'i-lucide-circle-x'
     case 'Abandoned':
       return 'i-lucide-circle-slash'
+    case 'Skipped':
+      return 'i-lucide-skip-forward'
     default:
       return 'i-lucide-circle-dashed'
   }
