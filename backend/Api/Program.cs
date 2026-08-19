@@ -337,6 +337,7 @@ builder.Services.AddScoped<IEffectiveConfigurationQueryService, EffectiveConfigu
 builder.Services.AddScoped<ISeedRequestService, SeedRequestService>();
 builder.Services.AddScoped<ISeedRequestQueryService, SeedRequestQueryService>();
 builder.Services.AddScoped<IAccountExplorerQueryService, AccountExplorerQueryService>();
+builder.Services.AddScoped<IAccountFreshnessQueryService, AccountFreshnessQueryService>();
 builder.Services.AddScoped<IPatchCoverageQueryService, PatchCoverageQueryService>();
 builder.Services.AddScoped<ICandidateQueryService, CandidateQueryService>();
 builder.Services.AddScoped<ICandidateFunnelQueryService, CandidateFunnelQueryService>();
