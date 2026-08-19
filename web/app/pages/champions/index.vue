@@ -23,6 +23,8 @@ useSchemaOrg([
 
 const router = useRouter()
 
+const { pathFor } = useChampionSlugs()
+
 const { filters, setFilter } = useChampionFilters()
 
 const { currentPage, setPage } = useRoutePage()
@@ -196,7 +198,7 @@ watch(totalCount, (count) => {
 // wired to Enter and Space so the element behaves like a real button.
 function rowDestination(row: { championId: number, position: string }) {
   return {
-    path: `/champions/${row.championId}`,
+    path: pathFor(row.championId),
     query: {
       ...(selectedPatch.value ? { patch: selectedPatch.value } : {}),
       ...(row.position ? { position: row.position } : {}),

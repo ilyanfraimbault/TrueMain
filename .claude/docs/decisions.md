@@ -173,6 +173,38 @@ tile, no classified main drops the champion block, and an unknown player falls a
 branded card — the page renders "not found" for the same input, so a profile-shaped preview would be a
 lie. The dedication score is only printed when its `championId` matches the main shown beside it — #926.
 
+**Champion URLs are bare slugs, and the slug map is app state rather than per-page async data.**
+Two calls, one visible and one not. The visible one: `/champions/ahri`, not `/champions/103-ahri`. The
+id-prefixed form was genuinely tempting — the champion id parses straight out of the segment, so the page
+needs no map at all and the whole resolution problem disappears. It was rejected on the one ground that
+outlives the implementation cost: a URL is permanent once indexed and linked, and the prefixed form is
+uglier forever to save work once.
+The invisible one is what that choice then forces. A bare slug has to be resolved to an id *before* the
+page can fetch anything, and every link on every page has to turn an id back into a slug. Doing either
+asynchronously would mean the server renders `/champions/103` links and the client rewrites them to
+`/champions/ahri` — a hydration mismatch on almost every page of the site, and a champion page whose
+fetches all wait on a lookup. So the `championId → slug` map is loaded into `useState` by an **awaited
+universal plugin**, before the first render, and every read of it is synchronous. The cost is one
+Nitro-cached call per SSR render plus ~2.5 kB of payload on every page — which is why the endpoint carries
+ids and slugs only and is not the existing champion list (~20× larger, and patch-keyed for no reason here).
+The slug is DDragon's champion **key** lower-cased, never the display name: the key is stable across Riot's
+renames, and deriving from the name would need punctuation rules for `Nunu & Willump` and `Bel'Veth` that
+the sitemap, the links and the router would each have to implement identically.
+The guard is a **route middleware**, not a check in `setup`: setup does not re-run when only a route param
+changes, so a guard written there fires on a full page load and then silently stops firing on every
+client-side navigation after it. It 404s an unknown segment rather than rendering the empty-build state —
+that state tells a crawler the URL is real and merely thin — and 301s the legacy numeric and mis-cased
+forms, which keeps every pre-#1124 link and external backlink alive while consolidating the ranking signal
+on one URL. Every builder falls back to the numeric id when the map is empty (DDragon outage, a champion
+released between DDragon updates): that link still reaches the page and redirects, where
+`/champions/undefined` would not.
+One asymmetry is worth stating, because the obvious reading of "best-effort map" is wrong on half of it.
+An empty map is cheap for *link building* — every builder falls back to the numeric id. It is not cheap for
+*route resolution*: a slug has nothing to fall back to, so during a DDragon outage with a cold Nitro cache
+`/champions/ahri` is indistinguishable from a typo. Answering 404 there would ask search engines to drop a
+canonical, indexed URL over something transient and self-healing, so `championRouteAction` returns a
+**503** while the map is empty and only 404s once the roster is actually known — #1124.
+
 **Share cards resolve their own data server-side instead of receiving it from the page.**
 `nuxt-og-image` encodes the template props into the (signed) image URL, which is minted during SSR — but
 both pages fetch `server: false` (the #149 hydration fix on champions, the deliberate no-cross-viewer-SSR
@@ -182,6 +214,70 @@ renders the image. The alternative — adding an SSR-enabled fetch to the pages 
 would put a backend round-trip on every human page view to serve the unfurl path. Accepted consequence:
 the card's numbers are resolved at share time, so they can differ from a page the visitor left open —
 both are real, an hour apart at most (the cache TTL) — #926.
+
+**The champion page server-renders its build as prose — the one SSR round-trip the page pays.**
+#926 declined an SSR-enabled fetch on this page because it would put a backend round-trip on every human
+page view to serve the unfurl path. #1123 takes the same cost for a different benefit and reaches the
+opposite answer, so the difference is worth stating rather than reading as a reversal. Measured on
+preprod, `/champions/{id}` shipped **~1.5 kB of visible HTML and zero build content** before JS — no rune
+name, no item name, not the word "Runes" — under a `<title>` promising "Ahri Build". A title that promises
+a build over a page that delivers a shell is thin content, and it is why the champion pages could not rank
+for their own subject. That is a permanent, sitewide ceiling; a share card is one unfurl.
+Three things make the cost small enough to accept. The fan-out sits behind a 1 h `defineCachedFunction`
+keyed on (champion, lane, patch, rank), so it is **one backend call per slice per hour, not one per view**.
+The endpoint resolves the ids to *names* server-side and returns ~1 kB, so the client never receives the
+~373 KiB item map that made "just SSR the existing fetches" impossible in the first place. And it is keyed
+on the **URL** filters rather than the reconciled `selectedPatch`/`selectedPosition`, which would flip the
+key once the client-only aggregate lands and cost a second round-trip on every load.
+Not a #149 regression, and the distinction is the load-bearing one: #149 was a *client-only* fetch racing
+SSR and winning, so the server rendered content the client's first render didn't have. This fetch is
+SSR-enabled and travels in the Nuxt payload, so hydration reads the same object the server rendered from —
+the two agree by construction. Every interactive panel stays `server: false` exactly as before.
+Accepted consequences: the summary is at most an hour behind the panels above it (same TTL as the share
+card, same reasoning), and it describes `builds[0]` — the tab the page opens on — never "the best build",
+which would describe something the reader isn't looking at. It is **visible**, never `sr-only`: text
+written for a crawler and hidden from the reader is cloaking — #1123.
+
+**The build paragraph is typeset, and rune trees get Riot's colours to do it.**
+#1123 shipped the summary as flat grey prose under the build tabs, where it read as a wall of text naming
+twenty entities a player normally reads as *pictures* — and, sitting below the panels, as a footnote to the
+thing it describes. #1143 changed both. It moved into the right sidebar above Truemains, where it captions
+the icon grid instead of trailing it, and each named entity now renders with its own 16 px icon inline and a
+colour. That required one new token family, `--color-rune-*`: the five keystone trees in their in-client
+colours. It is the second exception to "`--color-stat-*` is Riot vocabulary confined to tooltips", and it
+earns the same justification `TIER_COLORS` does — a player reads "Domination" off the red before the word,
+and a paragraph naming five runes from two trees is unreadable without it. The discipline is unchanged:
+text emphasis only, never a fill, never on a measurement. Sorcery is a blue rather than the client's
+blue-violet, the one deliberate departure, because violet is not a hue this app uses. Items take the
+existing `--color-stat-gold`; summoner spells, abilities and the pinned opponent stay `text-highlighted` —
+inventing three more hues to fill the table is the rainbow the palette exists to avoid.
+Mechanically the sentences are built as **tokens**, not as strings a component re-parses: a regex over
+finished prose would have to find "Doran's Ring" inside a sentence that also names "Doran's Blade", and the
+builder already knows what each fragment is. `championBuildSentences` is those tokens concatenated, so the
+paragraph a crawler reads and the one a reader sees are the same paragraph by construction rather than by
+review. Em dashes are gone with the aside they set off — the build's share is its own sentence now, which
+also means the share survives a build carrying no item data. Accepted consequences: the payload grew from
+~1 kB to ~3 kB, 560 B to 844 B gzipped (one icon URL per named entity, and the shared CDN prefixes
+compress away — still nothing next to the ~373 KiB item map it replaces),
+and the block now sits after the main column in DOM order — deliberate, so a crawler and a keyboard both
+meet the page's own build panels first — #1143.
+
+**The paragraph's hover cards are resolved client-side, not carried in its payload.**
+#1147 gave every mark in the build paragraph the tooltip its counterpart in the icon grid has. The obvious
+implementation — put the tooltip body in the summary payload next to the name — is the one thing this block
+must never do: the payload exists *because* naming an item server-side must not drag the ~373 KiB item map
+into the HTML, and a hover card needs the whole record (stats, passive, gold), which is most of that map.
+So the marks server-render their words and grow their cards at hydration, out of the maps the champion page
+was already fetching for the panels. Cost to the page: nothing it wasn't already paying; cost to the
+payload: nothing at all. The card is simply absent for the first paint, which is correct — a tooltip is not
+content, it is a response to a pointer that does not exist yet.
+Two things this pins. The tokens carry a `source` (`item` / `perk` / `perkStyle` / `summoner` / `ability` /
+`champion`) rather than inferring the lookup from the tone: a Domination *rune* and the Domination *tree*
+share a tone, and resolving one against the other's map yields no card at all — a failure invisible until
+someone hovers the one word that has no tooltip. And the tooltip is rendered **disabled** until its map
+lands rather than `v-if`-ed around the trigger, because Reka snapshots the trigger element in `onMounted`;
+swapping it when the item map arrives is exactly the #1145 bug, which left tooltips able to open and unable
+to close — #1147.
 
 **"Client-only fetch" has to be enforced on the *side*, not merely intended — an immediate watcher is not client-only.**
 `useTruemainFetch` (profile / rank-history / matches) is hand-rolled refs precisely because these payloads are
@@ -937,6 +1033,15 @@ possible. Approval is the single external unlock for all of it — #780.
   broken everywhere else. Content degrades by tier as the row narrows (compositions, then secondary stats,
   then the loadout wrapping onto a second line) rather than being cut off. `pages/dev/match-row.vue` renders
   the row at each tier width so the compact layouts are reviewable without reproducing the host surface.
+- **A tooltip trigger keeps the same DOM element for the life of the component.** Reka reads the trigger node
+  once, in `onMounted`, and binds the hoverable-content "grace area" `pointerleave` to that snapshot. A trigger
+  that swaps its root element later — a `v-if` icon / `v-else` fallback box flipping over when the static data
+  lands — leaves that listener on a detached node, so the tooltip opens normally and can then *never* close on
+  pointer exit: sweeping across a row of icons piled every tooltip it touched on screen. Icon components that
+  can render before their data therefore keep one unconditional root (`SkeletonImage`, which draws the text
+  fallback itself via its `fallback` prop) instead of two branches. Item and perk icons never had the bug —
+  they always rendered a single `SkeletonImage` — which is why the symptom looked specific to skill orders and
+  summoners.
 - **Detector thresholds are configuration, not constants** (`DataQualityDetectors:*`). The honest line differs
   between preprod and production, and an operator silencing a crying-wolf card must not need a redeploy. A
   level of `0` disables it, which is how a warning-only signal is expressed. They are **stated in words with
@@ -1230,13 +1335,12 @@ in hours and recurred **every patch day**.
   Serving old data under a new patch's name would be strictly worse than the empty page it replaced.
 - **Nothing clears the bar ⇒ serve the newest anyway.** On a fresh deployment a thin directory is the honest
   state and an empty one is not. Same branch makes `0` the documented off-switch.
-- **The homepage volume chips span two patches** (`ChampionsList:HomepagePatchWindow`), the served one and the
-  one before it, so the headline figure doesn't fall by an order of magnitude every two weeks — which reads as
-  data loss, not as a patch boundary. The chips **name the range** they cover. The tier-list teaser beside them
-  does *not* merge patches: a tier is a percentile within one patch's field, and a blended ranking would
-  describe a meta that never existed. That asymmetry is deliberate and is why the two read from different calls.
-- **The window never reaches forward.** It starts at the served patch, so games on a patch every other surface
-  is refusing to show are not advertised on the homepage either.
+- ~~**The homepage volume chips span two patches**~~ (`ChampionsList:HomepagePatchWindow`) ~~and name the range
+  they cover.~~ **Superseded 2026-08-16** — the chips are lifetime totals now and the window is gone; see the
+  next entry. What survives from this bullet is the asymmetry it exists to protect: the tier-list teaser does
+  *not* merge patches, because a tier is a percentile within one patch's field and a blended ranking would
+  describe a meta that never existed. That is still why the teaser and the volume figure read from different
+  calls.
 
 Player- and champion-scoped views were never affected: `ChampionScopeLoader` has had
 `ResolveLatestPatchAboveFloor` since long before this, for the same reason. #1109 is that idea finally applied
@@ -1245,6 +1349,84 @@ to the global reads.
 Shares a trigger with #1107 (CommunityDragon's unpublished patch branch aborting the folds) but nothing else —
 and fixing #1107 makes this one *more* urgent, since the folds now succeed on patch day and the flip onto a
 thin patch would happen sooner.
+
+## The homepage hero counts a lifetime, compactly, and never names a patch (2026-08-16)
+
+Reverses the chip half of #1109 (above). The patch-window figure was correct and unreadable: `173 champions
+ranked over 16.16–16.15` beside `490,365 main games analyzed over 16.16–16.15` asked a first-time visitor to
+hold a data-scoping caveat before they had any reason to care, and the qualifier itself was only there because
+the number underneath it was patch-scoped and would otherwise have overstated its reach.
+
+- **The volume figure is now every game the aggregate table holds**, all patches (`GetTotalGamesAsync` — one
+  `SUM` over `champion_aggregate_scopes` on the tracked queue, cached **30 min** — the table only grows and no
+  index leads with `queue_id`, so this is a full scan whose cost rises with the site's age, while the chip's
+  three significant digits move about twice an hour). With nothing patch-scoped left to disclose, the
+  qualifier goes, and so does the failure it was compensating for: a lifetime total cannot crater on patch day.
+  On production the aggregates *are* the frozen history — `MatchDataRetention:AggregateRetainedPatchCount` is
+  0 there — so this is a genuine all-time count; preprod opts into aggregate retention and will read lower,
+  which is correct for what preprod holds.
+- **`ChampionsList:HomepagePatchWindow` is deleted**, with `GetServedPatchVolumesAsync` and
+  `ChampionPatchVolume`. The servable-patch bar (`MinServablePatchLines`, the other and larger half of #1109)
+  is untouched and still reads lines past the floor through the same shared fold; only the per-patch *volume*
+  counters nobody reads any more are gone.
+- **"N champions ranked" was dropped rather than kept unqualified.** Of the three chips it is the one that is
+  inherently patch-scoped — a champion is ranked *on a patch* — so keeping it would have dragged the
+  qualifier back onto the row it was being removed from. Two chips that mean the same kind of thing beat three
+  that don't.
+- **Counts are rounded down, not to nearest** (`formatCompactCount`): `490k`, `41k`, `1.2M`. Exact figures
+  invited the reader to treat a half-hour-cached number as a live counter, and a site whose pitch is honest
+  sample sizes should not be the site that rounds 999,600 up to `1M`. One decimal below 10 (`4.1k`), none
+  above (`490k`), where it is noise.
+
+## Region balance is a target, not a quota: coverage deficit allocates every budget (2026-08-19)
+
+Match ingestion had settled at roughly **82% EUW1 / 14% NA1 / 4% KR** — the same split in stored matches,
+tracked accounts, active mains and Riot calls. Nothing configured that split; it was the fixed point of a loop
+with nothing opposing it. Every champion cleared `Coverage:TargetMainsPerChampion` on EUW1 while ~79% of
+champions sat below it on KR, so champion pages presented a near-single-region sample as a global stat.
+
+Three mechanisms compounded, and all three were "one global ordering over a pool that the previous run had
+just fed":
+
+- **Ladder discovery — the only per-platform-budgeted source — had been dead since 2026-06-14** (#1149): its
+  cadence guard recorded each skip as a completed run, so the skip re-armed itself forever. That left the
+  participant harvest as the sole feeder of new accounts.
+- **The harvest can only reproduce the mix that produced it.** Its eligible pool is orphan
+  `match_participants`, i.e. the matches we already ingested, so the densest observations are always the
+  region we ingest most; ordering the union by observed games handed it the budget. Note `droppedNew` was
+  **0** — the budget was never the bottleneck, the eligible pool was, which is why raising
+  `Harvest:MaxCandidatesPerRun` would have changed nothing.
+- **The claim ordered cross-platform by `LastMatchIngestAtUtc`, nulls first.** Right priority inside a region,
+  fatal across regions: the region creating the most new accounts automatically captured most of the batch.
+
+**The fix is not a configured per-region match quota.** "300 EUW, 300 KR" would be a guess, would need
+re-tuning whenever a region is added, and would keep spending on a region that no longer needs it. Instead the
+share follows the signal the pipeline already computes for champions:
+
+- **Coverage is now keyed on (platform, champion)**, not champion alone (`GetMainCountsByPlatformAndChampionAsync`,
+  `IX_main_champion_stats_is_main_champion` re-keyed to `(PlatformId, ChampionId)`). A champion-only count is
+  dominated by whichever region we ingest most, so the one signal that could have damped the imbalance was
+  blind to it: 60 EUW1 mains and 1 KR main read as *covered*, and every under-served region got a zero
+  scoring bonus and no threshold relaxation.
+- **`PlatformBudgetAllocator` splits every budget** — the claim batch and the harvest budget — by
+  `weight(p) = 1 + MeanDeficit(p)`, apportioned largest-remainder. `MeanDeficit` averages over the *shared*
+  champion universe, so a region missing a champion entirely is charged the full deficit for it rather than
+  scoring as perfectly covered.
+- **The constant `1` is what makes this a balancer rather than a switch.** A fully covered platform keeps its
+  even share and its established mains keep being refreshed; the deficit is a bonus on top, capped at 2× a
+  covered platform's share. Starving the leader would only invert the imbalance.
+- **Self-damping, like the per-champion signal.** As a region fills, its deficit shrinks, its weight decays
+  toward 1, and the allocation converges on an even split instead of oscillating.
+- **Quotas are floors, not partitions** — the same semantics as `Harvest:NewCandidateShare` (#495) and
+  `MatchIngestion:EstablishedMainShare` (#900). A platform that cannot fill its slice releases it, and the
+  spill is **round-robin**: handing the whole remainder to whichever platform sorts first is the
+  cross-platform ordering again, and would quietly restore what the quotas exist to correct.
+- **Nulls-first survives, scoped per platform.** Never-ingested accounts still go first *within* a region; it
+  was only ever harmful across them.
+
+Observability is deliberately not part of this: the per-platform balance is visible in the claim's allocation
+log line and the `HarvestBudgetExhausted` event, but the admin portal has no region-balance panel yet
+(tracked separately). Until it does, a drift like this still has to be inferred from run summaries.
 
 ## Keeping these files current
 

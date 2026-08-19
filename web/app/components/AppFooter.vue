@@ -2,6 +2,7 @@
 const links = [
   { label: 'Champions', to: '/champions' },
   { label: 'Truemains', to: '/truemains' },
+  { label: 'About', to: '/about' },
   { label: 'Privacy', to: '/privacy' },
   { label: 'Terms', to: '/terms' },
 ]

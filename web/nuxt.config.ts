@@ -37,6 +37,33 @@ export default defineNuxtConfig({
     // results. `·` matches the separator style used inside compound titles.
     separator: '·',
   },
+  // The brand entity. Without this, nuxt-schema-org emits only `WebSite` +
+  // `WebPage` + `BreadcrumbList` — nothing a search engine can attach a *brand*
+  // to, which is why `truemain lol` resolves to the site but the bare
+  // `truemain` does not (#1122). Setting `identity` emits an `Organization`
+  // node and makes the `WebSite` node carry it as `publisher`, linking every
+  // page to the brand rather than leaving them as orphan documents.
+  //
+  // Declared here rather than in `app.vue` because none of it depends on
+  // runtime data — the module's own guidance.
+  //
+  // Deliberately **no `sameAs`**: it is the field that ties the brand to its
+  // social profiles, and TrueMain has none it owns yet. A guessed or
+  // aspirational URL is worse than an absent one — it points the entity graph
+  // at an account someone else controls. Add the real handles when they exist.
+  schemaOrg: {
+    identity: {
+      type: 'Organization',
+      name: 'TrueMain',
+      // No `url` — the module resolves it from `site.url` above, which
+      // `NUXT_PUBLIC_SITE_URL` overrides per environment. Repeating the prod
+      // host here would make preprod's Organization node advertise prod, the
+      // one thing that override exists to prevent.
+      // Square, explicitly sized — see the comment in the file itself.
+      logo: '/brand/truemain-logo.svg',
+      description: 'League of Legends champion builds, runes and skill orders computed from the games of players who actually main the champion.',
+    },
+  },
   sitemap: {
     // Static pages are auto-discovered from the file-based routes; the dynamic
     // champion and truemain URLs come from this endpoint (see

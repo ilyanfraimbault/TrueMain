@@ -871,7 +871,7 @@ namespace Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ChampionId")
+                    b.HasIndex("PlatformId", "ChampionId")
                         .HasDatabaseName("IX_main_champion_stats_is_main_champion")
                         .HasFilter("\"IsMain\" AND \"IsActive\"");
 

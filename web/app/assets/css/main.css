@@ -204,6 +204,28 @@
   --color-tier-c: #b3763f;               /* bronze */
   --color-tier-d: #837a7c;               /* iron (worst) */
 
+  /*
+   * ─── Rune trees ────────────────────────────────────────────────────────
+   * Riot's five keystone trees in their in-client colours, for the champion
+   * page's build paragraph (#1143), which names runes inside flowing prose.
+   *
+   * The same exception `TIER_COLORS` earns and on the same grounds: these are
+   * *Riot's* colours, and a player reads "Domination" off the red before the
+   * word — a paragraph naming five runes from two trees is unreadable without
+   * them. Like `--color-stat-*` they are a vocabulary, not a scale: **text
+   * emphasis only**, never `bg-*` / `ring-*` / `border-*`, and never on a
+   * measurement.
+   *
+   * Sorcery is a blue rather than the client's blue-violet, which is the one
+   * deliberate departure: violet/indigo is not a hue this app uses anywhere,
+   * and the tree still reads as "the blue one".
+   */
+  --color-rune-precision: #c8aa6e;      /* gold */
+  --color-rune-domination: #d0424b;     /* red */
+  --color-rune-sorcery: #7a9df0;        /* blue */
+  --color-rune-resolve: #61b96b;        /* green */
+  --color-rune-inspiration: #49aab9;    /* cyan */
+
   /* Misc / structural */
   --color-stat-status: #9366a9;          /* status / CC keywords (Slowing, Immobilizing, Airborne, Stun) — muted violet */
   --color-stat-stealth: #b472a6;         /* stealth keywords (Invisible, Camouflage, Stealth) — pink-violet */

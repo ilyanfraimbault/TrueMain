@@ -1,5 +1,5 @@
 import type { SitemapUrl } from '#sitemap/types'
-import type { ChampionStaticListItem } from '~~/shared/types/static-data'
+import type { ChampionSlugMap } from '~~/shared/types/static-data'
 import type { LeaderboardResponse } from '~~/shared/types/leaderboard'
 import { defineEventHandler, setResponseHeader } from 'h3'
 
@@ -7,7 +7,7 @@ import { defineEventHandler, setResponseHeader } from 'h3'
  * Dynamic sitemap entries for @nuxtjs/sitemap. Static pages are discovered
  * from the file-based routes automatically; this endpoint enumerates the two
  * data-driven route families:
- *   - /champions/{championId}   — one per champion on the latest patch
+ *   - /champions/{slug}         — one per champion on the latest patch (#1124)
  *   - /truemains/{gameName-tagLine} — one per leaderboard player
  *
  * Both lists come from the app's own server routes (the DDragon-backed
@@ -24,8 +24,12 @@ const TRUEMAIN_PAGE_SIZE = 100
 const MAX_TRUEMAIN_PAGES = 100
 
 async function championUrls(): Promise<SitemapUrl[]> {
-  const champions = await $fetch<ChampionStaticListItem[]>('/api/static/champions')
-  return champions.map(champion => ({ loc: `/champions/${champion.championId}` }))
+  // The slug map, not the champion list: the sitemap must advertise the exact
+  // URLs the pages canonicalise to, and a numeric `loc` would put every
+  // champion in the sitemap as a 301 to somewhere else (#1124). Same source the
+  // router and the link builders read, so the three cannot disagree.
+  const slugs = await $fetch<ChampionSlugMap>('/api/static/champion-slugs')
+  return Object.values(slugs).map(slug => ({ loc: `/champions/${slug}` }))
 }
 
 async function truemainUrls(): Promise<SitemapUrl[]> {

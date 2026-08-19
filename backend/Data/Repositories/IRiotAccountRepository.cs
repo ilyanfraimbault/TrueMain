@@ -30,9 +30,16 @@ public interface IRiotAccountRepository
     /// <c>establishedMainShare</c> is the share of the batch reserved for accounts that are
     /// already active established mains, the remainder going to <c>Queued</c> candidates
     /// (#900) — a floor, not a partition: whatever one class cannot fill spills to the other.
+    /// <para>
+    /// <c>platformQuotas</c> is the per-platform slot allocation (#1150), computed by the
+    /// caller from the coverage deficit. It is a floor too: a platform that cannot fill its
+    /// quota releases the remainder, which is then spread round-robin over the platforms that
+    /// can. Before it existed the claim was one cross-platform ordering, so the batch simply
+    /// mirrored the account pool — and the pool was ~82% one region.
+    /// </para>
     /// </summary>
     Task<List<AccountKey>> ClaimAccountsForMatchIngestAtomicallyAsync(
-        IReadOnlyCollection<string> platforms,
+        IReadOnlyDictionary<string, int> platformQuotas,
         int batchSize,
         double establishedMainShare,
         DateTime nowUtc,

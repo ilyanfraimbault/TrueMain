@@ -76,13 +76,14 @@ public sealed class MainChampionStatConfiguration : IEntityTypeConfiguration<Mai
         entity.HasIndex(e => new { e.PlatformId, e.IsMain, e.IsActive })
             .IncludeProperties(e => e.Puuid);
 
-        // Partial index for MainChampionStatRepository.GetMainCountsByChampionAsync
-        // (WHERE IsMain AND IsActive GROUP BY ChampionId), the coverage signal recomputed
-        // every scoring/main-analysis cycle. The (PlatformId, ...) index above cannot serve
-        // a predicate without PlatformId because it leads, so this gives an index-only scan
-        // over just the active main rows. Inactive mains (#900) are outside the filter, which
-        // is what keeps them from counting towards Coverage:TargetMainsPerChampion.
-        entity.HasIndex(e => e.ChampionId)
+        // Partial index for MainChampionStatRepository.GetMainCountsByPlatformAndChampionAsync
+        // (WHERE IsMain AND IsActive GROUP BY PlatformId, ChampionId), the coverage signal
+        // recomputed every scoring/main-analysis cycle. The (PlatformId, ...) index above
+        // cannot serve it because it is not filtered to active mains, so this gives an
+        // index-only scan over just those rows. Both grouping columns are in the key since
+        // #1150 made coverage region-scoped. Inactive mains (#900) are outside the filter,
+        // which is what keeps them from counting towards Coverage:TargetMainsPerChampion.
+        entity.HasIndex(e => new { e.PlatformId, e.ChampionId })
             .HasFilter("\"IsMain\" AND \"IsActive\"")
             .HasDatabaseName("IX_main_champion_stats_is_main_champion");
 

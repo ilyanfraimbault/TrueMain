@@ -9,9 +9,24 @@ import type {
   ChampionTrendPoint,
 } from '~~/shared/types/champions'
 import type { ChampionStaticData, ChampionStaticListItem, StaticItemData } from '~~/shared/types/static-data'
+import type { ChampionBuildSummary } from '~~/shared/types/champion-build-summary'
 
 const route = useRoute()
-const championId = computed(() => Number.parseInt(String(route.params.id), 10))
+
+// Champion slugs (#1124). The map is app-wide state filled before the first
+// render, so this resolves synchronously on the server, at hydration and on
+// every client-side navigation — `championId` is a plain computed and every
+// fetch below it keeps working exactly as it did under the numeric route.
+// The 404 and the legacy-URL 301 live in a middleware, not here: setup does not
+// re-run when only the route *param* changes (champion → champion is the same
+// component), so a guard in setup would silently stop firing on client-side
+// navigation. See `championRouteGuard`.
+definePageMeta({
+  middleware: to => championRouteGuard(to, segment => `/champions/${segment}`),
+})
+
+const { resolveParam } = useChampionSlugs()
+const championId = computed(() => resolveParam(String(route.params.slug)).championId ?? Number.NaN)
 
 const { filters, setFilter } = useChampionFilters()
 
@@ -97,6 +112,61 @@ if (import.meta.server) await seoStaticFetch
 const { data: seoStatic } = seoStaticFetch
 const seoDisplayName = computed(() => seoStatic.value?.championName ?? displayName.value)
 const seoPositionLabel = computed(() => POSITION_BY_VALUE.get(trendPosition.value ?? '')?.label)
+
+// The build in words, server-rendered (#1123) — the one piece of build content
+// that reaches the HTML before JS runs. Everything else on this page is
+// `server: false`, so a crawler used to receive a shell under a title promising
+// a build.
+//
+// Not a hydration risk, and specifically not #149's: that was a *client-only*
+// fetch racing SSR and winning, so the server rendered content while the
+// client's first render started in its loading state. This one is SSR-enabled
+// and its result travels in the Nuxt payload, so the client's hydration render
+// reads the same object the server rendered from — the two agree by
+// construction. The interactive panels stay client-only exactly as they were.
+//
+// Keyed on the **URL** filters, not on `selectedPatch`/`selectedPosition`:
+// those reconcile to the aggregate's resolved values once the client-only
+// champion fetch lands, which would change the key after hydration and cost a
+// second round trip (plus a visible re-render) on every load. The URL filters
+// are identical on the server and at hydration, and the endpoint resolves the
+// same defaults the aggregate does, so both describe the same slice.
+//
+// Awaited server-side only, for the reason spelled out on `seoStaticFetch`
+// above: the app has no Suspense fallback on `<NuxtPage>`, so awaiting on the
+// client would freeze the outgoing page on every champion-to-champion
+// navigation.
+const buildSummaryFetch = useAsyncData(
+  () => [
+    'champion-build-summary',
+    championId.value,
+    filters.value.patch ?? '',
+    filters.value.position ?? '',
+    filters.value.eloBracket ?? '',
+    filters.value.opponentChampionId ?? '',
+  ].join('-'),
+  () => $fetch<ChampionBuildSummary>(`/api/champion-summary/${championId.value}`, {
+    query: {
+      patch: filters.value.patch || undefined,
+      position: filters.value.position || undefined,
+      eloBracket: filters.value.eloBracket || undefined,
+      // #923's matchup filter re-slices every build section server-side, so the
+      // summary has to carry it or it describes the global build in prose right
+      // under panels showing the matchup's.
+      opponentChampionId: filters.value.opponentChampionId || undefined,
+    },
+  }),
+  {
+    watch: [championId, filters],
+    // `default` rather than letting `data` start as `undefined`: "not fetched
+    // yet", "the fetch failed" and "the slice has nothing to say" are one state
+    // for this block — it renders nothing — so giving them one value keeps the
+    // component from having to distinguish three nothings.
+    default: () => null,
+  },
+)
+if (import.meta.server) await buildSummaryFetch
+const { data: buildSummary } = buildSummaryFetch
 
 useSeoMeta({
   title: () => seoDisplayName.value
@@ -603,6 +673,28 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
         </div>
 
         <aside class="min-w-0 space-y-6">
+          <!--
+            The build in words (#1123). Rendered plainly — not `Lazy`, not
+            `hydrate-on-visible` — because being present in the server HTML is
+            the entire point; a lazy wrapper would put it back behind the same
+            JS gate as everything else.
+
+            In the sidebar, beside the icon grid rather than under it (#1143):
+            it is the same build said twice, and stacking the prose below the
+            panels made the second telling read as a footnote nobody scrolls to.
+            Next to them it is the caption for what the reader is already
+            looking at, and it is the one card in this column that needs no JS.
+            DOM order still puts it after the tabs, so the crawler and the
+            keyboard both meet the page's own build content first.
+          -->
+          <ChampionBuildSummary
+            :summary="buildSummary"
+            :items-map="itemsMap"
+            :rune-tree="runeTree ?? null"
+            :summoners-map="summonersMap"
+            :champion-static="staticData ?? null"
+          />
+
           <LazyChampionTruemains
             hydrate-on-visible
             :champion-id="championId"

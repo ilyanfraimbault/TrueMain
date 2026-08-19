@@ -15,16 +15,17 @@ public sealed class MainChampionStatRepository(TrueMainDbContext db) : IMainCham
             .ToListAsync(ct);
     }
 
-    public async Task<Dictionary<int, int>> GetMainCountsByChampionAsync(CancellationToken ct)
+    public async Task<Dictionary<(string PlatformId, int ChampionId), int>> GetMainCountsByPlatformAndChampionAsync(
+        CancellationToken ct)
     {
         var rows = await db.MainChampionStats
             .AsNoTracking()
             .Where(s => s.IsMain && s.IsActive)
-            .GroupBy(s => s.ChampionId)
-            .Select(g => new { ChampionId = g.Key, Count = g.Count() })
+            .GroupBy(s => new { s.PlatformId, s.ChampionId })
+            .Select(g => new { g.Key.PlatformId, g.Key.ChampionId, Count = g.Count() })
             .ToListAsync(ct);
 
-        return rows.ToDictionary(row => row.ChampionId, row => row.Count);
+        return rows.ToDictionary(row => (row.PlatformId, row.ChampionId), row => row.Count);
     }
 
     public Task<List<MainChampionStat>> GetByAccountAsync(string platformId, string puuid, CancellationToken ct)

@@ -232,6 +232,12 @@ services:
       Scoring__TopNPerPlatform: "300"
       Harvest__MaxCandidatesPerRun: "7500"
       MatchIngestion__BatchSize: "75"
+      # Manual-seed intake is FIFO and strictly batched, so a large backlog is drained at a
+      # fixed rate rather than spent at once: 25/iteration (the code default) is ~650/day and
+      # would take three weeks to work through a few thousand seeds. 200 is ~5k/day — roughly
+      # 15k Riot calls (account-v1 + summoner-v4 + mastery per request), about a fifth of the
+      # daily budget, which is the reallocation we want while the OTP backlog is being filled.
+      ManualSeed__BatchSize: "200"
     volumes:
       - truemain_ingestor_crashes:/home/app/crashes
     depends_on:

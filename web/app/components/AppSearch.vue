@@ -23,7 +23,7 @@ const props = withDefaults(defineProps<{
   variant?: 'field' | 'button'
   /**
    * What selecting a champion does:
-   * - `navigate` (default): go to `/champions/{id}`.
+   * - `navigate` (default): go to `/champions/{slug}`.
    * - `filter`: emit `filterChampion` and stay put (used on the leaderboard,
    *   where a champion narrows the list instead of leaving the page).
    */
@@ -68,6 +68,7 @@ const emit = defineEmits<{
 const open = ref(false)
 const term = ref('')
 const router = useRouter()
+const { pathFor } = useChampionSlugs()
 
 // Champions — shared static list, filtered locally by the palette's Fuse.
 const { data: champions } = useChampionStaticList()
@@ -162,7 +163,7 @@ function onSelectChampion(championId: number) {
     open.value = false
     return
   }
-  go(`/champions/${championId}`)
+  go(pathFor(championId))
 }
 
 // `{gameName}-{tagLine}` (or just the name when untagged) — the same slug the

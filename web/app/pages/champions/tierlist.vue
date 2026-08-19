@@ -14,6 +14,8 @@ useSchemaOrg([
   defineWebPage({ name: 'Champion Tier List' }),
 ])
 
+const { pathFor } = useChampionSlugs()
+
 const { filters, setFilter } = useChampionFilters()
 
 // null = "All positions" — same RolePicker contract as the /champions filter.
@@ -111,7 +113,7 @@ const hasRows = computed(() => tierGroups.value.some(group => group.entries.leng
 // own position — same destination shape as the /champions directory rows.
 function championDestination(entry: { championId: number, position: string }) {
   return {
-    path: `/champions/${entry.championId}`,
+    path: pathFor(entry.championId),
     query: {
       ...(selectedPatch.value ? { patch: selectedPatch.value } : {}),
       ...(entry.position ? { position: entry.position } : {}),

@@ -1,7 +1,7 @@
 import type { ChampionOverviewResponse } from '~~/shared/types/champions'
 
 /**
- * Homepage-sized champion snapshot (#972): the true "games analyzed" total
+ * Homepage-sized champion snapshot (#972): the lifetime "games analyzed" total
  * plus a short, pre-sorted slice of the strongest rows — `GET /champions/overview`.
  * Client-only (`server: false`) with a homepage-own key, same rationale as
  * `home-champion-summaries` before it: the /champions page's cache key is

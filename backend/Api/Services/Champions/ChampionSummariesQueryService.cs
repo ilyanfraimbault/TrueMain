@@ -34,6 +34,15 @@ public sealed class ChampionSummariesQueryService(
     private const string PatchListCacheKey = "champions:summaries:patch-list";
     private const string Surface = "champions-summaries";
 
+    // The lifetime games total is one SUM over the whole table — no index leads with
+    // QueueId, and the table never shrinks (prod keeps every patch), so this scan only
+    // gets longer with the site's age. Cached far longer than the directory because the
+    // homepage rounds the figure to three significant digits: at production's rate the
+    // *displayed* number moves about twice an hour, so anything finer buys precision
+    // the chip throws away.
+    private static readonly TimeSpan TotalGamesCacheTtl = TimeSpan.FromMinutes(30);
+    private const string TotalGamesCacheKey = "champions:summaries:total-games";
+
     // How far back the servable walk looks before giving up and serving the newest
     // patch anyway. Bounded because the scan behind it costs one grouped pass per
     // patch and the table only grows: if the four newest patches are all too thin to
@@ -107,37 +116,28 @@ public sealed class ChampionSummariesQueryService(
         return result;
     }
 
-    public async Task<IReadOnlyList<ChampionPatchVolume>> GetServedPatchVolumesAsync(
-        int patchCount, CancellationToken ct)
+    public async Task<long> GetTotalGamesAsync(CancellationToken ct)
     {
-        if (patchCount <= 0)
+        if (cache.TryGetValue<long>(TotalGamesCacheKey, out var cached))
         {
-            return [];
+            return cached;
         }
 
-        var served = await ResolveActivePatchAsync(requestedPatch: null, ct);
-        if (string.IsNullOrEmpty(served))
-        {
-            return [];
-        }
+        // No patch clause at all — that is the point of the figure. Nullable inside the
+        // Sum so an empty table comes back as SQL NULL and maps to 0 instead of failing
+        // to materialise into a non-nullable long.
+        var sw = Stopwatch.StartNew();
+        var total = await db.ChampionAggregateScopes
+            .AsNoTracking()
+            .Where(scope => scope.QueueId == (int)options.Value.QueueId)
+            .SumAsync(scope => (long?)scope.Games, ct) ?? 0L;
+        sw.Stop();
+        logger.LogInformation(
+            "{Surface} sql=total_games total={Total} elapsed={ElapsedMs}ms",
+            Surface, total, sw.ElapsedMilliseconds);
 
-        var ordered = await LoadPatchesNewestFirstAsync(ct);
-        var servedIndex = IndexOf(ordered, served);
-
-        // From the served patch backwards, never forwards: a patch the bar rejected is
-        // not one the homepage should count either, or the chips would advertise games
-        // from a patch every other surface is refusing to show.
-        //
-        // The window is measured from where the walk actually landed, not from a fixed
-        // depth. ResolveServablePatch can step back more than once, so any constant
-        // sized against "one thin patch" silently returns fewer patches than asked for
-        // the moment two thin patches stack up — which is the failure this window
-        // exists to prevent, one patch further along.
-        IReadOnlyList<string> window = servedIndex < 0
-            ? [served]
-            : [.. ordered.Skip(servedIndex).Take(patchCount)];
-
-        return await LoadPatchVolumesAsync(window, ct);
+        cache.Set(TotalGamesCacheKey, total, CacheEntry(TotalGamesCacheTtl));
+        return total;
     }
 
     private async Task<string?> ResolveActivePatchAsync(string? requestedPatch, CancellationToken ct)
@@ -181,11 +181,7 @@ public sealed class ChampionSummariesQueryService(
         }
 
         IReadOnlyList<string> candidates = [.. patchesNewestFirst.Take(MaxServableWalkBack)];
-        var volumes = await LoadPatchVolumesAsync(candidates, ct);
-        var linesPastFloor = volumes.ToDictionary(
-            volume => volume.Patch,
-            volume => volume.LinesPastFloor,
-            StringComparer.Ordinal);
+        var linesPastFloor = await LoadLinesPastFloorAsync(candidates, ct);
 
         var resolved = ChampionAggregateScopeResolver.ResolveServablePatch(candidates, linesPastFloor, minLines);
 
@@ -236,28 +232,22 @@ public sealed class ChampionSummariesQueryService(
     }
 
     /// <summary>
-    /// One grouped scan over the given patches, folded into the per-patch counters
-    /// both the servable bar and the homepage chips read — each asking for the slice
-    /// it actually needs, and sharing this cache entry when those slices coincide.
-    ///
-    /// <para>
-    /// Cached on the summaries TTL rather than the (much longer) active-patch one, so
-    /// the homepage total tracks the folds at the same rate the directory does: the
-    /// resolved patch is stable for days, the games behind it are not. The bar reads
-    /// this only when the active-patch entry misses — once per TTL — so the two
-    /// callers' scans do not compound on the hot path.
-    /// </para>
+    /// One grouped scan over the given patches, folded into the single counter the
+    /// servable bar is measured against: how many <c>(champion, lane)</c> lines each
+    /// patch has past <c>ChampionsList:MinSampleGames</c> — what the directory would
+    /// actually render for it. Read only when the active-patch entry misses, once per
+    /// its TTL, so it never lands on the hot path.
     /// </summary>
-    private async Task<IReadOnlyList<ChampionPatchVolume>> LoadPatchVolumesAsync(
+    private async Task<IReadOnlyDictionary<string, int>> LoadLinesPastFloorAsync(
         IReadOnlyList<string> patches, CancellationToken ct)
     {
         if (patches.Count == 0)
         {
-            return [];
+            return new Dictionary<string, int>(StringComparer.Ordinal);
         }
 
-        var cacheKey = $"champions:summaries:patch-volumes:{string.Join('|', patches)}";
-        if (cache.TryGetValue<IReadOnlyList<ChampionPatchVolume>>(cacheKey, out var cached) && cached is not null)
+        var cacheKey = $"champions:summaries:lines-past-floor:{string.Join('|', patches)}";
+        if (cache.TryGetValue<IReadOnlyDictionary<string, int>>(cacheKey, out var cached) && cached is not null)
         {
             return cached;
         }
@@ -284,7 +274,7 @@ public sealed class ChampionSummariesQueryService(
             .ToListAsync(ct);
         sw.Stop();
         logger.LogInformation(
-            "{Surface} sql=patch_volumes patches={Patches} rows={Rows} elapsed={ElapsedMs}ms",
+            "{Surface} sql=lines_past_floor patches={Patches} rows={Rows} elapsed={ElapsedMs}ms",
             Surface, patches.Count, grouped.Count, sw.ElapsedMilliseconds);
 
         var rows = grouped
@@ -293,47 +283,16 @@ public sealed class ChampionSummariesQueryService(
 
         var floor = championsOptions.Value.MinSampleGames;
 
-        // Totals span every row, lines only the ones carrying a lane — the same split
-        // ComputeAllSummariesAsync makes between TotalGames and the ranked rows.
-        var gamesByPatch = rows
-            .GroupBy(row => row.Patch, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => group.Sum(row => row.Games), StringComparer.Ordinal);
-
-        var linesByPatch = ChampionDirectoryLines.Fold(rows)
+        // Only the rows carrying a lane count — the same split ComputeAllSummariesAsync
+        // makes between the patch total and the ranked rows. A patch with rows but no
+        // line past the floor is simply absent here, which the resolver reads as zero.
+        IReadOnlyDictionary<string, int> linesByPatch = ChampionDirectoryLines.Fold(rows)
             .Where(line => ChampionDirectoryLines.ClearsFloor(line, floor))
             .GroupBy(line => line.Patch, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => group.ToList(), StringComparer.Ordinal);
+            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
 
-        var volumes = patches
-            .Where(gamesByPatch.ContainsKey)
-            .Select(patch =>
-            {
-                var pastFloor = linesByPatch.GetValueOrDefault(patch) ?? [];
-                return new ChampionPatchVolume
-                {
-                    Patch = patch,
-                    TotalGames = gamesByPatch[patch],
-                    LinesPastFloor = pastFloor.Count,
-                    ChampionsPastFloor = [.. pastFloor.Select(line => line.ChampionId).Distinct()],
-                };
-            })
-            .ToList();
-
-        cache.Set(cacheKey, volumes, CacheEntry(SummariesCacheTtl));
-        return volumes;
-    }
-
-    private static int IndexOf(IReadOnlyList<string> patches, string patch)
-    {
-        for (var index = 0; index < patches.Count; index++)
-        {
-            if (string.Equals(patches[index], patch, StringComparison.Ordinal))
-            {
-                return index;
-            }
-        }
-
-        return -1;
+        cache.Set(cacheKey, linesByPatch, CacheEntry(SummariesCacheTtl));
+        return linesByPatch;
     }
 
     private async Task<ChampionSummariesResult> ComputeAllSummariesAsync(
@@ -479,7 +438,6 @@ public sealed class ChampionSummariesQueryService(
         {
             PatchVersion = activePatch,
             TotalGames = totalGames,
-            ChampionsRanked = tiered.Select(summary => summary.ChampionId).Distinct().Count(),
             Summaries = tiered,
         };
     }

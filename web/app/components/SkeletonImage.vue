@@ -16,6 +16,15 @@ const props = defineProps<{
    * unset for above-the-fold icons that should load immediately.
    */
   loading?: 'lazy' | 'eager'
+  /**
+   * Short label drawn in a bordered box instead of the loading skeleton when
+   * there is no `src` at all (e.g. the slot key 'Q' before the champion's
+   * static data has landed). Callers that own a tooltip pass this rather than
+   * branching to their own element, so the tooltip trigger stays the *same*
+   * DOM node across the no-icon -> icon transition — see the comment in the
+   * template.
+   */
+  fallback?: string
 }>()
 
 const loaded = ref(false)
@@ -92,6 +101,19 @@ onMounted(() => {
     :style="reservedStyle"
   >
     <span class="relative block size-full">
+      <!-- The text fallback deliberately lives *inside* this component rather
+           than in a `v-else` branch at the call site. Reka's tooltip snapshots
+           its trigger element once, in `onMounted`, and binds the grace-area
+           `pointerleave` to that snapshot; if the call site swaps the trigger
+           element when data lands (fallback box -> icon), the listener stays on
+           the detached node and the tooltip can then never close on pointer
+           exit — hovering a row of icons piles their tooltips up on screen. -->
+      <span
+        v-if="!src && fallback"
+        class="absolute inset-0 flex items-center justify-center rounded border border-default text-xs"
+      >
+        {{ fallback }}
+      </span>
       <!-- Plain span mirroring USkeleton's look (animate-pulse + rounded-md +
            the fill set on `ui.skeleton.base` in app.config.ts) — one fewer
            component instance per icon, which matters at hundreds of icons per
@@ -103,7 +125,7 @@ onMounted(() => {
            final state, and animating it made dead icons (e.g. a profile icon
            Data Dragon doesn't ship) read as loading forever. -->
       <span
-        v-if="!src || !loaded || failed"
+        v-else-if="!src || !loaded || failed"
         class="absolute inset-0 size-full rounded-md bg-ink-700"
         :class="failed ? '' : 'animate-pulse'"
       />

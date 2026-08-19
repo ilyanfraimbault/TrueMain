@@ -17,6 +17,8 @@ const props = defineProps<{
   championsById: Map<number, ChampionStaticListItem>
 }>()
 
+const { pathFor } = useChampionSlugs()
+
 const rows = computed(() =>
   props.topRows.map((row) => {
     const champ = props.championsById.get(row.championId)
@@ -64,7 +66,7 @@ const rows = computed(() =>
              padding while keeping the rank flush with the section header
              instead of indenting the whole row. -->
         <NuxtLink
-          :to="{ path: `/champions/${row.championId}`, query: { position: row.position } }"
+          :to="{ path: pathFor(row.championId), query: { position: row.position } }"
           class="surface-hover -mx-2 flex items-center gap-3 rounded-lg px-2 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <span class="w-4 shrink-0 text-center text-xs tabular-nums text-dimmed">

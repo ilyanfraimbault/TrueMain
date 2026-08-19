@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Options;
-using TrueMain.Options;
 using TrueMain.ReadModels.Champions;
 
 namespace TrueMain.Services.Champions;
@@ -12,23 +10,20 @@ namespace TrueMain.Services.Champions;
 /// aggregate computation.
 ///
 /// <para>
-/// The volume chips span more than the teaser does (#1109): they sum
-/// <c>ChampionsList:HomepagePatchWindow</c> patches back from the served one, so
-/// the headline figure does not collapse on patch day, while the teaser stays on
-/// the served patch alone because a tier is a percentile within one patch's field.
-/// The two are computed from different calls for exactly that reason.
+/// The volume chip spans far more than the teaser does: it is the lifetime total
+/// over every patch the aggregate table holds, while the teaser stays on the served
+/// patch alone because a tier is a percentile within one patch's field. The two come
+/// from different calls for exactly that reason.
 /// </para>
 /// </summary>
 public sealed class ChampionOverviewQueryService(
-    IChampionSummariesQueryService summariesQueryService,
-    IOptions<ChampionsListOptions> championsOptions) : IChampionOverviewQueryService
+    IChampionSummariesQueryService summariesQueryService) : IChampionOverviewQueryService
 {
     public async Task<ChampionOverviewReadModel> GetOverviewAsync(int limit, CancellationToken ct)
     {
         var result = await summariesQueryService.GetAllSummariesAsync(patch: null, eloBracket: null, ct);
 
-        var volumes = await summariesQueryService.GetServedPatchVolumesAsync(
-            Math.Max(1, championsOptions.Value.HomepagePatchWindow), ct);
+        var gamesAnalyzed = await summariesQueryService.GetTotalGamesAsync(ct);
 
         // Best tier first, then games as the tiebreaker. Winrate would be the
         // obvious second key, but it floats micro-sample rows (a 90% WR off-lane
@@ -52,32 +47,12 @@ public sealed class ChampionOverviewQueryService(
             })
             .ToList();
 
-        // Fall back to the served patch's own totals when the window came back empty
-        // (no aggregate data at all): the chips then read exactly as they did before
-        // the window existed, rather than reading zero beside a populated teaser.
-        return volumes.Count == 0
-            ? new ChampionOverviewReadModel
-            {
-                PatchVersion = result.PatchVersion,
-                GamesAnalyzed = result.TotalGames,
-                ChampionsRanked = result.ChampionsRanked,
-                CountedPatches = string.IsNullOrEmpty(result.PatchVersion) ? [] : [result.PatchVersion],
-                TopRows = topRows,
-            }
-            : new ChampionOverviewReadModel
-            {
-                PatchVersion = result.PatchVersion,
-                GamesAnalyzed = volumes.Sum(volume => volume.TotalGames),
-                // Distinct across the window, not summed: a champion ranked on both
-                // patches is one champion, and summing would double-count almost all
-                // of them.
-                ChampionsRanked = volumes
-                    .SelectMany(volume => volume.ChampionsPastFloor)
-                    .Distinct()
-                    .Count(),
-                CountedPatches = [.. volumes.Select(volume => volume.Patch)],
-                TopRows = topRows,
-            };
+        return new ChampionOverviewReadModel
+        {
+            PatchVersion = result.PatchVersion,
+            GamesAnalyzed = gamesAnalyzed,
+            TopRows = topRows,
+        };
     }
 
     // Unrecognised tiers (shouldn't happen — every summary row is stamped by

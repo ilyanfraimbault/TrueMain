@@ -40,6 +40,11 @@ public sealed class MatchTeamPositionCorrectionProcess(
             .Where(p => p.TeamPosition == "")
             .Select(p => new { p.MatchId, p.TeamId })
             .Distinct()
+            // Ordered after Distinct (EF erases an ordering placed before it), so the
+            // batch is a deterministic slice instead of whatever order the scan happens
+            // to yield.
+            .OrderBy(t => t.MatchId)
+            .ThenBy(t => t.TeamId)
             .Take(BatchSize)
             .ToListAsync(ct);
 
