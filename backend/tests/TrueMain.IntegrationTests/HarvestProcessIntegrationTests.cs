@@ -2,6 +2,7 @@ using AwesomeAssertions;
 using Data.Entities;
 using Ingestor.Options;
 using Ingestor.Processes;
+using Ingestor.Processes.Components.Coverage;
 using Ingestor.Processes.Components.Discovery;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -42,6 +43,8 @@ public sealed class HarvestProcessIntegrationTests
             NullLogger<HarvestProcess>.Instance,
             _fixture.CreateSessionFactory(),
             new ParticipantHarvestService(),
+            new ChampionCoverageProvider(
+                Microsoft.Extensions.Options.Options.Create(new CoverageOptions())),
             Microsoft.Extensions.Options.Options.Create(new HarvestOptions
             {
                 Platforms = ["KR"],

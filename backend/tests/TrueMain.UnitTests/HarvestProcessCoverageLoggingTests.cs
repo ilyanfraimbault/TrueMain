@@ -3,6 +3,7 @@ using Data.Logging;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes;
+using Ingestor.Processes.Components.Coverage;
 using Ingestor.Processes.Components.Discovery;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -80,13 +81,22 @@ public sealed class HarvestProcessCoverageLoggingTests
 
         var harvestService = Substitute.For<IParticipantHarvestService>();
         harvestService.HarvestAsync(
-                Arg.Any<IDataSession>(), Arg.Any<HarvestOptions>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+                Arg.Any<IDataSession>(),
+                Arg.Any<HarvestOptions>(),
+                Arg.Any<ChampionCoverageSnapshot>(),
+                Arg.Any<DateTime>(),
+                Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new HarvestResult(1, 1, 1, coverage)));
+
+        var coverageProvider = Substitute.For<IChampionCoverageProvider>();
+        coverageProvider.GetSnapshotAsync(Arg.Any<IDataSession>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(ChampionCoverageSnapshot.Empty));
 
         return new HarvestProcess(
             logger,
             sessionFactory,
             harvestService,
+            coverageProvider,
             Microsoft.Extensions.Options.Options.Create(new HarvestOptions { Platforms = ["KR"], MaxCandidatesPerRun = 20 }));
     }
 

@@ -1378,6 +1378,56 @@ the number underneath it was patch-scoped and would otherwise have overstated it
   sample sizes should not be the site that rounds 999,600 up to `1M`. One decimal below 10 (`4.1k`), none
   above (`490k`), where it is noise.
 
+## Region balance is a target, not a quota: coverage deficit allocates every budget (2026-08-19)
+
+Match ingestion had settled at roughly **82% EUW1 / 14% NA1 / 4% KR** — the same split in stored matches,
+tracked accounts, active mains and Riot calls. Nothing configured that split; it was the fixed point of a loop
+with nothing opposing it. Every champion cleared `Coverage:TargetMainsPerChampion` on EUW1 while ~79% of
+champions sat below it on KR, so champion pages presented a near-single-region sample as a global stat.
+
+Three mechanisms compounded, and all three were "one global ordering over a pool that the previous run had
+just fed":
+
+- **Ladder discovery — the only per-platform-budgeted source — had been dead since 2026-06-14** (#1149): its
+  cadence guard recorded each skip as a completed run, so the skip re-armed itself forever. That left the
+  participant harvest as the sole feeder of new accounts.
+- **The harvest can only reproduce the mix that produced it.** Its eligible pool is orphan
+  `match_participants`, i.e. the matches we already ingested, so the densest observations are always the
+  region we ingest most; ordering the union by observed games handed it the budget. Note `droppedNew` was
+  **0** — the budget was never the bottleneck, the eligible pool was, which is why raising
+  `Harvest:MaxCandidatesPerRun` would have changed nothing.
+- **The claim ordered cross-platform by `LastMatchIngestAtUtc`, nulls first.** Right priority inside a region,
+  fatal across regions: the region creating the most new accounts automatically captured most of the batch.
+
+**The fix is not a configured per-region match quota.** "300 EUW, 300 KR" would be a guess, would need
+re-tuning whenever a region is added, and would keep spending on a region that no longer needs it. Instead the
+share follows the signal the pipeline already computes for champions:
+
+- **Coverage is now keyed on (platform, champion)**, not champion alone (`GetMainCountsByPlatformAndChampionAsync`,
+  `IX_main_champion_stats_is_main_champion` re-keyed to `(PlatformId, ChampionId)`). A champion-only count is
+  dominated by whichever region we ingest most, so the one signal that could have damped the imbalance was
+  blind to it: 60 EUW1 mains and 1 KR main read as *covered*, and every under-served region got a zero
+  scoring bonus and no threshold relaxation.
+- **`PlatformBudgetAllocator` splits every budget** — the claim batch and the harvest budget — by
+  `weight(p) = 1 + MeanDeficit(p)`, apportioned largest-remainder. `MeanDeficit` averages over the *shared*
+  champion universe, so a region missing a champion entirely is charged the full deficit for it rather than
+  scoring as perfectly covered.
+- **The constant `1` is what makes this a balancer rather than a switch.** A fully covered platform keeps its
+  even share and its established mains keep being refreshed; the deficit is a bonus on top, capped at 2× a
+  covered platform's share. Starving the leader would only invert the imbalance.
+- **Self-damping, like the per-champion signal.** As a region fills, its deficit shrinks, its weight decays
+  toward 1, and the allocation converges on an even split instead of oscillating.
+- **Quotas are floors, not partitions** — the same semantics as `Harvest:NewCandidateShare` (#495) and
+  `MatchIngestion:EstablishedMainShare` (#900). A platform that cannot fill its slice releases it, and the
+  spill is **round-robin**: handing the whole remainder to whichever platform sorts first is the
+  cross-platform ordering again, and would quietly restore what the quotas exist to correct.
+- **Nulls-first survives, scoped per platform.** Never-ingested accounts still go first *within* a region; it
+  was only ever harmful across them.
+
+Observability is deliberately not part of this: the per-platform balance is visible in the claim's allocation
+log line and the `HarvestBudgetExhausted` event, but the admin portal has no region-balance panel yet
+(tracked separately). Until it does, a drift like this still has to be inferred from run summaries.
+
 ## Keeping these files current
 
 A PR that ships a user-facing feature, removes one, or reverses a decision here **must update

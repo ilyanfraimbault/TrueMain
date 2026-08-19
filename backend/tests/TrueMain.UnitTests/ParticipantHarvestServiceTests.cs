@@ -2,6 +2,7 @@ using AwesomeAssertions;
 using Data.Entities;
 using Data.Repositories;
 using Ingestor.Options;
+using Ingestor.Processes.Components.Coverage;
 using Ingestor.Processes.Components.Discovery;
 using NSubstitute;
 
@@ -400,6 +401,71 @@ public sealed class ParticipantHarvestServiceTests
             Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task HarvestAsync_SplitsTheBudgetAcrossPlatforms_InsteadOfOrderingGlobally()
+    {
+        // The mechanism behind the imbalance (#1150): observed games come from the matches we
+        // already ingested, so the densest observations are always the region we ingest most.
+        // Ordering the union by observed games and cutting at the budget therefore handed that
+        // region the whole budget — every EUW1 row here outranks every KR row.
+        var harness = new Harness();
+        harness.SetRows(
+        [
+            .. Enumerable.Range(1, 6).Select(i =>
+                new HarvestedCandidateRow("EUW1", $"euw-{i}", 22, 100 + i, 50, Now, IsKnownCandidate: false)),
+            .. Enumerable.Range(1, 6).Select(i =>
+                new HarvestedCandidateRow("KR", $"kr-{i}", 22, 10 + i, 5, Now, IsKnownCandidate: false))
+        ]);
+
+        var result = await harness.RunAsync(maxCandidatesPerRun: 6, platforms: ["EUW1", "KR"]);
+
+        result.CandidatesInserted.Should().Be(6);
+        harness.AddedCandidates.Count(candidate => candidate.PlatformId == "KR").Should().Be(3);
+        harness.AddedCandidates.Count(candidate => candidate.PlatformId == "EUW1").Should().Be(3);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_FavoursTheUnderCoveredPlatform()
+    {
+        var harness = new Harness();
+        harness.SetRows(
+        [
+            .. Enumerable.Range(1, 10).Select(i =>
+                new HarvestedCandidateRow("EUW1", $"euw-{i}", 22, 100 + i, 50, Now, IsKnownCandidate: false)),
+            .. Enumerable.Range(1, 10).Select(i =>
+                new HarvestedCandidateRow("KR", $"kr-{i}", 22, 10 + i, 5, Now, IsKnownCandidate: false))
+        ]);
+
+        // EUW1 at target, KR with none: KR's weight is 2 against EUW1's 1.
+        var coverage = new ChampionCoverageSnapshot(
+            new Dictionary<(string, int), int> { [("EUW1", 22)] = 20 },
+            targetMainsPerChampion: 20);
+
+        await harness.RunAsync(maxCandidatesPerRun: 9, platforms: ["EUW1", "KR"], coverage: coverage);
+
+        harness.AddedCandidates.Count(candidate => candidate.PlatformId == "KR").Should().Be(6);
+        harness.AddedCandidates.Count(candidate => candidate.PlatformId == "EUW1").Should().Be(3);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_SpillsAPlatformsUnusedSlice_SoTheRunStillFillsItsBudget()
+    {
+        // A floor, not a partition: KR is allocated half the budget but only has one row.
+        var harness = new Harness();
+        harness.SetRows(
+        [
+            .. Enumerable.Range(1, 10).Select(i =>
+                new HarvestedCandidateRow("EUW1", $"euw-{i}", 22, 100 + i, 50, Now, IsKnownCandidate: false)),
+            new HarvestedCandidateRow("KR", "kr-1", 22, 11, 5, Now, IsKnownCandidate: false)
+        ]);
+
+        var result = await harness.RunAsync(maxCandidatesPerRun: 6, platforms: ["EUW1", "KR"]);
+
+        result.CandidatesInserted.Should().Be(6);
+        harness.AddedCandidates.Count(candidate => candidate.PlatformId == "KR").Should().Be(1);
+        harness.AddedCandidates.Count(candidate => candidate.PlatformId == "EUW1").Should().Be(5);
+    }
+
     private sealed class Harness
     {
         private readonly IDataSession _session = Substitute.For<IDataSession>();
@@ -453,17 +519,23 @@ public sealed class ParticipantHarvestServiceTests
         public Task<HarvestResult> RunAsync(
             int lookbackDays = 0,
             int maxCandidatesPerRun = 5000,
-            double newCandidateShare = 0.5)
+            double newCandidateShare = 0.5,
+            IReadOnlyCollection<string>? platforms = null,
+            ChampionCoverageSnapshot? coverage = null)
+            // A neutral snapshot splits the budget evenly across the platforms present in the
+            // batch (#1150), so a single-platform case behaves exactly as it did before the
+            // split existed — which is what keeps the class-share cases below meaningful.
             => new ParticipantHarvestService().HarvestAsync(
                 _session,
                 new HarvestOptions
                 {
-                    Platforms = ["KR"],
+                    Platforms = platforms is null ? ["KR"] : [..platforms],
                     MinObservedGames = 5,
                     LookbackDays = lookbackDays,
                     MaxCandidatesPerRun = maxCandidatesPerRun,
                     NewCandidateShare = newCandidateShare
                 },
+                coverage ?? ChampionCoverageSnapshot.Empty,
                 Now,
                 CancellationToken.None);
     }

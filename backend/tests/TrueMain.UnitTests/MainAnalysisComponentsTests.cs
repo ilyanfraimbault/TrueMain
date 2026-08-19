@@ -143,7 +143,7 @@ public sealed class MainAnalysisComponentsTests
         // Champion 1 is absent from the snapshot (no mains => the WHERE IsMain query omits it),
         // so its deficit is 1 and the threshold relaxes to the 0.12 floor.
         var coverage = new ChampionCoverageSnapshot(
-            new Dictionary<int, int> { [2] = 30 },
+            new Dictionary<(string, int), int> { [("KR", 2)] = 30 },
             targetMainsPerChampion: 20);
 
         // Champion 1 is played 1/8 = 0.125: below base 0.2 but above the relaxed 0.12.
@@ -177,7 +177,7 @@ public sealed class MainAnalysisComponentsTests
 
         // Champion 1 is already at target (deficit = 0) => threshold stays at 0.2.
         var coverage = new ChampionCoverageSnapshot(
-            new Dictionary<int, int> { [1] = 30, [2] = 30 },
+            new Dictionary<(string, int), int> { [("KR", 1)] = 30, [("KR", 2)] = 30 },
             targetMainsPerChampion: 20);
 
         var participants = new List<ParticipantRow>
@@ -209,7 +209,7 @@ public sealed class MainAnalysisComponentsTests
 
         // Champion 1 has 10 mains / target 20 => deficit 0.5 => threshold = 0.2 - (0.2 - 0.12) * 0.5 = 0.16.
         var coverage = new ChampionCoverageSnapshot(
-            new Dictionary<int, int> { [1] = 10 },
+            new Dictionary<(string, int), int> { [("KR", 1)] = 10 },
             targetMainsPerChampion: 20);
 
         // Champion 1 is played 3/18 ≈ 0.167: above the relaxed 0.16 but below the base 0.2.

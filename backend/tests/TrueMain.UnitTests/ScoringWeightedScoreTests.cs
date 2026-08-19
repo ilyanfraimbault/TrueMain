@@ -22,6 +22,7 @@ public sealed class ScoringWeightedScoreTests
 
     private const int MaxLastPlayDays = 10;
     private const int TopChampionsPerAccount = 10;
+    private const string CandidatePlatformId = "KR";
     private const int CandidateChampionId = 22;
     private const int LastPlayDaysAgo = 2;
     private const int CandidateRankInMasteryTop = 3;
@@ -31,7 +32,8 @@ public sealed class ScoringWeightedScoreTests
     // Champion 22 has 5 of the 20 targeted mains => deficit 0.75, so the scarcity term is
     // neither 0 nor 1 and a dropped/misplaced scarcity weight cannot pass unnoticed.
     private static ChampionCoverageSnapshot Coverage =>
-        new(new Dictionary<int, int> { [CandidateChampionId] = 5 }, targetMainsPerChampion: 20);
+        new(new Dictionary<(string, int), int> { [(CandidatePlatformId, CandidateChampionId)] = 5 },
+            targetMainsPerChampion: 20);
 
     public static TheoryData<double, double, double, double> WeightConfigurations => new()
     {

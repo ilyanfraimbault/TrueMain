@@ -8,7 +8,7 @@ public sealed class ChampionCoverageProvider(IOptions<CoverageOptions> options) 
 {
     public async Task<ChampionCoverageSnapshot> GetSnapshotAsync(IDataSession session, CancellationToken ct)
     {
-        var mainsByChampion = await session.MainChampionStats.GetMainCountsByChampionAsync(ct);
+        var mainsByChampion = await session.MainChampionStats.GetMainCountsByPlatformAndChampionAsync(ct);
 
         // Cold start: with no mains anywhere there is no per-champion signal to act on,
         // so fall back to the neutral snapshot explicitly instead of relying on an

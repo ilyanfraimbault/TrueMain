@@ -288,20 +288,19 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
     }
 
     public async Task<List<AccountKey>> ClaimAccountsForMatchIngestAtomicallyAsync(
-        IReadOnlyCollection<string> platforms,
+        IReadOnlyDictionary<string, int> platformQuotas,
         int batchSize,
         double establishedMainShare,
         DateTime nowUtc,
         TimeSpan lease,
         CancellationToken ct)
     {
-        var normalizedPlatforms = platforms
-            .Where(platform => !string.IsNullOrWhiteSpace(platform))
-            .Select(platform => platform.Trim().ToUpperInvariant())
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
+        var quotas = platformQuotas
+            .Where(entry => !string.IsNullOrWhiteSpace(entry.Key))
+            .GroupBy(entry => entry.Key.Trim().ToUpperInvariant(), StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => Math.Max(0, group.Max(entry => entry.Value)), StringComparer.Ordinal);
 
-        if (normalizedPlatforms.Length == 0)
+        if (quotas.Count == 0)
         {
             return [];
         }
@@ -310,9 +309,15 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
         var safeLease = lease > TimeSpan.Zero ? lease : TimeSpan.FromMinutes(30);
         var leaseCutoff = nowUtc - safeLease;
 
-        // Over-fetch per class, as the single pre-#900 query did: a claim can lose the
-        // race for a row, so the loop below needs a reserve to still fill the batch.
-        var fetchCap = Math.Max(safeBatchSize * 4, safeBatchSize);
+        // Over-fetch per platform per class, as the single pre-#900 query did: a claim can
+        // lose the race for a row, and a platform short on one class must be able to absorb
+        // another platform's released quota, so both need a reserve beyond their own slice.
+        // Bounded by the whole batch because that is the most any one platform can end up
+        // claiming once every other platform has spilled to it.
+        var perPlatformFetchCap = safeBatchSize;
+
+        // Ordered so the batch is reproducible: the spill pass walks platforms in this order.
+        var platforms = quotas.Keys.OrderBy(platform => platform, StringComparer.Ordinal).ToList();
 
         // Both classes are expressed as an EXISTS over the account row rather than as a
         // join on a projected key set: one row per account without a Distinct, and the
@@ -322,49 +327,99 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
         // mastery last-play went stale returns nothing but still costs a full match-v5
         // page every cycle, which is exactly the budget we want to move to players who
         // actually play.
-        var establishedMains = await SelectClaimableAsync(
-            account => db.MainChampionStats.Any(stat =>
-                stat.IsMain
-                && stat.IsActive
-                && stat.PlatformId == account.PlatformId
-                && stat.Puuid == account.Puuid),
-            normalizedPlatforms,
-            leaseCutoff,
-            fetchCap,
-            ct);
+        var establishedByPlatform = new Dictionary<string, List<AccountKey>>(StringComparer.Ordinal);
+        var queuedByPlatform = new Dictionary<string, List<AccountKey>>(StringComparer.Ordinal);
 
-        var queuedCandidates = await SelectClaimableAsync(
-            account => db.MainCandidates.Any(candidate =>
-                candidate.Status == MainCandidateStatus.Queued
-                && candidate.PlatformId == account.PlatformId
-                && candidate.Puuid == account.Puuid),
-            normalizedPlatforms,
-            leaseCutoff,
-            fetchCap,
-            ct);
+        foreach (var platform in platforms)
+        {
+            establishedByPlatform[platform] = await SelectClaimableAsync(
+                account => db.MainChampionStats.Any(stat =>
+                    stat.IsMain
+                    && stat.IsActive
+                    && stat.PlatformId == account.PlatformId
+                    && stat.Puuid == account.Puuid),
+                platform,
+                leaseCutoff,
+                perPlatformFetchCap,
+                ct);
 
-        // Depth over breadth (#900): most of the batch goes to re-ingesting the mains
-        // we already track, the rest to new candidates. A floor, not a partition — the
-        // spill-over passes below give the whole batch to whichever class can fill it,
-        // same semantics as Harvest:NewCandidateShare (#495), so a class is never
-        // starved by a quota it cannot use.
-        var establishedQuota = (int)Math.Ceiling(safeBatchSize * Math.Clamp(establishedMainShare, 0, 1));
-        var ordered = new List<AccountKey>(fetchCap);
+            queuedByPlatform[platform] = await SelectClaimableAsync(
+                account => db.MainCandidates.Any(candidate =>
+                    candidate.Status == MainCandidateStatus.Queued
+                    && candidate.PlatformId == account.PlatformId
+                    && candidate.Puuid == account.Puuid),
+                platform,
+                leaseCutoff,
+                perPlatformFetchCap,
+                ct);
+        }
+
+        var ordered = new List<AccountKey>(safeBatchSize * 2);
         var seen = new HashSet<AccountKey>();
+        var cursors = platforms.ToDictionary(
+            platform => platform,
+            _ => new ClassCursor(),
+            StringComparer.Ordinal);
 
-        AppendUpTo(establishedMains, establishedQuota);
-        AppendUpTo(queuedCandidates, safeBatchSize - ordered.Count);
-        AppendUpTo(establishedMains, safeBatchSize - ordered.Count);
+        // Pass 1 — each platform fills its own quota, applying the established/queued share
+        // inside it. Depth over breadth (#900) is a per-platform rule: most of a platform's
+        // slots go to re-ingesting the mains we already track there, the rest to its new
+        // candidates, and whichever class that platform is short on spills to the other
+        // without leaving the platform.
+        foreach (var platform in platforms)
+        {
+            var quota = Math.Min(quotas[platform], safeBatchSize);
+            var establishedQuota = (int)Math.Ceiling(quota * Math.Clamp(establishedMainShare, 0, 1));
+            var taken = 0;
 
-        // Reserve for lost claim races, established mains first — it only comes
-        // into play once the quota-respecting prefix above fails to fill the batch.
-        AppendUpTo(establishedMains, fetchCap - ordered.Count);
-        AppendUpTo(queuedCandidates, fetchCap - ordered.Count);
+            taken += Append(platform, established: true, Math.Min(establishedQuota, quota - taken));
+            taken += Append(platform, established: false, quota - taken);
+            Append(platform, established: true, quota - taken);
+        }
 
-        var claimableCandidates = ordered;
+        // Pass 2 — spill. Quotas are floors, not partitions (#1150): a platform with fewer
+        // claimable accounts than its share must not idle the batch. The spill is round-robin
+        // rather than "next platform's whole reserve" on purpose — handing the entire unused
+        // remainder to whichever platform happens to sort first is how a cross-platform
+        // ordering behaved in the first place, and it would quietly restore the imbalance the
+        // quotas exist to correct.
+        var progressed = true;
+        while (ordered.Count < safeBatchSize && progressed)
+        {
+            progressed = false;
+            foreach (var platform in platforms)
+            {
+                if (ordered.Count >= safeBatchSize)
+                {
+                    break;
+                }
+
+                // Established first within a platform, same priority as its own quota pass.
+                if (Append(platform, established: true, 1) > 0 || Append(platform, established: false, 1) > 0)
+                {
+                    progressed = true;
+                }
+            }
+        }
+
+        // Pass 3 — the race reserve, beyond the batch size. Every candidate here is only
+        // claimed if an earlier one lost its ExecuteUpdate race, so this is spare capacity,
+        // not extra work. Round-robin again for the same reason as the spill.
+        progressed = true;
+        while (progressed)
+        {
+            progressed = false;
+            foreach (var platform in platforms)
+            {
+                if (Append(platform, established: true, 1) > 0 || Append(platform, established: false, 1) > 0)
+                {
+                    progressed = true;
+                }
+            }
+        }
 
         var claimed = new List<AccountKey>();
-        foreach (var candidate in claimableCandidates)
+        foreach (var candidate in ordered)
         {
             if (claimed.Count >= safeBatchSize)
             {
@@ -392,43 +447,79 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
 
         return claimed;
 
-        void AppendUpTo(IReadOnlyList<AccountKey> source, int count)
+        // Appends up to `count` not-yet-taken keys of one class on one platform, advancing
+        // that class's cursor so every pass resumes where the previous one stopped instead of
+        // rescanning from the top. Returns how many it actually appended.
+        int Append(string platform, bool established, int count)
         {
-            foreach (var key in source)
+            if (count <= 0)
             {
-                if (count <= 0)
-                {
-                    return;
-                }
+                return 0;
+            }
 
-                // An account can be both an established main and a queued candidate;
-                // it must be claimed once and count against one quota only.
+            var source = established ? establishedByPlatform[platform] : queuedByPlatform[platform];
+            var cursor = cursors[platform];
+            var index = established ? cursor.Established : cursor.Queued;
+            var appended = 0;
+
+            while (index < source.Count && appended < count)
+            {
+                var key = source[index];
+                index++;
+
+                // An account can be both an established main and a queued candidate; it must
+                // be claimed once and count against one class only.
                 if (!seen.Add(key))
                 {
                     continue;
                 }
 
                 ordered.Add(key);
-                count--;
+                appended++;
             }
+
+            if (established)
+            {
+                cursor.Established = index;
+            }
+            else
+            {
+                cursor.Queued = index;
+            }
+
+            return appended;
         }
     }
 
+    /// <summary>Per-platform read positions into the two claimable class lists.</summary>
+    private sealed class ClassCursor
+    {
+        public int Established { get; set; }
+        public int Queued { get; set; }
+    }
+
     /// <summary>
-    /// The accounts matching <paramref name="membership"/> that are currently claimable for
-    /// match ingestion (active account, Idle or an expired Processing lease), oldest-ingested
-    /// first.
+    /// The accounts on one platform matching <paramref name="membership"/> that are currently
+    /// claimable for match ingestion (active account, Idle or an expired Processing lease),
+    /// oldest-ingested first.
+    /// <para>
+    /// Scoped to a single platform since #1150. Nulls-first — never-ingested accounts before
+    /// everything else — is the right priority <em>within</em> a platform, but it was the
+    /// mechanism of the imbalance across platforms: the region creating the most new accounts
+    /// automatically captured the most of the batch, which is the region that had just been
+    /// ingested most.
+    /// </para>
     /// </summary>
     private Task<List<AccountKey>> SelectClaimableAsync(
         Expression<Func<RiotAccount, bool>> membership,
-        IReadOnlyCollection<string> normalizedPlatforms,
+        string normalizedPlatform,
         DateTime leaseCutoff,
         int take,
         CancellationToken ct)
         => db.RiotAccounts
             .AsNoTracking()
             .Where(account => account.Status == RiotAccountStatus.Active
-                              && normalizedPlatforms.Contains(account.PlatformId)
+                              && account.PlatformId == normalizedPlatform
                               && (account.MatchIngestStatus == MatchIngestStatus.Idle
                                   || (account.MatchIngestStatus == MatchIngestStatus.Processing
                                       && account.MatchIngestClaimedAtUtc != null

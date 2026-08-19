@@ -1,5 +1,6 @@
 using Data.Repositories;
 using Ingestor.Options;
+using Ingestor.Processes.Components.Coverage;
 
 namespace Ingestor.Processes.Components.Discovery;
 
@@ -8,6 +9,7 @@ public interface IParticipantHarvestService
     Task<HarvestResult> HarvestAsync(
         IDataSession session,
         HarvestOptions options,
+        ChampionCoverageSnapshot coverage,
         DateTime nowUtc,
         CancellationToken ct);
 }

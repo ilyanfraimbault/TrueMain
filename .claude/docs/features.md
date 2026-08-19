@@ -182,6 +182,11 @@ Pipeline order (`Full`):
 **Mongo** (`truemain_logs`, TTL retention): `logs` (90 d, lossy bounded channel), `audit_events` (lossless, synchronous), `riot_api_call_rollups` (14 d), `crashes` (365 d, file-first then Mongo, with unclean-shutdown detection for OOM kills), `db_table_size_snapshots` (365 d, one document per table per day, day-keyed upsert so the pipeline's many daily runs refresh rather than append), `process_runs` (180 d TTL, recorder-written run documents read by the admin process panels and Discovery's cadence gate), `seed_requests` (no TTL — functional admin queue: API inserts Pending, ManualSeed claims atomically). The SQL `process_runs`/`seed_requests` tables are frozen leftovers pending a drop migration.
 
 **Compiled model** in `Data/CompiledModels/` is committed and auto-discovered (no `UseModel()` call) — regenerate with `dotnet ef dbcontext optimize` after any schema change.
+
+**Region balance** — the match-ingest claim and the harvest budget are split per platform by coverage deficit
+(`PlatformBudgetAllocator`, `weight = 1 + MeanDeficit(platform)`), not by a configured per-region quota. Coverage
+itself is keyed on (platform, champion). Floors, not partitions: an unfillable share spills round-robin. The claim
+logs its allocation each run; there is no admin panel for it yet.
 **BuildFacts** (`Data/BuildFacts/`) is the build-derivation shared by Ingestor and API: item metadata provider, boots/final-build/starter resolvers, skill-order builder.
 
 ### Core

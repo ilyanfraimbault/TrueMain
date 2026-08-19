@@ -150,7 +150,7 @@ namespace Data.CompiledModels
             runtimeEntityType.SetPrimaryKey(key);
 
             var index = runtimeEntityType.AddIndex(
-                new[] { championId });
+                new[] { platformId, championId });
             index.AddAnnotation("Relational:Filter", "\"IsMain\" AND \"IsActive\"");
             index.AddAnnotation("Relational:Name", "IX_main_champion_stats_is_main_champion");
 

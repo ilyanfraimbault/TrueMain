@@ -1,10 +1,12 @@
 using Data.Entities;
 using Data.Repositories;
+using Ingestor.Processes.Components.Coverage;
 
 namespace Ingestor.Processes.Components.MatchIngestion;
 
 public sealed class MatchClaimService(
     IDataSessionFactory sessionFactory,
+    IChampionCoverageProvider coverageProvider,
     TimeProvider timeProvider,
     ILogger<MatchClaimService> logger) : IMatchClaimService
 {
@@ -16,10 +18,25 @@ public sealed class MatchClaimService(
         CancellationToken ct)
     {
         await using var session = await sessionFactory.CreateAsync(ct);
+
+        // Split the batch across platforms by coverage deficit before claiming anything
+        // (#1150). Read outside the transaction: it is a read-only signal that only decides
+        // how many slots each platform gets, and holding the claim transaction open across it
+        // would widen the window in which another instance's claim races this one.
+        var coverage = await coverageProvider.GetSnapshotAsync(session, ct);
+        var quotas = PlatformBudgetAllocator.Allocate(platforms, batchSize, coverage);
+
+        logger.LogInformation(
+            "Claim allocation for a batch of {BatchSize}: {Quotas}.",
+            batchSize,
+            string.Join(", ", quotas
+                .OrderBy(entry => entry.Key, StringComparer.Ordinal)
+                .Select(entry => $"{entry.Key}={entry.Value} (deficit {coverage.MeanDeficit(entry.Key):P0})")));
+
         await using var transaction = await session.BeginTransactionAsync(ct);
 
         var accounts = await session.RiotAccounts.ClaimAccountsForMatchIngestAtomicallyAsync(
-            platforms,
+            quotas,
             batchSize,
             establishedMainShare,
             timeProvider.GetUtcNow().UtcDateTime,
