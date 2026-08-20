@@ -25,8 +25,8 @@ So « mineur » means the **smallest** bump — what semver calls a patch — an
 what semver calls a minor. Never answer a « mineur » request with `1.18.0`: to them that is not
 a smaller release, it is the default one.
 
-Only when the user names no bump *and* you have reason to doubt the default should content
-matter, and even then the default (second component) is the answer for an ordinary release.
+The table is the whole rule. What the release contains does not change the bump — a release
+full of features is still `1.17.1` if that is what was asked for.
 
 ## PR
 
