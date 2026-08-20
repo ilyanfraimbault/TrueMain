@@ -108,8 +108,6 @@ const areaFadeMaskId = `rank-area-fade-mask-${useId()}`
 // An objectBoundingBox gradient needs a non-degenerate box: a flat history
 // gives the line path zero height and the browser drops the element
 // altogether, so single-tier and dead-flat histories keep a plain colour.
-// (The area never hits this particular case — its box spans from the data
-// down to the scale's zero point, never zero-height.)
 const lineStroke = computed(() => {
   const scores = chartPoints.value.map(p => p.score)
   const distinctTiers = new Set(chartPoints.value.map(p => p.entry.tier.toUpperCase())).size
@@ -119,13 +117,23 @@ const lineStroke = computed(() => {
   return `url(#${tierGradientId})`
 })
 
-// The area has its own degenerate case: a single-point history leaves
-// `tierStops` empty (see its `last < 1` guard), so the gradient it feeds
-// would have no `<stop>` children and resolve to `none` — an invisible
-// fill, on the off chance d3 ever emits a non-empty path for one point.
-const areaFill = computed(() =>
-  tierStops.value.length === 0 ? tierHex(currentTier.value) : `url(#${tierGradientId})`,
-)
+// The area has two degenerate cases of its own:
+//  - A single-point history leaves `tierStops` empty (see its `last < 1`
+//    guard), so the gradient it would feed has no `<stop>` children and
+//    resolves to `none` — an invisible fill.
+//  - A flat history pinned at score 0 (Iron IV 0 LP, reachable — see
+//    `rankScore`'s docstring — by an inactive account whose whole tracked
+//    window sits at the ladder floor) hits the same zero-height
+//    bounding-box case as the line, but for a different reason: the area's
+//    baseline defaults to the data value 0 (`Area`'s `baseline: () => 0` in
+//    `@unovis/ts`), so with every point *also* at 0 its top and bottom
+//    edges coincide exactly, regardless of the y-domain padding.
+const areaFill = computed(() => {
+  if (tierStops.value.length === 0) return tierHex(currentTier.value)
+  const scores = chartPoints.value.map(p => p.score)
+  if (Math.min(...scores) === 0 && Math.max(...scores) === 0) return tierHex(currentTier.value)
+  return `url(#${tierGradientId})`
+})
 
 // Pad the Y range by 25% (min 50 LP-equivalents) so the line never hugs
 // the top/bottom edge. Falls back to [0, 400] (Iron band) when there's
