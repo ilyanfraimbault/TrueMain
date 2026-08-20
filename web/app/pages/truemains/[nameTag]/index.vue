@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ChampionPosition } from '~/utils/positions'
 import { parseRouteParam } from '~/utils/route-params'
+import { groupMatchesByDay } from '~/utils/match-history'
 
 const route = useRoute()
 
@@ -99,6 +100,10 @@ const {
   position: filterPosition,
   championId: filterChampionId,
 })
+
+// Cut into day-runs for the dated headings between rows. Derived, not
+// fetched: the API already returns the page newest-first.
+const matchDays = computed(() => groupMatchesByDay(matches.value))
 
 // ─── Static lookups for MatchRow + identity icon ───────────────────────────
 // Shared canonical cache keys (`champion-static-list`, `static-items-*`,
@@ -239,16 +244,21 @@ const hasActiveFilters = computed(() => Boolean(filterPosition.value || filterCh
           <MatchRowSkeleton v-for="i in MATCHES_PAGE_SIZE" :key="`match-skel-${i}`" />
         </template>
         <template v-else>
-          <MatchRow
-            v-for="match in matches"
-            :key="match.matchId"
-            :match="match"
-            :champions="champions"
-            :items="items"
-            :summoner-spells="summonerSpells"
-            :rune-tree="runeTree!"
-            :name-tag="nameTag"
-          />
+          <!-- Grouped by the local day the games were played, newest first —
+               the API order is preserved, the headings only cut it. -->
+          <template v-for="day in matchDays" :key="day.key">
+            <MatchDayHeading v-if="day.label" :label="day.label" />
+            <MatchRow
+              v-for="match in day.matches"
+              :key="match.matchId"
+              :match="match"
+              :champions="champions"
+              :items="items"
+              :summoner-spells="summonerSpells"
+              :rune-tree="runeTree!"
+              :name-tag="nameTag"
+            />
+          </template>
           <div
             v-if="matchesTotal > matchesPageSize"
             class="flex justify-center pt-2"
