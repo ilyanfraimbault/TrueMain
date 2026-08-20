@@ -70,10 +70,15 @@ const categories = computed(() => ({
   score: { name: 'LP', color: tierHex(currentTier.value) },
 }))
 
-// One stop pair per contiguous tier run, positioned on the point index the
-// run starts and ends at. Equal offsets inside a run keep it a flat colour;
-// the gap between two runs spans exactly the segment that crosses the
-// promotion, so the two tier colours blend across it.
+// One stop pair per contiguous tier run, positioned on the *midpoint*
+// between it and each neighbouring run rather than on its own end points.
+// Two consecutive runs then share their boundary stop at the exact same
+// offset — an SVG hard stop, an instant colour change with no interpolated
+// band — instead of each ending on its own last/first point and leaving a
+// gap the gradient blends across. This also matters for a run that is a
+// single snapshot: without the half-point extension toward each neighbour,
+// its own start and end stops coincide and it never gets a visible band at
+// all, just the blend from its neighbours fading through where it sat.
 const tierStops = computed(() => {
   const points = chartPoints.value
   const last = points.length - 1
@@ -85,9 +90,12 @@ const tierStops = computed(() => {
     const runTier = points[runStart]!.entry.tier
     const sameRun = i <= last && points[i]!.entry.tier.toUpperCase() === runTier.toUpperCase()
     if (sameRun) continue
+    const runEnd = i - 1
     const color = tierHex(runTier)
-    stops.push({ offset: `${(runStart / last * 100).toFixed(3)}%`, color })
-    stops.push({ offset: `${((i - 1) / last * 100).toFixed(3)}%`, color })
+    const left = runStart === 0 ? 0 : (runStart - 0.5) / last * 100
+    const right = runEnd === last ? 100 : (runEnd + 0.5) / last * 100
+    stops.push({ offset: `${left.toFixed(3)}%`, color })
+    stops.push({ offset: `${right.toFixed(3)}%`, color })
     runStart = i
   }
   return stops

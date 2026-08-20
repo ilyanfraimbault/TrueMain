@@ -1439,12 +1439,22 @@ reach it. Two tier areas then overlapped across the transition and painted a ful
 Grandmaster dips of one or two snapshots produced three "triangles" under an otherwise correct line.
 
 What ships instead: **one continuous series** (the rank score), so there is exactly one area path and no
-phantom zeros. The tier colour moves onto an **x-axis `linearGradient`** with one hard-edged stop pair per
-contiguous tier run — a run keeps its colour end to end, and the two colours blend across the single segment
-that crosses the promotion — painted onto *both* the line's stroke and the area's fill, so the whole chart
-colour-shifts together rather than the fill staying pinned to whatever tier the player is in right now. The
-gradient lives in a zero-sized `<svg>` of our own because the chart's `<defs>` belong to `vue-chrts`;
-`url(#…)` resolves document-wide, so it still paints inside the chart's SVG.
+phantom zeros. The tier colour moves onto an **x-axis `linearGradient`** with one stop pair per contiguous
+tier run — painted onto *both* the line's stroke and the area's fill, so the whole chart colour-shifts
+together rather than the fill staying pinned to whatever tier the player is in right now. The gradient lives
+in a zero-sized `<svg>` of our own because the chart's `<defs>` belong to `vue-chrts`; `url(#…)` resolves
+document-wide, so it still paints inside the chart's SVG.
+
+**Each run's boundary stop sits on the midpoint with its neighbour, not on its own last/first point** — the
+first cut of this shipped with the boundary on the run's own point index, which left a one-index gap between a
+run's end stop and the next run's start stop for the gradient to interpolate across, blurring the transition
+into a soft blend instead of a sharp cut. Worse, a **single-snapshot run**'s own start and end stops then
+coincided (zero width), so it got no flat colour of its own — only the neighbours' blend fading through where
+it sat, invisible on a short tier dip. Moving each boundary to `(index ± 0.5) / lastIndex` makes two
+consecutive runs share their boundary stop at the *exact same offset* — an SVG hard stop, an instant colour
+change with zero interpolated width — and gives a single-snapshot run a real band, extending from the midpoint
+with its previous snapshot to the midpoint with its next one. The first and last run instead clamp to 0%/100%
+(no neighbour to split a boundary with).
 
 The fill can't reuse `vue-chrts`' own `gradient-stops` prop for its vertical opacity fade — that prop feeds a
 gradient hard-coded to one flat colour per category, which is exactly the "pick one colour for the whole area"
