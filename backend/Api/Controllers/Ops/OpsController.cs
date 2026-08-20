@@ -543,22 +543,57 @@ public sealed class OpsController(
     }
 
     /// <summary>
-    /// Recent manual seed ("add a main") requests, newest-first. <paramref name="status"/>
-    /// is an exact <c>SeedRequestStatus</c> name (case-insensitive; unknown values are
-    /// ignored) and <paramref name="search"/> is a case-insensitive substring match on
-    /// the Riot ID (gameName/tagLine).
+    /// Manual seed ("add a main") requests, newest-first, paged (#1166).
+    /// <paramref name="status"/> is an exact <c>SeedRequestStatus</c> name
+    /// (case-insensitive; unknown values are ignored) and <paramref name="search"/> is a
+    /// case-insensitive substring match on the Riot ID (gameName/tagLine).
     /// </summary>
+    /// <remarks>
+    /// Paged rather than capped at a "recent" limit because the queue is no longer
+    /// operator-sized: one weekly OTP seeder run adds tens of thousands of requests, and a
+    /// list that can only show its newest page cannot answer how much is left to drain.
+    /// The response carries the filtered total for exactly that.
+    /// </remarks>
+    /// <param name="status">
+    /// Restrict to a single <c>SeedRequestStatus</c> (Pending/Resolving/Ingested/Failed).
+    /// Omit for all.
+    /// </param>
+    /// <param name="search">Riot ID substring (gameName/tagLine). Omit for none.</param>
+    /// <param name="region">Restrict to one PlatformId (e.g. "EUW1"). Omit for all.</param>
+    /// <param name="page">1-based page index (backend clamps to ≥ 1).</param>
+    /// <param name="pageSize">Rows per page (backend clamps to [1, 100], default 25).</param>
+    /// <param name="ct">Request cancellation token.</param>
     [HttpGet("accounts/seed")]
-    [ProducesResponseType(typeof(IReadOnlyList<SeedRequestReadModel>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(SeedRequestsReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
-    public async Task<ActionResult<IReadOnlyList<SeedRequestReadModel>>> GetSeedRequestsAsync(
+    public async Task<ActionResult<SeedRequestsReadModel>> GetSeedRequestsAsync(
         [FromQuery] string? status,
         [FromQuery] string? search,
-        [FromQuery] int? limit,
+        [FromQuery] string? region,
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
         CancellationToken ct)
     {
-        var readModels = await seedRequestQueryService.GetRecentAsync(status, search, limit, ct);
-        return Ok(readModels);
+        // Unlike `status`, a bad region is rejected rather than ignored: the store matches
+        // it exactly, so a typo would return an empty page, which reads as "no requests in
+        // this region" instead of "that is not a region". Same check the seed and freshness
+        // endpoints above already apply to a platform.
+        string? platformId = null;
+        if (!string.IsNullOrWhiteSpace(region))
+        {
+            if (!PlatformId.TryParse(region.Trim(), out var platform))
+            {
+                return ValidationProblem(
+                    $"region '{region}' is not a known platform route (e.g. EUW1, KR, NA1).");
+            }
+
+            platformId = platform.Value;
+        }
+
+        var readModel = await seedRequestQueryService.GetPageAsync(
+            status, search, platformId, page, pageSize, ct);
+        return Ok(readModel);
     }
 
     /// <summary>

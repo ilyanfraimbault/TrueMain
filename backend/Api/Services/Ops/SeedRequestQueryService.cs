@@ -16,6 +16,12 @@ public sealed class SeedRequestQueryService(ISeedRequestStore store) : ISeedRequ
     private const int MinLimit = 1;
     private const int MaxLimit = 200;
 
+    // Mirrors CandidateQueryService so the two lists on the Candidates page page
+    // identically.
+    private const int DefaultPageSize = 25;
+    private const int MinPageSize = 1;
+    private const int MaxPageSize = 100;
+
     public async Task<SeedRequestReadModel?> GetByIdAsync(Guid id, CancellationToken ct)
     {
         var document = await store.GetByIdAsync(id, ct);
@@ -38,6 +44,40 @@ public sealed class SeedRequestQueryService(ISeedRequestStore store) : ISeedRequ
         var documents = await store.GetRecentAsync(statusFilter, search, effectiveLimit, ct);
 
         return documents.Select(ToReadModel).ToList();
+    }
+
+    public async Task<SeedRequestsReadModel> GetPageAsync(
+        string? status,
+        string? search,
+        string? region,
+        int? page,
+        int? pageSize,
+        CancellationToken ct)
+    {
+        // Upper bound keeps `(page - 1) * pageSize` within int range even at the
+        // maximum page size, mirroring CandidateQueryService.
+        var effectivePage = Math.Clamp(page ?? 1, 1, int.MaxValue / MaxPageSize);
+        var effectivePageSize = Math.Clamp(pageSize ?? DefaultPageSize, MinPageSize, MaxPageSize);
+
+        var statusFilter = TryParseStatus(status, out var parsedStatus)
+            ? parsedStatus
+            : (SeedRequestStatus?)null;
+
+        var result = await store.GetPageAsync(
+            statusFilter,
+            search,
+            region,
+            (effectivePage - 1) * effectivePageSize,
+            effectivePageSize,
+            ct);
+
+        return new SeedRequestsReadModel
+        {
+            Requests = result.Requests.Select(ToReadModel).ToList(),
+            Total = result.Total,
+            Page = effectivePage,
+            PageSize = effectivePageSize
+        };
     }
 
     private static bool TryParseStatus(string? status, out SeedRequestStatus parsed)

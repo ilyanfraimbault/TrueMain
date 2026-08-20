@@ -38,6 +38,7 @@ import type {
   SeedAccountResponse,
   SeedRequestReadModel,
   SeedRequestsFilters,
+  SeedRequestsResponse,
 } from '~~/shared/types/ops'
 
 /**
@@ -318,15 +319,19 @@ export function getMatchDataQuality(id: string) {
 }
 
 /**
- * `GET /api/ops/accounts/seed` — recent seed requests, newest first. Pass a
- * reactive getter so the table re-fetches when the status filter or `search`
- * (Riot ID gameName/tagLine substring) changes; call `refresh()` after a submit
- * to surface the new request.
+ * `GET /api/ops/accounts/seed` — the server-paginated seed-request queue, newest
+ * first. Pass a reactive getter so the table re-fetches when a filter
+ * (status/region/`search` over the Riot ID) or the page changes; call `refresh()`
+ * after a submit to surface the new request.
+ *
+ * Paged rather than capped at a "recent" limit: the weekly OTP seeder adds tens of
+ * thousands of requests at once, so a capped list showed a sliver of the queue and
+ * no total (#1166).
  */
 export function useSeedRequests(
   filters?: MaybeRefOrGetter<SeedRequestsFilters>,
 ) {
-  return useOps<SeedRequestReadModel[]>(
+  return useOps<SeedRequestsResponse>(
     '/accounts/seed',
     filters ? () => ({ ...toValue(filters) }) : undefined,
   )

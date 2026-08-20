@@ -570,14 +570,33 @@ export interface SeedAccountResponse {
   created: boolean
 }
 
+/**
+ * `GET /api/ops/accounts/seed` — one page of seed requests, newest-first, with the
+ * total matching the same filters so the panel can render a pager (#1166).
+ *
+ * Shaped like `CandidatesResponse` deliberately: both lists sit on `/candidates`
+ * and page identically.
+ */
+export interface SeedRequestsResponse {
+  requests: SeedRequestReadModel[]
+  /** Total rows matching the filters (across all pages). */
+  total: number
+  page: number
+  pageSize: number
+}
+
 /** Filters for `GET /api/ops/accounts/seed`. Empty/undefined = no filter. */
 export interface SeedRequestsFilters {
   /** A `SeedRequestStatus` name. */
   status?: SeedRequestStatus
   /** Case-insensitive substring match on the Riot ID (gameName/tagLine). */
   search?: string
-  /** Rows to return; backend default 50, clamp 200. */
-  limit?: number
+  /** PlatformId, e.g. `EUW1` / `KR` / `NA1`. A value the backend cannot parse is a 400. */
+  region?: string
+  /** 1-based page index. */
+  page?: number
+  /** Rows per page; backend clamps to [1, 100], default 25. */
+  pageSize?: number
 }
 
 // =============================================================================
