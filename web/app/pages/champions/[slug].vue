@@ -70,6 +70,7 @@ const {
   runeTree,
   itemsMap,
   summonersMap,
+  summonersStatus,
   displayName,
   displayIconUrl,
   patchOptions,
@@ -612,6 +613,7 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
             :champion-static="staticData"
             :items-map="itemsMap ?? {}"
             :summoners-map="summonersMap ?? {}"
+            :summoners-pending="isLoadingStatus(summonersStatus)"
             :rune-tree="runeTree ?? null"
             :champion-id="championId"
             :position="trendPosition"

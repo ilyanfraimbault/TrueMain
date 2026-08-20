@@ -5,6 +5,14 @@ import type { StaticSummonerSpellData } from '~~/shared/types/static-data'
 const props = defineProps<{
   summoners: BuildSummonerSpells | null
   summonersMap: Record<number, StaticSummonerSpellData>
+  /**
+   * True while the summoner-spell static map is still in flight. It is fetched
+   * separately from the build (and only once the patch resolves), so it always
+   * lands after the ids it resolves — without this the icons spend that window
+   * showing `summonerName`'s "Spell 4" placeholder next to skeletons. See
+   * `SkeletonImage`'s `pending`.
+   */
+  summonersPending?: boolean
 }>()
 
 function summonerName(id: number): string {
@@ -28,6 +36,7 @@ function summonerName(id: number): string {
           :key="`sum-${spellId}`"
           :spell="summonersMap[spellId] ?? null"
           :fallback-label="summonerName(spellId)"
+          :pending="summonersPending"
           :width="36"
           :height="36"
           class="size-9 shrink-0 rounded"

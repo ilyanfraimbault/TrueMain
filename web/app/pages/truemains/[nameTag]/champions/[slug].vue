@@ -196,11 +196,13 @@ const divergenceSnapshot = useLazyHydrationSnapshot(
     playerName: nameTag.value,
     itemsMap: {} as Record<number, StaticItemData>,
     championStatic: null as ChampionStaticData | null,
+    championStaticPending: true,
   },
   () => ({
     playerName: playerName.value,
     itemsMap: itemsMap.value ?? {},
     championStatic: staticData.value ?? null,
+    championStaticPending: isLoadingStatus(staticStatus.value),
   }),
 )
 
@@ -341,6 +343,7 @@ const performanceSnapshot = useLazyHydrationSnapshot(
               :champion-static="staticData"
               :items-map="itemsMap ?? {}"
               :summoners-map="summonersMap ?? {}"
+              :summoners-pending="isLoadingStatus(summonersStatus)"
               :rune-tree="runeTree ?? null"
             />
             <ChampionBuildTabsSkeleton v-else />

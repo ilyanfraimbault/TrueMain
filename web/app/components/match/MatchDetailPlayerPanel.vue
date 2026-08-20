@@ -2,6 +2,7 @@
 import type { MatchDetailItemEvent, MatchDetailParticipant } from '~~/shared/types/match-detail'
 import type { ChampionStaticListItem, StaticItemData } from '~~/shared/types/static-data'
 import { isBuildOrderEvent, resolveEventItemId } from '~~/shared/utils/build'
+import { isLoadingStatus } from '~/utils/async-data'
 
 /**
  * Full-width detail view for a single selected participant (the Details tab).
@@ -84,10 +85,14 @@ const buildGroups = computed<BuildGroup[]>(() => {
 // at the latest patch — kit icons are stable across patches, so we skip threading
 // the per-match gameVersion through just to pick a spell image. Cached per
 // champion by useChampionStatic, so re-selecting a player never re-downloads.
-const { data: championStatic } = useChampionStatic(
+const { data: championStatic, status: championStaticStatus } = useChampionStatic(
   () => props.participant.championId,
   () => null,
 )
+// The panel renders before this lands, so the spell icons must show the same
+// skeleton as every other icon meanwhile — not their 'Q'/'W' letter fallback,
+// which reads as a broken image and duplicates the key badge beside it.
+const championStaticPending = computed(() => isLoadingStatus(championStaticStatus.value))
 
 // Skill order grid — one column per level (chronological), one row per slot.
 // Each slot's row header is the real spell icon (with a Q/W/E/R key badge), not
@@ -227,6 +232,7 @@ const hasSkills = computed(() => props.participant.skillEvents.length > 0)
             <GameTooltipChampionSpellIcon
               :spell="row.spell"
               :fallback-label="row.key"
+              :pending="championStaticPending"
               :width="28"
               :height="28"
               class="size-7 rounded"

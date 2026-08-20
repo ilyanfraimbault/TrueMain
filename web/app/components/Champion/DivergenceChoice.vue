@@ -11,6 +11,13 @@ const props = defineProps<{
   shareSuffix: string
   itemsMap: Record<number, StaticItemData>
   championStatic: ChampionStaticData | null
+  /**
+   * True while `championStatic` is still loading. This card renders as soon as
+   * the divergence fetch resolves, which is independent of the champion-static
+   * one, so the skill columns would otherwise spend that window showing their
+   * 'Q'/'W' letter box — see `SkeletonImage`'s `pending`.
+   */
+  championStaticPending?: boolean
   /** Chevrons between the icons — for ordered choices (item path, skill order). */
   ordered?: boolean
   /** Emphasise this column (the mains' pick, when the player diverges from it). */
@@ -68,6 +75,7 @@ function spellByKey(key: string) {
           <GameTooltipChampionSpellIcon
             :spell="spellByKey(key)"
             :fallback-label="key"
+            :pending="championStaticPending"
             :width="36"
             :height="36"
             class="size-9 rounded"

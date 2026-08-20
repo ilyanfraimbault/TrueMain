@@ -13,6 +13,8 @@ const props = defineProps<{
   championStatic: ChampionStaticData
   itemsMap: Record<number, StaticItemData>
   summonersMap: Record<number, StaticSummonerSpellData>
+  /** True while `summonersMap` is still loading — see `ChampionCoreSpells`. */
+  summonersPending?: boolean
   runeTree: RuneTreeResponse | null
   // Optional population scope — absent in the builder preview and on the
   // player-scoped champion page, where power spikes are not shown.
@@ -57,6 +59,7 @@ const { data: powerspikes, status: powerspikesStatus } = useChampionPowerspikes(
         :champion-static="championStatic"
         :items-map="itemsMap"
         :summoners-map="summonersMap"
+        :summoners-pending="summonersPending"
         :rune-tree="runeTree"
         :keystone-size="35"
       />
@@ -68,6 +71,7 @@ const { data: powerspikes, status: powerspikesStatus } = useChampionPowerspikes(
       :champion-static="championStatic"
       :items-map="itemsMap"
       :summoners-map="summonersMap"
+      :summoners-pending="summonersPending"
     />
 
     <!-- Section 3: Build tree -->
