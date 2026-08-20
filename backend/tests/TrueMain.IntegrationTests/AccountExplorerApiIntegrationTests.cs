@@ -525,12 +525,17 @@ public sealed class AccountExplorerApiIntegrationTests
 
         // "seed" would parse as a one-segment nameTag if the literal route lost
         // to {nameTag} in routing precedence — assert it still lands on the
-        // seed-request list endpoint (an array), not the explorer (an object).
+        // seed-request list endpoint. Both responses are objects since the list was
+        // paged (#1166), so the discriminator is the page envelope: the explorer
+        // read-model has no `requests`/`total`.
         var response = await client.GetAsync("/ops/accounts/seed");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        document.RootElement.ValueKind.Should().Be(JsonValueKind.Array);
+        document.RootElement.ValueKind.Should().Be(JsonValueKind.Object);
+        document.RootElement.TryGetProperty("requests", out var requests).Should().BeTrue();
+        requests.ValueKind.Should().Be(JsonValueKind.Array);
+        document.RootElement.TryGetProperty("total", out _).Should().BeTrue();
     }
 
     [Fact]
