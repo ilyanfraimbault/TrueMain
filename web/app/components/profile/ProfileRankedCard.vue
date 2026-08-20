@@ -5,7 +5,6 @@ import { formatPercentage } from '~~/shared/utils/ddragon'
 import {
   formatTier,
   rankScore,
-  TIER_NAMES,
   tierColor,
   tierHex,
 } from '~/utils/tiers'
@@ -40,68 +39,79 @@ const recordLabel = computed(() => {
 })
 
 // ─── Chart series ─────────────────────────────────────────────────────────
-// We render one series per tier present in the history so the line / area
-// fill colour-shifts at each promotion or demotion. Each chart point keeps
-// its rank-score under the *current* tier's key and leaves every other
-// tier `undefined`, which makes Unovis break that tier's line outside its
-// run. The boundary snapshot is duplicated under both adjacent tiers so
-// the segments visually meet rather than leaving a gap at the transition.
+// A single continuous series: the rank score at each snapshot.
+//
+// The tier is deliberately *not* modelled as one series per tier. Doing that
+// gives every tier its own area path anchored at y = 0, and because the
+// y-domain floats far above zero (a Challenger sits around 5500), the
+// out-of-run zeros drag each path down through the entire plot. Every
+// promotion or demotion then paints a full-height wedge where two tier areas
+// overlap — the "triangles" the card used to show around short tier dips.
+//
+// The tier colour lives on the *line* instead, as an x-axis gradient with one
+// hard-edged stop pair per tier run (see `tierStops`), which colour-shifts at
+// each transition without ever splitting the fill.
 interface ChartPoint extends Record<string, unknown> {
   entry: RankHistoryEntry
+  score: number
 }
 
-// Plain score series, used for both delta math and the y-domain. Decoupled
-// from `chartPoints` because the multi-tier shape there would force every
-// consumer to scan tier keys to find a numeric value.
-const scoreSeries = computed(() =>
+const chartPoints = computed<ChartPoint[]>(() =>
   props.history.map(entry => ({
     entry,
     score: rankScore(entry.tier, entry.division, entry.leaguePoints),
   })),
 )
 
-const chartPoints = computed<ChartPoint[]>(() => {
-  const out: ChartPoint[] = []
-  let prevTier: string | null = null
-  for (const item of scoreSeries.value) {
-    const tier = item.entry.tier.toUpperCase()
-    const point: ChartPoint = { entry: item.entry }
-    point[tier] = item.score
-    if (prevTier !== null && prevTier !== tier) {
-      // Carry the boundary score back into the previous tier's series so its
-      // line ends where the next one starts.
-      point[prevTier] = item.score
-    }
-    out.push(point)
-    prevTier = tier
-  }
-  return out
-})
-
-// Distinct tiers in the visible history, ordered low-to-high so categories
-// iterate Iron → Challenger and the SVG stacking order reflects rank.
-const presentTiers = computed(() => {
-  const seen = new Set<string>()
-  for (const entry of props.history) seen.add(entry.tier.toUpperCase())
-  return Array.from(seen).sort((a, b) => TIER_NAMES.indexOf(a) - TIER_NAMES.indexOf(b))
-})
-
-const categories = computed(() => {
-  const out: Record<string, { name: string, color: string }> = {}
-  for (const tier of presentTiers.value) {
-    out[tier] = { name: tier, color: tierHex(tier) }
-  }
-  return out
-})
-
 const currentTier = computed(() => props.ranked?.tier ?? null)
+
+const categories = computed(() => ({
+  score: { name: 'LP', color: tierHex(currentTier.value) },
+}))
+
+// One stop pair per contiguous tier run, positioned on the point index the
+// run starts and ends at. Equal offsets inside a run keep it a flat colour;
+// the gap between two runs spans exactly the segment that crosses the
+// promotion, so the two tier colours blend across it.
+const tierStops = computed(() => {
+  const points = chartPoints.value
+  const last = points.length - 1
+  if (last < 1) return []
+
+  const stops: Array<{ offset: string, color: string }> = []
+  let runStart = 0
+  for (let i = 1; i <= last + 1; i++) {
+    const runTier = points[runStart]!.entry.tier
+    const sameRun = i <= last && points[i]!.entry.tier.toUpperCase() === runTier.toUpperCase()
+    if (sameRun) continue
+    const color = tierHex(runTier)
+    stops.push({ offset: `${(runStart / last * 100).toFixed(3)}%`, color })
+    stops.push({ offset: `${((i - 1) / last * 100).toFixed(3)}%`, color })
+    runStart = i
+  }
+  return stops
+})
+
+const gradientId = `rank-line-gradient-${useId()}`
+
+// An objectBoundingBox gradient needs a non-degenerate box: a flat history
+// gives the line path zero height and the browser drops the element
+// altogether, so single-tier and dead-flat histories keep a plain colour.
+const lineStroke = computed(() => {
+  const scores = chartPoints.value.map(p => p.score)
+  const distinctTiers = new Set(chartPoints.value.map(p => p.entry.tier.toUpperCase())).size
+  if (distinctTiers < 2 || Math.min(...scores) === Math.max(...scores)) {
+    return tierHex(currentTier.value)
+  }
+  return `url(#${gradientId})`
+})
 
 // Pad the Y range by 25% (min 50 LP-equivalents) so the line never hugs
 // the top/bottom edge. Falls back to [0, 400] (Iron band) when there's
 // nothing to plot so the empty chart has a sensible scale.
 const yDomain = computed<[number, number]>(() => {
-  if (scoreSeries.value.length === 0) return [0, 400]
-  const scores = scoreSeries.value.map(p => p.score)
+  if (chartPoints.value.length === 0) return [0, 400]
+  const scores = chartPoints.value.map(p => p.score)
   const minScore = Math.min(...scores)
   const maxScore = Math.max(...scores)
   const padded = Math.max(50, (maxScore - minScore) * 0.25)
@@ -115,9 +125,9 @@ const yDomain = computed<[number, number]>(() => {
 // Challenger) — which share a single tier floor — still stack vertically
 // in climb order instead of collapsing to the same Y.
 const visibleTiers = computed(() => {
-  if (scoreSeries.value.length === 0) return []
+  if (chartPoints.value.length === 0) return []
   const buckets = new Map<string, number[]>()
-  for (const point of scoreSeries.value) {
+  for (const point of chartPoints.value) {
     const tier = point.entry.tier.toUpperCase()
     const arr = buckets.get(tier)
     if (arr) arr.push(point.score)
@@ -156,16 +166,16 @@ const xFormatter = (tick: number): string => {
 // meaningful comparison (≤1 snapshot, or the cutoff snapshot is the
 // current one).
 function deltaSince(days: number): number | null {
-  if (scoreSeries.value.length < 2) return null
+  if (chartPoints.value.length < 2) return null
   const cutoff = Date.now() - days * DAY_MS
-  let base: { entry: RankHistoryEntry, score: number } | undefined
-  for (const point of scoreSeries.value) {
+  let base: ChartPoint | undefined
+  for (const point of chartPoints.value) {
     const t = new Date(point.entry.capturedAtUtc).getTime()
     if (t <= cutoff) base = point
     else break
   }
-  base ??= scoreSeries.value[0]
-  const current = scoreSeries.value[scoreSeries.value.length - 1]
+  base ??= chartPoints.value[0]
+  const current = chartPoints.value[chartPoints.value.length - 1]
   if (!base || !current || base === current) return null
   return current.score - base.score
 }
@@ -240,7 +250,24 @@ const showEmptyChart = computed(
       No ranked snapshots in the last 90 days.
     </p>
 
-    <div v-else-if="chartPoints.length > 0" class="flex gap-2">
+    <div v-else-if="chartPoints.length > 0" class="rank-chart flex gap-2">
+      <!-- Paint server for the rank line. It lives in its own zero-sized SVG
+           because the chart's own <defs> are owned by the upstream component;
+           `url(#…)` references resolve document-wide, so the gradient still
+           applies to the line inside the chart's SVG. -->
+      <svg class="absolute size-0 overflow-hidden" aria-hidden="true" focusable="false">
+        <defs>
+          <linearGradient :id="gradientId" x1="0" y1="0" x2="1" y2="0">
+            <stop
+              v-for="(stop, i) in tierStops"
+              :key="i"
+              :offset="stop.offset"
+              :stop-color="stop.color"
+            />
+          </linearGradient>
+        </defs>
+      </svg>
+
       <!-- Y-axis: tier crests stacked at their score band. The wrapping
            column shares the chart's exact height so absolute offsets in
            `tierTopPx` line up with the data range. -->
@@ -294,3 +321,17 @@ const showEmptyChart = computed(
     </div>
   </section>
 </template>
+
+<style scoped>
+/*
+ * Repaint the rank line with the tier gradient. Unovis writes the stroke as a
+ * presentation attribute (`.attr('stroke', …)` in @unovis/ts
+ * `components/line/index.js`), which a plain CSS declaration outranks without
+ * needing `!important`. Emotion suffixes the path's generated class with
+ * "-linePath" (see `label: linePath` in that package's `components/line/
+ * style.js`) — same targeting trick as the tooltip override in main.css.
+ */
+.rank-chart :deep([class*="-linePath"]) {
+  stroke: v-bind(lineStroke);
+}
+</style>
