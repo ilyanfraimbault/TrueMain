@@ -1439,22 +1439,31 @@ reach it. Two tier areas then overlapped across the transition and painted a ful
 Grandmaster dips of one or two snapshots produced three "triangles" under an otherwise correct line.
 
 What ships instead: **one continuous series** (the rank score), so there is exactly one area path and no
-phantom zeros. The tier colour moves onto the line as an **x-axis `linearGradient`** with one hard-edged stop
-pair per contiguous tier run — a run keeps its colour end to end, and the two colours blend across the single
-segment that crosses the promotion. The gradient lives in a zero-sized `<svg>` of our own because the chart's
-`<defs>` belong to `vue-chrts`; `url(#…)` resolves document-wide, so it still paints inside the chart's SVG.
-It is applied by a scoped CSS rule on `[class*="-linePath"]` — Unovis writes the stroke as a *presentation
-attribute*, which a plain CSS declaration outranks without `!important` (same Emotion-label targeting trick as
-the tooltip override in `main.css`).
+phantom zeros. The tier colour moves onto an **x-axis `linearGradient`** with one hard-edged stop pair per
+contiguous tier run — a run keeps its colour end to end, and the two colours blend across the single segment
+that crosses the promotion — painted onto *both* the line's stroke and the area's fill, so the whole chart
+colour-shifts together rather than the fill staying pinned to whatever tier the player is in right now. The
+gradient lives in a zero-sized `<svg>` of our own because the chart's `<defs>` belong to `vue-chrts`;
+`url(#…)` resolves document-wide, so it still paints inside the chart's SVG.
 
-The constraint behind the shape: `vue-chrts` gives you correct multi-colour *fills* (stacked mode) or correct
-multi-colour *lines* (non-stacked, which breaks properly on gaps) — never both, since stacked mode's lines are
-cumulative sums that dive to zero outside their run. So the fill is single-coloured on purpose; the tier
-crests down the y-axis and the tooltip carry the tier, and the line carries the transition.
+The fill can't reuse `vue-chrts`' own `gradient-stops` prop for its vertical opacity fade — that prop feeds a
+gradient hard-coded to one flat colour per category, which is exactly the "pick one colour for the whole area"
+limitation this fix removes. The fade is a separate `<mask>` (a vertical white→transparent `linearGradient`,
+same 45%→5% opacity numbers the old prop used) layered on top of the tier gradient instead, so hue and
+vertical fade vary independently.
 
-One guard: an `objectBoundingBox` gradient needs a non-degenerate box, and a single-tier or dead-flat history
-gives the line path zero height — the browser would drop the element entirely. Those fall back to a flat tier
-colour.
+Both overrides land via scoped CSS, but on different footing: the line's stroke is a *presentation attribute*
+(`.attr('stroke', …)` in `@unovis/ts` `components/line/index.js`), which a plain declaration outranks with no
+`!important` needed (same Emotion-label targeting trick as the tooltip override in `main.css`) — while the
+area's fill is set via `.style('fill', …)` (`components/area/index.js`), an *inline* style, which only
+`!important` beats. The fill selector is tag-qualified to the `<path>` (`path[class*="-area"]`) rather than the
+bare class substring — `-area-component` (the wrapping `<g>`) matches too, and letting the rule land there
+would apply the mask a second time through inheritance and double-darken the fade.
+
+One guard, line-only: an `objectBoundingBox` gradient needs a non-degenerate box, and a single-tier or
+dead-flat history gives the line path zero height — the browser would drop the element entirely. That case
+falls back to a flat tier colour. The area's own box never degenerates this way — it spans from the data down
+to the scale's zero point, which is never zero-height — so its fill always uses the gradient.
 
 ## Keeping these files current
 
