@@ -19,6 +19,12 @@ const props = defineProps<{
   patch: string | null
   /** True when the leaderboard is ranked by dedication — accents the column that drives the order. */
   highlightDedication?: boolean
+  /**
+   * Deepest ordinal in the list this row belongs to. Sizes the rank slot for
+   * the whole page rather than for this row, so a page straddling a decade
+   * boundary (76…100) keeps one slot width. Falls back to the row's own rank.
+   */
+  maxRank?: number
 }>()
 
 const profileHref = computed(() => {
@@ -55,14 +61,16 @@ const isOtp = computed(() => props.row.topChampions.some(champion => champion.is
 // The rank cell is a fixed slot so the ordinals line up down the list, which
 // means a long ordinal has to fit the slot rather than the slot fitting the
 // ordinal — `#172` was already spilling out of it and over the avatar. Both the
-// slot and the label size are picked from the ordinal's digit count: the slot
-// only grows where it has to (the champion-page sidebar lists a top ten, so it
-// keeps the tight two-digit slot that leaves its width to the Riot ID), and
-// past four digits the label steps down instead of widening the column further.
-// Rows in one list share a digit count except across a decade boundary, so this
-// stays a single width per list in practice.
+// slot and the label size come from the digit count of the *list's* deepest
+// ordinal, not this row's: a page that straddles a decade boundary (76…100)
+// would otherwise mix two slot widths and unalign the columns it was supposed
+// to hold still. The slot only grows where it has to (the champion-page sidebar
+// lists a top ten, so it keeps the tight two-digit slot that leaves its width
+// to the Riot ID), and past four digits the label steps down instead of
+// widening the column further.
 const rankClass = computed(() => {
-  switch (String(props.row.rank).length) {
+  const digits = String(Math.max(props.maxRank ?? 0, props.row.rank)).length
+  switch (digits) {
     case 1:
     case 2:
       return 'w-6 text-xs @xl:w-8 @xl:text-sm'
