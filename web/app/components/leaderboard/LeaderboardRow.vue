@@ -19,6 +19,12 @@ const props = defineProps<{
   patch: string | null
   /** True when the leaderboard is ranked by dedication — accents the column that drives the order. */
   highlightDedication?: boolean
+  /**
+   * Deepest ordinal in the list this row belongs to. Sizes the rank slot for
+   * the whole page rather than for this row, so a page straddling a decade
+   * boundary (76…100) keeps one slot width. Falls back to the row's own rank.
+   */
+  maxRank?: number
 }>()
 
 const profileHref = computed(() => {
@@ -51,6 +57,33 @@ const profileIconUrl = computed(() =>
 // top champion makes the whole player an OTP — mirrors the profile page's
 // per-champion amber pill, surfaced here at the player level.
 const isOtp = computed(() => props.row.topChampions.some(champion => champion.isOtp))
+
+// The rank cell is a fixed slot so the ordinals line up down the list, which
+// means a long ordinal has to fit the slot rather than the slot fitting the
+// ordinal — `#172` was already spilling out of it and over the avatar. Both the
+// slot and the label size come from the digit count of the *list's* deepest
+// ordinal, not this row's: a page that straddles a decade boundary (76…100)
+// would otherwise mix two slot widths and unalign the columns it was supposed
+// to hold still. The slot only grows where it has to (the champion-page sidebar
+// lists a top ten, so it keeps the tight two-digit slot that leaves its width
+// to the Riot ID), and past four digits the label steps down instead of
+// widening the column further.
+const rankClass = computed(() => {
+  const digits = String(Math.max(props.maxRank ?? 0, props.row.rank)).length
+  switch (digits) {
+    case 1:
+    case 2:
+      return 'w-6 text-xs @xl:w-8 @xl:text-sm'
+    case 3:
+      return 'w-8 text-xs @xl:w-10 @xl:text-sm'
+    case 4:
+      return 'w-9 text-[11px] @xl:w-10 @xl:text-xs'
+    case 5:
+      return 'w-10 text-[10px] @xl:w-12 @xl:text-xs'
+    default:
+      return 'w-10 text-[8px] @xl:w-12 @xl:text-[10px]'
+  }
+})
 
 const ranked = computed(() => props.row.ranked)
 const showDivision = computed(() => ranked.value !== null && !isApexTier(ranked.value.tier))
@@ -189,8 +222,12 @@ const positionIcons = computed(() => {
     <!-- Rank. Narrow rows (the champion page's sidebar) get the tighter slot:
          the ordinal is the least informative column in the row, and every pixel
          it gives back goes to the Riot ID, which is the column that actually
-         truncates there. -->
-    <span class="w-6 shrink-0 text-center text-xs font-semibold tabular-nums text-muted @xl:w-8 @xl:text-sm">
+         truncates there. Deeper ordinals widen the slot a step at a time (out
+         of the flex spacers) and then shrink the label — see `rankClass`. -->
+    <span
+      class="shrink-0 text-center font-semibold tabular-nums leading-none text-muted"
+      :class="rankClass"
+    >
       #{{ row.rank }}
     </span>
 

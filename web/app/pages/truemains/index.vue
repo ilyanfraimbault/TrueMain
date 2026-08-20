@@ -92,6 +92,10 @@ const {
   sort,
 })
 
+// Deepest ordinal on the page, so every row sizes its rank slot the same way —
+// a page straddling a decade boundary (76…100) would otherwise mix two widths.
+const deepestRank = computed(() => rows.value.reduce((max, row) => Math.max(max, row.rank), 0))
+
 useErrorToast(leaderboardError, { title: 'Failed to load the leaderboard' })
 
 // ─── Static lookups ───────────────────────────────────────────────────────
@@ -174,6 +178,7 @@ const championsById = useChampionsById(champions)
         :items-map="itemsMap"
         :patch="latestPatch"
         :highlight-dedication="sort === 'dedication'"
+        :max-rank="deepestRank"
       />
     </div>
 

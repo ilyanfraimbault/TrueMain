@@ -21,6 +21,16 @@ internal sealed class SeedRequestStore(MongoLogContext context) : ISeedRequestSt
     /// </summary>
     private static readonly Collation CaseInsensitive = new("en", strength: CollationStrength.Secondary);
 
+    /// <summary>
+    /// Newest-first; id breaks ties so paging is stable when several documents
+    /// share a RequestedAtUtc — which a bulk seeder run makes routine rather than
+    /// exceptional, and without which a row could appear on two pages or on none.
+    /// </summary>
+    private static readonly SortDefinition<SeedRequestDocument> NewestFirst =
+        Builders<SeedRequestDocument>.Sort
+            .Descending(doc => doc.RequestedAtUtc)
+            .Descending(doc => doc.Id);
+
     private int _indexesEnsured;
 
     public async Task InsertAsync(SeedRequestDocument request, CancellationToken ct)
@@ -81,32 +91,44 @@ internal sealed class SeedRequestStore(MongoLogContext context) : ISeedRequestSt
 
         await EnsureIndexesOnceAsync(ct);
 
-        var builder = Builders<SeedRequestDocument>.Filter;
-        var filter = builder.Empty;
-
-        if (status is not null)
-        {
-            filter &= builder.Eq(doc => doc.Status, status.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            // Contains-search on name or tag, case-insensitive. Regex-escaped so a
-            // user typing '.' or '*' searches literally (the ILIKE-escaping
-            // equivalent).
-            var regex = new BsonRegularExpression(Regex.Escape(search.Trim()), "i");
-            filter &= builder.Regex(doc => doc.GameName, regex) | builder.Regex(doc => doc.TagLine, regex);
-        }
-
         return await context.SeedRequests
-            .Find(filter)
-            // Newest-first; id breaks ties so the list is stable when several
-            // documents share a RequestedAtUtc.
-            .Sort(Builders<SeedRequestDocument>.Sort
-                .Descending(doc => doc.RequestedAtUtc)
-                .Descending(doc => doc.Id))
+            .Find(BuildFilter(status, search, platformId: null))
+            .Sort(NewestFirst)
             .Limit(limit)
             .ToListAsync(ct);
+    }
+
+    public async Task<SeedRequestPage> GetPageAsync(
+        SeedRequestStatus? status,
+        string? search,
+        string? platformId,
+        int skip,
+        int take,
+        CancellationToken ct)
+    {
+        if (!context.IsActive)
+        {
+            return new SeedRequestPage([], 0);
+        }
+
+        await EnsureIndexesOnceAsync(ct);
+
+        var filter = BuildFilter(status, search, platformId);
+
+        // Counted before the page is read, with the same filter and no skip/take.
+        // CountDocuments rather than EstimatedDocumentCount: the latter ignores the
+        // filter entirely and would report the whole collection for every filtered
+        // view, which is exactly the number the pager must not show.
+        var total = await context.SeedRequests.CountDocumentsAsync(filter, cancellationToken: ct);
+
+        var requests = await context.SeedRequests
+            .Find(filter)
+            .Sort(NewestFirst)
+            .Skip(skip)
+            .Limit(take)
+            .ToListAsync(ct);
+
+        return new SeedRequestPage(requests, total);
     }
 
     public async Task<IReadOnlyList<SeedRequestDocument>> GetPendingAsync(int batchSize, CancellationToken ct)
@@ -207,6 +229,42 @@ internal sealed class SeedRequestStore(MongoLogContext context) : ISeedRequestSt
                 .Descending(doc => doc.Id))
             .Limit(1)
             .FirstOrDefaultAsync(ct);
+    }
+
+    /// <summary>
+    /// The filter shared by the unpaged scan and the paged read, so the two cannot
+    /// drift into disagreeing about what a search matches.
+    /// </summary>
+    private static FilterDefinition<SeedRequestDocument> BuildFilter(
+        SeedRequestStatus? status,
+        string? search,
+        string? platformId)
+    {
+        var builder = Builders<SeedRequestDocument>.Filter;
+        var filter = builder.Empty;
+
+        if (status is not null)
+        {
+            filter &= builder.Eq(doc => doc.Status, status.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(platformId))
+        {
+            // Stored canonical (upper-case, from PlatformId.TryParse on the write
+            // path), so an exact match is right and avoids a collation scan.
+            filter &= builder.Eq(doc => doc.PlatformId, platformId.Trim().ToUpperInvariant());
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            // Contains-search on name or tag, case-insensitive. Regex-escaped so a
+            // user typing '.' or '*' searches literally (the ILIKE-escaping
+            // equivalent).
+            var regex = new BsonRegularExpression(Regex.Escape(search.Trim()), "i");
+            filter &= builder.Regex(doc => doc.GameName, regex) | builder.Regex(doc => doc.TagLine, regex);
+        }
+
+        return filter;
     }
 
     private void ThrowIfInactive()
