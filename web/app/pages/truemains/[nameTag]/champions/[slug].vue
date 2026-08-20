@@ -196,11 +196,13 @@ const divergenceSnapshot = useLazyHydrationSnapshot(
     playerName: nameTag.value,
     itemsMap: {} as Record<number, StaticItemData>,
     championStatic: null as ChampionStaticData | null,
+    championStaticPending: true,
   },
   () => ({
     playerName: playerName.value,
     itemsMap: itemsMap.value ?? {},
     championStatic: staticData.value ?? null,
+    championStaticPending: isLoadingStatus(staticStatus.value),
   }),
 )
 
