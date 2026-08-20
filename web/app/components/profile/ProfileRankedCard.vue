@@ -48,9 +48,10 @@ const recordLabel = computed(() => {
 // promotion or demotion then paints a full-height wedge where two tier areas
 // overlap — the "triangles" the card used to show around short tier dips.
 //
-// The tier colour lives on the *line* instead, as an x-axis gradient with one
-// hard-edged stop pair per tier run (see `tierStops`), which colour-shifts at
-// each transition without ever splitting the fill.
+// The tier colour lives on an x-axis gradient instead, with one hard-edged
+// stop pair per tier run (see `tierStops`), painted onto both the line and
+// the fill so the whole chart colour-shifts at each transition without ever
+// splitting into per-tier paths.
 interface ChartPoint extends Record<string, unknown> {
   entry: RankHistoryEntry
   score: number
@@ -92,7 +93,17 @@ const tierStops = computed(() => {
   return stops
 })
 
-const gradientId = `rank-line-gradient-${useId()}`
+// Shared by the line's stroke and the area's fill so both repaint from the
+// same tier boundaries — see `tierStops`.
+const tierGradientId = `rank-tier-gradient-${useId()}`
+
+// The area's own vertical opacity fade, applied as a <mask> instead of via
+// `gradient-stops` (vue-chrts' own per-category gradient) because that
+// gradient bakes in a *flat* colour — it can't also carry the horizontal
+// tier-boundary hues `tierGradientId` needs. Same opacity numbers as the
+// fade this replaces, so only the hue changes.
+const areaFadeGradientId = `rank-area-fade-gradient-${useId()}`
+const areaFadeMaskId = `rank-area-fade-mask-${useId()}`
 
 // An objectBoundingBox gradient needs a non-degenerate box: a flat history
 // gives the line path zero height and the browser drops the element
@@ -103,7 +114,25 @@ const lineStroke = computed(() => {
   if (distinctTiers < 2 || Math.min(...scores) === Math.max(...scores)) {
     return tierHex(currentTier.value)
   }
-  return `url(#${gradientId})`
+  return `url(#${tierGradientId})`
+})
+
+// The area has two degenerate cases of its own:
+//  - A single-point history leaves `tierStops` empty (see its `last < 1`
+//    guard), so the gradient it would feed has no `<stop>` children and
+//    resolves to `none` — an invisible fill.
+//  - A flat history pinned at score 0 (Iron IV 0 LP, reachable — see
+//    `rankScore`'s docstring — by an inactive account whose whole tracked
+//    window sits at the ladder floor) hits the same zero-height
+//    bounding-box case as the line, but for a different reason: the area's
+//    baseline defaults to the data value 0 (`Area`'s `baseline: () => 0` in
+//    `@unovis/ts`), so with every point *also* at 0 its top and bottom
+//    edges coincide exactly, regardless of the y-domain padding.
+const areaFill = computed(() => {
+  if (tierStops.value.length === 0) return tierHex(currentTier.value)
+  const scores = chartPoints.value.map(p => p.score)
+  if (Math.min(...scores) === 0 && Math.max(...scores) === 0) return tierHex(currentTier.value)
+  return `url(#${tierGradientId})`
 })
 
 // Pad the Y range by 25% (min 50 LP-equivalents) so the line never hugs
@@ -251,13 +280,13 @@ const showEmptyChart = computed(
     </p>
 
     <div v-else-if="chartPoints.length > 0" class="rank-chart flex gap-2">
-      <!-- Paint server for the rank line. It lives in its own zero-sized SVG
-           because the chart's own <defs> are owned by the upstream component;
-           `url(#…)` references resolve document-wide, so the gradient still
-           applies to the line inside the chart's SVG. -->
+      <!-- Paint servers for the line's stroke and the area's fill. They live
+           in their own zero-sized SVG because the chart's own <defs> are
+           owned by the upstream component; `url(#…)` references resolve
+           document-wide, so they still apply inside the chart's SVG. -->
       <svg class="absolute size-0 overflow-hidden" aria-hidden="true" focusable="false">
         <defs>
-          <linearGradient :id="gradientId" x1="0" y1="0" x2="1" y2="0">
+          <linearGradient :id="tierGradientId" x1="0" y1="0" x2="1" y2="0">
             <stop
               v-for="(stop, i) in tierStops"
               :key="i"
@@ -265,6 +294,13 @@ const showEmptyChart = computed(
               :stop-color="stop.color"
             />
           </linearGradient>
+          <linearGradient :id="areaFadeGradientId" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="white" stop-opacity="0.45" />
+            <stop offset="100%" stop-color="white" stop-opacity="0.05" />
+          </linearGradient>
+          <mask :id="areaFadeMaskId" maskContentUnits="objectBoundingBox">
+            <rect x="0" y="0" width="1" height="1" :fill="`url(#${areaFadeGradientId})`" />
+          </mask>
         </defs>
       </svg>
 
@@ -293,10 +329,6 @@ const showEmptyChart = computed(
           :height="CHART_HEIGHT"
           :x-formatter="xFormatter"
           :y-domain="yDomain"
-          :gradient-stops="[
-            { offset: '0%', stopOpacity: 0.45 },
-            { offset: '100%', stopOpacity: 0.05 },
-          ]"
           hide-y-axis
           hide-legend
         >
@@ -333,5 +365,21 @@ const showEmptyChart = computed(
  */
 .rank-chart :deep([class*="-linePath"]) {
   stroke: v-bind(lineStroke);
+}
+
+/*
+ * Repaint the area's fill with the same tier gradient, faded vertically by
+ * the mask instead of vue-chrts' own per-category gradient (which only ever
+ * carries one flat colour — see `areaFadeGradientId`). Unlike the line's
+ * stroke, Unovis sets this `fill` via `.style(...)` (@unovis/ts
+ * `components/area/index.js`), i.e. an *inline* style, which only an
+ * `!important` declaration outranks. The selector is tag-qualified —
+ * `-area-component` (the wrapping <g>) also matches a bare class substring
+ * of "-area", and letting the rule land there too would apply the mask
+ * twice through inheritance and double-darken the fade.
+ */
+.rank-chart :deep(path[class*="-area"]) {
+  fill: v-bind(areaFill) !important;
+  mask: v-bind('`url(#${areaFadeMaskId})`');
 }
 </style>
