@@ -56,7 +56,7 @@ public sealed class RankSnapshotIngestionTests
     {
         await _fixture.ResetDatabaseAsync();
         var account = await SeedAccountAsync("puuid-unchanged");
-        await SeedSnapshotAsync(account.Id, "GOLD", "II", 50, DateTime.UtcNow.AddHours(-1));
+        await SeedSnapshotAsync(account.Id, "GOLD", "II", 50, EarlierToday(TimeSpan.FromHours(1)));
 
         var process = BuildProcess(
             soloEntry: SoloEntry("GOLD", "II", 50, wins: 12, losses: 6));
@@ -73,7 +73,7 @@ public sealed class RankSnapshotIngestionTests
     {
         await _fixture.ResetDatabaseAsync();
         var account = await SeedAccountAsync("puuid-tier-change");
-        await SeedSnapshotAsync(account.Id, "GOLD", "I", 100, DateTime.UtcNow.AddHours(-2));
+        await SeedSnapshotAsync(account.Id, "GOLD", "I", 100, EarlierToday(TimeSpan.FromHours(2)));
 
         var process = BuildProcess(
             soloEntry: SoloEntry("PLATINUM", "IV", 0));
@@ -97,7 +97,7 @@ public sealed class RankSnapshotIngestionTests
     {
         await _fixture.ResetDatabaseAsync();
         var account = await SeedAccountAsync("puuid-division-change");
-        await SeedSnapshotAsync(account.Id, "GOLD", "II", 100, DateTime.UtcNow.AddHours(-2));
+        await SeedSnapshotAsync(account.Id, "GOLD", "II", 100, EarlierToday(TimeSpan.FromHours(2)));
 
         var process = BuildProcess(
             soloEntry: SoloEntry("GOLD", "I", 5));
@@ -120,7 +120,7 @@ public sealed class RankSnapshotIngestionTests
     {
         await _fixture.ResetDatabaseAsync();
         var account = await SeedAccountAsync("puuid-lp-delta");
-        await SeedSnapshotAsync(account.Id, "GOLD", "II", 50, DateTime.UtcNow.AddHours(-2));
+        await SeedSnapshotAsync(account.Id, "GOLD", "II", 50, EarlierToday(TimeSpan.FromHours(2)));
 
         var process = BuildProcess(
             soloEntry: SoloEntry("GOLD", "II", 73));
@@ -496,6 +496,19 @@ public sealed class RankSnapshotIngestionTests
         db.RiotAccounts.Add(account);
         await db.SaveChangesAsync();
         return account;
+    }
+
+    // A timestamp earlier on the *current* UTC day, clamped to the start of that
+    // day. The same-day tests above assert that today's snapshot is overwritten
+    // rather than appended, and a plain `UtcNow.AddHours(-2)` falls on the
+    // previous UTC day for any run in the first two hours after midnight — which
+    // made three of them fail deterministically in that window, on PRs that
+    // touched no backend code at all.
+    private static DateTime EarlierToday(TimeSpan ago)
+    {
+        var now = DateTime.UtcNow;
+        var candidate = now - ago;
+        return candidate.Date == now.Date ? candidate : now.Date;
     }
 
     private async Task SeedSnapshotAsync(Guid riotAccountId, string tier, string division, int lp, DateTime capturedAtUtc)
