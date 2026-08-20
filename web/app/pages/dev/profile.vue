@@ -11,6 +11,7 @@ import type {
   StaticItemData,
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
+import { groupMatchesByDay } from '~/utils/match-history'
 
 definePageMeta({ layout: 'default' })
 
@@ -338,6 +339,7 @@ const mockMatches = computed<MatchSummaryResponse[]>(() => [
     participants: makeMockParticipants(),
   },
 ])
+const mockMatchDays = computed(() => groupMatchesByDay(mockMatches.value))
 </script>
 
 <template>
@@ -371,15 +373,21 @@ const mockMatches = computed<MatchSummaryResponse[]>(() => [
         Recent matches
       </h2>
       <template v-if="staticBundleReady">
-        <MatchRow
-          v-for="match in mockMatches"
-          :key="match.matchId"
-          :match="match"
-          :champions="champions"
-          :items="items"
-          :summoner-spells="summonerSpells"
-          :rune-tree="runeTree"
-        />
+        <!-- Grouped by day exactly like the real history, so the harness shows
+             the day headings too (the two fixtures are 8h and 30h old, which
+             straddles a day boundary most of the time). -->
+        <template v-for="day in mockMatchDays" :key="day.key">
+          <MatchDayHeading v-if="day.label" :label="day.label" />
+          <MatchRow
+            v-for="match in day.matches"
+            :key="match.matchId"
+            :match="match"
+            :champions="champions"
+            :items="items"
+            :summoner-spells="summonerSpells"
+            :rune-tree="runeTree"
+          />
+        </template>
       </template>
       <template v-else>
         <MatchRowSkeleton v-for="i in 2" :key="i" />

@@ -12,22 +12,21 @@
     aria-hidden="true"
   >
     <div class="flex flex-1 flex-wrap items-center gap-2 px-2 py-2 @md:flex-nowrap @2xl:gap-3 @2xl:px-3 @2xl:py-2.5">
-      <!-- Meta: result + duration -->
-      <div class="flex w-12 shrink-0 flex-col gap-1 @2xl:w-[3.5rem]">
-        <USkeleton class="h-3 w-10 @2xl:w-12" />
-        <USkeleton class="h-3 w-8 @2xl:w-10" />
-      </div>
-      <!-- Champion portrait -->
+      <!-- Champion portrait. No meta column: the real row dropped its
+           result label, and its duration moved into the stats cluster. -->
       <USkeleton class="size-10 shrink-0 rounded @2xl:ml-1 @2xl:size-12" />
       <!-- KDA + stats -->
-      <div class="flex w-28 shrink-0 items-start gap-2 @lg:w-48 @2xl:w-52 @2xl:gap-3">
+      <div class="flex w-28 shrink-0 items-center gap-2 @3xl:w-52 @3xl:gap-3">
         <div class="flex w-28 flex-col items-center gap-1">
           <USkeleton class="h-5 w-20" />
           <USkeleton class="h-3 w-14" />
+          <USkeleton class="h-3 w-10 @3xl:hidden" />
         </div>
-        <div class="hidden shrink-0 flex-col gap-0.5 @lg:flex">
+        <div class="hidden flex-1 flex-col items-center gap-0.5 @3xl:flex">
           <USkeleton class="h-3 w-14" />
           <USkeleton class="h-3 w-12" />
+          <USkeleton class="h-3 w-12" />
+          <USkeleton class="h-3 w-10" />
         </div>
       </div>
       <!-- Loadout strip: summoners + runes + item block -->
@@ -55,7 +54,7 @@
       <!-- Composition rows placeholder — two horizontal rows of 5 so the
            skeleton keeps the same height as the resolved row. -->
       <div class="ml-auto flex shrink-0 items-center gap-2 @md:ml-0 @2xl:gap-3">
-        <div class="hidden shrink-0 flex-col gap-0.5 @3xl:flex">
+        <div class="hidden shrink-0 flex-col gap-0.5 @xl:flex">
           <div class="flex gap-0.5">
             <USkeleton v-for="i in 5" :key="`ally-${i}`" class="size-6 rounded" />
           </div>
