@@ -9,7 +9,24 @@ This is the **only** PR allowed to target master, and the **only** merge where t
 
 ## Version
 
-Versions are bare tags like `1.6.3` (no `v` prefix). Pick the next one from the latest tag (`git tag --sort=-v:refname | head -1`) by what shipped since master: any feat → minor bump, fixes/chores only → patch.
+Versions are bare tags like `1.6.3` (no `v` prefix). Read the latest with
+`git tag --sort=-v:refname | head -1`.
+
+**The user's word decides the bump, and their vocabulary is not semver's.** Take it literally —
+do not re-derive the bump from what the diff contains when they have named one:
+
+| The user says | From `1.17.0` you cut | Which component moves |
+|---|---|---|
+| « majeur » / "major" | `2.0.0` | first |
+| *nothing* — just "release", "passe en prod" | `1.18.0` | second |
+| « mineur » / "minor" | `1.17.1` | third |
+
+So « mineur » means the **smallest** bump — what semver calls a patch — and saying nothing gets
+what semver calls a minor. Never answer a « mineur » request with `1.18.0`: to them that is not
+a smaller release, it is the default one.
+
+Only when the user names no bump *and* you have reason to doubt the default should content
+matter, and even then the default (second component) is the answer for an ordinary release.
 
 ## PR
 
