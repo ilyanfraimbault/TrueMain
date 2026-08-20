@@ -1428,6 +1428,34 @@ Observability is deliberately not part of this: the per-platform balance is visi
 log line and the `HarvestBudgetExhausted` event, but the admin portal has no region-balance panel yet
 (tracked separately). Until it does, a drift like this still has to be inferred from run summaries.
 
+## The rank chart is one area with a tier-gradient line, never one area per tier (2026-08-20)
+
+The profile's LP chart used to model each tier as its own chart series — a point carried its rank score under
+its current tier's key and left every other tier `undefined` — so that the line *and* the fill colour-shifted
+at each promotion. Unovis has no notion of a hole in an area: `getStackedData` turns a missing value into
+`0` (`getNumber(...) || 0`). The y-domain floats far above zero (a Challenger's rank score is ~5500), so every
+out-of-run zero sat roughly 1300px below the 150px plot, and each tier's area dived through the whole frame to
+reach it. Two tier areas then overlapped across the transition and painted a full-height wedge — three
+Grandmaster dips of one or two snapshots produced three "triangles" under an otherwise correct line.
+
+What ships instead: **one continuous series** (the rank score), so there is exactly one area path and no
+phantom zeros. The tier colour moves onto the line as an **x-axis `linearGradient`** with one hard-edged stop
+pair per contiguous tier run — a run keeps its colour end to end, and the two colours blend across the single
+segment that crosses the promotion. The gradient lives in a zero-sized `<svg>` of our own because the chart's
+`<defs>` belong to `vue-chrts`; `url(#…)` resolves document-wide, so it still paints inside the chart's SVG.
+It is applied by a scoped CSS rule on `[class*="-linePath"]` — Unovis writes the stroke as a *presentation
+attribute*, which a plain CSS declaration outranks without `!important` (same Emotion-label targeting trick as
+the tooltip override in `main.css`).
+
+The constraint behind the shape: `vue-chrts` gives you correct multi-colour *fills* (stacked mode) or correct
+multi-colour *lines* (non-stacked, which breaks properly on gaps) — never both, since stacked mode's lines are
+cumulative sums that dive to zero outside their run. So the fill is single-coloured on purpose; the tier
+crests down the y-axis and the tooltip carry the tier, and the line carries the transition.
+
+One guard: an `objectBoundingBox` gradient needs a non-degenerate box, and a single-tier or dead-flat history
+gives the line path zero height — the browser would drop the element entirely. Those fall back to a flat tier
+colour.
+
 ## Keeping these files current
 
 A PR that ships a user-facing feature, removes one, or reverses a decision here **must update
