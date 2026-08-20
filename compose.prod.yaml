@@ -243,8 +243,10 @@ services:
       # longer "a few thousand seeds" — the per-champion dpm sweep puts tens of thousands in
       # the queue in one run, which at 200 is two to three weeks of drain.
       #
-      # 750 is ~9-18k/day. Each request costs exactly 3 Riot calls (account-v1, summoner-v4,
-      # champion mastery — see ManualSeedProcess.ProcessRequestAsync), so ~27-54k calls/day:
+      # 750 is ~9-18k/day. A resolved request costs 3 Riot calls (account-v1, summoner-v4,
+      # champion mastery — see ManualSeedProcess.ProcessRequestAsync); one whose Riot ID no
+      # longer exists stops after the first. So ~27-54k calls/day is the ceiling, and the real
+      # figure is lower by whatever share of the queue has gone stale:
       # a large but deliberate reallocation while the backlog is being filled. Turn it back
       # down once the queue is drained — this is a knob for a backlog, not a steady state.
       #
