@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ChampionResponse } from '~~/shared/types/champions'
+import { isLoadingStatus } from '~/utils/async-data'
 import { describeFetchError, fetchErrorStatus } from '~/utils/errors'
 
 /**
@@ -48,7 +49,7 @@ const build = computed(() => champion.value?.builds[0] ?? null)
 
 const assetsPatch = computed(() => champion.value?.patch ?? null)
 const { runeTree, itemsMap } = useBuildAssets(assetsPatch)
-const { data: summonersMap } = useStaticSummonerSpells(assetsPatch)
+const { data: summonersMap, status: summonersStatus } = useStaticSummonerSpells(assetsPatch)
 const { data: championStatic } = useChampionStatic(
   () => props.championId,
   () => assetsPatch.value,
@@ -106,6 +107,7 @@ const { data: championStatic } = useChampionStatic(
         :champion-static="championStatic"
         :items-map="itemsMap"
         :summoners-map="summonersMap ?? {}"
+        :summoners-pending="isLoadingStatus(summonersStatus)"
         :rune-tree="runeTree"
         :keystone-size="35"
       />

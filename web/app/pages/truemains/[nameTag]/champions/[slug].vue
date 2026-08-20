@@ -341,6 +341,7 @@ const performanceSnapshot = useLazyHydrationSnapshot(
               :champion-static="staticData"
               :items-map="itemsMap ?? {}"
               :summoners-map="summonersMap ?? {}"
+              :summoners-pending="isLoadingStatus(summonersStatus)"
               :rune-tree="runeTree ?? null"
             />
             <ChampionBuildTabsSkeleton v-else />

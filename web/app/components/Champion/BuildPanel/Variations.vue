@@ -12,6 +12,8 @@ const props = defineProps<{
   championStatic: ChampionStaticData
   itemsMap: Record<number, StaticItemData>
   summonersMap: Record<number, StaticSummonerSpellData>
+  /** True while the summoner-spell static map is still loading — see `ChampionCoreSpells`. */
+  summonersPending?: boolean
 }>()
 
 // Hide long-tail alternatives below the shared pickrate floor; the empty-state
@@ -51,6 +53,7 @@ function spellByKey(key: string) {
               :key="`sum-${option.spell1Id}-${option.spell2Id}-${spellId}`"
               :spell="summonersMap[spellId] ?? null"
               :fallback-label="summonerName(spellId)"
+              :pending="summonersPending"
               :width="32"
               :height="32"
               class="size-8 rounded"

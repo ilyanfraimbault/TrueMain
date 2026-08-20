@@ -37,6 +37,8 @@ withDefaults(defineProps<{
   championStatic: ChampionStaticData | null
   itemsMap: Record<number, StaticItemData>
   summonersMap: Record<number, StaticSummonerSpellData>
+  /** True while `summonersMap` is still loading — see `ChampionCoreSpells`. */
+  summonersPending?: boolean
   runeTree: RuneTreeResponse | null
   /** Keystone row size (px) — see `ChampionCoreRunes`. */
   keystoneSize?: number
@@ -48,6 +50,7 @@ withDefaults(defineProps<{
    */
   noRunesMessage?: string | null
 }>(), {
+  summonersPending: false,
   keystoneSize: undefined,
   noRunesMessage: null,
 })
@@ -72,6 +75,7 @@ withDefaults(defineProps<{
         <ChampionCoreSpells
           :summoners="summonerSpells"
           :summoners-map="summonersMap"
+          :summoners-pending="summonersPending"
         />
         <ChampionCoreStarterItems
           :starter="starterItems"

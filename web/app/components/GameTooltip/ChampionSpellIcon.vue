@@ -12,12 +12,15 @@ const props = withDefaults(defineProps<{
   loading?: 'lazy' | 'eager'
   /** Fallback label shown when no icon URL is available (e.g. the slot key 'Q'). */
   fallbackLabel?: string
+  /** True while the champion's static data is still loading — see `SkeletonImage`'s `pending`. */
+  pending?: boolean
 }>(), {
   spell: null,
   width: 36,
   height: 36,
   loading: undefined,
   fallbackLabel: '',
+  pending: false,
 })
 
 const hasSpell = computed(() => Boolean(props.spell))
@@ -41,6 +44,7 @@ const fallbackText = computed(() => props.fallbackLabel || props.spell?.key || '
       :src="spell?.iconUrl"
       :alt="spell?.name"
       :fallback="fallbackText"
+      :pending="pending"
       :width="width"
       :height="height"
       :loading="loading"
