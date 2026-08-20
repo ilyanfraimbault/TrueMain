@@ -52,6 +52,31 @@ const profileIconUrl = computed(() =>
 // per-champion amber pill, surfaced here at the player level.
 const isOtp = computed(() => props.row.topChampions.some(champion => champion.isOtp))
 
+// The rank cell is a fixed slot so the ordinals line up down the list, which
+// means a long ordinal has to fit the slot rather than the slot fitting the
+// ordinal — `#172` was already spilling out of it and over the avatar. Both the
+// slot and the label size are picked from the ordinal's digit count: the slot
+// only grows where it has to (the champion-page sidebar lists a top ten, so it
+// keeps the tight two-digit slot that leaves its width to the Riot ID), and
+// past four digits the label steps down instead of widening the column further.
+// Rows in one list share a digit count except across a decade boundary, so this
+// stays a single width per list in practice.
+const rankClass = computed(() => {
+  switch (String(props.row.rank).length) {
+    case 1:
+    case 2:
+      return 'w-6 text-xs @xl:w-8 @xl:text-sm'
+    case 3:
+      return 'w-8 text-xs @xl:w-10 @xl:text-sm'
+    case 4:
+      return 'w-9 text-[11px] @xl:w-10 @xl:text-xs'
+    case 5:
+      return 'w-10 text-[10px] @xl:w-12 @xl:text-xs'
+    default:
+      return 'w-10 text-[8px] @xl:w-12 @xl:text-[10px]'
+  }
+})
+
 const ranked = computed(() => props.row.ranked)
 const showDivision = computed(() => ranked.value !== null && !isApexTier(ranked.value.tier))
 
@@ -189,8 +214,12 @@ const positionIcons = computed(() => {
     <!-- Rank. Narrow rows (the champion page's sidebar) get the tighter slot:
          the ordinal is the least informative column in the row, and every pixel
          it gives back goes to the Riot ID, which is the column that actually
-         truncates there. -->
-    <span class="w-6 shrink-0 text-center text-xs font-semibold tabular-nums text-muted @xl:w-8 @xl:text-sm">
+         truncates there. Deeper ordinals widen the slot a step at a time (out
+         of the flex spacers) and then shrink the label — see `rankClass`. -->
+    <span
+      class="shrink-0 text-center font-semibold tabular-nums leading-none text-muted"
+      :class="rankClass"
+    >
       #{{ row.rank }}
     </span>
 
