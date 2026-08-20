@@ -11,8 +11,10 @@
 //      renders a preview table; "Seed all (N)" POSTs every valid row with
 //      limited concurrency, tracking per-row status + a progress bar + summary.
 //
-// A shared "Recent seed requests" history table at the bottom reflects requests
-// from BOTH the single and bulk flows (each submit calls `refresh()`).
+// A shared, server-paginated seed-request queue at the bottom reflects requests
+// from BOTH the single and bulk flows (each submit jumps back to page 1 and
+// refreshes). Paginated rather than capped at the newest rows because the weekly
+// OTP seeder feeds this same queue in bulk (#1166).
 //
 // WORDING NOTE: "Ingested"/"queued" here means the account + mastery-derived
 // candidates were created and queued — actual match ingestion + main
@@ -24,7 +26,7 @@ import type {
   SeedRequestStatus,
 } from '~~/shared/types/ops'
 import { TERMINAL_SEED_STATUSES } from '~~/shared/types/ops'
-import { formatDateTime } from '~~/shared/utils/format'
+import { formatDateTime, formatNumber } from '~~/shared/utils/format'
 
 // Tracked Riot regions, shared by the single form and the bulk parser.
 const TRACKED_REGIONS = ['EUW1', 'KR', 'NA1'] as const
@@ -173,7 +175,7 @@ async function onSubmit(event: FormSubmitEvent<SeedFormState>) {
       resolvedPuuid: null,
       resolvedRiotAccountId: null,
     }
-    refresh()
+    refreshFromFirstPage()
     startPolling(res.id)
   }
   catch (err: unknown) {
@@ -495,8 +497,8 @@ async function seedAll() {
       color: summaryClean.value ? 'success' : 'warning',
       icon: summaryClean.value ? 'i-lucide-circle-check' : 'i-lucide-triangle-alert',
     })
-    // Surface the newly-queued rows in the shared history below.
-    refresh()
+    // Surface the newly-queued rows at the top of the queue list below.
+    refreshFromFirstPage()
   }
 }
 
@@ -550,8 +552,13 @@ function outcomeBadge(row: PreviewRow): { color: BadgeColor, icon: string, label
 }
 
 // =============================================================================
-// SHARED — recent seed requests history (reflects single + bulk submits)
+// SHARED — the seed-request queue (reflects single + bulk submits)
 // =============================================================================
+// Server-paginated rather than a capped "recent" list (#1166): the weekly OTP
+// seeder pushes tens of thousands of requests into this same queue in one run, so
+// a list showing only its newest page showed a rounding error of its own contents
+// and could not answer the question an operator actually has — how much is still
+// pending.
 const statusFilter = ref<'all' | SeedRequestStatus>(ALL)
 const statusFilterItems = [
   { label: 'All statuses', value: ALL },
@@ -560,14 +567,63 @@ const statusFilterItems = [
   { label: 'Ingested', value: 'Ingested' },
   { label: 'Failed', value: 'Failed' },
 ]
+const regionFilter = ref<string>(ALL)
+const searchFilter = ref('')
+// Debounce the search so we don't fire a request per keystroke.
+const searchDebounced = refDebounced(searchFilter, 300)
+const page = ref(1)
+const pageSize = 25
+
+// Reset to page 1 whenever a filter narrows/widens the result set — otherwise a
+// filter applied from page 40 lands on a page the new result set may not have.
+watch([statusFilter, regionFilter, searchDebounced], () => {
+  page.value = 1
+})
 
 const listFilters = computed(() => ({
   status: statusFilter.value === ALL ? undefined : statusFilter.value,
-  limit: 50,
+  region: regionFilter.value === ALL ? undefined : regionFilter.value,
+  search: searchDebounced.value.trim() || undefined,
+  page: page.value,
+  pageSize,
 }))
 
+const hasFilters = computed(() =>
+  statusFilter.value !== ALL
+  || regionFilter.value !== ALL
+  || Boolean(searchFilter.value.trim()),
+)
+function resetFilters() {
+  statusFilter.value = ALL
+  regionFilter.value = ALL
+  searchFilter.value = ''
+}
+
 const { data, pending, error, refresh } = useSeedRequests(listFilters)
-const requests = computed(() => data.value ?? [])
+
+/**
+ * Refresh after a submit. Jumps back to page 1 first: the list is newest-first, so
+ * the request just created is on page 1 — refreshing in place would re-fetch
+ * whichever page the operator was browsing and appear to have done nothing. Only
+ * the submit paths use this; the poller refreshes in place, since yanking the page
+ * out from under someone reading page 40 would be worse than a stale row.
+ *
+ * Either changes the page or refreshes, never both: `page` is part of the query key,
+ * so assigning it already re-runs the fetch, and calling refresh() as well would
+ * fire the same request twice.
+ */
+function refreshFromFirstPage() {
+  if (page.value === 1) {
+    refresh()
+    return
+  }
+
+  page.value = 1
+}
+
+const requests = computed(() => data.value?.requests ?? [])
+const total = computed(() => data.value?.total ?? 0)
+const pageCount = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 
 const columns: TableColumn<SeedRequestReadModel>[] = [
   { accessorKey: 'gameName', header: 'Riot ID' },
@@ -946,18 +1002,40 @@ const tableMeta = {
 
       <USeparator class="my-8" />
 
-      <!-- Shared: recent seed requests (single + bulk) -->
+      <!-- Shared: the seed-request queue (single + bulk) -->
       <section>
-        <div class="flex items-center justify-between gap-2 mb-3">
-          <p class="text-xs text-muted uppercase">
-            Recent seed requests
+        <div class="flex flex-wrap items-center gap-2 mb-3">
+          <p class="text-xs text-muted uppercase mr-auto">
+            Seed request queue
           </p>
+          <UInput
+            v-model="searchFilter"
+            icon="i-lucide-search"
+            placeholder="Riot ID"
+            class="w-full sm:w-64"
+            :loading="pending"
+          />
           <USelect
             v-model="statusFilter"
             :items="statusFilterItems"
             icon="i-lucide-check-circle"
             placeholder="Status"
             class="w-44"
+          />
+          <USelect
+            v-model="regionFilter"
+            :items="REGION_ITEMS"
+            icon="i-lucide-globe"
+            placeholder="Region"
+            class="w-40"
+          />
+          <UButton
+            v-if="hasFilters"
+            icon="i-lucide-x"
+            color="neutral"
+            variant="ghost"
+            label="Clear"
+            @click="resetFilters()"
           />
         </div>
 
@@ -978,7 +1056,7 @@ const tableMeta = {
                 v-if="!pending"
                 color="neutral"
                 variant="subtle"
-                :label="`${requests.length} ${requests.length === 1 ? 'request' : 'requests'}`"
+                :label="`${formatNumber(total)} ${total === 1 ? 'request' : 'requests'}`"
               />
             </div>
           </template>
@@ -1033,10 +1111,30 @@ const tableMeta = {
 
             <template #empty>
               <div class="py-10 text-center text-sm text-muted">
-                No seed requests yet.
+                {{ hasFilters ? 'No seed requests match these filters.' : 'No seed requests yet.' }}
               </div>
             </template>
           </UTable>
+
+          <!-- Pager -->
+          <div
+            v-if="total > pageSize"
+            class="flex items-center justify-between gap-2 border-t border-default px-4 py-3"
+          >
+            <p class="text-xs text-muted tabular-nums">
+              Page {{ page.toLocaleString('en-US') }} of {{ pageCount.toLocaleString('en-US') }}
+            </p>
+            <UPagination
+              v-model:page="page"
+              :total="total"
+              :items-per-page="pageSize"
+              :sibling-count="1"
+              active-color="primary"
+              variant="subtle"
+              :disabled="pending"
+              show-edges
+            />
+          </div>
         </UCard>
       </section>
     </template>

@@ -8,13 +8,17 @@ namespace TrueMain.Services.Ops;
 /// Reads seed requests for the admin "seed by Riot ID" panel, from the Mongo
 /// admin store. The optional <c>status</c> filter on the list is an exact match
 /// on the <c>SeedRequestStatus</c> name (case-insensitive); an unrecognised value
-/// is ignored (no status filter applied) rather than erroring.
+/// is ignored (no status filter applied) rather than erroring — unlike the region
+/// filter, which the controller rejects, because that one is an exact match whose
+/// typo would read as an empty region rather than as a bad request.
 /// </summary>
 public sealed class SeedRequestQueryService(ISeedRequestStore store) : ISeedRequestQueryService
 {
-    private const int DefaultLimit = 50;
-    private const int MinLimit = 1;
-    private const int MaxLimit = 200;
+    // Mirrors CandidateQueryService so the two lists on the Candidates page page
+    // identically.
+    private const int DefaultPageSize = 25;
+    private const int MinPageSize = 1;
+    private const int MaxPageSize = 100;
 
     public async Task<SeedRequestReadModel?> GetByIdAsync(Guid id, CancellationToken ct)
     {
@@ -23,21 +27,38 @@ public sealed class SeedRequestQueryService(ISeedRequestStore store) : ISeedRequ
         return document is null ? null : ToReadModel(document);
     }
 
-    public async Task<IReadOnlyList<SeedRequestReadModel>> GetRecentAsync(
+    public async Task<SeedRequestsReadModel> GetPageAsync(
         string? status,
         string? search,
-        int? limit,
+        string? region,
+        int? page,
+        int? pageSize,
         CancellationToken ct)
     {
-        var effectiveLimit = Math.Clamp(limit ?? DefaultLimit, MinLimit, MaxLimit);
+        // Upper bound keeps `(page - 1) * pageSize` within int range even at the
+        // maximum page size, mirroring CandidateQueryService.
+        var effectivePage = Math.Clamp(page ?? 1, 1, int.MaxValue / MaxPageSize);
+        var effectivePageSize = Math.Clamp(pageSize ?? DefaultPageSize, MinPageSize, MaxPageSize);
 
         var statusFilter = TryParseStatus(status, out var parsedStatus)
             ? parsedStatus
             : (SeedRequestStatus?)null;
 
-        var documents = await store.GetRecentAsync(statusFilter, search, effectiveLimit, ct);
+        var result = await store.GetPageAsync(
+            statusFilter,
+            search,
+            region,
+            (effectivePage - 1) * effectivePageSize,
+            effectivePageSize,
+            ct);
 
-        return documents.Select(ToReadModel).ToList();
+        return new SeedRequestsReadModel
+        {
+            Requests = result.Requests.Select(ToReadModel).ToList(),
+            Total = result.Total,
+            Page = effectivePage,
+            PageSize = effectivePageSize
+        };
     }
 
     private static bool TryParseStatus(string? status, out SeedRequestStatus parsed)

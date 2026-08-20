@@ -409,7 +409,15 @@ public sealed class MongoLogContext : IDisposable
             new(Builders<SeedRequestDocument>.IndexKeys
                     .Ascending(doc => doc.ResolvedPuuid)
                     .Ascending(doc => doc.PlatformId),
-                new CreateIndexOptions { Name = "ix_resolved_puuid", Sparse = true })
+                new CreateIndexOptions { Name = "ix_resolved_puuid", Sparse = true }),
+            // The admin list's region filter (#1166). Platform first, then the list's
+            // own sort key, so a region-scoped page is served from the index instead of
+            // scanning a collection the weekly OTP seeder now grows by tens of
+            // thousands of documents a run.
+            new(Builders<SeedRequestDocument>.IndexKeys
+                    .Ascending(doc => doc.PlatformId)
+                    .Descending(doc => doc.RequestedAtUtc),
+                new CreateIndexOptions { Name = "ix_platform_requested" })
         };
 
         await SeedRequests.Indexes.CreateManyAsync(models, ct);

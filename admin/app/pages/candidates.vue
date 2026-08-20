@@ -246,19 +246,33 @@ const seedStatusItems = [
 ]
 
 const seedStatus = ref<'all' | SeedRequestStatus>(ALL)
+const seedRegion = ref<string>(ALL)
 const seedSearch = ref('')
 const seedSearchDebounced = refDebounced(seedSearch, 300)
+const seedPage = ref(1)
+const seedPageSize = 25
+
+// Reset to page 1 whenever a filter narrows/widens the result set.
+watch([seedStatus, seedRegion, seedSearchDebounced], () => {
+  seedPage.value = 1
+})
 
 const seedFilters = computed(() => ({
   status: seedStatus.value === ALL ? undefined : seedStatus.value,
+  region: seedRegion.value === ALL ? undefined : seedRegion.value,
   search: seedSearchDebounced.value.trim() || undefined,
+  page: seedPage.value,
+  pageSize: seedPageSize,
 }))
 
 const hasSeedFilters = computed(() =>
-  seedStatus.value !== ALL || Boolean(seedSearch.value.trim()),
+  seedStatus.value !== ALL
+  || seedRegion.value !== ALL
+  || Boolean(seedSearch.value.trim()),
 )
 function resetSeedFilters() {
   seedStatus.value = ALL
+  seedRegion.value = ALL
   seedSearch.value = ''
 }
 
@@ -269,7 +283,8 @@ const {
   refresh: refreshSeedRequests,
 } = useSeedRequests(seedFilters)
 
-const seedRows = computed<SeedRequestReadModel[]>(() => seedData.value ?? [])
+const seedRows = computed<SeedRequestReadModel[]>(() => seedData.value?.requests ?? [])
+const seedTotal = computed(() => seedData.value?.total ?? 0)
 
 const seedColumns: TableColumn<SeedRequestReadModel>[] = [
   { accessorKey: 'riotId', header: 'Riot ID' },
@@ -680,7 +695,7 @@ function isRejected(status: MainCandidateStatus | undefined): boolean {
                 v-if="!seedPending"
                 color="neutral"
                 variant="subtle"
-                :label="`${formatNumber(seedRows.length)} shown`"
+                :label="`${formatNumber(seedTotal)} total`"
               />
             </div>
 
@@ -699,6 +714,13 @@ function isRejected(status: MainCandidateStatus | undefined): boolean {
                 icon="i-lucide-filter"
                 placeholder="Status"
                 class="w-44"
+              />
+              <USelect
+                v-model="seedRegion"
+                :items="REGION_ITEMS"
+                icon="i-lucide-globe"
+                placeholder="Region"
+                class="w-40"
               />
               <UButton
                 v-if="hasSeedFilters"
@@ -770,6 +792,27 @@ function isRejected(status: MainCandidateStatus | undefined): boolean {
             </div>
           </template>
         </UTable>
+
+        <!-- Pager -->
+        <div
+          v-if="seedTotal > seedPageSize"
+          class="flex items-center justify-between gap-2 border-t border-default px-4 py-3"
+        >
+          <p class="text-xs text-muted tabular-nums">
+            Page {{ seedPage.toLocaleString('en-US') }} of
+            {{ Math.max(1, Math.ceil(seedTotal / seedPageSize)).toLocaleString('en-US') }}
+          </p>
+          <UPagination
+            v-model:page="seedPage"
+            :total="seedTotal"
+            :items-per-page="seedPageSize"
+            :sibling-count="1"
+            active-color="primary"
+            variant="subtle"
+            :disabled="seedPending"
+            show-edges
+          />
+        </div>
       </UCard>
 
       <!-- Candidate detail slide-over -->

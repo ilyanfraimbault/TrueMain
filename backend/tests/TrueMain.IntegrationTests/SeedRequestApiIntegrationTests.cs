@@ -182,15 +182,75 @@ public sealed class SeedRequestApiIntegrationTests
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateClient(factory);
 
-        var all = await client.GetFromJsonAsync<List<SeedRequestContract>>("/ops/accounts/seed");
+        var all = await client.GetFromJsonAsync<SeedRequestPageContract>("/ops/accounts/seed");
         all.Should().NotBeNull();
-        all!.Should().HaveCount(3);
-        all.Should().BeInDescendingOrder(request => request.RequestedAtUtc);
+        all!.Requests.Should().HaveCount(3);
+        all.Total.Should().Be(3);
+        all.Requests.Should().BeInDescendingOrder(request => request.RequestedAtUtc);
 
-        var pendingOnly = await client.GetFromJsonAsync<List<SeedRequestContract>>("/ops/accounts/seed?status=Pending");
+        var pendingOnly = await client.GetFromJsonAsync<SeedRequestPageContract>(
+            "/ops/accounts/seed?status=Pending");
         pendingOnly.Should().NotBeNull();
-        pendingOnly!.Should().HaveCount(2);
-        pendingOnly.Should().OnlyContain(request => request.Status == "Pending");
+        pendingOnly!.Requests.Should().HaveCount(2);
+        pendingOnly.Requests.Should().OnlyContain(request => request.Status == "Pending");
+        // The total counts the filtered set, not the collection: a pager built on the
+        // unfiltered count would offer pages the filter cannot fill.
+        pendingOnly.Total.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task GetSeedList_ShouldPageWithoutRepeatingOrDroppingARow()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
+
+        // All five share one RequestedAtUtc — the shape a bulk seeder run produces, and
+        // the one that makes paging unstable unless the sort breaks ties on id.
+        var sameInstant = DateTime.UtcNow.AddMinutes(-5);
+        await Requests().InsertManyAsync(
+            Enumerable.Range(0, 5)
+                .Select(index => Build($"Bulk{index}", SeedRequestStatus.Pending, sameInstant))
+                .ToList());
+
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
+        using var client = CreateClient(factory);
+
+        var first = await client.GetFromJsonAsync<SeedRequestPageContract>(
+            "/ops/accounts/seed?page=1&pageSize=2");
+        var second = await client.GetFromJsonAsync<SeedRequestPageContract>(
+            "/ops/accounts/seed?page=2&pageSize=2");
+        var third = await client.GetFromJsonAsync<SeedRequestPageContract>(
+            "/ops/accounts/seed?page=3&pageSize=2");
+
+        first!.Total.Should().Be(5);
+        first.Page.Should().Be(1);
+        first.PageSize.Should().Be(2);
+        first.Requests.Should().HaveCount(2);
+        second!.Requests.Should().HaveCount(2);
+        third!.Requests.Should().ContainSingle();
+
+        var seen = first.Requests.Concat(second.Requests).Concat(third.Requests)
+            .Select(request => request.Id)
+            .ToList();
+        seen.Should().OnlyHaveUniqueItems().And.HaveCount(5);
+    }
+
+    [Fact]
+    public async Task GetSeedList_ShouldRejectAnUnknownRegionInsteadOfReturningNothing()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
+
+        await Requests().InsertOneAsync(
+            Build("Somebody", SeedRequestStatus.Pending, DateTime.UtcNow));
+
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
+        using var client = CreateClient(factory);
+
+        // The region filter is an exact match, so silently ignoring a typo would return an
+        // empty page — which reads as "no requests in this region", a very different claim.
+        var response = await client.GetAsync("/ops/accounts/seed?region=EUW");
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -252,6 +312,17 @@ public sealed class SeedRequestApiIntegrationTests
         public Guid Id { get; init; }
 
         public string Status { get; init; } = string.Empty;
+    }
+
+    private sealed class SeedRequestPageContract
+    {
+        public List<SeedRequestContract> Requests { get; init; } = [];
+
+        public long Total { get; init; }
+
+        public int Page { get; init; }
+
+        public int PageSize { get; init; }
     }
 
     private sealed class SeedRequestContract

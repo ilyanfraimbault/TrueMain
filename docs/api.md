@@ -1464,12 +1464,37 @@ Le client poll ensuite `GET /ops/accounts/seed/{id}`.
 
 ## `GET /ops/accounts/seed`
 
-Requêtes de seed récentes, récentes d'abord.
+File des requêtes de seed, récentes d'abord, **paginée** côté serveur.
 
-**Query** — `status` (nom `SeedRequestStatus`), `search` (substring Riot ID),
-`limit` (int) — tous optionnels.
+> Paginée plutôt que plafonnée à une liste « récente » : le seeder OTP hebdomadaire
+> pousse des dizaines de milliers de requêtes dans cette file en un seul run, donc une
+> liste bornée à ses 200 dernières lignes n'en montrait qu'un résidu et ne pouvait pas
+> dire combien il reste à drainer. Le `total` de la réponse répond exactement à ça.
 
-**Réponse `200`** — `SeedRequestReadModel[]` (même forme que ci-dessus).
+**Query**
+
+| Param      | Type   | Requis | Description |
+|------------|--------|--------|-------------|
+| `status`   | string | non    | Un `SeedRequestStatus` (`Pending`/`Resolving`/`Ingested`/`Failed`), insensible à la casse. Une valeur inconnue est **ignorée** (aucun filtre). |
+| `search`   | string | non    | Substring insensible à la casse sur `gameName` / `tagLine`. |
+| `region`   | string | non    | PlatformId (ex. `EUW1`). Contrairement à `status`, une valeur non parsable renvoie **400** : le filtre est un match exact, donc une faute de frappe renverrait une page vide, ce qui se lit « aucune requête dans cette région » au lieu de « ce n'est pas une région ». |
+| `page`     | int    | non    | 1-based. |
+| `pageSize` | int    | non    | Clamp [1, 100], défaut 25. |
+
+**Réponse `200`** — `SeedRequestsReadModel`
+
+```json
+{
+  "requests": [ /* SeedRequestReadModel[], même forme que ci-dessus */ ],
+  "total": 11565,
+  "page": 1,
+  "pageSize": 25
+}
+```
+
+`total` compte toutes les lignes correspondant aux filtres, **avant** pagination.
+`page` et `pageSize` sont les valeurs *clampées* effectivement appliquées, pas celles
+demandées.
 
 ## `GET /ops/candidates`
 
