@@ -108,9 +108,8 @@ const areaFadeMaskId = `rank-area-fade-mask-${useId()}`
 // An objectBoundingBox gradient needs a non-degenerate box: a flat history
 // gives the line path zero height and the browser drops the element
 // altogether, so single-tier and dead-flat histories keep a plain colour.
-// (The area never hits this — its box spans from the data down to the
-// scale's zero point, never zero-height — so its fill always uses the
-// gradient.)
+// (The area never hits this particular case — its box spans from the data
+// down to the scale's zero point, never zero-height.)
 const lineStroke = computed(() => {
   const scores = chartPoints.value.map(p => p.score)
   const distinctTiers = new Set(chartPoints.value.map(p => p.entry.tier.toUpperCase())).size
@@ -119,6 +118,14 @@ const lineStroke = computed(() => {
   }
   return `url(#${tierGradientId})`
 })
+
+// The area has its own degenerate case: a single-point history leaves
+// `tierStops` empty (see its `last < 1` guard), so the gradient it feeds
+// would have no `<stop>` children and resolve to `none` — an invisible
+// fill, on the off chance d3 ever emits a non-empty path for one point.
+const areaFill = computed(() =>
+  tierStops.value.length === 0 ? tierHex(currentTier.value) : `url(#${tierGradientId})`,
+)
 
 // Pad the Y range by 25% (min 50 LP-equivalents) so the line never hugs
 // the top/bottom edge. Falls back to [0, 400] (Iron band) when there's
@@ -364,7 +371,7 @@ const showEmptyChart = computed(
  * twice through inheritance and double-darken the fade.
  */
 .rank-chart :deep(path[class*="-area"]) {
-  fill: v-bind('`url(#${tierGradientId})`') !important;
+  fill: v-bind(areaFill) !important;
   mask: v-bind('`url(#${areaFadeMaskId})`');
 }
 </style>
