@@ -8,14 +8,12 @@ namespace TrueMain.Services.Ops;
 /// Reads seed requests for the admin "seed by Riot ID" panel, from the Mongo
 /// admin store. The optional <c>status</c> filter on the list is an exact match
 /// on the <c>SeedRequestStatus</c> name (case-insensitive); an unrecognised value
-/// is ignored (no status filter applied) rather than erroring.
+/// is ignored (no status filter applied) rather than erroring — unlike the region
+/// filter, which the controller rejects, because that one is an exact match whose
+/// typo would read as an empty region rather than as a bad request.
 /// </summary>
 public sealed class SeedRequestQueryService(ISeedRequestStore store) : ISeedRequestQueryService
 {
-    private const int DefaultLimit = 50;
-    private const int MinLimit = 1;
-    private const int MaxLimit = 200;
-
     // Mirrors CandidateQueryService so the two lists on the Candidates page page
     // identically.
     private const int DefaultPageSize = 25;
@@ -27,23 +25,6 @@ public sealed class SeedRequestQueryService(ISeedRequestStore store) : ISeedRequ
         var document = await store.GetByIdAsync(id, ct);
 
         return document is null ? null : ToReadModel(document);
-    }
-
-    public async Task<IReadOnlyList<SeedRequestReadModel>> GetRecentAsync(
-        string? status,
-        string? search,
-        int? limit,
-        CancellationToken ct)
-    {
-        var effectiveLimit = Math.Clamp(limit ?? DefaultLimit, MinLimit, MaxLimit);
-
-        var statusFilter = TryParseStatus(status, out var parsedStatus)
-            ? parsedStatus
-            : (SeedRequestStatus?)null;
-
-        var documents = await store.GetRecentAsync(statusFilter, search, effectiveLimit, ct);
-
-        return documents.Select(ToReadModel).ToList();
     }
 
     public async Task<SeedRequestsReadModel> GetPageAsync(

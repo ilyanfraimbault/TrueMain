@@ -607,10 +607,18 @@ const { data, pending, error, refresh } = useSeedRequests(listFilters)
  * whichever page the operator was browsing and appear to have done nothing. Only
  * the submit paths use this; the poller refreshes in place, since yanking the page
  * out from under someone reading page 40 would be worse than a stale row.
+ *
+ * Either changes the page or refreshes, never both: `page` is part of the query key,
+ * so assigning it already re-runs the fetch, and calling refresh() as well would
+ * fire the same request twice.
  */
 function refreshFromFirstPage() {
+  if (page.value === 1) {
+    refresh()
+    return
+  }
+
   page.value = 1
-  refresh()
 }
 
 const requests = computed(() => data.value?.requests ?? [])
