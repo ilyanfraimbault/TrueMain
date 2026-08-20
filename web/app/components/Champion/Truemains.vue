@@ -22,6 +22,9 @@ const { rows, isInitialLoading, error } = useTruemainsLeaderboard(1, {
   championId: () => props.championId,
 })
 
+// Deepest ordinal shown, so every row sizes its rank slot identically.
+const deepestRank = computed(() => rows.value.reduce((max, row) => Math.max(max, row.rank), 0))
+
 // Map keyed lookup for the row's top-3 — avoids a linear scan per icon.
 const championsById = computed(() => {
   const map = new Map<number, ChampionStaticListItem>()
@@ -74,6 +77,7 @@ const viewAllHref = computed(() => `/truemains?championId=${props.championId}`)
           :rune-tree="runeTree"
           :items-map="itemsMap"
           :patch="patch"
+          :max-rank="deepestRank"
         />
         <div class="flex justify-end pt-1">
           <UButton
