@@ -11,6 +11,28 @@ export function resolveEventItemId(ev: MatchDetailItemEvent): number {
 }
 
 /**
+ * Pair each id of a build dimension with whatever the item map can resolve for
+ * it *right now*, keeping the ids it cannot resolve as `null` rather than
+ * dropping them.
+ *
+ * Every consumer renders one icon slot per id, and the item map is the
+ * deferred, patch-pinned, ~370 KiB static fetch — it lands well after the build
+ * payload carrying these ids. Filtering the unresolved ids out collapsed the
+ * slot count to zero for that whole window, so a build that *did* have boots
+ * and a starter set rendered its own "No data" state until the map arrived.
+ * Keeping the nulls means the row holds its shape, each slot shows the loading
+ * skeleton `GameTooltipItemIcon` already renders for a null item, and the
+ * no-data question is settled by the ids alone — which is the only thing that
+ * actually answers it.
+ */
+export function itemSlots(
+  ids: number[] | null | undefined,
+  itemsMap: Record<number, StaticItemData>,
+): { id: number, item: StaticItemData | null }[] {
+  return (ids ?? []).map(id => ({ id, item: itemsMap[id] ?? null }))
+}
+
+/**
  * Map-objective pickups that occupy a real inventory/trinket slot in Riot's
  * data but are not part of a player's build — the Eye of the Herald replaces
  * the trinket slot while a player carries the Rift Herald summon. They must
