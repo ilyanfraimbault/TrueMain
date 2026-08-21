@@ -20,8 +20,10 @@ namespace Ingestor.Processes.Components.MatchIngestion;
 /// camps, so the sequence is not reconstructable and is no longer claimed.</para>
 ///
 /// <para>What is measurable, and what this emits: the camp the jungler opened on
-/// (he waits on it while jungle CS is still 0), the per-minute clear-speed
-/// samples, and the frame at which jungle CS reaches a full clear's worth.</para>
+/// (he waits on it while jungle CS is still 0) and the per-minute clear-speed
+/// samples. The full-clear time is not emitted — it is a pure function of those
+/// samples, and storing a second copy is what let the two disagree in #1191
+/// (see JungleFirstClear).</para>
 /// </summary>
 internal static class JungleClearBuilder
 {
@@ -97,7 +99,6 @@ internal static class JungleClearBuilder
     {
         var samples = new List<JungleClearSample>();
         string? startCamp = null;
-        int? fullClearTimeMs = null;
 
         foreach (var frame in frames)
         {
@@ -131,10 +132,6 @@ internal static class JungleClearBuilder
                 }
             }
 
-            if (fullClearTimeMs is null && jungleCs >= JungleCamps.FullClearJungleCs)
-            {
-                fullClearTimeMs = frame.TimestampMs;
-            }
         }
 
         return new JungleFirstClear
@@ -143,7 +140,6 @@ internal static class JungleClearBuilder
             ParticipantId = participantId,
             StartCamp = startCamp,
             Samples = samples,
-            FullClearTimeMs = fullClearTimeMs,
         };
     }
 }

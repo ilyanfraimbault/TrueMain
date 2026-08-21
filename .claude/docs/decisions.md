@@ -1498,6 +1498,14 @@ one camp early for 231 of 329 measured clears. The upside of the same fact is th
 is an *exact* camp count, not an estimate, so progress is now reported in camps rather than raw CS.
 Re-measured with the correct threshold, 45% of junglers finish all six camps by 3:00 and 38% by 4:00.
 
+That correction also exposed a duplication worth naming (#1193). The full-clear time was **stored** by the
+ingestor as well as being derivable from the samples, so fixing the threshold healed the derived camp counts
+while leaving 35% of the stored times (1 903 of 5 442 rows) on the old five-camp value — a row could claim a
+full clear at 4:00 while its own samples showed five camps. The column is gone; the read path derives the
+full-clear frame from the samples. **A value that is a pure function of data you already store should not
+also be stored** — the copy cannot be re-derived when the rule behind it changes, and nothing makes the
+disagreement visible.
+
 What replaced it (#1188) is only what the sampling rate can support: the **start camp** (knowable because
 the jungler waits on it while jungle CS is still 0, so the last zero-CS frame names it), the **per-minute
 clear-speed samples**, and `FullClearTimeMs` as the first frame where jungle CS reaches a full clear's
