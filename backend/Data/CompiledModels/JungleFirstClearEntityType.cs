@@ -22,7 +22,7 @@ namespace Data.CompiledModels
                 "Data.Entities.JungleFirstClear",
                 typeof(JungleFirstClear),
                 baseEntityType,
-                propertyCount: 5,
+                propertyCount: 6,
                 foreignKeyCount: 1,
                 unnamedIndexCount: 1,
                 keyCount: 1);
@@ -61,13 +61,22 @@ namespace Data.CompiledModels
                 sentinel: 0);
             participantId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
-            var steps = runtimeEntityType.AddProperty(
-                "Steps",
-                typeof(List<JungleClearStep>),
-                propertyInfo: typeof(JungleFirstClear).GetProperty("Steps", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(JungleFirstClear).GetField("<Steps>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly));
-            steps.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
-            steps.AddAnnotation("Relational:ColumnType", "jsonb");
+            var samples = runtimeEntityType.AddProperty(
+                "Samples",
+                typeof(List<JungleClearSample>),
+                propertyInfo: typeof(JungleFirstClear).GetProperty("Samples", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(JungleFirstClear).GetField("<Samples>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly));
+            samples.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            samples.AddAnnotation("Relational:ColumnType", "jsonb");
+
+            var startCamp = runtimeEntityType.AddProperty(
+                "StartCamp",
+                typeof(string),
+                propertyInfo: typeof(JungleFirstClear).GetProperty("StartCamp", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(JungleFirstClear).GetField("<StartCamp>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true,
+                maxLength: 32);
+            startCamp.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var key = runtimeEntityType.AddKey(
                 new[] { id });

@@ -1475,22 +1475,33 @@ dead-flat history gives the line path zero height — the browser would drop the
 falls back to a flat tier colour. The area's own box never degenerates this way — it spans from the data down
 to the scale's zero point, which is never zero-height — so its fill always uses the gradient.
 
-## Jungle-clear recalls are derived at read time from purchases, never stored (2026-08-21)
+## A jungle first clear cannot be reconstructed camp by camp (2026-08-21)
 
-The Jungle tab (#1186) shows whether a jungler based mid-clear, but `jungle_first_clears` (#535)
-deliberately persists only the camp sequence — the builder *skips* recall minutes because jungle CS does
-not advance, and the raw per-minute positions are discarded at ingestion. Rather than extend the builder
-(which would have left every already-ingested match without recall data), the base visits are derived in
-`Api/Services/Truemains/JungleClearRecalls.cs` from the participant's stored `ItemEvents`: an
-`ITEM_PURCHASED` strictly between the first and last clear step, above a 60 s start-of-game-shopping
-floor, is a shop trip; purchases within 30 s cluster into one visit, one visit max per step gap. Only
-purchases count — junglers' streams carry spurious `ITEM_DESTROYED` completions (see the starter-item
-rule above), so any other event type would fabricate backs. The trade: a death-then-buy also reads as a
-base visit (honest — the clear was interrupted either way), and the derivation is retroactive across the
-whole retention window with zero schema change. The same reasoning bounds the map itself: the path is
-drawn camp-centroid to camp-centroid from the stored order (`web/app/utils/jungle-map.ts` mirrors
-`Core/Lol/Map/JungleCamps.cs`), not the walked route, and the UI shows absolute minute-resolution times
-only — never per-camp durations, which ties between same-frame steps would corrupt.
+#535 shipped a per-camp first-clear sequence built on the premise that a jungler clears "~1 camp/min".
+That premise is false, and the resulting data was structurally impossible. `JungleClearBuilder` credited
+**at most one camp per timeline frame**, and Riot frames are **one per minute**, so a six-camp clear could
+never be reported before 6:00. Production bore it out exactly: of 148 237 rows, only **84 (0.06 %)** ever
+reached six camps, averaging 6:59 with a hard floor of precisely 6:00, and **not one** row was under 3:30.
+
+The real numbers, median jungle CS per minute over 286 junglers: 0 at 1:00 (buffs spawn at 1:30), **12 at
+2:00**, **20 at 3:00** — a full clear is ~20 monsters, so the median jungler finishes near 3:00–3:15,
+taking three to four camps inside a single frame. The first clear is therefore covered by **two usable
+position samples**, and six camps cannot be ordered from two points. Riot emits no camp-kill event (the
+old blue/red buff events were removed deliberately), so no amount of tuning recovers the order. Doran's
+Lab does not claim it either — they cluster positions and never name a camp.
+
+What replaced it (#1188) is only what the sampling rate can support: the **start camp** (knowable because
+the jungler waits on it while jungle CS is still 0, so the last zero-CS frame names it), the **per-minute
+clear-speed samples**, and `FullClearTimeMs` as the first frame where jungle CS reaches a full clear's
+worth — read as "full clear by 3:00", not an instant. The map draws those samples as positions **labelled
+by time**, never as a named route. The analysis window shrank from 8 minutes to 5: the 8-minute window is
+what let ordinary mid-game rotations and backs read as clear events. The derived "mid-clear recall"
+markers went with it — a back does not happen inside a 105-second clear.
+
+The general rule this cost us: when a spec states a rate ("~1 camp/min"), check it against the phenomenon
+before building on it. The sampling interval bounds what is knowable, and no inference recovers detail the
+sampler never captured. The migration wipes the old rows rather than migrating them — they encode a claim
+the data cannot support, and the table refills as new matches ingest.
 
 ## Keeping these files current
 

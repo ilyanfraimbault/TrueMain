@@ -84,31 +84,33 @@ export interface MatchDetailParticipant {
   skillEvents: MatchDetailSkillEvent[]
 
   /**
-   * Reconstructed jungle first clear (#1186). Null for non-junglers and for
-   * matches ingested without timeline coverage.
+   * Measured jungle first clear (#1188). Null for non-junglers and for matches
+   * ingested without timeline coverage.
    */
   jungleClear: MatchDetailJungleClear | null
 }
 
+/**
+ * Carries no camp order on purpose: Riot samples positions once a minute while a
+ * clear takes ~1:45, so the camp sequence is not reconstructable (#1188).
+ */
 export interface MatchDetailJungleClear {
-  /** Camps in inferred clear order. Frame timestamps — minute resolution, ties possible. */
-  steps: MatchDetailJungleClearStep[]
-  /** Timestamp (ms) the full six-camp clear completed; null for a partial clear. */
+  /** Camp the jungler opened on (JungleCamp enum name); null when unknown. */
+  startCamp: string | null
+  /** Per-minute clear-speed samples, ascending by timestamp. */
+  samples: MatchDetailJungleClearSample[]
+  /** First frame (ms) where jungle CS reached a full clear's worth; null if never. */
   fullClearTimeMs: number | null
-  /** Derived mid-clear base visits, at most one per step gap. */
-  recalls: MatchDetailJungleClearRecall[]
+  /** Jungle monsters in a full six-camp clear — the yardstick for the samples. */
+  fullClearJungleCs: number
 }
 
-export interface MatchDetailJungleClearStep {
-  /** Camp enum name from backend/Core/Lol/Map/JungleCamp.cs, e.g. "BlueGromp". */
-  camp: string
+export interface MatchDetailJungleClearSample {
   timestampMs: number
-}
-
-export interface MatchDetailJungleClearRecall {
-  timestampMs: number
-  /** The recall slots between steps[afterStepIndex] and steps[afterStepIndex + 1]. */
-  afterStepIndex: number
+  jungleCs: number
+  /** Sampled map position — where the jungler was, not a camp claim. */
+  x: number
+  y: number
 }
 
 export interface MatchDetailRank {

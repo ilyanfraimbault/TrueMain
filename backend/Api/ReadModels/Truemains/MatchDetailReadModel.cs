@@ -164,47 +164,43 @@ public sealed record MatchDetailParticipantReadModel
         = Array.Empty<MatchDetailSkillEventReadModel>();
 
     /// <summary>
-    /// The participant's reconstructed jungle first clear (#535 data, surfaced by
-    /// #1186). Null for the eight non-junglers and for matches ingested without
-    /// timeline coverage.
+    /// The participant's measured jungle first clear (#1188). Null for the eight
+    /// non-junglers and for matches ingested without timeline coverage.
     /// </summary>
     public MatchDetailJungleClearReadModel? JungleClear { get; init; }
 }
 
 /// <summary>
-/// One jungler's first clear as stored in <c>jungle_first_clears</c>, plus the
-/// mid-clear base visits derived at read time from the participant's item
-/// events (see <see cref="Services.Truemains.JungleClearRecalls"/>).
+/// One jungler's first clear as stored in <c>jungle_first_clears</c>. Carries no
+/// camp order on purpose: Riot samples positions once a minute while a clear
+/// takes ~1:45, so the camp sequence is not reconstructable (#1188).
 /// </summary>
 public sealed record MatchDetailJungleClearReadModel
 {
-    /// <summary>Camps in inferred clear order. Timestamps are frame timestamps — minute resolution, ties possible.</summary>
-    public IReadOnlyList<MatchDetailJungleClearStepReadModel> Steps { get; init; }
-        = Array.Empty<MatchDetailJungleClearStepReadModel>();
+    /// <summary>The camp the jungler opened on (<c>JungleCamp</c> enum name); null when unknown.</summary>
+    public string? StartCamp { get; init; }
 
-    /// <summary>Timestamp (ms) the full six-camp clear completed; null for a partial clear.</summary>
+    /// <summary>Per-minute clear-speed samples, ascending by timestamp.</summary>
+    public IReadOnlyList<MatchDetailJungleClearSampleReadModel> Samples { get; init; }
+        = Array.Empty<MatchDetailJungleClearSampleReadModel>();
+
+    /// <summary>First frame (ms) where jungle CS reached a full clear's worth; null if never.</summary>
     public int? FullClearTimeMs { get; init; }
 
-    /// <summary>Base visits between camps, at most one per step gap.</summary>
-    public IReadOnlyList<MatchDetailJungleClearRecallReadModel> Recalls { get; init; }
-        = Array.Empty<MatchDetailJungleClearRecallReadModel>();
+    /// <summary>Jungle monsters that make up a full six-camp clear — the yardstick for the samples.</summary>
+    public int FullClearJungleCs { get; init; }
 }
 
-public sealed record MatchDetailJungleClearStepReadModel
+public sealed record MatchDetailJungleClearSampleReadModel
 {
-    /// <summary>The camp's <c>Core.Lol.Map.JungleCamp</c> enum name, e.g. <c>BlueGromp</c>.</summary>
-    public string Camp { get; init; } = string.Empty;
-
-    public int TimestampMs { get; init; }
-}
-
-public sealed record MatchDetailJungleClearRecallReadModel
-{
-    /// <summary>Timestamp (ms) of the first shop purchase of this base visit.</summary>
     public int TimestampMs { get; init; }
 
-    /// <summary>The recall slots between <c>steps[afterStepIndex]</c> and <c>steps[afterStepIndex + 1]</c>.</summary>
-    public int AfterStepIndex { get; init; }
+    public int JungleCs { get; init; }
+
+    /// <summary>Sampled map position — where the jungler was, not a camp claim.</summary>
+    public int X { get; init; }
+
+    public int Y { get; init; }
 }
 
 public sealed record MatchDetailRankReadModel

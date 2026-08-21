@@ -20,7 +20,7 @@ namespace Data.Migrations
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     MatchId = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
                     ParticipantId = table.Column<int>(type: "integer", nullable: false),
-                    Steps = table.Column<List<JungleClearStep>>(type: "jsonb", nullable: false),
+                    Steps = table.Column<List<JungleClearSample>>(type: "jsonb", nullable: false),
                     FullClearTimeMs = table.Column<int>(type: "integer", nullable: true)
                 },
                 constraints: table =>

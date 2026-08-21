@@ -1,24 +1,22 @@
 <script setup lang="ts">
 import type { MatchDetailParticipant } from '~~/shared/types/match-detail'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
-import { FOUNTAINS, JUNGLE_CAMPS, MAP_VIEW, toMapView } from '~/utils/jungle-map'
+import { JUNGLE_CAMPS, MAP_VIEW, toMapView } from '~/utils/jungle-map'
 
 /**
- * One jungler's first clear drawn on the Summoner's Rift minimap (#1186):
- * numbered camp nodes in clear order, a camp-to-camp path in the jungler's
- * team colour, and a dashed fountain detour for each derived base visit.
+ * One jungler's first clear (#1188): the camp they opened on, how fast they
+ * cleared, and where they were at each sampled minute.
  *
- * The path connects camp centroids — the per-minute position trail is not
- * persisted (#535), so this is the clear's *order*, not the walked route, and
- * step times are frame timestamps (minute resolution, ties possible). That is
- * also why the list shows absolute times only, never per-camp durations.
+ * Deliberately **not** a camp route. Riot samples positions once per minute and
+ * a first clear runs 1:30 → ~3:15, so the whole clear is covered by two samples
+ * — ordering six camps from that is impossible. The dots here are timestamped
+ * positions, labelled by time, never by camp name. Only the start camp is named,
+ * because the jungler waits on it while their jungle CS is still 0.
  */
 const props = defineProps<{
   participant: MatchDetailParticipant
   champions: ChampionStaticListItem[]
 }>()
-
-const FULL_CLEAR_CAMPS = 6
 
 const clear = computed(() => props.participant.jungleClear)
 
@@ -27,80 +25,39 @@ const champion = computed(() =>
 
 const isBlueTeam = computed(() => props.participant.teamId === 100)
 
-/** Steps resolved to minimap coordinates; unknown camp names are skipped defensively. */
-const nodes = computed(() => (clear.value?.steps ?? [])
-  .map((step, index) => {
-    const spot = JUNGLE_CAMPS[step.camp]
-    if (!spot) return null
-    return {
-      index,
-      order: index + 1,
-      label: spot.label,
-      timestampMs: step.timestampMs,
-      ...toMapView(spot.x, spot.y),
-    }
-  })
-  .filter((n): n is NonNullable<typeof n> => n !== null))
-
-const fountain = computed(() => {
-  const spot = isBlueTeam.value ? FOUNTAINS.blue : FOUNTAINS.red
-  return toMapView(spot.x, spot.y)
+const startCampLabel = computed(() => {
+  const camp = clear.value?.startCamp
+  return camp ? JUNGLE_CAMPS[camp]?.label ?? null : null
 })
 
-const recallByGap = computed(() => {
-  const map = new Map<number, number>()
-  for (const recall of clear.value?.recalls ?? []) {
-    map.set(recall.afterStepIndex, recall.timestampMs)
-  }
-  return map
+/** Sampled positions, projected onto the minimap and labelled by time. */
+const points = computed(() => (clear.value?.samples ?? []).map(sample => ({
+  timestampMs: sample.timestampMs,
+  jungleCs: sample.jungleCs,
+  label: formatDuration(sample.timestampMs / 1000),
+  ...toMapView(sample.x, sample.y),
+})))
+
+/** The start camp gets its own marker — it is the one named location we can trust. */
+const startPoint = computed(() => {
+  const camp = clear.value?.startCamp
+  const spot = camp ? JUNGLE_CAMPS[camp] : undefined
+  return spot ? toMapView(spot.x, spot.y) : null
 })
 
-interface PathSegment {
-  points: string
-  recallMs: number | null
-}
+const trail = computed(() => points.value.map(p => `${p.x},${p.y}`).join(' '))
 
-/**
- * One segment per consecutive camp pair. A gap carrying a recall detours
- * through the jungler's fountain and renders dashed instead of straight.
- */
-const segments = computed<PathSegment[]>(() => {
-  const list: PathSegment[] = []
-  const pts = nodes.value
-  for (let i = 0; i < pts.length - 1; i++) {
-    const from = pts[i]!
-    const to = pts[i + 1]!
-    const recallMs = recallByGap.value.get(from.index) ?? null
-    const via = recallMs === null ? '' : ` ${fountain.value.x},${fountain.value.y}`
-    list.push({
-      points: `${from.x},${from.y}${via} ${to.x},${to.y}`,
-      recallMs,
-    })
+/** Full clear reached, or how far along the jungler got by the last sample. */
+const clearVerdict = computed(() => {
+  const c = clear.value
+  if (!c) return null
+  if (c.fullClearTimeMs !== null) {
+    return { text: `Full clear by ${formatDuration(c.fullClearTimeMs / 1000)}`, complete: true }
   }
-  return list
-})
-
-const hasRecall = computed(() => segments.value.some(s => s.recallMs !== null))
-
-/** Footer rows: the numbered steps with base visits interleaved at their gap. */
-const listRows = computed(() => {
-  const rows: { key: string, text: string, isRecall: boolean }[] = []
-  for (const node of nodes.value) {
-    rows.push({
-      key: `step-${node.index}`,
-      text: `${node.order} · ${node.label} — ${formatDuration(node.timestampMs / 1000)}`,
-      isRecall: false,
-    })
-    const recallMs = recallByGap.value.get(node.index)
-    if (recallMs !== undefined) {
-      rows.push({
-        key: `recall-${node.index}`,
-        text: `Base — ${formatDuration(recallMs / 1000)}`,
-        isRecall: true,
-      })
-    }
-  }
-  return rows
+  const last = c.samples.at(-1)
+  if (!last) return null
+  const pct = Math.round((last.jungleCs / c.fullClearJungleCs) * 100)
+  return { text: `${Math.min(pct, 99)}% of a clear by ${formatDuration(last.timestampMs / 1000)}`, complete: false }
 })
 
 const stroke = computed(() => isBlueTeam.value ? 'stroke-sky-400' : 'stroke-red-400')
@@ -119,20 +76,26 @@ const nodeFill = computed(() => isBlueTeam.value ? 'fill-sky-500' : 'fill-red-50
         {{ champion?.name ?? `Champion ${participant.championId}` }}
       </span>
       <UTooltip
-        :text="clear?.fullClearTimeMs != null
-          ? 'Full clear time — camp timings are minute-resolution'
-          : 'The jungler did not finish all six camps in the first-clear window'"
+        v-if="clearVerdict"
+        text="Jungle CS is sampled once a minute, so the clear time is the first minute mark at which a full clear's worth of camps was done."
       >
         <span
           class="ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold"
-          :class="isBlueTeam ? 'bg-sky-500/15 text-sky-400' : 'bg-red-500/15 text-red-400'"
+          :class="clearVerdict.complete
+            ? (isBlueTeam ? 'bg-sky-500/15 text-sky-400' : 'bg-red-500/15 text-red-400')
+            : 'bg-elevated text-muted'"
         >
-          {{ clear?.fullClearTimeMs != null
-            ? `Full clear ${formatDuration(clear.fullClearTimeMs / 1000)}`
-            : `Partial clear (${nodes.length}/${FULL_CLEAR_CAMPS})` }}
+          {{ clearVerdict.text }}
         </span>
       </UTooltip>
     </div>
+
+    <p class="text-xs text-muted">
+      <template v-if="startCampLabel">
+        Started on <span class="font-medium text-default">{{ startCampLabel }}</span>
+      </template>
+      <template v-else>Starting camp unknown</template>
+    </p>
 
     <div class="relative overflow-hidden rounded">
       <img
@@ -145,72 +108,61 @@ const nodeFill = computed(() => isBlueTeam.value ? 'fill-sky-500' : 'fill-red-50
         :viewBox="`0 0 ${MAP_VIEW} ${MAP_VIEW}`"
         class="absolute inset-0 size-full"
         role="img"
-        :aria-label="`First clear path: ${listRows.map(r => r.text).join(', ')}`"
+        :aria-label="`Sampled jungler positions: ${points.map(p => `${p.label} at ${p.jungleCs} jungle CS`).join(', ')}`"
       >
         <polyline
-          v-for="(segment, i) in segments"
-          :key="`seg-${i}`"
-          :points="segment.points"
+          v-if="points.length > 1"
+          :points="trail"
+          fill="none"
+          :class="stroke"
+          class="opacity-40"
+          stroke-width="3"
+          stroke-dasharray="6 7"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+
+        <!-- The one named location: the camp the jungler opened on. Drawn as a
+             wide halo because the start camp is normally the same spot as the
+             sample that revealed it, so a tight ring would sit under that dot. -->
+        <circle
+          v-if="startPoint"
+          :cx="startPoint.x"
+          :cy="startPoint.y"
+          r="22"
           fill="none"
           :class="stroke"
           class="opacity-70"
-          stroke-width="4"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          :stroke-dasharray="segment.recallMs !== null ? '8 8' : undefined"
-        />
+          stroke-width="3"
+          stroke-dasharray="4 4"
+        >
+          <title>Started on {{ startCampLabel }}</title>
+        </circle>
 
-        <!-- Fountain marker for the base visit(s). -->
-        <g v-if="hasRecall">
+        <g v-for="point in points" :key="`p-${point.timestampMs}`">
           <circle
-            :cx="fountain.x"
-            :cy="fountain.y"
-            r="12"
-            class="fill-neutral-900/80"
-            :class="stroke"
-            stroke-width="2"
-          />
-          <text
-            :x="fountain.x"
-            :y="fountain.y"
-            text-anchor="middle"
-            dominant-baseline="central"
-            class="select-none fill-white text-[13px] font-bold"
-          >B</text>
-          <title>
-            {{ segments.filter(s => s.recallMs !== null)
-              .map(s => `Base at ${formatDuration((s.recallMs ?? 0) / 1000)}`).join(', ') }}
-          </title>
-        </g>
-
-        <g v-for="node in nodes" :key="`node-${node.index}`">
-          <circle
-            :cx="node.x"
-            :cy="node.y"
-            r="12"
+            :cx="point.x"
+            :cy="point.y"
+            r="13"
             :class="nodeFill"
             class="stroke-white/80"
             stroke-width="2"
           />
           <text
-            :x="node.x"
-            :y="node.y"
+            :x="point.x"
+            :y="point.y"
             text-anchor="middle"
             dominant-baseline="central"
-            class="select-none fill-white text-[14px] font-bold"
-          >{{ node.order }}</text>
-          <title>{{ node.label }} — {{ formatDuration(node.timestampMs / 1000) }}</title>
+            class="select-none fill-white text-[11px] font-bold"
+          >{{ point.label }}</text>
+          <title>{{ point.label }} — {{ point.jungleCs }} jungle CS</title>
         </g>
       </svg>
     </div>
 
     <ol class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
-      <li
-        v-for="row in listRows"
-        :key="row.key"
-        :class="row.isRecall ? 'font-medium text-default' : undefined"
-      >
-        {{ row.text }}
+      <li v-for="point in points" :key="`cs-${point.timestampMs}`">
+        {{ point.label }} · <span class="font-medium text-default">{{ point.jungleCs }}</span> CS
       </li>
     </ol>
   </div>

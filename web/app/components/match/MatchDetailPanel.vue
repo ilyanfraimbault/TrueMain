@@ -69,16 +69,16 @@ function selectPlayer(participantId: number) {
   selectedId.value = participantId
 }
 
-// ─── Jungle tab: both junglers' first clears (#1186) ────────────────────────
+// ─── Jungle tab: both junglers' first clears (#1188) ────────────────────────
 // Per team, prefer the actual JUNGLE participant; the builder identifies
 // junglers by a jungle-CS threshold, so a jungle-farming laner can also carry
-// a row — fall back to whoever has the most steps.
+// a row — fall back to whoever cleared the most.
 function junglerOf(team: MatchDetailParticipant[]) {
-  const withClear = team.filter(p => p.jungleClear && p.jungleClear.steps.length > 0)
+  const withClear = team.filter(p => p.jungleClear && p.jungleClear.samples.length > 0)
   if (!withClear.length) return null
   return withClear.find(p => p.teamPosition === 'JUNGLE')
     ?? withClear.reduce((best, p) =>
-      p.jungleClear!.steps.length > best.jungleClear!.steps.length ? p : best)
+      p.jungleClear!.samples.at(-1)!.jungleCs > best.jungleClear!.samples.at(-1)!.jungleCs ? p : best)
 }
 
 const blueJungler = computed(() => junglerOf(blueTeam.value))

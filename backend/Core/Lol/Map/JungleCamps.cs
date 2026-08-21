@@ -121,4 +121,16 @@ public static class JungleCamps
     /// </summary>
     public static bool IsFirstClearCamp(JungleCamp camp)
         => camp is not (JungleCamp.Unknown or JungleCamp.ScuttleTop or JungleCamp.ScuttleBottom);
+
+    /// <summary>
+    /// Jungle monsters in a full six-camp clear: blue buff (3), red buff (3),
+    /// wolves (3), raptors (6), krugs (~4) and gromp (1). Used as the
+    /// "clear is done" threshold, because Riot emits no camp-kill event and
+    /// <c>jungleMinionsKilled</c> is the only per-camp progress signal.
+    ///
+    /// <para>The value is corroborated by production data: the median jungler
+    /// sits at 12 jungle CS at minute 2 and 20 at minute 3, matching a clear that
+    /// completes around 3:00–3:15 (#1188).</para>
+    /// </summary>
+    public const int FullClearJungleCs = 20;
 }

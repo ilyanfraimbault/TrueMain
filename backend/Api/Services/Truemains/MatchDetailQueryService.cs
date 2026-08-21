@@ -1,3 +1,4 @@
+using Core.Lol.Map;
 using Core.Lol.Performance;
 using Data;
 using Data.Entities;
@@ -11,7 +12,7 @@ namespace TrueMain.Services.Truemains;
 /// (<c>GET /truemains/{nameTag}/matches/{matchId}</c>). Loads the match header,
 /// all 10 participants with their build order / skill order / rune page, the
 /// timeline snapshots at every canonical mark, the match's early kill positions,
-/// the junglers' first-clear rows (#1186)
+/// the junglers' first-clear measurements (#1188)
 /// and a temporally-nearest rank snapshot per tracked account — then computes
 /// the derived per-minute rates, laning diffs and the performance score /
 /// placement / MVP / ACE accolades server-side so the frontend renders them
@@ -159,9 +160,9 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
             .Select(k => new KillSpot(k.ParticipantId, k.X, k.Y))
             .ToList();
 
-        // First-clear rows for this match's junglers (#535 data, usually 0–2
-        // rows). Steps is a jsonb collection, so the rows are materialized like
-        // the participants. GroupBy keeps an anomalous duplicate from 500-ing,
+        // First-clear rows for this match's junglers (#1188, usually 0–2 rows).
+        // Samples is a jsonb collection, so the rows are materialized like the
+        // participants. GroupBy keeps an anomalous duplicate from 500-ing,
         // mirroring the snapshot dictionary above.
         var jungleClearByParticipant = (await db.JungleFirstClears
                 .AsNoTracking()
@@ -363,24 +364,25 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
                     })
                     .ToList();
 
-                // Steps stay in stored order — the builder wrote them in clear
-                // order, and two camps can share a frame timestamp, so a
-                // re-sort could shuffle a same-minute pair.
                 MatchDetailJungleClearReadModel? jungleClear = null;
                 if (jungleClearByParticipant.TryGetValue(p.ParticipantId, out var clear)
-                    && clear.Steps.Count > 0)
+                    && clear.Samples.Count > 0)
                 {
                     jungleClear = new MatchDetailJungleClearReadModel
                     {
-                        Steps = clear.Steps
-                            .Select(s => new MatchDetailJungleClearStepReadModel
+                        StartCamp = clear.StartCamp,
+                        Samples = clear.Samples
+                            .OrderBy(s => s.TimestampMs)
+                            .Select(s => new MatchDetailJungleClearSampleReadModel
                             {
-                                Camp = s.Camp,
                                 TimestampMs = s.TimestampMs,
+                                JungleCs = s.JungleCs,
+                                X = s.X,
+                                Y = s.Y,
                             })
                             .ToList(),
                         FullClearTimeMs = clear.FullClearTimeMs,
-                        Recalls = JungleClearRecalls.Derive(clear.Steps, p.ItemEvents),
+                        FullClearJungleCs = JungleCamps.FullClearJungleCs,
                     };
                 }
 
