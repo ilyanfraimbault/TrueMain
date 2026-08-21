@@ -213,7 +213,6 @@ public sealed class MatchDetailApiIntegrationTests
                 MatchId = MatchId,
                 ParticipantId = 2,
                 StartCamp = null,
-                FullClearTimeMs = null,
                 Samples =
                 [
                     new JungleClearSample { TimestampMs = 120_000, JungleCs = 0, X = 0, Y = 0 },
@@ -247,7 +246,6 @@ public sealed class MatchDetailApiIntegrationTests
                 MatchId = MatchId,
                 ParticipantId = 2,
                 StartCamp = "BlueRedBuff",
-                FullClearTimeMs = 180_000,
                 Samples =
                 [
                     new JungleClearSample { TimestampMs = 180_000, JungleCs = 24, X = 2150, Y = 8420 },
@@ -266,6 +264,7 @@ public sealed class MatchDetailApiIntegrationTests
         var clear = detail!.Participants.Single(p => p.ParticipantId == 2).JungleClear;
         clear.Should().NotBeNull();
         clear!.StartCamp.Should().Be("BlueRedBuff");
+        // Derived from the samples, not stored: 24 CS is six camps.
         clear.FullClearTimeMs.Should().Be(180_000);
         clear.FullClearCamps.Should().Be(6);
         // Projected ascending regardless of stored order.

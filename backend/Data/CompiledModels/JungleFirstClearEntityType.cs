@@ -22,7 +22,7 @@ namespace Data.CompiledModels
                 "Data.Entities.JungleFirstClear",
                 typeof(JungleFirstClear),
                 baseEntityType,
-                propertyCount: 6,
+                propertyCount: 5,
                 foreignKeyCount: 1,
                 unnamedIndexCount: 1,
                 keyCount: 1);
@@ -36,14 +36,6 @@ namespace Data.CompiledModels
                 afterSaveBehavior: PropertySaveBehavior.Throw,
                 sentinel: new Guid("00000000-0000-0000-0000-000000000000"));
             id.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
-
-            var fullClearTimeMs = runtimeEntityType.AddProperty(
-                "FullClearTimeMs",
-                typeof(int?),
-                propertyInfo: typeof(JungleFirstClear).GetProperty("FullClearTimeMs", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(JungleFirstClear).GetField("<FullClearTimeMs>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                nullable: true);
-            fullClearTimeMs.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var matchId = runtimeEntityType.AddProperty(
                 "MatchId",

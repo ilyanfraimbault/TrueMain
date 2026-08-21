@@ -40,14 +40,11 @@ public class JungleFirstClear
     /// </summary>
     public List<JungleClearSample> Samples { get; set; } = new();
 
-    /// <summary>
-    /// The first frame timestamp (ms) at which the jungler's jungle CS reached a
-    /// full clear's worth of monsters
-    /// (<c>Core.Lol.Map.JungleCamps.FullClearJungleCs</c>). Minute resolution, so
-    /// this reads as "full clear by 3:00", not an exact instant. Null when the
-    /// jungler never got there inside the window.
-    /// </summary>
-    public int? FullClearTimeMs { get; set; }
+    // The full-clear time is deliberately NOT stored (#1193): it is a pure
+    // function of Samples, and keeping a second copy let the two disagree —
+    // when #1191 corrected the threshold from 20 to 24 CS, the derived camp
+    // counts fixed themselves while 35% of stored full-clear times stayed on
+    // the old five-camp value. The read path computes it from the samples.
 }
 
 /// <summary>One per-minute sample of a jungler's clear: how far along, and where.</summary>

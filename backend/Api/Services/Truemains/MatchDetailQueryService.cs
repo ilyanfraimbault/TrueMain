@@ -391,11 +391,19 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
 
                     if (samples.Count > 0)
                     {
+                        // Derived from the samples, never stored (#1193): a second
+                        // copy is what let the full-clear time keep the old
+                        // five-camp threshold after #1191 corrected it.
+                        var fullClear = samples
+                            .Where(s => s.JungleCs >= JungleCamps.FullClearJungleCs)
+                            .Select(s => (int?)s.TimestampMs)
+                            .FirstOrDefault();
+
                         jungleClear = new MatchDetailJungleClearReadModel
                         {
                             StartCamp = clear.StartCamp,
                             Samples = samples,
-                            FullClearTimeMs = clear.FullClearTimeMs,
+                            FullClearTimeMs = fullClear,
                             FullClearCamps = JungleCamps.FullClearCamps,
                         };
                     }

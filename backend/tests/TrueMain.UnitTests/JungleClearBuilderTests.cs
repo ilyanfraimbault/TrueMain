@@ -40,7 +40,7 @@ public sealed class JungleClearBuilderTests
         clear.MatchId.Should().Be(MatchId);
         clear.ParticipantId.Should().Be(1);
         clear.StartCamp.Should().Be(nameof(JungleCamp.BlueRedBuff));
-        clear.FullClearTimeMs.Should().Be(180_000);
+        clear.Samples.Should().Contain(x => x.TimestampMs == 180_000 && x.JungleCs >= JungleCamps.FullClearJungleCs);
         clear.Samples.Select(s => s.JungleCs).Should().Equal(0, 0, 12, 24);
         clear.Samples.Select(s => s.TimestampMs).Should().Equal(0, 60_000, 120_000, 180_000);
     }
@@ -79,7 +79,7 @@ public sealed class JungleClearBuilderTests
     }
 
     [Fact]
-    public void Build_FullClearTime_IsNullForAnInterruptedClear()
+    public void Build_InterruptedClear_NeverReachesAFullClearsWorth()
     {
         // Invaded and killed: stalls at one camp, never reaching all six.
         var frames = new List<MatchTimelineFrameDto>
@@ -91,12 +91,12 @@ public sealed class JungleClearBuilderTests
 
         var clear = JungleClearBuilder.Build(MatchId, new MatchTimelineDto { Frames = frames }).Single();
 
-        clear.FullClearTimeMs.Should().BeNull();
+        clear.Samples.Should().NotContain(x => x.JungleCs >= JungleCamps.FullClearJungleCs);
         clear.StartCamp.Should().Be(nameof(JungleCamp.RedGromp));
     }
 
     [Fact]
-    public void Build_FullClearTime_TakesTheFirstCrossingNotTheLast()
+    public void Build_SamplesExposeTheFirstFullClearCrossing()
     {
         var frames = new List<MatchTimelineFrameDto>
         {
@@ -107,7 +107,7 @@ public sealed class JungleClearBuilderTests
 
         var clear = JungleClearBuilder.Build(MatchId, new MatchTimelineDto { Frames = frames }).Single();
 
-        clear.FullClearTimeMs.Should().Be(120_000);
+        clear.Samples.First(x => x.JungleCs >= JungleCamps.FullClearJungleCs).TimestampMs.Should().Be(120_000);
     }
 
     [Fact]
@@ -143,9 +143,9 @@ public sealed class JungleClearBuilderTests
 
         clears.Should().HaveCount(2);
         clears[0].StartCamp.Should().Be(nameof(JungleCamp.BlueRedBuff));
-        clears[0].FullClearTimeMs.Should().Be(180_000);
+        clears[0].Samples.Should().Contain(x => x.TimestampMs == 180_000 && x.JungleCs >= JungleCamps.FullClearJungleCs);
         clears[1].StartCamp.Should().Be(nameof(JungleCamp.RedBlueBuff));
-        clears[1].FullClearTimeMs.Should().BeNull(); // five camps at 3:00 — one short
+        clears[1].Samples.Should().NotContain(x => x.JungleCs >= JungleCamps.FullClearJungleCs); // five camps — one short
     }
 
     [Fact]

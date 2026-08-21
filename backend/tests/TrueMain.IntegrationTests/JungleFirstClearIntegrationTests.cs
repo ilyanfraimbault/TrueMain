@@ -25,9 +25,9 @@ public sealed class JungleFirstClearIntegrationTests
         {
             seed.Matches.Add(new MatchBuilder().WithId("m-jfc-1").Build());
             seed.JungleFirstClears.AddRange(
-                Clear("m-jfc-1", 6, "RedGromp", fullClearMs: null, (60_000, 0), (120_000, 9)),
-                Clear("m-jfc-1", 1, "BlueRedBuff", fullClearMs: 180_000,
-                    (60_000, 0), (120_000, 12), (180_000, 20)));
+                Clear("m-jfc-1", 6, "RedGromp", (60_000, 0), (120_000, 9)),
+                Clear("m-jfc-1", 1, "BlueRedBuff",
+                    (60_000, 0), (120_000, 12), (180_000, 24)));
             await seed.SaveChangesAsync();
         }
 
@@ -40,13 +40,11 @@ public sealed class JungleFirstClearIntegrationTests
         rows.Select(r => r.ParticipantId).Should().Equal(1, 6);
 
         var jungler = rows[0];
-        jungler.FullClearTimeMs.Should().Be(180_000);
         jungler.StartCamp.Should().Be("BlueRedBuff");
         // The JSONB samples survive the round-trip, in order.
         jungler.Samples.Select(s => s.TimestampMs).Should().Equal(60_000, 120_000, 180_000);
-        jungler.Samples.Select(s => s.JungleCs).Should().Equal(0, 12, 20);
+        jungler.Samples.Select(s => s.JungleCs).Should().Equal(0, 12, 24);
         jungler.Samples.Select(s => s.X).Should().Equal(7770, 7770, 7770);
-        rows[1].FullClearTimeMs.Should().BeNull();
 
         var deleted = await repository.DeleteByMatchIdAsync("m-jfc-1", CancellationToken.None);
         deleted.Should().Be(2);
@@ -61,8 +59,8 @@ public sealed class JungleFirstClearIntegrationTests
         await using var db = _fixture.CreateDbContext();
         db.Matches.Add(new MatchBuilder().WithId("m-jfc-2").Build());
         db.JungleFirstClears.AddRange(
-            Clear("m-jfc-2", 1, "BlueGromp", fullClearMs: null, (60_000, 0)),
-            Clear("m-jfc-2", 1, "BlueBlueBuff", fullClearMs: null, (120_000, 9)));
+            Clear("m-jfc-2", 1, "BlueGromp", (60_000, 0)),
+            Clear("m-jfc-2", 1, "BlueBlueBuff", (120_000, 9)));
 
         var save = async () => await db.SaveChangesAsync();
 
@@ -78,7 +76,7 @@ public sealed class JungleFirstClearIntegrationTests
         await using (var seed = _fixture.CreateDbContext())
         {
             seed.Matches.Add(new MatchBuilder().WithId("m-jfc-3").Build());
-            seed.JungleFirstClears.Add(Clear("m-jfc-3", 1, "BlueGromp", fullClearMs: null, (60_000, 0)));
+            seed.JungleFirstClears.Add(Clear("m-jfc-3", 1, "BlueGromp", (60_000, 0)));
             await seed.SaveChangesAsync();
         }
 
@@ -99,14 +97,12 @@ public sealed class JungleFirstClearIntegrationTests
         string matchId,
         int participantId,
         string? startCamp,
-        int? fullClearMs,
         params (int TimestampMs, int JungleCs)[] samples)
         => new()
         {
             MatchId = matchId,
             ParticipantId = participantId,
             StartCamp = startCamp,
-            FullClearTimeMs = fullClearMs,
             Samples = samples
                 .Select(s => new JungleClearSample
                 {

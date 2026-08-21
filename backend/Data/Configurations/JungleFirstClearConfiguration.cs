@@ -31,7 +31,6 @@ public sealed class JungleFirstClearConfiguration : IEntityTypeConfiguration<Jun
             .HasColumnType("jsonb")
             .IsRequired();
 
-        entity.Property(e => e.FullClearTimeMs);
 
         // Hard FK to matches so a half-ingested match cannot leave orphan first-clear
         // rows, and a Match delete cascades to its first clears.
