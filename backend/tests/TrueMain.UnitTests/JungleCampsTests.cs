@@ -79,4 +79,27 @@ public sealed class JungleCampsTests
     [InlineData(JungleCamp.Unknown, false)]
     public void IsFirstClearCamp_ExcludesScuttleAndUnknown(JungleCamp camp, bool expected)
         => JungleCamps.IsFirstClearCamp(camp).Should().Be(expected);
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(3, 0)]    // a camp mid-clear counts for nothing until finished
+    [InlineData(4, 1)]
+    [InlineData(12, 3)]
+    [InlineData(22, 5)]   // five camps done, a sixth in progress
+    [InlineData(24, 6)]   // a full first clear
+    [InlineData(28, 7)]   // full clear plus scuttle
+    public void CampsCleared_CountsWholeCampsOnly(int jungleCs, int expected)
+    {
+        JungleCamps.CampsCleared(jungleCs).Should().Be(expected);
+    }
+
+    [Fact]
+    public void FullClearJungleCs_IsSixCampsWorth()
+    {
+        // League scores a camp as a unit worth 4 CS whatever its monster count,
+        // so a six-camp clear is 24 — not the 20 this was until #1191.
+        JungleCamps.JungleCsPerCamp.Should().Be(4);
+        JungleCamps.FullClearCamps.Should().Be(6);
+        JungleCamps.FullClearJungleCs.Should().Be(24);
+    }
 }

@@ -101,12 +101,15 @@ export interface MatchDetailJungleClear {
   samples: MatchDetailJungleClearSample[]
   /** First frame (ms) where jungle CS reached a full clear's worth; null if never. */
   fullClearTimeMs: number | null
-  /** Jungle monsters in a full six-camp clear — the yardstick for the samples. */
-  fullClearJungleCs: number
+  /** Camps in a full first clear (6) — the denominator for a sample's campsCleared. */
+  fullClearCamps: number
 }
 
 export interface MatchDetailJungleClearSample {
   timestampMs: number
+  /** Camps fully cleared by this frame. Exact: League scores a camp as 4 CS whatever its monster count. */
+  campsCleared: number
+  /** Raw cumulative jungle CS — a value between two multiples of 4 is a camp mid-clear. */
   jungleCs: number
   /** Sampled map position — where the jungler was, not a camp claim. */
   x: number

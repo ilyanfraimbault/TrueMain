@@ -23,14 +23,14 @@ public sealed class JungleClearBuilderTests
     [Fact]
     public void Build_MeasuresARealisticFirstClear()
     {
-        // A standard clear: nothing at 1:00 (waiting on red buff), 12 by 2:00,
-        // a full clear's worth by 3:00.
+        // A standard clear: nothing at 1:00 (waiting on red buff), three camps
+        // (12 CS) by 2:00, all six (24 CS) by 3:00.
         var frames = new List<MatchTimelineFrameDto>
         {
             Frame(0, JunglerAt(1, JungleCamp.BlueRedBuff, jungleCs: 0)),
             Frame(60_000, JunglerAt(1, JungleCamp.BlueRedBuff, jungleCs: 0)),
             Frame(120_000, JunglerAt(1, JungleCamp.BlueRaptors, jungleCs: 12)),
-            Frame(180_000, JunglerAt(1, JungleCamp.BlueGromp, jungleCs: 20)),
+            Frame(180_000, JunglerAt(1, JungleCamp.BlueGromp, jungleCs: 24)),
         };
 
         var clears = JungleClearBuilder.Build(MatchId, new MatchTimelineDto { Frames = frames });
@@ -41,7 +41,7 @@ public sealed class JungleClearBuilderTests
         clear.ParticipantId.Should().Be(1);
         clear.StartCamp.Should().Be(nameof(JungleCamp.BlueRedBuff));
         clear.FullClearTimeMs.Should().Be(180_000);
-        clear.Samples.Select(s => s.JungleCs).Should().Equal(0, 0, 12, 20);
+        clear.Samples.Select(s => s.JungleCs).Should().Equal(0, 0, 12, 24);
         clear.Samples.Select(s => s.TimestampMs).Should().Equal(0, 60_000, 120_000, 180_000);
     }
 
@@ -81,11 +81,11 @@ public sealed class JungleClearBuilderTests
     [Fact]
     public void Build_FullClearTime_IsNullForAnInterruptedClear()
     {
-        // Invaded and killed: never reaches a full clear's worth inside the window.
+        // Invaded and killed: stalls at one camp, never reaching all six.
         var frames = new List<MatchTimelineFrameDto>
         {
             Frame(60_000, JunglerAt(1, JungleCamp.RedGromp, jungleCs: 0)),
-            Frame(120_000, JunglerAt(1, JungleCamp.RedBlueBuff, jungleCs: 7)),
+            Frame(120_000, JunglerAt(1, JungleCamp.RedBlueBuff, jungleCs: 4)),
             Frame(180_000, JunglerAt(1, JungleCamp.RedBlueBuff, jungleCs: 7)),
         };
 
@@ -132,11 +132,11 @@ public sealed class JungleClearBuilderTests
                 JunglerAt(1, JungleCamp.BlueRedBuff, jungleCs: 0),
                 JunglerAt(7, JungleCamp.RedBlueBuff, jungleCs: 0)),
             Frame(120_000,
-                JunglerAt(1, JungleCamp.BlueKrugs, jungleCs: 13),
-                JunglerAt(7, JungleCamp.RedWolves, jungleCs: 9)),
+                JunglerAt(1, JungleCamp.BlueKrugs, jungleCs: 12),
+                JunglerAt(7, JungleCamp.RedWolves, jungleCs: 8)),
             Frame(180_000,
-                JunglerAt(1, JungleCamp.BlueWolves, jungleCs: 21),
-                JunglerAt(7, JungleCamp.RedRaptors, jungleCs: 16)),
+                JunglerAt(1, JungleCamp.BlueWolves, jungleCs: 24),
+                JunglerAt(7, JungleCamp.RedRaptors, jungleCs: 20)),
         };
 
         var clears = JungleClearBuilder.Build(MatchId, new MatchTimelineDto { Frames = frames });
@@ -145,7 +145,7 @@ public sealed class JungleClearBuilderTests
         clears[0].StartCamp.Should().Be(nameof(JungleCamp.BlueRedBuff));
         clears[0].FullClearTimeMs.Should().Be(180_000);
         clears[1].StartCamp.Should().Be(nameof(JungleCamp.RedBlueBuff));
-        clears[1].FullClearTimeMs.Should().BeNull(); // slower, still short of a full clear
+        clears[1].FullClearTimeMs.Should().BeNull(); // five camps at 3:00 — one short
     }
 
     [Fact]
@@ -176,7 +176,7 @@ public sealed class JungleClearBuilderTests
             {
                 ParticipantId = 1, JungleMinionsKilled = 12, X = null, Y = null,
             }),
-            Frame(180_000, JunglerAt(1, JungleCamp.BlueWolves, jungleCs: 20)),
+            Frame(180_000, JunglerAt(1, JungleCamp.BlueWolves, jungleCs: 24)),
         };
 
         var clear = JungleClearBuilder.Build(MatchId, new MatchTimelineDto { Frames = frames }).Single();

@@ -382,6 +382,7 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
                         .Select(s => new MatchDetailJungleClearSampleReadModel
                         {
                             TimestampMs = s.TimestampMs,
+                            CampsCleared = JungleCamps.CampsCleared(s.JungleCs),
                             JungleCs = s.JungleCs,
                             X = s.X,
                             Y = s.Y,
@@ -395,7 +396,7 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
                             StartCamp = clear.StartCamp,
                             Samples = samples,
                             FullClearTimeMs = clear.FullClearTimeMs,
-                            FullClearJungleCs = JungleCamps.FullClearJungleCs,
+                            FullClearCamps = JungleCamps.FullClearCamps,
                         };
                     }
                 }

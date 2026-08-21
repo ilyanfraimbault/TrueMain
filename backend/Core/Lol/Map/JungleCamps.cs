@@ -123,14 +123,33 @@ public static class JungleCamps
         => camp is not (JungleCamp.Unknown or JungleCamp.ScuttleTop or JungleCamp.ScuttleBottom);
 
     /// <summary>
-    /// Jungle monsters in a full six-camp clear: blue buff (3), red buff (3),
-    /// wolves (3), raptors (6), krugs (~4) and gromp (1). Used as the
-    /// "clear is done" threshold, because Riot emits no camp-kill event and
-    /// <c>jungleMinionsKilled</c> is the only per-camp progress signal.
-    ///
-    /// <para>The value is corroborated by production data: the median jungler
-    /// sits at 12 jungle CS at minute 2 and 20 at minute 3, matching a clear that
-    /// completes around 3:00–3:15 (#1188).</para>
+    /// Creep score a fully cleared jungle camp is worth. League scores a camp as
+    /// a unit, not per monster — "killing a full camp of monsters gives 4 points"
+    /// (League of Legends Wiki, Farming) — so gromp (1 monster) and raptors (6)
+    /// both count 4. Production data agrees: jungle CS clusters hard on multiples
+    /// of four (12 at minute 2 for 64% of junglers, then 16/20/24/28), with the
+    /// gaps between them being camps caught mid-clear.
     /// </summary>
-    public const int FullClearJungleCs = 20;
+    public const int JungleCsPerCamp = 4;
+
+    /// <summary>The six camps of a side's first clear: gromp, blue, wolves, raptors, red, krugs.</summary>
+    public const int FullClearCamps = 6;
+
+    /// <summary>
+    /// Jungle CS marking a finished six-camp clear. Used as the "clear is done"
+    /// threshold because Riot emits no camp-kill event, leaving
+    /// <c>jungleMinionsKilled</c> as the only progress signal.
+    ///
+    /// <para>This was 20 until #1191 — five camps — which reported a full clear
+    /// one camp early for 231 of 329 measured clears.</para>
+    /// </summary>
+    public const int FullClearJungleCs = FullClearCamps * JungleCsPerCamp;
+
+    /// <summary>
+    /// Camps fully cleared for a given jungle CS. Integer division on purpose: a
+    /// camp only counts once finished, so 22 CS is five camps done and a sixth in
+    /// progress, not 5.5.
+    /// </summary>
+    public static int CampsCleared(int jungleCs)
+        => jungleCs <= 0 ? 0 : jungleCs / JungleCsPerCamp;
 }

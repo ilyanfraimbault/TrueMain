@@ -1490,6 +1490,14 @@ position samples**, and six camps cannot be ordered from two points. Riot emits 
 old blue/red buff events were removed deliberately), so no amount of tuning recovers the order. Doran's
 Lab does not claim it either — they cluster positions and never name a camp.
 
+A follow-up (#1191) corrected the yardstick itself. League scores a jungle camp **as a unit worth 4 CS**
+whatever its monster count — "killing a full camp of monsters gives 4 points" (LoL Wiki, Farming) — which is
+why production jungle CS clusters hard on multiples of four (12 at minute 2 for 64% of junglers, then
+16/20/24/28). A six-camp clear is therefore **24**, not the 20 first used: that threshold called a full clear
+one camp early for 231 of 329 measured clears. The upside of the same fact is that `jungleMinionsKilled / 4`
+is an *exact* camp count, not an estimate, so progress is now reported in camps rather than raw CS.
+Re-measured with the correct threshold, 45% of junglers finish all six camps by 3:00 and 38% by 4:00.
+
 What replaced it (#1188) is only what the sampling rate can support: the **start camp** (knowable because
 the jungler waits on it while jungle CS is still 0, so the last zero-CS frame names it), the **per-minute
 clear-speed samples**, and `FullClearTimeMs` as the first frame where jungle CS reaches a full clear's

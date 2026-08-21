@@ -10,8 +10,10 @@ namespace Ingestor.Processes.Components.MatchIngestion;
 ///
 /// <para><b>Why there is no camp order here.</b> Riot emits no camp-kill event,
 /// and <c>participantFrames</c> are sampled once per <b>minute</b>. Buffs spawn
-/// at 1:30 and the median jungler is at 12 jungle CS by minute 2 and 20 — a full
-/// clear — by minute 3: three to four camps fall inside a single frame. The old
+/// at 1:30 and the median jungler has three camps done by minute 2 and five by
+/// minute 3 (a camp is scored as a unit worth 4 CS, so a six-camp clear is 24 —
+/// see JungleCamps.FullClearJungleCs): three to four camps fall inside a single
+/// frame. The old
 /// builder credited one camp per frame, which made a six-camp clear impossible to
 /// report before 6:00 (production floor was exactly 6:00, average 6:59, and only
 /// 0.06% of rows ever reached six camps). Two position samples cannot order six

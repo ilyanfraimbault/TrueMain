@@ -187,14 +187,21 @@ public sealed record MatchDetailJungleClearReadModel
     /// <summary>First frame (ms) where jungle CS reached a full clear's worth; null if never.</summary>
     public int? FullClearTimeMs { get; init; }
 
-    /// <summary>Jungle monsters that make up a full six-camp clear — the yardstick for the samples.</summary>
-    public int FullClearJungleCs { get; init; }
+    /// <summary>Camps in a full first clear (6) — the denominator for a sample's <c>campsCleared</c>.</summary>
+    public int FullClearCamps { get; init; }
 }
 
 public sealed record MatchDetailJungleClearSampleReadModel
 {
     public int TimestampMs { get; init; }
 
+    /// <summary>
+    /// Camps fully cleared by this frame. League scores a camp as a unit worth 4
+    /// CS whatever its monster count, so this is exact rather than an estimate.
+    /// </summary>
+    public int CampsCleared { get; init; }
+
+    /// <summary>Raw cumulative jungle CS — a value between two multiples of 4 is a camp mid-clear.</summary>
     public int JungleCs { get; init; }
 
     /// <summary>Sampled map position — where the jungler was, not a camp claim.</summary>
