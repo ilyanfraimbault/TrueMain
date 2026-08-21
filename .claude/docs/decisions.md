@@ -1475,6 +1475,23 @@ dead-flat history gives the line path zero height — the browser would drop the
 falls back to a flat tier colour. The area's own box never degenerates this way — it spans from the data down
 to the scale's zero point, which is never zero-height — so its fill always uses the gradient.
 
+## Jungle-clear recalls are derived at read time from purchases, never stored (2026-08-21)
+
+The Jungle tab (#1186) shows whether a jungler based mid-clear, but `jungle_first_clears` (#535)
+deliberately persists only the camp sequence — the builder *skips* recall minutes because jungle CS does
+not advance, and the raw per-minute positions are discarded at ingestion. Rather than extend the builder
+(which would have left every already-ingested match without recall data), the base visits are derived in
+`Api/Services/Truemains/JungleClearRecalls.cs` from the participant's stored `ItemEvents`: an
+`ITEM_PURCHASED` strictly between the first and last clear step, above a 60 s start-of-game-shopping
+floor, is a shop trip; purchases within 30 s cluster into one visit, one visit max per step gap. Only
+purchases count — junglers' streams carry spurious `ITEM_DESTROYED` completions (see the starter-item
+rule above), so any other event type would fabricate backs. The trade: a death-then-buy also reads as a
+base visit (honest — the clear was interrupted either way), and the derivation is retroactive across the
+whole retention window with zero schema change. The same reasoning bounds the map itself: the path is
+drawn camp-centroid to camp-centroid from the stored order (`web/app/utils/jungle-map.ts` mirrors
+`Core/Lol/Map/JungleCamps.cs`), not the walked route, and the UI shows absolute minute-resolution times
+only — never per-camp durations, which ties between same-frame steps would corrupt.
+
 ## Keeping these files current
 
 A PR that ships a user-facing feature, removes one, or reverses a decision here **must update

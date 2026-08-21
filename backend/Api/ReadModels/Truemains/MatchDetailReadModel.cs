@@ -162,6 +162,49 @@ public sealed record MatchDetailParticipantReadModel
     /// <summary>Skill order (Q/W/E/R level-ups) in chronological order.</summary>
     public IReadOnlyList<MatchDetailSkillEventReadModel> SkillEvents { get; init; }
         = Array.Empty<MatchDetailSkillEventReadModel>();
+
+    /// <summary>
+    /// The participant's reconstructed jungle first clear (#535 data, surfaced by
+    /// #1186). Null for the eight non-junglers and for matches ingested without
+    /// timeline coverage.
+    /// </summary>
+    public MatchDetailJungleClearReadModel? JungleClear { get; init; }
+}
+
+/// <summary>
+/// One jungler's first clear as stored in <c>jungle_first_clears</c>, plus the
+/// mid-clear base visits derived at read time from the participant's item
+/// events (see <see cref="Services.Truemains.JungleClearRecalls"/>).
+/// </summary>
+public sealed record MatchDetailJungleClearReadModel
+{
+    /// <summary>Camps in inferred clear order. Timestamps are frame timestamps — minute resolution, ties possible.</summary>
+    public IReadOnlyList<MatchDetailJungleClearStepReadModel> Steps { get; init; }
+        = Array.Empty<MatchDetailJungleClearStepReadModel>();
+
+    /// <summary>Timestamp (ms) the full six-camp clear completed; null for a partial clear.</summary>
+    public int? FullClearTimeMs { get; init; }
+
+    /// <summary>Base visits between camps, at most one per step gap.</summary>
+    public IReadOnlyList<MatchDetailJungleClearRecallReadModel> Recalls { get; init; }
+        = Array.Empty<MatchDetailJungleClearRecallReadModel>();
+}
+
+public sealed record MatchDetailJungleClearStepReadModel
+{
+    /// <summary>The camp's <c>Core.Lol.Map.JungleCamp</c> enum name, e.g. <c>BlueGromp</c>.</summary>
+    public string Camp { get; init; } = string.Empty;
+
+    public int TimestampMs { get; init; }
+}
+
+public sealed record MatchDetailJungleClearRecallReadModel
+{
+    /// <summary>Timestamp (ms) of the first shop purchase of this base visit.</summary>
+    public int TimestampMs { get; init; }
+
+    /// <summary>The recall slots between <c>steps[afterStepIndex]</c> and <c>steps[afterStepIndex + 1]</c>.</summary>
+    public int AfterStepIndex { get; init; }
 }
 
 public sealed record MatchDetailRankReadModel

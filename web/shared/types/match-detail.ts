@@ -82,6 +82,33 @@ export interface MatchDetailParticipant {
   itemEvents: MatchDetailItemEvent[]
   /** Skill order (Q/W/E/R level-ups) in chronological order. */
   skillEvents: MatchDetailSkillEvent[]
+
+  /**
+   * Reconstructed jungle first clear (#1186). Null for non-junglers and for
+   * matches ingested without timeline coverage.
+   */
+  jungleClear: MatchDetailJungleClear | null
+}
+
+export interface MatchDetailJungleClear {
+  /** Camps in inferred clear order. Frame timestamps — minute resolution, ties possible. */
+  steps: MatchDetailJungleClearStep[]
+  /** Timestamp (ms) the full six-camp clear completed; null for a partial clear. */
+  fullClearTimeMs: number | null
+  /** Derived mid-clear base visits, at most one per step gap. */
+  recalls: MatchDetailJungleClearRecall[]
+}
+
+export interface MatchDetailJungleClearStep {
+  /** Camp enum name from backend/Core/Lol/Map/JungleCamp.cs, e.g. "BlueGromp". */
+  camp: string
+  timestampMs: number
+}
+
+export interface MatchDetailJungleClearRecall {
+  timestampMs: number
+  /** The recall slots between steps[afterStepIndex] and steps[afterStepIndex + 1]. */
+  afterStepIndex: number
 }
 
 export interface MatchDetailRank {
