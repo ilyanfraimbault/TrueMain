@@ -58,25 +58,25 @@ const JUNGLE_CLEARS: Record<number, MatchDetailJungleClear> = {
   1: { // BlueJng — clean full clear, done by 3:00
     startCamp: 'BlueRedBuff',
     samples: [
-      { timestampMs: 0, jungleCs: 0, x: 1500, y: 1200 },
-      { timestampMs: 60_000, jungleCs: 0, x: 7770, y: 3800 },
-      { timestampMs: 120_000, jungleCs: 12, x: 6900, y: 5500 },
-      { timestampMs: 180_000, jungleCs: 21, x: 2150, y: 8420 },
-      { timestampMs: 240_000, jungleCs: 24, x: 4400, y: 9700 },
+      { timestampMs: 0, campsCleared: 0, jungleCs: 0, x: 1500, y: 1200 },
+      { timestampMs: 60_000, campsCleared: 0, jungleCs: 0, x: 7770, y: 3800 },
+      { timestampMs: 120_000, campsCleared: 3, jungleCs: 12, x: 6900, y: 5500 },
+      { timestampMs: 180_000, campsCleared: 6, jungleCs: 24, x: 2150, y: 8420 },
+      { timestampMs: 240_000, campsCleared: 7, jungleCs: 28, x: 4400, y: 9700 },
     ],
     fullClearTimeMs: 180_000,
-    fullClearJungleCs: 20,
+    fullClearCamps: 6,
   },
   6: { // RedJng — invaded early, never completes the clear in the window
     startCamp: 'RedBlueBuff',
     samples: [
-      { timestampMs: 60_000, jungleCs: 0, x: 10930, y: 7060 },
-      { timestampMs: 120_000, jungleCs: 7, x: 11100, y: 8480 },
-      { timestampMs: 180_000, jungleCs: 7, x: 7850, y: 9480 },
-      { timestampMs: 240_000, jungleCs: 14, x: 6980, y: 11180 },
+      { timestampMs: 60_000, campsCleared: 0, jungleCs: 0, x: 10930, y: 7060 },
+      { timestampMs: 120_000, campsCleared: 1, jungleCs: 7, x: 11100, y: 8480 },
+      { timestampMs: 180_000, campsCleared: 1, jungleCs: 7, x: 7850, y: 9480 },
+      { timestampMs: 240_000, campsCleared: 3, jungleCs: 14, x: 6980, y: 11180 },
     ],
     fullClearTimeMs: null,
-    fullClearJungleCs: 20,
+    fullClearCamps: 6,
   },
 }
 

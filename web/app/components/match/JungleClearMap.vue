@@ -33,7 +33,7 @@ const startCampLabel = computed(() => {
 /** Sampled positions, projected onto the minimap and labelled by time. */
 const points = computed(() => (clear.value?.samples ?? []).map(sample => ({
   timestampMs: sample.timestampMs,
-  jungleCs: sample.jungleCs,
+  campsCleared: sample.campsCleared,
   label: formatDuration(sample.timestampMs / 1000),
   ...toMapView(sample.x, sample.y),
 })))
@@ -56,8 +56,10 @@ const clearVerdict = computed(() => {
   }
   const last = c.samples.at(-1)
   if (!last) return null
-  const pct = Math.round((last.jungleCs / c.fullClearJungleCs) * 100)
-  return { text: `${Math.min(pct, 99)}% of a clear by ${formatDuration(last.timestampMs / 1000)}`, complete: false }
+  return {
+    text: `${last.campsCleared}/${c.fullClearCamps} camps by ${formatDuration(last.timestampMs / 1000)}`,
+    complete: false,
+  }
 })
 
 const stroke = computed(() => isBlueTeam.value ? 'stroke-sky-400' : 'stroke-red-400')
@@ -108,7 +110,7 @@ const nodeFill = computed(() => isBlueTeam.value ? 'fill-sky-500' : 'fill-red-50
         :viewBox="`0 0 ${MAP_VIEW} ${MAP_VIEW}`"
         class="absolute inset-0 size-full"
         role="img"
-        :aria-label="`Sampled jungler positions: ${points.map(p => `${p.label} at ${p.jungleCs} jungle CS`).join(', ')}`"
+        :aria-label="`Sampled jungler positions: ${points.map(p => `${p.label} at ${p.campsCleared} camps`).join(', ')}`"
       >
         <polyline
           v-if="points.length > 1"
@@ -155,14 +157,14 @@ const nodeFill = computed(() => isBlueTeam.value ? 'fill-sky-500' : 'fill-red-50
             dominant-baseline="central"
             class="select-none fill-white text-[11px] font-bold"
           >{{ point.label }}</text>
-          <title>{{ point.label }} — {{ point.jungleCs }} jungle CS</title>
+          <title>{{ point.label }} — {{ point.campsCleared }} camps cleared</title>
         </g>
       </svg>
     </div>
 
     <ol class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
       <li v-for="point in points" :key="`cs-${point.timestampMs}`">
-        {{ point.label }} · <span class="font-medium text-default">{{ point.jungleCs }}</span> CS
+        {{ point.label }} · <span class="font-medium text-default">{{ point.campsCleared }}</span> camps
       </li>
     </ol>
   </div>

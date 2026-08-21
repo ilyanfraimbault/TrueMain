@@ -250,7 +250,7 @@ public sealed class MatchDetailApiIntegrationTests
                 FullClearTimeMs = 180_000,
                 Samples =
                 [
-                    new JungleClearSample { TimestampMs = 180_000, JungleCs = 20, X = 2150, Y = 8420 },
+                    new JungleClearSample { TimestampMs = 180_000, JungleCs = 24, X = 2150, Y = 8420 },
                     new JungleClearSample { TimestampMs = 60_000, JungleCs = 0, X = 7770, Y = 3800 },
                 ],
             });
@@ -267,10 +267,12 @@ public sealed class MatchDetailApiIntegrationTests
         clear.Should().NotBeNull();
         clear!.StartCamp.Should().Be("BlueRedBuff");
         clear.FullClearTimeMs.Should().Be(180_000);
-        clear.FullClearJungleCs.Should().Be(20);
+        clear.FullClearCamps.Should().Be(6);
         // Projected ascending regardless of stored order.
         clear.Samples.Select(s => s.TimestampMs).Should().Equal(60_000, 180_000);
-        clear.Samples.Select(s => s.JungleCs).Should().Equal(0, 20);
+        clear.Samples.Select(s => s.JungleCs).Should().Equal(0, 24);
+        // A camp is scored as a unit worth 4 CS, so 24 is exactly six camps.
+        clear.Samples.Select(s => s.CampsCleared).Should().Equal(0, 6);
     }
 
     private async Task SeedFullMatchAsync()
