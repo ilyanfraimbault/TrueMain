@@ -10,7 +10,8 @@ namespace TrueMain.Services.Truemains;
 /// Read path for the single-match detail page
 /// (<c>GET /truemains/{nameTag}/matches/{matchId}</c>). Loads the match header,
 /// all 10 participants with their build order / skill order / rune page, the
-/// timeline snapshots at every canonical mark, the match's early kill positions
+/// timeline snapshots at every canonical mark, the match's early kill positions,
+/// the junglers' first-clear rows (#1186)
 /// and a temporally-nearest rank snapshot per tracked account — then computes
 /// the derived per-minute rates, laning diffs and the performance score /
 /// placement / MVP / ACE accolades server-side so the frontend renders them
@@ -157,6 +158,17 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
         var killSpots = killRows
             .Select(k => new KillSpot(k.ParticipantId, k.X, k.Y))
             .ToList();
+
+        // First-clear rows for this match's junglers (#535 data, usually 0–2
+        // rows). Steps is a jsonb collection, so the rows are materialized like
+        // the participants. GroupBy keeps an anomalous duplicate from 500-ing,
+        // mirroring the snapshot dictionary above.
+        var jungleClearByParticipant = (await db.JungleFirstClears
+                .AsNoTracking()
+                .Where(j => j.MatchId == matchId)
+                .ToListAsync(ct))
+            .GroupBy(j => j.ParticipantId)
+            .ToDictionary(g => g.Key, g => g.First());
 
         // Nearest rank snapshot per tracked account, by absolute distance from
         // the game's start time. One LINQ pass: for each participant's account
@@ -351,6 +363,27 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
                     })
                     .ToList();
 
+                // Steps stay in stored order — the builder wrote them in clear
+                // order, and two camps can share a frame timestamp, so a
+                // re-sort could shuffle a same-minute pair.
+                MatchDetailJungleClearReadModel? jungleClear = null;
+                if (jungleClearByParticipant.TryGetValue(p.ParticipantId, out var clear)
+                    && clear.Steps.Count > 0)
+                {
+                    jungleClear = new MatchDetailJungleClearReadModel
+                    {
+                        Steps = clear.Steps
+                            .Select(s => new MatchDetailJungleClearStepReadModel
+                            {
+                                Camp = s.Camp,
+                                TimestampMs = s.TimestampMs,
+                            })
+                            .ToList(),
+                        FullClearTimeMs = clear.FullClearTimeMs,
+                        Recalls = JungleClearRecalls.Derive(clear.Steps, p.ItemEvents),
+                    };
+                }
+
                 return new MatchDetailParticipantReadModel
                 {
                     ParticipantId = p.ParticipantId,
@@ -398,6 +431,7 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
                     StatPerkDefense = p.PerksDefense,
                     ItemEvents = itemEvents,
                     SkillEvents = skillEvents,
+                    JungleClear = jungleClear,
                 };
             })
             .ToList();

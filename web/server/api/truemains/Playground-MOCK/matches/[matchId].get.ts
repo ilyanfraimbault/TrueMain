@@ -1,4 +1,4 @@
-import type { MatchDetailParticipant, MatchDetailResponse } from '~~/shared/types/match-detail'
+import type { MatchDetailJungleClear, MatchDetailParticipant, MatchDetailResponse } from '~~/shared/types/match-detail'
 import { createError, defineEventHandler, getRouterParam } from 'h3'
 
 // Dev fixture backing the `/dev/match-row` playground so the MatchRow accordion
@@ -49,6 +49,35 @@ const SKILL_EVENTS = SKILL_SLOTS.map((skillSlot, i) => ({
   timestampMs: (2 + i) * 60 * 1000,
   skillSlot,
 }))
+
+// First-clear fixtures (#1186), keyed by roster index. Together they exercise
+// every visual state of the Jungle tab on one screen: a full clear with a
+// same-timestamp camp pair (minute-resolution tie), and a partial clear with a
+// mid-clear base visit (dashed fountain detour).
+const JUNGLE_CLEARS: Record<number, MatchDetailJungleClear> = {
+  1: { // BlueJng — full blue-side clear, wolves and raptors on the same frame
+    steps: [
+      { camp: 'BlueRedBuff', timestampMs: 90_000 },
+      { camp: 'BlueKrugs', timestampMs: 150_000 },
+      { camp: 'BlueRaptors', timestampMs: 210_000 },
+      { camp: 'BlueWolves', timestampMs: 210_000 },
+      { camp: 'BlueBlueBuff', timestampMs: 270_000 },
+      { camp: 'BlueGromp', timestampMs: 330_000 },
+    ],
+    fullClearTimeMs: 330_000,
+    recalls: [],
+  },
+  6: { // RedJng — partial clear interrupted by a base visit after camp 2
+    steps: [
+      { camp: 'RedBlueBuff', timestampMs: 95_000 },
+      { camp: 'RedGromp', timestampMs: 160_000 },
+      { camp: 'RedWolves', timestampMs: 280_000 },
+      { camp: 'RedRaptors', timestampMs: 340_000 },
+    ],
+    fullClearTimeMs: null,
+    recalls: [{ timestampMs: 205_000, afterStepIndex: 1 }],
+  },
+}
 
 const RUNES = [
   { styleId: 8000, selectionIndex: 0, perkId: 8005 }, // Press the Attack
@@ -109,6 +138,7 @@ function buildParticipant(entry: RosterEntry, index: number, durationSeconds: nu
     statPerkDefense: 5001,
     itemEvents: BUILD_EVENTS,
     skillEvents: SKILL_EVENTS,
+    jungleClear: JUNGLE_CLEARS[index] ?? null,
   }
 }
 
