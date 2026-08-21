@@ -365,25 +365,39 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
                     .ToList();
 
                 MatchDetailJungleClearReadModel? jungleClear = null;
-                if (jungleClearByParticipant.TryGetValue(p.ParticipantId, out var clear)
-                    && clear.Samples.Count > 0)
+                if (jungleClearByParticipant.TryGetValue(p.ParticipantId, out var clear))
                 {
-                    jungleClear = new MatchDetailJungleClearReadModel
+                    // Drop samples sitting at the map origin. A real frame never
+                    // lands there (the map starts at -120 and the blue fountain is
+                    // at ~554,581), so (0, 0) is the deserialization signature of a
+                    // pre-#1188 camp-sequence document: the reshape migration wipes
+                    // those rows, but an ingestor transaction already in flight when
+                    // it ran commits rows the DELETE never saw, and the column
+                    // rename then carries them into the new shape. Observed on
+                    // preprod (12 rows). Such a row would otherwise plot every
+                    // position in the top-left corner.
+                    var samples = clear.Samples
+                        .Where(s => s.X != 0 || s.Y != 0)
+                        .OrderBy(s => s.TimestampMs)
+                        .Select(s => new MatchDetailJungleClearSampleReadModel
+                        {
+                            TimestampMs = s.TimestampMs,
+                            JungleCs = s.JungleCs,
+                            X = s.X,
+                            Y = s.Y,
+                        })
+                        .ToList();
+
+                    if (samples.Count > 0)
                     {
-                        StartCamp = clear.StartCamp,
-                        Samples = clear.Samples
-                            .OrderBy(s => s.TimestampMs)
-                            .Select(s => new MatchDetailJungleClearSampleReadModel
-                            {
-                                TimestampMs = s.TimestampMs,
-                                JungleCs = s.JungleCs,
-                                X = s.X,
-                                Y = s.Y,
-                            })
-                            .ToList(),
-                        FullClearTimeMs = clear.FullClearTimeMs,
-                        FullClearJungleCs = JungleCamps.FullClearJungleCs,
-                    };
+                        jungleClear = new MatchDetailJungleClearReadModel
+                        {
+                            StartCamp = clear.StartCamp,
+                            Samples = samples,
+                            FullClearTimeMs = clear.FullClearTimeMs,
+                            FullClearJungleCs = JungleCamps.FullClearJungleCs,
+                        };
+                    }
                 }
 
                 return new MatchDetailParticipantReadModel

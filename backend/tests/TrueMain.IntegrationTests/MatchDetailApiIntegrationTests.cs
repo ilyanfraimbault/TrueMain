@@ -195,6 +195,84 @@ public sealed class MatchDetailApiIntegrationTests
             .BeGreaterThan(detail.Participants.Where(p => p.ParticipantId != 1).Max(p => p.PerformanceScore));
     }
 
+    [Fact]
+    public async Task GetMatchDetail_ignores_ghost_first_clear_rows_left_by_the_reshape_migration()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedFullMatchAsync();
+
+        // A pre-#1188 camp-sequence document that survived the reshape
+        // migration's DELETE (an ingestor transaction in flight when it ran) and
+        // was carried into the Samples column by the rename. Its fields
+        // deserialize to 0, which is what this models: every sample at the map
+        // origin. Plotted as-is it would pin the whole clear to the map corner.
+        await using (var db = _fixture.CreateDbContext())
+        {
+            db.JungleFirstClears.Add(new JungleFirstClear
+            {
+                MatchId = MatchId,
+                ParticipantId = 2,
+                StartCamp = null,
+                FullClearTimeMs = null,
+                Samples =
+                [
+                    new JungleClearSample { TimestampMs = 120_000, JungleCs = 0, X = 0, Y = 0 },
+                    new JungleClearSample { TimestampMs = 180_000, JungleCs = 0, X = 0, Y = 0 },
+                ],
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        var response = await client.GetAsync($"/truemains/Phantasm-EUW1/matches/{MatchId}");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var detail = await response.Content.ReadFromJsonAsync<MatchDetailReadModel>();
+        detail!.Participants.Single(p => p.ParticipantId == 2).JungleClear
+            .Should().BeNull("a row whose every sample sits at the map origin is a stale-shape ghost, not a clear");
+    }
+
+    [Fact]
+    public async Task GetMatchDetail_returns_a_measured_first_clear()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedFullMatchAsync();
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            db.JungleFirstClears.Add(new JungleFirstClear
+            {
+                MatchId = MatchId,
+                ParticipantId = 2,
+                StartCamp = "BlueRedBuff",
+                FullClearTimeMs = 180_000,
+                Samples =
+                [
+                    new JungleClearSample { TimestampMs = 180_000, JungleCs = 20, X = 2150, Y = 8420 },
+                    new JungleClearSample { TimestampMs = 60_000, JungleCs = 0, X = 7770, Y = 3800 },
+                ],
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        var response = await client.GetAsync($"/truemains/Phantasm-EUW1/matches/{MatchId}");
+        var detail = await response.Content.ReadFromJsonAsync<MatchDetailReadModel>();
+
+        var clear = detail!.Participants.Single(p => p.ParticipantId == 2).JungleClear;
+        clear.Should().NotBeNull();
+        clear!.StartCamp.Should().Be("BlueRedBuff");
+        clear.FullClearTimeMs.Should().Be(180_000);
+        clear.FullClearJungleCs.Should().Be(20);
+        // Projected ascending regardless of stored order.
+        clear.Samples.Select(s => s.TimestampMs).Should().Equal(60_000, 180_000);
+        clear.Samples.Select(s => s.JungleCs).Should().Equal(0, 20);
+    }
+
     private async Task SeedFullMatchAsync()
     {
         var gameStart = new DateTime(2025, 6, 1, 18, 0, 0, DateTimeKind.Utc);
