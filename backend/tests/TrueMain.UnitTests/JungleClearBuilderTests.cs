@@ -6,217 +6,205 @@ using Ingestor.Riot.Dto;
 namespace TrueMain.UnitTests;
 
 /// <summary>
-/// Covers first-clear reconstruction (issue #535): jungler identification from the
-/// frames, camp order from the per-minute position trail, jungle-CS-delta gating,
-/// and the full-clear stop. Frames are hand-built at camp centroids so the
-/// nearest-camp mapping is unambiguous.
+/// Covers first-clear measurement (#1188, replacing #535's camp-sequence
+/// reconstruction): jungler identification, start-camp detection from the
+/// jungle-CS-still-zero frames, the clear-speed samples, and the full-clear
+/// threshold crossing.
+///
+/// The frames here model the real game: buffs spawn at 1:30, so minute 1 has 0
+/// jungle CS and a jungler is at ~12 by minute 2 and ~20 by minute 3 — three to
+/// four camps inside a single frame, which is exactly why no camp order is
+/// claimed anywhere in this builder.
 /// </summary>
 public sealed class JungleClearBuilderTests
 {
     private const string MatchId = "EUW1_1";
 
-    // A standard blue-side clear, one camp per minute starting at minute 1.
-    private static readonly JungleCamp[] BlueClearOrder =
-    [
-        JungleCamp.BlueGromp,
-        JungleCamp.BlueBlueBuff,
-        JungleCamp.BlueWolves,
-        JungleCamp.BlueRaptors,
-        JungleCamp.BlueRedBuff,
-        JungleCamp.BlueKrugs
-    ];
-
     [Fact]
-    public void Build_ReconstructsFullBlueSideFirstClear_InOrder_WithTiming()
+    public void Build_MeasuresARealisticFirstClear()
     {
-        var frames = new List<MatchTimelineFrameDto> { Frame(0, JunglerAt(1, JungleCamp.BlueGromp, jungleCs: 0)) };
-
-        // Minute n (n=1..6): jungler sits on camp n with cumulative jungle CS = n.
-        for (var i = 0; i < BlueClearOrder.Length; i++)
+        // A standard clear: nothing at 1:00 (waiting on red buff), 12 by 2:00,
+        // a full clear's worth by 3:00.
+        var frames = new List<MatchTimelineFrameDto>
         {
-            var minute = i + 1;
-            frames.Add(Frame(minute * 60_000, JunglerAt(1, BlueClearOrder[i], jungleCs: minute)));
-        }
+            Frame(0, JunglerAt(1, JungleCamp.BlueRedBuff, jungleCs: 0)),
+            Frame(60_000, JunglerAt(1, JungleCamp.BlueRedBuff, jungleCs: 0)),
+            Frame(120_000, JunglerAt(1, JungleCamp.BlueRaptors, jungleCs: 12)),
+            Frame(180_000, JunglerAt(1, JungleCamp.BlueGromp, jungleCs: 20)),
+        };
 
         var clears = JungleClearBuilder.Build(MatchId, new MatchTimelineDto { Frames = frames });
 
-        clears.Should().HaveCount(1);
+        clears.Should().ContainSingle();
         var clear = clears[0];
         clear.MatchId.Should().Be(MatchId);
         clear.ParticipantId.Should().Be(1);
-        clear.Steps.Select(s => s.Camp)
-            .Should().Equal(BlueClearOrder.Select(c => c.ToString()));
-        clear.Steps.Select(s => s.TimestampMs)
-            .Should().Equal(Enumerable.Range(1, 6).Select(m => m * 60_000));
-        clear.FullClearTimeMs.Should().Be(6 * 60_000); // last (Krugs) frame
+        clear.StartCamp.Should().Be(nameof(JungleCamp.BlueRedBuff));
+        clear.FullClearTimeMs.Should().Be(180_000);
+        clear.Samples.Select(s => s.JungleCs).Should().Equal(0, 0, 12, 20);
+        clear.Samples.Select(s => s.TimestampMs).Should().Equal(0, 60_000, 120_000, 180_000);
+    }
+
+    [Fact]
+    public void Build_StartCamp_ComesFromTheLastFrameWithNoJungleCs()
+    {
+        // The t=0 frame catches the jungler still near the fountain; the 1:00
+        // frame catches him waiting on the camp he opens. The later one wins.
+        var frames = new List<MatchTimelineFrameDto>
+        {
+            Frame(0, Jungler(1, x: 560, y: 590, jungleCs: 0)),
+            Frame(60_000, JunglerAt(1, JungleCamp.BlueBlueBuff, jungleCs: 0)),
+            Frame(120_000, JunglerAt(1, JungleCamp.BlueWolves, jungleCs: 11)),
+        };
+
+        var clear = JungleClearBuilder.Build(MatchId, new MatchTimelineDto { Frames = frames }).Single();
+
+        clear.StartCamp.Should().Be(nameof(JungleCamp.BlueBlueBuff));
+    }
+
+    [Fact]
+    public void Build_StartCamp_IsNullWhenNoZeroCsFrameSitsOnACamp()
+    {
+        // Only ever seen out in top lane while at 0 CS (further than the camp
+        // assignment radius from every centroid), then already clearing.
+        var frames = new List<MatchTimelineFrameDto>
+        {
+            Frame(0, Jungler(1, x: 1200, y: 12800, jungleCs: 0)),
+            Frame(60_000, JunglerAt(1, JungleCamp.BlueRaptors, jungleCs: 9)),
+        };
+
+        var clear = JungleClearBuilder.Build(MatchId, new MatchTimelineDto { Frames = frames }).Single();
+
+        clear.StartCamp.Should().BeNull();
+    }
+
+    [Fact]
+    public void Build_FullClearTime_IsNullForAnInterruptedClear()
+    {
+        // Invaded and killed: never reaches a full clear's worth inside the window.
+        var frames = new List<MatchTimelineFrameDto>
+        {
+            Frame(60_000, JunglerAt(1, JungleCamp.RedGromp, jungleCs: 0)),
+            Frame(120_000, JunglerAt(1, JungleCamp.RedBlueBuff, jungleCs: 7)),
+            Frame(180_000, JunglerAt(1, JungleCamp.RedBlueBuff, jungleCs: 7)),
+        };
+
+        var clear = JungleClearBuilder.Build(MatchId, new MatchTimelineDto { Frames = frames }).Single();
+
+        clear.FullClearTimeMs.Should().BeNull();
+        clear.StartCamp.Should().Be(nameof(JungleCamp.RedGromp));
+    }
+
+    [Fact]
+    public void Build_FullClearTime_TakesTheFirstCrossingNotTheLast()
+    {
+        var frames = new List<MatchTimelineFrameDto>
+        {
+            Frame(60_000, JunglerAt(1, JungleCamp.BlueGromp, jungleCs: 0)),
+            Frame(120_000, JunglerAt(1, JungleCamp.BlueWolves, jungleCs: JungleCamps.FullClearJungleCs)),
+            Frame(180_000, JunglerAt(1, JungleCamp.BlueKrugs, jungleCs: 31)),
+        };
+
+        var clear = JungleClearBuilder.Build(MatchId, new MatchTimelineDto { Frames = frames }).Single();
+
+        clear.FullClearTimeMs.Should().Be(120_000);
     }
 
     [Fact]
     public void Build_IgnoresNonJunglers_WithoutEnoughJungleCs()
     {
-        // A laner who pokes a single camp (jungle CS grows by only 1) is not a jungler.
+        // A laner who pokes a single camp (jungle CS grows by only 1).
         var frames = new List<MatchTimelineFrameDto>
         {
             Frame(0, JunglerAt(2, JungleCamp.BlueGromp, jungleCs: 0)),
-            Frame(60_000, JunglerAt(2, JungleCamp.BlueGromp, jungleCs: 1))
+            Frame(60_000, JunglerAt(2, JungleCamp.BlueGromp, jungleCs: 1)),
         };
 
         JungleClearBuilder.Build(MatchId, new MatchTimelineDto { Frames = frames }).Should().BeEmpty();
     }
 
     [Fact]
-    public void Build_DoesNotCreditCamp_WhenJungleCsDidNotAdvance()
+    public void Build_CoversBothJunglers_Independently()
     {
-        // Jungler clears Gromp then Blue, but a frame on the way to Wolves has no new
-        // jungle CS (pathing through) — Wolves must not be credited from that frame.
         var frames = new List<MatchTimelineFrameDto>
         {
-            Frame(0, JunglerAt(1, JungleCamp.BlueGromp, jungleCs: 0)),
-            Frame(60_000, JunglerAt(1, JungleCamp.BlueGromp, jungleCs: 4)),
-            Frame(120_000, JunglerAt(1, JungleCamp.BlueBlueBuff, jungleCs: 8)),
-            // Standing on Wolves but jungle CS unchanged -> no credit.
-            Frame(180_000, JunglerAt(1, JungleCamp.BlueWolves, jungleCs: 8))
+            Frame(60_000,
+                JunglerAt(1, JungleCamp.BlueRedBuff, jungleCs: 0),
+                JunglerAt(7, JungleCamp.RedBlueBuff, jungleCs: 0)),
+            Frame(120_000,
+                JunglerAt(1, JungleCamp.BlueKrugs, jungleCs: 13),
+                JunglerAt(7, JungleCamp.RedWolves, jungleCs: 9)),
+            Frame(180_000,
+                JunglerAt(1, JungleCamp.BlueWolves, jungleCs: 21),
+                JunglerAt(7, JungleCamp.RedRaptors, jungleCs: 16)),
         };
 
         var clears = JungleClearBuilder.Build(MatchId, new MatchTimelineDto { Frames = frames });
 
-        clears.Should().HaveCount(1);
-        clears[0].Steps.Select(s => s.Camp)
-            .Should().Equal(JungleCamp.BlueGromp.ToString(), JungleCamp.BlueBlueBuff.ToString());
-        clears[0].FullClearTimeMs.Should().BeNull(); // never finished the six camps
+        clears.Should().HaveCount(2);
+        clears[0].StartCamp.Should().Be(nameof(JungleCamp.BlueRedBuff));
+        clears[0].FullClearTimeMs.Should().Be(180_000);
+        clears[1].StartCamp.Should().Be(nameof(JungleCamp.RedBlueBuff));
+        clears[1].FullClearTimeMs.Should().BeNull(); // slower, still short of a full clear
     }
 
     [Fact]
-    public void Build_SkipsGankMinutes_WhereJunglerIsNotOnACamp()
+    public void Build_DropsFramesPastTheFirstClearWindow()
     {
-        // Between Gromp and Wolves the jungler ganks mid (off any camp). The gank frame
-        // maps to Unknown and is skipped; the clear order stays camps-only.
+        // A mid-game frame must not contribute a sample: those rotations are what
+        // made the old 8-minute window report impossible clears.
         var frames = new List<MatchTimelineFrameDto>
         {
-            Frame(0, JunglerAt(1, JungleCamp.BlueGromp, jungleCs: 0)),
-            Frame(60_000, JunglerAt(1, JungleCamp.BlueGromp, jungleCs: 4)),
-            Frame(120_000, JunglerAtPosition(1, 7300, 7400, jungleCs: 4)), // mid lane gank, no new CS
-            Frame(180_000, JunglerAt(1, JungleCamp.BlueWolves, jungleCs: 8))
+            Frame(60_000, JunglerAt(1, JungleCamp.BlueGromp, jungleCs: 0)),
+            Frame(120_000, JunglerAt(1, JungleCamp.BlueWolves, jungleCs: 12)),
+            Frame(7 * 60_000, JunglerAt(1, JungleCamp.BlueKrugs, jungleCs: 44)),
         };
-
-        var clears = JungleClearBuilder.Build(MatchId, new MatchTimelineDto { Frames = frames });
-
-        clears[0].Steps.Select(s => s.Camp)
-            .Should().Equal(JungleCamp.BlueGromp.ToString(), JungleCamp.BlueWolves.ToString());
-    }
-
-    [Fact]
-    public void Build_DoesNotDuplicateStep_WhenPositionNoiseMapsBackToAnEarlierCamp()
-    {
-        // After Gromp/Blue/Wolves the jungler kills another camp (CS advances) but the
-        // minute frame's position noise maps back onto Blue (already cleared, and not
-        // the immediately previous camp). It must not be re-recorded as a duplicate.
-        var frames = new List<MatchTimelineFrameDto>
-        {
-            Frame(0, JunglerAt(1, JungleCamp.BlueGromp, jungleCs: 0)),
-            Frame(60_000, JunglerAt(1, JungleCamp.BlueGromp, jungleCs: 1)),
-            Frame(120_000, JunglerAt(1, JungleCamp.BlueBlueBuff, jungleCs: 2)),
-            Frame(180_000, JunglerAt(1, JungleCamp.BlueWolves, jungleCs: 3)),
-            // CS advanced (a camp was taken) but the sampled position is back on Blue.
-            Frame(240_000, JunglerAt(1, JungleCamp.BlueBlueBuff, jungleCs: 4)),
-            Frame(300_000, JunglerAt(1, JungleCamp.BlueRaptors, jungleCs: 5))
-        };
-
-        var clears = JungleClearBuilder.Build(MatchId, new MatchTimelineDto { Frames = frames });
-
-        clears.Should().HaveCount(1);
-        clears[0].Steps.Select(s => s.Camp)
-            .Should().Equal(
-                JungleCamp.BlueGromp.ToString(),
-                JungleCamp.BlueBlueBuff.ToString(),
-                JungleCamp.BlueWolves.ToString(),
-                JungleCamp.BlueRaptors.ToString());
-        clears[0].FullClearTimeMs.Should().BeNull();
-    }
-
-    [Fact]
-    public void Build_StopsAtFullClear_IgnoringLaterCamps()
-    {
-        var frames = new List<MatchTimelineFrameDto> { Frame(0, JunglerAt(1, JungleCamp.BlueGromp, jungleCs: 0)) };
-        for (var i = 0; i < BlueClearOrder.Length; i++)
-        {
-            frames.Add(Frame((i + 1) * 60_000, JunglerAt(1, BlueClearOrder[i], jungleCs: i + 1)));
-        }
-
-        // A 7th frame on the enemy Gromp after the clear is finished — must be ignored.
-        frames.Add(Frame(7 * 60_000, JunglerAt(1, JungleCamp.RedGromp, jungleCs: 7)));
 
         var clear = JungleClearBuilder.Build(MatchId, new MatchTimelineDto { Frames = frames }).Single();
 
-        clear.Steps.Should().HaveCount(6);
-        clear.Steps.Should().NotContain(s => s.Camp == JungleCamp.RedGromp.ToString());
-        clear.FullClearTimeMs.Should().Be(6 * 60_000);
+        clear.Samples.Should().HaveCount(2);
+        clear.Samples.Last().TimestampMs.Should().Be(120_000);
     }
 
     [Fact]
-    public void Build_HandlesBothJunglers_OnePerSide()
+    public void Build_SkipsFramesWithoutAPosition()
     {
-        // Real timelines always have a t=0 frame (jungle CS 0) that primes the CS
-        // baseline so the very first camp's delta is observable.
         var frames = new List<MatchTimelineFrameDto>
         {
-            Frame(0,
-                JunglerAt(1, JungleCamp.BlueGromp, jungleCs: 0),
-                JunglerAt(6, JungleCamp.RedGromp, jungleCs: 0))
+            Frame(60_000, JunglerAt(1, JungleCamp.BlueGromp, jungleCs: 0)),
+            Frame(120_000, new MatchParticipantFrameDto
+            {
+                ParticipantId = 1, JungleMinionsKilled = 12, X = null, Y = null,
+            }),
+            Frame(180_000, JunglerAt(1, JungleCamp.BlueWolves, jungleCs: 20)),
         };
-        for (var i = 0; i < BlueClearOrder.Length; i++)
-        {
-            var minute = i + 1;
-            frames.Add(Frame(
-                minute * 60_000,
-                JunglerAt(1, BlueClearOrder[i], jungleCs: minute),
-                JunglerAt(6, MirrorRedCamp(BlueClearOrder[i]), jungleCs: minute)));
-        }
 
-        var clears = JungleClearBuilder.Build(MatchId, new MatchTimelineDto { Frames = frames });
+        var clear = JungleClearBuilder.Build(MatchId, new MatchTimelineDto { Frames = frames }).Single();
 
-        clears.Select(c => c.ParticipantId).Should().Equal(1, 6);
-        clears.Single(c => c.ParticipantId == 1).Steps.Should().HaveCount(6);
-        clears.Single(c => c.ParticipantId == 6).Steps
-            .Select(s => s.Camp)
-            .Should().OnlyContain(camp => JungleCamps.RedSideCamps.Select(c => c.ToString()).Contains(camp));
+        clear.Samples.Select(s => s.TimestampMs).Should().Equal(60_000, 180_000);
     }
 
     [Fact]
-    public void Build_IgnoresFramesPastFirstClearWindow()
+    public void Build_ReturnsNothingForAnEmptyTimeline()
     {
-        // Jungle activity only after the window -> no jungler detected within it.
-        var frames = new List<MatchTimelineFrameDto>
-        {
-            Frame(0, JunglerAt(1, JungleCamp.BlueGromp, jungleCs: 0)),
-            Frame(JungleClearBuilder.FirstClearWindowMs + 60_000, JunglerAt(1, JungleCamp.BlueKrugs, jungleCs: 12))
-        };
-
-        JungleClearBuilder.Build(MatchId, new MatchTimelineDto { Frames = frames }).Should().BeEmpty();
+        JungleClearBuilder.Build(MatchId, new MatchTimelineDto()).Should().BeEmpty();
     }
 
-    [Fact]
-    public void Build_ReturnsEmpty_WhenNoFrames()
-        => JungleClearBuilder.Build(MatchId, new MatchTimelineDto()).Should().BeEmpty();
-
-    private static JungleCamp MirrorRedCamp(JungleCamp blueCamp)
-        => JungleCamps.RedSideCamps[JungleCamps.BlueSideCamps.ToList().IndexOf(blueCamp)];
-
-    private static MatchTimelineFrameDto Frame(int timestampMs, params MatchParticipantFrameDto[] participants)
-        => new() { TimestampMs = timestampMs, ParticipantFrames = [.. participants] };
+    private static MatchTimelineFrameDto Frame(int timestampMs, params MatchParticipantFrameDto[] participantFrames)
+        => new() { TimestampMs = timestampMs, ParticipantFrames = participantFrames.ToList() };
 
     private static MatchParticipantFrameDto JunglerAt(int participantId, JungleCamp camp, int jungleCs)
     {
         var (x, y) = JungleCamps.Coordinates[camp];
-        return JunglerAtPosition(participantId, x, y, jungleCs);
+        return Jungler(participantId, x, y, jungleCs);
     }
 
-    private static MatchParticipantFrameDto JunglerAtPosition(int participantId, int x, int y, int jungleCs)
+    private static MatchParticipantFrameDto Jungler(int participantId, int x, int y, int jungleCs)
         => new()
         {
             ParticipantId = participantId,
+            JungleMinionsKilled = jungleCs,
             X = x,
             Y = y,
-            JungleMinionsKilled = jungleCs
         };
 }

@@ -50,32 +50,33 @@ const SKILL_EVENTS = SKILL_SLOTS.map((skillSlot, i) => ({
   skillSlot,
 }))
 
-// First-clear fixtures (#1186), keyed by roster index. Together they exercise
-// every visual state of the Jungle tab on one screen: a full clear with a
-// same-timestamp camp pair (minute-resolution tie), and a partial clear with a
-// mid-clear base visit (dashed fountain detour).
+// First-clear fixtures (#1188), keyed by roster index. Modelled on real preprod
+// numbers: buffs spawn at 1:30 so minute 1 is 0 jungle CS, a standard clear is
+// ~12 CS by 2:00 and a full clear's worth by 3:00, and an interrupted clear
+// stalls short of it.
 const JUNGLE_CLEARS: Record<number, MatchDetailJungleClear> = {
-  1: { // BlueJng — full blue-side clear, wolves and raptors on the same frame
-    steps: [
-      { camp: 'BlueRedBuff', timestampMs: 90_000 },
-      { camp: 'BlueKrugs', timestampMs: 150_000 },
-      { camp: 'BlueRaptors', timestampMs: 210_000 },
-      { camp: 'BlueWolves', timestampMs: 210_000 },
-      { camp: 'BlueBlueBuff', timestampMs: 270_000 },
-      { camp: 'BlueGromp', timestampMs: 330_000 },
+  1: { // BlueJng — clean full clear, done by 3:00
+    startCamp: 'BlueRedBuff',
+    samples: [
+      { timestampMs: 0, jungleCs: 0, x: 1500, y: 1200 },
+      { timestampMs: 60_000, jungleCs: 0, x: 7770, y: 3800 },
+      { timestampMs: 120_000, jungleCs: 12, x: 6900, y: 5500 },
+      { timestampMs: 180_000, jungleCs: 21, x: 2150, y: 8420 },
+      { timestampMs: 240_000, jungleCs: 24, x: 4400, y: 9700 },
     ],
-    fullClearTimeMs: 330_000,
-    recalls: [],
+    fullClearTimeMs: 180_000,
+    fullClearJungleCs: 20,
   },
-  6: { // RedJng — partial clear interrupted by a base visit after camp 2
-    steps: [
-      { camp: 'RedBlueBuff', timestampMs: 95_000 },
-      { camp: 'RedGromp', timestampMs: 160_000 },
-      { camp: 'RedWolves', timestampMs: 280_000 },
-      { camp: 'RedRaptors', timestampMs: 340_000 },
+  6: { // RedJng — invaded early, never completes the clear in the window
+    startCamp: 'RedBlueBuff',
+    samples: [
+      { timestampMs: 60_000, jungleCs: 0, x: 10930, y: 7060 },
+      { timestampMs: 120_000, jungleCs: 7, x: 11100, y: 8480 },
+      { timestampMs: 180_000, jungleCs: 7, x: 7850, y: 9480 },
+      { timestampMs: 240_000, jungleCs: 14, x: 6980, y: 11180 },
     ],
     fullClearTimeMs: null,
-    recalls: [{ timestampMs: 205_000, afterStepIndex: 1 }],
+    fullClearJungleCs: 20,
   },
 }
 

@@ -21,8 +21,13 @@ public sealed class JungleFirstClearConfiguration : IEntityTypeConfiguration<Jun
         entity.Property(e => e.ParticipantId)
             .IsRequired();
 
-        // Compact ordered camp sequence, mirroring MatchParticipant.ItemEvents/SkillEvents.
-        entity.Property(e => e.Steps)
+        // The camp the jungler opened on; null when it cannot be established.
+        entity.Property(e => e.StartCamp)
+            .HasMaxLength(32);
+
+        // Compact per-minute clear-speed samples, mirroring
+        // MatchParticipant.ItemEvents/SkillEvents.
+        entity.Property(e => e.Samples)
             .HasColumnType("jsonb")
             .IsRequired();
 

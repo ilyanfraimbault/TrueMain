@@ -5,35 +5,33 @@ using Ingestor.Riot.Dto;
 namespace Ingestor.Processes.Components.MatchIngestion;
 
 /// <summary>
-/// Reconstructs each jungler's <b>first clear</b> from a match timeline (issue #535)
-/// and emits one compact <see cref="JungleFirstClear"/> per jungler.
+/// Measures each jungler's <b>first clear</b> from a match timeline (#1188,
+/// replacing the camp-sequence reconstruction of #535).
 ///
-/// Riot emits no "camp killed" event for the small camps, so the only signal is the
-/// once-per-minute <c>participantFrames</c> giving each participant's (x, y) plus
-/// cumulative <c>jungleMinionsKilled</c>. The camp order is therefore <b>inferred</b>
-/// from the per-minute position trail — the standard accepted method, reliable for
-/// the first clear (~1 camp/min). At each early frame the jungler's position is
-/// mapped to the nearest camp (<see cref="JungleCamps.NearestCamp"/>); the
-/// <c>jungleMinionsKilled</c> delta confirms a camp was actually taken and lets us
-/// stop at a full clear. Per-camp timing is minute resolution (the frame timestamp),
-/// not exact.
+/// <para><b>Why there is no camp order here.</b> Riot emits no camp-kill event,
+/// and <c>participantFrames</c> are sampled once per <b>minute</b>. Buffs spawn
+/// at 1:30 and the median jungler is at 12 jungle CS by minute 2 and 20 — a full
+/// clear — by minute 3: three to four camps fall inside a single frame. The old
+/// builder credited one camp per frame, which made a six-camp clear impossible to
+/// report before 6:00 (production floor was exactly 6:00, average 6:59, and only
+/// 0.06% of rows ever reached six camps). Two position samples cannot order six
+/// camps, so the sequence is not reconstructable and is no longer claimed.</para>
 ///
-/// Out of scope (issue #535): early-gank detection, per-champion aggregates, any
-/// pathing past the first clear, and exact per-camp timestamps.
+/// <para>What is measurable, and what this emits: the camp the jungler opened on
+/// (he waits on it while jungle CS is still 0), the per-minute clear-speed
+/// samples, and the frame at which jungle CS reaches a full clear's worth.</para>
 /// </summary>
 internal static class JungleClearBuilder
 {
-    // A jungler clears ~1 camp/min; a full first clear (6 camps) plus scuttle/buffer
-    // is done well inside this window. Frames past it add mid-game noise (multiple
-    // camps/min, erratic movement) that the inference is explicitly not reliable for.
-    internal const int FirstClearWindowMs = 8 * 60_000;
+    // Buffs spawn at 1:30 and a clear runs to ~3:15; minute 5 leaves room for a
+    // slow or interrupted clear without dragging in mid-game rotations (the old
+    // 8-minute window is what let normal mid-game backs read as clear events).
+    internal const int FirstClearWindowMs = 5 * 60_000;
 
-    // A participant is only treated as a jungler if their jungle CS grows by at least
-    // this much across the window — filters laners who poke a single camp. The trade
-    // is a deliberate false-negative: a jungler counter-jungled or repeatedly ganked
-    // out of their own jungle who never reaches this jungle CS in the window yields no
-    // row at all (rather than a partial clear). Acceptable for the "first clear only"
-    // scope of #535; worth revisiting if prod coverage comes in lower than expected.
+    // A participant is only treated as a jungler if their jungle CS grows by at
+    // least this much across the window — filters laners who poke a camp. A
+    // jungler counter-jungled out of their own jungle who never gets there yields
+    // no row rather than a misleading one.
     internal const int MinJungleCsForJungler = 4;
 
     public static List<JungleFirstClear> Build(string matchId, MatchTimelineDto timeline)
@@ -44,8 +42,8 @@ internal static class JungleClearBuilder
             return result;
         }
 
-        // Frames are ascending by TimestampMs (Riot guarantee). Restrict to the
-        // first-clear window; the inference is only reliable here.
+        // Frames are ascending by TimestampMs (Riot guarantee); restrict to the
+        // first-clear window.
         var frames = timeline.Frames
             .Where(frame => frame.TimestampMs <= FirstClearWindowMs)
             .OrderBy(frame => frame.TimestampMs)
@@ -58,7 +56,7 @@ internal static class JungleClearBuilder
         foreach (var participantId in IdentifyJunglers(frames))
         {
             var clear = BuildClear(matchId, participantId, frames);
-            if (clear.Steps.Count > 0)
+            if (clear.Samples.Count > 0)
             {
                 result.Add(clear);
             }
@@ -67,10 +65,9 @@ internal static class JungleClearBuilder
         return result;
     }
 
-    // Identify junglers from the frames alone: a participant whose jungle CS grows by
-    // at least MinJungleCsForJungler over the window is a jungler. Riot's per-team
-    // single-jungler role isn't needed — anyone who actually clears camps qualifies,
-    // and laners who never touch the jungle are filtered by the threshold.
+    // Identify junglers from the frames alone: a participant whose jungle CS grows
+    // by at least MinJungleCsForJungler over the window. Riot's per-team single
+    // jungler role isn't needed — anyone who actually clears camps qualifies.
     private static IEnumerable<int> IdentifyJunglers(List<MatchTimelineFrameDto> frames)
     {
         var firstJungleCs = new Dictionary<int, int>();
@@ -91,13 +88,14 @@ internal static class JungleClearBuilder
             .OrderBy(participantId => participantId);
     }
 
-    private static JungleFirstClear BuildClear(string matchId, int participantId, List<MatchTimelineFrameDto> frames)
+    private static JungleFirstClear BuildClear(
+        string matchId,
+        int participantId,
+        List<MatchTimelineFrameDto> frames)
     {
-        var steps = new List<JungleClearStep>();
-        var previousJungleCs = (int?)null;
+        var samples = new List<JungleClearSample>();
+        string? startCamp = null;
         int? fullClearTimeMs = null;
-        IReadOnlyList<JungleCamp>? clearSet = null;
-        var clearedFirstClearCamps = new HashSet<JungleCamp>();
 
         foreach (var frame in frames)
         {
@@ -108,50 +106,32 @@ internal static class JungleClearBuilder
                 continue;
             }
 
-            // No new camp credit unless jungle CS actually advanced since the last
-            // frame — disambiguates standing near a camp (recall, pathing through)
-            // from clearing it, and skips minutes where the jungler ganked instead.
-            // The first observed frame only primes the baseline (advanced is false
-            // while previousJungleCs is null): crediting the opening camp relies on the
-            // timeline starting with a pre-clear frame. Riot always emits a t=0 frame
-            // (jungle CS 0) before the first camp, so the opening camp is not lost.
             var jungleCs = participantFrame.JungleMinionsKilled;
-            var advanced = previousJungleCs is { } previous && jungleCs > previous;
-            previousJungleCs = jungleCs;
-            if (!advanced)
+
+            samples.Add(new JungleClearSample
             {
-                continue;
+                TimestampMs = frame.TimestampMs,
+                JungleCs = jungleCs,
+                X = x,
+                Y = y,
+            });
+
+            // While jungle CS is still 0 the jungler has not opened a camp yet, so
+            // wherever he stands is the camp he is about to take. Later such frames
+            // overwrite earlier ones: the t=0 frame catches him still in fountain,
+            // the 1:00 frame catches him waiting on the camp.
+            if (jungleCs == 0)
+            {
+                var camp = JungleCamps.NearestCamp(x, y);
+                if (camp != JungleCamp.Unknown && JungleCamps.IsFirstClearCamp(camp))
+                {
+                    startCamp = camp.ToString();
+                }
             }
 
-            // Dedup against every camp already credited to this clear, not just the
-            // immediately previous one: adjacent camps sit as little as ~1200 units
-            // apart (inside the assignment radius), so a later frame's position noise
-            // can map back onto an already-cleared, non-consecutive camp. Recording it
-            // again would insert a duplicate step and corrupt the persisted sequence.
-            var camp = JungleCamps.NearestCamp(x, y);
-            if (camp == JungleCamp.Unknown || clearedFirstClearCamps.Contains(camp) || !JungleCamps.IsFirstClearCamp(camp))
-            {
-                continue;
-            }
-
-            // Pin the clear set to the side of the first camp the jungler takes, so a
-            // mid-clear scuttle/cross-map detour can't flip which six camps count.
-            clearSet ??= JungleCamps.BlueSideCamps.Contains(camp)
-                ? JungleCamps.BlueSideCamps
-                : JungleCamps.RedSideCamps;
-
-            if (!clearSet.Contains(camp))
-            {
-                continue;
-            }
-
-            steps.Add(new JungleClearStep { Camp = camp.ToString(), TimestampMs = frame.TimestampMs });
-            clearedFirstClearCamps.Add(camp);
-
-            if (fullClearTimeMs is null && clearedFirstClearCamps.Count == clearSet.Count)
+            if (fullClearTimeMs is null && jungleCs >= JungleCamps.FullClearJungleCs)
             {
                 fullClearTimeMs = frame.TimestampMs;
-                break; // first clear done — anything past here is out of scope (#535)
             }
         }
 
@@ -159,8 +139,9 @@ internal static class JungleClearBuilder
         {
             MatchId = matchId,
             ParticipantId = participantId,
-            Steps = steps,
-            FullClearTimeMs = fullClearTimeMs
+            StartCamp = startCamp,
+            Samples = samples,
+            FullClearTimeMs = fullClearTimeMs,
         };
     }
 }
