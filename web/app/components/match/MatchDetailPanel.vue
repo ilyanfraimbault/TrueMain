@@ -222,13 +222,13 @@ const tabItems = computed(() => [
         </div>
       </template>
 
-      <!-- ── Jungle: both junglers' first clears on the minimap ──────── -->
+      <!-- ── Jungle: both junglers' first-clear speed ────────────────── -->
       <template #jungle>
-        <!-- Container-sized like the selector above: two 512px maps only fit
-             side by side from @3xl; below that they stack. -->
+        <!-- Container-sized like the selector above: the two panels sit side
+             by side from @3xl and stack below it. -->
         <div class="mt-3 grid grid-cols-1 gap-3 @3xl:grid-cols-2">
           <template v-for="(jungler, i) in [blueJungler, redJungler]" :key="`jungler-${i}`">
-            <MatchJungleClearMap
+            <MatchJungleClearPanel
               v-if="jungler"
               :participant="jungler"
               :champions="champions"

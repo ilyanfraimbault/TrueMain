@@ -1514,6 +1514,15 @@ by time**, never as a named route. The analysis window shrank from 8 minutes to 
 what let ordinary mid-game rotations and backs read as clear events. The derived "mid-clear recall"
 markers went with it — a back does not happen inside a 105-second clear.
 
+The map went too (#1195). Even relabelled as timed positions rather than a camp route, five dots on a jungle
+map read as a path — three separate readings of the shipped page ended in "he never cleared his camps there",
+about clears that were real. A drawing whose every viewer infers something the data cannot support is wrong
+however carefully it is captioned; the honest surface is the count. What replaced it: the opening camp, the
+full-clear time, and camps cleared per sampled minute as a bar, both junglers side by side so clear speed is
+comparable at a glance. A per-champion aggregate could carry a map — that is what League of Graphs does, and
+their hover image is a pre-rendered picture of the camp list, not of any measured position — because a modal
+route over thousands of games is a claim the data can support. A single game's route is not.
+
 The general rule this cost us: when a spec states a rate ("~1 camp/min"), check it against the phenomenon
 before building on it. The sampling interval bounds what is knowable, and no inference recovers detail the
 sampler never captured. The migration wipes the old rows rather than migrating them — they encode a claim
