@@ -119,8 +119,13 @@ withDefaults(defineProps<{
         :tree="runeTree"
         :keystone-size="keystoneSize"
       />
+      <!-- Gated on `runePage` alone, not on the `v-if` above: `runeTree` is a
+           separate static fetch, so keying the message off "we didn't render
+           runes" made it claim the sampled games carried no rune page during
+           every load. The aggregate's own null is the only thing that answers
+           that; while the tree is in flight the column just stays empty. -->
       <p
-        v-else-if="noRunesMessage"
+        v-else-if="!runePage && noRunesMessage"
         class="text-sm text-muted"
       >
         {{ noRunesMessage }}

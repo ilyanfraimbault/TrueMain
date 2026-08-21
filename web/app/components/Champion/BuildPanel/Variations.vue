@@ -5,7 +5,7 @@ import type {
   StaticItemData,
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
-import { filterByPickRate } from '~~/shared/utils/build'
+import { filterByPickRate, itemSlots } from '~~/shared/utils/build'
 
 const props = defineProps<{
   variations: BuildVariations
@@ -27,10 +27,11 @@ function summonerName(id: number): string {
   return props.summonersMap[id]?.name ?? `Spell ${id}`
 }
 
-function itemsByIds(ids: number[]): StaticItemData[] {
-  return ids
-    .map(id => props.itemsMap[id])
-    .filter((item): item is StaticItemData => Boolean(item))
+// Slots, not resolved items — see `itemSlots`: dropping the ids the map cannot
+// resolve yet emptied these rows down to their bare pickrate badge while the
+// item map was in flight.
+function itemsByIds(ids: number[]) {
+  return itemSlots(ids, props.itemsMap)
 }
 
 function spellByKey(key: string) {
@@ -127,9 +128,9 @@ function spellByKey(key: string) {
         >
           <div class="flex items-center gap-1">
             <GameTooltipItemIcon
-              v-for="(item, index) in itemsByIds(option.itemIds)"
-              :key="`boots-item-${optionIndex}-${item.id}-${index}`"
-              :item="item"
+              v-for="(slot, index) in itemsByIds(option.itemIds)"
+              :key="`boots-item-${optionIndex}-${slot.id}-${index}`"
+              :item="slot.item"
               :width="32"
               :height="32"
               class="size-8 rounded"
@@ -159,9 +160,9 @@ function spellByKey(key: string) {
         >
           <div class="flex items-center gap-1">
             <GameTooltipItemIcon
-              v-for="(item, index) in itemsByIds(option.itemIds)"
-              :key="`starter-item-${optionIndex}-${item.id}-${index}`"
-              :item="item"
+              v-for="(slot, index) in itemsByIds(option.itemIds)"
+              :key="`starter-item-${optionIndex}-${slot.id}-${index}`"
+              :item="slot.item"
               :width="32"
               :height="32"
               class="size-8 rounded"

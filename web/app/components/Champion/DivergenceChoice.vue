@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { BuildChoice } from '~~/shared/types/divergence'
 import type { ChampionStaticData, StaticItemData } from '~~/shared/types/static-data'
+import { itemSlots } from '~~/shared/utils/build'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 
 const props = defineProps<{
@@ -24,11 +25,10 @@ const props = defineProps<{
   highlight?: boolean
 }>()
 
-const items = computed<StaticItemData[]>(() =>
-  props.choice.itemIds
-    .map(id => props.itemsMap[id])
-    .filter((item): item is StaticItemData => Boolean(item)),
-)
+// Slots, not resolved items — see `itemSlots`. Filtering here let the column's
+// own "No data" state fire while the item map was still loading, on a choice
+// that carried ids all along.
+const items = computed(() => itemSlots(props.choice.itemIds, props.itemsMap))
 
 const skills = computed(() => props.choice.skills)
 
@@ -51,11 +51,11 @@ function spellByKey(key: string) {
          of the two is ever populated (see the BuildChoice contract). -->
     <div class="flex h-9 flex-wrap items-center gap-1">
       <template
-        v-for="(item, index) in items"
-        :key="`item-${item.id}-${index}`"
+        v-for="(slot, index) in items"
+        :key="`item-${slot.id}-${index}`"
       >
         <GameTooltipItemIcon
-          :item="item"
+          :item="slot.item"
           :width="36"
           :height="36"
           class="size-9 shrink-0 rounded"
