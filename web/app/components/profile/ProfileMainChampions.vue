@@ -2,6 +2,7 @@
 import type { ProfileMainChampion } from '~~/shared/types/profile'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { formatPercentage, getPositionIconUrl } from '~~/shared/utils/ddragon'
+import { formatRetiredSample } from '~/utils/retired-sample'
 
 const props = defineProps<{
   mains: ProfileMainChampion[]
@@ -21,6 +22,18 @@ function lookupChampionName(championId: number): string {
 function formatPlayRate(rate: number): string {
   return formatPercentage(rate, 0)
 }
+
+// Mains whose games have aged out of retention (#1216). The numbers stay — they
+// are a real past measurement, and hiding them would drop the player off their
+// own profile — but they get dated, because an undated count here is what let
+// this card promise "10 games on Graves" over a champion page holding nothing.
+// Keyed by champion id so the template stays declarative.
+const retiredByChampion = computed(() => new Map(
+  props.mains
+    .filter(main => main.isSampleRetired)
+    .map(main => [main.championId, formatRetiredSample(main.measuredAtUtc)] as const)
+    .filter(([, note]) => note !== null),
+))
 
 // Drill into how THIS player builds the champion (player-scoped page), not the
 // global meta. The whole row is the link target — so we render a plain icon
@@ -77,6 +90,18 @@ const canonicalIcon = useCanonicalIcon()
               >
                 OTP
               </span>
+              <!-- Same idiom as the champion header's thin-sample qualifier: the
+                   explanation lives in the tooltip so it never crowds the row. -->
+              <UTooltip
+                v-if="retiredByChampion.get(main.championId)"
+                :text="retiredByChampion.get(main.championId)!.tooltip"
+                :delay-duration="150"
+              >
+                <UIcon
+                  name="i-lucide-triangle-alert"
+                  class="size-3.5 shrink-0 text-warning"
+                />
+              </UTooltip>
             </div>
             <div class="flex items-center gap-1 text-[11px] text-muted tabular-nums">
               <img
@@ -88,6 +113,9 @@ const canonicalIcon = useCanonicalIcon()
                 height="12"
               >
               <span>{{ main.games }} games</span>
+              <span v-if="retiredByChampion.get(main.championId)" class="text-dimmed">
+                · {{ retiredByChampion.get(main.championId)!.suffix }}
+              </span>
             </div>
           </div>
           <span class="shrink-0 text-sm font-semibold tabular-nums text-default">

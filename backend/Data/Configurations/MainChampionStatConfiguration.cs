@@ -44,6 +44,12 @@ public sealed class MainChampionStatConfiguration : IEntityTypeConfiguration<Mai
             .IsRequired()
             .HasDefaultValue(true);
 
+        // Defaults to false so every pre-#1216 row starts out trusted; the first
+        // analysis cycle that recomputes an account to zero participants flips it.
+        entity.Property(e => e.IsSampleRetired)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         entity.Property(e => e.IsOtp)
             .IsRequired();
 
