@@ -2,6 +2,7 @@
 import type { ProfileMainChampion } from '~~/shared/types/profile'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { formatPercentage, getPositionIconUrl } from '~~/shared/utils/ddragon'
+import { formatRetiredSample } from '~/utils/retired-sample'
 
 const props = defineProps<{
   mains: ProfileMainChampion[]
