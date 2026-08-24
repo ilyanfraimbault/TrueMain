@@ -1521,6 +1521,33 @@ Two general rules the episode paid for, and they outlive the feature:
 - **Do not store what you can derive.** The full-clear time was stored *and* derivable; when the rule behind it
   changed, the derived side healed and 35 % of the stored side silently did not.
 
+## Preprod builds carry a prerelease version, tagged only after they deploy (2026-08-24)
+
+Every push to develop reaches preprod a few minutes later, but nothing on the page said *which* build was
+serving it — "is my change on preprod yet?" and "did this reach prod?" were answerable only by comparing SHAs
+on GitHub. `deploy-preprod.yml` now resolves `<base>-rc.<N>` and the footer prints it (`preprod · 1.20.0-rc.4`);
+prod prints the bare release tag it is serving.
+
+Three calls worth keeping:
+
+- **A prerelease, not build metadata.** `1.19.0+7` (commits since the last release, derivable with a single
+  `git describe` and no tags at all) was the cheaper design and was rejected: the same string tags the four
+  images on GHCR, and `+` is **illegal in a Docker reference**. `-rc.N` is legal, so the version can be one
+  string everywhere — footer, git tag, image tag.
+- **The tag is pushed after the deploy succeeds, not at build time.** The tag's whole job is to mean "this ran
+  on preprod". Tagging in the publish job would mint tags for commits that never got there, recreating the
+  ambiguity it replaces. Cost: a build that fails after publishing leaves a gap in the sequence, which is the
+  honest reading.
+- **The base is a label, not a promise.** It defaults to the next *minor* after the latest release, because
+  that is what a plain "release" cuts — but the real bump is still decided by the user's word at release time
+  (see the `release` skill), so a `1.20.0-rc.*` line can perfectly well ship as `1.19.1`. Set the
+  `PREPROD_VERSION_BASE` repo variable when the next one is known to be a major.
+
+The trap this introduces, and it bit during implementation: **git's version sort ranks `1.20.0-rc.4` above
+`1.20.0`**. Anything reading "the latest version" must filter to bare `MAJOR.MINOR.PATCH` or it will read a
+preprod build as the last release and skip a version on the next bump. The `release` skill was updated for
+exactly this.
+
 ## Keeping these files current
 
 A PR that ships a user-facing feature, removes one, or reverses a decision here **must update

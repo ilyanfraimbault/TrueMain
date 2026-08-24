@@ -114,6 +114,13 @@ services:
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: 3000
       NUXT_API_BASE_URL: http://api:8080
+      # Build stamp shown small in the footer, so preprod says which build it is
+      # running instead of forcing a SHA comparison on GitHub. APP_VERSION is
+      # appended to the env by the deploy job (the prerelease this deploy
+      # resolved, e.g. 1.20.0-rc.4); empty on a manual redeploy, which just
+      # hides the label.
+      NUXT_PUBLIC_APP_ENV: preprod
+      NUXT_PUBLIC_APP_VERSION: ${APP_VERSION:-}
       NUXT_PUBLIC_UMAMI_HOST: ${UMAMI_PUBLIC_URL:-}
       NUXT_PUBLIC_UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
     depends_on:

@@ -192,6 +192,11 @@ jobs:
           virtual-machine: ${{ vars.HOSTINGER_PROD_VM_ID }}
           project-name: truemain
           docker-compose-path: compose.prod.yaml
+          # APP_VERSION rides the same channel as IMAGE_TAG into
+          # NUXT_PUBLIC_APP_VERSION, so the prod footer states the release it is
+          # serving — the counterpart of the `-rc.N` stamp on preprod, and what
+          # makes "is this in prod yet?" answerable from the page itself.
           environment-variables: |
             ${{ secrets.PROD_ENV_FILE }}
             IMAGE_TAG=${{ github.event.release.tag_name }}
+            APP_VERSION=${{ github.event.release.tag_name }}

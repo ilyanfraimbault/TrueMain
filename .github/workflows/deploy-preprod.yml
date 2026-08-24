@@ -1,5 +1,6 @@
-# Triggered on every push to develop: builds and publishes the :preprod
-# images, then redeploys the preprod VPS (deploy-preprod job).
+# Triggered on every push to develop: resolves this build's prerelease version,
+# builds and publishes the :preprod images, then redeploys the preprod VPS
+# (deploy-preprod job) and finally tags the commit (tag-preprod job).
 name: Deploy Preprod
 
 on:
@@ -9,8 +10,20 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  # `contents: write` so tag-preprod can push the `<base>-rc.<N>` tag back.
+  contents: write
   packages: write
+
+# Workflow-level, not just on the deploy job: the rc counter is derived from the
+# tags already on the remote, so two runs resolving a version at the same time
+# would both land on the same number. Serialising the whole pipeline is what
+# makes the sequence gapless. `cancel-in-progress: false` keeps the running
+# deploy alive; GitHub still collapses the queue to the newest pending run, so a
+# burst of merges deploys the last commit — and only deployed commits get a tag,
+# which is the property we want.
+concurrency:
+  group: preprod-pipeline
+  cancel-in-progress: false
 
 env:
   IMAGE_API: ghcr.io/${{ github.repository_owner }}/truemain-api
@@ -19,9 +32,67 @@ env:
   IMAGE_ADMIN: ghcr.io/${{ github.repository_owner }}/truemain-admin
 
 jobs:
+  version:
+    name: Resolve Preprod Version
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # Full history + tags: the version is derived from the tags already
+          # published, so a shallow clone would restart the counter every run.
+          fetch-depth: 0
+
+      - name: Resolve the prerelease version
+        id: resolve
+        env:
+          BASE_OVERRIDE: ${{ vars.PREPROD_VERSION_BASE }}
+        run: |
+          set -euo pipefail
+
+          # Releases are bare `MAJOR.MINOR.PATCH` tags cut on master. Filter to
+          # exactly that shape: git's version sort ranks `1.20.0-rc.4` ABOVE
+          # `1.20.0`, so an unfiltered `head -1` would read a prerelease as the
+          # latest release and compound the base on every merge.
+          latest_release="$(git tag --list --sort=-v:refname \
+            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)"
+          latest_release="${latest_release:-0.0.0}"
+
+          # The base is the version this preprod line is heading for. Default to
+          # the minor bump, which is what a plain "release" cuts. When the next
+          # release is known to be a major, set the PREPROD_VERSION_BASE repo
+          # variable and clear it again after cutting it — the actual bump is
+          # still decided at release time, so this is only a label.
+          if [ -n "${BASE_OVERRIDE}" ]; then
+            if ! printf '%s' "${BASE_OVERRIDE}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "::error::PREPROD_VERSION_BASE must be MAJOR.MINOR.PATCH, got '${BASE_OVERRIDE}'."
+              exit 1
+            fi
+            base="${BASE_OVERRIDE}"
+          else
+            major="${latest_release%%.*}"
+            rest="${latest_release#*.}"
+            minor="${rest%%.*}"
+            base="${major}.$((minor + 1)).0"
+          fi
+
+          # Highest existing counter on this base, +1 — so the sequence resets on
+          # its own once a release moves the base, and a deleted tag can never
+          # make us reuse a number.
+          n="$(git tag --list "${base}-rc.*" \
+            | sed "s/^${base}-rc\.//" | grep -E '^[0-9]+$' | sort -n | tail -1 || true)"
+          version="${base}-rc.$(( ${n:-0} + 1 ))"
+
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "Latest release: ${latest_release} → base ${base} → ${version}" >> "$GITHUB_STEP_SUMMARY"
+
   publish-preprod:
     name: Build & Publish Preprod Images
     runs-on: ubuntu-24.04
+    needs: version
 
     steps:
       - name: Checkout
@@ -48,9 +119,13 @@ jobs:
           # Immutable per-commit tag alongside the moving :preprod pointer, so
           # the deploy references an image name that actually changes each merge
           # (mutable-tag redeploys never recreate the containers — see #765).
+          # The prerelease tag is the human-readable alias for that same image:
+          # `-rc.` and `.` are both legal in a Docker reference, `+` would not be,
+          # which is why the version is a prerelease and not build metadata.
           tags: |
             ${{ env.IMAGE_API }}:preprod
             ${{ env.IMAGE_API }}:${{ github.sha }}
+            ${{ env.IMAGE_API }}:${{ needs.version.outputs.version }}
 
       - name: Build and push Ingestor image
         uses: docker/build-push-action@v7
@@ -63,6 +138,7 @@ jobs:
           tags: |
             ${{ env.IMAGE_INGESTOR }}:preprod
             ${{ env.IMAGE_INGESTOR }}:${{ github.sha }}
+            ${{ env.IMAGE_INGESTOR }}:${{ needs.version.outputs.version }}
 
       - name: Build and push Web image
         uses: docker/build-push-action@v7
@@ -75,6 +151,7 @@ jobs:
           tags: |
             ${{ env.IMAGE_WEB }}:preprod
             ${{ env.IMAGE_WEB }}:${{ github.sha }}
+            ${{ env.IMAGE_WEB }}:${{ needs.version.outputs.version }}
 
       - name: Build and push Admin image
         uses: docker/build-push-action@v7
@@ -87,6 +164,7 @@ jobs:
           tags: |
             ${{ env.IMAGE_ADMIN }}:preprod
             ${{ env.IMAGE_ADMIN }}:${{ github.sha }}
+            ${{ env.IMAGE_ADMIN }}:${{ needs.version.outputs.version }}
 
   migrate-preprod:
     name: Apply Preprod Migrations
@@ -161,7 +239,7 @@ jobs:
   deploy-preprod:
     name: Deploy Preprod VPS
     runs-on: ubuntu-24.04
-    needs: [publish-preprod, migrate-preprod]
+    needs: [version, publish-preprod, migrate-preprod]
     # No-op until the Hostinger credentials are configured: set the
     # HOSTINGER_PREPROD_VM_ID repository variable plus the HOSTINGER_API_KEY
     # and PREPROD_ENV_FILE secrets (see docs/preprod.md). success() must be
@@ -189,6 +267,42 @@ jobs:
           # each service image to an absent :<sha>, so Docker Manager pulls it
           # and recreates the containers instead of reusing the cached :preprod
           # image (#765). It defaults to :preprod in the file for manual runs.
+          #
+          # APP_VERSION rides the same channel into NUXT_PUBLIC_APP_VERSION, so
+          # the footer states which build is serving the page. It stays a
+          # deploy-time value rather than a build arg: the image is then
+          # promotable as-is, and a version that changes every merge never
+          # invalidates a Docker layer.
           environment-variables: |
             ${{ secrets.PREPROD_ENV_FILE }}
             IMAGE_TAG=${{ github.sha }}
+            APP_VERSION=${{ needs.version.outputs.version }}
+
+  tag-preprod:
+    name: Tag Preprod Release
+    runs-on: ubuntu-24.04
+    needs: [version, deploy-preprod]
+    # Only after the VPS actually took the deploy. The whole point of the tag is
+    # that `1.20.0-rc.4` means "this ran on preprod" — tagging at build time
+    # would leave tags for commits that never got there, which is exactly the
+    # ambiguity this replaces.
+    if: success()
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Push the prerelease tag
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          if git rev-parse -q --verify "refs/tags/${VERSION}" >/dev/null; then
+            echo "::notice::${VERSION} already exists — re-run of an already-tagged deploy, nothing to do."
+            exit 0
+          fi
+          git tag "${VERSION}" "${GITHUB_SHA}"
+          git push origin "${VERSION}"
+          echo "Tagged ${GITHUB_SHA} as ${VERSION}" >> "$GITHUB_STEP_SUMMARY"

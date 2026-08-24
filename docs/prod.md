@@ -48,6 +48,19 @@ The prod stack already lives in Docker Manager as the `truemain` project
 (`/docker/truemain/docker-compose.yml`), so no adoption step is needed — the
 action overwrites that project's compose with `compose.prod.yaml` and redeploys.
 
+### Which build is running
+
+The deploy injects `APP_VERSION=<release tag>` alongside `IMAGE_TAG`, and
+`compose.prod.yaml` forwards it to the web container as
+`NUXT_PUBLIC_APP_VERSION`. The site footer then prints the release it is
+serving, small and dimmed (`1.19.0`, with no environment prefix — see
+`web/app/utils/app-version.ts`). That is the prod half of the preprod
+`<base>-rc.<N>` stamp described in `docs/preprod.md`: together they make "is
+this change live, and where?" answerable from the page.
+
+Because it is a runtime variable rather than a build arg, a manual redeploy that
+doesn't set `APP_VERSION` simply hides the label instead of showing a stale one.
+
 ### Applying migrations before the deploy
 
 The `migrate-prod` job runs between `publish` and `deploy-prod` and applies
