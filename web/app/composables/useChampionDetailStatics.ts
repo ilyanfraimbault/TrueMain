@@ -1,5 +1,6 @@
 import type { ChampionResponse } from '~~/shared/types/champions'
 import { isChampionPosition, type ChampionPosition } from '~/utils/positions'
+import { resolveChampionStaticPatch } from '~/utils/champion-patch'
 
 type Filters = ReturnType<typeof useChampionFilters>['filters']
 
@@ -14,6 +15,14 @@ interface UseChampionDetailStaticsOptions {
    * its historical order.
    */
   preferFilterPatch?: boolean
+  /**
+   * Whether the champion fetch has settled (success or error). Gates the
+   * "latest DDragon version" fallback in `activePatch` — see the comment
+   * there. Callers that omit it get the fallback as soon as the champion is
+   * absent, which costs a throwaway `latest` round trip on a cold load; both
+   * champion detail pages pass their own `championStatus` instead.
+   */
+  championSettled?: MaybeRefOrGetter<boolean>
 }
 
 /**
@@ -33,11 +42,19 @@ export function useChampionDetailStatics(
   options: UseChampionDetailStaticsOptions = {},
 ) {
   const championRef = computed(() => toValue(champion) ?? null)
+  const { data: versions } = useDDragonVersions()
 
-  const activePatch = computed(() => championRef.value?.patch || filters.value.patch || null)
+  // See resolveChampionStaticPatch for the precedence and, above all, for why
+  // the `latest` fallback is gated on the champion fetch having settled.
+  const championSettled = computed(() => toValue(options.championSettled) ?? true)
+  const activePatch = computed(() => resolveChampionStaticPatch({
+    championPatch: championRef.value?.patch,
+    filterPatch: filters.value.patch,
+    latestVersion: versions.value?.[0],
+    championSettled: championSettled.value,
+  }))
 
   const { data: staticData, status: staticStatus } = useChampionStatic(championId, activePatch)
-  const { data: versions } = useDDragonVersions()
 
   const { data: staticList, status: staticListStatus } = useChampionStaticList()
   // Pin the rune tree / items / summoner spells to the champion's active

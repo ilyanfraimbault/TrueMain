@@ -76,7 +76,9 @@ const {
   patchOptions,
   selectedPatch,
   selectedPosition,
-} = useChampionDetailStatics(championId, champion, filters)
+} = useChampionDetailStatics(championId, champion, filters, {
+  championSettled: () => !championLoading.value,
+})
 
 // Full ddragon version for the truemains sidebar's profile-icon URLs — the
 // short activePatch ("15.13") isn't a ddragon CDN path segment. Mirrors what
