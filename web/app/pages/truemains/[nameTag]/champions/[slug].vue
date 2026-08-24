@@ -3,6 +3,7 @@ import type { ChampionPosition } from '~/utils/positions'
 import { describeFetchError } from '~/utils/errors'
 import { isLoadingStatus } from '~/utils/async-data'
 import { parseRouteParam } from '~/utils/route-params'
+import { groupMatchesByDay } from '~/utils/match-history'
 import type { ChampionStaticData, ChampionStaticListItem, StaticItemData } from '~~/shared/types/static-data'
 
 // Player-scoped mirror of pages/champions/[id].vue. The static-data fetches,
@@ -171,6 +172,9 @@ function setMatchPosition(next: ChampionPosition | null) {
   matchesPage.value = 1
 }
 
+// Same dated day-runs as the profile history.
+const matchDays = computed(() => groupMatchesByDay(matches.value))
+
 const staticBundleReady = computed(() =>
   Boolean(staticList.value && itemsMap.value && summonersMap.value && runeTree.value),
 )
@@ -196,11 +200,13 @@ const divergenceSnapshot = useLazyHydrationSnapshot(
     playerName: nameTag.value,
     itemsMap: {} as Record<number, StaticItemData>,
     championStatic: null as ChampionStaticData | null,
+    championStaticPending: true,
   },
   () => ({
     playerName: playerName.value,
     itemsMap: itemsMap.value ?? {},
     championStatic: staticData.value ?? null,
+    championStaticPending: isLoadingStatus(staticStatus.value),
   }),
 )
 
@@ -341,6 +347,7 @@ const performanceSnapshot = useLazyHydrationSnapshot(
               :champion-static="staticData"
               :items-map="itemsMap ?? {}"
               :summoners-map="summonersMap ?? {}"
+              :summoners-pending="isLoadingStatus(summonersStatus)"
               :rune-tree="runeTree ?? null"
             />
             <ChampionBuildTabsSkeleton v-else />
@@ -435,17 +442,22 @@ const performanceSnapshot = useLazyHydrationSnapshot(
           <MatchRowSkeleton v-for="i in 5" :key="`match-skel-${i}`" />
         </template>
         <template v-else>
-          <LazyMatchRow
-            v-for="match in matches"
-            :key="match.matchId"
-            hydrate-on-visible
-            :match="match"
-            :champions="staticList ?? []"
-            :items="itemsMap ?? {}"
-            :summoner-spells="summonersMap ?? {}"
-            :rune-tree="runeTree!"
-            :name-tag="nameTag"
-          />
+          <!-- Same day grouping as the profile history, so the two lists read
+               identically. -->
+          <template v-for="day in matchDays" :key="day.key">
+            <MatchDayHeading v-if="day.label" :label="day.label" />
+            <LazyMatchRow
+              v-for="match in day.matches"
+              :key="match.matchId"
+              hydrate-on-visible
+              :match="match"
+              :champions="staticList ?? []"
+              :items="itemsMap ?? {}"
+              :summoner-spells="summonersMap ?? {}"
+              :rune-tree="runeTree!"
+              :name-tag="nameTag"
+            />
+          </template>
           <div
             v-if="matchesTotal > matchesPageSize"
             class="flex justify-center pt-2"

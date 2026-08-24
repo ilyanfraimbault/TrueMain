@@ -12,6 +12,8 @@ const props = defineProps<{
   championStatic: ChampionStaticData
   itemsMap: Record<number, StaticItemData>
   summonersMap: Record<number, StaticSummonerSpellData>
+  /** True while `summonersMap` is still loading — see `ChampionCoreSpells`. */
+  summonersPending?: boolean
   runeTree: RuneTreeResponse | null
   // Scope forwarded to the per-build power spikes panel, which fetches its own
   // slice keyed on (champion, position, patch, elo, opponent) + the build it
@@ -114,6 +116,7 @@ const items = computed(() =>
           :champion-static="championStatic"
           :items-map="itemsMap"
           :summoners-map="summonersMap"
+          :summoners-pending="summonersPending"
           :rune-tree="runeTree"
           :champion-id="championId"
           :position="position"

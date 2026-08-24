@@ -1,18 +1,17 @@
 <script setup lang="ts">
 import type { BuildItemPath } from '~~/shared/types/champions'
 import type { StaticItemData } from '~~/shared/types/static-data'
+import { itemSlots } from '~~/shared/utils/build'
 
 const props = defineProps<{
   path: BuildItemPath | null
   itemsMap: Record<number, StaticItemData>
 }>()
 
-const items = computed<StaticItemData[]>(() => {
-  const ids = props.path?.itemIds ?? []
-  return ids
-    .map(id => props.itemsMap[id])
-    .filter((item): item is StaticItemData => Boolean(item))
-})
+// One slot per id in the build, resolved or not — see `itemSlots`. Keying the
+// no-data state off the resolved list instead made a loaded build claim it had
+// no path for as long as the item map was in flight.
+const items = computed(() => itemSlots(props.path?.itemIds, props.itemsMap))
 </script>
 
 <template>
@@ -28,11 +27,11 @@ const items = computed<StaticItemData[]>(() => {
     </h2>
     <div class="mt-2 flex h-9 items-center justify-center gap-1 overflow-hidden sm:w-build-path">
       <template
-        v-for="(item, index) in items"
-        :key="`bp-${item.id}-${index}`"
+        v-for="(slot, index) in items"
+        :key="`bp-${slot.id}-${index}`"
       >
         <GameTooltipItemIcon
-          :item="item"
+          :item="slot.item"
           :width="36"
           :height="36"
           class="size-9 shrink-0 rounded"
@@ -43,6 +42,15 @@ const items = computed<StaticItemData[]>(() => {
           class="size-4 shrink-0 text-dimmed"
         />
       </template>
+      <!-- Same wording as the Boots / Starter blocks in the same row. Left
+           blank, this box read as "still loading" next to two siblings that
+           say what they mean. -->
+      <span
+        v-if="!items.length"
+        class="text-sm text-muted"
+      >
+        No data
+      </span>
     </div>
   </div>
 </template>

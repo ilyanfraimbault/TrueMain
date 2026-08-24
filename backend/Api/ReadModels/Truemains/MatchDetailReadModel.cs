@@ -162,6 +162,7 @@ public sealed record MatchDetailParticipantReadModel
     /// <summary>Skill order (Q/W/E/R level-ups) in chronological order.</summary>
     public IReadOnlyList<MatchDetailSkillEventReadModel> SkillEvents { get; init; }
         = Array.Empty<MatchDetailSkillEventReadModel>();
+
 }
 
 public sealed record MatchDetailRankReadModel

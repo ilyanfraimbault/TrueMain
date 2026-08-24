@@ -1439,22 +1439,64 @@ reach it. Two tier areas then overlapped across the transition and painted a ful
 Grandmaster dips of one or two snapshots produced three "triangles" under an otherwise correct line.
 
 What ships instead: **one continuous series** (the rank score), so there is exactly one area path and no
-phantom zeros. The tier colour moves onto the line as an **x-axis `linearGradient`** with one hard-edged stop
-pair per contiguous tier run — a run keeps its colour end to end, and the two colours blend across the single
-segment that crosses the promotion. The gradient lives in a zero-sized `<svg>` of our own because the chart's
-`<defs>` belong to `vue-chrts`; `url(#…)` resolves document-wide, so it still paints inside the chart's SVG.
-It is applied by a scoped CSS rule on `[class*="-linePath"]` — Unovis writes the stroke as a *presentation
-attribute*, which a plain CSS declaration outranks without `!important` (same Emotion-label targeting trick as
-the tooltip override in `main.css`).
+phantom zeros. The tier colour moves onto an **x-axis `linearGradient`** with one stop pair per contiguous
+tier run — painted onto *both* the line's stroke and the area's fill, so the whole chart colour-shifts
+together rather than the fill staying pinned to whatever tier the player is in right now. The gradient lives
+in a zero-sized `<svg>` of our own because the chart's `<defs>` belong to `vue-chrts`; `url(#…)` resolves
+document-wide, so it still paints inside the chart's SVG.
 
-The constraint behind the shape: `vue-chrts` gives you correct multi-colour *fills* (stacked mode) or correct
-multi-colour *lines* (non-stacked, which breaks properly on gaps) — never both, since stacked mode's lines are
-cumulative sums that dive to zero outside their run. So the fill is single-coloured on purpose; the tier
-crests down the y-axis and the tooltip carry the tier, and the line carries the transition.
+**Each run's boundary stop sits on the midpoint with its neighbour, not on its own last/first point** — the
+first cut of this shipped with the boundary on the run's own point index, which left a one-index gap between a
+run's end stop and the next run's start stop for the gradient to interpolate across, blurring the transition
+into a soft blend instead of a sharp cut. Worse, a **single-snapshot run**'s own start and end stops then
+coincided (zero width), so it got no flat colour of its own — only the neighbours' blend fading through where
+it sat, invisible on a short tier dip. Moving each boundary to `(index ± 0.5) / lastIndex` makes two
+consecutive runs share their boundary stop at the *exact same offset* — an SVG hard stop, an instant colour
+change with zero interpolated width — and gives a single-snapshot run a real band, extending from the midpoint
+with its previous snapshot to the midpoint with its next one. The first and last run instead clamp to 0%/100%
+(no neighbour to split a boundary with).
 
-One guard: an `objectBoundingBox` gradient needs a non-degenerate box, and a single-tier or dead-flat history
-gives the line path zero height — the browser would drop the element entirely. Those fall back to a flat tier
-colour.
+The fill can't reuse `vue-chrts`' own `gradient-stops` prop for its vertical opacity fade — that prop feeds a
+gradient hard-coded to one flat colour per category, which is exactly the "pick one colour for the whole area"
+limitation this fix removes. The fade is a separate `<mask>` (a vertical white→transparent `linearGradient`,
+same 45%→5% opacity numbers the old prop used) layered on top of the tier gradient instead, so hue and
+vertical fade vary independently.
+
+Both overrides land via scoped CSS, but on different footing: the line's stroke is a *presentation attribute*
+(`.attr('stroke', …)` in `@unovis/ts` `components/line/index.js`), which a plain declaration outranks with no
+`!important` needed (same Emotion-label targeting trick as the tooltip override in `main.css`) — while the
+area's fill is set via `.style('fill', …)` (`components/area/index.js`), an *inline* style, which only
+`!important` beats. The fill selector is tag-qualified to the `<path>` (`path[class*="-area"]`) rather than the
+bare class substring — `-area-component` (the wrapping `<g>`) matches too, and letting the rule land there
+would apply the mask a second time through inheritance and double-darken the fade.
+
+One guard, line-only: an `objectBoundingBox` gradient needs a non-degenerate box, and a single-tier or
+dead-flat history gives the line path zero height — the browser would drop the element entirely. That case
+falls back to a flat tier colour. The area's own box never degenerates this way — it spans from the data down
+to the scale's zero point, which is never zero-height — so its fill always uses the gradient.
+
+## Jungle first-clear tracking was built, then removed entirely (2026-08-24)
+
+Shipped over #1186–#1195, then deleted: the camp sequence, the storage, the ingestion, the match-detail tab
+and the Core camp geometry. The product call is that a first clear which cannot be tracked *completely* is not
+worth its surface, and complete tracking is not achievable from Riot's data.
+
+Why it cannot be: `participantFrames` are sampled **once per minute** while a clear runs from the 1:30 spawn to
+about 3:15, so the whole clear is covered by two usable samples, and Riot emits **no camp-kill event** (the old
+sub-elite buff kills were removed deliberately). Six camps cannot be ordered from two positions. The original
+#535 builder credited one camp per frame, which put a hard 6:00 floor under a clear that really ends near 3:15 —
+of 148 237 production rows only 84 (0.06 %) ever reached six camps.
+
+The full account, including the measurements, the three bugs found on the way and the two contradictions that
+were never resolved, is in **issue #1206**. Read it before proposing this again.
+
+Two general rules the episode paid for, and they outlive the feature:
+
+- **Check a rate a spec asserts before building on it.** "~1 camp/min" was never true; everything downstream
+  inherited it. The sampling interval bounds what is knowable, and no inference recovers detail the sampler
+  never captured.
+- **Do not store what you can derive.** The full-clear time was stored *and* derivable; when the rule behind it
+  changed, the derived side healed and 35 % of the stored side silently did not.
 
 ## Keeping these files current
 

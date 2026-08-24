@@ -20,7 +20,7 @@ namespace Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.10")
+                .HasAnnotation("ProductVersion", "10.0.11")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -704,35 +704,6 @@ namespace Data.Migrations
                     b.HasKey("PlatformId");
 
                     b.ToTable("discovery_cursors", (string)null);
-                });
-
-            modelBuilder.Entity("Data.Entities.JungleFirstClear", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<int?>("FullClearTimeMs")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("MatchId")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<int>("ParticipantId")
-                        .HasColumnType("integer");
-
-                    b.Property<List<JungleClearStep>>("Steps")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MatchId", "ParticipantId")
-                        .IsUnique();
-
-                    b.ToTable("jungle_first_clears", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.MainCandidate", b =>
@@ -1696,15 +1667,6 @@ namespace Data.Migrations
                         .IsRequired();
 
                     b.Navigation("RiotAccount");
-                });
-
-            modelBuilder.Entity("Data.Entities.JungleFirstClear", b =>
-                {
-                    b.HasOne("Data.Entities.Match", null)
-                        .WithMany()
-                        .HasForeignKey("MatchId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("Data.Entities.MatchBan", b =>

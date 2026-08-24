@@ -15,15 +15,15 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Data.Migrations
 {
     [DbContext(typeof(TrueMainDbContext))]
-    [Migration("20260812104114_AddMatchupLaneXpDiff")]
-    partial class AddMatchupLaneXpDiff
+    [Migration("20260821101246_ReshapeJungleFirstClearToMeasurements")]
+    partial class ReshapeJungleFirstClearToMeasurements
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.10")
+                .HasAnnotation("ProductVersion", "10.0.11")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -726,9 +726,13 @@ namespace Data.Migrations
                     b.Property<int>("ParticipantId")
                         .HasColumnType("integer");
 
-                    b.Property<string>("Steps")
+                    b.Property<string>("Samples")
                         .IsRequired()
                         .HasColumnType("jsonb");
+
+                    b.Property<string>("StartCamp")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
                     b.HasKey("Id");
 
@@ -874,7 +878,7 @@ namespace Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ChampionId")
+                    b.HasIndex("PlatformId", "ChampionId")
                         .HasDatabaseName("IX_main_champion_stats_is_main_champion")
                         .HasFilter("\"IsMain\" AND \"IsActive\"");
 

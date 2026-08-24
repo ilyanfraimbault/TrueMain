@@ -10,7 +10,7 @@ namespace TrueMain.Services.Truemains;
 /// Read path for the single-match detail page
 /// (<c>GET /truemains/{nameTag}/matches/{matchId}</c>). Loads the match header,
 /// all 10 participants with their build order / skill order / rune page, the
-/// timeline snapshots at every canonical mark, the match's early kill positions
+/// timeline snapshots at every canonical mark, the match's early kill positions,
 /// and a temporally-nearest rank snapshot per tracked account — then computes
 /// the derived per-minute rates, laning diffs and the performance score /
 /// placement / MVP / ACE accolades server-side so the frontend renders them
