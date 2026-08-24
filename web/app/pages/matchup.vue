@@ -314,8 +314,23 @@ const missingMatchupNotice = computed(() => {
       </template>
     </template>
 
-    <!-- First fetch after the pick: a lightweight skeleton instead of a blank page. -->
-    <ChampionBuildTabsSkeleton v-else-if="isDraftReady && isLoading" />
+    <!-- First fetch after the pick: the recommendation panel's own layout with
+         nothing resolved in it (see `ChampionBuildCoreSkeleton`), rather than a
+         blank page. The header is scaffolded here because the panel owning it
+         is what we're waiting for. -->
+    <SectionCard v-else-if="isDraftReady && isLoading">
+      <template #title>
+        <div
+          class="flex flex-wrap items-center gap-x-2.5 gap-y-1"
+          aria-hidden="true"
+        >
+          <USkeleton class="size-7 rounded-lg" />
+          <USkeleton class="h-4 w-56" />
+          <USkeleton class="size-7 rounded-lg" />
+        </div>
+      </template>
+      <ChampionBuildCoreSkeleton />
+    </SectionCard>
 
     <!-- Nothing picked yet. Without this the page is a stage floating over a
          screen of empty background — it reads as broken rather than as waiting

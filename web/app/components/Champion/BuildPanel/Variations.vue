@@ -14,6 +14,8 @@ const props = defineProps<{
   summonersMap: Record<number, StaticSummonerSpellData>
   /** True while the summoner-spell static map is still loading — see `ChampionCoreSpells`. */
   summonersPending?: boolean
+  /** Scaffolding rather than data — see `ChampionBuildTabs`' own `pending`. */
+  pending?: boolean
 }>()
 
 // Hide long-tail alternatives below the shared pickrate floor; the empty-state
@@ -64,6 +66,7 @@ function spellByKey(key: string) {
             :games="option.games"
             :pick-rate="option.pickRate"
             :win-rate="option.winRate"
+            :pending="pending"
           />
         </li>
         <li
@@ -91,6 +94,7 @@ function spellByKey(key: string) {
                 <GameTooltipChampionSpellIcon
                   :spell="spellByKey(key)"
                   :fallback-label="key"
+                  :pending="pending"
                   :width="32"
                   :height="32"
                   class="size-8 rounded"
@@ -108,6 +112,7 @@ function spellByKey(key: string) {
             :games="option.games"
             :pick-rate="option.pickRate"
             :win-rate="option.winRate"
+            :pending="pending"
           />
         </li>
         <li
@@ -140,6 +145,7 @@ function spellByKey(key: string) {
             :games="option.games"
             :pick-rate="option.pickRate"
             :win-rate="option.winRate"
+            :pending="pending"
           />
         </li>
         <li
@@ -172,6 +178,7 @@ function spellByKey(key: string) {
             :games="option.games"
             :pick-rate="option.pickRate"
             :win-rate="option.winRate"
+            :pending="pending"
           />
         </li>
         <li

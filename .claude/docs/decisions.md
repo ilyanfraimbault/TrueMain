@@ -1079,6 +1079,29 @@ possible. Approval is the single external unlock for all of it — #780.
   `Abandoned` (the run's host died mid-flight, outcome unknown) is a different claim from "it ran and failed"
   and is coloured accordingly.
 
+- **A skeleton is the real component in `pending` mode, not a drawing of it.** The champion page's build
+  section has two loading phases it cannot merge: the aggregate and the patch-pinned static bundles are
+  separate fetches, and the ~95 DDragon icons only start downloading once the ids they resolve are mounted.
+  So the reader sees *a* placeholder while the API answers, then the real panels with every icon still pulsing
+  while the images land. `ChampionBuildTabsSkeleton` used to be a hand-drawn stack of grey blocks sized to the
+  measured real heights: it reserved the space, but it was a second, unrelated picture, so a cold load visibly
+  rebuilt itself the moment the API answered. It now renders `ChampionBuildTabs` itself over a placeholder
+  aggregate (`app/utils/build-placeholder.ts`) with `pending` set — unresolvable ids, so every icon falls back
+  to the same pulsing box `SkeletonImage` already draws mid-load, and every number is masked (`RateBadge`,
+  the tab pickrate) rather than printing the placeholder's filler figures. The two phases become one
+  continuous state whose only transition is the content filling in, the skeleton cannot drift when a section
+  moves, and CLS is exact instead of estimated. `pages/dev/build-skeleton.vue` renders both skeletons with
+  nothing to fetch, the same way `dev/match-row.vue` makes a row reviewable in isolation. The escape hatch
+  is per-section: the skeleton takes `powerspikes` because the player-scoped page's tabs carry no population
+  scope and its real card has no such section to reserve.
+
+- **Icon slots are rendered from the ids, never gated on a resolved static lookup.** Same rule as the
+  tooltip-trigger one above, from the other side. The build tabs' leading item/keystone icons were gated on
+  `itemsMap[id]` / `runeTree.perks[id]`, so the whole tab bar reflowed when those deferred (~370 KiB, patch-
+  pinned) payloads landed — and swapping the trigger element that late is exactly the case that leaves a Reka
+  tooltip unable to close. The id is what answers "is there something here"; `SkeletonImage` already draws the
+  loading box for a null icon. `itemSlots()` in `shared/utils/build.ts` exists for the same reason.
+
 ---
 
 ## Where API reads live

@@ -6,6 +6,8 @@ import { filterByPickRate } from '~~/shared/utils/build'
 const props = defineProps<{
   runePages: BuildRunePage[]
   runeTree: RuneTreeResponse
+  /** Scaffolding rather than data — see `ChampionBuildTabs`' own `pending`. */
+  pending?: boolean
 }>()
 
 // Same pickrate floor as the other variation panels.
@@ -27,6 +29,7 @@ const visiblePages = computed(() => filterByPickRate(props.runePages))
           :games="page.games"
           :pick-rate="page.pickRate"
           :win-rate="page.winRate"
+          :pending="pending"
         />
         <ChampionCoreRunes
           :page="page"

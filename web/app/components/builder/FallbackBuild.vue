@@ -80,7 +80,7 @@ const { data: championStatic } = useChampionStatic(
         </UTooltip>
       </div>
     </template>
-    <ChampionBuildTabsSkeleton v-if="status === 'pending'" />
+    <ChampionBuildCoreSkeleton v-if="status === 'pending'" />
     <UAlert
       v-else-if="error"
       color="error"

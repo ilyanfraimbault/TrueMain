@@ -358,7 +358,12 @@ const performanceSnapshot = useLazyHydrationSnapshot(
               :summoners-pending="isLoadingStatus(summonersStatus)"
               :rune-tree="runeTree ?? null"
             />
-            <ChampionBuildTabsSkeleton v-else />
+            <!-- These tabs carry no population scope, so the real card has no
+                 power-spikes section for the skeleton to reserve. -->
+            <ChampionBuildTabsSkeleton
+              v-else
+              :powerspikes="false"
+            />
 
             <!-- "<player> vs mains" (#529): the same aggregates the tabs above are
                  built from, read a second time across every *other* main on
