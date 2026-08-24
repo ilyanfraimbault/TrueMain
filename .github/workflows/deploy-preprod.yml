@@ -10,8 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  # `contents: write` so tag-preprod can push the `<base>-rc.<N>` tag back.
-  contents: write
+  contents: read
   packages: write
 
 # Workflow-level, not just on the deploy job: the rc counter is derived from the
@@ -46,48 +45,19 @@ jobs:
           # published, so a shallow clone would restart the counter every run.
           fetch-depth: 0
 
+      # The rules live in .github/scripts/resolve-preprod-version.sh, which CI
+      # tests directly (.github/scripts/resolve-preprod-version.test.sh) — an
+      # inline block here could only be checked by re-implementing it, and a
+      # test that re-implements the thing it tests drifts silently.
       - name: Resolve the prerelease version
         id: resolve
         env:
-          BASE_OVERRIDE: ${{ vars.PREPROD_VERSION_BASE }}
+          PREPROD_VERSION_BASE: ${{ vars.PREPROD_VERSION_BASE }}
         run: |
           set -euo pipefail
-
-          # Releases are bare `MAJOR.MINOR.PATCH` tags cut on master. Filter to
-          # exactly that shape: git's version sort ranks `1.20.0-rc.4` ABOVE
-          # `1.20.0`, so an unfiltered `head -1` would read a prerelease as the
-          # latest release and compound the base on every merge.
-          latest_release="$(git tag --list --sort=-v:refname \
-            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)"
-          latest_release="${latest_release:-0.0.0}"
-
-          # The base is the version this preprod line is heading for. Default to
-          # the minor bump, which is what a plain "release" cuts. When the next
-          # release is known to be a major, set the PREPROD_VERSION_BASE repo
-          # variable and clear it again after cutting it — the actual bump is
-          # still decided at release time, so this is only a label.
-          if [ -n "${BASE_OVERRIDE}" ]; then
-            if ! printf '%s' "${BASE_OVERRIDE}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-              echo "::error::PREPROD_VERSION_BASE must be MAJOR.MINOR.PATCH, got '${BASE_OVERRIDE}'."
-              exit 1
-            fi
-            base="${BASE_OVERRIDE}"
-          else
-            major="${latest_release%%.*}"
-            rest="${latest_release#*.}"
-            minor="${rest%%.*}"
-            base="${major}.$((minor + 1)).0"
-          fi
-
-          # Highest existing counter on this base, +1 — so the sequence resets on
-          # its own once a release moves the base, and a deleted tag can never
-          # make us reuse a number.
-          n="$(git tag --list "${base}-rc.*" \
-            | sed "s/^${base}-rc\.//" | grep -E '^[0-9]+$' | sort -n | tail -1 || true)"
-          version="${base}-rc.$(( ${n:-0} + 1 ))"
-
+          version="$(.github/scripts/resolve-preprod-version.sh)"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "Latest release: ${latest_release} → base ${base} → ${version}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Preprod version: ${version}" >> "$GITHUB_STEP_SUMMARY"
 
   publish-preprod:
     name: Build & Publish Preprod Images
@@ -282,6 +252,10 @@ jobs:
     name: Tag Preprod Release
     runs-on: ubuntu-24.04
     needs: [version, deploy-preprod]
+    # Scoped here rather than workflow-wide: this is the only job that writes to
+    # the repo, so the token every other job runs with stays read-only.
+    permissions:
+      contents: write
     # Only after the VPS actually took the deploy. The whole point of the tag is
     # that `1.20.0-rc.4` means "this ran on preprod" — tagging at build time
     # would leave tags for commits that never got there, which is exactly the

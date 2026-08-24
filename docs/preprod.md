@@ -115,7 +115,10 @@ Every preprod deploy carries a version, printed small in the site footer
 (`preprod · 1.20.0-rc.4`) so "is my change on preprod yet?" and "did this reach
 prod?" are answerable from the page instead of by comparing SHAs on GitHub.
 
-The `version` job resolves it before anything is built:
+The `version` job resolves it before anything is built, by running
+`.github/scripts/resolve-preprod-version.sh` (kept out of the workflow so CI can
+test the real thing — `resolve-preprod-version.test.sh`, run by the
+`Deploy Scripts` job):
 
 - **base** — the next *minor* after the latest **release** tag (`1.19.0` →
   `1.20.0`), i.e. what a plain "release" cuts. It is a working label, not a
