@@ -242,6 +242,38 @@ public sealed class MainAnalysisProcessIntegrationTests
     }
 
     [Fact]
+    public async Task RunAsync_ShouldKeepSampleRetired_WhenGamesComeBackBelowTheEvaluationFloor()
+    {
+        // The subtle half of #1216. A retired account that gets a couple of matches
+        // re-ingested — still under MinMatchesToEvaluate — takes the #825 early return,
+        // which deliberately leaves ChampionMatches / PlayRate / CalculatedAtUtc frozen.
+        // Clearing the flag there would put the untouched, weeks-old count back on the
+        // profile as an undated current number: the original bug, on a narrower
+        // threshold. Only a real recompute (UpsertChampionStats) may un-retire a row.
+        await _fixture.ResetDatabaseAsync();
+        await SeedEstablishedMainAsync(
+            puuid: "puuid-still-retired-1",
+            candidateStatus: MainCandidateStatus.Queued,
+            staleMainChampionId: 100,
+            recentChampionId: 200,
+            recentGameCount: 3, // nonzero, but below MinMatchesToEvaluate (5)
+            staleSampleRetired: true);
+
+        await RunProcessAsync();
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        var stats = verifyDb.MainChampionStats
+            .Where(s => s.PlatformId == "KR" && s.Puuid == "puuid-still-retired-1")
+            .ToList();
+
+        var main = stats.Should().ContainSingle(s => s.ChampionId == 100).Subject;
+        main.IsSampleRetired.Should().BeTrue(
+            "the guard never refreshed the figures, so they still describe games we no longer hold");
+        main.ChampionMatches.Should().Be(20,
+            "the guard leaves the established main's figures untouched — which is exactly why the flag must stay");
+    }
+
+    [Fact]
     public async Task RunAsync_ShouldRollBackStatWrites_WhenDemotionFails()
     {
         // #264 narrowed the transaction so it wraps only the writes. The stat delta,

@@ -202,8 +202,19 @@ public sealed class MainAnalysisProcess(
             //
             // Flagged rather than deleted: deleting would drop the player off the
             // leaderboard the moment their matches expire. Readers date the figures
-            // by CalculatedAtUtc instead. Self-clearing — see UpsertChampionStats.
-            MarkSampleRetired(existingStats, newTotalMatches == 0, summary);
+            // by CalculatedAtUtc instead.
+            //
+            // Only ever *set* here, never cleared. This branch deliberately leaves
+            // ChampionMatches / PlayRate / CalculatedAtUtc frozen, so an account that
+            // comes back to a thin-but-nonzero sample is still carrying figures drawn
+            // from games we no longer hold — un-flagging it there would put the very
+            // same stale count back on the profile as an undated, current-looking
+            // number. Clearing belongs to UpsertChampionStats, the one path that
+            // actually refreshes the figures.
+            if (newTotalMatches == 0)
+            {
+                MarkSampleRetired(existingStats, summary);
+            }
             TouchAccountLastMainCalc(account, accountEntitiesByKey, nowUtc);
             summary.Processed++;
             return summary;
@@ -235,37 +246,28 @@ public sealed class MainAnalysisProcess(
     {
         var newStatsByChampionIds = newStats.Select(stat => stat.ChampionId).ToHashSet();
         summary.TotalStatsRemoved += RemoveMissingChampionStats(session, existingStats, newStatsByChampionIds);
-        summary.TotalStatsUpserted += UpsertChampionStats(session, existingStats, newStats);
+        summary.TotalStatsUpserted += UpsertChampionStats(session, existingStats, newStats, summary);
     }
 
     /// <summary>
-    /// Flips <see cref="MainChampionStat.IsSampleRetired"/> on every row of an
-    /// account whose recent sample was too thin to apply a delta. Writes both
-    /// directions: a thin-but-nonzero cycle clears a flag an earlier zero cycle
-    /// set, so an account whose matches come back is trusted again without
-    /// waiting for a full recompute.
+    /// Marks every row of an account that just recomputed to zero participants:
+    /// the games these figures were drawn from are gone (#1216). One-way on
+    /// purpose — see the call site, and <see cref="UpsertChampionStats"/> for the
+    /// only place the flag comes back off.
     /// </summary>
     private static void MarkSampleRetired(
         IReadOnlyCollection<MainChampionStat> existingStats,
-        bool retired,
         AnalysisSummary summary)
     {
         foreach (var stat in existingStats)
         {
-            if (stat.IsSampleRetired == retired)
+            if (stat.IsSampleRetired)
             {
                 continue;
             }
 
-            stat.IsSampleRetired = retired;
-            if (retired)
-            {
-                summary.SampleRetired++;
-            }
-            else
-            {
-                summary.SampleRestored++;
-            }
+            stat.IsSampleRetired = true;
+            summary.SampleRetired++;
         }
     }
 
@@ -326,7 +328,8 @@ public sealed class MainAnalysisProcess(
     private static int UpsertChampionStats(
         IDataSession session,
         IReadOnlyCollection<MainChampionStat> existingStats,
-        IReadOnlyCollection<MainChampionStat> newStats)
+        IReadOnlyCollection<MainChampionStat> newStats,
+        AnalysisSummary summary)
     {
         var existingByChampion = existingStats.ToDictionary(stat => stat.ChampionId);
 
@@ -340,11 +343,18 @@ public sealed class MainAnalysisProcess(
                 existing.IsMain = stat.IsMain;
                 existing.IsOtp = stat.IsOtp;
                 existing.IsExtendedSample = stat.IsExtendedSample;
-                // Reaching the upsert means the account recomputed from a real
-                // sample, so whatever an earlier zero-participant cycle flagged is
-                // no longer true (#1216). This is the self-clearing half of
-                // MarkSampleRetired.
-                existing.IsSampleRetired = false;
+                // The ONLY place the retirement flag comes off (#1216). Reaching here
+                // means the figures on this row were just recomputed from a real
+                // sample — CalculatedAtUtc included — so they describe games we hold
+                // again. The early-return guard must not clear it: it leaves these
+                // very fields frozen, so an unflagged row there would be a stale count
+                // presented as current, which is the bug this all exists to stop.
+                if (existing.IsSampleRetired)
+                {
+                    existing.IsSampleRetired = false;
+                    summary.SampleRestored++;
+                }
+
                 existing.PrimaryPosition = stat.PrimaryPosition;
                 existing.PositionBreakdown = stat.PositionBreakdown;
                 existing.CalculatedAtUtc = stat.CalculatedAtUtc;
