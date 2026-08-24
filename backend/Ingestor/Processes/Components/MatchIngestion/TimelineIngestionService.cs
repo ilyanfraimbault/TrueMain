@@ -146,11 +146,6 @@ public sealed class TimelineIngestionService(
         await session.MatchParticipantKillPositions.DeleteByMatchIdAsync(matchId, ct);
         session.MatchParticipantKillPositions.AddRange(KillPositionBuilder.Build(matchId, timeline));
 
-        // Reconstructed jungler first clear (#535) — camp order + per-camp/full-clear
-        // timing inferred from the in-memory per-minute frames, replaced idempotently.
-        await session.JungleFirstClears.DeleteByMatchIdAsync(matchId, ct);
-        session.JungleFirstClears.AddRange(JungleClearBuilder.Build(matchId, timeline));
-
         return true;
     }
 

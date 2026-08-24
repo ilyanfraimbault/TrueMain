@@ -69,31 +69,11 @@ function selectPlayer(participantId: number) {
   selectedId.value = participantId
 }
 
-// ─── Jungle tab: both junglers' first clears (#1188) ────────────────────────
-// Per team, prefer the actual JUNGLE participant; the builder identifies
-// junglers by a jungle-CS threshold, so a jungle-farming laner can also carry
-// a row — fall back to whoever cleared the most.
-function junglerOf(team: MatchDetailParticipant[]) {
-  const withClear = team.filter(p => p.jungleClear && p.jungleClear.samples.length > 0)
-  if (!withClear.length) return null
-  return withClear.find(p => p.teamPosition === 'JUNGLE')
-    ?? withClear.reduce((best, p) =>
-      p.jungleClear!.samples.at(-1)!.jungleCs > best.jungleClear!.samples.at(-1)!.jungleCs ? p : best)
-}
-
-const blueJungler = computed(() => junglerOf(blueTeam.value))
-const redJungler = computed(() => junglerOf(redTeam.value))
-
-// The Jungle tab only exists when the match carries first-clear data — older
-// matches, remakes and timeline-less games get three tabs, not an empty one.
-const tabItems = computed(() => [
+const tabItems = [
   { value: 'general', label: 'General', slot: 'general' as const },
   { value: 'details', label: 'Details', slot: 'details' as const },
-  ...(blueJungler.value || redJungler.value
-    ? [{ value: 'jungle', label: 'Jungle', slot: 'jungle' as const }]
-    : []),
   { value: 'runes', label: 'Runes', slot: 'runes' as const },
-])
+]
 </script>
 
 <template>
@@ -219,27 +199,6 @@ const tabItems = computed(() => [
               :items="items"
             />
           </div>
-        </div>
-      </template>
-
-      <!-- ── Jungle: both junglers' first-clear speed ────────────────── -->
-      <template #jungle>
-        <!-- Container-sized like the selector above: the two panels sit side
-             by side from @3xl and stack below it. -->
-        <div class="mt-3 grid grid-cols-1 gap-3 @3xl:grid-cols-2">
-          <template v-for="(jungler, i) in [blueJungler, redJungler]" :key="`jungler-${i}`">
-            <MatchJungleClearPanel
-              v-if="jungler"
-              :participant="jungler"
-              :champions="champions"
-            />
-            <div
-              v-else
-              class="surface flex items-center justify-center rounded-md p-6 text-sm text-muted"
-            >
-              No first-clear data for this jungler.
-            </div>
-          </template>
         </div>
       </template>
 

@@ -82,38 +82,6 @@ export interface MatchDetailParticipant {
   itemEvents: MatchDetailItemEvent[]
   /** Skill order (Q/W/E/R level-ups) in chronological order. */
   skillEvents: MatchDetailSkillEvent[]
-
-  /**
-   * Measured jungle first clear (#1188). Null for non-junglers and for matches
-   * ingested without timeline coverage.
-   */
-  jungleClear: MatchDetailJungleClear | null
-}
-
-/**
- * Carries no camp order on purpose: Riot samples positions once a minute while a
- * clear takes ~1:45, so the camp sequence is not reconstructable (#1188).
- */
-export interface MatchDetailJungleClear {
-  /** Camp the jungler opened on (JungleCamp enum name); null when unknown. */
-  startCamp: string | null
-  /** Per-minute clear-speed samples, ascending by timestamp. */
-  samples: MatchDetailJungleClearSample[]
-  /** First frame (ms) where jungle CS reached a full clear's worth; null if never. */
-  fullClearTimeMs: number | null
-  /** Camps in a full first clear (6) — the denominator for a sample's campsCleared. */
-  fullClearCamps: number
-}
-
-export interface MatchDetailJungleClearSample {
-  timestampMs: number
-  /** Camps fully cleared by this frame. Exact: League scores a camp as 4 CS whatever its monster count. */
-  campsCleared: number
-  /** Raw cumulative jungle CS — a value between two multiples of 4 is a camp mid-clear. */
-  jungleCs: number
-  /** Sampled map position — where the jungler was, not a camp claim. */
-  x: number
-  y: number
 }
 
 export interface MatchDetailRank {
