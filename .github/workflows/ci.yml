@@ -95,6 +95,22 @@ jobs:
       - name: Build Nuxt app
         run: npm run build
 
+  deploy-scripts:
+    name: Deploy Scripts
+    runs-on: ubuntu-24.04
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Builds throwaway repos and asserts on the resolved version. Guards the
+      # rules that are easy to break and invisible when broken: git ranks
+      # `1.20.0-rc.4` above `1.20.0`, counters must sort numerically past 9, and
+      # a deleted tag must not let a number be reused.
+      - name: Preprod version resolver
+        run: .github/scripts/resolve-preprod-version.test.sh
+
   compose-config:
     name: Compose Config Validation
     runs-on: ubuntu-24.04
