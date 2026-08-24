@@ -252,7 +252,7 @@ public sealed class MainAnalysisProcessIntegrationTests
         // threshold. Only a real recompute (UpsertChampionStats) may un-retire a row.
         await _fixture.ResetDatabaseAsync();
         await SeedEstablishedMainAsync(
-            puuid: "puuid-still-retired-1",
+            puuid: "puuid-kept-1",
             candidateStatus: MainCandidateStatus.Queued,
             staleMainChampionId: 100,
             recentChampionId: 200,
@@ -263,7 +263,7 @@ public sealed class MainAnalysisProcessIntegrationTests
 
         await using var verifyDb = _fixture.CreateDbContext();
         var stats = verifyDb.MainChampionStats
-            .Where(s => s.PlatformId == "KR" && s.Puuid == "puuid-still-retired-1")
+            .Where(s => s.PlatformId == "KR" && s.Puuid == "puuid-kept-1")
             .ToList();
 
         var main = stats.Should().ContainSingle(s => s.ChampionId == 100).Subject;
@@ -441,6 +441,8 @@ public sealed class MainAnalysisProcessIntegrationTests
 
         for (var i = 0; i < recentGameCount; i++)
         {
+            // Match.Id is varchar(32), so keep test puuids short — "KR_RECENT_" plus the
+            // puuid plus the index has to fit, which caps the puuid at ~20 characters.
             var matchId = $"KR_RECENT_{puuid}_{i}";
             db.Matches.Add(new Match
             {
