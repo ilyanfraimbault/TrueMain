@@ -1548,6 +1548,41 @@ The trap this introduces, and it bit during implementation: **git's version sort
 preprod build as the last release and skip a version on the next bump. The `release` skill was updated for
 exactly this.
 
+## A main whose matches expired is dated, not deleted and not hidden (2026-08-24)
+
+A profile advertised "Graves — 10 games — 33%" while the champion page behind it answered "No personal
+build breakdown yet". The instinct — "a min-sample floor is hiding thin data, make it render with a
+warning instead" — was wrong twice, and both corrections are worth keeping:
+
+- **There is no min-sample gate on that path, and there never was.** `ChampionScopeLoader` documents its
+  floor as "a *preference*, not a gate", and `ChampionBuildsQueryService` renders an aggregate of any size,
+  flagging thin ones with `MinSampleMet=false`. A 404 there means *zero scope rows*, never "too few games".
+  Before proposing to soften a floor, check whether the floor is what answered.
+- **The "10 games" was not an aggregate.** It came from `main_champion_stats`, a snapshot dated three weeks
+  earlier. Two different stores with two different retention rules were being read as if they agreed.
+
+The actual defect: `MainAnalysisProcess`'s #825 thin-sample guard (`hasEstablishedMain && newTotalMatches <
+MinMatchesToEvaluate` → return early) also catches `newTotalMatches == 0`. Raw matches age out of
+`MatchDataRetention` on their own — two patches in prod — so an account nobody re-ingested drops to zero
+participants, the condition becomes permanently true, and the row is immortal. **Thin is insufficient
+evidence; zero is absent evidence**, and the guard conflated them.
+
+Fix: `IsSampleRetired`, set on the zero branch, cleared by any later cycle that upserts from a real sample.
+
+- **Not deleted.** Deleting would drop a player off the leaderboard the moment their matches expire, which
+  in prod is two patches of inactivity — it would empty the leaderboard of exactly the specialists it exists
+  to track.
+- **Not hidden.** The figures are a real past measurement, so the profile keeps them and dates them
+  (`20 games · as of 2 Jul`). What was wrong was never the number, only the claim that it was current.
+- **Not `IsActive`.** That flag comes from Riot mastery `lastPlayTime` and answers "does the player still
+  play this champion?". A row is routinely active *and* retired: they still main it, we no longer hold the
+  games.
+
+Not in scope, and deliberately so: the empty champion page is **preprod behaving as configured**.
+`compose.preprod.yaml` sets `MatchDataRetention__AggregateRetainedPatchCount: "2"` while prod leaves it at
+the default `0` (disabled — old-patch aggregates are the site's patch history, #466), so that build renders
+in prod. Preprod stays on its diet by choice; remember it when auditing preprod for missing data.
+
 ## Keeping these files current
 
 A PR that ships a user-facing feature, removes one, or reverses a decision here **must update

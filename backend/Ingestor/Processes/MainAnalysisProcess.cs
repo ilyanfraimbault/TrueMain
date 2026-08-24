@@ -33,10 +33,13 @@ public sealed class MainAnalysisProcess(
         var coverage = await LoadCoverageAsync(ct);
         var summary = await AnalyzeAccountsInBatchesAsync(accounts, options, coverage, nowUtc, ct);
         logger.LogInformation(
-            "Main analysis summary: accountsProcessed={Accounts}, statsUpserted={Upserted}, statsRemoved={Removed}.",
+            "Main analysis summary: accountsProcessed={Accounts}, statsUpserted={Upserted}, statsRemoved={Removed}, "
+            + "sampleRetired={Retired}, sampleRestored={Restored}.",
             summary.Processed,
             summary.TotalStatsUpserted,
-            summary.TotalStatsRemoved);
+            summary.TotalStatsRemoved,
+            summary.SampleRetired,
+            summary.SampleRestored);
 
         return BuildSuccessPayload(summary);
     }
@@ -188,6 +191,19 @@ public sealed class MainAnalysisProcess(
         // behaviour (nothing to protect).
         if (hasEstablishedMain && newTotalMatches < options.MinMatchesToEvaluate)
         {
+            // Thin and gone are not the same thing (#1216). The guard above protects
+            // an established main from a *thin* recent sample; zero participants is
+            // not insufficient evidence but absent evidence — the matches these rows
+            // were folded from have aged out of MatchDataRetention (two patches in
+            // prod), and no later cycle can bring them back on its own. Left as-is,
+            // the condition stays true forever and the row keeps asserting a game
+            // count nothing can corroborate, which is how a profile came to advertise
+            // "10 games on Graves" over a champion page holding nothing at all.
+            //
+            // Flagged rather than deleted: deleting would drop the player off the
+            // leaderboard the moment their matches expire. Readers date the figures
+            // by CalculatedAtUtc instead. Self-clearing — see UpsertChampionStats.
+            MarkSampleRetired(existingStats, newTotalMatches == 0, summary);
             TouchAccountLastMainCalc(account, accountEntitiesByKey, nowUtc);
             summary.Processed++;
             return summary;
@@ -220,6 +236,37 @@ public sealed class MainAnalysisProcess(
         var newStatsByChampionIds = newStats.Select(stat => stat.ChampionId).ToHashSet();
         summary.TotalStatsRemoved += RemoveMissingChampionStats(session, existingStats, newStatsByChampionIds);
         summary.TotalStatsUpserted += UpsertChampionStats(session, existingStats, newStats);
+    }
+
+    /// <summary>
+    /// Flips <see cref="MainChampionStat.IsSampleRetired"/> on every row of an
+    /// account whose recent sample was too thin to apply a delta. Writes both
+    /// directions: a thin-but-nonzero cycle clears a flag an earlier zero cycle
+    /// set, so an account whose matches come back is trusted again without
+    /// waiting for a full recompute.
+    /// </summary>
+    private static void MarkSampleRetired(
+        IReadOnlyCollection<MainChampionStat> existingStats,
+        bool retired,
+        AnalysisSummary summary)
+    {
+        foreach (var stat in existingStats)
+        {
+            if (stat.IsSampleRetired == retired)
+            {
+                continue;
+            }
+
+            stat.IsSampleRetired = retired;
+            if (retired)
+            {
+                summary.SampleRetired++;
+            }
+            else
+            {
+                summary.SampleRestored++;
+            }
+        }
     }
 
     private static void TouchAccountLastMainCalc(
@@ -293,6 +340,11 @@ public sealed class MainAnalysisProcess(
                 existing.IsMain = stat.IsMain;
                 existing.IsOtp = stat.IsOtp;
                 existing.IsExtendedSample = stat.IsExtendedSample;
+                // Reaching the upsert means the account recomputed from a real
+                // sample, so whatever an earlier zero-participant cycle flagged is
+                // no longer true (#1216). This is the self-clearing half of
+                // MarkSampleRetired.
+                existing.IsSampleRetired = false;
                 existing.PrimaryPosition = stat.PrimaryPosition;
                 existing.PositionBreakdown = stat.PositionBreakdown;
                 existing.CalculatedAtUtc = stat.CalculatedAtUtc;
@@ -321,12 +373,20 @@ public sealed class MainAnalysisProcess(
         public int TotalStatsRemoved { get; set; }
         public int DemotedAccounts { get; set; }
 
+        /// <summary>Rows flagged this run because their matches are gone (#1216).</summary>
+        public int SampleRetired { get; set; }
+
+        /// <summary>Rows un-flagged this run because games came back.</summary>
+        public int SampleRestored { get; set; }
+
         public void Merge(AnalysisSummary other)
         {
             Processed += other.Processed;
             TotalStatsUpserted += other.TotalStatsUpserted;
             TotalStatsRemoved += other.TotalStatsRemoved;
             DemotedAccounts += other.DemotedAccounts;
+            SampleRetired += other.SampleRetired;
+            SampleRestored += other.SampleRestored;
         }
     }
 }

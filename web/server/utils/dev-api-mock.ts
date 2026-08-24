@@ -1474,6 +1474,11 @@ function mockProfile(player: MockPlayer): ProfileResponse {
       playRate: c.playRate,
       primaryPosition: seedsById.get(c.championId)?.position ?? '',
       isOtp: c.isOtp,
+      // The mock always describes a freshly-measured account: the retired-sample
+      // state (#1216) is exercised on /dev/profile instead, where it can be
+      // pinned rather than derived.
+      isSampleRetired: false,
+      measuredAtUtc: new Date().toISOString(),
     })),
     // Same payload the leaderboard row carries, so the profile card and the
     // leaderboard column agree — exactly as they do against the real backend.
