@@ -108,23 +108,42 @@ function treeNode(itemId: number, children: BuildTreeNode[] = []): BuildTreeNode
   return { itemId, games: 100, wins: 50, pickRate: 0.5, children }
 }
 
-// Four levels below the root — the depth a 6-item core path usually draws.
-const PLACEHOLDER_BUILD_TREE: BuildTreeNode[] = [
-  treeNode(211, [
-    treeNode(221, [treeNode(231, [treeNode(241)])]),
-    treeNode(222),
-  ]),
-  treeNode(212),
-]
+/** The core progression, shared by `core.itemPath` and the tree's main path. */
+const CORE_PATH = [201, 202, 203, 204, 205, 206]
+
+/**
+ * Five levels below the root, fanning out then narrowing — measured against a
+ * well-covered champion's real tree (six rows, ~700 px wide), which is the
+ * tallest section of the card and therefore the one whose height matters most.
+ * The leading child of each level reuses `CORE_PATH`, so `ChampionBuildPanelBuildTree`
+ * draws its solid main-path edge exactly as it does with real data instead of a
+ * tree of uniformly dashed branches.
+ */
+const PLACEHOLDER_BUILD_TREE: BuildTreeNode[] = (() => {
+  const fanout = [2, 2, 3, 1, 1]
+  let filler = 220
+  function build(level: number, onMainPath: boolean): BuildTreeNode[] {
+    const count = fanout[level]
+    if (!count) return []
+    return Array.from({ length: count }, (_, index) => {
+      const main = onMainPath && index === 0
+      return treeNode(main ? CORE_PATH[level + 1]! : filler++, build(level + 1, main))
+    })
+  }
+  return build(0, true)
+})()
 
 function placeholderBuild(offset: number): ChampionBuild {
   const rates = { games: 100, pickRate: 0.5, winRate: 0.5 }
   return {
-    firstItemId: 201 + offset,
+    // Same first item across the three tabs, different keystone: the tree's main
+    // path is anchored on `firstItemId`, so varying it per tab would break the
+    // highlight for two of them and buy nothing — no id here resolves to an icon.
+    firstItemId: CORE_PATH[0]!,
     primaryKeystoneId: 11 + offset,
     ...rates,
     core: {
-      itemPath: { itemIds: [201, 202, 203, 204, 205, 206], ...rates },
+      itemPath: { itemIds: CORE_PATH, ...rates },
       boots: { itemIds: [207], ...rates },
       starterItems: { itemIds: [208, 209, 210], ...rates },
       summonerSpells: { spell1Id: 301, spell2Id: 302, ...rates },
