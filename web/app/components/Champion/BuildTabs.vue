@@ -28,6 +28,14 @@ const props = defineProps<{
   // tabs shown here belong to the matchup; this carries the same scope down so
   // the spikes describe those games rather than the champion at large.
   opponentChampionId?: number | null
+  /**
+   * Render the tabs as scaffolding rather than as data: every icon falls back
+   * to its loading box and every number is masked. `ChampionBuildTabsSkeleton`
+   * is exactly this component in that mode over a placeholder aggregate — see
+   * `utils/build-placeholder` for why the skeleton is the real layout and not
+   * a hand-drawn copy of it.
+   */
+  pending?: boolean
 }>()
 
 const items = computed(() =>
@@ -68,17 +76,18 @@ const items = computed(() =>
     >
       <template #leading="{ item }">
         <div class="flex items-center gap-1.5">
+          <!-- Rendered unconditionally, on the ids alone: the item and rune
+               maps are separate (patch-pinned, deferred) static fetches that
+               land after the builds, so gating the slots on a resolved lookup
+               made the whole tab bar reflow the moment they arrived.
+               `SkeletonImage` already draws the loading box for a null icon. -->
           <GameTooltipItemIcon
-            v-if="itemsMap[item.build.firstItemId]"
-            :item="itemsMap[item.build.firstItemId]"
+            :item="itemsMap[item.build.firstItemId] ?? null"
             :width="24"
             :height="24"
             class="size-6 rounded"
           />
-          <div
-            v-if="runeTree?.perks[item.build.primaryKeystoneId]"
-            class="relative size-6"
-          >
+          <div class="relative size-6">
             <GameTooltipPerkIcon
               :perk="runeTree?.perks[item.build.primaryKeystoneId] ?? null"
               :width="24"
@@ -86,7 +95,7 @@ const items = computed(() =>
               class="size-6 rounded-full"
             />
             <GameTooltipPerkStyleIcon
-              v-if="item.build.core.runePage && runeTree?.perkStyles[item.build.core.runePage.secondaryStyleId]"
+              v-if="item.build.core.runePage"
               :style="runeTree?.perkStyles[item.build.core.runePage.secondaryStyleId] ?? null"
               :width="14"
               :height="14"
@@ -102,7 +111,14 @@ const items = computed(() =>
              percentage — ambiguous with several builds open. sr-only text
              disambiguates without changing the visible design. -->
         <span class="sr-only">Build {{ index + 1 }}, </span>
-        <span class="text-xs tabular-nums text-muted">
+        <USkeleton
+          v-if="pending"
+          class="h-4 w-7"
+        />
+        <span
+          v-else
+          class="text-xs tabular-nums text-muted"
+        >
           {{ (item.build.pickRate * 100).toFixed(0) }}%
         </span>
       </template>
@@ -111,7 +127,12 @@ const items = computed(() =>
         :key="item.value"
         #[item.slot]
       >
+        <!-- In `pending` mode only the first panel is built. The tabs keep
+             every panel mounted (`unmount-on-hide="false"`), so scaffolding
+             all three would triple the placeholder DOM — and the SSR HTML —
+             for two panels nobody can reach behind the skeleton's `inert`. -->
         <ChampionBuildPanel
+          v-if="!pending || item.value === items[0]?.value"
           :build="item.build"
           :champion-static="championStatic"
           :items-map="itemsMap"
@@ -123,6 +144,7 @@ const items = computed(() =>
           :patch="patch"
           :elo-bracket="eloBracket"
           :opponent-champion-id="opponentChampionId"
+          :pending="pending"
         />
       </template>
     </UTabs>

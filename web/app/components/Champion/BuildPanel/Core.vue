@@ -49,10 +49,13 @@ withDefaults(defineProps<{
    * about the sample.
    */
   noRunesMessage?: string | null
+  /** Scaffolding rather than data — see `ChampionBuildTabs`' own `pending`. */
+  pending?: boolean
 }>(), {
   summonersPending: false,
   keystoneSize: undefined,
   noRunesMessage: null,
+  pending: false,
 })
 </script>
 
@@ -92,6 +95,7 @@ withDefaults(defineProps<{
             v-if="championStatic"
             :skill-order="skillOrder"
             :champion-static="championStatic"
+            :pending="pending"
           />
           <ChampionCoreBoots
             :boots="boots"
