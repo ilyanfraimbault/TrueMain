@@ -163,51 +163,6 @@ public sealed record MatchDetailParticipantReadModel
     public IReadOnlyList<MatchDetailSkillEventReadModel> SkillEvents { get; init; }
         = Array.Empty<MatchDetailSkillEventReadModel>();
 
-    /// <summary>
-    /// The participant's measured jungle first clear (#1188). Null for the eight
-    /// non-junglers and for matches ingested without timeline coverage.
-    /// </summary>
-    public MatchDetailJungleClearReadModel? JungleClear { get; init; }
-}
-
-/// <summary>
-/// One jungler's first clear as stored in <c>jungle_first_clears</c>. Carries no
-/// camp order on purpose: Riot samples positions once a minute while a clear
-/// takes ~1:45, so the camp sequence is not reconstructable (#1188).
-/// </summary>
-public sealed record MatchDetailJungleClearReadModel
-{
-    /// <summary>The camp the jungler opened on (<c>JungleCamp</c> enum name); null when unknown.</summary>
-    public string? StartCamp { get; init; }
-
-    /// <summary>Per-minute clear-speed samples, ascending by timestamp.</summary>
-    public IReadOnlyList<MatchDetailJungleClearSampleReadModel> Samples { get; init; }
-        = Array.Empty<MatchDetailJungleClearSampleReadModel>();
-
-    /// <summary>First frame (ms) where jungle CS reached a full clear's worth; null if never.</summary>
-    public int? FullClearTimeMs { get; init; }
-
-    /// <summary>Camps in a full first clear (6) — the denominator for a sample's <c>campsCleared</c>.</summary>
-    public int FullClearCamps { get; init; }
-}
-
-public sealed record MatchDetailJungleClearSampleReadModel
-{
-    public int TimestampMs { get; init; }
-
-    /// <summary>
-    /// Camps fully cleared by this frame. League scores a camp as a unit worth 4
-    /// CS whatever its monster count, so this is exact rather than an estimate.
-    /// </summary>
-    public int CampsCleared { get; init; }
-
-    /// <summary>Raw cumulative jungle CS — a value between two multiples of 4 is a camp mid-clear.</summary>
-    public int JungleCs { get; init; }
-
-    /// <summary>Sampled map position — where the jungler was, not a camp claim.</summary>
-    public int X { get; init; }
-
-    public int Y { get; init; }
 }
 
 public sealed record MatchDetailRankReadModel

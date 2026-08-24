@@ -1,4 +1,4 @@
-import type { MatchDetailJungleClear, MatchDetailParticipant, MatchDetailResponse } from '~~/shared/types/match-detail'
+import type { MatchDetailParticipant, MatchDetailResponse } from '~~/shared/types/match-detail'
 import { createError, defineEventHandler, getRouterParam } from 'h3'
 
 // Dev fixture backing the `/dev/match-row` playground so the MatchRow accordion
@@ -49,36 +49,6 @@ const SKILL_EVENTS = SKILL_SLOTS.map((skillSlot, i) => ({
   timestampMs: (2 + i) * 60 * 1000,
   skillSlot,
 }))
-
-// First-clear fixtures (#1188), keyed by roster index. Modelled on real preprod
-// numbers: buffs spawn at 1:30 so minute 1 is 0 jungle CS, a standard clear is
-// ~12 CS by 2:00 and a full clear's worth by 3:00, and an interrupted clear
-// stalls short of it.
-const JUNGLE_CLEARS: Record<number, MatchDetailJungleClear> = {
-  1: { // BlueJng — clean full clear, done by 3:00
-    startCamp: 'BlueRedBuff',
-    samples: [
-      { timestampMs: 0, campsCleared: 0, jungleCs: 0, x: 1500, y: 1200 },
-      { timestampMs: 60_000, campsCleared: 0, jungleCs: 0, x: 7770, y: 3800 },
-      { timestampMs: 120_000, campsCleared: 3, jungleCs: 12, x: 6900, y: 5500 },
-      { timestampMs: 180_000, campsCleared: 6, jungleCs: 24, x: 2150, y: 8420 },
-      { timestampMs: 240_000, campsCleared: 7, jungleCs: 28, x: 4400, y: 9700 },
-    ],
-    fullClearTimeMs: 180_000,
-    fullClearCamps: 6,
-  },
-  6: { // RedJng — invaded early, never completes the clear in the window
-    startCamp: 'RedBlueBuff',
-    samples: [
-      { timestampMs: 60_000, campsCleared: 0, jungleCs: 0, x: 10930, y: 7060 },
-      { timestampMs: 120_000, campsCleared: 1, jungleCs: 7, x: 11100, y: 8480 },
-      { timestampMs: 180_000, campsCleared: 1, jungleCs: 7, x: 7850, y: 9480 },
-      { timestampMs: 240_000, campsCleared: 3, jungleCs: 14, x: 6980, y: 11180 },
-    ],
-    fullClearTimeMs: null,
-    fullClearCamps: 6,
-  },
-}
 
 const RUNES = [
   { styleId: 8000, selectionIndex: 0, perkId: 8005 }, // Press the Attack
@@ -139,7 +109,6 @@ function buildParticipant(entry: RosterEntry, index: number, durationSeconds: nu
     statPerkDefense: 5001,
     itemEvents: BUILD_EVENTS,
     skillEvents: SKILL_EVENTS,
-    jungleClear: JUNGLE_CLEARS[index] ?? null,
   }
 }
 

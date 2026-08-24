@@ -1,4 +1,3 @@
-using Core.Lol.Map;
 using Core.Lol.Performance;
 using Data;
 using Data.Entities;
@@ -12,7 +11,6 @@ namespace TrueMain.Services.Truemains;
 /// (<c>GET /truemains/{nameTag}/matches/{matchId}</c>). Loads the match header,
 /// all 10 participants with their build order / skill order / rune page, the
 /// timeline snapshots at every canonical mark, the match's early kill positions,
-/// the junglers' first-clear measurements (#1188)
 /// and a temporally-nearest rank snapshot per tracked account — then computes
 /// the derived per-minute rates, laning diffs and the performance score /
 /// placement / MVP / ACE accolades server-side so the frontend renders them
@@ -159,17 +157,6 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
         var killSpots = killRows
             .Select(k => new KillSpot(k.ParticipantId, k.X, k.Y))
             .ToList();
-
-        // First-clear rows for this match's junglers (#1188, usually 0–2 rows).
-        // Samples is a jsonb collection, so the rows are materialized like the
-        // participants. GroupBy keeps an anomalous duplicate from 500-ing,
-        // mirroring the snapshot dictionary above.
-        var jungleClearByParticipant = (await db.JungleFirstClears
-                .AsNoTracking()
-                .Where(j => j.MatchId == matchId)
-                .ToListAsync(ct))
-            .GroupBy(j => j.ParticipantId)
-            .ToDictionary(g => g.Key, g => g.First());
 
         // Nearest rank snapshot per tracked account, by absolute distance from
         // the game's start time. One LINQ pass: for each participant's account
@@ -364,51 +351,6 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
                     })
                     .ToList();
 
-                MatchDetailJungleClearReadModel? jungleClear = null;
-                if (jungleClearByParticipant.TryGetValue(p.ParticipantId, out var clear))
-                {
-                    // Drop samples sitting at the map origin. A real frame never
-                    // lands there (the map starts at -120 and the blue fountain is
-                    // at ~554,581), so (0, 0) is the deserialization signature of a
-                    // pre-#1188 camp-sequence document: the reshape migration wipes
-                    // those rows, but an ingestor transaction already in flight when
-                    // it ran commits rows the DELETE never saw, and the column
-                    // rename then carries them into the new shape. Observed on
-                    // preprod (12 rows). Such a row would otherwise plot every
-                    // position in the top-left corner.
-                    var samples = clear.Samples
-                        .Where(s => s.X != 0 || s.Y != 0)
-                        .OrderBy(s => s.TimestampMs)
-                        .Select(s => new MatchDetailJungleClearSampleReadModel
-                        {
-                            TimestampMs = s.TimestampMs,
-                            CampsCleared = JungleCamps.CampsCleared(s.JungleCs),
-                            JungleCs = s.JungleCs,
-                            X = s.X,
-                            Y = s.Y,
-                        })
-                        .ToList();
-
-                    if (samples.Count > 0)
-                    {
-                        // Derived from the samples, never stored (#1193): a second
-                        // copy is what let the full-clear time keep the old
-                        // five-camp threshold after #1191 corrected it.
-                        var fullClear = samples
-                            .Where(s => s.JungleCs >= JungleCamps.FullClearJungleCs)
-                            .Select(s => (int?)s.TimestampMs)
-                            .FirstOrDefault();
-
-                        jungleClear = new MatchDetailJungleClearReadModel
-                        {
-                            StartCamp = clear.StartCamp,
-                            Samples = samples,
-                            FullClearTimeMs = fullClear,
-                            FullClearCamps = JungleCamps.FullClearCamps,
-                        };
-                    }
-                }
-
                 return new MatchDetailParticipantReadModel
                 {
                     ParticipantId = p.ParticipantId,
@@ -456,7 +398,6 @@ public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetail
                     StatPerkDefense = p.PerksDefense,
                     ItemEvents = itemEvents,
                     SkillEvents = skillEvents,
-                    JungleClear = jungleClear,
                 };
             })
             .ToList();

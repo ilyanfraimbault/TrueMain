@@ -1475,58 +1475,28 @@ dead-flat history gives the line path zero height — the browser would drop the
 falls back to a flat tier colour. The area's own box never degenerates this way — it spans from the data down
 to the scale's zero point, which is never zero-height — so its fill always uses the gradient.
 
-## A jungle first clear cannot be reconstructed camp by camp (2026-08-21)
+## Jungle first-clear tracking was built, then removed entirely (2026-08-24)
 
-#535 shipped a per-camp first-clear sequence built on the premise that a jungler clears "~1 camp/min".
-That premise is false, and the resulting data was structurally impossible. `JungleClearBuilder` credited
-**at most one camp per timeline frame**, and Riot frames are **one per minute**, so a six-camp clear could
-never be reported before 6:00. Production bore it out exactly: of 148 237 rows, only **84 (0.06 %)** ever
-reached six camps, averaging 6:59 with a hard floor of precisely 6:00, and **not one** row was under 3:30.
+Shipped over #1186–#1195, then deleted: the camp sequence, the storage, the ingestion, the match-detail tab
+and the Core camp geometry. The product call is that a first clear which cannot be tracked *completely* is not
+worth its surface, and complete tracking is not achievable from Riot's data.
 
-The real numbers, median jungle CS per minute over 286 junglers: 0 at 1:00 (buffs spawn at 1:30), **12 at
-2:00**, **20 at 3:00** — a full clear is ~20 monsters, so the median jungler finishes near 3:00–3:15,
-taking three to four camps inside a single frame. The first clear is therefore covered by **two usable
-position samples**, and six camps cannot be ordered from two points. Riot emits no camp-kill event (the
-old blue/red buff events were removed deliberately), so no amount of tuning recovers the order. Doran's
-Lab does not claim it either — they cluster positions and never name a camp.
+Why it cannot be: `participantFrames` are sampled **once per minute** while a clear runs from the 1:30 spawn to
+about 3:15, so the whole clear is covered by two usable samples, and Riot emits **no camp-kill event** (the old
+sub-elite buff kills were removed deliberately). Six camps cannot be ordered from two positions. The original
+#535 builder credited one camp per frame, which put a hard 6:00 floor under a clear that really ends near 3:15 —
+of 148 237 production rows only 84 (0.06 %) ever reached six camps.
 
-A follow-up (#1191) corrected the yardstick itself. League scores a jungle camp **as a unit worth 4 CS**
-whatever its monster count — "killing a full camp of monsters gives 4 points" (LoL Wiki, Farming) — which is
-why production jungle CS clusters hard on multiples of four (12 at minute 2 for 64% of junglers, then
-16/20/24/28). A six-camp clear is therefore **24**, not the 20 first used: that threshold called a full clear
-one camp early for 231 of 329 measured clears. The upside of the same fact is that `jungleMinionsKilled / 4`
-is an *exact* camp count, not an estimate, so progress is now reported in camps rather than raw CS.
-Re-measured with the correct threshold, 45% of junglers finish all six camps by 3:00 and 38% by 4:00.
+The full account, including the measurements, the three bugs found on the way and the two contradictions that
+were never resolved, is in **issue #1206**. Read it before proposing this again.
 
-That correction also exposed a duplication worth naming (#1193). The full-clear time was **stored** by the
-ingestor as well as being derivable from the samples, so fixing the threshold healed the derived camp counts
-while leaving 35% of the stored times (1 903 of 5 442 rows) on the old five-camp value — a row could claim a
-full clear at 4:00 while its own samples showed five camps. The column is gone; the read path derives the
-full-clear frame from the samples. **A value that is a pure function of data you already store should not
-also be stored** — the copy cannot be re-derived when the rule behind it changes, and nothing makes the
-disagreement visible.
+Two general rules the episode paid for, and they outlive the feature:
 
-What replaced it (#1188) is only what the sampling rate can support: the **start camp** (knowable because
-the jungler waits on it while jungle CS is still 0, so the last zero-CS frame names it), the **per-minute
-clear-speed samples**, and `FullClearTimeMs` as the first frame where jungle CS reaches a full clear's
-worth — read as "full clear by 3:00", not an instant. The map draws those samples as positions **labelled
-by time**, never as a named route. The analysis window shrank from 8 minutes to 5: the 8-minute window is
-what let ordinary mid-game rotations and backs read as clear events. The derived "mid-clear recall"
-markers went with it — a back does not happen inside a 105-second clear.
-
-The map went too (#1195). Even relabelled as timed positions rather than a camp route, five dots on a jungle
-map read as a path — three separate readings of the shipped page ended in "he never cleared his camps there",
-about clears that were real. A drawing whose every viewer infers something the data cannot support is wrong
-however carefully it is captioned; the honest surface is the count. What replaced it: the opening camp, the
-full-clear time, and camps cleared per sampled minute as a bar, both junglers side by side so clear speed is
-comparable at a glance. A per-champion aggregate could carry a map — that is what League of Graphs does, and
-their hover image is a pre-rendered picture of the camp list, not of any measured position — because a modal
-route over thousands of games is a claim the data can support. A single game's route is not.
-
-The general rule this cost us: when a spec states a rate ("~1 camp/min"), check it against the phenomenon
-before building on it. The sampling interval bounds what is knowable, and no inference recovers detail the
-sampler never captured. The migration wipes the old rows rather than migrating them — they encode a claim
-the data cannot support, and the table refills as new matches ingest.
+- **Check a rate a spec asserts before building on it.** "~1 camp/min" was never true; everything downstream
+  inherited it. The sampling interval bounds what is knowable, and no inference recovers detail the sampler
+  never captured.
+- **Do not store what you can derive.** The full-clear time was stored *and* derivable; when the rule behind it
+  changed, the derived side healed and 35 % of the stored side silently did not.
 
 ## Keeping these files current
 

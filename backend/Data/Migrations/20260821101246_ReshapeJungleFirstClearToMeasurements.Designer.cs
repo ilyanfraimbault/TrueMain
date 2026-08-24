@@ -726,7 +726,7 @@ namespace Data.Migrations
                     b.Property<int>("ParticipantId")
                         .HasColumnType("integer");
 
-                    b.Property<List<JungleClearSample>>("Samples")
+                    b.Property<string>("Samples")
                         .IsRequired()
                         .HasColumnType("jsonb");
 
