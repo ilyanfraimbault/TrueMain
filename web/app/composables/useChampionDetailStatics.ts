@@ -1,5 +1,6 @@
 import type { ChampionResponse } from '~~/shared/types/champions'
 import { isChampionPosition, type ChampionPosition } from '~/utils/positions'
+import { resolveChampionStaticPatch } from '~/utils/champion-patch'
 
 type Filters = ReturnType<typeof useChampionFilters>['filters']
 
@@ -43,28 +44,15 @@ export function useChampionDetailStatics(
   const championRef = computed(() => toValue(champion) ?? null)
   const { data: versions } = useDDragonVersions()
 
-  /**
-   * The patch every static bundle below is pinned to. It normally comes from
-   * the loaded champion, or from the URL filter before that lands — but a
-   * champion we hold no aggregate for (404 → `notEnoughData`) never produces
-   * one, and an unfiltered URL has none either. Since the deferred fetches
-   * below only fire on a non-null patch, that combination used to park the
-   * rune tree / items / summoner spells in `idle` forever: the loading bar
-   * never stopped and the static bundle the match rows wait on never arrived.
-   *
-   * So once the champion fetch has *settled* without giving us a patch, fall
-   * back to the latest DDragon version. Gating on settled-ness is what keeps
-   * `immediate: false` worth having: while the champion is still in flight a
-   * real patch may still be coming, and fetching under `latest` then refetching
-   * under it is exactly the double round trip the deferral exists to avoid.
-   */
+  // See resolveChampionStaticPatch for the precedence and, above all, for why
+  // the `latest` fallback is gated on the champion fetch having settled.
   const championSettled = computed(() => toValue(options.championSettled) ?? true)
-  const activePatch = computed(() =>
-    championRef.value?.patch
-    || filters.value.patch
-    || (championSettled.value ? versions.value?.[0] : null)
-    || null,
-  )
+  const activePatch = computed(() => resolveChampionStaticPatch({
+    championPatch: championRef.value?.patch,
+    filterPatch: filters.value.patch,
+    latestVersion: versions.value?.[0],
+    championSettled: championSettled.value,
+  }))
 
   const { data: staticData, status: staticStatus } = useChampionStatic(championId, activePatch)
 
