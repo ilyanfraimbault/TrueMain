@@ -108,21 +108,34 @@ function replayMouseMove(event: MouseEvent) {
   })
 }
 
-// A frame scheduled as the pointer leaves a chart that is being torn down would
-// otherwise fire into a detached tree. Harmless — the dispatch finds no
-// listeners — but holding the event and its element until the frame runs is
-// pointless, and it keeps the handler honest if it ever grows side effects.
-onBeforeUnmount(() => {
+/**
+ * Drop a frame that has not run yet. Needed in two places.
+ *
+ * On MOUSELEAVE it is a correctness fix, not tidiness: a pointer that leaves
+ * within a frame of its last move would have the tooltip hidden by upstream's
+ * own `mouseleave`, and then re-shown by our replay a few milliseconds later —
+ * stuck open over a chart the pointer has left, with no further event coming to
+ * hide it again.
+ *
+ * On UNMOUNT it is tidiness: the dispatch would find no listeners in a detached
+ * tree, but holding the event and its element until the frame runs is pointless.
+ */
+function cancelReplay() {
   if (frameHandle !== null) {
     cancelAnimationFrame(frameHandle)
     frameHandle = null
   }
   pendingMove = null
-})
+}
+
+onBeforeUnmount(cancelReplay)
 </script>
 
 <template>
-  <div @mousemove.capture="replayMouseMove">
+  <div
+    @mousemove.capture="replayMouseMove"
+    @mouseleave="cancelReplay"
+  >
     <NcBarChart
       v-bind="$attrs"
       :data="data"

@@ -143,6 +143,23 @@ describe('ChartsBarChart mousemove replay', () => {
     wrapper.unmount()
   })
 
+  it('drops the pending replay when the pointer leaves the chart', async () => {
+    // Upstream hides the tooltip on mouseleave. A replay landing after that
+    // would re-show it over a chart the pointer has left, with no further event
+    // coming to hide it again — a tooltip stuck open.
+    const wrapper = mountChart()
+    const bar = wrapper.get('.bar').element
+    let seen = 0
+    bar.addEventListener('mousemove', () => { seen += 1 })
+
+    bar.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }))
+    wrapper.element.dispatchEvent(new MouseEvent('mouseleave'))
+    await nextFrame()
+
+    expect(seen).toBe(1) // the original only — the replay was dropped
+    wrapper.unmount()
+  })
+
   it('does not replay the replay — one extra event, not a loop', async () => {
     const wrapper = mountChart()
     const bar = wrapper.get('.bar').element
