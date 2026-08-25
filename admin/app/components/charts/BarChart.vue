@@ -55,25 +55,50 @@ defineProps<{
 
 // See (2) above. The capture phase is required, not a preference: the upstream
 // handler calls `stopPropagation()` as soon as a trigger matches, so a listener
-// on the bubbling phase would never run at all. The guard keeps the replayed
-// event — which re-enters this same handler — from scheduling another one.
-let replaying = false
+// on the bubbling phase would never run at all.
+//
+// What gets replayed is the LATEST pointer position, not the one that scheduled
+// the frame. A pointer crossing several bars inside a single frame would
+// otherwise be re-announced at the first bar it touched, painting that bar's
+// values next to a cursor that has already moved on — a wrong tooltip, which is
+// worse than the empty one this repairs.
+//
+// `dispatching` is what keeps the replayed event — which re-enters this very
+// handler — from scheduling a replay of its own. It is set only around the
+// dispatch, which is synchronous, so a real mousemove arriving inside the frame
+// still updates `pendingMove` instead of being swallowed. (`event.isTrusted`
+// would read as the obvious discriminator and is not one: every event a test
+// dispatches is untrusted too.)
+let pendingMove: MouseEvent | null = null
+let replayScheduled = false
+let dispatching = false
 function replayMouseMove(event: MouseEvent) {
-  if (replaying) {
+  if (dispatching) {
     return
   }
-  const target = event.target
-  if (!(target instanceof Element)) {
+  pendingMove = event
+  if (replayScheduled) {
     return
   }
-  replaying = true
+  replayScheduled = true
   requestAnimationFrame(() => {
-    target.dispatchEvent(new MouseEvent('mousemove', {
-      bubbles: true,
-      clientX: event.clientX,
-      clientY: event.clientY,
-    }))
-    replaying = false
+    replayScheduled = false
+    const latest = pendingMove
+    pendingMove = null
+    if (!latest || !(latest.target instanceof Element)) {
+      return
+    }
+    dispatching = true
+    try {
+      latest.target.dispatchEvent(new MouseEvent('mousemove', {
+        bubbles: true,
+        clientX: latest.clientX,
+        clientY: latest.clientY,
+      }))
+    }
+    finally {
+      dispatching = false
+    }
   })
 }
 </script>

@@ -96,7 +96,12 @@ describe('ChartsBarChart mousemove replay', () => {
       attachTo: document.body,
       global: {
         stubs: {
-          NcBarChart: { setup: () => () => h('span', { class: 'bar' }) },
+          NcBarChart: {
+            setup: () => () => h('div', [
+              h('span', { class: 'bar' }),
+              h('span', { class: 'other-bar' }),
+            ]),
+          },
         },
       },
     })
@@ -113,6 +118,28 @@ describe('ChartsBarChart mousemove replay', () => {
     expect(seen).toBe(1) // the original only; the replay has not fired yet
     await nextFrame()
     expect(seen).toBe(2) // …and now it has
+    wrapper.unmount()
+  })
+
+  it('replays the LATEST position, not the one that scheduled the frame', async () => {
+    // A pointer crossing two bars inside one frame must be re-announced on the
+    // bar it ended on. Replaying the first would paint that bar's values next to
+    // a cursor that has already moved on — a wrong tooltip, worse than an empty
+    // one.
+    const wrapper = mountChart()
+    const first = wrapper.get('.bar').element
+    const second = wrapper.get('.other-bar').element
+    const seen: string[] = []
+    const record = (event: Event) => seen.push((event.target as Element).className)
+    first.addEventListener('mousemove', record)
+    second.addEventListener('mousemove', record)
+
+    first.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }))
+    second.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }))
+    await nextFrame()
+
+    // The two originals, then a single replay — on the bar the pointer ended on.
+    expect(seen).toEqual(['bar', 'other-bar', 'other-bar'])
     wrapper.unmount()
   })
 
