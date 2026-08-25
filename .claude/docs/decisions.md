@@ -1618,6 +1618,36 @@ whole. The funnel's three intake sources do (they add up to "candidates that ent
 because its window fixes the bucket size server-side to land 12–28 buckets, wide enough to read as bars at
 every window.
 
+## Admin bar charts go through a wrapper, because vue-chrts' bar tooltip is broken twice (2026-08-25)
+
+Hovering a bar on `/candidates` opened an empty white box. Reproduced in a headless browser against
+`vue-chrts` 2.1.4 — and the same code is still in 2.2.1, so the upgrade was checked and is not the fix. Two
+independent upstream defects, which is why fixing one still left an empty tooltip.
+
+**A stacked bar chart never shows values.** `@unovis/ts` binds each stacked bar to a wrapper —
+`{ datum, index, stacked, stackIndex, isEnding }` — while `vue-chrts` looks the category keys up on that
+wrapper's *root* and excludes only the wrapper's *old* key names (`_index` / `_stacked` / `_ending`). Nothing
+matches, so it renders neither title nor rows. Grouped and horizontal bars bind the row itself; all three
+shapes were tested side by side before concluding, which is what localised the bug to stacking.
+
+**And the first hover on any bar chart shows an empty box.** The tooltip trigger mutates a Vue ref and then
+reads a hidden `<div>`'s `innerHTML` in the *same tick*, one frame before Vue flushes. A second mousemove over
+the same bar fixes it, which is what made the bug look intermittent rather than systematic. This one predates
+the bar conversion (#1218) — it already affected the horizontal bar charts on `/champions`, `/database`,
+`/riot-api` and `/`.
+
+Both are repaired in `admin/app/components/charts/BarChart.vue` (`<ChartsBarChart>`), which every admin bar
+chart now goes through: it renders the tooltip via the `#tooltip` slot (unwrapping `datum`) and replays one
+mousemove on the next frame. The replay listens in the **capture** phase — the upstream handler calls
+`stopPropagation()` as soon as a trigger matches, so a bubbling listener never runs at all. The markup mirrors
+upstream's own inline styles and CSS variables, because this is a repair and not a restyle: a bar tooltip and
+an area tooltip must stay identical to look at.
+
+The trap to remember when touching it: `@unovis/ts` maps the **value** to the bottom axis for horizontal bars,
+so a horizontal chart's `yFormatter` is its index → label lookup, not its value formatter. The wrapper makes
+the same swap upstream does. Get it wrong and the tooltip prints a bucket label where a count belongs — which
+typechecks, renders, and is wrong. That case is pinned by a test.
+
 ## Keeping these files current
 
 A PR that ships a user-facing feature, removes one, or reverses a decision here **must update

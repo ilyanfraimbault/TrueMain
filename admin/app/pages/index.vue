@@ -376,7 +376,7 @@ const topChampionsLoading = computed(
           No matches in range.
         </div>
         <ClientOnly v-else>
-          <NcBarChart
+          <ChartsBarChart
             :data="matchesChartData"
             :height="260"
             :categories="matchesChartCategories"
@@ -442,7 +442,7 @@ const topChampionsLoading = computed(
         </div>
         <template v-else>
           <ClientOnly>
-            <NcBarChart
+            <ChartsBarChart
               :data="ingestedChartData"
               :height="260"
               :categories="ingestedChartCategories"
@@ -537,7 +537,7 @@ const topChampionsLoading = computed(
               </UBadge>
             </div>
             <ClientOnly>
-              <NcBarChart
+              <ChartsBarChart
                 :data="candidateChartData"
                 :height="candidateChartHeight"
                 :categories="candidateChartCategories"
@@ -584,7 +584,7 @@ const topChampionsLoading = computed(
             No champion games recorded yet.
           </div>
           <ClientOnly v-else>
-            <NcBarChart
+            <ChartsBarChart
               :data="topChampions"
               :height="topChampionsChartHeight"
               :categories="championChartCategories"

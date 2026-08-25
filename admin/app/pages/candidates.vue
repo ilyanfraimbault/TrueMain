@@ -451,7 +451,7 @@ function isRejected(status: MainCandidateStatus | undefined): boolean {
                 Intake by source, per period
               </p>
               <ClientOnly>
-                <NcBarChart
+                <ChartsBarChart
                   :data="intakeChartData"
                   :height="240"
                   :categories="intakeChartCategories"
@@ -479,7 +479,7 @@ function isRejected(status: MainCandidateStatus | undefined): boolean {
                 Progression, per period
               </p>
               <ClientOnly>
-                <NcBarChart
+                <ChartsBarChart
                   :data="progressChartData"
                   :height="240"
                   :categories="progressChartCategories"

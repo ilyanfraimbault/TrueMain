@@ -375,7 +375,7 @@ function crossingColor(projectedAtUtc: string | null): 'error' | 'warning' | 'ne
           Needs at least three days of snapshots — each point is the difference between two days.
         </div>
         <ClientOnly v-else>
-          <NcBarChart
+          <ChartsBarChart
             :data="rowsPerDayRows"
             :height="220"
             :categories="rowsPerDayCategories"
@@ -451,7 +451,7 @@ function crossingColor(projectedAtUtc: string | null): 'error' | 'warning' | 'ne
           No tables reported.
         </div>
         <ClientOnly v-else>
-          <NcBarChart
+          <ChartsBarChart
             :data="topTables"
             :height="topTablesChartHeight"
             :categories="sizeCategories"
