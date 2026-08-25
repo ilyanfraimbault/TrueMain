@@ -32,9 +32,17 @@ const CHART_AXIS_TEXT_SIZE = '11px'
 //
 // The admin charts follow the Nuxt UI dashboard template aesthetic: minimal
 // axes, no rotated labels, near-invisible gridlines, and a single emerald
-// accent. Two chart shapes cover everything:
-//   * time-series  -> AREA chart (only "Matches over time")
-//   * categorical  -> HORIZONTAL bar chart (labels read flat on the y-axis)
+// accent. Three chart shapes cover everything, and which one a series gets is
+// decided by WHAT THE SERIES MEASURES, never by how it looks (#1218):
+//   * flow, counted per period  -> VERTICAL bar chart   (`timeBarProps`)
+//   * stock: a level at an instant, or a running total
+//                               -> AREA/line chart      (`areaChartProps`)
+//   * categorical top-N         -> HORIZONTAL bar chart (`horizontalBarProps`)
+// The distinction is not cosmetic. A line drawn through per-period counts reads
+// as a level that rose and fell, so a steady 350-a-day counter looks like a flat
+// line doing nothing — which is exactly how the candidate funnel's `validated`
+// series was misread. Bars say "this much moved, then this much"; a line says
+// "it stood here, then here". Match the mark to the claim.
 // The helpers below centralise that styling so every chart stays consistent;
 // callers only pass data, categories and the per-chart formatters.
 //
@@ -121,6 +129,72 @@ export function multiAreaChartProps() {
       strokeWidth: 1,
     },
   }
+}
+
+// Shared props for a single-series VERTICAL time-series BAR chart (#1218). The
+// same quiet styling as `areaChartProps()` — no gridlines, no domain/tick lines,
+// muted tick text — with bars as the mark, because the series is a flow: a count
+// of what happened during each bucket, not a level the system sat at.
+//
+// vue-chrts bar axes (vertical orientation): `x` is the DATA INDEX and `y` the
+// value, so callers pass `:x-formatter` built from `indexLabelFormatter()` and
+// `:y-formatter` for the value — the opposite mapping from `horizontalBarProps()`
+// below, which flips them. `:y-axis` (the value keys) is required by the
+// component and has no default, so every caller passes it.
+export function timeBarProps() {
+  return {
+    // Small radius, not the categorical charts' 4: time-series bars are thin
+    // (up to 90 daily buckets in a window) and a large radius eats the bar.
+    radius: 2,
+    barPadding: 0.2,
+    xGridLine: false,
+    yGridLine: false,
+    xDomainLine: false,
+    yDomainLine: false,
+    xTickLine: false,
+    yTickLine: false,
+    yNumTicks: 4,
+    xAxisConfig: { ...AXIS_TEXT_CONFIG },
+    yAxisConfig: { ...AXIS_TEXT_CONFIG },
+    hideLegend: true,
+    padding: { top: 8, right: 8, bottom: 4, left: 8 },
+  }
+}
+
+// Shared props for a MULTI-SERIES vertical time-series bar chart. Identical to
+// `timeBarProps()` but with the legend shown: past one series, identity can never
+// be carried by colour alone.
+//
+// Callers pass `:stacked` ONLY when the series sum to a meaningful whole (the
+// candidate funnel's three intake sources do). Series that narrow out of one
+// another, or nest inside one another — promoted ⊂ scored, retries ⊂ calls —
+// stay grouped, because stacking them would draw a total that double-counts.
+export function multiTimeBarProps() {
+  return {
+    ...timeBarProps(),
+    hideLegend: false,
+  }
+}
+
+// Turn a per-period flow into its running total, in place, over an already
+// chronological series (#1218). Used for the series where the accumulated figure
+// is the real quantity — "how many accounts have we validated" is a roster size,
+// a stock, and therefore belongs on a line rather than in bars.
+//
+// `null` inputs are NOT zeros: they mark periods a counter did not yet exist for
+// (see `validatedFirstMeasuredAtUtc`). Before the first measured period they stay
+// `null`, so the curve STARTS where measurement started instead of running along
+// the axis pretending the total was zero (#924); after it they hold the total
+// flat, which is the only honest thing an unmeasured period can do to a total.
+export function runningTotal(values: readonly (number | null)[]): (number | null)[] {
+  let total: number | null = null
+  return values.map((value) => {
+    if (value === null) {
+      return total
+    }
+    total = (total ?? 0) + value
+    return total
+  })
 }
 
 // Shared props for HORIZONTAL categorical bar charts (champions, candidate

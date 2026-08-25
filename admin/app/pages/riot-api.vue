@@ -157,10 +157,13 @@ function methodRateBucket(row: RiotEndpointUsage): RateBucket | null {
 }
 
 // --- Time-series chart -------------------------------------------------------
-// Call volume per bucket as an AREA chart (mirrors the "Matches over time"
-// pattern). Bucket size is fixed by the window (5m / 1h / 6h) server-side.
+// Call volume per bucket as GROUPED BARS (#1218): calls-per-bucket is a flow, and
+// the window fixes the bucket size server-side (5m / 1h / 6h) to land 12-28
+// buckets, so bars stay wide enough to read at every window.
 // Retries (429s) are a second series (#1035): budget spent for no data, worth
-// seeing distinctly from the total volume rather than buried in "errors".
+// seeing distinctly from the total volume rather than buried in "errors". Grouped
+// and never stacked — `Retries` is documented as a SUBSET of `Calls`, so a stack
+// would draw a total that counts every 429 twice.
 const timeSeriesData = computed(() =>
   (data.value?.timeSeries ?? []).map(bucket => ({
     label: formatCallBucketLabel(bucket.bucketUtc),
@@ -427,14 +430,16 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
           No calls recorded in this window.
         </div>
         <ClientOnly v-else>
-          <NcAreaChart
+          <ChartsBarChart
             :data="timeSeriesData"
             :height="260"
             :categories="timeSeriesCategories"
+            :y-axis="['calls', 'retries']"
             :x-num-ticks="Math.min(timeSeriesData.length, 8)"
             :x-formatter="timeSeriesXFormatter"
             :y-formatter="formatCount"
-            v-bind="multiAreaChartProps()"
+            :tooltip-title-formatter="labelTooltipTitle"
+            v-bind="multiTimeBarProps()"
           />
           <template #fallback>
             <USkeleton class="h-[260px] w-full" />
@@ -459,7 +464,7 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
             No calls recorded in this window.
           </div>
           <ClientOnly v-else>
-            <NcBarChart
+            <ChartsBarChart
               :data="callerChartData"
               :height="callerChartHeight"
               :categories="callerCategories"

@@ -194,6 +194,99 @@ public sealed class TruemainsProfileApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetProfile_carries_the_retired_sample_flag_and_its_measurement_date()
+    {
+        // #1216 end-to-end: MainAnalysisProcess owns when the flag is written, but nothing
+        // checked that it survives the DB -> MainDto -> ProfileReadModel hop. MainDto is a
+        // positional record whose IsOtp and IsSampleRetired sit next to each other as bools,
+        // so transposing them would compile and read plausibly while telling every profile
+        // the opposite of the truth. Pinned here with the two flags set differently, and
+        // with MeasuredAtUtc checked against CalculatedAtUtc — the date is what lets the UI
+        // say "as of 2 Jul" instead of presenting a dead count as current.
+        await _fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+        var measuredAt = now.AddDays(-23);
+
+        var accountId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        await using (var db = _fixture.CreateDbContext())
+        {
+            db.RiotAccounts.Add(new RiotAccount
+            {
+                Id = accountId,
+                Puuid = "retired-puuid",
+                GameName = "Retired",
+                TagLine = "EUW1",
+                PlatformId = "EUW1",
+                ProfileIconId = 1,
+                SummonerLevel = 100,
+                CreatedAtUtc = now.AddDays(-90),
+                UpdatedAtUtc = now,
+                LastMatchIngestAtUtc = now.AddDays(-23),
+            });
+
+            // Retired *and* not an OTP: the two adjacent bools must not swap.
+            db.MainChampionStats.Add(new MainChampionStat
+            {
+                Id = Guid.NewGuid(),
+                PlatformId = "EUW1",
+                Puuid = "retired-puuid",
+                ChampionId = 104,
+                TotalMatches = 30,
+                ChampionMatches = 10,
+                PlayRate = 0.4d,
+                IsMain = true,
+                IsOtp = false,
+                IsSampleRetired = true,
+                PrimaryPosition = "JUNGLE",
+                PositionBreakdown = [new PositionStat { Position = "JUNGLE", Games = 10, Rate = 1.0d }],
+                CalculatedAtUtc = measuredAt,
+            });
+
+            // Live counterpart, OTP: the opposite pairing on both flags.
+            db.MainChampionStats.Add(new MainChampionStat
+            {
+                Id = Guid.NewGuid(),
+                PlatformId = "EUW1",
+                Puuid = "retired-puuid",
+                ChampionId = 64,
+                TotalMatches = 30,
+                ChampionMatches = 9,
+                PlayRate = 0.3d,
+                IsMain = true,
+                IsOtp = true,
+                IsSampleRetired = false,
+                PrimaryPosition = "JUNGLE",
+                PositionBreakdown = [new PositionStat { Position = "JUNGLE", Games = 9, Rate = 1.0d }],
+                CalculatedAtUtc = now,
+            });
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost"),
+        });
+
+        var response = await client.GetAsync("/truemains/Retired-EUW1/profile");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var profile = await response.Content.ReadFromJsonAsync<ProfileReadModel>();
+        profile.Should().NotBeNull();
+
+        var retired = profile!.Mains.Single(m => m.ChampionId == 104);
+        retired.IsSampleRetired.Should().BeTrue();
+        retired.IsOtp.Should().BeFalse("the two adjacent bools must not be transposed on the way out");
+        retired.Games.Should().Be(10, "the figures are kept — only the claim that they are current is dropped");
+        retired.MeasuredAtUtc.Should().BeCloseTo(measuredAt, TimeSpan.FromSeconds(1));
+
+        var live = profile.Mains.Single(m => m.ChampionId == 64);
+        live.IsSampleRetired.Should().BeFalse();
+        live.IsOtp.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task GetProfile_picks_most_recently_active_platform_on_collision()
     {
         await _fixture.ResetDatabaseAsync();

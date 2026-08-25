@@ -42,6 +42,16 @@ export interface ProfileMainChampion {
   /** Riot team position string (uppercase, e.g. `MIDDLE`). Empty when no dominant lane. */
   primaryPosition: string
   isOtp: boolean
+  /**
+   * True when the matches these figures were computed from have aged out of
+   * retention (#1216), so `games` and `playRate` describe a sample the site no
+   * longer holds. The row is kept on purpose — the player stays on the
+   * leaderboard — but it must be shown dated by `measuredAtUtc` rather than as
+   * a current count, or the profile promises games the champion page can't show.
+   */
+  isSampleRetired: boolean
+  /** When the main analysis last recomputed these figures (ISO 8601). */
+  measuredAtUtc: string
 }
 
 export interface ProfilePositionStat {

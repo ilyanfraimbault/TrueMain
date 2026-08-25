@@ -12,6 +12,13 @@ const props = defineProps<{
   pickRate: number
   winRate: number
   games?: number
+  /**
+   * True while the surrounding panel is scaffolding rather than showing a
+   * measurement (see `utils/build-placeholder`). The two chips keep their box
+   * and turn into skeletons: the placeholder aggregate carries filler numbers,
+   * and rendering them would put invented rates on screen.
+   */
+  pending?: boolean
 }>()
 
 /**
@@ -48,7 +55,17 @@ const rows = computed(() => {
 </script>
 
 <template>
+  <div
+    v-if="pending"
+    class="flex shrink-0 items-center gap-2"
+    aria-hidden="true"
+  >
+    <USkeleton class="h-[22px] w-16 rounded-sm" />
+    <USkeleton class="h-[22px] w-[3.75rem] rounded-sm" />
+  </div>
+
   <UTooltip
+    v-else
     :delay-duration="150"
     :ui="{ content: 'h-auto items-start p-1.5' }"
   >

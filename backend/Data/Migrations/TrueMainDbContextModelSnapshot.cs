@@ -814,6 +814,11 @@ namespace Data.Migrations
                     b.Property<bool>("IsOtp")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsSampleRetired")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("PlatformId")
                         .IsRequired()
                         .HasMaxLength(8)

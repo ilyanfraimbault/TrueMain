@@ -1079,6 +1079,29 @@ possible. Approval is the single external unlock for all of it — #780.
   `Abandoned` (the run's host died mid-flight, outcome unknown) is a different claim from "it ran and failed"
   and is coloured accordingly.
 
+- **A skeleton is the real component in `pending` mode, not a drawing of it.** The champion page's build
+  section has two loading phases it cannot merge: the aggregate and the patch-pinned static bundles are
+  separate fetches, and the ~95 DDragon icons only start downloading once the ids they resolve are mounted.
+  So the reader sees *a* placeholder while the API answers, then the real panels with every icon still pulsing
+  while the images land. `ChampionBuildTabsSkeleton` used to be a hand-drawn stack of grey blocks sized to the
+  measured real heights: it reserved the space, but it was a second, unrelated picture, so a cold load visibly
+  rebuilt itself the moment the API answered. It now renders `ChampionBuildTabs` itself over a placeholder
+  aggregate (`app/utils/build-placeholder.ts`) with `pending` set — unresolvable ids, so every icon falls back
+  to the same pulsing box `SkeletonImage` already draws mid-load, and every number is masked (`RateBadge`,
+  the tab pickrate) rather than printing the placeholder's filler figures. The two phases become one
+  continuous state whose only transition is the content filling in, the skeleton cannot drift when a section
+  moves, and CLS is exact instead of estimated. `pages/dev/build-skeleton.vue` renders both skeletons with
+  nothing to fetch, the same way `dev/match-row.vue` makes a row reviewable in isolation. The escape hatch
+  is per-section: the skeleton takes `powerspikes` because the player-scoped page's tabs carry no population
+  scope and its real card has no such section to reserve.
+
+- **Icon slots are rendered from the ids, never gated on a resolved static lookup.** Same rule as the
+  tooltip-trigger one above, from the other side. The build tabs' leading item/keystone icons were gated on
+  `itemsMap[id]` / `runeTree.perks[id]`, so the whole tab bar reflowed when those deferred (~370 KiB, patch-
+  pinned) payloads landed — and swapping the trigger element that late is exactly the case that leaves a Reka
+  tooltip unable to close. The id is what answers "is there something here"; `SkeletonImage` already draws the
+  loading box for a null icon. `itemSlots()` in `shared/utils/build.ts` exists for the same reason.
+
 ---
 
 ## Where API reads live
@@ -1497,6 +1520,134 @@ Two general rules the episode paid for, and they outlive the feature:
   never captured.
 - **Do not store what you can derive.** The full-clear time was stored *and* derivable; when the rule behind it
   changed, the derived side healed and 35 % of the stored side silently did not.
+
+## Preprod builds carry a prerelease version, tagged only after they deploy (2026-08-24)
+
+Every push to develop reaches preprod a few minutes later, but nothing on the page said *which* build was
+serving it — "is my change on preprod yet?" and "did this reach prod?" were answerable only by comparing SHAs
+on GitHub. `deploy-preprod.yml` now resolves `<base>-rc.<N>` and the footer prints it (`preprod · 1.20.0-rc.4`);
+prod prints the bare release tag it is serving.
+
+Three calls worth keeping:
+
+- **A prerelease, not build metadata.** `1.19.0+7` (commits since the last release, derivable with a single
+  `git describe` and no tags at all) was the cheaper design and was rejected: the same string tags the four
+  images on GHCR, and `+` is **illegal in a Docker reference**. `-rc.N` is legal, so the version can be one
+  string everywhere — footer, git tag, image tag.
+- **The tag is pushed after the deploy succeeds, not at build time.** The tag's whole job is to mean "this ran
+  on preprod". Tagging in the publish job would mint tags for commits that never got there, recreating the
+  ambiguity it replaces. Cost: a build that fails after publishing leaves a gap in the sequence, which is the
+  honest reading.
+- **The base is a label, not a promise.** It defaults to the next *minor* after the latest release, because
+  that is what a plain "release" cuts — but the real bump is still decided by the user's word at release time
+  (see the `release` skill), so a `1.20.0-rc.*` line can perfectly well ship as `1.19.1`. Set the
+  `PREPROD_VERSION_BASE` repo variable when the next one is known to be a major.
+
+The trap this introduces, and it bit during implementation: **git's version sort ranks `1.20.0-rc.4` above
+`1.20.0`**. Anything reading "the latest version" must filter to bare `MAJOR.MINOR.PATCH` or it will read a
+preprod build as the last release and skip a version on the next bump. The `release` skill was updated for
+exactly this.
+
+## A main whose matches expired is dated, not deleted and not hidden (2026-08-24)
+
+A profile advertised "Graves — 10 games — 33%" while the champion page behind it answered "No personal
+build breakdown yet". The instinct — "a min-sample floor is hiding thin data, make it render with a
+warning instead" — was wrong twice, and both corrections are worth keeping:
+
+- **There is no min-sample gate on that path, and there never was.** `ChampionScopeLoader` documents its
+  floor as "a *preference*, not a gate", and `ChampionBuildsQueryService` renders an aggregate of any size,
+  flagging thin ones with `MinSampleMet=false`. A 404 there means *zero scope rows*, never "too few games".
+  Before proposing to soften a floor, check whether the floor is what answered.
+- **The "10 games" was not an aggregate.** It came from `main_champion_stats`, a snapshot dated three weeks
+  earlier. Two different stores with two different retention rules were being read as if they agreed.
+
+The actual defect: `MainAnalysisProcess`'s #825 thin-sample guard (`hasEstablishedMain && newTotalMatches <
+MinMatchesToEvaluate` → return early) also catches `newTotalMatches == 0`. Raw matches age out of
+`MatchDataRetention` on their own — two patches in prod — so an account nobody re-ingested drops to zero
+participants, the condition becomes permanently true, and the row is immortal. **Thin is insufficient
+evidence; zero is absent evidence**, and the guard conflated them.
+
+Fix: `IsSampleRetired`, set on the zero branch, cleared by any later cycle that upserts from a real sample.
+
+- **Not deleted.** Deleting would drop a player off the leaderboard the moment their matches expire, which
+  in prod is two patches of inactivity — it would empty the leaderboard of exactly the specialists it exists
+  to track.
+- **Not hidden.** The figures are a real past measurement, so the profile keeps them and dates them
+  (`20 games · as of 2 Jul`). What was wrong was never the number, only the claim that it was current.
+- **Not `IsActive`.** That flag comes from Riot mastery `lastPlayTime` and answers "does the player still
+  play this champion?". A row is routinely active *and* retired: they still main it, we no longer hold the
+  games.
+
+Not in scope, and deliberately so: the empty champion page is **preprod behaving as configured**.
+`compose.preprod.yaml` sets `MatchDataRetention__AggregateRetainedPatchCount: "2"` while prod leaves it at
+the default `0` (disabled — old-patch aggregates are the site's patch history, #466), so that build renders
+in prod. Preprod stays on its diet by choice; remember it when auditing preprod for missing data.
+
+## A chart's mark is chosen by what the series measures: flows are bars, stocks are lines (2026-08-25)
+
+The candidate funnel's `validated` series read as a dead flat line near the axis and was taken for a broken
+counter. It was moving ~350 accounts a day. Two independent causes, and fixing only one would have left the
+chart just as misleading.
+
+**The mark contradicted the metric.** `scored` / `promoted` / `validated` are per-bucket *flows* — how many
+candidates moved during that run period — but they were drawn as lines. A line asserts a level that rose and
+fell and invites reading its height as a state; a steady flow therefore renders as a flat line saying
+"nothing is happening", which is the opposite of what a steady flow means. The rule now written into
+`admin/app/utils/charts.ts` and applied across the portal: **a flow (counted per period) gets vertical bars;
+a stock (a level at an instant, or a running total) gets a line or area; a categorical top-N gets horizontal
+bars.** `/database` carries the contrast in one page — disk size stays an area because it is the level the
+volume sits at, while rows-added-per-day became bars because it is that day's delta.
+
+**And the scale hid it regardless of the mark.** 10,593 validated against 147,290 scored on one linear axis is
+squashed onto the baseline whatever shape you draw. So Progression was split: `scored` + `promoted` stay
+together as *grouped* bars (they are the competitive top-N cut, comparable magnitudes, and stacking them would
+count the same candidate twice since promoted ⊂ scored), and `validated` + `demoted` moved to their own chart
+as **cumulative** curves. That is not an exception to the rule — a running total is a stock, and "how many
+accounts have we validated" is a roster size, so a line is the correct mark for it. It also happens to be the
+view that was asked for. The accumulation restarts at the left edge of the selected window, which the caption
+states so the endpoint is not read as an all-time count; periods before `validatedFirstMeasuredAtUtc` stay
+absent from the curve rather than accumulating as zeros (#924).
+
+The split doubles as palette hygiene. `CHART_SERIES` holds three colours in a fixed order chosen for
+colourblind separation, and the file already said a fourth series "gets its own chart" — Progression was at
+three and the outcome series had nowhere to go.
+
+Grouped, not stacked, is a recurring call and it turns on nesting: stack only when the series sum to a real
+whole. The funnel's three intake sources do (they add up to "candidates that entered"). `promoted ⊂ scored` and
+`retries ⊂ calls` do not, so `/riot-api`'s call-volume chart is grouped bars — that one was safe to convert
+because its window fixes the bucket size server-side to land 12–28 buckets, wide enough to read as bars at
+every window.
+
+## Admin bar charts go through a wrapper, because vue-chrts' bar tooltip is broken twice (2026-08-25)
+
+Hovering a bar on `/candidates` opened an empty white box. Reproduced in a headless browser against
+`vue-chrts` 2.1.4 — and the same code is still in 2.2.1, so the upgrade was checked and is not the fix. Two
+independent upstream defects, which is why fixing one still left an empty tooltip.
+
+**A stacked bar chart never shows values.** `@unovis/ts` binds each stacked bar to a wrapper —
+`{ datum, index, stacked, stackIndex, isEnding }` — while `vue-chrts` looks the category keys up on that
+wrapper's *root* and excludes only the wrapper's *old* key names (`_index` / `_stacked` / `_ending`). Nothing
+matches, so it renders neither title nor rows. Grouped and horizontal bars bind the row itself; all three
+shapes were tested side by side before concluding, which is what localised the bug to stacking.
+
+**And the first hover on any bar chart shows an empty box.** The tooltip trigger mutates a Vue ref and then
+reads a hidden `<div>`'s `innerHTML` in the *same tick*, one frame before Vue flushes. A second mousemove over
+the same bar fixes it, which is what made the bug look intermittent rather than systematic. This one predates
+the bar conversion (#1218) — it already affected the horizontal bar charts on `/champions`, `/database`,
+`/riot-api` and `/`.
+
+Both are repaired in `admin/app/components/charts/BarChart.vue` (`<ChartsBarChart>`), which every admin bar
+chart now goes through: it renders the tooltip via the `#tooltip` slot — body in the sibling
+`BarChartTooltip.vue`, so the hovered row and its series resolve once per render as computeds instead of being
+recomputed by every expression that needs them — and replays one mousemove on the next frame. The replay listens in the **capture** phase — the upstream handler calls
+`stopPropagation()` as soon as a trigger matches, so a bubbling listener never runs at all. The markup mirrors
+upstream's own inline styles and CSS variables, because this is a repair and not a restyle: a bar tooltip and
+an area tooltip must stay identical to look at.
+
+The trap to remember when touching it: `@unovis/ts` maps the **value** to the bottom axis for horizontal bars,
+so a horizontal chart's `yFormatter` is its index → label lookup, not its value formatter. The wrapper makes
+the same swap upstream does. Get it wrong and the tooltip prints a bucket label where a count belongs — which
+typechecks, renders, and is wrong. That case is pinned by a test.
 
 ## Keeping these files current
 

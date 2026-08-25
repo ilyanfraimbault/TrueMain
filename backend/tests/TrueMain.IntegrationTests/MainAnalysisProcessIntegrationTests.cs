@@ -181,6 +181,96 @@ public sealed class MainAnalysisProcessIntegrationTests
         stats.Should().NotContain(s => s.ChampionId == 200,
             "the thin recent sample must not be persisted over the established main");
         account.LastMainCalcAtUtc.Should().NotBeNull("the account is still stamped so it waits a full recompute cycle");
+        stats.Should().OnlyContain(s => !s.IsSampleRetired,
+            "three recent games is a thin sample, not an absent one — the figures still describe games we hold");
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldFlagSampleRetired_WhenTheAccountHasNoMatchesLeft()
+    {
+        // #1216: raw matches age out of MatchDataRetention (two patches in prod), so an
+        // account nobody re-ingested recomputes to zero participants. That is not the thin
+        // sample #825 protects against — the evidence is gone, not merely weak — and left
+        // unflagged the guard above holds forever, leaving the row asserting a game count
+        // nothing can corroborate. The row must survive (deleting it would drop the player
+        // off the leaderboard the moment their matches expire) but be marked.
+        await _fixture.ResetDatabaseAsync();
+        await SeedEstablishedMainAsync(
+            puuid: "puuid-retired-1",
+            candidateStatus: MainCandidateStatus.Queued,
+            staleMainChampionId: 100,
+            recentChampionId: 200,
+            recentGameCount: 0);
+
+        await RunProcessAsync();
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        var stats = verifyDb.MainChampionStats
+            .Where(s => s.PlatformId == "KR" && s.Puuid == "puuid-retired-1")
+            .ToList();
+
+        stats.Should().ContainSingle(s => s.ChampionId == 100 && s.IsMain,
+            "the row is flagged, never deleted — the player stays on the leaderboard");
+        stats.Should().OnlyContain(s => s.IsSampleRetired,
+            "zero participants means the sample these figures describe no longer exists");
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldClearSampleRetired_WhenGamesComeBack()
+    {
+        // The flag is self-clearing: an account that gets re-ingested must be trusted
+        // again on the very cycle that sees real games, without waiting for anything else.
+        await _fixture.ResetDatabaseAsync();
+        await SeedEstablishedMainAsync(
+            puuid: "puuid-restored-1",
+            candidateStatus: MainCandidateStatus.Queued,
+            staleMainChampionId: 100,
+            recentChampionId: 200,
+            recentGameCount: 10,
+            staleSampleRetired: true);
+
+        await RunProcessAsync();
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        var stats = verifyDb.MainChampionStats
+            .Where(s => s.PlatformId == "KR" && s.Puuid == "puuid-restored-1")
+            .ToList();
+
+        stats.Should().NotBeEmpty();
+        stats.Should().OnlyContain(s => !s.IsSampleRetired,
+            "a recompute from a real sample clears the flag an earlier zero cycle set");
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldKeepSampleRetired_WhenGamesComeBackBelowTheEvaluationFloor()
+    {
+        // The subtle half of #1216. A retired account that gets a couple of matches
+        // re-ingested — still under MinMatchesToEvaluate — takes the #825 early return,
+        // which deliberately leaves ChampionMatches / PlayRate / CalculatedAtUtc frozen.
+        // Clearing the flag there would put the untouched, weeks-old count back on the
+        // profile as an undated current number: the original bug, on a narrower
+        // threshold. Only a real recompute (UpsertChampionStats) may un-retire a row.
+        await _fixture.ResetDatabaseAsync();
+        await SeedEstablishedMainAsync(
+            puuid: "puuid-kept-1",
+            candidateStatus: MainCandidateStatus.Queued,
+            staleMainChampionId: 100,
+            recentChampionId: 200,
+            recentGameCount: 3, // nonzero, but below MinMatchesToEvaluate (5)
+            staleSampleRetired: true);
+
+        await RunProcessAsync();
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        var stats = verifyDb.MainChampionStats
+            .Where(s => s.PlatformId == "KR" && s.Puuid == "puuid-kept-1")
+            .ToList();
+
+        var main = stats.Should().ContainSingle(s => s.ChampionId == 100).Subject;
+        main.IsSampleRetired.Should().BeTrue(
+            "the guard never refreshed the figures, so they still describe games we no longer hold");
+        main.ChampionMatches.Should().Be(20,
+            "the guard leaves the established main's figures untouched — which is exactly why the flag must stay");
     }
 
     [Fact]
@@ -297,7 +387,8 @@ public sealed class MainAnalysisProcessIntegrationTests
         MainCandidateStatus candidateStatus,
         int staleMainChampionId,
         int recentChampionId,
-        int recentGameCount)
+        int recentGameCount,
+        bool staleSampleRetired = false)
     {
         await using var db = _fixture.CreateDbContext();
         var now = DateTime.UtcNow;
@@ -342,6 +433,7 @@ public sealed class MainAnalysisProcessIntegrationTests
             IsMain = true,
             IsOtp = true,
             IsExtendedSample = false,
+            IsSampleRetired = staleSampleRetired,
             PrimaryPosition = "MIDDLE",
             PositionBreakdown = [new PositionStat { Position = "MIDDLE", Games = 20, Rate = 1d }],
             CalculatedAtUtc = now.AddDays(-40)
@@ -349,6 +441,8 @@ public sealed class MainAnalysisProcessIntegrationTests
 
         for (var i = 0; i < recentGameCount; i++)
         {
+            // Match.Id is varchar(32), so keep test puuids short — "KR_RECENT_" plus the
+            // puuid plus the index has to fit, which caps the puuid at ~20 characters.
             var matchId = $"KR_RECENT_{puuid}_{i}";
             db.Matches.Add(new Match
             {

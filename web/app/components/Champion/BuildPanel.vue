@@ -25,6 +25,8 @@ const props = defineProps<{
   // Lane opponent selected in the filter bar (#957): the build this panel renders
   // is already the matchup's, so its spikes must come from the same games.
   opponentChampionId?: number | null
+  /** Scaffolding rather than data — see `ChampionBuildTabs`' own `pending`. */
+  pending?: boolean
 }>()
 
 const showPowerspikes = computed(() => Boolean(props.championId && props.position))
@@ -32,12 +34,15 @@ const showPowerspikes = computed(() => Boolean(props.championId && props.positio
 // Power spikes are only meaningful within one build, so the panel fetches its
 // own slice for the build it renders. BuildTabs keeps every panel mounted, so
 // this fires once per build rather than on every tab switch.
+// The build key is zeroed while scaffolding: the placeholder aggregate's item
+// and keystone ids are made up, and the composable holds (rather than firing a
+// request for a build that does not exist) as soon as one of them is 0.
 const { data: powerspikes, status: powerspikesStatus } = useChampionPowerspikes(
   () => props.championId ?? 0,
   () => props.position,
   () => props.patch,
-  () => props.build.firstItemId,
-  () => props.build.primaryKeystoneId,
+  () => (props.pending ? 0 : props.build.firstItemId),
+  () => (props.pending ? 0 : props.build.primaryKeystoneId),
   () => props.eloBracket,
   () => props.opponentChampionId,
 )
@@ -62,6 +67,7 @@ const { data: powerspikes, status: powerspikesStatus } = useChampionPowerspikes(
         :summoners-pending="summonersPending"
         :rune-tree="runeTree"
         :keystone-size="35"
+        :pending="pending"
       />
     </div>
 
@@ -72,6 +78,7 @@ const { data: powerspikes, status: powerspikesStatus } = useChampionPowerspikes(
       :items-map="itemsMap"
       :summoners-map="summonersMap"
       :summoners-pending="summonersPending"
+      :pending="pending"
     />
 
     <!-- Section 3: Build tree -->
@@ -87,6 +94,7 @@ const { data: powerspikes, status: powerspikesStatus } = useChampionPowerspikes(
       v-if="runeTree"
       :rune-pages="build.runePages"
       :rune-tree="runeTree"
+      :pending="pending"
     />
 
     <!-- Section 5: Power spikes for this build -->
@@ -95,7 +103,7 @@ const { data: powerspikes, status: powerspikesStatus } = useChampionPowerspikes(
       :events="powerspikes?.events ?? []"
       :matchup-scoped="Boolean(opponentChampionId)"
       :items-map="itemsMap"
-      :loading="isLoadingStatus(powerspikesStatus)"
+      :loading="pending || isLoadingStatus(powerspikesStatus)"
     />
   </div>
 </template>

@@ -70,10 +70,13 @@ const mockProfile: ProfileResponse = {
     winRate: 0.6,
   },
   mains: [
-    { championId: 157, games: 80, playRate: 0.4, primaryPosition: 'MIDDLE', isOtp: false },
-    { championId: 103, games: 60, playRate: 0.3, primaryPosition: 'MIDDLE', isOtp: false },
-    { championId: 99, games: 30, playRate: 0.15, primaryPosition: 'MIDDLE', isOtp: false },
-    { championId: 222, games: 20, playRate: 0.1, primaryPosition: 'BOTTOM', isOtp: false },
+    { championId: 157, games: 80, playRate: 0.4, primaryPosition: 'MIDDLE', isOtp: false, isSampleRetired: false, measuredAtUtc: '2026-08-24T10:00:00Z' },
+    { championId: 103, games: 60, playRate: 0.3, primaryPosition: 'MIDDLE', isOtp: false, isSampleRetired: false, measuredAtUtc: '2026-08-24T10:00:00Z' },
+    { championId: 99, games: 30, playRate: 0.15, primaryPosition: 'MIDDLE', isOtp: false, isSampleRetired: false, measuredAtUtc: '2026-08-24T10:00:00Z' },
+    // Deliberately retired (#1216) so the playground exercises the dated
+    // qualifier and its warning tooltip, which are otherwise only reachable on a
+    // player whose matches have aged out of retention.
+    { championId: 222, games: 20, playRate: 0.1, primaryPosition: 'BOTTOM', isOtp: false, isSampleRetired: true, measuredAtUtc: '2026-07-02T10:00:00Z' },
   ],
   // Dedication on the top main (Yasuo). Values mirror what
   // backend/Core/Truemains/DedicationScore.cs would produce for these inputs.

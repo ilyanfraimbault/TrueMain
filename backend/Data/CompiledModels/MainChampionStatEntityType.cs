@@ -21,7 +21,7 @@ namespace Data.CompiledModels
                 "Data.Entities.MainChampionStat",
                 typeof(MainChampionStat),
                 baseEntityType,
-                propertyCount: 14,
+                propertyCount: 15,
                 unnamedIndexCount: 3,
                 keyCount: 1);
 
@@ -94,6 +94,16 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(MainChampionStat).GetField("<IsOtp>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: false);
             isOtp.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var isSampleRetired = runtimeEntityType.AddProperty(
+                "IsSampleRetired",
+                typeof(bool),
+                propertyInfo: typeof(MainChampionStat).GetProperty("IsSampleRetired", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MainChampionStat).GetField("<IsSampleRetired>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: false);
+            isSampleRetired.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            isSampleRetired.AddAnnotation("Relational:DefaultValue", false);
 
             var platformId = runtimeEntityType.AddProperty(
                 "PlatformId",

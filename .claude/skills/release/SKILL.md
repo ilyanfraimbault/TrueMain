@@ -10,7 +10,16 @@ This is the **only** PR allowed to target master, and the **only** merge where t
 ## Version
 
 Versions are bare tags like `1.6.3` (no `v` prefix). Read the latest with
-`git tag --sort=-v:refname | head -1`.
+
+```
+git tag --list --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | head -1
+```
+
+**The filter is not optional.** Preprod stamps every deploy with a prerelease tag
+(`1.20.0-rc.4`, see `deploy-preprod.yml`), and git's version sort ranks those **above** the
+release they precede — `1.20.0-rc.4` sorts higher than `1.20.0`. An unfiltered `head -1`
+therefore reads a preprod build as the last release and bumps from it, skipping a version
+every time.
 
 **The user's word decides the bump, and their vocabulary is not semver's.** Take it literally —
 do not re-derive the bump from what the diff contains when they have named one:

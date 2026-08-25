@@ -32,6 +32,8 @@ public sealed class ProfileQueryService(
         double PlayRate,
         string PrimaryPosition,
         bool IsOtp,
+        bool IsSampleRetired,
+        DateTime CalculatedAtUtc,
         List<PositionStat> PositionBreakdown);
 
     public async Task<ProfileReadModel?> GetAsync(string nameTag, CancellationToken ct)
@@ -154,6 +156,8 @@ public sealed class ProfileQueryService(
                     PlayRate = m.PlayRate,
                     PrimaryPosition = m.PrimaryPosition,
                     IsOtp = m.IsOtp,
+                    IsSampleRetired = m.IsSampleRetired,
+                    MeasuredAtUtc = m.CalculatedAtUtc,
                 })
                 .ToList(),
             Dedication = dedication,
@@ -212,6 +216,8 @@ public sealed class ProfileQueryService(
                 m.PlayRate,
                 m.PrimaryPosition,
                 m.IsOtp,
+                m.IsSampleRetired,
+                m.CalculatedAtUtc,
                 m.PositionBreakdown))
             .ToListAsync(ct);
     }

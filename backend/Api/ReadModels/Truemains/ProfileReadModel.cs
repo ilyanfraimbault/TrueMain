@@ -85,6 +85,18 @@ public sealed record ProfileMainChampionReadModel
     public string PrimaryPosition { get; init; } = string.Empty;
 
     public bool IsOtp { get; init; }
+
+    /// <summary>
+    /// True when the matches these figures were computed from have aged out of
+    /// retention, so <see cref="Games"/> and <see cref="PlayRate"/> describe a
+    /// sample the site no longer holds (#1216). The row is kept on purpose — the
+    /// player stays on the leaderboard — but the UI must date it with
+    /// <see cref="MeasuredAtUtc"/> rather than present it as current.
+    /// </summary>
+    public bool IsSampleRetired { get; init; }
+
+    /// <summary>When the main analysis last recomputed these figures.</summary>
+    public DateTime MeasuredAtUtc { get; init; }
 }
 
 public sealed record ProfilePositionStatReadModel
