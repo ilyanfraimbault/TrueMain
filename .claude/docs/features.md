@@ -108,6 +108,13 @@ Separate app with its own deployment and domain — **not** a `/admin` route of 
 **Auth & backend access.** Single-operator username/password → sealed httpOnly session (`nuxt-auth-utils`); no user store, no roles. `admin/server/api/auth/login.post.ts` does a constant-time compare with a per-IP throttle (5 attempts/60 s). Every route is gated by `admin/app/middleware/auth.global.ts`.
 **All backend traffic goes through one proxy**: `admin/server/api/ops/[...path].ts` requires the session, then forwards to `${opsApiBaseUrl}/ops{path}` injecting the secret `X-Ops-Key` **server-side** — the ops key never reaches the browser. A boot plugin refuses to start outside dev with default credentials or short secrets.
 
+**Charts.** `nuxt-charts` (Unovis), referenced as `<Nc*Chart>` (`nuxtCharts.prefix`). Styling helpers live in
+`app/utils/charts.ts`, which also states the rule for picking a mark: a **flow** counted per period gets
+vertical bars, a **stock** (a level at an instant, or a running total) gets a line/area, a categorical top-N
+gets horizontal bars (#1218). Every bar chart goes through `components/charts/BarChart.vue`
+(`<ChartsBarChart>`), never `<NcBarChart>` directly — it repairs two upstream tooltip defects that otherwise
+render an empty box (#1220, see `decisions.md`).
+
 | Route | What it shows |
 |---|---|
 | `/` | Overview: stat cards (tracked accounts, matches, participants, mains/OTPs, candidates by status), **two deliberately distinct time series**, top-10 champions bar chart. **Matches over time** — a bar chart of games by *game date* (day/week/month/year/patch), i.e. when they were played: a property of the player population that barely moves when ingestion stalls and grows in the *past* when a backfill lands. **Matches ingested** (#1025) — a bar chart of pipeline throughput by *run date* (day/week/month, 7/30/90-day window), read from the `MatchIngestion` run summaries in Mongo, so retention deleting a match never rewrites the bucket that ingested it. Carries the counters that disambiguate a stall: runs started, skipped, timelines updated — inserted alone cannot tell "nothing left to do" from "ran hard and stored nothing". Quiet periods inside the observed range show as zero; nothing is filled before the oldest surviving run, and the card states the `process_runs` TTL when the requested window exceeds it. Below the charts, a one-line **health verdict strip** (#1031) links to `/health`, with its own fetch so a broken pipeline-health call costs only the strip |

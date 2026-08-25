@@ -235,7 +235,7 @@ const mainsLabelFormatter = computed(() =>
             No champion games for these filters.
           </div>
           <ClientOnly v-else>
-            <NcBarChart
+            <ChartsBarChart
               :data="topByGames"
               :height="topByGamesChartHeight"
               :categories="gamesCategories"
@@ -277,7 +277,7 @@ const mainsLabelFormatter = computed(() =>
             No mains for these filters.
           </div>
           <ClientOnly v-else>
-            <NcBarChart
+            <ChartsBarChart
               :data="topByMains"
               :height="topByMainsChartHeight"
               :categories="mainsCategories"

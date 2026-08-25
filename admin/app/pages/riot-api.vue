@@ -430,7 +430,7 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
           No calls recorded in this window.
         </div>
         <ClientOnly v-else>
-          <NcBarChart
+          <ChartsBarChart
             :data="timeSeriesData"
             :height="260"
             :categories="timeSeriesCategories"
@@ -464,7 +464,7 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
             No calls recorded in this window.
           </div>
           <ClientOnly v-else>
-            <NcBarChart
+            <ChartsBarChart
               :data="callerChartData"
               :height="callerChartHeight"
               :categories="callerCategories"
