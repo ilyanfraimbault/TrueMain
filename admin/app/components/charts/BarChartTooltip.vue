@@ -19,6 +19,13 @@ const props = defineProps<{
   orientation?: Orientation
   xFormatter?: (value: number | Date) => string
   yFormatter?: (value: number | Date) => string
+  /**
+   * Builds the tooltip title from the hovered row. `any` is deliberate, not
+   * laziness: function parameters are contravariant under `strictFunctionTypes`,
+   * so widening this to `Record<string, unknown>` makes the shared
+   * `labelTooltipTitle(d: { label: string })` unassignable — measured at 12
+   * errors, one per call site.
+   */
   titleFormatter?: (row: any) => string | number
 }>()
 

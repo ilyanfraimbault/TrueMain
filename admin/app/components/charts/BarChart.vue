@@ -1,5 +1,6 @@
 <script setup lang="ts" generic="TItem extends Record<string, unknown>">
 import { Orientation } from '@unovis/ts'
+import { onBeforeUnmount } from 'vue'
 import type { BulletLegendItemInterface } from 'vue-chrts/types'
 
 // Thin wrapper over <NcBarChart> that repairs two tooltip defects in vue-chrts.
@@ -49,7 +50,13 @@ defineProps<{
   orientation?: Orientation
   xFormatter?: (value: number | Date) => string
   yFormatter?: (value: number | Date) => string
-  /** Builds the tooltip title from the hovered row. */
+  /**
+   * Builds the tooltip title from the hovered row. `any` is deliberate, not
+   * laziness: function parameters are contravariant under `strictFunctionTypes`,
+   * so widening this to `Record<string, unknown>` makes the shared
+   * `labelTooltipTitle(d: { label: string })` unassignable — measured at 12
+   * errors, one per call site.
+   */
   tooltipTitleFormatter?: (row: any) => string | number
 }>()
 
@@ -70,19 +77,18 @@ defineProps<{
 // would read as the obvious discriminator and is not one: every event a test
 // dispatches is untrusted too.)
 let pendingMove: MouseEvent | null = null
-let replayScheduled = false
+let frameHandle: number | null = null
 let dispatching = false
 function replayMouseMove(event: MouseEvent) {
   if (dispatching) {
     return
   }
   pendingMove = event
-  if (replayScheduled) {
+  if (frameHandle !== null) {
     return
   }
-  replayScheduled = true
-  requestAnimationFrame(() => {
-    replayScheduled = false
+  frameHandle = requestAnimationFrame(() => {
+    frameHandle = null
     const latest = pendingMove
     pendingMove = null
     if (!latest || !(latest.target instanceof Element)) {
@@ -101,6 +107,18 @@ function replayMouseMove(event: MouseEvent) {
     }
   })
 }
+
+// A frame scheduled as the pointer leaves a chart that is being torn down would
+// otherwise fire into a detached tree. Harmless — the dispatch finds no
+// listeners — but holding the event and its element until the frame runs is
+// pointless, and it keeps the handler honest if it ever grows side effects.
+onBeforeUnmount(() => {
+  if (frameHandle !== null) {
+    cancelAnimationFrame(frameHandle)
+    frameHandle = null
+  }
+  pendingMove = null
+})
 </script>
 
 <template>
