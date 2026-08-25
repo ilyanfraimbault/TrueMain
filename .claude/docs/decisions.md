@@ -1637,8 +1637,9 @@ the bar conversion (#1218) — it already affected the horizontal bar charts on 
 `/riot-api` and `/`.
 
 Both are repaired in `admin/app/components/charts/BarChart.vue` (`<ChartsBarChart>`), which every admin bar
-chart now goes through: it renders the tooltip via the `#tooltip` slot (unwrapping `datum`) and replays one
-mousemove on the next frame. The replay listens in the **capture** phase — the upstream handler calls
+chart now goes through: it renders the tooltip via the `#tooltip` slot — body in the sibling
+`BarChartTooltip.vue`, so the hovered row and its series resolve once per render as computeds instead of being
+recomputed by every expression that needs them — and replays one mousemove on the next frame. The replay listens in the **capture** phase — the upstream handler calls
 `stopPropagation()` as soon as a trigger matches, so a bubbling listener never runs at all. The markup mirrors
 upstream's own inline styles and CSS variables, because this is a repair and not a restyle: a bar tooltip and
 an area tooltip must stay identical to look at.
