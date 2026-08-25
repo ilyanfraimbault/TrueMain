@@ -1583,6 +1583,41 @@ Not in scope, and deliberately so: the empty champion page is **preprod behaving
 the default `0` (disabled — old-patch aggregates are the site's patch history, #466), so that build renders
 in prod. Preprod stays on its diet by choice; remember it when auditing preprod for missing data.
 
+## A chart's mark is chosen by what the series measures: flows are bars, stocks are lines (2026-08-25)
+
+The candidate funnel's `validated` series read as a dead flat line near the axis and was taken for a broken
+counter. It was moving ~350 accounts a day. Two independent causes, and fixing only one would have left the
+chart just as misleading.
+
+**The mark contradicted the metric.** `scored` / `promoted` / `validated` are per-bucket *flows* — how many
+candidates moved during that run period — but they were drawn as lines. A line asserts a level that rose and
+fell and invites reading its height as a state; a steady flow therefore renders as a flat line saying
+"nothing is happening", which is the opposite of what a steady flow means. The rule now written into
+`admin/app/utils/charts.ts` and applied across the portal: **a flow (counted per period) gets vertical bars;
+a stock (a level at an instant, or a running total) gets a line or area; a categorical top-N gets horizontal
+bars.** `/database` carries the contrast in one page — disk size stays an area because it is the level the
+volume sits at, while rows-added-per-day became bars because it is that day's delta.
+
+**And the scale hid it regardless of the mark.** 10,593 validated against 147,290 scored on one linear axis is
+squashed onto the baseline whatever shape you draw. So Progression was split: `scored` + `promoted` stay
+together as *grouped* bars (they are the competitive top-N cut, comparable magnitudes, and stacking them would
+count the same candidate twice since promoted ⊂ scored), and `validated` + `demoted` moved to their own chart
+as **cumulative** curves. That is not an exception to the rule — a running total is a stock, and "how many
+accounts have we validated" is a roster size, so a line is the correct mark for it. It also happens to be the
+view that was asked for. The accumulation restarts at the left edge of the selected window, which the caption
+states so the endpoint is not read as an all-time count; periods before `validatedFirstMeasuredAtUtc` stay
+absent from the curve rather than accumulating as zeros (#924).
+
+The split doubles as palette hygiene. `CHART_SERIES` holds three colours in a fixed order chosen for
+colourblind separation, and the file already said a fourth series "gets its own chart" — Progression was at
+three and the outcome series had nowhere to go.
+
+Grouped, not stacked, is a recurring call and it turns on nesting: stack only when the series sum to a real
+whole. The funnel's three intake sources do (they add up to "candidates that entered"). `promoted ⊂ scored` and
+`retries ⊂ calls` do not, so `/riot-api`'s call-volume chart is grouped bars — that one was safe to convert
+because its window fixes the bucket size server-side to land 12–28 buckets, wide enough to read as bars at
+every window.
+
 ## Keeping these files current
 
 A PR that ships a user-facing feature, removes one, or reverses a decision here **must update

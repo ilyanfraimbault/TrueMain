@@ -123,6 +123,8 @@ const growthRows = computed(() =>
   })),
 )
 // One series, the summed on-disk size — the same number the forecast projects.
+// Stays an AREA: this is a stock, a level the volume actually sits at, which is
+// exactly what a filled line is for (#1218).
 // The per-engine split is stated in the forecast card rather than drawn as two
 // stacked series: the operator's question here is "is the volume filling up",
 // and that is one line.
@@ -134,6 +136,9 @@ const growthLabelFormatter = computed(() =>
 
 // Rows created per day, derived from consecutive snapshots. The first day has no
 // predecessor, so the series is one point shorter than the size series.
+// BARS, unlike the disk-size chart above (#1218): this series is the day's delta,
+// a flow, while disk size is the level itself — the one place on this page where
+// the two forms sit next to each other and the difference is visible.
 const rowsPerDayRows = computed(() =>
   dailyPoints.value.slice(1).map((point, index) => ({
     label: new Date(point.dateUtc).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
@@ -370,14 +375,16 @@ function crossingColor(projectedAtUtc: string | null): 'error' | 'warning' | 'ne
           Needs at least three days of snapshots — each point is the difference between two days.
         </div>
         <ClientOnly v-else>
-          <NcAreaChart
+          <NcBarChart
             :data="rowsPerDayRows"
             :height="220"
             :categories="rowsPerDayCategories"
+            :y-axis="['rows']"
             :x-num-ticks="Math.min(rowsPerDayRows.length, 8)"
             :x-formatter="rowsPerDayLabelFormatter"
             :y-formatter="rowsPerDayValueFormatter"
-            v-bind="areaChartProps()"
+            :tooltip-title-formatter="labelTooltipTitle"
+            v-bind="timeBarProps()"
           />
           <template #fallback>
             <USkeleton class="h-[220px] w-full" />

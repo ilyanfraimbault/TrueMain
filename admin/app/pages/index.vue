@@ -42,6 +42,8 @@ const {
 
 // Map buckets to (label, matches) pairs. Labels are formatted per granularity
 // from the ISO bucket (time) or used as-is (patch).
+// Drawn as BARS, not an area (#1218): games-per-bucket is a flow, and a `patch`
+// granularity makes the x-axis outright categorical rather than continuous.
 const matchesChartData = computed(() =>
   (matchesOverTime.value ?? []).map(b => ({
     label: formatBucketLabel(b.bucket, granularity.value),
@@ -64,7 +66,9 @@ const matchesTotal = computed(() =>
 // The pipeline's own throughput, bucketed by RUN date — a different question from
 // the chart above, which buckets by game date and therefore barely moves when
 // ingestion stalls. Kept as its own card and its own request so the two can never
-// be read as two views of one series.
+// be read as two views of one series. Bars, not an area (#1218): a stall has to
+// read as a bucket that dropped to the floor, which is what this card exists for,
+// and a filled area slopes into the gap instead.
 const ingestedGranularityItems: { label: string, value: IngestionTimeGranularity }[] = [
   { label: 'Day', value: 'day' },
   { label: 'Week', value: 'week' },
@@ -372,14 +376,16 @@ const topChampionsLoading = computed(
           No matches in range.
         </div>
         <ClientOnly v-else>
-          <NcAreaChart
+          <NcBarChart
             :data="matchesChartData"
             :height="260"
             :categories="matchesChartCategories"
+            :y-axis="['matches']"
             :x-num-ticks="Math.min(matchesChartData.length, 8)"
             :x-formatter="matchesXFormatter"
             :y-formatter="formatCount"
-            v-bind="areaChartProps()"
+            :tooltip-title-formatter="labelTooltipTitle"
+            v-bind="timeBarProps()"
           />
           <template #fallback>
             <USkeleton class="h-[260px] w-full" />
@@ -436,14 +442,16 @@ const topChampionsLoading = computed(
         </div>
         <template v-else>
           <ClientOnly>
-            <NcAreaChart
+            <NcBarChart
               :data="ingestedChartData"
               :height="260"
               :categories="ingestedChartCategories"
+              :y-axis="['inserted']"
               :x-num-ticks="Math.min(ingestedChartData.length, 8)"
               :x-formatter="ingestedXFormatter"
               :y-formatter="formatCount"
-              v-bind="areaChartProps()"
+              :tooltip-title-formatter="labelTooltipTitle"
+              v-bind="timeBarProps()"
             />
             <template #fallback>
               <USkeleton class="h-[260px] w-full" />
