@@ -63,4 +63,4 @@ Everything runs as Docker containers on a single host. In production, Caddy term
 - [`docs/api.md`](docs/api.md) — HTTP endpoint reference (parameters and response shapes).
 - [`docs/preprod.md`](docs/preprod.md) — preprod environment: `:preprod` images tracking `develop`, fresh database with a dedicated Riot API key, data-diet knobs, deployment runbook.
 - [`docs/diagrams/architecture.drawio`](docs/diagrams/architecture.drawio) — architecture diagram.
-- `docs/phase-*.md` — RFCs behind the major evolutions of the data model and pipeline.
+- `docs/phase-*.md` — RFCs behind the major evolutions of the data model and pipeline. All three are implemented and kept as historical records; each carries a status banner saying what shipped differently from the proposal.
