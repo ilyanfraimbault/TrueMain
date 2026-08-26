@@ -42,15 +42,28 @@ export function championLastmodById(
 ): Map<number, string> {
   const latest = new Map<number, number>()
 
-  for (const row of summaries ?? []) {
+  // `Array.isArray`, not just a null check: a 200 carrying a malformed body
+  // would make the loop below throw, and that throw escapes `championUrls` into
+  // `loadSitemapUrls`'s catch — which would drop **every champion URL** rather
+  // than just the dates. The contract is that the directory decorates the
+  // sitemap and never decides it, so a contract violation has to fail here.
+  if (!Array.isArray(summaries)) return latestToDays(latest)
+
+  for (const row of summaries) {
     const time = new Date(row.lastUpdatedAtUtc ?? '').getTime()
     if (Number.isNaN(time)) continue
     const known = latest.get(row.championId)
     if (known === undefined || time > known) latest.set(row.championId, time)
   }
 
-  // Truncate only once the maximum is settled: comparing day strings would tie
-  // every row folded on the same day and pick whichever happened to be last.
+  return latestToDays(latest)
+}
+
+/**
+ * Truncate only once the maximum is settled: comparing day strings would tie
+ * every row folded on the same day and pick whichever happened to be last.
+ */
+function latestToDays(latest: Map<number, number>): Map<number, string> {
   const days = new Map<number, string>()
   for (const [championId, time] of latest) {
     const day = toSitemapDay(new Date(time).toISOString())

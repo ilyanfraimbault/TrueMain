@@ -79,4 +79,21 @@ describe('championLastmodById', () => {
     expect(championLastmodById(undefined).size).toBe(0)
     expect(championLastmodById([]).size).toBe(0)
   })
+
+  it('degrades rather than throwing on a 200 carrying a malformed body', () => {
+    // A throw here escapes `championUrls` into the sitemap's own catch, which
+    // would drop every champion URL — not just the dates.
+    const malformed = [
+      { rows: [] },
+      'not a list',
+      42,
+      null,
+      undefined,
+      {},
+    ]
+    for (const body of malformed) {
+      expect(() => championLastmodById(body as never)).not.toThrow()
+      expect(championLastmodById(body as never).size).toBe(0)
+    }
+  })
 })
