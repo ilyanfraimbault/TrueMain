@@ -67,9 +67,20 @@ function readQuery(event: H3Event): IndexQuery {
     return pattern.test(value) ? value : null
   }
 
+  const view: ChampionIndexView = query.view === 'tiers' ? 'tiers' : 'all'
+
+  // The `all` view reads none of the filters, so it must not carry them: this
+  // route is publicly reachable, and keeping them would let
+  // `?view=all&patch=16.1` … `?view=all&patch=99.9` mint an unbounded family of
+  // cache entries holding byte-identical answers. Normalising here rather than
+  // in `getKey` keeps the key and what the function actually reads in one place.
+  if (view === 'all') {
+    return { view, patch: null, eloBracket: null, position: null, limit: null }
+  }
+
   const rawLimit = typeof query.limit === 'string' ? Number(query.limit) : Number.NaN
   return {
-    view: query.view === 'tiers' ? 'tiers' : 'all',
+    view,
     // Digits and a dot survive `toUpperCase()` unchanged.
     patch: pick('patch', PATCH_RE),
     eloBracket: pick('eloBracket', ELO_BRACKET_RE),
