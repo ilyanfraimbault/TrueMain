@@ -71,13 +71,20 @@ ingestor then populates the database over its cycles.
 
 Exposed ports (HTTP, no TLS — restrict by firewall to trusted IPs):
 
-| Service  | Port |
-| -------- | ---- |
-| web      | 3001 |
-| admin    | 3002 |
-| api      | 8081 |
-| pgadmin  | 5051 |
-| postgres | 5432 (loopback only) |
+| Service     | Port |
+| ----------- | ---- |
+| web         | 3001 |
+| admin       | 3002 |
+| api         | 8081 |
+| umami-proxy | 3100 |
+| pgadmin     | 5051 |
+| postgres    | 5432 (loopback only) |
+
+`umami-proxy` is the one entry in that table that cannot be narrowed to
+loopback: it is what the visitor's browser posts analytics events to
+(`UMAMI_PUBLIC_URL`, injected into the frontends as `NUXT_PUBLIC_UMAMI_HOST`),
+so binding it to `127.0.0.1` would silently drop every hit. Firewall it to the
+tester IPs like the rest, not to the host itself.
 
 ## Updating preprod to the latest develop
 

@@ -9,6 +9,17 @@ permissions:
   contents: read
   packages: write
 
+# Workflow-level, mirroring deploy-preprod.yml: two releases published back to
+# back would otherwise interleave their `publish` jobs and race for the moving
+# `:latest` tag, leaving it pointing at whichever build finished last rather
+# than at the newest release. `cancel-in-progress: false` lets a running
+# deployment finish; GitHub still collapses the pending queue to the newest
+# run, so a burst of releases ends on the latest one — and a collapsed run is
+# visibly cancelled, never a silent half-deploy.
+concurrency:
+  group: prod-pipeline
+  cancel-in-progress: false
+
 env:
   IMAGE_API: ghcr.io/${{ github.repository_owner }}/truemain-api
   IMAGE_INGESTOR: ghcr.io/${{ github.repository_owner }}/truemain-ingestor
@@ -16,9 +27,47 @@ env:
   IMAGE_ADMIN: ghcr.io/${{ github.repository_owner }}/truemain-admin
 
 jobs:
+  # Gate for the whole pipeline. Every later job assumes a complete deployment
+  # configuration, so it is checked once, up front, before anything mutates
+  # prod. This job exists because the previous shape checked the deploy-side
+  # configuration *after* `migrate-prod` had already run: an empty
+  # PROD_ENV_FILE produced a green skip and an unset HOSTINGER_PROD_VM_ID
+  # skipped the deploy job entirely, in both cases leaving prod running the old
+  # binary against a freshly migrated schema — the exact mismatch
+  # docs/production-migrations.md says this pipeline exists to prevent.
+  # Failing here instead is loud, costs nothing, and leaves prod untouched.
+  preflight:
+    name: Preflight Deployment Configuration
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Require the full prod deployment configuration
+        env:
+          PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
+          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_ENV_FILE: ${{ secrets.PROD_ENV_FILE }}
+          HOSTINGER_PROD_API_KEY: ${{ secrets.HOSTINGER_PROD_API_KEY }}
+          HOSTINGER_PROD_VM_ID: ${{ vars.HOSTINGER_PROD_VM_ID }}
+        run: |
+          set -uo pipefail
+          missing=""
+          for name in PROD_SSH_HOST PROD_SSH_KEY PROD_ENV_FILE HOSTINGER_PROD_API_KEY HOSTINGER_PROD_VM_ID; do
+            if [ -z "${!name}" ]; then
+              missing="${missing} ${name}"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Incomplete prod deployment configuration —${missing}. Refusing to migrate or roll prod: applying migrations without rolling the images (or the reverse) leaves prod on a mismatched schema. Set the missing secrets/variables (see docs/prod.md) and re-run this workflow."
+            exit 1
+          fi
+          echo "Prod deployment configuration is complete." >> "$GITHUB_STEP_SUMMARY"
+
   publish:
     name: Build & Publish Release Images
     runs-on: ubuntu-24.04
+    # Also gated: `publish` moves the `:latest` tag, so publishing without
+    # being able to deploy would leave `:latest` ahead of what prod runs.
+    needs: preflight
 
     steps:
       - name: Checkout
@@ -87,23 +136,16 @@ jobs:
   migrate-prod:
     name: Apply Prod Migrations
     runs-on: ubuntu-24.04
-    needs: publish
+    needs: [preflight, publish]
     if: success()
     concurrency:
       group: migrate-prod
       cancel-in-progress: false
 
     steps:
-      - name: Require PROD_SSH_HOST / PROD_SSH_KEY
-        env:
-          PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
-          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
-        run: |
-          if [ -z "$PROD_SSH_HOST" ] || [ -z "$PROD_SSH_KEY" ]; then
-            echo "::error::PROD_SSH_HOST/PROD_SSH_KEY are unset — refusing to let deploy-prod proceed against a possibly-unmigrated schema. Set both secrets (see docs/prod.md)."
-            exit 1
-          fi
-
+      # The SSH-secret check that used to live here moved into `preflight`,
+      # together with the deploy-side checks, so an incomplete configuration
+      # blocks the migration instead of orphaning it.
       - name: Checkout
         uses: actions/checkout@v7
         with:
@@ -159,33 +201,24 @@ jobs:
   deploy-prod:
     name: Deploy Prod VPS
     runs-on: ubuntu-24.04
-    needs: [publish, migrate-prod]
-    if: success() && vars.HOSTINGER_PROD_VM_ID != ''
+    needs: [preflight, publish, migrate-prod]
+    # `success()` must be explicit — a custom `if:` would replace the implicit
+    # needs-succeeded check. HOSTINGER_PROD_VM_ID and PROD_ENV_FILE are no
+    # longer tested here: `preflight` already failed the run if either is
+    # missing, so reaching this job means the configuration is complete and a
+    # skip can no longer masquerade as a successful release.
+    if: success()
     concurrency:
       group: deploy-prod
       cancel-in-progress: false
 
     steps:
-      - name: Guard on PROD_ENV_FILE
-        id: guard
-        env:
-          PROD_ENV_FILE: ${{ secrets.PROD_ENV_FILE }}
-        run: |
-          if [ -z "$PROD_ENV_FILE" ]; then
-            echo "::warning::PROD_ENV_FILE is empty — skipping prod deploy to avoid wiping the VPS .env. Set the secret to enable auto-deploy."
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Checkout
-        if: steps.guard.outputs.ready == 'true'
         uses: actions/checkout@v7
         with:
           ref: ${{ github.event.release.tag_name }}
 
       - name: Redeploy Docker Manager project
-        if: steps.guard.outputs.ready == 'true'
         uses: hostinger/deploy-on-vps@v2
         with:
           api-key: ${{ secrets.HOSTINGER_PROD_API_KEY }}
