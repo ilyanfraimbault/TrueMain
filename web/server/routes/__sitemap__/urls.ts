@@ -1,14 +1,21 @@
 import type { SitemapUrl } from '#sitemap/types'
+import type { ChampionSummaryResponse } from '~~/shared/types/champions'
 import type { ChampionSlugMap } from '~~/shared/types/static-data'
 import type { LeaderboardResponse } from '~~/shared/types/leaderboard'
 import { defineEventHandler, setResponseHeader } from 'h3'
+import { championLastmodById } from '~~/shared/utils/sitemap-lastmod'
 
 /**
  * Dynamic sitemap entries for @nuxtjs/sitemap. Static pages are discovered
  * from the file-based routes automatically; this endpoint enumerates the two
  * data-driven route families:
- *   - /champions/{slug}         — one per champion on the latest patch (#1124)
- *   - /truemains/{gameName-tagLine} — one per leaderboard player
+ *   - /champions/{slug}         — one per champion on the latest patch (#1124),
+ *                                 carrying a day-precision `lastmod` (#1256)
+ *   - /truemains/{gameName-tagLine} — one per leaderboard player, deliberately
+ *                                 with **no** `lastmod`: `LeaderboardRowResponse`
+ *                                 carries no timestamp, and the request time or
+ *                                 the build date would be a claim the page can't
+ *                                 back. Absent beats invented.
  *
  * Both lists come from the app's own server routes (the DDragon-backed
  * champion list and the proxied backend leaderboard), so the sitemap stays in
@@ -29,7 +36,22 @@ async function championUrls(): Promise<SitemapUrl[]> {
   // champion in the sitemap as a 301 to somewhere else (#1124). Same source the
   // router and the link builders read, so the three cannot disagree.
   const slugs = await $fetch<ChampionSlugMap>('/api/static/champion-slugs')
-  return Object.values(slugs).map(slug => ({ loc: `/champions/${slug}` }))
+
+  // Freshness (#1256), day-precision — see `toSitemapDay` for why not finer.
+  // The slug map is what decides *which* URLs exist; this only decorates them,
+  // so it fails on its own: a champion-directory outage costs the `lastmod`,
+  // never the URLs. A champion the directory doesn't mention (the days after a
+  // patch flip, before its lane is folded) is emitted without one rather than
+  // with a fabricated date.
+  const summaries = await $fetch<ChampionSummaryResponse[]>('/api/champions').catch(() => null)
+  const lastmodById = championLastmodById(summaries)
+
+  return Object.entries(slugs).map(([championId, slug]) => {
+    const lastmod = lastmodById.get(Number(championId))
+    return lastmod
+      ? { loc: `/champions/${slug}`, lastmod }
+      : { loc: `/champions/${slug}` }
+  })
 }
 
 async function truemainUrls(): Promise<SitemapUrl[]> {
