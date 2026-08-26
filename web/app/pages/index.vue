@@ -78,6 +78,21 @@ const overviewPending = computed(() => isLoadingStatus(overviewStatus.value))
 // reads as data loss. This one only grows.
 const gamesAnalyzed = computed(() => overview.value?.gamesAnalyzed ?? 0)
 
+// ─── Server-rendered champion links (#1209) ───────────────────────────────
+// The homepage is the only page on the site with any authority, and it passed
+// none of it on: every champion link it holds lives inside the client-only tier
+// panel, so the HTML a crawler receives contained not one `/champions/{slug}`
+// anchor. The site's ~174 champion URLs existed only in `sitemap.xml`, which on
+// a young site with no backlinks does not get them indexed.
+//
+// Twelve, not the full A→Z index `/champions` renders: the front door should
+// point at the pages worth entering by, and 174 links here would dilute every
+// one of them. Awaited server-side only — the app has no Suspense fallback on
+// `<NuxtPage>`.
+const championIndexFetch = useChampionIndexTiers({ limit: 12 })
+if (import.meta.server) await championIndexFetch
+const { data: championIndex } = championIndexFetch
+
 </script>
 
 <template>
@@ -110,11 +125,13 @@ const gamesAnalyzed = computed(() => overview.value?.gamesAnalyzed ?? 0)
         <!-- Search is SSR'd as a plain field, but its command-palette JS
              (UModal + UCommandPalette + the truemains search composable) is
              heavy and never needed for the first paint. Delay its hydration to
-             browser-idle so that chunk stays off the critical path. Safe from a
-             mismatch: on the homepage the trigger renders no client-only data
-             (no champion filter here), so the SSR markup and the eventual
-             client render are identical. ⌘K is owned by the always-mounted
-             header instance, so deferring this one doesn't affect the shortcut. -->
+             browser-idle so that chunk stays off the critical path. The
+             trigger renders no client-only data here (no champion filter on the
+             homepage), so the SSR markup and the eventual client render are
+             identical — the one part that could not be, the platform-dependent
+             ⌘/Ctrl hint, is `<ClientOnly>` inside the component. ⌘K is owned by
+             the always-mounted header instance, so deferring this one doesn't
+             affect the shortcut. -->
         <LazyAppSearch
           variant="field"
           size="lg"
@@ -192,6 +209,20 @@ const gamesAnalyzed = computed(() => overview.value?.gamesAnalyzed ?? 0)
         :initial-loading="truemainsInitialLoading"
         :loading="truemainsLoading"
         :patch="ddragonPatch"
+      />
+    </section>
+
+    <!-- The one block of champion links in the server-rendered HTML. Outside
+         any `<ClientOnly>` and fed by an SSR-enabled fetch carried in the Nuxt
+         payload, so hydration reads the same object the server rendered from.
+         It doubles the tier panel above it in content, on purpose: the panel is
+         portraits and numbers, this is the names — and the names are what a
+         crawler (and a reader scanning for one champion) can actually use. -->
+    <section class="mx-auto max-w-6xl px-4 pb-20 md:px-6">
+      <ChampionTierLinks
+        :tiers="championIndex.tiers"
+        :patch="championIndex.patch"
+        title="Strongest champions right now"
       />
     </section>
 
