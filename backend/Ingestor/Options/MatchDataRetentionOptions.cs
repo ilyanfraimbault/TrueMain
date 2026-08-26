@@ -27,7 +27,7 @@ public class MatchDataRetentionOptions
 
     /// <summary>
     /// Number of most-recent patches whose champion aggregates (scopes+patterns,
-    /// matchup stats, timeline leads, powerspike stats) are retained. <c>0</c>
+    /// matchup stats, synergy stats, ban stats, powerspike stats) are retained. <c>0</c>
     /// (the default) disables aggregate retention entirely: old-patch aggregates
     /// stay frozen forever, which is the production behaviour (#466) — they are
     /// the site's patch history and can never be recomputed once their raw

@@ -1,122 +1,47 @@
 # TrueMain Web
 
-TrueMain Web is the Nuxt-based frontend for the TrueMain platform. It is developed and run as part of the TrueMain monorepo and communicates with backend services through a server-side Nuxt proxy.
+The public Nuxt 4 frontend of TrueMain, served at [truemain.lol](https://truemain.lol). It lives in the
+`web/` directory of the monorepo; the architecture, the deploy story and the rest of the stack are in the
+[root `README.md`](../README.md).
 
-## Monorepo integration
+The browser never reaches the backend directly: the Nitro server proxies `/api/**` to the Api service at
+`NUXT_API_BASE_URL` (required — `http://api:8080` inside the Docker network, `http://localhost:8080` when
+running the Api on the host).
 
-This project lives under the `truemain-web/` directory of the TrueMain monorepo.
+## Running it
 
-- Frontend code: this directory (`truemain-web/`)
-- Shared configuration / tooling: managed at the monorepo root
-- Backend / API services: defined in other packages within the monorepo
-
-TrueMain Web expects a running API service reachable from the `web` container via `NUXT_API_BASE_URL`. Browser requests go only to the Nuxt app, which proxies `/api/**` to the backend service.
-
-## Environment variables
-
-The application reads configuration from standard Nuxt environment variables. The key variable for backend communication is:
-
-- `NUXT_API_BASE_URL` (required)  
-  Base URL used by the Nuxt server proxy to reach the backend API.  
-  Examples:
-  - Local Docker compose: `http://api:8080` (service name and port defined in `docker-compose.yml`)
-  - Local non-Docker development: `http://localhost:8080`
-  - Staging/production: the internal URL reachable by the Nuxt server process
-
-Set this variable in your environment before starting the app (for example in a `.env` file at the project root or via your container configuration).
-
-## Development using Docker (recommended)
-
-In the monorepo, the recommended way to run TrueMain Web for development is via Docker and Docker Compose from the repository root. This ensures that the frontend and all required backend services run with a consistent configuration.
-
-Typical workflow from the monorepo root:
+The supported dev path is the Docker stack from the repository root, which starts Postgres, the Api and this
+app with hot reload:
 
 ```bash
-# Build and start all services (including TrueMain Web)
-docker compose up --build
-
-# Or, if a specific profile/stack is defined for web-only development:
-# docker compose --profile web up --build
+docker compose -f compose.dev.yaml up
 ```
 
-After the stack is up, TrueMain Web should be available at the host and port configured in the compose file (commonly `http://localhost:3000`). The `NUXT_API_BASE_URL` is usually wired through as an environment variable for the `truemain-web` service in `docker-compose.yml`.
+The site is then on `http://localhost:3000`.
 
-Refer to the monorepo’s root `README.md` and `docker-compose` files for the authoritative Docker commands and available profiles.
-
-## Local development without Docker
-
-You can also run the Nuxt dev server directly from this directory if you have Node.js installed.
-
-### Setup
-
-Install dependencies:
+To run only the Nuxt dev server (against an Api you started yourself):
 
 ```bash
-# npm
-npm install
-
-# pnpm
-pnpm install
-
-# yarn
-yarn install
-
-# bun
-bun install
+npm ci
+NUXT_API_BASE_URL=http://localhost:8080 npm run dev
 ```
 
-Make sure `NUXT_API_BASE_URL` is set in your environment before starting the dev server.
-
-### Development server
-
-Start the development server (default: `http://localhost:3000`):
+## Commands
 
 ```bash
-# npm
-npm run dev
-
-# pnpm
-pnpm dev
-
-# yarn
-yarn dev
-
-# bun
-bun run dev
+npm run dev         # dev server
+npm run build       # production build — what CI runs, and the only thing that catches stale-type errors
+npm run preview     # serve the production build locally
+npm run typecheck   # can pass on a stale .nuxt; trust `build`
+npm run test        # Vitest
 ```
 
-## Production
+Use npm, not pnpm/yarn/bun: `package-lock.json` is committed and CI installs from it. Regenerate it with
+`npx npm@11.13.0` — CI's version, and older npm drops sharp's optional dependencies.
 
-Build the application for production:
+## Conventions
 
-```bash
-# npm
-npm run build
-
-# pnpm
-pnpm build
-
-# yarn
-yarn build
-
-# bun
-bun run build
-```
-
-Locally preview the production build:
-
-```bash
-# npm
-npm run preview
-
-# pnpm
-pnpm preview
-
-# yarn
-yarn preview
-
-# bun
-bun run preview
-```
-
-For deployment options and advanced configuration, see the [Nuxt deployment documentation](https://nuxt.com/docs/getting-started/deployment) and the TrueMain monorepo documentation.
+- `docs/DESIGN_SYSTEM.md` — tokens, surfaces, typography. Every token is rendered on one screen at
+  `/dev/design-system`; the other `/dev/*` pages are component playgrounds, all stripped from production
+  builds by a `pages:extend` hook in `nuxt.config.ts`.
+- `.claude/docs/features.md` at the repo root — what each page already ships.
