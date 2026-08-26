@@ -83,6 +83,14 @@ jobs:
           cache: npm
           cache-dependency-path: ${{ matrix.app }}/package-lock.json
 
+      # The npm bundled with Node 24 drifts with every patch release, and older
+      # npm resolves sharp's platform-specific optional deps differently — a lock
+      # file regenerated with the wrong one installs fine locally and breaks the
+      # web build here. Pin the version the lock files were generated with so
+      # "the npm CI uses" is a fact instead of a guess (CLAUDE.md, #1236).
+      - name: Pin npm
+        run: npm install -g npm@11.13.0
+
       - name: Install dependencies
         run: npm ci
 
