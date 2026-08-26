@@ -109,6 +109,22 @@ const tierGroups = computed(() =>
 
 const hasRows = computed(() => tierGroups.value.some(group => group.entries.length > 0))
 
+// The tier list in words, server-rendered (#1209). The chips above are
+// client-only (#149) *and* deliberately portrait-only with the name in a
+// tooltip, so before this the page shipped 55 kB of HTML containing not one
+// champion name and not one ranked row — nothing for "champion tier list" to
+// match. Scoped to the same URL filters the chips are, so the two can never
+// describe different slices.
+//
+// Awaited server-side only, same reason as the /champions index block.
+const tierLinksFetch = useChampionIndexTiers({
+  patch: () => filters.value.patch,
+  position: () => selectedPosition.value,
+  eloBracket: () => filters.value.eloBracket,
+})
+if (import.meta.server) await tierLinksFetch
+const { data: tierLinks } = tierLinksFetch
+
 // Each chip links to the champion page, pinned to the current patch + the row's
 // own position — same destination shape as the /champions directory rows.
 function championDestination(entry: { championId: number, position: string }) {
@@ -212,5 +228,13 @@ function championDestination(entry: { championId: number, position: string }) {
         <TierlistSkeleton />
       </template>
     </ClientOnly>
+
+    <!-- Outside `<ClientOnly>`: this is the ranked content a crawler gets. Fed
+         by an SSR-enabled fetch carried in the Nuxt payload, so hydration reads
+         the same object the server rendered from. -->
+    <ChampionTierLinks
+      :tiers="tierLinks.tiers"
+      :patch="tierLinks.patch"
+    />
   </main>
 </template>

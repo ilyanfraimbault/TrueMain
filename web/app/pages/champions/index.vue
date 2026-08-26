@@ -213,6 +213,19 @@ function onRowActivate(row: { championId: number, position: string }) {
 // Resolve build ids the same way the leaderboard surfaces do. `item` keeps
 // its historical `staticItem` name at the template call sites.
 const { perk, perkStyle, item: staticItem } = useBuildResolvers(runeTree, itemsMap)
+
+// The A→Z champion index, server-rendered (#1209) — the only champion links on
+// this page that reach the HTML before JS runs. Everything above is
+// `server: false` and its rows are a `role="button"` by design (#147), so a
+// crawler received a page titled "Champion Builds" with no champion on it and
+// no link to one, and the site's ~174 champion URLs had zero inbound links.
+//
+// Awaited server-side only: the app has no Suspense fallback on `<NuxtPage>`,
+// so awaiting on the client would freeze the outgoing page on every navigation
+// into this route for a block that sits below the grid.
+const championIndexFetch = useChampionIndexAll()
+if (import.meta.server) await championIndexFetch
+const { data: championIndex } = championIndexFetch
 </script>
 
 <template>
@@ -468,5 +481,14 @@ const { perk, perkStyle, item: staticItem } = useBuildResolvers(runeTree, itemsM
         </ul>
       </template>
     </ClientOnly>
+
+    <!-- Outside `<ClientOnly>` on purpose: this is the block that has to be in
+         the server-rendered HTML. It is fed by an SSR-enabled fetch travelling
+         in the Nuxt payload, so hydration reads the same object the server
+         rendered from — not #149's client-only fetch racing the render. -->
+    <ChampionIndexLinks
+      :champions="championIndex.champions"
+      subtitle="Every champion with a build page, in one list."
+    />
   </main>
 </template>

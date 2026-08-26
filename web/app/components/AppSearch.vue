@@ -381,11 +381,21 @@ defineShortcuts(computed(() => ({
         <!-- ⌘K hint on the prominent hero bar only. The shortcut itself is owned
              by the always-mounted header instance; pressing ⌘K opens the
              (identical) unified search, and `usingInput` blocks it while a modal
-             input is focused, so it can't stack a second modal. -->
-        <span v-if="props.size === 'lg'" class="hidden items-center gap-0.5 sm:flex">
-          <UKbd value="meta" />
-          <UKbd value="K" />
-        </span>
+             input is focused, so it can't stack a second modal.
+
+             `<ClientOnly>` because `UKbd value="meta"` resolves the modifier
+             from the *platform* (`⌘` on macOS, `Ctrl` everywhere else), which
+             the server cannot know: it rendered an empty key and the client
+             rendered `Ctrl`, a hydration text mismatch on every non-Mac visit
+             to the homepage. No fallback on purpose — the hint advertises a
+             shortcut that does not work until the handler is mounted, so
+             showing it earlier would be a promise the page can't keep. -->
+        <ClientOnly>
+          <span v-if="props.size === 'lg'" class="hidden items-center gap-0.5 sm:flex">
+            <UKbd value="meta" />
+            <UKbd value="K" />
+          </span>
+        </ClientOnly>
       </button>
       <UButton
         v-if="activeChampion"

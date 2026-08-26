@@ -262,6 +262,41 @@ compress away — still nothing next to the ~373 KiB item map it replaces),
 and the block now sits after the main column in DOM order — deliberate, so a crawler and a keyboard both
 meet the page's own build panels first — #1143.
 
+**The champion link graph is server-rendered as its own blocks, not by SSR-ing the grids that hold it.**
+#1123 gave the champion pages content a crawler could read. It did not give them links a crawler could
+*follow*: counted in the HTML prod actually served, `/` held 0 `/champions/{slug}` anchors, `/champions` 0,
+`/champions/tierlist` 0 and a champion page 0 — the only `/champions/*` anchor anywhere on the site was
+`/champions/tierlist`. So the 174 build pages were reachable only from `sitemap.xml`, which on a site with no
+backlinks is the textbook "Discovered – currently not indexed" profile, and it showed: `truemain katarina`
+returned nothing, and `/` outranked `/champions` for `truemain champions`. One root cause, two effects —
+client-only rendering costs both the indexable content *and* the internal link graph.
+The fix is deliberately **not** "make the grids SSR". Each of them needs the ~20 kB static champion list
+(names *and* CDN icon URLs) plus, on the directory, the ~373 KiB item map — the exact payload #1123 built a
+resolve-to-names endpoint to avoid — and the directory's row is a `role="button"`, not an anchor, on purpose
+(#147), so SSR-ing it would emit no `<a>` at all. Instead `/api/champion-index` answers the two questions the
+blocks ask, resolves ids to names server-side and returns 6.0 kB / 1.4 kB gzipped for the full A→Z index. The
+`all` view costs **no backend call** (DDragon, already cached for an hour), which is what makes it affordable
+on every champion page as well as the directory — that is where the champion→champion edges come from.
+Not a #149 regression, and the distinction is the one #1123 already turns on: #149 was a *client-only* fetch
+racing SSR and winning; these are SSR-enabled and travel in the Nuxt payload, so hydration reads the same
+object the server rendered from. Every interactive panel on those pages stays `server: false`.
+Accepted consequences. The blocks restate what the panels above them show — the tier list twice over — which
+is the point, not an oversight: the panels are portraits and numbers (the tier chip's name is *tooltip*
+content by design), and what was missing from the HTML is the words. They are **visible, never `sr-only`**,
+for the reason #1123 states. A champion is listed **once**, under its strongest tier, so a flex pick does not
+split the anchor text pointing at its page across two links — the tier block is a summary of the table above
+it, the same way #1123's paragraph describes `builds[0]`. And the *contextual* cross-links the matchups and
+synergies panels would give (a champion's actual counters, editorially the better link) were declined: those
+are backend reads, and this page's SSR round-trip budget is already spent on the build summary — #1209.
+
+**A platform-dependent `UKbd` cannot be server-rendered.**
+The homepage's ⌘K hint (`<UKbd value="meta">`) resolves its modifier from the platform — `⌘` on macOS, `Ctrl`
+everywhere else — which the server cannot know, so it rendered an empty key against the client's `Ctrl`:
+"Hydration completed but contains mismatches" on every non-Mac visit to `/`, predating #1209 and found while
+verifying its acceptance. It is `<ClientOnly>` now, with **no fallback** on purpose: the hint advertises a
+shortcut that does not work until the handler is mounted, so showing it earlier is a promise the page cannot
+keep — #1209.
+
 **The paragraph's hover cards are resolved client-side, not carried in its payload.**
 #1147 gave every mark in the build paragraph the tooltip its counterpart in the icon grid has. The obvious
 implementation — put the tooltip body in the summary payload next to the name — is the one thing this block
