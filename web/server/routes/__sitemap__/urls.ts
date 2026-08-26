@@ -35,15 +35,20 @@ async function championUrls(): Promise<SitemapUrl[]> {
   // URLs the pages canonicalise to, and a numeric `loc` would put every
   // champion in the sitemap as a 301 to somewhere else (#1124). Same source the
   // router and the link builders read, so the three cannot disagree.
-  const slugs = await $fetch<ChampionSlugMap>('/api/static/champion-slugs')
-
+  //
   // Freshness (#1256), day-precision — see `toSitemapDay` for why not finer.
-  // The slug map is what decides *which* URLs exist; this only decorates them,
-  // so it fails on its own: a champion-directory outage costs the `lastmod`,
-  // never the URLs. A champion the directory doesn't mention (the days after a
-  // patch flip, before its lane is folded) is emitted without one rather than
-  // with a fabricated date.
-  const summaries = await $fetch<ChampionSummaryResponse[]>('/api/champions').catch(() => null)
+  // The slug map is what decides *which* URLs exist; the directory only
+  // decorates them, so it fails on its own: a champion-directory outage costs
+  // the `lastmod`, never the URLs. A champion the directory doesn't mention
+  // (the days after a patch flip, before its lane is folded) is emitted without
+  // one rather than with a fabricated date.
+  //
+  // The two are independent, so they go out together — the slug map's rejection
+  // still reaches the caller's catch, which is what drops the family.
+  const [slugs, summaries] = await Promise.all([
+    $fetch<ChampionSlugMap>('/api/static/champion-slugs'),
+    $fetch<ChampionSummaryResponse[]>('/api/champions').catch(() => null),
+  ])
   const lastmodById = championLastmodById(summaries)
 
   return Object.entries(slugs).map(([championId, slug]) => {

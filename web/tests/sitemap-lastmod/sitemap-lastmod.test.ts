@@ -80,6 +80,16 @@ describe('championLastmodById', () => {
     expect(championLastmodById([]).size).toBe(0)
   })
 
+  it('skips a malformed row without losing its usable siblings', () => {
+    // A throw on property access costs every champion URL, not one date — the
+    // same contract the top-level guard protects, one level down.
+    const rows = [null, 'nope', 42, { championId: null, lastUpdatedAtUtc: '2026-08-26T08:00:00Z' }, row(103, '2026-08-25T08:00:00Z')]
+    expect(() => championLastmodById(rows as never)).not.toThrow()
+    const days = championLastmodById(rows as never)
+    expect(days.get(103)).toBe('2026-08-25')
+    expect(days.size).toBe(1)
+  })
+
   it('degrades rather than throwing on a 200 carrying a malformed body', () => {
     // A throw here escapes `championUrls` into the sitemap's own catch, which
     // would drop every champion URL — not just the dates.

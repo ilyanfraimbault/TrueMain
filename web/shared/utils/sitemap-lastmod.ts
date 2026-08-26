@@ -50,10 +50,15 @@ export function championLastmodById(
   if (!Array.isArray(summaries)) return latestToDays(latest)
 
   for (const row of summaries) {
-    const time = new Date(row.lastUpdatedAtUtc ?? '').getTime()
+    // Optional chaining for the same reason as the `Array.isArray` above, one
+    // level down: a null or non-object element would throw on property access,
+    // and that throw costs every champion URL rather than one date.
+    const time = new Date(row?.lastUpdatedAtUtc ?? '').getTime()
     if (Number.isNaN(time)) continue
-    const known = latest.get(row.championId)
-    if (known === undefined || time > known) latest.set(row.championId, time)
+    const championId = row?.championId
+    if (typeof championId !== 'number' || !Number.isFinite(championId)) continue
+    const known = latest.get(championId)
+    if (known === undefined || time > known) latest.set(championId, time)
   }
 
   return latestToDays(latest)
