@@ -1,17 +1,16 @@
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
-import { isLiveChampionId, normalizeDataDragonPatch } from '~~/shared/utils/ddragon'
+import { isLiveChampionId } from '~~/shared/utils/ddragon'
+import { normalizeRequestedPatch, resolveLatestDDragonPatch } from '~~/server/utils/ddragon-patch'
+
+/**
+ * Synchronised copy of `web/server/api/static/champions.get.ts` (#1226). The
+ * two apps read the same DDragon champion list and must answer it identically;
+ * the only intended difference is the `requireUserSession` gate below. Keep the
+ * rest line-for-line so the next divergence shows up in a diff.
+ */
 
 interface ChampionListResponse {
   data: Record<string, { id: string, key: string, name: string, image: { full: string } }>
-}
-
-async function resolveLatestPatch(): Promise<string> {
-  const versions = await $fetch<string[]>('https://ddragon.leagueoflegends.com/api/versions.json')
-  const latest = versions[0]
-  if (!latest) {
-    throw createError({ statusCode: 502, statusMessage: 'DDragon returned no versions' })
-  }
-  return latest
 }
 
 // Cached on the resolved patch — not on the raw query param. Without this,
@@ -38,24 +37,17 @@ const loadChampionsForPatch = defineCachedFunction(
   },
 )
 
-// A DDragon patch is `major.minor.patch` (e.g. "16.5.1"). Validating before the
-// value is interpolated into the CDN URL and used as a cache key blocks cache
-// poisoning / path injection via an arbitrary `?patch=` param.
-const PATCH_PATTERN = /^\d+\.\d+\.\d+$/
-
 export default defineEventHandler(async (event): Promise<ChampionStaticListItem[]> => {
-  // Gate behind the operator session like every other ops/static data route.
+  // Admin-only difference: gate behind the operator session like every other
+  // route of this app.
   await requireUserSession(event)
 
   const { patch } = getQuery(event) as { patch?: string }
   // Backend scopes expose patches in the short "16.5" form; DDragon CDN paths
-  // need "16.5.1". Normalize here so a caller can pass the patch straight from
-  // a champion summary. Fall back to the latest DDragon version when none is
-  // supplied so a new Riot patch invalidates the cache key naturally.
-  const normalized = normalizeDataDragonPatch(patch)
-  if (normalized !== null && !PATCH_PATTERN.test(normalized)) {
-    throw createError({ statusCode: 400, statusMessage: 'Invalid patch format' })
-  }
-  const resolved = normalized ?? await resolveLatestPatch()
+  // need "16.5.1". Normalize (and validate) here so a caller can pass the patch
+  // straight from a champion summary. Fall back to the latest DDragon version
+  // when none is supplied so a new Riot patch invalidates the cache key
+  // naturally.
+  const resolved = normalizeRequestedPatch(patch) ?? await resolveLatestDDragonPatch()
   return loadChampionsForPatch(resolved)
 })

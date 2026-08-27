@@ -1,6 +1,6 @@
 import type { StaticSummonerSpellData } from '~~/shared/types/static-data'
-import { getSummonerSpellImageUrl, normalizeDataDragonPatch } from '~~/shared/utils/ddragon'
-import { resolveLatestDDragonPatch } from '~~/server/utils/ddragon-patch'
+import { getSummonerSpellImageUrl } from '~~/shared/utils/ddragon'
+import { normalizeRequestedPatch, resolveLatestDDragonPatch } from '~~/server/utils/ddragon-patch'
 
 interface SummonerListResponse {
   data: Record<string, {
@@ -43,6 +43,6 @@ const loadSummonersForPatch = defineCachedFunction(
 
 export default defineEventHandler(async (event): Promise<Record<number, StaticSummonerSpellData>> => {
   const { patch } = getQuery(event) as { patch?: string }
-  const resolved = normalizeDataDragonPatch(patch) ?? await resolveLatestDDragonPatch()
+  const resolved = normalizeRequestedPatch(patch) ?? await resolveLatestDDragonPatch()
   return loadSummonersForPatch(resolved)
 })
