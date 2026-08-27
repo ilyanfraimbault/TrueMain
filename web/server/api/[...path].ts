@@ -32,16 +32,12 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 500, statusMessage: 'apiBaseUrl must be http(s)' })
   }
 
-  // Reject paths that could escape the configured backend:
-  //   `..` segments  → could walk above `base.pathname`
-  //   `//host/…`     → protocol-relative, points at a different host
-  //   `scheme://…`   → absolute URL, same problem
+  // Reject paths that could escape the configured backend. `isUnsafeProxyPath`
+  // (server/utils/proxy-path.ts) spells out what "escape" covers and why the raw
+  // path alone is not enough to judge it; the admin's ops proxy carries the same
+  // guard, and the two copies must be changed together.
   const path = event.path.replace(/^\/api/, '')
-  const isUnsafe
-    = /(^|\/)\.\.(\/|$)/.test(path)
-      || /^\/\//.test(path)
-      || /^\/?[a-z][a-z0-9+.-]*:\/\//i.test(path)
-  if (isUnsafe) {
+  if (isUnsafeProxyPath(path)) {
     throw createError({ statusCode: 400, statusMessage: 'Invalid request path' })
   }
 
