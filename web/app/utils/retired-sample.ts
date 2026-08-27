@@ -1,8 +1,8 @@
 import { formatMatchDay } from '~/utils/match-history'
 
 /**
- * The qualifier shown next to a main whose games have aged out of retention
- * (#1216), and the tooltip that explains it.
+ * The tooltip shown next to a main whose games have aged out of retention
+ * (#1216).
  *
  * Kept separate from the component because the honesty of the wording is the
  * whole point: the figures are not wrong and not "not yet available" — they are
@@ -10,21 +10,24 @@ import { formatMatchDay } from '~/utils/match-history'
  * them. Saying "10 games" unqualified is what let a profile promise a build the
  * champion page had nothing to show for.
  *
+ * The date used to be printed inline as well, as an `as of 1 Aug` suffix beside
+ * the count; #1275 dropped it. The warning glyph and this tooltip carry the
+ * qualifier on their own, and the row's job is the count — an every-row date on
+ * a card of five mains read as clutter, not as candour.
+ *
  * Returns null when there is no usable date, in which case the caller shows the
- * plain count — a badge reading "as of Invalid Date" would be worse than none.
+ * plain count with no marker at all — a tooltip saying "Last measured on
+ * Invalid Date" would be worse than none.
  */
-export function formatRetiredSample(
+export function retiredSampleTooltip(
   measuredAtUtc: string | null | undefined,
   now: Date = new Date(),
-): { suffix: string, tooltip: string } | null {
+): string | null {
   if (!measuredAtUtc) return null
 
   const day = formatMatchDay(measuredAtUtc, now)
   if (!day) return null
 
-  return {
-    suffix: `as of ${day}`,
-    tooltip: `Last measured on ${day}. The games behind this count have since aged out of `
-      + `our retention window, so it reflects what we held then, not what this player has played since.`,
-  }
+  return `Last measured on ${day}. The games behind this count have since aged out of `
+    + `our retention window, so it reflects what we held then, not what this player has played since.`
 }

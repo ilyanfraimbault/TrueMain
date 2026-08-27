@@ -280,32 +280,30 @@ compress away — still nothing next to the ~373 KiB item map it replaces),
 and the block now sits after the main column in DOM order — deliberate, so a crawler and a keyboard both
 meet the page's own build panels first — #1143.
 
-**The champion link graph is server-rendered as its own blocks, not by SSR-ing the grids that hold it.**
+**The champion link graph was server-rendered, then removed — the pages are back to zero internal champion links.**
 #1123 gave the champion pages content a crawler could read. It did not give them links a crawler could
 *follow*: counted in the HTML prod actually served, `/` held 0 `/champions/{slug}` anchors, `/champions` 0,
 `/champions/tierlist` 0 and a champion page 0 — the only `/champions/*` anchor anywhere on the site was
 `/champions/tierlist`. So the 174 build pages were reachable only from `sitemap.xml`, which on a site with no
 backlinks is the textbook "Discovered – currently not indexed" profile, and it showed: `truemain katarina`
-returned nothing, and `/` outranked `/champions` for `truemain champions`. One root cause, two effects —
-client-only rendering costs both the indexable content *and* the internal link graph.
-The fix is deliberately **not** "make the grids SSR". Each of them needs the ~20 kB static champion list
-(names *and* CDN icon URLs) plus, on the directory, the ~373 KiB item map — the exact payload #1123 built a
-resolve-to-names endpoint to avoid — and the directory's row is a `role="button"`, not an anchor, on purpose
-(#147), so SSR-ing it would emit no `<a>` at all. Instead `/api/champion-index` answers the two questions the
-blocks ask, resolves ids to names server-side and returns 6.0 kB / 1.4 kB gzipped for the full A→Z index. The
-`all` view costs **no backend call** (DDragon, already cached for an hour), which is what makes it affordable
-on every champion page as well as the directory — that is where the champion→champion edges come from.
-Not a #149 regression, and the distinction is the one #1123 already turns on: #149 was a *client-only* fetch
-racing SSR and winning; these are SSR-enabled and travel in the Nuxt payload, so hydration reads the same
-object the server rendered from. Every interactive panel on those pages stays `server: false`.
-Accepted consequences. The blocks restate what the panels above them show — the tier list twice over — which
-is the point, not an oversight: the panels are portraits and numbers (the tier chip's name is *tooltip*
-content by design), and what was missing from the HTML is the words. They are **visible, never `sr-only`**,
-for the reason #1123 states. A champion is listed **once**, under its strongest tier, so a flex pick does not
-split the anchor text pointing at its page across two links — the tier block is a summary of the table above
-it, the same way #1123's paragraph describes `builds[0]`. And the *contextual* cross-links the matchups and
-synergies panels would give (a champion's actual counters, editorially the better link) were declined: those
-are backend reads, and this page's SSR round-trip budget is already spent on the build summary — #1209.
+returned nothing, and `/` outranked `/champions` for `truemain champions`. #1209 fixed it with three blocks
+of plain text links fed by `/api/champion-index` — deliberately *not* by SSR-ing the grids, which each need
+the ~20 kB static champion list (names *and* CDN icon URLs) plus, on the directory, the ~373 KiB item map,
+and whose rows are a `role="button"`, not an anchor, on purpose (#147).
+**Reverted in #1275, on presentation grounds.** The link graph worked — 174 anchors on `/champions`, 173 on
+the tier list, 12 on the homepage, no hydration message — but the blocks were a bare `flex-wrap` of 174
+muted names pinned to the bottom of four pages, including every champion page, and no work had gone into
+how they read. The product owner rejected them on sight. The endpoint, the composable, the pure assembly
+helpers and their tests went with the components: an endpoint with no caller is worse than no endpoint.
+What this costs, recorded so it does not quietly come back as a surprise: the SEO problem #1209 measured is
+**open again**, and the champion pages are once more indexable-but-unlinked. #1209's technique is sound and
+is the thing to reach for when it is retried — what needs solving first is the *presentation*, not the
+plumbing: an A→Z index grouped under letter headings reads as a directory, a 174-item wrap reads as
+boilerplate. Anything cheaper is worse, not better — `sr-only` links are cloaking (#1123), and the
+contextual cross-links the matchups and synergies panels would give were already declined in #1209 because
+they are backend reads and the champion page's SSR round-trip budget is spent on the build summary.
+One piece of #1255 survives the revert because it was never part of the link graph: the homepage's ⌘K hint
+stays `<ClientOnly>` — see the entry below — #1209, #1275.
 
 **A platform-dependent `UKbd` cannot be server-rendered.**
 The homepage's ⌘K hint (`<UKbd value="meta">`) resolves its modifier from the platform — `⌘` on macOS, `Ctrl`
