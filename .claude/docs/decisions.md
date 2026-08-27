@@ -223,8 +223,9 @@ preprod, `/champions/{id}` shipped **~1.5 kB of visible HTML and zero build cont
 name, no item name, not the word "Runes" — under a `<title>` promising "Ahri Build". A title that promises
 a build over a page that delivers a shell is thin content, and it is why the champion pages could not rank
 for their own subject. That is a permanent, sitewide ceiling; a share card is one unfurl.
-Three things make the cost small enough to accept. The fan-out sits behind a 1 h `defineCachedFunction`
-keyed on (champion, lane, patch, rank), so it is **one backend call per slice per hour, not one per view**.
+Three things make the cost small enough to accept. The fan-out sits behind a `defineCachedFunction`
+keyed on (champion, lane, patch, rank), so it is **one backend call per slice per window, not one per
+view** (5 min since #1273, an hour before it — see the entry below).
 The endpoint resolves the ids to *names* server-side and returns ~1 kB, so the client never receives the
 ~373 KiB item map that made "just SSR the existing fetches" impossible in the first place. And it is keyed
 on the **URL** filters rather than the reconciled `selectedPatch`/`selectedPosition`, which would flip the
@@ -233,10 +234,27 @@ Not a #149 regression, and the distinction is the load-bearing one: #149 was a *
 SSR and winning, so the server rendered content the client's first render didn't have. This fetch is
 SSR-enabled and travels in the Nuxt payload, so hydration reads the same object the server rendered from —
 the two agree by construction. Every interactive panel stays `server: false` exactly as before.
-Accepted consequences: the summary is at most an hour behind the panels above it (same TTL as the share
-card, same reasoning), and it describes `builds[0]` — the tab the page opens on — never "the best build",
+Accepted consequences: the summary trails the panels above it by up to one cache window — priced as an
+hour here, cut to 5 min in #1273 when that hour turned out to be readable as a contradiction — and it
+describes `builds[0]` — the tab the page opens on — never "the best build",
 which would describe something the reader isn't looking at. It is **visible**, never `sr-only`: text
 written for a crawler and hidden from the reader is cloaking — #1123.
+
+**The build paragraph's cache window is 5 minutes, because it sits next to live numbers.**
+#1123 priced the summary's staleness against the share card's: both were 1 h, and an unfurl an hour behind
+the page it points at is nobody's contradiction. The paragraph's neighbours are not an unfurl. Every panel
+on `/champions/{slug}` fetches client-side and live, so the two ages sit **side by side in one viewport**:
+the patch picker (bound to the live `champion.patch`) read 16.17 over prose reading "on patch 16.16", and a
+header reading "24 games · 66.7% WR" sat beside "Across 7 ranked games ... win 28.6%" — the same field of
+the same endpoint, an hour apart. Early in a patch a sample can triple inside that window, which also
+flickered the low-sample caveat on and off.
+Keying on the *resolved* slice would fix the patch roll specifically — an unfiltered request keys on an
+empty patch while its answer depends on the patch the backend picks, so the entry cannot notice the backend
+moving on — but learning the resolved patch means making the very call the cache exists to avoid. So the
+window shrinks instead: 5 min still collapses the page-view burst the cache was added for (#926 objected to
+a backend hit *per view*, not per five minutes), and no visitor or crawler reads a dead patch number for
+long — this paragraph is the only build content in the server-rendered HTML, so its staleness is indexed.
+The share card keeps its hour: nothing renders beside it — #1273.
 
 **The build paragraph is typeset, and rune trees get Riot's colours to do it.**
 #1123 shipped the summary as flat grey prose under the build tabs, where it read as a wall of text naming
