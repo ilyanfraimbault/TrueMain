@@ -116,25 +116,6 @@ const { data: seoStatic } = seoStaticFetch
 const seoDisplayName = computed(() => seoStatic.value?.championName ?? displayName.value)
 const seoPositionLabel = computed(() => POSITION_BY_VALUE.get(trendPosition.value ?? '')?.label)
 
-// The A→Z champion index, server-rendered (#1209). #1123 gave this page content
-// a crawler could read; this gives it links a crawler can *follow* — before it,
-// a champion page held 34 anchors and not one pointed at another champion, so
-// the 174 build pages were reachable only from `sitemap.xml`.
-//
-// Deliberately not the contextual cross-links the matchups and synergies panels
-// would give (a champion's actual counters are the better link, editorially):
-// those are backend reads, and this page's SSR round-trip budget is already
-// spent on the build summary — #926 and #1123 both turn on paying exactly one.
-// This index costs none: the `all` view reads DDragon through an endpoint
-// already cached for an hour, and `/champions` warms the very same cache entry.
-//
-// Awaited server-side only — the app has no Suspense fallback on `<NuxtPage>`,
-// so awaiting on the client would freeze the outgoing page on every
-// champion-to-champion navigation.
-const championIndexFetch = useChampionIndexAll()
-if (import.meta.server) await championIndexFetch
-const { data: championIndex } = championIndexFetch
-
 // The build in words, server-rendered (#1123) — the one piece of build content
 // that reaches the HTML before JS runs. Everything else on this page is
 // `server: false`, so a crawler used to receive a shell under a title promising
@@ -749,17 +730,5 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
         </aside>
       </div>
     </template>
-
-    <!-- Champion → champion edges (#1209). Outside the `v-if`/`<template>` that
-         gates the page body, so it survives the 404 and no-data states — those
-         are exactly the pages a crawler must be able to leave by a link rather
-         than by the back button. Fed by the same SSR-enabled, hour-cached
-         payload `/champions` renders, so a champion page pays no backend
-         round-trip for it. -->
-    <ChampionIndexLinks
-      :champions="championIndex.champions"
-      title="Other champions"
-      subtitle="Every champion with a build page."
-    />
   </main>
 </template>
