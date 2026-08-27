@@ -16,6 +16,7 @@ namespace TrueMain.Services.Truemains;
 /// </summary>
 public sealed class PlayerBuildDivergenceQueryService(
     TrueMainDbContext db,
+    TruemainAccountResolver resolver,
     IOptions<MainAnalysisOptions> mainAnalysisOptions) : IPlayerBuildDivergenceQueryService
 {
     /// <summary>
@@ -34,21 +35,7 @@ public sealed class PlayerBuildDivergenceQueryService(
         string? position,
         CancellationToken ct)
     {
-        if (!NameTagParser.TryParse(nameTag, out var parsed))
-        {
-            return null;
-        }
-
-        // Same name-tag resolution as the profile / matches / builds endpoints
-        // (most-recently-active row on a cross-region collision) so every route
-        // agrees on which account a name tag means.
-        var account = await db.RiotAccounts
-            .AsNoTracking()
-            .Where(a => a.GameName == parsed.GameName && a.TagLine == parsed.TagLine)
-            .OrderByDescending(a => a.LastMatchIngestAtUtc ?? a.UpdatedAtUtc)
-            .Select(a => new { a.Id, a.PlatformId })
-            .FirstOrDefaultAsync(ct);
-
+        var account = await resolver.ResolveAsync(nameTag, ct);
         if (account is null)
         {
             return null;

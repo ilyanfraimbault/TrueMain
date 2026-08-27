@@ -44,6 +44,7 @@ namespace TrueMain.Services.Truemains;
 /// </remarks>
 public sealed class TruemainActivityQueryService(
     TrueMainDbContext db,
+    TruemainAccountResolver resolver,
     IOptions<MainAnalysisOptions> mainAnalysisOptions) : ITruemainActivityQueryService
 {
     /// <summary>
@@ -58,21 +59,7 @@ public sealed class TruemainActivityQueryService(
 
     public async Task<TruemainActivityReadModel?> GetAsync(string nameTag, CancellationToken ct)
     {
-        if (!NameTagParser.TryParse(nameTag, out var parsed))
-        {
-            return null;
-        }
-
-        // Same resolver as the profile / matches / rank-history routes (most
-        // recently active row on a cross-region Riot-id collision), so every panel
-        // on the page is talking about the same account.
-        var account = await db.RiotAccounts
-            .AsNoTracking()
-            .Where(a => a.GameName == parsed.GameName && a.TagLine == parsed.TagLine)
-            .OrderByDescending(a => a.LastMatchIngestAtUtc ?? a.UpdatedAtUtc)
-            .Select(a => new { a.Id, a.Puuid })
-            .FirstOrDefaultAsync(ct);
-
+        var account = await resolver.ResolveAsync(nameTag, ct);
         if (account is null)
         {
             return null;

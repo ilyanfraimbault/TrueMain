@@ -121,7 +121,11 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IDis
     }
 
     private PlayerChampionPerformanceQueryService CreateService(Data.TrueMainDbContext db)
-        => new(db, Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions()), _cache);
+        => new(
+            db,
+            new TruemainAccountResolver(db),
+            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions()),
+            _cache);
 
     private async Task SeedAccountAsync()
     {

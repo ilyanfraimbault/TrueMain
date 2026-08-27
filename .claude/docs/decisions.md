@@ -1684,6 +1684,31 @@ so a horizontal chart's `yFormatter` is its index → label lookup, not its valu
 the same swap upstream does. Get it wrong and the tooltip prints a bucket label where a count belongs — which
 typechecks, renders, and is wrong. That case is pinned by a test.
 
+## A Riot ID resolves case-insensitively, in exactly one place (2026-08-26)
+
+Ten services turned a Riot ID into an account row, and they did not agree. Nine compared it with `==` under
+Postgres' default case-sensitive collation; the tenth, the champion mains comparison, lowered both halves. So
+`Name#tag` answered on `/champions/{id}/mains-comparison` and **404'd** on `/truemains/Name-tag/profile` —
+each of the nine carrying a comment claiming "all routes agree on which account a name tag means".
+
+**Case-insensitive is the settled semantics.** A Riot ID reaches us as text a human typed, pasted or
+re-typed from a shared link — it is not an identity we issued, the PUUID is. The stored casing still wins on
+the way out: the identity a page renders comes from the row, so a profile shows the Riot ID as Riot spells it
+whatever the URL said. `/truemains/phantasm-euw1` and `/truemains/Phantasm-EUW1` are now the same page.
+
+All ten callers go through `Api/Services/Truemains/TruemainAccountResolver.cs`, which also owns the tiebreak
+that was copied ten times with it: a `(gameName, tagLine)` pair is unique within a routing region but collides
+across regions and across renames — which is why that index is deliberately not unique, see the entry above —
+so the **most recently active row wins**, `Id` breaking an exact timestamp tie. Locked by
+`TruemainAccountResolutionApiIntegrationTests`, which walks several routes per casing.
+
+The lookup is `lower("GameName") = $1 AND lower("TagLine") = $2` rather than `ILIKE`: equality sidesteps LIKE
+metacharacters in raw user input entirely, and it is the exact expression a functional index on
+`(lower("GameName"), lower("TagLine"))` would serve — which an `ILIKE` could not use. **No such index exists
+yet**, so this trades the index seek the nine `==` copies got for a sequential scan of `riot_accounts`. That
+was accepted knowingly for this PR: adding one is a schema change (compiled-model regeneration, migration) and
+belongs in its own, measured PR.
+
 ## Keeping these files current
 
 A PR that ships a user-facing feature, removes one, or reverses a decision here **must update

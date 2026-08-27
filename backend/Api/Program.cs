@@ -305,6 +305,9 @@ builder.Services.AddScoped<IChampionPowerspikesQueryService, ChampionPowerspikes
 builder.Services.AddScoped<IChampionTrendQueryService, ChampionTrendQueryService>();
 builder.Services.AddScoped<IChampionPatchDiffQueryService, ChampionPatchDiffQueryService>();
 builder.Services.AddScoped<IChampionMainsComparisonQueryService, ChampionMainsComparisonQueryService>();
+// The single name-tag -> account lookup shared by every player-scoped route
+// (#1230), so they cannot disagree on which account a Riot ID means.
+builder.Services.AddScoped<TruemainAccountResolver>();
 // Shared by the truemain match feed and the composition provenance drawer (#940),
 // so a game renders as the same row on both.
 builder.Services.AddScoped<MatchSummaryHydrator>();

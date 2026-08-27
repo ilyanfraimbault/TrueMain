@@ -22,30 +22,24 @@ namespace TrueMain.Services.Truemains;
 /// inputs are assembled by <see cref="PerformanceInputs"/>, shared with the
 /// match-history feed so a collapsed row and this payload cannot disagree.
 /// </summary>
-public sealed class MatchDetailQueryService(TrueMainDbContext db) : IMatchDetailQueryService
+public sealed class MatchDetailQueryService(
+    TrueMainDbContext db,
+    TruemainAccountResolver resolver) : IMatchDetailQueryService
 {
     private const int LaningIntervalMinute = 15;
 
     public async Task<MatchDetailReadModel?> GetAsync(string nameTag, string matchId, CancellationToken ct)
     {
-        if (!NameTagParser.TryParse(nameTag, out var parsed) || string.IsNullOrWhiteSpace(matchId))
+        if (string.IsNullOrWhiteSpace(matchId))
         {
             return null;
         }
 
-        // Resolve the route's account the same way the rest of the truemain
-        // routes do (most-recently-active row on a name-tag collision). The
-        // account only scopes the URL — the payload covers every participant —
-        // but it must exist and must have actually played this match, so a
-        // stray match id under someone else's slug 404s instead of leaking a
-        // game the player wasn't in.
-        var account = await db.RiotAccounts
-            .AsNoTracking()
-            .Where(a => a.GameName == parsed.GameName && a.TagLine == parsed.TagLine)
-            .OrderByDescending(a => a.LastMatchIngestAtUtc ?? a.UpdatedAtUtc)
-            .Select(a => new { a.Id, a.Puuid })
-            .FirstOrDefaultAsync(ct);
-
+        // The account only scopes the URL — the payload covers every
+        // participant — but it must exist and must have actually played this
+        // match, so a stray match id under someone else's slug 404s instead of
+        // leaking a game the player wasn't in.
+        var account = await resolver.ResolveAsync(nameTag, ct);
         if (account is null)
         {
             return null;
