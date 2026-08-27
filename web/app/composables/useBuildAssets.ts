@@ -24,6 +24,33 @@ export function useBuildResolvers(
   return { perk, perkStyle, item }
 }
 
+/** Key prefix of the rune-tree lookup, shared with the prefetch plugin. */
+export const RUNE_TREE_KEY_PREFIX = 'rune-tree'
+
+/** Key segment standing in for a patch that hasn't resolved yet. */
+export const UNRESOLVED_PATCH_KEY_SEGMENT = 'latest'
+
+/**
+ * Canonical cache key of a patch-keyed static lookup: `{prefix}-{patch}`, with
+ * {@link UNRESOLVED_PATCH_KEY_SEGMENT} standing in for a patch nobody has
+ * resolved yet.
+ *
+ * Exported because `plugins/static-prefetch.client.ts` warms these entries
+ * before any page mounts, so it has to write the exact key `useStaticFetch`
+ * will later read. The two diverged silently once (#1231): the plugin kept
+ * writing `rune-tree` after the composable's key gained its `-{patch}` suffix,
+ * so the warm-up was dead weight and every page refetched the tree anyway.
+ * Building the key in one place is what makes that drift impossible rather
+ * than merely unlikely.
+ */
+export function staticFetchKey(
+  keyPrefix: string,
+  patch?: string | null,
+  unresolvedKeySegment: string = UNRESOLVED_PATCH_KEY_SEGMENT,
+): string {
+  return `${keyPrefix}-${patch || unresolvedKeySegment}`
+}
+
 interface StaticFetchOptions {
   /**
    * Defer the first fetch until the caller triggers `execute` (used by the
@@ -75,7 +102,7 @@ function useStaticFetch<T>(
 ) {
   const nuxtApp = useNuxtApp()
   const patchRef = computed(() => toValue(patch) || null)
-  const keyRef = computed(() => `${keyPrefix}-${patchRef.value || (options.unresolvedKeySegment ?? 'latest')}`)
+  const keyRef = computed(() => staticFetchKey(keyPrefix, patchRef.value, options.unresolvedKeySegment))
 
   return useLazyAsyncData<T>(
     () => keyRef.value,
@@ -108,7 +135,7 @@ export function useStaticRuneTree(
   patch: MaybeRefOrGetter<string | null | undefined>,
   options: StaticFetchOptions = {},
 ) {
-  return useStaticFetch<RuneTreeResponse>('rune-tree', '/api/static/rune-tree', patch, { server: true, ...options })
+  return useStaticFetch<RuneTreeResponse>(RUNE_TREE_KEY_PREFIX, '/api/static/rune-tree', patch, { server: true, ...options })
 }
 
 /**

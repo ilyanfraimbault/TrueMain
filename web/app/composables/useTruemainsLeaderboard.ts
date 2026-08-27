@@ -10,6 +10,19 @@ interface UseTruemainsLeaderboardOptions {
   otpOnly?: MaybeRefOrGetter<boolean | null | undefined>
   /** Ranking column. Omitted / `rank` keeps the default ranked-standing order. */
   sort?: MaybeRefOrGetter<LeaderboardSort | null | undefined>
+  /**
+   * Resolve the first page during SSR. Defaults to `true`: on `/truemains` and
+   * the homepage teaser the leaderboard *is* the page's content, so it is worth
+   * the backend round-trip.
+   *
+   * Pass `false` where the panel is secondary — the champion page's Truemains
+   * card (#1231). There, `server: true` bought nothing (the card is below the
+   * fold and `hydrate-on-visible` defers its hydration anyway) and cost a
+   * backend call, uncached by Nitro, on every SSR of every champion page. That
+   * page's SSR budget is deliberately spent on the build summary alone
+   * (#1123 / #926); this one had arrived as a side effect of the default.
+   */
+  server?: boolean
 }
 
 /**
@@ -17,12 +30,15 @@ interface UseTruemainsLeaderboardOptions {
  * plus the total count so the caller can drive a <c>UPagination</c> control.
  * Refetches whenever the page or any filter ref changes.
  *
- * The initial render is server-side: this uses `useAsyncData` with
+ * The initial render is server-side by default: this uses `useAsyncData` with
  * `server: true`, so the first page of rows is baked into the SSR'd HTML and
  * reused verbatim on hydration (Nuxt serializes the resolved payload, so the
  * server markup and the client's first render are identical — no `<!-- -->`
  * vs `<div>` mismatch). Subsequent filter / page changes only fire the watcher
  * after hydration, so those refetches run client-side as required.
+ * `options.server: false` opts a secondary panel out of that round-trip; the
+ * skeleton then becomes the server-rendered state, which the `hasEverLoaded`
+ * latch below accounts for.
  *
  * Unlike pages/champions/index.vue (which deliberately stays `server: false`),
  * the leaderboard is a single keyed source with server-side pagination, so
@@ -72,6 +88,7 @@ export function useTruemainsLeaderboard(
   }
 
   const fallbackPageSize = options.pageSize ?? 25
+  const serverFetch = options.server ?? true
 
   // `useAsyncData` (not `useFetch`) so the cache key is the page + filter
   // signature rather than the request URL — keeps the key stable and explicit,
@@ -90,7 +107,7 @@ export function useTruemainsLeaderboard(
     },
     () => $fetch<LeaderboardResponse>('/api/truemains', { query: buildQuery() }),
     {
-      server: true,
+      server: serverFetch,
       watch: [pageRef, regionRef, positionRef, championIdRef, otpOnlyRef, sortRef],
       // Deterministic placeholder so `rows` is always an array (never
       // `undefined`) on both the server and the client's first render.
@@ -126,8 +143,15 @@ export function useTruemainsLeaderboard(
   // ref `true`, so the branch matches the server. Only a fresh client-side
   // navigation seeds `false` and shows the skeleton once, until the first
   // response settles.
+  //
+  // Under `server: false` the seed has to flip: nothing resolves during SSR, so
+  // the *skeleton* is the server-rendered state, and the client can only read
+  // `idle` or `pending` at setup (there is no payload entry to hydrate from),
+  // so it renders that same skeleton. Seeding `true` on the server would emit
+  // the "no tracked truemains yet" empty state into the HTML against the
+  // client's skeleton — the mismatch this latch exists to avoid (#1231).
   const hasEverLoaded = ref(
-    import.meta.server || status.value === 'success' || status.value === 'error',
+    (import.meta.server && serverFetch) || status.value === 'success' || status.value === 'error',
   )
   watch(status, (s) => {
     if (s === 'success' || s === 'error') hasEverLoaded.value = true
