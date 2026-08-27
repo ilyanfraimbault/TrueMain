@@ -37,7 +37,7 @@ public sealed class ChampionBuildsQueryService(
         // A blank / ALL / unrecognised filter resolves to null (every tier); a
         // bare tier to a single bucket; a TIER_PLUS filter to that tier and the
         // ones above it. The loader reads exactly this set.
-        var bracketFilter = EloBracket.ResolveFilter(eloBracket);
+        var bracketFilter = EloBracket.ResolveFilterOrEmpty(eloBracket);
         var resolvedBracket = EloBracket.Normalize(eloBracket) ?? EloBracket.All;
         var isAllBracket = bracketFilter is null;
 

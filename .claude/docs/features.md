@@ -149,6 +149,10 @@ Three controllers, all delegating to injected `I*QueryService` — no EF types c
 
 Cross-cutting: memory cache (`SizeLimit = 1024`, no Redis), global per-IP rate limit 100 req/min, `/healthz` + `/readyz`, RFC 7807 problem details with `traceId`, HSTS outside dev, CORS that fails boot when unset outside dev, OpenAPI/Scalar **Development-only**.
 
+**Scope filters are rejected, not ignored (#1224).** A non-blank `?eloBracket=` that is not a bracket (`GOLDD`, `UNRANKED`, `gold_minus`) is a **400**, exactly as an unrecognised `?position=` already was. It used to resolve to "no restriction" — the same answer as `ALL` — so a typo served the whole population's games under a rank label, a fabricated number rather than a lenient filter. Blank still means every bracket. The query services carry the same rule as a safety net for callers arriving without MVC: `EloBracket.ResolveFilterOrEmpty` degrades a rejected filter to *no band at all* (an empty read), never to every band, and such a filter gets its own cache token so it can neither be served from nor evict the `ALL` entry. The web app normalises the value client-side before it leaves the browser, so the rank picker cannot produce a 400. The player-scoped performance panel applies the same rule to its own lane filter, which it previously passed through raw.
+
+**A player's matchup search reports a real share (#1224).** The player-scoped `?opponent=` lookup used to force its denominator to zero, so `playRate` came back as 0 — "a matchup this player never plays", out of a head-to-head they asked for by name — while the aggregate path had been fixed in #1098. Both paths now count the whole field they are a share of: for a player, every lane-opponent game on that champion and lane, before the opponent narrowing and before the per-player games floor.
+
 > Reads live in `Api/Services/<area>` as purpose-built query services injecting `TrueMainDbContext` and projecting read-models with `AsNoTracking` — no generic repository. That is the rule as decided in #865, not a divergence from it; see [decisions.md](decisions.md#where-api-reads-live).
 
 ### Ingestor

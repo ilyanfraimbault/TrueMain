@@ -1,3 +1,5 @@
+using Core.Lol.Map;
+using Core.Lol.Patches;
 using Core.Lol.Performance;
 using Core.Options;
 using Data;
@@ -61,25 +63,58 @@ public sealed class PlayerChampionPerformanceQueryService(
             return null;
         }
 
+        // Canonicalise the scope before anything is keyed or queried on it, the way
+        // every sibling champion read does (ChampionMainsComparisonQueryService spells
+        // out why). The MVC controller already normalised both, so on that path this
+        // is an idempotent no-op; the interface is reachable without MVC, and there a
+        // raw "16.4.521" would be keyed and LIKE-matched as its own scope — two cache
+        // entries for one patch, the second matching nothing.
+        var normalizedPatch = string.IsNullOrWhiteSpace(patch)
+            ? null
+            : PatchVersion.TryParse(patch, out var parsedPatch) ? parsedPatch.ToMajorMinor() : null;
+
+        // A non-blank lane that does not canonicalise is not "every lane": widening a
+        // lane-labelled read to all of them is worse than the empty answer, so a filter
+        // that cannot be honoured degrades to the documented empty state below — after
+        // the account lookup, so an unknown player is still a 404 rather than an empty
+        // panel for somebody who does not exist.
+        var normalizedPosition = string.IsNullOrWhiteSpace(position)
+            ? null
+            : LolPositionExtensions.Parse(position).ToRiotString();
+        var unhonourablePosition = !string.IsNullOrWhiteSpace(position) && normalizedPosition is null;
+
         var account = await resolver.ResolveAsync(nameTag, ct);
         if (account is null)
         {
             return null;
         }
 
-        var cacheKey = $"truemains:champion-performance:{account.Id}:{championId}:{patch ?? "all"}:{position ?? "all"}";
+        if (unhonourablePosition)
+        {
+            return Empty(championId, position, normalizedPatch);
+        }
+
+        var cacheKey = $"truemains:champion-performance:{account.Id}:{championId}"
+                       + $":{normalizedPatch ?? "all"}:{normalizedPosition ?? "all"}";
         if (cache.TryGetValue<PlayerChampionPerformanceResponse>(cacheKey, out var cached) && cached is not null)
         {
             return cached;
         }
 
         var queueId = (int)options.Value.QueueId;
-        var patchPrefix = patch is null ? null : $"{patch}.%";
+        // The matches table stores the full Riot GameVersion, so an exact compare
+        // would never hit; the LIKE prefix bridges normalised input to it.
+        var patchPrefix = normalizedPatch is null ? null : $"{normalizedPatch}.%";
 
         // The player's own rows on the champion, newest first, bounded to the
         // window. Only the match ids are needed here — every stat is re-read
         // below with the other nine participants, so the score is computed from
         // exactly the same rows the detail page would use.
+        //
+        // The match id breaks ties on the start time: this is a Take over a
+        // non-total order, so two games kicking off in the same second can swap
+        // across the window edge and change the average between two identical
+        // requests — a data change, to a reader who only sees the number move.
         var windowMatchIds = await (
             from p in db.MatchParticipants.AsNoTracking()
             join m in db.Matches.AsNoTracking() on p.MatchId equals m.Id
@@ -87,15 +122,15 @@ public sealed class PlayerChampionPerformanceQueryService(
                   && p.ChampionId == championId
                   && m.QueueId == queueId
                   && (patchPrefix == null || EF.Functions.Like(m.GameVersion, patchPrefix))
-                  && (position == null || p.TeamPosition == position)
-            orderby m.GameStartTimeUtc descending
+                  && (normalizedPosition == null || p.TeamPosition == normalizedPosition)
+            orderby m.GameStartTimeUtc descending, m.Id descending
             select new { p.MatchId, m.GameDurationSeconds })
             .Take(Window)
             .ToListAsync(ct);
 
         if (windowMatchIds.Count == 0)
         {
-            return Cache(cacheKey, Empty(championId, position, patch));
+            return Cache(cacheKey, Empty(championId, normalizedPosition, normalizedPatch));
         }
 
         var matchIds = windowMatchIds.Select(m => m.MatchId).ToList();
@@ -228,7 +263,7 @@ public sealed class PlayerChampionPerformanceQueryService(
                 topOfTeam: selfPlacement.IsMvp || selfPlacement.IsAce);
         }
 
-        return Cache(cacheKey, accumulator.ToResponse(championId, position, patch));
+        return Cache(cacheKey, accumulator.ToResponse(championId, normalizedPosition, normalizedPatch));
     }
 
     private PlayerChampionPerformanceResponse Cache(

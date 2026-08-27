@@ -276,6 +276,52 @@ public sealed class ChampionSynergyApiIntegrationTests
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
+    [Fact]
+    public async Task GetChampionSynergiesAsync_OrdersTiedSynergiesByPartnerAndLane()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedTiedSynergyPartnersAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var first = await client.GetFromJsonAsync<ChampionSynergiesResponse>(
+            $"/champions/{Champion}/synergies?position={Position}");
+        var second = await client.GetFromJsonAsync<ChampionSynergiesResponse>(
+            $"/champions/{Champion}/synergies?position={Position}");
+
+        // Two pairings with the same baselines and the same record score identically —
+        // synergy is a difference of two rates, so ties are the norm rather than the
+        // corner case. (champion, lane) breaks them, so Lee Sin (64) precedes Garen
+        // (86) and two identical requests can never reshuffle the panel.
+        first!.Partners.Should().HaveCount(2);
+        first.Partners[1].Synergy.Should().BeApproximately(first.Partners[0].Synergy, 1e-9);
+        first.Partners.Select(p => p.PartnerChampionId).Should().Equal(Jungler, Top);
+        second!.Partners.Select(p => p.PartnerChampionId)
+            .Should().Equal(first.Partners.Select(p => p.PartnerChampionId));
+    }
+
+    /// <summary>
+    /// Seeds two partners whose baselines and pair records are identical, so their
+    /// synergy is the same number and only the tie-break decides the order.
+    /// </summary>
+    private async Task SeedTiedSynergyPartnersAsync()
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        db.ChampionSynergyBaselineStats.AddRange(
+            Baseline(Champion, Position, SynergyBaselineSide.Self, games: 100, wins: 50),
+            Baseline(103, Position, SynergyBaselineSide.Self, games: 100, wins: 50),
+            Baseline(Jungler, "JUNGLE", SynergyBaselineSide.Ally, games: 100, wins: 50),
+            Baseline(Top, "TOP", SynergyBaselineSide.Ally, games: 100, wins: 50));
+
+        db.ChampionSynergyStats.AddRange(
+            Pair(Jungler, "JUNGLE", games: 20, wins: 13),
+            Pair(Top, "TOP", games: 20, wins: 13));
+
+        await db.SaveChangesAsync();
+    }
+
     /// <summary>
     /// Seeds the pair and baseline aggregates directly, so the scoring model is
     /// tested against chosen numbers rather than against whatever a fold happens

@@ -40,7 +40,7 @@ public sealed class ChampionScalingQueryService(
 
         // Resolve the elo filter to its bands (null = ALL, no clause). The cache
         // key carries the bracket so each band caches separately.
-        var bands = EloBracket.ResolveFilter(eloBracket);
+        var bands = EloBracket.ResolveFilterOrEmpty(eloBracket);
         var bracketToken = EloBracket.ResolveToken(eloBracket);
 
         var cacheKey = $"champions:scaling:{championId}:{position}:{normalizedPatch ?? "all"}:{bracketToken}";

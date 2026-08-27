@@ -59,11 +59,35 @@ internal static class ChampionQueryParameterNormalizer
         => LolPositionExtensions.Parse(raw).ToRiotString();
 
     /// <summary>
-    /// Normalises an elo-bracket filter to a canonical
-    /// <see cref="EloBracket"/> constant. Returns <c>null</c> for null /
-    /// whitespace / unrecognised input, which the service treats as the
-    /// <c>ALL</c> (every-bracket) default.
+    /// Client-error detail returned when an <c>eloBracket</c> query parameter is
+    /// present but is not a bracket.
     /// </summary>
-    public static string? NormalizeEloBracket(string? raw)
-        => EloBracket.Normalize(raw);
+    public const string InvalidEloBracketMessage =
+        "eloBracket must be ALL, a tier (IRON…CHALLENGER), or a tier with the _PLUS suffix (e.g. GOLD_PLUS).";
+
+    /// <summary>
+    /// Normalises an elo-bracket filter to a canonical <see cref="EloBracket"/>
+    /// constant. A blank value means "every bracket" and yields
+    /// <see langword="true"/> with a null <paramref name="normalized"/>; a non-blank
+    /// value that is not a bracket yields <see langword="false"/>.
+    /// </summary>
+    /// <remarks>
+    /// The two must not read alike, which is why this is a Try and not a normaliser
+    /// returning null for both. Answering <c>?eloBracket=GOLDD</c> with the
+    /// every-bracket default serves the whole population under a rank label — a
+    /// fabricated number rather than a lenient filter (#1224). Rejected the same way
+    /// an unrecognised <c>position</c> is, so the two scope filters on the same routes
+    /// behave alike.
+    /// </remarks>
+    public static bool TryNormalizeEloBracket(string? raw, out string? normalized)
+    {
+        if (!EloBracket.TryResolveFilter(raw, out _))
+        {
+            normalized = null;
+            return false;
+        }
+
+        normalized = EloBracket.Normalize(raw);
+        return true;
+    }
 }

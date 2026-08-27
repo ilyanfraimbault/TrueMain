@@ -53,7 +53,7 @@ public sealed class ChampionRoamQueryService(
 
         // Resolve the elo filter to its bands (null = ALL, no clause); the cache
         // key carries the bracket so each band caches separately.
-        var bands = EloBracket.ResolveFilter(eloBracket);
+        var bands = EloBracket.ResolveFilterOrEmpty(eloBracket);
         var bracketToken = EloBracket.ResolveToken(eloBracket);
 
         var cacheKey = $"champions:roam:{championId}:{position}:{normalizedPatch ?? "all"}:{bracketToken}";

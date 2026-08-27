@@ -64,7 +64,7 @@ public sealed class ChampionMatchupQueryService(
 
         // Resolve the elo filter to its bands (null = ALL, no clause). Applied to
         // the champion side on both the aggregate and the live paths.
-        var bands = EloBracket.ResolveFilter(eloBracket);
+        var bands = EloBracket.ResolveFilterOrEmpty(eloBracket);
 
         // One account means one player's own games, which the aggregate cannot
         // isolate. Everything else reads the aggregate.
@@ -231,18 +231,32 @@ public sealed class ChampionMatchupQueryService(
             championRows = championRows.Where(p1 => bands.Contains(p1.EloBracket));
         }
 
-        // One SQL round-trip: correlate each champion row to its lane opponent
-        // (same match + position, opposite team), group by the opponent
-        // champion, and COUNT(*) / SUM(win) per opponent. The minimum-games floor
-        // is applied in SQL (HAVING) so thin samples never cross the wire.
-        var rows = await championRows
+        // Correlate each champion row to its lane opponent: same match, same
+        // position, opposite team. Kept whole — no opponent narrowing, no floor —
+        // because this is also the player's own opponent field, which the play rate
+        // below is a share of.
+        var opponentPairs = championRows
             .SelectMany(
                 p1 => db.MatchParticipants.Where(p2 =>
                     p2.MatchId == p1.MatchId
                     && p2.TeamPosition == p1.TeamPosition
-                    && p2.TeamId != p1.TeamId
-                    && (opponentChampionId == null || p2.ChampionId == opponentChampionId)),
-                (p1, p2) => new { Opponent = p2.ChampionId, p1.Win })
+                    && p2.TeamId != p1.TeamId),
+                (p1, p2) => new { Opponent = p2.ChampionId, p1.Win });
+
+        // The player's whole field on this champion and lane, counted rather than
+        // summed from the rows below: those are narrowed to one opponent on a search
+        // (dividing the row by itself and calling it 100%) and already floored on the
+        // leaderboard (inflating every share by the dropped tail). One indexed COUNT,
+        // no rows materialised — the same second read the aggregate path pays (#1098),
+        // which the search here used to skip by reporting a play rate of 0.
+        var totalGames = await opponentPairs.LongCountAsync(ct);
+
+        // One SQL round-trip for the rows themselves: narrow to the requested
+        // opponent, group by the opponent champion, and COUNT(*) / SUM(win) per
+        // opponent. The minimum-games floor is applied in SQL (HAVING) so thin
+        // samples never cross the wire.
+        var rows = await opponentPairs
+            .Where(x => opponentChampionId == null || x.Opponent == opponentChampionId)
             .GroupBy(x => x.Opponent)
             .Select(g => new
             {
@@ -252,12 +266,6 @@ public sealed class ChampionMatchupQueryService(
             })
             .Where(x => x.Games >= minGames)
             .ToListAsync(ct);
-
-        // Play rate over what survived the floor rather than over the player's whole
-        // field: unlike the aggregate path there is no cheap floor-free total here,
-        // and one player's dropped tail is a handful of games. Zero on the search,
-        // same as the aggregate path, for the same reason.
-        var totalGames = opponentChampionId is null ? rows.Sum(x => (long)x.Games) : 0L;
 
         // Lane counters stay null. The aggregate covers every tracked account, so
         // lending them to one player's row would report the population's lane as
@@ -272,6 +280,13 @@ public sealed class ChampionMatchupQueryService(
     /// games is never zero — mapped to entries ordered best-winrate first.
     /// The best / worst *slicing* is the caller's, and reads the Wilson bounds
     /// rather than this order.
+    ///
+    /// <para>
+    /// The opponent id breaks ties. Win rates collide constantly at these sample
+    /// sizes (every 1-of-2 matchup is 50%), and without a total order the same
+    /// request can hand back the same rows in a different sequence — which reads as
+    /// a data change, exactly as <c>ChampionDominantLaneFilter</c> argues.
+    /// </para>
     /// </summary>
     private List<ChampionMatchupEntry> ToOrderedEntries(
         IEnumerable<(int Opponent, int Games, int Wins, long TotalGames, LaneOutcome? LaneOutcome)> rows)
@@ -313,6 +328,7 @@ public sealed class ChampionMatchupQueryService(
                 };
             })
             .OrderByDescending(m => m.WinRate)
+            .ThenBy(m => m.OpponentChampionId)
             .ToList();
     }
 

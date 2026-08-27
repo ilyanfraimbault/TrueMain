@@ -65,9 +65,18 @@ public sealed class ChampionSummariesQueryService(
 
         // Resolve the filter to its per-tier bands: cumulative "X+" expands, an
         // exact tier selects only itself. Null → ALL: no elo clause, full union.
+        //
+        // Resolved from the raw value, not from the normalised one: Normalize maps a
+        // blank filter and an unrecognised one both to null, so resolving after it
+        // would hand every typo the whole population under a rank label (#1224).
         var normalizedBracket = EloBracket.Normalize(eloBracket);
-        var bracketBands = EloBracket.ResolveFilter(normalizedBracket);
-        var bracketKey = bracketBands is null ? EloBracket.All : normalizedBracket!;
+        var bracketBands = EloBracket.ResolveFilterOrEmpty(eloBracket);
+        var bracketKey = bracketBands switch
+        {
+            null => EloBracket.All,
+            { Count: 0 } => EloBracket.InvalidToken,
+            _ => normalizedBracket!
+        };
 
         var resolveSw = Stopwatch.StartNew();
         var activePatch = await ResolveActivePatchAsync(patch, ct);

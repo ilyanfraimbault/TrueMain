@@ -45,7 +45,7 @@ public sealed class CompositionMatchQueryService(
             : PatchVersion.TryParse(criteria.Patch, out var parsed) ? parsed.ToMajorMinor() : null;
         var patchPrefix = normalizedPatch is null ? null : $"{normalizedPatch}.%";
 
-        var bands = EloBracket.ResolveFilter(criteria.EloBracket);
+        var bands = EloBracket.ResolveFilterOrEmpty(criteria.EloBracket);
 
         // Candidate rows: this champion at this position over the full pool,
         // most recent first, bounded by the pool cap. Recency is the right

@@ -49,7 +49,7 @@ public sealed class ChampionSynergyQueryService(
         CancellationToken ct)
     {
         var normalizedPatch = NormalizePatch(patch);
-        var bands = EloBracket.ResolveFilter(eloBracket);
+        var bands = EloBracket.ResolveFilterOrEmpty(eloBracket);
         var settings = championsOptions.Value;
         var minBaselineGames = settings.MinSynergyBaselineGames;
 
@@ -161,7 +161,15 @@ public sealed class ChampionSynergyQueryService(
 
         return response with
         {
-            Partners = partners.OrderByDescending(p => p.Synergy).ToList(),
+            // (champion, lane) breaks the ties: synergy is a difference of two rates
+            // and collides freely at these sample sizes, and a list that reshuffles
+            // between two identical requests reads as a data change — the reasoning
+            // ChampionDominantLaneFilter already spells out.
+            Partners = partners
+                .OrderByDescending(p => p.Synergy)
+                .ThenBy(p => p.PartnerChampionId)
+                .ThenBy(p => p.PartnerPosition, StringComparer.Ordinal)
+                .ToList(),
         };
     }
 
@@ -175,7 +183,7 @@ public sealed class ChampionSynergyQueryService(
         CancellationToken ct)
     {
         var normalizedPatch = NormalizePatch(patch);
-        var bands = EloBracket.ResolveFilter(eloBracket);
+        var bands = EloBracket.ResolveFilterOrEmpty(eloBracket);
         var minGames = championsOptions.Value.MinSynergyTrioGames;
         var minBaselineGames = championsOptions.Value.MinSynergyBaselineGames;
 
@@ -324,7 +332,12 @@ public sealed class ChampionSynergyQueryService(
 
         return response with
         {
-            Completions = completions.OrderByDescending(c => c.Synergy).ToList(),
+            // Same total order as the duo list above, for the same reason.
+            Completions = completions
+                .OrderByDescending(c => c.Synergy)
+                .ThenBy(c => c.ChampionId)
+                .ThenBy(c => c.Position, StringComparer.Ordinal)
+                .ToList(),
         };
     }
 
