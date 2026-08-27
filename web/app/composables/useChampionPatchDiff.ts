@@ -1,4 +1,5 @@
 import type { ChampionPatchDiffResponse } from '~~/shared/types/champions'
+import { isLoadingStatus } from '~/utils/async-data'
 
 /**
  * Per-champion patch-diff slice for the champion detail page (issue #534).
@@ -12,6 +13,12 @@ import type { ChampionPatchDiffResponse } from '~~/shared/types/champions'
  * until the champion (and its lane) resolves, the same way the trend and
  * scaling composables do, so the first request fires once with the resolved
  * lane instead of twice.
+ *
+ * Bind skeletons to the returned `pending`, not to `status`: a closed gate
+ * resolves the empty model straight to `success`, so `status` alone would read
+ * "loaded, availablePatchCount 0" for the whole champion fetch and the section
+ * would flash hidden before reappearing. `pending` folds the gate in (and
+ * supersedes Nuxt's own `pending`, which only knows about the request).
  */
 export function useChampionPatchDiff(
   championId: MaybeRefOrGetter<number>,
@@ -26,7 +33,7 @@ export function useChampionPatchDiff(
   const toRef = computed(() => toValue(to) || undefined)
   const enabledRef = computed(() => toValue(enabled))
 
-  return useLazyAsyncData<ChampionPatchDiffResponse>(
+  const result = useLazyAsyncData<ChampionPatchDiffResponse>(
     () => [
       'champion-patch-diff',
       championIdRef.value,
@@ -58,4 +65,8 @@ export function useChampionPatchDiff(
     },
     { watch: [championIdRef, positionRef, fromRef, toRef, enabledRef], server: false },
   )
+
+  const pending = computed(() => !enabledRef.value || isLoadingStatus(result.status.value))
+
+  return { ...result, pending }
 }

@@ -330,6 +330,27 @@ no-cross-viewer-SSR rule, not oversights, and "fixing" either by SSR-ing the pro
 Disabling SSR on the route or timing out the fetch were both rejected: neither addresses the mismatch, and
 the route is a primary, indexable one — #862.
 
+The rule covers anything else an immediate watcher can trigger, not just fetches: `useErrorToast` registers
+its watcher under `import.meta.client`. Its `if (!value) return` guard made the SSR run a no-op only because
+every error ref wired to it happens to come from a `server: false` fetch — true, unwritten, and untrue the
+day one is pointed at the server-rendered build summary or the leaderboard, where a toast pushed during SSR
+serialises into the payload and pops up unprompted for every visitor served that render — #1234.
+
+**A closed `enabled` gate resolves `success` with an empty model, so the gated composables expose their own
+`pending`.** `createChampionPatchSlice`, `useChampionTrend` and `useChampionPatchDiff` hold their request
+until the champion's lane lands, and while held they resolve the empty read-model — which reaches
+`status: "success"` with nothing loaded. A consumer driving a skeleton off `status` therefore renders its
+"no data" state for the whole (client-only) champion fetch and only then fills in. Each composable now
+returns `pending = gate closed || isLoadingStatus(status)`, deliberately superseding Nuxt's own `pending`
+(which only knows about the request), so the trap is composed away once instead of re-documented at every
+call site — #1234.
+
+**Every hand-rolled fetch composable carries a monotonic request token.** `useCompositionBuild`,
+`useCompositionBuildGames`, `useTruemainSearch` and now `useTruemainFetch` (profile / rank history /
+activity / matches) all drop a response whose token is no longer the newest. Without it `useTruemainMatches`
+— which refires on page, position and championId — can let a slow page-3 response land after page 4's and
+write its rows under a pager reading 4 — #1234.
+
 **The activity grid's four modes read two different tables, and the response says so rather than reconciling them.**
 `match_participants` carries a game's date but is hard-deleted past `RetainedPatchCount` (~2 patches);
 `champion_aggregate_scopes` is frozen forever (#466) but its grain is (account, champion, patch). So the

@@ -6,7 +6,7 @@ import { parseRouteParam } from '~/utils/route-params'
 import { groupMatchesByDay } from '~/utils/match-history'
 import type { ChampionStaticData, ChampionStaticListItem, StaticItemData } from '~~/shared/types/static-data'
 
-// Player-scoped mirror of pages/champions/[id].vue. The static-data fetches,
+// Player-scoped mirror of pages/champions/[slug].vue. The static-data fetches,
 // loading bar and build tabs are intentionally identical so the page looks
 // exactly like the global champion page; the ONLY difference is that
 // useChampion is given the route's nameTag, which swaps the data source to
@@ -85,17 +85,10 @@ const {
   championSettled: () => !isLoadingStatus(championStatus.value),
 })
 
-// Meta-only fetch: see the identical comment on pages/champions/[id].vue —
-// `displayName` is sourced from client-only statics, so it's always null
-// during SSR. Hits the same 1h-cached endpoint, so it's a cache hit. Only
-// awaited server-side, same reasoning as the global champion page.
-const seoStaticFetch = useFetch(
-  () => `/api/static/${championId.value}`,
-  { key: () => `champion-seo-name-${championId.value}-${selectedPatch.value || 'none'}`, query: { patch: selectedPatch.value || undefined } },
-)
-if (import.meta.server) await seoStaticFetch
-const { data: seoStatic } = seoStaticFetch
-const seoDisplayName = computed(() => seoStatic.value?.championName ?? displayName.value)
+// SSR-safe champion name for `<head>` — same composable, same cache key as the
+// global champion page, so the two pages share the entry. See
+// useChampionSeoName for why `displayName` can't serve `<head>`.
+const { seoDisplayName } = await useChampionSeoName(championId, selectedPatch, displayName)
 
 // Truemains > {player} > {champion}, mirroring the schema.org breadcrumb below.
 // The champion crumb uses the SSR-safe `seoDisplayName` (client-only
@@ -183,7 +176,7 @@ const staticBundleReady = computed(() =>
 )
 
 // Frozen prop bundle for the lazy (hydrate-on-visible) matchups sidebar — see
-// useLazyHydrationSnapshot / the identical pattern on pages/champions/[id].vue
+// useLazyHydrationSnapshot / the identical pattern on pages/champions/[slug].vue
 // for why: `staticList` is client-only (`server: false`), so freezing it
 // until the child actually mounts avoids a hydration mismatch (#834/#837).
 const matchupsSnapshot = useLazyHydrationSnapshot(
