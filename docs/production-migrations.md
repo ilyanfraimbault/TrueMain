@@ -111,13 +111,22 @@ shipping a schema mismatch. Preprod runs this on every merge to `develop`,
 so it is the first place a bad migration script shows up — before it ever
 reaches prod.
 
+`deploy-prod.yml` puts a `preflight` job in front of all three: it fails the
+run when any piece of the deployment configuration (SSH secrets,
+`PROD_ENV_FILE`, `HOSTINGER_PROD_API_KEY`, `HOSTINGER_PROD_VM_ID`) is missing.
+Deliberately not a green skip: the migration runs first, so a deploy-side
+configuration checked at deploy time could only ever skip the image roll
+*after* the schema had already moved — the mismatch in the other direction,
+old binary against new schema, and just as broken. Now that
+`ApplyMigrationsOnStartup` is permanently `false`, both halves have to happen
+or neither does.
+
 The migrate job, in each workflow:
 
-1. Fails immediately if its SSH secrets are missing — deliberately not a
-   green skip. Now that `ApplyMigrationsOnStartup` is permanently `false`,
-   letting the deploy job proceed without attempting the migration would
-   silently roll a new image against a possibly-stale schema, which is
-   exactly the failure mode this whole change exists to prevent.
+1. Fails immediately if its SSH secrets are missing — deliberately not a green
+   skip, for the same reason. On prod this check lives in `preflight` instead,
+   so it fires before the images are even published; `migrate-preprod` still
+   carries its own.
 2. Restores `Data.csproj` (a plain checkout has no `obj/project.assets.json`
    yet, and `dotnet ef` does not restore on its own), then generates the
    idempotent script from the deployed commit/tag's checkout.

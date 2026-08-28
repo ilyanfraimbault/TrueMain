@@ -980,6 +980,27 @@ every merge to `develop`, so it catches a bad migration before it ever reaches p
 the app's own `POSTGRES_USER`, not a dedicated migration-only role — splitting one off is open follow-up
 work, not this decision — #208, #246, #1058, `docs/production-migrations.md`.
 
+**An incomplete prod deployment configuration fails the release run; it is never a green skip.**
+Because migrations apply *before* the images roll, checking the deploy-side configuration at deploy time
+could only ever produce the mismatch in the other direction: an empty `PROD_ENV_FILE` or an unset
+`HOSTINGER_PROD_VM_ID` skipped the image roll — green — after `migrate-prod` had already moved the schema,
+leaving prod on the old binary against the new one. All of it (SSH secrets, `PROD_ENV_FILE`,
+`HOSTINGER_PROD_API_KEY`, `HOSTINGER_PROD_VM_ID`) is now checked by a `preflight` job that every other job
+depends on, `publish` included — publishing would otherwise move `:latest` ahead of what prod runs. Both
+halves of a release happen or neither does — #1228.
+
+**Both deploy pipelines serialise at workflow level, not per job.**
+Preprod needs it because the `-rc.N` counter is read from the remote tags; prod needs it because two
+releases published back to back would interleave their `publish` jobs and race for the moving `:latest`
+tag. `cancel-in-progress: false` in both: a running deploy finishes, and GitHub collapses the pending
+queue to the newest run — a visibly cancelled run, never a half-deploy — #1228.
+
+**Integration tests run on pushes to `develop`/`master`, not only on pull requests.**
+The push to `develop` is the commit that deploys to preprod and the develop→master merge is the one a
+release is cut from — the two trees whose behaviour is about to hit a real environment were the only ones
+skipping the Testcontainers suite, and a squash merge produces a tree no PR run ever tested. The cost is a
+few Testcontainers minutes per merge — #1228.
+
 **Preprod tracks `develop`, has its own Riot API key, and is deliberately tiny — a new key forces an empty database.**
 PUUIDs are encrypted per API app, so key and database are an inseparable pair: old data is unusable with a new
 key. Preprod runs every pipeline stage at reduced volume with 1-patch retention — `docs/preprod.md`, #705.

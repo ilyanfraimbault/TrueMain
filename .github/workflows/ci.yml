@@ -54,8 +54,13 @@ jobs:
       - name: Unit tests
         run: dotnet test tests/TrueMain.UnitTests/TrueMain.UnitTests.csproj --configuration Release --no-build --verbosity normal
 
+      # Runs on pushes too, not just pull requests: the push to `develop` is
+      # the commit that triggers the preprod deploy, and the develop→master
+      # merge commit is the one a release is cut from — the two commits whose
+      # schema/endpoint behaviour is about to hit a real environment were
+      # precisely the ones skipping the Testcontainers suite. A squash merge
+      # also produces a tree no PR run ever tested.
       - name: Integration tests
-        if: github.event_name == 'pull_request'
         run: dotnet test tests/TrueMain.IntegrationTests/TrueMain.IntegrationTests.csproj --configuration Release --no-build --verbosity normal
 
   frontend:

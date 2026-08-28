@@ -58,7 +58,7 @@ services:
       - truemain_dev_internal
 
   mongo:
-    image: mongo:8.0
+    image: mongo:8.0.24
     container_name: truemain-dev-mongo
     restart: unless-stopped
     environment:

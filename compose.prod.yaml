@@ -71,6 +71,11 @@ services:
 
   api:
     image: ghcr.io/ilyanfraimbault/truemain-api:${IMAGE_TAG:-latest}
+    # The CI deploy passes an immutable IMAGE_TAG, so a pull is implied there;
+    # this is for the manual fallback in docs/prod.md, which has no IMAGE_TAG
+    # and falls back to the moving `:latest` — already present locally, hence
+    # silently reused unless we force the pull (#765).
+    pull_policy: always
     container_name: truemain-api
     restart: unless-stopped
     environment:
@@ -105,6 +110,7 @@ services:
 
   web:
     image: ghcr.io/ilyanfraimbault/truemain-web:${IMAGE_TAG:-latest}
+    pull_policy: always
     container_name: truemain-web
     restart: unless-stopped
     environment:
@@ -126,6 +132,7 @@ services:
 
   admin:
     image: ghcr.io/ilyanfraimbault/truemain-admin:${IMAGE_TAG:-latest}
+    pull_policy: always
     container_name: truemain-admin
     restart: unless-stopped
     environment:
@@ -223,6 +230,7 @@ services:
 
   ingestor:
     image: ghcr.io/ilyanfraimbault/truemain-ingestor:${IMAGE_TAG:-latest}
+    pull_policy: always
     container_name: truemain-ingestor
     restart: unless-stopped
     environment:
