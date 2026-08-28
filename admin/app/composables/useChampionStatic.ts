@@ -19,7 +19,8 @@ export function useChampionStatic() {
   const { data, pending, error } = useFetch<ChampionStaticListItem[]>(
     '/api/static/champions',
     {
-      server: false,
+      // No `server` option: the whole admin app is `ssr: false`
+      // (`nuxt.config.ts`), so every fetch already runs client-side.
       key: 'static:champions',
     },
   )

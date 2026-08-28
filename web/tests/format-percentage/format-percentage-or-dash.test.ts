@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatPercentage, formatPercentageOrDash } from '../../shared/utils/ddragon'
+import { formatPercentage, formatPercentageOrDash } from '~~/shared/utils/ddragon'
 
 /**
  * Ban rate (#920) is the first stat the backend can legitimately not know: it is

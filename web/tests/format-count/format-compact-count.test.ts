@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatCompactCount } from '../../shared/utils/counts'
+import { formatCompactCount } from '~~/shared/utils/counts'
 
 /**
  * The homepage hero prints "how much has TrueMain measured", not a live counter.

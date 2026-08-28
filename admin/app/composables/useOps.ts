@@ -65,10 +65,11 @@ function cleanQuery(
  * `useFetch` shape (`data`, `pending`, `error`, `refresh`, `status`).
  *
  * `query` may be a getter/ref so callers can pass reactive filters; `useFetch`
- * watches it and re-fetches when it changes. We render client-side
- * (`server: false`) — the dashboard is gated behind an operator session and the
- * data is operational, not SEO-relevant, so blocking SSR on it buys nothing and
- * keeps the proxy off the critical render path.
+ * watches it and re-fetches when it changes. Every ops fetch runs client-side:
+ * the whole app is `ssr: false` (`nuxt.config.ts`) because the dashboard is
+ * gated behind an operator session and the data is operational, not
+ * SEO-relevant. That is an application-level decision, so no per-request
+ * `server` option is needed here.
  */
 export function useOps<T>(
   path: string,
@@ -79,7 +80,6 @@ export function useOps<T>(
     : undefined
   return useFetch<T>(`/api/ops${path}`, {
     query: queryParams,
-    server: false,
     // Distinct per (path, query) so concurrent panels hitting the same path with
     // different filters don't collide on one cache entry. Without the query in
     // the key, e.g. the Overview's unfiltered `/stats/champions` and the

@@ -12,12 +12,17 @@ export function useChampionStatic(
   patch: MaybeRefOrGetter<string | null>,
 ) {
   const nuxtApp = useNuxtApp()
+  // Single source for the cache key (same gesture as `useStaticFetch`): the key
+  // `markStaticFetched` stamps must be exactly the one `getCachedData` reads
+  // back, or the TTL entry lands under a key nothing ever looks up.
+  const keyRef = computed(() => `champion-static-${toValue(championId)}-${toValue(patch) || 'none'}`)
+
   return useLazyAsyncData<ChampionStaticData>(
-    () => `champion-static-${toValue(championId)}-${toValue(patch) ?? 'none'}`,
+    () => keyRef.value,
     async () => {
       const id = toValue(championId)
       const resolvedPatch = toValue(patch) ?? ''
-      const key = `champion-static-${id}-${resolvedPatch || 'none'}`
+      const key = keyRef.value
       const data = await $fetch<ChampionStaticData>(`/api/static/${id}`, {
         query: { patch: resolvedPatch },
       })

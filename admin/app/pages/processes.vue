@@ -16,7 +16,7 @@ import { hasSummary } from '~~/shared/utils/process-summary'
 const processName = ref('')
 const status = ref<'all' | ProcessRunStatus>(ALL)
 // Relative window -> ISO `since`. "All" omits the param.
-const sinceWindow = ref<'all' | '1h' | '24h' | '7d' | '30d'>(ALL)
+const sinceWindow = ref<SinceWindow>(ALL)
 
 const statusItems = [
   { label: 'All statuses', value: ALL },
