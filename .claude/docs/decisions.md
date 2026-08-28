@@ -1792,6 +1792,37 @@ yet**, so this trades the index seek the nine `==` copies got for a sequential s
 was accepted knowingly for this PR: adding one is a schema change (compiled-model regeneration, migration) and
 belongs in its own, measured PR.
 
+## The admin's tracked-region list stays a checked-in constant, not a read of `/ops/configuration` (2026-08-28)
+
+`KR / EUW1 / NA1` was written four times: the Ingestor's `Platforms:Active`, the API's `TrackedPlatforms`
+guard in `SeedRequestService`, the admin's `REGION_ITEMS` filter options, and a second admin copy in
+`seed.vue` whose bulk parser rejected anything outside it with `Unknown region "…"`. Adding a shard therefore
+meant editing the pipeline config *and* both admin copies, or the add form would refuse a region the pipeline
+was already crawling.
+
+The two admin copies collapse into `admin/shared/utils/regions.ts` (#1249). Deriving them at runtime from
+`GET /ops/configuration` — which does expose the effective `Platforms` section, and which the admin
+`/configuration` page already renders — was considered and **rejected**:
+
+- these values populate `<USelect>` options that must exist before any ops call resolves; one slow or failed
+  request would leave the seed form's region select empty, i.e. unusable, to save a constant;
+- the list is also a **type**. `TrackedRegion` constrains the bulk parser's `defaultRegion` and every parsed
+  row at compile time; an array fetched at runtime cannot, so the parser would lose a guarantee to gain a
+  dependency;
+- the config array's order (`KR, EUW1, NA1`) is a deployment detail, not a UI ordering, and binding the
+  selects to it makes an unrelated config edit reshuffle the admin.
+
+The Ingestor config remains the source of truth for what the pipeline crawls; the admin holds one declared
+copy of it, with `/configuration` displaying the effective values next to it so a drift is visible rather than
+silent. The API-side `TrackedPlatforms` set (a log-warning guard only — an untracked platform is still
+accepted) is deliberately left alone: sharing it would mean wiring Ingestor configuration into the API, which
+the two projects otherwise never do.
+
+The same change does **not** fold `web/shared/utils/region.ts` into any of this, despite the audit grouping
+them. That file maps ten platform ids onto the three public `europe/americas/korea` slugs and mirrors the
+backend `RegionFilterParser` — the *exposed* set, which is wider than and independent of the *tracked* set.
+Treating the two as one list would be the real bug.
+
 ## Keeping these files current
 
 A PR that ships a user-facing feature, removes one, or reverses a decision here **must update
