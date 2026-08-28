@@ -59,6 +59,16 @@ export function tierHex(tier: string | null | undefined): string {
  * Bronze IV 0 LP is 400, Emerald IV 0 LP is 2000, Master 0 LP is 2800,
  * and Master / GrandMaster / Challenger share a continuous LP-only band
  * above 2800 since Riot dropped division-based promo for the apex tiers.
+ *
+ * **Mirrors `backend/Core/Lol/Ranking/RankScore.cs`**, which computes the same
+ * scale to sort the truemains leaderboard. The two must agree: the front only
+ * recomputes because `RankHistoryEntryReadModel` ships `(tier, division,
+ * leaguePoints)` and no score, so the LP chart's Y axis and the ladder order
+ * would otherwise be able to disagree about what a rank is worth. The boundary
+ * test in `tests/tiers/rank-score.test.ts` freezes the anchors quoted above, the
+ * same way `elo-brackets.ts` is pinned against the backend `EloBracket` enum —
+ * adding a tier or changing the apex rule breaks that test rather than silently
+ * skewing the chart.
  */
 export function rankScore(tier: string, division: string, leaguePoints: number): number {
   const upperTier = tier.toUpperCase()

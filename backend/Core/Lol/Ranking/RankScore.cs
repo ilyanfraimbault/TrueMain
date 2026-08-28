@@ -13,6 +13,11 @@ namespace Core.Lol.Ranking;
 /// the apex tier name. So a Master with 2625 LP outranks a Challenger with
 /// 800 LP — that matches what u.gg / op.gg ladders show and what users
 /// expect from the screenshot.
+///
+/// The web front recomputes this same scale in <c>web/app/utils/tiers.ts</c>
+/// (<c>rankScore</c>) to plot the profile LP curve, because the rank-history
+/// read-model ships the raw tuple and no score. Change the scale here and that
+/// file changes with it — its boundary test freezes the shared anchors.
 /// </summary>
 public static class RankScore
 {
