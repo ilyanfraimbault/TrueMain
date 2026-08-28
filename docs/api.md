@@ -41,12 +41,18 @@ renvoient.
   au-dessus), parmi `IRON`, `BRONZE`, `SILVER`, `GOLD`, `PLATINUM`, `EMERALD`,
   `DIAMOND`, `MASTER`, `GRANDMASTER`, `CHALLENGER`, plus `ALL`. `UNRANKED` n'est
   **pas** un palier valide malgré son apparence — `EloBracket.Ladder` l'exclut
-  explicitement, donc `?eloBracket=UNRANKED` est une valeur non reconnue comme
-  une autre. Une valeur non reconnue est traitée comme `ALL` (aucun filtre) plutôt que rejetée —
-  elle restreint l'échantillon, elle ne change pas le sens de la question posée.
-- **Pagination** : les endpoints paginés prennent `page` (1-based) et `pageSize`.
-  Convention « 0 = défaut » : un `pageSize`/`limit` omis ou ≤ 0 applique la taille
-  par défaut du service, et les valeurs au-delà du plafond sont ramenées au cap.
+  explicitement. Une valeur non reconnue (`UNRANKED` compris) renvoie `400`, le
+  même traitement qu'une `position` invalide sur ces mêmes routes : un filtre qui
+  ne peut pas être honoré ne doit pas silencieusement s'élargir à « tout le
+  monde » (#1224).
+- **Pagination** : les endpoints paginés prennent `page` (1-based) et `pageSize`
+  (ou `limit`). Un paramètre **omis** applique la taille par défaut du service, et
+  toute valeur au-delà du plafond est ramenée au cap. Une valeur **fournie mais ≤ 0**
+  n'est traitée comme « défaut » que sur `/truemains/search` (`limit`) ; sur les
+  endpoints `/ops/*` (`logs`, `crashes`, `data-quality`, `candidates`,
+  `seed-requests`, les itérations et runs de process), `pageSize=0` ou négatif est
+  clampé au plancher `[1, …]`, pas ramené au défaut — ce n'est pas la même
+  convention partout, à vérifier par endpoint plutôt que supposée générale.
 
 ## Endpoints d'infrastructure
 
@@ -2008,7 +2014,7 @@ Page de logs applicatifs persistés (Mongo), récents d'abord.
 | `process`      | string   | non | Hôte producteur : `Api` / `Ingestor` (exact, insensible à la casse). |
 | `hasException` | bool     | non | `true` → uniquement les lignes portant une exception formatée. |
 | `page`         | int      | non | 1-based. |
-| `pageSize`     | int      | non | Taille de page. Omis/≤0 → 50, clampé à [1, 200]. |
+| `pageSize`     | int      | non | Taille de page. Omis → 50 ; toute valeur fournie (y compris `0` ou négative) est clampée directement à [1, 200], sans repasser par le défaut. |
 
 **Réponse `200`** — `LogsReadModel`
 
@@ -2055,7 +2061,7 @@ accompagnent chaque réponse pour peupler les filtres.
 | `source`   | string   | non | Nom de `CrashSource` (insensible à la casse). |
 | `search`   | string   | non | Recherche message / stack-trace. |
 | `page`     | int      | non | 1-based. |
-| `pageSize` | int      | non | Taille de page. Omis/≤0 → 25, clampé à [1, 100] — pas le même défaut que `/ops/logs`. |
+| `pageSize` | int      | non | Taille de page. Omis → 25 (pas le même défaut que `/ops/logs`) ; toute valeur fournie (y compris `0` ou négative) est clampée directement à [1, 100], sans repasser par le défaut. |
 
 **Réponse `200`** — `CrashesReadModel`
 
