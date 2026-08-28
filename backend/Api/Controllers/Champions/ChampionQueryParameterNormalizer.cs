@@ -1,7 +1,7 @@
 using Core.Lol.Identifiers;
 using Core.Lol.Map;
-using Core.Lol.Patches;
 using Core.Lol.Ranking;
+using TrueMain.Services.Champions;
 
 namespace TrueMain.Controllers.Champions;
 
@@ -27,10 +27,13 @@ internal static class ChampionQueryParameterNormalizer
     /// Normalises a Riot patch string (e.g. <c>16.4.521.123</c>) to the
     /// canonical <c>major.minor</c> form persisted on aggregates.
     /// Returns <c>null</c> for null / whitespace input or for any value that
-    /// doesn't parse to a valid <see cref="PatchVersion"/>.
+    /// doesn't parse to a valid patch. Delegates to
+    /// <see cref="PatchFilter.Normalize"/>, which the champion query services
+    /// call directly — the rule lives in one place so the HTTP boundary and the
+    /// reads cannot canonicalise differently.
     /// </summary>
     public static string? NormalizePatch(string? raw)
-        => PatchVersion.TryParse(raw, out var patch) ? patch.ToMajorMinor() : null;
+        => PatchFilter.Normalize(raw);
 
     /// <summary>
     /// Normalises a platform identifier to the canonical Riot upper-case

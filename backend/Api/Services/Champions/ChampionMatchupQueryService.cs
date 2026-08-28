@@ -1,4 +1,3 @@
-using Core.Lol.Patches;
 using Core.Lol.Ranking;
 using Core.Options;
 using Data;
@@ -58,9 +57,7 @@ public sealed class ChampionMatchupQueryService(
         // interface contract accepts either form, so the service normalises its
         // own input and stays correct standalone. Null / unparseable input means
         // "every patch".
-        var normalizedPatch = string.IsNullOrWhiteSpace(patch)
-            ? null
-            : PatchVersion.TryParse(patch, out var parsed) ? parsed.ToMajorMinor() : null;
+        var normalizedPatch = PatchFilter.Normalize(patch);
 
         // Resolve the elo filter to its bands (null = ALL, no clause). Applied to
         // the champion side on both the aggregate and the live paths.
@@ -201,7 +198,7 @@ public sealed class ChampionMatchupQueryService(
 
         // The matches table stores the full Riot GameVersion, so an exact compare
         // would never hit; the LIKE prefix bridges normalised input to it.
-        var patchPrefix = normalizedPatch is null ? null : $"{normalizedPatch}.%";
+        var patchPrefix = PatchFilter.Prefix(normalizedPatch);
 
         // A deliberate opponent lookup shows the head-to-head from a single game up;
         // the player's own leaderboard keeps the lower per-player floor. The

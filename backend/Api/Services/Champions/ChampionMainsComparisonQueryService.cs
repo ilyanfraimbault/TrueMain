@@ -1,5 +1,4 @@
 using System.Linq.Expressions;
-using Core.Lol.Patches;
 using Core.Options;
 using Data;
 using Data.Entities;
@@ -57,8 +56,8 @@ public sealed class ChampionMainsComparisonQueryService(
         // unparseable input means "every patch we still hold".
         //
         // The MVC controller already ran ChampionQueryParameterNormalizer over
-        // this, so on that path the second pass is a no-op (both go through
-        // PatchVersion.TryParse + ToMajorMinor, which is idempotent). It stays
+        // this, so on that path the second pass is a no-op (both call the same
+        // PatchFilter.Normalize, which is idempotent). It stays
         // for the same reason TruemainAccountResolver parses defensively: the
         // interface is reachable without MVC, and a raw GameVersion arriving
         // here would otherwise be compared against the major.minor LIKE prefix
@@ -66,9 +65,7 @@ public sealed class ChampionMainsComparisonQueryService(
         // (scaling / matchups / roam / item-timings / powerspikes / leads /
         // composition) normalises the same way for the same reason — dropping
         // it here alone would make this the one service that trusts its caller.
-        var normalizedPatch = string.IsNullOrWhiteSpace(patch)
-            ? null
-            : PatchVersion.TryParse(patch, out var parsed) ? parsed.ToMajorMinor() : null;
+        var normalizedPatch = PatchFilter.Normalize(patch);
 
         var minGames = Math.Max(0, championsOptions.Value.MinComparisonGames);
 
@@ -97,7 +94,7 @@ public sealed class ChampionMainsComparisonQueryService(
         var queueId = (int)options.Value.QueueId;
         // The matches table stores the full Riot GameVersion, so an exact
         // compare would never hit; the LIKE prefix bridges normalised input to it.
-        var patchPrefix = normalizedPatch is null ? null : $"{normalizedPatch}.%";
+        var patchPrefix = PatchFilter.Prefix(normalizedPatch);
 
         var playerTotals = await AggregateAsync(
             championId,
@@ -171,19 +168,10 @@ public sealed class ChampionMainsComparisonQueryService(
 
     /// <summary>
     /// Stores an assembled response under its request-shape key and hands it
-    /// back. Every entry must carry a Size — the shared MemoryCache runs with a
-    /// SizeLimit, and a Set without one is silently dropped.
+    /// back (see <see cref="ApiCache"/> for why sizing is not optional).
     /// </summary>
     private ChampionMainsComparisonResponse Cache(string cacheKey, ChampionMainsComparisonResponse response)
-    {
-        cache.Set(cacheKey, response, new MemoryCacheEntryOptions
-        {
-            AbsoluteExpirationRelativeToNow = CacheTtl,
-            Size = 1,
-        });
-
-        return response;
-    }
+        => cache.Store(cacheKey, response, CacheTtl);
 
     /// <summary>
     /// Sums one side's games in a single grouped round trip. Grouping by account

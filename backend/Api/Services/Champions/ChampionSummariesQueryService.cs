@@ -49,15 +49,6 @@ public sealed class ChampionSummariesQueryService(
     // rank, the site has an ingestion problem that serving a fifth would only hide.
     private const int MaxServableWalkBack = 4;
 
-    // Every cache entry must carry a Size because the shared MemoryCache runs
-    // with a SizeLimit (see Program.cs). Without a Size the Set is silently
-    // dropped and the value never caches. Count-based: one entry = one unit.
-    private static MemoryCacheEntryOptions CacheEntry(TimeSpan ttl) => new()
-    {
-        AbsoluteExpirationRelativeToNow = ttl,
-        Size = 1,
-    };
-
     public async Task<ChampionSummariesResult> GetAllSummariesAsync(
         string? patch, string? eloBracket, CancellationToken ct)
     {
@@ -117,7 +108,7 @@ public sealed class ChampionSummariesQueryService(
         var computeSw = Stopwatch.StartNew();
         var result = await ComputeAllSummariesAsync(activePatch, bracketBands, ct);
         computeSw.Stop();
-        cache.Set(cacheKey, result, CacheEntry(SummariesCacheTtl));
+        cache.Set(cacheKey, result, ApiCache.Entry(SummariesCacheTtl));
         totalSw.Stop();
         logger.LogInformation(
             "{Surface} compute elapsed={ComputeMs}ms total={TotalMs}ms result=miss count={Count} totalGames={TotalGames}",
@@ -145,7 +136,7 @@ public sealed class ChampionSummariesQueryService(
             "{Surface} sql=total_games total={Total} elapsed={ElapsedMs}ms",
             Surface, total, sw.ElapsedMilliseconds);
 
-        cache.Set(TotalGamesCacheKey, total, CacheEntry(TotalGamesCacheTtl));
+        cache.Set(TotalGamesCacheKey, total, ApiCache.Entry(TotalGamesCacheTtl));
         return total;
     }
 
@@ -165,7 +156,7 @@ public sealed class ChampionSummariesQueryService(
         var resolved = await ResolveServablePatchAsync(ordered, ct);
         if (!string.IsNullOrEmpty(resolved))
         {
-            cache.Set(ActivePatchCacheKey, resolved, CacheEntry(ActivePatchCacheTtl));
+            cache.Set(ActivePatchCacheKey, resolved, ApiCache.Entry(ActivePatchCacheTtl));
         }
         return resolved;
     }
@@ -236,7 +227,7 @@ public sealed class ChampionSummariesQueryService(
             Surface, distinctPatches.Count, sw.ElapsedMilliseconds);
 
         var ordered = ChampionAggregateScopeResolver.OrderNewestFirst(distinctPatches);
-        cache.Set(PatchListCacheKey, ordered, CacheEntry(ActivePatchCacheTtl));
+        cache.Set(PatchListCacheKey, ordered, ApiCache.Entry(ActivePatchCacheTtl));
         return ordered;
     }
 
@@ -300,7 +291,7 @@ public sealed class ChampionSummariesQueryService(
             .GroupBy(line => line.Patch, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
 
-        cache.Set(cacheKey, linesByPatch, CacheEntry(SummariesCacheTtl));
+        cache.Set(cacheKey, linesByPatch, ApiCache.Entry(SummariesCacheTtl));
         return linesByPatch;
     }
 

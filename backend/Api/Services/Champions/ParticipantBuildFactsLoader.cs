@@ -71,7 +71,7 @@ public sealed class ParticipantBuildFactsLoader(
                 && p.ChampionId == championId
                 && p.TeamPosition == position)
             .Join(
-                db.Matches,
+                db.Matches.AsNoTracking(),
                 p => p.MatchId,
                 m => m.Id,
                 (p, m) => new ParticipantBuildRow(

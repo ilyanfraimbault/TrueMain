@@ -67,7 +67,7 @@ public sealed class ChampionsController(
         [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
-        if (!TryNormalizeOptionalPosition(position, out var normalizedPosition, out var problem))
+        if (!this.TryNormalizeOptionalPosition(position, out var normalizedPosition, out var problem))
         {
             return problem;
         }
@@ -116,7 +116,7 @@ public sealed class ChampionsController(
         [FromQuery] int? opponentChampionId,
         CancellationToken ct = default)
     {
-        if (!TryNormalizeOptionalPosition(position, out var normalizedPosition, out var problem))
+        if (!this.TryNormalizeOptionalPosition(position, out var normalizedPosition, out var problem))
         {
             return problem;
         }
@@ -152,8 +152,8 @@ public sealed class ChampionsController(
             championId,
             normalizedPatch,
             normalizedPosition,
-            ct,
-            eloBracket: normalizedBracket);
+            eloBracket: normalizedBracket,
+            ct: ct);
 
         return response is null ? NotFound() : Ok(response);
     }
@@ -174,7 +174,7 @@ public sealed class ChampionsController(
         [FromQuery] string? position,
         CancellationToken ct = default)
     {
-        if (!TryNormalizeOptionalPosition(position, out var normalizedPosition, out var problem))
+        if (!this.TryNormalizeOptionalPosition(position, out var normalizedPosition, out var problem))
         {
             return problem;
         }
@@ -203,7 +203,7 @@ public sealed class ChampionsController(
         [FromQuery] string? position,
         CancellationToken ct = default)
     {
-        if (!TryNormalizeOptionalPosition(position, out var normalizedPosition, out var problem))
+        if (!this.TryNormalizeOptionalPosition(position, out var normalizedPosition, out var problem))
         {
             return problem;
         }
@@ -238,7 +238,7 @@ public sealed class ChampionsController(
         [FromQuery][Range(1, int.MaxValue)] int? opponent,
         CancellationToken ct = default)
     {
-        if (!TryRequirePosition(position, out var normalizedPosition, out var problem))
+        if (!this.TryRequirePosition(position, out var normalizedPosition, out var problem))
         {
             return problem;
         }
@@ -284,12 +284,12 @@ public sealed class ChampionsController(
         [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
-        if (!TryRequirePosition(position, out var normalizedPosition, out var problem))
+        if (!this.TryRequirePosition(position, out var normalizedPosition, out var problem))
         {
             return problem;
         }
 
-        if (!TryNormalizeOptionalPosition(partnerPosition, out var normalizedPartnerPosition, out var partnerProblem))
+        if (!this.TryNormalizeOptionalPosition(partnerPosition, out var normalizedPartnerPosition, out var partnerProblem))
         {
             return partnerProblem;
         }
@@ -333,12 +333,12 @@ public sealed class ChampionsController(
         [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
-        if (!TryRequirePosition(position, out var normalizedPosition, out var problem))
+        if (!this.TryRequirePosition(position, out var normalizedPosition, out var problem))
         {
             return problem;
         }
 
-        if (!TryRequirePosition(partnerPosition, out var normalizedPartnerPosition, out var partnerProblem))
+        if (!this.TryRequirePosition(partnerPosition, out var normalizedPartnerPosition, out var partnerProblem))
         {
             return partnerProblem;
         }
@@ -386,7 +386,7 @@ public sealed class ChampionsController(
         [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
-        if (!TryRequirePosition(position, out var normalizedPosition, out var problem))
+        if (!this.TryRequirePosition(position, out var normalizedPosition, out var problem))
         {
             return problem;
         }
@@ -425,7 +425,7 @@ public sealed class ChampionsController(
         [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
-        if (!TryRequirePosition(position, out var normalizedPosition, out var problem))
+        if (!this.TryRequirePosition(position, out var normalizedPosition, out var problem))
         {
             return problem;
         }
@@ -463,7 +463,7 @@ public sealed class ChampionsController(
         [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
-        if (!TryRequirePosition(position, out var normalizedPosition, out var problem))
+        if (!this.TryRequirePosition(position, out var normalizedPosition, out var problem))
         {
             return problem;
         }
@@ -513,7 +513,7 @@ public sealed class ChampionsController(
         [FromQuery] int? opponentChampionId,
         CancellationToken ct = default)
     {
-        if (!TryRequirePosition(position, out var normalizedPosition, out var problem))
+        if (!this.TryRequirePosition(position, out var normalizedPosition, out var problem))
         {
             return problem;
         }
@@ -598,7 +598,7 @@ public sealed class ChampionsController(
             return ValidationProblem(InvalidRiotIdMessage("main"));
         }
 
-        if (!TryNormalizeOptionalPosition(position, out var normalizedPosition, out var problem))
+        if (!this.TryNormalizeOptionalPosition(position, out var normalizedPosition, out var problem))
         {
             return problem;
         }
@@ -686,7 +686,7 @@ public sealed class ChampionsController(
             return false;
         }
 
-        if (!TryRequirePosition(request.Position, out var normalizedPosition, out var positionProblem))
+        if (!this.TryRequirePosition(request.Position, out var normalizedPosition, out var positionProblem))
         {
             problem = positionProblem;
             return false;
@@ -769,58 +769,6 @@ public sealed class ChampionsController(
                 problem = ValidationProblem($"{teamLabel} contains two slots at position {position}.");
                 return false;
             }
-        }
-
-        problem = null;
-        return true;
-    }
-
-    /// <summary>
-    /// Canonicalises a required <c>position</c> query parameter; a missing or
-    /// unrecognised value yields a 400 <paramref name="problem"/>. Endpoints
-    /// where position is optional (champion detail, trend, patch-diff, tier
-    /// list) call <see cref="TryNormalizeOptionalPosition"/> instead.
-    /// </summary>
-    private bool TryRequirePosition(
-        string? position,
-        [NotNullWhen(true)] out string? normalizedPosition,
-        [NotNullWhen(false)] out ActionResult? problem)
-    {
-        normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
-        if (normalizedPosition is null)
-        {
-            problem = ValidationProblem(ChampionQueryParameterNormalizer.InvalidPositionMessage);
-            return false;
-        }
-
-        problem = null;
-        return true;
-    }
-
-    /// <summary>
-    /// Canonicalises an optional <c>position</c> query parameter: a
-    /// missing/blank value means "all positions" (<paramref name="normalizedPosition"/>
-    /// comes back null), while a non-blank value that fails to canonicalise is
-    /// a 400 <paramref name="problem"/> rather than silently falling back to
-    /// "no filter".
-    /// </summary>
-    private bool TryNormalizeOptionalPosition(
-        string? position,
-        out string? normalizedPosition,
-        [NotNullWhen(false)] out ActionResult? problem)
-    {
-        if (string.IsNullOrWhiteSpace(position))
-        {
-            normalizedPosition = null;
-            problem = null;
-            return true;
-        }
-
-        normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
-        if (normalizedPosition is null)
-        {
-            problem = ValidationProblem(ChampionQueryParameterNormalizer.InvalidPositionMessage);
-            return false;
         }
 
         problem = null;

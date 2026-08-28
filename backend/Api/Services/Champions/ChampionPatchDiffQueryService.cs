@@ -107,7 +107,7 @@ public sealed class ChampionPatchDiffQueryService(
             return null;
         }
 
-        var response = await buildsQueryService.GetAsync(championId, patch, position, ct);
+        var response = await buildsQueryService.GetAsync(championId, patch, position, ct: ct);
         if (response is null || response.TotalGames == 0)
         {
             return null;

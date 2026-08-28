@@ -1,4 +1,3 @@
-using Core.Lol.Patches;
 using Core.Lol.Ranking;
 using Core.Options;
 using Data;
@@ -70,9 +69,7 @@ public sealed class ChampionPowerspikesQueryService(
         int? opponentChampionId,
         CancellationToken ct)
     {
-        var normalizedPatch = string.IsNullOrWhiteSpace(patch)
-            ? null
-            : PatchVersion.TryParse(patch, out var parsed) ? parsed.ToMajorMinor() : null;
+        var normalizedPatch = PatchFilter.Normalize(patch);
 
         // Resolve the elo filter to its bands (null = ALL, no clause); the cache
         // key carries the bracket so each band caches separately. The global
@@ -114,7 +111,7 @@ public sealed class ChampionPowerspikesQueryService(
 
         if (sigmaByMinute.Count == 0)
         {
-            cache.Set(cacheKey, empty, CacheEntry());
+            cache.Set(cacheKey, empty, ApiCache.Entry(CacheTtl));
             return empty;
         }
 
@@ -142,7 +139,7 @@ public sealed class ChampionPowerspikesQueryService(
             Events = events
         };
 
-        cache.Set(cacheKey, response, CacheEntry());
+        cache.Set(cacheKey, response, ApiCache.Entry(CacheTtl));
         return response;
     }
 
@@ -367,7 +364,4 @@ public sealed class ChampionPowerspikesQueryService(
         var variance = (sumSq - sum * sum / count) / (count - 1);
         return variance > 0 ? Math.Sqrt(variance) : 0;
     }
-
-    private static MemoryCacheEntryOptions CacheEntry()
-        => new() { AbsoluteExpirationRelativeToNow = CacheTtl, Size = 1 };
 }
