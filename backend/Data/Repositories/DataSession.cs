@@ -39,6 +39,9 @@ public sealed class DataSession : IDataSession
     public Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken ct)
         => _db.Database.BeginTransactionAsync(ct);
 
+    public void ClearTracking()
+        => _db.ChangeTracker.Clear();
+
     public ValueTask DisposeAsync()
         => _db.DisposeAsync();
 }

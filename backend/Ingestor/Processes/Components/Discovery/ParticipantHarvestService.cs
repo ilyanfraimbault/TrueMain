@@ -72,62 +72,62 @@ public sealed class ParticipantHarvestService : IParticipantHarvestService
 
         var saveBatchSize = Math.Max(1, options.SaveBatchSize);
 
-        // Preload everything the loop would otherwise read per row, turning an O(N) chain
-        // of round-trips into two queries: the candidates we might refresh and the puuids
-        // that already have an account. Both are keyed for O(1) in-loop lookups; the
-        // ensured set then also absorbs accounts we Add this run (the unique Puuid index
-        // would otherwise reject a second insert for a puuid seen on another champion).
-        var platformIds = rows.Select(row => row.PlatformId).Distinct(StringComparer.Ordinal).ToArray();
-        var puuids = rows.Select(row => row.Puuid).Distinct(StringComparer.Ordinal).ToArray();
-
-        var existingCandidates = (await session.MainCandidates
-                .GetByPlatformsAndPuuidsAsync(platformIds, puuids, ct))
-            .ToDictionary(CandidateKey, candidate => candidate);
-        var ensuredPuuids = await session.RiotAccounts.GetExistingPuuidsAsync(puuids, ct);
-
         var inserted = 0;
         var updated = 0;
         var accountsCreated = 0;
-        // Counts entities written since the last flush — a new puuid contributes both an
-        // account and a candidate, so a single row can add 2. A Skipped candidate adds 0
-        // (or 1 when its puuid was new and only the account was created).
-        var pendingWrites = 0;
 
-        foreach (var row in rows)
+        // One slice per save, each with its own preload and its own tracker drain (#1229).
+        // The preload is what turns an O(N) chain of per-row round-trips into two queries
+        // — the candidates we might refresh and the puuids that already have an account —
+        // and it is scoped to the slice rather than to the run so those two properties can
+        // coexist: the candidates it returns are TRACKED and mutated in place, so a
+        // run-wide preload plus a per-slice ClearTracking would detach every candidate a
+        // later slice still has to update and drop those writes silently.
+        //
+        // Slicing costs two extra queries per slice, not per row, and reading per slice is
+        // correct across slices: a puuid inserted in an earlier slice is already committed,
+        // so the account lookup below finds it and the unique Puuid index is never raced.
+        for (var offset = 0; offset < rows.Count; offset += saveBatchSize)
         {
             ct.ThrowIfCancellationRequested();
 
-            if (ensuredPuuids.Add(row.Puuid))
+            var slice = rows.GetRange(offset, Math.Min(saveBatchSize, rows.Count - offset));
+            var platformIds = slice.Select(row => row.PlatformId).Distinct(StringComparer.Ordinal).ToArray();
+            var puuids = slice.Select(row => row.Puuid).Distinct(StringComparer.Ordinal).ToArray();
+
+            var existingCandidates = (await session.MainCandidates
+                    .GetByPlatformsAndPuuidsAsync(platformIds, puuids, ct))
+                .ToDictionary(CandidateKey, candidate => candidate);
+            // The ensured set also absorbs the accounts we Add within this slice (the
+            // unique Puuid index would otherwise reject a second insert for a puuid seen
+            // on another champion).
+            var ensuredPuuids = await session.RiotAccounts.GetExistingPuuidsAsync(puuids, ct);
+
+            foreach (var row in slice)
             {
-                AddMinimalAccount(session, row, nowUtc);
-                accountsCreated++;
-                pendingWrites++;
+                ct.ThrowIfCancellationRequested();
+
+                if (ensuredPuuids.Add(row.Puuid))
+                {
+                    AddMinimalAccount(session, row, nowUtc);
+                    accountsCreated++;
+                }
+
+                switch (UpsertCandidate(session, existingCandidates, row, nowUtc))
+                {
+                    case UpsertOutcome.Inserted:
+                        inserted++;
+                        break;
+                    case UpsertOutcome.Updated:
+                        updated++;
+                        break;
+                    case UpsertOutcome.Skipped:
+                        break;
+                }
             }
 
-            switch (UpsertCandidate(session, existingCandidates, row, nowUtc))
-            {
-                case UpsertOutcome.Inserted:
-                    inserted++;
-                    pendingWrites++;
-                    break;
-                case UpsertOutcome.Updated:
-                    updated++;
-                    pendingWrites++;
-                    break;
-                case UpsertOutcome.Skipped:
-                    break;
-            }
-
-            if (pendingWrites >= saveBatchSize)
-            {
-                await session.SaveChangesAsync(ct);
-                pendingWrites = 0;
-            }
-        }
-
-        if (pendingWrites > 0)
-        {
             await session.SaveChangesAsync(ct);
+            session.ClearTracking();
         }
 
         return new HarvestResult(inserted, updated, accountsCreated, harvestCoverage);

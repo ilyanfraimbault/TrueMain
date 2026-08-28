@@ -19,6 +19,26 @@ public sealed class MatchSnapshotWriterIntegrationTests
         _fixture = fixture;
     }
 
+    /// <summary>
+    /// The two phases the process runs back to back: fetch outside the transaction, then
+    /// write (#1229). Kept together here so these tests keep asserting the end-to-end
+    /// ingestion of an account rather than one half of it.
+    /// </summary>
+    private static async Task<SnapshotIngestionResult> IngestSnapshotsAsync(
+        MatchSnapshotWriter service,
+        Data.Repositories.IDataSession session,
+        string platformId,
+        string puuid,
+        RegionalRoute region,
+        int matchesPerAccount,
+        int saveBatchSize,
+        int maxFetchConcurrency,
+        CancellationToken ct)
+    {
+        var plan = await service.PrepareAsync(session, platformId, puuid, region, matchesPerAccount, maxFetchConcurrency, ct);
+        return await service.WriteAsync(session, plan, platformId, puuid, saveBatchSize, ct);
+    }
+
     [Fact]
     public async Task IngestSnapshotsAsync_ShouldPersistRawMatchParticipantsAndPerks()
     {
@@ -27,7 +47,8 @@ public sealed class MatchSnapshotWriterIntegrationTests
         await using var session = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None);
         var service = new MatchSnapshotWriter(new FakeRiotMatchClient(), TimeProvider.System, Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }));
 
-        var result = await service.IngestSnapshotsAsync(
+        var result = await IngestSnapshotsAsync(
+            service,
             session,
             "KR",
             "puuid-1",
@@ -84,7 +105,8 @@ public sealed class MatchSnapshotWriterIntegrationTests
 
         await using (var firstSession = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None))
         {
-            var first = await service.IngestSnapshotsAsync(
+            var first = await IngestSnapshotsAsync(
+                service,
                 firstSession,
                 "KR",
                 "puuid-1",
@@ -98,7 +120,8 @@ public sealed class MatchSnapshotWriterIntegrationTests
         }
 
         await using var secondSession = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None);
-        var second = await service.IngestSnapshotsAsync(
+        var second = await IngestSnapshotsAsync(
+            service,
             secondSession,
             "KR",
             "puuid-1",
@@ -157,7 +180,8 @@ public sealed class MatchSnapshotWriterIntegrationTests
 
         await using (var firstSession = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None))
         {
-            var first = await service.IngestSnapshotsAsync(
+            var first = await IngestSnapshotsAsync(
+                service,
                 firstSession,
                 "KR",
                 "puuid-1",
@@ -172,7 +196,8 @@ public sealed class MatchSnapshotWriterIntegrationTests
 
         await using (var secondSession = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None))
         {
-            var second = await service.IngestSnapshotsAsync(
+            var second = await IngestSnapshotsAsync(
+                service,
                 secondSession,
                 "KR",
                 "puuid-2",
@@ -237,7 +262,8 @@ public sealed class MatchSnapshotWriterIntegrationTests
 
         await using (var session = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None))
         {
-            var result = await service.IngestSnapshotsAsync(
+            var result = await IngestSnapshotsAsync(
+                service,
                 session,
                 "KR",
                 "puuid-1",
@@ -271,7 +297,8 @@ public sealed class MatchSnapshotWriterIntegrationTests
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }));
 
-        var result = await service.IngestSnapshotsAsync(
+        var result = await IngestSnapshotsAsync(
+            service,
             session,
             "KR",
             "puuid-1",

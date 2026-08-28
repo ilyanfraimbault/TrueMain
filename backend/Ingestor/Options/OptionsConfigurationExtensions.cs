@@ -170,6 +170,7 @@ public static class OptionsConfigurationExtensions
         services.AddOptions<AccountRefreshOptions>()
             .Bind(configuration.GetSection(AccountRefreshOptions.SectionName))
             .Validate(options => options.BatchSize > 0, "AccountRefresh:BatchSize must be greater than 0.")
+            .Validate(options => options.SaveBatchSize > 0, "AccountRefresh:SaveBatchSize must be greater than 0.")
             .ValidateOnStart();
 
         services.AddOptions<MatchDataRetentionOptions>()

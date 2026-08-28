@@ -14,15 +14,31 @@ public sealed class AccountValidationService(
         await using var session = await sessionFactory.CreateAsync(ct);
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
 
-        var updated = await session.MainCandidates
-            .MarkValidatedForAccountAsync(account.PlatformId, account.Puuid, nowUtc, ct);
+        // The three statements below are one work unit (#1229). They used to run bare:
+        // a failure between the first and the last left the candidates Validated while
+        // the account stayed Processing until its claim lease expired. All three are
+        // set-based ExecuteUpdate calls that never enter the change tracker, so the
+        // SaveChangesAsync that used to close this method committed nothing — it only
+        // simulated a commit point. An explicit transaction is what actually makes them
+        // atomic.
+        int updated;
+        await using (var transaction = await session.BeginTransactionAsync(ct))
+        {
+            updated = await session.MainCandidates
+                .MarkValidatedForAccountAsync(account.PlatformId, account.Puuid, nowUtc, ct);
+
+            await session.RiotAccounts.UpdateLastMatchIngestAtAsync(account.PlatformId, account.Puuid, nowUtc, ct);
+            await session.RiotAccounts.SetMatchIngestStatusAsync(account.PlatformId, account.Puuid, MatchIngestStatus.Idle, ct);
+            await transaction.CommitAsync(ct);
+        }
 
         if (updated > 0)
         {
             // Named ops event (#444): an account's candidates surviving ingestion
             // as Validated is the milestone the operator watches for. Logged at
             // Information — the Mongo sink persists registered OpsEvents despite
-            // its Warning floor, and /ops/logs can filter on the event name.
+            // its Warning floor, and /ops/logs can filter on the event name. Emitted
+            // after the commit so it only ever reports a promotion that stuck.
             logger.LogInformation(
                 OpsEvents.CandidateValidated,
                 "Validated {Count} candidates for {Platform}/{Puuid}.",
@@ -30,10 +46,6 @@ public sealed class AccountValidationService(
                 account.PlatformId,
                 account.Puuid);
         }
-
-        await session.RiotAccounts.UpdateLastMatchIngestAtAsync(account.PlatformId, account.Puuid, nowUtc, ct);
-        await session.RiotAccounts.SetMatchIngestStatusAsync(account.PlatformId, account.Puuid, MatchIngestStatus.Idle, ct);
-        await session.SaveChangesAsync(ct);
 
         return updated > 0;
     }
@@ -72,13 +84,23 @@ public sealed class AccountValidationService(
     public async Task RevertAsync(AccountKey account, CancellationToken ct)
     {
         await using var session = await sessionFactory.CreateAsync(ct);
-        var updated = await session.MainCandidates
-            .SetStatusForAccountAsync(
-                account.PlatformId,
-                account.Puuid,
-                MainCandidateStatus.Processing,
-                MainCandidateStatus.Queued,
-                ct);
+
+        // Same work unit as ValidateAsync, mirrored: releasing the candidates without
+        // releasing the account is the failure mode that pins a claim for a whole lease.
+        int updated;
+        await using (var transaction = await session.BeginTransactionAsync(ct))
+        {
+            updated = await session.MainCandidates
+                .SetStatusForAccountAsync(
+                    account.PlatformId,
+                    account.Puuid,
+                    MainCandidateStatus.Processing,
+                    MainCandidateStatus.Queued,
+                    ct);
+
+            await session.RiotAccounts.SetMatchIngestStatusAsync(account.PlatformId, account.Puuid, MatchIngestStatus.Idle, ct);
+            await transaction.CommitAsync(ct);
+        }
 
         if (updated > 0)
         {
@@ -88,8 +110,5 @@ public sealed class AccountValidationService(
                 account.PlatformId,
                 account.Puuid);
         }
-
-        await session.RiotAccounts.SetMatchIngestStatusAsync(account.PlatformId, account.Puuid, MatchIngestStatus.Idle, ct);
-        await session.SaveChangesAsync(ct);
     }
 }

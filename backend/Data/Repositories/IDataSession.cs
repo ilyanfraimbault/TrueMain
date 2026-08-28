@@ -17,4 +17,18 @@ public interface IDataSession : IAsyncDisposable
 
     Task<int> SaveChangesAsync(CancellationToken ct);
     Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken ct);
+
+    /// <summary>
+    /// Detaches everything the change tracker holds, so a long batched loop stops
+    /// re-running <c>DetectChanges</c> over every entity it has ever touched — a cost
+    /// that grows quadratically with the number of batches (#1229).
+    /// </summary>
+    /// <remarks>
+    /// Only call it right after a <see cref="SaveChangesAsync"/>, and only when nothing
+    /// loaded before the call is mutated after it: a detached entity accepts property
+    /// writes and persists none of them, so a stale reference turns into silent data
+    /// loss rather than an error. Callers that preload entities for a whole run must
+    /// move that preload inside the batch before clearing.
+    /// </remarks>
+    void ClearTracking();
 }
