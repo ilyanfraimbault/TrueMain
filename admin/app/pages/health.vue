@@ -144,7 +144,7 @@ const visibleProcesses = computed(() =>
               color="neutral"
               variant="ghost"
               :label="`Show all ${processes.length}`"
-              @click="showAllProcesses = true"
+              @click="(showAllProcesses = true, undefined)"
             />
             <UButton
               v-else-if="showAllProcesses"
@@ -152,7 +152,7 @@ const visibleProcesses = computed(() =>
               color="neutral"
               variant="ghost"
               label="Show only problems"
-              @click="showAllProcesses = false"
+              @click="(showAllProcesses = false, undefined)"
             />
             <UButton
               to="/processes"
@@ -175,7 +175,7 @@ const visibleProcesses = computed(() =>
             color="neutral"
             variant="link"
             label="Show them"
-            @click="showAllProcesses = true"
+            @click="(showAllProcesses = true, undefined)"
           />
         </p>
 
