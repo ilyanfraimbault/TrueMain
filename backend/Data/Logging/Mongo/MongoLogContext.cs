@@ -200,13 +200,20 @@ public sealed class MongoLogContext : IDisposable
         // actually re-applies instead of conflicting and being silently swallowed.
         await ReconcileTtlIndexAsync(Logs, doc => doc.TimestampUtc, _options.LogsRetention, ct);
 
-        // audit_events: no TTL (retained indefinitely). A descending timestamp
-        // index backs the newest-first audit read.
+        // audit_events: a descending timestamp index backs the newest-first audit read.
         await AuditEvents.Indexes.CreateOneAsync(
             new CreateIndexModel<AuditEventDocument>(
                 Builders<AuditEventDocument>.IndexKeys.Descending(doc => doc.TimestampUtc),
                 new CreateIndexOptions { Name = "ix_timestamp_desc" }),
             cancellationToken: ct);
+
+        // Routed through the same reconciler as every other collection even though
+        // AuditRetention defaults to zero: at zero this is a no-op that only ever drops
+        // a TTL index a previous configuration left behind, so today's behaviour
+        // (indefinite retention) is unchanged. It is here so enabling a window is a
+        // configuration change rather than a code change — #1023 requires every
+        // collection to declare its retention, and this was the one that could not.
+        await ReconcileTtlIndexAsync(AuditEvents, doc => doc.TimestampUtc, _options.AuditRetention, ct);
 
         // crashes: a descending timestamp index for the newest-first listing, plus
         // equality indexes backing the process / source filters, and the reconciled

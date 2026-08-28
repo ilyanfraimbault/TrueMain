@@ -52,9 +52,11 @@ public class TrueMainDbContext : DbContext
 
     public DbSet<ChampionAggregateScope> ChampionAggregateScopes => Set<ChampionAggregateScope>();
 
-    // Junction-table aggregate + globally-deduplicated dimension tables:
-    // the aggregator writes pattern + dim rows exclusively, and the read
-    // side projects them via ChampionPatternProjector.
+    // Junction-table aggregate + globally-deduplicated dimension tables: the
+    // aggregator writes pattern + dim rows exclusively, and the read side joins
+    // them in its own query services (Api/Services/Champions/ChampionBuildsQueryService
+    // and friends). The single ChampionPatternProjector that used to own that join
+    // is long gone.
     public DbSet<ChampionAggregatePattern> ChampionAggregatePatterns => Set<ChampionAggregatePattern>();
     public DbSet<ChampionDimBuild> ChampionDimBuilds => Set<ChampionDimBuild>();
     public DbSet<ChampionDimRunePage> ChampionDimRunePages => Set<ChampionDimRunePage>();

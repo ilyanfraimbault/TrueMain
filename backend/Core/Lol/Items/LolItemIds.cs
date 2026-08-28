@@ -10,11 +10,14 @@ public static class LolItemIds
 {
     public const int BootsOfSpeed = 1001;
 
+    // The Tear line: the reference case for an inventory transform. Manamune/Muramana
+    // exercise ItemMetadata.TransformFromItemId in the metadata provider's tests, and
+    // TearOfTheGoddess is the cheap root a starter basket can hold. Only the ids a rule
+    // or a fixture actually reads are listed — an id nothing resolves is one more thing
+    // to keep true across patches for nothing.
     public const int Manamune = 3004;
     public const int Muramana = 3042;
     public const int TearOfTheGoddess = 3070;
-    public const int ArchangelsStaff = 3003;
-    public const int Seraphs = 3040;
 
     public static class Trinkets
     {
