@@ -256,6 +256,17 @@ a backend hit *per view*, not per five minutes), and no visitor or crawler reads
 long — this paragraph is the only build content in the server-rendered HTML, so its staleness is indexed.
 The share card keeps its hour: nothing renders beside it — #1273.
 
+**`hydrate-on-visible` does not make a panel free — it defers hydration, not server rendering.**
+The champion page's Truemains card is `<LazyChampionTruemains hydrate-on-visible>`, below the fold, and it
+still fired `GET /api/truemains?championId=…` on **every** SSR of every champion page, because
+`useTruemainsLeaderboard` defaults to `server: true` and the lazy wrapper has no say in that. So the budget
+#1123 argued for — one SSR round-trip, cached an hour, spent on the build summary — was quietly double what
+the entry above claims, and this second call had no Nitro cache at all. #1231 opts that one call site out
+(`server: false`); the leaderboard skeleton becomes the server-rendered state, which is what a below-the-fold
+panel should show anyway. The default stays `true`, because on `/truemains` and the homepage teaser the
+leaderboard *is* the content. The general rule this leaves: a `Lazy*` + `hydrate-on-visible` wrapper is a
+hydration-cost decision, and any fetch inside it is a separate, explicit SSR decision — #1231.
+
 **The build paragraph is typeset, and rune trees get Riot's colours to do it.**
 #1123 shipped the summary as flat grey prose under the build tabs, where it read as a wall of text naming
 twenty entities a player normally reads as *pictures* — and, sitting below the panels, as a footnote to the

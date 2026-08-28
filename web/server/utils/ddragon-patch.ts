@@ -10,7 +10,13 @@ import { normalizeDataDragonPatch, PATCH_PATTERN } from '~~/shared/utils/ddragon
  * here, while this side was missing the guard the admin had added.
  */
 
-const VERSIONS_URL = 'https://ddragon.leagueoflegends.com/api/versions.json'
+/**
+ * DDragon's version list, newest first. Also served verbatim (and cached) by
+ * `server/api/static/versions.get.ts`, which is where the front end reads it
+ * from — no browser talks to the CDN directly (#1231). Exported (unlike the
+ * admin twin) because this app has that second consumer; the admin does not.
+ */
+export const DDRAGON_VERSIONS_URL = 'https://ddragon.leagueoflegends.com/api/versions.json'
 
 /**
  * Resolve the latest DDragon version (`16.5.1` form).
@@ -37,7 +43,7 @@ const VERSIONS_URL = 'https://ddragon.leagueoflegends.com/api/versions.json'
  */
 export const resolveLatestDDragonPatch = defineCachedFunction(
   async (): Promise<string> => {
-    const versions = await $fetch<string[]>(VERSIONS_URL)
+    const versions = await $fetch<string[]>(DDRAGON_VERSIONS_URL)
     const latest = versions[0]
     if (!latest) {
       throw createError({ statusCode: 502, statusMessage: 'DDragon returned no versions' })
