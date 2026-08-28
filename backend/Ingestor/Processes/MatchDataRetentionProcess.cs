@@ -562,7 +562,7 @@ public sealed class MatchDataRetentionProcess(
         var deletedParticipants = 0;
 
         // Delete in bounded batches, one transaction each: the cascading removal of
-        // timeline snapshots / kill positions / jungle clears / perk selections / bans makes
+        // timeline snapshots / kill positions / perk selections / bans makes
         // a single unbounded delete a lock and WAL hazard, especially right after a
         // disk-full incident. Each committed batch frees space and lets an interrupted
         // drain resume next run.

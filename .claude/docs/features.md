@@ -3,7 +3,7 @@
 What already exists, so a session doesn't propose it as new or re-derive it from the code.
 Companion file: [decisions.md](decisions.md) (the *why*). Keep both updated — see the convention at the bottom.
 
-Last verified against `develop` on 2026-07-28.
+Last verified against `develop` on 2026-08-25.
 
 ---
 
@@ -79,7 +79,7 @@ The brand's own page (#1122). Static prose, no fetch, so the whole thing is in t
 Static legal prose — required for the Riot production-key application.
 
 ### `/dev/*`
-Component playgrounds (`charts`, `match-row`, `profile`). **Stripped from production** by a `pages:extend` hook in `nuxt.config.ts`.
+Component playgrounds (`charts`, `match-row`, `profile`, `build-skeleton`) plus the design-system reference screen (`design-system`). **Stripped from production** by a `pages:extend` hook in `nuxt.config.ts`.
 
 ### Cross-cutting (web)
 - **Search / command palette** — `AppSearch.vue`: one modal + lazy `UCommandPalette` (keeps Fuse out of the site-wide bundle, #832). Groups: champions (local Fuse), truemains (debounced server search), browse shortcuts. ⌘K bound only on the header instance. Two variants (`field`, `button`); `champion-mode="filter"` makes selection filter instead of navigate.
@@ -144,7 +144,7 @@ Three controllers, all delegating to injected `I*QueryService` — no EF types c
 
 - **`ChampionsController`** (public): list, tierlist, `overview` (#972 — homepage snapshot: lifetime games-analyzed total + top rows), detail, trend, patch-diff, matchups, synergies, synergies/trios, scaling, item-timings, roam, powerspikes, mains-comparison, `POST composition-build`, and `POST composition-build/games` (#940 — the recommendation's provenance drawer, paged).
 - **`TruemainsController`** (public): search, leaderboard, profile, player-scoped champion + divergence + matchups + **performance**, rank-history, **activity** (#927 — the four-granularity grid in one payload, no mode param), matches, match detail.
-- **`OpsController`** (`X-Ops-Key` auth): 18 endpoints backing the admin portal.
+- **`OpsController`** (`X-Ops-Key` auth): 28 endpoints backing the admin portal.
 
 Cross-cutting: memory cache (`SizeLimit = 1024`, no Redis), global per-IP rate limit 100 req/min, `/healthz` + `/readyz`, RFC 7807 problem details with `traceId`, HSTS outside dev, CORS that fails boot when unset outside dev, OpenAPI/Scalar **Development-only**.
 
@@ -153,39 +153,40 @@ Cross-cutting: memory cache (`SizeLimit = 1024`, no Redis), global per-IP rate l
 ### Ingestor
 `Worker.cs` is a `BackgroundService`: reconcile orphaned `Running` rows to `Abandoned` at boot, then loop {heartbeat file → `RunOnceAsync(mode)` → stop if `Job:RunOnce` (default true) else wait `Job:IntervalMinutes`}. A failed iteration is logged and counted, never fatal. The mode concept is **`JobMode`** — `Full` expands to the ordered pipeline below, any other value runs that single process. Each process is DI-keyed by its `JobMode` and wrapped in `RecordedProcess` (writes `Running`, heartbeats, then `Success`/`Failed` + serialized summary).
 
-Pipeline order (`Full`):
+Pipeline order (`Full`) — the 19 steps of `Ingestor/Options/JobModeSequence.cs`, in that exact order. The
+sequence is the source of truth; renumber this table from it, never the other way round.
 
-| # | Process | What it does |
-|---|---|---|
-| 1 | Discovery | Walks Master/GM/Challenger ladders per platform → accounts, mastery-derived candidates, rank snapshots |
-| 2 | ManualSeed | Drains pending seed requests (admin "Add mains"), promotes straight to `Queued` |
-| 3 | Harvest | Generates candidates from orphan `match_participants` — zero Riot calls |
-| 4 | Scoring | Weighted blend (recency, rank, mastery, champion scarcity) → top-N promoted to `Queued` |
-| 5 | MainActivity | Retires/reactivates mains via champion-mastery `lastPlayTime` (1 call/account); flags rows, never deletes |
-| 6 | MatchIngestion | Lease-claims accounts, fetches match-v5 + timeline, writes matches/participants/snapshots/kill positions/jungle clears/perks |
-| 7 | MatchTeamPositionCorrection | Backfills `team_position` for the unambiguous single-gap case |
-| 8 | MainAnalysis | Computes `main_champion_stats` (play rate, mains/OTP) with adaptive thresholds + demotion policy |
-| 9 | EloBracketEnrichment | Stamps `elo_bracket` from the nearest rank snapshot |
-| 9b | RunePageDeduplication | Collapses permutation-duplicate `champion_dim_rune_pages` rows and normalises every remaining row's secondary perk order (#911). Runs **before** the aggregation so a pass never aggregates into a dimension it is about to rewrite; drains once, then a no-op |
-| 10 | ChampionPatternAggregation | Rebuilds aggregate scopes/patterns + `champion_dim_*`, **chunked one champion at a time** (memory bound) |
-| 11 | ChampionMatchupLeadAggregation | Incrementally folds each match once into `champion_matchup_stats`. The champion side of every row is a **main of that champion** (`Data/Aggregation/MatchupCohort.cs`, shared with the lane fold below so the two cohorts cannot drift); the opponent is whoever held that lane. Was "any account we know" until #1087, which put 3.2× more games behind the matchups panel than behind the champion header above it |
-| 11b | ChampionSynergyAggregation | Folds each match once into `champion_synergy_stats` + `champion_synergy_baseline_stats` (same-team pairs and their SELF/ALLY marginals) |
-| 11a | ChampionLaneOutcomeAggregation | Judges each match's lane from the 15-min timeline snapshots and folds three counters (`LaneGames`/`LaneWins`/`LaneLosses`) into the same `champion_matchup_stats` rows (#919), plus the signed gold gap behind them (`LaneGoldDiffSum` over its own `LaneGoldDiffGames`, #976 — a second denominator because rows folded before it have outcomes and no gap, and an additive fold cannot be re-run to backfill them). Runs right after the matchup fold, over the same matches |
-| 11c | ChampionBanAggregation | Folds each match once into `champion_ban_stats` + `ban_scope_totals` (ban counts and the match totals they divide by). Must run **after** elo enrichment — the fold is one-shot and decides there which bands a match counts in |
-| last | StorageSnapshot | Records the day's `pg_catalog` sizes + measured `pg_database_size` into `db_table_size_snapshots` (#925). Runs **after** retention, so the figure is the steady-state size rather than the pre-deletion peak |
-| 12 | ChampionPowerspikeAggregation | Folds each match once into the powerspike stat tables while dense snapshots still exist; event rows are keyed on the lane opponent the spike was measured against (#957) |
-| 13 | AccountRefresh | Refreshes identity + soloQ rank; recovers or invalidates dead PUUIDs |
-| 14 | MatchDataRetention | Prunes stale candidates, non-tracked-queue matches, out-of-window matches, intermediate timeline snapshots; rolls a frozen patch's per-opponent powerspike rows back into one (#957) before applying the sub-floor powerspike prune, which must see the rolled-up games |
+| # | Process | What it does | Why here |
+|---|---|---|---|
+| 1 | Discovery | Walks Master/GM/Challenger ladders per platform → accounts, mastery-derived candidates, rank snapshots | Feeds every downstream step |
+| 2 | ManualSeed | Drains pending seed requests (admin "Add mains"), promotes straight to `Queued` | After Discovery, **before** Scoring: it queues directly, skipping the competitive top-N, so a seeded account is picked up by the same run's MatchIngestion → MainAnalysis pass |
+| 3 | Harvest | Generates candidates from orphan `match_participants` — zero Riot calls (#485) | Before Scoring, so harvested candidates compete in the same per-platform top-N as ladder and manual ones |
+| 4 | Scoring | Weighted blend (recency, rank, mastery, champion scarcity) → top-N promoted to `Queued` | Needs all three candidate sources above |
+| 5 | MainActivity | Retires/reactivates mains via champion-mastery `lastPlayTime` (1 call/account); flags rows, never deletes | **Before** the claim (#900), so the batch spends its match-v5 budget on players who still play rather than on accounts that come back empty |
+| 6 | MatchIngestion | Lease-claims accounts, fetches match-v5 + timeline, writes matches/participants/snapshots/kill positions/perks/bans | Produces the raw rows every aggregation below reads |
+| 7 | MatchTeamPositionCorrection | Backfills `team_position` for the unambiguous single-gap case | Before the aggregations read `TeamPosition`. `RiotMatchMapper` self-heals newly-ingested matches, so steady-state this only drains the pre-existing backlog |
+| 8 | MainAnalysis | Computes `main_champion_stats` (play rate, mains/OTP) with adaptive thresholds + demotion policy | Needs the freshly ingested matches; defines the main cohort the matchup fold reads |
+| 9 | EloBracketEnrichment | Stamps `match_participants.elo_bracket` from the nearest rank snapshot | **Before** every aggregation, so they and the live panel reads can filter by rank. Uses prior-cycle snapshots |
+| 10 | RunePageDeduplication | Collapses permutation-duplicate `champion_dim_rune_pages` rows and normalises every remaining row's secondary perk order (#911) | **Before** the aggregation, so a pass never aggregates into a dimension it is about to rewrite; drains once, then a no-op |
+| 11 | ChampionPatternAggregation | Rebuilds aggregate scopes/patterns + `champion_dim_*`, **chunked one champion at a time** (memory bound) | After the dimension rewrite above |
+| 12 | ChampionMatchupLeadAggregation | Incrementally folds each match once into `champion_matchup_stats`. The champion side of every row is a **main of that champion** (`Data/Aggregation/MatchupCohort.cs`, shared with the lane fold below so the two cohorts cannot drift); the opponent is whoever held that lane. Was "any account we know" until #1087, which put 3.2× more games behind the matchups panel than behind the champion header above it | After elo enrichment; creates the rows step 13 updates |
+| 13 | ChampionLaneOutcomeAggregation | Judges each match's lane from the 15-min timeline snapshots and folds three counters (`LaneGames`/`LaneWins`/`LaneLosses`) into the same `champion_matchup_stats` rows (#919), plus the signed gold and XP gaps behind them (`LaneGoldDiffSum` over its own `LaneGoldDiffGames`, #976; `LaneXpDiffSum` over `LaneXpDiffGames`, #1111 — separate denominators because rows folded before each have outcomes and no gap, and an additive fold cannot be re-run to backfill them) | **Immediately after** the matchup fold, over the same matches, so the row its upsert targets already exists and both sides describe one cohort |
+| 14 | ChampionSynergyAggregation | Folds each match once into `champion_synergy_stats` + `champion_synergy_baseline_stats` (same-team pairs and their SELF/ALLY marginals, #922) | Independent of steps 12–13 (own pending flag), so the order between them is arbitrary; kept adjacent because they read the same slice of `match_participants` and benefit from a warm cache |
+| 15 | ChampionBanAggregation | Folds each match once into `champion_ban_stats` + `ban_scope_totals` (ban counts and the match totals they divide by, #920) | Must run **after** elo enrichment: the fold is one-shot and decides there which bands a match counts in — a match folded before its participants are stamped lands in the ALL band only |
+| 16 | ChampionPowerspikeAggregation | Folds each match once into the powerspike stat tables (#694); event rows are keyed on the lane opponent the spike was measured against (#957) | **Before** retention, while the dense per-minute snapshots it reads still exist |
+| 17 | AccountRefresh | Refreshes identity + soloQ rank; recovers or invalidates dead PUUIDs | No ordering constraint |
+| 18 | MatchDataRetention | Prunes stale candidates, non-tracked-queue matches, out-of-window matches, intermediate timeline snapshots; rolls a frozen patch's per-opponent powerspike rows back into one (#957) before applying the sub-floor powerspike prune, which must see the rolled-up games | After every fold that reads raw match data |
+| 19 | StorageSnapshot | Records the day's `pg_catalog` sizes + measured `pg_database_size` into `db_table_size_snapshots` (#925) | Deliberately **last**: it must measure the steady-state size after retention's deletions, not the peak before them, or the forecast would predict an exhaustion retention is already preventing |
 
 **Riot client layer** — typed clients (match / platform / account) each wrapped in a resilience handler (rate limiter, total timeout, retry honouring `Retry-After`, circuit breaker, per-attempt timeout) with the metrics handler **inside** it, so every physical attempt including retried 429s is recorded to Mongo.
 
 ### Data
-`TrueMainDbContext`, 26 `DbSet`s. Tables by domain:
+`TrueMainDbContext`, 30 `DbSet`s. Tables by domain:
 - **Identity**: `riot_accounts`, `personas` (half-built, unused), `main_candidates`, `discovery_cursors`
-- **Raw matches**: `matches`, `match_participants`, `match_participant_timeline_snapshots`, `match_participant_kill_positions`, `participant_perk_selections`, `perk_selection_catalog` (item/skill events are jsonb, not tables)
+- **Raw matches**: `matches`, `match_participants`, `match_participant_timeline_snapshots`, `match_participant_kill_positions`, `match_bans`, `participant_perk_selections`, `perk_selection_catalog` (item/skill events are jsonb, not tables)
 - **Aggregates**: `champion_aggregate_scopes` (account × champion × patch × platform × queue × position × elo bracket) + `champion_aggregate_patterns` (one row per observed build+runes+skills+spells+starters combo), with content-deduplicated `champion_dim_{builds,rune_pages,skill_orders,spell_pairs,starter_items}`. Rune pages store their two **secondary** perks in canonical (ascending id) order — the player's click order made the same page two rows and split its sample (#911)
-- **Derived**: `main_champion_stats`, `champion_matchup_stats`, `champion_synergy_stats` + `champion_synergy_baseline_stats`, `champion_powerspike_{curve,event}_stats`, `powerspike_sigma_stats`
-- **Snapshots / ops**: `rank_snapshots`
+- **Derived**: `main_champion_stats`, `champion_matchup_stats`, `champion_synergy_stats` + `champion_synergy_baseline_stats`, `champion_ban_stats` + `ban_scope_totals`, `champion_powerspike_{curve,event}_stats`, `powerspike_sigma_stats`
+- **Snapshots / ops**: `rank_snapshots`, plus the frozen `process_runs` / `seed_requests` leftovers below
 
 **Mongo** (`truemain_logs`, TTL retention): `logs` (90 d, lossy bounded channel), `audit_events` (lossless, synchronous), `riot_api_call_rollups` (14 d), `crashes` (365 d, file-first then Mongo, with unclean-shutdown detection for OOM kills), `db_table_size_snapshots` (365 d, one document per table per day, day-keyed upsert so the pipeline's many daily runs refresh rather than append), `process_runs` (180 d TTL, recorder-written run documents read by the admin process panels and Discovery's cadence gate), `seed_requests` (no TTL — functional admin queue: API inserts Pending, ManualSeed claims atomically). The SQL `process_runs`/`seed_requests` tables are frozen leftovers pending a drop migration.
 
@@ -218,8 +219,8 @@ Dependency-free domain layer: `DedicationScore` (0–100 with exposed components
 > same inputs.
 
 ### Known dead / stale spots
-- The `"ops"` rate-limit policy referenced in a `Program.cs` comment **does not exist** — ops shares the global limit.
+- There is **no dedicated `"ops"` rate-limit policy**: the ops endpoints share the global 100 req/min per-IP limiter, and the admin portal proxies them all from one source IP. Decided rather than overlooked (#1248) — the `Program.cs` comment that described the policy as existing has been removed.
 - `SeedOptions` is bound but never injected (dead config; `ManualSeedProcess` uses `ManualSeedOptions`).
 - `ChampionAggregateBuild/RunePage/SkillOrder/SpellPair/StarterItems` in `Data/Entities/` are transport DTOs, **not tables**.
 - `personas` has no writer and no reader.
-- `champion_timeline_lead_stats` was dropped in #889 but is still named in a `MatchDataRetentionOptions` doc comment.
+- Jungle first-clear tracking was removed entirely (#1206/#1207); only the `DropJungleFirstClears` migration remains. `champion_timeline_lead_stats` was dropped in #889. Both are gone from the code comments as of #1248 — don't reintroduce them from an old doc.

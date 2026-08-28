@@ -14,8 +14,7 @@ public sealed class TimelineIngestionService(
     /// <summary>
     /// Skill events past level 11 add no information for our pattern aggregation
     /// (SkillOrderBuilder only needs to see each basic skill reach rank 2). Cap
-    /// what we persist to keep MatchParticipant rows small — see DB optimisation
-    /// backlog: SkillEvents tronquer à 11.
+    /// what we persist to keep the MatchParticipant jsonb rows small.
     /// </summary>
     internal const int MaxSkillEventsPerParticipant = 11;
 

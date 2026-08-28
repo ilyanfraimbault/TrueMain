@@ -143,7 +143,7 @@ public sealed class OpsController(
 
     /// <summary>
     /// Aggregation pipelines snapshot for the admin Aggregation panel: per family
-    /// (builds patterns, matchups, timeline leads, powerspikes, mains) the exact
+    /// (builds patterns, matchups, synergies, powerspikes, mains) the exact
     /// row counts of its tables, champion/patch coverage, data freshness and the
     /// latest recorded run, plus the ingestion backlogs that should read zero when
     /// aggregations are caught up.

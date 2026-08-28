@@ -151,11 +151,14 @@ builder.Services.AddOptions<ChampionsListOptions>()
         options => options.MinMatchupPlayRate is >= 0d and < 1d,
         "ChampionsList:MinMatchupPlayRate must be in [0, 1).")
     .Validate(options => options.MinDecidedLaneGames >= 0, "ChampionsList:MinDecidedLaneGames must be >= 0.")
-    // Shares, so out of [0,1) they stop meaning anything: 1 would demand a pairing
+    // A share, so out of [0,1) it stops meaning anything: 1 would demand a pairing
     // present in every game the champion ever played, which no pairing is.
     .Validate(
         options => options.MinSynergyPlayRate is >= 0d and < 1d,
         "ChampionsList:MinSynergyPlayRate must be in [0, 1).")
+    // A share too, but 1 is a meaningful setting here: BaselineSet.IsRealLane
+    // divides a champion's games in one lane by its games across all lanes, which
+    // is exactly 1 for a mono-lane champion. So [0, 1], closed on both ends.
     .Validate(
         options => options.MinSynergyPartnerLanePlayRate is >= 0d and <= 1d,
         "ChampionsList:MinSynergyPartnerLanePlayRate must be in [0, 1].")
@@ -258,11 +261,11 @@ builder.Services
         _ => { });
 builder.Services.AddAuthorization();
 
-// Rate limiting: default per-IP fixed window (100 req / min with a small
-// queue) shields the public champion endpoints from casual abuse. Ops
-// endpoints are already gated by ApiKey and don't need the same ceiling —
-// they opt into a dedicated named policy ("ops") which is attached via
-// [EnableRateLimiting("ops")] on the controller if we ever want it.
+// Rate limiting: one global per-IP fixed window (100 req / min with a small
+// queue) shields the public champion endpoints from casual abuse. There is no
+// separate ops policy — the ops endpoints share this window, and because the
+// admin portal proxies them all through one server, they share it from a
+// single source IP.
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;

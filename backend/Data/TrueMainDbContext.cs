@@ -21,9 +21,12 @@ public class TrueMainDbContext : DbContext
     public DbSet<Match> Matches => Set<Match>();
     public DbSet<MainChampionStat> MainChampionStats => Set<MainChampionStat>();
 
-    // Pre-aggregated read models for the champion page's two heaviest slices
-    // (#606): the global matchups leaderboard and the lead-vs-lane-opponent
-    // timeline curve. Populated by ChampionMatchupLeadAggregationProcess.
+    // Pre-aggregated read model for the champion page's global matchups
+    // leaderboard (#606), carrying the lane counters and gold/XP gaps folded into
+    // the same rows (#919/#976/#1111). The champion side is a main of that
+    // champion — Data.Aggregation.MatchupCohort (#1087). Populated by
+    // ChampionMatchupLeadAggregationProcess, lane counters by
+    // ChampionLaneOutcomeAggregationProcess.
     public DbSet<ChampionMatchupStat> ChampionMatchupStats => Set<ChampionMatchupStat>();
 
     // Pre-aggregated same-team co-occurrence for the champion synergies panel
