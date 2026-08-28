@@ -19,13 +19,6 @@ permissions:
 concurrency:
   group: prod-pipeline
   cancel-in-progress: false
-
-env:
-  IMAGE_API: ghcr.io/${{ github.repository_owner }}/truemain-api
-  IMAGE_INGESTOR: ghcr.io/${{ github.repository_owner }}/truemain-ingestor
-  IMAGE_WEB: ghcr.io/${{ github.repository_owner }}/truemain-web
-  IMAGE_ADMIN: ghcr.io/${{ github.repository_owner }}/truemain-admin
-
 jobs:
   # Gate for the whole pipeline. Every later job assumes a complete deployment
   # configuration, so it is checked once, up front, before anything mutates
@@ -64,74 +57,17 @@ jobs:
 
   publish:
     name: Build & Publish Release Images
-    runs-on: ubuntu-24.04
     # Also gated: `publish` moves the `:latest` tag, so publishing without
     # being able to deploy would leave `:latest` ahead of what prod runs.
     needs: preflight
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.release.tag_name }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push API image
-        uses: docker/build-push-action@v7
-        with:
-          context: ./backend
-          file: backend/Api/Dockerfile
-          push: true
-          cache-from: type=gha,scope=api
-          cache-to: type=gha,mode=max,scope=api
-          tags: |
-            ${{ env.IMAGE_API }}:${{ github.event.release.tag_name }}
-            ${{ env.IMAGE_API }}:latest
-
-      - name: Build and push Ingestor image
-        uses: docker/build-push-action@v7
-        with:
-          context: ./backend
-          file: backend/Ingestor/Dockerfile
-          push: true
-          cache-from: type=gha,scope=ingestor
-          cache-to: type=gha,mode=max,scope=ingestor
-          tags: |
-            ${{ env.IMAGE_INGESTOR }}:${{ github.event.release.tag_name }}
-            ${{ env.IMAGE_INGESTOR }}:latest
-
-      - name: Build and push Web image
-        uses: docker/build-push-action@v7
-        with:
-          context: ./web
-          file: web/Dockerfile
-          push: true
-          cache-from: type=gha,scope=web
-          cache-to: type=gha,mode=max,scope=web
-          tags: |
-            ${{ env.IMAGE_WEB }}:${{ github.event.release.tag_name }}
-            ${{ env.IMAGE_WEB }}:latest
-
-      - name: Build and push Admin image
-        uses: docker/build-push-action@v7
-        with:
-          context: ./admin
-          file: admin/Dockerfile
-          push: true
-          cache-from: type=gha,scope=admin
-          cache-to: type=gha,mode=max,scope=admin
-          tags: |
-            ${{ env.IMAGE_ADMIN }}:${{ github.event.release.tag_name }}
-            ${{ env.IMAGE_ADMIN }}:latest
+    uses: ./.github/workflows/build-images.yml
+    with:
+      # The release tag, not the triggering ref: a release can be published
+      # from a tag that is no longer the tip of any branch.
+      ref: ${{ github.event.release.tag_name }}
+      tags: |
+        ${{ github.event.release.tag_name }}
+        latest
 
   migrate-prod:
     name: Apply Prod Migrations
