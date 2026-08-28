@@ -327,7 +327,7 @@ const mainsLabelFormatter = computed(() =>
                     variant="link"
                     size="sm"
                     aria-label="Clear search"
-                    @click="(search = '', undefined)"
+                    @click="void (search = '')"
                   />
                 </template>
               </UInput>
