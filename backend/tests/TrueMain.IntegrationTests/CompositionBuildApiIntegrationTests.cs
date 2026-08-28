@@ -433,7 +433,7 @@ public sealed class CompositionBuildApiIntegrationTests
         }
 
         await db.SaveChangesAsync();
-        await SeedRunePageAsync(db, matchId);
+        await PerkSelectionSeed.SeedRunePageAsync(db, matchId);
     }
 
     /// <summary>
@@ -468,53 +468,6 @@ public sealed class CompositionBuildApiIntegrationTests
                 IsActive = true,
                 PrimaryPosition = Position,
                 CalculatedAtUtc = DateTime.UtcNow,
-            });
-        }
-
-        await db.SaveChangesAsync();
-    }
-
-    private static async Task SeedRunePageAsync(Data.TrueMainDbContext db, string matchId)
-    {
-        (string Style, int Index, int PerkId)[] selections =
-        [
-            ("primaryStyle", 0, 8010),
-            ("primaryStyle", 1, 9111),
-            ("primaryStyle", 2, 9104),
-            ("primaryStyle", 3, 8014),
-            ("subStyle", 0, 8139),
-            ("subStyle", 1, 8135),
-        ];
-
-        foreach (var (style, index, perkId) in selections)
-        {
-            var styleId = style == "primaryStyle" ? 8000 : 8100;
-            var catalog = db.PerkSelectionCatalogs.Local
-                .FirstOrDefault(c =>
-                    c.StyleId == styleId && c.SelectionIndex == index
-                    && c.PerkId == perkId && c.StyleDescription == style)
-                ?? db.PerkSelectionCatalogs
-                    .FirstOrDefault(c =>
-                        c.StyleId == styleId && c.SelectionIndex == index
-                        && c.PerkId == perkId && c.StyleDescription == style);
-            if (catalog is null)
-            {
-                catalog = new PerkSelectionCatalog
-                {
-                    StyleId = styleId,
-                    SelectionIndex = index,
-                    PerkId = perkId,
-                    StyleDescription = style,
-                };
-                db.PerkSelectionCatalogs.Add(catalog);
-            }
-
-            db.ParticipantPerkSelections.Add(new ParticipantPerkSelection
-            {
-                Id = Guid.NewGuid(),
-                MatchId = matchId,
-                ParticipantId = 1,
-                Catalog = catalog,
             });
         }
 

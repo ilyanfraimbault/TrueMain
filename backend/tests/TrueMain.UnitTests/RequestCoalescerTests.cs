@@ -82,7 +82,10 @@ public sealed class RequestCoalescerTests
 
         // The pass itself survives the abandoning caller, then releases its slot.
         gate.SetResult();
-        await WaitUntilAsync(() => coalescer.InFlightCount == 0);
+        await AsyncWait.UntilAsync(
+            () => coalescer.InFlightCount == 0,
+            "the abandoned pass to release its coalescer slot",
+            TimeSpan.FromSeconds(2));
         coalescer.InFlightCount.Should().Be(0);
     }
 
@@ -123,13 +126,5 @@ public sealed class RequestCoalescerTests
         // A failed pass must not pin the key: the next request has to be allowed to try.
         attempts.Should().Be(2);
         coalescer.InFlightCount.Should().Be(0);
-    }
-
-    private static async Task WaitUntilAsync(Func<bool> condition)
-    {
-        for (var attempt = 0; attempt < 100 && !condition(); attempt++)
-        {
-            await Task.Delay(10);
-        }
     }
 }
