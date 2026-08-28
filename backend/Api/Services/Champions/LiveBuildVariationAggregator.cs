@@ -31,14 +31,14 @@ namespace TrueMain.Services.Champions;
 /// </summary>
 internal static class LiveBuildVariationAggregator
 {
-    /// <summary>Variations listed per dimension, matching the aggregate path's cap.</summary>
-    private const int MaxVariations = 5;
+    /// <summary>Variations listed per dimension — <see cref="ChampionBuildDisplayCaps.MaxVariations"/>.</summary>
+    private const int MaxVariations = ChampionBuildDisplayCaps.MaxVariations;
 
     /// <summary>Core path depth: the first completed legendaries that define a build.</summary>
     private const int CorePathLength = 3;
 
-    /// <summary>Builds listed for a slice, most played first.</summary>
-    private const int MaxBuilds = 3;
+    /// <summary>Builds listed for a slice, most played first — <see cref="ChampionBuildDisplayCaps.MaxBuilds"/>.</summary>
+    private const int MaxBuilds = ChampionBuildDisplayCaps.MaxBuilds;
 
     public static IReadOnlyList<ChampionBuildReadModel> Aggregate(IReadOnlyList<CompositionParticipantFacts> facts)
     {
