@@ -12,6 +12,17 @@ public class ScoringOptions
 
     public int BatchSize { get; set; } = 5000;
 
+    /// <summary>
+    /// Upper bound on candidates scored in a single run, so a large <c>New</c> backlog is
+    /// spread across scheduled runs instead of monopolising one pipeline pass. Harvest can
+    /// insert thousands of candidates per run and resets refreshed <c>Scored</c> candidates
+    /// back to <c>New</c>, so the backlog is refilled every cycle.
+    /// 0 means no cap (drain every new candidate in one run) and is the shipped default, so
+    /// nothing changes until the key is set — the same convention as the aggregation folds'
+    /// <c>MaxMatchesPerRun</c>.
+    /// </summary>
+    public int MaxCandidatesPerRun { get; set; }
+
     public double RecencyWeight { get; set; } = 0.65;
 
     public double RankWeight { get; set; } = 0.20;

@@ -28,6 +28,16 @@ public sealed class MatchDetailQueryService(
 {
     private const int LaningIntervalMinute = 15;
 
+    /// <summary>
+    /// Half-width of the window the nearest rank snapshot is looked up in. Snapshots are
+    /// capped at one per account per UTC day (#907) and never expire, so an unbounded
+    /// lookup grows by ~365 rows per account per season, times the ten participants of a
+    /// match. Two weeks either side is far wider than the refresh cadence of a followed
+    /// account, and an account with nothing in the window falls back to the wide search
+    /// below rather than losing its rank badge.
+    /// </summary>
+    private static readonly TimeSpan RankSnapshotWindow = TimeSpan.FromDays(14);
+
     public async Task<MatchDetailReadModel?> GetAsync(string nameTag, string matchId, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(matchId))
@@ -168,20 +178,24 @@ public sealed class MatchDetailQueryService(
 
             // Group the account's snapshots and pick the temporally-closest one.
             // EF can't translate the abs-diff ordering, so we pull the candidate
-            // rows (a single account's rank history is small) and reduce in
-            // memory.
-            var rankRows = await db.RankSnapshots
-                .AsNoTracking()
-                .Where(s => trackedAccountIds.Contains(s.RiotAccountId))
-                .Select(s => new
-                {
-                    s.RiotAccountId,
-                    s.CapturedAtUtc,
-                    s.Tier,
-                    s.Division,
-                    s.LeaguePoints,
-                })
-                .ToListAsync(ct);
+            // rows and reduce in memory — but only the rows inside a window
+            // around the game, since a followed account accumulates one snapshot
+            // per day forever and only the nearest one is ever kept.
+            var rankRows = await LoadRankSnapshotsAsync(
+                trackedAccountIds,
+                gameStart - RankSnapshotWindow,
+                gameStart + RankSnapshotWindow,
+                ct);
+
+            // Fallback for the accounts the window missed entirely — a rarely
+            // refreshed account can have its closest snapshot months away, and
+            // dropping its badge would be a regression, not a saving.
+            var coveredAccountIds = rankRows.Select(s => s.RiotAccountId).ToHashSet();
+            var uncoveredAccountIds = trackedAccountIds.Where(id => !coveredAccountIds.Contains(id)).ToList();
+            if (uncoveredAccountIds.Count > 0)
+            {
+                rankRows.AddRange(await LoadRankSnapshotsAsync(uncoveredAccountIds, null, null, ct));
+            }
 
             rankByAccount = rankRows
                 .GroupBy(s => s.RiotAccountId)
@@ -408,6 +422,44 @@ public sealed class MatchDetailQueryService(
         };
     }
 
+    /// <summary>
+    /// Rank snapshots of the given accounts, optionally restricted to a capture window.
+    /// A null bound means "unbounded on that side", which is the fallback the windowed
+    /// pass degrades to for an account with nothing nearby.
+    /// </summary>
+    private async Task<List<RankSnapshotRow>> LoadRankSnapshotsAsync(
+        IReadOnlyList<Guid> accountIds,
+        DateTime? fromUtc,
+        DateTime? toUtc,
+        CancellationToken ct)
+    {
+        return await RankSnapshotsQuery(db, accountIds, fromUtc, toUtc).ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// The query behind <see cref="LoadRankSnapshotsAsync"/>, exposed so a test can assert
+    /// the window really reaches SQL as a range predicate instead of being filtered after
+    /// the whole history has been read.
+    /// </summary>
+    internal static IQueryable<RankSnapshotRow> RankSnapshotsQuery(
+        TrueMainDbContext db,
+        IReadOnlyList<Guid> accountIds,
+        DateTime? fromUtc,
+        DateTime? toUtc)
+    {
+        return db.RankSnapshots
+            .AsNoTracking()
+            .Where(s => accountIds.Contains(s.RiotAccountId)
+                && (fromUtc == null || s.CapturedAtUtc >= fromUtc)
+                && (toUtc == null || s.CapturedAtUtc <= toUtc))
+            .Select(s => new RankSnapshotRow(
+                s.RiotAccountId,
+                s.CapturedAtUtc,
+                s.Tier,
+                s.Division,
+                s.LeaguePoints));
+    }
+
     private static double PerMin(int value, double minutes)
         => minutes <= 0 ? 0d : value / minutes;
 
@@ -518,4 +570,11 @@ public sealed class MatchDetailQueryService(
 
     /// <summary>One rune selection row: owning style, slot index and perk id.</summary>
     private sealed record PerkRow(int ParticipantId, int StyleId, int SelectionIndex, int PerkId);
+
+    internal sealed record RankSnapshotRow(
+        Guid RiotAccountId,
+        DateTime CapturedAtUtc,
+        string Tier,
+        string Division,
+        int LeaguePoints);
 }

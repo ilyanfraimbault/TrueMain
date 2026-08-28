@@ -57,11 +57,20 @@ public sealed class ScoringProcess(
         CancellationToken ct)
     {
         var batchSize = Math.Max(1, scoring.BatchSize);
+        var maxPerRun = Math.Max(0, scoring.MaxCandidatesPerRun);
         var result = new ScoringResult();
 
-        while (true)
+        // Capped per run like the aggregation folds (0 = drain everything, the shipped
+        // default): harvest inserts thousands of candidates per run and resets refreshed
+        // Scored candidates back to New, so an uncapped drain can spend a whole ingestor
+        // tick scoring a backlog that is refilled on the next cycle anyway. What is left
+        // is picked up by the next run.
+        while (maxPerRun == 0 || result.TotalScored < maxPerRun)
         {
-            var scoredCandidates = await ScoreCandidatesBatchAsync(session, scoring, coverage, nowUtc, batchSize, ct);
+            ct.ThrowIfCancellationRequested();
+
+            var take = maxPerRun == 0 ? batchSize : Math.Min(batchSize, maxPerRun - result.TotalScored);
+            var scoredCandidates = await ScoreCandidatesBatchAsync(session, scoring, coverage, nowUtc, take, ct);
             if (scoredCandidates.Count == 0)
             {
                 return result;
@@ -76,6 +85,8 @@ public sealed class ScoringProcess(
                     : 1;
             }
         }
+
+        return result;
     }
 
     private static async Task<List<MainCandidate>> ScoreCandidatesBatchAsync(
