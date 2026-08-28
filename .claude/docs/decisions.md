@@ -900,6 +900,19 @@ rebuilt as a *plain transactional* migration — the timeout risk no longer held
 `CONCURRENTLY` plus a manual pre-create step meant prod's schema was not reproducible from migrations alone.
 Accepted: a `SHARE` lock stalls the ingestor for the tens of seconds of the build — PR #750.
 👉 The rule is about **heavy** index builds, not about partial single-column indexes on a table of this size.
+**Generalised (#1227): no migration may contain a statement Postgres refuses inside a transaction — at all.**
+`migrationBuilder.Sql(..., suppressTransaction: true)` does not buy an escape hatch on the real deploy path.
+That flag only has an effect for `Database.MigrateAsync()`, and `ApplyMigrationsOnStartup` is permanently
+`false` in preprod and prod. Deploys run `dotnet ef migrations script --idempotent` piped into
+`psql --single-transaction`, which defeats it twice over: `--idempotent` wraps *every* statement in a
+`DO $EF$ ... END $EF$` PL/pgSQL block (Postgres: `CREATE INDEX CONCURRENTLY cannot be executed from a
+function`), and `psql` opens an explicit transaction around the whole file (so a procedural `COMMIT;` inside a
+`DO` block is an `invalid transaction termination`). Six migrations carried one or the other. It was silent
+because preprod and prod already had them in `__EFMigrationsHistory` and the idempotent guards skipped their
+blocks — it would only have surfaced on the first database built from scratch: a new preprod, a DR restore,
+onboarding. All six were rewritten as plain transactional DDL, which is free: their bodies now only ever
+re-execute on an empty database. The `migrate-fresh` CI job applies the generated script to a blank Postgres
+on every PR so this cannot come back.
 
 **Npgsql pools are capped per service (api 50, ingestor 20) against Postgres `max_connections=100`.**
 Two unbounded pools defaulting to 100 each could request 200 connections; once truemain.lol went live this

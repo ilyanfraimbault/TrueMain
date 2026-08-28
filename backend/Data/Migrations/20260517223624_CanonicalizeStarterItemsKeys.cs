@@ -15,15 +15,25 @@ namespace Data.Migrations
         // migration brings legacy data in line by merging duplicate dim rows
         // and re-keying the survivors.
         //
-        // suppressTransaction: true lets the DO block COMMIT between batches
-        // so locks on champion_aggregate_patterns are released regularly. The
-        // procedure is idempotent (running it twice produces the same state),
-        // so a partial failure is safe to re-run.
+        // Runs inside the migration transaction. It used to COMMIT between batches
+        // under suppressTransaction: true, to release locks on
+        // champion_aggregate_patterns — but a procedural COMMIT is illegal once the
+        // block runs in an explicit transaction, which is exactly what the deploy
+        // path does (`--idempotent` script piped into `psql --single-transaction`,
+        // every statement nested in a `DO $EF$ ... END $EF$` block). suppressTransaction
+        // only ever had an effect for Database.MigrateAsync(), permanently disabled in
+        // preprod and prod (#1227), so this migration could never have applied to a
+        // database built from scratch.
+        //
+        // Dropping the batching COMMIT costs nothing: the body only re-executes where
+        // __EFMigrationsHistory lacks this migration — a brand-new database, where the
+        // dimension tables are empty and the loop does no work. The procedure stays
+        // idempotent (running it twice produces the same state).
 
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.Sql(CanonicalizeSql, suppressTransaction: true);
+            migrationBuilder.Sql(CanonicalizeSql);
         }
 
         /// <inheritdoc />
@@ -48,8 +58,6 @@ namespace Data.Migrations
                 extra_games INT;
                 extra_wins INT;
                 pattern_rec RECORD;
-                processed INT := 0;
-                batch_size CONSTANT INT := 500;
             BEGIN
                 -- Price reference for items that can land in a starter basket.
                 -- This list mirrors ItemMetadata.PriceTotal for every item the
@@ -132,10 +140,8 @@ namespace Data.Migrations
                 CREATE INDEX _starter_dim_canonical_new_key_idx ON _starter_dim_canonical(new_key);
 
                 -- Snapshot every canonical key that has more than one dim row
-                -- pointing at it — those groups need merging. Using FOREACH over
-                -- an array (rather than a cursor) keeps the loop body free to
-                -- COMMIT between iterations. The subquery is required: doing
-                -- array_agg directly on a GROUP BY would produce one array per
+                -- pointing at it — those groups need merging. The subquery is
+                -- required: doing array_agg directly on a GROUP BY would produce one array per
                 -- group (each holding repeated copies of that single key) and
                 -- INTO would only capture the first row.
                 SELECT array_agg(dup.new_key ORDER BY dup.new_key)
@@ -236,10 +242,6 @@ namespace Data.Migrations
                           AND ("StarterItemsKey" IS DISTINCT FROM current_key
                                OR "StarterItems" IS DISTINCT FROM new_items_var);
 
-                        processed := processed + 1;
-                        IF mod(processed, batch_size) = 0 THEN
-                            COMMIT;
-                        END IF;
                     END LOOP;
                 END IF;
 
