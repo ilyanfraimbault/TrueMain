@@ -1056,7 +1056,9 @@ possible. Approval is the single external unlock for all of it — #780.
   Stop after ~3 non-converging iterations and report blockers instead of looping.
 - **CI traps**: backend CI builds **Release** with analyzers as errors (Debug is not enough); `nuxt typecheck`
   can pass on stale `.nuxt` types while CI's `nuxt build` fails; `web/package-lock.json` must be regenerated
-  with `npx npm@11.13.0` (older npm omits sharp optional deps).
+  with `npx npm@11.13.0` (older npm omits sharp optional deps), the version CI pins for the frontend jobs
+  since #1236 — before that, CI ran whatever npm the resolved Node 24 build shipped, so the lock file's
+  generator and the installer could silently diverge.
 - **API wire conventions**: camelCase JSON, RFC 7807 problem details on all 4xx/5xx, no global `/api` prefix,
   `patch` normalised to `major.minor` (invalid values treated as unfiltered), canonical Riot position values,
   `pageSize`/`limit` ≤ 0 means "default" — `docs/api.md`.
