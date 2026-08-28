@@ -63,6 +63,103 @@ jobs:
       - name: Integration tests
         run: dotnet test tests/TrueMain.IntegrationTests/TrueMain.IntegrationTests.csproj --configuration Release --no-build --verbosity normal
 
+  migrate-fresh:
+    name: Migrations on a Fresh Database
+    runs-on: ubuntu-24.04
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+
+    # Reproduces the real deploy path (docs/production-migrations.md) against an
+    # empty database: `dotnet ef migrations script --idempotent` piped into
+    # `psql --single-transaction`. Preprod and prod never exercise this — they
+    # already carry every migration in __EFMigrationsHistory, so the idempotent
+    # guards skip the blocks. A statement Postgres refuses inside a transaction
+    # (CREATE/DROP INDEX CONCURRENTLY, VACUUM…) is therefore invisible until a
+    # database is built from scratch: a new preprod, a DR restore, onboarding
+    # (#1227). This job turns that into a CI signal.
+    services:
+      postgres:
+        # Same version preprod and prod run (compose.preprod.yaml /
+        # compose.prod.yaml), so a server-version-dependent statement fails here
+        # rather than on the VPS.
+        image: postgres:17.2
+        env:
+          POSTGRES_USER: truemain
+          POSTGRES_PASSWORD: truemain
+          POSTGRES_DB: truemain
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U truemain -d truemain"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj', 'backend/global.json', 'backend/NuGet.config') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      # Same version the migrate-preprod / migrate-prod jobs install, so the
+      # script validated here is the one that actually gets deployed.
+      - name: Install EF Core CLI
+        run: dotnet tool install --global dotnet-ef --version 10.0.10
+
+      - name: Restore Data project
+        working-directory: backend
+        run: dotnet restore Data/Data.csproj
+
+      - name: Generate idempotent migration script
+        working-directory: backend
+        env:
+          ConnectionStrings__TrueMain: Host=localhost;Port=5432;Database=truemain;Username=truemain;Password=truemain
+        run: |
+          dotnet ef migrations script --idempotent \
+            --project Data/Data.csproj --startup-project Data/Data.csproj \
+            --output "$RUNNER_TEMP/migration.sql"
+
+      - name: Apply script to a blank database
+        env:
+          PGPASSWORD: truemain
+        run: |
+          psql -v ON_ERROR_STOP=1 -h localhost -p 5432 -U truemain -d truemain \
+            --single-transaction -f "$RUNNER_TEMP/migration.sql"
+
+      # The script's whole contract is that it can be replayed against a database
+      # at any migration state. Running it twice proves the guards hold and that
+      # nothing in it is write-once.
+      - name: Re-apply the script (must be a no-op)
+        env:
+          PGPASSWORD: truemain
+        run: |
+          psql -v ON_ERROR_STOP=1 -h localhost -p 5432 -U truemain -d truemain \
+            --single-transaction -f "$RUNNER_TEMP/migration.sql"
+
+      - name: Assert every migration is recorded
+        env:
+          PGPASSWORD: truemain
+        run: |
+          expected=$(find backend/Data/Migrations -name '*.cs' \
+            -not -name '*.Designer.cs' -not -name '*ModelSnapshot.cs' | wc -l)
+          actual=$(psql -t -A -h localhost -p 5432 -U truemain -d truemain \
+            -c 'SELECT count(*) FROM "__EFMigrationsHistory";')
+          echo "migrations on disk: $expected — rows in __EFMigrationsHistory: $actual"
+          if [ "$expected" != "$actual" ]; then
+            echo "::error::__EFMigrationsHistory has $actual rows but $expected migrations exist on disk."
+            exit 1
+          fi
+
   frontend:
     name: Frontend Build and Test (${{ matrix.app }})
     runs-on: ubuntu-24.04
