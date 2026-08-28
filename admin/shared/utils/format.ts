@@ -63,6 +63,39 @@ export function formatDateTime(iso: string | null | undefined): string {
 }
 
 /**
+ * Format an ISO date as a short day label (e.g. "Jun 9"), for chart axes where
+ * the year is implied by the surrounding window. Locale is pinned to `en-US`:
+ * the admin copy is English, and an implicit browser locale would reshape the
+ * axis per operator. `null`/invalid renders as an em dash.
+ */
+export function formatDayLabel(iso: string | null | undefined): string {
+  if (!iso) {
+    return '—'
+  }
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) {
+    return '—'
+  }
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+/**
+ * Format an ISO date as a full, year-qualified date (e.g. "Jun 9, 2026"), for
+ * standalone dates that are not read against a chart's own window. Same pinned
+ * `en-US` locale as {@link formatDayLabel}.
+ */
+export function formatDate(iso: string | null | undefined): string {
+  if (!iso) {
+    return '—'
+  }
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) {
+    return '—'
+  }
+  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
+/**
  * Humanize a duration in milliseconds (e.g. 1500 -> "1.5s", 90000 -> "1m 30s").
  * Sub-second durations render in ms; longer ones in s / m / h.
  */

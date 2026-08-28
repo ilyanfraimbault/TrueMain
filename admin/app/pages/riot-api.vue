@@ -429,22 +429,18 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
         >
           No calls recorded in this window.
         </div>
-        <ClientOnly v-else>
-          <ChartsBarChart
-            :data="timeSeriesData"
-            :height="260"
-            :categories="timeSeriesCategories"
-            :y-axis="['calls', 'retries']"
-            :x-num-ticks="Math.min(timeSeriesData.length, 8)"
-            :x-formatter="timeSeriesXFormatter"
-            :y-formatter="formatCount"
-            :tooltip-title-formatter="labelTooltipTitle"
-            v-bind="multiTimeBarProps()"
-          />
-          <template #fallback>
-            <USkeleton class="h-[260px] w-full" />
-          </template>
-        </ClientOnly>
+        <ChartsBarChart
+          v-else
+          :data="timeSeriesData"
+          :height="260"
+          :categories="timeSeriesCategories"
+          :y-axis="['calls', 'retries']"
+          :x-num-ticks="Math.min(timeSeriesData.length, 8)"
+          :x-formatter="timeSeriesXFormatter"
+          :y-formatter="formatCount"
+          :tooltip-title-formatter="labelTooltipTitle"
+          v-bind="multiTimeBarProps()"
+        />
       </UCard>
 
       <!-- Consumption by caller + budget headroom -->
@@ -463,22 +459,18 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
           >
             No calls recorded in this window.
           </div>
-          <ClientOnly v-else>
-            <ChartsBarChart
-              :data="callerChartData"
-              :height="callerChartHeight"
-              :categories="callerCategories"
-              :y-axis="['calls']"
-              :y-num-ticks="callerChartData.length"
-              :x-formatter="formatCount"
-              :y-formatter="callerLabelFormatter"
-              :tooltip-title-formatter="labelTooltipTitle"
-              v-bind="horizontalBarProps(120)"
-            />
-            <template #fallback>
-              <USkeleton :style="{ height: `${callerChartHeight}px` }" class="w-full" />
-            </template>
-          </ClientOnly>
+          <ChartsBarChart
+            v-else
+            :data="callerChartData"
+            :height="callerChartHeight"
+            :categories="callerCategories"
+            :y-axis="['calls']"
+            :y-num-ticks="callerChartData.length"
+            :x-formatter="formatCount"
+            :y-formatter="callerLabelFormatter"
+            :tooltip-title-formatter="labelTooltipTitle"
+            v-bind="horizontalBarProps(120)"
+          />
         </UCard>
 
         <UCard>
