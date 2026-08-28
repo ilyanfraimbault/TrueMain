@@ -551,7 +551,7 @@ public sealed class ChampionPowerspikeAggregationProcess(
         // the event cannot be matched to the build it belongs to.
         var completions = p1.ItemEvents
             .Where(e => e.ItemId > 0
-                && e.EventType.Equals("ITEM_PURCHASED", StringComparison.OrdinalIgnoreCase)
+                && e.EventType.Equals(ItemEventTypes.Purchased, StringComparison.OrdinalIgnoreCase)
                 && itemMetadata.TryGetValue(e.ItemId, out var meta)
                 && FinalBuildResolver.IsEligibleFinalBuildItem(meta))
             .GroupBy(e => FinalBuildResolver.GetDisplayedBuildItemId(itemMetadata[e.ItemId]))

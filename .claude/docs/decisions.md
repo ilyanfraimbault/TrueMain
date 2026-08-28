@@ -1924,6 +1924,40 @@ although the purge it wanted is already on `IDataSession.MainCandidates`. `IDbCo
 tool for the set-based deletion passes in the same file, which are raw `ExecuteDelete` work over a scoped
 context; a repository operation is reached through the session.
 
+## Tables are snake_case, columns are PascalCase — and enums split by who reads them (2026-08-28)
+
+**Written down because a review read the table names and inferred the wrong rule** (#1251). "Postgres schema,
+therefore snake_case everywhere" is a reasonable guess and it is wrong here: every table is snake_case
+(`champion_matchup_stats`, `riot_accounts`), and every column is quoted **PascalCase** (`"ChampionId"`,
+`"IsMain"`, `"PowerspikeAggregated"` — see the raw SQL filters in `MatchConfiguration` and
+`Data/DataQuality/ChampionDimensionCanonicalKeys.cs`). There is exactly one exception, `elo_bracket`, mapped by
+hand with `HasColumnName` in seven configurations. Applied literally, the "snake_case columns" reading would
+have produced new snake_case columns in the middle of a PascalCase schema — making the mix worse in the name
+of fixing it.
+
+**Nothing is renamed.** Aligning either side is a heavy migration over the largest frozen tables in the
+database and buys nothing a reader cannot get from one sentence. What is guarded is the drift:
+`SchemaNamingConventionTests` fails when a new table is not snake_case, or a new column is neither PascalCase
+nor the allow-listed `elo_bracket`. Do not extend that allow-list — an entry there is the inconsistency
+spreading, which is the only outcome this decision exists to prevent.
+
+**Enum persistence follows who reads the column, and that was previously unwritten.** Three shapes coexisted,
+each justified locally and none globally: `SeedRequestConfiguration` stores text (`HasConversion<string>`,
+"readable in ad-hoc SQL"), `MainCandidateConfiguration` and `RiotAccountConfiguration` store ints — which is
+why the partial index on `riot_accounts` has to spell `"MatchIngestStatus" <> 0` in raw SQL, with a comment
+apologising for it — and `ProcessRunDocument` uses `BsonType.String` on the Mongo side. The rule, for **new**
+enums:
+
+- **A lifecycle state an operator reads or writes by hand goes to text.** Seed request status, anything an
+  admin panel exposes, anything that turns up in an incident's psql session. The width is irrelevant next to
+  a query that says what it means.
+- **An internal flow flag stays an int.** Claim/lease states, fold progress markers — columns only code
+  touches, sitting in hot partial indexes, whose set of values changes with the code that reads them.
+- **Mongo documents always store enums as strings** (`BsonType.String`). Those collections are read ad hoc by
+  definition, and a Mongo document has no migration to rescue a renumbering.
+
+No retroactive migration: the existing three stay as they are. This settles which one a new column copies.
+
 ## Keeping these files current
 
 A PR that ships a user-facing feature, removes one, or reverses a decision here **must update

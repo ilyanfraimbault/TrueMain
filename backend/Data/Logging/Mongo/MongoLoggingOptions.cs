@@ -36,6 +36,19 @@ public sealed class MongoLoggingOptions
     public string AuditCollection { get; set; } = "audit_events";
 
     /// <summary>
+    /// Retention window for the <c>audit_events</c> collection, enforced by a native
+    /// Mongo TTL index on <c>timestampUtc</c>. Defaults to <see cref="TimeSpan.Zero"/> —
+    /// <em>no TTL, retained indefinitely</em>, which is what the collection has always
+    /// done and what an audit log should do: the operator action that can no longer be
+    /// accounted for is the one that mattered. The knob exists because #1023 named
+    /// <c>audit_events</c> as one of the unmonitored collections behind the disk incident
+    /// and requires every collection to declare its retention. Keeping it unbounded is a
+    /// defensible choice; having no lever the day it runs away is not. Set a positive
+    /// window to enable the TTL; setting it back to zero drops the index again.
+    /// </summary>
+    public TimeSpan AuditRetention { get; set; } = TimeSpan.Zero;
+
+    /// <summary>
     /// Collection holding per-minute Riot API usage rollups (#93), written by the
     /// Ingestor's HTTP metrics handler (one upsert per minute/endpoint/status) and
     /// read by the admin <c>/ops/riot-usage</c> panel. Lives in the same Mongo
