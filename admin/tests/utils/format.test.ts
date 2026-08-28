@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   formatDateTime,
-  formatDuration,
+  formatElapsed,
   formatNumber,
+  formatPercent,
+  formatPercentOrDash,
   formatTimeAgo,
   humanizeBytes,
 } from '~~/shared/utils/format'
@@ -85,39 +87,89 @@ describe('formatDateTime', () => {
   })
 })
 
-describe('formatDuration', () => {
+describe('formatElapsed', () => {
+  it.each([
+    [0, '0ms'],
+    [1, '1ms'],
+    [999, '999ms'],
+    [1000, '1.0s'],
+    [1500, '1.5s'],
+    [59_000, '59.0s'],
+    [60_000, '1m'],
+    [90_000, '1m 30s'],
+    [3_600_000, '1h'],
+    [5_400_000, '1h 30m'],
+  ])('humanizes %i ms as %s', (ms, expected) => {
+    expect(formatElapsed(ms)).toBe(expected)
+  })
+
   it('renders an absent or nonsensical duration as an em dash', () => {
-    expect(formatDuration(null)).toBe('—')
-    expect(formatDuration(undefined)).toBe('—')
-    expect(formatDuration(Number.NaN)).toBe('—')
+    expect(formatElapsed(null)).toBe('—')
+    expect(formatElapsed(undefined)).toBe('—')
+    expect(formatElapsed(Number.NaN)).toBe('—')
+    expect(formatElapsed(Number.POSITIVE_INFINITY)).toBe('—')
     // A negative duration is not a fast run; it is a broken measurement.
-    expect(formatDuration(-1)).toBe('—')
+    expect(formatElapsed(-1)).toBe('—')
   })
 
-  it('renders sub-second runs in whole milliseconds', () => {
-    expect(formatDuration(0)).toBe('0ms')
-    expect(formatDuration(1)).toBe('1ms')
-    expect(formatDuration(999)).toBe('999ms')
-    expect(formatDuration(12.6)).toBe('13ms')
+  it('never prints a value the next tier owns', () => {
+    // The regression: the branch was chosen on `Math.floor(ms / 1000) < 60` while the
+    // number printed was `(ms / 1000).toFixed(1)`, so the last millisecond of the
+    // sub-minute range rendered "60.0s" — a duration this ladder calls "1m", and a
+    // reading no other tier can ever produce.
+    expect(formatElapsed(59_999)).toBe('1m')
+    expect(formatElapsed(59_950)).toBe('1m')
+    // Just below the rounding boundary the seconds tier still owns the value.
+    expect(formatElapsed(59_949)).toBe('59.9s')
   })
 
-  it('crosses to seconds at one second, with one decimal', () => {
-    expect(formatDuration(1000)).toBe('1.0s')
-    expect(formatDuration(1500)).toBe('1.5s')
-    expect(formatDuration(59_000)).toBe('59.0s')
+  it('drops a zero remainder at the minute and hour tiers', () => {
+    expect(formatElapsed(3_599_000)).toBe('59m 59s')
+    // Past a day the days tier takes over (see the "climbs past hours" cases below), so
+    // a long ingestor run reads "1d 2h" rather than an awkward "26h".
+    expect(formatElapsed(23 * 3_600_000)).toBe('23h')
   })
 
-  it('crosses to minutes at one minute and drops a zero seconds remainder', () => {
-    expect(formatDuration(60_000)).toBe('1m')
-    expect(formatDuration(90_000)).toBe('1m 30s')
-    expect(formatDuration(3_599_000)).toBe('59m 59s')
+  it.each([
+    [86_400_000, '1d'],
+    [90_000_000, '1d 1h'],
+    [259_200_000, '3d'],
+  ])('climbs past hours: %i ms is %s', (ms, expected) => {
+    // Without the days tier a three-day span read "72h" on /processes while /health
+    // called the same magnitude "3d" — two pages that link to each other.
+    expect(formatElapsed(ms)).toBe(expected)
+  })
+})
+
+describe('formatPercent', () => {
+  it('scales a 0-1 ratio, because that is the shape every rate on the wire has', () => {
+    expect(formatPercent(0.1234)).toBe('12.3%')
+    expect(formatPercent(0.1234, 0)).toBe('12%')
+    expect(formatPercent(1)).toBe('100.0%')
   })
 
-  it('crosses to hours at one hour and drops a zero minutes remainder', () => {
-    expect(formatDuration(3_600_000)).toBe('1h')
-    expect(formatDuration(5_400_000)).toBe('1h 30m')
-    // Long ingestor runs stay readable rather than becoming a five-digit minute count.
-    expect(formatDuration(26 * 3_600_000)).toBe('26h')
+  it('keeps a measured zero as a zero', () => {
+    expect(formatPercent(0, 0)).toBe('0%')
+  })
+})
+
+describe('formatPercentOrDash', () => {
+  it('formats a known value exactly like formatPercent', () => {
+    expect(formatPercentOrDash(0.1234, 1)).toBe(formatPercent(0.1234, 1))
+  })
+
+  it.each([null, undefined, Number.NaN, Number.POSITIVE_INFINITY])(
+    'renders %s as an em dash',
+    (value) => {
+      expect(formatPercentOrDash(value as number)).toBe('—')
+    },
+  )
+
+  it('distinguishes an observed 0% from an absent reading', () => {
+    // The whole point of the helper: "never observed" and "observed at zero" are
+    // different answers, and printing the first as `0%` is the dashboard inventing one.
+    expect(formatPercentOrDash(0, 0)).toBe('0%')
+    expect(formatPercentOrDash(0, 0)).not.toBe(formatPercentOrDash(null, 0))
   })
 })
 

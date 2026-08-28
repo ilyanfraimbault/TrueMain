@@ -5,7 +5,7 @@
 // and the ingestion backlogs that should sit at zero when the pipeline is
 // caught up.
 import type { AggregationFamily, AggregationRun } from '~~/shared/types/ops'
-import { formatDateTime, formatDuration, formatNumber, formatTimeAgo } from '~~/shared/utils/format'
+import { formatDateTime, formatElapsed, formatNumber, formatTimeAgo } from '~~/shared/utils/format'
 
 const { data, pending, error, refresh } = useAggregations()
 
@@ -272,7 +272,7 @@ function summaryEntries(run: AggregationRun | null): { label: string, value: str
               Duration
             </dt>
             <dd class="text-right tabular-nums text-highlighted">
-              {{ formatDuration(family.lastRun?.durationMs) }}
+              {{ formatElapsed(family.lastRun?.durationMs) }}
             </dd>
           </dl>
 

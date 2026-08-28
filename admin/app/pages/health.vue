@@ -10,7 +10,7 @@
 // The verdict is computed server-side, not here: thresholds are a domain decision, and a
 // tile that judged a signal differently from the panel it links to would be lying.
 import { detectorStatusMeta } from '~~/shared/utils/detector-status'
-import { formatDateTime, formatDuration, formatNumber, formatTimeAgo } from '~~/shared/utils/format'
+import { formatDateTime, formatElapsed, formatNumber, formatTimeAgo } from '~~/shared/utils/format'
 import {
   championDataLagLabel,
   ingestionToAnalysisLabel,
@@ -212,7 +212,7 @@ const visibleProcesses = computed(() =>
               {{ process.consecutiveFailures === 1 ? 'failure' : 'failures' }}
             </span>
             <span v-if="process.durationMs > 0" class="text-xs text-dimmed tabular-nums">
-              {{ formatDuration(process.durationMs) }}
+              {{ formatElapsed(process.durationMs) }}
             </span>
           </li>
         </ul>

@@ -23,7 +23,7 @@ import type {
   AccountPipelineState,
   BadgeColor,
 } from '~~/shared/types/ops'
-import { formatDateTime, formatNumber, formatTimeAgo } from '~~/shared/utils/format'
+import { formatDateTime, formatNumber, formatPercentOrDash, formatTimeAgo } from '~~/shared/utils/format'
 import { RIOT_ID_MAX_LENGTH, formatRiotId, isRiotIdOrSlug } from '~~/shared/utils/riot-id'
 
 const route = useRoute()
@@ -151,13 +151,6 @@ const riotIdLabel = computed(() => {
   return (query && formatRiotId(query.gameName, query.tagLine)) ?? '—'
 })
 
-function formatPercent(rate: number | null | undefined, digits = 1): string {
-  if (rate === null || rate === undefined || !Number.isFinite(rate)) {
-    return '—'
-  }
-  return `${(rate * 100).toFixed(digits)}%`
-}
-
 // Both stamps in one cell: the absolute time answers "when", the relative one
 // answers "is this recent", and an operator reading a stalled pipeline needs both.
 function stamp(iso: string | null | undefined): string {
@@ -222,7 +215,7 @@ function positionSummary(row: AccountExplorerMainRow): string {
     return row.primaryPosition || '—'
   }
   return row.positionBreakdown
-    .map(position => `${position.position} ${formatPercent(position.rate, 0)}`)
+    .map(position => `${position.position} ${formatPercentOrDash(position.rate, 0)}`)
     .join(' · ')
 }
 
@@ -754,7 +747,7 @@ const rankEmptyNote = computed(() => {
               </span>
             </template>
             <template #playRate-cell="{ row }">
-              <span class="tabular-nums">{{ formatPercent(row.original.playRate) }}</span>
+              <span class="tabular-nums">{{ formatPercentOrDash(row.original.playRate) }}</span>
             </template>
             <template #flags-cell="{ row }">
               <div class="flex flex-wrap items-center gap-1">
@@ -802,10 +795,10 @@ const rankEmptyNote = computed(() => {
             <div class="space-y-2">
               <p v-if="thresholds" class="text-xs text-dimmed">
                 A champion is a main above a play rate somewhere between
-                <span class="tabular-nums">{{ formatPercent(thresholds.playRateFloor, 0) }}</span> and
-                <span class="tabular-nums">{{ formatPercent(thresholds.playRateThreshold, 0) }}</span>,
+                <span class="tabular-nums">{{ formatPercentOrDash(thresholds.playRateFloor, 0) }}</span> and
+                <span class="tabular-nums">{{ formatPercentOrDash(thresholds.playRateThreshold, 0) }}</span>,
                 and an OTP above
-                <span class="tabular-nums">{{ formatPercent(thresholds.otpPlayRateThreshold, 0) }}</span>.
+                <span class="tabular-nums">{{ formatPercentOrDash(thresholds.otpPlayRateThreshold, 0) }}</span>.
                 {{ thresholds.effectiveThresholdNote }}
               </p>
               <p

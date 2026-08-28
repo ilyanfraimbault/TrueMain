@@ -18,7 +18,7 @@ import type {
   SeedRequestReadModel,
   SeedRequestStatus,
 } from '~~/shared/types/ops'
-import { formatDateTime, formatDuration, formatNumber } from '~~/shared/utils/format'
+import { formatDateTime, formatElapsed, formatNumber } from '~~/shared/utils/format'
 
 const { nameFor, iconFor } = useChampionStatic()
 
@@ -198,7 +198,7 @@ const validatedNote = computed(() => {
 
 /** Seconds → the shared duration label; null (no sample) reads as an em dash. */
 function latencyLabel(seconds: number | null | undefined): string {
-  return seconds === null || seconds === undefined ? '—' : formatDuration(seconds * 1000)
+  return seconds === null || seconds === undefined ? '—' : formatElapsed(seconds * 1000)
 }
 
 // =============================================================================
