@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+// Mirror of `web/tests/ddragon-patch/ddragon-patch.test.ts` (#1226).
+// `server/utils/ddragon-patch.ts` is a synchronised copy in both apps: the
+// admin had inlined an *uncached* resolver instead, which re-introduced the
+// regression #947 fixed on the web side, so the caching contract is pinned on
+// both sides now.
+//
 // `resolveLatestDDragonPatch` is built at import time by the auto-imported
 // `defineCachedFunction`, so the globals have to be stubbed before the module
 // is loaded — hence the dynamic import. Nitro owns the memoization itself;

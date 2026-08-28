@@ -1823,6 +1823,32 @@ them. That file maps ten platform ids onto the three public `europe/americas/kor
 backend `RegionFilterParser` — the *exposed* set, which is wider than and independent of the *tracked* set.
 Treating the two as one list would be the real bug.
 
+## `web/` and `admin/` duplicate their Data Dragon helpers on purpose, and the copies are labelled (2026-08-26)
+
+The two apps are deliberately separate — different auth, different rendering mode (`ssr: false` in the admin),
+different deploy — and there is no shared package to hold common code. That is not changing: a package would
+couple two release cadences to save a few dozen lines. But two files *were* copied between them and then
+drifted **in both directions**, which is the failure mode worth guarding against, not the duplication itself.
+
+By the time it was caught (#1226), `server/api/static/champions.get.ts` existed twice with each copy carrying a
+fix the other was missing. The admin had re-inlined an **uncached** `resolveLatestPatch()`, undoing #947 — and
+worse there than on the web, because the admin renders client-side, so that DDragon round trip ran once per
+page load rather than once per SSR. Meanwhile the admin had added a `?patch=` format guard that the web — the
+only *public* app — never received. `shared/utils/ddragon.ts` had drifted too: same code, comments edited
+independently on each side, and the #966 alternate-mode floor pinned by a test on the web side only.
+
+The rule that came out of it: a file duplicated across the two apps **says so in a header naming its twin**, and
+the behaviour it encodes is pinned by a test in *both* suites. Labelled copies are `shared/utils/ddragon.ts`,
+`server/utils/ddragon-patch.ts` and `server/api/static/champions.get.ts`; the champion handlers differ only by
+the admin's `requireUserSession` gate, so any other difference in a diff is a regression, not a variant.
+
+`PATCH_PATTERN` (`^\d+\.\d+\.\d+$`) sits next to `normalizeDataDragonPatch`, which produces the value it
+validates — that function expands the short `16.5` form the backend scopes expose and passes everything else
+through untouched, so it is a shape fixer and never a guard. Every static endpoint interpolates the result into
+a CDN URL *and* uses it as a cache key, so an unvalidated `?patch=` is both a path-injection vector and an
+unbounded-cache-key vector: one entry per distinct string, held for the payload TTL. The guard lives in
+`normalizeRequestedPatch` and covers all four web static endpoints, not just the champion list.
+
 ## Keeping these files current
 
 A PR that ships a user-facing feature, removes one, or reverses a decision here **must update
