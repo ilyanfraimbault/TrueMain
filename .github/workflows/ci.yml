@@ -222,83 +222,62 @@ jobs:
         run: .github/scripts/resolve-preprod-version.test.sh
 
   compose-config:
-    name: Compose Config Validation
+    name: Compose Config Validation (${{ matrix.file }})
     runs-on: ubuntu-24.04
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+
+    strategy:
+      # One malformed file should not hide whether the other three are valid.
+      fail-fast: false
+      matrix:
+        include:
+          - file: compose.yaml
+            stack: truemain
+            riot_key: RGAPI-REPLACE_ME
+            pgadmin_email: admin@truemain.dev
+          - file: compose.dev.yaml
+            stack: truemain
+            riot_key: RGAPI-REPLACE_ME
+            pgadmin_email: admin@truemain.dev
+          - file: compose.prod.yaml
+            stack: truemain
+            riot_key: RGAPI-REPLACE_ME
+            pgadmin_email: admin@truemain.dev
+          - file: compose.preprod.yaml
+            stack: truemain_preprod
+            riot_key: RGAPI-REPLACE_ME_PREPROD
+            pgadmin_email: admin@truemain-preprod.dev
+
+    # Placeholder values, not secrets: `docker compose config` only substitutes
+    # them into the rendered output, which is thrown away — the exit code is
+    # what is being checked, and the compose files use `${VAR:?...}` for the
+    # ones that must be present. A single `stack` value drives every
+    # per-environment name (Postgres, Mongo and the Umami database all derive
+    # from it), so one matrix entry describes a whole environment. The two
+    # UMAMI_* values are simply unused by compose.dev.yaml, which references no
+    # Umami variable — setting them there renders exactly the same output.
+    env:
+      POSTGRES_USER: ${{ matrix.stack }}
+      POSTGRES_PASSWORD: ${{ matrix.stack }}
+      POSTGRES_DB: ${{ matrix.stack }}
+      MONGO_USER: ${{ matrix.stack }}
+      MONGO_PASSWORD: ${{ matrix.stack }}
+      UMAMI_DB_PASSWORD: ${{ matrix.stack }}
+      RIOT_API_KEY: ${{ matrix.riot_key }}
+      PGADMIN_DEFAULT_EMAIL: ${{ matrix.pgadmin_email }}
+      PGADMIN_DEFAULT_PASSWORD: admin
+      OPS_API_KEY: ci-ops-api-key-min-32-characters-padding
+      ADMIN_SESSION_PASSWORD: ci-admin-session-min-32-characters-padding
+      ADMIN_USERNAME: truemain
+      ADMIN_PASSWORD: truemain
+      UMAMI_APP_SECRET: ci-umami-app-secret-min-32-characters
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Validate development compose file
-        env:
-          POSTGRES_USER: truemain
-          POSTGRES_PASSWORD: truemain
-          POSTGRES_DB: truemain
-          RIOT_API_KEY: RGAPI-REPLACE_ME
-          OPS_API_KEY: ci-ops-api-key-min-32-characters-padding
-          PGADMIN_DEFAULT_EMAIL: admin@truemain.dev
-          PGADMIN_DEFAULT_PASSWORD: admin
-          ADMIN_SESSION_PASSWORD: ci-admin-session-min-32-characters-padding
-          ADMIN_USERNAME: truemain
-          ADMIN_PASSWORD: truemain
-          MONGO_USER: truemain
-          MONGO_PASSWORD: truemain
-          UMAMI_DB_PASSWORD: truemain
-          UMAMI_APP_SECRET: ci-umami-app-secret-min-32-characters
-        run: docker compose -f compose.yaml config
-
-      - name: Validate dev watch compose file
-        env:
-          POSTGRES_USER: truemain
-          POSTGRES_PASSWORD: truemain
-          POSTGRES_DB: truemain
-          RIOT_API_KEY: RGAPI-REPLACE_ME
-          OPS_API_KEY: ci-ops-api-key-min-32-characters-padding
-          PGADMIN_DEFAULT_EMAIL: admin@truemain.dev
-          PGADMIN_DEFAULT_PASSWORD: admin
-          ADMIN_SESSION_PASSWORD: ci-admin-session-min-32-characters-padding
-          ADMIN_USERNAME: truemain
-          ADMIN_PASSWORD: truemain
-          MONGO_USER: truemain
-          MONGO_PASSWORD: truemain
-        run: docker compose -f compose.dev.yaml config
-
-      - name: Validate production compose file
-        env:
-          POSTGRES_USER: truemain
-          POSTGRES_PASSWORD: truemain
-          POSTGRES_DB: truemain
-          RIOT_API_KEY: RGAPI-REPLACE_ME
-          OPS_API_KEY: ci-ops-api-key-min-32-characters-padding
-          PGADMIN_DEFAULT_EMAIL: admin@truemain.dev
-          PGADMIN_DEFAULT_PASSWORD: admin
-          ADMIN_SESSION_PASSWORD: ci-admin-session-min-32-characters-padding
-          ADMIN_USERNAME: truemain
-          ADMIN_PASSWORD: truemain
-          MONGO_USER: truemain
-          MONGO_PASSWORD: truemain
-          UMAMI_DB_PASSWORD: truemain
-          UMAMI_APP_SECRET: ci-umami-app-secret-min-32-characters
-        run: docker compose -f compose.prod.yaml config
-
-      - name: Validate preprod compose file
-        env:
-          POSTGRES_USER: truemain_preprod
-          POSTGRES_PASSWORD: truemain_preprod
-          POSTGRES_DB: truemain_preprod
-          RIOT_API_KEY: RGAPI-REPLACE_ME_PREPROD
-          OPS_API_KEY: ci-ops-api-key-min-32-characters-padding
-          PGADMIN_DEFAULT_EMAIL: admin@truemain-preprod.dev
-          PGADMIN_DEFAULT_PASSWORD: admin
-          ADMIN_SESSION_PASSWORD: ci-admin-session-min-32-characters-padding
-          ADMIN_USERNAME: truemain
-          ADMIN_PASSWORD: truemain
-          MONGO_USER: truemain_preprod
-          MONGO_PASSWORD: truemain_preprod
-          UMAMI_DB_PASSWORD: truemain_preprod
-          UMAMI_APP_SECRET: ci-umami-app-secret-min-32-characters
-        run: docker compose -f compose.preprod.yaml config
+      - name: Validate ${{ matrix.file }}
+        run: docker compose -f "${{ matrix.file }}" config
 
   docker-build:
     name: Docker Build Sanity (${{ matrix.name }})

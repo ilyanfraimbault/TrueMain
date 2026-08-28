@@ -24,12 +24,6 @@ concurrency:
   group: preprod-pipeline
   cancel-in-progress: false
 
-env:
-  IMAGE_API: ghcr.io/${{ github.repository_owner }}/truemain-api
-  IMAGE_INGESTOR: ghcr.io/${{ github.repository_owner }}/truemain-ingestor
-  IMAGE_WEB: ghcr.io/${{ github.repository_owner }}/truemain-web
-  IMAGE_ADMIN: ghcr.io/${{ github.repository_owner }}/truemain-admin
-
 jobs:
   version:
     name: Resolve Preprod Version
@@ -61,80 +55,19 @@ jobs:
 
   publish-preprod:
     name: Build & Publish Preprod Images
-    runs-on: ubuntu-24.04
     needs: version
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push API image
-        uses: docker/build-push-action@v7
-        with:
-          context: ./backend
-          file: backend/Api/Dockerfile
-          push: true
-          cache-from: type=gha,scope=api
-          cache-to: type=gha,mode=max,scope=api
-          # Immutable per-commit tag alongside the moving :preprod pointer, so
-          # the deploy references an image name that actually changes each merge
-          # (mutable-tag redeploys never recreate the containers — see #765).
-          # The prerelease tag is the human-readable alias for that same image:
-          # `-rc.` and `.` are both legal in a Docker reference, `+` would not be,
-          # which is why the version is a prerelease and not build metadata.
-          tags: |
-            ${{ env.IMAGE_API }}:preprod
-            ${{ env.IMAGE_API }}:${{ github.sha }}
-            ${{ env.IMAGE_API }}:${{ needs.version.outputs.version }}
-
-      - name: Build and push Ingestor image
-        uses: docker/build-push-action@v7
-        with:
-          context: ./backend
-          file: backend/Ingestor/Dockerfile
-          push: true
-          cache-from: type=gha,scope=ingestor
-          cache-to: type=gha,mode=max,scope=ingestor
-          tags: |
-            ${{ env.IMAGE_INGESTOR }}:preprod
-            ${{ env.IMAGE_INGESTOR }}:${{ github.sha }}
-            ${{ env.IMAGE_INGESTOR }}:${{ needs.version.outputs.version }}
-
-      - name: Build and push Web image
-        uses: docker/build-push-action@v7
-        with:
-          context: ./web
-          file: web/Dockerfile
-          push: true
-          cache-from: type=gha,scope=web
-          cache-to: type=gha,mode=max,scope=web
-          tags: |
-            ${{ env.IMAGE_WEB }}:preprod
-            ${{ env.IMAGE_WEB }}:${{ github.sha }}
-            ${{ env.IMAGE_WEB }}:${{ needs.version.outputs.version }}
-
-      - name: Build and push Admin image
-        uses: docker/build-push-action@v7
-        with:
-          context: ./admin
-          file: admin/Dockerfile
-          push: true
-          cache-from: type=gha,scope=admin
-          cache-to: type=gha,mode=max,scope=admin
-          tags: |
-            ${{ env.IMAGE_ADMIN }}:preprod
-            ${{ env.IMAGE_ADMIN }}:${{ github.sha }}
-            ${{ env.IMAGE_ADMIN }}:${{ needs.version.outputs.version }}
+    uses: ./.github/workflows/build-images.yml
+    with:
+      # Immutable per-commit tag alongside the moving :preprod pointer, so the
+      # deploy references an image name that actually changes each merge
+      # (mutable-tag redeploys never recreate the containers — see #765).
+      # The prerelease tag is the human-readable alias for that same image:
+      # `-rc.` and `.` are both legal in a Docker reference, `+` would not be,
+      # which is why the version is a prerelease and not build metadata.
+      tags: |
+        preprod
+        ${{ github.sha }}
+        ${{ needs.version.outputs.version }}
 
   migrate-preprod:
     name: Apply Preprod Migrations

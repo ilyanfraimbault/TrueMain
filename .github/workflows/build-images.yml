@@ -1,0 +1,119 @@
+# Reusable build-and-publish pipeline for the four application images, called
+# by deploy-preprod.yml and deploy-prod.yml.
+#
+# The two deploys only ever differed in *which tags* they publish and *which
+# ref* they build from — the image names, build contexts, Dockerfiles and
+# per-image cache scopes were identical, copy-pasted eight times across the two
+# files. That list now exists once here, so adding a fifth service is one edit
+# instead of three (ci.yml's docker-build matrix is the third definition; it
+# builds without pushing and stays separate on purpose).
+name: Build Images
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: >-
+          Ref to build. Leave empty (the default) to build the commit that
+          triggered the calling workflow, which is what the preprod deploy
+          wants; the prod deploy passes the release tag.
+        required: false
+        type: string
+        default: ''
+      tags:
+        description: >-
+          Newline-separated tag values applied to every image — e.g.
+          "preprod\n<sha>\n<version>". Only the tag part: each line is prefixed
+          with the image reference below, so a caller never repeats the four
+          image names and the two lists cannot drift apart.
+        required: true
+        type: string
+
+jobs:
+  build:
+    name: Build & Push ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    # Same set the two callers already grant at workflow level; stated here so
+    # the reusable workflow is readable on its own. A called workflow can only
+    # narrow the caller's token, never widen it.
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      # As in ci.yml's docker-build matrix: one image failing should not hide
+      # whether the other three build. Nothing is deployed off a partial
+      # publish either way — migrate/deploy are gated on `success()`.
+      fail-fast: false
+      matrix:
+        include:
+          - name: API
+            image: truemain-api
+            context: ./backend
+            file: backend/Api/Dockerfile
+            scope: api
+          - name: Ingestor
+            image: truemain-ingestor
+            context: ./backend
+            file: backend/Ingestor/Dockerfile
+            scope: ingestor
+          - name: Web
+            image: truemain-web
+            context: ./web
+            file: web/Dockerfile
+            scope: web
+          - name: Admin
+            image: truemain-admin
+            context: ./admin
+            file: admin/Dockerfile
+            scope: admin
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # actions/checkout treats an empty ref exactly like an omitted one:
+          # it falls back to the SHA of the triggering event.
+          ref: ${{ inputs.ref }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compose the image references
+        id: refs
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
+          TAGS: ${{ inputs.tags }}
+        run: |
+          set -euo pipefail
+          # Strip the block scalar's trailing newline, then reject any empty
+          # line: an unresolved tag must fail the build rather than silently
+          # publish a shorter tag list than the caller asked for.
+          mapfile -t values <<< "${TAGS%$'\n'}"
+          refs=""
+          for value in "${values[@]}"; do
+            if [ -z "$value" ]; then
+              echo "::error::Empty tag in the 'tags' input — refusing to publish an incomplete tag list."
+              exit 1
+            fi
+            refs+="${IMAGE}:${value}"$'\n'
+          done
+          printf 'refs<<IMAGE_REFS_EOF\n%sIMAGE_REFS_EOF\n' "$refs" >> "$GITHUB_OUTPUT"
+          echo "Publishing: ${refs}"
+
+      - name: Build and push ${{ matrix.name }} image
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: true
+          cache-from: type=gha,scope=${{ matrix.scope }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.scope }}
+          tags: ${{ steps.refs.outputs.refs }}
