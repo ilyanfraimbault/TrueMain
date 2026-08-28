@@ -238,14 +238,14 @@ function openDetail(entry: LogEntry) {
               :variant="view === 'logs' ? 'solid' : 'ghost'"
               icon="i-lucide-scroll-text"
               label="Logs"
-              @click="view = 'logs'"
+              @click="() => { view = 'logs' }"
             />
             <UButton
               :color="view === 'crashes' ? 'primary' : 'neutral'"
               :variant="view === 'crashes' ? 'solid' : 'ghost'"
               icon="i-lucide-skull"
               label="Crashes"
-              @click="view = 'crashes'"
+              @click="() => { view = 'crashes' }"
             />
           </div>
         </template>
