@@ -32,8 +32,11 @@ public static class CommunityDragonResilienceExtensions
     {
         builder.AddStandardResilienceHandler().Configure((options, serviceProvider) =>
         {
+            // IOptions, not IOptionsMonitor: this Configure delegate runs once, when the handler's
+            // options are built, so a monitor would promise a hot reload that never reaches the
+            // pipeline. Changing CommunityDragon:* takes a restart.
             var communityDragonOptions = serviceProvider
-                .GetRequiredService<IOptionsMonitor<CommunityDragonOptions>>().CurrentValue;
+                .GetRequiredService<IOptions<CommunityDragonOptions>>().Value;
 
             options.Retry.MaxRetryAttempts = communityDragonOptions.MaxRetryAttempts;
             options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(communityDragonOptions.AttemptTimeoutSeconds);

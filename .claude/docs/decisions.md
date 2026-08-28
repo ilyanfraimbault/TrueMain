@@ -1895,6 +1895,35 @@ others and is not: it also accepts an already-scaled `percent` unit, and it trim
 configured threshold reads `40%` rather than `40.0%`. Routing it through `formatPercent` would regress the
 display to buy a shared call.
 
+## Configuration defaults live in the class, and the two champion games floors are two keys
+
+**`appsettings.json` only carries what differs from the class default.** The ingestor's file used to restate
+~30 keys that were already the default of their `*Options` class, which made `/configuration` (#1034) useless:
+every one of them was tagged *override* though nothing was overridden, and that noise hid the single key that
+genuinely diverged — `Discovery:MaxAccountsPerPlatformPerRun`, 500 in JSON against a class default of 350, so
+for months nobody could say which value was in force. It was 500. That value moved onto `DiscoveryOptions`
+(both deployed stacks override it anyway: 750 prod, 100 preprod) and the JSON key is gone.
+`IngestorAppSettingsNoDefaultsTests` now fails the build if any key comes back equal to its class default; the
+documentation-only empty sections (`Riot`, `CommunityDragon`, `Job`) and the list-valued keys stay, because a
+list default deliberately lives in JSON — the binder *appends* to a non-empty list instead of replacing it
+(#860).
+
+**`ChampionsList:MinSampleGames` (10) and `ChampionsList:MinBuildSampleGames` (20) are different questions.**
+The first decides whether a `(champion, lane)` line is listed and ranked at all; the second decides whether an
+item/rune distribution *inside* a line is a usable sample — it splits its games across several builds, so it
+needs more of them. The build floor used to be two hard-coded `20`s, in `ChampionBuildsQueryService` and
+`PlayerBuildDivergenceQueryService`, each documented as a mirror of the other with no code link between them,
+while an operator reading `MinSampleGames = 10` on `/configuration` or `/patch-coverage` would infer the wrong
+bar for the build panel. Both now read the new key, and the whole `ChampionsList` section is on the
+configuration page. The existing key was **not** renamed: a config-facing section rename breaks deployment
+(#889).
+
+**When a process needs candidate writes, it goes through `IDataSession`.** `MatchDataRetentionProcess` used to
+`new` a `MainCandidateRepository` over its own `DbContext` — the only hand-built repository in the ingestor —
+although the purge it wanted is already on `IDataSession.MainCandidates`. `IDbContextFactory` stays the right
+tool for the set-based deletion passes in the same file, which are raw `ExecuteDelete` work over a scoped
+context; a repository operation is reached through the session.
+
 ## Keeping these files current
 
 A PR that ships a user-facing feature, removes one, or reverses a decision here **must update

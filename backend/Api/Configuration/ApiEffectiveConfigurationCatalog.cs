@@ -47,6 +47,19 @@ public static class ApiEffectiveConfigurationCatalog
         ]
     };
 
+    private static EffectiveConfigurationSectionDescriptor ChampionsList { get; } = new()
+    {
+        SectionName = ChampionsListOptions.SectionName,
+        OptionsType = typeof(ChampionsListOptions),
+        Title = "Champion thresholds",
+        Description =
+            "Every sample floor the public champion surfaces judge against: the games a "
+            + "(champion, lane) line needs to be listed and ranked, the separate and higher "
+            + "floor a build slice needs before its distribution is called a usable sample, "
+            + "and the matchup/synergy floors. The two games floors are deliberately different "
+            + "numbers, which is most of the reason this section is worth showing."
+    };
+
     public static EffectiveConfigurationCatalog Instance { get; } = new(
         ProcessName: "Api",
         Sections:
@@ -54,6 +67,7 @@ public static class ApiEffectiveConfigurationCatalog
             SharedEffectiveConfigurationSections.MainAnalysis,
             SharedEffectiveConfigurationSections.Database,
             SharedEffectiveConfigurationSections.MongoLogging,
+            ChampionsList,
             DataQualityDetectors,
             StorageHistory
         ]);

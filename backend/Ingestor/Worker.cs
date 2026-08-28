@@ -39,7 +39,9 @@ public sealed class Worker(
                 return;
             }
 
-            var delayMinutes = options.IntervalMinutes is > 0 ? options.IntervalMinutes.Value : 60;
+            // Non-null and > 0 here: startup validation (Job:IntervalMinutes) rejects anything
+            // else whenever RunOnce is false, which is the only way execution reaches this line.
+            var delayMinutes = options.IntervalMinutes!.Value;
             logger.LogInformation(
                 "Run completed. Waiting {DelayMinutes} minutes before next run.",
                 delayMinutes);

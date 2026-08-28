@@ -97,6 +97,7 @@ public sealed class HarvestProcessCoverageLoggingTests
             sessionFactory,
             harvestService,
             coverageProvider,
+            TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new HarvestOptions { Platforms = ["KR"], MaxCandidatesPerRun = 20 }));
     }
 }
