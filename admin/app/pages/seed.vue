@@ -27,17 +27,20 @@ import type {
 } from '~~/shared/types/ops'
 import { TERMINAL_SEED_STATUSES } from '~~/shared/types/ops'
 import { formatDateTime, formatNumber } from '~~/shared/utils/format'
+import type { TrackedRegion } from '~~/shared/utils/regions'
+import {
+  TRACKED_REGION_ITEMS,
+  TRACKED_REGIONS,
+  TRACKED_REGIONS_LABEL,
+  parseTrackedRegion,
+} from '~~/shared/utils/regions'
+import { formatRiotId, riotIdError, splitRiotId } from '~~/shared/utils/riot-id'
 
-// Tracked Riot regions, shared by the single form and the bulk parser.
-const TRACKED_REGIONS = ['EUW1', 'KR', 'NA1'] as const
-type TrackedRegion = (typeof TRACKED_REGIONS)[number]
-// Region <select> options. `value` is widened to `string` so the single-add
-// form (whose `state.region` is a free `string`) type-checks; the bulk
+// Region <select> options for the single-add form. `value` is widened to
+// `string` so `state.region` (a free `string`) type-checks; the bulk
 // `defaultRegion` select is additionally constrained to `TrackedRegion` via its
 // own model ref, so an out-of-set value can't slip through there.
-const regionItems: { label: string, value: string }[] = TRACKED_REGIONS.map(
-  r => ({ label: r, value: r }),
-)
+const regionItems = TRACKED_REGION_ITEMS
 
 const toast = useToast()
 
@@ -195,7 +198,7 @@ async function onSubmit(event: FormSubmitEvent<SeedFormState>) {
 onBeforeUnmount(clearPoll)
 
 const trackedRiotId = computed(() =>
-  tracked.value ? `${tracked.value.gameName}#${tracked.value.tagLine}` : '',
+  tracked.value === null ? '' : (formatRiotId(tracked.value.gameName, tracked.value.tagLine) ?? ''),
 )
 
 // --- Status presentation -----------------------------------------------------
@@ -283,6 +286,11 @@ interface PreviewRow extends ParsedRow {
 // A line is `gameName#tagLine` with an optional `,REGION` suffix. Region tokens
 // are matched case-insensitively against the tracked set; an unknown region is
 // a hard error (we don't silently fall back, to avoid seeding the wrong shard).
+//
+// The Riot ID half is judged by `shared/utils/riot-id`, i.e. by the same rules
+// the ops endpoints apply — this parser used to be laxer (no length cap, a
+// second '#' swallowed into the tag), so the preview counted lines as valid
+// that the API would have refused.
 function parseLine(line: string, lineNo: number, fallback: TrackedRegion): ParsedRow | null {
   const trimmed = line.trim()
   if (!trimmed) {
@@ -296,32 +304,18 @@ function parseLine(line: string, lineNo: number, fallback: TrackedRegion): Parse
   const commaIdx = trimmed.lastIndexOf(',')
   if (commaIdx !== -1) {
     body = trimmed.slice(0, commaIdx).trim()
-    const regionToken = trimmed.slice(commaIdx + 1).trim().toUpperCase()
-    const match = TRACKED_REGIONS.find(r => r === regionToken)
+    const regionToken = trimmed.slice(commaIdx + 1).trim()
+    const match = parseTrackedRegion(regionToken)
     if (match) {
       region = match
     }
     else {
-      regionError = `Unknown region "${trimmed.slice(commaIdx + 1).trim()}"`
+      regionError = `Unknown region "${regionToken}"`
     }
   }
 
-  const hashIdx = body.indexOf('#')
-  const gameName = (hashIdx === -1 ? body : body.slice(0, hashIdx)).trim()
-  const tagLine = hashIdx === -1 ? '' : body.slice(hashIdx + 1).trim()
-
-  let reason: string | null = regionError
-  if (!reason) {
-    if (hashIdx === -1) {
-      reason = 'Missing "#tagLine"'
-    }
-    else if (!gameName) {
-      reason = 'Missing game name'
-    }
-    else if (!tagLine) {
-      reason = 'Missing tag line'
-    }
-  }
+  const { gameName, tagLine } = splitRiotId(body)
+  const reason: string | null = regionError ?? riotIdError(body)
 
   return {
     key: `${gameName.toLowerCase()}#${tagLine.toLowerCase()}@${region}`,
@@ -725,7 +719,7 @@ const tableMeta = {
               :loading="submitting"
             />
             <p class="text-xs text-dimmed">
-              Tracked regions: EUW1 · KR · NA1
+              Tracked regions: {{ TRACKED_REGIONS_LABEL }}
             </p>
           </div>
         </UForm>
