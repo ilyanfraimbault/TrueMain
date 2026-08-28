@@ -39,8 +39,10 @@ renvoient.
 - **Elo bracket** : un paramètre `eloBracket` accepte un palier nu (`GOLD` = ce
   palier seulement) ou la forme cumulative `TIER_PLUS` (`GOLD_PLUS` = ce palier et
   au-dessus), parmi `IRON`, `BRONZE`, `SILVER`, `GOLD`, `PLATINUM`, `EMERALD`,
-  `DIAMOND`, `MASTER`, `GRANDMASTER`, `CHALLENGER`, `UNRANKED`, plus `ALL`. Une
-  valeur non reconnue est traitée comme `ALL` (aucun filtre) plutôt que rejetée —
+  `DIAMOND`, `MASTER`, `GRANDMASTER`, `CHALLENGER`, plus `ALL`. `UNRANKED` n'est
+  **pas** un palier valide malgré son apparence — `EloBracket.Ladder` l'exclut
+  explicitement, donc `?eloBracket=UNRANKED` est une valeur non reconnue comme
+  une autre. Une valeur non reconnue est traitée comme `ALL` (aucun filtre) plutôt que rejetée —
   elle restreint l'échantillon, elle ne change pas le sens de la question posée.
 - **Pagination** : les endpoints paginés prennent `page` (1-based) et `pageSize`.
   Convention « 0 = défaut » : un `pageSize`/`limit` omis ou ≤ 0 applique la taille
