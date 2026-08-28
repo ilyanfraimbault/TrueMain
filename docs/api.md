@@ -448,11 +448,11 @@ la demande.
 - `patch` est `null` quand aucun patch n'a été épinglé.
 - `playRate` : part que cet adversaire représente dans les games de matchup du
   champion sur la même tranche, **avant** tout plancher — « tu croises ce champion
-  dans 4 % de tes parties » plutôt qu'un compte brut livré à l'interprétation. Sur
-  cette route il est toujours renseigné, y compris avec `opponent` : le dénominateur
-  vient alors d'une seconde somme indexée sur la même tranche, et non des seules
-  lignes renvoyées. C'est sur la route **scopée joueur** qu'il vaut `0` quand un
-  `opponent` unique est demandé — la jointure live n'a plus de quoi calculer le total.
+  dans 4 % de tes parties » plutôt qu'un compte brut livré à l'interprétation. Il
+  est toujours renseigné, y compris avec `opponent`, sur cette route comme sur la
+  route **scopée joueur** : le dénominateur vient d'un comptage séparé sur tout le
+  champ d'adversaires du joueur, avant filtrage sur `opponent` et avant le plancher
+  du leaderboard — jamais des seules lignes renvoyées.
 - `winRateLowerBound` / `winRateUpperBound` : bornes de l'intervalle de Wilson à
   95 %. La liste des **meilleurs** matchups se trie sur la borne basse et celle des
   **pires** sur la borne haute — trier sur le winrate brut ferait du classement un
