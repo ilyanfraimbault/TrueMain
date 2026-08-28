@@ -1,11 +1,16 @@
 import type { EventHandler, H3Event } from 'h3'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { isUnsafeProxyPath } from '~~/server/utils/proxy-path'
 
-// The only entry point to the privileged backend. It is a Nitro route, so the two things
-// it leans on — `requireUserSession` and `useRuntimeConfig` — are auto-imports rather than
-// module imports; stubbing them as globals is what lets the handler run outside Nitro.
-// `proxyRequest` is mocked so nothing here ever opens a socket, which is also what makes
-// "no session rejects before any network call" an assertion rather than a hope.
+// The only entry point to the privileged backend. It is a Nitro route, so the three things
+// it leans on — `requireUserSession`, `useRuntimeConfig` and `isUnsafeProxyPath` — are
+// auto-imports rather than module imports; stubbing them as globals is what lets the
+// handler run outside Nitro. `isUnsafeProxyPath` is stubbed with the real implementation
+// (imported directly, not mocked) rather than a `vi.fn()`, so the escaping-path cases below
+// exercise the actual predicate — pinned separately in tests/proxy-path/proxy-path.test.ts —
+// instead of a canned return value. `proxyRequest` is mocked so nothing here ever opens a
+// socket, which is also what makes "no session rejects before any network call" an
+// assertion rather than a hope.
 const proxyRequest = vi.fn()
 
 vi.mock('h3', async (importOriginal) => {
@@ -21,6 +26,7 @@ const useRuntimeConfig = vi.fn()
 
 vi.stubGlobal('requireUserSession', (event: H3Event) => requireUserSession(event))
 vi.stubGlobal('useRuntimeConfig', (event: H3Event) => useRuntimeConfig(event))
+vi.stubGlobal('isUnsafeProxyPath', isUnsafeProxyPath)
 
 async function loadHandler(): Promise<EventHandler> {
   const module = await import('~~/server/api/ops/[...path]')
