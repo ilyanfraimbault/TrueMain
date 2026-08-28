@@ -1849,6 +1849,41 @@ a CDN URL *and* uses it as a cache key, so an unvalidated `?patch=` is both a pa
 unbounded-cache-key vector: one entry per distinct string, held for the payload TTL. The guard lives in
 `normalizeRequestedPatch` and covers all four web static endpoints, not just the champion list.
 
+## The admin portal has one status vocabulary and one duration ladder (2026-08-28)
+
+Six presentation rules were coded twice or more across the portal, and two had already drifted into
+readings that contradicted each other. The failure mode is always the same, so the rule is now that
+`shared/utils/` — or `app/utils/` for the client-only ones — owns each of these outright.
+
+**A run status is `info` while it is running, never the emerald `primary`.** `/processes` painted from its
+own private table and `/health` from `pipeline-health.ts`, so the same in-flight run was emerald on one page
+and blue on the other. `info` wins: emerald is this portal's "this succeeded" colour, and a run still going
+has not succeeded yet. Colour *and* icon now live together in `PROCESS_STATUS_META`, the way
+`DETECTOR_STATUS_META` already did — and the chain view's `notRun` is an adapter onto the cockpit's
+`Missing`, because "there is no run to report" is one claim, not two.
+
+**A duration is humanised in exactly one place, and it counts days.** `formatDuration` stopped at hours
+while `formatGapMagnitude` had a private ladder that reached days, so a three-day span read `72h` on
+`/processes` and `3d` on `/health` — two pages that link to each other. There is now a single
+`formatElapsed(ms)` carrying the days tier, which `formatGapMagnitude` delegates to, keeping only the two
+things genuinely local to a gap: its "not measurable" wording and its minutes-to-ms conversion.
+
+It is also renamed. `formatDuration` meant humanised milliseconds in the admin and a `mm:ss` game clock in
+`web/app/utils/relativeTime.ts` — one name, two contracts, one repo. A copy-paste between the two apps
+produced a wrong display that no type error caught.
+
+**A percentage is `formatPercent` / `formatPercentOrDash`, and an absent share is a dash.** Five call sites
+each formatted their own, and `/riot-api` printed `0%` for a status-code share when the window had counted
+no calls at all — a fabricated number, since `0%` claims "this status never happened" and no reading
+supported it. The share is now `null` when there is no denominator and renders as the em dash, the same rule
+the API side has followed since #924/#1024. Only the *bar* beside it still resolves to a zero width: it is a
+drawing of the share, not a reading of it.
+
+The one duplicate deliberately left standing is `DataQualityDetectorItem.formatLevel`. It looks like the
+others and is not: it also accepts an already-scaled `percent` unit, and it trims trailing zeros so a
+configured threshold reads `40%` rather than `40.0%`. Routing it through `formatPercent` would regress the
+display to buy a shared call.
+
 ## Keeping these files current
 
 A PR that ships a user-facing feature, removes one, or reverses a decision here **must update

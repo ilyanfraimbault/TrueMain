@@ -202,32 +202,10 @@ const trackedRiotId = computed(() =>
 )
 
 // --- Status presentation -----------------------------------------------------
-type StatusColor = 'neutral' | 'info' | 'success' | 'error'
-
-function statusColor(s: SeedRequestStatus): StatusColor {
-  switch (s) {
-    case 'Ingested':
-      return 'success'
-    case 'Failed':
-      return 'error'
-    case 'Resolving':
-      return 'info'
-    default:
-      return 'neutral'
-  }
-}
-function statusIcon(s: SeedRequestStatus): string {
-  switch (s) {
-    case 'Ingested':
-      return 'i-lucide-circle-check'
-    case 'Failed':
-      return 'i-lucide-circle-x'
-    case 'Resolving':
-      return 'i-lucide-loader'
-    default:
-      return 'i-lucide-clock'
-  }
-}
+// Badge colours/icons live in `utils/pipeline-status.ts` (auto-imported), so this page —
+// *the* seed-requests page — badges a status exactly like the account explorer and the
+// candidate pipeline do. The values used to coincide; only one of the copies would have
+// been touched by the next edit.
 
 // Stepper model: Pending -> Resolving -> (Ingested | Failed). The active step
 // derives from the tracked status; Failed marks the resolve step as errored.
@@ -744,8 +722,8 @@ const tableMeta = {
               <span class="text-muted font-normal">· {{ tracked.platformId }}</span>
             </p>
             <UBadge
-              :color="statusColor(tracked.status)"
-              :icon="statusIcon(tracked.status)"
+              :color="seedStatusColor(tracked.status)"
+              :icon="seedStatusIcon(tracked.status)"
               variant="subtle"
               size="sm"
               :label="tracked.status"
@@ -1075,8 +1053,8 @@ const tableMeta = {
             </template>
             <template #status-cell="{ row }">
               <UBadge
-                :color="statusColor(row.original.status)"
-                :icon="statusIcon(row.original.status)"
+                :color="seedStatusColor(row.original.status)"
+                :icon="seedStatusIcon(row.original.status)"
                 variant="subtle"
                 size="sm"
                 :label="row.original.status"

@@ -6,7 +6,7 @@
 // humanized sizes plus a bar chart of the largest objects by total size.
 import type { TableColumn } from '@nuxt/ui'
 import type { DbTableRow, StorageEngine } from '~~/shared/types/ops'
-import { formatDate, formatDayLabel, formatNumber, humanizeBytes } from '~~/shared/utils/format'
+import { formatDate, formatDayLabel, formatNumber, formatPercentOrDash, humanizeBytes } from '~~/shared/utils/format'
 
 const { data, pending, error, refresh } = useDbTables()
 
@@ -416,7 +416,7 @@ function crossingColor(projectedAtUtc: string | null): 'error' | 'warning' | 'ne
                 {{ series.rowsPerDay >= 0 ? '+' : '' }}{{ formatCount(series.rowsPerDay) }} rows/d
               </span>
               <span class="w-16 text-right text-muted">
-                {{ series.growthRate === null ? '—' : `${(series.growthRate * 100).toFixed(0)}%` }}
+                {{ formatPercentOrDash(series.growthRate, 0) }}
               </span>
             </div>
           </div>

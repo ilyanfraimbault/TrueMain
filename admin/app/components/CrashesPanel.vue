@@ -9,7 +9,7 @@ import { h } from 'vue'
 import { UCheckbox } from '#components'
 import type { TableColumn } from '@nuxt/ui'
 import type { BadgeColor, CrashReport, CrashSource } from '~~/shared/types/ops'
-import { formatDateTime, formatDuration, humanizeBytes } from '~~/shared/utils/format'
+import { formatDateTime, formatElapsed, humanizeBytes } from '~~/shared/utils/format'
 
 const processFilter = ref<string>(ALL)
 const sourceFilter = ref<string>(ALL)
@@ -197,7 +197,7 @@ function crashToText(c: CrashReport): string {
   lines.push(`OS:        ${c.osDescription ?? '—'}`)
   lines.push(`Runtime:   ${c.runtimeVersion ?? '—'}`)
   lines.push(`App:       ${c.appVersion ?? '—'}`)
-  lines.push(`Uptime:    ${formatDuration(c.uptimeSeconds * 1000)}`)
+  lines.push(`Uptime:    ${formatElapsed(c.uptimeSeconds * 1000)}`)
   lines.push(`Memory:    working set ${humanizeBytes(c.workingSetBytes)}, managed heap ${humanizeBytes(c.totalManagedMemoryBytes)}`)
   lines.push(`GC:        gen0 ${c.gen0Collections} / gen1 ${c.gen1Collections} / gen2 ${c.gen2Collections}`)
   if (c.exitCode !== null) {
@@ -456,7 +456,7 @@ function crashToText(c: CrashReport): string {
                 Uptime
               </dt>
               <dd class="tabular-nums">
-                {{ formatDuration(selectedEntry.uptimeSeconds * 1000) }}
+                {{ formatElapsed(selectedEntry.uptimeSeconds * 1000) }}
               </dd>
             </div>
             <div>
