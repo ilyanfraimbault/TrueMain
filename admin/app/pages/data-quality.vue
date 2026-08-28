@@ -430,7 +430,7 @@ const detailTitle = computed(() => detail.value?.matchId ?? detailId.value ?? 'M
               :label="showPassing
                 ? 'Hide passing checks'
                 : `Show ${passingDetectors.length} passing ${plural(passingDetectors.length, 'check', 'checks')}`"
-              @click="showPassing = !showPassing"
+              @click="void (showPassing = !showPassing)"
             />
           </div>
         </UCard>
