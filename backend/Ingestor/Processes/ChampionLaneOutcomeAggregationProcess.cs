@@ -39,9 +39,10 @@ namespace Ingestor.Processes;
 /// inside the band are neither won nor lost. Storing wins and losses separately keeps
 /// them out of the ratio instead of silently counting them as losses, and keeps
 /// <c>LaneGames</c> — matches where a lane could be judged at all — distinct from the
-/// matchup's <c>Games</c>. A match with no ingested timeline, or one that ended before
-/// the 15-minute mark, is a game but not a judgeable lane; dividing by <c>Games</c>
-/// would understate every lane win rate by the share of those.
+/// matchup's <c>Games</c>. A match that ended before the 15-minute mark is a game but
+/// not a judgeable lane; dividing by <c>Games</c> would understate every lane win rate
+/// by the share of those. (A match whose timeline has not been ingested is a different
+/// case entirely: it is not folded at all, it waits — see the selection below.)
 /// </para>
 ///
 /// <para>
@@ -99,9 +100,17 @@ public sealed class ChampionLaneOutcomeAggregationProcess(
 
             // IX_matches_lane_outcome_pending keeps this an index scan. It covers the
             // whole retained table on day one and shrinks as the backlog drains.
+            //
+            // TimelineIngested is part of the predicate, exactly as in the sibling
+            // matchup and powerspike folds: the flag below is set for every match in
+            // the batch, productive or not, so folding a match whose timeline has not
+            // arrived yet — the ordinary case, TimelineIngestionService leaves the flag
+            // false on a truncated payload and re-fetches later — would flag it as done
+            // while contributing nothing, and nothing would ever pick it up again
+            // (#1223).
             var matchIds = await db.Matches
                 .AsNoTracking()
-                .Where(m => m.QueueId == queueId && !m.LaneOutcomeAggregated)
+                .Where(m => m.QueueId == queueId && !m.LaneOutcomeAggregated && m.TimelineIngested)
                 .OrderBy(m => m.Id)
                 .Take(take)
                 .Select(m => m.Id)
@@ -166,7 +175,7 @@ public sealed class ChampionLaneOutcomeAggregationProcess(
             .ToListAsync(ct);
 
         // The gold reading both sides are compared on. Keyed per (match, participant);
-        // a match whose timeline was never ingested simply has no rows here, and its
+        // a game that ended before the 15-minute mark simply has no rows here, and its
         // lanes are then not judgeable — counted in neither LaneGames nor the outcomes.
         var readingsAt15 = await db.MatchParticipantTimelineSnapshots
             .AsNoTracking()

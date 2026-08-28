@@ -900,6 +900,19 @@ rebuilt as a *plain transactional* migration — the timeout risk no longer held
 `CONCURRENTLY` plus a manual pre-create step meant prod's schema was not reproducible from migrations alone.
 Accepted: a `SHARE` lock stalls the ingestor for the tens of seconds of the build — PR #750.
 👉 The rule is about **heavy** index builds, not about partial single-column indexes on a table of this size.
+**Generalised (#1227): no migration may contain a statement Postgres refuses inside a transaction — at all.**
+`migrationBuilder.Sql(..., suppressTransaction: true)` does not buy an escape hatch on the real deploy path.
+That flag only has an effect for `Database.MigrateAsync()`, and `ApplyMigrationsOnStartup` is permanently
+`false` in preprod and prod. Deploys run `dotnet ef migrations script --idempotent` piped into
+`psql --single-transaction`, which defeats it twice over: `--idempotent` wraps *every* statement in a
+`DO $EF$ ... END $EF$` PL/pgSQL block (Postgres: `CREATE INDEX CONCURRENTLY cannot be executed from a
+function`), and `psql` opens an explicit transaction around the whole file (so a procedural `COMMIT;` inside a
+`DO` block is an `invalid transaction termination`). Six migrations carried one or the other. It was silent
+because preprod and prod already had them in `__EFMigrationsHistory` and the idempotent guards skipped their
+blocks — it would only have surfaced on the first database built from scratch: a new preprod, a DR restore,
+onboarding. All six were rewritten as plain transactional DDL, which is free: their bodies now only ever
+re-execute on an empty database. The `migrate-fresh` CI job applies the generated script to a blank Postgres
+on every PR so this cannot come back.
 
 **Npgsql pools are capped per service (api 50, ingestor 20) against Postgres `max_connections=100`.**
 Two unbounded pools defaulting to 100 each could request 200 connections; once truemain.lol went live this
@@ -1722,6 +1735,31 @@ The trap to remember when touching it: `@unovis/ts` maps the **value** to the bo
 so a horizontal chart's `yFormatter` is its index → label lookup, not its value formatter. The wrapper makes
 the same swap upstream does. Get it wrong and the tooltip prints a bucket label where a count belongs — which
 typechecks, renders, and is wrong. That case is pinned by a test.
+
+## A Riot ID resolves case-insensitively, in exactly one place (2026-08-26)
+
+Ten services turned a Riot ID into an account row, and they did not agree. Nine compared it with `==` under
+Postgres' default case-sensitive collation; the tenth, the champion mains comparison, lowered both halves. So
+`Name#tag` answered on `/champions/{id}/mains-comparison` and **404'd** on `/truemains/Name-tag/profile` —
+each of the nine carrying a comment claiming "all routes agree on which account a name tag means".
+
+**Case-insensitive is the settled semantics.** A Riot ID reaches us as text a human typed, pasted or
+re-typed from a shared link — it is not an identity we issued, the PUUID is. The stored casing still wins on
+the way out: the identity a page renders comes from the row, so a profile shows the Riot ID as Riot spells it
+whatever the URL said. `/truemains/phantasm-euw1` and `/truemains/Phantasm-EUW1` are now the same page.
+
+All ten callers go through `Api/Services/Truemains/TruemainAccountResolver.cs`, which also owns the tiebreak
+that was copied ten times with it: a `(gameName, tagLine)` pair is unique within a routing region but collides
+across regions and across renames — which is why that index is deliberately not unique, see the entry above —
+so the **most recently active row wins**, `Id` breaking an exact timestamp tie. Locked by
+`TruemainAccountResolutionApiIntegrationTests`, which walks several routes per casing.
+
+The lookup is `lower("GameName") = $1 AND lower("TagLine") = $2` rather than `ILIKE`: equality sidesteps LIKE
+metacharacters in raw user input entirely, and it is the exact expression a functional index on
+`(lower("GameName"), lower("TagLine"))` would serve — which an `ILIKE` could not use. **No such index exists
+yet**, so this trades the index seek the nine `==` copies got for a sequential scan of `riot_accounts`. That
+was accepted knowingly for this PR: adding one is a schema change (compiled-model regeneration, migration) and
+belongs in its own, measured PR.
 
 ## Keeping these files current
 

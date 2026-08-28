@@ -58,6 +58,7 @@ public sealed class MatchSummariesQueryServiceIntegrationTests
     private static MatchSummariesQueryService CreateService(Data.TrueMainDbContext db)
         => new(
             db,
+            new TruemainAccountResolver(db),
             new MatchSummaryHydrator(db, NullLogger<MatchSummaryHydrator>.Instance),
             NullLogger<MatchSummariesQueryService>.Instance);
 
