@@ -39,7 +39,7 @@ public sealed class RiotApiMetricsSinkIntegrationTests
         // The sink creates its indexes once on startup; wait for the supporting
         // indexes (including the unique upsert key) so the assertion below is not
         // racing startup.
-        await WaitUntilAsync(async () =>
+        await AsyncWait.UntilAsync(async () =>
         {
             var names = (await collection.Indexes.List().ToListAsync())
                 .Select(index => index["name"].AsString)
@@ -48,7 +48,7 @@ public sealed class RiotApiMetricsSinkIntegrationTests
                 && names.Contains("ix_timestamp_desc")
                 && names.Contains("ix_endpoint_timestamp")
                 && names.Contains("ttl_timestamp");
-        });
+        }, "the sink to create its rollup upsert, timestamp and TTL indexes");
 
         // Pin a single minute so the two match calls share a bucket and must fold
         // into one rollup (count 2) rather than two documents.
@@ -61,12 +61,12 @@ public sealed class RiotApiMetricsSinkIntegrationTests
 
         // The sink flushes on its short window; poll until the two match calls have
         // folded into a single count-2 rollup and all three rollups are present.
-        await WaitUntilAsync(async () =>
+        await AsyncWait.UntilAsync(async () =>
         {
             var docs = await collection.Find(FilterDefinition<RiotApiCallRollupDocument>.Empty).ToListAsync();
             var match = docs.FirstOrDefault(doc => doc.Endpoint == "match-v5.match");
             return docs.Count == 3 && match is { Count: 2 };
-        });
+        }, "the two match calls to fold into one count-2 rollup alongside the other two endpoints");
 
         await host.StopAsync();
 
@@ -105,21 +105,21 @@ public sealed class RiotApiMetricsSinkIntegrationTests
 
         // A 429 carrying Retry-After + app rate-limit headers persists first.
         recorder.Record(Record("match-v5.timeline", 429, 30, at, appLimit: "20:1", appCount: "9:1", retryAfter: 5));
-        await WaitUntilAsync(async () =>
+        await AsyncWait.UntilAsync(async () =>
         {
             var doc = await collection.Find(FilterDefinition<RiotApiCallRollupDocument>.Empty).FirstOrDefaultAsync();
             return doc is { Count: 1, RetryAfterSeconds: 5 };
-        });
+        }, "the 429 to persist with its Retry-After and app rate-limit headers");
 
         // A later 429 in the same minute whose response had no Retry-After / headers
         // must fold into the same rollup (count 2) without a $set:null erasing the
         // values the first call stored.
         recorder.Record(Record("match-v5.timeline", 429, 40, at));
-        await WaitUntilAsync(async () =>
+        await AsyncWait.UntilAsync(async () =>
         {
             var doc = await collection.Find(FilterDefinition<RiotApiCallRollupDocument>.Empty).FirstOrDefaultAsync();
             return doc is { Count: 2 };
-        });
+        }, "the second 429 to fold into the same rollup without erasing the stored headers");
 
         await host.StopAsync();
 
@@ -152,11 +152,11 @@ public sealed class RiotApiMetricsSinkIntegrationTests
         // dropped or merged into either named caller's rollup.
         recorder.Record(Record("match-v5.match", 200, 70, at));
 
-        await WaitUntilAsync(async () =>
+        await AsyncWait.UntilAsync(async () =>
         {
             var docs = await collection.Find(FilterDefinition<RiotApiCallRollupDocument>.Empty).ToListAsync();
             return docs.Count == 3;
-        });
+        }, "the three caller-scoped rollups to land");
 
         await host.StopAsync();
 
@@ -204,20 +204,4 @@ public sealed class RiotApiMetricsSinkIntegrationTests
             RetryAfterSeconds: retryAfter,
             RateLimitType: null,
             CallerProcess: callerProcess);
-
-    private static async Task WaitUntilAsync(Func<Task<bool>> condition)
-    {
-        var deadline = DateTime.UtcNow.AddSeconds(10);
-        while (DateTime.UtcNow < deadline)
-        {
-            if (await condition())
-            {
-                return;
-            }
-
-            await Task.Delay(50);
-        }
-
-        throw new TimeoutException("Condition not met within the timeout.");
-    }
 }

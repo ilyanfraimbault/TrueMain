@@ -37,12 +37,12 @@ public sealed class MongoLoggingIntegrationTests
 
         // The sink creates its indexes once on startup; wait for the TTL retention
         // index before logging so the assertion below is not racing startup.
-        await WaitUntilAsync(async () =>
+        await AsyncWait.UntilAsync(async () =>
         {
             var names = (await collection.Indexes.List().ToListAsync())
                 .Select(index => index["name"].AsString);
             return names.Contains("ttl_timestamp");
-        });
+        }, "the sink to create its ttl_timestamp retention index");
 
         // A Warning at the configured minimum must be persisted; an Information
         // below it must be dropped.
@@ -53,8 +53,9 @@ public sealed class MongoLoggingIntegrationTests
 
         // The sink flushes on its 100ms window; poll until the two qualifying
         // records land rather than depending on shutdown timing.
-        await WaitUntilAsync(async () =>
-            await collection.CountDocumentsAsync(FilterDefinition<MongoLogDocument>.Empty) == 2);
+        await AsyncWait.UntilAsync(async () =>
+            await collection.CountDocumentsAsync(FilterDefinition<MongoLogDocument>.Empty) == 2,
+            "the sink to persist the warning and the error, and drop the information");
 
         await host.StopAsync();
 
@@ -101,8 +102,9 @@ public sealed class MongoLoggingIntegrationTests
         logger.LogWarning(OpsEvents.SeedRequestFailed, "Seed request failed.");
         logger.LogWarning("plain warning, persisted without eventType");
 
-        await WaitUntilAsync(async () =>
-            await collection.CountDocumentsAsync(FilterDefinition<MongoLogDocument>.Empty) == 3);
+        await AsyncWait.UntilAsync(async () =>
+            await collection.CountDocumentsAsync(FilterDefinition<MongoLogDocument>.Empty) == 3,
+            "the sink to persist the three ops records");
 
         await host.StopAsync();
 
@@ -149,8 +151,9 @@ public sealed class MongoLoggingIntegrationTests
         // Other categories are untouched by the Polly rule.
         otherLogger.LogWarning("persisted warning");
 
-        await WaitUntilAsync(async () =>
-            await collection.CountDocumentsAsync(FilterDefinition<MongoLogDocument>.Empty) == 2);
+        await AsyncWait.UntilAsync(async () =>
+            await collection.CountDocumentsAsync(FilterDefinition<MongoLogDocument>.Empty) == 2,
+            "the sink to persist the two records the category rules keep");
 
         await host.StopAsync();
 
@@ -209,26 +212,6 @@ public sealed class MongoLoggingIntegrationTests
         return ttl is not null && ttl.TryGetValue("expireAfterSeconds", out var expire)
             ? expire.ToInt64()
             : null;
-    }
-
-    /// <summary>
-    /// Polls <paramref name="condition"/> until it is true or the timeout elapses,
-    /// so a test can wait on the asynchronous sink without a fixed sleep.
-    /// </summary>
-    private static async Task WaitUntilAsync(Func<Task<bool>> condition)
-    {
-        var deadline = DateTime.UtcNow.AddSeconds(10);
-        while (DateTime.UtcNow < deadline)
-        {
-            if (await condition())
-            {
-                return;
-            }
-
-            await Task.Delay(50);
-        }
-
-        throw new TimeoutException("Condition not met within the timeout.");
     }
 
     [Fact]
