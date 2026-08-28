@@ -8,7 +8,7 @@ using TrueMain.ReadModels.Truemains;
 namespace TrueMain.Services.Truemains;
 
 public sealed class ProfileQueryService(
-    TrueMainDbContext db,
+    TruemainAccountResolver resolver,
     IDbContextFactory<TrueMainDbContext> dbFactory,
     IOptions<MainAnalysisOptions> mainAnalysisOptions,
     ILogger<ProfileQueryService> logger) : IProfileQueryService
@@ -38,33 +38,7 @@ public sealed class ProfileQueryService(
 
     public async Task<ProfileReadModel?> GetAsync(string nameTag, CancellationToken ct)
     {
-        if (!NameTagParser.TryParse(nameTag, out var parsed))
-        {
-            return null;
-        }
-
-        // Multi-platform name-tag disambiguation: a (gameName, tagLine) pair
-        // is unique within a Riot routing region but can collide across
-        // regions (rare but real). Picking the most-recently-active row
-        // matches what a human looking for "this player" would expect, and
-        // mirrors the resolver used by the matches endpoint so both routes
-        // always land on the same account.
-        var account = await db.RiotAccounts
-            .AsNoTracking()
-            .Where(a => a.GameName == parsed.GameName && a.TagLine == parsed.TagLine)
-            .OrderByDescending(a => a.LastMatchIngestAtUtc ?? a.UpdatedAtUtc)
-            .Select(a => new
-            {
-                a.Id,
-                a.Puuid,
-                a.GameName,
-                a.TagLine,
-                a.PlatformId,
-                a.ProfileIconId,
-                a.SummonerLevel,
-            })
-            .FirstOrDefaultAsync(ct);
-
+        var account = await resolver.ResolveAsync(nameTag, ct);
         if (account is null)
         {
             return null;

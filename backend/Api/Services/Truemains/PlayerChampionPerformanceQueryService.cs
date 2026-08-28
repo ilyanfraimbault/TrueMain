@@ -27,6 +27,7 @@ namespace TrueMain.Services.Truemains;
 /// </summary>
 public sealed class PlayerChampionPerformanceQueryService(
     TrueMainDbContext db,
+    TruemainAccountResolver resolver,
     IOptions<MainAnalysisOptions> options,
     IMemoryCache cache)
     : IPlayerChampionPerformanceQueryService
@@ -55,20 +56,12 @@ public sealed class PlayerChampionPerformanceQueryService(
         string? position,
         CancellationToken ct)
     {
-        if (!NameTagParser.TryParse(nameTag, out var parsed) || championId <= 0)
+        if (championId <= 0)
         {
             return null;
         }
 
-        // Same name-tag resolution as the sibling player-scoped routes, so all
-        // of them agree on which account a name tag means.
-        var account = await db.RiotAccounts
-            .AsNoTracking()
-            .Where(a => a.GameName == parsed.GameName && a.TagLine == parsed.TagLine)
-            .OrderByDescending(a => a.LastMatchIngestAtUtc ?? a.UpdatedAtUtc)
-            .Select(a => new { a.Id, a.Puuid })
-            .FirstOrDefaultAsync(ct);
-
+        var account = await resolver.ResolveAsync(nameTag, ct);
         if (account is null)
         {
             return null;
