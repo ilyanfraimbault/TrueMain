@@ -460,10 +460,10 @@ public sealed class ChampionSummariesQueryService(
     // less-played position can leave only a handful of rows clearing
     // MinSampleGames) trivially top its own tiny peer group on every metric —
     // reintroducing, via lane population size, the exact "flukes into
-    // S-tier" failure this whole rework exists to fix for game count. Tiering
-    // per lane here also matches ChampionTierListQueryService.TierPosition,
-    // so a row's Tier/TierScore on GET /champions now agrees with the same
-    // row's entry on GET /champions/tierlist for the same (patch, eloBracket).
+    // S-tier" failure this whole rework exists to fix for game count. This is
+    // the only place a tier is computed: GET /champions/tierlist reshapes these
+    // same stamped rows instead of re-tiering them, so a row's Tier/TierScore
+    // cannot differ between the two endpoints for the same (patch, eloBracket).
     private IReadOnlyList<ChampionSummaryReadModel> AssignTiers(
         List<ChampionSummaryReadModel> summaries, ChampionTierOptions options)
     {

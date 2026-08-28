@@ -13,9 +13,11 @@ public sealed class ChampionBuildsQueryService(
     IOptions<MainAnalysisOptions> options)
     : IChampionBuildsQueryService
 {
-    private const int MaxBuilds = 4;
+    // Build tabs and per-dimension variations are shared with the live matchup
+    // fold — both feed the same panel, see ChampionBuildDisplayCaps.
+    private const int MaxBuilds = ChampionBuildDisplayCaps.MaxBuilds;
     private const double MinBuildPickRate = 0.05;
-    private const int VariationsTopN = 3;
+    private const int VariationsTopN = ChampionBuildDisplayCaps.MaxVariations;
     private const int RunePagesTopN = 3;
 
     /// <summary>
