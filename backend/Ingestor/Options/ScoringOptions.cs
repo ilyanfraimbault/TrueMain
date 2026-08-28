@@ -44,4 +44,16 @@ public class ScoringOptions
     /// so they stay on the same 0-100 scale as ladder candidates in the top-N.
     /// </summary>
     public double HarvestObservedGamesLogNormalizer { get; set; } = 1.5;
+
+    /// <summary>
+    /// Log10 normalizer for the champion-points merit of ladder candidates. Log10(1 000 000) ≈ 6,
+    /// so the default 6.0 makes roughly a million mastery points a full merit score of 1.0.
+    /// <para>
+    /// An option rather than a constant so it matches its twin
+    /// <see cref="HarvestObservedGamesLogNormalizer"/>: the two normalizers sit on the same
+    /// scorer, on the same 0-100 scale, and there is no reason one of them should be tunable
+    /// without a redeploy while the other is not.
+    /// </para>
+    /// </summary>
+    public double ChampionPointsLogNormalizer { get; set; } = 6.0;
 }
