@@ -91,7 +91,7 @@ public sealed class PlayerChampionPerformanceQueryService(
 
         if (unhonourablePosition)
         {
-            return Empty(championId, position, normalizedPatch);
+            return Empty(championId, normalizedPosition, normalizedPatch);
         }
 
         var cacheKey = $"truemains:champion-performance:{account.Id}:{championId}"
